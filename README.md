@@ -1,5 +1,8 @@
 ## HMMER - biological sequence analysis using profile HMMs
 
+*** Warning:  This is not the primary repository of HMMER. Please find the official repo at: https://github.com/EddyRivasLab/hmmer ***
+
+
 [HMMER](http://hmmer.org) searches biological sequence databases for homologous sequences,
 using either single sequences or multiple sequence alignments as
 queries. HMMER implements a technology called "profile hidden Markov

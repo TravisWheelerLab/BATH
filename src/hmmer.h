@@ -1632,6 +1632,12 @@ extern int p7_Pipeline_LongTarget   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCORE
                                      const ESL_SQ *sq, int complementarity,
                                      const FM_DATA *fmf, const FM_DATA *fmb, FM_CFG *fm_cfg
                                      );
+extern int p7_Pipeline_Frameshift   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
+                                     P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx,
+                                     const ESL_SQ *sq, int complementarity,
+                                     const FM_DATA *fmf, const FM_DATA *fmb, FM_CFG *fm_cfg
+                                     );
+
 
 
 

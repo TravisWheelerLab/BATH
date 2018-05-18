@@ -222,7 +222,7 @@ struct cfg_s {
 };
 
 static char usage[]  = "[options] <query hmmfile|alignfile|seqfile> <target seqfile>";
-static char banner[] = "search a DNA model, alignment, or sequence against a DNA database";
+static char banner[] = "search a protien model, alignment, or sequence against a DNA database";
 
 
 static int  serial_master  (ESL_GETOPTS *go, struct cfg_s *cfg);
@@ -593,6 +593,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    * Next try to read as an MSA. This involves opening, and reading the first alignment.
    * If that alignment is of a single sequence
    */
+
+//TODO: Test MSA and seqence inputs for correct alphebet
   if (cfg->qfmt != eslSQFILE_FASTA && cfg->qfmt != NHMMER_QFORMAT_HMM && hfp == NULL  ) { /*i.e. some MSA type; or unspecified, and HMM didn't work*/
 
 
@@ -676,7 +678,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    * will fall through to testing the fmindex in step (2)
    */
   if (dbformat != eslSQFILE_FMINDEX) { /* either we've been told what it is, or we need to autodetect. Start with sequence file */
-
+    
     status = esl_sqfile_Open(cfg->dbfile, dbformat, p7_SEQDBENV, &dbfp);
     if (status == eslEFORMAT) {
       if (dbformat == eslSQFILE_UNKNOWN) {
@@ -794,12 +796,12 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   infocnt = (ncpus == 0) ? 1 : ncpus;
   ESL_ALLOC(info, sizeof(*info) * infocnt);
 
+
   if (qhstatus == eslOK) {
       /* One-time initializations after alphabet <abc> becomes known */
-      output_header(ofp, go, cfg->queryfile, cfg->dbfile, ncpus);
-
+	  output_header(ofp, go, cfg->queryfile, cfg->dbfile, ncpus);
       if (dbformat != eslSQFILE_FMINDEX)
-        dbfp->abc = abc;
+        dbfp->abc = abcDNA;
 
       for (i = 0; i < infocnt; ++i)    {
           info[i].pli    = NULL;
@@ -808,7 +810,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
          // if (bg_manual != NULL)
          //   info[i].bg = p7_bg_Clone(bg_manual);
          // else
-            info[i].bg = p7_bg_Create(abc);
+            info[i].bg = p7_bg_Create(abcAMINO);
 
 #ifdef HMMER_THREADS
           info[i].queue = queue;
@@ -835,7 +837,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
         {
 
-          block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abc);
+          block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcDNA);
           if (block == NULL)           esl_fatal("Failed to allocate sequence block");
 
           status = esl_workqueue_Init(queue, block);
@@ -846,7 +848,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   }
 
   if (qfp_sq != NULL || qfp_msa  != NULL )  {  // need to convert query sequence / msa to HMM
-    builder = p7_builder_Create(NULL, abc);
+    builder = p7_builder_Create(NULL, abcAMINO);
     if (builder == NULL)  p7_Fail("p7_builder_Create failed");
 
     // special arguments for hmmbuild
@@ -911,7 +913,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       else if (window_beta   > 0)     p7_Builder_MaxLength(hmm, window_beta);
       else if (hmm->max_length == -1 ) p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
 
-
       if (hmmoutfp != NULL) {
         if ((status = p7_hmmfile_WriteASCII(hmmoutfp, -1, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
         fclose(hmmoutfp);
@@ -952,8 +953,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
 
       /* Convert to an optimized model */
-      gm = p7_profile_Create (hmm->M, abc);
-      om = p7_oprofile_Create(hmm->M, abc);
+      gm = p7_profile_Create (hmm->M, abcAMINO);
+      om = p7_oprofile_Create(hmm->M, abcAMINO);
       p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       p7_oprofile_Convert(gm, om);                  /* <om> is now p7_LOCAL, multihit */
 
@@ -1039,7 +1040,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         for(i=0; i<fm_cfg->meta->seq_count; i++)
           add_id_length(id_length_list, fm_cfg->meta->seq_data[i].target_id, fm_cfg->meta->seq_data[i].target_start + fm_cfg->meta->seq_data[i].length - 1);
 
-        if (ncpus > 0)  sstatus = thread_loop_FM (info, threadObj, queue, dbfp);
+        if (ncpus > 0)  sstatus = serial_loop_FM (info, dbfp);
+		//thread_loop_FM (info, threadObj, queue, dbfp);
         else            sstatus = serial_loop_FM (info, dbfp);
       }
       else
@@ -1050,7 +1052,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         else            sstatus = serial_loop    (info, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
       }
 
-#else /10/HMMER_THREADS
+#else //HMMER_THREADS
 #if defined (eslENABLE_SSE)
       if (dbformat == eslSQFILE_FMINDEX)
         sstatus = serial_loop_FM (info, dbfp);
@@ -1308,7 +1310,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 static int
 serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
 {
-
+  
   int      wstatus = eslOK;
   int seq_id = 0;
   ESL_SQ   *dbsq   =  esl_sq_CreateDigital(info->om->abc);
@@ -1316,7 +1318,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 
   if (dbsq->abc->complement != NULL)
     dbsq_revcmp =  esl_sq_CreateDigital(info->om->abc);
-
+  
   wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
 
   while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
@@ -1324,9 +1326,8 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       p7_pli_NewSeq(info->pli, dbsq);
 
       if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
-
         info->pli->nres -= dbsq->C; // to account for overlapping region of windows
-        p7_Pipeline_LongTarget(info->pli, info->om, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, NULL, NULL, NULL);
+        p7_Pipeline_Frameshift(info->pli, info->om, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, NULL, NULL, NULL);
         p7_pipeline_Reuse(info->pli); // prepare for next search
 
       } else {
@@ -1336,7 +1337,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       //reverse complement
       if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
       {
-          esl_sq_Copy(dbsq,dbsq_revcmp);
+	  esl_sq_Copy(dbsq,dbsq_revcmp);
           esl_sq_ReverseComplement(dbsq_revcmp);
           p7_Pipeline_LongTarget(info->pli, info->om, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_revcmp, p7_COMPLEMENT, NULL, NULL, NULL);
           p7_pipeline_Reuse(info->pli); // prepare for next search

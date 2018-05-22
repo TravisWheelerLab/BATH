@@ -91,6 +91,7 @@ PROGS = alimask\
 	jackhmmer\
 	phmmer\
         phmmert\
+	fsphmmert\
 	nhmmer\
         nhmmscan\
 	nhmmscant\

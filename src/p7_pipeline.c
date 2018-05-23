@@ -761,6 +761,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   long             sq_from;        /* start location in query in amino acids */
   long             sq_to;          /* end llocation in query in amino acids */
 
+
   if (sq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */
 
   p7_omx_GrowTo(pli->oxf, om->M, 0, sq->n);    /* expand the one-row omx if needed */
@@ -1807,17 +1808,67 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
                         const FM_DATA *fmf, const FM_DATA *fmb, FM_CFG *fm_cfg
                         )
 {
-   
-  int              i;
+  P7_HIT          *hit     = NULL;     /* ptr to the current hit output data      */
+  float            usc, vfsc, fwdsc;   /* filter scores                           */
+  float            filtersc;           /* HMM null filter score                   */
+  float            nullsc;             /* null model score                        */
+  float            seqbias;
+  float            seq_score;          /* the corrected per-seq bit score */
+  float            sum_score;           /* the corrected reconstruction score for the seq */
+  float            pre_score, pre2_score; /* uncorrected bit scores for seq */
+  double           P;                /* P-value of a hit */
+  double           lnP;              /* log P-value of a hit */
+  int              Ld;               /* # of residues in envelopes */
+  int              d;
   int              status;
-  float            nullsc;   /* null model score                        */
-  float            usc;      /* msv score  */
-  float            P;
-  float            bias_filtersc;
 
-  ESL_DSQ          *subseq;
-  uint64_t         seq_start;
-  return eslOK;
+  long             sq_from;        /* start location in query in amino acids */
+  long             sq_to;          /* end llocation in query in amino acids */
+ 
+  if (orfsq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */	
+
+  p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
+
+  /* Base null model score (we could calculate this in NewSeq(), for a scan pipeline) */
+  p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
+	
+  /* First level filter: the MSV filter, multihit with <om> */
+  p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
+  seq_score = (usc - nullsc) / eslCONST_LOG2;
+  P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+  if (P > pli->F1) return eslOK;
+  pli->n_past_msv++;
+	
+  /* biased composition HMM filtering */
+  if (pli->do_biasfilter)
+    {
+      p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
+      seq_score = (usc - filtersc) / eslCONST_LOG2;
+      P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+      if (P > pli->F1) return eslOK;
+    }	
+  else filtersc = nullsc;
+  pli->n_past_bias++;
+   
+  /* Second level filter: ViterbiFilter(), multihit with <om> */
+  if (P > pli->F2)
+    {
+      p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
+      seq_score = (vfsc-filtersc) / eslCONST_LOG2;
+      P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
+      if (P > pli->F2) return eslOK;
+    }
+  pli->n_past_vit++;
+   printf("pass vit %llu\n",    pli->n_past_vit);
+
+   /* Parse it with Forward and obtain its real Forward score. */
+  p7_ForwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, &fwdsc);
+  seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
+  P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+  if (P > pli->F3) return eslOK;
+  pli->n_past_fwd++;
+    printf("pass forward %llu\n",    pli->n_past_fwd);
+ return eslOK;
 
 }
 

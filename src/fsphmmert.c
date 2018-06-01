@@ -61,8 +61,9 @@ typedef struct {
   P7_PIPELINE      *pli;         /* work pipeline                           */
   P7_TOPHITS       *th;          /* top hit results                         */
   P7_OPROFILE      *om;          /* optimized query profile                 */
-  FM_CFG           *fm_cfg;      /* global data for FM-index for fast SSV */
-  P7_SCOREDATA     *scoredata;   /* hmm-specific data used by nhmmer */
+  P7_PROFILE	   *gm;		 /* n0n-optimized quert profile		    */
+  FM_CFG           *fm_cfg;      /* global data for FM-index for fast SSV   */
+  P7_SCOREDATA     *scoredata;   /* hmm-specific data used by nhmmer        */
 } WORKER_INFO;
 
 typedef struct {
@@ -846,7 +847,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
           info[i].pli    = NULL;
           info[i].th     = NULL;
           info[i].om     = NULL;
-         // if (bg_manual != NULL)
+          info[i].gm	 = NULL;
+	  // if (bg_manual != NULL)
          //   info[i].bg = p7_bg_Clone(bg_manual);
          // else
             info[i].bg = p7_bg_Create(abc);
@@ -1063,6 +1065,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
             /* Create processing pipeline and hit list */
             info[i].th  = p7_tophits_Create();
             info[i].om = p7_oprofile_Copy(om);
+	    info[i].gm = p7_profile_Clone(gm);
 	    info[i].dnasq = tsqDNA;
             info[i].pli = p7_pipeline_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
 
@@ -1415,7 +1418,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       p7_bg_SetLength(info->bg, orfsq->n);
       p7_oprofile_ReconfigLength(info->om, orfsq->n);
 
-      p7_Pipeline_Frameshift(info->pli, info->om, info->scoredata, info->bg, info->th, info->dnasq, orfsq, NULL, NULL, NULL);
+      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->dnasq, orfsq, NULL, NULL, NULL);
        
       esl_sq_Reuse(orfsq);
       p7_pipeline_Reuse(info->pli);

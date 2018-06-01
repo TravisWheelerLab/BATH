@@ -17,7 +17,6 @@
 #include "esl_getopts.h"
 #include "esl_gumbel.h"
 #include "esl_vectorops.h"
-
 #include "hmmer.h"
 
 /* Struct used to pass a collection of useful temporary objects around
@@ -1568,7 +1567,7 @@ p7_Pipeline_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
 
   ESL_DSQ          *subseq;
   uint64_t         seq_start;
-
+  int u;
 
   P7_HMM_WINDOWLIST msv_windowlist;
   P7_HMM_WINDOWLIST vit_windowlist;
@@ -1802,7 +1801,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
+p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data,
                         P7_BG *bg, P7_TOPHITS *hitlist,
                         const ESL_SQ *dnasq, const ESL_SQ *orfsq, 
                         const FM_DATA *fmf, const FM_DATA *fmb, FM_CFG *fm_cfg
@@ -1824,14 +1823,20 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
 
   long             sq_from;        /* start location in query in amino acids */
   long             sq_to;          /* end llocation in query in amino acids */
- 
+
+  P7_GMX	*gx;
+  P7_HMM_WINDOWLIST msv_windowlist;
+  ESL_DSQ          *subseq;
+  int 		   length;
+  float ploop, pmove, Lamino;
+
   if (orfsq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */	
 
   p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
 
   /* Base null model score (we could calculate this in NewSeq(), for a scan pipeline) */
   p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
-	
+
   /* First level filter: the MSV filter, multihit with <om> */
   p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
   seq_score = (usc - nullsc) / eslCONST_LOG2;
@@ -1860,15 +1865,39 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
     }
   pli->n_past_vit++;
    printf("pass vit %llu\n",    pli->n_past_vit);
+  printf("start %lld\n", orfsq->start);
+ 
+  subseq = dnasq->dsq + orfsq->start - 1;
+  length = orfsq->end - orfsq->start;
 
-   /* Parse it with Forward and obtain its real Forward score. */
-  p7_ForwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, &fwdsc);
+
+
+  gx = p7_gmx_Create(om->M * 6, length + 4);
+ 
+  /* Reconfigure the N,J,C tranistions for the amino acid length rather than the nucleo
+tide length*/
+  Lamino = ((float) length)/ 3.0;
+  pmove = (2.0f + gm->nj) / (Lamino + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  ploop = 1.0f - pmove;
+  gm->xsc[p7P_N][p7P_LOOP] =  gm->xsc[p7P_C][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = log(ploop);
+  gm->xsc[p7P_N][p7P_MOVE] =  gm->xsc[p7P_C][p7P_MOVE] = gm->xsc[p7P_J][p7P_MOVE] = log(pmove);
+  //p7_GForward(subseq, length, gm, gx, &fwdsc);
+
+  p7_Forward_Frameshift(subseq, length, gm, gx, &fwdsc);
+
+  printf("fwd ret\n");   
+  
+    /* Parse it with Forward and obtain its real Forward score. */
+/*  p7_ForwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, &fwdsc);
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   if (P > pli->F3) return eslOK;
   pli->n_past_fwd++;
     printf("pass forward %llu\n",    pli->n_past_fwd);
- return eslOK;
+
+    printf("max length %d\n", om->max_length);
+ */   
+    return eslOK;
 
 }
 

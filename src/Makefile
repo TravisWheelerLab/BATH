@@ -106,6 +106,7 @@ OBJS =  build.o\
 	errors.o\
 	evalues.o\
 	eweight.o\
+	fwdback_frameshift.o\
 	generic_decoding.o\
 	generic_fwdback.o\
 	generic_fwdback_chk.o\

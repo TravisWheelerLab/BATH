@@ -685,7 +685,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
          esl_sq_Reuse(qsqDNA);
 		 
       } /* while ((cfg->n_targetseq < 0 || (cfg->n_targetseq > 0 &&... loop */
-
+	      
       /* Print the results.  */
       p7_tophits_SortBySortkey(tophits_accumulator);
       p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);

@@ -15,7 +15,9 @@
 
 #include "hmmer.h"
 
-static int max_codon_one(float **rsc, ESL_SQ *codon, ESL_GENCODE *gcode, int nuc1); 
+static int max_codon_one(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, float *ret_emit);
+static int max_codon_two(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, int nuc2, float *ret_emit); 
+
 /*****************************************************************
  * 1. Forward, Backward, Hybrid implementations.
  *****************************************************************/
@@ -55,6 +57,10 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   int          M    = gm->M;
   int          i, k;  
   float        esc  = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
+  const float        no_indel = log(0.97);
+  const float	       one_indel = log(0.01);
+  const float        two_indel = log(0.005);
+
   ESL_SQ      *codon;
   ESL_ALPHABET *abcDNA;
   ESL_ALPHABET *abcAmino; 
@@ -64,12 +70,13 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   p7_FLogsumInit();		/* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
 
   /* Initialization of the zeroth-fourth row. */
-  for(i = 0; i < 5; i++) {
+  for(i = 0; i <= FS_OFFSET; i++) {
     XMX(i,p7G_N) = 0;                                           /* S->N, p=1            */
     XMX(i,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];                    /* S->N->B, no N-tail   */
     XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;  /* need seq to get here */
-    for (k = 0; k <= M * 6; k++)
-      MMX(i,k) = IMX(i,k) = DMX(i,k) = -eslINFINITY;            /* need seq to get here */
+    for (k = 0; k <= M; k++)
+      MMX_FS(i,k,p7G_C0) = MMX_FS(i,k,p7G_C1) = MMX_FS(i,k,p7G_C2) = MMX_FS(i,k,p7G_C3)      = MMX_FS(i,k,p7G_C4) = MMX_FS(i,k,p7G_C5) = IMX(i,k) = DMX(i,k) = -eslINFINITY;
+    /* need seq to get here */
   }
 
   abcDNA = esl_alphabet_Create(eslDNA);
@@ -77,35 +84,48 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   codon = esl_sq_CreateDigitalFrom(abcDNA, NULL, dsq, 3, NULL, NULL, NULL);
   gcode = esl_gencode_Create(abcDNA, abcAmino);
 
-  max_codon_one(gm->rsc, codon, gcode, 0);
   /* Recursion. Done as a pull.
    * Note some slightly wasteful boundary conditions:  
    *    tsc[0] = impossible for all eight transitions (no node 0)
    *    D_1 is wastefully calculated (doesn't exist)
    */
-#if 0
+
   for (i = 1; i <= L; i++) 
     {
-      float const *rsc = gm->rsc[dsq[i]];
       float sc;
+      float sc1;
+      float sc2;
+      float sc3;
+      float sc4;
+      float sc5;
 
-      MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
+      MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) 
+      = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
       XMX(i, p7G_E) = -eslINFINITY;
 
       for (k = 1; k < M; k++)
 	{
-	  /* match state */
-	  sc = p7_FLogsum(p7_FLogsum(MMX(i-1,k-1)   + TSC(p7P_MM,k-1), 
+	  max_codon_one(gm->rsc, codon, gcode, k, dsq[i], &sc1);
+         // printf("let %d, pos, %d, emit %f\n", i, k, sc1);
+
+  	  /* match state */
+	  sc = p7_FLogsum(p7_FLogsum(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
 				     IMX(i-1,k-1)   + TSC(p7P_IM,k-1)),
 			  p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,k-1),
 				     DMX(i-1,k-1)   + TSC(p7P_DM,k-1)));
-	  MMX(i,k) = sc + MSC(k);
+	  MMX_FS(i,k,p7G_C1) = sc + sc1 + one_indel;
 
+	  if(i > 1) {
+	    max_codon_two(gm->rsc, codon, gcode, k, dsq[i-1], dsq[i], &sc2);
+	  }
+	}
+    }
+#if 0	  
 	  /* insert state */
-	  sc = p7_FLogsum(MMX(i-1,k) + TSC(p7P_MI,k),
+	  IMX(i,k) = p7_FLogsum(MMX(i-1,k) + TSC(p7P_MI,k),
 			  IMX(i-1,k) + TSC(p7P_II,k));
-	  IMX(i,k) = sc + ISC(k);
-
+	  IMX(i,k) = sc;
+	
 	  /* delete state */
 	  DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
 				DMX(i,k-1) + TSC(p7P_DD,k-1));
@@ -269,12 +289,16 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
 }
 
 int
-max_codon_one(float **rsc, ESL_SQ *codon, ESL_GENCODE *gcode, int nuc1) {
+max_codon_one(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, float *ret_emit) {
 
   int i, j;
-  ESL_DSQ *dsq = codon->dsq;  
   int amino;
+  float cur_emit;
+  
+  float const *rsc  = NULL;
+  ESL_DSQ *dsq = codon->dsq;  
 
+  *ret_emit = -eslINFINITY;
   dsq[1] = nuc1;
 
   for(i = 0; i < 4; i++) {
@@ -282,13 +306,87 @@ max_codon_one(float **rsc, ESL_SQ *codon, ESL_GENCODE *gcode, int nuc1) {
       dsq[2] = i;
       dsq[3] = j;
       amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
-      printf("amino %d\n", amino);
+      rsc = esc[amino];
+      cur_emit = MSC(k);
+      *ret_emit = ESL_MAX(*ret_emit, cur_emit);
     } 
   }	
 
-  return 0;
+  dsq[2] = nuc1;
+
+  for(i = 0; i < 4; i++) {
+    for(j = 0; j < 4; j++) {
+      dsq[1] = i;
+      dsq[3] = j;
+      amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
+      rsc = esc[amino];
+      cur_emit = MSC(k);
+      *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+    } 
+  }	
+
+  dsq[3] = nuc1;
+
+  for(i = 0; i < 4; i++) {
+    for(j = 0; j < 4; j++) {
+      dsq[1] = i;
+      dsq[2] = j;
+      amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
+      rsc = esc[amino];
+      cur_emit = MSC(k);
+      *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+    } 
+  }	
+
+  return eslOK;
 }
 
+int 
+max_codon_two(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, int nuc2, float *ret_emit) {
+
+  int i;
+  int amino;
+  float cur_emit;
+  
+  float const *rsc  = NULL;
+  ESL_DSQ *dsq = codon->dsq;  
+
+  *ret_emit = -eslINFINITY;
+  dsq[1] = nuc1;
+  dsq[2] = nuc2;
+
+  for(i = 0; i < 4; i++) {
+    dsq[3] = i;
+    amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
+    rsc = esc[amino];
+    cur_emit = MSC(k);
+    *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+  } 
+  	
+  dsq[2] = nuc1;
+  dsq[3] = nuc2;
+
+  for(i = 0; i < 4; i++) {
+    dsq[1] = i;
+    amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
+    rsc = esc[amino];
+    cur_emit = MSC(k);
+    *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+  }	
+
+  dsq[1] = nuc1;
+  dsq[3] = nuc2;
+
+  for(i = 0; i < 4; i++) {
+    dsq[2] = i;
+    amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
+    rsc = esc[amino];
+    cur_emit = MSC(k);
+    *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+  }	
+
+  return eslOK;
+}
 
 
 

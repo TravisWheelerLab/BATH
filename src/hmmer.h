@@ -448,14 +448,21 @@ typedef struct p7_hmmfile_s {
 /*****************************************************************
  * 6. P7_GMX: a "generic" dynamic programming matrix
  *****************************************************************/
-
+enum p7g_codons_e {
+  p7G_C0 = 0,
+  p7G_C1 = 3,
+  p7G_C2 = 4,
+  p7G_C3 = 5,
+  p7G_C4 = 6,
+  p7G_C5 = 7,
+};
 enum p7g_scells_e {
   p7G_M = 0,
   p7G_I = 1,
   p7G_D = 2,
 };
 #define p7G_NSCELLS 3
-
+#define p7G_NSCELLS_FS 8
 enum p7g_xcells_e {
   p7G_E  = 0,
   p7G_N  = 1,
@@ -493,6 +500,9 @@ typedef struct p7_gmx_s {
 #define IMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_I])
 #define DMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
 #define XMX(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
+
+#define FS_OFFSET 4
+#define MMX_FS(i,k,c) (dp[(i+FS_OFFSET)][(k) * p7G_NSCELLS + p7G_M + (c)])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
@@ -1539,6 +1549,11 @@ extern int     p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance);
 extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
+/* p7_gmx_fs.c */
+extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL);
+extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int allocM, int allocL);
+extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags);
+extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
 /* p7_hmm.c */
 /*      1. The P7_HMM object: allocation, initialization, destruction. */

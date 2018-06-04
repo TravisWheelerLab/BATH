@@ -1872,7 +1872,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
 
 
 
-  gx = p7_gmx_Create(om->M * 6, length + 4);
+  gx = p7_gmx_fs_Create(om->M, length);
  
   /* Reconfigure the N,J,C tranistions for the amino acid length rather than the nucleo
 tide length*/

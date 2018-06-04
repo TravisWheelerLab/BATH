@@ -138,6 +138,7 @@ OBJS =  build.o\
 	p7_gmx.o\
 	p7_gmxb.o\
 	p7_gmxchk.o\
+	p7_gmx_fs.o\
 	p7_hmm.o\
 	p7_hmmcache.o\
 	p7_hmmfile.o\

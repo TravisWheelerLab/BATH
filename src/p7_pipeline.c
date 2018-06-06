@@ -1841,7 +1841,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
   seq_score = (usc - nullsc) / eslCONST_LOG2;
   P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-  if (P > pli->F1) return eslOK;
+ if (P > pli->F1) return eslOK;
   pli->n_past_msv++;
 	
   /* biased composition HMM filtering */
@@ -1856,12 +1856,12 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   pli->n_past_bias++;
    
   /* Second level filter: ViterbiFilter(), multihit with <om> */
-  if (P > pli->F2)
+ if (P > pli->F2)
     {
       p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
       seq_score = (vfsc-filtersc) / eslCONST_LOG2;
       P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
-      if (P > pli->F2) return eslOK;
+     if (P > pli->F2) return eslOK;
     }
   pli->n_past_vit++;
    printf("pass vit %llu\n",    pli->n_past_vit);
@@ -1871,10 +1871,10 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   length = orfsq->end - orfsq->start;
 
 
+  printf("length : %d\n", length);
+  gx = p7_gmx_fs_Create(gm->M, length);
 
-  gx = p7_gmx_fs_Create(om->M, length);
- 
-  /* Reconfigure the N,J,C tranistions for the amino acid length rather than the nucleo
+    /* Reconfigure the N,J,C tranistions for the amino acid length rather than the nucleo
 tide length*/
   Lamino = ((float) length)/ 3.0;
   pmove = (2.0f + gm->nj) / (Lamino + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
@@ -1882,9 +1882,8 @@ tide length*/
   gm->xsc[p7P_N][p7P_LOOP] =  gm->xsc[p7P_C][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm->xsc[p7P_N][p7P_MOVE] =  gm->xsc[p7P_C][p7P_MOVE] = gm->xsc[p7P_J][p7P_MOVE] = log(pmove);
   //p7_GForward(subseq, length, gm, gx, &fwdsc);
-
+  printf("length : %d\n", length);
   p7_Forward_Frameshift(subseq, length, gm, gx, &fwdsc);
-
   printf("fwd ret\n");   
   
     /* Parse it with Forward and obtain its real Forward score. */

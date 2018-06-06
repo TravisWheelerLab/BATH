@@ -15,8 +15,11 @@
 
 #include "hmmer.h"
 
-static int max_codon_one(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, float *ret_emit);
-static int max_codon_two(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, int nuc2, float *ret_emit); 
+static float max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel);
+static float max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float one_indel); 
+static float max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float no_indel);
+
+
 
 /*****************************************************************
  * 1. Forward, Backward, Hybrid implementations.
@@ -58,27 +61,27 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   int          i, k;  
   float        esc  = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
   const float        no_indel = log(0.97);
-  const float	       one_indel = log(0.01);
+  const float	     one_indel = log(0.01);
   const float        two_indel = log(0.005);
-
   ESL_SQ      *codon;
   ESL_ALPHABET *abcDNA;
   ESL_ALPHABET *abcAmino; 
   ESL_GENCODE     *gcode       = NULL;
   
- 
   p7_FLogsumInit();		/* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
 
-  /* Initialization of the zeroth-fourth row. */
-  for(i = 0; i <= FS_OFFSET; i++) {
-    XMX(i,p7G_N) = 0;                                           /* S->N, p=1            */
-    XMX(i,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];                    /* S->N->B, no N-tail   */
-    XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;  /* need seq to get here */
+   /* Initialization of the zeroth-fourth row. */
+  for(i = -4; i <= 0; i++) {
+    XMX_FS(i,p7G_N) = 0;                                           /* S->N, p=1            */
+    XMX_FS(i,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];                    /* S->N->B, no N-tail   */
+    XMX_FS(i,p7G_E) = XMX_FS(i,p7G_C) = XMX_FS(i,p7G_J) = -eslINFINITY;  /* need seq to get here */
+   
     for (k = 0; k <= M; k++)
-      MMX_FS(i,k,p7G_C0) = MMX_FS(i,k,p7G_C1) = MMX_FS(i,k,p7G_C2) = MMX_FS(i,k,p7G_C3)      = MMX_FS(i,k,p7G_C4) = MMX_FS(i,k,p7G_C5) = IMX(i,k) = DMX(i,k) = -eslINFINITY;
+      MMX_FS(i,k,p7G_C0) = MMX_FS(i,k,p7G_C1) = MMX_FS(i,k,p7G_C2) = MMX_FS(i,k,p7G_C3)      
+      = MMX_FS(i,k,p7G_C4) = MMX_FS(i,k,p7G_C5) = IMX_FS(i,k) = DMX_FS(i,k) = -eslINFINITY;
     /* need seq to get here */
   }
-
+  
   abcDNA = esl_alphabet_Create(eslDNA);
   abcAmino = esl_alphabet_Create(eslAMINO);
   codon = esl_sq_CreateDigitalFrom(abcDNA, NULL, dsq, 3, NULL, NULL, NULL);
@@ -89,38 +92,54 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
    *    tsc[0] = impossible for all eight transitions (no node 0)
    *    D_1 is wastefully calculated (doesn't exist)
    */
-
+  printf("length %d\n", L);
   for (i = 1; i <= L; i++) 
-    {
+    {    
       float sc;
       float sc1;
       float sc2;
       float sc3;
       float sc4;
       float sc5;
-
-      MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) 
-      = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
-      XMX(i, p7G_E) = -eslINFINITY;
-
+	
+      MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3)      = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
+//	printf("%d\n", i);
+      XMX_FS(i, p7G_E) = -eslINFINITY;
       for (k = 1; k < M; k++)
 	{
-	  max_codon_one(gm->rsc, codon, gcode, k, dsq[i], &sc1);
-         // printf("let %d, pos, %d, emit %f\n", i, k, sc1);
+	  sc1 = p7_FLogsum(p7_FLogsum(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
+				     IMX_FS(i-1,k-1)   + TSC(p7P_IM,k-1)),
+			  p7_FLogsum(XMX_FS(i-1,p7G_B) + TSC(p7P_BM,k-1),
+				     DMX_FS(i-1,k-1)   + TSC(p7P_DM,k-1)));
 
-  	  /* match state */
-	  sc = p7_FLogsum(p7_FLogsum(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
-				     IMX(i-1,k-1)   + TSC(p7P_IM,k-1)),
-			  p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,k-1),
-				     DMX(i-1,k-1)   + TSC(p7P_DM,k-1)));
-	  MMX_FS(i,k,p7G_C1) = sc + sc1 + one_indel;
+	  sc1 += max_codon_one(gm->rsc, codon->dsq, dsq, gcode, k, i, two_indel);
+  	  
+	  MMX_FS(i,k,p7G_C1) = sc1;
 
-	  if(i > 1) {
-	    max_codon_two(gm->rsc, codon, gcode, k, dsq[i-1], dsq[i], &sc2);
-	  }
+	  sc2 = p7_FLogsum(p7_FLogsum(MMX_FS(i-2,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
+				     IMX_FS(i-2,k-1)   + TSC(p7P_IM,k-1)),
+			  p7_FLogsum(XMX_FS(i-2,p7G_B) + TSC(p7P_BM,k-1),
+				     DMX_FS(i-2,k-1)   + TSC(p7P_DM,k-1)));
+	
+	  sc2 += max_codon_two(gm->rsc, codon->dsq, dsq, gcode, k, i, one_indel);
+
+	  MMX_FS(i,k,p7G_C2) = sc2;
+  
+	  sc3 = p7_FLogsum(p7_FLogsum(MMX_FS(i-3,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
+				     IMX_FS(i-3,k-1)   + TSC(p7P_IM,k-1)),
+			  p7_FLogsum(XMX_FS(i-3,p7G_B) + TSC(p7P_BM,k-1),
+				     DMX_FS(i-3,k-1)   + TSC(p7P_DM,k-1)));
+	
+	  sc3 += max_codon_three(gm->rsc, codon->dsq, dsq, gcode, k, i, no_indel);
+
+	  MMX_FS(i,k,p7G_C3) = sc3;
+  
+
+	  
 	}
     }
-#if 0	  
+ 
+#if 0 
 	  /* insert state */
 	  IMX(i,k) = p7_FLogsum(MMX(i-1,k) + TSC(p7P_MI,k),
 			  IMX(i-1,k) + TSC(p7P_II,k));
@@ -288,107 +307,143 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
   return eslOK;
 }
 
-int
-max_codon_one(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, float *ret_emit) {
+float
+max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel) {
 
-  int i, j;
+  int h, j;
   int amino;
   float cur_emit;
+  float max_emit;
   
   float const *rsc  = NULL;
-  ESL_DSQ *dsq = codon->dsq;  
 
-  *ret_emit = -eslINFINITY;
-  dsq[1] = nuc1;
+  max_emit = -eslINFINITY;
+  codon[1] = dsq[i];
 
-  for(i = 0; i < 4; i++) {
+  for(h = 0; h < 4; h++) {
     for(j = 0; j < 4; j++) {
-      dsq[2] = i;
-      dsq[3] = j;
-      amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
-      rsc = esc[amino];
+      codon[2] = h;
+      codon[3] = j;
+      amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+      rsc = emit_sc[amino];
       cur_emit = MSC(k);
-      *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+      max_emit = ESL_MAX(max_emit, cur_emit);
     } 
   }	
 
-  dsq[2] = nuc1;
+  codon[2] = dsq[i];
 
-  for(i = 0; i < 4; i++) {
+  for(h = 0; h < 4; h++) {
     for(j = 0; j < 4; j++) {
-      dsq[1] = i;
-      dsq[3] = j;
-      amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
-      rsc = esc[amino];
+      codon[1] = h;
+      codon[3] = j;
+      amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+      rsc = emit_sc[amino];
       cur_emit = MSC(k);
-      *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+      max_emit = ESL_MAX(max_emit, cur_emit);
     } 
   }	
 
-  dsq[3] = nuc1;
+  codon[3] = dsq[i];
 
-  for(i = 0; i < 4; i++) {
+  for(h = 0; h < 4; h++) {
     for(j = 0; j < 4; j++) {
-      dsq[1] = i;
-      dsq[2] = j;
-      amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
-      rsc = esc[amino];
+      codon[1] = h;
+      codon[2] = j;
+      amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+      rsc = emit_sc[amino];
       cur_emit = MSC(k);
-      *ret_emit = ESL_MAX(*ret_emit, cur_emit);
+      max_emit = ESL_MAX(max_emit, cur_emit);
     } 
   }	
 
-  return eslOK;
+  return max_emit + two_indel;
 }
 
-int 
-max_codon_two(float **esc, ESL_SQ *codon, ESL_GENCODE *gcode, int k, int nuc1, int nuc2, float *ret_emit) {
+float 
+max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float one_indel) {
 
-  int i;
+  int j;
   int amino;
   float cur_emit;
-  
+  float max_emit;
+
   float const *rsc  = NULL;
-  ESL_DSQ *dsq = codon->dsq;  
 
-  *ret_emit = -eslINFINITY;
-  dsq[1] = nuc1;
-  dsq[2] = nuc2;
+  if(i <= 1) {
+ 
+	  return 0.0;
+  } else {
+	 
+    max_emit = -eslINFINITY;
+  
+    codon[1] = dsq[i-1];
+    codon[2] = dsq[i];
 
-  for(i = 0; i < 4; i++) {
-    dsq[3] = i;
-    amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
-    rsc = esc[amino];
-    cur_emit = MSC(k);
-    *ret_emit = ESL_MAX(*ret_emit, cur_emit);
-  } 
+    for(j = 0; j < 4; j++) {
+      codon[3] = j;
+      amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+      rsc = emit_sc[amino];
+      cur_emit = MSC(k);
+      max_emit = ESL_MAX(max_emit, cur_emit);
+    } 
   	
-  dsq[2] = nuc1;
-  dsq[3] = nuc2;
+    codon[2] = dsq[i-1];
+    codon[3] = dsq[i];
 
-  for(i = 0; i < 4; i++) {
-    dsq[1] = i;
-    amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
-    rsc = esc[amino];
-    cur_emit = MSC(k);
-    *ret_emit = ESL_MAX(*ret_emit, cur_emit);
-  }	
+    for(j = 0; j < 4; j++) {
+      codon[1] = j;
+      amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+      rsc = emit_sc[amino];
+      cur_emit = MSC(k);
+      max_emit = ESL_MAX(max_emit, cur_emit);
+    }	
 
-  dsq[1] = nuc1;
-  dsq[3] = nuc2;
+    codon[1] = dsq[i-1];
+    codon[3] = dsq[i];
 
-  for(i = 0; i < 4; i++) {
-    dsq[2] = i;
-    amino = esl_gencode_GetTranslation(gcode, &dsq[1]);
-    rsc = esc[amino];
-    cur_emit = MSC(k);
-    *ret_emit = ESL_MAX(*ret_emit, cur_emit);
-  }	
+    for(j = 0; j < 4; j++) {
+      codon[2] = j;
+      amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+      rsc = emit_sc[amino];
+      cur_emit = MSC(k);
+      max_emit = ESL_MAX(max_emit, cur_emit);
+    }	
 
-  return eslOK;
+    return max_emit + one_indel;
+
+  }
+
 }
 
+float 
+max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float no_indel) {
 
+  int amino;
+  float max_emit;
+
+  float const *rsc  = NULL;
+
+  if(i <= 2) {
+ 
+	  return 0.0;
+  } else {
+	 
+    max_emit = -eslINFINITY;
+  
+    codon[1] = dsq[i-2];
+    codon[2] = dsq[i-1];
+    codon[3] = dsq[i];
+
+    amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+    rsc = emit_sc[amino];
+    max_emit = MSC(k);
+
+    return max_emit + no_indel;
+
+  }
+
+}
 
 /*------------- end: forward, backward, hybrid ------------------*/
 

@@ -44,16 +44,17 @@ p7_gmx_fs_Create(int allocM, int allocL)
   ESL_ALLOC(gx->dp,      sizeof(float *) * (allocL+5));
   ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocL+5) * p7G_NXCELLS);
   ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+5) * (allocM+1) * p7G_NSCELLS_FS);
-
+  printf("allocM %d\n", allocM); 
+    
   /* Set the row pointers. */
-  for (i = 0; i <= allocL; i++) 
+  for (i = 0; i <= allocL+4; i++)  
     gx->dp[i] = gx->dp_mem + i * (allocM+1) * p7G_NSCELLS_FS;
-
+  
   /* Initialize memory that's allocated but unused, only to keep
    * valgrind and friends happy.
    */
-  for (i = 0; i <= allocL; i++) 
-    {
+  for (i = 0; i <= allocL+4; i++) 
+    { 
       gx->dp[i][0      * p7G_NSCELLS_FS + p7G_M + p7G_C0] = -eslINFINITY; /* M_0 Codon 0*/
       gx->dp[i][0      * p7G_NSCELLS_FS + p7G_M + p7G_C1] = -eslINFINITY; /* M_0 Codon 1*/
       gx->dp[i][0      * p7G_NSCELLS_FS + p7G_M + p7G_C2] = -eslINFINITY; /* M_0 Codon 2*/
@@ -72,6 +73,7 @@ p7_gmx_fs_Create(int allocM, int allocL)
   gx->allocR = allocL+5;
   gx->validR = allocL+5;
   gx->ncells = (uint64_t) (allocM+1)* (uint64_t) (allocL+5);
+
   return gx;
 
  ERROR:
@@ -153,6 +155,20 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L)
   return status;
 }
 
+/* Function:  p7_gmx_fs_Sizeof()
+ * Synopsis:  Returns the allocation size of DP matrix, in bytes.
+ */
+size_t
+p7_gmx_fs_Sizeof(P7_GMX *gx)
+{
+  size_t n = 0;
+
+  n += sizeof(P7_GMX);
+  n += gx->ncells * p7G_NSCELLS_FS * sizeof(float); /* main dp cells: gx->dp_mem */
+  n += gx->allocR * sizeof(float *);             /* row ptrs:      gx->dp[]   */
+  n += gx->allocR * p7G_NXCELLS * sizeof(float); /* specials:      gx->xmx    */
+  return n;
+}
 /*****************************************************************
  * 2. Debugging aids
  *****************************************************************/

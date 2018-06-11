@@ -148,8 +148,8 @@ p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, f
         sv   = _mm_max_epi16 (sv, _mm_adds_epi16(dpv, *tsc)); tsc++;
         sv   = _mm_adds_epi16(sv, *rsc);                      rsc++;
         xEv  = _mm_max_epi16(xEv, sv);
-
-        /* Load {MDI}(i-1,q) into mpv, dpv, ipv;
+        
+	/* Load {MDI}(i-1,q) into mpv, dpv, ipv;
          * {MDI}MX(q) is then the current, not the prev row
          */
         mpv = MMXo(q);

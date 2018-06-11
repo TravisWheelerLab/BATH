@@ -44,7 +44,6 @@ p7_gmx_fs_Create(int allocM, int allocL)
   ESL_ALLOC(gx->dp,      sizeof(float *) * (allocL+5));
   ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocL+5) * p7G_NXCELLS);
   ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+5) * (allocM+1) * p7G_NSCELLS_FS);
-  printf("allocM %d\n", allocM); 
     
   /* Set the row pointers. */
   for (i = 0; i <= allocL+4; i++)  

@@ -139,9 +139,8 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
   sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
   for (k = 1; k <= hmm->M; k++) {
-    for (x = 0; x < hmm->abc->K; x++)
+    for (x = 0; x < hmm->abc->K; x++) 
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
-
     esl_abc_FExpectScVec(hmm->abc, sc, bg->f); 
 
     for (x = 0; x < hmm->abc->Kp; x++) {

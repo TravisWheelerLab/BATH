@@ -329,6 +329,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
   int32_t              window_len;
   int64_t              tmp;
   int                  new_hit_cnt = 0;
+//printf("max %d, start %lld, end %lld\n", om->max_length, window_start, window_end);
 
   if (windowlist->count == 0)
     return eslOK;
@@ -337,11 +338,9 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
   for (i=0; i<windowlist->count; i++) {
 
     curr_window = windowlist->windows+i;
-
     if ( curr_window->complementarity == p7_COMPLEMENT) {
       //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
       curr_window->n = curr_window->target_len - curr_window->n +  1;
-
       window_start   = ESL_MAX( 1                      ,  curr_window->n - curr_window->length - (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) ) ;
       window_end     = ESL_MIN( curr_window->target_len,  curr_window->n                       + (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) )   ;
       tmp            = window_end;
@@ -391,7 +390,6 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
     }
   }
   windowlist->count = new_hit_cnt+1;
-
   return eslOK;
 }
 
@@ -1820,7 +1818,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   int              Ld;               /* # of residues in envelopes */
   int              d;
   int              status;
-
+  int i; //debug
   long             sq_from;        /* start location in query in amino acids */
   long             sq_to;          /* end llocation in query in amino acids */
 
@@ -1828,7 +1826,8 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   P7_HMM_WINDOWLIST msv_windowlist;
   ESL_DSQ          *subseq;
   int 		   length;
-  float ploop, pmove, Lamino;
+  int		   start;
+  float ploop, pmove, amino_length;
 
   if (orfsq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */	
 
@@ -1841,9 +1840,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
   seq_score = (usc - nullsc) / eslCONST_LOG2;
   P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
- if (P > pli->F1) return eslOK;
+  if (P > pli->F1) return eslOK;
   pli->n_past_msv++;
-	
+  
   /* biased composition HMM filtering */
   if (pli->do_biasfilter)
     {
@@ -1861,41 +1860,35 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
       p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
       seq_score = (vfsc-filtersc) / eslCONST_LOG2;
       P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
-     if (P > pli->F2) return eslOK;
+      if (P > pli->F2) return eslOK;
     }
   pli->n_past_vit++;
-   printf("pass vit %llu\n",    pli->n_past_vit);
-  printf("start %lld\n", orfsq->start);
- 
+
   subseq = dnasq->dsq + orfsq->start - 1;
   length = orfsq->end - orfsq->start;
 
-
-  printf("length : %d\n", length);
   gx = p7_gmx_fs_Create(gm->M, length);
 
     /* Reconfigure the N,J,C tranistions for the amino acid length rather than the nucleo
 tide length*/
-  Lamino = ((float) length)/ 3.0;
-  pmove = (2.0f + gm->nj) / (Lamino + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  amino_length = ((float) length)/ 3.0;
+  pmove = (2.0f + gm->nj) / (amino_length + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
   ploop = 1.0f - pmove;
   gm->xsc[p7P_N][p7P_LOOP] =  gm->xsc[p7P_C][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm->xsc[p7P_N][p7P_MOVE] =  gm->xsc[p7P_C][p7P_MOVE] = gm->xsc[p7P_J][p7P_MOVE] = log(pmove);
-  //p7_GForward(subseq, length, gm, gx, &fwdsc);
-  printf("length : %d\n", length);
-  p7_Forward_Frameshift(subseq, length, gm, gx, &fwdsc);
-  printf("fwd ret\n");   
   
-    /* Parse it with Forward and obtain its real Forward score. */
-/*  p7_ForwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, &fwdsc);
+  /* Parse it with Forward and obtain its real Forward score. */
+  p7_Forward_Frameshift(subseq, length, gm, gx, &fwdsc);
+  
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
+  printf("fwd sc %f\n", seq_score);
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   if (P > pli->F3) return eslOK;
   pli->n_past_fwd++;
     printf("pass forward %llu\n",    pli->n_past_fwd);
 
     printf("max length %d\n", om->max_length);
- */   
+
     return eslOK;
 
 }

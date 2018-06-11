@@ -58,6 +58,7 @@ typedef struct {
 #endif /*HMMER_THREADS*/
   P7_BG            *bg;          /* null model                              */
   ESL_SQ           *dnasq;       /*orginal DNA sequence			    */
+  ESL_SQ           *dnasqRev;    /*reverse complement of dna sequence       */
   P7_PIPELINE      *pli;         /* work pipeline                           */
   P7_TOPHITS       *th;          /* top hit results                         */
   P7_OPROFILE      *om;          /* optimized query profile                 */
@@ -480,19 +481,18 @@ main(int argc, char **argv)
 }
 
 static int
-do_sq_by_sequences(ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ESL_SQ *sq)
+do_sq_by_sequences(ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ESL_SQ *sq, ESL_SQ *sq_rev)
 {
       if (wrk->do_watson) {
         esl_gencode_ProcessStart(gcode, wrk, sq);
         esl_gencode_ProcessPiece(gcode, wrk, sq);
         esl_gencode_ProcessEnd(wrk, sq);
       }
-
+      
       if (wrk->do_crick) {
-        esl_sq_ReverseComplement(sq);
-        esl_gencode_ProcessStart(gcode, wrk, sq);
-        esl_gencode_ProcessPiece(gcode, wrk, sq);
-        esl_gencode_ProcessEnd(wrk, sq);
+ 	esl_gencode_ProcessStart(gcode, wrk, sq_rev);
+        esl_gencode_ProcessPiece(gcode, wrk, sq_rev);
+       	esl_gencode_ProcessEnd(wrk, sq_rev);
       }
 
   return eslOK;
@@ -514,7 +514,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   FILE            *dfamtblfp    = NULL;            /* output stream for tabular Dfam format (--dfamtblout)  */
   FILE            *pfamtblfp= NULL;              /* output stream for pfam tabular output (--pfamtblout)    */
   FILE            *aliscoresfp  = NULL;            /* output stream for alignment scores (--aliscoresout)   */
-
+  
   /*Some fraction of these will be used, depending on what sort of input is used for the query*/
   P7_HMMFILE      *hfp        = NULL;              /* open input HMM file    */
   P7_HMM          *hmm        = NULL;              /* one HMM query          */
@@ -569,6 +569,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
   ESL_ALPHABET    *abcAMINO = NULL;       /* Amino sequence alphabet                               */
   ESL_SQ          *tsqDNA = NULL;                /* DNA target sequence                                  */
+  ESL_SQ          *tsqDNARev = NULL;                /* Reverse complemented DNA target sequence                                  */
   ESL_SQ          *tsqDNATxt = NULL;    /* DNA target sequence that will be in text mode for printing */
   int             n_targetseqs = 0;
   ESL_GENCODE     *gcode       = NULL;
@@ -693,7 +694,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (qhstatus != eslOK) p7_Fail("reading sequence from file %s (%d)\n", cfg->queryfile, qhstatus);
   }
 
-  /* nhmmer accepts _target_ files that are either (i) some sequence file format, or
+    /* nhmmer accepts _target_ files that are either (i) some sequence file format, or
    * (2) the eslSQFILE_FMINDEX format (called fmindex).
    * The following code will follow the mandate of --tformat, and otherwise figure what
    * the file type is.
@@ -709,6 +710,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    abcDNA = esl_alphabet_Create(eslDNA);
    abcAMINO = esl_alphabet_Create(eslAMINO);
    tsqDNA = esl_sq_CreateDigital(abcDNA);
+   tsqDNARev = esl_sq_CreateDigital(abcDNA);
    tsqDNATxt = esl_sq_Create();
 
   /* (1)
@@ -1048,18 +1050,19 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         {
           n_targetseqs++;
           if (tsqDNA->n < 3) continue; /* do not process sequence of less than 1 codon */
+		
 
           /* copy and convert the DNA sequence to text so we can print it in the domain alignment display */
           esl_sq_Copy(tsqDNA, tsqDNATxt);
+          esl_sq_Copy(tsqDNA, tsqDNARev);
+	  esl_sq_ReverseComplement(tsqDNARev);
 
           //printf("Creating 6 frame translations\n");
           /* create sequence block to hold translated ORFs */
           wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
 
           /* translate DNA sequence to 6 frame ORFs */
-          do_sq_by_sequences(gcode, wrk, tsqDNA);
-
-
+          do_sq_by_sequences(gcode, wrk, tsqDNA, tsqDNARev);
 
           for (i = 0; i < infocnt; ++i) {
             /* Create processing pipeline and hit list */
@@ -1067,7 +1070,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
             info[i].om = p7_oprofile_Copy(om);
 	    info[i].gm = p7_profile_Clone(gm);
 	    info[i].dnasq = tsqDNA;
-            info[i].pli = p7_pipeline_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
+            info[i].dnasqRev = tsqDNARev;
+	    info[i].pli = p7_pipeline_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
 
             //set method specific --F1, if it wasn't set at command line
             if (!esl_opt_IsOn(go, "--F1") ) {
@@ -1410,6 +1414,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       use the name, accession, and description from the DNA sequence and
       not from the ORF which is generated by gencode and only for internal use
       */
+ 
       if ((wstatus = esl_sq_SetName     (orfsq, info->dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
       if ((wstatus = esl_sq_SetAccession(orfsq, info->dnasq->acc))    != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence accession failed");
       if ((wstatus = esl_sq_SetDesc     (orfsq, info->dnasq->desc))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence description failed");
@@ -1418,8 +1423,12 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       p7_bg_SetLength(info->bg, orfsq->n);
       p7_oprofile_ReconfigLength(info->om, orfsq->n);
 
-      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->dnasq, orfsq, NULL, NULL, NULL);
-       
+     if(orfsq->start < orfsq->end) { 
+       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->dnasq, orfsq, NULL, NULL, NULL);
+     } else {
+       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->dnasqRev, orfsq, NULL, NULL, NULL);
+     }
+      
       esl_sq_Reuse(orfsq);
       p7_pipeline_Reuse(info->pli);
   }

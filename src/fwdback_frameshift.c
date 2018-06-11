@@ -18,17 +18,20 @@
 static float max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel);
 static float max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float one_indel); 
 static float max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float no_indel);
-
+static float max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float one_indel);
+static float max_codon_five(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel);
 
 
 /*****************************************************************
  * 1. Forward, Backward, Hybrid implementations.
  *****************************************************************/
 
-/* Function:  p7_GForward()
+/* Function:  p7_Forward_Frameshift()
  * Synopsis:  The Forward algorithm.
  *
- * Purpose:   The Forward dynamic programming algorithm. 
+ * Purpose:   The Forward dynamic programming algorithm for frameshift
+ *            aware translated comarison between a dna sequence and an
+ *            amino acid HMM. 
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
  *            <gm>, and DP matrix <gx> allocated for at least <gm->M>
@@ -75,7 +78,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
     XMX_FS(i,p7G_N) = 0;                                           /* S->N, p=1            */
     XMX_FS(i,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];                    /* S->N->B, no N-tail   */
     XMX_FS(i,p7G_E) = XMX_FS(i,p7G_C) = XMX_FS(i,p7G_J) = -eslINFINITY;  /* need seq to get here */
-   
+  	 
     for (k = 0; k <= M; k++)
       MMX_FS(i,k,p7G_C0) = MMX_FS(i,k,p7G_C1) = MMX_FS(i,k,p7G_C2) = MMX_FS(i,k,p7G_C3)      
       = MMX_FS(i,k,p7G_C4) = MMX_FS(i,k,p7G_C5) = IMX_FS(i,k) = DMX_FS(i,k) = -eslINFINITY;
@@ -92,7 +95,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
    *    tsc[0] = impossible for all eight transitions (no node 0)
    *    D_1 is wastefully calculated (doesn't exist)
    */
-  printf("length %d\n", L);
+  
   for (i = 1; i <= L; i++) 
     {    
       float sc;
@@ -101,10 +104,12 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
       float sc3;
       float sc4;
       float sc5;
-	
-      MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3)      = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
-//	printf("%d\n", i);
+      float temp;	
+      MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3)      
+      = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
+     
       XMX_FS(i, p7G_E) = -eslINFINITY;
+      
       for (k = 1; k < M; k++)
 	{
 	  sc1 = p7_FLogsum(p7_FLogsum(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
@@ -112,10 +117,11 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 			  p7_FLogsum(XMX_FS(i-1,p7G_B) + TSC(p7P_BM,k-1),
 				     DMX_FS(i-1,k-1)   + TSC(p7P_DM,k-1)));
 
+	  
 	  sc1 += max_codon_one(gm->rsc, codon->dsq, dsq, gcode, k, i, two_indel);
-  	  
-	  MMX_FS(i,k,p7G_C1) = sc1;
 
+	  MMX_FS(i,k,p7G_C1) = sc1;
+  	  
 	  sc2 = p7_FLogsum(p7_FLogsum(MMX_FS(i-2,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
 				     IMX_FS(i-2,k-1)   + TSC(p7P_IM,k-1)),
 			  p7_FLogsum(XMX_FS(i-2,p7G_B) + TSC(p7P_BM,k-1),
@@ -124,7 +130,10 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 	  sc2 += max_codon_two(gm->rsc, codon->dsq, dsq, gcode, k, i, one_indel);
 
 	  MMX_FS(i,k,p7G_C2) = sc2;
-  
+    	//temp = max_codon_two(gm->rsc, codon->dsq, dsq, gcode, k, i, one_indel);
+
+	//printf("%d %d max two %f\n", i, k, temp);
+
 	  sc3 = p7_FLogsum(p7_FLogsum(MMX_FS(i-3,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
 				     IMX_FS(i-3,k-1)   + TSC(p7P_IM,k-1)),
 			  p7_FLogsum(XMX_FS(i-3,p7G_B) + TSC(p7P_BM,k-1),
@@ -134,62 +143,122 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 
 	  MMX_FS(i,k,p7G_C3) = sc3;
   
-
-	  
-	}
-    }
- 
-#if 0 
-	  /* insert state */
-	  IMX(i,k) = p7_FLogsum(MMX(i-1,k) + TSC(p7P_MI,k),
-			  IMX(i-1,k) + TSC(p7P_II,k));
-	  IMX(i,k) = sc;
+	  sc4 = p7_FLogsum(p7_FLogsum(MMX_FS(i-4,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
+				     IMX_FS(i-4,k-1)   + TSC(p7P_IM,k-1)),
+			  p7_FLogsum(XMX_FS(i-4,p7G_B) + TSC(p7P_BM,k-1),
+				     DMX_FS(i-4,k-1)   + TSC(p7P_DM,k-1)));
 	
+	  sc4 += max_codon_four(gm->rsc, codon->dsq, dsq, gcode, k, i, one_indel);
+
+	  MMX_FS(i,k,p7G_C4) = sc4;
+  
+          sc5 = p7_FLogsum(p7_FLogsum(MMX_FS(i-5,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
+				     IMX_FS(i-5,k-1)   + TSC(p7P_IM,k-1)),
+			  p7_FLogsum(XMX_FS(i-5,p7G_B) + TSC(p7P_BM,k-1),
+				     DMX_FS(i-5,k-1)   + TSC(p7P_DM,k-1)));
+	
+	  sc5 += max_codon_five(gm->rsc, codon->dsq, dsq, gcode, k, i, two_indel);
+
+	  MMX_FS(i,k,p7G_C5) = sc5;
+  
+	  sc = p7_FLogsum(p7_FLogsum(p7_FLogsum(sc1, sc2),p7_FLogsum(sc3, sc4)), sc5);
+
+	  MMX_FS(i,k,p7G_C0) = sc;
+
+	  /* insert state */
+	  IMX_FS(i,k) = p7_FLogsum(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
+			           IMX_FS(i-3,k) + TSC(p7P_II,k));
+
 	  /* delete state */
-	  DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
-				DMX(i,k-1) + TSC(p7P_DD,k-1));
+	  DMX_FS(i,k) = p7_FLogsum(MMX_FS(i,k-1,p7G_C0) + TSC(p7P_MD,k-1),
+				   DMX_FS(i,k-1) + TSC(p7P_DD,k-1));
 
 	  /* E state update */
-	  XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,k) + esc,
-					       DMX(i,k) + esc),
-				               XMX(i,p7G_E));
+	  XMX_FS(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX_FS(i,k,p7G_C0) + esc,
+					          DMX_FS(i,k) + esc),
+				                  XMX_FS(i,p7G_E));
+	  
 	}
-      /* unrolled match state M_M */
-      sc = p7_FLogsum(p7_FLogsum(MMX(i-1,M-1)   + TSC(p7P_MM,M-1), 
-				 IMX(i-1,M-1)   + TSC(p7P_IM,M-1)),
-		      p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,M-1),
-				 DMX(i-1,M-1)   + TSC(p7P_DM,M-1)));
-      MMX(i,M) = sc + MSC(M);
-      IMX(i,M) = -eslINFINITY;
+    	 	
+	/* unrolled match state M_M */
+        sc1 = p7_FLogsum(p7_FLogsum(MMX_FS(i-1,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
+				     IMX_FS(i-1,M-1)   + TSC(p7P_IM,M-1)),
+			  p7_FLogsum(XMX_FS(i-1,p7G_B) + TSC(p7P_BM,M-1),
+				     DMX_FS(i-1,M-1)   + TSC(p7P_DM,M-1)));
 
-      /* unrolled delete state D_M */
-      DMX(i,M) = p7_FLogsum(MMX(i,M-1) + TSC(p7P_MD,M-1),
-			    DMX(i,M-1) + TSC(p7P_DD,M-1));
+	sc1 += max_codon_one(gm->rsc, codon->dsq, dsq, gcode, M, i, two_indel);
+  	  
+        MMX_FS(i,M,p7G_C1) = sc1;
 
-      /* unrolled E state update */
-      XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,M),
-					   DMX(i,M)),
-					   XMX(i,p7G_E));
+	sc2 = p7_FLogsum(p7_FLogsum(MMX_FS(i-2,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
+	           		    IMX_FS(i-2,M-1)   + TSC(p7P_IM,M-1)),
+			  p7_FLogsum(XMX_FS(i-2,p7G_B) + TSC(p7P_BM,M-1),
+				     DMX_FS(i-2,M-1)   + TSC(p7P_DM,M-1)));
+	
+	sc2 += max_codon_two(gm->rsc, codon->dsq, dsq, gcode, M, i, one_indel);
 
-      /* J state */
-      XMX(i,p7G_J) = p7_FLogsum(XMX(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
-				XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_LOOP]);
-      /* C state */
-      XMX(i,p7G_C) = p7_FLogsum(XMX(i-1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP],
-				XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_MOVE]);
-      /* N state */
-      XMX(i,p7G_N) = XMX(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
+	MMX_FS(i,M,p7G_C2) = sc2;
+  
+	sc3 = p7_FLogsum(p7_FLogsum(MMX_FS(i-3,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
+				    IMX_FS(i-3,M-1)   + TSC(p7P_IM,M-1)),
+			 p7_FLogsum(XMX_FS(i-3,p7G_B) + TSC(p7P_BM,M-1),
+				    DMX_FS(i-3,M-1)   + TSC(p7P_DM,M-1)));
+	
+	sc3 += max_codon_three(gm->rsc, codon->dsq, dsq, gcode, M, i, no_indel);
 
-      /* B state */
-      XMX(i,p7G_B) = p7_FLogsum(XMX(i,  p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
-				XMX(i,  p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
-    }
+	MMX_FS(i,M,p7G_C3) = sc3;
+  
+	sc4 = p7_FLogsum(p7_FLogsum(MMX_FS(i-4,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
+				    IMX_FS(i-4,M-1)   + TSC(p7P_IM,M-1)),
+			 p7_FLogsum(XMX_FS(i-4,p7G_B) + TSC(p7P_BM,M-1),
+				    DMX_FS(i-4,M-1)   + TSC(p7P_DM,M-1)));
+	
+	sc4 += max_codon_four(gm->rsc, codon->dsq, dsq, gcode, M, i, one_indel);
+
+	MMX_FS(i,M,p7G_C4) = sc4;
+  
+        sc5 = p7_FLogsum(p7_FLogsum(MMX_FS(i-5,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
+				    IMX_FS(i-5,M-1)   + TSC(p7P_IM,M-1)),
+			 p7_FLogsum(XMX_FS(i-5,p7G_B) + TSC(p7P_BM,M-1),
+				    DMX_FS(i-5,M-1)   + TSC(p7P_DM,M-1)));
+	
+	sc5 += max_codon_five(gm->rsc, codon->dsq, dsq, gcode, M, i, two_indel);
+
+	MMX_FS(i,M,p7G_C5) = sc5;
+  
+	sc = p7_FLogsum(p7_FLogsum(p7_FLogsum(sc1, sc2),p7_FLogsum(sc3, sc4)), sc5);
+
+	MMX_FS(i,M,p7G_C0) = sc;
+
+        IMX_FS(i,M) = -eslINFINITY;
+
+        /* unrolled delete state D_M */
+        DMX_FS(i,M) = p7_FLogsum(MMX_FS(i,M-1,p7G_C0) + TSC(p7P_MD,M-1),
+			         DMX_FS(i,M-1) + TSC(p7P_DD,M-1));
+
+        /* unrolled E state update */
+        XMX_FS(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX_FS(i,M,p7G_C0),
+					        DMX_FS(i,M)),
+					        XMX_FS(i,p7G_E));
+
+        /* J state */
+        XMX_FS(i,p7G_J) = p7_FLogsum(XMX_FS(i-3,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
+				      XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_LOOP]);
+        /* C state */
+        XMX_FS(i,p7G_C) = p7_FLogsum(XMX_FS(i-3,p7G_C) + gm->xsc[p7P_C][p7P_LOOP],
+				     XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_MOVE]);
+        /* N state */
+        XMX_FS(i,p7G_N) = XMX_FS(i-3,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
+
+        /* B state */
+        XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
+				     XMX_FS(i,p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
+      }
 
   if (opt_sc != NULL) *opt_sc = XMX(L,p7G_C) + gm->xsc[p7P_C][p7P_MOVE];
   gx->M = M;
   gx->L = L;
 
-#endif 
   return eslOK;
 }
 
@@ -311,7 +380,7 @@ float
 max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel) {
 
   int h, j;
-  int amino;
+  int amino, max_amino;
   float cur_emit;
   float max_emit;
   
@@ -328,7 +397,10 @@ max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
       rsc = emit_sc[amino];
       cur_emit = MSC(k);
       max_emit = ESL_MAX(max_emit, cur_emit);
-    } 
+    if(max_emit == cur_emit){
+	      max_amino = amino;
+      }
+} 
   }	
 
   codon[2] = dsq[i];
@@ -341,7 +413,10 @@ max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
       rsc = emit_sc[amino];
       cur_emit = MSC(k);
       max_emit = ESL_MAX(max_emit, cur_emit);
-    } 
+    if(max_emit == cur_emit){
+	      max_amino = amino;
+      }
+} 
   }	
 
   codon[3] = dsq[i];
@@ -354,8 +429,14 @@ max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
       rsc = emit_sc[amino];
       cur_emit = MSC(k);
       max_emit = ESL_MAX(max_emit, cur_emit);
-    } 
+    if(max_emit == cur_emit){
+	      max_amino = amino;
+      }
+} 
   }	
+ // printf("%d, %d, amino %f\n", i, k, max_emit);
+
+//printf("%d, %d, amino %d\n", i, k, max_amino);
 
   return max_emit + two_indel;
 }
@@ -365,6 +446,7 @@ max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
 
   int j;
   int amino;
+  int max_amino;
   float cur_emit;
   float max_emit;
 
@@ -379,13 +461,17 @@ max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
   
     codon[1] = dsq[i-1];
     codon[2] = dsq[i];
-
+//printf("  %d, %d,", i, k);
     for(j = 0; j < 4; j++) {
       codon[3] = j;
       amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+  //    printf("%d,", amino);
       rsc = emit_sc[amino];
       cur_emit = MSC(k);
       max_emit = ESL_MAX(max_emit, cur_emit);
+      if(max_emit == cur_emit){
+	      max_amino = amino;
+      }
     } 
   	
     codon[2] = dsq[i-1];
@@ -394,9 +480,13 @@ max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
     for(j = 0; j < 4; j++) {
       codon[1] = j;
       amino = esl_gencode_GetTranslation(gcode, &codon[1]);
-      rsc = emit_sc[amino];
+    //  printf("%d,", amino);
+rsc = emit_sc[amino];
       cur_emit = MSC(k);
       max_emit = ESL_MAX(max_emit, cur_emit);
+      if(max_emit == cur_emit){
+	      max_amino = amino;
+      }
     }	
 
     codon[1] = dsq[i-1];
@@ -405,11 +495,15 @@ max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
     for(j = 0; j < 4; j++) {
       codon[2] = j;
       amino = esl_gencode_GetTranslation(gcode, &codon[1]);
-      rsc = emit_sc[amino];
+     // printf("%d,", amino);
+rsc = emit_sc[amino];
       cur_emit = MSC(k);
       max_emit = ESL_MAX(max_emit, cur_emit);
+      if(max_emit == cur_emit){
+	      max_amino = amino;
+      } 
     }	
-
+   // printf("%d, %d, amino %d\n", i, k, max_amino);
     return max_emit + one_indel;
 
   }
@@ -444,6 +538,87 @@ max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE
   }
 
 }
+
+float 
+max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float one_indel) {
+
+  int j, jj, jjj;
+  int amino;
+  float cur_emit;
+  float max_emit;
+
+  float const *rsc  = NULL;
+
+  if(i <= 3) {
+ 
+	  return 0.0;
+  } else {
+	 
+    max_emit = -eslINFINITY;
+  
+    for(j = 0; j <= 1; j++) {
+      for(jj = 0; jj <= 1; jj++) {
+        for(jjj = 0; jjj <= 1; jjj++) {
+	  if(jjj <= jj && jj <= j) {
+            codon[1] = dsq[i-2-j];
+            codon[2] = dsq[i-1-jj];
+            codon[3] = dsq[i-jjj];
+ 
+            amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+            rsc = emit_sc[amino];
+            cur_emit = MSC(k);
+            max_emit = ESL_MAX(max_emit, cur_emit);
+         }
+	}
+      }
+    }
+    
+    return max_emit + one_indel;
+
+  }
+
+}
+
+float
+max_codon_five(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel) {
+
+  int j, jj, jjj;
+  int amino;
+  float cur_emit;
+  float max_emit;
+
+  float const *rsc  = NULL;
+
+  if(i <= 4) {
+ 
+	  return 0.0;
+  } else {
+	
+    max_emit = -eslINFINITY;
+
+    for(j = 0; j <= 2; j++) {
+      for(jj = 0; jj <= 2; jj++) {
+        for(jjj = 0; jjj <= 2; jjj++) {
+          if(jjj <= jj && jj <= j) {
+      	    codon[1] = dsq[i-2-j];
+            codon[2] = dsq[i-1-jj];
+            codon[3] = dsq[i-jjj];
+    
+            amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+            rsc = emit_sc[amino];
+            cur_emit = MSC(k);
+            max_emit = ESL_MAX(max_emit, cur_emit);
+          }
+	}
+      }
+    }  
+    
+    return max_emit + two_indel;
+
+  }
+
+}
+
 
 /*------------- end: forward, backward, hybrid ------------------*/
 

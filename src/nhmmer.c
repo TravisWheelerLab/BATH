@@ -1039,7 +1039,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         if (ncpus > 0)  sstatus = thread_loop    (info, id_length_list, threadObj, queue, dbfp, cfg->firstseq_key, cfg->n_targetseq);
         else            sstatus = serial_loop    (info, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
       }
-
+  
 #else //HMMER_THREADS
 #if defined (eslENABLE_SSE)
       if (dbformat == eslSQFILE_FMINDEX)
@@ -1310,6 +1310,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
 
   while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
+
       dbsq->idx = seq_id;
       p7_pli_NewSeq(info->pli, dbsq);
 
@@ -1336,6 +1337,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       }
 
       wstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq);
+
       if (wstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
           add_id_length(id_length_list, dbsq->idx, dbsq->L);
 
@@ -1346,7 +1348,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
           seq_id++;
 
       }
-    }
+   }
 
 
   if (dbsq) esl_sq_Destroy(dbsq);

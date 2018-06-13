@@ -39,18 +39,19 @@
 #endif
 
 #include "easel.h"
-#include "esl_alphabet.h"	/* ESL_DSQ, ESL_ALPHABET */
-#include "esl_dirichlet.h"	/* ESL_MIXDCHLET         */
-#include "esl_dmatrix.h"	/* ESL_DMATRIX           */
-#include "esl_getopts.h"	/* ESL_GETOPTS           */
-#include "esl_histogram.h"      /* ESL_HISTOGRAM         */
-#include "esl_hmm.h"	        /* ESL_HMM               */
-#include "esl_keyhash.h"        /* ESL_KEYHASH           */
-#include "esl_msa.h"		/* ESL_MSA               */
-#include "esl_random.h"		/* ESL_RANDOMNESS        */
-#include "esl_sq.h"		/* ESL_SQ                */
-#include "esl_scorematrix.h"    /* ESL_SCOREMATRIX       */
-#include "esl_stopwatch.h"      /* ESL_STOPWATCH         */
+#include "esl_alphabet.h"	/* ESL_DSQ, ESL_ALPHABET 	      */
+#include "esl_dirichlet.h"	/* ESL_MIXDCHLET         	      */
+#include "esl_dmatrix.h"	/* ESL_DMATRIX           	      */
+#include "esl_getopts.h"	/* ESL_GETOPTS           	      */
+#include "esl_gencode.h"        /* ESL_GENCODE, ESL_GENCODE_WORKSTATE */
+#include "esl_histogram.h"      /* ESL_HISTOGRAM         	      */
+#include "esl_hmm.h"	        /* ESL_HMM               	      */
+#include "esl_keyhash.h"        /* ESL_KEYHASH           	      */
+#include "esl_msa.h"		/* ESL_MSA               	      */
+#include "esl_random.h"		/* ESL_RANDOMNESS        	      */
+#include "esl_sq.h"		/* ESL_SQ                	      */
+#include "esl_scorematrix.h"    /* ESL_SCOREMATRIX       	      */
+#include "esl_stopwatch.h"      /* ESL_STOPWATCH         	      */
 
 
 
@@ -1641,6 +1642,7 @@ extern void         p7_pipeline_Destroy(P7_PIPELINE *pli);
 extern int          p7_pipeline_Merge  (P7_PIPELINE *p1, P7_PIPELINE *p2);
 
 extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
+extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, int64_t max_end);
 extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, float score,     double lnP);
 extern int p7_pli_DomainReportable  (P7_PIPELINE *pli, float dom_score, double lnP);
 
@@ -1655,14 +1657,11 @@ extern int p7_Pipeline_LongTarget   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCORE
                                      const ESL_SQ *sq, int complementarity,
                                      const FM_DATA *fmf, const FM_DATA *fmb, FM_CFG *fm_cfg
                                      );
-extern int p7_Pipeline_Frameshift   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data,
-                                     P7_BG *bg, P7_TOPHITS *hitlist,
-                                     const ESL_SQ *dnasq, const ESL_SQ *orfsq, 
-                                     const FM_DATA *fmf, const FM_DATA *fmb, FM_CFG *fm_cfg
-                                     );
-
-
-
+extern int p7_Pipeline_Frameshift   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
+				     P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist,
+                                     int64_t seqidx, ESL_SQ *dnasq, int complementarity,
+                                     ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk
+  		         	     );
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 

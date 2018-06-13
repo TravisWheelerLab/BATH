@@ -315,8 +315,7 @@ p7_ViterbiFilter_longtarget(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
   int z;
   union { __m128i v; int16_t i[8]; } tmp;
   windowlist->count = 0;
-
-/*
+  /*
  *  In p7_ViterbiFilter, converting from a scaled int Viterbi score
  *  S (aka xE the score getting to state E) to a probability
  *  goes like this:
@@ -357,7 +356,6 @@ p7_ViterbiFilter_longtarget(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 #if eslDEBUGLEVEL > 0
   if (ox->debugging) p7_omx_DumpVFRow(ox, 0, xE, 0, xJ, xB, xC); /* first 0 is <rowi>: do header. second 0 is xN: always 0 here. */
 #endif
-
 
   for (i = 1; i <= L; i++)
   {
@@ -407,21 +405,21 @@ p7_ViterbiFilter_longtarget(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
         sv     =                    _mm_adds_epi16(mpv, *tsc);  tsc++;
         IMXo(q)= _mm_max_epi16 (sv, _mm_adds_epi16(ipv, *tsc)); tsc++;
       }
-
+	  
       /* Now the "special" states, which start from Mk->E (->C, ->J->B) */
       xE = esl_sse_hmax_epi16(xEv);
-
       if (xE >= sc_thresh) {
         //hit score threshold. Add a window to the list, then reset scores.
 
         /* Unpack and unstripe, then find the position responsible for the hit */
         for (q = 0; q < Q; q++) {
           tmp.v = MMXo(q);
-          for (z = 0; z < 8; z++)  { // unstripe
+          
+	  for (z = 0; z < 8; z++)  { // unstripe
             if ( tmp.i[z] == xE && (q+Q*z+1) <= om->M) {
               // (q+Q*z+1) is the model position k at which the xE score is found
               p7_hmmwindow_new(windowlist, 0, i, i-1, (q+Q*z+1), 1, 0.0, p7_NOCOMPLEMENT, L );
-            }
+	    }
           }
           MMXo(q) = IMXo(q) = DMXo(q) = _mm_set1_epi16(-32768); //reset score to start search for next vit window.
         }
@@ -489,7 +487,6 @@ p7_ViterbiFilter_longtarget(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
       if (ox->debugging) p7_omx_DumpVFRow(ox, i, xE, 0, xJ, xB, xC);
 #endif
   } /* end loop over sequence residues 1..L */
-
 
   return eslOK;
 

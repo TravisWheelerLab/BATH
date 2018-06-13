@@ -145,8 +145,8 @@ p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
   int    reset_row_pointers = FALSE;
   int    i;
   int    status;
- 
-  /* If all possible dimensions are already satisfied, the matrix is fine */
+
+   /* If all possible dimensions are already satisfied, the matrix is fine */
   if (ox->allocQ4*4 >= allocM && ox->validR > allocL && ox->allocXR >= allocXL+1) return eslOK;
 
   /* If the main matrix is too small in cells, reallocate it; 

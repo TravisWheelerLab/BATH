@@ -954,7 +954,7 @@ search_thread(void *arg)
         {
           dbsq.start = (info->seq)->start;
           dbsq.end   = (info->seq)->end;
-//          printf("\ndbsq start %d dbsq end:%d\n", dbsq.start, dbsq.end);
+          printf("\ndbsq start %lld dbsq end:%lld\n", dbsq.start, dbsq.end);
         }
 
         p7_bg_SetLength(bg, dbsq.n);

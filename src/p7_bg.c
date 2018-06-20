@@ -470,10 +470,12 @@ p7_bg_SetFilter(P7_BG *bg, int M, const float *compo)
 int
 p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 {
-  ESL_HMX *hmx = esl_hmx_Create(L, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
-  float nullsc;		                  	 /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
+ //printf("ggggggggggggggggggi\n");  
+ESL_HMX *hmx = esl_hmx_Create(L, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
+ float nullsc;		                  	 /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
   
   esl_hmm_Forward(dsq, L, bg->fhmm, hmx, &nullsc);
+//printf("jjjjjjjjjjjjjjjjjjjj\n");  
 
   /* impose the length distribution */
   *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);

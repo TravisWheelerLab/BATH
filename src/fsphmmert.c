@@ -73,7 +73,6 @@ typedef struct {
   int      active;  //TRUE is worker is supposed to work on the contents, FALSE otherwise
 } FM_THREAD_INFO;
 
-
 typedef struct {
   int    id;         /* internal sequence ID  */
   int    length;     /* length of sequence */
@@ -84,7 +83,6 @@ typedef struct {
   int        count;
   int        size;
 } ID_LENGTH_LIST;
-
 
 static ID_LENGTH_LIST* init_id_length( int size );
 static void            destroy_id_length( ID_LENGTH_LIST *list );
@@ -106,6 +104,7 @@ static int             assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_
 #define MPIOPTS     NULL
 #endif
 
+//TODO: edit options 
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles   reqs   incomp              help                                                      docgroup*/
   { "-h",           eslARG_NONE,        FALSE, NULL, NULL,    NULL,  NULL,  NULL,             "show brief help on version and usage",                         1 },
@@ -270,8 +269,7 @@ static void pipeline_thread_FM(void *arg);
 #endif
 
 #endif /*HMMER_THREADS*/
-
-
+//TODO: edit command line processing
 static int
 process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_queryfile, char **ret_seqfile)
 {
@@ -425,8 +423,6 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *queryfile, char *seqfile, 
   return eslOK;
 }
 
-
-
 int
 main(int argc, char **argv)
 {
@@ -450,7 +446,6 @@ main(int argc, char **argv)
   cfg.n_targetseq  = -1;
 
   process_commandline(argc, argv, &go, &cfg.queryfile, &cfg.dbfile);
-
 
   if (esl_opt_IsOn(go, "--qfasta")) {
       cfg.qfmt = eslSQFILE_FASTA;
@@ -478,24 +473,6 @@ main(int argc, char **argv)
 
   esl_getopts_Destroy(go);
   return status;
-}
-
-static int
-do_sq_by_sequences(ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ESL_SQ *sq, ESL_SQ *sq_rev)
-{
-      if (wrk->do_watson) {
-        esl_gencode_ProcessStart(gcode, wrk, sq);
-        esl_gencode_ProcessPiece(gcode, wrk, sq);
-        esl_gencode_ProcessEnd(wrk, sq);
-      }
-      
-      if (wrk->do_crick) {
- 	esl_gencode_ProcessStart(gcode, wrk, sq_rev);
-        esl_gencode_ProcessPiece(gcode, wrk, sq_rev);
-       	esl_gencode_ProcessEnd(wrk, sq_rev);
-      }
-
-  return eslOK;
 }
 
 /* serial_master()
@@ -529,7 +506,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   P7_BG           *bg_manual  = NULL;
 
-  ESL_ALPHABET    *abc       = NULL;              /* digital alphabet           */
   ESL_STOPWATCH   *w;
   P7_SCOREDATA    *scoredata = NULL;
 
@@ -542,6 +518,12 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   double           resCnt    = 0;
   /* used to keep track of the lengths of the sequences that are processed */
   ID_LENGTH_LIST  *id_length_list = NULL;
+  
+  /* these variables are only used if db type is FM-index*/
+  FM_CFG      *fm_cfg       = NULL;
+  FM_METADATA *fm_meta      = NULL;
+  fpos_t       fm_basepos;
+  /* end FM-index-specific variables */
 
   int              ncpus    = 0;
 
@@ -549,6 +531,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   WORKER_INFO     *info     = NULL;
 #ifdef HMMER_THREADS
   ESL_SQ_BLOCK    *block    = NULL;
+  FM_THREAD_INFO  *fminfo   = NULL;
   ESL_THREADS     *threadObj= NULL;
   ESL_WORK_QUEUE  *queue    = NULL;
 #endif
@@ -576,6 +559,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
   else                                     textw = esl_opt_GetInteger(go, "--textw");
+ 
+  /*the target sequence will be DNA but the query will be amino acids */
+   abcDNA = esl_alphabet_Create(eslDNA);
 
   /* (1)
    * first try to read as an HMM.  Fails nicely if it's not.
@@ -586,8 +572,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_Fail("File existence/permissions problem in trying to open query file %s.\n%s\n", cfg->queryfile, errbuf);
     } else if (status == eslOK) {
       //Successfully opened HMM file
-      qhstatus = p7_hmmfile_Read(hfp, &abc, &hmm);
-      if (abc->type != eslAMINO) p7_Fail("fsphmmert only supports amino acid HMMs; %s uses a different alphabet", cfg->queryfile);
+      qhstatus = p7_hmmfile_Read(hfp, &abcAMINO, &hmm);
+      if (abcAMINO->type != eslAMINO) p7_Fail("fsphmmert only supports amino acid HMMs; %s uses a different alphabet", cfg->queryfile);
       if (qhstatus != eslOK) p7_Fail("reading hmm from file %s (%d)\n", cfg->queryfile, qhstatus);
       cfg->qfmt = NHMMER_QFORMAT_HMM;
       //Successfully read HMM file; steps 2 and 3 below won't happen
@@ -603,17 +589,93 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     }
   }
+  
+  /* (2)
+   * Next try to read as an MSA. This involves opening, and reading the first alignment.
+   * If that alignment is of a single sequence
+   */
+  if (cfg->qfmt != eslSQFILE_FASTA && cfg->qfmt != NHMMER_QFORMAT_HMM && hfp == NULL  ) { /*i.e. some MSA type; or unspecified, and HMM didn't work*/
 
+
+    int qfmt_arg = cfg->qfmt;
+    if (qfmt_arg == NHMMER_QFORMAT_MSA_UNSPECIFIED) {
+      /* The unspecified format was to ensure we didn't try to go through the HMM path;
+       * The Open() routine will set the format in qfp_msa, where it matters
+       */
+      qfmt_arg = eslMSAFILE_UNKNOWN;
+    }
+
+    status = esl_msafile_Open(&abcAMINO, cfg->queryfile, NULL, qfmt_arg, NULL, &qfp_msa);
+
+    if (abcAMINO == NULL) p7_Fail ("Unable to guess alphabet for query file %s\n", cfg->queryfile);
+
+    /* Try to read first alignment.
+     * This will return eslEFORMAT if it's a fasta file with multiple sequences
+     * of different length (i.e. a bunch of individual sequences, instead of
+     * an alignment). If so, fall through to next attempt.
+     * (Notice: if all sequences in a fasta file are the same length, they'll get treated like
+     * a single MSA. Not much we can do in that case)
+     */
+    qhstatus = esl_msafile_Read(qfp_msa, &msa);
+    if (qhstatus == eslEFORMAT) { // possibly a fasta file with a bunch of singleton sequences
+      esl_msafile_Close(qfp_msa);
+      qfp_msa = NULL;
+      if (cfg->qfmt != eslSQFILE_FASTA && cfg->qfmt != NHMMER_QFORMAT_HMM && cfg->qfmt != NHMMER_QFORMAT_UNKNOWN) {
+        /* was told I'd get an MSA; shouldn't have gotten here */
+        p7_Fail("reading alignment from file %s (%d)\n", cfg->queryfile, qhstatus);
+      }
+
+    } else if (qhstatus != eslOK) {
+      p7_Fail("reading alignment from file %s (%d)\n", cfg->queryfile, qhstatus);
+    } else {
+      // it's a good MSA, so set cfg->qfmt correctly
+      cfg->qfmt = qfp_msa->format;
+    }
+
+  }
+
+/* (3)
+   * Finally try to read as a sequence file.
+   */
+  if (cfg->qfmt == eslSQFILE_FASTA || (hfp == NULL && qfp_msa == NULL)) {
+
+    cfg->qfmt = eslSQFILE_FASTA;
+    status = esl_sqfile_Open(cfg->queryfile, eslSQFILE_FASTA, NULL, &qfp_sq);
+    if (status != eslOK)         p7_Fail ("Unexpected error %d opening query file %s\n", status, cfg->queryfile);
+    if (abcAMINO == NULL) {
+      int q_type      = eslUNKNOWN;
+      esl_sqfile_GuessAlphabet(qfp_sq, &q_type);
+      if (q_type == eslUNKNOWN)    p7_Fail ("Unable to guess alphabet for query file %s\n", cfg->queryfile);
+      abcAMINO     = esl_alphabet_Create(q_type);
+    }
+    esl_sqfile_SetDigital(qfp_sq, abcAMINO);
+
+    // read first sequence
+    qsq  = esl_sq_CreateDigital(abcAMINO);
+    qhstatus = esl_sqio_Read(qfp_sq, qsq);
+    if (qhstatus != eslOK) p7_Fail("reading sequence from file %s (%d)\n", cfg->queryfile, qhstatus);
+  }
+
+  if (! (abcAMINO->type == eslAMINO) )
+    p7_Fail("Invalid alphabet type in query for fsphmmert. Expect AMINO ACIDS\n");
+
+  /* nhmmer accepts _target_ files that are either (i) some sequence file format, or
+   * (2) the eslSQFILE_FMINDEX format (called fmindex).
+   * The following code will follow the mandate of --tformat, and otherwise figure what
+   * the file type is.
+   */
   /* If caller declared target format, decode it */
   if (esl_opt_IsOn(go, "--tformat")) {
     dbformat = esl_sqio_EncodeFormat(esl_opt_GetString(go, "--tformat"));
     if (dbformat == eslSQFILE_UNKNOWN) p7_Fail("%s is not a recognized sequence database file format\n", esl_opt_GetString(go, "--tformat"));
   }
 
-  /*the target sequence will be DNA but the query will be amino acids */
-   abcDNA = esl_alphabet_Create(eslDNA);
-   abcAMINO = esl_alphabet_Create(eslAMINO);
-
+    /* (1)
+   * First try to read it as a non-fmindex format, either following
+   * the mandate of the --tformat flag or autodetecting. If tformat is
+   * unspecified and the file isn't readable as one of the other formats,
+   * will fall through to testing the fmindex in step (2)
+   */
   if (dbformat != eslSQFILE_FMINDEX) { /* either we've been told what it is, or we need to autodetect. Start with sequence file */
     
     status = esl_sqfile_Open(cfg->dbfile, dbformat, p7_SEQDBENV, &dbfp);
@@ -646,6 +708,52 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     }
   }
 
+  /* (2)
+  * We've either been told it's fmindex format, or the autodetect
+  * has fallen through to ask us to check fmindex format
+  */
+
+  if (dbfp == NULL ) {
+
+#if !defined (eslENABLE_SSE)
+    p7_Fail("fmindex is a valid sequence database file format only on systems supporting SSE vector instructions\n");
+#endif
+
+    if (dbformat != eslSQFILE_FMINDEX && strcmp(cfg->dbfile, "-") == 0 ) {
+      /* we can't rewind a piped file, so we can't perform any more autodetection on the target format*/
+      p7_Fail("Must specify target file type (fmindex, or a sequence file format) to read <dbfile> from stdin ('-')");
+    }
+
+    if (esl_opt_IsOn(go, "--max")) {
+      p7_Fail("--max flag is incompatible with the fmindex target type\n");
+    }
+
+    fm_configAlloc(&fm_cfg);
+    fm_meta = fm_cfg->meta;
+
+    if((fm_meta->fp = fopen(cfg->dbfile, "rb")) == NULL)
+      p7_Fail("Failed to open target sequence database %s for reading\n",      cfg->dbfile);
+
+    if ( (status = fm_readFMmeta(fm_meta)) != eslOK)
+      p7_Fail("Failed to read FM meta data from target sequence database %s\n",      cfg->dbfile);
+
+    /* Sanity check */
+    if ( ! ( fm_meta->alph_type == fm_DNA && (fm_meta->alph_size > 0 && fm_meta->alph_size < 30)  ) ) {
+      p7_Fail("Unable to autodetect format of %s\n",   cfg->dbfile);
+    }
+
+    if ( (status = fm_configInit(fm_cfg, go)) != eslOK)
+      p7_Fail("Failed to initialize FM configuration for target sequence database %s\n",      cfg->dbfile);
+
+    if ( (status = fm_alphabetCreate(fm_meta, NULL)) != eslOK)
+      p7_Fail("Failed to create FM alphabet for target sequence database %s\n",      cfg->dbfile);
+
+    fgetpos( fm_meta->fp, &fm_basepos);
+
+    dbformat = eslSQFILE_FMINDEX;
+  }
+
+
   /* Open the results output files */
   if (esl_opt_IsOn(go, "-o"))              { if ((ofp      = fopen(esl_opt_GetString(go, "-o"), "w")) == NULL) p7_Fail("Failed to open output file %s for writing\n",    esl_opt_GetString(go, "-o")); }
   if (esl_opt_IsOn(go, "-A"))              { if ((afp      = fopen(esl_opt_GetString(go, "-A"), "w")) == NULL) p7_Fail("Failed to open alignment file %s for writing\n", esl_opt_GetString(go, "-A")); }
@@ -672,7 +780,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
 
   if (esl_opt_IsOn(go, "--bgfile")) {
-    bg_manual = p7_bg_Create(abc);
+    bg_manual = p7_bg_Create(abcAMINO);
     status = p7_bg_Read(esl_opt_GetString(go, "--bgfile"), bg_manual, errbuf);
     if (status != eslOK) p7_Fail("Trouble reading bgfile: %s\n", errbuf);
   }
@@ -694,21 +802,39 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	  if (bg_manual != NULL)
             info[i].bg = p7_bg_Clone(bg_manual);
           else
-            info[i].bg = p7_bg_Create(abc);
+            info[i].bg = p7_bg_Create(abcAMINO);
 
 #ifdef HMMER_THREADS
           info[i].queue = queue;
       }
 
       for (i = 0; i < ncpus * 2; ++i) {
-               
-        block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcDNA);
-        if (block == NULL)           esl_fatal("Failed to allocate sequence block");
+#if defined (eslENABLE_SSE)
+        if (dbformat == eslSQFILE_FMINDEX) {
+          ESL_ALLOC(fminfo, sizeof(FM_THREAD_INFO));
+          if (fminfo == NULL)           esl_fatal("Failed to allocate FM thread info");
 
-        status = esl_workqueue_Init(queue, block);
-        if (status != eslOK)          esl_fatal("Failed to add block to work queue");
+          ESL_ALLOC(fminfo->fmf, sizeof(FM_DATA));
+          ESL_ALLOC(fminfo->fmb, sizeof(FM_DATA));
+          if (fminfo->fmf == NULL || fminfo->fmb == NULL)           esl_fatal("Failed to allocate FM thread info");
+          fminfo->active = FALSE;
+
+          status = esl_workqueue_Init(queue, fminfo);
+          if (status != eslOK)          esl_fatal("Failed to add FM info to work queue");
+
+        }
+        else
+#endif
+        {
         
-     }	
+	  block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcDNA);
+          if (block == NULL)           esl_fatal("Failed to allocate sequence block");
+
+          status = esl_workqueue_Init(queue, block);
+          if (status != eslOK)          esl_fatal("Failed to add block to work queue");
+        
+     }
+   }	
 #endif
   }
 
@@ -748,11 +874,19 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
       /* seqfile may need to be rewound (multiquery mode) */
       if (nquery > 1) {
-          if (! esl_sqfile_IsRewindable(dbfp))
+ #if defined (eslENABLE_SSE)
+        if (dbformat == eslSQFILE_FMINDEX) { //rewind
+          if (fsetpos(fm_meta->fp, &fm_basepos) != 0)  ESL_EXCEPTION(eslESYS, "rewind via fsetpos() failed");
+        }
+        else
+#endif
+        { 
+	  if (! esl_sqfile_IsRewindable(dbfp))
             esl_fatal("Target sequence file %s isn't rewindable; can't search it with multiple queries", cfg->dbfile);
 
           if (! esl_opt_IsUsed(go, "--restrictdb_stkey") )
             esl_sqfile_Position(dbfp, 0); //only re-set current position to 0 if we're not planning to set it in a moment
+        }
       }
       
 
@@ -774,49 +908,94 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       p7_oprofile_Convert(gm, om);                  /* <om> is now p7_LOCAL, multihit */
 
+#if defined (eslENABLE_SSE)
+      if (dbformat == eslSQFILE_FMINDEX) {
+        //capture a measure of score density multiplied by something I conjecture to be related to
+        //the expected longest common subsequence (sqrt(M)).  If less than a default target
+        //(7 bits of expected LCS), then the requested score threshold will be shifted down
+        // according to this ratio.
+        // Xref: ~wheelert/notebook/2014/03-04-FM-time-v-len/00NOTES -- Thu Mar  6 14:40:48 EST 2014
+        float best_sc_avg = 0;
+        int j;
+        for (i = 1; i <= om->M; i++) {
+          float max_score = 0;
+          for (j=0; j<hmm->abc->K; j++) {
+            if ( esl_abc_XIsResidue(om->abc,j) &&  gm->rsc[j][(i) * p7P_NR     + p7P_MSC]   > max_score)   max_score   = gm->rsc[j][(i) * p7P_NR     + p7P_MSC];
+          }
+          best_sc_avg += max_score;
+        }
+        best_sc_avg /= sqrt((double) hmm->M);   //that's dividing by M to get score density, then multiplying by sqrt(M) as a proxy for expected LCS
+        best_sc_avg = ESL_MAX(5.0,best_sc_avg); // don't let it get too low, or run time will dramatically suffer
+
+        fm_cfg->sc_thresh_ratio = ESL_MIN(best_sc_avg/7.0, 1.0);
+        scoredata = p7_hmm_ScoreDataCreate(om, gm);
+      }
+      else
+#endif
       scoredata = p7_hmm_ScoreDataCreate(om, NULL);
 
-      wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
+    wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
 
-      for (i = 0; i < infocnt; ++i) {
-        /* Create processing pipeline and hit list */
-        info[i].th  = p7_tophits_Create();
-        info[i].om = p7_oprofile_Copy(om);
-	info[i].gm = p7_profile_Clone(gm);
-	info[i].pli = p7_pipeline_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
+    for (i = 0; i < infocnt; ++i) {
+      /* Create processing pipeline and hit list */
+      info[i].th  = p7_tophits_Create();
+      info[i].om = p7_oprofile_Copy(om);
+      info[i].gm = p7_profile_Clone(gm);
+      info[i].pli = p7_pipeline_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
 
         //set method specific --F1, if it wasn't set at command line
-        if (!esl_opt_IsOn(go, "--F1") ) 
-           info[i].pli->F1 = 0.02;
-      
-        status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
-        if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
-
-        info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
-
-        if (  esl_opt_IsUsed(go, "--watson") )
-          info[i].pli->strands = p7_STRAND_TOPONLY;
-        else if (  esl_opt_IsUsed(go, "--crick") )
-          info[i].pli->strands = p7_STRAND_BOTTOMONLY;
+      if (!esl_opt_IsOn(go, "--F1") ) {
+#if defined (eslENABLE_SSE)
+        if (dbformat == eslSQFILE_FMINDEX)
+          info[i].pli->F1 = 0.03;
         else
-          info[i].pli->strands = p7_STRAND_BOTH;
+#endif
+          info[i].pli->F1 = 0.02;
+      }
+
+#if defined (eslENABLE_SSE)
+      info[i].fm_cfg = fm_cfg;
+#endif  
+      status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
+      if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+
+      info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
+
+      if (  esl_opt_IsUsed(go, "--watson") )
+        info[i].pli->strands = p7_STRAND_TOPONLY;
+      else if (  esl_opt_IsUsed(go, "--crick") )
+        info[i].pli->strands = p7_STRAND_BOTTOMONLY;
+      else
+        info[i].pli->strands = p7_STRAND_BOTH;
         
-	info[i].pli->block_length = NHMMER_MAX_RESIDUE_COUNT;
-        info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
+      info[i].pli->block_length = NHMMER_MAX_RESIDUE_COUNT;
+      info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
      
 #ifdef HMMER_THREADS
-        if (ncpus > 0)
-          esl_threads_AddThread(threadObj, &info[i]);
+      if (ncpus > 0)
+        esl_threads_AddThread(threadObj, &info[i]);
 #endif
-      }
+    }
           /* establish the id_lengths data structutre */
           id_length_list = init_id_length(1000);
 
 #ifdef HMMER_THREADS
-	      
-      if (ncpus > 0)   sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
-		//sstatus = thread_loop    (info, id_length_list, threadObj, queue, dbfp, cfg->firstseq_key, cfg->n_targetseq);
-      else            sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+#if defined (eslENABLE_SSE)
+      if (dbformat == eslSQFILE_FMINDEX) {
+        for(i=0; i<fm_cfg->meta->seq_count; i++)
+          add_id_length(id_length_list, fm_cfg->meta->seq_data[i].target_id, fm_cfg->meta->seq_data[i].target_start + fm_cfg->meta->seq_data[i].length - 1);
+
+        if (ncpus > 0)  sstatus = thread_loop_FM (info, threadObj, queue, dbfp);
+        else            sstatus = serial_loop_FM (info, dbfp);
+      }
+      else
+#endif //defined (eslENABLE_SSE)
+      {
+        if (ncpus > 0)  sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+
+	//	thread_loop    (info, id_length_list, threadObj, queue, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+        else            sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+      }	      
                  
 #else //HMMER_THREADS
       sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
@@ -835,7 +1014,47 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
           esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
        }
            
-#if 0	  
+#if 0
+      //need to re-compute e-values before merging (when list will be sorted)
+      if (esl_opt_IsUsed(go, "-Z")) {
+          resCnt = 1000000*esl_opt_GetReal(go, "-Z");
+
+          if ( info[0].pli->strands == p7_STRAND_BOTH)
+            resCnt *= 2;
+
+      } else {
+#if defined (eslENABLE_SSE)
+        if (dbformat == eslSQFILE_FMINDEX) {
+          resCnt = 2 * fm_meta->char_count;
+        }
+        else
+#endif
+        {
+          for (i = 0; i < infocnt; ++i)
+            resCnt += info[i].pli->nres;
+        }
+      }
+
+      for (i = 0; i < infocnt; ++i)
+          p7_tophits_ComputeNhmmerEvalues(info[i].th, resCnt, info[i].om->max_length);
+
+      /* merge the results of the search results */
+      for (i = 1; i < infocnt; ++i) {
+          p7_tophits_Merge(info[0].th, info[i].th);
+          p7_pipeline_Merge(info[0].pli, info[i].pli);
+
+          p7_pipeline_Destroy(info[i].pli);
+          p7_tophits_Destroy(info[i].th);
+          p7_oprofile_Destroy(info[i].om);
+      }
+
+#if defined (eslENABLE_SSE)
+      if (dbformat == eslSQFILE_FMINDEX) {
+        info[0].pli->nseqs = fm_meta->seq_data[fm_meta->seq_count-1].target_id + 1;
+        info[0].pli->nres  = resCnt;
+      }
+#endif
+
 	  /* merge the results of the search results */
            for (i = 1; i < infocnt; ++i) {
                p7_tophits_Merge(tophits_accumulator, info[i].th);
@@ -893,7 +1112,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if (afp) {
           ESL_MSA *msa = NULL;
 
-          if (p7_tophits_Alignment(info->th, abc, NULL, NULL, 0, p7_DEFAULT, &msa) == eslOK) 
+          if (p7_tophits_Alignment(info->th, abcAMINO, NULL, NULL, 0, p7_DEFAULT, &msa) == eslOK) 
 	    {
 	      esl_msa_SetName     (msa, hmm->name, -1);
 	      esl_msa_SetAccession(msa, hmm->acc,  -1);
@@ -926,7 +1145,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if (qsq != NULL) esl_sq_Reuse(qsq);
 
       if (hfp != NULL) {
-        qhstatus = p7_hmmfile_Read(hfp, &abc, &hmm);
+        qhstatus = p7_hmmfile_Read(hfp, &abcAMINO, &hmm);
       } else if (qfp_msa != NULL){
         esl_msa_Destroy(msa);
         qhstatus = esl_msafile_Read(qfp_msa, &msa);
@@ -971,8 +1190,22 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #ifdef HMMER_THREADS
   if (ncpus > 0) {
       esl_workqueue_Reset(queue);
-       while (esl_workqueue_Remove(queue, (void **) &block) == eslOK) {
+#if defined (eslENABLE_SSE)
+      if (dbformat == eslSQFILE_FMINDEX) {
+        while (esl_workqueue_Remove(queue, (void **) &fminfo) == eslOK) {
+          if (fminfo) {
+            if (fminfo->fmf) free(fminfo->fmf);
+            if (fminfo->fmb) free(fminfo->fmb);
+            free(fminfo);
+          }
+        }
+      }
+      else
+#endif
+      {
+        while (esl_workqueue_Remove(queue, (void **) &block) == eslOK) {
           esl_sq_DestroyBlock(block);
+        }
       }
       esl_workqueue_Destroy(queue);
       esl_threads_Destroy(threadObj);
@@ -989,8 +1222,16 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   if (qsq)     esl_sq_Destroy(qsq);
 
   esl_sqfile_Close(dbfp);
-  esl_alphabet_Destroy(abc);
+  esl_alphabet_Destroy(abcAMINO);
+  esl_alphabet_Destroy(abcDNA);
   esl_stopwatch_Destroy(w);
+
+#if defined (eslENABLE_SSE)
+  if (dbformat == eslSQFILE_FMINDEX) {
+    fclose(fm_meta->fp);
+    fm_configDestroy(fm_cfg); // will cascade to destroy meta and alphabet, too
+  }
+#endif
 
   if (ofp != stdout) fclose(ofp);
   if (afp)           fclose(afp);
@@ -1014,6 +1255,12 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    if (dfamtblfp)     fclose(dfamtblfp);
    if (aliscoresfp)   fclose(aliscoresfp);
 
+#if defined (eslENABLE_SSE)
+   if (dbformat == eslSQFILE_FMINDEX) {
+     fm_configDestroy(fm_cfg);
+   }
+#endif
+
    if (hmmfile != NULL) free (hmmfile);
 
    return eslFAIL;
@@ -1031,44 +1278,18 @@ serial_loop(WORKER_INFO *info, ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, I
   ESL_SQ   *dbsq   =  esl_sq_CreateDigital(abcDNA);
   ESL_SQ   *dbsq_revcmp;
  
-   if (dbsq->abc->complement != NULL)
+   // printf("dbsq L %d\n", dbsq->L); 
+
+   wstatus = esl_sqio_Read(dbfp, dbsq);
+//printf("dbsq L %d\n", dbsq->L); 
+ if (dbsq->abc->complement != NULL) {
     dbsq_revcmp =  esl_sq_CreateDigital(abcDNA);
- 
-   wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
-
-#if 0  
-   // ESL_ALPHABET    *abcDNA = esl_alphabet_Create(eslDNA);
- // ESL_SQ   *orfsq   = NULL;
- // int k;
-for (k = 0; k < orf_block->count; ++k)
-  {
-      orfsq = &(orf_block->list[k]);
-      /*
-      use the name, accession, and description from the DNA sequence and
-      not from the ORF which is generated by gencode and only for internal use
-      */
- 
-      if ((wstatus = esl_sq_SetName     (orfsq, info->dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
-      if ((wstatus = esl_sq_SetAccession(orfsq, info->dnasq->acc))    != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence accession failed");
-      if ((wstatus = esl_sq_SetDesc     (orfsq, info->dnasq->desc))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence description failed");
-
-      p7_pli_NewSeq(info->pli, orfsq);
-      p7_bg_SetLength(info->bg, orfsq->n);
-      p7_oprofile_ReconfigLength(info->om, orfsq->n);
-
-     if(orfsq->start < orfsq->end) { 
-       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->dnasq, orfsq, NULL, NULL, NULL);
-     } else {
-       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->dnasqRev, orfsq, NULL, NULL, NULL);
-     }
-      
-      esl_sq_Reuse(orfsq);
-      p7_pipeline_Reuse(info->pli);
-  }
-#endif 
-
-
-   while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
+    esl_sq_Copy(dbsq,dbsq_revcmp);
+     
+          esl_sq_ReverseComplement(dbsq_revcmp);
+// printf("dbsq rev L %d\n", dbsq_revcmp->L); 
+ }
+while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       dbsq->idx = seq_id;
       p7_pli_NewSeq(info->pli, dbsq);
 
@@ -1086,8 +1307,7 @@ for (k = 0; k < orf_block->count; ++k)
       //reverse complement
       if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
       {
-          esl_sq_Copy(dbsq,dbsq_revcmp);
-          esl_sq_ReverseComplement(dbsq_revcmp);
+  
           p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_revcmp, p7_COMPLEMENT, gcode, wrk);
           p7_pipeline_Reuse(info->pli); // prepare for next search
           info->pli->nres += dbsq_revcmp->W;

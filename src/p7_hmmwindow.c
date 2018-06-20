@@ -45,7 +45,7 @@ ERROR:
  * Returns:   NULL in event of allocation failure, otherwise pointer to
  *            the next seed diagonal
  */
-
+//p7_hmmwindow_new(windowlist, 0, i, i-1, (q+Q*z+1), 1, 0.0, p7_NOCOMPLEMENT, L );
 P7_HMM_WINDOW *
 p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len) {
   int status;

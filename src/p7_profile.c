@@ -130,7 +130,6 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
   return NULL;
 }
 
-
 /* Function:  p7_profile_Copy()
  * Synopsis:  Copy a profile.
  *
@@ -205,7 +204,6 @@ p7_profile_Clone(const P7_PROFILE *gm)
   p7_profile_Destroy(g2);
   return NULL;
 }
-
 
 
 /* Function:  p7_profile_SetNullEmissions()

@@ -1005,11 +1005,14 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   if (P > pli->F3) return eslOK;
   pli->n_past_fwd++;
-
+  float bcksc; 
   printf("fwd sc %f\n", seq_score);
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   p7_omx_GrowTo(pli->oxb, om->M, 0, sq->n);
-  p7_BackwardParser(sq->dsq, sq->n, om, pli->oxf, pli->oxb, NULL);
+  p7_BackwardParser(sq->dsq, sq->n, om, pli->oxf, pli->oxb, &bcksc);
+
+  seq_score = (bcksc-filtersc) / eslCONST_LOG2;
+  printf("bwd sc %f\n", seq_score);
 
   status = p7_domaindef_ByPosteriorHeuristics(sq, ntsq, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, FALSE, NULL, NULL, NULL);
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen  */
@@ -2062,7 +2065,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   amino_len =  window_len / 3;
 
   p7_ReconfigLength(gm, amino_len);
-  emit_sc = Codon_Emitions_Create(gm->rsc, subseq, gcode, gm->M, window_len, indel_cost);
+  printf("indel cost %f\n", indel_cost);
+  emit_sc = Codon_Emissions_Create(gm->rsc, subseq, gcode, gm->M, window_len, indel_cost);
 
   gxf = p7_gmx_fs_Create(gm->M, window_len);
 

@@ -23,7 +23,7 @@
  * Also, see impl_{sse,vmx}/impl_{sse,vmx}.h for additional API
  * specific to the acceleration layer; in particular, the P7_OPROFILE
  * structure for an optimized profile.
- */
+*/
 #ifndef P7_HMMERH_INCLUDED
 #define P7_HMMERH_INCLUDED
 #include "p7_config.h"
@@ -377,6 +377,16 @@ enum p7t_statetype_e {
   p7T_X     = 11, 	/* missing data: used esp. for local entry/exits */
 };
 #define p7T_NSTATETYPES 12
+
+enum p7t_codontype_e {
+  p7T_C0 = 0,
+  p7T_C1 = 1,
+  p7T_C2 = 2,
+  p7T_C3 = 3,
+  p7T_C4 = 4,
+  p7T_C5 = 5,
+};
+#define p7T_NCODONTYPES 6
 
 typedef struct p7_trace_s {
   int    N;		/* length of traceback                       */
@@ -1368,6 +1378,10 @@ extern int p7_EntropyWeight_exp(const P7_HMM *hmm, const P7_BG *bg, const P7_PRI
 extern int p7_GDecoding      (const P7_PROFILE *gm, const P7_GMX *fwd,       P7_GMX *bck, P7_GMX *pp);
 extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
+/*decoding_frameshift*/
+extern int p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
+extern int p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
+
 /* generic_fwdback.c */
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
@@ -1390,6 +1404,10 @@ extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
 extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
+
+/* optacc_frameshift.c */
+extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
+extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_stotrace.c */
 extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);

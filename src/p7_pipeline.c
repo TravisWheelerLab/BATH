@@ -1005,14 +1005,9 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   if (P > pli->F3) return eslOK;
   pli->n_past_fwd++;
-  float bcksc; 
-  printf("fwd sc %f\n", seq_score);
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   p7_omx_GrowTo(pli->oxb, om->M, 0, sq->n);
-  p7_BackwardParser(sq->dsq, sq->n, om, pli->oxf, pli->oxb, &bcksc);
-
-  seq_score = (bcksc-filtersc) / eslCONST_LOG2;
-  printf("bwd sc %f\n", seq_score);
+  p7_BackwardParser(sq->dsq, sq->n, om, pli->oxf, pli->oxb, NULL);
 
   status = p7_domaindef_ByPosteriorHeuristics(sq, ntsq, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, FALSE, NULL, NULL, NULL);
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen  */
@@ -1967,8 +1962,8 @@ ERROR:
 
 static int
 translate_sequence(ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ESL_SQ *sq)
-{
-        esl_gencode_ProcessStart(gcode, wrk, sq);
+{        
+	esl_gencode_ProcessStart(gcode, wrk, sq);
         esl_gencode_ProcessPiece(gcode, wrk, sq);
         esl_gencode_ProcessEnd(wrk, sq);
 
@@ -2044,6 +2039,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   float dom_score;
   double dom_lnP;
   float **emit_sc;
+  float oasc;
   int F3_L = ESL_MIN( window_len,  pli->B3);
 
 //printf("comp %d\n", complementarity);  
@@ -2065,7 +2061,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   amino_len =  window_len / 3;
 
   p7_ReconfigLength(gm, amino_len);
-  printf("indel cost %f\n", indel_cost);
   emit_sc = Codon_Emissions_Create(gm->rsc, subseq, gcode, gm->M, window_len, indel_cost);
 
   gxf = p7_gmx_fs_Create(gm->M, window_len);
@@ -2077,7 +2072,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   seq_score = (fwdsc - filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
   if (P > pli->F3 ) return eslOK;
-
   pli->pos_past_fwd += window_len;
 
   printf("fwd sc %f\n", seq_score);
@@ -2099,13 +2093,21 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   gxb = p7_gmx_Create(gm->M, window_len);
   p7_Backward_Frameshift(subseq, window_len, gm, gxb, emit_sc, &bwdsc);
   bwdsc = (bwdsc - filtersc) / eslCONST_LOG2;
-   printf("bwd sc %f\n", bwdsc);
+  printf("bwd sc %f\n", bwdsc);
 
-#if 0
+  status = p7_Decoding_Frameshift(gm, gxf, gxb, gxf); /*gxf is now overwiten with posterior probabilitis*/
+    
+  if (status == eslOK)
+    {
+      p7_OptimalAccuracy_Frameshift(gm, gxf, gxb, &oasc);      /* <oxf> is now overwritten with OA scores              */
+      p7_OATrace_Frameshift        (gm, gxf, gxb, pli->ddef->tr);    /* tr[idx] is now an OA traceback for seq #idx          */
+    }
+  else if (status == eslERANGE)
+    { printf("posterios overflow\n"); }
+
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
-  status = p7_domaindef_ByPosteriorHeuristics(pli_tmp->tmpseq, NULL, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, TRUE,
-                                              pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr);
-
+ // status = p7_domaindef_ByPosteriorHeuristics(pli_tmp->tmpseq, NULL, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, FALSE, NULL, NULL, NULL);
+#if 0
   pli_tmp->tmpseq->dsq = dsq_holder;
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
   if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here       */
@@ -2398,7 +2400,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   P7_HMM_WINDOWLIST vit_windowlist;
   P7_HMM_WINDOWLIST post_vit_windowlist;
   P7_HMM_WINDOW    *window;
-
+  
   if (dnasq->n < 3) return eslOK;
   translate_sequence(gcode, wrk, dnasq);/* translate dna sequence into orfs and store inwrk */ 
     
@@ -2428,9 +2430,8 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
       p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
       
       P = esl_gumbel_surv( (usc-nullsc)/eslCONST_LOG2,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-
       if (P > pli->F1 ) continue;
-      
+	      
       pli->n_past_msv++;
       pli->pos_past_msv += orfsq->n * 3;
 

@@ -102,6 +102,7 @@ HDRS =  hmmer.h \
 
 OBJS =  build.o\
 	cachedb.o\
+	decoding_frameshift.o\
 	emit.o\
 	errors.o\
 	evalues.o\
@@ -128,6 +129,7 @@ OBJS =  build.o\
 	modelconfig.o\
 	modelstats.o\
 	mpisupport.o\
+	optacc_frameshift.o\
 	seqmodel.o\
 	tracealign.o\
 	p7_alidisplay.o\

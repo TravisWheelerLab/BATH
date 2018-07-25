@@ -520,11 +520,10 @@ typedef struct p7_gmx_s {
 #define DMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
 #define XMX(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
 
-#define FS_OFFSET 4
-#define MMX_FS(i,k,c) (dp[(i)+FS_OFFSET][(k) * p7G_NSCELLS_FS + p7G_M + (c)])
-#define IMX_FS(i,k) (dp[(i+FS_OFFSET)][(k) * p7G_NSCELLS_FS + p7G_I])
-#define DMX_FS(i,k) (dp[(i+FS_OFFSET)][(k) * p7G_NSCELLS_FS + p7G_D])
-#define XMX_FS(i,s) (xmx[(i+FS_OFFSET) * p7G_NXCELLS + (s)])
+#define MMX_FS(i,k,c) (dp[i][(k) * p7G_NSCELLS_FS + p7G_M + (c)])
+#define IMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_I])
+#define DMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_D])
+#define XMX_FS(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])

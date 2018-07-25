@@ -2029,6 +2029,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int              d;
   int              status;
   int              amino_len;
+  int 		   partial;
   ESL_DSQ          *subseq;
   ESL_DSQ          *dsq_holder;
 
@@ -2042,7 +2043,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   float oasc;
   int F3_L = ESL_MIN( window_len,  pli->B3);
 
-//printf("comp %d\n", complementarity);  
   if(complementarity == p7_COMPLEMENT) {
     subseq = sq->dsq + (window_start - window_len);
   } else {
@@ -2057,9 +2057,11 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   } else {
     bias_filtersc = 0;
   }
- 
-  amino_len =  window_len / 3;
 
+  partial = window_len % 3;
+  if(partial != 0) partial += (3-partial); 
+  amino_len =  window_len / 3 + 1;
+  
   p7_ReconfigLength(gm, amino_len);
   emit_sc = Codon_Emissions_Create(gm->rsc, subseq, gcode, gm->M, window_len, indel_cost);
 
@@ -2091,6 +2093,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
   gxb = p7_gmx_Create(gm->M, window_len);
+
   p7_Backward_Frameshift(subseq, window_len, gm, gxb, emit_sc, &bwdsc);
   bwdsc = (bwdsc - filtersc) / eslCONST_LOG2;
   printf("bwd sc %f\n", bwdsc);
@@ -2445,16 +2448,13 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 		                         usc, complementarity, &vit_windowlist);	  
       for(j = 0; j < vit_windowlist.count; ++j) {
 	window = vit_windowlist.windows+j;
-        //printf("Start %d\n", window->n);
 	p7_hmmwindow_new(&post_vit_windowlist, window->id, window->n, window->fm_n, window->k, 
 			window->length, window->score, complementarity, window->target_len);       
       }      
       esl_sq_Reuse(orfsq);
   }
-// printf("hmm %s\n", gm->name);
   for(i = 0; i < post_vit_windowlist.count; ++i) {
     window = post_vit_windowlist.windows+i;
-   // printf("start %d\n", window->n);
   }
   p7_pli_MergeWindows (om, data, &post_vit_windowlist, 0.5);
   

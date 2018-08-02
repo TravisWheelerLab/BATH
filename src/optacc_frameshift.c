@@ -216,6 +216,8 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
     }
   
   *ret_e = XMX(L,p7G_C);
+
+  //p7_gmx_Dump(stdout,gx,p7_DEFAULT); 
   return eslOK;
 }
 /*---------------------- end, oa fill ---------------------------*/
@@ -283,8 +285,8 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
   sprv = p7T_C;
   while (sprv != p7T_S) 
     {  
-     // if(sprv == p7T_B) printf("exit %d\n", i);
-      //if(sprv == p7T_E) printf("enter %d\n", i);
+     if(sprv == p7T_B) printf("exit %d\n", i);
+     if(sprv == p7T_E) printf("enter %d\n", i);
 
 
       switch (sprv) {
@@ -298,7 +300,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       case p7T_B: scur = select_b(gm,     gx, i);                              break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
-      //printf("sprv %d scur %d i %d\n", sprv, scur, i);
+     // printf("sprv %d scur %d i %d\n", sprv, scur, i);
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
 
       postprob = get_postprob(pp, scur, sprv, k, i, codon);

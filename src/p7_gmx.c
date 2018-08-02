@@ -270,7 +270,7 @@ int
 p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int flags)
 {
   int   width     = 9;
-  int   precision = 4;
+  int   precision = 5;
   int   i, k, x;
   float val;
 

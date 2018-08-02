@@ -137,7 +137,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 				     IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1)),
 			  p7_FLogsum(XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1),
 				     DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1)));
-	 if(i == 2) { printf("k %d, sc %f, emit1 %f\n", k, sc, MSC_FS(i,p7P_C1)); } 	          
 	  MMX_FS(i,k,p7G_C1) = sc + MSC_FS(i,p7P_C1);
 
  	  if(i >= 2) {
@@ -526,7 +525,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
       
   gx->M = M;
   gx->L = L;
-  p7_gmx_Dump(stdout, gx, p7_DEFAULT);
+  //p7_gmx_Dump(stdout, gx, p7_DEFAULT);
 return eslOK;
 }
 

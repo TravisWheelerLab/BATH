@@ -86,7 +86,7 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 		            fwd->xmx[p7G_NXCELLS*(L-2) + p7G_C])) + gm->xsc[p7P_C][p7P_MOVE];
   float        denom;
   float	       back_sc;
-  printf("overall %f\n", overall_sc);
+  //printf("overall %f\n", overall_sc);
   pp->M = M;
   pp->L = L;
 
@@ -99,7 +99,7 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
     MMX_FS(0,k, p7G_C0) = MMX_FS(0,k, p7G_C1) = MMX_FS(0,k, p7G_C2) = MMX_FS(0,k, p7G_C3) = 
     MMX_FS(0,k, p7G_C4) = MMX_FS(0,k, p7G_C5) = IMX_FS(0,k) = DMX_FS(0,k) = 0.0;
  
-  for (i = L; i >= 1; i--)
+  for (i = 1; i <= L; i++)
     {
       MMX_FS(i,0, p7G_C0) = MMX_FS(i,0, p7G_C1) = MMX_FS(i,0, p7G_C2) = MMX_FS(i,0, p7G_C3) = 
       MMX_FS(i,0, p7G_C4) = MMX_FS(i,0, p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = 0.0;
@@ -108,30 +108,30 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 	{
           back_sc = bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc;	
 	   
-	  MMX_FS(i,k, p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_M + p7G_C0] + back_sc); 
+	  MMX_FS(i,k, p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] + back_sc); 
 
-	  MMX_FS(i,k, p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_M + p7G_C1] + back_sc); 
+	  MMX_FS(i,k, p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_sc); 
 
-	  if(i >= 2) {  
-	    MMX_FS(i,k, p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_M + p7G_C2] + back_sc);
-	  } else { MMX_FS(i,k, p7G_C2) = 0.0; }
+	 // if(i >= 2) {  
+	    MMX_FS(i,k, p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_sc);
+	 // } else { MMX_FS(i,k, p7G_C2) = 0.0; }
 
-	  if(i >= 3) {
-	    MMX_FS(i,k, p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_M + p7G_C3] + back_sc);
-          } else { MMX_FS(i,k, p7G_C3) = 0.0; }
+	 // if(i >= 3) {
+	    MMX_FS(i,k, p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_sc);
+         // } else { MMX_FS(i,k, p7G_C3) = 0.0; }
 
-	  if(i >= 4) {
-	    MMX_FS(i,k, p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_M + p7G_C4] + back_sc);
-          } else { MMX_FS(i,k, p7G_C4) = 0.0; }
+	 // if(i >= 4) {
+	    MMX_FS(i,k, p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_sc);
+         // } else { MMX_FS(i,k, p7G_C4) = 0.0; }
 
-	  if(i >= 5) {
-	    MMX_FS(i,k, p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_M + p7G_C5] + back_sc); 
-          } else { MMX_FS(i,k, p7G_C5) = 0.0; }
+	  //if(i >= 5) {
+	    MMX_FS(i,k, p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_sc); 
+          //} else { MMX_FS(i,k, p7G_C5) = 0.0; }
 
-	  if(i >= 3) {
-	    IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_I] + 
+	 // if(i >= 3) {
+	    IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + 
 	    bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc);
-          } else { IMX_FS(i,k) = 0.0; }
+         // } else { IMX_FS(i,k) = 0.0; }
 
 	  DMX_FS(i,k) = 0.;
 
@@ -139,25 +139,25 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 	
       back_sc = bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc;
       
-      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS + p7G_M + p7G_C0] + back_sc); 
+      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] + back_sc); 
 
-      MMX_FS(i,M, p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS + p7G_M + p7G_C1] + back_sc); 
+      MMX_FS(i,M, p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_sc); 
       
-      if(i >= 2) { 
-        MMX_FS(i,M, p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS + p7G_M + p7G_C2] + back_sc);
-      } else { MMX_FS(i,M, p7G_C2) = 0.0; }
+    // if(i >= 2) { 
+        MMX_FS(i,M, p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_sc);
+    // } else { MMX_FS(i,M, p7G_C2) = 0.0; }
 
-      if(i >= 3) {
-        MMX_FS(i,M, p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS + p7G_M + p7G_C3] + back_sc); 
-      } else { MMX_FS(i,k, p7G_C3) = 0.0; }
+     // if(i >= 3) {
+        MMX_FS(i,M, p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_sc); 
+      //} else { MMX_FS(i,k, p7G_C3) = 0.0; }
 
-      if(i >= 4) {
-        MMX_FS(i,M, p7G_C4) = expf(fwd->dp[i][M*p7G_NSCELLS + p7G_M + p7G_C4] + back_sc); 
-      } else { MMX_FS(i,k, p7G_C4) = 0.0; }
+     // if(i >= 4) {
+        MMX_FS(i,M, p7G_C4) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_sc); 
+     // } else { MMX_FS(i,k, p7G_C4) = 0.0; }
 
-      if(i >= 5) {
-        MMX_FS(i,M, p7G_C5) = expf(fwd->dp[i][M*p7G_NSCELLS + p7G_M + p7G_C5] + back_sc); 
-      } else {	MMX_FS(i,k, p7G_C5) = 0.0; }
+     // if(i >= 5) {
+        MMX_FS(i,M, p7G_C5) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_sc); 
+     // } else {	MMX_FS(i,k, p7G_C5) = 0.0; }
 
       IMX_FS(i,M) = 0.; 
      
@@ -185,9 +185,11 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 	gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
       }
     }
+
   //p7_gmx_fs_Dump(stdout, pp, p7_DEFAULT);
 
-  for (i = L; i >= 1; i--) {
+  for (i = 1; i <= L; i++) {
+
     denom = 0.0;
     for (k = 1; k < M; k++) {  
       denom += MMX_FS(i,k,p7G_C0); 
@@ -199,6 +201,9 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
       	       +  MMX_FS((i+1),k,p7G_C4)	
 	       +  MMX_FS((i+1),k,p7G_C5);	
          denom += IMX_FS((i+1),k);
+       } else {
+	 denom += MMX_FS(i,k,p7G_C0) * 0.8; 
+         denom += IMX_FS(i,k);
        }
       
        if(i <= L-2) {
@@ -206,16 +211,24 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
       	       +  MMX_FS((i+2),k,p7G_C4)	
 	       +  MMX_FS((i+2),k,p7G_C5);	
          denom += IMX_FS((i+2),k);
+       } else {
+	 denom += MMX_FS(i,k,p7G_C0) * 0.6; 
+         denom += IMX_FS(i,k);
        }
 
        if(i <= L-3) {
          denom += MMX_FS((i+3),k,p7G_C4)	
 	       +  MMX_FS((i+3),k,p7G_C5);	
+       } else {
+	 denom += MMX_FS(i,k,p7G_C0) * 0.4; 
        }
 
        if(i <= L-4) {
          denom += MMX_FS((i+4),k,p7G_C5);	
+       } else {
+	 denom += MMX_FS(i,k,p7G_C0) * 0.2; 
        }
+
     }   
       
     denom += MMX_FS(i,M,p7G_C0); 
@@ -231,7 +244,13 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
          denom += XMX((i+1),p7G_N) 
 	       +  XMX((i+1),p7G_J) 
 	       +  XMX((i+1),p7G_C);
+    } else {
+	 denom += MMX_FS(i,M,p7G_C0) * 0.8; 
+    	 denom += XMX(i,p7G_N) 
+		+  XMX(i,p7G_J) 
+	  	+  XMX(i,p7G_C);
     }
+
       
     if(i <= L-2) {
       denom += MMX_FS((i+2),M,p7G_C3)
@@ -240,15 +259,24 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
       denom += XMX((i+2),p7G_N) 
 	    +  XMX((i+2),p7G_J) 
 	    +  XMX((i+2),p7G_C);
+    } else {
+	 denom += MMX_FS(i,M,p7G_C0) * 0.6; 
+    	 denom += XMX(i,p7G_N) 
+		+  XMX(i,p7G_J) 
+	  	+  XMX(i,p7G_C);
     }
 
     if(i <= L-3) {
       denom += MMX_FS((i+3),M,p7G_C4)	
 	    +  MMX_FS((i+3),M,p7G_C5);	
+    } else {
+	 denom += MMX_FS(i,M,p7G_C0) * 0.4; 
     }
 
     if(i <= L-4) {
       denom += MMX_FS((i+4),M,p7G_C5);	
+    } else {
+	 denom += MMX_FS(i,M,p7G_C0) * 0.2; 
     }      
 
     denom = 1.0 / denom;
@@ -273,7 +301,7 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
     XMX_FS(i,p7G_J) *= denom;
     XMX_FS(i,p7G_C) *= denom;
   }
- // p7_gmx_fs_Dump(stdout, pp, p7_DEFAULT);
+ //p7_gmx_fs_Dump(stdout, pp, p7_DEFAULT);
 
     return eslOK;
 }

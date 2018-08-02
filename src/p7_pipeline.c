@@ -2018,6 +2018,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   P7_HIT           *hit     = NULL;     /* ptr to the current hit output data      */
   P7_GMX           *gxf;  /* generic dp  matrix for use by forward  */ 
   P7_GMX           *gxb;  /* generic dp  matrix for use by backward  */
+  P7_GMX	   *gxpp; /* generic dp  matrix for use in decoding  */
   float            fwdsc;   /* filter scores                           */
   float		   bwdsc;
   float            nullsc;
@@ -2098,12 +2099,16 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   bwdsc = (bwdsc - filtersc) / eslCONST_LOG2;
   printf("bwd sc %f\n", bwdsc);
 
-  status = p7_Decoding_Frameshift(gm, gxf, gxb, gxf); /*gxf is now overwiten with posterior probabilitis*/
-    
+  gxpp = p7_gmx_fs_Create(gm->M, window_len+2);
+  p7_ReconfigUnihit(gm, amino_len); 
+  status = p7_Decoding_Frameshift(gm, gxf, gxb, gxpp); /*gxf is now overwiten with posterior probabilitis*/
+   
+  
+
   if (status == eslOK)
     {
-      p7_OptimalAccuracy_Frameshift(gm, gxf, gxb, &oasc);      /* <oxf> is now overwritten with OA scores              */
-      p7_OATrace_Frameshift        (gm, gxf, gxb, pli->ddef->tr);    /* tr[idx] is now an OA traceback for seq #idx          */
+      p7_OptimalAccuracy_Frameshift(gm, gxpp, gxb, &oasc);      /* <oxf> is now overwritten with OA scores              */
+      p7_OATrace_Frameshift        (gm, gxpp, gxb, pli->ddef->tr);    /* tr[idx] is now an OA traceback for seq #idx          */
     }
   else if (status == eslERANGE)
     { printf("posterios overflow\n"); }

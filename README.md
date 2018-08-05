@@ -1,23 +1,13 @@
 ## HMMER - biological sequence analysis using profile HMMs
 
-<<<<<<< HEAD
 *** Warning:  This is not the primary repository of HMMER. Please find the official repo at: https://github.com/EddyRivasLab/hmmer ***
 
-
-[HMMER](http://hmmer.org) searches biological sequence databases for homologous sequences,
-using either single sequences or multiple sequence alignments as
-queries. HMMER implements a technology called "profile hidden Markov
-models" (profile HMMs). HMMER is used by many protein family domain
-databases and large-scale annotation pipelines, including
-[Pfam](http://pfam.xfam.org) and other members of the
-=======
 [HMMER](http://hmmer.org) searches biological sequence databases for
 homologous sequences, using either single sequences or multiple
 sequence alignments as queries. HMMER implements a technology called
 "profile hidden Markov models" (profile HMMs). HMMER is used by many
 protein family domain databases and large-scale annotation pipelines,
 including [Pfam](http://pfam.xfam.org) and other members of the
->>>>>>> 5e98c5c2cd5aadf51bffe6644e0b81c7028d512a
 [InterPro Consortium](http://www.ebi.ac.uk/interpro/).
 
 To obtain HMMER releases, please visit [hmmer.org](http://hmmer.org).
@@ -62,19 +52,11 @@ a precompiled Userguide.pdf, for example), but you can also clone our
 github repo. You need to clone both the HMMER and Easel repositories,
 as follows:
 
-<<<<<<< HEAD
+
 ```bash
-   % git clone https://github.com/TravisWheelerLab/hmmer
+   % git clone https://github.com/TravisWheelerLab/hmmer 
    % cd hmmer
    % git clone https://github.com/TravisWheelerLab/easel
-   % git checkout develop
-   % (cd easel; git checkout develop)
-=======
-```
-   % git clone https://github.com/EddyRivasLab/hmmer
-   % cd hmmer
-   % git clone https://github.com/EddyRivasLab/easel
->>>>>>> 5e98c5c2cd5aadf51bffe6644e0b81c7028d512a
    % autoconf
 ```
 

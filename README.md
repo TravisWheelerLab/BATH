@@ -73,15 +73,9 @@ focuses on two main branches:
  * **develop** is the HMMER3 development branch
  * **h4-develop** is the HMMER4 development branch.
 
-<<<<<<< HEAD
-To contribute to our fork of HMMER3 development, you want to be on the **develop**
+To contribute to our fork of HMMER3 development, you want to be on the **translatedsearch**
 branch. **If you want to contribute to the main HMMER codebase, go to the
 [EddyRivasLab](https://github.com/EddyRivasLab) repo**
-=======
-To build the most recent official release, leave both HMMER and Easel
-on their default **master** branch.  To contribute to HMMER3
-development, you want to be on the **develop** branches.
->>>>>>> 5e98c5c2cd5aadf51bffe6644e0b81c7028d512a
 
 
 ### to report a problem:

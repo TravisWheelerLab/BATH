@@ -297,6 +297,274 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   return NULL;
 }
 
+/* Function:  p7_alidisplay_fs_Create()
+ * Synopsis:  Create an alignment display, from trace and oprofile.
+ *
+ * Purpose:   Creates and returns an alignment display for domain number
+ *            <which> in traceback <tr>, where the traceback
+ *            corresponds to an alignment of optimized profile <om> to digital sequence
+ *            <dsq>, and the unique name of that target
+ *            sequence <dsq> is <sqname>. The <which> index starts at 0.
+ *            
+ *            It will be a little faster if the trace is indexed with
+ *            <p7_trace_Index()> first. The number of domains is then
+ *            in <tr->ndom>. If the caller wants to create alidisplays
+ *            for all of these, it would loop <which> from
+ *            <0..tr->ndom-1>.
+ *           
+ *            However, even without an index, the routine will work fine.
+ *
+ * Args:      tr       - traceback
+ *            which    - domain number, 0..tr->ndom-1
+ *            om       - optimized profile (query)
+ *            sq       - digital sequence (target)
+ *            ntsq     - text sequence (original nucleotide target in the case of translated search)
+ *            ddef_app - optional posterior prob alignment line; only nhmmer sends a not-NULL value
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <NULL> on allocation failure, or if something's internally corrupt 
+ *            in the data.
+ */
+P7_ALIDISPLAY *
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq)
+{
+  P7_ALIDISPLAY *ad       = NULL;
+  char          *Alphabet = gm->abc->sym;
+  int            n, pos, z;
+  int            z1,z2;
+  int            k,x,i,s;
+  int            hmm_namelen, hmm_acclen, hmm_desclen;
+  int            sq_namelen,  sq_acclen,  sq_desclen;
+  int            status;
+  char           n1,n2,n3;
+  int            j;
+
+  ESL_SQ         *ntorfseqtxt = NULL;
+  
+  /* First figure out which piece of the trace (from first match to last match) 
+   * we're going to represent, and how big it is.
+   */
+  if (tr->ndom > 0) {		/* if we have an index, this is a little faster: */
+    for (z1 = tr->tfrom[which]; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;  /* find next M state      */
+    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
+    for (z2 = tr->tto[which];   z2 >= 0 ;   z2--) if (tr->st[z2] == p7T_M) break;  /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  } else {			/* without an index, we can still do it fine:    */
+    for (z1 = 0; which >= 0 && z1 < tr->N; z1++) if (tr->st[z1] == p7T_B) which--; /* find the right B state */
+    if (z1 == tr->N) return NULL;                                                  /* no such domain <which> */
+    for (; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;                       /* find next M state      */
+    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
+    for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;                /* find the next E state  */
+    for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                       /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  }
+
+  /* Now we know that z1..z2 in the trace will be represented in the
+   * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
+   * our display lines, so allocate z2-z1+2. We know each position is
+   * M, D, or I, so there's a 1:1 correspondence of trace positions
+   * with alignment display positions.  We also know the display
+   * starts and ends with M states.
+   * 
+   * So now let's allocate. The alidisplay is packed into a single
+   * memory space, so this appears to be intricate, but it's just
+   * bookkeeping.  
+   */
+  n = (z2-z1+2) * 3;                          /* model, mline, aseq mandatory         */
+  if (ntsq != NULL)       n += 3*(z2-z1+1)+1; /* nucleotide sequence                  */
+  if (gm->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (gm->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (gm->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
+  if (tr->pp     != NULL) n += (z2-z1+2);   /* optional posterior prob line         */
+  hmm_namelen = strlen(gm->name);                           n += hmm_namelen + 1;
+  hmm_acclen  = (gm->acc  != NULL ? strlen(gm->acc)  : 0);  n += hmm_acclen  + 1;
+  hmm_desclen = (gm->desc != NULL ? strlen(gm->desc) : 0);  n += hmm_desclen + 1;
+
+  sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
+  sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
+  sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
+  ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
+  ad->mem = NULL;
+
+  pos = 0; 
+  ad->memsize = sizeof(char) * n;
+  ESL_ALLOC(ad->mem, ad->memsize);
+  if (gm->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
+  //if (om->mm[0]  != 0) { ad->mmline = ad->mem + pos; pos += z2-z1+2; } else { ad->mmline = NULL; }
+  ad->mmline = NULL;
+  if (gm->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
+  ad->model   = ad->mem + pos;  pos += z2-z1+2;
+  ad->mline   = ad->mem + pos;  pos += z2-z1+2;
+  ad->aseq    = ad->mem + pos;  pos += z2-z1+2;
+  if (ntsq != NULL)    { ad->ntseq  = ad->mem + pos;  pos += 5*(z2-z1+1)+1;} else { ad->ntseq = NULL; } /* for the nucleotide sequence there will be 3 times as many bytes */
+  if (tr->pp != NULL)  { ad->ppline = ad->mem + pos;  pos += z2-z1+2;} else { ad->ppline = NULL; }
+  ad->hmmname = ad->mem + pos;  pos += hmm_namelen +1;
+  ad->hmmacc  = ad->mem + pos;  pos += hmm_acclen +1;
+  ad->hmmdesc = ad->mem + pos;  pos += hmm_desclen +1;
+  ad->sqname  = ad->mem + pos;  pos += sq_namelen +1;
+  ad->sqacc   = ad->mem + pos;  pos += sq_acclen +1;
+  ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
+
+  strcpy(ad->hmmname, gm->name);
+  if (gm->acc  != NULL) strcpy(ad->hmmacc,  gm->acc);  else ad->hmmacc[0]  = 0;
+  if (gm->desc != NULL) strcpy(ad->hmmdesc, gm->desc); else ad->hmmdesc[0] = 0;
+
+  strcpy(ad->sqname,  sq->name);
+  strcpy(ad->sqacc,   sq->acc);
+  strcpy(ad->sqdesc,  sq->desc);
+
+  /* Determine hit coords */
+  ad->hmmfrom = tr->k[z1];
+  ad->hmmto   = tr->k[z2];
+  ad->M       = gm->M;
+	
+  ad->sqfrom  = tr->i[z1];
+  ad->sqto    = tr->i[z2];		 
+  ad->L       = sq->n;
+
+  /* optional rf line */
+  if (ad->rfline != NULL) {
+    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->rf[tr->k[z]]);
+    ad->rfline[z-z1] = '\0';
+  }
+
+  /* optional mm line */
+  if (ad->mmline != NULL) {
+    for (z = z1; z <= z2; z++) ad->mmline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->mm[tr->k[z]]);
+    ad->mmline[z-z1] = '\0';
+  }
+
+  /* optional cs line */
+  if (ad->csline != NULL) {
+    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->cs[tr->k[z]]);
+    ad->csline[z-z1] = '\0';
+  }
+
+  /* optional pp line */
+  if (ad->ppline != NULL) {
+    for (z = z1; z <= z2; z++) ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
+    ad->ppline[z-z1] = '\0';
+  }
+
+  /*
+     If this is a nhmmscant scan; i.e. scan using a DNA
+	 query, put the ORF in a buffer so that if
+	 the hit is in a reverse compliment of the query, i.e.
+	 the other DNA strand, we can take the reverse complement
+	 of the nucleotide DNA to print on the alignment display
+   */  
+  if (ntsq != NULL)    { 
+     ntorfseqtxt = esl_sq_Create();
+     if (sq->start < sq->end) {				
+        for(j= sq->start; j <= sq->end; j++) {
+           esl_sq_CAddResidue(ntorfseqtxt, ntsq->seq[j-1]);
+        }
+     }
+     else {
+        for(j= sq->end; j <= sq->start; j++) {
+           esl_sq_CAddResidue(ntorfseqtxt, ntsq->seq[j-1]);
+        }		 
+        esl_sq_ReverseComplement(ntorfseqtxt);  
+     }
+     esl_sq_CAddResidue(ntorfseqtxt, 0);
+  }
+
+  /* mandatory three alignment display lines: model, mline, aseq */
+  for (z = z1; z <= z2; z++) 
+    {
+      k = tr->k[z];
+      i = tr->i[z];
+      x = sq->dsq[i];
+      s = tr->st[z];
+      if (ntsq != NULL)    { 
+         /*
+          * if there is a nucleotide sequence then we want to record the location 
+          * of the hit in that sequence and not the location of the hit in the ORF 
+          * provided by esl_gencode_ProcessOrf (esl_gencode.c) used in p7_alidisplay_Create
+          * in p7_alidisplay.c.
+          * The ORF has already been saved in ntorfseqtxt and converted into
+          * a reverse complement if the hit was found in the reverse complement of the
+          * query sequence.		  
+          * sq->start is the start location of the ORF in the nucleotide sequence and 
+          * ad->sqfrom is the start of the hit in the ORF in amino acid locations
+          *           
+          *     tr->i[z1]=sqfrom=3   tr->i[z2]=sqto=8
+                       |------hit-----|  	       
+                 E  Y  H  A  G  f  G  H  F  H  W  H 
+                GAGTACCACGCGGGCTTTGGCCACTTTCACTGGCAT
+	            |------------ORF----------|	 
+           sq->start=4 		            sq->end=30 
+          *
+          *
+          *
+          * digitized sequence [1..n], or NULL if text 
+          * char seq index [0..n-1] so nucleotide text seq index 
+          * is 3*(i-1)		 
+          */
+         n1 = n2 = n3 = 78; /* use a capital 'N' for a don't know character instead of a sentinel byte used in ad->aseq */
+         if(i > 0)
+		 {
+            n1 = ntorfseqtxt->seq[ 3*(i-1)];
+            n2 = ntorfseqtxt->seq[ 3*(i-1)+1];
+            n3 = ntorfseqtxt->seq[ 3*(i-1)+2];
+         }
+        }
+
+      switch (s) {
+      case p7T_M:
+        ad->model[z-z1] = gm->consensus[k];
+        if      (x == esl_abc_DigitizeSymbol(gm->abc, gm->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
+        else if (expf(p7P_MSC(gm, k, x)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+        else                                                             ad->mline[z-z1] = ' ';
+        ad->aseq  [z-z1] = toupper(Alphabet[x]);
+        if (ntsq != NULL)    { 
+           ad->ntseq [3*(z-z1)] = toupper(n1);
+           ad->ntseq [3*(z-z1)+1] = toupper(n2);
+           ad->ntseq [3*(z-z1)+2] = toupper(n3);
+		}
+        break;
+	
+      case p7T_I:
+        ad->model [z-z1] = '.';
+        ad->mline [z-z1] = ' ';
+        ad->aseq  [z-z1] = tolower(Alphabet[x]);
+        if (ntsq != NULL)    { 
+           ad->ntseq [3*(z-z1)] = toupper(n1);
+           ad->ntseq [3*(z-z1)+1] = toupper(n2);
+           ad->ntseq [3*(z-z1)+2] = toupper(n3);
+		}
+        break;
+	
+      case p7T_D:
+        ad->model [z-z1] = gm->consensus[k];
+        ad->mline [z-z1] = ' ';
+        ad->aseq  [z-z1] = '-';
+        if (ntsq != NULL)    { 
+           ad->ntseq [3*(z-z1)] = '-';
+           ad->ntseq [3*(z-z1)+1] = '-';
+           ad->ntseq [3*(z-z1)+2] = '-';
+		}
+        break;
+
+      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
+      }
+    }
+  ad->model [z2-z1+1] = '\0';
+  ad->mline [z2-z1+1] = '\0';
+  ad->aseq  [z2-z1+1] = '\0';
+  if (ntsq != NULL)
+     ad->ntseq  [3*(z2-z1+1)] = '\0';
+  ad->N = z2-z1+1;
+
+  esl_sq_Destroy(ntorfseqtxt);  
+
+  return ad;
+
+ ERROR:
+  p7_alidisplay_Destroy(ad);
+  return NULL;
+}
 
 /* Function:  p7_alidisplay_Clone()
  * Synopsis:  Make a duplicate of an ALIDISPLAY.

@@ -113,7 +113,6 @@ trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posterio
   return NULL;
 }
 
-
 /* Function:  p7_trace_Reuse()
  * Synopsis:  Prepare a trace for reuse.
  * Incept:    SRE, Tue Jan  9 13:02:34 2007 [Janelia]
@@ -234,7 +233,6 @@ p7_trace_GrowTo(P7_TRACE *tr, int N)
  ERROR:
   return status;
 }
-
 
 /* Function:  p7_trace_GrowIndexTo()
  * Synopsis:  Reallocates domain index for a given minimum number.
@@ -783,7 +781,6 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
 
   return eslOK;
 }
-
 
 /* Function:  p7_trace_Compare()
  * Synopsis:  Compare two traces for identity

@@ -131,6 +131,7 @@ OBJS =  build.o\
 	mpisupport.o\
 	optacc_frameshift.o\
 	seqmodel.o\
+	stotrace_frameshift.o\
 	tracealign.o\
 	p7_alidisplay.o\
 	p7_bg.o\

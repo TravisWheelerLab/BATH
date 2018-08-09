@@ -304,7 +304,6 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
 					  sp->workspace, sp->assignment, &(sp->nc))) != eslOK) goto ERROR;
 
   ESL_ALLOC(ninc, sizeof(int) * sp->nc);
-
   /* Look at each cluster in turn; most will be too small to worry about. */
   for (c = 0; c < sp->nc; c++)
     {
@@ -399,7 +398,7 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
    * because later we're going to calculate overlaps by i_cur - j_prv
    */
   qsort((void *) sp->sigc, sp->nsigc, sizeof(struct p7_spcoord_s), cluster_orderer);
-
+  printf("nsigc %d\n", sp->nsigc);
   free(ninc);
   *ret_nclusters = sp->nsigc;
   return eslOK;

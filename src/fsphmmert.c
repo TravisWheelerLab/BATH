@@ -59,7 +59,7 @@ typedef struct {
   P7_BG            *bg;          /* null model                              */
   ESL_SQ           *dnasq;       /*orginal DNA sequence			    */
   ESL_SQ           *dnasqRev;    /*reverse complement of dna sequence       */
-  P7_PIPELINE      *pli;         /* work pipeline                           */
+  P7_PIPELINE     *pli;         /* work pipeline                           */
   P7_TOPHITS       *th;          /* top hit results                         */
   P7_OPROFILE      *om;          /* optimized query profile                 */
   P7_PROFILE	   *gm;		 /* n0n-optimized quert profile		    */
@@ -941,7 +941,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info[i].th  = p7_tophits_Create();
       info[i].om = p7_oprofile_Copy(om);
       info[i].gm = p7_profile_Clone(gm);
-      info[i].pli = p7_pipeline_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
+      info[i].pli = p7_pipeline_fs_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
 
         //set method specific --F1, if it wasn't set at command line
       if (!esl_opt_IsOn(go, "--F1") ) {
@@ -1135,9 +1135,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         p7_hmm_ScoreDataDestroy(info[i].scoredata);
 
       p7_hmm_ScoreDataDestroy(scoredata);
-      p7_pipeline_Destroy(info->pli);
+      p7_pipeline_fs_Destroy(info->pli);
       p7_tophits_Destroy(info->th);
       p7_oprofile_Destroy(info->om);
+      p7_profile_Destroy(info->gm);
       p7_oprofile_Destroy(om);
       p7_profile_Destroy(gm);
       p7_hmm_Destroy(hmm);
@@ -1297,9 +1298,7 @@ while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
 
         info->pli->nres -= dbsq->C; // to account for overlapping region of windows
         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
-
-	p7_pipeline_Reuse(info->pli); // prepare for next search
- 
+	p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       } else {
         info->pli->nres -= dbsq->n;
       }
@@ -1309,7 +1308,7 @@ while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       {
   
           p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_revcmp, p7_COMPLEMENT, gcode, wrk);
-          p7_pipeline_Reuse(info->pli); // prepare for next search
+          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
           info->pli->nres += dbsq_revcmp->W;
 
       }

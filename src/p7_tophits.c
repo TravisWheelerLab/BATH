@@ -1696,6 +1696,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int posw   = (pli->long_targets ? ESL_MAX(7, p7_tophits_GetMaxPositionLength(th)) : 0);
   int h,d;
 
+  printf("qname %d, tname %d, qaccw %d, taccw %d, posw %d\n", qnamew, tnamew, qaccw, taccw, posw);
   int64_t sqfrom;
   int64_t sqto;
   int64_t lowest;

@@ -408,7 +408,6 @@ typedef struct p7_trace_s {
 } P7_TRACE;
 
 
-
 /*****************************************************************
  * 5. P7_HMMFILE:  an HMM save file or database, open for reading.
  *****************************************************************/
@@ -1210,7 +1209,11 @@ typedef struct p7_pipeline_s {
   P7_OMX     *oxb;		/* one-row Backward matrix, accel pipe      */
   P7_OMX     *fwd;		/* full Fwd matrix for domain envelopes     */
   P7_OMX     *bck;		/* full Bck matrix for domain envelopes     */
-
+  P7_GMX     *gxf;		/* full generic Forward matrix for frameshift    */
+  P7_GMX     *gxb;		/* full generic Backward matrix for frameshifts      */
+  P7_GMX     *gfwd;		/* full Fwd generic matrix for domain envelopes     */
+  P7_GMX     *gbck;		/* full Fwd generic matrix for domain envelopes     */
+ 
   /* Domain postprocessing                                                  */
   ESL_RANDOMNESS *r;		/* random number generator                  */
   int             do_reseeding; /* TRUE: reseed for reproducible results    */
@@ -1282,7 +1285,6 @@ typedef struct p7_pipeline_s {
   P7_HMMFILE   *hfp;		/* COPY of open HMM database (if scan mode) */
   char          errbuf[eslERRBUFSIZE];
 } P7_PIPELINE;
-
 
 
 /*****************************************************************
@@ -1379,7 +1381,7 @@ extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_
 
 /*decoding_frameshift*/
 extern int p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
-extern int p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
+extern int p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef, int window_len);
 
 /* generic_fwdback.c */
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
@@ -1409,6 +1411,9 @@ extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp,
 extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_stotrace.c */
+extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
+
+/*stotrace_frameshift.c */
 extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_viterbi.c */
@@ -1468,8 +1473,12 @@ extern int   p7_ILogsum(int s1, int s2);
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
+extern int p7_ReconfigLength_Frameshift  (P7_PROFILE *gm, int L);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
+extern int p7_ReconfigMultihit_Frameshift(P7_PROFILE *gm, int L);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
+extern int p7_ReconfigUnihit_Frameshift  (P7_PROFILE *gm, int L);
+extern int p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp);
 
 /* modelstats.c */
 extern double p7_MeanMatchInfo           (const P7_HMM *hmm, const P7_BG *bg);
@@ -1513,6 +1522,7 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
+extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq);
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);
 extern size_t         p7_alidisplay_Sizeof(const P7_ALIDISPLAY *ad);
 extern int            p7_alidisplay_Serialize(P7_ALIDISPLAY *ad);
@@ -1568,7 +1578,12 @@ extern int p7_domaindef_ByViterbi            (P7_PROFILE *gm, const ESL_SQ *sq, 
 extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
 				                                  P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
 				                                  P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-
+extern int
+p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm,
+                                   P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck,
+                                   P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
+                                   P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr,
+				   float **emit_sc, ESL_GENCODE *gcode, float indel_cost);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
@@ -1667,6 +1682,9 @@ extern P7_PIPELINE *p7_pipeline_Create(ESL_GETOPTS *go, int M_hint, int L_hint, 
 extern int          p7_pipeline_Reuse  (P7_PIPELINE *pli);
 extern void         p7_pipeline_Destroy(P7_PIPELINE *pli);
 extern int          p7_pipeline_Merge  (P7_PIPELINE *p1, P7_PIPELINE *p2);
+extern P7_PIPELINE* p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode);
+extern int          p7_pipeline_fs_Reuse  (P7_PIPELINE *pli);
+extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
 
 extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
 extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);
@@ -1705,6 +1723,7 @@ extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
 extern P7_PROFILE *p7_profile_Create(int M, const ESL_ALPHABET *abc);
 extern P7_PROFILE *p7_profile_Clone(const P7_PROFILE *gm);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
+extern int         p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
 extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);
 extern int         p7_profile_Reuse(P7_PROFILE *gm);
 extern size_t      p7_profile_Sizeof(P7_PROFILE *gm);

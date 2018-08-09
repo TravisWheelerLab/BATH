@@ -232,6 +232,46 @@ p7_ReconfigLength(P7_PROFILE *gm, int L)
   return eslOK;
 }
 
+/* Function:  p7_ReconfigLength_Frameshift()
+ * Synopsis:  Set the target sequence length of a model.
+ *
+ * Purpose:   Given a model already configured for scoring, in some
+ *            particular algorithm mode; reset the expected length
+ *            distribution of the profile for a new mean of <L>.
+ *
+ *            This doesn't affect the length distribution of the null
+ *            model. That must also be reset, using <p7_bg_SetLength()>.
+ *            
+ *            We want this routine to run as fast as possible, because
+ *            the caller needs to dynamically reconfigure the model
+ *            for the length of each target sequence in a database
+ *            search. The profile has precalculated <gm->nj>, 
+ *            the number of times the J state is expected to be used,
+ *            based on the E state loop transition in the current
+ *            configuration.
+ *
+ * Returns:   <eslOK> on success; xsc[NCJ] scores are set here. These
+ *            control the target length dependence of the model.
+ */
+int
+p7_ReconfigLength_Frameshift(P7_PROFILE *gm, int L)
+{
+  float ploop, pmove;
+  int amino_len;
+
+  amino_len = L	/ 3 + 1;  
+  /* Configure N,J,C transitions so they bear L/(2+nj) of the total
+   * unannotated sequence length L. 
+   */
+  pmove = (2.0f + gm->nj) / ((float) amino_len + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  ploop = 1.0f - pmove;
+  gm->xsc[p7P_N][p7P_LOOP] =  gm->xsc[p7P_C][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = log(ploop);
+  gm->xsc[p7P_N][p7P_MOVE] =  gm->xsc[p7P_C][p7P_MOVE] = gm->xsc[p7P_J][p7P_MOVE] = log(pmove);
+  gm->L = L;
+  return eslOK;
+}
+
+
 /* Function:  p7_ReconfigMultihit()
  * Synopsis:  Quickly reconfig model into multihit mode for target length <L>.
  *
@@ -260,6 +300,34 @@ p7_ReconfigMultihit(P7_PROFILE *gm, int L)
   return p7_ReconfigLength(gm, L);
 }
 
+/* Function:  p7_ReconfigMultihit_Frameshift()
+ * Synopsis:  Quickly reconfig model into multihit mode for target length <L>.
+ *
+ * Purpose:   Given a profile <gm> that's already been configured once,
+ *            quickly reconfigure it into a multihit mode for target 
+ *            length <L>. 
+ *            
+ *            This gets called in domain definition, when we need to
+ *            flip the model in and out of unihit <L=0> mode to
+ *            process individual domains.
+ *            
+ * Note:      You can't just flip uni/multi mode alone, because that
+ *            parameterization also affects target length
+ *            modeling. You need to make sure uni vs. multi choice is
+ *            made before the length model is set, and you need to
+ *            make sure the length model is recalculated if you change
+ *            the uni/multi mode. Hence, these functions call
+ *            <p7_ReconfigLength()>.
+ */
+int
+p7_ReconfigMultihit_Frameshift(P7_PROFILE *gm, int L)
+{
+  gm->xsc[p7P_E][p7P_MOVE] = -eslCONST_LOG2;   
+  gm->xsc[p7P_E][p7P_LOOP] = -eslCONST_LOG2;   
+  gm->nj                   = 1.0f;
+  return p7_ReconfigLength_Frameshift(gm, L);
+}
+
 /* Function:  p7_ReconfigUnihit()
  * Synopsis:  Quickly reconfig model into unihit mode for target length <L>.
  *
@@ -280,6 +348,61 @@ p7_ReconfigUnihit(P7_PROFILE *gm, int L)
   return p7_ReconfigLength(gm, L);
 }
 
+/* Function:  p7_ReconfigUnihit_Frameshift()
+ * Synopsis:  Quickly reconfig model into unihit mode for target length <L>.
+ *
+ * Purpose:   Given a profile <gm> that's already been configured once,
+ *            quickly reconfigure it into a unihit mode for target 
+ *            length <L>. 
+ *            
+ *            This gets called in domain definition, when we need to
+ *            flip the model in and out of unihit <L=0> mode to
+ *            process individual domains.
+ */
+int
+p7_ReconfigUnihit_Frameshift(P7_PROFILE *gm, int L)
+{
+  gm->xsc[p7P_E][p7P_MOVE] = 0.0f;   
+  gm->xsc[p7P_E][p7P_LOOP] = -eslINFINITY;  
+  gm->nj                   = 0.0f;
+  return p7_ReconfigLength_Frameshift(gm, L);
+}
+
+/* Function:  p7_UpdateFwdEmissionScores()
+ * Synopsis:  Update om match emissions to account for new bg, using
+ *            preallocated sc_tmp[].
+ *
+ * Purpose:   Change scores based on updated background model
+ *
+ */
+int
+p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp)
+{
+  int     M   = gm->M;    /* length of the query                                          */
+  int     i, j;
+  int     K   = gm->abc->K;
+  int     Kp  = gm->abc->Kp;
+
+  for (i = 1; i <= gm->M; i++) {
+
+    for (j=0; j<K; j++) {
+      if (gm->mm && gm->mm[i] == 'm')
+        sc_tmp[j] = 0;
+      else
+        sc_tmp[j] = log(fwd_emissions[i*gm->abc->Kp + j] / bg->f[j]);
+    }
+
+
+    esl_abc_FExpectScVec(bg->abc, sc_tmp, bg->f);
+
+    for (j=0; j<Kp; j++)
+      gm->rsc[j][(i) * p7P_NR  + p7P_MSC] =  sc_tmp[j];
+
+  }
+
+  return eslOK;
+
+}
 
 /*****************************************************************
  * 2. Unit tests

@@ -205,6 +205,39 @@ p7_profile_Clone(const P7_PROFILE *gm)
   return NULL;
 }
 
+/* Function:  p7_profile_GetFwdEmissionArray()
+ * Synopsis:  Retrieve Fwd (float) residue emission values from an optimized
+ *            profile into an array
+ *
+ * Purpose:   Extract an implicitly 2D array of 32-bit float Fwd residue
+ *            emission values from an optimized profile <om>, converting
+ *            back to emission values based on the background. <arr> must
+ *            be allocated by the calling function to be of size
+ *            ( om->abc->Kp * ( om->M  + 1 )), and indexing into the array
+ *            is done as  [om->abc->Kp * i +  c ] for character c at
+ *            position i.
+ *
+ * Args:      <om>   - optimized profile, containing transition information
+ *            <bg>   - background frequencies
+ *            <arr>  - preallocated array into which scores will be placed
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    (no abnormal error conditions)
+ */
+int
+p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr )
+{
+  int i, j;
+
+  for (i = 1; i <= gm->M; i++) {
+    for (j=0; j<gm->abc->Kp; j++) {
+      arr[i*gm->abc->Kp + j] =  bg->f[j] * exp( gm->rsc[j][(i) * p7P_NR     + p7P_MSC]);
+    }
+  }
+
+  return eslOK;
+}
 
 /* Function:  p7_profile_SetNullEmissions()
  * Synopsis:  Set all emission scores to zero (experimental).

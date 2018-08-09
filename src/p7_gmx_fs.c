@@ -108,20 +108,20 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L)
   uint64_t ncells;
   int      do_reset = FALSE;
 
-  if (M < gx->allocW && L < gx->validR) return eslOK;
-  
-  /* must we realloc the 3D matrices? (or can we get away with just
+ if (M < gx->allocW && L < gx->validR) return eslOK;
+
+  /* must we realloc the 2D matrices? (or can we get away with just
    * jiggering the row pointers, if we are growing in one dimension
    * while shrinking in another?)
    */
-  ncells = (uint64_t) (M+1) * (uint64_t) (L+5);
+  ncells = (uint64_t) (M+1) * (uint64_t) (L+1);
   if (ncells > gx->ncells) 
     {
-      ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * p7G_NSCELLS);
+      ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * p7G_NSCELLS_FS);
       gx->ncells = ncells;
       do_reset   = TRUE;
     }
-
+printf("R %d L %d\n", gx->allocR, L);
   /* must we reallocate the row pointers? */
   if (L >= gx->allocR)
     {
@@ -130,7 +130,7 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L)
       gx->allocR = L+1;		/* allocW will also get set, in the do_reset block */
       do_reset   = TRUE;
     }
-
+  
   /* must we widen the rows? */
   if (M >= gx->allocW) do_reset = TRUE;
 
@@ -143,7 +143,7 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L)
       gx->allocW = M+1;
       gx->validR = ESL_MIN(gx->ncells / gx->allocW, gx->allocR);
       for (i = 0; i < gx->validR; i++) 
-	gx->dp[i] = gx->dp_mem + i * (gx->allocW) * p7G_NSCELLS;
+	gx->dp[i] = gx->dp_mem + i * (gx->allocW) * p7G_NSCELLS_FS;
     }
 
   gx->M      = 0;

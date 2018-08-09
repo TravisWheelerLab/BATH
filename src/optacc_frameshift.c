@@ -284,12 +284,11 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
      if(sprv == p7T_B) printf("exit %d\n", i);
      if(sprv == p7T_E) printf("enter %d\n", i);
 
-
       switch (sprv) {
       case p7T_M: scur = select_m(gm,     gx, i, k, &codon);  k--; i -= codon; break;
-      case p7T_D: scur = select_d(gm,     gx, i, k);         k--;              break;
+      case p7T_D: scur = select_d(gm,     gx, i, k);          k--;             break;
       case p7T_I: scur = select_i(gm,     gx, i, k);               i -= 3;     break;
-      case p7T_N: scur = select_n(i);                              i -= 3;      break;
+      case p7T_N: scur = select_n(i);                                          break;
       case p7T_C: scur = select_c(gm, pp, gx, i);                              break;
       case p7T_J: scur = select_j(gm, pp, gx, i);                  i -= 3;     break;
       case p7T_E: scur = select_e(gm,     gx, i, &k);                          break;
@@ -303,7 +302,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       if ((status = p7_trace_AppendWithPP(tr, scur, k, i, postprob)) != eslOK) return status;
 
       /* For NCJ, we had to defer i decrement. */
-      if ( scur == p7T_C && scur == sprv) i--;
+      if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--;
       sprv = scur;
     }
   tr->M = gm->M;
@@ -344,7 +343,7 @@ select_m(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k, int* ret_codon)
   path[1] = TSCDELTA(p7P_IM, k-1) * IMX(i-1,k-1);
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(i-1,k-1);
   path[3] = TSCDELTA(p7P_BM, k-1) * XMX(i-1,p7G_B);
-  codon[0] = esl_vec_FMax(path, 4);
+  codon_path[0] = esl_vec_FMax(path, 4);
   state_path[0] = state[esl_vec_FArgMax(path, 4)];
   
   if(i >= 2) {
@@ -409,13 +408,14 @@ select_i(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k)
 
   path[0] = TSCDELTA(p7P_MI, k) * MMX(i-3,k);
   path[1] = TSCDELTA(p7P_II, k) * IMX(i-3,k);
+
   return ((path[0] >= path[1]) ? p7T_M : p7T_I);
 }
 
 static inline int
 select_n(int i)
 {
-  return ((i<=2) ? p7T_S : p7T_N);
+  return ((i==0) ? p7T_S : p7T_N);
 }
 
 static inline int

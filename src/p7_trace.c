@@ -950,6 +950,71 @@ p7_trace_SetPP(P7_TRACE *tr, const P7_GMX *pp)
   return status;
 }
 
+/* Function:  p7_trace_fs_SetPP()
+ * Synopsis:  Set posterior probs of an arbitrary trace.
+ * Incept:    SRE, Tue Aug 19 14:16:10 2008 [Janelia]
+ *
+ * Purpose:   Set the posterior probability fields of an arbitrary
+ *            trace <tr>, by accessing posterior residue probabilities
+ *            in decoding matrix <pp>.
+ *            
+ *            In general, <pp> was created by <p7_GDecoding()> 
+ *            or converted from the optimized matrix created by
+ *            <p7_Decoding()>.
+ *            
+ *            This is classed as a debugging function for the moment,
+ *            because in general traces with posterior probabilities are
+ *            created directly using optimal accuracy DP routines.
+ *            This function allows us to add PP annotation to any
+ *            trace.
+ * 
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation error.
+ *            <eslEINVAL> on internal corruptions.
+ */
+int
+p7_trace_fs_SetPP(P7_TRACE *tr, const P7_GMX *pp)
+{
+  float **dp  = pp->dp;		/* so {MDI}MX() macros work */
+  float  *xmx = pp->xmx;	/* so XMX() macro works     */
+  int z;
+  int codon;
+  int status;
+
+  if (tr->pp == NULL) ESL_ALLOC(tr->pp, sizeof(float) * tr->nalloc);
+
+  for (z = 0; z < tr->N; z++)
+    {
+      if (tr->i[z] > 0)		/* an emitting state? */
+	{
+	  switch (tr->st[z]) {
+	  printf("i %d, state %d\n", tr->i[z], tr->st[z]);
+	  case p7T_M:  codon = tr->i[z] - tr->i[z+1];
+		       if(codon == 1) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C1); break; }
+		       if(codon == 2) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C2); break; }
+ 		       if(codon == 3) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C3); break; }
+	               if(codon == 4) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C4); break; }
+ 		       if(codon == 5) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C5); break; }
+          case p7T_I:  tr->pp[z] = IMX_FS(tr->i[z], tr->k[z]); break;
+	  case p7T_D:  tr->pp[z] = 0.0; break;
+	  case p7T_N:  tr->pp[z] = XMX_FS(tr->i[z], p7G_N);    break;
+	  case p7T_B:  tr->pp[z] = 0.0; break;
+	  case p7T_C:  tr->pp[z] = XMX_FS(tr->i[z], p7G_C);    break;
+	  case p7T_J:  tr->pp[z] = XMX_FS(tr->i[z], p7G_J);    break;
+	  default:     ESL_EXCEPTION(eslEINVAL, "no such emitting state");
+	  }
+	}
+      else
+	tr->pp[z] = 0.0;
+    }
+  return eslOK;
+       
+ ERROR:
+  return status;
+}
+
+
 /* Function:  p7_trace_GetExpectedAccuracy()
  * Synopsis:  Returns the sum of the posterior residue decoding probs.
  * Incept:    SRE, Tue Aug 19 15:29:18 2008 [Janelia]
@@ -1024,6 +1089,66 @@ p7_trace_Append(P7_TRACE *tr, char st, int k, int i)
   case p7T_T: tr->i[tr->N] = 0; tr->k[tr->N] = 0; break;
     /* Nonemitting, but in main model (k valid) */
   case p7T_D: tr->i[tr->N] = 0; tr->k[tr->N] = k; break;
+    /* Emitting states, with valid k position in model: */
+  case p7T_M: 
+  case p7T_I: tr->i[tr->N] = i; tr->k[tr->N] = k; break;
+  default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
+  }
+
+  tr->st[tr->N] = st;
+  tr->N++;
+  return eslOK;
+}
+
+/* Function:  p7_trace_fs_Append()
+ * Synopsis:  Add an element (state/residue) to a growing trace.
+ *
+ * Purpose:   Adds an element to a trace <tr> that is growing
+ *            left-to-right. The element is defined by a state type
+ *            <st> (such as <p7T_M>); a node index <k> (1..M for
+ *            M,D,I main states; else 0); and a dsq position <i> (1..L
+ *            for emitters, else 0).
+ *            
+ *            For CNJ states, which emit on transition, by convention
+ *            we associate the emission with the downstream state; therefore
+ *            the first state in any run of CNJ states has i=0. 
+ *            
+ *            Reallocates the trace (by doubling) if necessary.
+ *            
+ *            Caller can grow a trace right-to-left too, if it
+ *            plans to call <p7_trace_Reverse()>. 
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on reallocation failure. The element is successfully
+ *            added, but no more elements can be added before this trace is
+ *            destroyed.
+ *            
+ *            <eslEINVAL> if you try to add an element to a trace whose
+ *            reallocation has already failed.
+ */
+int
+p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i)
+{
+  int status;
+  if ((status = p7_trace_Grow(tr)) != eslOK) return status;
+
+  switch (st) {
+    /* Emit-on-transition states: */
+  case p7T_N: 
+  case p7T_C: 
+  case p7T_J: 
+    tr->i[tr->N] = ( (tr->st[tr->N-1] == st) ? i : -1);
+    tr->k[tr->N] = 0;
+    break;
+    /* Nonemitting states, outside main model: */
+  case p7T_X:
+  case p7T_S:
+  case p7T_E:
+  case p7T_T: tr->i[tr->N] = -1; tr->k[tr->N] = 0; break;
+  case p7T_B: tr->i[tr->N] = i;  tr->k[tr->N] = 0; break;
+  /* Nonemitting, but in main model (k valid) */
+  case p7T_D: tr->i[tr->N] = i; tr->k[tr->N] = k; break;
     /* Emitting states, with valid k position in model: */
   case p7T_M: 
   case p7T_I: tr->i[tr->N] = i; tr->k[tr->N] = k; break;
@@ -1628,6 +1753,5 @@ main(int argc, char **argv)
 }
 #endif /*p7TRACE_TESTDRIVE*/
 /*--------------------- end, test driver ------------------------*/
-
 
 

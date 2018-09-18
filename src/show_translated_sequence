@@ -1,0 +1,658 @@
+fsphmmert.c:          info[i].pli->F1 = 0.03;
+fsphmmert.c:          info[i].pli->F1 = 0.02;
+fsphmmert.c:      if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+fsphmmert.c:      info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
+fsphmmert.c:        info[i].pli->strands = p7_STRAND_TOPONLY;
+fsphmmert.c:        info[i].pli->strands = p7_STRAND_BOTTOMONLY;
+fsphmmert.c:        info[i].pli->strands = p7_STRAND_BOTH;
+fsphmmert.c:      info[i].pli->block_length = NHMMER_MAX_RESIDUE_COUNT;
+fsphmmert.c:          if ( info[0].pli->strands == p7_STRAND_BOTH)
+fsphmmert.c:            resCnt += info[i].pli->nres;
+fsphmmert.c:        info[0].pli->nseqs = fm_meta->seq_data[fm_meta->seq_count-1].target_id + 1;
+fsphmmert.c:        info[0].pli->nres  = resCnt;
+fsphmmert.c:      p7_tophits_RemoveDuplicates(info->th, info->pli->use_bit_cutoffs);
+fsphmmert.c:      info->pli->n_output = info->pli->pos_output = 0;
+fsphmmert.c:              info->pli->n_output++;
+fsphmmert.c:              info->pli->pos_output += 1 + (info->th->hit[i]->dcl[0].jali > info->th->hit[i]->dcl[0].iali ? info->th->hit[i]->dcl[0].jali - info->th->hit[i]->dcl[0].iali : info->th->hit[i]->dcl[0].iali - info->th->hit[i]->dcl[0].jali) ;
+fsphmmert.c:      info->pli->long_targets = FALSE;
+fsphmmert.c:      if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
+fsphmmert.c:        info->pli->nres -= dbsq->C; // to account for overlapping region of windows
+fsphmmert.c:        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
+fsphmmert.c:        info->pli->nres -= dbsq->n;
+fsphmmert.c:      if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
+fsphmmert.c:          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_revcmp, p7_COMPLEMENT, gcode, wrk);
+fsphmmert.c:          info->pli->nres += dbsq_revcmp->W;
+fsphmmert.c:      wstatus = esl_sqio_ReadWindow(dbfp, (info->om->max_length * 3), info->pli->block_length, dbsq);
+fsphmmert.c:          info->pli->nseqs++;
+fsphmmert.c:	  wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
+fsphmmert.c:        sstatus = esl_sqio_ReadBlock(dbfp, block, info->pli->block_length, n_targetseqs, TRUE);
+fsphmmert.c:      block->first_seqidx = info->pli->nseqs;
+fsphmmert.c:      info->pli->nseqs += block->count  - ((abort || block->complete) ? 0 : 1);// if there's an incomplete sequence read into the block wait to count it until it's complete.
+fsphmmert.c:      if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
+fsphmmert.c:        info->pli->nres -= dbsq->C; // to account for overlapping region of windows
+fsphmmert.c:        info->pli->nres -= dbsq->n;
+fsphmmert.c:      if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL)
+fsphmmert.c:          info->pli->nres += dbsq->W;
+hmmc2.c:        pli->nmodels     = stats->nmodels;
+hmmc2.c:        pli->nseqs       = stats->nseqs;
+hmmc2.c:        pli->n_past_msv  = stats->n_past_msv;
+hmmc2.c:        pli->n_past_bias = stats->n_past_bias;
+hmmc2.c:        pli->n_past_vit  = stats->n_past_vit;
+hmmc2.c:        pli->n_past_fwd  = stats->n_past_fwd;
+hmmc2.c:        pli->Z           = stats->Z;
+hmmc2.c:        pli->domZ        = stats->domZ;
+hmmc2.c:        pli->Z_setby     = stats->Z_setby;
+hmmc2.c:        pli->domZ_setby  = stats->domZ_setby;
+hmmdmstr.c:    pli->nmodels     = results->stats.nmodels;
+hmmdmstr.c:    pli->nseqs       = results->stats.nseqs;
+hmmdmstr.c:    pli->n_past_msv  = results->stats.n_past_msv;
+hmmdmstr.c:    pli->n_past_bias = results->stats.n_past_bias;
+hmmdmstr.c:    pli->n_past_vit  = results->stats.n_past_vit;
+hmmdmstr.c:    pli->n_past_fwd  = results->stats.n_past_fwd;
+hmmdmstr.c:    pli->Z           = results->stats.Z;
+hmmdmstr.c:    pli->domZ        = results->stats.domZ;
+hmmdmstr.c:    pli->Z_setby     = results->stats.Z_setby;
+hmmdmstr.c:    pli->domZ_setby  = results->stats.domZ_setby;
+hmmdmstr.c:    results->stats.domZ      = pli->domZ;
+hmmdmstr.c:    results->stats.Z         = pli->Z;
+hmmdwrkr.c:           i, pli->nseqs, pli->nres, pli->n_past_msv, pli->n_past_bias, pli->n_past_vit, pli->n_past_fwd, buf1);
+hmmdwrkr.c:  if (pli->Z_setby == p7_ZSETBY_NTARGETS) pli->Z = info->db_Z;
+hmmdwrkr.c:  stats.nmodels     = pli->nmodels;
+hmmdwrkr.c:  stats.nseqs       = pli->nseqs;
+hmmdwrkr.c:  stats.n_past_msv  = pli->n_past_msv;
+hmmdwrkr.c:  stats.n_past_bias = pli->n_past_bias;
+hmmdwrkr.c:  stats.n_past_vit  = pli->n_past_vit;
+hmmdwrkr.c:  stats.n_past_fwd  = pli->n_past_fwd;
+hmmdwrkr.c:  stats.Z           = pli->Z;
+hmmdwrkr.c:  stats.domZ        = pli->domZ;
+hmmdwrkr.c:  stats.Z_setby     = pli->Z_setby;
+hmmdwrkr.c:  stats.domZ_setby  = pli->domZ_setby;
+hmmscan.c:	  info[i].pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+hmmscan.c:      pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+hmmscan.c:      pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+hmmscan.c:      if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+hmmscan.c:      if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+hmmsearch.c:        if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+mpisupport.c:  if (MPI_Pack(&pli->mode,        1, MPI_LONG_INT,      *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->Z_setby,     1, MPI_LONG_INT,      *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->nmodels,     1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->nseqs,       1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->nres,        1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->nnodes,      1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->n_past_msv,  1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->n_past_bias, 1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->n_past_vit,  1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->n_past_fwd,  1, MPI_LONG_LONG_INT, *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Pack(&pli->Z,           1, MPI_DOUBLE,        *buf, n, &pos, comm) != 0) ESL_XEXCEPTION(eslESYS, "pack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->mode),        1, MPI_LONG_INT,      comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->Z_setby),     1, MPI_LONG_INT,      comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->nmodels),     1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->nseqs),       1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->nres),        1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->nnodes),      1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->n_past_msv),  1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->n_past_bias), 1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->n_past_vit),  1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->n_past_fwd),  1, MPI_LONG_LONG_INT, comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+mpisupport.c:  if (MPI_Unpack(*buf, n, &pos, &(pli->Z),           1, MPI_DOUBLE,        comm) != 0) ESL_XEXCEPTION(eslESYS, "unpack failed"); 
+nhmmer.c:              info[i].pli->F1 = 0.03;
+nhmmer.c:              info[i].pli->F1 = 0.02;
+nhmmer.c:          if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+nhmmer.c:          info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
+nhmmer.c:            info[i].pli->strands = p7_STRAND_TOPONLY;
+nhmmer.c:            info[i].pli->strands = p7_STRAND_BOTTOMONLY;
+nhmmer.c:            info[i].pli->strands = p7_STRAND_BOTH;
+nhmmer.c:              info[i].pli->block_length = esl_opt_GetInteger(go, "--block_length");
+nhmmer.c:              info[i].pli->block_length = NHMMER_MAX_RESIDUE_COUNT;
+nhmmer.c:    	  if ( info[0].pli->strands == p7_STRAND_BOTH)
+nhmmer.c:            resCnt += info[i].pli->nres;
+nhmmer.c:        info[0].pli->nseqs = fm_meta->seq_data[fm_meta->seq_count-1].target_id + 1;
+nhmmer.c:        info[0].pli->nres  = resCnt;
+nhmmer.c:      p7_tophits_RemoveDuplicates(info->th, info->pli->use_bit_cutoffs);
+nhmmer.c:      info->pli->n_output = info->pli->pos_output = 0;
+nhmmer.c:              info->pli->n_output++;
+nhmmer.c:              info->pli->pos_output += 1 + (info->th->hit[i]->dcl[0].jali > info->th->hit[i]->dcl[0].iali ? info->th->hit[i]->dcl[0].jali - info->th->hit[i]->dcl[0].iali : info->th->hit[i]->dcl[0].iali - info->th->hit[i]->dcl[0].jali) ;
+nhmmer.c:  wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
+nhmmer.c:      if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
+nhmmer.c:        info->pli->nres -= dbsq->C; // to account for overlapping region of windows
+nhmmer.c:        p7_Pipeline_LongTarget(info->pli, info->om, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, NULL, NULL, NULL);
+nhmmer.c:        info->pli->nres -= dbsq->n;
+nhmmer.c:      if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
+nhmmer.c:          p7_Pipeline_LongTarget(info->pli, info->om, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_revcmp, p7_COMPLEMENT, NULL, NULL, NULL);
+nhmmer.c:          info->pli->nres += dbsq_revcmp->W;
+nhmmer.c:      wstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq);
+nhmmer.c:          info->pli->nseqs++;
+nhmmer.c:          wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
+nhmmer.c:        sstatus = esl_sqio_ReadBlock(dbfp, block, info->pli->block_length, n_targetseqs, TRUE);
+nhmmer.c:      block->first_seqidx = info->pli->nseqs;
+nhmmer.c:      info->pli->nseqs += block->count  - ((abort || block->complete) ? 0 : 1);// if there's an incomplete sequence read into the block wait to count it until it's complete.
+nhmmer.c:      if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
+nhmmer.c:        info->pli->nres -= dbsq->C; // to account for overlapping region of windows
+nhmmer.c:        info->pli->nres -= dbsq->n;
+nhmmer.c:      if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL)
+nhmmer.c:          info->pli->nres += dbsq->W;
+nhmmscan.c:        info[i].pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+nhmmscan.c:          info[i].pli->strands = p7_STRAND_TOPONLY;
+nhmmscan.c:          info[i].pli->strands = p7_STRAND_BOTTOMONLY;
+nhmmscan.c:          info[i].pli->strands = p7_STRAND_BOTH;
+nhmmscan.c:        info->th->unsrt[i].lnP         += log((float)info->pli->nmodels);
+nhmmscan.c:      p7_tophits_RemoveDuplicates(info->th, info->pli->use_bit_cutoffs);
+nhmmscan.c:      info->pli->n_output = info->pli->pos_output = 0;
+nhmmscan.c:              info->pli->n_output++;
+nhmmscan.c:              info->pli->pos_output += 1 + (info->th->hit[i]->dcl[0].jali > info->th->hit[i]->dcl[0].iali ? info->th->hit[i]->dcl[0].jali - info->th->hit[i]->dcl[0].iali : info->th->hit[i]->dcl[0].iali - info->th->hit[i]->dcl[0].jali) ;
+nhmmscan.c:      info->pli->nseqs = 1;
+nhmmscan.c:  if (info->pli->strands != p7_STRAND_TOPONLY && info->qsq->abc->complement != NULL ) {
+nhmmscan.c:    info->pli->nres += info->qsq->n;
+nhmmscan.c:        p7_oprofile_ReadRest(info->pli->hfp, om);
+nhmmscan.c:      if (info->pli->strands != p7_STRAND_TOPONLY && info->qsq->abc->complement != NULL )
+nhmmscan.c:        if (status != eslOK) p7_Fail(info->pli->errbuf);
+nhmmscan.c:      if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
+nhmmscan.c:        if (status != eslOK) p7_Fail(info->pli->errbuf);
+nhmmscan.c:  if (info->pli->strands != p7_STRAND_TOPONLY && info->qsq->abc->complement != NULL ) {
+nhmmscan.c:    info->pli->nres += info->qsq->n;
+nhmmscan.c:          p7_oprofile_ReadRest(info->pli->hfp, om);
+nhmmscan.c:        if (info->pli->strands != p7_STRAND_TOPONLY && info->qsq->abc->complement != NULL )
+nhmmscan.c:          if (status != eslOK) p7_Fail(info->pli->errbuf);
+nhmmscan.c:        if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
+nhmmscan.c:          if (status != eslOK) p7_Fail(info->pli->errbuf);
+nhmmscant.c:	       info[i].pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+nhmmscant.c:      pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+nhmmscant.c:      pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+p7_alidisplay.c:      if ((status = p7_nontranslated_alidisplay_Print(fp, ad, min_aliwidth, linewidth, pli->show_accessions)) != eslOK) return status;
+p7_alidisplay.c:  show_accessions = pli->show_accessions;
+p7_alidisplay.c:  show_translated_sequence = pli->show_translated_sequence;
+p7_alidisplay.c:  show_vertical_codon = pli->show_vertical_codon;
+p7_pipeline.c:  pli->do_alignment_score_calc = 0;
+p7_pipeline.c:  pli->long_targets = long_targets;
+p7_pipeline.c:  if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+p7_pipeline.c:  if ((pli->bck = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+p7_pipeline.c:  if ((pli->oxf = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;
+p7_pipeline.c:  if ((pli->oxb = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;     
+p7_pipeline.c:  pli->r                  =  esl_randomness_CreateFast(seed);
+p7_pipeline.c:  pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
+p7_pipeline.c:  pli->ddef               = p7_domaindef_Create(pli->r);
+p7_pipeline.c:  pli->ddef->do_reseeding = pli->do_reseeding;
+p7_pipeline.c:  pli->by_E            = TRUE;
+p7_pipeline.c:  pli->E               = (go ? esl_opt_GetReal(go, "-E") : 10.0);
+p7_pipeline.c:  pli->T               = 0.0;
+p7_pipeline.c:  pli->dom_by_E        = TRUE;
+p7_pipeline.c:  pli->domE            = (go ? esl_opt_GetReal(go, "--domE") : 10.0);
+p7_pipeline.c:  pli->domT            = 0.0;
+p7_pipeline.c:  pli->use_bit_cutoffs = FALSE;
+p7_pipeline.c:      pli->T    = esl_opt_GetReal(go, "-T");  
+p7_pipeline.c:      pli->by_E = FALSE;
+p7_pipeline.c:      pli->domT     = esl_opt_GetReal(go, "--domT"); 
+p7_pipeline.c:      pli->dom_by_E = FALSE;
+p7_pipeline.c:  pli->inc_by_E           = TRUE;
+p7_pipeline.c:  pli->incE               = (go ? esl_opt_GetReal(go, "--incE") : 0.01);
+p7_pipeline.c:  pli->incT               = 0.0;
+p7_pipeline.c:  pli->incdom_by_E        = TRUE;
+p7_pipeline.c:  pli->incdomE            = (go ? esl_opt_GetReal(go, "--incdomE") : 0.01);
+p7_pipeline.c:  pli->incdomT            = 0.0;
+p7_pipeline.c:      pli->incT     = esl_opt_GetReal(go, "--incT"); 
+p7_pipeline.c:      pli->inc_by_E = FALSE;
+p7_pipeline.c:      pli->incdomT     = esl_opt_GetReal(go, "--incdomT"); 
+p7_pipeline.c:      pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->T        = pli->domT        = 0.0;
+p7_pipeline.c:      pli->by_E     = pli->dom_by_E    = FALSE;
+p7_pipeline.c:      pli->incT     = pli->incdomT     = 0.0;
+p7_pipeline.c:      pli->inc_by_E = pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->use_bit_cutoffs = p7H_GA;
+p7_pipeline.c:      pli->T        = pli->domT        = 0.0;
+p7_pipeline.c:      pli->by_E     = pli->dom_by_E    = FALSE;
+p7_pipeline.c:      pli->incT     = pli->incdomT     = 0.0;
+p7_pipeline.c:      pli->inc_by_E = pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->use_bit_cutoffs = p7H_NC;
+p7_pipeline.c:      pli->T        = pli->domT        = 0.0;
+p7_pipeline.c:      pli->by_E     = pli->dom_by_E    = FALSE;
+p7_pipeline.c:      pli->incT     = pli->incdomT     = 0.0;
+p7_pipeline.c:      pli->inc_by_E = pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->use_bit_cutoffs = p7H_TC;
+p7_pipeline.c:  pli->Z       = pli->domZ       = 0.0;
+p7_pipeline.c:  pli->Z_setby = pli->domZ_setby = p7_ZSETBY_NTARGETS;
+p7_pipeline.c:      pli->Z_setby = p7_ZSETBY_OPTION;
+p7_pipeline.c:      pli->Z       = esl_opt_GetReal(go, "-Z");
+p7_pipeline.c:      pli->domZ_setby = p7_ZSETBY_OPTION;
+p7_pipeline.c:      pli->domZ       = esl_opt_GetReal(go, "--domZ");
+p7_pipeline.c:  pli->do_max        = FALSE;
+p7_pipeline.c:  pli->do_biasfilter = TRUE;
+p7_pipeline.c:  pli->do_null2      = TRUE;
+p7_pipeline.c:  pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
+p7_pipeline.c:  pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
+p7_pipeline.c:  pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
+p7_pipeline.c:	  pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
+p7_pipeline.c:	  pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
+p7_pipeline.c:	  pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
+p7_pipeline.c:	  pli->B1 = pli->B2 = pli->B3 = -1;
+p7_pipeline.c:      pli->do_max        = TRUE;
+p7_pipeline.c:      pli->do_biasfilter = FALSE;
+p7_pipeline.c:      pli->F2 = pli->F3 = 1.0;
+p7_pipeline.c:      pli->F1 = (pli->long_targets ? 0.3 : 1.0); // need to set some threshold for F1 even on long targets. Should this be tighter?
+p7_pipeline.c:  if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
+p7_pipeline.c:  if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
+p7_pipeline.c:  pli->nmodels         = 0;
+p7_pipeline.c:  pli->nseqs           = 0;
+p7_pipeline.c:  pli->nres            = 0;
+p7_pipeline.c:  pli->nnodes          = 0;
+p7_pipeline.c:  pli->n_past_msv      = 0;
+p7_pipeline.c:  pli->n_past_bias     = 0;
+p7_pipeline.c:  pli->n_past_vit      = 0;
+p7_pipeline.c:  pli->n_past_fwd      = 0;
+p7_pipeline.c:  pli->pos_past_msv    = 0;
+p7_pipeline.c:  pli->pos_past_bias   = 0;
+p7_pipeline.c:  pli->pos_past_vit    = 0;
+p7_pipeline.c:  pli->pos_past_fwd    = 0;
+p7_pipeline.c:  pli->mode            = mode;
+p7_pipeline.c:  pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
+p7_pipeline.c:  pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
+p7_pipeline.c:  pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
+p7_pipeline.c:  pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
+p7_pipeline.c:  pli->hfp             = NULL;
+p7_pipeline.c:  pli->errbuf[0]       = '\0';
+p7_pipeline.c:  pli->do_alignment_score_calc = 0;
+p7_pipeline.c:  pli->long_targets = long_targets;
+p7_pipeline.c:  if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint)) == NULL) goto ERROR;
+p7_pipeline.c:  if ((pli->gbck = p7_gmx_Create(M_hint, L_hint)) == NULL) goto ERROR;
+p7_pipeline.c:  if ((pli->gxf = p7_gmx_fs_Create(M_hint, L_hint)) == NULL) goto ERROR;
+p7_pipeline.c:  if ((pli->gxb = p7_gmx_Create(M_hint, L_hint)) == NULL) goto ERROR;     
+p7_pipeline.c:  if ((pli->oxf = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+p7_pipeline.c:  if ((pli->oxb = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;     
+p7_pipeline.c:  pli->r                  =  esl_randomness_CreateFast(seed);
+p7_pipeline.c:  pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
+p7_pipeline.c:  pli->ddef               = p7_domaindef_Create(pli->r);
+p7_pipeline.c:  pli->ddef->do_reseeding = pli->do_reseeding;
+p7_pipeline.c:  pli->by_E            = TRUE;
+p7_pipeline.c:  pli->E               = (go ? esl_opt_GetReal(go, "-E") : 10.0);
+p7_pipeline.c:  pli->T               = 0.0;
+p7_pipeline.c:  pli->dom_by_E        = TRUE;
+p7_pipeline.c:  pli->domE            = (go ? esl_opt_GetReal(go, "--domE") : 10.0);
+p7_pipeline.c:  pli->domT            = 0.0;
+p7_pipeline.c:  pli->use_bit_cutoffs = FALSE;
+p7_pipeline.c:      pli->T    = esl_opt_GetReal(go, "-T");  
+p7_pipeline.c:      pli->by_E = FALSE;
+p7_pipeline.c:      pli->domT     = esl_opt_GetReal(go, "--domT"); 
+p7_pipeline.c:      pli->dom_by_E = FALSE;
+p7_pipeline.c:  pli->inc_by_E           = TRUE;
+p7_pipeline.c:  pli->incE               = (go ? esl_opt_GetReal(go, "--incE") : 0.01);
+p7_pipeline.c:  pli->incT               = 0.0;
+p7_pipeline.c:  pli->incdom_by_E        = TRUE;
+p7_pipeline.c:  pli->incdomE            = (go ? esl_opt_GetReal(go, "--incdomE") : 0.01);
+p7_pipeline.c:  pli->incdomT            = 0.0;
+p7_pipeline.c:      pli->incT     = esl_opt_GetReal(go, "--incT"); 
+p7_pipeline.c:      pli->inc_by_E = FALSE;
+p7_pipeline.c:      pli->incdomT     = esl_opt_GetReal(go, "--incdomT"); 
+p7_pipeline.c:      pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->T        = pli->domT        = 0.0;
+p7_pipeline.c:      pli->by_E     = pli->dom_by_E    = FALSE;
+p7_pipeline.c:      pli->incT     = pli->incdomT     = 0.0;
+p7_pipeline.c:      pli->inc_by_E = pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->use_bit_cutoffs = p7H_GA;
+p7_pipeline.c:      pli->T        = pli->domT        = 0.0;
+p7_pipeline.c:      pli->by_E     = pli->dom_by_E    = FALSE;
+p7_pipeline.c:      pli->incT     = pli->incdomT     = 0.0;
+p7_pipeline.c:      pli->inc_by_E = pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->use_bit_cutoffs = p7H_NC;
+p7_pipeline.c:      pli->T        = pli->domT        = 0.0;
+p7_pipeline.c:      pli->by_E     = pli->dom_by_E    = FALSE;
+p7_pipeline.c:      pli->incT     = pli->incdomT     = 0.0;
+p7_pipeline.c:      pli->inc_by_E = pli->incdom_by_E = FALSE;
+p7_pipeline.c:      pli->use_bit_cutoffs = p7H_TC;
+p7_pipeline.c:  pli->Z       = pli->domZ       = 0.0;
+p7_pipeline.c:  pli->Z_setby = pli->domZ_setby = p7_ZSETBY_NTARGETS;
+p7_pipeline.c:      pli->Z_setby = p7_ZSETBY_OPTION;
+p7_pipeline.c:      pli->Z       = esl_opt_GetReal(go, "-Z");
+p7_pipeline.c:      pli->domZ_setby = p7_ZSETBY_OPTION;
+p7_pipeline.c:      pli->domZ       = esl_opt_GetReal(go, "--domZ");
+p7_pipeline.c:  pli->do_max        = FALSE;
+p7_pipeline.c:  pli->do_biasfilter = TRUE;
+p7_pipeline.c:  pli->do_null2      = TRUE;
+p7_pipeline.c:  pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
+p7_pipeline.c:  pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
+p7_pipeline.c:  pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
+p7_pipeline.c:	  pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
+p7_pipeline.c:	  pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
+p7_pipeline.c:	  pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
+p7_pipeline.c:	  pli->B1 = pli->B2 = pli->B3 = -1;
+p7_pipeline.c:      pli->do_max        = TRUE;
+p7_pipeline.c:      pli->do_biasfilter = FALSE;
+p7_pipeline.c:      pli->F2 = pli->F3 = 1.0;
+p7_pipeline.c:      pli->F1 = (pli->long_targets ? 0.3 : 1.0); // need to set some threshold for F1 even on long targets. Should this be tighter?
+p7_pipeline.c:  if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
+p7_pipeline.c:  if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
+p7_pipeline.c:  pli->nmodels         = 0;
+p7_pipeline.c:  pli->nseqs           = 0;
+p7_pipeline.c:  pli->nres            = 0;
+p7_pipeline.c:  pli->nnodes          = 0;
+p7_pipeline.c:  pli->n_past_msv      = 0;
+p7_pipeline.c:  pli->n_past_bias     = 0;
+p7_pipeline.c:  pli->n_past_vit      = 0;
+p7_pipeline.c:  pli->n_past_fwd      = 0;
+p7_pipeline.c:  pli->pos_past_msv    = 0;
+p7_pipeline.c:  pli->pos_past_bias   = 0;
+p7_pipeline.c:  pli->pos_past_vit    = 0;
+p7_pipeline.c:  pli->pos_past_fwd    = 0;
+p7_pipeline.c:  pli->mode            = mode;
+p7_pipeline.c:  pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
+p7_pipeline.c:  pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
+p7_pipeline.c:  pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
+p7_pipeline.c:  pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
+p7_pipeline.c:  pli->hfp             = NULL;
+p7_pipeline.c:  pli->errbuf[0]       = '\0';
+p7_pipeline.c:  p7_omx_Reuse(pli->oxf);
+p7_pipeline.c:  p7_omx_Reuse(pli->oxb);
+p7_pipeline.c:  p7_omx_Reuse(pli->fwd);
+p7_pipeline.c:  p7_omx_Reuse(pli->bck);
+p7_pipeline.c:  p7_domaindef_Reuse(pli->ddef);
+p7_pipeline.c:  p7_gmx_Reuse(pli->gxf);
+p7_pipeline.c:  p7_gmx_Reuse(pli->gxb);
+p7_pipeline.c:  p7_gmx_Reuse(pli->gfwd);
+p7_pipeline.c:  p7_gmx_Reuse(pli->gbck);
+p7_pipeline.c:  p7_omx_Reuse(pli->oxf);
+p7_pipeline.c:  p7_omx_Reuse(pli->oxb);
+p7_pipeline.c:  p7_domaindef_Reuse(pli->ddef);
+p7_pipeline.c:  p7_omx_Destroy(pli->oxf);
+p7_pipeline.c:  p7_omx_Destroy(pli->oxb);
+p7_pipeline.c:  p7_omx_Destroy(pli->fwd);
+p7_pipeline.c:  p7_omx_Destroy(pli->bck);
+p7_pipeline.c:  esl_randomness_Destroy(pli->r);
+p7_pipeline.c:  p7_domaindef_Destroy(pli->ddef);
+p7_pipeline.c:  p7_gmx_Destroy(pli->gxf);
+p7_pipeline.c:  p7_gmx_Destroy(pli->gxb);
+p7_pipeline.c:  p7_gmx_Destroy(pli->gfwd);
+p7_pipeline.c:  p7_gmx_Destroy(pli->gbck);
+p7_pipeline.c:  p7_omx_Destroy(pli->oxf);
+p7_pipeline.c:  p7_omx_Destroy(pli->oxb);
+p7_pipeline.c:  esl_randomness_Destroy(pli->r);
+p7_pipeline.c:  p7_domaindef_Destroy(pli->ddef);
+p7_pipeline.c:  if      (  pli->by_E )
+p7_pipeline.c:      if ( !pli->long_targets  && exp(lnP) * pli->Z <= pli->E) return TRUE;
+p7_pipeline.c:      if (  pli->long_targets  && exp(lnP) <= pli->E)          return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
+p7_pipeline.c:  else if (! pli->by_E   && score         >= pli->T) return TRUE;
+p7_pipeline.c:  if      (  pli->dom_by_E )
+p7_pipeline.c:      if ( !pli->long_targets  &&  exp(lnP) * pli->domZ <= pli->domE) return TRUE;
+p7_pipeline.c:      if (  pli->long_targets  &&  exp(lnP) <= pli->domE) return TRUE;
+p7_pipeline.c:  else if (! pli->dom_by_E   && dom_score        >= pli->domT) return TRUE;
+p7_pipeline.c:  if      (  pli->inc_by_E )
+p7_pipeline.c:      if ( !pli->long_targets && exp(lnP) * pli->Z <= pli->incE) return TRUE;
+p7_pipeline.c:      if (  pli->long_targets && exp(lnP) <= pli->incE) return TRUE;
+p7_pipeline.c:  else if (! pli->inc_by_E   && score         >= pli->incT) return TRUE;
+p7_pipeline.c:  if      (  pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
+p7_pipeline.c:  else if (! pli->incdom_by_E   && dom_score        >= pli->incdomT) return TRUE;
+p7_pipeline.c:  pli->nmodels++;
+p7_pipeline.c:  pli->nnodes += om->M;
+p7_pipeline.c:  if (pli->Z_setby == p7_ZSETBY_NTARGETS && pli->mode == p7_SCAN_MODELS) pli->Z = pli->nmodels;
+p7_pipeline.c:  if (pli->do_biasfilter) p7_bg_SetFilter(bg, om->M, om->compo);
+p7_pipeline.c:  if (pli->mode == p7_SEARCH_SEQS)
+p7_pipeline.c:  pli->W = om->max_length;
+p7_pipeline.c:  if (pli->use_bit_cutoffs)
+p7_pipeline.c:    if (pli->use_bit_cutoffs == p7H_GA)
+p7_pipeline.c:        ESL_FAIL(eslEINVAL, pli->errbuf, "GA bit thresholds unavailable on model %s\n", om->name);
+p7_pipeline.c:      pli->T    = pli->incT    = om->cutoff[p7_GA1];
+p7_pipeline.c:      pli->domT = pli->incdomT = om->cutoff[p7_GA2];
+p7_pipeline.c:    else if  (pli->use_bit_cutoffs == p7H_TC)
+p7_pipeline.c:        ESL_FAIL(eslEINVAL, pli->errbuf, "TC bit thresholds unavailable on model %s\n", om->name);
+p7_pipeline.c:      pli->T    = pli->incT    = om->cutoff[p7_TC1];
+p7_pipeline.c:      pli->domT = pli->incdomT = om->cutoff[p7_TC2];
+p7_pipeline.c:    else if (pli->use_bit_cutoffs == p7H_NC)
+p7_pipeline.c:        ESL_FAIL(eslEINVAL, pli->errbuf, "NC bit thresholds unavailable on model %s\n", om->name);
+p7_pipeline.c:      pli->T    = pli->incT    = om->cutoff[p7_NC1];
+p7_pipeline.c:      pli->domT = pli->incdomT = om->cutoff[p7_NC2];
+p7_pipeline.c:  if (!pli->long_targets) pli->nseqs++; // if long_targets, sequence counting happens in the serial loop, which can track multiple windows for a single long sequence
+p7_pipeline.c:  pli->nres += sq->n;
+p7_pipeline.c:  if (pli->Z_setby == p7_ZSETBY_NTARGETS && pli->mode == p7_SEARCH_SEQS) pli->Z = pli->nseqs;
+p7_pipeline.c:  p7_omx_GrowTo(pli->oxf, om->M, 0, sq->n);    /* expand the one-row omx if needed */
+p7_pipeline.c:  p7_MSVFilter(sq->dsq, sq->n, om, pli->oxf, &usc);
+p7_pipeline.c:  if (P > pli->F1) return eslOK;
+p7_pipeline.c:  pli->n_past_msv++;
+p7_pipeline.c:  if (pli->do_biasfilter)
+p7_pipeline.c:      if (P > pli->F1) return eslOK;
+p7_pipeline.c:  pli->n_past_bias++;
+p7_pipeline.c:  if (P > pli->F2)
+p7_pipeline.c:      p7_ViterbiFilter(sq->dsq, sq->n, om, pli->oxf, &vfsc);  
+p7_pipeline.c:      if (P > pli->F2) return eslOK;
+p7_pipeline.c:  pli->n_past_vit++;
+p7_pipeline.c:  p7_ForwardParser(sq->dsq, sq->n, om, pli->oxf, &fwdsc);
+p7_pipeline.c:  if (P > pli->F3) return eslOK;
+p7_pipeline.c:  pli->n_past_fwd++;
+p7_pipeline.c:  p7_omx_GrowTo(pli->oxb, om->M, 0, sq->n);
+p7_pipeline.c:  p7_BackwardParser(sq->dsq, sq->n, om, pli->oxf, pli->oxb, NULL);
+p7_pipeline.c:  status = p7_domaindef_ByPosteriorHeuristics(sq, ntsq, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, FALSE, NULL, NULL, NULL);
+p7_pipeline.c:  if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen  */
+p7_pipeline.c:  if (pli->ddef->nregions   == 0) return eslOK; /* score passed threshold but there's no discrete domains here       */
+p7_pipeline.c:  if (pli->ddef->nenvelopes == 0) return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
+p7_pipeline.c:  if (pli->ddef->ndom       == 0) return eslOK; /* even rarer: envelope found, no domain identified {iss131}         */
+p7_pipeline.c:  if (pli->do_alignment_score_calc) {
+p7_pipeline.c:    for (d = 0; d < pli->ddef->ndom; d++)
+p7_pipeline.c:      p7_pli_computeAliScores(pli->ddef->dcl + d, sq->dsq, data, om->abc->Kp);
+p7_pipeline.c:  if (pli->do_null2)
+p7_pipeline.c:      seqbias = esl_vec_FSum(pli->ddef->n2sc, sq->n+1);
+p7_pipeline.c:  if (pli->do_null2) 
+p7_pipeline.c:      for (d = 0; d < pli->ddef->ndom; d++) 
+p7_pipeline.c:	  if (pli->ddef->dcl[d].envsc - pli->ddef->dcl[d].domcorrection > 0.0)
+p7_pipeline.c:	      sum_score += pli->ddef->dcl[d].envsc;         /* NATS */
+p7_pipeline.c:	      Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+p7_pipeline.c:	      seqbias   += pli->ddef->dcl[d].domcorrection; /* NATS */  
+p7_pipeline.c:      for (d = 0; d < pli->ddef->ndom; d++) 
+p7_pipeline.c:	  if (pli->ddef->dcl[d].envsc > 0.0)
+p7_pipeline.c:	      sum_score += pli->ddef->dcl[d].envsc;      /* NATS */
+p7_pipeline.c:	      Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+p7_pipeline.c:      if (pli->mode == p7_SEARCH_SEQS) {
+p7_pipeline.c:      hit->ndom       = pli->ddef->ndom;
+p7_pipeline.c:      hit->nexpected  = pli->ddef->nexpected;
+p7_pipeline.c:      hit->nregions   = pli->ddef->nregions;
+p7_pipeline.c:      hit->nclustered = pli->ddef->nclustered;
+p7_pipeline.c:      hit->noverlaps  = pli->ddef->noverlaps;
+p7_pipeline.c:      hit->nenvelopes = pli->ddef->nenvelopes;
+p7_pipeline.c:      hit->sortkey    = pli->inc_by_E ? -lnP : seq_score; /* per-seq output sorts on bit score if inclusion is by score  */
+p7_pipeline.c:      hit->dcl         = pli->ddef->dcl;
+p7_pipeline.c:      pli->ddef->dcl   = NULL;
+p7_pipeline.c:        hit->dcl[d].dombias  = (pli->do_null2 ? p7_FLogsum(0.0, log(bg->omega) + hit->dcl[d].domcorrection) : 0.0); /* NATS, and will stay so */
+p7_pipeline.c:      if (pli->use_bit_cutoffs)
+p7_pipeline.c:            if (pli->mode == p7_SEARCH_SEQS)
+p7_pipeline.c:  int F3_L = ESL_MIN( window_len,  pli->B3);
+p7_pipeline.c:  if (pli->do_biasfilter)
+p7_pipeline.c:  p7_ForwardParser(subseq, window_len, om, pli->oxf, &fwdsc);
+p7_pipeline.c:  if (P > pli->F3 ) return eslOK;
+p7_pipeline.c:  pli->pos_past_fwd += window_len - *overlap;
+p7_pipeline.c:  p7_omx_GrowTo(pli->oxb, om->M, 0, window_len);
+p7_pipeline.c:  p7_BackwardParser(subseq, window_len, om, pli->oxf, pli->oxb, NULL);
+p7_pipeline.c:  status = p7_domaindef_ByPosteriorHeuristics(pli_tmp->tmpseq, NULL, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, TRUE,
+p7_pipeline.c:                                              pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr);
+p7_pipeline.c:  if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+p7_pipeline.c:  if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here       */
+p7_pipeline.c:  if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
+p7_pipeline.c:  for (d = 0; d < pli->ddef->ndom; d++)
+p7_pipeline.c:      dom = pli->ddef->dcl + d;
+p7_pipeline.c:      if (pli->do_alignment_score_calc)
+p7_pipeline.c:      hit->dcl[0] = pli->ddef->dcl[d];
+p7_pipeline.c:      if (pli->mode == p7_SEARCH_SEQS)
+p7_pipeline.c:      if (pli->use_bit_cutoffs)
+p7_pipeline.c:  int F1_L = ESL_MIN( window_len,  pli->B1);
+p7_pipeline.c:  int F2_L = ESL_MIN( window_len,  pli->B2);
+p7_pipeline.c:  if (pli->do_biasfilter) {
+p7_pipeline.c:      if (P > pli->F1) return eslOK;
+p7_pipeline.c:  pli->pos_past_bias += window_len;
+p7_pipeline.c:  p7_omx_GrowTo(pli->oxf, om->M, 0, window_len);
+p7_pipeline.c:  p7_ViterbiFilter_longtarget(subseq, window_len, om, pli->oxf, filtersc, pli->F2, vit_windowlist);
+p7_pipeline.c:    pli->pos_past_vit += vit_windowlist->windows[i].length;
+p7_pipeline.c:      pli->pos_past_vit -= ESL_MAX(0,  vit_windowlist->windows[i-1].n + vit_windowlist->windows[i-1].length - vit_windowlist->windows[i].n );
+p7_pipeline.c:    pli->ddef->ndom = 0;
+p7_pipeline.c:  p7_omx_GrowTo(pli->oxf, om->M, 0, om->max_length);    /* expand the one-row omx if needed */
+p7_pipeline.c:    p7_SSVFM_longlarget(om, 2.0, bg, pli->F1, fmf, fmb, fm_cfg, data, pli->strands, &msv_windowlist );
+p7_pipeline.c:    p7_SSVFilter_longtarget(sq->dsq, sq->n, om, pli->oxf, data, bg, pli->F1, &msv_windowlist);
+p7_pipeline.c:    if (!fmf && pli->hfp)
+p7_pipeline.c:        p7_oprofile_ReadRest(pli->hfp, om);
+p7_pipeline.c:      p7_MSVFilter(subseq, window->length, om, pli->oxf, &usc);
+p7_pipeline.c:      if (P > pli->F1 ) continue;
+p7_pipeline.c:      pli->pos_past_msv += window->length;
+p7_pipeline.c:  int F3_L = ESL_MIN( window_len,  pli->B3);
+p7_pipeline.c:  if (pli->do_biasfilter){
+p7_pipeline.c:  p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
+p7_pipeline.c:  p7_Forward_Frameshift(subseq, window_len, gm, pli->gxf, emit_sc, &fwdsc);
+p7_pipeline.c:  if (P > pli->F3 ) return eslOK;
+p7_pipeline.c:  pli->pos_past_fwd += window_len;
+p7_pipeline.c:  p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
+p7_pipeline.c:  p7_Backward_Frameshift(subseq, window_len, gm, pli->gxb, emit_sc, &bwdsc);
+p7_pipeline.c:  status = p7_domaindef_ByPosteriorHeuristics_Frameshift(dnasq, gm, pli->gxf, pli->gxb, 
+p7_pipeline.c:		  					 pli->gfwd, pli->gbck, pli->ddef, bg, TRUE,
+p7_pipeline.c:                                              		 pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), 
+p7_pipeline.c:  if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+p7_pipeline.c:  if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here       */
+p7_pipeline.c:  if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
+p7_pipeline.c:  if (pli->ddef->ndom       == 0) return eslOK; /* even rarer: envelope found, no domain identified {iss131}         */
+p7_pipeline.c:  if (pli->do_alignment_score_calc) {
+p7_pipeline.c:    for (d = 0; d < pli->ddef->ndom; d++)
+p7_pipeline.c:      p7_pli_computeAliScores(pli->ddef->dcl + d, dnasq->dsq, data, gm->abc->Kp);
+p7_pipeline.c:  if (pli->do_null2)
+p7_pipeline.c:      seqbias = esl_vec_FSum(pli->ddef->n2sc, dnasq->n+1);
+p7_pipeline.c:  if (pli->do_null2) 
+p7_pipeline.c:      for (d = 0; d < pli->ddef->ndom; d++) 
+p7_pipeline.c:	  if (pli->ddef->dcl[d].envsc - pli->ddef->dcl[d].domcorrection > 0.0)
+p7_pipeline.c:	      sum_score += pli->ddef->dcl[d].envsc;         /* NATS */
+p7_pipeline.c:	      Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+p7_pipeline.c:	      seqbias   += pli->ddef->dcl[d].domcorrection; /* NATS */  
+p7_pipeline.c:      for (d = 0; d < pli->ddef->ndom; d++) 
+p7_pipeline.c:	  if (pli->ddef->dcl[d].envsc > 0.0)
+p7_pipeline.c:	      sum_score += pli->ddef->dcl[d].envsc;      /* NATS */
+p7_pipeline.c:	      Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+p7_pipeline.c:      if (pli->mode == p7_SEARCH_SEQS) {
+p7_pipeline.c:      hit->ndom       = pli->ddef->ndom;
+p7_pipeline.c:      hit->nexpected  = pli->ddef->nexpected;
+p7_pipeline.c:      hit->nregions   = pli->ddef->nregions;
+p7_pipeline.c:      hit->nclustered = pli->ddef->nclustered;
+p7_pipeline.c:      hit->noverlaps  = pli->ddef->noverlaps;
+p7_pipeline.c:      hit->nenvelopes = pli->ddef->nenvelopes;
+p7_pipeline.c:      hit->sortkey    = pli->inc_by_E ? -lnP : seq_score; /* per-seq output sorts on bit score if inclusion is by score  */
+p7_pipeline.c:      hit->dcl         = pli->ddef->dcl;
+p7_pipeline.c:      pli->ddef->dcl   = NULL;
+p7_pipeline.c:        hit->dcl[d].dombias  = (pli->do_null2 ? p7_FLogsum(0.0, log(bg->omega) + hit->dcl[d].domcorrection) : 0.0); /* NATS, and will stay so */
+p7_pipeline.c:      if (pli->use_bit_cutoffs)
+p7_pipeline.c:            if (pli->mode == p7_SEARCH_SEQS)
+p7_pipeline.c:  int F1_L = ESL_MIN( orfsq->n,  pli->B1);
+p7_pipeline.c:  int F2_L = ESL_MIN( orfsq->n,  pli->B2);
+p7_pipeline.c:  if (pli->do_biasfilter) {
+p7_pipeline.c:    if (P > pli->F1) return eslOK;
+p7_pipeline.c:  pli->pos_past_bias += orfsq->n * 3;
+p7_pipeline.c:  p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);
+p7_pipeline.c:  p7_ViterbiFilter_longtarget(orfsq->dsq, orfsq->n, om, pli->oxf, filtersc, pli->F2, vit_windowlist);
+p7_pipeline.c:      p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
+p7_pipeline.c:      p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
+p7_pipeline.c:      if (P > pli->F1 ) continue;
+p7_pipeline.c:      pli->n_past_msv++;
+p7_pipeline.c:      pli->pos_past_msv += orfsq->n * 3;
+p7_pipeline.c:    pli->pos_past_vit += window->length;
+p7_pipeline.c:  if (pli->mode == p7_SEARCH_SEQS) {
+p7_pipeline.c:    fprintf(ofp, "Query model(s):                %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
+p7_pipeline.c:    fprintf(ofp, "Target sequences:              %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
+p7_pipeline.c:    ntargets = pli->nseqs;
+p7_pipeline.c:    fprintf(ofp,   "Query sequence(s):           %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
+p7_pipeline.c:    fprintf(ofp,   "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
+p7_pipeline.c:    ntargets = pli->nmodels;
+p7_pipeline.c:  if (pli->long_targets) {
+p7_pipeline.c:          //pli->n_past_msv,
+p7_pipeline.c:          pli->pos_past_msv,
+p7_pipeline.c:          (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,
+p7_pipeline.c:          pli->F1);
+p7_pipeline.c:          //pli->n_past_bias,
+p7_pipeline.c:          pli->pos_past_bias,
+p7_pipeline.c:          (double)pli->pos_past_bias / (pli->nres*pli->nmodels) ,
+p7_pipeline.c:          pli->F1);
+p7_pipeline.c:          //pli->n_past_vit,
+p7_pipeline.c:          pli->pos_past_vit,
+p7_pipeline.c:          (double)pli->pos_past_vit / (pli->nres*pli->nmodels) ,
+p7_pipeline.c:          pli->F2);
+p7_pipeline.c:          //pli->n_past_fwd,
+p7_pipeline.c:          pli->pos_past_fwd,
+p7_pipeline.c:          (double)pli->pos_past_fwd / (pli->nres*pli->nmodels) ,
+p7_pipeline.c:          pli->F3);
+p7_pipeline.c:          (int)pli->n_output,
+p7_pipeline.c:          (double)pli->pos_output / (pli->nres*pli->nmodels) );
+p7_pipeline.c:          pli->n_past_msv,
+p7_pipeline.c:          (double) pli->n_past_msv / ntargets,
+p7_pipeline.c:          pli->F1 * ntargets,
+p7_pipeline.c:          pli->F1);
+p7_pipeline.c:          pli->n_past_bias,
+p7_pipeline.c:          (double) pli->n_past_bias / ntargets,
+p7_pipeline.c:          pli->F1 * ntargets,
+p7_pipeline.c:          pli->F1);
+p7_pipeline.c:          pli->n_past_vit,
+p7_pipeline.c:          (double) pli->n_past_vit / ntargets,
+p7_pipeline.c:          pli->F2 * ntargets,
+p7_pipeline.c:          pli->F2);
+p7_pipeline.c:          pli->n_past_fwd,
+p7_pipeline.c:          (double) pli->n_past_fwd / ntargets,
+p7_pipeline.c:          pli->F3 * ntargets,
+p7_pipeline.c:          pli->F3);
+p7_pipeline.c:      fprintf(ofp, "Initial search space (Z):    %15.0f  %s\n", pli->Z,    pli->Z_setby    == p7_ZSETBY_OPTION ? "[as set by --Z on cmdline]"    : "[actual number of targets]");
+p7_pipeline.c:      fprintf(ofp, "Domain search space  (domZ): %15.0f  %s\n", pli->domZ, pli->domZ_setby == p7_ZSETBY_OPTION ? "[as set by --domZ on cmdline]" : "[number of targets reported over threshold]");
+p7_pipeline.c:        (double) pli->nres * (double) pli->nnodes / (w->elapsed * 1.0e6));
+p7_pipeline.c:	     exp(hitlist->hit[h]->lnP) * (double) pli->Z,
+p7_pipeline.c:	     exp(hitlist->hit[h]->dcl[d].lnP) * (double) pli->Z,
+p7_pipeline.c:  pli->hfp = hfp;
+p7_pipeline.c:  if (! pli->Z_is_fixed && hfp->is_pressed) { pli->Z_is_fixed = TRUE; pli->Z = hfp->ssi->nprimary; }
+p7_pipeline.c:	     exp(hitlist->hit[h]->lnP) * (double) pli->Z,
+p7_pipeline.c:	     exp(hitlist->hit[h]->dcl[d].lnP) * (double) pli->Z,
+p7_tophits.c: *            <pli->domZ>. By default, <pli->domZ> is the number of
+p7_tophits.c:  if (! pli->use_bit_cutoffs) 
+p7_tophits.c:          if (pli->long_targets) { // no domains in dna search, so:
+p7_tophits.c:  if (pli->domZ_setby == p7_ZSETBY_NTARGETS) pli->domZ = (double) th->nreported;
+p7_tophits.c:  if (! pli->use_bit_cutoffs && !pli->long_targets)
+p7_tophits.c:  if (pli->show_accessions) namew = ESL_MAX(8, p7_tophits_GetMaxShownLength(th));
+p7_tophits.c:  if (pli->long_targets) 
+p7_tophits.c:      if (fprintf(ofp, "Scores for complete hit%s:\n",     pli->mode == p7_SEARCH_SEQS ? "s" : "") < 0)
+p7_tophits.c:      "E-value", " score", " bias", namew, (pli->mode == p7_SEARCH_SEQS ? "Sequence":"Model"), posw, "start", posw, "end", "Description") < 0)
+p7_tophits.c:         if (fprintf(ofp, "Scores for complete sequence%s (score includes all domains):\n", pli->mode == p7_SEARCH_SEQS ? "s" : "") < 0) 
+p7_tophits.c:         "E-value", " score", " bias", namew, (pli->mode == p7_SEARCH_SEQS ? "Sequence":"Model"), "Description") < 0)
+p7_tophits.c:         if (fprintf(ofp, "Scores for complete sequence%s (score includes all domains):\n", pli->mode == p7_SEARCH_SEQS ? "s" : "") < 0) 
+p7_tophits.c:         "E-value", " score", " bias", "E-value", " score", " bias", "  exp",  "N", namew, (pli->mode == p7_SEARCH_SEQS ? "Sequence":"Model"), "Description") < 0)
+p7_tophits.c:        if (pli->show_accessions)
+p7_tophits.c:        if (pli->long_targets) 
+p7_tophits.c:          exp(th->hit[h]->lnP), // * pli->Z,
+p7_tophits.c:              exp(th->hit[h]->lnP) * pli->Z,
+p7_tophits.c:            exp(th->hit[h]->lnP) * pli->Z,
+p7_tophits.c:            exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+p7_tophits.c:  if (pli->long_targets) 
+p7_tophits.c:      pli->show_alignments ? " (and alignments)" : "") < 0)
+p7_tophits.c:      pli->mode == p7_SEARCH_SEQS ? "sequence" : "model",
+p7_tophits.c:      pli->show_alignments ? " (and alignments)" : "") < 0)
+p7_tophits.c:      if (pli->show_accessions && th->hit[h]->acc != NULL && th->hit[h]->acc[0] != '\0')
+p7_tophits.c:      if (pli->long_targets) {
+p7_tophits.c:        if (fprintf(ofp, "   %6s %5s %9s %9s %9s %2s %9s %9s %2s %9s %9s    %9s %2s %4s\n",  "score",  "bias",  "  Evalue", "hmmfrom",  "hmm to", "  ", " alifrom ",  " ali to ", "  ",  " envfrom ",  " env to ",  (pli->mode == p7_SEARCH_SEQS ? "  sq len " : " mod len "), "  ",  "acc")  < 0)
+p7_tophits.c:        if (th->hit[h]->dcl[0].ad->ntseq != NULL && pli->show_translated_sequence ) {
+p7_tophits.c:            if (pli->long_targets)
+p7_tophits.c:                         exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+p7_tophits.c:                         exp(th->hit[h]->dcl[d].lnP) * pli->domZ,
+p7_tophits.c:                         exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+p7_tophits.c:              if( th->hit[h]->dcl[d].ad->ntseq != NULL && pli->show_translated_sequence) 
+p7_tophits.c:          if (pli->show_alignments)
+p7_tophits.c:            if (pli->long_targets)
+p7_tophits.c:                if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
+p7_tophits.c:                if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
+p7_tophits.c:                  if (fprintf(ofp, ";  conditional E-value: %.2g\n",  exp(th->hit[h]->dcl[d].lnP) * pli->domZ) < 0)
+p7_tophits.c:  int posw   = (pli->long_targets ? ESL_MAX(7, p7_tophits_GetMaxPositionLength(th)) : 0);
+p7_tophits.c:      if (pli->long_targets) 
+p7_tophits.c:          tnamew-1, " target name",        taccw, "accession",  qnamew, "query name",           qaccw, "accession", "hmmfrom", "hmm to", posw, "alifrom", posw, "ali to", posw, "envfrom", posw, "env to", posw, ( pli->mode == p7_SCAN_MODELS ? "modlen" : "sq len" ), "strand", "  E-value", " score", " bias", "description of target") < 0)
+p7_tophits.c:        if (pli->long_targets) 
+p7_tophits.c:                exp(th->hit[h]->lnP) * pli->Z,
+p7_tophits.c:                exp(th->hit[h]->lnP) * pli->Z,
+p7_tophits.c:                exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+p7_tophits.c:              if (pli->mode == p7_SEARCH_SEQS) { qlen = th->hit[h]->dcl[d].ad->M; tlen = th->hit[h]->dcl[d].ad->L;  }
+p7_tophits.c:                exp(th->hit[h]->lnP) * pli->Z,
+p7_tophits.c:                exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+p7_tophits.c:                exp(th->hit[h]->lnP) * pli->Z,
+p7_tophits.c:                exp(th->hit[h]->dcl[d].lnP) * pli->domZ,
+p7_tophits.c:                exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+p7_tophits.c:  int         posw       = (pli->long_targets ? ESL_MAX(7, p7_tophits_GetMaxPositionLength(th)) : 0);
+p7_tophits.c:  if (pli->long_targets) 
+p7_tophits.c:    tnamew-1, "target name", taccw, "acc", qnamew, "query name", "bits", "  e-value", " bias", "hmm-st", "hmm-en", "strand", posw, "ali-st", posw, "ali-en", posw, "env-st", posw, "env-en", posw, ( pli->mode == p7_SCAN_MODELS ? "modlen" : "sq-len" ), "description of target") < 0)
+p7_tophits.c:          taccw, ( pli->mode == p7_SCAN_MODELS ? th->hit[h]->acc : qacc ),
+p7_tophits.c:          exp(th->hit[h]->lnP) * pli->Z,
+p7_tophits.c:              domhit->sortkey    = pli->inc_by_E ? -1.0 * th->hit[h]->dcl[d].lnP : th->hit[h]->dcl[d].bitscore;
+p7_tophits.c:              exp(domhit->dcl[0].lnP) * pli->Z, //i-Evalue
+phmmert.c:           if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+phmmert.c:           info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
+sqfrom:p7_tophits.c:        if (th->hit[h]->dcl[0].ad->ntseq != NULL && pli->show_translated_sequence ) {
+sqfrom:p7_tophits.c:              if( th->hit[h]->dcl[d].ad->ntseq != NULL && pli->show_translated_sequence) 
+sqfrom:p7_tophits.c:                if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
+sqfrom:p7_tophits.c:                if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
+sqfrom:p7_tophits.c:              if (pli->mode == p7_SEARCH_SEQS) { qlen = th->hit[h]->dcl[d].ad->M; tlen = th->hit[h]->dcl[d].ad->L;  }

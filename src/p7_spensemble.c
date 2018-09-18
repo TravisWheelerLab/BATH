@@ -398,7 +398,6 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
    * because later we're going to calculate overlaps by i_cur - j_prv
    */
   qsort((void *) sp->sigc, sp->nsigc, sizeof(struct p7_spcoord_s), cluster_orderer);
-  printf("nsigc %d\n", sp->nsigc);
   free(ninc);
   *ret_nclusters = sp->nsigc;
   return eslOK;

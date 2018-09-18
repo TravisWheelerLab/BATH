@@ -118,7 +118,6 @@ p7_tophits_CreateNextHit(P7_TOPHITS *h, P7_HIT **ret_hit)
   int     status;
 
   if ((status = p7_tophits_Grow(h)) != eslOK) goto ERROR;
-  
   hit = &(h->unsrt[h->N]);
   h->N++;
   if (h->N >= 2) 
@@ -1256,7 +1255,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 int
 p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 {
-  int   h, d;
+  int   h, d, i;
   int   nd;
   int   namew, descw;
   char *showname;
@@ -1320,6 +1319,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
           ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
         if (fprintf(ofp, "   %6s %5s %9s %9s %9s %2s %9s %9s %2s %9s %9s    %9s %2s %4s\n",  "------", "-----", "---------", "-------", "-------", "  ", "---------", "---------", "  ", "---------", "---------",  "---------", "  ", "----") < 0)
           ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
+      
       } else {
 
         if (th->hit[h]->dcl[0].ad->ntseq != NULL && pli->show_translated_sequence ) {
@@ -1427,14 +1427,23 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
               /* if ntseq is NULL then we are not using nhmmscant so print amino sequence, otherwise we are using nhmmscant */
               /* and if option set to print amino sequence then print it */	
               if( th->hit[h]->dcl[d].ad->ntseq != NULL && pli->show_translated_sequence) 
-                 {
+                {  
+	          if(th->hit[h]->dcl[d].ad->sqfrom < th->hit[h]->dcl[d].ad->sqto) {
                     if (fprintf(ofp, " %9" PRId64 " %9" PRId64 " %c%c",
                        (th->hit[h]->dcl[d].ad->sqfrom+2)/3,
                        (th->hit[h]->dcl[d].ad->sqto+2)/3,
                        (th->hit[h]->dcl[d].ad->sqfrom == 1) ? '[' : '.',
                        ((th->hit[h]->dcl[d].ad->sqto+2)/3   == th->hit[h]->dcl[d].ad->L) ? ']' : '.') < 0)
                          ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
-                 }
+                  } else {
+		    if (fprintf(ofp, " %9" PRId64 " %9" PRId64 " %c%c",
+                       (th->hit[h]->dcl[d].ad->sqfrom+2)/3,
+                       (th->hit[h]->dcl[d].ad->sqto+2)/3,
+                       (th->hit[h]->dcl[d].ad->sqfrom == 1) ? '[' : '.',
+                       ((th->hit[h]->dcl[d].ad->sqto+2)/3   == th->hit[h]->dcl[d].ad->L) ? ']' : '.') < 0)
+                         ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
+                  } 
+		}
 
               if( th->hit[h]->dcl[d].ad->ntseq != NULL)  
                  {
@@ -1538,8 +1547,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                   if (fprintf(ofp, "\n") < 0)
                     ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
                 }
-
-                if ((status = p7_alidisplay_Print(ofp, th->hit[h]->dcl[d].ad, 40, textw, pli)) != eslOK) return status;
+                               if ((status = p7_alidisplay_Print(ofp, th->hit[h]->dcl[d].ad, 40, textw, pli)) != eslOK) return status;
 
                 if (fprintf(ofp, "\n") < 0)
                   ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
@@ -1696,7 +1704,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int posw   = (pli->long_targets ? ESL_MAX(7, p7_tophits_GetMaxPositionLength(th)) : 0);
   int h,d;
 
-  printf("qname %d, tname %d, qaccw %d, taccw %d, posw %d\n", qnamew, tnamew, qaccw, taccw, posw);
+
   int64_t sqfrom;
   int64_t sqto;
   int64_t lowest;

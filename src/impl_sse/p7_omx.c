@@ -294,7 +294,7 @@ void
 p7_omx_Destroy(P7_OMX *ox)
 {
   if (ox == NULL) return;
-  if (ox->x_mem   != NULL) free(ox->x_mem);
+  if (ox->x_mem   != NULL) free(ox->x_mem); 
   if (ox->dp_mem  != NULL) free(ox->dp_mem);
   if (ox->dpf     != NULL) free(ox->dpf);
   if (ox->dpw     != NULL) free(ox->dpw);

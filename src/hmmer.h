@@ -613,6 +613,7 @@ typedef struct p7_alidisplay_s {
   char *aseq;                   /* aligned target sequence              */
   char *ntseq;                  /* nucleotide target sequence if nhmmscant */
   char *ppline;		        /* posterior prob annotation; or NULL   */
+  char  *codon;                  /* number of nuceltides in each codon   */
   int   N;		        /* length of strings                    */
 
   char *hmmname;		/* name of HMM                          */
@@ -1273,6 +1274,7 @@ typedef struct p7_pipeline_s {
 
   enum p7_pipemodes_e mode;    	/* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
+  int           frameshift;    /* TRUE for searches with fsphmmert */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int 		    	W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
@@ -1522,7 +1524,7 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
-extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq);
+extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc);
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);
 extern size_t         p7_alidisplay_Sizeof(const P7_ALIDISPLAY *ad);
 extern int            p7_alidisplay_Serialize(P7_ALIDISPLAY *ad);
@@ -1533,6 +1535,7 @@ extern float          p7_alidisplay_DecodePostProb(char pc);
 extern char           p7_alidisplay_EncodeAliPostProb(float p, float hi, float med, float lo);
 
 extern int            p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
+extern int            p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
 extern int            p7_translated_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
 extern int            p7_nontranslated_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, int show_accessions);
 
@@ -1579,7 +1582,7 @@ extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *nt
 				                                  P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
 				                                  P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
 extern int
-p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm,
+p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, P7_PROFILE *gm,
                                    P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck,
                                    P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                    P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr,
@@ -1682,7 +1685,7 @@ extern P7_PIPELINE *p7_pipeline_Create(ESL_GETOPTS *go, int M_hint, int L_hint, 
 extern int          p7_pipeline_Reuse  (P7_PIPELINE *pli);
 extern void         p7_pipeline_Destroy(P7_PIPELINE *pli);
 extern int          p7_pipeline_Merge  (P7_PIPELINE *p1, P7_PIPELINE *p2);
-extern P7_PIPELINE* p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode);
+extern P7_PIPELINE* p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int frameshift, enum p7_pipemodes_e mode);
 extern int          p7_pipeline_fs_Reuse  (P7_PIPELINE *pli);
 extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
 
@@ -1810,10 +1813,13 @@ extern int   p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, c
 extern int   p7_trace_Compare(P7_TRACE *tr1, P7_TRACE *tr2, float pptol);
 extern int   p7_trace_Score(P7_TRACE *tr, ESL_DSQ *dsq, P7_PROFILE *gm, float *ret_sc);
 extern int   p7_trace_SetPP(P7_TRACE *tr, const P7_GMX *pp);
+extern int   p7_trace_fs_SetPP(P7_TRACE *tr, const P7_GMX *pp);
 extern float p7_trace_GetExpectedAccuracy(const P7_TRACE *tr);
 
 extern int  p7_trace_Append(P7_TRACE *tr, char st, int k, int i);
+extern int  p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i);
 extern int  p7_trace_AppendWithPP(P7_TRACE *tr, char st, int k, int i, float pp);
+extern int  p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, float pp);
 extern int  p7_trace_Reverse(P7_TRACE *tr);
 extern int  p7_trace_Index(P7_TRACE *tr);
 

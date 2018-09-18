@@ -107,9 +107,11 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   float        esc  = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
   float sc;
   p7_FLogsumInit();		/* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
+  gx->M = M;
+  gx->L = L;
 
   /* Initialization of the zero row. */
-  XMX_FS(0,p7G_N) = 0;                                           /* S->N, p=1            */
+  XMX_FS(0,p7G_N) =  0;   //* S->N, p=1            */
   XMX_FS(0,p7G_B) =  gm->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
   XMX_FS(0,p7G_E) = XMX_FS(0,p7G_C) = XMX_FS(0,p7G_J) = -eslINFINITY;  /* need seq to get here */
   /* need seq to get here */
@@ -128,7 +130,8 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
       = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
      
       XMX_FS(i, p7G_E) = -eslINFINITY;
-      
+        // if(i == 2) p7_gmx_fs_Dump(stdout, gx, p7_DEFAULT);
+
       for (k = 1; k < M; k++)
 	{
 	  rsc = emit_sc[k];
@@ -138,7 +141,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 			  p7_FLogsum(XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1),
 				     DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1)));
 	  MMX_FS(i,k,p7G_C1) = sc + MSC_FS(i,p7P_C1);
-
  	  if(i >= 2) {
 	    sc = p7_FLogsum(p7_FLogsum(MMX_FS(i-2,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
 				     IMX_FS(i-2,k-1)          + TSC(p7P_IM,k-1)),
@@ -285,6 +287,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 	   XMX_FS(i,p7G_J) = XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_LOOP]; 
 	   XMX_FS(i,p7G_C) = XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_MOVE]; 
            XMX_FS(i,p7G_N) = gm->xsc[p7P_N][p7P_LOOP];
+
 	}
 
 	XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
@@ -295,7 +298,9 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 	 			 + gm->xsc[p7P_C][p7P_MOVE];
   gx->M = M;
   gx->L = L;
-  //p7_gmx_fs_Dump(stdout, gx, p7_DEFAULT);
+// p7_gmx_DumpWindow(stdout, gx, 300, gx->L, 0, 0, p7_DEFAULT);
+//p7_gmx_DumpWindow(stdout, gx, 300, gx->L, 100, 106, p7_DEFAULT);
+ // p7_gmx_fs_Dump(stdout, gx, p7_DEFAULT);
   return eslOK;
 }
 
@@ -412,7 +417,6 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
 			          XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);
      } else {
        XMX(i,p7G_J) = XMX(i,p7G_B) + gm->xsc[p7P_J][p7P_MOVE];
-       
        XMX(i,p7G_C) = gm->xsc[p7P_C][p7P_MOVE];    /* C<-T          */
              
        XMX(i,p7G_N) = p7_FLogsum(gm->xsc[p7P_N][p7P_LOOP],
@@ -421,7 +425,6 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
 
      XMX(i,p7G_E) = p7_FLogsum(XMX(i, p7G_J)  + gm->xsc[p7P_E][p7P_LOOP],
 			       XMX(i, p7G_C)  + gm->xsc[p7P_E][p7P_MOVE]);
-
      MMX(i,M) = DMX(i,M) = XMX(i,p7G_E);
      IMX(i,M) = -eslINFINITY;
      
@@ -525,8 +528,9 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
       
   gx->M = M;
   gx->L = L;
-  //p7_gmx_Dump(stdout, gx, p7_DEFAULT);
-return eslOK;
+
+    //p7_gmx_DumpWindow(stdout, gx, 300, gx->L,100, 106, p7_DEFAULT);
+  return eslOK;
 }
 
 float

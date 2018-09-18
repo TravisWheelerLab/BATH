@@ -1,0 +1,8 @@
+Failed to parse command line: Option --textw takes integer arg; got n on cmdline
+Usage: fsphmmert [options] <query hmmfile|alignfile|seqfile> <target seqfile>
+
+where basic options are:
+  -h : show brief help on version and usage
+
+To see more help on available options, do /Users/genevievekrause/hmmer/src/fsphmmert -h
+

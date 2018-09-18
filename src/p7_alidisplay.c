@@ -289,8 +289,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
 
   esl_sq_Destroy(ntorfseqtxt);  
 
-	
-  return ad;
+	  return ad;
 
  ERROR:
   p7_alidisplay_Destroy(ad);
@@ -327,20 +326,23 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq)
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc)
 {
   P7_ALIDISPLAY *ad       = NULL;
-  char          *Alphabet = gm->abc->sym;
-  int            n, pos, z;
-  int            z1,z2;
-  int            k,x,i,s;
+  char          *alphaAmino = gm->abc->sym;
+  char          *alphaDNA = ntsq->abc->sym;
+  int            n, pos, z, y;
+  int            z1, z2;
+  int		 srt, end;
+  int            k,x,i,s,l,a;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            status;
-  char           n1,n2,n3;
-  int            j;
-
-  ESL_SQ         *ntorfseqtxt = NULL;
+  char           n1,n2,n3,n4,n5;
+  int            j,h;
+  float		 max_emit, cur_emit;
+  float	        *rsc; 
+  ESL_SQ         *codon;
   
   /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
@@ -351,15 +353,16 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     for (z2 = tr->tto[which];   z2 >= 0 ;   z2--) if (tr->st[z2] == p7T_M) break;  /* find prev M state      */
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   } else {			/* without an index, we can still do it fine:    */
-    for (z1 = 0; which >= 0 && z1 < tr->N; z1++) if (tr->st[z1] == p7T_B) which--; /* find the right B state */
+    
+    for (z1 = 0; which >= 0 && z1 < tr->N; z1++) 
+      if (tr->st[z1] == p7T_B) which--; 					   /* find the right B state */
     if (z1 == tr->N) return NULL;                                                  /* no such domain <which> */
-    for (; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;                       /* find next M state      */
-    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
-    for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;                /* find the next E state  */
-    for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                       /* find prev M state      */
+    for (; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;            /* find next M state      */
+    if (z1 == tr->N) return NULL;                                                 /* no M? corrupt trace    */
+    for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;           /* find the next E state  */
+    for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                    /* find prev M state      */
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   }
-
   /* Now we know that z1..z2 in the trace will be represented in the
    * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
    * our display lines, so allocate z2-z1+2. We know each position is
@@ -372,7 +375,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
    * bookkeeping.  
    */
   n = (z2-z1+2) * 3;                          /* model, mline, aseq mandatory         */
-  if (ntsq != NULL)       n += 3*(z2-z1+1)+1; /* nucleotide sequence                  */
+  n += 5*(z2-z1+1)+1;                     /* nucleotide sequence                  */
+  n += (z2-z1+2);			   /* codon lengths       */
   if (gm->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
   if (gm->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
   if (gm->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
@@ -380,24 +384,23 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   hmm_namelen = strlen(gm->name);                           n += hmm_namelen + 1;
   hmm_acclen  = (gm->acc  != NULL ? strlen(gm->acc)  : 0);  n += hmm_acclen  + 1;
   hmm_desclen = (gm->desc != NULL ? strlen(gm->desc) : 0);  n += hmm_desclen + 1;
-
-  sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
-  sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
-  sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
+  sq_namelen  = strlen(ntsq->name);                           n += sq_namelen  + 1;	  
+  sq_acclen   = strlen(ntsq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
+  sq_desclen  = strlen(ntsq->desc);                           n += sq_desclen  + 1; /* same for desc              */
   ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
   ad->mem = NULL;
-
+  
   pos = 0; 
   ad->memsize = sizeof(char) * n;
   ESL_ALLOC(ad->mem, ad->memsize);
   if (gm->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
-  //if (om->mm[0]  != 0) { ad->mmline = ad->mem + pos; pos += z2-z1+2; } else { ad->mmline = NULL; }
   ad->mmline = NULL;
   if (gm->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
   ad->model   = ad->mem + pos;  pos += z2-z1+2;
   ad->mline   = ad->mem + pos;  pos += z2-z1+2;
   ad->aseq    = ad->mem + pos;  pos += z2-z1+2;
-  if (ntsq != NULL)    { ad->ntseq  = ad->mem + pos;  pos += 5*(z2-z1+1)+1;} else { ad->ntseq = NULL; } /* for the nucleotide sequence there will be 3 times as many bytes */
+  ad->codon   = ad->mem + pos;  pos += z2-z1+2;
+  ad->ntseq  = ad->mem + pos;  pos += 5*(z2-z1+1)+1; /* for the nucleotide sequence there will be 5 times as many bytes */
   if (tr->pp != NULL)  { ad->ppline = ad->mem + pos;  pos += z2-z1+2;} else { ad->ppline = NULL; }
   ad->hmmname = ad->mem + pos;  pos += hmm_namelen +1;
   ad->hmmacc  = ad->mem + pos;  pos += hmm_acclen +1;
@@ -405,30 +408,28 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->sqname  = ad->mem + pos;  pos += sq_namelen +1;
   ad->sqacc   = ad->mem + pos;  pos += sq_acclen +1;
   ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
-
+  
   strcpy(ad->hmmname, gm->name);
   if (gm->acc  != NULL) strcpy(ad->hmmacc,  gm->acc);  else ad->hmmacc[0]  = 0;
   if (gm->desc != NULL) strcpy(ad->hmmdesc, gm->desc); else ad->hmmdesc[0] = 0;
 
-  strcpy(ad->sqname,  sq->name);
-  strcpy(ad->sqacc,   sq->acc);
-  strcpy(ad->sqdesc,  sq->desc);
+  strcpy(ad->sqname,  ntsq->name);
+  strcpy(ad->sqacc,   ntsq->acc);
+  strcpy(ad->sqdesc,  ntsq->desc);
 
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
   ad->M       = gm->M;
-	
-  ad->sqfrom  = tr->i[z1];
+  ad->sqfrom  = tr->i[z1-1] + 1;
   ad->sqto    = tr->i[z2];		 
-  ad->L       = sq->n;
-
+  ad->L       = ntsq->n;
+   
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->rf[tr->k[z]]);
     ad->rfline[z-z1] = '\0';
   }
-
   /* optional mm line */
   if (ad->mmline != NULL) {
     for (z = z1; z <= z2; z++) ad->mmline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->mm[tr->k[z]]);
@@ -440,125 +441,330 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->cs[tr->k[z]]);
     ad->csline[z-z1] = '\0';
   }
-
+  
   /* optional pp line */
   if (ad->ppline != NULL) {
-    for (z = z1; z <= z2; z++) ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
-    ad->ppline[z-z1] = '\0';
+    for (z = z1; z <= z2; z++) 
+	    ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
+    
+	    ad->ppline[z-z1] = '\0';
   }
-
+  
   /*
      If this is a nhmmscant scan; i.e. scan using a DNA
 	 query, put the ORF in a buffer so that if
 	 the hit is in a reverse compliment of the query, i.e.
 	 the other DNA strand, we can take the reverse complement
 	 of the nucleotide DNA to print on the alignment display
-   */  
-  if (ntsq != NULL)    { 
-     ntorfseqtxt = esl_sq_Create();
-     if (sq->start < sq->end) {				
-        for(j= sq->start; j <= sq->end; j++) {
+   */
+  
+   //ntorfseqtxt = esl_sq_Create();
+#if 0   
+   if (ntsq->start < ntsq->end) {				
+        for(j= ntsq->start; j <= ntsq->end; j++) {
            esl_sq_CAddResidue(ntorfseqtxt, ntsq->seq[j-1]);
         }
      }
      else {
-        for(j= sq->end; j <= sq->start; j++) {
+     for(j= ntsq->end; j <= ntsq->start; j++) {
            esl_sq_CAddResidue(ntorfseqtxt, ntsq->seq[j-1]);
         }		 
         esl_sq_ReverseComplement(ntorfseqtxt);  
      }
      esl_sq_CAddResidue(ntorfseqtxt, 0);
-  }
-
-  /* mandatory three alignment display lines: model, mline, aseq */
+#endif
+  
+    codon = esl_sq_CreateDigitalFrom(ntsq->abc, NULL, ntsq->dsq, 3, NULL, NULL, NULL);  
+/* mandatory three alignment display lines: model, mline, aseq */
+  y = 0;
   for (z = z1; z <= z2; z++) 
     {
       k = tr->k[z];
       i = tr->i[z];
-      x = sq->dsq[i];
       s = tr->st[z];
-      if (ntsq != NULL)    { 
-         /*
-          * if there is a nucleotide sequence then we want to record the location 
-          * of the hit in that sequence and not the location of the hit in the ORF 
-          * provided by esl_gencode_ProcessOrf (esl_gencode.c) used in p7_alidisplay_Create
-          * in p7_alidisplay.c.
-          * The ORF has already been saved in ntorfseqtxt and converted into
-          * a reverse complement if the hit was found in the reverse complement of the
-          * query sequence.		  
-          * sq->start is the start location of the ORF in the nucleotide sequence and 
-          * ad->sqfrom is the start of the hit in the ORF in amino acid locations
-          *           
-          *     tr->i[z1]=sqfrom=3   tr->i[z2]=sqto=8
-                       |------hit-----|  	       
-                 E  Y  H  A  G  f  G  H  F  H  W  H 
-                GAGTACCACGCGGGCTTTGGCCACTTTCACTGGCAT
-	            |------------ORF----------|	 
-           sq->start=4 		            sq->end=30 
-          *
-          *
-          *
-          * digitized sequence [1..n], or NULL if text 
-          * char seq index [0..n-1] so nucleotide text seq index 
-          * is 3*(i-1)		 
-          */
-         n1 = n2 = n3 = 78; /* use a capital 'N' for a don't know character instead of a sentinel byte used in ad->aseq */
-         if(i > 0)
-		 {
-            n1 = ntorfseqtxt->seq[ 3*(i-1)];
-            n2 = ntorfseqtxt->seq[ 3*(i-1)+1];
-            n3 = ntorfseqtxt->seq[ 3*(i-1)+2];
-         }
-        }
-
+      
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = gm->consensus[k];
-        if      (x == esl_abc_DigitizeSymbol(gm->abc, gm->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
+        l = i - tr->i[z-1];
+	ad->codon[y] = l;
+      	cur_emit = -eslINFINITY; 	    
+        max_emit = -eslINFINITY;
+	if(l == 1) {
+	  
+	  codon->dsq[1] = ntsq->dsq[i];
+	  for(j = 0; j < 4; j++) {
+	     codon->dsq[2] = j;
+             for(h = 0; h < 4; h++) {
+		codon->dsq[3] = h;
+                a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	        rsc = gm->rsc[a]; 
+                cur_emit = MSC(k);
+                max_emit = ESL_MAX(max_emit, cur_emit);
+                if(max_emit == cur_emit) { 
+	           x = a;	       
+	           n1 = ' ';
+	           n2 = alphaDNA[ntsq->dsq[i]];
+	           n3 = '-'; 
+	           n4 = '-';
+	           n5 = ' ';
+	         }
+	     }
+	  }
+
+	  codon->dsq[2] = ntsq->dsq[i];
+	  for(j = 0; j < 4; j++) {
+	     codon->dsq[1] = j;
+	     for(h = 0; h < 4; h++) {
+	        codon->dsq[3] = h;
+                a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	        rsc = gm->rsc[a]; 
+                cur_emit = MSC(k);
+                max_emit = ESL_MAX(max_emit, cur_emit);
+                if(max_emit == cur_emit) { 
+	           x = a;	       
+	           n1 = ' ';
+	           n2 = '-';
+	           n3 = alphaDNA[ntsq->dsq[i]];
+	           n4 = '-';
+	           n5 = ' ';
+	        }
+	     }
+          }
+
+	  codon->dsq[3] = ntsq->dsq[i];
+	  for(j = 0; j < 4; j++) {
+	     codon->dsq[1] = j;
+	     for(h = 0; h < 4; h++) {
+                codon->dsq[3] = h;
+		a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	        rsc = gm->rsc[a]; 
+                cur_emit = MSC(k);
+                max_emit = ESL_MAX(max_emit, cur_emit);
+                if(max_emit == cur_emit) { 
+	           x = a;	       
+	           n1 = ' ';
+	           n2 = '-';
+	           n3 = '-';
+	           n4 = alphaDNA[ntsq->dsq[i]];
+	           n5 = ' ';
+	        }
+	    }
+        }
+      }
+
+	if(l == 2) {
+	  codon->dsq[1] = ntsq->dsq[i-1];	
+	  codon->dsq[2] = ntsq->dsq[i];
+	  for(j = 0; j < 4; j++) {
+	     codon->dsq[3] = j;
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit) { 
+	       x = a;	       
+	       n1 = ' ';
+	       n2 = alphaDNA[ntsq->dsq[i-1]];
+	       n3 = alphaDNA[ntsq->dsq[i]]; 
+	       n4 = '-';
+	       n5 = ' ';
+	     }
+	  }
+	
+	  codon->dsq[2] = ntsq->dsq[i-1];	
+	  codon->dsq[3] = ntsq->dsq[i];
+	  for(j = 0; j < 4; j++) {
+	     codon->dsq[1] = j;
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit) { 
+	       x = a;	       
+	       n1 = ' ';
+	       n2 = '-';
+	       n3 = alphaDNA[ntsq->dsq[i-1]];
+	       n4 = alphaDNA[ntsq->dsq[i]];
+	       n5 = ' ';
+	     }
+	  }
+
+	  codon->dsq[1] = ntsq->dsq[i-1];	
+	  codon->dsq[3] = ntsq->dsq[i];
+	  for(j = 0; j < 4; j++) {
+	     codon->dsq[2] = j;
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit) { 
+	       x = a;	       
+	       n1 = ' ';
+	       n2 = alphaDNA[ntsq->dsq[i-1]];
+	       n3 = '-';
+	       n4 = alphaDNA[ntsq->dsq[i]];
+	       n5 = ' ';
+	     }
+	  }
+
+        }	
+	
+	if(l == 3) {
+	    x = esl_gencode_GetTranslation(gcode, &ntsq->dsq[i-l+1]);
+	    n1 = ' ';
+	    n2 = alphaDNA[ntsq->dsq[i-2]];
+	    n3 = alphaDNA[ntsq->dsq[i-1]];
+	    n4 = alphaDNA[ntsq->dsq[i]];
+	    n5 = ' ';
+        }
+	
+	if(l == 4) {
+	  codon->dsq[1] = ntsq->dsq[i-3];	
+	  codon->dsq[2] = ntsq->dsq[i-2];
+	  for(j = 0; j <= 1; j++) {
+	     codon->dsq[3] = ntsq->dsq[i-j];
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit) { 
+	        x = a;
+	        n1 = ' ';
+	        n2 = alphaDNA[ntsq->dsq[i-3]];
+	        n3 = alphaDNA[ntsq->dsq[i-2]]; 
+	        n4 =  alphaDNA[ntsq->dsq[i-1]];
+	        n5 = alphaDNA[ntsq->dsq[i]];
+	     }
+          }	     
+	
+	  codon->dsq[2] = ntsq->dsq[i-1];	
+	  codon->dsq[3] = ntsq->dsq[i];
+	  for(j = 2; j <= 3; j++) {
+	     codon->dsq[1] = ntsq->dsq[i-j];
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit) { 
+	        x = a;
+	        n1 = alphaDNA[ntsq->dsq[i-3]];
+	        n2 = alphaDNA[ntsq->dsq[i-2]]; 
+	        n3 = alphaDNA[ntsq->dsq[i-1]];
+	        n4 = alphaDNA[ntsq->dsq[i]];
+	        n5 = ' ';
+	     }
+          }	
+        }
+
+        if(l == 5) {
+	  
+	  codon->dsq[1] = ntsq->dsq[i-4];	
+	  codon->dsq[2] = ntsq->dsq[i-3];
+	  for(j = 0; j <= 2; j++) {
+	     codon->dsq[3] = ntsq->dsq[i-j];
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit)  x = a;
+          }	     
+	
+	  codon->dsq[1] = ntsq->dsq[i-4];	
+	  codon->dsq[2] = ntsq->dsq[i-2];
+	  for(j = 0; j <= 1; j++) {
+	     codon->dsq[3] = ntsq->dsq[i-j];
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit)  x = a;
+          }	
+
+          codon->dsq[1] = ntsq->dsq[i-3];	
+	  codon->dsq[2] = ntsq->dsq[i-2];
+	  for(j = 0; j <= 1; j++) {
+	     codon->dsq[3] = ntsq->dsq[i-j];
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit)  x = a;
+          }	
+
+	  codon->dsq[2] = ntsq->dsq[i-1];	
+	  codon->dsq[3] = ntsq->dsq[i];
+	  for(j = 2; j <= 4; j++) {
+	     codon->dsq[1] = ntsq->dsq[i-j];
+             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
+	     rsc = gm->rsc[a]; 
+             cur_emit = MSC(k);
+             max_emit = ESL_MAX(max_emit, cur_emit);
+             if(max_emit == cur_emit)  x = a;
+          }
+
+          n1 = alphaDNA[ntsq->dsq[i-4]];
+	  n2 = alphaDNA[ntsq->dsq[i-3]];
+	  n3 = alphaDNA[ntsq->dsq[i-2]]; 
+	  n4 = alphaDNA[ntsq->dsq[i-1]];
+	  n5 = alphaDNA[ntsq->dsq[i]];
+        }		
+	
+	
+	if      (x == esl_abc_DigitizeSymbol(gm->abc, gm->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
         else if (expf(p7P_MSC(gm, k, x)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
-        else                                                             ad->mline[z-z1] = ' ';
-        ad->aseq  [z-z1] = toupper(Alphabet[x]);
-        if (ntsq != NULL)    { 
-           ad->ntseq [3*(z-z1)] = toupper(n1);
-           ad->ntseq [3*(z-z1)+1] = toupper(n2);
-           ad->ntseq [3*(z-z1)+2] = toupper(n3);
-		}
+        else                                                  ad->mline[z-z1] = ' ';
+
+        ad->aseq  [z-z1] = toupper(alphaAmino[x]);
+        ad->ntseq [5*(z-z1)] = toupper(n1);
+        ad->ntseq [5*(z-z1)+1] = toupper(n2);
+        ad->ntseq [5*(z-z1)+2] = toupper(n3);
+	ad->ntseq [5*(z-z1)+3] = toupper(n4);
+        ad->ntseq [5*(z-z1)+4] = toupper(n5);
         break;
 	
       case p7T_I:
-        ad->model [z-z1] = '.';
+        ad->codon[y] = 3;
+      	ad->model [z-z1] = '.';
         ad->mline [z-z1] = ' ';
-        ad->aseq  [z-z1] = tolower(Alphabet[x]);
-        if (ntsq != NULL)    { 
-           ad->ntseq [3*(z-z1)] = toupper(n1);
-           ad->ntseq [3*(z-z1)+1] = toupper(n2);
-           ad->ntseq [3*(z-z1)+2] = toupper(n3);
-		}
+        ad->aseq  [z-z1] = tolower(alphaAmino[x]);
+        n1 = ' ';
+        n2 = alphaDNA[ntsq->dsq[i-2]];	
+	n3 = alphaDNA[ntsq->dsq[i-1]];	
+        n4 = alphaDNA[ntsq->dsq[i]];	
+        n5 = ' ';
+        x = esl_gencode_GetTranslation(gcode, &ntsq->dsq[i-2]);
+	ad->aseq  [z-z1] = tolower(alphaAmino[x]);
+        ad->ntseq [5*(z-z1)] = ' ';
+        ad->ntseq [5*(z-z1)+1] = toupper(n2);
+        ad->ntseq [5*(z-z1)+2] = toupper(n3);
+        ad->ntseq [5*(z-z1)+3] = toupper(n4);
+        ad->ntseq [5*(z-z1)+4] = ' ';
         break;
 	
       case p7T_D:
-        ad->model [z-z1] = gm->consensus[k];
+        ad->codon[y] = 0;
+	ad->model [z-z1] = gm->consensus[k];
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = '-';
-        if (ntsq != NULL)    { 
-           ad->ntseq [3*(z-z1)] = '-';
-           ad->ntseq [3*(z-z1)+1] = '-';
-           ad->ntseq [3*(z-z1)+2] = '-';
-		}
+        ad->ntseq [5*(z-z1)] = '-';
+        ad->ntseq [5*(z-z1)+1] = '-';
+        ad->ntseq [5*(z-z1)+2] = '-';
+        ad->ntseq [5*(z-z1)+3] = '-';
+        ad->ntseq [5*(z-z1)+4] = '-';
         break;
 
       default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
       }
+      y++;
     }
+  
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';
-  if (ntsq != NULL)
-     ad->ntseq  [3*(z2-z1+1)] = '\0';
+  ad->ntseq  [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
-
-  esl_sq_Destroy(ntorfseqtxt);  
-
+ 
   return ad;
 
  ERROR:
@@ -935,12 +1141,288 @@ p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth
    {	   
       if ((status = p7_nontranslated_alidisplay_Print(fp, ad, min_aliwidth, linewidth, pli->show_accessions)) != eslOK) return status;
    }
-   else
+   else if(pli->frameshift)
    {
+      if((status = p7_frameshift_alidisplay_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
+   } 
+   else
+   {   
       if ((status = p7_translated_alidisplay_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
    }
 
 	return status;
+}
+
+/* Function:  p7_frameshift_alidisplay_Print()
+ * Synopsis:  Human readable output of <P7_ALIDISPLAY> for nhmmscant
+ *
+ * Purpose:   Prints alignment <ad> to stream <fp>.
+ *            
+ *            Put at least <min_aliwidth> alignment characters per
+ *            line; try to make lines no longer than <linewidth>
+ *            characters, including name, coords, and spacing.  The
+ *            width of lines may exceed <linewidth>, if that's what it
+ *            takes to put a name, coords, and <min_aliwidth>
+ *            characters of alignment on a line.
+ *            
+ *            As a special case, if <linewidth> is negative or 0, then
+ *            alignments are formatted in a single block of unlimited
+ *            line length.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEWRITE> on write error, such as filling the disk.
+ */
+int
+p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
+{
+  char *buf          = NULL;
+  char *show_hmmname = NULL;
+  char *show_seqname = NULL;
+  int   namewidth, coordwidth, aliwidth;
+  int   pos;
+  int   status;
+  int   ni, nk;
+  int   z;
+  long  i1,i2;
+  int   a1,a2;
+  int   k1,k2;
+  int   k;
+
+  int   npos;
+  int   i,j,y;
+  int   show_accessions;
+  int   show_translated_sequence;
+  int   show_vertical_codon;
+ 
+  show_accessions = pli->show_accessions;
+  show_translated_sequence = pli->show_translated_sequence;
+  show_vertical_codon = pli->show_vertical_codon;
+ 
+   /* implement the --acc option for preferring accessions over names in output  */
+  show_hmmname = (show_accessions && ad->hmmacc[0] != '\0') ? ad->hmmacc : ad->hmmname;
+  show_seqname = (show_accessions && ad->sqacc[0]  != '\0') ? ad->sqacc  : ad->sqname;
+      
+  /* dynamically size the output lines */
+  namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+  coordwidth = ESL_MAX(
+                      ESL_MAX(integer_textwidth(ad->hmmfrom), integer_textwidth(ad->hmmto)),
+                      ESL_MAX(integer_textwidth(ad->sqfrom), integer_textwidth(ad->sqto)));
+					  
+  aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
+  
+  
+  if (aliwidth < ad->N && aliwidth < min_aliwidth) aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
+
+  else if(!show_vertical_codon) aliwidth /= 5; /* divide by 5 if printing codons horizontally */
+  
+  ESL_ALLOC(buf, sizeof(char) * (aliwidth+1));
+  buf[aliwidth] = 0;
+
+  /* Break the alignment into multiple blocks of width aliwidth for printing */
+  i1 = ad->sqfrom;
+  if(ad->sqfrom < ad->sqto) i2 = i1 - 1;
+  else                      i2 = i1 + 1;
+  
+   if(ad->sqfrom < ad->sqto) { a1 = (i1+2)/3;    a2 = a1-1; }
+   else                      { a1 = (i1+2)/3-1;  a2 = a1 + 1; }
+  k1 = ad->hmmfrom;
+  for (pos = 0; pos < ad->N; pos += aliwidth)
+    {
+	   
+      if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
+
+      ni = nk = 0; 
+      for (z = pos; z < pos + aliwidth && z < ad->N; z++) {
+        if (ad->model[z] != '.') nk++; /* k advances except on insert states */
+        if (ad->aseq[z]  != '-') ni++; /* i advances except on delete states */
+      }
+      k2 = k1+nk-1;
+
+	  if (ad->csline != NULL) 
+	  {
+  	     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+         
+	     for (i = 0; i < aliwidth; i++)
+	        {
+		       if (ad->csline[pos+i] == 0) break; 
+		       if (fprintf(fp, 
+			     (show_vertical_codon) ? "%c" : "  %c  ", 
+				 ad->csline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+	        }
+        if (fprintf(fp, "CS\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+	  }
+
+	  if (ad->rfline != NULL) 
+	  {
+         if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+         
+	 for (i = 0; i < aliwidth; i++)
+	        {
+		       if (ad->rfline[pos+i] == 0) break; 
+		       if (fprintf(fp,
+			      (show_vertical_codon) ? "%c" : "  %c  ", 
+			      ad->rfline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+	        }
+        if (fprintf(fp, "RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+	  }
+
+	  if (ad->mmline != NULL) 
+	  {
+         if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+        
+	 for (i = 0; i < aliwidth; i++)
+	        {
+		       if (ad->mmline[pos+i] == 0) break; 
+		       if (fprintf(fp, 
+			      (show_vertical_codon) ? "%c" : "  %c  ", 
+			      ad->mmline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+	        }
+        if (fprintf(fp, "MM\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+	  }
+	 
+      if (fprintf(fp, "  %*s %*d ", namewidth,  show_hmmname, coordwidth, k1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      
+      for (i = 0; i < aliwidth; i++)
+	     {
+		    if (ad->model[pos+i] == 0) break; 
+		    if (fprintf(fp,
+			   (show_vertical_codon) ? "%c" : "  %c  ", 
+			    ad->model[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+	     }
+      if (fprintf(fp, " %-*d\n", coordwidth, k2) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      for (i = 0; i < aliwidth; i++)
+	     {
+		   if (ad->mline[pos+i] == 0) break; 
+		    if (fprintf(fp,
+			   (show_vertical_codon) ? "%c" : "  %c  ", 
+               ad->mline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+	     }
+      if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+
+      if (show_translated_sequence)
+	    {
+		   if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+	
+		   if (ni > 0) 
+		   {
+			 if (fprintf(fp, " %*d ", coordwidth, a1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+		   }
+		   else
+		   {		  
+			 if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+		   }
+		  
+		   for (i = 0, y = 0; i < aliwidth; i++, y++)
+			  {
+			    if (ad->aseq[pos+i] == 0) break; 
+			    if (fprintf(fp,
+			      (show_vertical_codon) ? "%c" : "  %c  ", 
+				   ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+  				if(ad->codon[pos+y] != 0){ 			    
+			   	  if(ad->sqfrom < ad->sqto) a2++;	 
+		                  else                      a2--;	 
+				} 
+	
+		   }
+   		   if (ni > 0)
+		   {		
+			 if (fprintf(fp, " %-*d\n", coordwidth, a2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+		   }
+		   else
+		   {		  
+			 if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+		   }
+		}
+	  
+      if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (ni > 0) 
+	   {
+ 	      if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+	   }
+	   else
+	   {		  
+		 if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+       }
+
+	  npos = pos * 5;
+      if(show_vertical_codon)
+	  {
+         /*
+          * Display the DNA codon vertically instead of horizontally
+          */	   
+         for(k = 0; k < 5; k++)
+	     {	
+		   if(k != 0)   
+		   { 
+             if (fprintf(fp, "  %*s", namewidth, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+ 	         if (fprintf(fp, " %*s ", coordwidth, " ")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");			
+		   }
+		
+	       for (i = 0, j = 0; j < aliwidth; i+=5, j++)
+	       {
+			  if (ad->ntseq[npos+i] == 0) break; 
+              if (fprintf(fp, "%c", ad->ntseq[npos+i+k])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+	       }
+		   if(k < 2)  
+ 	        if (fprintf(fp, "\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+	     }
+	  }
+	  else
+      {
+	
+         /*
+          * Display the DNA codon horizontally
+          */	   
+	     for (i = 0, j = 0, y = 0; j < aliwidth; i+=5, j++, y++)
+	     {
+		    if (ad->ntseq[npos+i] == 0) break; 
+		    if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+                    //printf("i2 %ld, codon %d", i2, ad->codon[pos+y]);
+
+		    if(ad->sqfrom < ad->sqto) i2 += ad->codon[pos+y];	 
+		    else                      i2 -= ad->codon[pos+y];
+	            //printf(" i2 %ld\n", i2);
+              }
+
+	  }		
+		
+      if (ni > 0)
+        {	 
+ 	        if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+        }
+      else
+        {		  
+            if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+        }
+	
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+
+	  for (i = 0; i < aliwidth; i++)
+	     {
+		   if (ad->ppline[pos+i] == 0) break; 
+           if (fprintf(fp, 
+			   (show_vertical_codon) ? "%c" : "  %c  ", 
+		       ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+		 }
+
+	 if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");	  
+	  
+     /* print DNA sequence */
+
+      k1 += nk;
+      if   (ad->sqfrom < ad->sqto) { i1 = i2 + 1;  a1 = a2 + 1; }
+      else                         { i1 = i2 - 1;  a1 = a2 - 1; }// revcomp hit for DNA
+    }
+  fflush(fp);
+  free(buf);
+  return eslOK;
+
+ ERROR:
+  if (buf) free(buf);
+  return status;
 }
 
 /* Function:  p7_translated_alidisplay_Print()
@@ -1023,7 +1505,7 @@ p7_translated_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
         if (ad->aseq[z]  != '-') ni++; /* i advances except on delete states */
       }
       k2 = k1+nk-1;
-      if (ad->sqfrom < ad->sqto) i2 = i1+(ni-1)*3+2;
+            if (ad->sqfrom < ad->sqto) i2 = i1+(ni-1)*3+2;
       else                       i2 = i1-(ni*3)+1; // revcomp hit for DNA
 
 	  if (ad->csline != NULL) 
@@ -1162,7 +1644,7 @@ p7_translated_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 	     {
 		    if (ad->ntseq[npos+i] == 0) break; 
             if (fprintf(fp, "%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	     }printf("\n pos %d\n", pos);
+	     }
 
 	  }		
 		

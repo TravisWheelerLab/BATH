@@ -121,7 +121,6 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L)
       gx->ncells = ncells;
       do_reset   = TRUE;
     }
-printf("R %d L %d\n", gx->allocR, L);
   /* must we reallocate the row pointers? */
   if (L >= gx->allocR)
     {

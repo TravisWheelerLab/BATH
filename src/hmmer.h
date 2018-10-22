@@ -1391,8 +1391,8 @@ extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* fwdback_frameshift.c */
-extern float **
-Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost);
+extern float ** Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost);
+void Codon_Emissions_Destroy (float **emit_sc);
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
 

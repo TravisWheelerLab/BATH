@@ -261,11 +261,11 @@ static int  serial_loop    (WORKER_INFO *info, ESL_GENCODE *gcode, ESL_GENCODE_W
 #ifdef HMMER_THREADS
 #define BLOCK_SIZE 1000
 
-static int  thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
+//static int  thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
 static void pipeline_thread(void *arg);
 #if defined (eslENABLE_SSE)
 static int  thread_loop_FM(WORKER_INFO *info, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp);
-static void pipeline_thread_FM(void *arg);
+//static void pipeline_thread_FM(void *arg);
 #endif
 
 #endif /*HMMER_THREADS*/
@@ -489,7 +489,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   FILE            *afp          = NULL;            /* alignment output file (-A)                            */
   FILE            *tblfp        = NULL;            /* output stream for tabular  (--tblout)                 */
   FILE            *dfamtblfp    = NULL;            /* output stream for tabular Dfam format (--dfamtblout)  */
-  FILE            *pfamtblfp= NULL;              /* output stream for pfam tabular output (--pfamtblout)    */
+ // FILE            *pfamtblfp= NULL;              /* output stream for pfam tabular output (--pfamtblout)    */
   FILE            *aliscoresfp  = NULL;            /* output stream for alignment scores (--aliscoresout)   */
   
   /*Some fraction of these will be used, depending on what sort of input is used for the query*/
@@ -537,8 +537,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
   char   errbuf[eslERRBUFSIZE];
 
-  P7_TOPHITS       *tophits_accumulator = NULL; /* to hold the top hits information from all 6 frame translations */
-  P7_PIPELINE      *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
+  //P7_TOPHITS       *tophits_accumulator = NULL; /* to hold the top hits information from all 6 frame translations */
+  //P7_PIPELINE      *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
  
  
   double window_beta = -1.0 ;
@@ -546,8 +546,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   P7_BUILDER       *builder     = NULL;
   ESL_MSA          *msa         = NULL;
-  int               msas_named  = 0;
-  int               force_single = ( esl_opt_IsOn(go, "--singlemx") ? TRUE : FALSE );
+// int               msas_named  = 0;
+//  int               force_single = ( esl_opt_IsOn(go, "--singlemx") ? TRUE : FALSE );
   
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
   ESL_ALPHABET    *abcAMINO = NULL;       /* Amino sequence alphabet                               */
@@ -567,7 +567,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
  
   /*the target sequence will be DNA but the query will be amino acids */
    abcDNA = esl_alphabet_Create(eslDNA);
-
+   abcAMINO = esl_alphabet_Create(eslAMINO);
   /* (1)
    * first try to read as an HMM.  Fails nicely if it's not.
    */
@@ -776,7 +776,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #ifdef HMMER_THREADS
   /* initialize thread data */
   ncpus = ESL_MIN(esl_opt_GetInteger(go, "--cpu"), esl_threads_GetCPUCount());
-
+  ncpus = 0;
   if (ncpus > 0) {
     threadObj = esl_threads_Create(&pipeline_thread);
 
@@ -939,8 +939,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
       scoredata = p7_hmm_ScoreDataCreate(om, NULL);
 
-    tophits_accumulator  = p7_tophits_Create();
-    pipelinehits_accumulator = p7_pipeline_Create(go, 100, 100, FALSE, p7_SEARCH_SEQS);
+    //tophits_accumulator  = p7_tophits_Create();
+   // pipelinehits_accumulator = p7_pipeline_Create(go, 100, 100, FALSE, p7_SEARCH_SEQS);
 
 	 
     wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
@@ -1005,7 +1005,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	//	thread_loop    (info, id_length_list, threadObj, queue, dbfp, cfg->firstseq_key, cfg->n_targetseq);
         else            sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
       }	      
-                 
+
 #else //HMMER_THREADS
       sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
 #endif //HMMER_THREADS
@@ -1023,7 +1023,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
           esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
        }
            
-
       //need to re-compute e-values before merging (when list will be sorted)
       if (esl_opt_IsUsed(go, "-Z")) {
           resCnt = 1000000*esl_opt_GetReal(go, "-Z");
@@ -1043,21 +1042,20 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
             resCnt += info[i].pli->nres;
         }
       }
-
+      
       for (i = 0; i < infocnt; ++i)
           p7_tophits_ComputeNhmmerEvalues(info[i].th, resCnt, info[i].om->max_length);
-
+      
       /* merge the results of the search results */
       for (i = 1; i < infocnt; ++i) {
-          p7_tophits_Merge(info[0].th, info[i].th);
-          p7_pipeline_Merge(info[0].pli, info[i].pli);
-
-          p7_pipeline_Destroy(info[i].pli);
-          p7_tophits_Destroy(info[i].th);
-          p7_oprofile_Destroy(info[i].om);
-          p7_profile_Destroy(info[i].gm);
+	  p7_tophits_Merge(info[0].th, info[i].th);
+	  p7_pipeline_Merge(info[0].pli, info[i].pli);
+          
+	  p7_pipeline_fs_Destroy(info[i].pli);
+	  p7_tophits_Destroy(info[i].th);
+	  p7_oprofile_Destroy(info[i].om);
+	  p7_profile_Destroy(info[i].gm);
       }
-
 #if defined (eslENABLE_SSE)
       if (dbformat == eslSQFILE_FMINDEX) {
         info[0].pli->nseqs = fm_meta->seq_data[fm_meta->seq_count-1].target_id + 1;
@@ -1065,12 +1063,12 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       }
 #endif
 
-	   if(wrk->orf_block != NULL)
+	if(wrk->orf_block != NULL)
            {
 	      esl_sq_DestroyBlock(wrk->orf_block);
 	      wrk->orf_block = NULL;
            }
-
+	esl_gencode_Destroy(gcode);
       /* Print the results.  */
       p7_tophits_SortBySeqidxAndAlipos(info->th);
       assign_Lengths(info->th, id_length_list);
@@ -1210,6 +1208,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   free(info);
 
+  esl_gencode_WorkstateDestroy(wrk);
+
   if (hfp)     p7_hmmfile_Close(hfp);
   if (qfp_msa) esl_msafile_Close(qfp_msa);
   if (qfp_sq)  esl_sqfile_Close(qfp_sq);
@@ -1266,15 +1266,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 static int
 serial_loop(WORKER_INFO *info, ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
 {
-  
   int      wstatus = eslOK;
   int seq_id = 0;
- int i;
+  
   ESL_ALPHABET    *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ   *dbsq   =  esl_sq_CreateDigital(abcDNA);
   ESL_SQ   *dbsq_revcmp;
  
-   // printf("dbsq L %d\n", dbsq->L); 
 
    wstatus = esl_sqio_Read(dbfp, dbsq);
 //printf("dbsq L %d\n", dbsq->L); 
@@ -1282,7 +1280,7 @@ serial_loop(WORKER_INFO *info, ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, I
     dbsq_revcmp =  esl_sq_CreateDigital(abcDNA);
     esl_sq_Copy(dbsq,dbsq_revcmp);
      
-          esl_sq_ReverseComplement(dbsq_revcmp);
+    esl_sq_ReverseComplement(dbsq_revcmp);
 // printf("dbsq rev L %d\n", dbsq_revcmp->L); 
  }
 while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
@@ -1292,14 +1290,15 @@ while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
 
         info->pli->nres -= dbsq->C; // to account for overlapping region of windows
-        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
-        p7_tophits_SortBySortkey(info->th);
+	
+	p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
+
+	p7_tophits_SortBySortkey(info->th);
 	p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       } else {
         info->pli->nres -= dbsq->n;
       }
-      
-	//reverse complement
+     	//reverse complement
       if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
       {
   
@@ -1313,17 +1312,19 @@ while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       wstatus = esl_sqio_ReadWindow(dbfp, (info->om->max_length * 3), info->pli->block_length, dbsq);
             if (wstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
           add_id_length(id_length_list, dbsq->idx, dbsq->L);
-
-          info->pli->nseqs++;
+          
+	  info->pli->nseqs++;
           esl_sq_Reuse(dbsq);
 
 	  wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
 
           seq_id++;
-
       }
    }
 
+  esl_alphabet_Destroy(abcDNA);
+  esl_sq_Destroy(dbsq);
+  esl_sq_Destroy(dbsq_revcmp);
   return wstatus;
 
 }
@@ -1367,6 +1368,7 @@ serial_loop_FM(WORKER_INFO *info, ESL_SQFILE *dbfp)
 #endif //#if defined (eslENABLE_SSE)
 
 #ifdef HMMER_THREADS
+#if 0
 static int
 thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
 {
@@ -1471,7 +1473,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
   return sstatus;
 }
-
+#endif
 static void 
 pipeline_thread(void *arg)
 {
@@ -1600,7 +1602,7 @@ thread_loop_FM(WORKER_INFO *info, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_S
   return status;
 }
 
-
+#if 0
 static void
 pipeline_thread_FM(void *arg)
 {
@@ -1646,6 +1648,7 @@ pipeline_thread_FM(void *arg)
   esl_threads_Finished(obj, workeridx);
   return;
 }
+#endif
 #endif //#if defined (eslENABLE_SSE)
 
 

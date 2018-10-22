@@ -764,7 +764,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->aseq  [z2-z1+1] = '\0';
   ad->ntseq  [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
- 
+
+  esl_sq_Destroy(codon); 
   return ad;
 
  ERROR:

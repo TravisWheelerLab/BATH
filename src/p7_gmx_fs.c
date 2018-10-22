@@ -33,7 +33,7 @@ p7_gmx_fs_Create(int allocM, int allocL)
   int     status;
   P7_GMX *gx = NULL;
   int     i;
-
+  
   /* level 1: the structure itself */
   ESL_ALLOC(gx, sizeof(P7_GMX));
   gx->dp     = NULL;
@@ -44,7 +44,7 @@ p7_gmx_fs_Create(int allocM, int allocL)
   ESL_ALLOC(gx->dp,      sizeof(float *) * (allocL+1));
   ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocL+1) * p7G_NXCELLS);
   ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+1) * (allocM+1) * p7G_NSCELLS_FS);
-    
+  
   /* Set the row pointers. */
   for (i = 0; i <= allocL; i++)  
     gx->dp[i] = gx->dp_mem + i * (allocM+1) * p7G_NSCELLS_FS;

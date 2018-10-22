@@ -38,17 +38,18 @@ Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcod
   two_indel = log(indel_cost / 2);
   no_indel = log(1.0 - (indel_cost * 3));
 
-  ESL_ALLOC(emit_sc, sizeof(float *) * (M+1));
-  ESL_ALLOC(emit_sc[0], sizeof(float) * (M+1) * L * p7P_CODONS);
-  for (k = 1; k < (M+1); k++)
+  ESL_ALLOC(emit_sc, sizeof(float *) * (M+2));
+  ESL_ALLOC(emit_sc[0], sizeof(float) * (M+2) * L * p7P_CODONS);
+
+  ///For some reason I get a Valgrind error if I alloc mot M+1, need to use M+2///////
+  for (k = 1; k <= M; k++)
     emit_sc[k] = emit_sc[0] + k * L * p7P_CODONS;
 
- 
   abcDNA = esl_alphabet_Create(eslDNA);
   codon = esl_sq_CreateDigitalFrom(abcDNA, NULL, subseq, 3, NULL, NULL, NULL);
 
-  for(k = 0; k < (M+1); k++) {
-	  rsc = emit_sc[k];
+  for(k = 0; k <= M; k++) {
+    rsc = emit_sc[k];
     for(i = 1; i <= L; i++) {
       MSC_FS(i,p7P_C1) = max_codon_one(original_rsc, codon->dsq, subseq, gcode, k, i, two_indel) + log(0.998);
       MSC_FS(i,p7P_C2) = max_codon_two(original_rsc, codon->dsq, subseq, gcode, k, i, one_indel) + log(0.998);
@@ -58,11 +59,25 @@ Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcod
       MSC_FS(i,p7P_C5) = max_codon_five(original_rsc, codon->dsq, subseq, gcode, k, i, two_indel) + log(0.998);
     }
   }
+ 
+  esl_alphabet_Destroy(abcDNA); 
+  esl_sq_Destroy(codon);
   return emit_sc;
 
 ERROR: 
   return NULL;
 }
+
+void 
+Codon_Emissions_Destroy (float **emit_sc)  {
+   
+  if(emit_sc != NULL && emit_sc[0] != NULL) free(emit_sc[0]);
+  if(emit_sc != NULL) free(emit_sc);
+
+
+  return;
+}
+
 /*****************************************************************
  * 1. Forward, Backward, Hybrid implementations.
  *****************************************************************/
@@ -109,7 +124,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   p7_FLogsumInit();		/* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
   gx->M = M;
   gx->L = L;
-
+ 
   /* Initialization of the zero row. */
   XMX_FS(0,p7G_N) =  0;   //* S->N, p=1            */
   XMX_FS(0,p7G_B) =  gm->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
@@ -118,7 +133,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   for (k = 0; k <= M; k++)
     MMX_FS(0,k,p7G_C0) = MMX_FS(0,k,p7G_C1) = MMX_FS(0,k,p7G_C2) = MMX_FS(0,k,p7G_C3)      
     = MMX_FS(0,k,p7G_C4) = MMX_FS(0,k,p7G_C5) = IMX_FS(0,k) = DMX_FS(0,k) = -eslINFINITY;
-
+  
   /* Recursion. Done as a pull.
    * Note some slightly wasteful boundary conditions:  
    *    tsc[0] = impossible for all eight transitions (no node 0)
@@ -131,7 +146,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
      
       XMX_FS(i, p7G_E) = -eslINFINITY;
         // if(i == 2) p7_gmx_fs_Dump(stdout, gx, p7_DEFAULT);
-
       for (k = 1; k < M; k++)
 	{
 	  rsc = emit_sc[k];
@@ -214,7 +228,8 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 				   IMX_FS(i-1,M-1)          + TSC(p7P_IM,M-1)),
 			p7_FLogsum(XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,M-1),
 				   DMX_FS(i-1,M-1)          + TSC(p7P_DM,M-1)));
-        MMX_FS(i,M,p7G_C1) = sc + MSC_FS(i,p7P_C1);
+	
+	MMX_FS(i,M,p7G_C1) = sc + MSC_FS(i,p7P_C1);
 
 	if(i >= 2) {
 	  sc = p7_FLogsum(p7_FLogsum(MMX_FS(i-2,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
@@ -540,7 +555,6 @@ max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
   int amino, max_amino;
   float cur_emit;
   float max_emit;
-  char a[30] = "ACDEFGHIKLMNPQRSTVWY-BJZOUX*~";  
   float const *rsc  = NULL;
  
   max_emit = -eslINFINITY;

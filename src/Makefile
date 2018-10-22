@@ -20,7 +20,7 @@ man1dir     = ${mandir}/man1
 man1ext     = .1
 
 CC        = gcc
-CFLAGS    = -O3 -pthread 
+CFLAGS    = -O3 -pthread -g 
 CPPFLAGS  = 
 LDFLAGS   = 
 DEFS      = -DHAVE_CONFIG_H

@@ -77,7 +77,6 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
   float        esc  = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
   float        t1, t2;
   float        Max1, Max2, Max3, Max4, Max5;
-  
   /* Initialization of the zero row (i=0; no residues to account for.  */
   XMX(0,p7G_N) = pp->xmx[0*p7G_NXCELLS + p7G_N];                    /* S->N, p=1            */
   XMX(0,p7G_B) = XMX(0,p7G_N);                                      /* S->N->B, no N-tail   */

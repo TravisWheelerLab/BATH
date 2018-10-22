@@ -94,8 +94,8 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
   XMX_FS(0, p7G_E) = 0.0;
   XMX_FS(0, p7G_J) = 0.0;		
   XMX_FS(0, p7G_C) = 0.0;
-
-   for (k = 0; k <= M; k++)
+   
+  for (k = 0; k <= M; k++)
     MMX_FS(0,k, p7G_C0) = MMX_FS(0,k, p7G_C1) = MMX_FS(0,k, p7G_C2) = MMX_FS(0,k, p7G_C3) = 
     MMX_FS(0,k, p7G_C4) = MMX_FS(0,k, p7G_C5) = IMX_FS(0,k) = DMX_FS(0,k) = 0.0;
  
@@ -396,7 +396,7 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
   float j;
   float c;
   int   i;
-  
+ printf("L %d\n", L); 
   for (i = 1; i <= L; i++)
     {
       ddef->btot[i] = ddef->btot[i-1] + exp(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_B] + bck->xmx[(i-1)*p7G_NXCELLS+p7G_B] - overall_logp);

@@ -499,7 +499,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* initialize thread data */
   if (esl_opt_IsOn(go, "--cpu")) ncpus = esl_opt_GetInteger(go, "--cpu");
   else                                   esl_threads_CPUCount(&ncpus);
-
+  
   if (ncpus > 0)
     {
       threadObj = esl_threads_Create(&pipeline_thread);

@@ -1,5 +1,3 @@
-# Makefile for fm-index
-
 # VPATH and shell configuration
 top_srcdir = ..
 srcdir     = .
@@ -7,25 +5,21 @@ srcdir     = .
 SHELL      = /bin/sh
 
 # sources
-OBJS				= divsufsort.o 
-TARGET				= libdivsufsort.a
-MAKEFILE			= Makefile
+OBJS	       = divsufsort.o 
+TARGET	       = libdivsufsort.a
+MAKEFILE       = Makefile
 
 # options
-CC        = gcc
-CFLAGS    = -O3 -pthread 
-CPPFLAGS  = 
-MPILIBS   = 
-AR        = /usr/bin/ar rc
-RANLIB    = ranlib
-INSTALL   = /usr/bin/install -c
-
-#CC					= gcc 
-#CFLAGS  	 		= -g -O3 -fomit-frame-pointer -fstrict-aliasing 
-#CPPFLAGS			= -Wall 
-#AR       = /usr/bin/ar rc
-#RANLIB   = ranlib
-
+CC             = gcc
+CFLAGS         = -O3 
+SSE_CFLAGS     =  
+VMX_CFLAGS     =  
+PTHREAD_CFLAGS = -Qunused-arguments -pthread 
+CPPFLAGS       = 
+MPILIBS        = 
+AR             = /usr/bin/ar rc
+RANLIB         = ranlib
+INSTALL        = /usr/local/bin/ginstall -c
 
 # beautification magic stolen from git (added within hmmer source)
 ifndef V
@@ -39,7 +33,7 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 
 .c.o:
-	${QUIET_CC}${CC} -I. ${CFLAGS} ${CPPFLAGS} -o $@ -c $<
+	${QUIET_CC}${CC} -I. ${CFLAGS} ${SSE_CFLAGS} ${VMX_CFLAGS} ${PTHREAD_CFLAGS} ${CPPFLAGS} -o $@ -c $<
 
 
 libdivsufsort.a: $(OBJS)
@@ -50,9 +44,12 @@ libdivsufsort.a: $(OBJS)
 
 clean:
 	$(RM) $(TARGET) $(OBJS)
+ifndef V
+	@echo '     ' CLEAN libdivsufsort
+endif
+
 
 distclean:
 	$(RM) $(TARGET) $(OBJS) $(MAKEFILE) divsufsort.h
 
-# dependencies
-$(OBJS): divsufsort.h $(MAKEFILE)
+

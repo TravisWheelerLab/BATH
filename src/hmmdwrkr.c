@@ -176,10 +176,10 @@ worker_process(ESL_GETOPTS *go)
 	  {	  
               query = process_QueryCmd(cmd, &env);
               if (esl_opt_IsUsed(query->opts, "--nhmmscant")) {
-	          process_TranslatedSearchCmd(cmd, &env, query);
+                process_TranslatedSearchCmd(cmd, &env, query);
               }
               else {
-	          process_SearchCmd(cmd, &env, query);
+                process_SearchCmd(cmd, &env, query);
               }
               free_QueueData(query);
 	  }
@@ -187,12 +187,12 @@ worker_process(ESL_GETOPTS *go)
       case HMMD_CMD_SEARCH:
           {
               query = process_QueryCmd(cmd, &env);
-              process_SearchCmd(cmd, &env, query);
-//              if (esl_opt_IsUsed(query->opts, "--phmmert")) {
+
+//              if (esl_opt_IsUsed(query->opts, "--hmmsearcht")) {
 //	          process_TranslatedSearchCmd(cmd, &env, query);
 //              }
 //              else {
-//                  process_SearchCmd(cmd, &env, query);
+              process_SearchCmd(cmd, &env, query);
 //              }
               free_QueueData(query);
           }
@@ -257,6 +257,12 @@ process_TranslatedSearchCmd(HMMD_COMMAND *cmd, WORKER_ENV *env, QUEUE_DATA *quer
   P7_PIPELINE      *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
   RANGE_LIST       *range_list;  /* (optional) list of ranges searched within the seqdb */
  
+
+  if (query->cmd_type == HMMD_CMD_SEARCH) {
+    LOG_FATAL_MSG("ERROR: hmmsearcht option is not implemented", EPERM);
+    return;
+  }
+
   w = esl_stopwatch_Create();
   abc = esl_alphabet_Create(eslAMINO);
   abcDNA = esl_alphabet_Create(eslDNA); 
@@ -294,8 +300,10 @@ process_TranslatedSearchCmd(HMMD_COMMAND *cmd, WORKER_ENV *env, QUEUE_DATA *quer
    */
   wrk = esl_gencode_WorkstateCreate(query->opts, gcode);
 
-  if (query->cmd_type == HMMD_CMD_SEARCH) threadObj = esl_threads_Create(&search_thread);
-  else                                    threadObj = esl_threads_Create(&scan_thread);
+  //if (query->cmd_type == HMMD_CMD_SEARCH) threadObj = esl_threads_Create(&search_thread);
+  //else
+    threadObj = esl_threads_Create(&scan_thread);
+
 
   if (query->query_type == HMMD_SEQUENCE) {
     fprintf(stdout, "Search seq %s  [L=%ld]", query->seq->name, (long) query->seq->n);
@@ -327,12 +335,13 @@ process_TranslatedSearchCmd(HMMD_COMMAND *cmd, WORKER_ENV *env, QUEUE_DATA *quer
   /* Create processing pipeline and hit list accumulators */
   tophits_accumulator  = p7_tophits_Create(); 
 
-  if (query->cmd_type == HMMD_CMD_SEARCH) {
+/*  if (query->cmd_type == HMMD_CMD_SEARCH) {
       pipelinehits_accumulator = p7_pipeline_Create(query->opts, 100, 100, FALSE, p7_SEARCH_SEQS);
   }
   else {
+*/
       pipelinehits_accumulator = p7_pipeline_Create(query->opts, 100, 100, FALSE, p7_SCAN_MODELS);
-  }
+//  }
 
   /* process each 6 frame translated sequence */
   for (k = 0; k < wrk->orf_block->count; ++k)
@@ -367,7 +376,7 @@ process_TranslatedSearchCmd(HMMD_COMMAND *cmd, WORKER_ENV *env, QUEUE_DATA *quer
         info[i].blk_size  = &blk_size;     /* ditto */
         info[i].limit     = &limit;	       /* ditto. TODO: come back and clean this up. */
 
-        if (query->cmd_type == HMMD_CMD_SEARCH) {
+/*        if (query->cmd_type == HMMD_CMD_SEARCH) {
           HMMER_SEQ **list  = env->seq_db->db[query->dbx].list;
           info[i].sq_list   = &list[query->inx];
           info[i].sq_cnt    = query->cnt;
@@ -375,12 +384,13 @@ process_TranslatedSearchCmd(HMMD_COMMAND *cmd, WORKER_ENV *env, QUEUE_DATA *quer
           info[i].om_list   = NULL;
           info[i].om_cnt    = 0;
         } else {
+*/
           info[i].sq_list   = NULL;
           info[i].sq_cnt    = 0;
           info[i].db_Z      = 0;
           info[i].om_list   = &env->hmm_db->list[query->inx];
           info[i].om_cnt    = query->cnt;
-        }
+//       }
 
         esl_threads_AddThread(threadObj, &info[i]);
 
@@ -668,8 +678,6 @@ process_QueryCmd(HMMD_COMMAND *cmd, WORKER_ENV *env)
   query->hmm = NULL;
   query->seq = NULL;
 
-  //if (esl_opt_IsUsed(query->opts, "--nhmmscant") ||
-  //    esl_opt_IsUsed(query->opts, "--phmmert"))
   if (esl_opt_IsUsed(query->opts, "--nhmmscant"))
      query->abc = esl_alphabet_Create(eslDNA);
   else
@@ -941,14 +949,8 @@ search_thread(void *arg)
 
         /* 
          * if there is an ntseq sequence then we must be doing
-         * translated search where we search a DNA query sequence against a
-         * protein sequence database. In this case the ORF from a 6 frame translation 
-         * of the DNA query sequence has been converted to an optimized profile (om) 
-         * but the start and end of the ORF in the translation of the DNA
-         * query sequence has not been saved. We need these locations
-         * to print the DNA codons for the hit in the alignment display,
-         * so we save them in the sequence structure of the sequence from
-         * the sequence database that we are currently searching against.
+         * translated search. In this case, capture the start and end
+         * of the corresponding ORF.
          */
         if (info->ntseq != NULL)
         {

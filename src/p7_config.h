@@ -99,9 +99,9 @@
 
 /* Version info - set once for whole package in configure.ac
  */
-#define HMMER_VERSION "3.1rc1"
-#define HMMER_DATE "January 2017"
-#define HMMER_COPYRIGHT "Copyright (C) 2017 Howard Hughes Medical Institute."
+#define HMMER_VERSION "3.2.1"
+#define HMMER_DATE "June 2018"
+#define HMMER_COPYRIGHT "Copyright (C) 2018 Howard Hughes Medical Institute."
 #define HMMER_LICENSE "Freely distributed under the BSD open source license."
 #define HMMER_URL "http://hmmer.org/"
 
@@ -116,7 +116,6 @@
  */
 #define eslENABLE_SSE 1
 /* #undef eslENABLE_VMX */
-/* #undef eslENABLE_DUMMY */
 
 /* System headers
  */

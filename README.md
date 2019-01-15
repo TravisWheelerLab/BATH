@@ -56,7 +56,9 @@ as follows:
 ```bash
    % git clone https://github.com/TravisWheelerLab/hmmer 
    % cd hmmer
+   % git checkout develop
    % git clone https://github.com/TravisWheelerLab/easel
+   % (cd easel; git checkout develop)
    % autoconf
 ```
 

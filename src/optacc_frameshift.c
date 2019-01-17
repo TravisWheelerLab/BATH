@@ -216,7 +216,11 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
     }
   
   *ret_e = XMX(L,p7G_C);
- //p7_gmx_DumpWindow(stdout, gx, 300, pp->L, 100, 106, p7_DEFAULT);
+	//FILE *out = fopen("out.txt", "w+");
+        //p7_gmx_Dump(out, gx, p7_DEFAULT); 
+
+
+//p7_gmx_DumpWindow(stdout, gx, 300, pp->L, 100, 106, p7_DEFAULT);
   //p7_gmx_Dump(stdout,gx,p7_DEFAULT); 
   return eslOK;
 }
@@ -267,7 +271,7 @@ static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX 
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr)
+p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr, int start, int length)
 {
   int           i   = gx->L;	/* position in seq (1..L)         */
   int           k   = 0;	/* position in model (1..M)       */
@@ -359,6 +363,7 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i, i
   path[1] = TSCDELTA(p7P_IM, k-1) * IMX(*ret_i,k-1);
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i,k-1);
   path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i,p7G_B);
+  //printf("i = %d, k = %d, m = %f, codon = %d, d = %f, i = %f, b = %f\n", *ret_i, k, path[0], c, path[1], path[2], path[3]);
   return state[esl_vec_FArgMax(path, 4)];
  
 #if 0  
@@ -455,7 +460,7 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
   else path[2] = t1 * XMX(i-1, p7G_C); 
 
   path[3] = t2 *  XMX(i,p7G_E);
-
+	//printf("i = %d, c-3 = %f, c-2 = %f, c-1 = %f, e = %f\n", i, path[0], path[1], path[2], path[3]);
   return state[esl_vec_FArgMax(path, 4)];
 }
 
@@ -494,9 +499,11 @@ select_e(const P7_PROFILE *gm, const P7_GMX *gx, int i, int *ret_k)
 
   for (k = 1; k <= gm->M; k++)
     {
-      if (MMX(i,k) >= max) { max = MMX(i,k); smax = p7T_M; kmax = k; }
+//	printf("k = %d, max = %f, MMX = %f\n", k, max, MMX(i,k));
+      if (MMX(i,k) >  max) { max = MMX(i,k); smax = p7T_M; kmax = k; }
       if (DMX(i,k) >  max) { max = DMX(i,k); smax = p7T_D; kmax = k; }
     }
+//printf("k = %d\n", kmax);
   *ret_k = kmax;
   return smax;
 }

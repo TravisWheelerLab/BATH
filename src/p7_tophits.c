@@ -1563,7 +1563,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                 }
                 if (fprintf(ofp, "  score: %.1f bits", th->hit[h]->dcl[d].bitscore) < 0)
                   ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
-                if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
+		if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
                 {
                   if (fprintf(ofp, ";  conditional E-value: %.2g\n",  exp(th->hit[h]->dcl[d].lnP) * pli->domZ) < 0)
                     ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
@@ -1573,8 +1573,8 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                   if (fprintf(ofp, "\n") < 0)
                     ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
                 }
-                               if ((status = p7_alidisplay_Print(ofp, th->hit[h]->dcl[d].ad, 40, textw, pli)) != eslOK) return status;
-
+                if ((status = p7_alidisplay_Print(ofp, th->hit[h]->dcl[d].ad, 40, textw, pli)) != eslOK) return status;
+           
                 if (fprintf(ofp, "\n") < 0)
                   ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
               }

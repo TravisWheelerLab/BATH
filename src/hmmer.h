@@ -1384,7 +1384,7 @@ extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_
 
 /*decoding_frameshift*/
 extern int p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
-extern int p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef, int window_len);
+extern int p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_fwdback.c */
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
@@ -1392,7 +1392,7 @@ extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* fwdback_frameshift.c */
-extern float ** Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost);
+extern float ** Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost);
 void Codon_Emissions_Destroy (float **emit_sc);
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
@@ -1411,7 +1411,7 @@ extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_
 
 /* optacc_frameshift.c */
 extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
-extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr, int start, int length);
 
 /* generic_stotrace.c */
 extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
@@ -1525,7 +1525,7 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
-extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc);
+extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc);
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);
 extern size_t         p7_alidisplay_Sizeof(const P7_ALIDISPLAY *ad);
 extern int            p7_alidisplay_Serialize(P7_ALIDISPLAY *ad);
@@ -1583,7 +1583,7 @@ extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *nt
 				                                  P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
 				                                  P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
 extern int
-p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, P7_PROFILE *gm,
+p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm,
                                    P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck,
                                    P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                    P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr,

@@ -88,7 +88,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
     for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                       /* find prev M state      */
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   }
-
   /* Now we know that z1..z2 in the trace will be represented in the
    * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
    * our display lines, so allocate z2-z1+2. We know each position is
@@ -148,11 +147,10 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
   ad->M       = om->M;
-	
+  
   ad->sqfrom  = tr->i[z1];
   ad->sqto    = tr->i[z2];		 
   ad->L       = sq->n;
-
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : om->rf[tr->k[z]]);
@@ -288,7 +286,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->N = z2-z1+1;
 
   esl_sq_Destroy(ntorfseqtxt);  
-
 	  return ad;
 
  ERROR:
@@ -326,7 +323,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc)
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc)
 {
   P7_ALIDISPLAY *ad       = NULL;
   char          *alphaAmino = gm->abc->sym;
@@ -342,9 +339,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            j,h;
   float		 max_emit, cur_emit;
   float	        *rsc; 
-  ESL_SQ         *codon;
+  ESL_SQ        *codon;
   
-  /* First figure out which piece of the trace (from first match to last match) 
+ /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
    */
   if (tr->ndom > 0) {		/* if we have an index, this is a little faster: */
@@ -363,6 +360,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                    /* find prev M state      */
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   }
+
+
   /* Now we know that z1..z2 in the trace will be represented in the
    * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
    * our display lines, so allocate z2-z1+2. We know each position is
@@ -416,15 +415,13 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   strcpy(ad->sqname,  ntsq->name);
   strcpy(ad->sqacc,   ntsq->acc);
   strcpy(ad->sqdesc,  ntsq->desc);
-
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
   ad->M       = gm->M;
   ad->sqfrom  = tr->i[z1-1] + 1;
   ad->sqto    = tr->i[z2];		 
-  ad->L       = ntsq->n;
-   
+  ad->L       = sq->n;
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->rf[tr->k[z]]);
@@ -474,7 +471,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
      esl_sq_CAddResidue(ntorfseqtxt, 0);
 #endif
   
-    codon = esl_sq_CreateDigitalFrom(ntsq->abc, NULL, ntsq->dsq, 3, NULL, NULL, NULL);  
+    codon = esl_sq_CreateDigitalFrom(sq->abc, NULL, sq->dsq, 3, NULL, NULL, NULL);  
 /* mandatory three alignment display lines: model, mline, aseq */
   y = 0;
   for (z = z1; z <= z2; z++) 
@@ -492,7 +489,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         max_emit = -eslINFINITY;
 	if(l == 1) {
 	  
-	  codon->dsq[1] = ntsq->dsq[i];
+	  codon->dsq[1] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
 	     codon->dsq[2] = j;
              for(h = 0; h < 4; h++) {
@@ -504,7 +501,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                 if(max_emit == cur_emit) { 
 	           x = a;	       
 	           n1 = ' ';
-	           n2 = alphaDNA[ntsq->dsq[i]];
+	           n2 = alphaDNA[sq->dsq[i]];
 	           n3 = '-'; 
 	           n4 = '-';
 	           n5 = ' ';
@@ -512,7 +509,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	     }
 	  }
 
-	  codon->dsq[2] = ntsq->dsq[i];
+	  codon->dsq[2] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
 	     codon->dsq[1] = j;
 	     for(h = 0; h < 4; h++) {
@@ -525,14 +522,14 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	           x = a;	       
 	           n1 = ' ';
 	           n2 = '-';
-	           n3 = alphaDNA[ntsq->dsq[i]];
+	           n3 = alphaDNA[sq->dsq[i]];
 	           n4 = '-';
 	           n5 = ' ';
 	        }
 	     }
           }
 
-	  codon->dsq[3] = ntsq->dsq[i];
+	  codon->dsq[3] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
 	     codon->dsq[1] = j;
 	     for(h = 0; h < 4; h++) {
@@ -546,7 +543,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	           n1 = ' ';
 	           n2 = '-';
 	           n3 = '-';
-	           n4 = alphaDNA[ntsq->dsq[i]];
+	           n4 = alphaDNA[sq->dsq[i]];
 	           n5 = ' ';
 	        }
 	    }
@@ -554,8 +551,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       }
 
 	if(l == 2) {
-	  codon->dsq[1] = ntsq->dsq[i-1];	
-	  codon->dsq[2] = ntsq->dsq[i];
+	  codon->dsq[1] = sq->dsq[i-1];	
+	  codon->dsq[2] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
 	     codon->dsq[3] = j;
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
@@ -565,15 +562,15 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
              if(max_emit == cur_emit) { 
 	       x = a;	       
 	       n1 = ' ';
-	       n2 = alphaDNA[ntsq->dsq[i-1]];
-	       n3 = alphaDNA[ntsq->dsq[i]]; 
+	       n2 = alphaDNA[sq->dsq[i-1]];
+	       n3 = alphaDNA[sq->dsq[i]]; 
 	       n4 = '-';
 	       n5 = ' ';
 	     }
 	  }
 	
-	  codon->dsq[2] = ntsq->dsq[i-1];	
-	  codon->dsq[3] = ntsq->dsq[i];
+	  codon->dsq[2] = sq->dsq[i-1];	
+	  codon->dsq[3] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
 	     codon->dsq[1] = j;
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
@@ -584,14 +581,14 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	       x = a;	       
 	       n1 = ' ';
 	       n2 = '-';
-	       n3 = alphaDNA[ntsq->dsq[i-1]];
-	       n4 = alphaDNA[ntsq->dsq[i]];
+	       n3 = alphaDNA[sq->dsq[i-1]];
+	       n4 = alphaDNA[sq->dsq[i]];
 	       n5 = ' ';
 	     }
 	  }
 
-	  codon->dsq[1] = ntsq->dsq[i-1];	
-	  codon->dsq[3] = ntsq->dsq[i];
+	  codon->dsq[1] = sq->dsq[i-1];	
+	  codon->dsq[3] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
 	     codon->dsq[2] = j;
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
@@ -601,9 +598,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
              if(max_emit == cur_emit) { 
 	       x = a;	       
 	       n1 = ' ';
-	       n2 = alphaDNA[ntsq->dsq[i-1]];
+	       n2 = alphaDNA[sq->dsq[i-1]];
 	       n3 = '-';
-	       n4 = alphaDNA[ntsq->dsq[i]];
+	       n4 = alphaDNA[sq->dsq[i]];
 	       n5 = ' ';
 	     }
 	  }
@@ -611,19 +608,19 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         }	
 	
 	if(l == 3) {
-	    x = esl_gencode_GetTranslation(gcode, &ntsq->dsq[i-l+1]);
+	    x = esl_gencode_GetTranslation(gcode, &sq->dsq[i-l+1]);
 	    n1 = ' ';
-	    n2 = alphaDNA[ntsq->dsq[i-2]];
-	    n3 = alphaDNA[ntsq->dsq[i-1]];
-	    n4 = alphaDNA[ntsq->dsq[i]];
+	    n2 = alphaDNA[sq->dsq[i-2]];
+	    n3 = alphaDNA[sq->dsq[i-1]];
+	    n4 = alphaDNA[sq->dsq[i]];
 	    n5 = ' ';
         }
 	
 	if(l == 4) {
-	  codon->dsq[1] = ntsq->dsq[i-3];	
-	  codon->dsq[2] = ntsq->dsq[i-2];
+	  codon->dsq[1] = sq->dsq[i-3];	
+	  codon->dsq[2] = sq->dsq[i-2];
 	  for(j = 0; j <= 1; j++) {
-	     codon->dsq[3] = ntsq->dsq[i-j];
+	     codon->dsq[3] = sq->dsq[i-j];
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
 	     rsc = gm->rsc[a]; 
              cur_emit = MSC(k);
@@ -631,27 +628,27 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
              if(max_emit == cur_emit) { 
 	        x = a;
 	        n1 = ' ';
-	        n2 = alphaDNA[ntsq->dsq[i-3]];
-	        n3 = alphaDNA[ntsq->dsq[i-2]]; 
-	        n4 =  alphaDNA[ntsq->dsq[i-1]];
-	        n5 = alphaDNA[ntsq->dsq[i]];
+	        n2 = alphaDNA[sq->dsq[i-3]];
+	        n3 = alphaDNA[sq->dsq[i-2]]; 
+	        n4 =  alphaDNA[sq->dsq[i-1]];
+	        n5 = alphaDNA[sq->dsq[i]];
 	     }
           }	     
 	
-	  codon->dsq[2] = ntsq->dsq[i-1];	
-	  codon->dsq[3] = ntsq->dsq[i];
+	  codon->dsq[2] = sq->dsq[i-1];	
+	  codon->dsq[3] = sq->dsq[i];
 	  for(j = 2; j <= 3; j++) {
-	     codon->dsq[1] = ntsq->dsq[i-j];
+	     codon->dsq[1] = sq->dsq[i-j];
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
 	     rsc = gm->rsc[a]; 
              cur_emit = MSC(k);
              max_emit = ESL_MAX(max_emit, cur_emit);
              if(max_emit == cur_emit) { 
 	        x = a;
-	        n1 = alphaDNA[ntsq->dsq[i-3]];
-	        n2 = alphaDNA[ntsq->dsq[i-2]]; 
-	        n3 = alphaDNA[ntsq->dsq[i-1]];
-	        n4 = alphaDNA[ntsq->dsq[i]];
+	        n1 = alphaDNA[sq->dsq[i-3]];
+	        n2 = alphaDNA[sq->dsq[i-2]]; 
+	        n3 = alphaDNA[sq->dsq[i-1]];
+	        n4 = alphaDNA[sq->dsq[i]];
 	        n5 = ' ';
 	     }
           }	
@@ -659,10 +656,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 
         if(l == 5) {
 	  
-	  codon->dsq[1] = ntsq->dsq[i-4];	
-	  codon->dsq[2] = ntsq->dsq[i-3];
+	  codon->dsq[1] = sq->dsq[i-4];	
+	  codon->dsq[2] = sq->dsq[i-3];
 	  for(j = 0; j <= 2; j++) {
-	     codon->dsq[3] = ntsq->dsq[i-j];
+	     codon->dsq[3] = sq->dsq[i-j];
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
 	     rsc = gm->rsc[a]; 
              cur_emit = MSC(k);
@@ -670,10 +667,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
              if(max_emit == cur_emit)  x = a;
           }	     
 	
-	  codon->dsq[1] = ntsq->dsq[i-4];	
-	  codon->dsq[2] = ntsq->dsq[i-2];
+	  codon->dsq[1] = sq->dsq[i-4];	
+	  codon->dsq[2] = sq->dsq[i-2];
 	  for(j = 0; j <= 1; j++) {
-	     codon->dsq[3] = ntsq->dsq[i-j];
+	     codon->dsq[3] = sq->dsq[i-j];
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
 	     rsc = gm->rsc[a]; 
              cur_emit = MSC(k);
@@ -681,10 +678,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
              if(max_emit == cur_emit)  x = a;
           }	
 
-          codon->dsq[1] = ntsq->dsq[i-3];	
-	  codon->dsq[2] = ntsq->dsq[i-2];
+          codon->dsq[1] = sq->dsq[i-3];	
+	  codon->dsq[2] = sq->dsq[i-2];
 	  for(j = 0; j <= 1; j++) {
-	     codon->dsq[3] = ntsq->dsq[i-j];
+	     codon->dsq[3] = sq->dsq[i-j];
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
 	     rsc = gm->rsc[a]; 
              cur_emit = MSC(k);
@@ -692,10 +689,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
              if(max_emit == cur_emit)  x = a;
           }	
 
-	  codon->dsq[2] = ntsq->dsq[i-1];	
-	  codon->dsq[3] = ntsq->dsq[i];
+	  codon->dsq[2] = sq->dsq[i-1];	
+	  codon->dsq[3] = sq->dsq[i];
 	  for(j = 2; j <= 4; j++) {
-	     codon->dsq[1] = ntsq->dsq[i-j];
+	     codon->dsq[1] = sq->dsq[i-j];
              a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
 	     rsc = gm->rsc[a]; 
              cur_emit = MSC(k);
@@ -729,11 +726,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = tolower(alphaAmino[x]);
         n1 = ' ';
-        n2 = alphaDNA[ntsq->dsq[i-2]];	
-	n3 = alphaDNA[ntsq->dsq[i-1]];	
-        n4 = alphaDNA[ntsq->dsq[i]];	
+        n2 = alphaDNA[sq->dsq[i-2]];	
+	n3 = alphaDNA[sq->dsq[i-1]];	
+        n4 = alphaDNA[sq->dsq[i]];	
         n5 = ' ';
-        x = esl_gencode_GetTranslation(gcode, &ntsq->dsq[i-2]);
+        x = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
 	ad->aseq  [z-z1] = tolower(alphaAmino[x]);
         ad->ntseq [5*(z-z1)] = ' ';
         ad->ntseq [5*(z-z1)+1] = toupper(n2);
@@ -1228,11 +1225,11 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
    if(ad->sqfrom < ad->sqto) { a1 = (i1+2)/3;    a2 = a1-1; }
    else                      { a1 = (i1+2)/3-1;  a2 = a1 + 1; }
   k1 = ad->hmmfrom;
+  
   for (pos = 0; pos < ad->N; pos += aliwidth)
     {
 	   
       if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
-
       ni = nk = 0; 
       for (z = pos; z < pos + aliwidth && z < ad->N; z++) {
         if (ad->model[z] != '.') nk++; /* k advances except on insert states */
@@ -1243,7 +1240,6 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 	  if (ad->csline != NULL) 
 	  {
   	     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-         
 	     for (i = 0; i < aliwidth; i++)
 	        {
 		       if (ad->csline[pos+i] == 0) break; 
@@ -1251,9 +1247,9 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 			     (show_vertical_codon) ? "%c" : "  %c  ", 
 				 ad->csline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
 	        }
+		
         if (fprintf(fp, "CS\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
 	  }
-
 	  if (ad->rfline != NULL) 
 	  {
          if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
@@ -1281,7 +1277,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 	        }
         if (fprintf(fp, "MM\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
 	  }
-	 
+
       if (fprintf(fp, "  %*s %*d ", namewidth,  show_hmmname, coordwidth, k1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
       
       for (i = 0; i < aliwidth; i++)
@@ -1292,8 +1288,8 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 			    ad->model[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 	     }
       if (fprintf(fp, " %-*d\n", coordwidth, k2) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+ 
       for (i = 0; i < aliwidth; i++)
 	     {
 		   if (ad->mline[pos+i] == 0) break; 
@@ -1308,16 +1304,16 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 		   if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 	
 		   if (ni > 0) 
-		   {
+		   {    
 			 if (fprintf(fp, " %*d ", coordwidth, a1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 		   }
 		   else
 		   {		  
 			 if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 		   }
-		  
-		   for (i = 0, y = 0; i < aliwidth; i++, y++)
-			  {
+		   
+                   for (i = 0, y = 0; i < aliwidth; i++, y++)
+	  	   {
 			    if (ad->aseq[pos+i] == 0) break; 
 			    if (fprintf(fp,
 			      (show_vertical_codon) ? "%c" : "  %c  ", 
@@ -1340,7 +1336,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 	  
       if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       if (ni > 0) 
-	   {
+	   {   
  	      if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 	   }
 	   else
@@ -1376,7 +1372,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 	
          /*
           * Display the DNA codon horizontally
-          */	   
+          */
 	     for (i = 0, j = 0, y = 0; j < aliwidth; i+=5, j++, y++)
 	     {
 		    if (ad->ntseq[npos+i] == 0) break; 
@@ -1493,6 +1489,7 @@ p7_translated_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   buf[aliwidth] = 0;
 
   /* Break the alignment into multiple blocks of width aliwidth for printing */
+  printf("FROM %d\n", ad->sqfrom);
   i1 = ad->sqfrom;
   k1 = ad->hmmfrom;
   for (pos = 0; pos < ad->N; pos += aliwidth)

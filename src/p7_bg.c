@@ -60,10 +60,9 @@ p7_bg_Create(const ESL_ALPHABET *abc)
   bg->fhmm  = NULL;
 
   ESL_ALLOC(bg->f,     sizeof(float) * abc->K);
-  printf("1bg %d, fhmm %d\n", bg, bg->fhmm);
 
   if ((bg->fhmm = esl_hmm_Create(abc, 2)) == NULL) goto ERROR;
-  printf("bg %d, fhmm %d\n", bg, bg->fhmm);
+  
   if       (abc->type == eslAMINO)
     {
       if (p7_AminoFrequencies(bg->f) != eslOK) goto ERROR;
@@ -475,7 +474,7 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
   ESL_HMX *hmx = esl_hmx_Create(L, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
  
   float nullsc;		                  	 /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
- printf("Abg = %d fhmm %d\n", bg, bg->fhmm); 
+  
   esl_hmm_Forward(dsq, L, bg->fhmm, hmx, &nullsc);
 
   /* impose the length distribution */

@@ -831,7 +831,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         else
 #endif
         {
-        
+       	 	printf("HERE\n"); 
 	  block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcDNA);
           if (block == NULL)           esl_fatal("Failed to allocate sequence block");
 
@@ -943,7 +943,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    // pipelinehits_accumulator = p7_pipeline_Create(go, 100, 100, FALSE, p7_SEARCH_SEQS);
 
 	 
-    wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
+   // wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
 
     for (i = 0; i < infocnt; ++i) {
       /* Create processing pipeline and hit list */
@@ -1068,8 +1068,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	      esl_sq_DestroyBlock(wrk->orf_block);
 	      wrk->orf_block = NULL;
            }
-	esl_gencode_Destroy(gcode);
-      /* Print the results.  */
+	      /* Print the results.  */
       p7_tophits_SortBySeqidxAndAlipos(info->th);
       assign_Lengths(info->th, id_length_list);
       p7_tophits_RemoveDuplicates(info->th, info->pli->use_bit_cutoffs);
@@ -1091,7 +1090,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info->pli->long_targets = FALSE;
           p7_tophits_Domains(ofp, info->th, info->pli, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
       
-      if (tblfp)     p7_tophits_TabularTargets(tblfp,    hmm->name, hmm->acc, info->th, info->pli, (nquery == 1));
+	if (tblfp)     p7_tophits_TabularTargets(tblfp,    hmm->name, hmm->acc, info->th, info->pli, (nquery == 1));
       if (dfamtblfp) p7_tophits_TabularXfam(dfamtblfp,   hmm->name, hmm->acc, info->th, info->pli);
       if (aliscoresfp) p7_tophits_AliScores(aliscoresfp, hmm->name, info->th );
 
@@ -1135,6 +1134,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_oprofile_Destroy(om);
       p7_profile_Destroy(gm);
       p7_hmm_Destroy(hmm);
+
       destroy_id_length(id_length_list);
       if (qsq != NULL) esl_sq_Reuse(qsq);
 
@@ -1152,6 +1152,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
 
   } /* end outer loop over queries */
+
+  esl_gencode_Destroy(gcode);
 
   if (hfp != NULL) {
     switch(qhstatus) {
@@ -1180,7 +1182,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    */
   for (i = 0; i < infocnt; ++i)
     p7_bg_Destroy(info[i].bg);
-
 #ifdef HMMER_THREADS
   if (ncpus > 0) {
       esl_workqueue_Reset(queue);
@@ -1204,7 +1205,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       esl_workqueue_Destroy(queue);
       esl_threads_Destroy(threadObj);
   }
+  
 #endif
+//esl_sq_DestroyBlock(block);
 
   free(info);
 
@@ -1268,12 +1271,12 @@ serial_loop(WORKER_INFO *info, ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, I
 {
   int      wstatus = eslOK;
   int seq_id = 0;
-  
+  ESL_ALPHABET    *abcAMINO = esl_alphabet_Create(eslAMINO); 
   ESL_ALPHABET    *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ   *dbsq   =  esl_sq_CreateDigital(abcDNA);
   ESL_SQ   *dbsq_revcmp;
  
-
+  
    wstatus = esl_sqio_Read(dbfp, dbsq);
 //printf("dbsq L %d\n", dbsq->L); 
  if (dbsq->abc->complement != NULL) {
@@ -1290,8 +1293,9 @@ while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
 
         info->pli->nres -= dbsq->C; // to account for overlapping region of windows
-	
-	p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
+	wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
+
+	p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, dbsq->idx, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
 
 	p7_tophits_SortBySortkey(info->th);
 	p7_pipeline_fs_Reuse(info->pli); // prepare for next search
@@ -1301,8 +1305,13 @@ while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
      	//reverse complement
       if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
       {
-  
-          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_revcmp, p7_COMPLEMENT, gcode, wrk);
+          if(wrk->orf_block != NULL) {
+          esl_sq_DestroyBlock(wrk->orf_block);
+          wrk->orf_block = NULL;
+	  }
+          wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
+
+          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, dbsq->idx, dbsq_revcmp, p7_COMPLEMENT, gcode, wrk);
 
 	  p7_tophits_SortBySortkey(info->th);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
@@ -1322,6 +1331,7 @@ while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       }
    }
 
+   esl_alphabet_Destroy(abcAMINO);
   esl_alphabet_Destroy(abcDNA);
   esl_sq_Destroy(dbsq);
   esl_sq_Destroy(dbsq_revcmp);
@@ -1693,7 +1703,6 @@ static int
 add_id_length(ID_LENGTH_LIST *list, int id, int L)
 {
    int status;
-
    if (list->count > 0 && list->id_lengths[list->count-1].id == id) {
      // the last time this gets updated, it'll have the sequence's actual length
      list->id_lengths[list->count-1].length = L;
@@ -1721,9 +1730,10 @@ assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list) {
   int i;
   int j = 0;
   for (i=0; i<th->N; i++) {
-    while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++;   }
-    th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length;
-  }
+    while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++;  }
+     th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length;
+ 
+   }
 
   return eslOK;
 }

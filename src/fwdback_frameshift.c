@@ -22,7 +22,7 @@ static float max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq,
 static float max_codon_five(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel);
 
 float ** 
-Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost)  {
+Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost)  {
    
   int i,k;
   float one_indel;
@@ -37,9 +37,8 @@ Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcod
   one_indel = log(indel_cost);
   two_indel = log(indel_cost / 2);
   no_indel = log(1.0 - (indel_cost * 3));
-
-  ESL_ALLOC(emit_sc, sizeof(float *) * (M+2));
-  ESL_ALLOC(emit_sc[0], sizeof(float) * (M+2) * L * p7P_CODONS);
+  ESL_ALLOC(emit_sc, sizeof(float *) * (M+1));
+  ESL_ALLOC(emit_sc[0], sizeof(float) * (M+1) * (L+1)  * p7P_CODONS);
 
   ///For some reason I get a Valgrind error if I alloc mot M+1, need to use M+2///////
   for (k = 1; k <= M; k++)
@@ -54,7 +53,7 @@ Codon_Emissions_Create (float **original_rsc, ESL_DSQ *subseq, ESL_GENCODE *gcod
       MSC_FS(i,p7P_C1) = max_codon_one(original_rsc, codon->dsq, subseq, gcode, k, i, two_indel) + log(0.998);
       MSC_FS(i,p7P_C2) = max_codon_two(original_rsc, codon->dsq, subseq, gcode, k, i, one_indel) + log(0.998);
       MSC_FS(i,p7P_C3) = max_codon_three(original_rsc, codon->dsq, subseq, gcode, k, i, no_indel);
-      MSC_FS(i,p7P_C3) = (MSC_FS(i,p7P_C3) == -eslINFINITY) ? log(0.002) : MSC_FS(i,p7P_C3) + log(0.998);
+      MSC_FS(i,p7P_C3) = (MSC_FS(i,p7P_C3) == -eslINFINITY) ? log(0.002) : MSC_FS(i,p7P_C3) + log(0.998); 
       MSC_FS(i,p7P_C4) = max_codon_four(original_rsc, codon->dsq, subseq, gcode, k, i, one_indel) + log(0.998);
       MSC_FS(i,p7P_C5) = max_codon_five(original_rsc, codon->dsq, subseq, gcode, k, i, two_indel) + log(0.998);
     }
@@ -70,11 +69,8 @@ ERROR:
 
 void 
 Codon_Emissions_Destroy (float **emit_sc)  {
-   
   if(emit_sc != NULL && emit_sc[0] != NULL) free(emit_sc[0]);
   if(emit_sc != NULL) free(emit_sc);
-
-
   return;
 }
 
@@ -315,7 +311,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
   gx->L = L;
 // p7_gmx_DumpWindow(stdout, gx, 300, gx->L, 0, 0, p7_DEFAULT);
 //p7_gmx_DumpWindow(stdout, gx, 300, gx->L, 100, 106, p7_DEFAULT);
- // p7_gmx_fs_Dump(stdout, gx, p7_DEFAULT);
+ //p7_gmx_fs_Dump(stdout, gx, p7_DEFAULT);
   return eslOK;
 }
 

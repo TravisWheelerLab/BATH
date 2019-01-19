@@ -556,25 +556,46 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
   
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
-  i     = 1;
+  i     = -1;
   triggered = FALSE;
   
-  for (j = 3; j <= gxf->L; j++)
+  for (j = 1; j <= gxf->L-2; j++)
   {  
     if (! triggered){
-      if       (ddef->mocc[j] - (ddef->btot[j] - ddef->btot[j-3]) <  ddef->rt2) i = j;
-      if       (ddef->mocc[j]                                     >= ddef->rt1) triggered = TRUE;
+      //if       (ddef->mocc[j] - (ddef->btot[j] - ddef->btot[j-1]) <  ddef->rt2) i = j;
+      //else if  (i == -1)                                                        i = j;
+      if       (ddef->mocc[j] >= ddef->rt1 && ddef->mocc[j+1] >= ddef->rt1 && ddef->mocc[j+2] >= ddef->rt1) triggered = TRUE;
+      d = j;
     }
-    else if (ddef->mocc[j] - (ddef->etot[j] - ddef->etot[j-3])  <  ddef->rt2)
-    {
-	printf("i %d, j %d\n", i, j);
+    else {
+      while(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2 && d > 1) {
+	if(d >= 3) d -= 3;
+	else d = 1;
+      }
+      i = d;
+      d = j-1;
+      while(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2 && d <= gxf->L) {
+        if(d <= gxf->L - 3) d += 3;
+        else d = gxf->L;
+
+	if(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2)
+	  if(ddef->mocc[d-1] - (ddef->etot[d-1] - ddef->etot[d-2]) >= ddef->rt2){
+		d--;
+	  } else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) {
+		d-=2;
+	  }
+      } 
+      j = d;
+	
+        printf("i %d, j %d\n", i, j);
 	/* We have a region i..j to evaluate. */
 	p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
         p7_gmx_GrowTo(bck, gm->M, j-i+1);
         ddef->nregions++;
-    	
+#if 0    	
 	if (is_multidomain_region_fs(ddef, i, j))
-        {    
+        {   
+ 
 		printf("multi\n"); 
 	     /* This region appears to contain more than one domain, so we have to
              * resolve it by cluster analysis of posterior trace samples, to define
@@ -592,7 +613,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
           FILE *out= fopen("out.txt", "w+");
  		 p7_gmx_fs_Dump(out, fwd, p7_DEFAULT); 
             region_trace_ensemble_frameshift(ddef, gm, sq->dsq, i, j, fwd, bck, &nc);
-	    printf("nc %d\n", nc);
 	    p7_ReconfigUnihit_Frameshift(gm, saveL);
             /* ddef->n2sc is now set on i..j by the traceback-dependent method */
 	    last_j2 = 0;
@@ -631,12 +651,12 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 
 	}
         else
-        { 
- 	 	printf("single\n"); 
+        {
+#endif 
    /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
             rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost);
-	}
+//	}
         i     = -1;
   	triggered = FALSE;
     }
@@ -950,7 +970,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
       for (d = 0; d < ddef->tr->ndom; d++)
 	{
 	  p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
-
+//	printf("from %d\n", ddef->tr->sqfrom[d]);
 	  p7_GNull2_ByTrace(gm, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
 	  
 	  /* residues outside domains get bumped +1: because f'(x) = f(x), so f'(x)/f(x) = 1 in these segments */
@@ -1232,7 +1252,6 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
     orig_L = om->L;
     p7_oprofile_ReconfigLength(om, j-i+1);
   }
-
   if (long_target && scores_arr!=NULL) {
     // Modify bg and om in-place to avoid having to clone (allocate) a massive
     // number of times when there are many hits
@@ -1447,14 +1466,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   int            status;
   int            orig_L;
   float        **emit_sc;
-  
   //temporarily change model length to env_len. The nhmmer pipeline will tack
     //on the appropriate cost to account for the longer actual window
   orig_L = gm->L;
   p7_ReconfigLength_Frameshift(gm, j-i+1);
-  
+   
   emit_sc = Codon_Emissions_Create(gm->rsc, sq->dsq+i-1, gcode, gm->M, Ld, indel_cost);
-
   p7_Forward_Frameshift (sq->dsq+i-1, Ld, gm, gx1, emit_sc, &envsc);
   p7_Backward_Frameshift(sq->dsq+i-1, Ld, gm, gx2, emit_sc, NULL);
 

@@ -54,11 +54,11 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
   float  *xmx = gx->xmx;
   float const *tsc  = gm->tsc;
   float  *sc;			/* scores of possible choices: up to 2M-1, in the case of exits to E  */
+  int d;
   int     scur, sprv;
-  int     cases;
   /* we'll index M states as 1..M, and D states as 2..M = M+2..2M: M0, D1 are impossibles. */
   ESL_ALLOC(sc, sizeof(float) * (2*M+1)); 
-
+  //printf("L = %d\n", L);
   k = 0;
   i = L;			
   if ((status = p7_trace_Append(tr, p7T_T, k, i)) != eslOK) goto ERROR;
@@ -87,7 +87,6 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       /* E connects from any M or D state. k set here */
       case p7T_E:	
 	if (XMX(i, p7G_E) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
-	
 	if (p7_profile_IsLocal(gm)) { /* local models come from any M, D */
 	  sc[0] = sc[M+1] = -eslINFINITY;
 	  for (k = 1; k <= M; k++) sc[k]   = MMX_FS(i,k,p7G_C0);
@@ -108,63 +107,37 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       /* M connects from {MDI} i-1,k-1, or B */
       case p7T_M:
 	if (MMX_FS(i,k,p7G_C0) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
-	if(i >= 5) {
-	  sc[16] = XMX(i-5,p7G_B) 	  + TSC(p7P_BM, k-1);
-          sc[17] = MMX_FS(i-5,k-1,p7G_C0) + TSC(p7P_MM, k-1);
-          sc[18] = IMX_FS(i-5,k-1)   	  + TSC(p7P_IM, k-1);
-          sc[19] = DMX_FS(i-5,k-1)   	  + TSC(p7P_DM, k-1);
-	  cases = 20;
-	} else { cases = 16; }
 
-	if(i >= 4) {
-	  sc[12] = XMX(i-4,p7G_B) 	  + TSC(p7P_BM, k-1);
-          sc[13] = MMX_FS(i-4,k-1,p7G_C0) + TSC(p7P_MM, k-1);
-          sc[14] = IMX_FS(i-4,k-1)   	  + TSC(p7P_IM, k-1);
-          sc[15] = DMX_FS(i-4,k-1)   	  + TSC(p7P_DM, k-1);
-	} else { cases = 12; }
+        sc[0] = MMX_FS(i,k,p7G_C1);
+	sc[1] = MMX_FS(i,k,p7G_C2);
+	sc[2] = MMX_FS(i,k,p7G_C3);
+	sc[3] = MMX_FS(i,k,p7G_C4);
+	sc[4] = MMX_FS(i,k,p7G_C5);
+	esl_vec_FLogNorm(sc, 5);
+        switch (esl_rnd_FChoose(r, sc, 5)) {
+	  case 0: d = 1; break; 
+	  case 1: d = 2; break; 
+	  case 2: d = 3; break; 
+	  case 3: d = 4; break; 
+	  case 4: d = 5; break; 
+	}
 
-	if(i >= 3) {
-	  sc[8] = XMX(i-3,p7G_B) 	  + TSC(p7P_BM, k-1);
-          sc[9] = MMX_FS(i-3,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
-          sc[10] = IMX_FS(i-3,k-1)   	  + TSC(p7P_IM, k-1);
-          sc[11] = DMX_FS(i-3,k-1)   	  + TSC(p7P_DM, k-1);
-	} else { cases = 8; }
-
-	if(i >= 2) {
-	  sc[4] = XMX(i-2,p7G_B) 	  + TSC(p7P_BM, k-1);
-          sc[5] = MMX_FS(i-2,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
-          sc[6] = IMX_FS(i-2,k-1)   	  + TSC(p7P_IM, k-1);
-          sc[7] = DMX_FS(i-2,k-1)   	  + TSC(p7P_DM, k-1);
-	} else { cases = 4; }
-      
-	sc[0] = XMX(i-1,p7G_B) 		+ TSC(p7P_BM, k-1);
-	sc[1] = MMX_FS(i-1,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
-	sc[2] = IMX_FS(i-1,k-1)   	+ TSC(p7P_IM, k-1);
-	sc[3] = DMX_FS(i-1,k-1)   	+ TSC(p7P_DM, k-1);
-       esl_vec_FLogNorm(sc, cases); 
-       switch (esl_rnd_FChoose(r, sc, cases)) {
-       case 0: scur = p7T_B;   i-=1;   break;
-       case 1: scur = p7T_M;   i-=1;   break;
-       case 2: scur = p7T_I;   i-=1;   break;
-       case 3: scur = p7T_D;   i-=1;   break;
-       case 4: scur = p7T_B;   i-=2;   break;
-       case 5: scur = p7T_M;   i-=2;   break;
-       case 6: scur = p7T_I;   i-=2;   break;
-       case 7: scur = p7T_D;   i-=2;   break;
-       case 8: scur = p7T_B;   i-=3;   break;
-       case 9: scur = p7T_M;   i-=3;   break;
-       case 10: scur = p7T_I;  i-=3;   break;
-       case 11: scur = p7T_D;  i-=3;   break;
-       case 12: scur = p7T_B;  i-=4;   break;
-       case 13: scur = p7T_M;  i-=4;   break;
-       case 14: scur = p7T_I;  i-=4;   break;
-       case 15: scur = p7T_D;  i-=4;   break;
-       case 16: scur = p7T_B;  i-=5;   break;
-       case 17: scur = p7T_M;  i-=5;   break;
-       case 18: scur = p7T_I;  i-=5;   break;
-       case 19: scur = p7T_D;  i-=5;   break;
-       default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
+	sc[0] = XMX(i-d,p7G_B) 		+ TSC(p7P_BM, k-1);
+	sc[1] = MMX_FS(i-d,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
+	sc[2] = IMX_FS(i-d,k-1)   	+ TSC(p7P_IM, k-1);
+	sc[3] = DMX_FS(i-d,k-1)   	+ TSC(p7P_DM, k-1);
+        esl_vec_FLogNorm(sc, 4);
+	//if(k == 96) printf("i %d, d %d, B %f, M %f, I %f, D %f\n", i, d, sc[0], sc[1], sc[2], sc[3]);
+ 
+        switch (esl_rnd_FChoose(r, sc, 4)) {
+          case 0: scur = p7T_B;  break;
+          case 1: scur = p7T_M;  break;
+          case 2: scur = p7T_I;  break;
+          case 3: scur = p7T_D;  break;
+          default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
        }
+if(k == 96)	printf("i %d, scur %d\n", i, scur);
+       i -= d;
        k--; 
        break;
 

@@ -143,7 +143,7 @@ int
 p7_spensemble_Add(P7_SPENSEMBLE *sp, int sampleidx, int i, int j, int k, int m)
 {
   int status;
-
+  
   if      (sampleidx > sp->nsamples)  ESL_EXCEPTION(eslEINVAL, "seg pair's <sampleidx> is out of order");
   else if (sampleidx == sp->nsamples) sp->nsamples++;
 
@@ -306,7 +306,7 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
   ESL_ALLOC(ninc, sizeof(int) * sp->nc);
   /* Look at each cluster in turn; most will be too small to worry about. */
   for (c = 0; c < sp->nc; c++)
-    {
+    {    
       /* Calculate posterior probability of each cluster. 
        * The extra wrinkle here is that this probability is w.r.t the number of sampled traces;
        * but the clusters might contain more than one seg pair from a given trace.
@@ -392,6 +392,7 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
       sp->sigc[sp->nsigc].idx  = c;
       sp->sigc[sp->nsigc].prob = (float) ninc[c] / (float) sp->nsamples;
       sp->nsigc++;
+      printf("i %d, j %d, k %d, m %d\n", best_i, best_j, best_k, best_m);
     }
 
   /* Now we need to make sure those domains are ordered by start point,

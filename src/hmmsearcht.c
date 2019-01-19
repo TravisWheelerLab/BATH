@@ -744,8 +744,8 @@ serial_loop(WORKER_INFO *info, ESL_SQFILE *dbfp, ESL_SQ_BLOCK  *orf_block)
   int  sstatus = eslOK;
   ESL_SQ   *dbsq     = NULL;   /* one target sequence (digital)  */
   int      k;
-
-  /* Main loop: */
+  
+/* Main loop: */
   for (k = 0; k < orf_block->count; ++k)
   {
       dbsq = &(orf_block->list[k]);

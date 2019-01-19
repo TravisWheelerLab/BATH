@@ -769,11 +769,9 @@ p7_pli_ExtendMergeAndConvertWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
     if(complementarity == p7_COMPLEMENT) {
       curr_window->n = ESL_MIN(dna_len, orfsq->start - ((curr_window->n - 1) * 3));
       curr_window->length = ESL_MIN(curr_window->n, curr_window->length * 3);
-   	printf("COMP i = %d, n = %d\n", i, curr_window->n); 
     } else {
       curr_window->n = ESL_MAX(1, orfsq->start + ((curr_window->n - 1) * 3));
       curr_window->length = ESL_MIN((dna_len - curr_window->n), curr_window->length * 3);
-    	printf("NO COMP i = %d, n = %d\n", i, curr_window->n);
     }
   }
   return eslOK;
@@ -2313,17 +2311,10 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   pli->pos_past_fwd += window_len;
   printf("fwd sc %f\n", seq_score);
 
-printf("window start %d, length %d\n", window_start, window_len);
 
-printf("\n\n");
-for(i = 1; i < window_len; i++) {
-//	printf("%c", alphaDNA[subseq[i]]);
-}
-
-FILE *out = fopen("out.txt", "w+");
+//FILE *out = fopen("out.txt", "w+");
 //p7_gmx_DumpWindow(out, pli->gxf, 1300, 1600, 0, gm->M, p7_DEFAULT);
 //p7_gmx_fs_Dump(stdout, pli->gxf, p7_DEFAULT);
-printf("\n\n");
 
 /*now that almost everything has been filtered away, set up seq object for domaindef function*/
   if ((status = esl_sq_SetName     (pli_tmp->tmpseq, seq_name))   != eslOK) goto ERROR;

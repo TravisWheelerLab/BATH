@@ -1317,6 +1317,7 @@ p7_trace_Index(P7_TRACE *tr)
       case p7T_E:
 	tr->tto[tr->ndom]   = z;
 	tr->ndom++;
+       // printf("z %d, ndom %d, from i %d k %d, to i %d k %d\n", z, tr->ndom, tr->sqfrom[tr->ndom], tr->hmmfrom[tr->ndom], tr->sqto[tr->ndom], tr->hmmto[tr->ndom]);
 	break;
       }
     }

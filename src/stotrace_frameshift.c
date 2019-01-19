@@ -48,7 +48,7 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
 {
   int     status;
   int     i;			/* position in seq (1..L) */
-  int     k;			/* position in model (1..M) */
+  int     k;			/* position in model (1..M) */ 
   int     M   = gm->M;
   float **dp  = gx->dp;
   float  *xmx = gx->xmx;
@@ -64,26 +64,26 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
   if ((status = p7_trace_Append(tr, p7T_T, k, i)) != eslOK) goto ERROR;
   if ((status = p7_trace_Append(tr, p7T_C, k, i)) != eslOK) goto ERROR;
   sprv = p7T_C;
+
   while (sprv != p7T_S) 
     {
-      switch (tr->st[tr->N-1]) {
+      switch (sprv) {
       /* C(i) comes from C(i-1) or E(i) */
-      case p7T_C:	
+      case p7T_C:
 	if   (XMX(i,p7G_C) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-
-	sc[0] = XMX(i-3, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
+        sc[0] = XMX(i-1, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
 	sc[1] = XMX(i-2, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
-	sc[2] = XMX(i-1, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
+	sc[2] = XMX(i-3, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
 	sc[3] = XMX(i,   p7G_E) + gm->xsc[p7P_E][p7P_MOVE];
-	esl_vec_FLogNorm(sc, 4);
+        esl_vec_FLogNorm(sc, 4);
         switch (esl_rnd_FChoose(r, sc, 4)) {
-          case 0: scur = p7T_C;   break;
-          case 1: scur = p7T_C;   break;
-          case 2: scur = p7T_C;   break;
-          case 3: scur = p7T_E;   break;
-        }	
-	break;
-
+          case 0: scur = p7T_C;  break;
+          case 1: scur = p7T_C;  break;
+          case 2: scur = p7T_C;  break;
+	  case 3: scur = p7T_E;  break;
+	}
+      break;
+	
       /* E connects from any M or D state. k set here */
       case p7T_E:	
 	if (XMX(i, p7G_E) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
@@ -189,7 +189,8 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
 	esl_vec_FLogNorm(sc, 2); 
 	scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_I;
 	i-=3;
-	break;
+	if(i <= 3) scur = p7T_M;
+        break;
 
       /* N connects from S, N */
       case p7T_N:
@@ -212,15 +213,11 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
 	if (XMX(i,p7G_J) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
 	
 	sc[0] = XMX(i-3,p7G_J) + gm->xsc[p7P_J][p7P_LOOP];
-	sc[1] = XMX(i-2,p7G_J) + gm->xsc[p7P_J][p7P_LOOP];
-	sc[2] = XMX(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP];
-	sc[3] = XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_LOOP];
-	esl_vec_FLogNorm(sc, 4); 
-	switch (esl_rnd_FChoose(r, sc, 4)) {
+	sc[1] = XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_LOOP];
+	esl_vec_FLogNorm(sc, 2); 
+	switch (esl_rnd_FChoose(r, sc, 2)) {
           case 0: scur = p7T_J;   break;
-          case 1: scur = p7T_J;   break;
-          case 2: scur = p7T_J;   break;
-          case 3: scur = p7T_E;   break;
+          case 1: scur = p7T_E;   break;
  	}
 	if(i <= 3) scur = p7T_E;
 	break;
@@ -232,8 +229,9 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       if ((status = p7_trace_Append(tr, scur, k, i)) != eslOK) goto ERROR;
 
       /* For NCJ, we had to defer i decrement. */
-      if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--;
-
+      if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--;
+      if ( scur == p7T_J                    && scur == sprv) i-=3;
+// printf("i = %d, k = %d, prev %d, cur %d\n", i, k, sprv, scur);
       sprv = scur;
     } /* end traceback, at S state */
 

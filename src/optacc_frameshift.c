@@ -124,6 +124,7 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
 				     ESL_MAX(TSCDELTA(p7P_DM, k-1) * (DMX(i-5,k-1)  + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]),
 					     TSCDELTA(p7P_BM, k-1) * (XMX(i-5,p7G_B)+ pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5])));
            }
+
 	   MMX(i,k)     = ESL_MAX(ESL_MAX(Max1, Max2),ESL_MAX(ESL_MAX(Max3, Max4), Max5)); 
 
  	   XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), 
@@ -133,7 +134,7 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
 				 TSCDELTA(p7P_II, k) * (IMX(i-3,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I]));
            } else { IMX(i,k) = -eslINFINITY; }
 
-	   DMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MD, k-1) * MMX(i,k-1),
+       	   DMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MD, k-1) * MMX(i,k-1),
 				  TSCDELTA(p7P_DD, k-1) * DMX(i,k-1));
 		
 	
@@ -307,6 +308,8 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       if ((status = p7_trace_fs_Append(tr, scur, k, i)) != eslOK) return status;
       /* For NCJ, we had to defer i decrement. */
       if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--;
+      if (  scur == p7T_J                   && scur == sprv) i-=3;
+
       sprv = scur;
     }
   tr->M = gm->M;
@@ -470,16 +473,14 @@ select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
   float  t1   = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float  t2   = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;	/* so XMX() macro works           */
-  float  path[4];
-  int    state[4] = { p7T_J, p7T_J, p7T_J, p7T_E };
+  float  path[2];
+  int    state[2] = { p7T_J, p7T_E };
  
   if(i <= 5) return p7T_E;
 
   path[0] = t1 * (XMX(i-3,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]);
-  path[1] = t1 * (XMX(i-2,p7G_J) + pp->xmx[(i+1)*p7G_NXCELLS + p7G_J]);
-  path[3] = t1 * (XMX(i-1,p7G_J) + pp->xmx[(i+2)*p7G_NXCELLS + p7G_J]);
-  path[3] = t2 * XMX(i,p7G_E);
-  return state[esl_vec_FArgMax(path, 4)];
+  path[1] = t2 * XMX(i,p7G_E);
+  return state[esl_vec_FArgMax(path, 2)];
 }
   
 static inline int

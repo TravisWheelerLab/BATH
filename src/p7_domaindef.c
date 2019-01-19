@@ -45,6 +45,7 @@
 #include "hmmer.h"
 
 static int is_multidomain_region  (P7_DOMAINDEF *ddef, int i, int j);
+static int is_multidomain_region_fs  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const ESL_DSQ *dsq, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
 static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
@@ -418,16 +419,15 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
     }
     else if (ddef->mocc[j] - (ddef->etot[j] - ddef->etot[j-1])  <  ddef->rt2)
     {
-	printf("cond1 %f\n", (ddef->mocc[j] - (ddef->etot[j] - ddef->etot[j-1])));
-	printf("cond2 %f\n", ddef->rt2);
-	printf("rt1 %f\n", ddef->rt1);
-        /* We have a region i..j to evaluate. */
+        printf("i %d, j %d\n", i, j);
+	/* We have a region i..j to evaluate. */
         p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);
         p7_omx_GrowTo(bck, om->M, j-i+1, j-i+1);
         ddef->nregions++;
         if (is_multidomain_region(ddef, i, j))
         {  
-           
+           	printf("multi\n"); 
+
 	      /* This region appears to contain more than one domain, so we have to
              * resolve it by cluster analysis of posterior trace samples, to define
              * one or more domain envelopes.
@@ -470,6 +470,7 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
                      * happens. [xref J5/130].
                   */
                   ddef->nenvelopes++;
+		printf("i2 %d, j2 %d\n", i2, j2); 
 
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
@@ -483,6 +484,7 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
         else
         {
 
+		printf("single");
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
             rescore_isolated_domain(ddef, om, sq, ntsq, fwd, bck, i, j, FALSE, bg, long_target, bg_tmp, scores_arr, fwd_emissions_arr);
@@ -538,7 +540,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 				   float **emit_sc, ESL_GENCODE *gcode, float indel_cost
 )
 {
-  int i, j, k;
+  int i, j;
   int triggered;
   int d;
   int i2,j2;
@@ -547,7 +549,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int saveL     = gm->L;	/* Save the length config of <om>; will restore upon return */
   int save_mode = gm->mode;	/* Likewise for the mode. */
   int status;
-  float moccs[3];
 
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
@@ -555,36 +556,26 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
   
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
-  i     = -1;
+  i     = 1;
   triggered = FALSE;
   
-  for (j = 1; j <= gxf->L; j++)
+  for (j = 3; j <= gxf->L; j++)
   {  
-    if(j < gxf->L-2) {
-      for(k = 0; k < 3; k++) moccs[k] = ddef->mocc[j+k];
-      k = j + esl_vec_FArgMax(moccs, 3);
-    } else k = j;
-
     if (! triggered){
-      if(k >= 3) {
-      	if       (ddef->mocc[k] - (ddef->btot[k] - ddef->btot[k-3]) <  ddef->rt2) i = j;
-     	else if  (i == -1)                                                        i = j;
-      } else {
-	if       (ddef->mocc[k] - ddef->btot[k]  <  ddef->rt2) i = j;
-     	else if  (i == -1)                                                        i = j;
-      }
-      if       (ddef->mocc[k]                                     >= ddef->rt1) triggered = TRUE;
+      if       (ddef->mocc[j] - (ddef->btot[j] - ddef->btot[j-3]) <  ddef->rt2) i = j;
+      if       (ddef->mocc[j]                                     >= ddef->rt1) triggered = TRUE;
     }
-    else if ((k >= 3 && ddef->mocc[k] - (ddef->etot[k] - ddef->etot[k-1])  <  ddef->rt2) 
-	      || (ddef->mocc[k] - ddef->etot[k] <  ddef->rt2))
+    else if (ddef->mocc[j] - (ddef->etot[j] - ddef->etot[j-3])  <  ddef->rt2)
     {
+	printf("i %d, j %d\n", i, j);
 	/* We have a region i..j to evaluate. */
 	p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
         p7_gmx_GrowTo(bck, gm->M, j-i+1);
         ddef->nregions++;
     	
-	if (is_multidomain_region(ddef, i, j))
-        { 
+	if (is_multidomain_region_fs(ddef, i, j))
+        {    
+		printf("multi\n"); 
 	     /* This region appears to contain more than one domain, so we have to
              * resolve it by cluster analysis of posterior trace samples, to define
              * one or more domain envelopes.
@@ -598,12 +589,15 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
              */
 	     p7_ReconfigMultihit_Frameshift(gm, saveL);
              p7_Forward_Frameshift(sq->dsq+i-1, j-i+1, gm, fwd, emit_sc, NULL);
-            
+          FILE *out= fopen("out.txt", "w+");
+ 		 p7_gmx_fs_Dump(out, fwd, p7_DEFAULT); 
             region_trace_ensemble_frameshift(ddef, gm, sq->dsq, i, j, fwd, bck, &nc);
+	    printf("nc %d\n", nc);
 	    p7_ReconfigUnihit_Frameshift(gm, saveL);
             /* ddef->n2sc is now set on i..j by the traceback-dependent method */
 	    last_j2 = 0;
             for (d = 0; d < nc; d++) {
+		printf("d %d\n", d);
                   p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
                   if (i2 <= last_j2) ddef->noverlaps++;
 
@@ -625,7 +619,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
                      * happens. [xref J5/130].
                   */
                   ddef->nenvelopes++;
-	 
+		printf("i2 %d, j2 %d\n", i2, j2); 
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
                   if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost) == eslOK)
@@ -638,7 +632,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	}
         else
         { 
- 	    /* The region looks simple, single domain; convert the region to an envelope. */
+ 	 	printf("single\n"); 
+   /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
             rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost);
 	}
@@ -698,6 +693,49 @@ is_multidomain_region(P7_DOMAINDEF *ddef, int i, int j)
   for (z = i; z <= j; z++)
     { 
       expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i-1]), (ddef->btot[j] - ddef->btot[z-1]) );
+      max        = ESL_MAX(max, expected_n);
+    }
+  return ( (max >= ddef->rt3) ? TRUE : FALSE);
+}
+
+/* is_multidomain_region_fs()
+ * SRE, Fri Feb  8 11:35:04 2008 [Janelia]
+ *
+ * This defines the trigger for when we need to hand a "region" off to
+ * a deeper analysis (using stochastic tracebacks and clustering)
+ * because there's reason to suspect it may encompass two or more
+ * domains. 
+ * 
+ * The criterion is to find the split point z at which the expected
+ * number of E occurrences preceding B occurrences is maximized, and
+ * if that number is greater than the heuristic threshold <ddef->rt3>,
+ * then return TRUE. In other words, we're checking to see if there's
+ * any point in the region at which it looks like an E was followed by
+ * a B, as expected for a multidomain interpretation of the region.
+ * 
+ * More precisely: return TRUE if  \max_z [ \min (B(z), E(z)) ]  >= rt3
+ * where
+ *   E(z) = expected number of E states occurring in region before z is emitted
+ *        = \sum_{y=i}^{z} eocc[i]  =  etot[z] - etot[i-1]
+ *   B(z) = expected number of B states occurring in region after z is emitted
+ *        = \sum_{y=z}^{j} bocc[i]  =  btot[j] - btot[z-1]               
+ *        
+ *        
+ * Because this relies on the <ddef->etot> and <ddef->btot> arrays,
+ * <calculate_domain_posteriors()> needs to have been called first.
+ *
+ * Xref:    J2/101.  
+ */
+static int
+is_multidomain_region_fs(P7_DOMAINDEF *ddef, int i, int j)
+{
+  int   z;
+  float max;
+  float expected_n;
+  max = -1.0;
+  for (z = i+3; z <= j; z++)
+    { 
+      expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i-3]), (ddef->btot[j] - ddef->btot[z-3]) );
       max        = ESL_MAX(max, expected_n);
     }
   return ( (max >= ddef->rt3) ? TRUE : FALSE);
@@ -885,8 +923,7 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
  * <wrk> has had its zero row clobbered as working space for a null2 calculation.
  */
 static int
-region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const ESL_DSQ *dsq, int ireg, int jreg, 
-		      const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc)
+region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const ESL_DSQ *dsq, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc)
 {
   int    Lr  = jreg-ireg+1;
   int    t, d, d2;

@@ -571,7 +571,14 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
       while(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2 && d > 1) {
 	if(d >= 3) d -= 3;
 	else d = 1;
-      }
+        
+        if(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2 && d >= 3)
+	  if(ddef->mocc[d-1] - (ddef->btot[d-1] - ddef->etot[d-2]) >= ddef->rt2){
+		d--;
+	  } else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) {
+		d-=2;
+	  }
+       }
       i = d;
       d = j-1;
       while(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2 && d <= gxf->L) {

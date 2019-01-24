@@ -396,7 +396,6 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
   int saveL     = om->L;	/* Save the length config of <om>; will restore upon return */
   int save_mode = om->mode;	/* Likewise for the mode. */
   int status;
-  printf("start %d\n", sq->start);
   
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding(om, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
@@ -419,14 +418,12 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
     }
     else if (ddef->mocc[j] - (ddef->etot[j] - ddef->etot[j-1])  <  ddef->rt2)
     {
-        printf("i %d, j %d\n", i, j);
 	/* We have a region i..j to evaluate. */
         p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);
         p7_omx_GrowTo(bck, om->M, j-i+1, j-i+1);
         ddef->nregions++;
         if (is_multidomain_region(ddef, i, j))
         {  
-           	printf("multi\n"); 
 
 	      /* This region appears to contain more than one domain, so we have to
              * resolve it by cluster analysis of posterior trace samples, to define
@@ -470,7 +467,6 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
                      * happens. [xref J5/130].
                   */
                   ddef->nenvelopes++;
-		printf("i2 %d, j2 %d\n", i2, j2); 
 
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
@@ -484,7 +480,6 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
         else
         {
 
-		printf("single");
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
             rescore_isolated_domain(ddef, om, sq, ntsq, fwd, bck, i, j, FALSE, bg, long_target, bg_tmp, scores_arr, fwd_emissions_arr);
@@ -554,7 +549,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   if ((status = p7_DomainDecoding_Frameshift(gm, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
   esl_vec_FSet(ddef->n2sc, sq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
-  
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
   i     = -1;
   triggered = FALSE;
@@ -594,16 +588,14 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
       } 
       j = d;
 	
-        printf("i %d, j %d\n", i, j);
 	/* We have a region i..j to evaluate. */
 	p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
         p7_gmx_GrowTo(bck, gm->M, j-i+1);
         ddef->nregions++;
-#if 0    	
+	
 	if (is_multidomain_region_fs(ddef, i, j))
         {   
  
-		printf("multi\n"); 
 	     /* This region appears to contain more than one domain, so we have to
              * resolve it by cluster analysis of posterior trace samples, to define
              * one or more domain envelopes.
@@ -615,16 +607,13 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
              * here; we will consolidate later if null2 strategy
              * works
              */
-	     p7_ReconfigMultihit_Frameshift(gm, saveL);
-             p7_Forward_Frameshift(sq->dsq+i-1, j-i+1, gm, fwd, emit_sc, NULL);
-          FILE *out= fopen("out.txt", "w+");
- 		 p7_gmx_fs_Dump(out, fwd, p7_DEFAULT); 
+	    p7_ReconfigMultihit_Frameshift(gm, saveL);
+            p7_Forward_Frameshift(sq->dsq+i-1, j-i+1, gm, fwd, emit_sc, NULL);
             region_trace_ensemble_frameshift(ddef, gm, sq->dsq, i, j, fwd, bck, &nc);
 	    p7_ReconfigUnihit_Frameshift(gm, saveL);
             /* ddef->n2sc is now set on i..j by the traceback-dependent method */
 	    last_j2 = 0;
             for (d = 0; d < nc; d++) {
-		printf("d %d\n", d);
                   p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
                   if (i2 <= last_j2) ddef->noverlaps++;
 
@@ -646,7 +635,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
                      * happens. [xref J5/130].
                   */
                   ddef->nenvelopes++;
-		printf("i2 %d, j2 %d\n", i2, j2); 
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
                   if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost) == eslOK)
@@ -659,11 +647,11 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	}
         else
         {
-#endif 
+ 
    /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
             rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost);
-//	}
+	}
         i     = -1;
   	triggered = FALSE;
     }
@@ -977,7 +965,6 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
       for (d = 0; d < ddef->tr->ndom; d++)
 	{
 	  p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
-//	printf("from %d\n", ddef->tr->sqfrom[d]);
 	  p7_GNull2_ByTrace(gm, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
 	  
 	  /* residues outside domains get bumped +1: because f'(x) = f(x), so f'(x)/f(x) = 1 in these segments */
@@ -1485,11 +1472,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   gxpp = p7_gmx_fs_Create(gm->M, Ld);
   status = p7_Decoding_Frameshift(gm, gx1, gx2, gxpp);      /* <ox2> is now overwritten with post probabilities     */
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
-//	FILE *out = fopen("out.txt", "w+");
-//	p7_gmx_fs_Dump(out, gxpp, p7_DEFAULT); 
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy_Frameshift(gm, gxpp, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
-   p7_OATrace_Frameshift(gm, gxpp, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  p7_OATrace_Frameshift(gm, gxpp, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   
   for (z = 0; z < ddef->tr->N; z++)	  

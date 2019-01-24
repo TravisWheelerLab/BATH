@@ -359,14 +359,13 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i, i
   match_codon[3] = pp->dp[*ret_i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4];
   match_codon[4] = pp->dp[*ret_i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5];
   c = codon_length[esl_vec_FArgMax(match_codon, 5)];
-   
+
   *ret_i -= c;
 
   path[0] = TSCDELTA(p7P_MM, k-1) * MMX(*ret_i,k-1);
   path[1] = TSCDELTA(p7P_IM, k-1) * IMX(*ret_i,k-1);
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i,k-1);
   path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i,p7G_B);
-  //printf("i = %d, k = %d, m = %f, codon = %d, d = %f, i = %f, b = %f\n", *ret_i, k, path[0], c, path[1], path[2], path[3]);
   return state[esl_vec_FArgMax(path, 4)];
  
 #if 0  

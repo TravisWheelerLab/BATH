@@ -2698,19 +2698,20 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
 
 
 /* Function:  p7_Pipeline_Frameshift()
- * Synopsis:  HMMER3's accelerated seq/profile comparison pipeline for translated
- * 	      DNA to protien search with frameshit awareness.
+ * Synopsis:  HMMER3's accelerated seq/profile comparison pipeline for 
+ *	      translated DNA to protien search with frameshit awareness.
  *
- * Purpose:   Run H3's accelerated pipeline to compare a protien profile <om>
- *            against a dna sequence <sq>. For the first stages of the pipeline
- *            (MSV, bias and viterbi filters) the sequence is translated into
- *            it's 6 amnio acid frames and these are compared directly to the
- *            profile. For the forward stage onward direct dna to amino comparision
- *            is made.
- *            If a significant hit is found,
- *            information about it is added to the <hitlist>. The pipeline 
- *            accumulates beancounting information about how many comparisons
- *            flow through the pipeline while it's active.
+ * Purpose:   Run H3's accelerated pipeline to compare a protien 
+ *	      profile <gm/om> against a dna sequence <sq>. For the first 
+ *	      stages of the pipeline (MSV, bias and viterbi filters) the 
+ *	      sequence is translated into it's 6 amnio acid frames and 
+ *	      these are compared directly to an optimized profile. For 
+ *	      the forward stage onward direct dna to amino comparision 
+ *	      is made using a generic profile. If a significant hit is 
+ *	      found, information about it is added to the <hitlist>. 
+ *	      The pipeline accumulates beancounting information about 
+ *	      how many comparisons flow through the pipeline while it's 
+ *	      active.
  *            
  * Returns:   <eslOK> on success. If a significant hit is obtained,
  *            its information is added to the growing <hitlist>. 
@@ -2725,6 +2726,22 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
  *            multihit local models, but I'm set up to catch it
  *            anyway. We may emit a warning to the user, but cleanly
  *            skip the problematic sequence and continue.
+ * 
+ * Args:      pli             - the main pipeline object
+ *            om              - optimized profile (query)
+ *	      gm	      - generic profile (query)
+ *            data            - for computing diagonals, and picking 
+ *				window edges based on maximum prefix/
+ *				suffix extensions
+ *            bg              - background model
+ *            hitlist         - pointer to hit storage bin (already 
+ *				allocated)
+ *            seqidx          - the id # of the sequence from which 
+ *				the current window was extracted
+ *            dnasq           - digital sequence of the DNA window
+ *            complementarity - is <sq> from the top strand 
+ *				(p7_NOCOMPLEMENT), or bottom strand 
+ *				(P7_COMPLEMENT)
  *
  * Throws:    <eslEMEM> on allocation failure.
  *

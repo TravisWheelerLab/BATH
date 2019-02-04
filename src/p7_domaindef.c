@@ -94,7 +94,6 @@ p7_domaindef_Create(ESL_RANDOMNESS *r)
   ddef->n2sc[0] = 0.;
   ddef->Lalloc  = Lalloc;
   ddef->L       = 0;
-
   /* level 2 alloc: results storage */
   ESL_ALLOC(ddef->dcl, sizeof(P7_DOMAIN) * nalloc);
   ddef->nalloc = nalloc;
@@ -1462,15 +1461,17 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   float        **emit_sc;
   //temporarily change model length to env_len. The nhmmer pipeline will tack
     //on the appropriate cost to account for the longer actual window
+
   orig_L = gm->L;
   p7_ReconfigLength_Frameshift(gm, j-i+1);
-   
+  //dom->ad = NULL; 
   emit_sc = Codon_Emissions_Create(gm->rsc, sq->dsq+i-1, gcode, gm->M, Ld, indel_cost);
   p7_Forward_Frameshift (sq->dsq+i-1, Ld, gm, gx1, emit_sc, &envsc);
   p7_Backward_Frameshift(sq->dsq+i-1, Ld, gm, gx2, emit_sc, NULL);
-
+  
   gxpp = p7_gmx_fs_Create(gm->M, Ld);
   status = p7_Decoding_Frameshift(gm, gx1, gx2, gxpp);      /* <ox2> is now overwritten with post probabilities     */
+  
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy_Frameshift(gm, gxpp, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
@@ -1485,78 +1486,15 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
     ddef->nalloc *= 2;
   }
-  
+
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, sq, ntsq, gcode, emit_sc);
-  dom->scores_per_pos = NULL;
+    dom->scores_per_pos = NULL;
+
   if(emit_sc != NULL)  Codon_Emissions_Destroy(emit_sc);
-  /* For long target DNA, it's common to see a huge envelope (>1Kb longer than alignment), usually
-   * involving simple repeat part of model that attracted similar segments of the repeatedly, to
-   * acquire a large total score. Now that we have alignment boundaries, re-run Fwd/Bkwd to trim away
-   * such a long envelope and estimate the true score of the hit region
-   */
 
-#if 0  
-  if (long_target) {
-    if (     i < dom->ad->sqfrom-max_env_extra   //trim the left side of the envelope
-        ||   j > dom->ad->sqto+max_env_extra     //trim the right side of the envelope
-        ) {
 
-      //trim in the envelope, and do it again
-      i = ESL_MAX(i,dom->ad->sqfrom-max_env_extra);
-      j = ESL_MIN(j,dom->ad->sqto+max_env_extra);
-      Ld = j - i + 1;
-
-      //temporarily change model length to env_len. The nhmmer pipeline will tack
-      //on the appropriate cost to account for the longer actual window
-      p7_ReconfigLength_Frameshift(gm, j-i+1);
-
-      if (scores_arr!=NULL) {
-        //revert bg and om back to original, then forward to new values
-        reparameterize_model_frameshift (bg, gm, NULL, 0, 0, fwd_emissions_arr, bg_tmp->f, scores_arr);
-        reparameterize_model_frameshift (bg, gm, ntsq, i, Ld, fwd_emissions_arr, bg_tmp->f, scores_arr);
-      }
-
-      p7_Forward_Frameshift (ntsq->dsq + i-1, Ld, gm, gx1, emit_sc, &envsc);
-      p7_Backward_Frameshift(ntsq->dsq + i-1, Ld, gm, gx2, emit_sc, NULL);
-
-      status = p7_Decoding_Frameshift(gm, gx1, gx2, gxpp);      /* <ox2> is now overwritten with post probabilities     */
-      if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-212] */
-
-      /* Find an optimal accuracy alignment */
-      p7_OptimalAccuracy_Frameshift(gm, gxpp, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
-      p7_trace_Reuse(ddef->tr);
-      p7_OATrace_Frameshift        (gm, gxpp, gx2, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-
-      /* re-hack the trace's sq coords to be correct w.r.t. original dsq */
-       for (z = 0; z < ddef->tr->N; z++)
-         if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
-      
-       /* store the results in it, first destroying the old alidisplay object */
-       p7_alidisplay_Destroy(dom->ad);
-       dom->ad            = p7_alidisplay_fs_Create(ddef->tr, 0, gm, ntsq, gcode, emit_sc);
-    }
-
-    /* Estimate bias correction, by computing what the score would've been without
-     * reparameterization
-     */
-    domcorrection = envsc;
-    if (scores_arr!=NULL) { //revert bg and om back to original,
-                            //and while I'm at it, capture what the default parameterized score would have been, for "null2"
-      reparameterize_model_frameshift (bg, gm, NULL, 0, 0, fwd_emissions_arr, bg_tmp->f, scores_arr);
-      p7_Forward_Frameshift (ntsq->dsq + i-1, Ld, gm,      gx1, emit_sc,  &domcorrection);
-    }
-
-    p7_ReconfigLength_Frameshift(gm, orig_L);
-
-    if (domcorrection < envsc)  //negative bias correction shouldn't happen. Stick with the original score.
-      envsc = domcorrection;
-
-    dom->domcorrection = domcorrection - envsc;
-
-  }  else {
-#endif
-    /* Compute bias correction (for non-longtarget case)
+  /* Compute bias correction (for non-longtarget case)
      *
      * Is null2 set already for this i..j? (It is, if we're in a domain that
      * was defined by stochastic traceback clustering in a multidomain region;
@@ -1573,7 +1511,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 
       dom->domcorrection = domcorrection; /* in units of NATS */
 
- // }
   dom->iali          = dom->ad->sqfrom;
   dom->jali          = dom->ad->sqto;
   dom->ienv          = i;

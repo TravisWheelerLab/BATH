@@ -340,7 +340,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   float		 max_emit, cur_emit;
   float	        *rsc; 
   ESL_SQ        *codon;
-  
  /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
    */
@@ -763,6 +762,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->N = z2-z1+1;
 
   esl_sq_Destroy(codon); 
+  
   return ad;
 
  ERROR:

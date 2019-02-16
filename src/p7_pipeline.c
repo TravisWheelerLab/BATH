@@ -254,8 +254,8 @@ p7_pipeline_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, en
   pli->mode            = mode;
   pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
-  pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
-  pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
+  pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
+  pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
   pli->hfp             = NULL;
   pli->errbuf[0]       = '\0';
 
@@ -1204,9 +1204,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   int              Ld;               /* # of residues in envelopes */
   int              d;
   int              status;
-  //long             sq_from;        /* start location in query in amino acids */
-  //long             sq_to;          /* end llocation in query in amino acids */
-    if (sq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */
+  if (sq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */
 
   p7_omx_GrowTo(pli->oxf, om->M, 0, sq->n);    /* expand the one-row omx if needed */
 
@@ -1258,6 +1256,17 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   if (pli->ddef->nregions   == 0) return eslOK; /* score passed threshold but there's no discrete domains here       */
   if (pli->ddef->nenvelopes == 0) return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
   if (pli->ddef->ndom       == 0) return eslOK; /* even rarer: envelope found, no domain identified {iss131}         */
+  if (ntsq != NULL)  // translated search, protein query, nucleotide target
+  {
+     P7_DOMAIN  *dom    = NULL;
+     for (d = 0; d < pli->ddef->ndom; d++)
+     {
+       dom = pli->ddef->dcl + d;
+       int ali_len = dom->jali - dom->iali + 1;
+       if (ali_len < 4)  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
+         dom->is_reported = FALSE;
+     }
+  }
 
   if (pli->do_alignment_score_calc) {
     for (d = 0; d < pli->ddef->ndom; d++)
@@ -1330,9 +1339,10 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
     {
       p7_tophits_CreateNextHit(hitlist, &hit);
       if (pli->mode == p7_SEARCH_SEQS) {
-        if (                       (status  = esl_strdup(sq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-        if (sq->acc[0]  != '\0' && (status  = esl_strdup(sq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-        if (sq->desc[0] != '\0' && (status  = esl_strdup(sq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (                        (status  = esl_strdup(sq->name,  -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (sq->acc[0]   != '\0' && (status  = esl_strdup(sq->acc,   -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (sq->desc[0]  != '\0' && (status  = esl_strdup(sq->desc,  -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (sq->orfid[0] != '\0' && (status  = esl_strdup(sq->orfid, -1, &(hit->orfid))) != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
       } else {
         if ((status  = esl_strdup(om->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
         if ((status  = esl_strdup(om->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
@@ -1423,68 +1433,26 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
       }
   
       /*
-        if there is a nucleotide sequence then we want to record the location 
-        of the hit in that sequence and not the location of the hit in the ORF 
-        provided by esl_gencode_ProcessOrf (esl_gencode.c) used in p7_alidisplay_Create
-        in p7_alidisplay.c. 
-        sq->start is the start location of the ORF in the nucleotide sequence and 
+        if performing translated search, we want to record the location
+        of the hit in both the full DNA sequence and in the ORF provided by
+        esl_gencode_ProcessOrf (esl_gencode.c) used in p7_alidisplay_Create
+        in p7_alidisplay.c.
+        sq->start is the start location of the ORF in the nucleotide sequence and
         ad->sqfrom is the start of the hit in the ORF in amino acid locations
       */
       if (ntsq != NULL)
       {
          hit->target_len = ntsq->n;
-#if 0
          for (d = 0; d < hit->ndom; d++)
          {
-            if (pli->mode == p7_SEARCH_SEQS)
-              {
-                sq_from = hit->dcl[d].ad->hmmfrom;
-                sq_to = hit->dcl[d].ad->hmmto;
-                printf("search set from hmmi\n");
-              }
-            else
-              {
-                sq_from = hit->dcl[d].ad->sqfrom;
-                sq_to = hit->dcl[d].ad->sqto;
-                printf("scan set form ad->\n");
-              }
-
-            printf("sq from:%ld sq to:%ld\n",sq_from, sq_to); //DEBUG !!!!!!
-            printf("start:%ld end:%ld\n",sq->start, sq->end); //DEBUG !!!!!!
-
             if (sq->start < sq->end)
-            {				
-               hit->dcl[d].iorf       = sq->start;
-               hit->dcl[d].jorf       = sq->end;
-               hit->dcl[d].ienv       = (hit->dcl[d].ienv*3-2) + sq->start-1;
-               hit->dcl[d].jenv       = (hit->dcl[d].jenv*3) + sq->start-1;			
-               hit->dcl[d].ad->sqfrom = (sq_from*3-2) + sq->start-1;
-               hit->dcl[d].ad->sqto   = (sq_to*3) + sq->start-1;
-            }
-            else
             {
                hit->dcl[d].iorf       = sq->start;
                hit->dcl[d].jorf       = sq->end;
-			
-               hit->dcl[d].ienv       = sq->start - (hit->dcl[d].ienv - 1)*3;
-               hit->dcl[d].jenv       = sq->start - (hit->dcl[d].jenv - 1)*3 - 2;			
-
-               hit->dcl[d].ad->sqfrom = sq->start - (sq_from -1)*3;
-               hit->dcl[d].ad->sqto   = sq->start - (sq_to -1)*3 - 2;				
-            }
-
-            printf("ad sq from:%ld ad sq to:%ld\n",hit->dcl[d].ad->sqfrom, hit->dcl[d].ad->sqto); //DEBUG !!!!!!
-         }		
-#endif
-//#if 0
-         for (d = 0; d < hit->ndom; d++)
-         {
-            if (sq->start < sq->end)
-            {				
-               hit->dcl[d].iorf       = sq->start;
-               hit->dcl[d].jorf       = sq->end;
                hit->dcl[d].ienv       = (hit->dcl[d].ienv*3-2) + sq->start-1;
-               hit->dcl[d].jenv       = (hit->dcl[d].jenv*3) + sq->start-1;			
+               hit->dcl[d].jenv       = (hit->dcl[d].jenv*3) + sq->start-1;
+               hit->dcl[d].ad->orffrom=  hit->dcl[d].ad->sqfrom;
+               hit->dcl[d].ad->orfto  =  hit->dcl[d].ad->sqto;
                hit->dcl[d].ad->sqfrom = (hit->dcl[d].ad->sqfrom*3-2) + sq->start-1;
                hit->dcl[d].ad->sqto   = (hit->dcl[d].ad->sqto*3) + sq->start-1;
             }
@@ -1492,17 +1460,15 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
             {
                hit->dcl[d].iorf       = sq->start;
                hit->dcl[d].jorf       = sq->end;
-			
                hit->dcl[d].ienv       = sq->start - (hit->dcl[d].ienv - 1)*3;
-               hit->dcl[d].jenv       = sq->start - (hit->dcl[d].jenv - 1)*3 - 2;			
-
+               hit->dcl[d].jenv       = sq->start - (hit->dcl[d].jenv - 1)*3 - 2;
+               hit->dcl[d].ad->orffrom=  hit->dcl[d].ad->sqfrom;
+               hit->dcl[d].ad->orfto  =  hit->dcl[d].ad->sqto;
                hit->dcl[d].ad->sqfrom = sq->start - (hit->dcl[d].ad->sqfrom -1)*3;
-               hit->dcl[d].ad->sqto   = sq->start - (hit->dcl[d].ad->sqto -1)*3 - 2;				
+               hit->dcl[d].ad->sqto   = sq->start - (hit->dcl[d].ad->sqto -1)*3 - 2;
             }
-         }		
-//#endif
+         }
       }
-  
     }
   return eslOK;
 }

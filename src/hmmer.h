@@ -612,7 +612,7 @@ typedef struct p7_alidisplay_s {
   char *model;                  /* aligned query consensus sequence     */
   char *mline;                  /* "identities", conservation +'s, etc. */
   char *aseq;                   /* aligned target sequence              */
-  char *ntseq;                  /* nucleotide target sequence if nhmmscant */
+  char *ntseq;                  /* nucleotide target sequence if hmmscant */
   char *ppline;		        /* posterior prob annotation; or NULL   */
   char  *codon;                  /* number of nuceltides in each codon   */
   int   N;		        /* length of strings                    */
@@ -625,10 +625,13 @@ typedef struct p7_alidisplay_s {
   int   M;			/* length of model                      */
 
   char *sqname;			/* name of target sequence              */
+  char *orfname;        /* name of ORF within target sequence (assigned by hmmer pipeline)  */
   char *sqacc;			/* accession of target seq; or [0]='\0' */
   char *sqdesc;			/* description of targ seq; or [0]='\0' */
   int64_t  sqfrom;		/* start position on sequence (1..L)    */
-  int64_t  sqto;  	        /* end position on sequence   (1..L)    */
+  int64_t  sqto;        /* end position on sequence   (1..L)    */
+  int64_t  orffrom;     /* start position on sequence (1..L)    */
+  int64_t  orfto;       /* end position on sequence   (1..L)    */
   int64_t  L;			/* length of sequence                   */
 
   int   memsize;                /* size of allocated block of memory    */
@@ -741,6 +744,7 @@ typedef struct p7_hit_s {
   char   *name;			/* name of the target               (mandatory)           */
   char   *acc;			/* accession of the target          (optional; else NULL) */
   char   *desc;			/* description of the target        (optional; else NULL) */
+  char   *orfid;    /* unique ORF identifier            (mandatory for translated search, not used otherwise)           */
   int    window_length;         /* for later use in e-value computation, when splitting long sequences */
   double sortkey;		/* number to sort by; big is better                       */
 
@@ -1277,12 +1281,12 @@ typedef struct p7_pipeline_s {
   int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
   int           frameshift;    /* TRUE for searches with fsphmmert */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
-  int 		    	W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
+  int           W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
 
   int           show_accessions;/* TRUE to output accessions not names      */
   int           show_alignments;/* TRUE to output alignments (default)      */
-  int           show_translated_sequence; /* TRUE to display translated DNA sequence in domain display for nhmmscant */
+  int           show_translated_sequence; /* TRUE to display translated DNA sequence in domain display for hmmscant */
   int           show_vertical_codon; /* TRUE to display the DNA codon vertically in the alignment display */
 
   P7_HMMFILE   *hfp;		/* COPY of open HMM database (if scan mode) */
@@ -1537,8 +1541,8 @@ extern char           p7_alidisplay_EncodeAliPostProb(float p, float hi, float m
 
 extern int            p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
 extern int            p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
-extern int            p7_translated_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
-extern int            p7_nontranslated_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, int show_accessions);
+extern int            p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
+extern int            p7_alidisplay_nontranslated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, int show_accessions);
 
 extern int            p7_alidisplay_Backconvert(const P7_ALIDISPLAY *ad, const ESL_ALPHABET *abc, ESL_SQ **ret_sq, P7_TRACE **ret_tr);
 extern int            p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad);

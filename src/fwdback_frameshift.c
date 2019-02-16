@@ -32,35 +32,32 @@ Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE
   float **emit_sc;
   float *rsc;
   ESL_ALPHABET *abcDNA;
-  ESL_SQ *codon;
+  ESL_DSQ *codon;
   
   one_indel = log(indel_cost);
   two_indel = log(indel_cost / 2);
   no_indel = log(1.0 - (indel_cost * 3));
   ESL_ALLOC(emit_sc, sizeof(float *) * (M+1));
   ESL_ALLOC(emit_sc[0], sizeof(float) * (M+1) * (L+1)  * p7P_CODONS);
-
   ///For some reason I get a Valgrind error if I alloc mot M+1, need to use M+2///////
   for (k = 1; k <= M; k++)
     emit_sc[k] = emit_sc[0] + k * L * p7P_CODONS;
-
   abcDNA = esl_alphabet_Create(eslDNA);
-  codon = esl_sq_CreateDigitalFrom(abcDNA, NULL, subseq, 3, NULL, NULL, NULL);
+	codon = malloc(sizeof(ESL_DSQ) * 5);
 
   for(k = 0; k <= M; k++) {
     rsc = emit_sc[k];
     for(i = 1; i <= L; i++) {
-      MSC_FS(i,p7P_C1) = max_codon_one(original_rsc, codon->dsq, subseq, gcode, k, i, two_indel) + log(0.998);
-      MSC_FS(i,p7P_C2) = max_codon_two(original_rsc, codon->dsq, subseq, gcode, k, i, one_indel) + log(0.998);
-      MSC_FS(i,p7P_C3) = max_codon_three(original_rsc, codon->dsq, subseq, gcode, k, i, no_indel);
+	 MSC_FS(i,p7P_C1) = max_codon_one(original_rsc, codon, subseq, gcode, k, i, two_indel) + log(0.998);
+      MSC_FS(i,p7P_C2) = max_codon_two(original_rsc, codon, subseq, gcode, k, i, one_indel) + log(0.998);
+      MSC_FS(i,p7P_C3) = max_codon_three(original_rsc, codon, subseq, gcode, k, i, no_indel);
       MSC_FS(i,p7P_C3) = (MSC_FS(i,p7P_C3) == -eslINFINITY) ? log(0.002) : MSC_FS(i,p7P_C3) + log(0.998); 
-      MSC_FS(i,p7P_C4) = max_codon_four(original_rsc, codon->dsq, subseq, gcode, k, i, one_indel) + log(0.998);
-      MSC_FS(i,p7P_C5) = max_codon_five(original_rsc, codon->dsq, subseq, gcode, k, i, two_indel) + log(0.998);
+      MSC_FS(i,p7P_C4) = max_codon_four(original_rsc, codon, subseq, gcode, k, i, one_indel) + log(0.998);
+      MSC_FS(i,p7P_C5) = max_codon_five(original_rsc, codon, subseq, gcode, k, i, two_indel) + log(0.998);
     }
   }
- 
   esl_alphabet_Destroy(abcDNA); 
-  esl_sq_Destroy(codon);
+  free(codon);
   return emit_sc;
 
 ERROR: 
@@ -552,17 +549,14 @@ max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
   float cur_emit;
   float max_emit;
   float const *rsc  = NULL;
- 
   max_emit = -eslINFINITY;
   codon[1] = dsq[i];
-
   for(h = 0; h < 4; h++) {
     for(j = 0; j < 4; j++) {
       codon[2] = h;
       codon[3] = j;
-
+	
       amino = esl_gencode_GetTranslation(gcode, &codon[1]);
-// if(i == 2) { printf( "codon %d%d%d, amino %c\n", codon[1], codon[2], codon[3], a[amino]);}
       rsc = emit_sc[amino];
       cur_emit = MSC(k);
       max_emit = ESL_MAX(max_emit, cur_emit);
@@ -571,8 +565,8 @@ max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
         }
      } 
   }	
-
   codon[2] = dsq[i];
+
 
   for(h = 0; h < 4; h++) {
     for(j = 0; j < 4; j++) {

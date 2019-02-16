@@ -59,12 +59,13 @@ typedef struct {
   P7_BG            *bg;          /* null model                              */
   ESL_SQ           *dnasq;       /*orginal DNA sequence			    */
   ESL_SQ           *dnasqRev;    /*reverse complement of dna sequence       */
-  P7_PIPELINE     *pli;         /* work pipeline                           */
+  P7_PIPELINE      *pli;         /* work pipeline                           */
   P7_TOPHITS       *th;          /* top hit results                         */
   P7_OPROFILE      *om;          /* optimized query profile                 */
   P7_PROFILE	   *gm;		 /* n0n-optimized quert profile		    */
   FM_CFG           *fm_cfg;      /* global data for FM-index for fast SSV   */
   P7_SCOREDATA     *scoredata;   /* hmm-specific data used by nhmmer        */
+  ESL_GETOPTS      *go;
 } WORKER_INFO;
 
 typedef struct {
@@ -254,14 +255,14 @@ static char banner[] = "search a protien model, alignment, or sequence against a
 
 
 static int  serial_master  (ESL_GETOPTS *go, struct cfg_s *cfg);
-static int  serial_loop    (WORKER_INFO *info, ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
+static int  serial_loop    (WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
 #if defined (eslENABLE_SSE)
   static int  serial_loop_FM (WORKER_INFO *info, ESL_SQFILE *dbfp);
 #endif
 #ifdef HMMER_THREADS
 #define BLOCK_SIZE 1000
 
-//static int  thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
+static int  thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
 static void pipeline_thread(void *arg);
 #if defined (eslENABLE_SSE)
 static int  thread_loop_FM(WORKER_INFO *info, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp);
@@ -508,6 +509,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   ESL_STOPWATCH   *w;
   P7_SCOREDATA    *scoredata = NULL;
+  ESL_ALPHABET    *abcAMINO  = NULL;
+  ESL_ALPHABET    *abcDNA    = NULL;
 
   int              textw     = 0;
   int              nquery    = 0;
@@ -549,11 +552,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 // int               msas_named  = 0;
 //  int               force_single = ( esl_opt_IsOn(go, "--singlemx") ? TRUE : FALSE );
   
-  ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
-  ESL_ALPHABET    *abcAMINO = NULL;       /* Amino sequence alphabet                               */
-  ESL_GENCODE     *gcode       = NULL;
-  ESL_GENCODE_WORKSTATE *wrk    = NULL;
-
   P7_PROFILE      *gm      = NULL;
   P7_OPROFILE     *om      = NULL;       /* optimized query profile                  */
 
@@ -803,6 +801,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
           info[i].th     = NULL;
           info[i].om     = NULL;
           info[i].gm	 = NULL;
+	  info[i].go     = NULL;
 	  if (bg_manual != NULL)
             info[i].bg = p7_bg_Clone(bg_manual);
           else
@@ -842,21 +841,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   }
 
 
- /* Set up the genetic code. Default = NCBI 1, the standard code; allow ORFs to start at any aa   */
-  gcode = esl_gencode_Create(abcDNA, abcAMINO);
-  esl_gencode_Set(gcode, esl_opt_GetInteger(go, "-c"));  // default = 1, the standard genetic code
-
-  if      (esl_opt_GetBoolean(go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
-  else if (! esl_opt_GetBoolean(go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m or -M are set
-
-
-  /* Set up the workstate structure, which contains both stateful
-   * info about our position in <sqfp> and the DNA <sq>, as well as
-   * one-time config info from options
-   */
-  wrk = esl_gencode_WorkstateCreate(go, gcode);
-
-  /* Outer loop: over each query HMM or alignment in <queryfile>. */
+   /* Outer loop: over each query HMM or alignment in <queryfile>. */
   while (qhstatus == eslOK) {
       gm      = NULL;
       om      = NULL;       /* optimized query profile                  */
@@ -941,14 +926,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    // pipelinehits_accumulator = p7_pipeline_Create(go, 100, 100, FALSE, p7_SEARCH_SEQS);
 
 	 
-   // wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
 
     for (i = 0; i < infocnt; ++i) {
       /* Create processing pipeline and hit list */
       info[i].th  = p7_tophits_Create();
       info[i].om = p7_oprofile_Copy(om);
       info[i].gm = p7_profile_Clone(gm);
-
+      info[i].go = go;
       info[i].pli = p7_pipeline_fs_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
 
         //set method specific --F1, if it wasn't set at command line
@@ -999,16 +983,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       else
 #endif //defined (eslENABLE_SSE)
       {
-        if (ncpus > 0)  sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
-
-	//	thread_loop    (info, id_length_list, threadObj, queue, dbfp, cfg->firstseq_key, cfg->n_targetseq);
-        else            sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+        if (ncpus > 0)  sstatus = thread_loop    (info, id_length_list, threadObj, queue, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+        else            sstatus = serial_loop    (info, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
       }	      
 
 #else //HMMER_THREADS
-      sstatus = serial_loop    (info, gcode, wrk, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+      sstatus = serial_loop    (info, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
 #endif //HMMER_THREADS
-
       switch(sstatus) {
         case eslEFORMAT:
           esl_fatal("Parse failed (sequence file %s):\n%s\n",
@@ -1059,14 +1040,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         info[0].pli->nres  = resCnt;
       }
 #endif
-	if(wrk->orf_block != NULL)
-           {
-	      esl_sq_DestroyBlock(wrk->orf_block);
-	      wrk->orf_block = NULL;
-           }
-	      /* Print the results.  */
+
+		      /* Print the results.  */
       p7_tophits_SortBySeqidxAndAlipos(info->th);
-      assign_Lengths(info->th, id_length_list);
+     // assign_Lengths(info->th, id_length_list);
       p7_tophits_RemoveDuplicates(info->th, info->pli->use_bit_cutoffs);
 
       p7_tophits_SortBySortkey(info->th);
@@ -1080,7 +1057,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
               info->pli->pos_output += 1 + (info->th->hit[i]->dcl[0].jali > info->th->hit[i]->dcl[0].iali ? info->th->hit[i]->dcl[0].jali - info->th->hit[i]->dcl[0].iali : info->th->hit[i]->dcl[0].iali - info->th->hit[i]->dcl[0].jali) ;
           }
       }
-      
+     
       p7_tophits_Targets(ofp, info->th, info->pli, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
       info->pli->long_targets = FALSE;
           p7_tophits_Domains(ofp, info->th, info->pli, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -1148,7 +1125,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   } /* end outer loop over queries */
 
-  esl_gencode_Destroy(gcode);
 
   if (hfp != NULL) {
     switch(qhstatus) {
@@ -1206,7 +1182,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   free(info);
 
-  esl_gencode_WorkstateDestroy(wrk);
 
   if (hfp)     p7_hmmfile_Close(hfp);
   if (qfp_msa) esl_msafile_Close(qfp_msa);
@@ -1262,70 +1237,92 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
 //TODO: MPI code needs to be added here
 static int
-serial_loop(WORKER_INFO *info, ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
+serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
 {
   int      wstatus = eslOK;
   int seq_id = 0;
   ESL_ALPHABET    *abcAMINO = esl_alphabet_Create(eslAMINO); 
   ESL_ALPHABET    *abcDNA = esl_alphabet_Create(eslDNA);
+  ESL_GENCODE     *gcode       = NULL;
+  ESL_GENCODE_WORKSTATE *wrk    = NULL;
   ESL_SQ   *dbsq   =  esl_sq_CreateDigital(abcDNA);
   ESL_SQ   *dbsq_revcmp;
- 
+ /* Set up the genetic code. Default = NCBI 1, the standard code; allow ORFs to start at any aa   */
+  gcode = esl_gencode_Create(abcDNA, abcAMINO);
+  esl_gencode_Set(gcode, esl_opt_GetInteger(info->go, "-c"));  // default = 1, the standard genetic code
+
+  if      (esl_opt_GetBoolean(info->go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
+  else if (! esl_opt_GetBoolean(info->go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m or -M are set
+
+
+  /* Set up the workstate structure, which contains both stateful
+   * info about our position in <sqfp> and the DNA <sq>, as well as
+   * one-time config info from options
+   */
+  wrk = esl_gencode_WorkstateCreate(info->go, gcode);
+
+
   if (dbsq->abc->complement != NULL)
     dbsq_revcmp =  esl_sq_CreateDigital(abcDNA);
  
-  wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
- 
+  wstatus = esl_sqio_Read(dbfp, dbsq);
   while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       dbsq->idx = seq_id;
       p7_pli_NewSeq(info->pli, dbsq);
+
            if(wrk->orf_block != NULL) {
           esl_sq_DestroyBlock(wrk->orf_block);
           wrk->orf_block = NULL;
 	  }
     
       if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
-
+	//	printf("\nTop strand\n");
         info->pli->nres -= dbsq->C; // to account for overlapping region of windows
 	wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
-
 	p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, dbsq->idx, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
-
 	p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       } else {
         info->pli->nres -= dbsq->n;
       }
          //reverse complement
       if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
-      {
+      {		//printf("\nBottom strand\n");
+
+	
+          esl_sq_Copy(dbsq,dbsq_revcmp);
+          esl_sq_ReverseComplement(dbsq_revcmp);
+        //	printf("dbsq L %d rev L %d\n", dbsq->L, dbsq_revcmp->L);  
           if(wrk->orf_block != NULL) {
           esl_sq_DestroyBlock(wrk->orf_block);
           wrk->orf_block = NULL;
 	  }
           wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
-
           p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, dbsq->idx, dbsq_revcmp, p7_COMPLEMENT, gcode, wrk);
-
 //	  p7_tophits_SortBySortkey(info->th);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
           info->pli->nres += dbsq_revcmp->W;
 
       }
 
-      wstatus = esl_sqio_ReadWindow(dbfp, (info->om->max_length * 3), info->pli->block_length, dbsq);
-            
-      if (wstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
           add_id_length(id_length_list, dbsq->idx, dbsq->L);
           
 	  info->pli->nseqs++;
           esl_sq_Reuse(dbsq);
-
-	  wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq);
+	
+	wstatus = esl_sqio_Read(dbfp, dbsq);
 
           seq_id++;
-      }
+
    }
 
+   if(wrk->orf_block != NULL)
+   {
+     esl_sq_DestroyBlock(wrk->orf_block); 
+     wrk->orf_block = NULL;
+   }
+  esl_gencode_WorkstateDestroy(wrk);
+
+  esl_gencode_Destroy(gcode);
   esl_alphabet_Destroy(abcAMINO);
   esl_alphabet_Destroy(abcDNA);
   esl_sq_Destroy(dbsq);
@@ -1373,7 +1370,7 @@ serial_loop_FM(WORKER_INFO *info, ESL_SQFILE *dbfp)
 #endif //#if defined (eslENABLE_SSE)
 
 #ifdef HMMER_THREADS
-#if 0
+
 static int
 thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
 {
@@ -1382,11 +1379,12 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
   int          status  = eslOK;
   int          sstatus = eslOK;
   int          eofCount = 0;
+  int          seqid = -1;
+ 
   ESL_SQ_BLOCK *block;
   void         *newBlock;
-  int          seqid = -1;
-
-  ESL_SQ      *tmpsq = esl_sq_CreateDigital(info->om->abc);
+  ESL_ALPHABET    *abcDNA = esl_alphabet_Create(eslDNA); 
+  ESL_SQ      *tmpsq = esl_sq_CreateDigital(abcDNA);
   int          abort = FALSE; // in the case n_targetseqs != -1, a block may get abbreviated
 
 
@@ -1475,10 +1473,10 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
     }
 
   esl_sq_Destroy(tmpsq);
-
+  esl_alphabet_Destroy(abcDNA);
   return sstatus;
 }
-#endif
+
 static void 
 pipeline_thread(void *arg)
 {
@@ -1488,6 +1486,11 @@ pipeline_thread(void *arg)
   WORKER_INFO   *info;
   ESL_THREADS   *obj;
   ESL_SQ_BLOCK  *block = NULL;
+  ESL_ALPHABET    *abcAMINO = esl_alphabet_Create(eslAMINO); 
+  ESL_ALPHABET    *abcDNA = esl_alphabet_Create(eslDNA);
+  ESL_GENCODE     *gcode       = NULL;
+  ESL_GENCODE_WORKSTATE *wrk    = NULL;
+  ESL_SQ   *dbsq_revcmp; 
   void          *newBlock;
   
   impl_Init();
@@ -1497,13 +1500,27 @@ pipeline_thread(void *arg)
 
   info = (WORKER_INFO *) esl_threads_GetData(obj, workeridx);
 
+ /* Set up the genetic code. Default = NCBI 1, the standard code; allow ORFs to start at any aa   */
+  gcode = esl_gencode_Create(abcDNA, abcAMINO);
+  esl_gencode_Set(gcode, esl_opt_GetInteger(info->go, "-c"));  // default = 1, the standard genetic code
+
+  if      (esl_opt_GetBoolean(info->go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
+  else if (! esl_opt_GetBoolean(info->go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m or -M are set
+
+  /* Set up the workstate structure, which contains both stateful
+   * info about our position in <sqfp> and the DNA <sq>, as well as
+   * one-time config info from options
+   */
+  wrk = esl_gencode_WorkstateCreate(info->go, gcode);
+
+
   status = esl_workqueue_WorkerUpdate(info->queue, NULL, &newBlock);
-  if (status != eslOK) esl_fatal("Work queue worker failed");
 
-
+ if (status != eslOK) esl_fatal("Work queue worker failed");
   /* loop until all blocks have been processed */
   block = (ESL_SQ_BLOCK *) newBlock;
 
+  dbsq_revcmp =  esl_sq_CreateDigital(abcDNA);
   while (block->count > 0)
   {
       /* Main loop: */
@@ -1511,24 +1528,37 @@ pipeline_thread(void *arg)
     {
       ESL_SQ *dbsq = block->list + i;
 
-      p7_pli_NewSeq(info->pli, dbsq);
 
+      p7_pli_NewSeq(info->pli, dbsq);
+      
+      if(wrk->orf_block != NULL) {
+          esl_sq_DestroyBlock(wrk->orf_block);
+          wrk->orf_block = NULL;
+      }
+      
       if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
         info->pli->nres -= dbsq->C; // to account for overlapping region of windows
-
-        p7_Pipeline_LongTarget(info->pli, info->om, info->scoredata, info->bg, info->th, block->first_seqidx + i, dbsq, p7_NOCOMPLEMENT, NULL, NULL, NULL/*, NULL, NULL, NULL*/);
-        p7_pipeline_Reuse(info->pli); // prepare for next search
+        wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
+	
+	p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
+        p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
       } else {
         info->pli->nres -= dbsq->n;
       }
-
       //reverse complement
       if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL)
       {
-          esl_sq_ReverseComplement(dbsq);
-          p7_Pipeline_LongTarget(info->pli, info->om, info->scoredata, info->bg, info->th, block->first_seqidx + i, dbsq, p7_COMPLEMENT, NULL, NULL, NULL/*, NULL, NULL, NULL*/);
-          p7_pipeline_Reuse(info->pli); // prepare for next search
+	if(wrk->orf_block != NULL) {
+          esl_sq_DestroyBlock(wrk->orf_block);
+          wrk->orf_block = NULL;
+          }
+          wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
+          esl_sq_Copy(dbsq,dbsq_revcmp);
+          esl_sq_ReverseComplement(dbsq_revcmp);
+
+          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dbsq, p7_COMPLEMENT,gcode,wrk);
+          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
           info->pli->nres += dbsq->W;
       }
@@ -1541,6 +1571,17 @@ pipeline_thread(void *arg)
 
   }
 
+   if(wrk->orf_block != NULL)
+   {
+     esl_sq_DestroyBlock(wrk->orf_block); 
+     wrk->orf_block = NULL;
+   }
+
+  esl_sq_Destroy(dbsq_revcmp);
+  esl_gencode_WorkstateDestroy(wrk);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcAMINO);
+  esl_alphabet_Destroy(abcDNA);
   status = esl_workqueue_WorkerUpdate(info->queue, block, NULL);
   if (status != eslOK) esl_fatal("Work queue worker failed");
 

@@ -1205,6 +1205,19 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
           posw, th->hit[h]->dcl[d].jali) < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
         }
+	else if(pli->frameshift)
+	{
+	    if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "",
+              newness,
+              exp(th->hit[h]->lnP) * pli->Z,
+              th->hit[h]->score,
+              eslCONST_LOG2R * th->hit[h]->dcl[d].dombias, /* an nhmmer hit is really a domain, so this is the hit's bias correction */ /* bias correction */
+              namew, showname,
+              posw, th->hit[h]->dcl[d].iorf,
+              posw, th->hit[h]->dcl[d].jorf) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
+
+	}
         else
         {
           if(th->hit[h]->dcl[0].ad->ntseq != NULL) /* translated-search hit*/
@@ -1292,7 +1305,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
         ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
   }
   else 
-  {
+  {  
       if (fprintf(ofp, "Domain annotation for each %s%s:\n",
       pli->mode == p7_SEARCH_SEQS ? "sequence" : "model",
       pli->show_alignments ? " (and alignments)" : "") < 0)
@@ -1345,7 +1358,6 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
           ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
       
       } else {
-
         if (th->hit[h]->dcl[0].ad->ntseq != NULL && pli->show_translated_sequence ) {
           /* The domain table is  char wide:
                   #     score  bias    Evalue hmmfrom   hmmto    aminofrom  amino to      alifrom    ali to      envfrom    env to     orffrom    orf to   acc
@@ -1394,7 +1406,6 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
             nd++;
             if (pli->long_targets)
             {
-
                if (fprintf(ofp, " %c %6.1f %5.1f %9.2g %9d %9d %c%c %9" PRId64 " %9" PRId64 " %c%c %9" PRId64 " %9" PRId64 " %c%c %9" PRId64 "    %4.2f\n",
                     //nd,
                     th->hit[h]->dcl[d].is_included ? '!' : '?',
@@ -1433,7 +1444,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                          (th->hit[h]->dcl[d].ad->hmmfrom == 1) ? '[' : '.',
                          (th->hit[h]->dcl[d].ad->hmmto   == th->hit[h]->dcl[d].ad->M ) ? ']' : '.') < 0)
                              ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
-                 }
+		 }
                  else
                  {
                    if (fprintf(ofp, " %3d %c %6.1f %5.1f %9.2g %9.2g %7d %7d %c%c",
@@ -1452,7 +1463,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
               /* if ntseq is NULL then we are not using nhmmscant so print amino sequence, otherwise we are using nhmmscant */
               /* and if option set to print amino sequence then print it */	
               if( th->hit[h]->dcl[d].ad->ntseq != NULL && pli->show_translated_sequence) 
-                {  
+                { 
 	          if(th->hit[h]->dcl[d].ad->sqfrom < th->hit[h]->dcl[d].ad->sqto) {
                     if (fprintf(ofp, " %9" PRId64 " %9" PRId64 " %c%c",
                        (th->hit[h]->dcl[d].ad->sqfrom+2)/3,
@@ -1734,6 +1745,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int qaccw  = ((qacc != NULL) ? ESL_MAX(10, strlen(qacc)) : 10);
   int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
   int posw   = (pli->long_targets ? ESL_MAX(7, p7_tophits_GetMaxPositionLength(th)) : 0);
+  posw   = (pli->frameshift ? ESL_MAX(7, p7_tophits_GetMaxPositionLength(th)) : 0);
   int h,d;
 
 
@@ -1752,6 +1764,14 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
           ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
         if (fprintf(ofp, "#%*s %*s %*s %*s %s %s %*s %*s %*s %*s %*s %6s %9s %6s %5s %s\n",
           tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "-------", "-------", posw, "-------", posw, "-------",  posw, "-------", posw, "-------", posw, "-------", "------", "---------", "------", "-----", "---------------------") < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-per-sequence hit list: write failed");
+      }
+      else if(pli->frameshift) {
+	if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %s %s %*s %*s %*s %*s %*s %6s %9s %6s %5s\n",
+          tnamew-1, " target name",        taccw, "accession",  qnamew, "query name",           qaccw, "accession", "hmmfrom", "hmm to", posw, "alifrom", posw, "ali to", posw, "envfrom", posw, "env to", posw, ( pli->mode == p7_SCAN_MODELS ? "modlen" : "sq len" ), "frame", "  E-value", " score", " bias") < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        if (fprintf(ofp, "#%*s %*s %*s %*s %s %s %*s %*s %*s %*s %*s %5s %9s %6s %5s\n",
+          tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "-------", "-------", posw, "-------", posw, "-------",  posw, "-------", posw, "-------", posw, "-------", "-----", "---------", "------", "-----") < 0)
           ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-per-sequence hit list: write failed");
       }
       else
@@ -1807,6 +1827,65 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 th->hit[h]->desc == NULL ? "-" :  th->hit[h]->desc ) < 0)
                   ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
         }
+        else if(pli->frameshift) 
+	{
+                int frame = p7_tophits_frame(th->hit[h]->dcl[d].iorf, th->hit[h]->dcl[d].jorf);
+
+                //get domain with earliest DNA location and domain at fartherest
+                //end of DNA and use their start and end locations on the DNA as
+                //the start and end of hit location on DNA. Also take account of
+                //whether the hit is on the reverse strand when reporting the 
+                //start and end location
+                for (i = 0; i < th->hit[h]->ndom; i++){
+                    sqfrom = th->hit[h]->dcl[i].ad->sqfrom;
+                    sqto = th->hit[h]->dcl[i].ad->sqto;
+                    if (i==0){
+                        if (frame > 0) {
+                            lowest = sqfrom;
+                            highest = sqto;
+                        } else {
+                            highest = sqfrom;
+                            lowest = sqto;
+                        }
+                    }
+                    if (frame > 0){
+                        if (sqfrom < lowest)
+                            lowest = sqfrom;
+                        if (sqto > highest)
+                            highest = sqto;
+                    } else {
+                        if (sqto < lowest)
+                            lowest = sqto;
+                        if (sqfrom > highest)
+                            highest = sqfrom;
+                    }
+                }
+                if (frame > 0){
+                    sqfrom = lowest;
+                    sqto = highest;
+                } else {
+                    sqfrom = highest;
+                    sqto = lowest;
+                }
+		
+		if (fprintf(ofp, "%-*s %-*s %-*s %-*s %7d %7d %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %5d %9.2g %6.1f %5.1f\n",
+                tnamew, th->hit[h]->name,
+                taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
+                qnamew, qname,
+                qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
+                th->hit[h]->dcl[d].ad->hmmfrom,
+                th->hit[h]->dcl[d].ad->hmmto,
+                posw, th->hit[h]->dcl[d].iali,
+                posw, th->hit[h]->dcl[d].jali,
+                posw, th->hit[h]->dcl[d].ienv,
+                posw, th->hit[h]->dcl[d].jenv,
+                posw, th->hit[h]->dcl[d].ad->L,
+                frame,
+                exp(th->hit[h]->lnP),
+                th->hit[h]->score,
+                th->hit[h]->dcl[d].dombias * eslCONST_LOG2R ) < 0) /* convert NATS to BITS at last moment */                  
+		ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+	}
         else
         {
 

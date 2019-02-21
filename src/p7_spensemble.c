@@ -392,7 +392,6 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
       sp->sigc[sp->nsigc].idx  = c;
       sp->sigc[sp->nsigc].prob = (float) ninc[c] / (float) sp->nsamples;
       sp->nsigc++;
-      printf("i %d, j %d, k %d, m %d\n", best_i, best_j, best_k, best_m);
     }
 
   /* Now we need to make sure those domains are ordered by start point,

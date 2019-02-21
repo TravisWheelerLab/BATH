@@ -113,7 +113,8 @@ p7_pipeline_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, en
 
   pli->do_alignment_score_calc = 0;
   pli->long_targets = long_targets;
-
+  pli->frameshift = FALSE;
+  
   if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->bck = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->oxf = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;
@@ -1378,6 +1379,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
       pli->ddef->dcl   = NULL;
       hit->best_domain = 0;
 
+      for (d = 0; d < hit->ndom; d++)
       {
         Ld = hit->dcl[d].jenv - hit->dcl[d].ienv + 1;
         hit->dcl[d].bitscore = hit->dcl[d].envsc + (sq->n-Ld) * log((float) sq->n / (float) (sq->n+3)); /* NATS, for the moment... */

@@ -713,6 +713,8 @@ p7_pli_ExtendMergeAndConvertWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
     /* extend windows */
   for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
+//printf("CURR comp %d start %d, length %d T length %d\n", complementarity, curr_window->n, curr_window->length, curr_window->target_len);
+
    // printf("ORF target len%d\n", curr_window->target_len);
 if ( complementarity == p7_COMPLEMENT) {
       //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
@@ -740,6 +742,8 @@ if ( complementarity == p7_COMPLEMENT) {
   for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
+	//printf("CURR comp %d start %d, end %d\n", complementarity, curr_window->n, curr_window->length);
+	//printf("PREV comp %d start %d, end %d\n", complementarity, prev_window->n, prev_window->length);
 
     window_start = ESL_MAX(prev_window->n, curr_window->n);
     window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
@@ -774,6 +778,7 @@ if ( complementarity == p7_COMPLEMENT) {
       curr_window->n = ESL_MAX(1, orfsq->start + ((curr_window->n - 1) * 3));
       curr_window->length = ESL_MIN((dna_len - curr_window->n), curr_window->length * 3);
     }
+
   }
   return eslOK;
 }
@@ -2243,14 +2248,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int              status;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
-  //int env_len;
-  //int ali_len;
-  //float bitscore;
-  //float dom_bias;
-  //float dom_score;
-  //double dom_lnP;
   float **emit_sc;
-  //float oasc;
   int F3_L = ESL_MIN( window_len,  pli->B3);
   float	           indel_cost = 0.01;
   int i;
@@ -2261,12 +2259,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
     subseq = dnasq->dsq + window_start - 1;
   }
 
-  //printf("CCCCCCCCC\n");
   p7_bg_SetLength(bg, window_len);
   p7_bg_NullOne  (bg, subseq, window_len, &nullsc);
-//printf("1 seq name %s, seq start %d, seq length %d\n", seq_name, seq_start, seq_len);
-//printf("2 dna name %s, dna start %d, dna length %d\n", dnasq->name, dnasq->start, dnasq->n);
-//printf("3 window start %d, window len %d, comp %d\n\n", window_start, window_len, complementarity); 
   if (pli->do_biasfilter){
      p7_bg_FilterScore(bg, subseq, window_len, &filtersc);
      filtersc -= nullsc;  //remove nullsc, so bias scaling can be done, then add it back on later
@@ -2449,7 +2443,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
         if (hit->dcl[d].bitscore > hit->dcl[hit->best_domain].bitscore) hit->best_domain = d;
       }
-
       /* If we're using model-specific bit score thresholds (GA | TC |
        * NC) and we're in an hmmscan pipeline (mode = p7_SCAN_MODELS),
        * then we *must* apply those reporting or inclusion thresholds
@@ -2765,7 +2758,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
       esl_sq_Reuse(orfsq);
   }
 
-  p7_pli_MergeWindows (om, data, &post_vit_windowlist, 0.5);
+  //p7_pli_MergeWindows (om, data, &post_vit_windowlist, 0.5);
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq);
  // printf("AAAAAAAAAAAA\n");

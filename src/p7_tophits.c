@@ -345,7 +345,6 @@ int
 p7_tophits_SortBySortkey(P7_TOPHITS *h)
 {
   int i;
-
   if (h->is_sorted_by_sortkey)  return eslOK;
   for (i = 0; i < h->N; i++) h->hit[i] = h->unsrt + i;
   if (h->N > 1)  qsort(h->hit, h->N, sizeof(P7_HIT *), hit_sorter_by_sortkey);
@@ -369,7 +368,6 @@ int
 p7_tophits_SortBySeqidxAndAlipos(P7_TOPHITS *h)
 {
   int i;
-
   if (h->is_sorted_by_seqidx)  return eslOK;
   for (i = 0; i < h->N; i++) h->hit[i] = h->unsrt + i;
   if (h->N > 1)  qsort(h->hit, h->N, sizeof(P7_HIT *), hit_sorter_by_seqidx_aliposition);
@@ -868,7 +866,6 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
       }
       len_j = e_j - s_j + 1 ;
 
-
       //sub_i = th->hit[i]->subseq_start;
       p_i = th->hit[i]->lnP;
       s_i = th->hit[i]->dcl[0].iali;
@@ -880,7 +877,6 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
         e_i = tmp;
       }
       len_i = e_i - s_i + 1 ;
-
 
       // these will only matter if seqidx and strand are the same
       intersect_alistart  = s_i>s_j ? s_i : s_j;
@@ -964,7 +960,6 @@ int
 p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
 {
   int h, d;    /* counters over sequence hits, domains in sequences */
-  
   /* Flag reported, included targets (if we're using general thresholds) */
   if (! pli->use_bit_cutoffs) 
   {
@@ -1163,12 +1158,11 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   char   *showname;
 
   int    have_printed_incthresh = FALSE;
-
   /* when --acc is on, we'll show accession if available, and fall back to name */
   if (pli->show_accessions) namew = ESL_MAX(8, p7_tophits_GetMaxShownLength(th));
   else                      namew = ESL_MAX(8, p7_tophits_GetMaxNameLength(th));
 
-  if (pli->long_targets) 
+  if (pli->long_targets || pli->frameshift) 
   {
       posw = ESL_MAX(6, p7_tophits_GetMaxPositionLength(th));
 
@@ -1232,11 +1226,10 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   }
 
   for (h = 0; h < th->N; h++)
-  {
+  {	
       if (th->hit[h]->flags & p7_IS_REPORTED)
       {
         d    = th->hit[h]->best_domain;
-
         if (! (th->hit[h]->flags & p7_IS_INCLUDED) && ! have_printed_incthresh) 
         {
           if (fprintf(ofp, "  ------ inclusion threshold ------\n") < 0)
@@ -1255,7 +1248,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
         else if (th->hit[h]->flags & p7_IS_DROPPED) newness = '-';
         else                                        newness = ' ';
 
-        if (pli->long_targets) 
+        if (pli->long_targets || pli->frameshift) 
         {
           if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "",
           newness,
@@ -1267,20 +1260,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
           posw, th->hit[h]->dcl[d].jali) < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
 	}
-	else if(pli->frameshift)
-	{
-           if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "",
-              newness,
-              exp(th->hit[h]->lnP) * pli->Z,
-              th->hit[h]->score,
-              eslCONST_LOG2R * th->hit[h]->dcl[d].dombias, /* an nhmmer hit is really a domain, so this is the hit's bias correction */ /* bias correction */
-              namew, showname,
-              posw, th->hit[h]->dcl[d].iorf,
-              posw, th->hit[h]->dcl[d].jorf) < 0)
-                ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
-
-	}
-        else
+	else
         {
 	  if (pli->mode == p7_SEARCH_SEQS && th->hit[0]->dcl[0].ad->ntseq != NULL) /* hmmsearcht hit*/
           {
@@ -1367,7 +1347,6 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   int   namew, descw;
   char *showname;
   int   status;
-
   if (pli->long_targets) /// nucleotide search
     {
       if (fprintf(ofp, "Annotation for each hit %s:\n",

@@ -371,7 +371,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   }
 
-
   /* Now we know that z1..z2 in the trace will be represented in the
    * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
    * our display lines, so allocate z2-z1+2. We know each position is
@@ -429,8 +428,13 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
   ad->M       = gm->M;
-  ad->sqfrom  = tr->i[z1-1] + 1;
-  ad->sqto    = tr->i[z2];		 
+  if(sq->start < sq->end) {
+    ad->sqfrom  = tr->i[z1-1] + 1;
+    ad->sqto    = tr->i[z2];		 
+  } else {
+    ad->sqto  = tr->i[z1-1] + 1;
+    ad->sqfrom    = tr->i[z2];	
+  }	 
   ad->L       = sq->n;
   /* optional rf line */
   if (ad->rfline != NULL) {

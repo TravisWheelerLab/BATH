@@ -1024,7 +1024,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       }
            for (i = 0; i < infocnt; ++i)
           p7_tophits_ComputeNhmmerEvalues(info[i].th, resCnt, info[i].om->max_length);
-      /* merge the results of the search results */
+	/* merge the results of the search results */
       for (i = 1; i < infocnt; ++i) {
 	  p7_tophits_Merge(info[0].th, info[i].th);
 	  p7_pipeline_Merge(info[0].pli, info[i].pli);
@@ -1040,11 +1040,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         info[0].pli->nres  = resCnt;
       }
 #endif
-
 		      /* Print the results.  */
       p7_tophits_SortBySeqidxAndAlipos(info->th);
      // assign_Lengths(info->th, id_length_list);
       p7_tophits_RemoveDuplicates(info->th, info->pli->use_bit_cutoffs);
+for (i = 0; i < info->th->N; i++)
 
       p7_tophits_SortBySortkey(info->th);
       p7_tophits_Threshold(info->th, info->pli);
@@ -1052,7 +1052,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       //tally up total number of hits and target coverage
       info->pli->n_output = info->pli->pos_output = 0;
       for (i = 0; i < info->th->N; i++) {
-          if ( (info->th->hit[i]->flags & p7_IS_REPORTED) || info->th->hit[i]->flags & p7_IS_INCLUDED) {
+	if ( (info->th->hit[i]->flags & p7_IS_REPORTED) || info->th->hit[i]->flags & p7_IS_INCLUDED) {
               info->pli->n_output++;
               info->pli->pos_output += 1 + (info->th->hit[i]->dcl[0].jali > info->th->hit[i]->dcl[0].iali ? info->th->hit[i]->dcl[0].jali - info->th->hit[i]->dcl[0].iali : info->th->hit[i]->dcl[0].iali - info->th->hit[i]->dcl[0].jali) ;
           }
@@ -1061,13 +1061,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_tophits_Targets(ofp, info->th, info->pli, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
       info->pli->long_targets = FALSE;
           p7_tophits_Domains(ofp, info->th, info->pli, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-      
 	if (tblfp)     p7_tophits_TabularTargets(tblfp,    hmm->name, hmm->acc, info->th, info->pli, (nquery == 1));
       if (dfamtblfp) p7_tophits_TabularXfam(dfamtblfp,   hmm->name, hmm->acc, info->th, info->pli);
       if (aliscoresfp) p7_tophits_AliScores(aliscoresfp, hmm->name, info->th );
 
       esl_stopwatch_Stop(w);
-      
       p7_pli_Statistics(ofp, info->pli, w);
 
       if (fprintf(ofp, "//\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -1276,7 +1274,6 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 	  }
     
       if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
-	//	printf("\nTop strand\n");
         info->pli->nres -= dbsq->C; // to account for overlapping region of windows
 	wrk->orf_block = esl_sq_CreateDigitalBlock(3, abcAMINO);
 	p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, dbsq->idx, dbsq, p7_NOCOMPLEMENT, gcode, wrk);
@@ -1286,12 +1283,11 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       }
          //reverse complement
       if (info->pli->strands != p7_STRAND_TOPONLY && dbsq->abc->complement != NULL )
-      {		//printf("\nBottom strand\n");
+      {	
 
 	
           esl_sq_Copy(dbsq,dbsq_revcmp);
           esl_sq_ReverseComplement(dbsq_revcmp);
-        //	printf("dbsq L %d rev L %d\n", dbsq->L, dbsq_revcmp->L);  
           if(wrk->orf_block != NULL) {
           esl_sq_DestroyBlock(wrk->orf_block);
           wrk->orf_block = NULL;

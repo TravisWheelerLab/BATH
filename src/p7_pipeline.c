@@ -713,10 +713,8 @@ p7_pli_ExtendMergeAndConvertWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
     /* extend windows */
   for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
-//printf("CURR comp %d start %d, length %d T length %d\n", complementarity, curr_window->n, curr_window->length, curr_window->target_len);
 
-   // printf("ORF target len%d\n", curr_window->target_len);
-if ( complementarity == p7_COMPLEMENT) {
+    if ( complementarity == p7_COMPLEMENT) {
       //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
       curr_window->n = curr_window->target_len - curr_window->n +  1;
 
@@ -736,14 +734,11 @@ if ( complementarity == p7_COMPLEMENT) {
     curr_window->length = window_end - window_start + 1;
     curr_window->fm_n -= (curr_window->n - window_start);
     curr_window->n = window_start;
-  // printf(" curr_window->length %d\n", curr_window->length); 
  }
   /* merge overlapping windows, compressing list in place. */
   for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
-	//printf("CURR comp %d start %d, end %d\n", complementarity, curr_window->n, curr_window->length);
-	//printf("PREV comp %d start %d, end %d\n", complementarity, prev_window->n, prev_window->length);
 
     window_start = ESL_MAX(prev_window->n, curr_window->n);
     window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
@@ -2298,7 +2293,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   pli_tmp->tmpseq->n = window_len;
   pli_tmp->tmpseq->start = window_start;
   pli_tmp->tmpseq->end = (complementarity == p7_COMPLEMENT) ? (window_start - window_len + 1) : (window_start + window_len - 1);
- //printf("name %s, len %d, start %d, end %d\n", seq_name, window_len, window_start, pli_tmp->tmpseq->end); 
   dsq_holder = pli_tmp->tmpseq->dsq; // will point back to the original at the end
   pli_tmp->tmpseq->dsq = subseq;
   /* Now a Backwards parser pass, and hand it to domain definition workflow
@@ -2502,18 +2496,26 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
             {  
                hit->dcl[d].iorf       = pli_tmp->tmpseq->start;
                hit->dcl[d].jorf       = pli_tmp->tmpseq->start-1 + pli_tmp->tmpseq->n;
-               hit->dcl[d].ienv       = pli_tmp->tmpseq->start-1;
-               hit->dcl[d].jenv       = pli_tmp->tmpseq->start-1 + pli_tmp->tmpseq->n;
+               hit->dcl[d].ienv       += seq_start + window_start - 2;
+               hit->dcl[d].jenv       += seq_start + window_start - 2;
+
+    	       hit->dcl[d].iali       += seq_start + window_start - 2;
+               hit->dcl[d].jali       += seq_start + window_start - 2;
+               
                hit->dcl[d].ad->sqfrom = (hit->dcl[d].ad->sqfrom) + pli_tmp->tmpseq->start-1;
-                 hit->dcl[d].ad->sqto   = (hit->dcl[d].ad->sqto) + pli_tmp->tmpseq->start-1;
+               hit->dcl[d].ad->sqto   = (hit->dcl[d].ad->sqto) + pli_tmp->tmpseq->start-1;
             }
             else
             {
                hit->dcl[d].iorf       = dnasq->start-1;
                hit->dcl[d].jorf       = dnasq->end+2;
 
-               hit->dcl[d].ienv       = dnasq->start - (hit->dcl[d].ienv - 1);
-               hit->dcl[d].jenv       = dnasq->start - (hit->dcl[d].jenv - 1);
+               hit->dcl[d].ienv       = seq_start - (window_start + hit->dcl[d].ienv) + 2;
+               hit->dcl[d].jenv       = seq_start - (window_start + hit->dcl[d].jenv) + 2;
+              
+               hit->dcl[d].iali       = seq_start - (window_start + hit->dcl[d].iali) + 2;
+               hit->dcl[d].jali       = seq_start - (window_start + hit->dcl[d].jali) + 2;
+
 
                hit->dcl[d].ad->sqfrom = dnasq->start - (hit->dcl[d].ad->sqfrom -1);
                hit->dcl[d].ad->sqto   = dnasq->start - (hit->dcl[d].ad->sqto -1);
@@ -2587,10 +2589,9 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
   float            filtersc;           /* HMM null filter score                   */
   float            seq_score;          /* the corrected per-seq bit score */
   double           P;                  /* P-value of a hit */
-  //int i;
- // printf("MSV ORF end %d\n", orfsq->end);
   int F1_L = ESL_MIN( orfsq->n,  pli->B1);
   int F2_L = ESL_MIN( orfsq->n,  pli->B2);
+
   //initial bias filter, based on the input window_len
   if (pli->do_biasfilter) {
     p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &bias_filtersc);
@@ -2718,7 +2719,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
   for (i = 0; i < wrk->orf_block->count; ++i)
   {        orfsq = &(wrk->orf_block->list[i]);
-//	printf("WRK ORF end %d\n", orfsq->end);	
        /*
       use the name, accession, and description from the DNA sequence and
       not from the ORF which is generated by gencode and only for internal use
@@ -2751,17 +2751,15 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 		                         usc, complementarity, &vit_windowlist);	  
       for(j = 0; j < vit_windowlist.count; ++j) {
         window = vit_windowlist.windows+j;
-//	printf("name %s start %d\n", dnasq->name, window->n);
 	p7_hmmwindow_new(&post_vit_windowlist, window->id, window->n, window->fm_n, window->k, 
 			window->length, window->score, complementarity, window->target_len);       
 	}      
       esl_sq_Reuse(orfsq);
   }
 
-  //p7_pli_MergeWindows (om, data, &post_vit_windowlist, 0.5);
+  p7_pli_MergeWindows (om, data, &post_vit_windowlist, 0.5);
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq);
- // printf("AAAAAAAAAAAA\n");
   for(i = 0; i < post_vit_windowlist.count; ++i) {
 	  window = post_vit_windowlist.windows+i;
 	  pli->pos_past_vit += window->length;

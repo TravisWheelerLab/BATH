@@ -853,7 +853,6 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
   j=0;
   for (i = 1; i < th->N; i++)
   {
-
       //sub_j = th->hit[j]->subseq_start;
       p_j = th->hit[j]->lnP;
       s_j = th->hit[j]->dcl[0].iali;
@@ -879,6 +878,7 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
       len_i = e_i - s_i + 1 ;
 
       // these will only matter if seqidx and strand are the same
+
       intersect_alistart  = s_i>s_j ? s_i : s_j;
       intersect_aliend    = e_i<e_j ? e_i : e_j;
       intersect_alilen    = intersect_aliend - intersect_alistart + 1;
@@ -898,7 +898,7 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
                ( intersect_alilen >= len_j * 0.95)
            )
       )
-      {
+      {  
         /* Force one to go unreported.  I prefer to keep the one with the
          * better e-value.  This addresses two issues
          * (1) longer hits sometimes encounter higher bias corrections,

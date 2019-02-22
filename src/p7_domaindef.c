@@ -1354,7 +1354,6 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
       dom->domcorrection = domcorrection; /* in units of NATS */
 
   }
-
   dom->iali          = dom->ad->sqfrom;
   dom->jali          = dom->ad->sqto;
   dom->ienv          = i;
@@ -1501,7 +1500,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
       for (pos = i; pos <= j; pos++)
         domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
       dom->domcorrection = domcorrection; /* in units of NATS */
-
   dom->iali          = dom->ad->sqfrom;
   dom->jali          = dom->ad->sqto;
   dom->ienv          = i;

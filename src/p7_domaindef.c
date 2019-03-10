@@ -251,22 +251,14 @@ int
 p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef)
 {
   int i;
-  for (i = 1; i <= ddef->L; i++)
-    fprintf(ofp, "%d %f\n", i, ddef->mocc[i]);
-  fprintf(ofp, "&\n");
-
-  for (i = 1; i <= ddef->L; i++)
-    fprintf(ofp, "%d %f\n", i, ddef->btot[i]);
-  fprintf(ofp, "&\n");
-
-  for (i = 1; i <= ddef->L; i++)
-    fprintf(ofp, "%d %f\n", i, ddef->etot[i]);
-  fprintf(ofp, "&\n");
-
-  for (i = 1; i <= ddef->L; i++)
-    fprintf(ofp, "%d %f\n", i, ddef->n2sc[i]);
-  fprintf(ofp, "&\n");
-
+  fprintf(ofp, "# mocc btot etot n2sc\n");
+  for (i = 1; i <= ddef->L; i++) {
+    fprintf(ofp, "%d %f ", i, ddef->mocc[i]);
+    fprintf(ofp, "%f ", i, ddef->btot[i]);
+    fprintf(ofp, "%f ", i, ddef->etot[i]);
+    fprintf(ofp, "%f ", i, ddef->n2sc[i]);
+    fprintf(ofp, "\n");
+  }
   return eslOK;
 }
 
@@ -544,7 +536,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int save_mode = gm->mode;	/* Likewise for the mode. */
   int status;
   float k;
-
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
   esl_vec_FSet(ddef->n2sc, sq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
@@ -552,103 +543,116 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
   i     = -1;
   triggered = FALSE;
-	//printf("sequence name %s, length %d, start %d, end %d, L %d\n", sq->name, sq->n, sq->start, sq->end); 
-  for (j = 1; j <= gxf->L-2; j++)
-  {    
+//FILE *out = fopen("out.txt", "w+");
+//p7_domaindef_DumpPosteriors(out, ddef); 
+ //printf("window_start %d\n",window_start);
+ 
+   for (j = 1; j <= gxf->L; j++)
+  {   
     if (! triggered){
-      if       (ddef->mocc[j] >= ddef->rt1 && ddef->mocc[j+1] >= ddef->rt1 && ddef->mocc[j+2] >= ddef->rt1) triggered = TRUE;
+      if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
       d = j;
-    }
-    else {
-      while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
-	if(d > 3) d -= 3;
-	else d = 1;
-	if(d > 3 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) {
-	   if(ddef->mocc[d-1] - (ddef->btot[d-1] - ddef->etot[d-2]) >= ddef->rt2){
-		d--;
-	  } else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) {
-		d-=2;
-	  }
 	}
-       }
+    else {
+			//printf("%s,%s,%d,%f,%f,%f,%f\n",gm->name, sq->name,j,ddef->mocc[j-1], ddef->mocc[j], ddef->mocc[j+1],ddef->mocc[j+2]);
+      while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
+	    if(d > 3) d -= 3;
+	    else d = 1;
+		if(d > 3 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) {
+	      if(ddef->mocc[d-1] - (ddef->btot[d-1] - ddef->etot[d-2]) >= ddef->rt2) d++;
+	      else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) d+=2;
+	    }
+      }
+
       i = d;
       d = j-1;
-      while(d < gxf->L-1 && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
-	 if(d <= gxf->L - 3) d += 3;
+      
+	  while(d < gxf->L-1 && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
+	    if(d <= gxf->L - 3) d += 3;
         else d = gxf->L;
-	if(d <= gxf->L - 3 && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2)
-	  if(ddef->mocc[d-1] - (ddef->etot[d-1] - ddef->etot[d-2]) >= ddef->rt2){
-		d--;
-	  } else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) {
-		d-=2;
-	  }
-} 
-      j = d;
-	/* We have a region i..j to evaluate. */
-	p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
+	    if(d <= gxf->L - 3 && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) {
+	      if(ddef->mocc[d-1] - (ddef->etot[d-1] - ddef->etot[d-2]) >= ddef->rt2) d--;
+	      else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) d-=2;
+        } 
+     }  
+	 
+	 j = d;
+	
+	 //printf("%s,%s,%d,%d,%f,%f,%f,%f\n",gm->name, sq->name,i,j,ddef->mocc[j-1], ddef->mocc[j], ddef->mocc[j+1],ddef->mocc[j+2]);
+	
+	 /* We have a region i..j to evaluate. */
+	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
+	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
+     ddef->nregions++;
+	 //printf("i %d, j %d\n", i, j);
+     if (is_multidomain_region_fs(ddef, i, j))
+     {  	
+       /* This region appears to contain more than one domain, so we have to
+        * resolve it by cluster analysis of posterior trace samples, to define
+        * one or more domain envelopes.
+        */
         
-	p7_gmx_GrowTo(bck, gm->M, j-i+1);
-        ddef->nregions++;
-	if (is_multidomain_region_fs(ddef, i, j))
-        {  	
-		/* This region appears to contain more than one domain, so we have to
-             * resolve it by cluster analysis of posterior trace samples, to define
-             * one or more domain envelopes.
-             */
-            ddef->nclustered++;
-            /* Resolve the region into domains by stochastic trace
-             * clustering; assign position-specific null2 model by
-             * stochastic trace clustering; there is redundancy
-             * here; we will consolidate later if null2 strategy
-             * works
-             */
-	    p7_ReconfigMultihit_Frameshift(gm, saveL);
-            p7_Forward_Frameshift(sq->dsq+i-1, j-i+1, gm, fwd, emit_sc, NULL);
-            region_trace_ensemble_frameshift(ddef, gm, sq->dsq, i, j, fwd, bck, &nc);
-	    p7_ReconfigUnihit_Frameshift(gm, saveL);
-            /* ddef->n2sc is now set on i..j by the traceback-dependent method */
-	    last_j2 = 0;
-            for (d = 0; d < nc; d++) {
-                  p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
-                  if (i2 <= last_j2) ddef->noverlaps++;
+	   ddef->nclustered++;
+       
+  	   /* Resolve the region into domains by stochastic trace
+        * clustering; assign position-specific null2 model by
+        * stochastic trace clustering; there is redundancy
+        * here; we will consolidate later if null2 strategy
+        * works
+        */
+	  
+	   p7_ReconfigMultihit_Frameshift(gm, saveL);
+       p7_Forward_Frameshift(sq->dsq+i-1, j-i+1, gm, fwd, emit_sc, NULL);
+       region_trace_ensemble_frameshift(ddef, gm, sq->dsq, i, j, fwd, bck, &nc);
+	   p7_ReconfigUnihit_Frameshift(gm, saveL);
+       
+	   /* ddef->n2sc is now set on i..j by the traceback-dependent method */
+	   last_j2 = 0;
+       for (d = 0; d < nc; d++) {
+         p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
+         if (i2 <= last_j2) ddef->noverlaps++;
 
-                    /* Note that k..m coords on model are available, but
-                     * we're currently ignoring them.  This leads to a
-                     * rare clustering bug that we eventually need to fix
-                     * properly [xref J3/32]: two different regions in one
-                     * profile HMM might have hit same seq domain, and
-                     * when we now go to calculate an OA trace, nothing
-                     * constrains us to find the two different alignments
-                     * to the HMM; in fact, because OA is optimal, we'll
-                     * find one and the *same* alignment, leading to an
-                     * apparent duplicate alignment in the output.
-                     *
-                     * Registered as #h74, Dec 2009, after EBI finds and
-                     * reports it.  #h74 is worked around in p7_tophits.c
-                     * by hiding all but one envelope with an identical
-                     * alignment, in the rare event that this
-                     * happens. [xref J5/130].
-                  */
-                  ddef->nenvelopes++;
-                  /*the !long_target argument will cause the function to recompute null2
-                   * scores if this is part of a long_target (nhmmer) pipeline */
-                  if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost) == eslOK)
-                       last_j2 = j2;
-	    }
+         /* Note that k..m coords on model are available, but
+          * we're currently ignoring them.  This leads to a
+          * rare clustering bug that we eventually need to fix
+          * properly [xref J3/32]: two different regions in one
+          * profile HMM might have hit same seq domain, and
+          * when we now go to calculate an OA trace, nothing
+          * constrains us to find the two different alignments
+          * to the HMM; in fact, because OA is optimal, we'll
+          * find one and the *same* alignment, leading to an
+          * apparent duplicate alignment in the output.
+          *
+          * Registered as #h74, Dec 2009, after EBI finds and
+          * reports it.  #h74 is worked around in p7_tophits.c
+          * by hiding all but one envelope with an identical
+          * alignment, in the rare event that this
+          * happens. [xref J5/130].
+          */
+         
+ 		 ddef->nenvelopes++;
+        
+		 /*the !long_target argument will cause the function to recompute null2
+          * scores if this is part of a long_target (nhmmer) pipeline */
+         
+	     if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost) == eslOK) last_j2 = j2;
+	   }
 
-            p7_spensemble_Reuse(ddef->sp);
-            p7_trace_Reuse(ddef->tr);
+       p7_spensemble_Reuse(ddef->sp);
+       p7_trace_Reuse(ddef->tr);
 
-	}
-        else
-        {
-            ddef->nenvelopes++;
-            rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost);
-	}
-        i     = -1;
-  	triggered = FALSE;
+	 } else {
+	   ddef->nenvelopes++;
+       rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, scores_arr, fwd_emissions_arr, gcode, indel_cost);
+	 //return eslOK;
+	 }
+     //printf("I %d, J %d\n", i, j);
+
+ 	 i     = -1;
+  	 triggered = FALSE;
     }
   }
+
   /* Restore model to uni/multihit mode, and to its original length model */
   if (p7_IsMulti(save_mode)) p7_ReconfigMultihit_Frameshift(gm, saveL); 
   else                       p7_ReconfigUnihit_Frameshift  (gm, saveL); 
@@ -1456,19 +1460,23 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   int            orig_L;
   float        **emit_sc;
   //temporarily change model length to env_len. The nhmmer pipeline will tack
-    //on the appropriate cost to account for the longer actual window
+  //on the appropriate cost to account for the longer actual window
   orig_L = gm->L;
   p7_ReconfigLength_Frameshift(gm, j-i+1);
   emit_sc = Codon_Emissions_Create(gm->rsc, sq->dsq+i-1, gcode, gm->M, Ld, indel_cost);
-  
   p7_Forward_Frameshift (sq->dsq+i-1, Ld, gm, gx1, emit_sc, &envsc);
   p7_Backward_Frameshift(sq->dsq+i-1, Ld, gm, gx2, emit_sc, NULL);
   gxpp = p7_gmx_fs_Create(gm->M, Ld);
-  status = p7_Decoding_Frameshift(gm, gx1, gx2, gxpp);      /* <ox2> is now overwritten with post probabilities     */
+ p7_Decoding_Frameshift(gm, gx1, gx2, gxpp);      /* <ox2> is now overwritten with post probabilities     */
+  
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
+  
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy_Frameshift(gm, gxpp, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
   p7_OATrace_Frameshift(gm, gxpp, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  
+  //FILE *out = fopen("out.txt", "w+");
+  //p7_gmx_fs_Dump(out, gxpp, p7_DEFAULT);
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)	  
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;

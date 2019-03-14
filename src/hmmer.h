@@ -1711,10 +1711,8 @@ extern int p7_Pipeline_LongTarget   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCORE
                                      const FM_DATA *fmf, const FM_DATA *fmb, FM_CFG *fm_cfg
                                      );
 extern int p7_Pipeline_Frameshift   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
-				     P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist,
-                                     int64_t seqidx, ESL_SQ *dnasq, int complementarity,
-                                     ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk
-  		         	     );
+				     P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block,
+				     P7_TOPHITS *hitlist, P7_SCOREDATA *data );
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 

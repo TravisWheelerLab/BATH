@@ -614,7 +614,8 @@ typedef struct p7_alidisplay_s {
   char *aseq;                   /* aligned target sequence              */
   char *ntseq;                  /* nucleotide target sequence if hmmscant */
   char *ppline;		        /* posterior prob annotation; or NULL   */
-  char  *codon;                  /* number of nuceltides in each codon   */
+  char *codon;                  /* number of nuceltides in each codon   */
+  int   frameshifts;            /* number of codons with frameshifts    */
   int   N;		        /* length of strings                    */
 
   char *hmmname;		/* name of HMM                          */
@@ -623,7 +624,7 @@ typedef struct p7_alidisplay_s {
   int   hmmfrom;		/* start position on HMM (1..M, or -1)  */
   int   hmmto;			/* end position on HMM (1..M, or -1)    */
   int   M;			/* length of model                      */
-
+  
   char *sqname;			/* name of target sequence              */
   char *orfname;        /* name of ORF within target sequence (assigned by hmmer pipeline)  */
   char *sqacc;			/* accession of target seq; or [0]='\0' */

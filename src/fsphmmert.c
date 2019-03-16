@@ -404,10 +404,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_PIPELINE      *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
   ESL_ALPHABET    *abcAMINO = NULL;       /* DNA sequence alphabet                               */
-  //ESL_SQ          *qsqDNA = NULL;		 /* DNA query sequence                                  */
-  //ESL_SQ          *qsqDNATxt = NULL;    /* DNA query sequence that will be in text mode for printing */
   ESL_GENCODE     *gcode       = NULL;
-  //ESL_GENCODE_WORKSTATE *wrk    = NULL;
   /* end hmmsearcht */
 
   w = esl_stopwatch_Create();
@@ -426,8 +423,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   else if (status == eslEFORMAT)   p7_Fail("Sequence file %s is empty or misformatted\n",            cfg->dbfile);
   else if (status == eslEINVAL)    p7_Fail("Can't autodetect format of a stdin or .gz seqfile");
   else if (status != eslOK)        p7_Fail("Unexpected error %d opening sequence file %s\n", status, cfg->dbfile);  
-
-
   if (esl_opt_IsUsed(go, "--restrictdb_stkey") || esl_opt_IsUsed(go, "--restrictdb_n")) {
     if (esl_opt_IsUsed(go, "--ssifile"))
       esl_sqfile_OpenSSI(dbfp, esl_opt_GetString(go, "--ssifile"));
@@ -593,7 +588,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         else
           info[i].pli->block_length = HMMSEARCHT_MAX_RESIDUE_COUNT;
 
-
 #ifdef HMMER_THREADS
         if (ncpus > 0) esl_threads_AddThread(threadObj, &info[i]);
 #endif
@@ -607,19 +601,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
          else
 #endif
          sstatus = serial_loop(info, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
-#if 0
-         switch(sstatus)
-         {
-         case eslOK:
-           /* do nothing */
-           break;
-         case eslEOF:
-           /* do nothing */
-           break;
-         default:
-           esl_fatal("Unexpected error %d processing ORFs", sstatus);
-         }
-#endif
+         
          /* merge the results of the search results */
          for (i = 0; i < infocnt; ++i)
          {
@@ -637,26 +619,20 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
             esl_gencode_WorkstateDestroy(info[i].wrk);
            }
 	}
-
-         //esl_sq_Reuse(qsqDNATxt);
-         //esl_sq_Reuse(qsqDNA);
 		 
-      //} /* while ((cfg->n_targetseq < 0 || (cfg->n_targetseq > 0 &&... loop */
-
       /* Print the results.  */
-      p7_tophits_SortBySeqidxAndAlipos(info->th);
-      assign_Lengths(info->th, id_length_list);
-      p7_tophits_RemoveDuplicates(info->th, info->pli->use_bit_cutoffs);
-     
+      p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
+      assign_Lengths(tophits_accumulator, id_length_list);
+      p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
       p7_tophits_SortBySortkey(tophits_accumulator);
       p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
       p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
       p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-
+      
       if (tblfp)     p7_tophits_TabularTargets(tblfp,    hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
+
       if (domtblfp)  p7_tophits_TabularDomains(domtblfp, hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
       if (pfamtblfp) p7_tophits_TabularXfam(pfamtblfp, hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator);
-
       esl_stopwatch_Stop(w);
       p7_pli_Statistics(ofp, pipelinehits_accumulator, w);
       if (fprintf(ofp, "//\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -699,9 +675,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   /* Terminate outputs... any last words?
    */
-  if (tblfp)    p7_tophits_TabularTail(tblfp,    "hmmsearcht", p7_SEARCH_SEQS, cfg->hmmfile, cfg->dbfile, go);
-  if (domtblfp) p7_tophits_TabularTail(domtblfp, "hmmsearcht", p7_SEARCH_SEQS, cfg->hmmfile, cfg->dbfile, go);
-  if (pfamtblfp) p7_tophits_TabularTail(pfamtblfp,"hmmsearcht", p7_SEARCH_SEQS, cfg->hmmfile, cfg->dbfile, go);
+  if (tblfp)    p7_tophits_TabularTail(tblfp,    "fsphmmert", p7_SEARCH_SEQS, cfg->hmmfile, cfg->dbfile, go);
+  if (domtblfp) p7_tophits_TabularTail(domtblfp, "fsphmmert", p7_SEARCH_SEQS, cfg->hmmfile, cfg->dbfile, go);
+  if (pfamtblfp) p7_tophits_TabularTail(pfamtblfp,"fsphmmert", p7_SEARCH_SEQS, cfg->hmmfile, cfg->dbfile, go);
   if (ofp)      { if (fprintf(ofp, "[ok]\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
   /* Cleanup - prepare for exit
@@ -756,7 +732,6 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
  // ESL_SQ_BLOCK *block       = NULL;   /* for translated ORFs */
   wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
-
   while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
 //printf("LOOP START\n"); 
       dbsq_dna->idx = seq_id;

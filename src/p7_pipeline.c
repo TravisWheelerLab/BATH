@@ -2618,11 +2618,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   P7_HMM_WINDOWLIST post_vit_windowlist;
   P7_HMM_WINDOW    *window;
   ESL_SQ_BLOCK *post_vit_orf_block; 
-
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
   if (dnasq->n < 3) return eslOK;
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_FRAMESHIFT_OBJS));
-
   pli_tmp->tmpseq = NULL;
   pli_tmp->bg = p7_bg_Clone(bg);
   pli_tmp->gm = p7_profile_Create(gm->M, om->abc);

@@ -69,9 +69,10 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   int            status;
   char           n1,n2,n3;
   int            j;
-
+    
   ESL_SQ         *ntorfseqtxt = NULL;
   
+
   /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
    */
@@ -162,6 +163,9 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->sqfrom  = tr->i[z1];
   ad->sqto    = tr->i[z2];		 
   ad->L       = sq->n;
+  
+  ad->frameshifts = -1;
+
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : om->rf[tr->k[z]]);
@@ -297,7 +301,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->N = z2-z1+1;
 
   esl_sq_Destroy(ntorfseqtxt);  
-	  return ad;
+  return ad;
 
  ERROR:
   p7_alidisplay_Destroy(ad);
@@ -351,7 +355,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   float		 max_emit, cur_emit;
   float	        *rsc; 
   ESL_SQ        *codon;
- /* First figure out which piece of the trace (from first match to last match) 
+
+/* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
    */
   if (tr->ndom > 0) {		/* if we have an index, this is a little faster: */
@@ -428,6 +433,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
   ad->M       = gm->M;
+  ad->frameshifts = 0; 
+  
   if(sq->start < sq->end) {
     ad->sqfrom  = tr->i[z1-1] + 1;
     ad->sqto    = tr->i[z2];		 
@@ -502,6 +509,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       	cur_emit = -eslINFINITY; 	    
         max_emit = -eslINFINITY;
 	if(l == 1) {
+          ad->frameshifts++;           
 	  
 	  codon->dsq[1] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
@@ -565,6 +573,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       }
 
 	if(l == 2) {
+          ad->frameshifts++;
+ 
 	  codon->dsq[1] = sq->dsq[i-1];	
 	  codon->dsq[2] = sq->dsq[i];
 	  for(j = 0; j < 4; j++) {
@@ -631,7 +641,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         }
 	
 	if(l == 4) {
-	  codon->dsq[1] = sq->dsq[i-3];	
+	  ad->frameshifts++;
+        
+          codon->dsq[1] = sq->dsq[i-3];	
 	  codon->dsq[2] = sq->dsq[i-2];
 	  for(j = 0; j <= 1; j++) {
 	     codon->dsq[3] = sq->dsq[i-j];
@@ -669,6 +681,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         }
 
         if(l == 5) {
+	  ad->frameshifts++;
 	  
 	  codon->dsq[1] = sq->dsq[i-4];	
 	  codon->dsq[2] = sq->dsq[i-3];

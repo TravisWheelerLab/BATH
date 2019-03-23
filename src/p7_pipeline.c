@@ -2148,7 +2148,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
 )
 {
 
-  //printf("VIT PIPE\n");
+//  printf("VIT PIPE\n");
   P7_HIT           *hit     = NULL;     /* ptr to the current hit output data      */
   float            fwdsc;   /* filter scores                           */
   float		   bwdsc;
@@ -2169,21 +2169,19 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
   int F3_L = ESL_MIN( window_len,  pli->B3);
   float	           indel_cost = 0.01;
   int i;
-  
   if(dnasq->end < dnasq->start) {
 	 	  subseq = dnasq->dsq + window_start;
   } else {
     subseq = dnasq->dsq + window_start - 1;
   }
-    
+   
+ printf("START %d\n", window_start); 
   p7_ReconfigLength_Frameshift(gm, window_len);
   emit_sc = Codon_Emissions_Create(gm->rsc, subseq, gcode, gm->M, window_len, indel_cost);
-
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
 //printf("FORWARD\n");
   /* Parse with Forward and obtain its real Forward score. */
   p7_Forward_Frameshift(subseq, window_len, gm, pli->gxf, emit_sc, &fwdsc);
- 
 
   //TODO: figure out translated filterscore
 #if 0
@@ -2229,7 +2227,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
 //printf("BOACKWARD\n");  
   p7_Backward_Frameshift(subseq, window_len, gm, pli->gxb, emit_sc, NULL);
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
-//printf("DOMAIN DEF\n"); 
+//printf("DOMAIN DEF\n");
+//printf("START %d LEN %d\n", window_start, window_len); 
    status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
 							 pli->gxf,pli->gxb, pli->gfwd, pli->gbck,
 							 pli->ddef, bg, TRUE,pli_tmp->bg, 
@@ -2438,19 +2437,19 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
             else
             { 
 
-			   hit->dcl[d].iorf       = dnasq->start-1;
-               hit->dcl[d].jorf       = dnasq->end+2;
+			   hit->dcl[d].iorf       = dnasq->start;
+               hit->dcl[d].jorf       = dnasq->end;
 
-               hit->dcl[d].ienv       = dnasq->start - (window_start + hit->dcl[d].ienv) + 2;
-               hit->dcl[d].jenv       = dnasq->start - (window_start + hit->dcl[d].jenv) + 2;
-              
-               hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 2;
+               hit->dcl[d].ienv       = dnasq->start - (window_start + hit->dcl[d].ienv) + 1;
+               hit->dcl[d].jenv       = dnasq->start - (window_start + hit->dcl[d].jenv) + 1;
+             printf("iali %d jali %d\n",hit->dcl[d].iali, hit->dcl[d].jali); 
+               hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 1;
                hit->dcl[d].jali       = hit->dcl[d].iali - (hit->dcl[d].ad->sqfrom - hit->dcl[d].ad->sqto);
 
 			//   printf("iorf %d, jorf %d, ienv %d, jenv %d, iali %d, jali %d\n", hit->dcl[d].iorf,hit->dcl[d].jorf,hit->dcl[d].ienv,hit->dcl[d].jenv,hit->dcl[d].iali,hit->dcl[d].jali);
                hit->dcl[d].ad->sqfrom = hit->dcl[d].iali;
                hit->dcl[d].ad->sqto   = hit->dcl[d].jali;
-  //          printf("iorf %d, jorf %d, ienv %d, jenv %d, iali %d, jali %d, sqfrom %d, sqto %d\n", hit->dcl[d].iorf,hit->dcl[d].jorf,hit->dcl[d].ienv,hit->dcl[d].jenv,hit->dcl[d].iali,hit->dcl[d].jali, hit->dcl[d].ad->sqfrom, hit->dcl[d].ad->sqto);
+            printf("name %s, iorf %d, jorf %d, ienv %d, jenv %d, iali %d, jali %d, sqfrom %d, sqto %d\n", dnasq->name, hit->dcl[d].iorf,hit->dcl[d].jorf,hit->dcl[d].ienv,hit->dcl[d].jenv,hit->dcl[d].iali,hit->dcl[d].jali, hit->dcl[d].ad->sqfrom, hit->dcl[d].ad->sqto);
 }
          }
     }
@@ -2619,7 +2618,10 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   P7_HMM_WINDOW    *window;
   ESL_SQ_BLOCK *post_vit_orf_block; 
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
+  
   if (dnasq->n < 3) return eslOK;
+ // printf("SEQ NAME %s\n", dnasq->name);
+
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_FRAMESHIFT_OBJS));
   pli_tmp->tmpseq = NULL;
   pli_tmp->bg = p7_bg_Clone(bg);

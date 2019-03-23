@@ -1347,6 +1347,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   int   namew, descw;
   char *showname;
   int   status;
+
   if (pli->long_targets) /// nucleotide search
     {
       if (fprintf(ofp, "Annotation for each hit %s:\n",

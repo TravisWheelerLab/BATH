@@ -742,7 +742,8 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       p7_pli_NewSeq(info->pli, dbsq_dna);
 
       if (info->wrk->do_watson) {
-         info->pli->nres -= dbsq_dna->C;
+         //printf("NO COMP\n");
+		 info->pli->nres -= dbsq_dna->C;
          do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
    //      block =  info->wrk->orf_block;
 	 p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dbsq_dna, info->wrk->orf_block, info->th, info->scoredata);
@@ -752,6 +753,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       }
 
       if (info->wrk->do_crick) {
+		//	  printf("COMP\n");
          esl_sq_ReverseComplement(dbsq_dna);
 	 do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
         // block =  info->wrk->orf_block;

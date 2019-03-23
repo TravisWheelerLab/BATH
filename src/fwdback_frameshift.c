@@ -373,7 +373,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
                            DMX(L, k+1)  + TSC(p7P_DD,k));
     IMX(L,k) = -eslINFINITY;
   } 
- 
+printf("BACK L %d M %d\n", L, M); 
   /* Main recursion */
   for (i = L-1; i >= 1; i--)
   {
@@ -514,8 +514,9 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
     sc += TSC(p7P_BM,k-1);
     
     XMX(0,p7G_B) = p7_FLogsum(sc, XMX(0, p7G_B)); 
-  }
-  
+      }
+  printf("0B %f\n", XMX(0,p7G_B));
+
   XMX(0,p7G_J) = -eslINFINITY;
   XMX(0,p7G_C) = -eslINFINITY;
   XMX(0,p7G_E) = -eslINFINITY;
@@ -530,8 +531,11 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
       
   gx->M = M;
   gx->L = L;
-
-    //p7_gmx_DumpWindow(stdout, gx, 300, gx->L,100, 106, p7_DEFAULT);
+FILE *out = fopen("out.txt", "w+");
+p7_gmx_Dump(out, gx, p7_DEFAULT);
+printf("DONE\n");
+sleep(5);
+//p7_gmx_DumpWindow(stdout, gx, 300, gx->L,100, 106, p7_DEFAULT);
   return eslOK;
 }
 
@@ -542,7 +546,6 @@ max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
   float cur_emit;
   float max_emit;
   float const *rsc;  
-
   max_emit = -eslINFINITY;
 
   codon[1] = dsq[i];
@@ -578,7 +581,6 @@ max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
   float cur_emit;
   float max_emit;
   float const *rsc;
-
   if(i < 2) return -eslINFINITY;;
 	 
   max_emit = -eslINFINITY;
@@ -615,7 +617,6 @@ max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE
   int amino;
   float max_emit;
   float const *rsc;
-
   if(i < 3) return -eslINFINITY;
 	 
   max_emit = -eslINFINITY;
@@ -625,10 +626,10 @@ max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE
   codon[3] = dsq[i];
 
   amino = esl_gencode_GetTranslation(gcode, &codon[1]);
-  if(amino == 27) amino = 26; 
+//  if(amino == 27) amino = 26; 
   rsc = emit_sc[amino];
   max_emit = MSC(k);
-  
+//	if(amino == 26) printf("emit %f\n", max_emit);  
   return max_emit;
 }
 
@@ -640,7 +641,6 @@ max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE 
   float cur_emit;
   float max_emit;
   float const *rsc; 
-
   if(i < 4) return -eslINFINITY;
 	 
   max_emit = -eslINFINITY;
@@ -691,16 +691,15 @@ max_codon_five(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE 
   float cur_emit;
   float max_emit;
   float const *rsc;
-
   if(i < 5) return -eslINFINITY;
 	
   int shifts[30] = {0,1,2,0,1,3,0,1,4,0,2,3,0,2,4,0,3,4,1,2,3,1,2,4,1,3,4,2,3,4};
   max_emit = -eslINFINITY;
  
   for(j = 0; j < 30; j+=3) {
-    codon[1] = dsq[shifts[j+2]];
-    codon[2] = dsq[shifts[j+1]];
-    codon[3] = dsq[shifts[j]];
+    codon[1] = dsq[i-shifts[j+2]];
+    codon[2] = dsq[i-shifts[j+1]];
+    codon[3] = dsq[i-shifts[j]];
     
     amino = esl_gencode_GetTranslation(gcode, &codon[1]);
     rsc = emit_sc[amino];

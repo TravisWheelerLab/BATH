@@ -544,7 +544,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   triggered = FALSE;
 //FILE *out = fopen("out.txt", "w+");
 //p7_domaindef_DumpPosteriors(out, ddef); 
- //printf("window_start %d\n",window_start);
+ printf("name %s window_start %d\n", ntsq->name, window_start);
 
   /* The standard madel has four possible emit states (N, M, J, C), so >= 0.25 in the M state makes sense as a threshold, 
    * but the frameshift model has 5 M sates, one for each codon.  Therefore the threshold needs to be 5/8 */
@@ -562,19 +562,20 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
       d = j;
 	}
     else {
-		//	printf("%s,%s,%d,%f,%f,%f,%f\n",gm->name, sq->name,j,ddef->mocc[j-1], ddef->mocc[j], ddef->mocc[j+1],ddef->mocc[j+2]);
-      while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
+	  printf("d %d\n", d);
+	  while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
 	    if(d > 3) d -= 3;
 	    else d = 1;
 		if(d > 3 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) {
-	      if(ddef->mocc[d-1] - (ddef->btot[d-1] - ddef->etot[d-2]) >= ddef->rt2) d++;
-	      else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) d+=2;
+	      if(ddef->mocc[d-1] - (ddef->btot[d-1] - ddef->btot[d-2]) >= ddef->rt2) d--;
+	      else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->btot[d-3]) >= ddef->rt2) d-=2;
 	    }
       }
 
       i = d;
       d = j-1;
-      
+      printf("i %d\n", i);
+
 	  while(d < gxf->L-1 && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
 	    if(d <= gxf->L - 3) d += 3;
         else d = gxf->L;
@@ -582,17 +583,15 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	      if(ddef->mocc[d-1] - (ddef->etot[d-1] - ddef->etot[d-2]) >= ddef->rt2) d--;
 	      else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->etot[d-3]) >= ddef->rt2) d-=2;
         } 
-     }  
+      }  
 	 
 	 j = d;
-	
-	 //printf("%s,%s,%d,%d,%f,%f,%f,%f\n",gm->name, sq->name,i,j,ddef->mocc[j-1], ddef->mocc[j], ddef->mocc[j+1],ddef->mocc[j+2]);
 	
 	 /* We have a region i..j to evaluate. */
 	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
      ddef->nregions++;
-	 //printf("i %d, j %d\n", i, j);
+	 printf("i %d, j %d\n", i, j);
      if (is_multidomain_region_fs(ddef, i, j))
      {  	
        /* This region appears to contain more than one domain, so we have to
@@ -1457,34 +1456,41 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 )
 {
   P7_DOMAIN     *dom           = NULL;
-  P7_GMX        *gxpp;
+  P7_GMX        *gxppfs;
   int            Ld            = j-i+1;
   float          domcorrection = 0.0;
-  float          envsc, oasc;
+  float          envsc, oasc, bcksc;
   int            z;
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
   int            orig_L;
   float        **emit_sc;
+  
   //temporarily change model length to env_len. The nhmmer pipeline will tack
   //on the appropriate cost to account for the longer actual window
   orig_L = gm->L;
+  
   p7_ReconfigLength_Frameshift(gm, j-i+1);
+  
   emit_sc = Codon_Emissions_Create(gm->rsc, sq->dsq+i-1, gcode, gm->M, Ld, indel_cost);
+  printf("i %d j %d Ld %d\n", i, j, Ld);
+  
   p7_Forward_Frameshift (sq->dsq+i-1, Ld, gm, gx1, emit_sc, &envsc);
-  p7_Backward_Frameshift(sq->dsq+i-1, Ld, gm, gx2, emit_sc, NULL);
-  gxpp = p7_gmx_fs_Create(gm->M, Ld);
- p7_Decoding_Frameshift(gm, gx1, gx2, gxpp);      /* <ox2> is now overwritten with post probabilities     */
+  printf("env sc %f\n", envsc);
+  p7_Backward_Frameshift(sq->dsq+i-1, Ld, gm, gx2, emit_sc, &bcksc);
+  printf("bck cs %f\n", bcksc); 
+  gxppfs = p7_gmx_fs_Create(gm->M, Ld);
+  p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
   
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
   
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(gm, gxpp, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
-  p7_OATrace_Frameshift(gm, gxpp, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
+  p7_OATrace_Frameshift(gm, gxppfs, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
   
   //FILE *out = fopen("out.txt", "w+");
-  //p7_gmx_fs_Dump(out, gxpp, p7_DEFAULT);
+  //p7_gmx_fs_Dump(out, gxppfs, p7_DEFAULT);
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)	  
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
@@ -1509,7 +1515,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
      * do it now, by the expectation (posterior decoding) method.
      */
       if (!null2_is_done) {
-       p7_GNull2_ByExpectation(gm, gxpp, null2);
+       p7_GNull2_ByExpectation(gm, gxppfs, null2);
      //	for (pos = i; pos <= j; pos++)
        //   ddef->n2sc[pos]  = logf(null2[sq->dsq[pos]]);
       }
@@ -1529,7 +1535,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   dom->is_included   = FALSE; /* gets set later by caller */
 
   ddef->ndom++;
-  p7_gmx_Destroy(gxpp);
+  p7_gmx_Destroy(gxppfs);
   p7_trace_Reuse(ddef->tr);
   return eslOK;
 

@@ -25,6 +25,7 @@
 
 #define TSCDELTA(s,k) ( (tsc[(k) * p7P_NTRANS + (s)] == -eslINFINITY) ? FLT_MIN : 1.0)
 
+
 /* The TSCDELTA is used to make impossible paths impossible in the
  * optimal accuracy decoding algorithm; see Kall et al (2005). What we
  * want to do is multiply by a Kronecker delta that's 1 when the
@@ -72,6 +73,7 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
   float const *tsc  = gm->tsc;
+  float       *rsc;
   int          i,k;
   int          M    = gm->M;
   float        esc  = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
@@ -174,8 +176,9 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
 					     TSCDELTA(p7P_BM, M-1) * (XMX(i-5,p7G_B)+ pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5])));
         }
 
-      MMX(i,M)     = ESL_MAX(ESL_MAX(Max1, Max2),ESL_MAX(ESL_MAX(Max3, Max4), Max5)); 
-
+      MMX(i,M)     = ESL_MAX(ESL_MAX(Max1, Max2),ESL_MAX(ESL_MAX(Max3, Max4), Max5));
+      
+	  //printf("i %d k %d M %f\n", i, k, MMX(i,M));
       DMX(i,M)     = ESL_MAX(TSCDELTA(p7P_MD, M-1) * MMX(i,M-1),
 			     TSCDELTA(p7P_DD, M-1) * DMX(i,M-1));
 
@@ -221,8 +224,6 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
         //p7_gmx_Dump(out, gx, p7_DEFAULT); 
 
 
-//p7_gmx_DumpWindow(stdout, gx, 300, pp->L, 100, 106, p7_DEFAULT);
-  //p7_gmx_Dump(stdout,gx,p7_DEFAULT); 
   return eslOK;
 }
 /*---------------------- end, oa fill ---------------------------*/
@@ -347,12 +348,11 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i, i
   float match_codon[5] = {FLT_MIN, FLT_MIN, FLT_MIN, FLT_MIN, FLT_MIN}; 
   int   codon_length[5] = { 1, 2, 3, 4, 5 }; 
   int   c;
-
+//printf("m i %d\n", *ret_i);
   float path[4];
   int   state_path[5];
   int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
   int   S1, S2, S3, S4, S5; 
- 
   match_codon[0] = pp->dp[*ret_i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1];
   match_codon[1] = pp->dp[*ret_i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2];
   match_codon[2] = pp->dp[*ret_i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3];
@@ -367,48 +367,7 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i, i
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i,k-1);
   path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i,p7G_B);
   return state[esl_vec_FArgMax(path, 4)];
- 
-#if 0  
-  if(*ret_i >= 2) {
-    path[0] = TSCDELTA(p7P_MM, k-1) * MMX(*ret_i-2,k-1);
-    path[1] = TSCDELTA(p7P_IM, k-1) * IMX(*ret_i-2,k-1);
-    path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i-2,k-1);
-    path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i-2,p7G_B);
-    codon_path[1] = esl_vec_FMax(path, 4);
-    state_path[1] = state[esl_vec_FArgMax(path, 4)];
-  }
-
-  if(*ret_i >= 3) {
-    path[0] = TSCDELTA(p7P_MM, k-1) * MMX(*ret_i-3,k-1);
-    path[1] = TSCDELTA(p7P_IM, k-1) * IMX(*ret_i-3,k-1);
-    path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i-3,k-1);
-    path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i-3,p7G_B);
-    codon_path[2] = esl_vec_FMax(path, 4);
-    state_path[2] = state[esl_vec_FArgMax(path, 4)];
-  }
-
-  if(*ret_i >= 4) {
-    path[0] = TSCDELTA(p7P_MM, k-1) * MMX(*ret_i-4,k-1);
-    path[1] = TSCDELTA(p7P_IM, k-1) * IMX(*ret_i-4,k-1);
-    path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i-4,k-1);
-    path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i-4,p7G_B);
-    codon_path[3] = esl_vec_FMax(path, 4);
-    state_path[3] = state[esl_vec_FArgMax(path, 4)];
-  }
-  
-  if(*ret_i >= 5) {
-    path[0] = TSCDELTA(p7P_MM, k-1) * MMX(*ret_i-5,k-1);
-    path[1] = TSCDELTA(p7P_IM, k-1) * IMX(*ret_i-5,k-1);
-    path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i-5,k-1);
-    path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i-5,p7G_B);
-    codon_path[4] = esl_vec_FMax(path, 4);
-    state_path[4] = state[esl_vec_FArgMax(path, 4)];
-  }
-
-  *ret_i -= codon[esl_vec_FArgMax(codon_path, 5)];
-  return state_path[esl_vec_FArgMax(codon_path, 5)];
-#endif
-}
+ }
 
 static inline int
 select_d(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k)

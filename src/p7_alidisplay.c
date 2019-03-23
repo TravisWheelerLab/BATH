@@ -1364,7 +1364,7 @@ if (show_translated_sequence)
   
 if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 if (ni > 0) 
-   {   
+   {
       if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
    }
    else

@@ -116,7 +116,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
  
   if (ntsq != NULL)    {  /* translated search only */
-      orf_namelen = strlen(sq->orfid);                      n += orf_namelen  + 1; /* same for orfname          */
+      //orf_namelen = strlen(sq->orfid);                      n += orf_namelen  + 1; /* same for orfname          */
   }
 
   ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
@@ -151,9 +151,9 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   strcpy(ad->sqname,  sq->name);
   strcpy(ad->sqacc,   sq->acc);
   strcpy(ad->sqdesc,  sq->desc);
-  if (ntsq != NULL)    { /* translated search only */
-      strcpy(ad->orfname,  sq->orfid);
-  }
+  //if (ntsq != NULL)    { /* translated search only */
+    //  strcpy(ad->orfname,  sq->orfid);
+ // }
 
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];

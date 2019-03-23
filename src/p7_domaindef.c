@@ -1,6 +1,4 @@
 /* Definition of multidomain structure of a target sequence, and
- * rescoring as a sum of individual domains, with null2 correction.
- * 
  * Contents:
  *    1. The P7_DOMAINDEF object: allocation, reuse, destruction
  *    2. Routines inferring domain structure of a target sequence
@@ -536,6 +534,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int save_mode = gm->mode;	/* Likewise for the mode. */
   int status;
   float k;
+
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
   esl_vec_FSet(ddef->n2sc, sq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
@@ -546,15 +545,24 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 //FILE *out = fopen("out.txt", "w+");
 //p7_domaindef_DumpPosteriors(out, ddef); 
  //printf("window_start %d\n",window_start);
- 
-   for (j = 1; j <= gxf->L; j++)
+
+  /* The standard madel has four possible emit states (N, M, J, C), so >= 0.25 in the M state makes sense as a threshold, 
+   * but the frameshift model has 5 M sates, one for each codon.  Therefore the threshold needs to be 5/8 */
+
+  ddef->rt1           = 0.625; 
+  ddef->rt2           = 0.25;
+  ddef->rt3           = 0.10;
+  ddef->min_posterior = 0.625;
+  ddef->min_endpointp = 0.05;
+
+  for (j = 1; j <= gxf->L; j++)
   {   
     if (! triggered){
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
       d = j;
 	}
     else {
-			//printf("%s,%s,%d,%f,%f,%f,%f\n",gm->name, sq->name,j,ddef->mocc[j-1], ddef->mocc[j], ddef->mocc[j+1],ddef->mocc[j+2]);
+		//	printf("%s,%s,%d,%f,%f,%f,%f\n",gm->name, sq->name,j,ddef->mocc[j-1], ddef->mocc[j], ddef->mocc[j+1],ddef->mocc[j+2]);
       while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
 	    if(d > 3) d -= 3;
 	    else d = 1;

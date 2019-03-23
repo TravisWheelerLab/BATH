@@ -85,7 +85,7 @@ static ESL_OPTIONS options[] = {
   { "--notrans",    eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't show the translated DNA sequence in domain alignment",   2 }, /*for hmmsearcht */
   { "--vertcodon",  eslARG_NONE,   FALSE,  NULL, NULL,   NULL,  NULL,  NULL,            "show the DNA codon vertically in domain alignment",            2 }, /*for hmmsearcht */
   { "--notextw",    eslARG_NONE,    NULL, NULL, NULL,    NULL,  NULL, "--textw",        "unlimit ASCII text output line width",                         2 },
-  { "--textw",      eslARG_INT,    "120", NULL, "n>=120",NULL,  NULL, "--notextw",      "set max width of ASCII text output lines",                     2 },
+  { "--textw",      eslARG_INT,    "150", NULL, "n>=150",NULL,  NULL, "--notextw",      "set max width of ASCII text output lines",                     2 },
   /* Control of reporting thresholds */
   { "-E",           eslARG_REAL,  "10.0", NULL, "x>0",   NULL,  NULL,  REPOPTS,         "report sequences <= this E-value threshold in output",         4 },
   { "-T",           eslARG_REAL,   FALSE, NULL, NULL,    NULL,  NULL,  REPOPTS,         "report sequences >= this score threshold in output",           4 },
@@ -143,9 +143,7 @@ static ESL_OPTIONS options[] = {
 static char usage[]  = "[options] <hmmfile> <seqdb>";
 static char banner[] = "search protein profile(s) against DNA sequence database";
 
-
-
-/* struct cfg_s : "Global" application configuration shared by all threads/processes
+ /* struct cfg_s : "Global" application configuration shared by all threads/processes
  * 
  * This structure is passed to routines within main.c, as a means of semi-encapsulation
  * of shared data amongst different parallel processes (threads).
@@ -732,6 +730,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
  // ESL_SQ_BLOCK *block       = NULL;   /* for translated ORFs */
   wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
+  printf("NAME %s\n", info->gm->name);
   while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
 //printf("LOOP START\n"); 
       dbsq_dna->idx = seq_id;

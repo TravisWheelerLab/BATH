@@ -15,11 +15,11 @@
 
 #include "hmmer.h"
 
-static float max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i);
-static float max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i); 
-static float max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i);
-static float max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i);
-static float max_codon_five(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i);
+static float max_codon_one(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel);
+static float max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float one_indel); 
+static float max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float no_indel, float one_indel);
+static float max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float one_indel);
+static float max_codon_five(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel);
 
 float ** 
 Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost)  {
@@ -44,6 +44,7 @@ Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE
     emit_sc[i] = emit_sc[0] + i * M * p7P_CODONS;
   
   abcDNA = esl_alphabet_Create(eslDNA);
+<<<<<<< HEAD
   codon = malloc(sizeof(ESL_DSQ) * 5);
 
   for(i = 1; i <= L; i++) {
@@ -56,6 +57,19 @@ Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE
       MSC_FS(k,p7P_C5) = max_codon_five(original_rsc, codon, subseq, gcode, k, i)  + two_indel;
    
 	}
+=======
+	codon = malloc(sizeof(ESL_DSQ) * 5);
+
+  for(k = 0; k <= M; k++) {
+    rsc = emit_sc[k];
+    for(i = 1; i <= L; i++) {
+	 MSC_FS(i,p7P_C1) = max_codon_one(original_rsc, codon, subseq, gcode, k, i, two_indel);
+      MSC_FS(i,p7P_C2) = max_codon_two(original_rsc, codon, subseq, gcode, k, i, one_indel);
+      MSC_FS(i,p7P_C3) = max_codon_three(original_rsc, codon, subseq, gcode, k, i, no_indel, one_indel);
+      MSC_FS(i,p7P_C4) = max_codon_four(original_rsc, codon, subseq, gcode, k, i, one_indel);
+      MSC_FS(i,p7P_C5) = max_codon_five(original_rsc, codon, subseq, gcode, k, i, two_indel);
+    }
+>>>>>>> old-state
   }
   esl_alphabet_Destroy(abcDNA); 
   free(codon);
@@ -612,7 +626,11 @@ max_codon_two(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *
 }
 
 float 
+<<<<<<< HEAD
 max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i) {
+=======
+max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float no_indel, float one_indel) {
+>>>>>>> old-state
 
   int amino;
   float max_emit;
@@ -621,6 +639,7 @@ max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE
 	 
   max_emit = -eslINFINITY;
   
+<<<<<<< HEAD
   codon[1] = dsq[i-2];
   codon[2] = dsq[i-1];
   codon[3] = dsq[i];
@@ -631,8 +650,27 @@ max_codon_three(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE
   max_emit = MSC(k);
 //	if(amino == 26) printf("emit %f\n", max_emit);  
   return max_emit;
-}
+=======
+    codon[1] = dsq[i-2];
+    codon[2] = dsq[i-1];
+    codon[3] = dsq[i];
 
+    amino = esl_gencode_GetTranslation(gcode, &codon[1]);
+	rsc = emit_sc[amino];
+    max_emit = MSC(k);
+	
+	if(amino != 27) return max_emit + no_indel;
+    else{
+		amino = 26;
+		rsc = emit_sc[amino];
+        max_emit = MSC(k);
+		return max_emit + one_indel;
+  
+	}
+
+  }
+>>>>>>> old-state
+}
 float 
 max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i) {
 

@@ -528,7 +528,7 @@ typedef struct p7_gmx_s {
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
 #define ISC(k)   (rsc[(k) * p7P_NR     + p7P_ISC])
-#define MSC_FS(i,c) (rsc[(i) * p7P_CODONS + (c)]) 
+#define MSC_FS(k,c) (rsc[(k) * p7P_CODONS + (c)]) 
 /* Flags that control P7_GMX debugging dumps */
 #define p7_HIDE_SPECIALS (1<<0)
 #define p7_SHOW_LOG      (1<<1)

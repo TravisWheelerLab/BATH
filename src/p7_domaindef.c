@@ -544,18 +544,11 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   triggered = FALSE;
 //FILE *out = fopen("out.txt", "w+");
 //p7_domaindef_DumpPosteriors(out, ddef); 
- printf("name %s window_start %d\n", ntsq->name, window_start);
+//printf("window_start %d\n",window_start);
 
-  /* The standard madel has four possible emit states (N, M, J, C), so >= 0.25 in the M state makes sense as a threshold, 
-   * but the frameshift model has 5 M sates, one for each codon.  Therefore the threshold needs to be 5/8 */
-
-  ddef->rt1           = 0.625; 
-  ddef->rt2           = 0.25;
-  ddef->rt3           = 0.10;
-  ddef->min_posterior = 0.625;
-  ddef->min_endpointp = 0.05;
-
-  for (j = 1; j <= gxf->L; j++)
+ ddef->rt1 = 0.67;
+  ddef->rt2 = 0.25; 
+   for (j = 1; j <= gxf->L; j++)
   {   
     if (! triggered){
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
@@ -591,14 +584,20 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
      ddef->nregions++;
+<<<<<<< HEAD
 	 printf("i %d, j %d\n", i, j);
      if (is_multidomain_region_fs(ddef, i, j))
+=======
+	 //printf("i %d, j %d\n", i, j);
+  	   //printf("HMM NAME %s SEQ NAME %s\n", gm->name, ntsq->name); 	   
+     if (is_multidomain_region(ddef, i, j))
+>>>>>>> old-state
      {  	
        /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
         */
-        
+       printf("MULTI\n");
 	   ddef->nclustered++;
        
   	   /* Resolve the region into domains by stochastic trace

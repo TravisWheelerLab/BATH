@@ -543,10 +543,12 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
   i     = -1;
   triggered = FALSE;
-//FILE *out = fopen("out.txt", "w+");
-//p7_domaindef_DumpPosteriors(out, ddef); 
- //printf("window_start %d\n",window_start);
- 
+FILE *out = fopen("out.txt", "w+");
+p7_domaindef_DumpPosteriors(out, ddef); 
+//printf("window_start %d\n",window_start);
+
+ ddef->rt1 = 0.67;
+  ddef->rt2 = 0.25; 
    for (j = 1; j <= gxf->L; j++)
   {   
     if (! triggered){
@@ -585,13 +587,14 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
      ddef->nregions++;
 	 //printf("i %d, j %d\n", i, j);
-     if (is_multidomain_region_fs(ddef, i, j))
+  	   //printf("HMM NAME %s SEQ NAME %s\n", gm->name, ntsq->name); 	   
+     if (is_multidomain_region(ddef, i, j))
      {  	
        /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
         */
-        
+       printf("MULTI\n");
 	   ddef->nclustered++;
        
   	   /* Resolve the region into domains by stochastic trace

@@ -983,20 +983,20 @@ p7_trace_fs_SetPP(P7_TRACE *tr, const P7_GMX *pp)
   int status;
 
   if (tr->pp == NULL) ESL_ALLOC(tr->pp, sizeof(float) * tr->nalloc);
-
+  
   for (z = 0; z < tr->N; z++)
     {
+
       if (tr->i[z] > 0)		/* an emitting state? */
 	{
 	  switch (tr->st[z]) {
-	  printf("i %d, state %d\n", tr->i[z], tr->st[z]);
-	  case p7T_M:  codon = tr->i[z] - tr->i[z+1];
-		       if(codon == 1) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C1); break; }
-		       if(codon == 2) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C2); break; }
- 		       if(codon == 3) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C3); break; }
-	               if(codon == 4) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C4); break; }
- 		       if(codon == 5) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C5); break; }
-          case p7T_I:  tr->pp[z] = IMX_FS(tr->i[z], tr->k[z]); break;
+	  case p7T_M: tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C0); break;
+	  	//if(codon == 1) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C1); break; }
+		//if(codon == 2) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C2); break; }
+ 		//if(codon == 3) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C3); break; }
+	    //if(codon == 4) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C4); break; }
+ 		//if(codon == 5) { tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C5); break; }
+      case p7T_I:  tr->pp[z] = IMX_FS(tr->i[z], tr->k[z]); break;
 	  case p7T_D:  tr->pp[z] = 0.0; break;
 	  case p7T_N:  tr->pp[z] = XMX_FS(tr->i[z], p7G_N);    break;
 	  case p7T_B:  tr->pp[z] = 0.0; break;

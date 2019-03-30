@@ -136,7 +136,6 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
           case 3: scur = p7T_D;  break;
           default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
        }
-if(k == 96)	printf("i %d, scur %d\n", i, scur);
        i -= d;
        k--; 
        break;

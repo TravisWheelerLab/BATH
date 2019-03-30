@@ -2175,7 +2175,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
     subseq = dnasq->dsq + window_start - 1;
   }
    
- printf("START %d\n", window_start); 
+ //printf("START %d\n", window_start); 
   p7_ReconfigLength_Frameshift(gm, window_len);
   emit_sc = Codon_Emissions_Create(gm->rsc, subseq, gcode, gm->M, window_len, indel_cost);
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
@@ -2442,14 +2442,14 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
 
                hit->dcl[d].ienv       = dnasq->start - (window_start + hit->dcl[d].ienv) + 1;
                hit->dcl[d].jenv       = dnasq->start - (window_start + hit->dcl[d].jenv) + 1;
-             printf("iali %d jali %d\n",hit->dcl[d].iali, hit->dcl[d].jali); 
+             //printf("iali %d jali %d\n",hit->dcl[d].iali, hit->dcl[d].jali); 
                hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 1;
                hit->dcl[d].jali       = hit->dcl[d].iali - (hit->dcl[d].ad->sqfrom - hit->dcl[d].ad->sqto);
 
 			//   printf("iorf %d, jorf %d, ienv %d, jenv %d, iali %d, jali %d\n", hit->dcl[d].iorf,hit->dcl[d].jorf,hit->dcl[d].ienv,hit->dcl[d].jenv,hit->dcl[d].iali,hit->dcl[d].jali);
                hit->dcl[d].ad->sqfrom = hit->dcl[d].iali;
                hit->dcl[d].ad->sqto   = hit->dcl[d].jali;
-            printf("name %s, iorf %d, jorf %d, ienv %d, jenv %d, iali %d, jali %d, sqfrom %d, sqto %d\n", dnasq->name, hit->dcl[d].iorf,hit->dcl[d].jorf,hit->dcl[d].ienv,hit->dcl[d].jenv,hit->dcl[d].iali,hit->dcl[d].jali, hit->dcl[d].ad->sqfrom, hit->dcl[d].ad->sqto);
+            //printf("name %s, iorf %d, jorf %d, ienv %d, jenv %d, iali %d, jali %d, sqfrom %d, sqto %d\n", dnasq->name, hit->dcl[d].iorf,hit->dcl[d].jorf,hit->dcl[d].ienv,hit->dcl[d].jenv,hit->dcl[d].iali,hit->dcl[d].jali, hit->dcl[d].ad->sqfrom, hit->dcl[d].ad->sqto);
 }
          }
     }

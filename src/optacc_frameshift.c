@@ -220,8 +220,8 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
     }
   
   *ret_e = XMX(L,p7G_C);
-	//FILE *out = fopen("out.txt", "w+");
-        //p7_gmx_Dump(out, gx, p7_DEFAULT); 
+//	FILE *out = fopen("out2.txt", "w+");
+  //      p7_gmx_Dump(out, gx, p7_DEFAULT); 
 
 
   return eslOK;

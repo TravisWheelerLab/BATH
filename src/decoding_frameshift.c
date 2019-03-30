@@ -410,7 +410,7 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
 
 		njcp += expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_C] +
         bck->xmx[p7G_NXCELLS*(i+2) + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp);
- 
+			//printf("i %d, njcp %f\n", i, njcp); 
 	   } else if (i == L-1) {
 
         njcp += expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_N] +
@@ -617,13 +617,9 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
       ddef->mocc[i] = ddef->mocc[i] / (ddef->mocc[i] + njcp);    
 
     }
-<<<<<<< HEAD
     
 #endif
-=======
-#endif    
 
->>>>>>> old-state
   ddef->L = L;
 
   return eslOK;

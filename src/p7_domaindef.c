@@ -544,7 +544,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   triggered = FALSE;
 //FILE *out = fopen("out.txt", "w+");
 //p7_domaindef_DumpPosteriors(out, ddef); 
-//printf("window_start %d\n",window_start);
+printf("window_start %d\n",window_start);
 
  ddef->rt1 = 0.67;
   ddef->rt2 = 0.25; 
@@ -555,7 +555,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
       d = j;
 	}
     else {
-	  printf("d %d\n", d);
 	  while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
 	    if(d > 3) d -= 3;
 	    else d = 1;
@@ -567,7 +566,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 
       i = d;
       d = j-1;
-      printf("i %d\n", i);
 
 	  while(d < gxf->L-1 && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
 	    if(d <= gxf->L - 3) d += 3;
@@ -584,20 +582,13 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
      ddef->nregions++;
-<<<<<<< HEAD
 	 printf("i %d, j %d\n", i, j);
-     if (is_multidomain_region_fs(ddef, i, j))
-=======
-	 //printf("i %d, j %d\n", i, j);
-  	   //printf("HMM NAME %s SEQ NAME %s\n", gm->name, ntsq->name); 	   
      if (is_multidomain_region(ddef, i, j))
->>>>>>> old-state
      {  	
        /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
         */
-       printf("MULTI\n");
 	   ddef->nclustered++;
        
   	   /* Resolve the region into domains by stochastic trace
@@ -1473,12 +1464,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   p7_ReconfigLength_Frameshift(gm, j-i+1);
   
   emit_sc = Codon_Emissions_Create(gm->rsc, sq->dsq+i-1, gcode, gm->M, Ld, indel_cost);
-  printf("i %d j %d Ld %d\n", i, j, Ld);
   
   p7_Forward_Frameshift (sq->dsq+i-1, Ld, gm, gx1, emit_sc, &envsc);
-  printf("env sc %f\n", envsc);
   p7_Backward_Frameshift(sq->dsq+i-1, Ld, gm, gx2, emit_sc, &bcksc);
-  printf("bck cs %f\n", bcksc); 
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
   

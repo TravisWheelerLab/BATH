@@ -250,7 +250,7 @@ p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef)
 {
   int i;
   fprintf(ofp, "# mocc btot etot n2sc\n");
-  for (i = 1; i <= ddef->L; i++) {
+  for (i = 0; i <= ddef->L; i++) {
     fprintf(ofp, "%d %f ", i, ddef->mocc[i]);
     fprintf(ofp, "%f ", i, ddef->btot[i]);
     fprintf(ofp, "%f ", i, ddef->etot[i]);
@@ -542,11 +542,11 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
   i     = -1;
   triggered = FALSE;
-//FILE *out = fopen("out.txt", "w+");
-//p7_domaindef_DumpPosteriors(out, ddef); 
-printf("window_start %d\n",window_start);
+//  FILE *out = fopen("out.txt", "w+");
 
- ddef->rt1 = 0.67;
+//  p7_domaindef_DumpPosteriors(out, ddef); 
+//printf("window start %d\n", window_start);
+ ddef->rt1 = 0.625;
   ddef->rt2 = 0.25; 
    for (j = 1; j <= gxf->L; j++)
   {   
@@ -558,9 +558,9 @@ printf("window_start %d\n",window_start);
 	  while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
 	    if(d > 3) d -= 3;
 	    else d = 1;
-		if(d > 3 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) {
-	      if(ddef->mocc[d-1] - (ddef->btot[d-1] - ddef->btot[d-2]) >= ddef->rt2) d--;
-	      else if(ddef->mocc[d-2] - (ddef->etot[d-2] - ddef->btot[d-3]) >= ddef->rt2) d-=2;
+		if(d > 3 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-3]) < ddef->rt2) {
+	      if(ddef->mocc[d+1] - (ddef->btot[d+1] - ddef->btot[d-2]) >= ddef->rt2) d++;
+	      else if(ddef->mocc[d+2] - (ddef->etot[d+2] - ddef->btot[d-1]) >= ddef->rt2) d+=2;
 	    }
       }
 
@@ -577,14 +577,15 @@ printf("window_start %d\n",window_start);
       }  
 	 
 	 j = d;
-	
+	 
+ 	 	 
 	 /* We have a region i..j to evaluate. */
 	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
      ddef->nregions++;
-	 printf("i %d, j %d\n", i, j);
-     if (is_multidomain_region(ddef, i, j))
-     {  	
+	 //printf("i %d, j %d\n", i, j);
+	 if (is_multidomain_region(ddef, i, j))
+     {  
        /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
@@ -738,19 +739,34 @@ is_multidomain_region(P7_DOMAINDEF *ddef, int i, int j)
 static int
 is_multidomain_region_fs(P7_DOMAINDEF *ddef, int i, int j)
 {
-  int   z;
+  int   z,f;
   float max;
   float expected_n;
   max = -1.0;
-  for (z = i+3; z <= j; z++)
+  
+  f = (j-i+1) % 3;
+  
+  for (z = i+2; z <= j-f; z+=3)
     { 
-      if(i > 3) 
-        expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i-3]), (ddef->btot[j] - ddef->btot[z-3]) );
-      else 
-        expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[0]), (ddef->btot[j] - ddef->btot[z-3]) );
+      expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i-1]), (ddef->btot[j-f] - ddef->btot[z-3]) );
       max        = ESL_MAX(max, expected_n);
-    }
-  return ( (max >= ddef->rt3) ? TRUE : FALSE);
+	}
+  f = (j-i) % 3;
+
+  for (z = i+3; z <= j-f; z+=3)
+    {
+      expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i]), (ddef->btot[j-f] - ddef->btot[z-3]) );
+      max        = ESL_MAX(max, expected_n);
+   }
+  f = (j-i-1) % 3;
+
+  for (z = i+4; z <= j-f; z+=3)
+    {
+      expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i+1]), (ddef->btot[j-f] - ddef->btot[z-3]) );
+      max        = ESL_MAX(max, expected_n);
+  }
+ 
+ return ( (max >= ddef->rt3) ? TRUE : FALSE);
 }
 
 
@@ -1477,7 +1493,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   p7_OATrace_Frameshift(gm, gxppfs, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
   
   //FILE *out = fopen("out.txt", "w+");
-  //p7_gmx_fs_Dump(out, gxppfs, p7_DEFAULT);
+  //p7_gmx_fs_Dump(out, gx1, p7_DEFAULT);
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)	  
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;

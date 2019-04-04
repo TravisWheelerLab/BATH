@@ -49,12 +49,13 @@ Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE
   for(i = 1; i <= L; i++) {
     rsc = emit_sc[i];
     for(k = 1; k <= M; k++) {
-	 MSC_FS(i,p7P_C1) = max_codon_one(original_rsc, codon, subseq, gcode, k, i, two_indel);
-      MSC_FS(i,p7P_C2) = max_codon_two(original_rsc, codon, subseq, gcode, k, i, one_indel);
-      MSC_FS(i,p7P_C3) = max_codon_three(original_rsc, codon, subseq, gcode, k, i, no_indel, one_indel);
-      MSC_FS(i,p7P_C4) = max_codon_four(original_rsc, codon, subseq, gcode, k, i, one_indel);
-      MSC_FS(i,p7P_C5) = max_codon_five(original_rsc, codon, subseq, gcode, k, i, two_indel);
-    }
+	 MSC_FS(k,p7P_C1) = max_codon_one(original_rsc, codon, subseq, gcode, k, i, two_indel);
+      MSC_FS(k,p7P_C2) = max_codon_two(original_rsc, codon, subseq, gcode, k, i, one_indel);
+      MSC_FS(k,p7P_C3) = max_codon_three(original_rsc, codon, subseq, gcode, k, i, no_indel, one_indel);
+      MSC_FS(k,p7P_C4) = max_codon_four(original_rsc, codon, subseq, gcode, k, i, one_indel);
+      MSC_FS(k,p7P_C5) = max_codon_five(original_rsc, codon, subseq, gcode, k, i, two_indel);
+
+	}
   }
   esl_alphabet_Destroy(abcDNA); 
   free(codon);
@@ -149,7 +150,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *g
 				     IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1)),
 			  p7_FLogsum(XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1),
 				     DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1)));
-	  
 	  MMX_FS(i,k,p7G_C1) = sc + MSC_FS(k,p7P_C1);
  	  if(i >= 2) {
 	    sc = p7_FLogsum(p7_FLogsum(MMX_FS(i-2,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 

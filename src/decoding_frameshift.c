@@ -370,9 +370,8 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
   int   M	     = fwd->M;
    float overall_logp = p7_FLogsum(fwd->xmx[p7G_NXCELLS*(L) + p7G_C], 
 		       p7_FLogsum(fwd->xmx[p7G_NXCELLS*(L-1) + p7G_C], 
-		       fwd->xmx[p7G_NXCELLS*(L-2) + p7G_C])) + gm->xsc[p7P_C][p7P_MOVE]; ;
+		       fwd->xmx[p7G_NXCELLS*(L-2) + p7G_C])) + gm->xsc[p7P_C][p7P_MOVE];
   float njcp;
-  float fprob, bprob;
   int   i, k;
 
   for (i = 1; i <= L; i++)
@@ -567,10 +566,10 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
         njcp += expf(fwd->xmx[p7G_NXCELLS*(i-4) + p7G_N] + 
         bck->xmx[p7G_NXCELLS*(i-1) + p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_logp);
 
-        njcp += expf(fwd->xmx[p7G_NXCELLS*(i-4) + p7G_J] + 
+        njcp += expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] + 
         bck->xmx[p7G_NXCELLS*(i-1) + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_logp);
       
-        njcp += expf(fwd->xmx[p7G_NXCELLS*(i-4) + p7G_C] + 
+        njcp += expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_C] + 
         bck->xmx[p7G_NXCELLS*(i-1) + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp);
       } else { 
 
@@ -617,8 +616,7 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
       ddef->mocc[i] = ddef->mocc[i] / (ddef->mocc[i] + njcp);    
 
     }
-    
-#endif
+#endif    
 
   ddef->L = L;
 

@@ -728,9 +728,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   int seq_id = 0;
   ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
-  printf("HMM NAME %s\n", info->gm->name); 
   wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
-  printf("NAME %s\n", info->gm->name);
   while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       dbsq_dna->idx = seq_id;
       if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */

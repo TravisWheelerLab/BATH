@@ -2182,7 +2182,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
 //printf("FORWARD\n");
   /* Parse with Forward and obtain its real Forward score. */
   p7_Forward_Frameshift(subseq, window_len, gm, pli->gxf, emit_sc, &fwdsc);
-
+  
   //TODO: figure out translated filterscore
 #if 0
   //p7_bg_SetLength(bg, window_len);
@@ -2204,6 +2204,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
     return eslOK;
  }
 #endif
+
+nullsc = 0.0f;
   pli->n_past_fwd++;
   pli->pos_past_fwd += window_len;
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
@@ -2235,14 +2237,18 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
 							 (pli->do_null2?pli_tmp->scores:NULL), 
 							 pli_tmp->fwd_emissions_arr, emit_sc, 
 							 gcode, indel_cost);
+
+
 //printf("POST PROCESS\n");
   if(emit_sc != NULL) Codon_Emissions_Destroy(emit_sc);
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
   if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here       */
   if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
   if (pli->ddef->ndom       == 0) return eslOK; /* even rarer: envelope found, no domain identified {iss131}         */
-  if (pli->do_alignment_score_calc) {
-    for (d = 0; d < pli->ddef->ndom; d++)
+ 
+  //printf(" scores %d \n", pli->ddef->dcl->scores_per_pos);
+ if (pli->do_alignment_score_calc) {
+   for (d = 0; d < pli->ddef->ndom; d++)
       p7_pli_computeAliScores(pli->ddef->dcl + d, dnasq->dsq, data, gm->abc->Kp);
   }
   /* Calculate the null2-corrected per-seq score */
@@ -2253,7 +2259,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
 
      }
   else seqbias = 0.0;
-
   pre_score =  (fwdsc - nullsc) / eslCONST_LOG2;
   seq_score =  (fwdsc - (nullsc + seqbias)) / eslCONST_LOG2;
   
@@ -2297,12 +2302,14 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, ESL_G
   sum_score  = (sum_score - (nullsc + seqbias)) / eslCONST_LOG2;    /* BITS */
 
   /* A special case: let sum_score override the seq_score when it's better, and it includes at least 1 domain */
+//printf("Ld %d\n", Ld);
+//printf("sum_score %f\n", sum_score);
+//printf("seq_score %f\n", seq_score);
   if (Ld > 0 && sum_score > seq_score)
     {
       seq_score = sum_score;
       pre_score = pre2_score;
     }
-
 
   /* Apply thresholding and determine whether to put this
    * target into the hit list. E-value thresholding may

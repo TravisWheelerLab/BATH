@@ -623,6 +623,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       assign_Lengths(tophits_accumulator, id_length_list);
       p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
       p7_tophits_SortBySortkey(tophits_accumulator);
+      
       p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
       p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
       p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");

@@ -515,13 +515,11 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
  *            decoding. This should not be possible for multihit
  *            models.
  */
-
 int
 p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm, 
-				   P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, 
-				   P7_DOMAINDEF *ddef, P7_BG *bg, int window_start,
-				   P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr, 					 
-				   float **emit_sc, ESL_GENCODE *gcode, float indel_cost
+				   P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
+				   P7_BG *bg, int window_start, P7_BG *bg_tmp, float *scores_arr, 
+				   float *fwd_emissions_arr, float **emit_sc, ESL_GENCODE *gcode
 )
 {
   int i, j;
@@ -543,14 +541,16 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
   i     = -1;
   triggered = FALSE;
-//  FILE *out = fopen("out.txt", "w+");
+//FILE *out = fopen("out.txt", "w+");
 
-//  p7_domaindef_DumpPosteriors(out, ddef); 
+//p7_domaindef_DumpPosteriors(out, ddef); 
 //printf("window start %d\n", window_start);
  ddef->rt1 = 0.625;
   ddef->rt2 = 0.25; 
-   for (j = 3; j < gxf->L-1; j++)
+  
+  for (j = 3; j < gxf->L-1; j++)
   {  
+	//		printf("ddef->mocc[j] %f\n", ddef->mocc[j]);
     if (! triggered){
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
         d = j;
@@ -590,8 +590,10 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
          ddef->nregions++;
 	 //printf("i %d, j %d\n", i, j);
-	 if (is_multidomain_region(ddef, i, j))
+#if 0
+		 if (is_multidomain_region_fs(ddef, i, j))
      {  
+			 printf("MULTI %s\n", gm->name);
         /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
@@ -607,7 +609,9 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	  
 	   p7_ReconfigMultihit_Frameshift(gm, saveL);
        p7_Forward_Frameshift(sq->dsq+i-1, j-i+1, gm, fwd, emit_sc, NULL);
+
        region_trace_ensemble_frameshift(ddef, gm, sq->dsq, i, j, fwd, bck, &nc);
+	   
 	   p7_ReconfigUnihit_Frameshift(gm, saveL);
        
 	   /* ddef->n2sc is now set on i..j by the traceback-dependent method */
@@ -638,17 +642,18 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
         
 		 /*the !long_target argument will cause the function to recompute null2
           * scores if this is part of a long_target (nhmmer) pipeline */
-         
-	     if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, gcode, emit_sc) == eslOK) last_j2 = j2;
+
+				     if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, gcode, emit_sc) == eslOK) last_j2 = j2;
 	   }
 
        p7_spensemble_Reuse(ddef->sp);
        p7_trace_Reuse(ddef->tr);
 
 	 } else {
+#endif
        ddef->nenvelopes++;
        rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, emit_sc);
-	 }
+	// }
      //printf("I %d, J %d\n", i, j);
 
  	 i     = -1;
@@ -757,7 +762,6 @@ is_multidomain_region_fs(P7_DOMAINDEF *ddef, int i, int j)
       max        = ESL_MAX(max, expected_n);
 	}
   f = (j-i) % 3;
-
   for (z = i+3; z <= j-f; z+=3)
     {
       expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i]), (ddef->btot[j-f] - ddef->btot[z-3]) );
@@ -770,7 +774,7 @@ is_multidomain_region_fs(P7_DOMAINDEF *ddef, int i, int j)
       expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i+1]), (ddef->btot[j-f] - ddef->btot[z-3]) );
       max        = ESL_MAX(max, expected_n);
   }
- 
+
  return ( (max >= ddef->rt3) ? TRUE : FALSE);
 }
 
@@ -1483,7 +1487,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   
   p7_ReconfigLength_Frameshift(gm, j-i+1);
   
-  emit_sc = full_emit_sc[i-1];
+  emit_sc = &full_emit_sc[i-1];
   for(z = 1; z <= j-i+1; z++)
     emit_sc[z] = full_emit_sc[i+z-1];
 

@@ -2492,7 +2492,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, 
+p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7_BG *bg, P7_TOPHITS *hitlist, 
 				          const P7_SCOREDATA *data, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, 
 						  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp
 
@@ -2513,7 +2513,7 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_OPROFILE *om, P7_
   p7_hmmwindow_init(&post_vit_windowlist);
 
   post_vit_orf_block = NULL;
-  post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
+  post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, gm->abc);
 
   for (i = 0; i < orf_block->count; ++i)
   {
@@ -2616,7 +2616,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   ESL_SQ	       *orfsq;
   ESL_SQ_BLOCK *post_msv_orf_block = NULL;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
-  
+ 
   if (dnasq->n < 3) return eslOK;
 
   post_msv_orf_block = NULL;
@@ -2625,7 +2625,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_FRAMESHIFT_OBJS));
   pli_tmp->tmpseq = NULL;
   pli_tmp->bg = p7_bg_Clone(bg);
-  pli_tmp->gm = p7_profile_Create(gm->M, om->abc);
+  pli_tmp->gm = p7_profile_Create(gm->M, gm->abc);
   ESL_ALLOC(pli_tmp->scores, sizeof(float) * gm->abc->Kp * 4); //allocation of space to store scores that will be used in p7_oprofile_Update(Fwd|Vit|MSV)EmissionScores
   ESL_ALLOC(pli_tmp->fwd_emissions_arr, sizeof(float) *  gm->abc->Kp * (gm->M+1));
   
@@ -2662,7 +2662,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     esl_sq_Reuse(orfsq);
   }
 
-  status = p7_pli_postMSV_Frameshift(pli, gm, om, bg, hitlist, data, post_msv_orf_block, dnasq, gcode, pli_tmp);	   
+  status = p7_pli_postMSV_Frameshift(pli, om, gm, bg, hitlist, data, post_msv_orf_block, dnasq, gcode, pli_tmp);	   
 	 
   pli_tmp->tmpseq->dsq = NULL;  
   
@@ -2677,7 +2677,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     free(pli_tmp);
   }
   
-
   return eslOK;
 
 ERROR:

@@ -1,4 +1,4 @@
-/* hmmsearcht: search profile HMM(s) against a sequence database.
+/* fsphmmert: search protien profile HMM(s) against a DNA sequence database.
  *
  */
 #include "p7_config.h"
@@ -16,7 +16,7 @@
 #include "esl_sqio.h"
 #include "esl_stopwatch.h"
 
-/* for hmmsearcht */
+/* for fsphmmert */
 #include "esl_gencode.h"
 
 #ifdef HMMER_THREADS
@@ -26,6 +26,10 @@
 #endif /*HMMER_THREADS*/
 
 #include "hmmer.h"
+
+/* set the max residue count to 1/4 meg when reading a block */
+#define FSPHMMERT_MAX_RESIDUE_COUNT (1024 * 256)  /* 1/4 Mb */
+
 
 typedef struct {
 #ifdef HMMER_THREADS
@@ -58,9 +62,6 @@ static void            destroy_id_length( ID_LENGTH_LIST *list );
 static int             add_id_length(ID_LENGTH_LIST *list, int id, int L);
 static int             assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list);
 
-/* set the max residue count to 1/4 meg when reading a block */
-#define HMMSEARCHT_MAX_RESIDUE_COUNT (1024 * 256)  /* 1/4 Mb */
-
 #define REPOPTS     "-E,-T,--cut_ga,--cut_nc,--cut_tc"
 #define DOMREPOPTS  "--domE,--domT,--cut_ga,--cut_nc,--cut_tc"
 #define INCOPTS     "--incE,--incT,--cut_ga,--cut_nc,--cut_tc"
@@ -79,7 +80,7 @@ static ESL_OPTIONS options[] = {
   { "--tblout",     eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save parseable table of per-sequence hits to file <f>",        2 },
   { "--domtblout",  eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save parseable table of per-domain hits to file <f>",          2 },
   { "--pfamtblout", eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save table of hits and domains to file, in Pfam format <f>",  99 }, /* not for hmmsearcht */
-  //{ "--aliscoresout", eslARG_OUTFILE, NULL,NULL,NULL,    NULL,  NULL,  NULL,              "save scores for each position in each alignment to <f>",       2 },
+  { "--aliscoresout", eslARG_OUTFILE, NULL,NULL,NULL,    NULL,  NULL,  NULL,              "save scores for each position in each alignment to <f>",       2 },
   { "--acc",        eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "prefer accessions over names in output",                       2 },
   { "--noali",      eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't output alignments, so output is smaller",                2 },
   { "--notrans",    eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't show the translated DNA sequence in domain alignment",   2 }, /*for hmmsearcht */
@@ -140,9 +141,6 @@ static ESL_OPTIONS options[] = {
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
-static char usage[]  = "[options] <hmmfile> <seqdb>";
-static char banner[] = "search protein profile(s) against DNA sequence database";
-
  /* struct cfg_s : "Global" application configuration shared by all threads/processes
  * 
  * This structure is passed to routines within main.c, as a means of semi-encapsulation
@@ -155,6 +153,9 @@ struct cfg_s {
   char             *firstseq_key;     /* name of the first sequence in the restricted db range */
   int              n_targetseq;       /* number of sequences in the restricted range */
 };
+
+static char usage[]  = "[options] <hmmfile> <seqdb>";
+static char banner[] = "search protein profile(s) against DNA sequence database";
 
 static int  serial_master(ESL_GETOPTS *go, struct cfg_s *cfg);
 static int  serial_loop  (WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
@@ -383,12 +384,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              hstatus  = eslOK;
   int              sstatus  = eslOK;
   int              i;
+  double           resCnt    = 0;
+  /* used to keep track of the lengths of the sequences that are processed */
+  ID_LENGTH_LIST  *id_length_list = NULL;
 
   int              ncpus    = 0;
 
   int              infocnt  = 0;
   WORKER_INFO     *info     = NULL;
-  ID_LENGTH_LIST  *id_length_list = NULL;
 
 #ifdef HMMER_THREADS
   ESL_SQ_BLOCK    *block    = NULL;
@@ -448,7 +451,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* initialize thread data */
   if (esl_opt_IsOn(go, "--cpu")) ncpus = esl_opt_GetInteger(go, "--cpu");
   else                                   esl_threads_CPUCount(&ncpus);
-  
+ 
   if (ncpus > 0)
     {
       threadObj = esl_threads_Create(&pipeline_thread);
@@ -487,7 +490,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #ifdef HMMER_THREADS
 	 for (i = 0; i < ncpus * 2; ++i)
 	 {
-	  block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abc);
+	  block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcDNA);
           if (block == NULL)           esl_fatal("Failed to allocate sequence block");
 
           status = esl_workqueue_Init(queue, block);
@@ -567,12 +570,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         info[i].wrk = esl_gencode_WorkstateCreate(go, gcode);
         info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abc);
         info[i].th  = p7_tophits_Create();
-        info[i].om  = p7_oprofile_Clone(om);
+        info[i].om  = p7_oprofile_Copy(om);
         info[i].gm  = p7_profile_Clone(gm);
     	info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
 	info[i].pli = p7_pipeline_fs_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
         status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
         if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
+
+        info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
 
         if (  esl_opt_IsUsed(go, "--watson") )
           info[i].pli->strands = p7_STRAND_TOPONLY;
@@ -584,7 +589,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         if (  esl_opt_IsUsed(go, "--block_length") )
           info[i].pli->block_length = esl_opt_GetInteger(go, "--block_length");
         else
-          info[i].pli->block_length = HMMSEARCHT_MAX_RESIDUE_COUNT;
+          info[i].pli->block_length = FSPHMMERT_MAX_RESIDUE_COUNT;
 
 #ifdef HMMER_THREADS
         if (ncpus > 0) esl_threads_AddThread(threadObj, &info[i]);
@@ -789,9 +794,9 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
   void         *newBlock;
   int          seqid = -1;
   
-  ESL_SQ      *tmpsq = esl_sq_CreateDigital(info->om->abc);
+  ESL_SQ      *tmpsq = esl_sq_CreateDigital(dbfp->abc);
   int          abort = FALSE; // in the case n_targetseqs != -1, a block may get abbreviated
-  
+
   esl_workqueue_Reset(queue);
   esl_threads_WaitForStart(obj);
 
@@ -803,7 +808,8 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
   while (sstatus == eslOK)
     {
       block = (ESL_SQ_BLOCK *) newBlock;     
- 
+	
+
       if (abort) {
         block->count = 0;
         sstatus = eslEOF;
@@ -813,11 +819,11 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
       block->first_seqidx = info->pli->nseqs;
       seqid = block->first_seqidx;
+
       for (i=0; i<block->count; i++) {
         block->list[i].idx = seqid;
         add_id_length(id_length_list, seqid, block->list[i].L);
         seqid++;
-
         if (   seqid == n_targetseqs // hit the sequence target
             && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
         ) {
@@ -831,7 +837,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
       if (sstatus == eslEOF) {
           if (eofCount < esl_threads_GetWorkerCount(obj)) sstatus = eslOK;
-          info->pli->nseqs += block->count  - ((abort || block->complete) ? 0 : 1);// if there's an incomplete sequence read into the block wait to count it until it's complete.u++eofCount;
+          ++eofCount;
       } else if (!block->complete ) {
           // The final sequence on the block was an incomplete window of the active sequence,
           // so our next read will need a copy of it to correctly deal with overlapping
@@ -841,9 +847,8 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
           // handed. Could accelerate if this proves to have any notable impact on speed.
           esl_sq_Copy(block->list + (block->count - 1) , tmpsq);
       }
-
+printf("EEEEEEEe\n");
       if (sstatus == eslOK) {
-
           status = esl_workqueue_ReaderUpdate(queue, block, &newBlock);
           if (status != eslOK) esl_fatal("Work queue reader failed");
 
@@ -866,6 +871,16 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
       }
   }
 
+  status = esl_workqueue_ReaderUpdate(queue, block, NULL);
+  if (status != eslOK) esl_fatal("Work queue reader failed");
+
+  if (sstatus == eslEOF) {
+      /* wait for all the threads to complete */
+      esl_threads_WaitForFinish(obj);
+      esl_workqueue_Complete(queue);
+    }
+
+  esl_sq_Destroy(tmpsq);
 
   return sstatus;
 }
@@ -878,50 +893,61 @@ pipeline_thread(void *arg)
   int workeridx;
   WORKER_INFO   *info;
   ESL_THREADS   *obj;
-  ESL_SQ  *dnaSeq = NULL;
-  void          *newSeq;
+  ESL_SQ_BLOCK  *block = NULL;
+  void          *newBlock;
+ 
   impl_Init();
-
   obj = (ESL_THREADS *) arg;
   esl_threads_Started(obj, &workeridx);
 
   info = (WORKER_INFO *) esl_threads_GetData(obj, workeridx);
 
-  status = esl_workqueue_WorkerUpdate(info->queue, NULL, &newSeq);
+  status = esl_workqueue_WorkerUpdate(info->queue, NULL, &newBlock);
   if (status != eslOK) esl_fatal("Work queue worker failed");
+
+  /* loop until all blocks have been processed */
+  block = (ESL_SQ_BLOCK *) newBlock;
  
-  dnaSeq = (ESL_SQ *) newSeq;
-  while(dnaSeq->n) { 
-  dnaSeq->L = dnaSeq->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
-  printf("NEW\n");
-  p7_pli_NewSeq(info->pli, dnaSeq);
+  while (block->count > 0)
+  {
+    /* Main loop: */
+    for (i = 0; i < block->count; ++i)
+    {
+      ESL_SQ *dnaSeq = block->list + i;
 
-   if (info->wrk->do_watson) {
-       do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
+      dnaSeq->L = dnaSeq->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
+      p7_pli_NewSeq(info->pli, dnaSeq);
 
-       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dnaSeq, info->wrk->orf_block, info->th, info->scoredata);
-       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-   }
+      if (info->wrk->do_watson) {
+        do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 
-   if (info->wrk->do_crick) {
-       esl_sq_ReverseComplement(dnaSeq);
-       do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dnaSeq, info->wrk->orf_block, info->th, info->scoredata);
+         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+       } else {
+         info->pli->nres -= dnaSeq->n;
+       } 
 
-       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dnaSeq, info->wrk->orf_block, info->th, info->scoredata);
-       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-       esl_sq_ReverseComplement(dnaSeq);
-   }
-    status = esl_workqueue_WorkerUpdate(info->queue, dnaSeq, &newSeq);
-    if (status != eslOK) esl_fatal("Work queue worker failed");
- 
-    dnaSeq = (ESL_SQ *) newSeq;
+       if (info->wrk->do_crick) {
+         esl_sq_ReverseComplement(dnaSeq);
+         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 
-
-    }
-    status = esl_workqueue_WorkerUpdate(info->queue, dnaSeq, NULL);
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dnaSeq, info->wrk->orf_block, info->th, info->scoredata);
+         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+         esl_sq_ReverseComplement(dnaSeq);
+       }
+     }  
+     status = esl_workqueue_WorkerUpdate(info->queue, block, &newBlock);
+     if (status != eslOK) esl_fatal("Work queue worker failed");
+   
+       /* loop until all blocks have been processed */
+       block = (ESL_SQ_BLOCK *) newBlock; 
+  }
+  
+   status = esl_workqueue_WorkerUpdate(info->queue, block, NULL);
     if (status != eslOK) esl_fatal("Work queue worker failed");
 
   esl_threads_Finished(obj, workeridx);
+
   return;
 }
 #endif   /* HMMER_THREADS */

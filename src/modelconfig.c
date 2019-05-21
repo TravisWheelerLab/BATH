@@ -194,6 +194,388 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
   return status;
 }
 
+/* Function:  p7_ProfileConfig_fs()
+ * Synopsis:  Configure a search profile.
+ *
+ * Purpose:   Given a model <hmm> with core probabilities, the null1
+ *            model <bg>, a desired search <mode> (one of <p7_LOCAL>,
+ *            <p7_GLOCAL>, <p7_UNILOCAL>, or <p7_UNIGLOCAL>), and an
+ *            expected target sequence length <L>; configure the
+ *            search model in <gm> with lod scores relative to the
+ *            background frequencies in <bg>.
+ *
+ * Returns:   <eslOK> on success; the profile <gm> now contains
+ *            scores and is ready for searching target sequences.
+ *
+ * Throws:    <eslEMEM> on allocation error.
+ */
+int
+p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_PROFILE *gm, int L, int mode)
+{
+  int   k, x, y, z; /* counters over states, residues, annotation */
+  int   codon;
+  int   status;
+  float *occ = NULL;
+  float *tp, *rp;
+  float  sc[p7_MAXCODE];
+  float  Z;
+  float  max_sc1, max_sc2, max_sc3, max_sc4;
+  float  tmp_sc1, tmp_sc2, tmp_sc3, tmp_sc4;
+
+  /* Contract checks */
+  if (gm->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
+  if (hmm->M > gm->allocM)             ESL_XEXCEPTION(eslEINVAL, "profile too small to hold HMM");
+  if (! (hmm->flags & p7H_CONS))       ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
+
+  /* Copy some pointer references and other info across from HMM  */
+  gm->M                = hmm->M;
+  gm->max_length       = hmm->max_length;
+  gm->mode             = mode;
+  gm->roff             = -1;
+  gm->eoff             = -1;
+  gm->offs[p7_MOFFSET] = -1;
+  gm->offs[p7_FOFFSET] = -1;
+  gm->offs[p7_POFFSET] = -1;
+  if (gm->name != NULL) free(gm->name);
+  if (gm->acc  != NULL) free(gm->acc);
+  if (gm->desc != NULL) free(gm->desc);
+  if ((status = esl_strdup(hmm->name,   -1, &(gm->name))) != eslOK) goto ERROR;
+  if ((status = esl_strdup(hmm->acc,    -1, &(gm->acc)))  != eslOK) goto ERROR;
+  if ((status = esl_strdup(hmm->desc,   -1, &(gm->desc))) != eslOK) goto ERROR;
+  if (hmm->flags & p7H_RF)    strcpy(gm->rf,        hmm->rf);
+  if (hmm->flags & p7H_MMASK) strcpy(gm->mm,        hmm->mm);
+  if (hmm->flags & p7H_CONS)  strcpy(gm->consensus, hmm->consensus); /* must be present, actually, so the flag test is just for symmetry w/ other optional HMM fields */
+  if (hmm->flags & p7H_CS)    strcpy(gm->cs,        hmm->cs);
+  for (z = 0; z < p7_NEVPARAM; z++) gm->evparam[z] = hmm->evparam[z];
+  for (z = 0; z < p7_NCUTOFFS; z++) gm->cutoff[z]  = hmm->cutoff[z];
+  for (z = 0; z < p7_MAXABET;  z++) gm->compo[z]   = hmm->compo[z];
+
+   /* Entry scores. */
+  if (p7_profile_IsLocal(gm))
+    {
+      /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
+       * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
+      Z = 0.;
+      ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
+
+      if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
+      for (k = 1; k <= hmm->M; k++)
+    Z += occ[k] * (float) (hmm->M-k+1);
+      for (k = 1; k <= hmm->M; k++)
+    p7P_TSC(gm, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
+
+      free(occ);
+    }
+  else  /* glocal modes: left wing retraction; must be in log space for precision */
+    {
+      Z = log(hmm->t[0][p7H_MD]);
+      p7P_TSC(gm, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
+      for (k = 1; k < hmm->M; k++)
+    {
+       p7P_TSC(gm, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
+       Z += log(hmm->t[k][p7H_DD]);
+    }
+    }
+
+  /* E state loop/move probabilities: nonzero for MOVE allows loops/multihits
+   * N,C,J transitions are set later by length config
+   */
+  if (p7_profile_IsMultihit(gm)) {
+    gm->xsc[p7P_E][p7P_MOVE] = -eslCONST_LOG2;
+    gm->xsc[p7P_E][p7P_LOOP] = -eslCONST_LOG2;
+    gm->nj                   = 1.0f;
+  } else {
+    gm->xsc[p7P_E][p7P_MOVE] = 0.0f;
+    gm->xsc[p7P_E][p7P_LOOP] = -eslINFINITY;
+    gm->nj                   = 0.0f;
+  }
+
+  /* Transition scores. */
+  for (k = 1; k < gm->M; k++) {
+    tp = gm->tsc + k * p7P_NTRANS;
+    tp[p7P_MM] = log(hmm->t[k][p7H_MM]);
+    tp[p7P_MI] = log(hmm->t[k][p7H_MI]);
+    tp[p7P_MD] = log(hmm->t[k][p7H_MD]);
+    tp[p7P_IM] = log(hmm->t[k][p7H_IM]);
+    tp[p7P_II] = log(hmm->t[k][p7H_II]);
+    tp[p7P_DM] = log(hmm->t[k][p7H_DM]);
+    tp[p7P_DD] = log(hmm->t[k][p7H_DD]);
+  }
+
+    /* Match emission scores. */
+  sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
+  sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
+  sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
+  for (k = 1; k <= hmm->M; k++) {
+    for (x = 0; x < hmm->abc->K; x++)
+     sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
+    esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
+
+    for (x = 0; x < 4; x++)
+      for (y = 0; y < 4; y++)
+        for (z = 0; z < 4; z++) {
+          rp = gm->rsc[x * 25 + y * 5 + z] + k * p7P_NR;
+          codon = 16 * x + 4 * y + z;
+          rp[p7P_MSC] = sc[gcode->basic[codon]];
+        }
+
+    for (y = 0; y < 4; y++)
+      for (z = 0; z < 4; z++) {
+        rp = gm->rsc[4 * 25 + y * 5 + z] + k * p7P_NR;
+        codon = 16*0 + 4*y + z;
+        max_sc1 = sc[gcode->basic[codon]];
+        codon = 16*1 + 4*y + z;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*2 + 4*y + z;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*3 + 4*y + z;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        rp[p7P_MSC] = max_sc1;
+      }
+
+    for (x = 0; x < 4; x++)
+      for (z = 0; z < 4; z++) {
+        rp = gm->rsc[x * 25 + 4 * 5 + z] + k * p7P_NR;
+        codon = 16*x + 4*0 + z;
+        max_sc2 = sc[gcode->basic[codon]];
+        codon = 16*x + 4*0 + z;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*x + 4*0 + z;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*x + 4*0 + z;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        rp[p7P_MSC] = max_sc2;
+      }
+
+    for (x = 0; x < 4; x++)
+      for (y = 0; y < 4; y++) {
+        rp = gm->rsc[x * 25 + y * 5 + 4] + k * p7P_NR;
+        codon = 16*x + 4*y + 0;
+        max_sc3 = sc[gcode->basic[codon]];
+        codon = 16*x + 4*y + 1;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*x + 4*y + 2;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*x + 4*y + 3;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        rp[p7P_MSC] = max_sc3;
+      }
+
+         for (x = 0; x < 4; x++) {
+        rp = gm->rsc[x * 25 + 4 * 5 + 4] + k * p7P_NR;
+        codon = 16*x + 4*0 + 0;
+        max_sc1 = sc[gcode->basic[codon]];
+        codon = 16*x + 4*0 + 1;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*0 + 2;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*0 + 3;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*1 + 0;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*1 + 1;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*1 + 2;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*1 + 3;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*2 + 0;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*2 + 1;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*2 + 2;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*2 + 3;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*3 + 0;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*3 + 1;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*3 + 2;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        codon = 16*x + 4*3 + 3;
+        tmp_sc1 = sc[gcode->basic[codon]];
+        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
+        rp[p7P_MSC] = max_sc1;
+      }
+
+      for (y = 0; y < 4; y++) {
+        rp = gm->rsc[4 * 25 + y * 5 + 4] + k * p7P_NR;
+        codon = 16*0 + 4*y + 0;
+        max_sc2 = sc[gcode->basic[codon]];
+        codon = 16*0 + 4*y + 1;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*0 + 4*y + 2;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*0 + 4*y + 3;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*1 + 4*y + 0;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*1 + 4*y + 1;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*1 + 4*y + 2;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*1 + 4*y + 3;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*2 + 4*y + 0;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*2 + 4*y + 1;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*2 + 4*y + 2;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*2 + 4*y + 3;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*3 + 4*y + 0;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*3 + 4*y + 1;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*3 + 4*y + 2;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        codon = 16*3 + 4*y + 3;
+        tmp_sc2 = sc[gcode->basic[codon]];
+        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
+        rp[p7P_MSC] = max_sc2;
+      }
+
+     for (z = 0; z < 4; z++) {
+        rp = gm->rsc[4 * 25 + 4 * 5 + z] + k * p7P_NR;
+        codon = 16*0 + 4*0 + z;
+        max_sc3 = sc[gcode->basic[codon]];
+        codon = 16*0 + 4*1 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*0 + 4*2 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*0 + 4*3 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*1 + 4*0 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*1 + 4*1 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*1 + 4*2 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*1 + 4*3 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*2 + 4*0 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*2 + 4*1 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*2 + 4*2 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*2 + 4*3 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*3 + 4*0 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*3 + 4*1 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*3 + 4*2 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        codon = 16*3 + 4*3 + z;
+        tmp_sc3 = sc[gcode->basic[codon]];
+        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
+        rp[p7P_MSC] = max_sc3;
+      }
+
+      rp = gm->rsc[4 * 25 + 4 * 5 + 4] + k * p7P_NR;
+      rp[p7P_MSC] = ESL_MAX( ESL_MAX( max_sc1, max_sc2), max_sc3);
+  }
+
+  /* Insert emission scores */
+  /* SRE, Fri Dec 5 08:41:08 2008: We currently hardwire insert scores
+   * to 0, i.e. corresponding to the insertion emission probabilities
+   * being equal to the background probabilities. Benchmarking shows
+   * that setting inserts to informative emission distributions causes
+   * more problems than it's worth: polar biased composition hits
+   * driven by stretches of "insertion" occur, and are difficult to
+   * correct for.
+   */
+  for (x = 0; x < 5; x++)
+    for (y = 0; y < 5; y++)
+      for (z = 0; z < 5; z++)
+      {
+        for (k = 1; k < hmm->M; k++) p7P_ISC_FS(gm, k, x, y, z) = 0.0f;
+        p7P_ISC_FS(gm, hmm->M, x, y, z) = -eslINFINITY;   /* init I_M to impossible.   */
+      }
+ // for (k = 1; k <= hmm->M; k++) p7P_ISC_FS(gm, k, gm->abc->K)    = -eslINFINITY; /* gap symbol */
+ // for (k = 1; k <= hmm->M; k++) p7P_ISC_FS(gm, k, gm->abc->Kp-2) = -eslINFINITY; /* nonresidue symbol */
+ // for (k = 1; k <= hmm->M; k++) p7P_ISC_FS(gm, k, gm->abc->Kp-1) = -eslINFINITY; /* missing data symbol */
+
+
+#if 0
+  /* original (informative) insert setting: relies on sc[K, Kp-1] initialization to -inf above */
+  for (k = 1; k < hmm->M; k++) {
+    for (x = 0; x < hmm->abc->K; x++)
+      sc[x] = log(hmm->ins[k][x] / bg->f[x]);
+    esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
+    for (x = 0; x < hmm->abc->Kp; x++) {
+      rp = gm->rsc[x] + k*p7P_NR;
+      rp[p7P_ISC] = sc[x];
+    }
+  }
+  for (x = 0; x < hmm->abc->Kp; x++)
+    p7P_ISC(gm, hmm->M, x) = -eslINFINITY;   /* init I_M to impossible.   */
+#endif
+
+  /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength()
+   */
+  gm->L = 0;            /* force ReconfigLength to reconfig */
+  if ((status = p7_ReconfigLength(gm, L)) != eslOK) goto ERROR;
+  return eslOK;
+
+ ERROR:
+  if (occ != NULL) free(occ);
+  return status;
+}
 
 /* Function:  p7_ReconfigLength()
  * Synopsis:  Set the target sequence length of a model.

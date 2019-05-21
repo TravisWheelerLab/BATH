@@ -246,13 +246,16 @@ enum p7p_rsc_codon {
   p7P_C5 = 4,
 };
 #define p7P_CODONS 5
+#define p7P_INDEL  4
+#define p7P_NUC_VAR 25
 
 /* Accessing transition, emission scores */
 /* _BM is specially stored off-by-one: [k-1][p7P_BM] is score for entering at Mk */
 #define p7P_TSC(gm, k, s) ((gm)->tsc[(k) * p7P_NTRANS + (s)])
 #define p7P_MSC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
 #define p7P_ISC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
-
+#define p7P_MSC_FS(gm, k, x, y, z) ((gm)->rsc[(x) * p7P_NUC_VAR + (y) * p7P_CODONS + (z)][(k) * p7P_NR + p7P_MSC])
+#define p7P_ISC_FS(gm, k, x, y, z) ((gm)->rsc[(x) * p7P_NUC_VAR + (y) * p7P_CODONS + (z)][(k) * p7P_NR + p7P_ISC])
 
 typedef struct p7_profile_s {
   float  *tsc;          /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
@@ -528,7 +531,8 @@ typedef struct p7_gmx_s {
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
 #define ISC(k)   (rsc[(k) * p7P_NR     + p7P_ISC])
-#define MSC_FS(k,c) (rsc[(k) * p7P_CODONS + (c)]) 
+#define MSC_FS(k,c) (rsc[(k) * p7P_CODONS + (c)])
+
 /* Flags that control P7_GMX debugging dumps */
 #define p7_HIDE_SPECIALS (1<<0)
 #define p7_SHOW_LOG      (1<<1)
@@ -1397,7 +1401,7 @@ extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* fwdback_frameshift.c */
-extern float ** Codon_Emissions_Create (float **original_rsc, const ESL_DSQ *subseq, ESL_GENCODE *gcode, int M, int L, float indel_cost);
+extern float ** Codon_Emissions_Create (P7_PROFILE *gm, const ESL_DSQ *subseq, int M, int L, float indel_cost);
 void Codon_Emissions_Destroy (float **emit_sc);
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
@@ -1480,6 +1484,7 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
+extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_PROFILE *gm, int L, int mode);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
 extern int p7_ReconfigLength_Frameshift  (P7_PROFILE *gm, int L);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
@@ -1728,8 +1733,11 @@ extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
 
 /* p7_profile.c */
 extern P7_PROFILE *p7_profile_Create(int M, const ESL_ALPHABET *abc);
+extern P7_PROFILE *p7_profile_fs_Create(int M, const ESL_ALPHABET *abc);
 extern P7_PROFILE *p7_profile_Clone(const P7_PROFILE *gm);
+extern P7_PROFILE *p7_profile_fs_Clone(const P7_PROFILE *gm);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
+extern int         p7_profile_fs_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
 extern int         p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
 extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);
 extern int         p7_profile_Reuse(P7_PROFILE *gm);

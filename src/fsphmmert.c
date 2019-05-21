@@ -516,6 +516,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* Outer loop: over each query HMM in <hmmfile>. */
   while (hstatus == eslOK) 
     {
+      P7_PROFILE      *gm_fs   = NULL;
       P7_PROFILE      *gm      = NULL;
       P7_OPROFILE     *om      = NULL;       /* optimized query profile                  */
 
@@ -550,8 +551,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if (hmm->desc) { if (fprintf(ofp, "Description: %s\n", hmm->desc) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
       /* Convert to an optimized model */
+      gm_fs = p7_profile_fs_Create (hmm->M, abc);
       gm = p7_profile_Create (hmm->M, abc);
       om = p7_oprofile_Create(hmm->M, abc);
+
+      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
       p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       p7_oprofile_Convert(gm, om);                  /* <om> is now p7_LOCAL, multihit */
 
@@ -571,7 +575,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abc);
         info[i].th  = p7_tophits_Create();
         info[i].om  = p7_oprofile_Copy(om);
-        info[i].gm  = p7_profile_Clone(gm);
+        info[i].gm  = p7_profile_fs_Clone(gm_fs);
     	info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
 	info[i].pli = p7_pipeline_fs_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
         status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
@@ -662,6 +666,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_tophits_Destroy(tophits_accumulator);
       p7_oprofile_Destroy(om);
       p7_profile_Destroy(gm);
+      p7_profile_Destroy(gm_fs);
       p7_hmm_Destroy(hmm);
       p7_hmm_ScoreDataDestroy(scoredata);
       destroy_id_length(id_length_list);
@@ -1017,13 +1022,9 @@ assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list) {
 
   int i;
   int j = 0;
-  printf("th->N %d\n", th->N);
+
   for (i=0; i<th->N; i++) {
-    printf("i %d seqidx %d\n", i, th->hit[i]->seqidx);
     while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++; } 
-    
-    printf("length %d\n", id_length_list->id_lengths[j].length);
-    printf("ad->L %d\n", th->hit[i]->dcl[0].ad->L);
     th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length;
   }
 

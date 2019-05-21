@@ -2171,7 +2171,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   /* Parse with Forward and obtain its real Forward score. */
   p7_ReconfigLength_Frameshift(gm, window_len);
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
-  emit_sc = Codon_Emissions_Create(gm->rsc, subseq, gcode, gm->M, window_len, indel_cost);
+  emit_sc = Codon_Emissions_Create(gm, subseq, gm->M, window_len, indel_cost);
   p7_Forward_Frameshift(subseq, window_len, gm, pli->gxf, emit_sc, &fwdsc);
 
 #if 0   

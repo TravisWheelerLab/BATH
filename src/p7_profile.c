@@ -130,6 +130,116 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
   return NULL;
 }
 
+/* Function:  p7_profile_fs_Create()
+ * Synopsis:  Allocates a profile.
+ *
+ * Purpose:   Allocates for a profile of up to <M> nodes, for digital
+ *            alphabet <abc>.
+ *
+ *            Because this function might be in the critical path (in
+ *            hmmscan, for example), we leave much of the model
+ *            unintialized, including scores and length model
+ *            probabilities. The <p7_ProfileConfig()> call is what
+ *            sets these.
+ *
+ *            The alignment mode is set to <p7_NO_MODE>.  The
+ *            reference pointer <gm->abc> is set to <abc>.
+ *
+ * Returns:   a pointer to the new profile.
+ *
+ * Throws:    <NULL> on allocation error.
+ *
+ * Xref:      STL11/125.
+ */
+P7_PROFILE *
+p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
+{
+  P7_PROFILE *gm = NULL;
+  int         x, y, z;
+  int         status;
+
+  /* level 0 */
+  ESL_ALLOC(gm, sizeof(P7_PROFILE));
+  gm->tsc       = NULL;
+  gm->rsc       = NULL;
+  gm->rf        = NULL;
+  gm->mm        = NULL;
+  gm->cs        = NULL;
+  gm->consensus = NULL;
+
+  /* level 1 */
+  ESL_ALLOC(gm->tsc,       sizeof(float)   * allocM * p7P_NTRANS);
+  ESL_ALLOC(gm->rsc,       sizeof(float *) * 125);
+  ESL_ALLOC(gm->rf,        sizeof(char)    * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
+  ESL_ALLOC(gm->mm,        sizeof(char)    * (allocM+2));
+  ESL_ALLOC(gm->cs,        sizeof(char)    * (allocM+2));
+  ESL_ALLOC(gm->consensus, sizeof(char)    * (allocM+2));
+  gm->rsc[0] = NULL;
+
+  /* level 2 */
+  ESL_ALLOC(gm->rsc[0], sizeof(float) * 125 * (allocM+1) * p7P_NR);
+  for (x = 0; x < 5; x++)
+     for(y = 0; y < 5; y++)
+        for(z = 0; z < 5; z++)
+            gm->rsc[(x * 25) + (y * 5) + z] = gm->rsc[0] + ((x * 25) + (y * 5) + z)  * (allocM+1) * p7P_NR;
+
+  /* Initialize some edge pieces of memory that are never used,
+   * and are only present for indexing convenience.
+   */
+  esl_vec_FSet(gm->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
+  if (allocM > 1) {
+    p7P_TSC(gm, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
+    p7P_TSC(gm, 1, p7P_DD) = -eslINFINITY;
+  }
+
+  for (x = 0; x < 5; x++)
+    for(y = 0; y < 5; y++)
+      for(z = 0; z < 5; z++) {
+    p7P_MSC_FS(gm, 0, x, y, z) = -eslINFINITY;          /* no emissions from nonexistent M_0... */
+    p7P_ISC_FS(gm, 0, x, y, z) = -eslINFINITY;             /* or I_0... */
+    /* I_M is initialized in profile config, when we know actual M, not just allocated max M   */
+  }
+
+  //x = esl_abc_XGetGap(abc);                          /* no emission can emit/score gap characters */
+  //esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
+  //x = esl_abc_XGetMissing(abc);                         /* no emission can emit/score missing data characters */
+  //esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
+
+  /* Set remaining info  */
+  gm->mode             = p7_NO_MODE;
+  gm->L                = 0;
+  gm->allocM           = allocM;
+  gm->M                = 0;
+  gm->max_length       = -1;
+  gm->nj               = 0.0f;
+
+  gm->roff             = -1;
+  gm->eoff             = -1;
+  gm->offs[p7_MOFFSET] = -1;
+  gm->offs[p7_FOFFSET] = -1;
+  gm->offs[p7_POFFSET] = -1;
+
+  gm->name             = NULL;
+  gm->acc              = NULL;
+  gm->desc             = NULL;
+  gm->rf[0]            = 0;     /* RF line is optional annotation; this flags that it's not set yet */
+  gm->mm[0]            = 0;     /* likewise for MM annotation line */
+  gm->cs[0]            = 0;     /* likewise for CS annotation line */
+  gm->consensus[0]     = 0;
+
+  for (x = 0; x < p7_NEVPARAM; x++) gm->evparam[x] = p7_EVPARAM_UNSET;
+  for (x = 0; x < p7_NCUTOFFS; x++) gm->cutoff[x]  = p7_CUTOFF_UNSET;
+  for (x = 0; x < p7_MAXABET;  x++) gm->compo[x]   = p7_COMPO_UNSET;
+
+  gm->abc         = abc;
+
+  return gm;
+
+ ERROR:
+  p7_profile_Destroy(gm);
+  return NULL;
+}
+
 /* Function:  p7_profile_Copy()
  * Synopsis:  Copy a profile.
  *
@@ -183,6 +293,58 @@ p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst)
   return eslOK;
 }
 
+/* Function:  p7_profile_fs_Copy()
+ * Synopsis:  Copy a profile.
+ *
+ * Purpose:   Copies profile <src> to profile <dst>, where <dst>
+ *            has already been allocated to be of sufficient size.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation error; <eslEINVAL> if <dst> is too small
+ *            to fit <src>.
+ */
+int
+p7_profile_fs_Copy(const P7_PROFILE *src, P7_PROFILE *dst)
+{
+  int x,z;
+  int status;
+
+  if (src->M > dst->allocM) ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
+
+  esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
+  for (x = 0; x < 125;   x++) esl_vec_FCopy(src->rsc[x], (src->M+1)*p7P_NR, dst->rsc[x]);
+  for (x = 0; x < p7P_NXSTATES;   x++) esl_vec_FCopy(src->xsc[x], p7P_NXTRANS,       dst->xsc[x]);
+
+  dst->mode        = src->mode;
+  dst->L           = src->L;
+  dst->allocM      = src->allocM;
+  dst->M           = src->M;
+  dst->max_length  = src->max_length;
+  dst->nj          = src->nj;
+
+  dst->roff        = src->roff;
+  dst->eoff        = src->eoff;
+  for (x = 0; x < p7_NOFFSETS; ++x) dst->offs[x] = src->offs[x];
+
+  if (dst->name != NULL) free(dst->name);
+  if (dst->acc  != NULL) free(dst->acc);
+  if (dst->desc != NULL) free(dst->desc);
+
+  if ((status = esl_strdup(src->name,      -1, &(dst->name)))      != eslOK) return status;
+  if ((status = esl_strdup(src->acc,       -1, &(dst->acc)))       != eslOK) return status;
+  if ((status = esl_strdup(src->desc,      -1, &(dst->desc)))      != eslOK) return status;
+
+  strcpy(dst->rf,        src->rf);         /* RF is optional: if it's not set, *rf=0, and strcpy still works fine */
+  strcpy(dst->mm,        src->mm);         /* MM is also optional annotation */
+  strcpy(dst->cs,        src->cs);         /* CS is also optional annotation */
+  strcpy(dst->consensus, src->consensus);  /* consensus though is always present on a valid profile */
+
+  for (z = 0; z < p7_NEVPARAM; z++) dst->evparam[z] = src->evparam[z];
+  for (z = 0; z < p7_NCUTOFFS; z++) dst->cutoff[z]  = src->cutoff[z];
+  for (z = 0; z < p7_MAXABET;  z++) dst->compo[z]   = src->compo[z];
+  return eslOK;
+}
 
 /* Function:  p7_profile_Clone()
  * Synopsis:  Duplicates a profile.
@@ -200,6 +362,27 @@ p7_profile_Clone(const P7_PROFILE *gm)
   if ((status = p7_profile_Copy(gm, g2)) != eslOK) goto ERROR;
   return g2;
   
+ ERROR:
+  p7_profile_Destroy(g2);
+  return NULL;
+}
+
+/* Function:  p7_profile_fs_Clone()
+ * Synopsis:  Duplicates a profile.
+ *
+ * Purpose:   Duplicate profile <gm>; return a pointer
+ *            to the newly allocated copy.
+ */
+P7_PROFILE *
+p7_profile_fs_Clone(const P7_PROFILE *gm)
+{
+  P7_PROFILE *g2 = NULL;
+  int         status;
+
+  if ((g2 = p7_profile_fs_Create(gm->allocM, gm->abc)) == NULL) return NULL;
+  if ((status = p7_profile_fs_Copy(gm, g2)) != eslOK) goto ERROR;
+  return g2;
+
  ERROR:
   p7_profile_Destroy(g2);
   return NULL;

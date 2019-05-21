@@ -749,7 +749,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 		 info->pli->nres -= dbsq_dna->C;
          do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 	 
-		 p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dbsq_dna, info->wrk->orf_block, info->th, info->scoredata);
+		 p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       } else {
         info->pli->nres -= dbsq_dna->n;
@@ -759,8 +759,8 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 		//	  printf("COMP\n");
          esl_sq_ReverseComplement(dbsq_dna);
 	     do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
-         
-		 p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dbsq_dna, info->wrk->orf_block, info->th, info->scoredata);
+
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode); 
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
          info->pli->nres += dbsq_dna->W;
          esl_sq_ReverseComplement(dbsq_dna);
@@ -822,6 +822,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
       for (i=0; i<block->count; i++) {
         block->list[i].idx = seqid;
+        
         add_id_length(id_length_list, seqid, block->list[i].L);
         seqid++;
         if (   seqid == n_targetseqs // hit the sequence target
@@ -847,7 +848,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
           // handed. Could accelerate if this proves to have any notable impact on speed.
           esl_sq_Copy(block->list + (block->count - 1) , tmpsq);
       }
-printf("EEEEEEEe\n");
+
       if (sstatus == eslOK) {
           status = esl_workqueue_ReaderUpdate(queue, block, &newBlock);
           if (status != eslOK) esl_fatal("Work queue reader failed");
@@ -921,7 +922,7 @@ pipeline_thread(void *arg)
       if (info->wrk->do_watson) {
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dnaSeq, info->wrk->orf_block, info->th, info->scoredata);
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
        } else {
          info->pli->nres -= dnaSeq->n;
@@ -931,7 +932,7 @@ pipeline_thread(void *arg)
          esl_sq_ReverseComplement(dnaSeq);
          do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->bg, info->gcode, dnaSeq, info->wrk->orf_block, info->th, info->scoredata);
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
          esl_sq_ReverseComplement(dnaSeq);
        }
@@ -1016,8 +1017,13 @@ assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list) {
 
   int i;
   int j = 0;
+  printf("th->N %d\n", th->N);
   for (i=0; i<th->N; i++) {
-    while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++;   }
+    printf("i %d seqidx %d\n", i, th->hit[i]->seqidx);
+    while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++; } 
+    
+    printf("length %d\n", id_length_list->id_lengths[j].length);
+    printf("ad->L %d\n", th->hit[i]->dcl[0].ad->L);
     th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length;
   }
 

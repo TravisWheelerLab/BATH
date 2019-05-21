@@ -611,7 +611,6 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
     
 	if ( curr_window->complementarity == p7_COMPLEMENT) {
       //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
-	  //printf("EM n %d, tl %d\n", curr_window->n, curr_window->target_len);
 	  curr_window->n = curr_window->target_len - curr_window->n +  1;
       window_start   = ESL_MAX( 1                      ,  curr_window->n - curr_window->length - (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) ) ;
       window_end     = ESL_MIN( curr_window->target_len,  curr_window->n                       + (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) )   ;
@@ -2406,7 +2405,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
          for (d = 0; d < hit->ndom; d++)
          { 
             if (dnasq->start < dnasq->end)
-            {  //printf("55 no comp\n"); 
+            {  
                hit->dcl[d].iorf       = pli_tmp->tmpseq->start;
                hit->dcl[d].jorf       = pli_tmp->tmpseq->start-1 + pli_tmp->tmpseq->n;
                hit->dcl[d].ienv       += dnasq->start + window_start - 2;
@@ -2493,11 +2492,12 @@ ERROR:
  */
 static int
 p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7_BG *bg, P7_TOPHITS *hitlist, 
-				          const P7_SCOREDATA *data, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, 
+		          int64_t seqidx, const P7_SCOREDATA *data, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, 
 						  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp
 
 )
 {
+
   int              i,j;
   float            nullsc;           /* HMM null score                   */
 
@@ -2540,7 +2540,7 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
   {
     window = post_vit_windowlist.windows+i;
     pli->pos_past_vit += window->length;
-    p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, pli->nseqs, window->n, window->length, dnasq, gcode, pli_tmp);
+    p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, seqidx, window->n, window->length, dnasq, gcode, pli_tmp);
   }
 
   if (vit_windowlist.windows != NULL) free(vit_windowlist.windows);
@@ -2603,10 +2603,10 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
-		               P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, 
-					   P7_TOPHITS *hitlist, P7_SCOREDATA *data)
+p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data,
+                       P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode)
 {
+
   int              i;
   int              status, wstatus;
   float            nullsc;   /* null model score                        */
@@ -2662,7 +2662,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     esl_sq_Reuse(orfsq);
   }
 
-  status = p7_pli_postMSV_Frameshift(pli, om, gm, bg, hitlist, data, post_msv_orf_block, dnasq, gcode, pli_tmp);	   
+  status = p7_pli_postMSV_Frameshift(pli, om, gm, bg, hitlist, seqidx, data, post_msv_orf_block, dnasq, gcode, pli_tmp);	   
 	 
   pli_tmp->tmpseq->dsq = NULL;  
   

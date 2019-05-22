@@ -2154,8 +2154,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
     subseq = dnasq->dsq + window_start - 1;
   }
 
-  p7_bg_SetLength(bg, window_len);
-  p7_bg_NullOne  (bg, subseq, window_len , &nullsc);
+  p7_bg_SetLength_Frameshift(bg, window_len);
+  p7_bg_NullOne_Frameshift (bg, subseq, window_len , &nullsc);
 
 //TODO: figure out translated biasfilter
 #if 0

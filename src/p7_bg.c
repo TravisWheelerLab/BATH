@@ -197,7 +197,24 @@ p7_bg_SetLength(P7_BG *bg, int L)
   return eslOK;
 }
 
+/* Function:  p7_bg_SetLength_Frameshift()
+ * Synopsis:  Set the null model length distribution.
+ *
+ * Purpose:   Sets the geometric null model length
+ *            distribution in <bg> to a mean of <L> residues.
+ */
+int
+p7_bg_SetLength_Frameshift(P7_BG *bg, int L)
+{
+  
+  int amino_len = L / 3 + 1;
+  bg->p1 = (float) amino_len / (float) (amino_len+1);
 
+  bg->fhmm->t[0][0] = bg->p1;
+  bg->fhmm->t[0][1] = 1.0f - bg->p1;
+
+  return eslOK;
+}
 
 /*****************************************************************
  * 2. Reading/writing residue backgrounds from files
@@ -361,6 +378,26 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
   return eslOK;
 }
 
+/* Function:  p7_bg_NullOne_Frameshift()
+ *
+ * Purpose:   Calculate the null1 lod score, for sequence <dsq>
+ *            of length <L> "aligned" to the base null model <bg>.
+ *
+ * Note:      Because the residue composition in null1 <bg> is the
+ *            same as the background used to calculate residue
+ *            scores in profiles and null models, all we have to
+ *            do here is score null model transitions.
+ *
+ *            Can accept a NULL for *dsq, in which case the returned
+ *            value will be (float) L * log(bg->p1) + log(1.-bg->p1);
+ */
+int
+p7_bg_NullOne_Frameshift(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
+{
+  int amino_len = L / 3 + 1;
+  *ret_sc = (float) amino_len * log(bg->p1) + log(1.-bg->p1);
+  return eslOK;
+}
 
 
 

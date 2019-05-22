@@ -25,7 +25,7 @@ static float max_codon_four(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq,
 static float max_codon_five(float **emit_sc, ESL_DSQ *codon, const ESL_DSQ *dsq, ESL_GENCODE *gcode, int k, int i, float two_indel);
 
 float ** 
-Codon_Emissions_Create (P7_PROFILE *gm, const ESL_DSQ *subseq, int M, int L, float indel_cost)  {
+Codon_Emissions_Create (P7_PROFILE *gm, const ESL_DSQ *subseq, const ESL_ALPHABET *abc, int M, int L, float indel_cost)  {
 
   int i,k;
   int v, w, x, y, z;
@@ -58,152 +58,122 @@ Codon_Emissions_Create (P7_PROFILE *gm, const ESL_DSQ *subseq, int M, int L, flo
       MSC_FS(k,p7P_C5) = -eslINFINITY;
     }
   }
-  for(k = 1; k <= M; k++) {
+
   /* Third row has one C3 codon */
+  for(k = 1; k <= M; k++) {
     x = subseq[1];
-    if(x >= p7P_INDEL) x = p7P_INDEL;
     y = subseq[2];
-    if(y >= p7P_INDEL) y = p7P_INDEL;
     z = subseq[3];
-    if(z >= p7P_INDEL) z = p7P_INDEL;
     rsc = emit_sc[3];
-
-    MSC_FS(k,p7P_C1) = -eslINFINITY;
-    MSC_FS(k,p7P_C2) = -eslINFINITY;
-    MSC_FS(k,p7P_C3) =                   p7P_MSC_FS(gm, k, x      , y        , z        );
-    if(MSC_FS(k,p7P_C3) == -eslINFINITY) {
-      MSC_FS(k,p7P_C3) =                 p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, p7P_INDEL);
-      MSC_FS(k,p7P_C3) += one_indel;
-    } else {
-      MSC_FS(k,p7P_C3) += no_indel;
-    }
-    MSC_FS(k,p7P_C4) = -eslINFINITY;
-    MSC_FS(k,p7P_C5) = -eslINFINITY;
-
-
-    /* Fourth row has only C1 and C3 codons */
-    x = subseq[2];
-    if(x >= p7P_INDEL) x = p7P_INDEL;
-    y = subseq[3];
-    if(y >= p7P_INDEL) y = p7P_INDEL;
-    z = subseq[4];
-    if(z >= p7P_INDEL) z = p7P_INDEL;
-    rsc = emit_sc[4];
-
-    MSC_FS(k,p7P_C1) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, z        , p7P_INDEL, p7P_INDEL),
-                                         p7P_MSC_FS(gm, k, p7P_INDEL, z        , p7P_INDEL)),
-                                         p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, z        ));
-    MSC_FS(k,p7P_C1) += two_indel;
-    MSC_FS(k,p7P_C2) = -eslINFINITY;
-    MSC_FS(k,p7P_C3) =                   p7P_MSC_FS(gm, k, x      , y        , z        );
-    if(MSC_FS(k,p7P_C3) == -eslINFINITY) {
-      MSC_FS(k,p7P_C3) =                 p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, p7P_INDEL);
-      MSC_FS(k,p7P_C3) += one_indel;
-    } else
-      MSC_FS(k,p7P_C3) += no_indel;
-    MSC_FS(k,p7P_C4) = -eslINFINITY;
-    MSC_FS(k,p7P_C5) = -eslINFINITY;
-
-
-    /* Fifth row has only C1, C2, and C3 codons */
-    x = subseq[3];
-    if(x >= p7P_INDEL) x = p7P_INDEL;
-    y = subseq[4];
-    if(y >= p7P_INDEL) y = p7P_INDEL;
-    z = subseq[5];
-    if(z >= p7P_INDEL) z = p7P_INDEL;
-    rsc = emit_sc[5];
-
-    MSC_FS(k,p7P_C1) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, z        , p7P_INDEL, p7P_INDEL),
-                                         p7P_MSC_FS(gm, k, p7P_INDEL, z        , p7P_INDEL)),
-                                         p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, z        ));
-    MSC_FS(k,p7P_C1) += two_indel;
-    MSC_FS(k,p7P_C2) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL),
-                                         p7P_MSC_FS(gm, k, y      , p7P_INDEL, z        )),
-                                         p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL));
-    MSC_FS(k,p7P_C2) += one_indel;
-    MSC_FS(k,p7P_C3) =                   p7P_MSC_FS(gm, k, x      , y        , z        );
-    if(MSC_FS(k,p7P_C3) == -eslINFINITY) {
-      MSC_FS(k,p7P_C3) =                 p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, p7P_INDEL);
-      MSC_FS(k,p7P_C3) += one_indel;
-    } else
-      MSC_FS(k,p7P_C3) += no_indel;
-    MSC_FS(k,p7P_C4) = -eslINFINITY;
-    MSC_FS(k,p7P_C5) = -eslINFINITY;
-
-
-    /* Sixth row has only C1, C2, C3 and C4 codons */
-    w = subseq[3];
-    if(w >= p7P_INDEL) w = p7P_INDEL;
-    x = subseq[4];
-    if(x >= p7P_INDEL) x = p7P_INDEL;
-    y = subseq[5];
-    if(y >= p7P_INDEL) y = p7P_INDEL;
-    z = subseq[6];
-    if(z >= p7P_INDEL) z = p7P_INDEL;
-    rsc = emit_sc[6];
-
-    MSC_FS(k,p7P_C1) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, z        , p7P_INDEL, p7P_INDEL),
-                                         p7P_MSC_FS(gm, k, p7P_INDEL, z        , p7P_INDEL)),
-                                         p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, z        ));
-    MSC_FS(k,p7P_C1) += two_indel;
-    MSC_FS(k,p7P_C2) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL),
-                                         p7P_MSC_FS(gm, k, y      , p7P_INDEL, z        )),
-                                         p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL));
-    MSC_FS(k,p7P_C2) += one_indel;
-    MSC_FS(k,p7P_C3) =                   p7P_MSC_FS(gm, k, x      , y        , z        );
-    if(MSC_FS(k,p7P_C3) == -eslINFINITY) {
-      MSC_FS(k,p7P_C3) =                 p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, p7P_INDEL);
-      MSC_FS(k,p7P_C3) += one_indel;
-    } else
-      MSC_FS(k,p7P_C3) += no_indel;
-    MSC_FS(k,p7P_C4) =  ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, w      , x        , y        ),
-                                          p7P_MSC_FS(gm, k, w      , y        , z        )),
-                                          p7P_MSC_FS(gm, k, x      , y        , z        ));
-    MSC_FS(k,p7P_C4) += one_indel;
-    MSC_FS(k,p7P_C5) = -eslINFINITY;
-  }
-
-
-  for(i = 5; i <= L; i++) {
-    rsc = emit_sc[i];
-    for(k = 1; k <= M; k++) {
-      v = subseq[i-4];
-      if(v >= p7P_INDEL) v = p7P_INDEL;
-      w = subseq[i-3];
-      if(w >= p7P_INDEL) w = p7P_INDEL;
-      x = subseq[i-2];
-      if(x >= p7P_INDEL) x = p7P_INDEL;
-      y = subseq[i-1];
-      if(y >= p7P_INDEL) y = p7P_INDEL;
-      z = subseq[i];
-      if(z >= p7P_INDEL) z = p7P_INDEL;
-
-      MSC_FS(k,p7P_C1) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, z        , p7P_INDEL, p7P_INDEL),
-                                           p7P_MSC_FS(gm, k, p7P_INDEL, z        , p7P_INDEL)),
-                                           p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, z        ));
-      MSC_FS(k,p7P_C1) += two_indel;
-      MSC_FS(k,p7P_C2) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL),
-                                           p7P_MSC_FS(gm, k, y      , p7P_INDEL, z        )),
-                                           p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL));
-      MSC_FS(k,p7P_C2) += one_indel;
+  
+    if(esl_abc_XIsCanonical(abc, x) && esl_abc_XIsCanonical(abc, z) && esl_abc_XIsCanonical(abc, z))
+    {
+      MSC_FS(k,p7P_C1) = -eslINFINITY;
+      MSC_FS(k,p7P_C2) = -eslINFINITY;
       MSC_FS(k,p7P_C3) =                   p7P_MSC_FS(gm, k, x      , y        , z        );
       if(MSC_FS(k,p7P_C3) == -eslINFINITY) {
         MSC_FS(k,p7P_C3) =                 p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, p7P_INDEL);
         MSC_FS(k,p7P_C3) += one_indel;
-      } else
+      } else 
         MSC_FS(k,p7P_C3) += no_indel;
-      MSC_FS(k,p7P_C4) =  ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, w      , x        , y        ),
-                                            p7P_MSC_FS(gm, k, w      , y        , z        )),
-                                            p7P_MSC_FS(gm, k, x      , y        , z        ));
-      MSC_FS(k,p7P_C4) += one_indel;
-      MSC_FS(k,p7P_C5) =  ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, v      , w        , x        ),
-                          ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, v      , w        , y        ),
-                                   ESL_MAX( p7P_MSC_FS(gm, k, v      , w        , z        ),
-                                            p7P_MSC_FS(gm, k, v      , x        , y        ))),
-                                            p7P_MSC_FS(gm, k, v      , x        , z        ))),
-                                            p7P_MSC_FS(gm, k, x      , y        , z        ));
-      MSC_FS(k,p7P_C5) += two_indel;
+      
+      MSC_FS(k,p7P_C4) = -eslINFINITY;
+      MSC_FS(k,p7P_C5) = -eslINFINITY;
+    } 
+    else 
+    {
+      MSC_FS(k,p7P_C1) = -eslINFINITY;
+      MSC_FS(k,p7P_C2) = -eslINFINITY;
+      MSC_FS(k,p7P_C3) = -eslINFINITY;
+      MSC_FS(k,p7P_C4) = -eslINFINITY;
+      MSC_FS(k,p7P_C5) = -eslINFINITY;
+    }
+  }
+    
+  for(i = 4; i <= L; i++) {
+    rsc = emit_sc[i];
+    for(k = 1; k <= M; k++) {
+      v = subseq[i-4];
+      w = subseq[i-3];
+      x = subseq[i-2];
+      y = subseq[i-1];
+      z = subseq[i];
+
+      if(esl_abc_XIsCanonical(abc, z))
+      { 
+        MSC_FS(k,p7P_C1) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, z        , p7P_INDEL, p7P_INDEL),
+                                             p7P_MSC_FS(gm, k, p7P_INDEL, z        , p7P_INDEL)),
+                                             p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, z        ));
+        MSC_FS(k,p7P_C1) += two_indel;
+       
+        if(esl_abc_XIsCanonical(abc, y))
+        {
+          MSC_FS(k,p7P_C2) = ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL),
+                                               p7P_MSC_FS(gm, k, y      , p7P_INDEL, z        )),
+                                               p7P_MSC_FS(gm, k, y      , z        , p7P_INDEL));
+          MSC_FS(k,p7P_C2) += one_indel;      
+           
+          if(esl_abc_XIsCanonical(abc, x))
+          {
+             MSC_FS(k,p7P_C3) =                   p7P_MSC_FS(gm, k, x      , y        , z        );
+             if(MSC_FS(k,p7P_C3) == -eslINFINITY) {
+               MSC_FS(k,p7P_C3) =                 p7P_MSC_FS(gm, k, p7P_INDEL, p7P_INDEL, p7P_INDEL);
+               MSC_FS(k,p7P_C3) += one_indel;
+             } 
+             else
+               MSC_FS(k,p7P_C3) += no_indel;
+
+             if(esl_abc_XIsCanonical(abc, w))
+             {   
+               MSC_FS(k,p7P_C4) =  ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, w      , x        , y        ),
+                                                  p7P_MSC_FS(gm, k, w      , y        , z        )),
+                                                  p7P_MSC_FS(gm, k, x      , y        , z        ));
+               MSC_FS(k,p7P_C4) += one_indel;
+ 
+               if(esl_abc_XIsCanonical(abc, v))
+               {  
+                 MSC_FS(k,p7P_C5) =  ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, v      , w        , x        ),
+                                     ESL_MAX( ESL_MAX( p7P_MSC_FS(gm, k, v      , w        , y        ),
+                                              ESL_MAX( p7P_MSC_FS(gm, k, v      , w        , z        ),
+                                                       p7P_MSC_FS(gm, k, v      , x        , y        ))),
+                                                       p7P_MSC_FS(gm, k, v      , x        , z        ))),
+                                                       p7P_MSC_FS(gm, k, x      , y        , z        ));
+                 MSC_FS(k,p7P_C5) += two_indel;                
+               }
+               else
+                 MSC_FS(k,p7P_C5) = -eslINFINITY;
+             }
+             else
+             {
+               MSC_FS(k,p7P_C4) = -eslINFINITY;
+               MSC_FS(k,p7P_C5) = -eslINFINITY;
+             }
+ 
+          } 
+          else 
+          { 
+            MSC_FS(k,p7P_C3) = -eslINFINITY;
+            MSC_FS(k,p7P_C4) = -eslINFINITY;
+            MSC_FS(k,p7P_C5) = -eslINFINITY;
+          }        
+          
+        }
+        else
+        {
+          MSC_FS(k,p7P_C2) = -eslINFINITY;
+          MSC_FS(k,p7P_C3) = -eslINFINITY;
+          MSC_FS(k,p7P_C4) = -eslINFINITY;
+          MSC_FS(k,p7P_C5) = -eslINFINITY;        
+        }		
+      }
+      else
+      {
+        MSC_FS(k,p7P_C1) = -eslINFINITY;
+        MSC_FS(k,p7P_C2) = -eslINFINITY;
+        MSC_FS(k,p7P_C3) = -eslINFINITY;
+        MSC_FS(k,p7P_C4) = -eslINFINITY;
+	MSC_FS(k,p7P_C5) = -eslINFINITY;
+      }    
     }
   }
 

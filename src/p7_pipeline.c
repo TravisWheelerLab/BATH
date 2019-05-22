@@ -2147,7 +2147,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   float **emit_sc;
   //int F3_L = ESL_MIN( window_len,  pli->B3);
   float	           indel_cost = 0.01;
-
+	
   if(dnasq->end < dnasq->start) {
 	 	  subseq = dnasq->dsq + window_start;
   } else {
@@ -2171,7 +2171,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   /* Parse with Forward and obtain its real Forward score. */
   p7_ReconfigLength_Frameshift(gm, window_len);
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
-  emit_sc = Codon_Emissions_Create(gm, subseq, gm->M, window_len, indel_cost);
+  emit_sc = Codon_Emissions_Create(gm, subseq, dnasq->abc, gm->M, window_len, indel_cost);
   p7_Forward_Frameshift(subseq, window_len, gm, pli->gxf, emit_sc, &fwdsc);
 
 #if 0   
@@ -2499,6 +2499,7 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 {
 
   int              i,j;
+  int 	           oldWinCnt, newWinCnt;
   float            nullsc;           /* HMM null score                   */
 
   P7_HMM_WINDOWLIST vit_windowlist;
@@ -2515,20 +2516,23 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, gm->abc);
 
+  oldWinCnt = newWinCnt = 0;
   for (i = 0; i < orf_block->count; ++i)
   {
     orfsq = &(orf_block->list[i]);
     p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);  
     /* Second level filter: ViterbiFilter(), multihit with <om> */
     p7_ViterbiFilter_longtarget(orfsq->dsq, orfsq->n, om, pli->oxf, nullsc, pli->F2, &vit_windowlist);
-     for(j = 0; j < vit_windowlist.count; ++j) 
+     newWinCnt = vit_windowlist.count;
+     for(j = oldWinCnt; j < newWinCnt; ++j) 
      {
        window = vit_windowlist.windows+j;
        p7_hmmwindow_new(&post_vit_windowlist, window->id, window->n, window->fm_n, window->k, 
 			            window->length, window->score, p7_NOCOMPLEMENT, window->target_len);       
        esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
        post_vit_orf_block->count++;
-     }  
+     }
+     oldWinCnt = newWinCnt; 
   }
 
   p7_pli_ConvertExtendAndMergeWindows(om,data, &post_vit_windowlist, post_vit_orf_block->list, dnasq->n,0); 
@@ -2616,7 +2620,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   ESL_SQ	       *orfsq;
   ESL_SQ_BLOCK *post_msv_orf_block = NULL;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
- 
+
   if (dnasq->n < 3) return eslOK;
 
   post_msv_orf_block = NULL;

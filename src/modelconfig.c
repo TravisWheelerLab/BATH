@@ -248,7 +248,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   if (hmm->flags & p7H_CS)    strcpy(gm->cs,        hmm->cs);
   for (z = 0; z < p7_NEVPARAM; z++) gm->evparam[z] = hmm->evparam[z];
   for (z = 0; z < p7_NCUTOFFS; z++) gm->cutoff[z]  = hmm->cutoff[z];
-  for (z = 0; z < p7_MAXABET;  z++) gm->compo[z]   = hmm->compo[z];
+  for (z = 0; z < p7_MAXABET;  z++) gm->compo[z]   = hmm->compo[z]; 
 
    /* Entry scores. */
   if (p7_profile_IsLocal(gm))
@@ -341,13 +341,13 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
         rp = gm->rsc[x * 25 + 4 * 5 + z] + k * p7P_NR;
         codon = 16*x + 4*0 + z;
         max_sc2 = sc[gcode->basic[codon]];
-        codon = 16*x + 4*0 + z;
+        codon = 16*x + 4*1 + z;
         tmp_sc2 = sc[gcode->basic[codon]];
         max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*x + 4*0 + z;
+        codon = 16*x + 4*2 + z;
         tmp_sc2 = sc[gcode->basic[codon]];
         max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*x + 4*0 + z;
+        codon = 16*x + 4*3 + z;
         tmp_sc2 = sc[gcode->basic[codon]];
         max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
         rp[p7P_MSC] = max_sc2;
@@ -370,7 +370,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
         rp[p7P_MSC] = max_sc3;
       }
 
-         for (x = 0; x < 4; x++) {
+      for (x = 0; x < 4; x++) {
         rp = gm->rsc[x * 25 + 4 * 5 + 4] + k * p7P_NR;
         codon = 16*x + 4*0 + 0;
         max_sc1 = sc[gcode->basic[codon]];

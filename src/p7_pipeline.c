@@ -592,7 +592,8 @@ p7_pipeline_fs_Destroy(P7_PIPELINE *pli)
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap) {
+p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap) 
+{
 
   int i;
   P7_HMM_WINDOW        *prev_window = NULL;
@@ -660,6 +661,68 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
   return eslOK;
 }
 
+/* Function:  p7_pli_ExtendAndMergeWindows
+ * Synopsis:  Turns a list of ssv diagonals into windows, and merges
+ *            overlapping windows.
+ *
+ * Purpose:   Accepts a <windowlist> of SSV diagonals, extends those
+ *            to windows based on a combination of the max_length
+ *            value from <om> and the prefix and suffix lengths stored
+ *            in <data>, then merges (in place) windows that overlap
+ *            by more than <pct_overlap> percent, ensuring that windows
+ *            stay within the bounds of 1..<L>.
+ *
+ * Returns:   <eslOK>
+ */
+int
+p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE *om) {
+
+  int            i;
+  ESL_SQ        *prev_orf = NULL;
+  ESL_SQ        *curr_orf = NULL;
+  int64_t        dna_start;
+  int64_t        dna_end;
+  int32_t        orf_len;
+  int64_t              tmp;
+  int                  new_hit_cnt = 0;
+   if (orf_block->count == 0)
+    return eslOK;
+
+  /* extend orfs */
+  for (i=0; i<orf_block->count; i++) {
+    curr_orf = orf_block->list+i;
+    orf_len = curr_orf->end - curr_orf->start + 1;    
+    
+    dna_start = ESL_MAX( 1        ,  curr_orf->start - (om->max_length - orf_len)  * 3);
+    dna_end   = ESL_MIN( dna_sq->n,  curr_orf->end   + (om->max_length - orf_len)  * 3); 
+ 
+    curr_orf->start = dna_start;
+    curr_orf->end   = dna_end; 
+  }
+
+  /* merge overlapping orfs, compressing list in place. */
+  for (i=1; i<orf_block->count; i++) {
+    prev_orf = orf_block->list+new_hit_cnt;
+    curr_orf = orf_block->list+i;
+
+    if((prev_orf->start < curr_orf->start && prev_orf->end < curr_orf->start) ||
+       (prev_orf->start > curr_orf->start && prev_orf->end > curr_orf->start))
+    {
+      dna_start        = ESL_MIN(prev_orf->start, curr_orf->start);
+      dna_end          = ESL_MAX(prev_orf->end, curr_orf->end);
+      prev_orf->start = dna_start;
+      prev_orf->end   = dna_end;
+    } else {
+      new_hit_cnt++;
+      orf_block->list[new_hit_cnt] = orf_block->list[i];
+    }
+  }
+
+  orf_block->count = new_hit_cnt+1;
+
+  return eslOK;
+}
+
 /* Function:  p7_pli_ConvertWindows
  * Synopsis:  Turns a list of virtebi orf diagonals and coverts the 
  *            start <n> and length <length> variables of the window 
@@ -684,20 +747,18 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
 
   //convert windows to dna
   for (i=0; i<windowlist->count; i++) {
-	curr_window = windowlist->windows+i;
-	if(orf_list[i].start < orf_list[i].end) {   
-	
-		curr_window->n =  orf_list[i].start + (curr_window->n - 1) * 3;
-        curr_window->complementarity = p7_NOCOMPLEMENT;
-   	} else {
-	
-		curr_window->n =  (dna_len - orf_list[i].start + 1) + (curr_window->n - 1) * 3;
-        curr_window->complementarity = p7_COMPLEMENT;
+    curr_window = windowlist->windows+i;
+	//printf("start %d end %d\n", orf_list[i].start, orf_list[i].end);
+    if(orf_list[i].start < orf_list[i].end) {   
+      curr_window->n =  orf_list[i].start + (curr_window->n - 1) * 3;
+      curr_window->complementarity = p7_NOCOMPLEMENT;
+    } else {	
+      curr_window->n =  (dna_len - orf_list[i].start + 1) + (curr_window->n - 1) * 3;
+      curr_window->complementarity = p7_COMPLEMENT;
     }
-    
-	curr_window->target_len = dna_len;
+    curr_window->target_len = dna_len;
   }
-
+	printf("BBBBB\n");
   //extend windows
    for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
@@ -2124,7 +2185,7 @@ ERROR:
  */
 static int
 p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TOPHITS *hitlist, const P7_SCOREDATA *data, 
-				              int64_t seqidx, int window_start, int window_len, ESL_SQ *dnasq, ESL_GENCODE *gcode,
+				              int64_t seqidx, int window_start, int window_end, ESL_SQ *dnasq, ESL_GENCODE *gcode,
 			                  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp 
 )
 {
@@ -2137,53 +2198,48 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   float            seq_score;          /* the corrected per-seq bit score */
   float            sum_score;           /* the corrected reconstruction score for the seq */
   float            pre_score, pre2_score; /* uncorrected bit scores for seq */
-  //double           P;                /* P-value of a hit */
+  double           P;                /* P-value of a hit */
   double           lnP;              /* log P-value of a hit */
   int              Ld;               /* # of residues in envelopes */
   int              d;
   int              status;
+  int		   window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
   float **emit_sc;
   //int F3_L = ESL_MIN( window_len,  pli->B3);
   float	           indel_cost = 0.01;
+
+  window_len = window_end - window_start + 1;
+  if (window_len < 3) return eslOK;
 	
-  if(dnasq->end < dnasq->start) {
-	 	  subseq = dnasq->dsq + window_start;
-  } else {
-    subseq = dnasq->dsq + window_start - 1;
-  }
-
+  subseq = dnasq->dsq + window_start;
+	
   p7_bg_SetLength_Frameshift(bg, window_len);
-  p7_bg_NullOne_Frameshift (bg, subseq, window_len , &nullsc);
-
-//TODO: figure out translated biasfilter
-#if 0
-  if (pli->do_biasfilter)
-  {
-    p7_bg_FilterScore(bg, subseq, window_len, &bias_filtersc);
-    bias_filtersc -= nullsc;  //remove nullsc, so bias scaling can be done, then add it back on later
-  } else {
-    bias_filtersc = 0;
-  }
-#endif
-
-  /* Parse with Forward and obtain its real Forward score. */
   p7_ReconfigLength_Frameshift(gm, window_len);
+  p7_bg_NullOne  (bg, subseq, window_len, &nullsc);
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
   emit_sc = Codon_Emissions_Create(gm, subseq, dnasq->abc, gm->M, window_len, indel_cost);
   p7_Forward_Frameshift(subseq, window_len, gm, pli->gxf, emit_sc, &fwdsc);
 
-#if 0   
-  filtersc =  nullsc + (bias_filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
-  seq_score = (fwdsc - filtersc) / eslCONST_LOG2;
+#if 0
+  if (pli->do_biasfilter)
+      {
+        p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
+
+        seq_score = (usc - filtersc) / eslCONST_LOG2;
+        P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+        if (P > pli->F1) continue;
+      }  else filtersc = nullsc;
+      pli->n_past_bias++;
+
+
+  seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-  if (P > pli->F3 ) return eslOK;
-#endif  
-  
-  filtersc = nullsc; 
-  pli->n_past_fwd++;
-  pli->pos_past_fwd += window_len;
+    if (P > pli->F3) return eslOK;
+  pli->n_past_fwd++; 
+     
+#endif 
   
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   /*now that almost everything has been filtered away, set up seq object for domaindef function*/
@@ -2499,14 +2555,14 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 {
 
   int              i,j;
-  int 	           oldWinCnt, newWinCnt;
   float            nullsc;           /* HMM null score                   */
+  int              min_n, max_n, max_k;
 
-  P7_HMM_WINDOWLIST vit_windowlist;
-  P7_HMM_WINDOWLIST post_vit_windowlist;
-  P7_HMM_WINDOW    *window;
-  ESL_SQ_BLOCK *post_vit_orf_block; 
-  ESL_SQ *orfsq;
+  P7_HMM_WINDOWLIST  vit_windowlist;
+  P7_HMM_WINDOWLIST  post_vit_windowlist;
+  P7_HMM_WINDOW     *window;
+  ESL_SQ_BLOCK      *post_vit_orf_block; 
+  ESL_SQ            *orfsq;
 
   vit_windowlist.windows = NULL;
   post_vit_windowlist.windows = NULL;
@@ -2515,24 +2571,32 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, gm->abc);
-
-  oldWinCnt = newWinCnt = 0;
+  
   for (i = 0; i < orf_block->count; ++i)
-  {
+  { 
     orfsq = &(orf_block->list[i]);
     p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);  
+    
     /* Second level filter: ViterbiFilter(), multihit with <om> */
     p7_ViterbiFilter_longtarget(orfsq->dsq, orfsq->n, om, pli->oxf, nullsc, pli->F2, &vit_windowlist);
-     newWinCnt = vit_windowlist.count;
-     for(j = oldWinCnt; j < newWinCnt; ++j) 
-     {
-       window = vit_windowlist.windows+j;
-       p7_hmmwindow_new(&post_vit_windowlist, window->id, window->n, window->fm_n, window->k, 
-			            window->length, window->score, p7_NOCOMPLEMENT, window->target_len);       
-       esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
-       post_vit_orf_block->count++;
-     }
-     oldWinCnt = newWinCnt; 
+    
+    min_n = orfsq->n;
+    max_n = 0;
+    max_k = 0;
+   for(j = 0; j < vit_windowlist.count; ++j) 
+   { 
+     window = vit_windowlist.windows+j;
+     min_n = ESL_MIN( min_n, window->n);
+     max_n = ESL_MAX( max_n, window->n + window->length);
+     max_k = ESL_MAX( max_k, window->k);
+   }
+   
+   if(vit_windowlist.count < 0) 
+   {
+     p7_hmmwindow_new(&post_vit_windowlist, -1, min_n, min_n-1, window->k, (max_n - min_n), 0.0, p7_NOCOMPLEMENT, orfsq->n);       
+     post_vit_orf_block->list[post_vit_orf_block->count] = *esl_sq_CreateDigitalFrom(orfsq->abc, orfsq->name, orfsq->dsq, orfsq->n, orfsq->desc, orfsq->acc, orfsq->ss);
+     post_vit_orf_block->count++;
+   }
   }
 
   p7_pli_ConvertExtendAndMergeWindows(om,data, &post_vit_windowlist, post_vit_orf_block->list, dnasq->n,0); 
@@ -2607,41 +2671,45 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data,
-                       P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode)
+p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data, P7_BG *bg, 
+                       P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode)
 {
 
   int              i;
   int              status, wstatus;
   float            nullsc;   /* null model score                        */
   float            usc;      /* msv score  */
+  float            seq_score;
+  float            filtersc;
+  float            vfsc;
   float            P;
   
   ESL_SQ	       *orfsq;
-  ESL_SQ_BLOCK *post_msv_orf_block = NULL;
+  ESL_SQ_BLOCK *post_vit_orf_block = NULL;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
 
   if (dnasq->n < 3) return eslOK;
 
-  post_msv_orf_block = NULL;
-  post_msv_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
+  post_vit_orf_block = NULL;
+  post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_FRAMESHIFT_OBJS));
   pli_tmp->tmpseq = NULL;
   pli_tmp->bg = p7_bg_Clone(bg);
-  pli_tmp->gm = p7_profile_Create(gm->M, gm->abc);
+//TODO: change to new fs emmissions
+  pli_tmp->gm = p7_profile_fs_Create(gm->M, gm->abc);
   ESL_ALLOC(pli_tmp->scores, sizeof(float) * gm->abc->Kp * 4); //allocation of space to store scores that will be used in p7_oprofile_Update(Fwd|Vit|MSV)EmissionScores
   ESL_ALLOC(pli_tmp->fwd_emissions_arr, sizeof(float) *  gm->abc->Kp * (gm->M+1));
-  
-    for (i = 0; i < orf_block->count; ++i)
+
+  for (i = 0; i < orf_block->count; ++i)
   {     
-	orfsq = &(orf_block->list[i]);
+    orfsq = &(orf_block->list[i]);
 
     /*
      use the name, accession, and description from the DNA sequence and
      not from the ORF which is generated by gencode and only for internal use
     */
-    if ((wstatus = esl_sq_SetName     (orfsq, dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
+  //  if ((wstatus = esl_sq_SetName     (orfsq, dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
     if ((wstatus = esl_sq_SetAccession(orfsq, dnasq->acc))    != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence accession failed");
     if ((wstatus = esl_sq_SetDesc     (orfsq, dnasq->desc))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence description failed");
 	  
@@ -2654,23 +2722,53 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
       p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
 
       p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
-      P = esl_gumbel_surv( (usc-nullsc)/eslCONST_LOG2,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+      seq_score = (usc - nullsc) / eslCONST_LOG2;
+      P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
       if (P > pli->F1 ) continue;    
-	  pli->n_past_msv++;
-      pli->pos_past_msv += orfsq->n * 3;		 
-      esl_sq_Copy(orfsq, &(post_msv_orf_block->list[post_msv_orf_block->count]));
-      post_msv_orf_block->count++;
-      if (data->prefix_lengths == NULL)  //otherwise, already filled in
-        p7_hmm_ScoreDataComputeRest(om, data); 
+      pli->n_past_msv++;
+
+      /* biased composition HMM filtering */
+      if (pli->do_biasfilter)
+      {
+        p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
+
+        seq_score = (usc - filtersc) / eslCONST_LOG2;
+        P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+        if (P > pli->F1) continue;
+      }  else filtersc = nullsc;
+      pli->n_past_bias++;
+
+      if (P > pli->F2)
+      {
+        p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
+        seq_score = (vfsc-filtersc) / eslCONST_LOG2;
+        P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
+        if (P > pli->F2) continue;
+      }
+      pli->n_past_vit++;
+
+      esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
+      post_vit_orf_block->count++;
+   
     }
     esl_sq_Reuse(orfsq);
   }
 
-  status = p7_pli_postMSV_Frameshift(pli, om, gm, bg, hitlist, seqidx, data, post_msv_orf_block, dnasq, gcode, pli_tmp);	   
-	 
-  pli_tmp->tmpseq->dsq = NULL;  
+  //p7_profile_GetFwdEmissionArray(gm, bg, pli_tmp->fwd_emissions_arr);
   
-  if ( post_msv_orf_block != NULL) esl_sq_DestroyBlock(post_msv_orf_block); 
+  if (data->prefix_lengths == NULL)  //otherwise, already filled in
+        p7_hmm_ScoreDataComputeRest(om, data);
+  
+  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, om);
+
+  pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
+
+  for(i = 0; i < post_vit_orf_block->count; i++)
+    status = p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, seqidx, post_vit_orf_block->list[i].start, post_vit_orf_block->list[i].end, dnasq, gcode, pli_tmp);
+	 
+  //pli_tmp->tmpseq->dsq = NULL;  
+  post_vit_orf_block->listSize = post_vit_orf_block->count; 
+  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (pli_tmp != NULL) 
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
@@ -2684,7 +2782,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   return eslOK;
 
 ERROR:
-  if ( post_msv_orf_block != NULL) esl_sq_DestroyBlock(post_msv_orf_block); 
+  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if ( pli_tmp != NULL )
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);

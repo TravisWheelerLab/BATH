@@ -162,26 +162,31 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   ESL_ALLOC(gm, sizeof(P7_PROFILE));
   gm->tsc       = NULL;
   gm->rsc       = NULL;
+  gm->codons    = NULL;
   gm->rf        = NULL;
   gm->mm        = NULL;
   gm->cs        = NULL;
   gm->consensus = NULL;
 
   /* level 1 */
-  ESL_ALLOC(gm->tsc,       sizeof(float)   * allocM * p7P_NTRANS);
-  ESL_ALLOC(gm->rsc,       sizeof(float *) * 125);
-  ESL_ALLOC(gm->rf,        sizeof(char)    * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
-  ESL_ALLOC(gm->mm,        sizeof(char)    * (allocM+2));
-  ESL_ALLOC(gm->cs,        sizeof(char)    * (allocM+2));
-  ESL_ALLOC(gm->consensus, sizeof(char)    * (allocM+2));
-  gm->rsc[0] = NULL;
+  ESL_ALLOC(gm->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
+  ESL_ALLOC(gm->rsc,       sizeof(float *)   * abc->Kp);
+  ESL_ALLOC(gm->codons,    sizeof(ESL_DSQ *) * p7P_MAXCODONS);
+  ESL_ALLOC(gm->rf,        sizeof(char)      * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
+  ESL_ALLOC(gm->mm,        sizeof(char)      * (allocM+2));
+  ESL_ALLOC(gm->cs,        sizeof(char)      * (allocM+2));
+  ESL_ALLOC(gm->consensus, sizeof(char)      * (allocM+2));
+  gm->rsc[0]    = NULL;
+  gm->codons[0] = NULL;
 
   /* level 2 */
-  ESL_ALLOC(gm->rsc[0], sizeof(float) * 125 * (allocM+1) * p7P_NR);
-  for (x = 0; x < 5; x++)
-     for(y = 0; y < 5; y++)
-        for(z = 0; z < 5; z++)
-            gm->rsc[(x * 25) + (y * 5) + z] = gm->rsc[0] + ((x * 25) + (y * 5) + z)  * (allocM+1) * p7P_NR;
+  ESL_ALLOC(gm->rsc[0], sizeof(float) * abc->Kp * (allocM+1) * p7P_NR);
+  for (x = 1; x < abc->Kp; x++)
+    gm->rsc[x] = gm->rsc[0] + x * (allocM+1) * p7P_NR;
+
+  ESL_ALLOC(gm->codons[0], sizeof(ESL_DSQ) * p7P_MAXCODONS * (allocM+1));
+  for (x = 1; x < p7P_MAXCODONS; x++)
+    gm->codons[x] = gm->codons[0] + x * (allocM+1);
 
   /* Initialize some edge pieces of memory that are never used,
    * and are only present for indexing convenience.
@@ -192,18 +197,18 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
     p7P_TSC(gm, 1, p7P_DD) = -eslINFINITY;
   }
 
-  for (x = 0; x < 5; x++)
-    for(y = 0; y < 5; y++)
-      for(z = 0; z < 5; z++) {
-    p7P_MSC_FS(gm, 0, x, y, z) = -eslINFINITY;          /* no emissions from nonexistent M_0... */
-    p7P_ISC_FS(gm, 0, x, y, z) = -eslINFINITY;             /* or I_0... */
+  for (x = 0; x < abc->Kp; x++) {
+    p7P_MSC(gm, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
+    p7P_ISC(gm, 0,      x) = -eslINFINITY;             /* or I_0... */
     /* I_M is initialized in profile config, when we know actual M, not just allocated max M   */
   }
+  x = esl_abc_XGetGap(abc);                            /* no emission can emit/score gap characters */
+  esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
+  x = esl_abc_XGetMissing(abc);                       /* no emission can emit/score missing data characters */
+  esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
 
-  //x = esl_abc_XGetGap(abc);                          /* no emission can emit/score gap characters */
-  //esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
-  //x = esl_abc_XGetMissing(abc);                         /* no emission can emit/score missing data characters */
-  //esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
+  for (x = 0; x < p7P_MAXCODONS; x++) 
+    gm->codons[x][0] = esl_abc_XGetMissing(abc);
 
   /* Set remaining info  */
   gm->mode             = p7_NO_MODE;
@@ -313,8 +318,9 @@ p7_profile_fs_Copy(const P7_PROFILE *src, P7_PROFILE *dst)
   if (src->M > dst->allocM) ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
 
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
-  for (x = 0; x < 125;   x++) esl_vec_FCopy(src->rsc[x], (src->M+1)*p7P_NR, dst->rsc[x]);
+  for (x = 0; x < src->abc->Kp;   x++) esl_vec_FCopy(src->rsc[x], (src->M+1)*p7P_NR, dst->rsc[x]);
   for (x = 0; x < p7P_NXSTATES;   x++) esl_vec_FCopy(src->xsc[x], p7P_NXTRANS,       dst->xsc[x]);
+  for (x = 0; x < p7P_MAXCODONS;  x++) esl_abc_dsqcpy(src->codons[x], (src->M+1), dst->codons[x]);
 
   dst->mode        = src->mode;
   dst->L           = src->L;
@@ -523,6 +529,36 @@ p7_profile_Destroy(P7_PROFILE *gm)
     if (gm->rsc   != NULL && gm->rsc[0] != NULL) free(gm->rsc[0]);
     if (gm->tsc       != NULL) free(gm->tsc);
     if (gm->rsc       != NULL) free(gm->rsc);
+    if (gm->name      != NULL) free(gm->name);
+    if (gm->acc       != NULL) free(gm->acc);
+    if (gm->desc      != NULL) free(gm->desc);
+    if (gm->rf        != NULL) free(gm->rf);
+    if (gm->mm        != NULL) free(gm->mm);
+    if (gm->cs        != NULL) free(gm->cs);
+    if (gm->consensus != NULL) free(gm->consensus);
+    free(gm);
+  }
+  return;
+}
+
+/* Function:  p7_profile_fs_Destroy()
+ * Synopsis:  Frees a profile.
+ *
+ * Purpose:   Frees a profile <gm>.
+ *
+ * Returns:   (void).
+ *
+ * Xref:      STL11/125.
+ */
+void
+p7_profile_fs_Destroy(P7_PROFILE *gm)
+{
+  if (gm != NULL) {
+    if (gm->rsc       != NULL && gm->rsc[0] != NULL) free(gm->rsc[0]);
+    if (gm->codons    != NULL && gm->codons[0] != NULL) free(gm->codons[0]);
+    if (gm->tsc       != NULL) free(gm->tsc);
+    if (gm->rsc       != NULL) free(gm->rsc);
+    if (gm->codons    != NULL) free(gm->codons);
     if (gm->name      != NULL) free(gm->name);
     if (gm->acc       != NULL) free(gm->acc);
     if (gm->desc      != NULL) free(gm->desc);

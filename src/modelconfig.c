@@ -142,7 +142,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
     for (x = 0; x < hmm->abc->K; x++) 
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
     esl_abc_FExpectScVec(hmm->abc, sc, bg->f); 
-
+     
     for (x = 0; x < hmm->abc->Kp; x++) {
       rp = gm->rsc[x] + k * p7P_NR;
       rp[p7P_MSC] = sc[x];
@@ -212,15 +212,21 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 int
 p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_PROFILE *gm, int L, int mode)
 {
-  int   k, x, y, z; /* counters over states, residues, annotation */
-  int   codon;
-  int   status;
-  float *occ = NULL;
-  float *tp, *rp;
-  float  sc[p7_MAXCODE];
-  float  Z;
-  float  max_sc1, max_sc2, max_sc3, max_sc4;
-  float  tmp_sc1, tmp_sc2, tmp_sc3, tmp_sc4;
+  int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
+  int     codon;
+  int     status;
+  float   *occ = NULL;
+  float   *tp, *rp;
+  float    sc[p7_MAXCODE];
+  float    Z;
+  float    max_sc1[4];;
+  float    max_sc2[16];
+  float    max_sc4[4];;
+  float    max_sc5[10];
+  ESL_DSQ  max_aa1[4];
+  ESL_DSQ  max_aa2[16];
+  ESL_DSQ  max_aa4[4];
+  ESL_DSQ  max_aa5[10];
 
   /* Contract checks */
   if (gm->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
@@ -302,7 +308,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     tp[p7P_DD] = log(hmm->t[k][p7H_DD]);
   }
 
-    /* Match emission scores. */
+  /* Match emission scores. */
   sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
   sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
@@ -311,223 +317,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
     esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
 
-    for (x = 0; x < 4; x++)
-      for (y = 0; y < 4; y++)
-        for (z = 0; z < 4; z++) {
-          rp = gm->rsc[x * 25 + y * 5 + z] + k * p7P_NR;
-          codon = 16 * x + 4 * y + z;
-          rp[p7P_MSC] = sc[gcode->basic[codon]];
-        }
-
-    for (y = 0; y < 4; y++)
-      for (z = 0; z < 4; z++) {
-        rp = gm->rsc[4 * 25 + y * 5 + z] + k * p7P_NR;
-        codon = 16*0 + 4*y + z;
-        max_sc1 = sc[gcode->basic[codon]];
-        codon = 16*1 + 4*y + z;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*2 + 4*y + z;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*3 + 4*y + z;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        rp[p7P_MSC] = max_sc1;
-      }
-
-    for (x = 0; x < 4; x++)
-      for (z = 0; z < 4; z++) {
-        rp = gm->rsc[x * 25 + 4 * 5 + z] + k * p7P_NR;
-        codon = 16*x + 4*0 + z;
-        max_sc2 = sc[gcode->basic[codon]];
-        codon = 16*x + 4*1 + z;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*x + 4*2 + z;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*x + 4*3 + z;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        rp[p7P_MSC] = max_sc2;
-      }
-
-    for (x = 0; x < 4; x++)
-      for (y = 0; y < 4; y++) {
-        rp = gm->rsc[x * 25 + y * 5 + 4] + k * p7P_NR;
-        codon = 16*x + 4*y + 0;
-        max_sc3 = sc[gcode->basic[codon]];
-        codon = 16*x + 4*y + 1;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*x + 4*y + 2;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*x + 4*y + 3;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        rp[p7P_MSC] = max_sc3;
-      }
-
-      for (x = 0; x < 4; x++) {
-        rp = gm->rsc[x * 25 + 4 * 5 + 4] + k * p7P_NR;
-        codon = 16*x + 4*0 + 0;
-        max_sc1 = sc[gcode->basic[codon]];
-        codon = 16*x + 4*0 + 1;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*0 + 2;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*0 + 3;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*1 + 0;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*1 + 1;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*1 + 2;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*1 + 3;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*2 + 0;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*2 + 1;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*2 + 2;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*2 + 3;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*3 + 0;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*3 + 1;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*3 + 2;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        codon = 16*x + 4*3 + 3;
-        tmp_sc1 = sc[gcode->basic[codon]];
-        max_sc1 = ESL_MAX(tmp_sc1, max_sc1);
-        rp[p7P_MSC] = max_sc1;
-      }
-
-      for (y = 0; y < 4; y++) {
-        rp = gm->rsc[4 * 25 + y * 5 + 4] + k * p7P_NR;
-        codon = 16*0 + 4*y + 0;
-        max_sc2 = sc[gcode->basic[codon]];
-        codon = 16*0 + 4*y + 1;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*0 + 4*y + 2;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*0 + 4*y + 3;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*1 + 4*y + 0;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*1 + 4*y + 1;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*1 + 4*y + 2;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*1 + 4*y + 3;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*2 + 4*y + 0;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*2 + 4*y + 1;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*2 + 4*y + 2;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*2 + 4*y + 3;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*3 + 4*y + 0;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*3 + 4*y + 1;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*3 + 4*y + 2;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        codon = 16*3 + 4*y + 3;
-        tmp_sc2 = sc[gcode->basic[codon]];
-        max_sc2 = ESL_MAX(tmp_sc2, max_sc2);
-        rp[p7P_MSC] = max_sc2;
-      }
-
-     for (z = 0; z < 4; z++) {
-        rp = gm->rsc[4 * 25 + 4 * 5 + z] + k * p7P_NR;
-        codon = 16*0 + 4*0 + z;
-        max_sc3 = sc[gcode->basic[codon]];
-        codon = 16*0 + 4*1 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*0 + 4*2 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*0 + 4*3 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*1 + 4*0 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*1 + 4*1 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*1 + 4*2 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*1 + 4*3 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*2 + 4*0 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*2 + 4*1 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*2 + 4*2 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*2 + 4*3 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*3 + 4*0 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*3 + 4*1 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*3 + 4*2 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        codon = 16*3 + 4*3 + z;
-        tmp_sc3 = sc[gcode->basic[codon]];
-        max_sc3 = ESL_MAX(tmp_sc3, max_sc3);
-        rp[p7P_MSC] = max_sc3;
-      }
-
-      rp = gm->rsc[4 * 25 + 4 * 5 + 4] + k * p7P_NR;
-      rp[p7P_MSC] = ESL_MAX( ESL_MAX( max_sc1, max_sc2), max_sc3);
+    for (x = 0; x < hmm->abc->Kp; x++) {
+      rp = gm->rsc[x] + k * p7P_NR;
+      rp[p7P_MSC] = sc[x];
+    }
   }
 
   /* Insert emission scores */
@@ -539,18 +332,15 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
    * driven by stretches of "insertion" occur, and are difficult to
    * correct for.
    */
-  for (x = 0; x < 5; x++)
-    for (y = 0; y < 5; y++)
-      for (z = 0; z < 5; z++)
-      {
-        for (k = 1; k < hmm->M; k++) p7P_ISC_FS(gm, k, x, y, z) = 0.0f;
-        p7P_ISC_FS(gm, hmm->M, x, y, z) = -eslINFINITY;   /* init I_M to impossible.   */
-      }
- // for (k = 1; k <= hmm->M; k++) p7P_ISC_FS(gm, k, gm->abc->K)    = -eslINFINITY; /* gap symbol */
- // for (k = 1; k <= hmm->M; k++) p7P_ISC_FS(gm, k, gm->abc->Kp-2) = -eslINFINITY; /* nonresidue symbol */
- // for (k = 1; k <= hmm->M; k++) p7P_ISC_FS(gm, k, gm->abc->Kp-1) = -eslINFINITY; /* missing data symbol */
-
-
+  for (x = 0; x < gm->abc->Kp; x++)
+    {
+      for (k = 1; k < hmm->M; k++) p7P_ISC(gm, k, x) = 0.0f;
+      p7P_ISC(gm, hmm->M, x) = -eslINFINITY;   /* init I_M to impossible.   */
+    }
+  for (k = 1; k <= hmm->M; k++) p7P_ISC(gm, k, gm->abc->K)    = -eslINFINITY; /* gap symbol */
+  for (k = 1; k <= hmm->M; k++) p7P_ISC(gm, k, gm->abc->Kp-2) = -eslINFINITY; /* nonresidue symbol */
+  for (k = 1; k <= hmm->M; k++) p7P_ISC(gm, k, gm->abc->Kp-1) = -eslINFINITY; /* missing data symbol */
+  
 #if 0
   /* original (informative) insert setting: relies on sc[K, Kp-1] initialization to -inf above */
   for (k = 1; k < hmm->M; k++) {
@@ -566,7 +356,173 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     p7P_ISC(gm, hmm->M, x) = -eslINFINITY;   /* init I_M to impossible.   */
 #endif
 
-  /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength()
+  /* Assign all frameshift codons to an amino acid */
+  for (k = 1; k <= hmm->M; k++) {
+    esl_vec_FSet(max_sc1, 4, -eslINFINITY);
+    esl_vec_FSet(max_sc2, 16, -eslINFINITY);
+    for (v = 0; v < 4; v++) {
+      for (w = 0; w < 4; w++) {
+        for (x = 0; x < 4; x++) {
+          codon = 16 * v + 4 * w + x;
+          if (esl_abc_XIsCanonical(gcode->aa_abc, gcode->basic[codon])) {
+            p7P_AMINO3(gm, k, v, w, x) = gcode->basic[codon];
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[v]) {
+              max_sc1[v] = p7P_MSC(gm, k, gcode->basic[codon]);
+              max_aa1[v] = gcode->basic[codon];
+            }
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[w]) {
+              max_sc1[w] = p7P_MSC(gm, k, gcode->basic[codon]);
+              max_aa1[w] = gcode->basic[codon];
+           }
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[x]) {
+              max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
+              max_aa1[x] = gcode->basic[codon];
+            }
+           
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
+              max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
+              max_aa2[w * 4 + x] = gcode->basic[codon];
+         }
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + x]) {
+              max_sc2[v * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
+              max_aa2[v * 4 + x] = gcode->basic[codon];
+            }
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + w]) {
+              max_sc2[v * 4 + w] = p7P_MSC(gm, k, gcode->basic[codon]);
+              max_aa2[v * 4 + w] = gcode->basic[codon];
+            }
+          }
+          else
+            p7P_AMINO3(gm, k, v, w, x) = esl_abc_XGetUnknown(gcode->aa_abc); 
+           
+          p7P_AMINO3(gm, k, 4, w, x) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO3(gm, k, 4, 4, x) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO3(gm, k, v, 4, x) = esl_abc_XGetUnknown(gcode->aa_abc);
+        }
+        p7P_AMINO3(gm, k, 4, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO3(gm, k, v, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);      
+      }
+      p7P_AMINO3(gm, k, v, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+    } 
+    p7P_AMINO3(gm, k, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+	
+    for (x = 0; x < 4; x++)
+      p7P_AMINO1(gm, k, x) = max_aa1[x];
+    p7P_AMINO1(gm, k, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+
+    for (w = 0; w < 4; w++) { 
+      for (x = 0; x < 4; x++) {
+        p7P_AMINO2(gm, k, w, x) = max_aa2[w * 4 + x];
+      }
+      p7P_AMINO2(gm, k, 4, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO2(gm, k, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+    }
+    p7P_AMINO2(gm, k, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+   
+    for ( u = 0; u < 4; u++) {
+      for (v = 0; v < 4; v++) {
+        for (w = 0; w < 4; w++) {
+          esl_vec_FSet(max_sc4, 4, -eslINFINITY);
+          for (x = 0; x < 4; x++) {
+            codon      = 16 * u + 4 * v + w; 
+            max_sc4[0] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa4[0] = gcode->basic[codon];
+            codon      = 16 * u + 4 * v + x;
+            max_sc4[1] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa4[1] = gcode->basic[codon];
+            codon      = 16 * u + 4 * w + x;
+            max_sc4[2] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa4[2] = gcode->basic[codon];
+            codon      = 16 * v + 4 * w + x;  
+            max_sc4[3] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa4[3] = gcode->basic[codon];
+            p7P_AMINO4(gm, k, u, v, w, x) = max_aa4[esl_vec_FArgMax(max_sc4, 4)];
+          }
+          p7P_AMINO4(gm, k, 4, u, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO4(gm, k, u, 4, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO4(gm, k, u, v, 4, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO4(gm, k, u, v, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        }
+        p7P_AMINO4(gm, k, 4, 4, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO4(gm, k, 4, u, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO4(gm, k, 4, u, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO4(gm, k, u, 4, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO4(gm, k, u, 4, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO4(gm, k, u, v, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+      }   
+      p7P_AMINO4(gm, k, 4, 4, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO4(gm, k, 4, 4, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO4(gm, k, 4, u, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO4(gm, k, u, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+    }
+    p7P_AMINO4(gm, k, 4, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+
+    for (t = 0; t < 4; t++) {
+      for ( u = 0; u < 4; u++) {
+        for (v = 0; v < 4; v++) {
+          for (w = 0; w < 4; w++) {
+            esl_vec_FSet(max_sc5, 10, -eslINFINITY);
+            for (x = 0; x < 4; x++) {
+              max_sc5[0]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, u, v));
+              max_aa5[0]  = p7P_AMINO3(gm, k, t, u, v);
+              max_sc5[1]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, u, w));
+              max_aa5[1]  = p7P_AMINO3(gm, k, t, u, w);
+              max_sc5[2]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, u, x));
+              max_aa5[2]  = p7P_AMINO3(gm, k, t, u, x);
+              max_sc5[3]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, v, w));
+              max_aa5[3]  = p7P_AMINO3(gm, k, t, v, w);
+              max_sc5[4]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, v, x));
+              max_aa5[4]  = p7P_AMINO3(gm, k, t, v, x);
+              max_sc5[5]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, w, x));
+              max_aa5[5]  = p7P_AMINO3(gm, k, t, w, x);
+              max_sc5[6]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, u, v, w));
+              max_aa5[6]  = p7P_AMINO3(gm, k, u, v, w);
+              max_sc5[7]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, u, v, x));
+              max_aa5[7]  = p7P_AMINO3(gm, k, u, v, x);
+              max_sc5[8]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, u, w, x));
+              max_aa5[8]  = p7P_AMINO3(gm, k, u, w, x);
+              max_sc5[9] = p7P_MSC(gm, k,p7P_AMINO3(gm, k, v, w, x));
+              max_aa5[9] = p7P_AMINO3(gm, k, v, w, x);
+              p7P_AMINO5(gm, k, t, u, v, w, x) = max_aa5[esl_vec_FArgMax(max_sc5, 10)];
+             }
+            p7P_AMINO5(gm, k, 4, t, u, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+            p7P_AMINO5(gm, k, t, 4, u, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+            p7P_AMINO5(gm, k, t, u, 4, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+            p7P_AMINO5(gm, k, t, u, v, 4, w) = esl_abc_XGetUnknown(gcode->aa_abc);
+            p7P_AMINO5(gm, k, t, u, v, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+          }
+          p7P_AMINO5(gm, k, 4, 4, t, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, 4, t, 4, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, 4, t, u, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, 4, t, u, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, t, 4, 4, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, t, 4, u, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, t, 4, u, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, t, u, 4, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, t, u, 4, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+          p7P_AMINO5(gm, k, t, u, v, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        }
+        p7P_AMINO5(gm, k, 4, 4, 4, t, u) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, 4, 4, t, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, 4, 4, t, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, 4, t, 4, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, 4, t, 4, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, 4, t, u, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, t, 4, 4, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, t, 4, 4, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, t, 4, u, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+        p7P_AMINO5(gm, k, t, u, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+      }
+      p7P_AMINO5(gm, k, 4, 4, 4, 4, t) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO5(gm, k, 4, 4, 4, t, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO5(gm, k, 4, 4, t, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO5(gm, k, 4, t, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+      p7P_AMINO5(gm, k, t, 4, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+    }
+    p7P_AMINO5(gm, k, 4, 4, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
+  }
+
+/* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength()
    */
   gm->L = 0;            /* force ReconfigLength to reconfig */
   if ((status = p7_ReconfigLength(gm, L)) != eslOK) goto ERROR;

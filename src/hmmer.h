@@ -245,17 +245,25 @@ enum p7p_rsc_codon {
   p7P_C4 = 3,
   p7P_C5 = 4,
 };
-#define p7P_CODONS 5
-#define p7P_INDEL  4
-#define p7P_NUC_VAR 25
+#define p7P_CODONS         5
+
+#define p7P_MAXCODONS      3905
+#define p7P_NUC5           625
+#define p7P_NUC4           125
+#define p7P_NUC3           25
+#define p7P_NUC2           5
+/* Accessing codon translations */
+#define p7P_AMINO1(gm, k, x)             ((gm)->codons[(x)][(k)])
+#define p7P_AMINO2(gm, k, w, x)          ((gm)->codons[(x) + ((w)+1) * p7P_NUC2][(k)])
+#define p7P_AMINO3(gm, k, v, w, x)       ((gm)->codons[(x) + ((w)+1) * p7P_NUC2 + ((v)+1) * p7P_NUC3][(k)])
+#define p7P_AMINO4(gm, k, u, v, w, x)    ((gm)->codons[(x) + ((w)+1) * p7P_NUC2 + ((v)+1) * p7P_NUC3 + ((u)+1) * p7P_NUC4][(k)])
+#define p7P_AMINO5(gm, k, t, u, v, w, x) ((gm)->codons[(x) + ((w)+1)* p7P_NUC2 + ((v)+1) * p7P_NUC3 + ((u)+1) * p7P_NUC4 + ((t)+1) * p7P_NUC5][(k)])
 
 /* Accessing transition, emission scores */
 /* _BM is specially stored off-by-one: [k-1][p7P_BM] is score for entering at Mk */
 #define p7P_TSC(gm, k, s) ((gm)->tsc[(k) * p7P_NTRANS + (s)])
 #define p7P_MSC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
 #define p7P_ISC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
-#define p7P_MSC_FS(gm, k, x, y, z) ((gm)->rsc[(x) * p7P_NUC_VAR + (y) * p7P_CODONS + (z)][(k) * p7P_NR + p7P_MSC])
-#define p7P_ISC_FS(gm, k, x, y, z) ((gm)->rsc[(x) * p7P_NUC_VAR + (y) * p7P_CODONS + (z)][(k) * p7P_NR + p7P_ISC])
 
 typedef struct p7_profile_s {
   float  *tsc;          /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
@@ -287,7 +295,9 @@ typedef struct p7_profile_s {
   off_t  roff;                  /* record offset (start of record); -1 if none            */
   off_t  eoff;                  /* offset to last byte of record; -1 if unknown           */
 
+  ESL_DSQ **codons;             /* maximum scoring tranlsations of various codon types    */
   const ESL_ALPHABET *abc;	/* copy of pointer to appropriate alphabet                */
+  
 } P7_PROFILE;
 
 
@@ -1393,6 +1403,7 @@ extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_
 
 /*decoding_frameshift*/
 extern int p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
+extern int p7_Decoding_Frameshift2(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
 extern int p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_fwdback.c */
@@ -1404,8 +1415,8 @@ extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern float ** Codon_Emissions_Create (P7_PROFILE *gm, const ESL_DSQ *subseq, const ESL_ALPHABET *abc, int M, int L, float indel_cost);
 void Codon_Emissions_Destroy (float **emit_sc);
 void Codon_Emmissions_Dump(FILE *ofp, float **emit_sc, int L, int M);
-extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
-extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float **emit_sc, float *ret_sc);
+extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
+extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);
@@ -1414,6 +1425,7 @@ extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX 
 /* generic_null2.c */
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
+extern int p7_Null2_fs_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
 
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
@@ -1421,6 +1433,7 @@ extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_
 
 /* optacc_frameshift.c */
 extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
+extern int p7_OptimalAccuracy_Frameshift2(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
 extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr, int start, int length);
 
 /* generic_stotrace.c */
@@ -1600,7 +1613,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
                                    P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck,
                                    P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                    P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr,
-				   float **emit_sc, ESL_GENCODE *gcode);
+				   float indel_cost, ESL_GENCODE *gcode);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
@@ -1746,6 +1759,7 @@ extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);
 extern int         p7_profile_Reuse(P7_PROFILE *gm);
 extern size_t      p7_profile_Sizeof(P7_PROFILE *gm);
 extern void        p7_profile_Destroy(P7_PROFILE *gm);
+extern void        p7_profile_fs_Destroy(P7_PROFILE *gm);
 extern int         p7_profile_IsLocal(const P7_PROFILE *gm);
 extern int         p7_profile_IsMultihit(const P7_PROFILE *gm);
 extern int         p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, 
@@ -1837,6 +1851,7 @@ extern int  p7_trace_AppendWithPP(P7_TRACE *tr, char st, int k, int i, float pp)
 extern int  p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, float pp);
 extern int  p7_trace_Reverse(P7_TRACE *tr);
 extern int  p7_trace_Index(P7_TRACE *tr);
+extern int  p7_trace_fs_Index(P7_TRACE *tr);
 
 extern int  p7_trace_FauxFromMSA(ESL_MSA *msa, int *matassign, int optflags, P7_TRACE **tr);
 extern int  p7_trace_Doctor(P7_TRACE *tr, int *opt_ndi, int *opt_nid);

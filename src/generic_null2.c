@@ -218,6 +218,100 @@ p7_GNull2_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend
   return eslOK;
 }
 
+/* Function:  p7_Null2_fs_ByTrace()
+ * Synopsis:  Assign null2 scores to an envelope by the sampling method.
+ * Incept:    SRE, Thu May  1 10:00:43 2008 [Janelia]
+ *
+ * Purpose:   Given a traceback <tr> for an alignment of model <gm> to
+ *            some target sequence; calculate null2 odds ratios $\frac{f'{x}}{f{x}}$ 
+ *            as the state-usage-weighted emission probabilities,
+ *            with state usages calculated by counting emissions used
+ *            at positions <zstart..zend> in the trace.
+ *            
+ *            Because we only need to collect state usages from the
+ *            trace <tr>, the target sequence is irrelevant. Because
+ *            we are only averaging emission odds ratios from model
+ *            <gm>, the configuration of <gm> is irrelevant (uni
+ *            vs. multihit, or length config).
+ *
+ * Args:      gm     - model, in any configuration; only emission odds are used
+ *            tr     - traceback for any region (or all) of a target sequence
+ *            zstart - first elem in <tr> to collect from; use 0 for complete
+ *            zend   - last elem in <tr> to collect from; use tr->N-1 for complete
+ *            wrk    - DP matrix w/ at least one row, for workspace
+ *            null2  - RESULT: odds ratios f'(x)/f(x) for all Kp residues
+ * 
+ * Returns:   <eslOK> on success, and the <ddef->n2sc> scores are set
+ *            for region <i..j>.
+ *
+ * Throws:    <eslEMEM> on allocation error.
+ */
+int
+p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2)
+{
+  float  **dp   = wrk->dp;	/* so that {MDI}MX() macros work */
+  float   *xmx  = wrk->xmx;	/* so that XMX() macro works     */
+  int      Ld   = 0;
+  int      M    = gm->M;
+  int      k;			/* index over model position     */
+  int      v,w,x;			/* index over residues           */
+  int      z;			/* index over trace position     */
+  float    xfactor;
+ 
+  /* We'll use the i=0 row in wrk for working space: dp[0][] and xmx[0..4]. */
+  esl_vec_FSet(wrk->dp[0], (M+1)*p7G_NSCELLS, 0.0);
+  esl_vec_FSet(wrk->xmx,   p7G_NXCELLS,       0.0);
+
+  /* Calculate emitting state usage in this particular trace segment: */
+  for (z = zstart; z <= zend; z++) 
+    {
+      switch (tr->st[z]) {
+      case p7T_M:  Ld += tr->i[z] - tr->i[z-1];         MMX(0,tr->k[z]) += (float) tr->i[z] - tr->i[z-1];  break;
+      case p7T_I:  Ld += 3;                             IMX(0,tr->k[z]) += 3.0;                            break;
+      case p7T_N:  if (tr->st[z-1] == p7T_N) { Ld++;    XMX(0,p7G_N)    += 1.0; }                          break;
+      case p7T_C:  if (tr->st[z-1] == p7T_C) { Ld++;    XMX(0,p7G_C)    += 1.0; }                          break;
+      case p7T_J:  if (tr->st[z-1] == p7T_J) { Ld += 3; XMX(0,p7G_J)    += 3.0; }                          break;
+      }
+    }
+  esl_vec_FScale(wrk->dp[0], (M+1)*p7G_NSCELLS, (1.0 / (float) Ld));
+  esl_vec_FScale(wrk->xmx,   p7G_NXCELLS,       (1.0 / (float) Ld));
+  
+  /* Calculate null2's odds ratio emission probabilities, by taking
+   * posterior weighted sum over all emission vectors used in paths
+   * explaining the domain.
+   */
+  esl_vec_FSet(null2, 125, 0.0);
+  xfactor = XMX(0,p7G_N) + XMX(0,p7G_C) + XMX(0,p7G_J);
+  for (v = 0; v < 5; v++)
+  {
+    for (w = 0; w < 5; w++)
+    {   
+      for (x = 0; x < 5; x++)
+      {
+        for (k = 1; k < M; k++)
+	{
+	  //null2[v * 25 + w * 5 + x] += MMX(0,k) * expf(p7P_MSC_FS(gm, k, v, w, x));
+	  //null2[v * 25 + w * 5 + x] += IMX(0,k) * expf(p7P_ISC_FS(gm, k, v, w, x));
+	}
+        //null2[v * 25 + w * 5 + x] += MMX(0,M) * expf(p7P_MSC_FS(gm, M, v, w, x));
+        null2[x * 25 + w * 5 + x] += xfactor;
+      }
+    }
+  }
+  /* now null2[x] = \frac{f_d(x)}{f_0(x)} odds ratios for all x in alphabet,
+   * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies
+   * for this envelope.
+   */
+
+  /* make valid scores for all degeneracies, by averaging the odds ratios. */
+  //esl_abc_FAvgScVec(gm->abc, null2);
+  //null2[gm->abc->K]    = 1.0;        /* gap character    */
+  //null2[gm->abc->Kp-2] = 1.0;	     /* nonresidue "*"   */
+  //null2[gm->abc->Kp-1] = 1.0;	     /* missing data "~" */
+
+  return eslOK;
+}
+
 
 
 

@@ -758,7 +758,6 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
     }
     curr_window->target_len = dna_len;
   }
-	printf("BBBBB\n");
   //extend windows
    for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
@@ -2191,7 +2190,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 {
 
   P7_HIT           *hit     = NULL;     /* ptr to the current hit output data      */
-  float            fwdsc;   /* filter scores                           */
+  float            fwdsc, bwdsc;   /* filter scores                           */
   float            filtersc;           /* HMM null filter score                   */
   float            nullsc;
   float            seqbias;
@@ -2206,22 +2205,23 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int		   window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
-  float **emit_sc;
+ // float **emit_sc;
   //int F3_L = ESL_MIN( window_len,  pli->B3);
   float	           indel_cost = 0.01;
 
   window_len = window_end - window_start + 1;
   if (window_len < 3) return eslOK;
 	
-  subseq = dnasq->dsq + window_start;
+  subseq = dnasq->dsq + window_start - 1;
 	
   p7_bg_SetLength_Frameshift(bg, window_len);
   p7_ReconfigLength_Frameshift(gm, window_len);
   p7_bg_NullOne  (bg, subseq, window_len, &nullsc);
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
-  emit_sc = Codon_Emissions_Create(gm, subseq, dnasq->abc, gm->M, window_len, indel_cost);
-  p7_Forward_Frameshift(subseq, window_len, gm, pli->gxf, emit_sc, &fwdsc);
-
+ // emit_sc = Codon_Emissions_Create(gm, subseq, dnasq->abc, gm->M, window_len, indel_cost);
+  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+  printf("fwd %f\n", fwdsc);
+  //return eslOK;
 #if 0
   if (pli->do_biasfilter)
       {
@@ -2233,13 +2233,14 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
       }  else filtersc = nullsc;
       pli->n_past_bias++;
 
+#endif 
+  filtersc = nullsc;
 
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
-  P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+  P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
     if (P > pli->F3) return eslOK;
   pli->n_past_fwd++; 
      
-#endif 
   
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   /*now that almost everything has been filtered away, set up seq object for domaindef function*/
@@ -2258,13 +2259,14 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
-  p7_Backward_Frameshift(subseq, window_len, gm, pli->gxb, emit_sc, NULL);
-  
+  p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
+ printf("bwd %f\n", bwdsc);
+  //return eslOK; 
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, pli->gxf,pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, TRUE,
-				                                         pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, emit_sc, gcode);
+				                                         pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, indel_cost, gcode);
 
-  if(emit_sc != NULL) Codon_Emissions_Destroy(emit_sc);
+ // if(emit_sc != NULL) Codon_Emissions_Destroy(emit_sc);
   pli_tmp->tmpseq->dsq = dsq_holder;
 
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
@@ -2689,7 +2691,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
 
   if (dnasq->n < 3) return eslOK;
-
+  
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   
@@ -2766,14 +2768,12 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   for(i = 0; i < post_vit_orf_block->count; i++)
     status = p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, seqidx, post_vit_orf_block->list[i].start, post_vit_orf_block->list[i].end, dnasq, gcode, pli_tmp);
 	 
-  //pli_tmp->tmpseq->dsq = NULL;  
-  post_vit_orf_block->listSize = post_vit_orf_block->count; 
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (pli_tmp != NULL) 
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
-    if (pli_tmp->gm != NULL)     p7_profile_Destroy(pli_tmp->gm);
+    if (pli_tmp->gm != NULL)     p7_profile_fs_Destroy(pli_tmp->gm);
     if (pli_tmp->scores != NULL)        free (pli_tmp->scores);
     if (pli_tmp->fwd_emissions_arr != NULL) free (pli_tmp->fwd_emissions_arr);
     free(pli_tmp);
@@ -2787,7 +2787,7 @@ ERROR:
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
-    if (pli_tmp->gm != NULL)     p7_profile_Destroy(pli_tmp->gm);
+    if (pli_tmp->gm != NULL)     p7_profile_fs_Destroy(pli_tmp->gm);
     if (pli_tmp->scores != NULL)        free (pli_tmp->scores);
     if (pli_tmp->fwd_emissions_arr != NULL) free (pli_tmp->fwd_emissions_arr);
     free(pli_tmp);

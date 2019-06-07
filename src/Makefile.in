@@ -47,6 +47,7 @@ MYINCDIRS = -I../${ESLDIR} \
 
 
 PROGS = alimask\
+        fsphmmert\
 	hmmalign\
 	hmmbuild\
 	hmmconvert\
@@ -62,7 +63,6 @@ PROGS = alimask\
 	hmmstat\
 	jackhmmer\
 	phmmer\
-	fsphmmert\
 	hmmsearcht\
 	nhmmer\
 	nhmmscan\
@@ -76,6 +76,7 @@ AUXPROGS = \
 
 PROGOBJS =\
 	alimask.o\
+        fsphmmert.o\
 	hmmalign.o\
 	hmmbuild.o\
 	hmmconvert.o\
@@ -90,7 +91,6 @@ PROGOBJS =\
 	hmmstat.o\
 	jackhmmer.o\
 	phmmer.o\
-	fsphmmert.o\
 	hmmsearcht.o\
 	nhmmer.o\
 	nhmmscan.o\

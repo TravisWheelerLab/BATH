@@ -1326,6 +1326,59 @@ p7_trace_Index(P7_TRACE *tr)
  ERROR:
   return status;
 }
+
+/* Function:  p7_trace_fs_Index()
+ * Synopsis:  Internally index the domains in a trace.
+ * Incept:    SRE, Fri Jan  4 11:12:24 2008 [Janelia]
+ *
+ * Purpose:   Create an internal index of the domains in <tr>.
+ *            This makes calls to <GetDomainCount()> and
+ *            <GetDomainCoords()> more efficient, and it is
+ *            a necessary prerequisite for creating alignments
+ *            of any individual domains in a multidomain trace with
+ *            <p7_alidisplay_Create()>.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure, in which case the
+ *            data in the trace is still fine, but the domain index
+ *            table isn't constructed.
+ */
+int
+p7_trace_fs_Index(P7_TRACE *tr)
+{
+  int z;
+  int status;
+
+  tr->ndom = 0;
+  for (z = 0; z < tr->N; z++)
+    {
+      switch (tr->st[z]) {
+      case p7T_B:
+        if ((status = p7_trace_GrowIndex(tr)) != eslOK) goto ERROR;
+        tr->tfrom[tr->ndom]   = z;
+        tr->sqfrom[tr->ndom]  = tr->i[z];
+        tr->hmmfrom[tr->ndom] = 0;
+        break;
+
+      case p7T_M:
+        if (tr->hmmfrom[tr->ndom] == 0) tr->hmmfrom[tr->ndom] = tr->k[z];
+        tr->sqto[tr->ndom]  = tr->i[z];
+        tr->hmmto[tr->ndom] = tr->k[z];
+        break;
+
+      case p7T_E:
+        tr->tto[tr->ndom]   = z;
+        tr->ndom++;
+        break;
+      }
+    }
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
 /*----------- end, creating traces by DP traceback ---------------*/
 
 

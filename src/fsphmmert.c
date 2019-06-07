@@ -617,7 +617,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
            p7_pipeline_fs_Destroy(info[i].pli);
            p7_tophits_Destroy(info[i].th);
            p7_oprofile_Destroy(info[i].om);
-	   p7_profile_Destroy(info[i].gm);
+           p7_profile_fs_Destroy(info[i].gm);
 	   p7_hmm_ScoreDataDestroy(info[i].scoredata);
            if(info[i].wrk->orf_block != NULL)
            {
@@ -626,7 +626,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
             esl_gencode_WorkstateDestroy(info[i].wrk);
            }
 	}
-		 
+
       /* Print the results.  */
       p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       assign_Lengths(tophits_accumulator, id_length_list);
@@ -666,7 +666,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_tophits_Destroy(tophits_accumulator);
       p7_oprofile_Destroy(om);
       p7_profile_Destroy(gm);
-      p7_profile_Destroy(gm_fs);
+      p7_profile_fs_Destroy(gm_fs);
       p7_hmm_Destroy(hmm);
       p7_hmm_ScoreDataDestroy(scoredata);
       destroy_id_length(id_length_list);

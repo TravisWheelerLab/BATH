@@ -240,7 +240,6 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 
 	if(i < L-4)
       denom += MMX_FS((i+4),M,p7G_C5);	
-	printf("denom %f\n", denom);
     denom = 1.0 / denom;
     
     for (k = 1; k < M; k++) {  
@@ -421,8 +420,8 @@ p7_Decoding_Frameshift2(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7
         bck->xmx[p7G_NXCELLS*i + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
     }
 
-  /* normailze i for all codons in which i may be present */
-  for (i = 1; i <= L; i++) {
+  /* normailze each codon for all mutually exclusive codons */
+  for (i = 4; i <= L; i++) {
 
     denom = 0.0;
     for (k = 1; k < M; k++) {  

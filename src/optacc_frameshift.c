@@ -289,7 +289,7 @@ p7_OptimalAccuracy_Frameshift2(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *g
   float        esc  = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
   float        t1, t2;
   float        Max0, Max1, Max2, Max3, Max4, Max5;
-printf("GX L %d PP L %d\n", gx->L, pp->L); 
+
   /* Initialization of the zero row (i=0; no residues to account for.  */
   XMX(0,p7G_N) = 0.;                                                /* S->N, p=1            */
   XMX(0,p7G_B) = 0.;                                                /* S->N->B, no N-tail   */
@@ -527,7 +527,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
   int          j;
   int	       codon, coprv;
   int          status;
-	printf("L %d\n", gx->L);
+	
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
 #endif
@@ -549,7 +549,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       case p7T_B: scur = select_b(gm,     gx,  i);                     break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
-     printf("i %d k %d scur %d\n", i, k, scur); 
+     
 
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
       if ((status = p7_trace_fs_Append(tr, scur, k, i)) != eslOK) return status;
@@ -607,7 +607,7 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i, i
   match_codon[4] = pp->dp[*ret_i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5];
 
   c = codon_length[esl_vec_FArgMax(match_codon, 5)];
-  printf("c %d\n", c);
+  
   *ret_i -= c;
 
   path[0] = TSCDELTA(p7P_MM, k-1) * MMX(*ret_i,k-1);
@@ -615,9 +615,6 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i, i
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i,k-1);
   if(c == 3) path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i,p7G_B);
   else       path[3] = FLT_MIN;
-  printf("match %f, insert %f, delete %f, b %f\n", path[0], path[1], path[2], path[3]); 
-  printf("MAX arg %d\n", esl_vec_FArgMax(path, 4));
-  printf("state %d\n", state[esl_vec_FArgMax(path, 4)]);
   return state[esl_vec_FArgMax(path, 4)];
  }
 

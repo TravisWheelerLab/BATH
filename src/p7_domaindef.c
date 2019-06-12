@@ -556,7 +556,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
         d = j;
     }
     else {
-
+//	printf("d at trigger %d\n", d);
       while(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-3]) >= ddef->rt2) {
         if(d > 6) 
 	{
@@ -1525,7 +1525,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
      * it isn't yet, if we're in a simple one-domain region). If it isn't,
      * do it now, by the expectation (posterior decoding) method.
      */
-printf("domain len = %d\n", gxppfs->L);
+//printf("domain len = %d\n", gxppfs->L);
       if (!null2_is_done) {
        p7_GNull2_ByExpectation(gm, gxppfs, null2);
       }

@@ -320,7 +320,7 @@ p7_profile_fs_Copy(const P7_PROFILE *src, P7_PROFILE *dst)
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
   for (x = 0; x < src->abc->Kp;   x++) esl_vec_FCopy(src->rsc[x], (src->M+1)*p7P_NR, dst->rsc[x]);
   for (x = 0; x < p7P_NXSTATES;   x++) esl_vec_FCopy(src->xsc[x], p7P_NXTRANS,       dst->xsc[x]);
-  for (x = 0; x < p7P_MAXCODONS;  x++) esl_abc_dsqcpy(src->codons[x], (src->M+1), dst->codons[x]);
+  for (x = 0; x < p7P_MAXCODONS;  x++) esl_abc_dsqcpy(src->codons[x], (src->M-1) , dst->codons[x]); 
 
   dst->mode        = src->mode;
   dst->L           = src->L;

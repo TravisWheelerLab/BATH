@@ -2207,41 +2207,34 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int		   window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
- // float **emit_sc;
-  //int F3_L = ESL_MIN( window_len,  pli->B3);
+  int F3_L = ESL_MIN( window_len,  pli->B3);
   float	           indel_cost = 0.01;
 
   window_len = window_end - window_start + 1;
   if (window_len < 3) return eslOK;
-	
+printf("NAME %s\n", gm->name);	
   subseq = dnasq->dsq + window_start - 1;
 
   p7_bg_SetLength_Frameshift(bg, window_len);
-  p7_ReconfigLength_Frameshift(gm, window_len);
-  p7_bg_NullOne  (bg, subseq, window_len, &nullsc);
+  p7_bg_NullOne_Frameshift(bg, subseq, window_len, &nullsc);
+  if (pli->do_biasfilter)
+  {
+    p7_bg_fs_FilterScore(bg, subseq, gm, gcode, window_len, indel_cost, &filtersc);
+    filtersc -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
+  }  else
+    filtersc = 0;
+	printf("filtersc %f nullsc %f\n", filtersc, nullsc);
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
- // emit_sc = Codon_Emissions_Create(gm, subseq, dnasq->abc, gm->M, window_len, indel_cost);
+  p7_ReconfigLength_Frameshift(gm, window_len);
   p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
 
-  //return eslOK;
-#if 0
-  if (pli->do_biasfilter)
-      {
-        p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
-
-        seq_score = (usc - filtersc) / eslCONST_LOG2;
-        P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-        if (P > pli->F1) continue;
-      }  else filtersc = nullsc;
-      pli->n_past_bias++;
-
-#endif 
-  filtersc = nullsc;
-
-  seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
+   filtersc =  nullsc + (filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
+  seq_score = (fwdsc - filtersc) / eslCONST_LOG2;
+  printf("seq_score %f\n", seq_score);
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
-    if (P > pli->F3) return eslOK;
-  pli->n_past_fwd++; 
+	printf("P %f\n", P);
+  if (P > pli->F3 ) return eslOK;
+   pli->n_past_fwd++; 
      
   
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
@@ -2689,7 +2682,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   float            filtersc;
   float            vfsc;
   float            P;
- printf("NAME %d\n", gm->name); 
+  
   ESL_SQ	       *orfsq;
   ESL_SQ_BLOCK *post_vit_orf_block = NULL;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 

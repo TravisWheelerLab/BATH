@@ -444,7 +444,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int frameshift, e
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
 	 // pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
 	 // pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
-	  //pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
+	  pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
 
 
   if (go && esl_opt_GetBoolean(go, "--max")) 
@@ -695,7 +695,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE 
     
     dna_start = ESL_MAX( 1        ,  curr_orf->start - (om->max_length - orf_len)  * 3);
     dna_end   = ESL_MIN( dna_sq->n,  curr_orf->end   + (om->max_length - orf_len)  * 3); 
- 
+	
     curr_orf->start = dna_start;
     curr_orf->end   = dna_end; 
   }
@@ -705,10 +705,10 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE 
   for (i=1; i<orf_block->count; i++) {
     prev_orf = orf_block->list+new_hit_cnt;
     curr_orf = orf_block->list+i;
-    if((prev_orf->start < curr_orf->start && prev_orf->end < curr_orf->start) || 
-       (curr_orf->start < prev_orf->start && curr_orf->end < prev_orf->start) ||
-       (prev_orf->start > curr_orf->start && prev_orf->end > curr_orf->start) ||
-       (curr_orf->start > prev_orf->start && curr_orf->end > prev_orf->start)   )
+    if((prev_orf->start <= curr_orf->start && prev_orf->end <= curr_orf->start) || 
+       (curr_orf->start <= prev_orf->start && curr_orf->end <= prev_orf->start) ||
+       (prev_orf->start >= curr_orf->start && prev_orf->end >= curr_orf->start) ||
+       (curr_orf->start >= prev_orf->start && curr_orf->end >= prev_orf->start)   )
     {
       dna_start        = ESL_MIN(prev_orf->start, curr_orf->start);
       dna_end          = ESL_MAX(prev_orf->end, curr_orf->end);
@@ -750,7 +750,6 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
   //convert windows to dna
   for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
-	//printf("start %d end %d\n", orf_list[i].start, orf_list[i].end);
     if(orf_list[i].start < orf_list[i].end) {   
       curr_window->n =  orf_list[i].start + (curr_window->n - 1) * 3;
       curr_window->complementarity = p7_NOCOMPLEMENT;
@@ -813,12 +812,6 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
   }
 
   windowlist->count = new_hit_cnt+1;
-
-
- for (i=0; i<windowlist->count; i++) {
-    curr_window = windowlist->windows+i;
-
- }
   return eslOK;
 }
 
@@ -2186,14 +2179,14 @@ ERROR:
  */
 static int
 p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TOPHITS *hitlist, const P7_SCOREDATA *data, 
-				              int64_t seqidx, int window_start, int window_end, ESL_SQ *dnasq, ESL_GENCODE *gcode,
+				              int64_t seqidx, int window_start, int window_len, ESL_SQ *dnasq, ESL_GENCODE *gcode,
 			                  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp 
 )
 {
 
   P7_HIT           *hit     = NULL;     /* ptr to the current hit output data      */
   float            fwdsc, bwdsc;   /* filter scores                           */
-  float            filtersc;           /* HMM null filter score                   */
+  float            filtersc = 0.0;           /* HMM null filter score                   */
   float            nullsc;
   float            seqbias;
   float            seq_score;          /* the corrected per-seq bit score */
@@ -2204,15 +2197,15 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int              Ld;               /* # of residues in envelopes */
   int              d;
   int              status;
-  int		   window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
-  int F3_L = ESL_MIN( window_len,  pli->B3);
+  int F3_L;
   float	           indel_cost = 0.01;
 
-  window_len = window_end - window_start + 1;
-  if (window_len < 3) return eslOK;
-printf("NAME %s\n", gm->name);	
+  if (window_len < 15) return eslOK;
+  printf("window_len %d window_start %d window_end %d\n", window_len,  window_start , (window_start + window_len));
+  
+  F3_L = ESL_MIN( window_len,  pli->B3);
   subseq = dnasq->dsq + window_start - 1;
 
   p7_bg_SetLength_Frameshift(bg, window_len);
@@ -2222,17 +2215,18 @@ printf("NAME %s\n", gm->name);
     p7_bg_fs_FilterScore(bg, subseq, gm, gcode, window_len, indel_cost, &filtersc);
     filtersc -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
   }  else
-    filtersc = 0;
-	printf("filtersc %f nullsc %f\n", filtersc, nullsc);
+    filtersc = 0.;
+
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
   p7_ReconfigLength_Frameshift(gm, window_len);
-  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
 
-   filtersc =  nullsc + (filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
+  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+  // printf("fwdsc %f\n", fwdsc);
+  filtersc =  nullsc + (filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
+ // printf("filtersc %f\n", filtersc);
   seq_score = (fwdsc - filtersc) / eslCONST_LOG2;
-  printf("seq_score %f\n", seq_score);
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
-	printf("P %f\n", P);
+
   if (P > pli->F3 ) return eslOK;
    pli->n_past_fwd++; 
      
@@ -2254,16 +2248,16 @@ printf("NAME %s\n", gm->name);
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
-  p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
 
- //FILE *out_bwd = fopen("out_bwd.txt", "w+");
-//p7_gmx_Dump(out_bwd, pli->gxb, p7_DEFAULT);
-  //return eslOK; 
+  p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
+ //	printf("bwdsc %f\n", bwdsc); 
+
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
+
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, pli->gxf,pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, TRUE,
 				                                         pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, indel_cost, gcode);
 
- // if(emit_sc != NULL) Codon_Emissions_Destroy(emit_sc);
+ 
   pli_tmp->tmpseq->dsq = dsq_holder;
 
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
@@ -2481,12 +2475,13 @@ printf("NAME %s\n", gm->name);
                hit->dcl[d].ienv       = dnasq->start - (window_start + hit->dcl[d].ienv) + 1;
                hit->dcl[d].jenv       = dnasq->start - (window_start + hit->dcl[d].jenv) + 1;
                
-			   hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 1;
+               hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 1;
                hit->dcl[d].jali       = hit->dcl[d].iali - (hit->dcl[d].ad->sqfrom - hit->dcl[d].ad->sqto);
 
                hit->dcl[d].ad->sqfrom = hit->dcl[d].iali;
                hit->dcl[d].ad->sqto   = hit->dcl[d].jali;
             }
+            hit->target_len = dnasq->L;
          }
     }
 
@@ -2547,21 +2542,21 @@ ERROR:
  */
 static int
 p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7_BG *bg, P7_TOPHITS *hitlist, 
-		          int64_t seqidx, const P7_SCOREDATA *data, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, 
-						  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp
+              int64_t seqidx, const P7_SCOREDATA *data, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, 
+              P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp
 
 )
 {
 
   int              i,j;
+  int              oldWinCnt, newWinCnt;
   float            nullsc;           /* HMM null score                   */
-  int              min_n, max_n, max_k;
 
-  P7_HMM_WINDOWLIST  vit_windowlist;
-  P7_HMM_WINDOWLIST  post_vit_windowlist;
-  P7_HMM_WINDOW     *window;
-  ESL_SQ_BLOCK      *post_vit_orf_block; 
-  ESL_SQ            *orfsq;
+  P7_HMM_WINDOWLIST vit_windowlist;
+  P7_HMM_WINDOWLIST post_vit_windowlist;
+  P7_HMM_WINDOW    *window;
+  ESL_SQ_BLOCK *post_vit_orf_block; 
+  ESL_SQ *orfsq;
 
   vit_windowlist.windows = NULL;
   post_vit_windowlist.windows = NULL;
@@ -2570,32 +2565,26 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, gm->abc);
-  
+
+  oldWinCnt = newWinCnt = 0;
   for (i = 0; i < orf_block->count; ++i)
-  { 
+  {
     orfsq = &(orf_block->list[i]);
+
     p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);  
-    
     /* Second level filter: ViterbiFilter(), multihit with <om> */
     p7_ViterbiFilter_longtarget(orfsq->dsq, orfsq->n, om, pli->oxf, nullsc, pli->F2, &vit_windowlist);
-    
-    min_n = orfsq->n;
-    max_n = 0;
-    max_k = 0;
-   for(j = 0; j < vit_windowlist.count; ++j) 
-   { 
-     window = vit_windowlist.windows+j;
-     min_n = ESL_MIN( min_n, window->n);
-     max_n = ESL_MAX( max_n, window->n + window->length);
-     max_k = ESL_MAX( max_k, window->k);
-   }
-   
-   if(vit_windowlist.count < 0) 
-   {
-     p7_hmmwindow_new(&post_vit_windowlist, -1, min_n, min_n-1, window->k, (max_n - min_n), 0.0, p7_NOCOMPLEMENT, orfsq->n);       
-     post_vit_orf_block->list[post_vit_orf_block->count] = *esl_sq_CreateDigitalFrom(orfsq->abc, orfsq->name, orfsq->dsq, orfsq->n, orfsq->desc, orfsq->acc, orfsq->ss);
-     post_vit_orf_block->count++;
-   }
+     
+        if(vit_windowlist.count + post_vit_orf_block->count >= post_vit_orf_block->listSize)
+         esl_sq_BlockGrowTo(post_vit_orf_block, post_vit_orf_block->count + vit_windowlist.count, TRUE, orfsq->abc); 
+    for(j = 0; j < vit_windowlist.count; ++j) 
+     {
+       window = vit_windowlist.windows+j;
+       p7_hmmwindow_new(&post_vit_windowlist, window->id, window->n, window->fm_n, window->k, 
+                  window->length, window->score, p7_NOCOMPLEMENT, window->target_len);       
+       esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
+       post_vit_orf_block->count++;
+     }
   }
 
   p7_pli_ConvertExtendAndMergeWindows(om,data, &post_vit_windowlist, post_vit_orf_block->list, dnasq->n,0); 
@@ -2616,7 +2605,6 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 
   return eslOK;
 }
-
 
 
 /* Function:  p7_Pipeline_Frameshift()
@@ -2670,48 +2658,44 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data, P7_BG *bg, 
-                       P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode)
+p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data,
+                       P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode)
 {
 
   int              i;
   int              status, wstatus;
   float            nullsc;   /* null model score                        */
   float            usc;      /* msv score  */
-  float            seq_score;
-  float            filtersc;
-  float            vfsc;
   float            P;
   
-  ESL_SQ	       *orfsq;
-  ESL_SQ_BLOCK *post_vit_orf_block = NULL;
+  ESL_SQ         *orfsq;
+  ESL_SQ_BLOCK *post_msv_orf_block = NULL;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
 
   if (dnasq->n < 3) return eslOK;
-  
-  post_vit_orf_block = NULL;
-  post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
+
+  post_msv_orf_block = NULL;
+  post_msv_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_FRAMESHIFT_OBJS));
   pli_tmp->tmpseq = NULL;
   pli_tmp->bg = p7_bg_Clone(bg);
-//TODO: change to new fs emmissions
-  pli_tmp->gm = p7_profile_fs_Create(gm->M, gm->abc);
+  pli_tmp->gm = p7_profile_Create(gm->M, gm->abc);
   ESL_ALLOC(pli_tmp->scores, sizeof(float) * gm->abc->Kp * 4); //allocation of space to store scores that will be used in p7_oprofile_Update(Fwd|Vit|MSV)EmissionScores
   ESL_ALLOC(pli_tmp->fwd_emissions_arr, sizeof(float) *  gm->abc->Kp * (gm->M+1));
-
-  for (i = 0; i < orf_block->count; ++i)
+  
+    for (i = 0; i < orf_block->count; ++i)
   {     
-    orfsq = &(orf_block->list[i]);
+  orfsq = &(orf_block->list[i]);
 
     /*
      use the name, accession, and description from the DNA sequence and
      not from the ORF which is generated by gencode and only for internal use
     */
-  //  if ((wstatus = esl_sq_SetName     (orfsq, dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
+    if ((wstatus = esl_sq_SetName     (orfsq, dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
     if ((wstatus = esl_sq_SetAccession(orfsq, dnasq->acc))    != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence accession failed");
     if ((wstatus = esl_sq_SetDesc     (orfsq, dnasq->desc))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence description failed");
-	  
+    
     if(orfsq->n > 0) 
     {
       p7_pli_NewSeq(pli, orfsq);
@@ -2721,56 +2705,28 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
       p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
 
       p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
-      seq_score = (usc - nullsc) / eslCONST_LOG2;
-      P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+      P = esl_gumbel_surv( (usc-nullsc)/eslCONST_LOG2,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
       if (P > pli->F1 ) continue;    
-      pli->n_past_msv++;
-
-      /* biased composition HMM filtering */
-      if (pli->do_biasfilter)
-      {
-        p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
-
-        seq_score = (usc - filtersc) / eslCONST_LOG2;
-        P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-        if (P > pli->F1) continue;
-      }  else filtersc = nullsc;
-      pli->n_past_bias++;
-
-      if (P > pli->F2)
-      {
-        p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
-        seq_score = (vfsc-filtersc) / eslCONST_LOG2;
-        P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
-        if (P > pli->F2) continue;
-      }
-      pli->n_past_vit++;
-
-      esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
-      post_vit_orf_block->count++;
-  
+    pli->n_past_msv++;
+      pli->pos_past_msv += orfsq->n * 3;     
+      esl_sq_Copy(orfsq, &(post_msv_orf_block->list[post_msv_orf_block->count]));
+      post_msv_orf_block->count++;
+      if (data->prefix_lengths == NULL)  //otherwise, already filled in
+        p7_hmm_ScoreDataComputeRest(om, data); 
     }
     esl_sq_Reuse(orfsq);
   }
 
-  //p7_profile_GetFwdEmissionArray(gm, bg, pli_tmp->fwd_emissions_arr);
-  
-  if (data->prefix_lengths == NULL)  //otherwise, already filled in
-        p7_hmm_ScoreDataComputeRest(om, data);
+  status = p7_pli_postMSV_Frameshift(pli, om, gm, bg, hitlist, seqidx, data, post_msv_orf_block, dnasq, gcode, pli_tmp);     
    
-  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, om);
-
-  pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
-
-  for(i = 0; i < post_vit_orf_block->count; i++) 
-    status = p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, seqidx, post_vit_orf_block->list[i].start, post_vit_orf_block->list[i].end, dnasq, gcode, pli_tmp);
-	 
-  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
+  pli_tmp->tmpseq->dsq = NULL;  
+  
+  if ( post_msv_orf_block != NULL) esl_sq_DestroyBlock(post_msv_orf_block); 
   if (pli_tmp != NULL) 
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
-    if (pli_tmp->gm != NULL)     p7_profile_fs_Destroy(pli_tmp->gm);
+    if (pli_tmp->gm != NULL)     p7_profile_Destroy(pli_tmp->gm);
     if (pli_tmp->scores != NULL)        free (pli_tmp->scores);
     if (pli_tmp->fwd_emissions_arr != NULL) free (pli_tmp->fwd_emissions_arr);
     free(pli_tmp);
@@ -2779,12 +2735,12 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   return eslOK;
 
 ERROR:
-  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
+  if ( post_msv_orf_block != NULL) esl_sq_DestroyBlock(post_msv_orf_block); 
   if ( pli_tmp != NULL )
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
-    if (pli_tmp->gm != NULL)     p7_profile_fs_Destroy(pli_tmp->gm);
+    if (pli_tmp->gm != NULL)     p7_profile_Destroy(pli_tmp->gm);
     if (pli_tmp->scores != NULL)        free (pli_tmp->scores);
     if (pli_tmp->fwd_emissions_arr != NULL) free (pli_tmp->fwd_emissions_arr);
     free(pli_tmp);

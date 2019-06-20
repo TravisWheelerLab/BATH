@@ -300,9 +300,10 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
   param.max_diagdiff  = max_diagdiff;
   param.min_posterior = min_posterior;
   param.min_endpointp = min_endpointp;
-  if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_s), link_spsamples, (void *) &param,
+   printf("sp->n %d\n", sp->n);
+if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_s), link_spsamples, (void *) &param,
 					  sp->workspace, sp->assignment, &(sp->nc))) != eslOK) goto ERROR;
-
+ printf("sp->nc %d\n", sp->nc);
   ESL_ALLOC(ninc, sizeof(int) * sp->nc);
   /* Look at each cluster in turn; most will be too small to worry about. */
   for (c = 0; c < sp->nc; c++)
@@ -313,6 +314,7 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
        * That's what the idx_of_last logic is doing, avoiding double-counting.
        */
       idx_of_last = -1;
+      printf("sp->n %d\n", sp->n);
       for (ninc[c] = 0, h = 0; h < sp->n; h++) {
 	if (sp->assignment[h] == c) {
 	  if (sp->sp[h].idx != idx_of_last) ninc[c]++;

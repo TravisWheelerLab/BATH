@@ -254,7 +254,7 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
   int      Ld   = 0;
   int      M    = gm->M;
   int      k;			/* index over model position     */
-  int      v,w,x;			/* index over residues           */
+  int      t, u, v,w,x;			/* index over residues           */
   int      z;			/* index over trace position     */
   float    xfactor;
  
@@ -275,39 +275,43 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
     }
   esl_vec_FScale(wrk->dp[0], (M+1)*p7G_NSCELLS, (1.0 / (float) Ld));
   esl_vec_FScale(wrk->xmx,   p7G_NXCELLS,       (1.0 / (float) Ld));
-  
+
   /* Calculate null2's odds ratio emission probabilities, by taking
    * posterior weighted sum over all emission vectors used in paths
    * explaining the domain.
    */
-  esl_vec_FSet(null2, 125, 0.0);
+   esl_vec_FSet(null2, p7P_MAXCODONS, 0.0);
   xfactor = XMX(0,p7G_N) + XMX(0,p7G_C) + XMX(0,p7G_J);
-  for (v = 0; v < 5; v++)
-  {
-    for (w = 0; w < 5; w++)
-    {   
-      for (x = 0; x < 5; x++)
-      {
-        for (k = 1; k < M; k++)
-	{
-	  //null2[v * 25 + w * 5 + x] += MMX(0,k) * expf(p7P_MSC_FS(gm, k, v, w, x));
-	  //null2[v * 25 + w * 5 + x] += IMX(0,k) * expf(p7P_ISC_FS(gm, k, v, w, x));
-	}
-        //null2[v * 25 + w * 5 + x] += MMX(0,M) * expf(p7P_MSC_FS(gm, M, v, w, x));
-        null2[x * 25 + w * 5 + x] += xfactor;
+ 
+  for (k = 1; k <= M; k++)
+  {  
+    for(x = 0; x < 5; x++)
+    { 
+      null2[x] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)));
+      for(w = 0; w < 5; w++)
+      { 
+        null2[x + (w+1) * p7P_NUC2] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO2(gm, k, w, x)));
+        for (v = 0; v < 5; v++)
+        {
+          null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)));
+          for (u = 0; u < 5; u++)
+          {   
+            null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO4(gm, k, u, v, w, x)));
+            for (t = 0; t < 5; t++)
+            {
+              null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4 + (t+1) * p7P_NUC5] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO5(gm, k, t, u, v, w, x)));
+            }
+          }
+        }
       }
     }
   }
+  for(x = 0; x < p7P_MAXCODONS; x++)
+    null2[x] += xfactor;
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} odds ratios for all x in alphabet,
    * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies
    * for this envelope.
    */
-
-  /* make valid scores for all degeneracies, by averaging the odds ratios. */
-  //esl_abc_FAvgScVec(gm->abc, null2);
-  //null2[gm->abc->K]    = 1.0;        /* gap character    */
-  //null2[gm->abc->Kp-2] = 1.0;	     /* nonresidue "*"   */
-  //null2[gm->abc->Kp-1] = 1.0;	     /* missing data "~" */
 
   return eslOK;
 }

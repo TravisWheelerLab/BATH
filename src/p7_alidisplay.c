@@ -346,12 +346,12 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            n, pos, z, y;
   int            z1, z2;
   int		 srt, end;
-  int            k,x,i,s,l,a;
+  int            k,x,i,s,l;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            status;
   char           n1,n2,n3,n4,n5;
-  int            j,h;
+  int            g,h;
   float		 max_emit, cur_emit;
   float	        *rsc; 
   ESL_SQ        *codon;
@@ -492,8 +492,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
      esl_sq_CAddResidue(ntorfseqtxt, 0);
 #endif
   
-    codon = esl_sq_CreateDigitalFrom(sq->abc, NULL, sq->dsq, 3, NULL, NULL, NULL);  
-/* mandatory three alignment display lines: model, mline, aseq */
+  /* mandatory three alignment display lines: model, mline, aseq */
   y = 0;
   for (z = z1; z <= z2; z++) 
     {
@@ -510,129 +509,79 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         max_emit = -eslINFINITY;
 	if(l == 1) {
           ad->frameshifts++;           
-	  
-	  codon->dsq[1] = sq->dsq[i];
-	  for(j = 0; j < 4; j++) {
-	     codon->dsq[2] = j;
+	 
+	  x = p7P_AMINO1(gm, k, sq->dsq[i]); 
+	  for(g = 0; g < 4; g++) {
              for(h = 0; h < 4; h++) {
-		codon->dsq[3] = h;
-                a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	        rsc = gm->rsc[a]; 
-                cur_emit = MSC(k);
-                max_emit = ESL_MAX(max_emit, cur_emit);
-                if(max_emit == cur_emit) { 
-	           x = a;	       
-	           n1 = ' ';
-	           n2 = alphaDNA[sq->dsq[i]];
-	           n3 = '-'; 
-	           n4 = '-';
-	           n5 = ' ';
-	         }
-	     }
-	  }
-
-	  codon->dsq[2] = sq->dsq[i];
-	  for(j = 0; j < 4; j++) {
-	     codon->dsq[1] = j;
-	     for(h = 0; h < 4; h++) {
-	        codon->dsq[3] = h;
-                a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	        rsc = gm->rsc[a]; 
-                cur_emit = MSC(k);
-                max_emit = ESL_MAX(max_emit, cur_emit);
-                if(max_emit == cur_emit) { 
-	           x = a;	       
-	           n1 = ' ';
-	           n2 = '-';
-	           n3 = alphaDNA[sq->dsq[i]];
-	           n4 = '-';
-	           n5 = ' ';
-	        }
-	     }
-          }
-
-	  codon->dsq[3] = sq->dsq[i];
-	  for(j = 0; j < 4; j++) {
-	     codon->dsq[1] = j;
-	     for(h = 0; h < 4; h++) {
-                codon->dsq[3] = h;
-		a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	        rsc = gm->rsc[a]; 
-                cur_emit = MSC(k);
-                max_emit = ESL_MAX(max_emit, cur_emit);
-                if(max_emit == cur_emit) { 
-	           x = a;	       
-	           n1 = ' ';
-	           n2 = '-';
-	           n3 = '-';
-	           n4 = alphaDNA[sq->dsq[i]];
-	           n5 = ' ';
-	        }
+                if (p7P_AMINO3(gm, k, g, h, sq->dsq[i]) == x) {
+			n1 = ' ';
+                   	n2 = '-';
+                   	n3 = '-';
+                  	n4 = alphaDNA[sq->dsq[i]];
+                   	n5 = ' ';
+			h = 4;
+			g = 4;
+		} 
+		else if ( p7P_AMINO3(gm, k, sq->dsq[i], g, h) == x) {
+			n1 = ' ';
+                   	n2 = alphaDNA[sq->dsq[i]];
+                   	n3 = '-';
+                   	n4 = '-';
+                   	n5 = ' ';
+                        h = 4;
+                        g = 4;
+                } 
+		else if ( p7P_AMINO3(gm, k, g, sq->dsq[i], h) == x) {
+                        n1 = ' ';
+                        n2 = '-';
+                        n3 = alphaDNA[sq->dsq[i]];
+                        n4 = '-';
+                        n5 = ' ';
+                        h = 4;
+                        g = 4;
+                }
 	    }
-        }
-      }
+	  }
+	}
 
 	if(l == 2) {
           ad->frameshifts++;
  
-	  codon->dsq[1] = sq->dsq[i-1];	
-	  codon->dsq[2] = sq->dsq[i];
-	  for(j = 0; j < 4; j++) {
-	     codon->dsq[3] = j;
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit) { 
-	       x = a;	       
-	       n1 = ' ';
-	       n2 = alphaDNA[sq->dsq[i-1]];
-	       n3 = alphaDNA[sq->dsq[i]]; 
-	       n4 = '-';
-	       n5 = ' ';
-	     }
-	  }
-	
-	  codon->dsq[2] = sq->dsq[i-1];	
-	  codon->dsq[3] = sq->dsq[i];
-	  for(j = 0; j < 4; j++) {
-	     codon->dsq[1] = j;
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit) { 
-	       x = a;	       
-	       n1 = ' ';
-	       n2 = '-';
-	       n3 = alphaDNA[sq->dsq[i-1]];
-	       n4 = alphaDNA[sq->dsq[i]];
-	       n5 = ' ';
-	     }
-	  }
+	  for(g = 0; g < 4; g++) {
+             x = p7P_AMINO2(gm, k, sq->dsq[i-1], sq->dsq[i]);
+             if (p7P_AMINO3(gm, k, g, sq->dsq[i-1], sq->dsq[i]) == x) {
+                        n1 = ' ';
+                        n2 = '-';
+               		n3 = alphaDNA[sq->dsq[i-1]];
+               		n4 = alphaDNA[sq->dsq[i]];
+               		n5 = ' ';
+ 			h = 4;
+                        g = 4;
+             }
+	     else if (p7P_AMINO3(gm, k, sq->dsq[i-1], sq->dsq[i], g) == x) {
+                        n1 = ' ';
+                        n2 = alphaDNA[sq->dsq[i-1]];
+                        n3 = alphaDNA[sq->dsq[i]];
+                        n4 = '-';
+                        n5 = ' ';
+                        h = 4;
+                        g = 4;
+             }
+	     else if (p7P_AMINO3(gm, k, sq->dsq[i-1], g, sq->dsq[i]) == x) {
+                        n1 = ' ';
+                        n2 = alphaDNA[sq->dsq[i-1]];
+                        n3 = '-';
+                        n4 = alphaDNA[sq->dsq[i]];
+                        n5 = ' ';
+                        h = 4;
+                        g = 4;
+             }
 
-	  codon->dsq[1] = sq->dsq[i-1];	
-	  codon->dsq[3] = sq->dsq[i];
-	  for(j = 0; j < 4; j++) {
-	     codon->dsq[2] = j;
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit) { 
-	       x = a;	       
-	       n1 = ' ';
-	       n2 = alphaDNA[sq->dsq[i-1]];
-	       n3 = '-';
-	       n4 = alphaDNA[sq->dsq[i]];
-	       n5 = ' ';
-	     }
-	  }
-
-        }	
+	   }
+	 }
 	
 	if(l == 3) {
-	    x = esl_gencode_GetTranslation(gcode, &sq->dsq[i-l+1]);
+	    x = p7P_AMINO3(gm, k, sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);
 	    n1 = ' ';
 	    n2 = alphaDNA[sq->dsq[i-2]];
 	    n3 = alphaDNA[sq->dsq[i-1]];
@@ -642,97 +591,112 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	
 	if(l == 4) {
 	  ad->frameshifts++;
-        
-          codon->dsq[1] = sq->dsq[i-3];	
-	  codon->dsq[2] = sq->dsq[i-2];
-	  for(j = 0; j <= 1; j++) {
-	     codon->dsq[3] = sq->dsq[i-j];
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit) { 
-	        x = a;
-	        n1 = ' ';
-	        n2 = alphaDNA[sq->dsq[i-3]];
-	        n3 = alphaDNA[sq->dsq[i-2]]; 
-	        n4 =  alphaDNA[sq->dsq[i-1]];
-	        n5 = alphaDNA[sq->dsq[i]];
-	     }
-          }	     
-	
-	  codon->dsq[2] = sq->dsq[i-1];	
-	  codon->dsq[3] = sq->dsq[i];
-	  for(j = 2; j <= 3; j++) {
-	     codon->dsq[1] = sq->dsq[i-j];
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit) { 
-	        x = a;
-	        n1 = alphaDNA[sq->dsq[i-3]];
-	        n2 = alphaDNA[sq->dsq[i-2]]; 
-	        n3 = alphaDNA[sq->dsq[i-1]];
-	        n4 = alphaDNA[sq->dsq[i]];
-	        n5 = ' ';
-	     }
-          }	
-        }
+          x = p7P_AMINO4(gm, k, sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);
+          if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1]) == x) {
+                n1 = ' ';
+		n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = tolower(alphaDNA[sq->dsq[i]]);
+	  }
+	  else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i]) == x) {
+                n1 = ' ';
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+          else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-1], sq->dsq[i]) == x) {
+                n1 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n2 = tolower(alphaDNA[sq->dsq[i-2]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n4 = toupper(alphaDNA[sq->dsq[i]]);
+                n5 = ' ';
+          }
+	  else if(p7P_AMINO3(gm, k,sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]) == x) {
+                n1 = tolower(alphaDNA[sq->dsq[i-3]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n4 = toupper(alphaDNA[sq->dsq[i]]);
+                n5 = ' ';
+           }
 
+        }	
+       
         if(l == 5) {
 	  ad->frameshifts++;
-	  
-	  codon->dsq[1] = sq->dsq[i-4];	
-	  codon->dsq[2] = sq->dsq[i-3];
-	  for(j = 0; j <= 2; j++) {
-	     codon->dsq[3] = sq->dsq[i-j];
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit)  x = a;
-          }	     
-	
-	  codon->dsq[1] = sq->dsq[i-4];	
-	  codon->dsq[2] = sq->dsq[i-2];
-	  for(j = 0; j <= 1; j++) {
-	     codon->dsq[3] = sq->dsq[i-j];
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit)  x = a;
-          }	
-
-          codon->dsq[1] = sq->dsq[i-3];	
-	  codon->dsq[2] = sq->dsq[i-2];
-	  for(j = 0; j <= 1; j++) {
-	     codon->dsq[3] = sq->dsq[i-j];
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit)  x = a;
-          }	
-
-	  codon->dsq[2] = sq->dsq[i-1];	
-	  codon->dsq[3] = sq->dsq[i];
-	  for(j = 2; j <= 4; j++) {
-	     codon->dsq[1] = sq->dsq[i-j];
-             a = esl_gencode_GetTranslation(gcode, &codon->dsq[1]);
-	     rsc = gm->rsc[a]; 
-             cur_emit = MSC(k);
-             max_emit = ESL_MAX(max_emit, cur_emit);
-             if(max_emit == cur_emit)  x = a;
+          x = p7P_AMINO5(gm, k, sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);	  
+	  if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2]) == x) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
+		n5 = tolower(alphaDNA[sq->dsq[i]]);
+          }  
+	  else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i]) == x) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
+                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-
-          n1 = alphaDNA[ntsq->dsq[i-4]];
-	  n2 = alphaDNA[ntsq->dsq[i-3]];
-	  n3 = alphaDNA[ntsq->dsq[i-2]]; 
-	  n4 = alphaDNA[ntsq->dsq[i-1]];
-	  n5 = alphaDNA[ntsq->dsq[i]];
-        }		
+	  else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-2], sq->dsq[i]) == x) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
+                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+	  else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i]) == x) {
+                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
+                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+          else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1]) == x) {
+                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = tolower(alphaDNA[sq->dsq[i]]);
+          }
+	  else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i]) == x) {
+                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+          else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-1], sq->dsq[i]) == x) {
+                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+          else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-2], sq->dsq[i-1]) == x) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = tolower(alphaDNA[sq->dsq[i]]);
+          }
+          else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-2], sq->dsq[i]) == x) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+	  else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-1]) == x) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = tolower(alphaDNA[sq->dsq[i]]);
+          }
+	}	
 	
 	
 	if      (x == esl_abc_DigitizeSymbol(gm->abc, gm->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
@@ -740,11 +704,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         else                                                  ad->mline[z-z1] = ' ';
 
         ad->aseq  [z-z1] = toupper(alphaAmino[x]);
-        ad->ntseq [5*(z-z1)] = toupper(n1);
-        ad->ntseq [5*(z-z1)+1] = toupper(n2);
-        ad->ntseq [5*(z-z1)+2] = toupper(n3);
-	ad->ntseq [5*(z-z1)+3] = toupper(n4);
-        ad->ntseq [5*(z-z1)+4] = toupper(n5);
+        ad->ntseq [5*(z-z1)] = n1;
+        ad->ntseq [5*(z-z1)+1] = n2;
+        ad->ntseq [5*(z-z1)+2] = n3;
+	ad->ntseq [5*(z-z1)+3] = n4;
+        ad->ntseq [5*(z-z1)+4] = n5;
         break;
 	
       case p7T_I:
@@ -789,8 +753,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->ntseq  [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
 
-  esl_sq_Destroy(codon); 
-  
   return ad;
 
  ERROR:

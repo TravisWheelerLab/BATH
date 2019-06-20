@@ -137,6 +137,13 @@ static ESL_OPTIONS options[] = {
   { "--restrictdb_n",eslARG_INT,        "-1",  NULL, NULL,    NULL,  NULL,  NULL,       "Search <j> target sequences (starting at --restrictdb_stkey)",   99 },
   { "--ssifile",    eslARG_STRING,       NULL, NULL, NULL,    NULL,  NULL,  NULL,       "restrictdb_x values require ssi file. Override default to <s>",  99 },
 
+  /* stage-specific window length used for bias composition estimate,
+   * hidden because they are confusing/expert options. May drag them out
+   * into the daylight eventually
+   */
+    { "--B1",         eslARG_INT,         "110", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (SSV)",          99 },
+  { "--B2",         eslARG_INT,         "240", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (Vit)",          99 },
+  { "--B3",         eslARG_INT,        "1000", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (Fwd)",          99 },
   
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
@@ -926,7 +933,7 @@ pipeline_thread(void *arg)
 
       if (info->wrk->do_watson) {
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
-
+	printf("NO COMP\n");
          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
        } else {
@@ -936,7 +943,7 @@ pipeline_thread(void *arg)
        if (info->wrk->do_crick) {
          esl_sq_ReverseComplement(dnaSeq);
          do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
-
+	printf("COMP\n");
          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
          esl_sq_ReverseComplement(dnaSeq);

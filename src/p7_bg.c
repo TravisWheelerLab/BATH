@@ -544,7 +544,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_PROFILE *gm, const 
   float nullsc;		                  	 /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
   
   p7_bg_fs_Forward(dsq, L, indel_cost, gcode, bg->fhmm, gm, hmx, &nullsc);
-
+	
   /* impose the length distribution */
   *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
   esl_hmx_Destroy(hmx);
@@ -557,7 +557,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   int   i, k, m;
   int   t, u, v, w, x;
   int   M     = hmm->M;
-  float logsc = 0;
+  float logsc;
   float max;
   float one_indel = indel_cost;
   float two_indel = indel_cost / 2;
@@ -570,9 +570,11 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
     if (opt_sc != NULL) *opt_sc = logsc;
     return eslOK;
   }
-
-  fwd->dp[1][k] = 0.0f;
-  fwd->dp[2][k] = 0.0f;
+  
+   for (k = 0; k < M; k++) {
+     fwd->dp[1][k] = 0.0f;
+     fwd->dp[2][k] = 0.0f;
+   }
 
   max = 0.0;
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1]))
@@ -708,9 +710,9 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   fwd->sc[L+1] = log(fwd->sc[L+1]);
 
   logsc = 0.0;
-  for (i = 1; i <= L+1; i++)
+  for (i = 3; i <= L+1; i++)
     logsc += fwd->sc[i];
-
+  
   fwd->M = hmm->M;
   fwd->L = L;
   if (opt_sc != NULL) *opt_sc = logsc;

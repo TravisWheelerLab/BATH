@@ -552,9 +552,13 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 //FILE *out = fopen("out.txt", "w+");
 //p7_domaindef_DumpPosteriors(out, ddef); 
 //printf("window start %d\n", window_start);
- ddef->rt1 = 0.5;
- ddef->rt2 = 0.2; 
- ddef->rt3 = 0.4; 
+ ddef->rt1           = 0.5;
+ ddef->rt2           = 0.2; 
+ ddef->rt3           = 0.4; 
+ ddef->min_posterior = 0.5;
+ ddef->min_endpointp = 0.04;
+ ddef->max_diagdiff  = 12;
+
   for (j = 3; j < gxf->L-1; j++)
   {  
     if (! triggered){
@@ -1023,8 +1027,8 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
   /* Convert the accumulated n2sc[] ratios in this region to log odds null2 scores on each residue. */
   for (pos = ireg; pos <= jreg; pos++)
     ddef->n2sc[pos] = logf(ddef->n2sc[pos] / (float) ddef->nsamples);
-FILE *out = fopen("out.txt", "w+");
-p7_domaindef_DumpPosteriors(out, ddef);
+//FILE *out = fopen("out.txt", "w+");
+//p7_domaindef_DumpPosteriors(out, ddef);
   /* Cluster the ensemble of traces to break region into envelopes. */
   p7_spensemble_Cluster(ddef->sp, ddef->min_overlap, ddef->of_smaller, ddef->max_diagdiff, ddef->min_posterior, ddef->min_endpointp, &nc);
 

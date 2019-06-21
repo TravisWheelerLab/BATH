@@ -201,6 +201,7 @@ link_spsamples(const void *v1, const void *v2, const void *prm, int *ret_link)
   n = (param->of_smaller ? ESL_MIN(h1->j - h1->i + 1,  h2->j - h2->i + 1) :     /* min length of the two hits */
                            ESL_MAX(h1->j - h1->i + 1,  h2->j - h2->i + 1));      /* max length of the two hits */
   if ((float) nov / (float) n  < param->min_overlap) { *ret_link = FALSE; return eslOK; }  
+  //printf("h1 i %d j %d, over %f \n", h1->i, h1->j, (float) nov / (float) n);
 
   /* hmm overlap test */
   nov = ESL_MIN(h1->m, h2->m) - ESL_MAX(h1->k, h2->k);
@@ -293,17 +294,18 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
   int imin, jmin, kmin, mmin;
   int imax, jmax, kmax, mmax;
   int best_i, best_j, best_k, best_m;
-
+ // min_posterior = 0.5;
+ // min_endpointp = 0.04;
   /* set up a single linkage clustering problem for Easel's general routine */
   param.min_overlap   = min_overlap;
   param.of_smaller    = of_smaller;
   param.max_diagdiff  = max_diagdiff;
   param.min_posterior = min_posterior;
   param.min_endpointp = min_endpointp;
-   printf("sp->n %d\n", sp->n);
-if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_s), link_spsamples, (void *) &param,
+  
+  if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_s), link_spsamples, (void *) &param,
 					  sp->workspace, sp->assignment, &(sp->nc))) != eslOK) goto ERROR;
- printf("sp->nc %d\n", sp->nc);
+
   ESL_ALLOC(ninc, sizeof(int) * sp->nc);
   /* Look at each cluster in turn; most will be too small to worry about. */
   for (c = 0; c < sp->nc; c++)
@@ -314,8 +316,9 @@ if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_
        * That's what the idx_of_last logic is doing, avoiding double-counting.
        */
       idx_of_last = -1;
-      printf("sp->n %d\n", sp->n);
+       printf("#, i, j\n");
       for (ninc[c] = 0, h = 0; h < sp->n; h++) {
+        printf("%d, %d, %d\n", h, sp->sp[h].i, sp->sp[h].j);
 	if (sp->assignment[h] == c) {
 	  if (sp->sp[h].idx != idx_of_last) ninc[c]++;
 	  idx_of_last = sp->sp[h].idx;
@@ -340,7 +343,7 @@ if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_
 	      mmin = ESL_MIN(mmin, sp->sp[h].m);  mmax = ESL_MAX(mmax, sp->sp[h].m);
 	    }
 	  }
-      
+
       /* Set up a window in which we can examine the end point distributions for i,j,k,m in turn, independently */
       cwindow_width = ESL_MAX(ESL_MAX(imax-imin+1, jmax-jmin+1),
 			      ESL_MAX(kmax-kmin+1, mmax-mmin+1));
@@ -349,7 +352,6 @@ if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_
 	ESL_RALLOC(sp->epc, p, sizeof(int) * cwindow_width);
 	sp->epc_alloc = cwindow_width;
       }
-	      
       epc_threshold = (int) ceilf((float) ninc[c] * min_endpointp); /* round up.  freq of >= epc_threshold means we're >= min_p */
 
       /* Identify the leftmost i that has enough endpoints. */

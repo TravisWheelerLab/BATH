@@ -557,7 +557,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
  ddef->rt3           = 0.4; 
  ddef->min_posterior = 0.5;
  ddef->min_endpointp = 0.04;
- ddef->max_diagdiff  = 12;
 
   for (j = 3; j < gxf->L-1; j++)
   {  
@@ -631,6 +630,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
          if (i2 <= last_j2) ddef->noverlaps++;
 	  printf("i2 %d j2 %d overlapps %d\n", i2, j2, ddef->noverlaps);
+	  ddef->noverlaps = 0;
          /* Note that k..m coords on model are available, but
           * we're currently ignoring them.  This leads to a
           * rare clustering bug that we eventually need to fix
@@ -1030,7 +1030,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
 //FILE *out = fopen("out.txt", "w+");
 //p7_domaindef_DumpPosteriors(out, ddef);
   /* Cluster the ensemble of traces to break region into envelopes. */
-  p7_spensemble_Cluster(ddef->sp, ddef->min_overlap, ddef->of_smaller, ddef->max_diagdiff, ddef->min_posterior, ddef->min_endpointp, &nc);
+  p7_spensemble_fs_Cluster(ddef->sp, ddef->min_overlap, ddef->of_smaller, ddef->max_diagdiff, ddef->min_posterior, ddef->min_endpointp, &nc);
 
   /* A little hacky now. Remove "dominated" domains relative to seq coords. */
   for (d = 0; d < nc; d++) 

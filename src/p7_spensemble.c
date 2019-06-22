@@ -217,6 +217,42 @@ link_spsamples(const void *v1, const void *v2, const void *prm, int *ret_link)
   return eslOK;
 }
 
+/* link_spsamples_fs():
+ * 
+ * Defines the rule used for single linkage clustering of sampled
+ * domain coordinates. (API is dictated by Easel's general single
+ * linkage clustering routine.)
+ */
+static int
+link_spsamples_fs(const void *v1, const void *v2, const void *prm, int *ret_link)
+{
+  struct p7_spcoord_s   *h1    = (struct p7_spcoord_s *)   v1;
+  struct p7_spcoord_s   *h2    = (struct p7_spcoord_s *)   v2;
+  struct p7_linkparam_s *param = (struct p7_linkparam_s *) prm;
+  int  nov, n;
+  int  d1, d2;
+  
+  /* seq overlap test */
+  nov = ESL_MIN(h1->j, h2->j) - ESL_MAX(h1->i, h2->i) + 1;      /* overlap  */
+  n = (param->of_smaller ? ESL_MIN(h1->j - h1->i + 1,  h2->j - h2->i + 1) :     /* min length of the two hits */
+                           ESL_MAX(h1->j - h1->i + 1,  h2->j - h2->i + 1));      /* max length of the two hits */
+  if ((float) nov / (float) n  < param->min_overlap) { *ret_link = FALSE; return eslOK; }  
+  //printf("h1 i %d j %d, over %f \n", h1->i, h1->j, (float) nov / (float) n);
+
+  /* hmm overlap test */
+  nov = ESL_MIN(h1->m, h2->m) - ESL_MAX(h1->k, h2->k);
+  n   = (param->of_smaller ? ESL_MIN(h1->m - h1->k + 1,  h2->m - h2->k + 1) :
+                             ESL_MAX(h1->m - h1->k + 1,  h2->m - h2->k + 1));
+  if ((float) nov / (float)  n < param->min_overlap) { *ret_link = FALSE; return eslOK; }
+
+  /* nearby diagonal test */
+  d1 = ((h1->i/3) - h1->k); d2 = ((h2->i/3) - h2->k);  if (abs(d1-d2) <= param->max_diagdiff) { *ret_link = TRUE; return eslOK; }	
+  d1 = ((h1->j/3) - h1->m); d2 = ((h2->j/3) - h2->m);  if (abs(d1-d2) <= param->max_diagdiff) { *ret_link = TRUE; return eslOK; }	
+
+  *ret_link = FALSE;
+  return eslOK;
+}
+
 /* cluster_orderer()
  * is the routine that gets passed to qsort() to sort
  * the significant clusters by order of occurrence on
@@ -232,6 +268,7 @@ cluster_orderer(const void *v1, const void *v2)
   else if (h1->i > h2->i) return 1;
   else                    return 0;
 }
+
 
 /* Function:  p7_spensemble_Cluster()
  * Synopsis:  Cluster a seg pair ensemble and define domains.
@@ -294,8 +331,7 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
   int imin, jmin, kmin, mmin;
   int imax, jmax, kmax, mmax;
   int best_i, best_j, best_k, best_m;
- // min_posterior = 0.5;
- // min_endpointp = 0.04;
+ 
   /* set up a single linkage clustering problem for Easel's general routine */
   param.min_overlap   = min_overlap;
   param.of_smaller    = of_smaller;
@@ -316,9 +352,187 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
        * That's what the idx_of_last logic is doing, avoiding double-counting.
        */
       idx_of_last = -1;
-       printf("#, i, j\n");
+       //printf("\n\n\n#, i, j, k, m\n");
       for (ninc[c] = 0, h = 0; h < sp->n; h++) {
-        printf("%d, %d, %d\n", h, sp->sp[h].i, sp->sp[h].j);
+        //printf("%d, %d, %d, %d, %d\n", h, sp->sp[h].i, sp->sp[h].j, sp->sp[h].k, sp->sp[h].m);
+	if (sp->assignment[h] == c) {
+	  if (sp->sp[h].idx != idx_of_last) ninc[c]++;
+	  idx_of_last = sp->sp[h].idx;
+	}
+      }
+      /* Reject low probability clusters: */
+      if ((float) ninc[c] / (float) sp->nsamples < min_posterior) continue;
+
+      /* Find the maximum extent of all seg pairs in this cluster in i,j k,m */
+      for (imin = 0, h = 0; h < sp->n; h++) 
+	if (sp->assignment[h] == c) 
+	  {
+	    if (imin == 0) {
+	      imin = imax = sp->sp[h].i;
+	      jmin = jmax = sp->sp[h].j;
+	      kmin = kmax = sp->sp[h].k;
+	      mmin = mmax = sp->sp[h].m;
+	    } else {
+	      imin = ESL_MIN(imin, sp->sp[h].i);  imax = ESL_MAX(imax, sp->sp[h].i);
+	      jmin = ESL_MIN(jmin, sp->sp[h].j);  jmax = ESL_MAX(jmax, sp->sp[h].j);
+	      kmin = ESL_MIN(kmin, sp->sp[h].k);  kmax = ESL_MAX(kmax, sp->sp[h].k);
+	      mmin = ESL_MIN(mmin, sp->sp[h].m);  mmax = ESL_MAX(mmax, sp->sp[h].m);
+	    }
+	  }
+
+      /* Set up a window in which we can examine the end point distributions for i,j,k,m in turn, independently */
+      cwindow_width = ESL_MAX(ESL_MAX(imax-imin+1, jmax-jmin+1),
+			      ESL_MAX(kmax-kmin+1, mmax-mmin+1));
+      if (cwindow_width > sp->epc_alloc) {
+	void *p;
+	ESL_RALLOC(sp->epc, p, sizeof(int) * cwindow_width);
+	sp->epc_alloc = cwindow_width;
+      }
+      epc_threshold = (int) ceilf((float) ninc[c] * min_endpointp); /* round up.  freq of >= epc_threshold means we're >= min_p */
+
+      /* Identify the leftmost i that has enough endpoints. */
+      esl_vec_ISet(sp->epc, imax-imin+1, 0);
+      for (h = 0; h < sp->n; h++) if (sp->assignment[h] == c) sp->epc[sp->sp[h].i-imin]++;
+      for (best_i = imin; best_i <= imax; best_i++) if (sp->epc[best_i-imin] >= epc_threshold) break;
+      if (best_i > imax) best_i = imin + esl_vec_IArgMax(sp->epc, imax-imin+1);
+
+      /* Identify the leftmost k that has enough endpoints */
+      esl_vec_ISet(sp->epc, kmax-kmin+1, 0);
+      for (h = 0; h < sp->n; h++) if (sp->assignment[h] == c) sp->epc[sp->sp[h].k-kmin]++;
+      for (best_k = kmin; best_k <= kmax; best_k++) if (sp->epc[best_k-kmin] >= epc_threshold) break;
+      if (best_k > kmax) best_k = kmin + esl_vec_IArgMax(sp->epc, kmax-kmin+1);
+
+      /* Identify the rightmost j that has enough endpoints. */
+      esl_vec_ISet(sp->epc, jmax-jmin+1, 0);
+      for (h = 0; h < sp->n; h++) if (sp->assignment[h] == c) sp->epc[sp->sp[h].j-jmin]++;
+      for (best_j = jmax; best_j >= jmin; best_j--) if (sp->epc[best_j-jmin] >= epc_threshold) break;
+      if (best_j < jmin) best_j = jmin + esl_vec_IArgMax(sp->epc, jmax-jmin+1);
+
+      /* Identify the rightmost m that has enough endpoints. */
+      esl_vec_ISet(sp->epc, mmax-mmin+1, 0);
+      for (h = 0; h < sp->n; h++) if (sp->assignment[h] == c) sp->epc[sp->sp[h].m-mmin]++;
+      for (best_m = mmax; best_m >= mmin; best_m--) if (sp->epc[best_m-mmin] >= epc_threshold) break;
+      if (best_m < mmin) best_m = mmin + esl_vec_IArgMax(sp->epc, mmax-mmin+1);
+      
+      /* If there's no well-defined domain (say, a long stretch of biased composition),
+	 the coords above might come out inconsistent; in this case, just reject the domain.
+       */
+      if (best_i > best_j || best_k > best_m) continue;
+
+      if (sp->nsigc >= sp->nsigc_alloc) {
+	void *p;
+	ESL_RALLOC(sp->sigc, p, sizeof(struct p7_spcoord_s) * sp->nsigc_alloc * 2);
+	sp->nsigc_alloc *= 2;
+      }
+      
+      sp->sigc[sp->nsigc].i    = best_i;
+      sp->sigc[sp->nsigc].j    = best_j;
+      sp->sigc[sp->nsigc].k    = best_k;
+      sp->sigc[sp->nsigc].m    = best_m;
+      sp->sigc[sp->nsigc].idx  = c;
+      sp->sigc[sp->nsigc].prob = (float) ninc[c] / (float) sp->nsamples;
+      sp->nsigc++;
+    }
+
+  /* Now we need to make sure those domains are ordered by start point,
+   * because later we're going to calculate overlaps by i_cur - j_prv
+   */
+  qsort((void *) sp->sigc, sp->nsigc, sizeof(struct p7_spcoord_s), cluster_orderer);
+  free(ninc);
+  *ret_nclusters = sp->nsigc;
+  return eslOK;
+
+ ERROR:
+  if (ninc != NULL) free(ninc);
+  *ret_nclusters = 0;
+  return status;
+}
+
+/* Function:  p7_spensemble_fs_Cluster()
+ * Synopsis:  Cluster a seg pair ensemble and define domains.
+ * Incept:    SRE, Wed Jan  9 11:04:07 2008 [Janelia]
+ *
+ * Purpose:   Given a collected segment pair ensemble <sp>, cluster it; 
+ *            identify significant clusters with high posterior probability;
+ *            and define consensus endpoints for each significant cluster.
+ *            
+ *            Clustering is single-linkage. The linkage rule is
+ *            controlled by the <min_overlap>, <of_smaller>, and
+ *            <max_diagdiff> parameters. To be linked, two segments
+ *            must overlap by a fraction $\geq$ <min_overlap>,
+ *            relative to either the smaller or larger of the two
+ *            segments (<of_smaller = TRUE> or <FALSE>), in both their
+ *            sequence and model coords, and either the start or end of both
+ *            segments must lie within $\leq$ <max_diagdiff> diagonals
+ *            of each other.
+ *            
+ *            The threshold for cluster "significance" is controlled
+ *            by the <min_posterior> parameter. Clusters with
+ *            posterior probability $\geq$ this threshold are called
+ *            significant.
+ *            
+ *            Consensus endpoint definition within a cluster is
+ *            controlled by the <min_endpointp> parameter. The widest
+ *            endpoint that has a posterior probability of $\geq
+ *            min_endpointp> is chosen; this is done independently for
+ *            each coordinate (i,j,k,m).
+ *            
+ *            A reasonable (and tested) parameterization is
+ *            <min_overlap = 0.8>, <of_smaller = TRUE>, <max_diagdiff
+ *            = 4>, <min_posterior = 0.25>, <min_endpointp = 0.02>.
+ *            
+ * Args:      sp            - segment pair ensemble to cluster
+ *            min_overlap   - linkage requires fractional overlap >= this, in both seq and hmm segments
+ *            of_smaller    - overlap fraction denominators uses either the smaller (if TRUE) or larger (if FALSE) segment
+ *            max_diagdiff  - linkage requires that start, end points of both seg pairs are <= this
+ *            min_posterior - clusters with posterior prob >= this are defined as significant
+ *            min_endpointp - widest endpoint with post prob >= this is defined as consensus endpoint coord
+ *            
+ * Returns:   the number of significant clusters in <*ret_nclusters>.
+ *            The caller can then obtain consensus endpoints for each cluster
+ *            by making a series of <p7_spensemble_GetClusterCoords()> calls.
+ *
+ */
+int
+p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp, 
+		      float min_overlap, int of_smaller, int max_diagdiff, float min_posterior, float min_endpointp,
+		      int *ret_nclusters)
+{
+  struct p7_linkparam_s param;
+  int status;
+  int c;
+  int h;
+  int idx_of_last;
+  int *ninc = NULL;
+  int cwindow_width;
+  int epc_threshold;
+  int imin, jmin, kmin, mmin;
+  int imax, jmax, kmax, mmax;
+  int best_i, best_j, best_k, best_m;
+ 
+  /* set up a single linkage clustering problem for Easel's general routine */
+  param.min_overlap   = min_overlap;
+  param.of_smaller    = of_smaller;
+  param.max_diagdiff  = max_diagdiff;
+  param.min_posterior = min_posterior;
+  param.min_endpointp = min_endpointp;
+  
+  if ((status = esl_cluster_SingleLinkage(sp->sp, sp->n, sizeof(struct p7_spcoord_s), link_spsamples_fs, (void *) &param,
+					  sp->workspace, sp->assignment, &(sp->nc))) != eslOK) goto ERROR;
+
+  ESL_ALLOC(ninc, sizeof(int) * sp->nc);
+  /* Look at each cluster in turn; most will be too small to worry about. */
+  for (c = 0; c < sp->nc; c++)
+    {    
+      /* Calculate posterior probability of each cluster. 
+       * The extra wrinkle here is that this probability is w.r.t the number of sampled traces;
+       * but the clusters might contain more than one seg pair from a given trace.
+       * That's what the idx_of_last logic is doing, avoiding double-counting.
+       */
+      idx_of_last = -1;
+       //printf("\n\n\n#, i, j, k, m\n");
+      for (ninc[c] = 0, h = 0; h < sp->n; h++) {
+        //printf("%d, %d, %d, %d, %d\n", h, sp->sp[h].i, sp->sp[h].j, sp->sp[h].k, sp->sp[h].m);
 	if (sp->assignment[h] == c) {
 	  if (sp->sp[h].idx != idx_of_last) ninc[c]++;
 	  idx_of_last = sp->sp[h].idx;

@@ -87,13 +87,41 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
   for (k = 0; k <= M; k++)
     MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;                  /* need seq to get here */
 
-  for(i = 1; i < 3; i++)
+  for(i = 1; i < 5; i++)
   {
-    XMX(i,p7G_N) = pp->xmx[i*p7G_NXCELLS + p7G_N];
-    XMX(i,p7G_B) = XMX(i,  p7G_N);
-    XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;      /* need seq to get here */
-    for (k = 0; k <= M; k++)
-      MMX(i,k) = IMX(i,k) = DMX(i,k) = -eslINFINITY;                /* need seq to get here */
+    MMX(i,0) = IMX(i,0) = DMX(i,0) = XMX(i,p7G_E) = -eslINFINITY;
+
+    for (k = 1; k < M; k++)
+    {
+
+      Max1 = Max2 = Max3 = Max4 = Max5 = 0.0;
+
+      Max1 = ESL_MAX( ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-1,k-1)  +
+                               pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+                               TSCDELTA(p7P_IM, k-1) * (IMX(i-1,k-1)   +
+                               pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1])),
+                               TSCDELTA(p7P_DM, k-1) * (DMX(i-1,k-1)   +
+                               pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]));
+
+      if( i > 1 )
+        Max2 = ESL_MAX( ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-2,k-1)  +
+                                 pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+                                 TSCDELTA(p7P_IM, k-1) * (IMX(i-2,k-1)  +
+                                 pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2])),
+                                 TSCDELTA(p7P_DM, k-1) * (DMX(i-2,k-1)  +
+                                 pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]));
+
+      if( i > 2 )
+        Max3 = ESL_MAX( ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-3,k-1)  +
+                                          pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+                                          TSCDELTA(p7P_IM, k-1) * (IMX(i-3,k-1)  +
+                                          pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3])),
+                        ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-3,k-1)  +
+                                          pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+                                          TSCDELTA(p7P_BM, k-1) * (XMX(i-3,p7G_B) +
+                                          pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3])));
+
+
   }
 
   

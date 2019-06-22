@@ -99,20 +99,59 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
     MMX_FS(0,k, p7G_C0) = MMX_FS(0,k, p7G_C1) = MMX_FS(0,k, p7G_C2) = MMX_FS(0,k, p7G_C3) = 
     MMX_FS(0,k, p7G_C4) = MMX_FS(0,k, p7G_C5) = IMX_FS(0,k) = DMX_FS(0,k) = 0.0;
  
-  /* only N state has probability at sequence index 1 & 2 */
-  for(i = 1; i < 3; i++)
-  {
-    XMX_FS(i, p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] + 
-					        gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
-    XMX_FS(i, p7G_B) = 0.0;
-    XMX_FS(i, p7G_E) = 0.0;
-    XMX_FS(i, p7G_J) = 0.0;
-    XMX_FS(i, p7G_C) = 0.0;
-    for (k = 0; k <= M; k++)
-      MMX_FS(i,k, p7G_C0) = MMX_FS(i,k, p7G_C1) = MMX_FS(i,k, p7G_C2) = MMX_FS(i,k, p7G_C3) =
-      MMX_FS(i,k, p7G_C4) = MMX_FS(i,k, p7G_C5) = IMX_FS(i,k) = DMX_FS(i,k) = 0.0;
-  }
+  for (i = 1; i < 3; i++)
+    {
+          /* 0th position in model */
+      MMX_FS(i,0, p7G_C0) = MMX_FS(i,0, p7G_C1) = MMX_FS(i,0, p7G_C2) = MMX_FS(i,0, p7G_C3) =
+      MMX_FS(i,0, p7G_C4) = MMX_FS(i,0, p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = 0.0;
 
+      for (k = 1; k < M; k++)
+          {
+          /* probabilty from backward matrix */
+                  back_sc = bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc;
+
+                  /* probability fom all 5 codons and their sum in the forward matrix */
+              MMX_FS(i,k, p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] + back_sc);
+              MMX_FS(i,k, p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_sc);
+              MMX_FS(i,k, p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_sc);
+              MMX_FS(i,k, p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_sc);
+              MMX_FS(i,k, p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_sc);
+              MMX_FS(i,k, p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_sc);
+
+                  /* insert state probablity */
+              IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] +
+              bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc);
+
+              /* no emition from delete state */
+                  DMX_FS(i,k) = 0.;
+        }
+
+          /* final model position - no insert state */
+      back_sc = bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc;
+
+      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] + back_sc);
+      MMX_FS(i,M, p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_sc);
+      MMX_FS(i,M, p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_sc);
+      MMX_FS(i,M, p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_sc);
+      MMX_FS(i,M, p7G_C4) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_sc);
+      MMX_FS(i,M, p7G_C5) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_sc);
+
+      IMX_FS(i,M) = 0.;
+      DMX_FS(i,M) = 0.;
+
+          /* no emition from E or B states */
+      XMX_FS(i,p7G_E) = 0.;
+      XMX(i,p7G_B) = 0.;
+
+      /* proability from N, J and C states */
+      XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
+
+      XMX_FS(i,p7G_J) = expf(bck->xmx[p7G_NXCELLS*i + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_sc);
+
+      XMX(i,p7G_C) = expf(bck->xmx[p7G_NXCELLS*i + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
+    }
+
+      
   for (i = 3; i <= L; i++)
     {
 	  /* 0th position in model */		

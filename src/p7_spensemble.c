@@ -522,6 +522,7 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
 
   ESL_ALLOC(ninc, sizeof(int) * sp->nc);
   /* Look at each cluster in turn; most will be too small to worry about. */
+            printf("c imin imax jmin jmax kmin kmax mmin mmax\n");
   for (c = 0; c < sp->nc; c++)
     {    
       /* Calculate posterior probability of each cluster. 
@@ -558,6 +559,7 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
 	    }
 	  }
 
+            printf("%d %d %d %d %d %d %d %d %d\n",c, imin, imax, jmin, jmax, kmin, kmax, mmin, mmax);
       /* Set up a window in which we can examine the end point distributions for i,j,k,m in turn, independently */
       cwindow_width = ESL_MAX(ESL_MAX(imax-imin+1, jmax-jmin+1),
 			      ESL_MAX(kmax-kmin+1, mmax-mmin+1));

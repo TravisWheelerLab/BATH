@@ -252,9 +252,9 @@ p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef)
   fprintf(ofp, "# mocc btot etot n2sc\n");
   for (i = 0; i <= ddef->L; i++) {
     fprintf(ofp, "%d %f ", i, ddef->mocc[i]);
-    fprintf(ofp, "%f ", i, ddef->btot[i]);
-    fprintf(ofp, "%f ", i, ddef->etot[i]);
-    fprintf(ofp, "%f ", i, ddef->n2sc[i]);
+    fprintf(ofp, "%f ", ddef->btot[i]);
+    fprintf(ofp, "%f ", ddef->etot[i]);
+    fprintf(ofp, "%f ", ddef->n2sc[i]);
     fprintf(ofp, "\n");
   }
   return eslOK;
@@ -543,14 +543,14 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
   i     = -1;
   triggered = FALSE;
-//FILE *fwdout = fopen("fwdout.txt", "w+");
-//p7_gmx_fs_DumpWindow(fwdout, gxf, 0, gxf->L, 0, 0, p7_DEFAULT);
+FILE *fwdout = fopen("fwdout.txt", "w+");
+p7_gmx_fs_DumpWindow(fwdout, gxf, 0, gxf->L, 0, 0, p7_DEFAULT);
 
-//FILE *bwdout = fopen("bwdout.txt", "w+");
-//p7_gmx_DumpWindow(bwdout, gxb, 0, gxb->L, 0, 0, p7_DEFAULT);
+FILE *bwdout = fopen("bwdout.txt", "w+");
+p7_gmx_DumpWindow(bwdout, gxb, 0, gxb->L, 0, 0, p7_DEFAULT);
 
-//FILE *out = fopen("out.txt", "w+");
-//p7_domaindef_DumpPosteriors(out, ddef); 
+FILE *out = fopen("out.txt", "w+");
+p7_domaindef_DumpPosteriors(out, ddef); 
 //printf("window start %d\n", window_start);
  ddef->rt1           = 0.5;
  ddef->rt2           = 0.2; 
@@ -566,14 +566,14 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
     }
     else {
 	//printf("d at trigger %d\n", d);
-      while(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-3]) >= ddef->rt2) {
+      while(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
         if(d > 6) 
 	{
 	  d -= 3;
 
-	  if(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-3]) < ddef->rt2) {
-            if(ddef->mocc[d+1] - (ddef->btot[d+1] - ddef->btot[d-2]) >= ddef->rt2) d++;
-            else if(ddef->mocc[d+2] - (ddef->btot[d+2] - ddef->btot[d-1]) >= ddef->rt2) d+=2;
+	  if(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) {
+            if(ddef->mocc[d+1] - (ddef->btot[d+1] - ddef->btot[d]) >= ddef->rt2) d++;
+            else if(ddef->mocc[d+2] - (ddef->btot[d+2] - ddef->btot[d+1]) >= ddef->rt2) d+=2;
           }
 	} else { d = 1; break; }
 
@@ -582,13 +582,13 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
       i = d;
       d = j-1;
 
-	  while(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) >= ddef->rt2) {
+	  while(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
 	    if(d < gxf->L-6)
 	    {	
 		  d += 3;
-	      if(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) {
-	        if(ddef->mocc[d-1] - (ddef->etot[d+1] - ddef->etot[d-2]) >= ddef->rt2) d--;
-	        else if(ddef->mocc[d-2] - (ddef->etot[d+2] - ddef->etot[d-1]) >= ddef->rt2) d-=2;
+	      if(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) {
+	        if(ddef->mocc[d-1] - (ddef->etot[d+1] - ddef->etot[d]) >= ddef->rt2) d--;
+	        else if(ddef->mocc[d-2] - (ddef->etot[d+2] - ddef->etot[d+1]) >= ddef->rt2) d-=2;
           } 
         } else { d = gxf->L; break; }
 	  }	
@@ -600,7 +600,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
          ddef->nregions++;
 	 printf("i %d, j %d\n", i, j);
-	 if (is_multidomain_region_fs(ddef, i, j))
+#if 0
+	 if (is_multidomain_region(ddef, i, j))
      {  
 			 printf("MULTI %s\n", gm->name);
         /* This region appears to contain more than one domain, so we have to
@@ -661,9 +662,10 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
        p7_trace_Reuse(ddef->tr);
 
 	 } else {
+#endif
        ddef->nenvelopes++;
        rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost);
-	 }
+//	 }
      //printf("I %d, J %d\n", i, j);
 
  	 i     = -1;

@@ -122,31 +122,20 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
 	  case 3: d = 4; break; 
 	  case 4: d = 5; break; 
 	}
-
-        if (d == 3) {
-          sc[0] = XMX(i-d,p7G_B) 	  + TSC(p7P_BM, k-1);
-	  sc[1] = MMX_FS(i-d,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
-	  sc[2] = IMX_FS(i-d,k-1)   	  + TSC(p7P_IM, k-1);
-	  sc[3] = DMX_FS(i-d,k-1)   	  + TSC(p7P_DM, k-1);
-          esl_vec_FLogNorm(sc, 4);
-          switch (esl_rnd_FChoose(r, sc, 4)) {
-            case 0: scur = p7T_B;  break;
-            case 1: scur = p7T_M;  break;
-            case 2: scur = p7T_I;  break;
-            case 3: scur = p7T_D;  break;
-            default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
-         }
-       } else {
-         sc[0] = MMX_FS(i-d,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
-         sc[1] = IMX_FS(i-d,k-1)       + TSC(p7P_IM, k-1);
-         sc[2] = DMX_FS(i-d,k-1)       + TSC(p7P_DM, k-1);
-         esl_vec_FLogNorm(sc, 3);
-         switch (esl_rnd_FChoose(r, sc, 3)) {
-          case 0: scur = p7T_M;  break;
-          case 1: scur = p7T_I;  break;
-          case 2: scur = p7T_D;  break;
+        
+        while(i-d < 0) d--;
+          
+        sc[0] = XMX(i-d,p7G_B) 	  + TSC(p7P_BM, k-1);
+	sc[1] = MMX_FS(i-d,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
+        sc[2] = IMX_FS(i-d,k-1)   	  + TSC(p7P_IM, k-1);
+	sc[3] = DMX_FS(i-d,k-1)   	  + TSC(p7P_DM, k-1);
+        esl_vec_FLogNorm(sc, 4);
+        switch (esl_rnd_FChoose(r, sc, 4)) {
+          case 0: scur = p7T_B;  break;
+          case 1: scur = p7T_M;  break;
+          case 2: scur = p7T_I;  break;
+          case 3: scur = p7T_D;  break;
           default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
-         }
        }
        i -= d;
        k--; 

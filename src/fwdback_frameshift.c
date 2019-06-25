@@ -458,18 +458,18 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
     {
       /* i can come from i+5, i+4, i+3, i+2 or i+1 */
       MMX(i,k) = p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
-                 p7_FLogsum( iv[k]        + TSC(p7P_MM,k),
+                 p7_FLogsum( iv[k+1]        + TSC(p7P_MM,k),
                              XMX(i,p7G_E) + esc));
       if( i < L-2 )
         MMX(i,k) = p7_FLogsum( MMX(i,k) , IMX(i+3,k)  + TSC(p7P_MI,k));
 
       DMX(i,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
                                          DMX(i, k+1)  + TSC(p7P_DD,k)),
-                                         iv[k]        + TSC(p7P_DM,k));
+                                         iv[k+1]        + TSC(p7P_DM,k));
 
       if (i < L-2 )
         IMX(i,k) = p7_FLogsum(           IMX(i+3,k  )   + TSC(p7P_II,k),
-                                         iv[k]          + TSC(p7P_IM,k));
+                                         iv[k+1]          + TSC(p7P_IM,k));
       else
         IMX(i,k) = iv[k]            + TSC(p7P_IM,k);
     }
@@ -520,15 +520,15 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
     {
       MMX(i,k) = p7_FLogsum( p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
                              p7_FLogsum( IMX(i+3,k)   + TSC(p7P_MI,k),
-                                         iv[k]        + TSC(p7P_MM,k))),
+                                         iv[k+1]        + TSC(p7P_MM,k))),
                                          XMX(i,p7G_E) + esc);
 
       DMX(i,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
                                          DMX(i, k+1)  + TSC(p7P_DD,k)),
-                                         iv[k]        + TSC(p7P_DM,k));
+                                         iv[k+1]        + TSC(p7P_DM,k));
 
-      IMX(i,k) = p7_FLogsum(             IMX(i+3,k  ) + TSC(p7P_II,k),
-                                         iv[k]        + TSC(p7P_IM,k));
+      IMX(i,k) = p7_FLogsum(             IMX(i+3,k  )   + TSC(p7P_II,k),
+                                         iv[k+1]          + TSC(p7P_IM,k));
     }
     t = u;
     u = v;

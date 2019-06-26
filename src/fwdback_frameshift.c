@@ -188,6 +188,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
 					      DMX_FS(i,M) + esc),
 					      XMX_FS(i,p7G_E));
         
+       XMX_FS(i,p7G_E) = -eslINFINITY;
     /* J, C and N states */
     if ( i > 2 )
     {
@@ -430,6 +431,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
         iv[k]        = p7_FLogsum( iv[k], MMX(i+4,k) + p7P_MSC(gm, k, p7P_AMINO4(gm, k, x, w, v, u)) + one_indel);
         XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), iv[k] + TSC(p7P_BM,0));
       }
+      XMX(i,p7G_B) = -eslINFINITY;
    }
 
     if( i < L-2 )
@@ -447,7 +449,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
       XMX(i,p7G_N) = p7_FLogsum( XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE], 
                                                   gm->xsc[p7P_N][p7P_LOOP]);
     }
-
+    XMX(i,p7G_N) = -eslINFINITY;
     XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm->xsc[p7P_E][p7P_LOOP],
                               XMX(i,p7G_C) + gm->xsc[p7P_E][p7P_MOVE]);
 

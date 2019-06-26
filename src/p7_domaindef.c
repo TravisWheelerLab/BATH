@@ -525,7 +525,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 
   int i, j;
   int triggered;
-  int d;
+  int d, s;
   int i2,j2;
   int last_j2;
   int nc;
@@ -549,8 +549,11 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 //FILE *bwdout = fopen("bwdout.txt", "w+");
 //p7_gmx_DumpWindow(bwdout, gxb, 0, gxb->L, 0, 0, p7_DEFAULT);
 
-FILE *out = fopen("out.txt", "w+");
-p7_domaindef_DumpPosteriors(out, ddef); 
+//FILE *out = fopen("ddout.txt", "w+");
+//p7_domaindef_DumpPosteriors(out, ddef); 
+//fclose(out);
+//printf("done\n");
+//sleep(5);
 //printf("window start %d\n", window_start);
  ddef->rt1           = 0.625;
  ddef->rt2           = 0.25; 
@@ -558,14 +561,16 @@ p7_domaindef_DumpPosteriors(out, ddef);
  ddef->min_posterior = 0.5;
  ddef->min_endpointp = 0.04;
 
-  for (j = 2; j < gxf->L; j++)
+  for (j = 1; j < gxf->L; j++)
   {  
     if (! triggered){
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
         d = j;
     }
     else {
-	//printf("d at trigger %d\n", d);
+	
+      if(d < 6) d  = 1;
+      else      d -= 5;
       
       while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
         d--;
@@ -576,12 +581,16 @@ p7_domaindef_DumpPosteriors(out, ddef);
       i = d;
       d = j-1;
 
-      while(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
+      while(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) 
+      {
         d++;
-	if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) d++; 
-        if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) d++; 
-      }	
-	 
+	if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2)
+        {  
+          for(s = d; s > d-5, s > 0; s--)
+            if(ddef->mocc[s] >= ddef->rt1) { d+=5; s = 0; }
+        } 
+      }  
+
       if (d > gxf->L) d = gxf->L;
 
       j = d;
@@ -593,7 +602,7 @@ p7_domaindef_DumpPosteriors(out, ddef);
       p7_gmx_GrowTo(bck, gm->M, j-i+1);
       ddef->nregions++;
       printf("i %d, j %d\n", i, j);
-#if 0
+
 	 if (is_multidomain_region(ddef, i, j))
      {  
 			 printf("MULTI %s\n", gm->name);
@@ -612,9 +621,9 @@ p7_domaindef_DumpPosteriors(out, ddef);
 	  
 	   p7_ReconfigMultihit_Frameshift(gm, saveL);
        p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, j-i+1, gm, fwd, NULL);
-       
+       printf("Forward done\n"); 
        region_trace_ensemble_frameshift(ddef, gm, sq->dsq, i, j, fwd, bck, indel_cost, &nc);
-	   
+	printf("trace done\n");   
        p7_ReconfigUnihit_Frameshift(gm, saveL);
        
        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
@@ -655,10 +664,10 @@ p7_domaindef_DumpPosteriors(out, ddef);
        p7_trace_Reuse(ddef->tr);
 
 	 } else {
-#endif
+
        ddef->nenvelopes++;
        rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost);
-//	 }
+	 }
      //printf("I %d, J %d\n", i, j);
 
  	 i     = -1;
@@ -1512,11 +1521,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
 
 //FILE *fwdout = fopen("fwdout.txt", "w+");
-//p7_gmx_fs_Dump(fwdout, gx1, p7_DEFAULT);
+//p7_gmx_fs_DumpWindow(fwdout, gx1,0, gx1->L, 0, 0, p7_DEFAULT);
+//fclose(fwdout);
 
 //FILE *bwdout = fopen("bwdout.txt", "w+");
-//p7_gmx_Dump(bwdout, gx2, p7_DEFAULT);
-
+//p7_gmx_DumpWindow(bwdout, gx2,0, gx2->L, 0, 0, p7_DEFAULT);
+//fclose(bwdout);
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
 
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */

@@ -549,16 +549,16 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 //FILE *bwdout = fopen("bwdout.txt", "w+");
 //p7_gmx_DumpWindow(bwdout, gxb, 0, gxb->L, 0, 0, p7_DEFAULT);
 
-//FILE *out = fopen("out.txt", "w+");
-//p7_domaindef_DumpPosteriors(out, ddef); 
+FILE *out = fopen("out.txt", "w+");
+p7_domaindef_DumpPosteriors(out, ddef); 
 //printf("window start %d\n", window_start);
- ddef->rt1           = 0.5;
- ddef->rt2           = 0.2; 
+ ddef->rt1           = 0.625;
+ ddef->rt2           = 0.25; 
  ddef->rt3           = 0.4; 
  ddef->min_posterior = 0.5;
  ddef->min_endpointp = 0.04;
 
-  for (j = 3; j < gxf->L-1; j++)
+  for (j = 2; j < gxf->L; j++)
   {  
     if (! triggered){
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
@@ -566,40 +566,33 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
     }
     else {
 	//printf("d at trigger %d\n", d);
-      while(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
-        if(d > 6) 
-	{
-	  d -= 3;
-
-	  if(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) {
-            if(ddef->mocc[d+1] - (ddef->btot[d+1] - ddef->btot[d]) >= ddef->rt2) d++;
-            else if(ddef->mocc[d+2] - (ddef->btot[d+2] - ddef->btot[d+1]) >= ddef->rt2) d+=2;
-          }
-	} else { d = 1; break; }
-
+      
+      while(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) >= ddef->rt2) {
+        d--;
+	if(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) d--;
+        if(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) d--;
       }
 
       i = d;
       d = j-1;
 
-	  while(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
-	    if(d < gxf->L-6)
-	    {	
-		  d += 3;
-	      if(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) {
-	        if(ddef->mocc[d-1] - (ddef->etot[d+1] - ddef->etot[d]) >= ddef->rt2) d--;
-	        else if(ddef->mocc[d-2] - (ddef->etot[d+2] - ddef->etot[d+1]) >= ddef->rt2) d-=2;
-          } 
-        } else { d = gxf->L; break; }
-	  }	
+      while(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) >= ddef->rt2) {
+        d++;
+	if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) d++; 
+        if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) d++; 
+      }	
 	 
-	  j = d;
-          if(j-i+1 < 15) { i     = -1; triggered = FALSE; continue; }	 	 
-	 /* We have a region i..j to evaluate. */
-	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
-	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
-         ddef->nregions++;
-	 printf("i %d, j %d\n", i, j);
+      if (d > gxf->L) d = gxf->L;
+
+      j = d;
+      
+      if(j-i+1 < 15) { i     = -1; triggered = FALSE; continue; }	 	 
+
+      /* We have a region i..j to evaluate. */
+      p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
+      p7_gmx_GrowTo(bck, gm->M, j-i+1);
+      ddef->nregions++;
+      printf("i %d, j %d\n", i, j);
 #if 0
 	 if (is_multidomain_region(ddef, i, j))
      {  
@@ -1528,17 +1521,21 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
 //FILE *ppout = fopen("ppout.txt", "w+");
-//p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
-
+//p7_gmx_fs_DumpWindow(ppout, gxppfs,0, gxppfs->L, 0,0, p7_DEFAULT);
+//fclose(ppout);
+//printf("done\n");
+//sleep(5);
   /* Find an optimal accuracy alignment */
 
    p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
 
    p7_OATrace_Frameshift(gm, gxppfs, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
 //FILE *optout = fopen("optout.txt", "w+");
-//p7_gmx_Dump(optout, gx2, p7_DEFAULT);
-  
-  /* hack the trace's sq coords to be correct w.r.t. original dsq */
+//p7_gmx_DumpWindow(optout, gx2,0, gx2->L, 0, 0, p7_DEFAULT);
+//fclose(optout); 
+//printf("done\n");
+//sleep(5);
+ /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)	  
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
   

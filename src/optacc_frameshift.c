@@ -81,10 +81,8 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
   float        Max1, Max2, Max3, Max4, Max5;
  
   /* Initialization of the zero row (i=0; no residues to account for.  */
-  t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  XMX(0,p7G_N) = t1 * pp->xmx[i*p7G_NXCELLS + p7G_N];               /* S->N, p=1            */
-  t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  XMX(0,p7G_B) = t1 * XMX(i,  p7G_N);                               /* S->N->B, no N-tail   */
+  XMX(0,p7G_N) = 0.; 
+  XMX(0,p7G_B) = 0.;                               /* S->N->B, no N-tail   */
   XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;        /* need seq to get here */
   
   for (k = 0; k <= M; k++)
@@ -228,7 +226,7 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
     if (i > 2)
       XMX(i,p7G_N) = t1 *  (XMX(i-3,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
     else
-     t1 * pp->xmx[i*p7G_NXCELLS + p7G_N];
+     XMX(i,p7G_N) = t1 * pp->xmx[i*p7G_NXCELLS + p7G_N];
 
     t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
     t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
@@ -588,7 +586,7 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
   else path[2] = t1 * XMX(i-1, p7G_C); 
 
   path[3] = t2 *  XMX(i,p7G_E);
-  //printf("i = %d, c-3 = %f, c-2 = %f, c-1 = %f, e = %f\n", i, path[0], path[1], path[2], path[3]);
+//  printf("i = %d, c-3 = %f, c-2 = %f, c-1 = %f, e = %f\n", i, path[0], path[1], path[2], path[3]);
  // printf("state[esl_vec_FArgMax(path, 4)] %d\n", state[esl_vec_FArgMax(path, 4)]);
   return state[esl_vec_FArgMax(path, 4)];
 }

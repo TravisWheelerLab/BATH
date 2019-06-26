@@ -240,7 +240,7 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 
 	if(i < L-4)
       denom += MMX_FS((i+4),M,p7G_C5);	
-	printf("denom %f\n", denom);
+	
     denom = 1.0 / denom;
     
     for (k = 1; k < M; k++) {  

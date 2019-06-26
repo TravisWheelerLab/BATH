@@ -48,7 +48,7 @@ static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, co
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const ESL_DSQ *dsq, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
 static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
 				   int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, P7_BG *bg_tmp, ESL_GENCODE *gcode, float indel_cost);
+static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, P7_BG *bg_tmp, ESL_GENCODE *gcode, float indel_cost, float *scores_arr, float *fwd_emissions_arr);
 
 
 /*****************************************************************
@@ -590,7 +590,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
 	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
          ddef->nregions++;
-	 //printf("i %d, j %d\n", i, j);
+	 printf("i %d, j %d\n", i, j);
 #if 0
 		 if (is_multidomain_region_fs(ddef, i, j))
      {  
@@ -653,7 +653,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 } else {
 #endif
        ddef->nenvelopes++;
-       rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost);
+       rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr);
 	// }
      //printf("I %d, J %d\n", i, j);
 
@@ -1112,7 +1112,35 @@ reparameterize_model (P7_BG *bg, P7_OPROFILE *om, const ESL_SQ *sq, int start, i
 
   return eslOK;
 }
+static int
+count_residues_frameshift(const ESL_SQ *sq, const ESL_GENCODE *gcode, int start, int L, float *f)
+{
+  int i;
+  ESL_DSQ v, w, x;
+  ESL_DSQ a;
 
+    if (start<1 || start+L>sq->n+1)
+      return eslERANGE; //range out of sequence bounds
+
+    for (i=start ; i < start+L-2; i++) {
+      v = sq->dsq[i];
+      w = sq->dsq[i+1];
+      x = sq->dsq[i+2];
+      if( esl_abc_XIsCanonical(sq->abc, v) && esl_abc_XIsCanonical(sq->abc, w) && esl_abc_XIsCanonical(sq->abc, x))
+      { 
+        a = gcode->basic[16 * v + 4 * w + x];
+        if (esl_abc_XIsNonresidue(gcode->aa_abc, a)) a = esl_abc_XGetUnknown(gcode->aa_abc);
+        esl_abc_FCount(gcode->aa_abc, f, a, 1.);
+      }
+      else
+      {
+        a = esl_abc_XGetUnknown(gcode->aa_abc);
+        esl_abc_FCount(gcode->aa_abc, f, a, 1.);
+      }
+    }
+
+  return eslOK;
+}
 /* Function:  reparameterize_model_frameshift()
  *
  * Synopsis:  Establish new background priors based on a sequence window,
@@ -1147,9 +1175,8 @@ reparameterize_model (P7_BG *bg, P7_OPROFILE *om, const ESL_SQ *sq, int start, i
  *
  */
 
-#if 0
 static int
-reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, int start, int L, float *fwd_emissions, float *bgf_arr, float *sc_arr) {
+reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, const ESL_GENCODE *gcode, int start, int L, float *fwd_emissions, float *bgf_arr, float *sc_arr) {
   int     K   = gm->abc->K;
   int i;
   float tmp;
@@ -1162,10 +1189,10 @@ reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, in
 
   if (sq != NULL) {
     /* compute new bg->f, capturing original values into a preallocated array */
-    bg_smooth = 25.0 / (ESL_MIN(100,ESL_MAX(50,sq->n)));
+    bg_smooth = 25.0 / (ESL_MIN(100,ESL_MAX(50,(sq->n))));
 
     esl_vec_FSet (bgf_arr, gm->abc->K, 0);
-    status = esl_sq_CountResidues(sq, start, L, bgf_arr);
+    status = count_residues_frameshift(sq, gcode, start, L, bgf_arr);
     if (status != eslOK) p7_Fail("Invalid sequence range in reparameterize_model()\n");
     esl_vec_FNorm(bgf_arr, gm->abc->K);
 
@@ -1179,11 +1206,11 @@ reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, in
     esl_vec_FCopy(bgf_arr, K, bg->f);
   }
 
-  p7_UpdateFwdEmissionScores(gm, bg, fwd_emissions, sc_arr);
+  p7_fs_UpdateFwdEmissionScores(gm, bg, fwd_emissions, sc_arr);
 
   return eslOK;
 }
-#endif
+
 
 
 /* rescore_isolated_domain()
@@ -1466,7 +1493,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
 static int
 rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL_SQ *sq, 
 				   const ESL_SQ *ntsq,  P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, 
-				   P7_BG *bg, P7_BG *bg_tmp, ESL_GENCODE *gcode, float indel_cost)
+				   P7_BG *bg, P7_BG *bg_tmp, ESL_GENCODE *gcode, float indel_cost, float *scores_arr, float *fwd_emissions_arr)
 {
 
   P7_DOMAIN     *dom           = NULL;
@@ -1488,14 +1515,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   
   p7_ReconfigLength_Frameshift(gm, j-i+1);
   
-  //emit_sc = &full_emit_sc[i-1];
-  //for(z = 1; z <= j-i+1; z++)
-  //  emit_sc[z] = full_emit_sc[i+z-1];
-
-
+  reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
+  
   p7_Forward_Frameshift (sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
+  
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
-
 
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
@@ -1525,10 +1549,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
      * it isn't yet, if we're in a simple one-domain region). If it isn't,
      * do it now, by the expectation (posterior decoding) method.
      */
-printf("domain len = %d\n", gxppfs->L);
+#if 0
       if (!null2_is_done) {
        p7_GNull2_ByExpectation(gm, gxppfs, null2);
       }
+#endif
       for (pos = i; pos <= j; pos++)
         domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
       dom->domcorrection = domcorrection; /* in units of NATS */

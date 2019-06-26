@@ -705,8 +705,8 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE 
     prev_orf = orf_block->list+new_hit_cnt;
     curr_orf = orf_block->list+i;
 
-    if((prev_orf->start < curr_orf->start && prev_orf->end < curr_orf->start) ||
-       (prev_orf->start > curr_orf->start && prev_orf->end > curr_orf->start))
+    if((prev_orf->start <= curr_orf->start && prev_orf->end   >= curr_orf->start) ||
+       (prev_orf->start >= curr_orf->start && prev_orf->start <= curr_orf->end))
     {
       dna_start        = ESL_MIN(prev_orf->start, curr_orf->start);
       dna_end          = ESL_MAX(prev_orf->end, curr_orf->end);
@@ -2213,10 +2213,10 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   if (window_len < 3) return eslOK;
 	
   subseq = dnasq->dsq + window_start - 1;
-	
+  printf("window_start %d window_end %d window_len %d \n", window_start, window_end, window_len);	
   p7_bg_SetLength_Frameshift(bg, window_len);
   p7_ReconfigLength_Frameshift(gm, window_len);
-  p7_bg_NullOne  (bg, subseq, window_len, &nullsc);
+  p7_bg_NullOne_Frameshift(bg, subseq, window_len, &nullsc);
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
  // emit_sc = Codon_Emissions_Create(gm, subseq, dnasq->abc, gm->M, window_len, indel_cost);
   p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
@@ -2756,7 +2756,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
     esl_sq_Reuse(orfsq);
   }
 
-  //p7_profile_GetFwdEmissionArray(gm, bg, pli_tmp->fwd_emissions_arr);
+  p7_profile_fs_GetFwdEmissionArray(gm, bg, pli_tmp->fwd_emissions_arr);
   
   if (data->prefix_lengths == NULL)  //otherwise, already filled in
         p7_hmm_ScoreDataComputeRest(om, data);

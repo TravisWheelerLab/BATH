@@ -722,8 +722,9 @@ p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, floa
   int     Kp  = gm->abc->Kp;
 
   for (i = 1; i <= gm->M; i++) {
-
+  printf("i %d\n", i);
     for (j=0; j<K; j++) {
+      printf("gm->mm %c\n", gm->mm[i]);
       if (gm->mm && gm->mm[i] == 'm')
         sc_tmp[j] = 0;
       else
@@ -741,6 +742,40 @@ p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, floa
   return eslOK;
 
 }
+
+/* Function:  p7_UpdateFwdEmissionScores()
+ * Synopsis:  Update om match emissions to account for new bg, using
+ *            preallocated sc_tmp[].
+ *
+ * Purpose:   Change scores based on updated background model
+ *
+ */
+int
+p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp)
+{
+  int     M   = gm->M;    /* length of the query                                          */
+  int     i, j;
+  int     K   = gm->abc->K;
+  int     Kp  = gm->abc->Kp;
+
+  for (i = 1; i <= gm->M; i++) {
+    for (j=0; j<K; j++) {
+        sc_tmp[j] = log(fwd_emissions[i*gm->abc->Kp + j] / bg->f[j]);
+    }
+
+
+    esl_abc_FExpectScVec(bg->abc, sc_tmp, bg->f);
+
+    for (j=0; j<Kp; j++)
+      gm->rsc[j][(i) * p7P_NR  + p7P_MSC] =  sc_tmp[j];
+
+  }
+
+  return eslOK;
+
+}
+
+
 
 /*****************************************************************
  * 2. Unit tests

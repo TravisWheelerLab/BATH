@@ -449,7 +449,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
       x = 4; 
 
     for (k = 1; k < M; k++)
-    {
+    {  
       IVX(i,k,p7P_C1) = p7_FLogsum(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
 		        p7_FLogsum(IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1),
 				   DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1)));
@@ -464,10 +464,10 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
 
       MMX_FS(i,k,p7G_C5) = IVX(i,k,p7P_C5) + p7P_MSC(gm, k, p7P_AMINO5(gm, k, t, u, v, w, x)) + two_indel; 
 
+
       MMX_FS(i,k,p7G_C0) =  p7_FLogsum(p7_FLogsum(MMX_FS(i,k,p7G_C1), 
 			  	       p7_FLogsum(MMX_FS(i,k,p7G_C2), MMX_FS(i,k,p7G_C3))),
 				       p7_FLogsum(MMX_FS(i,k,p7G_C4), MMX_FS(i,k,p7G_C5)));
-
       /* insert state */
       IMX_FS(i,k) = p7_FLogsum(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
 	  	   	       IMX_FS(i-3,k)        + TSC(p7P_II,k));
@@ -480,7 +480,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
       XMX_FS(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX_FS(i,k,p7G_C0) + esc,
 					      DMX_FS(i,k) + esc), XMX_FS(i,p7G_E));
     }
-    	
+
     /* unrolled match state M_M */
     IVX(i,M,p7P_C1) = p7_FLogsum(MMX_FS(i-1,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
 		      p7_FLogsum(IMX_FS(i-1,M-1)          + TSC(p7P_IM,M-1),
@@ -511,7 +511,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
     XMX_FS(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX_FS(i,M,p7G_C0) + esc,
 					    DMX_FS(i,M) + esc),
 					    XMX_FS(i,p7G_E));
-        
+
     /* J, C and N states */
     XMX_FS(i,p7G_J) = p7_FLogsum(XMX_FS(i-3,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
 		 		 XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_LOOP]);

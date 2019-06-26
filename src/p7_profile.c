@@ -320,7 +320,7 @@ p7_profile_fs_Copy(const P7_PROFILE *src, P7_PROFILE *dst)
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
   for (x = 0; x < src->abc->Kp;   x++) esl_vec_FCopy(src->rsc[x], (src->M+1)*p7P_NR, dst->rsc[x]);
   for (x = 0; x < p7P_NXSTATES;   x++) esl_vec_FCopy(src->xsc[x], p7P_NXTRANS,       dst->xsc[x]);
-  for (x = 0; x < p7P_MAXCODONS;  x++) esl_abc_dsqcpy(src->codons[x], (src->M+1), dst->codons[x]);
+  for (x = 0; x < p7P_MAXCODONS;  x++) esl_abc_dsqcpy(src->codons[x], (src->M-1), dst->codons[x]);
 
   dst->mode        = src->mode;
   dst->L           = src->L;
@@ -427,6 +427,41 @@ p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr )
 
   return eslOK;
 }
+
+/* Function:  p7_profile_GetFwdEmissionArray()
+ * Synopsis:  Retrieve Fwd (float) residue emission values from an optimized
+ *            profile into an array
+ *
+ * Purpose:   Extract an implicitly 2D array of 32-bit float Fwd residue
+ *            emission values from an optimized profile <om>, converting
+ *            back to emission values based on the background. <arr> must
+ *            be allocated by the calling function to be of size
+ *            ( om->abc->Kp * ( om->M  + 1 )), and indexing into the array
+ *            is done as  [om->abc->Kp * i +  c ] for character c at
+ *            position i.
+ *
+ * Args:      <om>   - optimized profile, containing transition information
+ *            <bg>   - background frequencies
+ *            <arr>  - preallocated array into which scores will be placed
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    (no abnormal error conditions)
+ */
+int
+p7_profile_fs_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr )
+{
+  int i, j;
+
+  for (i = 1; i <= gm->M; i++) {
+    for (j=0; j<gm->abc->K; j++) {
+      arr[i*gm->abc->Kp + j] =  bg->f[j] * exp( gm->rsc[j][(i) * p7P_NR     + p7P_MSC]);
+    }
+  }
+
+  return eslOK;
+}
+
 
 /* Function:  p7_profile_SetNullEmissions()
  * Synopsis:  Set all emission scores to zero (experimental).

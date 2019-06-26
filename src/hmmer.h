@@ -1506,6 +1506,8 @@ extern int p7_ReconfigMultihit_Frameshift(P7_PROFILE *gm, int L);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
 extern int p7_ReconfigUnihit_Frameshift  (P7_PROFILE *gm, int L);
 extern int p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp);
+extern int p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp);
+
 
 /* modelstats.c */
 extern double p7_MeanMatchInfo           (const P7_HMM *hmm, const P7_BG *bg);
@@ -1755,6 +1757,7 @@ extern P7_PROFILE *p7_profile_fs_Clone(const P7_PROFILE *gm);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
 extern int         p7_profile_fs_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
 extern int         p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
+extern int         p7_profile_fs_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
 extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);
 extern int         p7_profile_Reuse(P7_PROFILE *gm);
 extern size_t      p7_profile_Sizeof(P7_PROFILE *gm);

@@ -722,9 +722,7 @@ p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, floa
   int     Kp  = gm->abc->Kp;
 
   for (i = 1; i <= gm->M; i++) {
-  printf("i %d\n", i);
     for (j=0; j<K; j++) {
-      printf("gm->mm %c\n", gm->mm[i]);
       if (gm->mm && gm->mm[i] == 'm')
         sc_tmp[j] = 0;
       else
@@ -757,15 +755,22 @@ p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, f
   int     i, j;
   int     K   = gm->abc->K;
   int     Kp  = gm->abc->Kp;
+  ESL_DSQ x;
 
   for (i = 1; i <= gm->M; i++) {
     for (j=0; j<K; j++) {
+      if (gm->mm && gm->mm[i] == 'm')
+        sc_tmp[j] = 0;
+      else
         sc_tmp[j] = log(fwd_emissions[i*gm->abc->Kp + j] / bg->f[j]);
-    }
+    
+   }
 
-
-    esl_abc_FExpectScVec(bg->abc, sc_tmp, bg->f);
-
+    sc_tmp[gm->abc->Kp-3] = log(fwd_emissions[i*gm->abc->Kp + gm->abc->Kp-3] / bg->f[K+1]);
+    for (x = bg->abc->K+1; x < bg->abc->Kp-3; x++)    
+      esl_abc_FExpectScore(bg->abc, x, sc_tmp, bg->f);
+    
+    
     for (j=0; j<Kp; j++)
       gm->rsc[j][(i) * p7P_NR  + p7P_MSC] =  sc_tmp[j];
 
@@ -774,7 +779,6 @@ p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, f
   return eslOK;
 
 }
-
 
 
 /*****************************************************************

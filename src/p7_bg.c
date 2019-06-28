@@ -80,7 +80,60 @@ p7_bg_Create(const ESL_ALPHABET *abc)
   return NULL;
 }
 
+/* Function:  p7_bg_fs_Create()
+ * Synopsis:  Create a <P7_BG> null model object.
+ *
+ * Purpose:   Allocate a <P7_BG> object for digital alphabet <abc>,
+ *            initializes it to appropriate default values, and
+ *            returns a pointer to it.
+ *            
+ *            For protein models, default iid background frequencies
+ *            are set (by <p7_AminoFrequencies()>) to average
+ *            Swiss-Prot residue composition. For DNA, RNA and other
+ *            alphabets, default frequencies are set to a uniform
+ *            distribution.
+ *            
+ *            The model composition <bg->mcomp[]> is not initialized
+ *            here; neither is the filter null model <bg->fhmm>.  To
+ *            use the filter null model, caller will want to
+ *            initialize these fields by calling
+ *            <p7_bg_SetFilter()>.
+ *
+ * Throws:    <NULL> on allocation failure.
+ *
+ * Xref:      STL11/125.
+ */
+P7_BG *
+p7_bg_fs_Create(const ESL_ALPHABET *abc)
+{
+  P7_BG *bg = NULL;
+  int    status;
 
+  ESL_ALLOC(bg, sizeof(P7_BG));
+  bg->f     = NULL;
+  bg->fhmm  = NULL;
+
+  ESL_ALLOC(bg->f,     sizeof(float) * (abc->K+1));
+
+  if ((bg->fhmm = esl_hmm_Create(abc, 2)) == NULL) goto ERROR;
+  
+  if       (abc->type == eslAMINO)
+    {
+      if (p7_AminoFrequencies(bg->f) != eslOK) goto ERROR;
+      bg->f[abc->K+1] = 1.;
+    }
+  else
+    esl_vec_FSet(bg->f, abc->K, 1. / (float) abc->K);
+
+  bg->p1    = 350./351.;
+  bg->omega = 1./256.;
+  bg->abc   = abc;
+  return bg;
+
+ ERROR:
+  p7_bg_Destroy(bg);
+  return NULL;
+}
 /* Function:  p7_bg_CreateUniform()
  * Synopsis:  Creates background model with uniform freqs.
  *
@@ -145,6 +198,38 @@ p7_bg_Clone(const P7_BG *bg)
   return NULL;
 }
 
+/* Function:  p7_bg_fs_Clone()
+ * Synopsis:  Create a duplicate of an existing <P7_BG> object.
+ *
+ * Purpose:   Creates a duplicate of the existing <P7_BG> object <bg>.
+ *
+ * Returns:   ptr to the duplicate <P7_BG> object.
+ *
+ * Throws:    <NULL> on allocation failure.
+ */
+P7_BG *
+p7_bg_fs_Clone(const P7_BG *bg)
+{
+  P7_BG *dup = NULL;
+  int    status;
+
+  ESL_ALLOC(dup, sizeof(P7_BG));
+  dup->f    = NULL;
+  dup->fhmm = NULL;
+  dup->abc  = bg->abc;          /* by reference only */
+
+  ESL_ALLOC(dup->f, sizeof(float) * (bg->abc->K+1));
+  memcpy(dup->f, bg->f, sizeof(float) * (bg->abc->K+1));
+  if ((dup->fhmm = esl_hmm_Clone(bg->fhmm)) == NULL) goto ERROR;
+
+  dup->p1    = bg->p1;
+  dup->omega = bg->omega;
+  return dup;
+
+ ERROR:
+  p7_bg_Destroy(dup);
+  return NULL;
+}
 
 /* Function:  p7_bg_Dump()
  * Synopsis:  Outputs <P7_BG> object as text, for diagnostics.

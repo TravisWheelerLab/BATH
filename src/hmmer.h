@@ -1573,8 +1573,10 @@ extern int            p7_alidisplay_Compare(const P7_ALIDISPLAY *ad1, const P7_A
 
 /* p7_bg.c */
 extern P7_BG *p7_bg_Create(const ESL_ALPHABET *abc);
+extern P7_BG *p7_bg_fs_Create(const ESL_ALPHABET *abc);
 extern P7_BG *p7_bg_CreateUniform(const ESL_ALPHABET *abc);
 extern P7_BG *p7_bg_Clone(const P7_BG *bg);
+extern P7_BG *p7_bg_fs_Clone(const P7_BG *bg);
 extern int    p7_bg_Dump(FILE *ofp, const P7_BG *bg);
 extern void   p7_bg_Destroy(P7_BG *bg);
 extern int    p7_bg_SetLength(P7_BG *bg, int L);
@@ -1613,7 +1615,7 @@ extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *nt
 extern int
 p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm,
                                    P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck,
-                                   P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
+                                   P7_DOMAINDEF *ddef, P7_BG *bg, 
                                    P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr,
 				   float indel_cost, ESL_GENCODE *gcode);
 

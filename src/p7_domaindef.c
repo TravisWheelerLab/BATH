@@ -518,13 +518,15 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
 int
 p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm, 
 				   P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
-				   P7_BG *bg, int window_start, P7_BG *bg_tmp, float *scores_arr, 
+				   P7_BG *bg, P7_BG *bg_tmp, float *scores_arr, 
 				   float *fwd_emissions_arr, float indel_cost, ESL_GENCODE *gcode
 )
 {
 
   int i, j;
   int triggered;
+  int start;
+  int end;
   int d;
   int i2,j2;
   int last_j2;
@@ -542,55 +544,69 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
   i     = -1;
   triggered = FALSE;
+  start     = FALSE;
+  end       = FALSE;
 //FILE *out = fopen("out.txt", "w+");
-
 //p7_domaindef_DumpPosteriors(out, ddef); 
-//printf("window start %d\n", window_start);
+//fclose(out);
  ddef->rt1 = 0.625;
   ddef->rt2 = 0.25; 
  
-  for (j = 3; j < gxf->L-1; j++)
+  for (j = 1; j < gxf->L; j++)
   {  
-    if (! triggered){
+    if (! triggered)
+    {
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
-        d = j;
+      d = j;
     }
-    else {
-
-      while(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-3]) >= ddef->rt2) {
-        if(d > 6) 
-	{
-	  d -= 3;
-
-	  if(ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-3]) < ddef->rt2) {
-            if(ddef->mocc[d+1] - (ddef->btot[d+1] - ddef->btot[d-2]) >= ddef->rt2) d++;
-            else if(ddef->mocc[d+2] - (ddef->btot[d+2] - ddef->btot[d-1]) >= ddef->rt2) d+=2;
-          }
-	} else { d = 1; break; }
-
-      }
-
-      i = d;
-      d = j-1;
-
-	  while(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) >= ddef->rt2) {
-	    if(d < gxf->L-6)
-	    {	
-		  d += 3;
-	      if(ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) {
-	        if(ddef->mocc[d-1] - (ddef->etot[d+1] - ddef->etot[d-2]) >= ddef->rt2) d--;
-	        else if(ddef->mocc[d-2] - (ddef->etot[d+2] - ddef->etot[d-1]) >= ddef->rt2) d-=2;
+    else 
+    {
+      while(d > 1 && !start ) 
+      { 
+        d--;
+	if(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) 
+        { 
+          d--;
+          if(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2)
+          { 
+            d--;
+            if(d > 1 && ddef->mocc[d] - (ddef->btot[d] - ddef->btot[d-1]) < ddef->rt2) 
+            { 
+              d--;
+              start = TRUE;
+            }
           } 
-        } else { d = gxf->L; break; }
-	  }	
-	 
-	  j = d;
+        }
+      }
+      
+      i = d;
+      d = j+1;
+
+      while(d < gxf->L && !end) 
+      {
+        d++;
+        if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2)
+        {
+          d++;
+	  if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) 
+          {
+            d++;
+            if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) 
+            {
+              d++;
+              end = TRUE;  
+      	    }
+          }
+        }
+      }
+      
+      j = d;
 	 	 
-	 /* We have a region i..j to evaluate. */
-	 p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
-	 p7_gmx_GrowTo(bck, gm->M, j-i+1);
-         ddef->nregions++;
-	 printf("i %d, j %d\n", i, j);
+      /* We have a region i..j to evaluate. */
+      p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
+      p7_gmx_GrowTo(bck, gm->M, j-i+1);
+      ddef->nregions++;
+      printf("i %d, j %d\n", i, j);
 #if 0
 		 if (is_multidomain_region_fs(ddef, i, j))
      {  
@@ -659,6 +675,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 
  	 i     = -1;
   	 triggered = FALSE;
+         start     = FALSE;
+         end       = FALSE;
     }
   }
 
@@ -1129,13 +1147,10 @@ count_residues_frameshift(const ESL_SQ *sq, const ESL_GENCODE *gcode, int start,
       if( esl_abc_XIsCanonical(sq->abc, v) && esl_abc_XIsCanonical(sq->abc, w) && esl_abc_XIsCanonical(sq->abc, x))
       { 
         a = gcode->basic[16 * v + 4 * w + x];
-        if (esl_abc_XIsNonresidue(gcode->aa_abc, a)) a = esl_abc_XGetUnknown(gcode->aa_abc);
-        esl_abc_FCount(gcode->aa_abc, f, a, 1.);
-      }
-      else
-      {
-        a = esl_abc_XGetUnknown(gcode->aa_abc);
-        esl_abc_FCount(gcode->aa_abc, f, a, 1.);
+        if (esl_abc_XIsNonresidue(gcode->aa_abc, a))
+         f[gcode->aa_abc->K] += 1.; 
+        else
+         f[a] += 1.; 
       }
     }
 
@@ -1177,7 +1192,7 @@ count_residues_frameshift(const ESL_SQ *sq, const ESL_GENCODE *gcode, int start,
 
 static int
 reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, const ESL_GENCODE *gcode, int start, int L, float *fwd_emissions, float *bgf_arr, float *sc_arr) {
-  int     K   = gm->abc->K;
+  int     K   = gm->abc->K+1;
   int i;
   float tmp;
   int status;
@@ -1194,9 +1209,9 @@ reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, co
     esl_vec_FSet (bgf_arr, gm->abc->K, 0);
     status = count_residues_frameshift(sq, gcode, start, L, bgf_arr);
     if (status != eslOK) p7_Fail("Invalid sequence range in reparameterize_model()\n");
-    esl_vec_FNorm(bgf_arr, gm->abc->K);
+    esl_vec_FNorm(bgf_arr, gm->abc->K+1);
 
-    for (i=0; i<K; i++) {
+    for (i=0; i<K+1; i++) {
        tmp = bg->f[i];
        bg->f[i] = (bg_smooth*bg->f[i]) + ( (1.0-bg_smooth) * bgf_arr[i])  ;
        bgf_arr[i] = tmp;
@@ -1515,8 +1530,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   
   p7_ReconfigLength_Frameshift(gm, j-i+1);
   
+  printf("before %f\n", p7P_MSC(gm, gm->M, gm->abc->Kp-3));
   reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
-  
+  printf("after %f\n", p7P_MSC(gm, gm->M, gm->abc->Kp-3));  
   p7_Forward_Frameshift (sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
   
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);

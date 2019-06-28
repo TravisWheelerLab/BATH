@@ -612,7 +612,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
     
 	if ( curr_window->complementarity == p7_COMPLEMENT) {
       //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
-	  curr_window->n = curr_window->target_len - curr_window->n +  1;
+      curr_window->n = curr_window->target_len - curr_window->n +  1;
       window_start   = ESL_MAX( 1                      ,  curr_window->n - curr_window->length - (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) ) ;
       window_end     = ESL_MIN( curr_window->target_len,  curr_window->n                       + (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) )   ;
   	  tmp            = window_end;
@@ -675,43 +675,72 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE *om) {
+p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, const P7_SCOREDATA *data, float pct_overlap) {
 
-  int            i;
+  int            i, d;
   ESL_SQ        *prev_orf = NULL;
   ESL_SQ        *curr_orf = NULL;
-  int64_t        dna_start;
-  int64_t        dna_end;
-  int32_t        orf_len;
-  int64_t              tmp;
-  int                  new_hit_cnt = 0;
-   if (orf_block->count == 0)
+  int32_t        orf_start, orf_end;
+  int64_t        dna_start, dna_end;
+  int32_t        i_cords, j_cords;
+  int32_t        k_cords, m_cords;
+  int            new_hit_cnt = 0;
+  int64_t        min_start, max_start;
+  int64_t        min_end, max_end;
+  int64_t        overlap, max_length;
+  P7_GMX        *vgx = NULL;
+  P7_TRACE      *vtr = NULL;
+
+  if (orf_block->count == 0)
     return eslOK;
 
-  /* extend orfs */
-  for (i=0; i<orf_block->count; i++) {
-    curr_orf = orf_block->list+i;
-    orf_len = curr_orf->end - curr_orf->start + 1;    
-    
-    dna_start = ESL_MAX( 1        ,  curr_orf->start - (om->max_length - orf_len)  * 3);
-    dna_end   = ESL_MIN( dna_sq->n,  curr_orf->end   + (om->max_length - orf_len)  * 3); 
+  vgx = p7_gmx_Create(gm->M, 100);
+  vtr = p7_trace_Create();
  
+  /* extend orf dna positions based on model max length*/
+  for(i = 0; i < orf_block->count; i++)
+  {
+    curr_orf = &(orf_block->list[i]);
+ 
+    p7_gmx_GrowTo(vgx, gm->M, curr_orf->n); 
+    p7_ReconfigLength(gm, curr_orf->n);
+    
+    p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, NULL);
+    p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
+    p7_trace_GetDomainCoords(vtr, 0, &i_cords, &j_cords, &k_cords, &m_cords);
+
+    orf_start   = i_cords - (gm->max_length * (0.1 + data->prefix_lengths[k_cords]));
+    orf_end     = j_cords + (gm->max_length * (0.1 + data->suffix_lengths[m_cords])); 
+
+    dna_start = ESL_MAX(1,         curr_orf->start + (orf_start * 3));
+    dna_end   = ESL_MIN(dna_sq->n, curr_orf->start + (orf_end   * 3));
+
     curr_orf->start = dna_start;
     curr_orf->end   = dna_end; 
+ 
+    p7_gmx_Reuse(vgx);
+    p7_trace_Reuse(vtr);
   }
 
-  /* merge overlapping orfs, compressing list in place. */
+  /*check for and merge overlaps in orf dna positions */ 
   for (i=1; i<orf_block->count; i++) {
     prev_orf = orf_block->list+new_hit_cnt;
     curr_orf = orf_block->list+i;
+    
+    max_start        = ESL_MAX(prev_orf->start, curr_orf->start);
+    min_end          = ESL_MIN(prev_orf->end, curr_orf->end);
 
-    if((prev_orf->start <= curr_orf->start && prev_orf->end   >= curr_orf->start) ||
-       (prev_orf->start >= curr_orf->start && prev_orf->start <= curr_orf->end))
+    overlap          = min_end - max_start + 1;
+   
+    min_start        = ESL_MIN(prev_orf->start, curr_orf->start);
+    max_end          = ESL_MAX(prev_orf->end, curr_orf->end);
+
+    max_length       = max_end - min_start + 1;
+    
+    if ( (float) overlap / max_length > pct_overlap)
     {
-      dna_start        = ESL_MIN(prev_orf->start, curr_orf->start);
-      dna_end          = ESL_MAX(prev_orf->end, curr_orf->end);
-      prev_orf->start = dna_start;
-      prev_orf->end   = dna_end;
+      prev_orf->start = min_start;
+      prev_orf->end   = max_end;
     } else {
       new_hit_cnt++;
       orf_block->list[new_hit_cnt] = orf_block->list[i];
@@ -719,7 +748,9 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE 
   }
 
   orf_block->count = new_hit_cnt+1;
-
+  
+  p7_gmx_Destroy(vgx);
+  p7_trace_Destroy(vtr);
   return eslOK;
 }
 
@@ -2263,8 +2294,10 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
  printf("bwd %f\n", bwdsc);
   //return eslOK; 
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
-  status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, pli->gxf,pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, TRUE,
-				                                         pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, indel_cost, gcode);
+  status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
+           pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, 
+           (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, 
+           indel_cost, gcode);
 
  // if(emit_sc != NULL) Codon_Emissions_Destroy(emit_sc);
   pli_tmp->tmpseq->dsq = dsq_holder;
@@ -2697,12 +2730,11 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_FRAMESHIFT_OBJS));
   pli_tmp->tmpseq = NULL;
-  pli_tmp->bg = p7_bg_Clone(bg);
+  pli_tmp->bg = p7_bg_fs_Clone(bg);
 //TODO: change to new fs emmissions
   pli_tmp->gm = p7_profile_fs_Create(gm->M, gm->abc);
   ESL_ALLOC(pli_tmp->scores, sizeof(float) * gm->abc->Kp * 4); //allocation of space to store scores that will be used in p7_oprofile_Update(Fwd|Vit|MSV)EmissionScores
   ESL_ALLOC(pli_tmp->fwd_emissions_arr, sizeof(float) *  gm->abc->Kp * (gm->M+1));
-
   for (i = 0; i < orf_block->count; ++i)
   {     
     orfsq = &(orf_block->list[i]);
@@ -2757,11 +2789,11 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   }
 
   p7_profile_fs_GetFwdEmissionArray(gm, bg, pli_tmp->fwd_emissions_arr);
-  
-  if (data->prefix_lengths == NULL)  //otherwise, already filled in
+ 
+   if (data->prefix_lengths == NULL)  //otherwise, already filled in
         p7_hmm_ScoreDataComputeRest(om, data);
   
-  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, om);
+  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, 0.2);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
 

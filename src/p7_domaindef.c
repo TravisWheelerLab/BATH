@@ -579,7 +579,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
         }
       }
       
-      i = d;
+      i = ESL_MAX(1, d-4);  
       d = j+1;
 
       while(d < gxf->L && !end) 
@@ -1534,16 +1534,24 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
   printf("after %f\n", p7P_MSC(gm, gm->M, gm->abc->Kp-3));  
   p7_Forward_Frameshift (sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
-  
+  FILE *fout = fopen("fwdout.txt", "w+");
+   p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
+   fclose(fout); 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
-
+FILE *bout = fopen("bwdout.txt", "w+");
+   p7_gmx_Dump(bout, gx2, p7_DEFAULT);
+   fclose(bout); 
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
-
+ FILE *ppout = fopen("ppout.txt", "w+");
+   p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
+   fclose(ppout);
   /* Find an optimal accuracy alignment */
    p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
    p7_OATrace_Frameshift(gm, gxppfs, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-  
+   FILE *out = fopen("optout.txt", "w+");
+   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
+   fclose(out);
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)	  
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;

@@ -82,8 +82,8 @@ printf("k %d stop %f\n",M, p7P_MSC(gm, M, gm->abc->Kp-3));
   p7_FLogsumInit();		/* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
  
   /* Initialization of the N & B states for rows 0-2 */
-  XMX_FS(0,p7G_N) =  0;   //* S->N, p=1            */
-  XMX_FS(0,p7G_B) =  gm->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
+  XMX_FS(0,p7G_N) =  gm->xsc[p7P_N][p7P_LOOP];   //* S->N, p=1            */
+  XMX_FS(0,p7G_B) =  gm->xsc[p7P_N][p7P_LOOP] + gm->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
   XMX_FS(1,p7G_N) =  gm->xsc[p7P_N][p7P_LOOP];                    /* N->N                 */
   XMX_FS(1,p7G_B) =  XMX_FS(1,p7G_N) + gm->xsc[p7P_N][p7P_MOVE];  /* N->B                 */
   XMX_FS(2,p7G_N) =  gm->xsc[p7P_N][p7P_LOOP];                    /* N->N                 */

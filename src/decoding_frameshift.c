@@ -91,7 +91,8 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
   pp->L = L;
 
   XMX_FS(0, p7G_N) = 0.0;
-  XMX_FS(0, p7G_B) = 0.0;
+  XMX_FS(0, p7G_B) = expf(fwd->xmx[p7G_NXCELLS*0 + p7G_B] +
+                          bck->xmx[p7G_NXCELLS*0 + p7G_B]     -  overall_sc);;
   XMX_FS(0, p7G_E) = 0.0;
   XMX_FS(0, p7G_J) = 0.0;		
   XMX_FS(0, p7G_C) = 0.0;
@@ -140,8 +141,11 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
       DMX_FS(i,M) = 0.;
 
       /* no emition from E or B states */
-      XMX_FS(i,p7G_E) = 0.;
-      XMX(i,p7G_B) = 0.;
+      XMX_FS(i,p7G_E)   = expf(fwd->xmx[p7G_NXCELLS*i + p7G_E] +
+                               bck->xmx[p7G_NXCELLS*i + p7G_E]     -  overall_sc);
+
+      XMX(i,p7G_B)      = expf(fwd->xmx[p7G_NXCELLS*i + p7G_B] +
+                               bck->xmx[p7G_NXCELLS*i + p7G_B]     -  overall_sc); 
 
       /* proability from N, J and C states */
       if ( i > 2 ) 
@@ -149,9 +153,6 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
         XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_N] + gm->xsc[p7P_N][p7P_LOOP] + 
                                bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
         
-        XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] +
-                               bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
-
         XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] +
                                bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
       }
@@ -160,14 +161,18 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
         XMX_FS(i,p7G_N) = expf(                                      gm->xsc[p7P_N][p7P_LOOP] +
                                bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
 
-        XMX_FS(i,p7G_J) = expf(                                      gm->xsc[p7P_J][p7P_LOOP] +
-                               bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
-     
-        XMX_FS(i,p7G_C) = expf(                                      gm->xsc[p7P_C][p7P_LOOP] +
-                               bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
+        XMX_FS(i,p7G_C) = expf(bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
       }
-    }
 
+      if ( i > 3 )
+        XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] +
+                               bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
+      else
+         XMX_FS(i,p7G_J) = 0.;
+    }
+printf("N %f, fwd %f, loop %f, bwd %f\n", XMX_FS(9,p7G_N), expf(fwd->xmx[p7G_NXCELLS*6 + p7G_N]), expf(gm->xsc[p7P_N][p7P_LOOP]), expf(bck->xmx[p7G_NXCELLS*9 + p7G_N] ));
+
+printf("M %f, fwd %f bwd %f\n", MMX_FS(9,3,p7G_C0),  expf(fwd->dp[9][3*p7G_NSCELLS_FS + p7G_M + p7G_C0]), expf(bck->dp[9][3*p7G_NSCELLS + p7G_M]));
   /* normailze i for all codons in which i may be present */
   for (i = 1; i <= L; i++) {
 
@@ -175,13 +180,71 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
     for (k = 1; k < M; k++) {  
       denom += MMX_FS(i,k,p7G_C0); 
       denom += IMX_FS(i,k);
-    }  
-    denom += MMX_FS(i,M,p7G_C0); 
-  
+      
+      if(i < L)
+      {
+        denom += MMX_FS(i+1,k,p7G_C0)
+              -  MMX_FS(i+1,k,p7G_C1);
+        denom += IMX_FS(i+1,k);
+      }
+
+      if(i < L-1)
+      {
+        denom += MMX_FS(i+2,k,p7G_C0)
+              -  MMX_FS(i+2,k,p7G_C2)
+              -  MMX_FS(i+2,k,p7G_C1);
+        denom += IMX_FS(i+2,k);
+      }
+
+      if(i < L-2)
+      {
+        denom += MMX_FS(i+3,k,p7G_C4)
+              +  MMX_FS(i+3,k,p7G_C5);
+        denom += IMX_FS(i+3,k);
+      }  
+
+      if(i < L-3)
+        denom += MMX_FS(i+4,k,p7G_C5);
+    }
+
+    denom += MMX_FS(i,M,p7G_C0);       
     denom += XMX_FS(i,p7G_N);
-    denom += XMX_FS(i,p7G_N);
-    denom += XMX_FS(i,p7G_N);
-    denom = 1.0 / denom;
+    denom += XMX_FS(i,p7G_J);
+    denom += XMX_FS(i,p7G_C);
+   
+    if(i < L)
+    {
+      denom += MMX_FS(i+1,M,p7G_C0)
+            -  MMX_FS(i+1,M,p7G_C1);
+      denom += XMX_FS(i+1,p7G_N);
+      denom += XMX_FS(i+1,p7G_J);
+      denom += XMX_FS(i+1,p7G_C);
+    }
+
+    if(i < L-1)
+    {
+      denom += MMX_FS(i+2,M,p7G_C0)
+            -  MMX_FS(i+2,M,p7G_C2)
+            -  MMX_FS(i+2,M,p7G_C1);
+      denom += XMX_FS(i+2,p7G_N);
+      denom += XMX_FS(i+2,p7G_J);
+      denom += XMX_FS(i+2,p7G_C); 
+    }
+
+    if(i < L-2)
+    {
+      denom += MMX_FS(i+3,M,p7G_C4)
+            +  MMX_FS(i+3,M,p7G_C5);
+      denom += XMX_FS(i+3,p7G_N);
+      denom += XMX_FS(i+3,p7G_J);
+      denom += XMX_FS(i+3,p7G_C); 
+    }
+
+    if(i < L-3)
+      denom += MMX_FS(i+4,M,p7G_C5);
+    
+
+denom = 1.0 / denom;
     
     for (k = 1; k < M; k++) {  
       MMX_FS(i,k,p7G_C0) *= denom; 
@@ -205,213 +268,24 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
   
   }
 
+  denom = 0.0;
+  for (i = 0; i <= L; i++) 
+    denom += XMX_FS(i,p7G_B);
+  denom = 1.0 / denom;
+  for (i = 0; i <= L; i++) 
+    XMX_FS(i,p7G_B) *= denom;
+
+  denom = 0.0;
+  for (i = 1; i <= L; i++) 
+    denom += XMX_FS(i,p7G_E);
+  denom = 1.0 / denom;
+  for (i = 1; i <= L; i++)
+    XMX_FS(i,p7G_E) *= denom;
+  
+      
   
   return eslOK;
 }
-
-/* Function:  p7_Decoding_Frameshift()
- * Synopsis:  Posterior decoding of residue assignments.
- *
- * Purpose:   Calculates a posterior decoding of the residues in a
- *            target sequence, given profile <gm> and filled Forward
- *            and Backward matrices <fwd>, <bck> for the profile
- *            aligned to that target sequence. The resulting posterior
- *            decoding is stored in a DP matrix <pp>, provided by the
- *            caller.
- *            
- *            Each residue <i> must have been emitted by match state
- *            <1..M>, insert state <1..M-1>, or an NN, CC, or JJ loop
- *            transition.  For <dp = pp->dp>, <xmx = pp->xmx>,
- *            <MMX(i,k)> is the probability that match <k> emitted
- *            residue <i>; <IMX(i,k)> is the probability that insert
- *            <k> emitted residue <i>; <XMX(i,N)>,<XMX(i,C)>,
- *            <XMX(i,J)> are the probabilities that residue <i> was
- *            emitted on an NN, CC, or JJ transition. The sum over all
- *            these possibilities for a given residue <i> is 1.0.
- *
- *            Thus the only nonzero entries in a posterior decoding matrix
- *            <pp> are <M_{1..M}>, <I_{1..M-1}>, <N_{1..L-1}> (residue L
- *            can't be emitted by N), <C_{2..L}> (residue 1 can't be 
- *            emitted by C), and <J_{2..L-1}> (residues 1,L can't be
- *            emitted by J).
- *            
- *            In particular, row i=0 is unused (all zeros) in a pp
- *            matrix; the null2 calculation will take advantage of
- *            this by using the zero row for workspace.
- *            
- *            The caller may pass the Backward matrix <bck> as <pp>,
- *            in which case <bck> will be overwritten with
- *            <pp>. However, the caller may \emph{not} overwrite <fwd>
- *            this way; an <(i-1)> dependency in the calculation of
- *            NN, CC, JJ transitions prevents this.
- *
- * Args:      gm   - profile (must be the same that was used to fill <fwd>, <bck>).
- *            fwd  - filled Forward matrix 
- *            bck  - filled Backward matrix
- *            pp   - RESULT: posterior decoding matrix.
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    (no abnormal error conditions)
- *
- * Note:      Burns time renormalizing each row. If you don't do this,
- *            probabilities will have an error of +/- 0.001 or so, creeping
- *            in from error in FLogsum()'s table approximation and even
- *            in log() and exp() themselves; including "probabilities"
- *            up to  ~1.001. Though this isn't going to break anything
- *            in normal use, it does drive the unit tests wild; the SSE
- *            implementation is more accurate, and unit tests that try
- *            to compare SSE and generic results will see differences,
- *            some sufficient to alter the choice of OA traceback.
- *    
- */
-int
-p7_Decoding_Frameshift2(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
-{
-  float      **dp   = pp->dp;
-  float       *xmx  = pp->xmx;
-  int          L    = fwd->L;
-  int          M    = gm->M;
-  int          i,k;
-  float        overall_sc = p7_FLogsum(fwd->xmx[p7G_NXCELLS*L + p7G_C], 
-        		    p7_FLogsum(fwd->xmx[p7G_NXCELLS*(L-1) + p7G_C], 
-		            fwd->xmx[p7G_NXCELLS*(L-2) + p7G_C])) + gm->xsc[p7P_C][p7P_MOVE];
-  float        denom;
-  float	       back_sc;
-  
-  pp->M = M;
-  pp->L = L;
-
-  XMX_FS(0, p7G_N) = 0.0;
-  XMX_FS(0, p7G_B) = 0.0;
-  XMX_FS(0, p7G_E) = 0.0;
-  XMX_FS(0, p7G_J) = 0.0;		
-  XMX_FS(0, p7G_C) = 0.0;
-  for (k = 0; k <= M; k++)
-    MMX_FS(0,k, p7G_C0) = MMX_FS(0,k, p7G_C1) = MMX_FS(0,k, p7G_C2) = MMX_FS(0,k, p7G_C3) = 
-    MMX_FS(0,k, p7G_C4) = MMX_FS(0,k, p7G_C5) = IMX_FS(0,k) = DMX_FS(0,k) = 0.0;
- 
-  /* only N state has probability at sequence index 1 & 2 */
-  for(i = 1; i < 3; i++)
-  {
-    XMX_FS(i, p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] + 
-					        gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
-    XMX_FS(i, p7G_B) = 0.0;
-    XMX_FS(i, p7G_E) = 0.0;
-    XMX_FS(i, p7G_J) = 0.0;
-    XMX_FS(i, p7G_C) = 0.0;
-    for (k = 0; k <= M; k++)
-      MMX_FS(i,k, p7G_C0) = MMX_FS(i,k, p7G_C1) = MMX_FS(i,k, p7G_C2) = MMX_FS(i,k, p7G_C3) =
-      MMX_FS(i,k, p7G_C4) = MMX_FS(i,k, p7G_C5) = IMX_FS(i,k) = DMX_FS(i,k) = 0.0;
-  }
-
-  for (i = 3; i <= L; i++)
-    {
-	  /* 0th position in model */		
-      MMX_FS(i,0, p7G_C0) = MMX_FS(i,0, p7G_C1) = MMX_FS(i,0, p7G_C2) = MMX_FS(i,0, p7G_C3) = 
-      MMX_FS(i,0, p7G_C4) = MMX_FS(i,0, p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = 0.0;
-  
-      for (k = 1; k < M; k++)
-	  {
-          /* probabilty from backward matrix */
-		  back_sc = bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc;	
-	   
-		  /* probability fom all 5 codons and their sum in the forward matrix */
-	      MMX_FS(i,k, p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] + back_sc); 
-	      MMX_FS(i,k, p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_sc); 
-	      MMX_FS(i,k, p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_sc);
-	      MMX_FS(i,k, p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_sc);
-	      MMX_FS(i,k, p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_sc);
-	      MMX_FS(i,k, p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_sc); 
-//if(i == L) printf("MMX_FS(i,k, p7G_C0) %f\n", fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0]);
-		  /* insert state probablity */
-	      IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + 
-	      bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc);
-
-	      /* no emition from delete state */
-		  DMX_FS(i,k) = 0.;
-	}
-	
-	  /* final model position - no insert state */
-      back_sc = bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc;
-      
-      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] + back_sc); 
-      MMX_FS(i,M, p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_sc); 
-      MMX_FS(i,M, p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_sc);
-      MMX_FS(i,M, p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_sc); 
-      MMX_FS(i,M, p7G_C4) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_sc); 
-      MMX_FS(i,M, p7G_C5) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_sc); 
-
-      IMX_FS(i,M) = 0.; 
-      DMX_FS(i,M) = 0.;
-
-	  /* no emition from E or B states */
-      XMX_FS(i,p7G_E) = 0.;
-      XMX(i,p7G_B) = 0.;
-
-      /* proability from N, J and C states */
-        XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_N] + 
-        bck->xmx[p7G_NXCELLS*i + p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
-
-        XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] + 
-        bck->xmx[p7G_NXCELLS*i + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_sc);
-      
-        XMX(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_C] + 
-        bck->xmx[p7G_NXCELLS*i + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
-    }
-
-  /* normailze i for all codons in which i may be present */
-  for (i = 1; i <= L; i++) {
-
-    denom = 0.0;
-    for (k = 1; k < M; k++) {  
-      denom += MMX_FS(i,k,p7G_C0);
-      //      +  MMX_FS(i,k,p7G_C2)
-        //    +  MMX_FS(i,k,p7G_C3)
-        //    +  MMX_FS(i,k,p7G_C4)
-        //    +  MMX_FS(i,k,p7G_C5);
-  
-      denom += IMX_FS(i,k);
-    }   
-    
-    denom += MMX_FS(i,M,p7G_C0);
-       //   +  MMX_FS(i,M,p7G_C2)
-      //    +  MMX_FS(i,M,p7G_C3)
-      //    +  MMX_FS(i,M,p7G_C4)
-      //    +  MMX_FS(i,M,p7G_C5);
- 
-    denom += XMX(i,p7G_N) 
-    	  +  XMX(i,p7G_J) 
-    	  +  XMX(i,p7G_C);
-       
-    denom = 1.0 / denom;
-    
-    for (k = 1; k < M; k++) {  
-      MMX_FS(i,k,p7G_C0) *= denom;
-      MMX_FS(i,k,p7G_C1) *= denom; 
-      MMX_FS(i,k,p7G_C2) *= denom; 
-      MMX_FS(i,k,p7G_C3) *= denom; 
-      MMX_FS(i,k,p7G_C4) *= denom; 
-      MMX_FS(i,k,p7G_C5) *= denom; 
-      IMX_FS(i,k) *= denom;
-    }
-   
-    MMX_FS(i,M,p7G_C0) *= denom;
-    MMX_FS(i,M,p7G_C1) *= denom; 
-    MMX_FS(i,M,p7G_C2) *= denom;
-    MMX_FS(i,M,p7G_C3) *= denom;
-    MMX_FS(i,M,p7G_C4) *= denom;
-    MMX_FS(i,M,p7G_C5) *= denom;
-    XMX_FS(i,p7G_N) *= denom;
-    XMX_FS(i,p7G_J) *= denom;
-    XMX_FS(i,p7G_C) *= denom;
-  
-  }
- 
-  return eslOK;
-}
-
-
 
 /* Function:  p7_GDomainDecoding()
  * Synopsis:  Posterior decoding of domain location.

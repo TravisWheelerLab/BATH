@@ -319,8 +319,8 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     for (x = hmm->abc->K+1; x < hmm->abc->Kp-3; x++)
       sc[x] = esl_abc_FExpectScore(hmm->abc, x, sc, bg->f);
 
-    sc[hmm->abc->Kp-3] = esl_vec_FMin(sc, hmm->abc->K);
- 
+    sc[hmm->abc->Kp-3] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
+    printf("STOP %f\n", sc[hmm->abc->Kp-3]); 
     for (x = 0; x < hmm->abc->Kp; x++) {
       rp = gm->rsc[x] + k * p7P_NR;
       rp[p7P_MSC] = sc[x];

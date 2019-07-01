@@ -2245,28 +2245,22 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 	
   subseq = dnasq->dsq + window_start - 1;
   printf("window_start %d window_end %d window_len %d \n", window_start, window_end, window_len);	
+
   p7_bg_SetLength_Frameshift(bg, window_len);
-  p7_ReconfigLength_Frameshift(gm, window_len);
   p7_bg_NullOne_Frameshift(bg, subseq, window_len, &nullsc);
-  p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
- // emit_sc = Codon_Emissions_Create(gm, subseq, dnasq->abc, gm->M, window_len, indel_cost);
-  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
-  printf("fwd %f\n", fwdsc);
-  //return eslOK;
-#if 0
+  
   if (pli->do_biasfilter)
-      {
-        p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
+  {
+    p7_bg_fs_FilterScore(bg, subseq, gm, gcode, window_len, indel_cost, &filtersc);
+    filtersc -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
+  }  else
+    filtersc = 0.;
 
-        seq_score = (usc - filtersc) / eslCONST_LOG2;
-        P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-        if (P > pli->F1) continue;
-      }  else filtersc = nullsc;
-      pli->n_past_bias++;
-
-#endif 
-  filtersc = nullsc;
-
+  p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
+  p7_ReconfigLength_Frameshift(gm, window_len);
+ 
+  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+  
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
     if (P > pli->F3) return eslOK;

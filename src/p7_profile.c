@@ -241,7 +241,7 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   return gm;
 
  ERROR:
-  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm);
   return NULL;
 }
 
@@ -457,7 +457,7 @@ p7_profile_fs_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr )
     for (j=0; j<gm->abc->K; j++) {
       arr[i*gm->abc->Kp + j] =  bg->f[j] * exp( gm->rsc[j][(i) * p7P_NR     + p7P_MSC]);
     }
-    arr[i*gm->abc->Kp + gm->abc->Kp-3] =  bg->f[gm->abc->K+1] * exp( gm->rsc[gm->abc->Kp-3][(i) * p7P_NR     + p7P_MSC]);
+    arr[i*gm->abc->Kp + gm->abc->Kp-3] =  bg->f[gm->abc->K] * exp( gm->rsc[gm->abc->Kp-3][(i) * p7P_NR     + p7P_MSC]);
   }
   return eslOK;
 }

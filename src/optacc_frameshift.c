@@ -411,7 +411,7 @@ static inline int select_m(const P7_PROFILE *gm,  const P7_GMX *pp, const P7_GMX
 static inline int select_d(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
 static inline int select_i(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
 static inline int select_n(int i);
-static inline int select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i);
+static inline int select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i);
 static inline int select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i);
 static inline int select_e(const P7_PROFILE *gm, const P7_GMX *gx, int i, int *ret_k);
 static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX *gx, int i);
@@ -470,7 +470,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       case p7T_D: scur = select_d(gm,     gx,  i,  k);  k--;           break;
       case p7T_I: scur = select_i(gm,     gx,  i,  k);        i -= 3;  break;
       case p7T_N: scur = select_n(i);                                  break;
-      case p7T_C: scur = select_c(gm, pp, gx,  &i);                    break;
+      case p7T_C: scur = select_c(gm, pp, gx,  i);                    break;
       case p7T_J: scur = select_j(gm, pp, gx,  i);                     break;
       case p7T_E: scur = select_e(gm,     gx,  i, &k);                 break;
       case p7T_B: scur = select_b(gm,     gx,  i);                     break;
@@ -579,7 +579,7 @@ select_n(int i)
 }
 
 static inline int
-select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i)
+select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
 {
   float  t1   =  ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float  t2   =  ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
@@ -587,7 +587,7 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i)
   float max_e = 0.;
   int j;
   int new_i;
-
+#if 0
   for(j = *ret_i; j > 0; j--) 
   {
     if( pp->xmx[j*p7G_NXCELLS + p7G_E] > max_e)
@@ -599,7 +599,7 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i)
 
   *ret_i = new_i;
   return p7T_E;
-#if 0
+#endif
   float  path[4];
   int   state[4] = { p7T_C, p7T_C, p7T_C, p7T_E };
 
@@ -617,7 +617,7 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int *ret_i)
   path[3] = t2 *  XMX(i,p7G_E);
   //printf("i = %d, c-3 = %f, c-2 = %f, c-1 = %f, e = %f\n", i, path[0], path[1], path[2], path[3]);
   return state[esl_vec_FArgMax(path, 4)];
-#endif
+
 }
 
 static inline int

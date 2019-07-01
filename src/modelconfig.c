@@ -256,7 +256,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   for (z = 0; z < p7_NCUTOFFS; z++) gm->cutoff[z]  = hmm->cutoff[z];
   for (z = 0; z < p7_MAXABET;  z++) gm->compo[z]   = hmm->compo[z]; 
 
-   /* Entry scores. */
+  /* Entry scores. */
   if (p7_profile_IsLocal(gm))
     {
       /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
@@ -315,8 +315,12 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   for (k = 1; k <= hmm->M; k++) {
     for (x = 0; x < hmm->abc->K; x++)
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
-    esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
 
+    for (x = hmm->abc->K+1; x < hmm->abc->Kp-3; x++)
+      sc[x] = esl_abc_FExpectScore(hmm->abc, x, sc, bg->f);
+
+    sc[hmm->abc->Kp-3] = esl_vec_FMin(sc, hmm->abc->K);
+ 
     for (x = 0; x < hmm->abc->Kp; x++) {
       rp = gm->rsc[x] + k * p7P_NR;
       rp[p7P_MSC] = sc[x];
@@ -759,14 +763,14 @@ p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, f
 
   for (i = 1; i <= gm->M; i++) {
     for (j=0; j<K; j++) {
-      if (gm->mm && gm->mm[i] == 'm')
-        sc_tmp[j] = 0;
-      else
+      //if (gm->mm && gm->mm[i] == 'm')
+      //  sc_tmp[j] = 0;
+      //else
         sc_tmp[j] = log(fwd_emissions[i*gm->abc->Kp + j] / bg->f[j]);
     
    }
 
-    sc_tmp[gm->abc->Kp-3] = log(fwd_emissions[i*gm->abc->Kp + gm->abc->Kp-3] / bg->f[K+1]);
+    sc_tmp[gm->abc->Kp-3] = log(fwd_emissions[i*gm->abc->Kp + gm->abc->Kp-3] / bg->f[K]);
     for (x = bg->abc->K+1; x < bg->abc->Kp-3; x++)    
       esl_abc_FExpectScore(bg->abc, x, sc_tmp, bg->f);
     

@@ -273,7 +273,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
   int   precision = 5;
   int   i, k, x;
   float val;
-
+printf("istart %d iend %d kstart %d kend %d\n", istart, iend, kstart, kend); 
   /* Header */
   fprintf(ofp, "     ");
   for (k = kstart; k <= kend;  k++) fprintf(ofp, "%*d ", width, k);

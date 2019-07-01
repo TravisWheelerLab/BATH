@@ -542,6 +542,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   esl_vec_FSet(ddef->n2sc, sq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
   p7_ReconfigUnihit_Frameshift(gm, saveL);	   /* process each domain in unihit mode, regardless of om->mode     */
+
   i     = -1;
   triggered = FALSE;
   start     = FALSE;
@@ -553,7 +554,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   ddef->rt2 = 0.25; 
  
   for (j = 1; j < gxf->L; j++)
-  {  
+  { 
     if (! triggered)
     {
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE;
@@ -669,17 +670,19 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 	 } else {
 #endif
        ddef->nenvelopes++;
+
        rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr);
-	// }
+
+     // }
      //printf("I %d, J %d\n", i, j);
 
  	 i     = -1;
   	 triggered = FALSE;
          start     = FALSE;
          end       = FALSE;
+
     }
   }
-
   /* Restore model to uni/multihit mode, and to its original length model */
   if (p7_IsMulti(save_mode)) p7_ReconfigMultihit_Frameshift(gm, saveL); 
   else                       p7_ReconfigUnihit_Frameshift  (gm, saveL); 
@@ -1206,12 +1209,14 @@ reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, co
     /* compute new bg->f, capturing original values into a preallocated array */
     bg_smooth = 25.0 / (ESL_MIN(100,ESL_MAX(50,(sq->n))));
 
-    esl_vec_FSet (bgf_arr, gm->abc->K, 0);
-    status = count_residues_frameshift(sq, gcode, start, L, bgf_arr);
-    if (status != eslOK) p7_Fail("Invalid sequence range in reparameterize_model()\n");
-    esl_vec_FNorm(bgf_arr, gm->abc->K+1);
+    esl_vec_FSet (bgf_arr, K, 0);
 
-    for (i=0; i<K+1; i++) {
+    status = count_residues_frameshift(sq, gcode, start, L, bgf_arr);
+
+    if (status != eslOK) p7_Fail("Invalid sequence range in reparameterize_model()\n");
+    esl_vec_FNorm(bgf_arr, K);
+
+    for (i=0; i<K; i++) {
        tmp = bg->f[i];
        bg->f[i] = (bg_smooth*bg->f[i]) + ( (1.0-bg_smooth) * bgf_arr[i])  ;
        bgf_arr[i] = tmp;
@@ -1529,30 +1534,30 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   orig_L = gm->L;
   
   p7_ReconfigLength_Frameshift(gm, j-i+1);
-  
-  printf("before %f\n", p7P_MSC(gm, gm->M, gm->abc->Kp-3));
+
   reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
-  printf("after %f\n", p7P_MSC(gm, gm->M, gm->abc->Kp-3));  
+
   p7_Forward_Frameshift (sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
   FILE *fout = fopen("fwdout.txt", "w+");
    p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
    fclose(fout); 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
-FILE *bout = fopen("bwdout.txt", "w+");
+  FILE *bout = fopen("bwdout.txt", "w+");
    p7_gmx_Dump(bout, gx2, p7_DEFAULT);
    fclose(bout); 
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
- FILE *ppout = fopen("ppout.txt", "w+");
-   p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
-   fclose(ppout);
+// FILE *ppout = fopen("ppout.txt", "w+");
+//   p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
+//   fclose(ppout);
   /* Find an optimal accuracy alignment */
    p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
    p7_OATrace_Frameshift(gm, gxppfs, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-   FILE *out = fopen("optout.txt", "w+");
-   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
-   fclose(out);
+//   FILE *out = fopen("optout.txt", "w+");
+//   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
+//   fclose(out);
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
+  
   for (z = 0; z < ddef->tr->N; z++)	  
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
   

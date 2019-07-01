@@ -1589,6 +1589,8 @@ extern int    p7_bg_Write(FILE *fp, P7_BG *bg);
 
 extern int    p7_bg_SetFilter  (P7_BG *bg, int M, const float *compo);
 extern int    p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
+extern int      p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_PROFILE *gm, const ESL_GENCODE *gcode, int L, float indel_cost, float *ret_sc);
+extern int      p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_PROFILE *gm, ESL_HMX *fwd, float *opt_sc);
 
 /* p7_builder.c */
 extern P7_BUILDER *p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc);

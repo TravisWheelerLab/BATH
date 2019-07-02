@@ -382,11 +382,11 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
               max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
               max_aa1[x] = gcode->basic[codon];
             }
-           
+             
             if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
               max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
               max_aa2[w * 4 + x] = gcode->basic[codon];
-         }
+            }
             if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + x]) {
               max_sc2[v * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
               max_aa2[v * 4 + x] = gcode->basic[codon];
@@ -602,7 +602,6 @@ p7_ReconfigLength_Frameshift(P7_PROFILE *gm, int L)
   int amino_len;
 
   amino_len = L	/ 3 + 1;  
-  printf("amino len %d, nj %f\n", amino_len, gm->nj);
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
@@ -754,13 +753,22 @@ p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, floa
  *
  */
 int
-p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp)
+p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, const ESL_GENCODE *gcode, float *fwd_emissions, float *sc_tmp)
 {
   int     M   = gm->M;    /* length of the query                                          */
   int     i, j;
   int     K   = gm->abc->K;
   int     Kp  = gm->abc->Kp;
-  ESL_DSQ x;
+  ESL_DSQ t, u, v, w, x;
+  ESL_DSQ codon;
+  float    max_sc1[4];;
+  float    max_sc2[16];
+  float    max_sc4[4];;
+  float    max_sc5[10];
+  ESL_DSQ  max_aa1[4];
+  ESL_DSQ  max_aa2[16];
+  ESL_DSQ  max_aa4[4];
+  ESL_DSQ  max_aa5[10];
 
   for (i = 1; i <= gm->M; i++) {
     for (j=0; j<K; j++) {
@@ -774,12 +782,109 @@ p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, f
     sc_tmp[gm->abc->Kp-3] = log(fwd_emissions[i*gm->abc->Kp + gm->abc->Kp-3] / bg->f[K]);
     for (x = bg->abc->K+1; x < bg->abc->Kp-3; x++)    
       esl_abc_FExpectScore(bg->abc, x, sc_tmp, bg->f);
-    
-    
+        
     for (j=0; j<Kp; j++)
       gm->rsc[j][(i) * p7P_NR  + p7P_MSC] =  sc_tmp[j];
+   
+    esl_vec_FSet(max_sc1, 4, -eslINFINITY);
+    esl_vec_FSet(max_sc2, 16, -eslINFINITY);
+    for (v = 0; v < 4; v++) {
+      for (w = 0; w < 4; w++) {
+        for (x = 0; x < 4; x++) {
+          codon = 16 * v + 4 * w + x;
 
-  }
+          if (p7P_MSC(gm, i, gcode->basic[codon]) > max_sc1[v]) {
+             max_sc1[v] = p7P_MSC(gm, i, gcode->basic[codon]);
+             max_aa1[v] = gcode->basic[codon];
+           }
+           if (p7P_MSC(gm, i, gcode->basic[codon]) > max_sc1[w]) {
+             max_sc1[w] = p7P_MSC(gm, i, gcode->basic[codon]);
+             max_aa1[w] = gcode->basic[codon];
+           }
+           if (p7P_MSC(gm, i, gcode->basic[codon]) > max_sc1[x]) {
+             max_sc1[x] = p7P_MSC(gm, i, gcode->basic[codon]);
+             max_aa1[x] = gcode->basic[codon];
+           }
+           if (p7P_MSC(gm, i, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
+             max_sc2[w * 4 + x] = p7P_MSC(gm, i, gcode->basic[codon]);
+             max_aa2[w * 4 + x] = gcode->basic[codon];
+           }
+           if (p7P_MSC(gm, i, gcode->basic[codon]) > max_sc2[v * 4 + x]) {
+             max_sc2[v * 4 + x] = p7P_MSC(gm, i, gcode->basic[codon]);
+             max_aa2[v * 4 + x] = gcode->basic[codon];
+           }
+           if (p7P_MSC(gm, i, gcode->basic[codon]) > max_sc2[v * 4 + w]) {
+             max_sc2[v * 4 + w] = p7P_MSC(gm, i, gcode->basic[codon]);
+             max_aa2[v * 4 + w] = gcode->basic[codon];
+           }
+         }
+       }
+      }
+      
+      for (x = 0; x < 4; x++)
+        p7P_AMINO1(gm, i, x) = max_aa1[x];
+
+      for (w = 0; w < 4; w++) 
+        for (x = 0; x < 4; x++) 
+          p7P_AMINO2(gm, i, w, x) = max_aa2[w * 4 + x];
+      
+      for ( u = 0; u < 4; u++) {
+        for (v = 0; v < 4; v++) {
+          for (w = 0; w < 4; w++) {
+            esl_vec_FSet(max_sc4, 4, -eslINFINITY);
+            for (x = 0; x < 4; x++) {
+              codon      = 16 * u + 4 * v + w;
+              max_sc4[0] = p7P_MSC(gm, i, gcode->basic[codon]);
+              max_aa4[0] = gcode->basic[codon];
+              codon      = 16 * u + 4 * v + x;
+              max_sc4[1] = p7P_MSC(gm, i, gcode->basic[codon]);
+              max_aa4[1] = gcode->basic[codon];
+              codon      = 16 * u + 4 * w + x;
+              max_sc4[2] = p7P_MSC(gm, i, gcode->basic[codon]);
+              max_aa4[2] = gcode->basic[codon];
+              codon      = 16 * v + 4 * w + x;
+              max_sc4[3] = p7P_MSC(gm, i, gcode->basic[codon]);
+              max_aa4[3] = gcode->basic[codon];
+              p7P_AMINO4(gm, i, u, v, w, x) = max_aa4[esl_vec_FArgMax(max_sc4, 4)];
+            }
+          }
+        }
+      }
+ 
+      for (t = 0; t < 4; t++) {
+      for ( u = 0; u < 4; u++) {
+        for (v = 0; v < 4; v++) {
+          for (w = 0; w < 4; w++) {
+            esl_vec_FSet(max_sc5, 10, -eslINFINITY);
+            for (x = 0; x < 4; x++) {
+              max_sc5[0]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, t, u, v));
+              max_aa5[0]  = p7P_AMINO3(gm, i, t, u, v);
+              max_sc5[1]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, t, u, w));
+              max_aa5[1]  = p7P_AMINO3(gm, i, t, u, w);
+              max_sc5[2]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, t, u, x));
+              max_aa5[2]  = p7P_AMINO3(gm, i, t, u, x);
+              max_sc5[3]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, t, v, w));
+              max_aa5[3]  = p7P_AMINO3(gm, i, t, v, w);
+              max_sc5[4]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, t, v, x));
+              max_aa5[4]  = p7P_AMINO3(gm, i, t, v, x);
+              max_sc5[5]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, t, w, x));
+              max_aa5[5]  = p7P_AMINO3(gm, i, t, w, x);
+              max_sc5[6]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, u, v, w));
+              max_aa5[6]  = p7P_AMINO3(gm, i, u, v, w);
+              max_sc5[7]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, u, v, x));
+              max_aa5[7]  = p7P_AMINO3(gm, i, u, v, x);
+              max_sc5[8]  = p7P_MSC(gm, i,p7P_AMINO3(gm, i, u, w, x));
+              max_aa5[8]  = p7P_AMINO3(gm, i, u, w, x);
+              max_sc5[9] = p7P_MSC(gm, i,p7P_AMINO3(gm, i, v, w, x));
+              max_aa5[9] = p7P_AMINO3(gm, i, v, w, x);
+              p7P_AMINO5(gm, i, t, u, v, w, x) = max_aa5[esl_vec_FArgMax(max_sc5, 10)];
+             }
+           }
+         }
+       }
+     }
+    }
+  
 
   return eslOK;
 

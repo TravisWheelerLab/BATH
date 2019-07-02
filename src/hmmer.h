@@ -1509,7 +1509,7 @@ extern int p7_ReconfigMultihit_Frameshift(P7_PROFILE *gm, int L);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
 extern int p7_ReconfigUnihit_Frameshift  (P7_PROFILE *gm, int L);
 extern int p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp);
-extern int p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp);
+extern int p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, const ESL_GENCODE *gcode, float *fwd_emissions, float *sc_tmp);
 
 
 /* modelstats.c */

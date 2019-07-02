@@ -2245,7 +2245,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 	
   subseq = dnasq->dsq + window_start - 1;
   printf("window_start %d window_end %d window_len %d \n", window_start, window_end, window_len);	
-
   p7_bg_SetLength_Frameshift(bg, window_len);
   p7_bg_NullOne_Frameshift(bg, subseq, window_len, &nullsc);
   
@@ -2260,7 +2259,11 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   p7_ReconfigLength_Frameshift(gm, window_len);
  
   p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
-  
+printf("fwd %f\n", fwdsc);  
+  FILE *fout = fopen("fwdout.txt", "w+");
+   p7_gmx_fs_Dump(fout, pli->gxf, p7_DEFAULT);
+   fclose(fout);
+
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
     if (P > pli->F3) return eslOK;
@@ -2286,7 +2289,10 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
   p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
  printf("bwd %f\n", bwdsc);
-  //return eslOK; 
+  FILE *bout = fopen("bwdout.txt", "w+");
+   p7_gmx_Dump(bout, pli->gxb, p7_DEFAULT);
+   fclose(bout);
+  return eslOK; 
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, 

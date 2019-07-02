@@ -170,9 +170,9 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
       else
          XMX_FS(i,p7G_J) = 0.;
     }
-printf("N %f, fwd %f, loop %f, bwd %f\n", XMX_FS(9,p7G_N), expf(fwd->xmx[p7G_NXCELLS*6 + p7G_N]), expf(gm->xsc[p7P_N][p7P_LOOP]), expf(bck->xmx[p7G_NXCELLS*9 + p7G_N] ));
+//printf("N %f, fwd %f, loop %f, bwd %f\n", XMX_FS(9,p7G_N), expf(fwd->xmx[p7G_NXCELLS*6 + p7G_N]), expf(gm->xsc[p7P_N][p7P_LOOP]), expf(bck->xmx[p7G_NXCELLS*9 + p7G_N] ));
 
-printf("M %f, fwd %f bwd %f\n", MMX_FS(9,3,p7G_C0),  expf(fwd->dp[9][3*p7G_NSCELLS_FS + p7G_M + p7G_C0]), expf(bck->dp[9][3*p7G_NSCELLS + p7G_M]));
+//printf("M %f, fwd %f bwd %f\n", MMX_FS(9,3,p7G_C0),  expf(fwd->dp[9][3*p7G_NSCELLS_FS + p7G_M + p7G_C0]), expf(bck->dp[9][3*p7G_NSCELLS + p7G_M]));
   /* normailze i for all codons in which i may be present */
   for (i = 1; i <= L; i++) {
 

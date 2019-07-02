@@ -320,7 +320,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
       sc[x] = esl_abc_FExpectScore(hmm->abc, x, sc, bg->f);
 
     sc[hmm->abc->Kp-3] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
-    printf("STOP %f\n", sc[hmm->abc->Kp-3]); 
+
     for (x = 0; x < hmm->abc->Kp; x++) {
       rp = gm->rsc[x] + k * p7P_NR;
       rp[p7P_MSC] = sc[x];
@@ -602,6 +602,7 @@ p7_ReconfigLength_Frameshift(P7_PROFILE *gm, int L)
   int amino_len;
 
   amino_len = L	/ 3 + 1;  
+  printf("amino len %d, nj %f\n", amino_len, gm->nj);
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */

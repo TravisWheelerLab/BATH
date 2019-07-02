@@ -1534,10 +1534,10 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   orig_L = gm->L;
   
   p7_ReconfigLength_Frameshift(gm, j-i+1);
-
+  
   reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
-
-  p7_Forward_Frameshift (sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
+  printf("6 D %f E %f S %f\n", p7P_MSC(gm, 6, 2), p7P_MSC(gm, 5, 3),  p7P_MSC(gm, 5, 15)); 
+  p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
   FILE *fout = fopen("fwdout.txt", "w+");
    p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
    fclose(fout); 

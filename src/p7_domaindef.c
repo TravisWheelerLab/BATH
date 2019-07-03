@@ -1534,20 +1534,20 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   orig_L = gm->L;
   
   p7_ReconfigLength_Frameshift(gm, j-i+1);
-  //p7_ReconfigLength(gm, j-i+1);
-  //reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
+ 
+// reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
 
   p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
   printf("fwd %f\n", envsc);
 
-  FILE *fout = fopen("fwdout.txt", "w+");
-   p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
-   fclose(fout); 
+  //FILE *fout = fopen("fwdout.txt", "w+");
+  // p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
+  // fclose(fout); 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
   printf("bck %f\n", bcksc);
-  FILE *bout = fopen("bwdout.txt", "w+");
-   p7_gmx_Dump(bout, gx2, p7_DEFAULT);
-   fclose(bout); 
+ // FILE *bout = fopen("bwdout.txt", "w+");
+   //p7_gmx_Dump(bout, gx2, p7_DEFAULT);
+ //  fclose(bout); 
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
 // FILE *ppout = fopen("ppout.txt", "w+");

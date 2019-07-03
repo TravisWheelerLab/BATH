@@ -2222,6 +2222,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
   P7_HIT           *hit     = NULL;     /* ptr to the current hit output data      */
   float            fwdsc, bwdsc;   /* filter scores                           */
+  float            bias_filter;
   float            filtersc;           /* HMM null filter score                   */
   float            nullsc;
   float            seqbias;
@@ -2236,8 +2237,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int		   window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
- // float **emit_sc;
-  //int F3_L = ESL_MIN( window_len,  pli->B3);
+
+  int F3_L = ESL_MIN( window_len,  pli->B3);
   float	           indel_cost = 0.01;
 
   window_len = window_end - window_start + 1;
@@ -2250,22 +2251,26 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   
   if (pli->do_biasfilter)
   {
-    p7_bg_fs_FilterScore(bg, subseq, gm, gcode, window_len, indel_cost, &filtersc);
-    filtersc -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
+    p7_bg_fs_FilterScore(bg, subseq, gm, gcode, window_len, indel_cost, &bias_filter);
+    bias_filter -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
   }  else
-    filtersc = 0.;
+    bias_filter = 0.;
 
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
   p7_ReconfigLength_Frameshift(gm, window_len);
  
-  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+ p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
 printf("fwd %f\n", fwdsc);  
-  FILE *fout = fopen("fwdout.txt", "w+");
-   p7_gmx_fs_Dump(fout, pli->gxf, p7_DEFAULT);
-   fclose(fout);
+ // FILE *fout = fopen("fwdout.txt", "w+");
+  // p7_gmx_fs_Dump(fout, pli->gxf, p7_DEFAULT);
+  // fclose(fout);
+
+    filtersc =  nullsc + (bias_filter * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
 
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
+
+  printf("null %f filter %f seq %f P %f \n", nullsc, bias_filter, fwdsc-filtersc, P); 
     if (P > pli->F3) return eslOK;
   pli->n_past_fwd++; 
      
@@ -2289,10 +2294,10 @@ printf("fwd %f\n", fwdsc);
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
   p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
  printf("bwd %f\n", bwdsc);
-  FILE *bout = fopen("bwdout.txt", "w+");
-   p7_gmx_Dump(bout, pli->gxb, p7_DEFAULT);
-   fclose(bout);
-  return eslOK; 
+ // FILE *bout = fopen("bwdout.txt", "w+");
+ //  p7_gmx_Dump(bout, pli->gxb, p7_DEFAULT);
+ //  fclose(bout);
+  //return eslOK; 
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, 

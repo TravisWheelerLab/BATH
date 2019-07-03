@@ -202,7 +202,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
     }
     else
     {
-      XMX_FS(i,p7G_N) = 0.;//gm->xsc[p7P_N][p7P_LOOP];
+      XMX_FS(i,p7G_N) = gm->xsc[p7P_N][p7P_LOOP];
       XMX_FS(i,p7G_J) = XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_LOOP];
       XMX_FS(i,p7G_C) = XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_MOVE];
      }
@@ -319,7 +319,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
 
   if (opt_sc != NULL) *opt_sc = p7_FLogsum(p7_FLogsum(XMX_FS(L,p7G_C), XMX(L-1,p7G_C)), 
 				                      XMX(L-2,p7G_C)) + gm->xsc[p7P_C][p7P_MOVE];
-printf("C MOVE %f\n", gm->xsc[p7P_C][p7P_MOVE]);
+
   gx->M = M;
   gx->L = L;
  
@@ -369,7 +369,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
   float        esc  = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
   float        sc;
   float       *iv   = NULL;
-  float        one_indel = log(indel_cost)m
+  float        one_indel = log(indel_cost);
   float        two_indel = log(indel_cost / 2);
   float        no_indel  = log(1.0 - (indel_cost * 3));
   ESL_DSQ      t, u, v, w, x;
@@ -425,7 +425,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
     if( i < L-3 )
       iv[1]        = p7_FLogsum( iv[1], MMX(i+4,1) + p7P_MSC(gm, 1, p7P_AMINO4(gm, 1, x, w, v, u)) + one_indel);
       
-    XMX(i,p7G_B)   = p7_FLogsum( XMX(i,p7G_B), iv[1] + TSC(p7P_BM,0));
+    XMX(i,p7G_B)   =  iv[1] + TSC(p7P_BM,0);
     
     for (k = 2; k <= M; k++) 
     {
@@ -582,12 +582,12 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
  
   XMX(0,p7G_N) = p7_FLogsum( XMX(3,p7G_N)   + gm->xsc[p7P_N][p7P_LOOP],
                              XMX(0,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]); 
-   printf("N MOVE %f\n", gm->xsc[p7P_N][p7P_MOVE]); 
+   
   for (k = M; k >= 0; k--)
     MMX(0,k) = DMX(0,k) =  IMX(0,k) = -eslINFINITY;           
 
   if (opt_sc != NULL) *opt_sc = p7_FLogsum(XMX(0,p7G_N), p7_FLogsum(XMX(1,p7G_N), XMX(2,p7G_N)));
-  printf("N 0 %f 1 %f 2 %f\n", XMX(0,p7G_N), XMX(1,p7G_N), XMX(2,p7G_N)); 
+  
   gx->M = M;
   gx->L = L;
   

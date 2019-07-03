@@ -91,9 +91,9 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
     p7P_ISC(gm, 0,      x) = -eslINFINITY;             /* or I_0... */
     /* I_M is initialized in profile config, when we know actual M, not just allocated max M   */
   }
-  x = esl_abc_XGetGap(abc);	                       /* no emission can emit/score gap characters */
+  x = esl_abc_XGetGap(abc);                         /* no emission can emit/score gap characters */
   esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
-  x = esl_abc_XGetMissing(abc);	                      /* no emission can emit/score missing data characters */
+  x = esl_abc_XGetMissing(abc);                        /* no emission can emit/score missing data characters */
   esl_vec_FSet(gm->rsc[x], (allocM+1)*p7P_NR, -eslINFINITY);
 
   /* Set remaining info  */
@@ -241,7 +241,7 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   return gm;
 
  ERROR:
-  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm);
   return NULL;
 }
 
@@ -320,7 +320,7 @@ p7_profile_fs_Copy(const P7_PROFILE *src, P7_PROFILE *dst)
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
   for (x = 0; x < src->abc->Kp;   x++) esl_vec_FCopy(src->rsc[x], (src->M+1)*p7P_NR, dst->rsc[x]);
   for (x = 0; x < p7P_NXSTATES;   x++) esl_vec_FCopy(src->xsc[x], p7P_NXTRANS,       dst->xsc[x]);
-  for (x = 0; x < p7P_MAXCODONS;  x++) esl_abc_dsqcpy(src->codons[x], (src->M-1) , dst->codons[x]); 
+  for (x = 0; x < p7P_MAXCODONS;  x++) esl_abc_dsqcpy(src->codons[x], (src->M-1), dst->codons[x]);
 
   dst->mode        = src->mode;
   dst->L           = src->L;
@@ -428,6 +428,41 @@ p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr )
   return eslOK;
 }
 
+/* Function:  p7_profile_GetFwdEmissionArray()
+ * Synopsis:  Retrieve Fwd (float) residue emission values from an optimized
+ *            profile into an array
+ *
+ * Purpose:   Extract an implicitly 2D array of 32-bit float Fwd residue
+ *            emission values from an optimized profile <om>, converting
+ *            back to emission values based on the background. <arr> must
+ *            be allocated by the calling function to be of size
+ *            ( om->abc->Kp * ( om->M  + 1 )), and indexing into the array
+ *            is done as  [om->abc->Kp * i +  c ] for character c at
+ *            position i.
+ *
+ * Args:      <om>   - optimized profile, containing transition information
+ *            <bg>   - background frequencies
+ *            <arr>  - preallocated array into which scores will be placed
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    (no abnormal error conditions)
+ */
+int
+p7_profile_fs_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr )
+{
+  int i, j;
+
+  for (i = 1; i <= gm->M; i++) {
+    for (j=0; j<gm->abc->K; j++) {
+      arr[i*gm->abc->Kp + j] =  bg->f[j] * exp( gm->rsc[j][(i) * p7P_NR     + p7P_MSC]);
+    }
+    arr[i*gm->abc->Kp + gm->abc->Kp-3] =  bg->f[gm->abc->K] * exp( gm->rsc[gm->abc->Kp-3][(i) * p7P_NR     + p7P_MSC]);
+  }
+  return eslOK;
+}
+
+
 /* Function:  p7_profile_SetNullEmissions()
  * Synopsis:  Set all emission scores to zero (experimental).
  *
@@ -501,11 +536,11 @@ p7_profile_Sizeof(P7_PROFILE *gm)
   /* these mirror malloc()'s in p7_profile_Create(); maintain one:one correspondence for maintainability */
   n += sizeof(P7_PROFILE);
   n += sizeof(float)   * gm->allocM * p7P_NTRANS;             /* gm->tsc       */
-  n += sizeof(float *) * gm->abc->Kp;	                      /* gm->rsc       */
-  n += sizeof(char)    * (gm->allocM+2);	              /* gm->rf        */
+  n += sizeof(float *) * gm->abc->Kp;                        /* gm->rsc       */
+  n += sizeof(char)    * (gm->allocM+2);                /* gm->rf        */
   n += sizeof(char)    * (gm->allocM+2);                /* gm->mm        */
-  n += sizeof(char)    * (gm->allocM+2);	              /* gm->cs        */
-  n += sizeof(char)    * (gm->allocM+2);	              /* gm->consensus */
+  n += sizeof(char)    * (gm->allocM+2);                /* gm->cs        */
+  n += sizeof(char)    * (gm->allocM+2);                /* gm->consensus */
 
   n += sizeof(float) * gm->abc->Kp * (gm->allocM+1) * p7P_NR; /* gm->rsc[0]    */
 
@@ -673,7 +708,7 @@ p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, char st2, int k2, float 
     case p7T_D: tsc = p7P_TSC(gm, k1, p7P_MD); break;
     case p7T_E: 
       if (k1 != gm->M && ! p7_profile_IsLocal(gm)) ESL_EXCEPTION(eslEINVAL, "local end transition (M%d of %d) in non-local model", k1, gm->M);
-      tsc = 0.0f;		/* by def'n in H3 local alignment */
+      tsc = 0.0f;    /* by def'n in H3 local alignment */
       break;
     default:    ESL_XEXCEPTION(eslEINVAL, "bad transition %s_%d->%s", p7_hmm_DecodeStatetype(st1), k1, p7_hmm_DecodeStatetype(st2));
     }
@@ -685,7 +720,7 @@ p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, char st2, int k2, float 
     case p7T_D: tsc = p7P_TSC(gm, k1, p7P_DD); break;
     case p7T_E: 
       if (k1 != gm->M && ! p7_profile_IsLocal(gm)) ESL_EXCEPTION(eslEINVAL, "local end transition (D%d of %d) in non-local model", k1, gm->M);
-      tsc = 0.0f;		/* by def'n in H3 local alignment */
+      tsc = 0.0f;    /* by def'n in H3 local alignment */
       break;
     default:    ESL_XEXCEPTION(eslEINVAL, "bad transition %s_%d->%s", p7_hmm_DecodeStatetype(st1), k1, p7_hmm_DecodeStatetype(st2));
     }
@@ -769,14 +804,14 @@ p7_profile_Validate(const P7_PROFILE *gm, char *errbuf, float tol)
    * to calculate the M(M+1)/2 fragment probabilities accordingly.
    */
   if (p7_profile_IsLocal(gm))
-    {				/* the code block below is also in emit.c:sample_endpoints */
+    {        /* the code block below is also in emit.c:sample_endpoints */
       for (k = 1; k <= gm->M; k++)
-	pstart[k] = exp(p7P_TSC(gm, k-1, p7P_BM)) * (gm->M - k + 1); /* multiply p_ij by the number of exits j */
+  pstart[k] = exp(p7P_TSC(gm, k-1, p7P_BM)) * (gm->M - k + 1); /* multiply p_ij by the number of exits j */
     }
   else
     {
       for (k = 1; k <= gm->M; k++)
-	pstart[k] = exp(p7P_TSC(gm, k-1, p7P_BM));
+  pstart[k] = exp(p7P_TSC(gm, k-1, p7P_BM));
     }
 
   if (esl_vec_DValidate(pstart, gm->M+1, tol, NULL) != eslOK) ESL_XFAIL(eslFAIL, errbuf, "profile entry distribution is not normalized properly");
@@ -889,4 +924,5 @@ main(int argc, char **argv)
   return 0;
 }
 #endif /*p7PROFILE_TESTDRIVE*/
+
 

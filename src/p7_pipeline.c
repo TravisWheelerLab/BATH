@@ -219,11 +219,11 @@ p7_pipeline_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, en
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
   if (long_targets) {
-	  pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
-	  pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
-	  pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
+    pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
+    pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
+    pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
   } else {
-	  pli->B1 = pli->B2 = pli->B3 = -1;
+    pli->B1 = pli->B2 = pli->B3 = -1;
   }
 
 
@@ -442,9 +442,9 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int frameshift, e
   pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
-	 // pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
-	 // pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
-	  pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
+   // pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
+   // pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
+    //pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
 
 
   if (go && esl_opt_GetBoolean(go, "--max")) 
@@ -610,12 +610,12 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
   for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
     
-	if ( curr_window->complementarity == p7_COMPLEMENT) {
+  if ( curr_window->complementarity == p7_COMPLEMENT) {
       //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
-	  curr_window->n = curr_window->target_len - curr_window->n +  1;
+      curr_window->n = curr_window->target_len - curr_window->n +  1;
       window_start   = ESL_MAX( 1                      ,  curr_window->n - curr_window->length - (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) ) ;
       window_end     = ESL_MIN( curr_window->target_len,  curr_window->n                       + (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) )   ;
-  	  tmp            = window_end;
+      tmp            = window_end;
       window_end     = curr_window->target_len - window_start; // +  1;
       window_start   = curr_window->target_len - tmp ; //+  1;
       curr_window->n = curr_window->target_len - curr_window->n +  1;
@@ -675,45 +675,72 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE *om) {
+p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, const P7_SCOREDATA *data, float pct_overlap) {
 
-  int            i;
+  int            i, d;
   ESL_SQ        *prev_orf = NULL;
   ESL_SQ        *curr_orf = NULL;
-  int64_t        dna_start;
-  int64_t        dna_end;
-  int32_t        orf_len;
-  int64_t              tmp;
-  int                  new_hit_cnt = 0;
-   if (orf_block->count == 0)
+  int32_t        orf_start, orf_end;
+  int64_t        dna_start, dna_end;
+  int32_t        i_cords, j_cords;
+  int32_t        k_cords, m_cords;
+  int            new_hit_cnt = 0;
+  int64_t        min_start, max_start;
+  int64_t        min_end, max_end;
+  int64_t        overlap, max_length;
+  P7_GMX        *vgx = NULL;
+  P7_TRACE      *vtr = NULL;
+
+  if (orf_block->count == 0)
     return eslOK;
 
-  /* extend orfs */
-  for (i=0; i<orf_block->count; i++) {
-    curr_orf = orf_block->list+i;
-    orf_len = curr_orf->end - curr_orf->start + 1;    
+  vgx = p7_gmx_Create(gm->M, 100);
+  vtr = p7_trace_Create();
+ 
+  /* extend orf dna positions based on model max length*/
+  for(i = 0; i < orf_block->count; i++)
+  {
+    curr_orf = &(orf_block->list[i]);
+ 
+    p7_gmx_GrowTo(vgx, gm->M, curr_orf->n); 
+    p7_ReconfigLength(gm, curr_orf->n);
     
-    dna_start = ESL_MAX( 1        ,  curr_orf->start - (om->max_length - orf_len)  * 3);
-    dna_end   = ESL_MIN( dna_sq->n,  curr_orf->end   + (om->max_length - orf_len)  * 3); 
-	
+    p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, NULL);
+    p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
+    p7_trace_GetDomainCoords(vtr, 0, &i_cords, &j_cords, &k_cords, &m_cords);
+
+    orf_start   = i_cords - (gm->max_length * (0.1 + data->prefix_lengths[k_cords]));
+    orf_end     = j_cords + (gm->max_length * (0.1 + data->suffix_lengths[m_cords])); 
+
+    dna_start = ESL_MAX(1,         curr_orf->start + (orf_start * 3));
+    dna_end   = ESL_MIN(dna_sq->n, curr_orf->start + (orf_end   * 3));
+
     curr_orf->start = dna_start;
     curr_orf->end   = dna_end; 
+ 
+    p7_gmx_Reuse(vgx);
+    p7_trace_Reuse(vtr);
   }
 
-  
-  /* merge overlapping orfs, compressing list in place. */
+  /*check for and merge overlaps in orf dna positions */ 
   for (i=1; i<orf_block->count; i++) {
     prev_orf = orf_block->list+new_hit_cnt;
     curr_orf = orf_block->list+i;
-    if((prev_orf->start <= curr_orf->start && prev_orf->end <= curr_orf->start) || 
-       (curr_orf->start <= prev_orf->start && curr_orf->end <= prev_orf->start) ||
-       (prev_orf->start >= curr_orf->start && prev_orf->end >= curr_orf->start) ||
-       (curr_orf->start >= prev_orf->start && curr_orf->end >= prev_orf->start)   )
+    
+    max_start        = ESL_MAX(prev_orf->start, curr_orf->start);
+    min_end          = ESL_MIN(prev_orf->end, curr_orf->end);
+
+    overlap          = min_end - max_start + 1;
+   
+    min_start        = ESL_MIN(prev_orf->start, curr_orf->start);
+    max_end          = ESL_MAX(prev_orf->end, curr_orf->end);
+
+    max_length       = max_end - min_start + 1;
+    
+    if ( (float) overlap / max_length > pct_overlap)
     {
-      dna_start        = ESL_MIN(prev_orf->start, curr_orf->start);
-      dna_end          = ESL_MAX(prev_orf->end, curr_orf->end);
-      prev_orf->start = dna_start;
-      prev_orf->end   = dna_end;
+      prev_orf->start = min_start;
+      prev_orf->end   = max_end;
     } else {
       new_hit_cnt++;
       orf_block->list[new_hit_cnt] = orf_block->list[i];
@@ -721,7 +748,9 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_OPROFILE 
   }
 
   orf_block->count = new_hit_cnt+1;
-
+  
+  p7_gmx_Destroy(vgx);
+  p7_trace_Destroy(vtr);
   return eslOK;
 }
 
@@ -750,10 +779,11 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
   //convert windows to dna
   for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
+  //printf("start %d end %d\n", orf_list[i].start, orf_list[i].end);
     if(orf_list[i].start < orf_list[i].end) {   
       curr_window->n =  orf_list[i].start + (curr_window->n - 1) * 3;
       curr_window->complementarity = p7_NOCOMPLEMENT;
-    } else {	
+    } else {  
       curr_window->n =  (dna_len - orf_list[i].start + 1) + (curr_window->n - 1) * 3;
       curr_window->complementarity = p7_COMPLEMENT;
     }
@@ -763,13 +793,13 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
    for (i=0; i<windowlist->count; i++) {
     curr_window = windowlist->windows+i;
     
-	if ( curr_window->complementarity == p7_COMPLEMENT) {
+  if ( curr_window->complementarity == p7_COMPLEMENT) {
       
-	  //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
-	  curr_window->n = curr_window->target_len - curr_window->n +  1;
+    //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
+    curr_window->n = curr_window->target_len - curr_window->n +  1;
       window_start   = ESL_MAX( 1, curr_window->n - curr_window->length - (om->max_length * (0.1 + data->suffix_lengths[curr_window->k])) * 3);
       window_end     = ESL_MIN( curr_window->target_len, curr_window->n + (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1])) * 3);
-  	  tmp            = window_end;
+      tmp            = window_end;
       window_end     = curr_window->target_len - window_start; // +  1;
       window_start   = curr_window->target_len - tmp ; //+  1;
       curr_window->n = curr_window->target_len - curr_window->n +  1;
@@ -778,7 +808,7 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
      // the 0.1 multiplier provides for a small buffer in excess of the predefined prefix/suffix lengths - one proportional to max_length
       window_start = ESL_MAX( 1, curr_window->n - (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1])) * 3);
       window_end   = ESL_MIN( curr_window->target_len, curr_window->n + curr_window->length + (om->max_length * (0.1 + data->suffix_lengths[curr_window->k])) * 3);
-   	}
+     }
 
     curr_window->length = window_end - window_start + 1;
 
@@ -802,7 +832,7 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
       //merge windows
       window_start        = ESL_MIN(prev_window->n, curr_window->n);
       window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-	  prev_window->fm_n  -= (prev_window->n - window_start);
+    prev_window->fm_n  -= (prev_window->n - window_start);
       prev_window->n      = window_start;
       prev_window->length = window_end - window_start + 1;
     } else {
@@ -812,6 +842,12 @@ p7_pli_ConvertExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, 
   }
 
   windowlist->count = new_hit_cnt+1;
+
+
+ for (i=0; i<windowlist->count; i++) {
+    curr_window = windowlist->windows+i;
+
+ }
   return eslOK;
 }
 
@@ -1268,26 +1304,26 @@ seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   if (pli->do_null2) 
     {
       for (d = 0; d < pli->ddef->ndom; d++) 
-	{
-	  if (pli->ddef->dcl[d].envsc - pli->ddef->dcl[d].domcorrection > 0.0)
-	    {
-	      sum_score += pli->ddef->dcl[d].envsc;         /* NATS */
-	      Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
-	      seqbias   += pli->ddef->dcl[d].domcorrection; /* NATS */  
-	    }
-	}
+  {
+    if (pli->ddef->dcl[d].envsc - pli->ddef->dcl[d].domcorrection > 0.0)
+      {
+        sum_score += pli->ddef->dcl[d].envsc;         /* NATS */
+        Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+        seqbias   += pli->ddef->dcl[d].domcorrection; /* NATS */  
+      }
+  }
       seqbias = p7_FLogsum(0.0, log(bg->omega) + seqbias);  /* NATS */
     }
   else 
     {
       for (d = 0; d < pli->ddef->ndom; d++) 
-	{
-	  if (pli->ddef->dcl[d].envsc > 0.0)
-	    {
-	      sum_score += pli->ddef->dcl[d].envsc;      /* NATS */
-	      Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
-	    }
-	}
+  {
+    if (pli->ddef->dcl[d].envsc > 0.0)
+      {
+        sum_score += pli->ddef->dcl[d].envsc;      /* NATS */
+        Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+      }
+  }
       seqbias = 0.0;
     }    
   sum_score += (sq->n-Ld) * log((float) sq->n / (float) (sq->n+3)); /* NATS */
@@ -1481,7 +1517,6 @@ seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
  *            overlap         - number of residues in this sequence window that overlap a preceding window.
  *            pli_tmp         - a collection of objects used in the long target pipeline that should be
  *                              (and are) only allocated once per pipeline to minimize alloc overhead.
-
  * Returns:   <eslOK> on success. If a significant hit is obtained,
  *            its information is added to the growing <hitlist>.
  *
@@ -1991,10 +2026,10 @@ p7_Pipeline_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
     /* In scan mode, if it passes the MSV filter, read the rest of the profile */
     if (!fmf && pli->hfp)
       {
-	if (om->base_w == 0 &&  om->scale_w == 0) { // we haven't already read this hmm (if we're on the second strand, we would've)
-	  p7_oprofile_ReadRest(pli->hfp, om);
-	  if ((status = p7_pli_NewModelThresholds(pli, om)) != eslOK) goto ERROR;
-	}
+  if (om->base_w == 0 &&  om->scale_w == 0) { // we haven't already read this hmm (if we're on the second strand, we would've)
+    p7_oprofile_ReadRest(pli->hfp, om);
+    if ((status = p7_pli_NewModelThresholds(pli, om)) != eslOK) goto ERROR;
+  }
       }
 
     p7_oprofile_GetFwdEmissionArray(om, bg, pli_tmp->fwd_emissions_arr);
@@ -2179,14 +2214,15 @@ ERROR:
  */
 static int
 p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TOPHITS *hitlist, const P7_SCOREDATA *data, 
-				              int64_t seqidx, int window_start, int window_len, ESL_SQ *dnasq, ESL_GENCODE *gcode,
-			                  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp 
+                      int64_t seqidx, int window_start, int window_end, ESL_SQ *dnasq, ESL_GENCODE *gcode,
+                        P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp 
 )
 {
 
   P7_HIT           *hit     = NULL;     /* ptr to the current hit output data      */
   float            fwdsc, bwdsc;   /* filter scores                           */
-  float            filtersc = 0.0;           /* HMM null filter score                   */
+  float            bias_filter;
+  float            filtersc;           /* HMM null filter score                   */
   float            nullsc;
   float            seqbias;
   float            seq_score;          /* the corrected per-seq bit score */
@@ -2197,38 +2233,45 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int              Ld;               /* # of residues in envelopes */
   int              d;
   int              status;
+  int       window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
-  int F3_L;
-  float	           indel_cost = 0.01;
 
-  if (window_len < 15) return eslOK;
-  printf("window_len %d window_start %d window_end %d\n", window_len,  window_start , (window_start + window_len));
+  int F3_L = ESL_MIN( window_len,  pli->B3);
+  float             indel_cost = 0.01;
+
+  window_len = window_end - window_start + 1;
+  if (window_len < 3) return eslOK;
   
-  F3_L = ESL_MIN( window_len,  pli->B3);
   subseq = dnasq->dsq + window_start - 1;
-
+  printf("window_start %d window_end %d window_len %d \n", window_start, window_end, window_len);  
   p7_bg_SetLength_Frameshift(bg, window_len);
   p7_bg_NullOne_Frameshift(bg, subseq, window_len, &nullsc);
+  
   if (pli->do_biasfilter)
   {
-    p7_bg_fs_FilterScore(bg, subseq, gm, gcode, window_len, indel_cost, &filtersc);
-    filtersc -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
+    p7_bg_fs_FilterScore(bg, subseq, gm, gcode, window_len, indel_cost, &bias_filter);
+    bias_filter -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
   }  else
-    filtersc = 0.;
+    bias_filter = 0.;
 
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
   p7_ReconfigLength_Frameshift(gm, window_len);
+ 
+ p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+printf("fwd %f\n", fwdsc);  
+ // FILE *fout = fopen("fwdout.txt", "w+");
+  // p7_gmx_fs_Dump(fout, pli->gxf, p7_DEFAULT);
+  // fclose(fout);
 
-  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
-  // printf("fwdsc %f\n", fwdsc);
-  filtersc =  nullsc + (filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
- // printf("filtersc %f\n", filtersc);
-  seq_score = (fwdsc - filtersc) / eslCONST_LOG2;
+    filtersc =  nullsc + (bias_filter * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
+
+  seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
 
-  if (P > pli->F3 ) return eslOK;
-   pli->n_past_fwd++; 
+  printf("null %f filter %f seq %f P %f \n", nullsc, bias_filter, fwdsc-filtersc, P); 
+    if (P > pli->F3) return eslOK;
+  pli->n_past_fwd++; 
      
   
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
@@ -2248,16 +2291,19 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
-
   p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
- //	printf("bwdsc %f\n", bwdsc); 
-
+ printf("bwd %f\n", bwdsc);
+ // FILE *bout = fopen("bwdout.txt", "w+");
+ //  p7_gmx_Dump(bout, pli->gxb, p7_DEFAULT);
+ //  fclose(bout);
+  //return eslOK; 
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
+  status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
+           pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, 
+           (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, 
+           indel_cost, gcode);
 
-  status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, pli->gxf,pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, TRUE,
-				                                         pli_tmp->bg, (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, indel_cost, gcode);
-
- 
+ // if(emit_sc != NULL) Codon_Emissions_Destroy(emit_sc);
   pli_tmp->tmpseq->dsq = dsq_holder;
 
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
@@ -2460,7 +2506,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
                hit->dcl[d].ienv       += dnasq->start + window_start - 2;
                hit->dcl[d].jenv       += dnasq->start + window_start - 2;
 
-    	       hit->dcl[d].iali       += dnasq->start + window_start - 2;
+             hit->dcl[d].iali       += dnasq->start + window_start - 2;
                hit->dcl[d].jali       += dnasq->start + window_start - 2;
                
                hit->dcl[d].ad->sqfrom = (hit->dcl[d].ad->sqfrom) + pli_tmp->tmpseq->start-1;
@@ -2469,19 +2515,18 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
             else
             { 
 
-			   hit->dcl[d].iorf       = dnasq->start;
+         hit->dcl[d].iorf       = dnasq->start;
                hit->dcl[d].jorf       = dnasq->end;
 
                hit->dcl[d].ienv       = dnasq->start - (window_start + hit->dcl[d].ienv) + 1;
                hit->dcl[d].jenv       = dnasq->start - (window_start + hit->dcl[d].jenv) + 1;
                
-               hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 1;
+         hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 1;
                hit->dcl[d].jali       = hit->dcl[d].iali - (hit->dcl[d].ad->sqfrom - hit->dcl[d].ad->sqto);
 
                hit->dcl[d].ad->sqfrom = hit->dcl[d].iali;
                hit->dcl[d].ad->sqto   = hit->dcl[d].jali;
             }
-            hit->target_len = dnasq->L;
          }
     }
 
@@ -2549,14 +2594,14 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 {
 
   int              i,j;
-  int              oldWinCnt, newWinCnt;
   float            nullsc;           /* HMM null score                   */
+  int              min_n, max_n, max_k;
 
-  P7_HMM_WINDOWLIST vit_windowlist;
-  P7_HMM_WINDOWLIST post_vit_windowlist;
-  P7_HMM_WINDOW    *window;
-  ESL_SQ_BLOCK *post_vit_orf_block; 
-  ESL_SQ *orfsq;
+  P7_HMM_WINDOWLIST  vit_windowlist;
+  P7_HMM_WINDOWLIST  post_vit_windowlist;
+  P7_HMM_WINDOW     *window;
+  ESL_SQ_BLOCK      *post_vit_orf_block; 
+  ESL_SQ            *orfsq;
 
   vit_windowlist.windows = NULL;
   post_vit_windowlist.windows = NULL;
@@ -2565,26 +2610,32 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, gm->abc);
-
-  oldWinCnt = newWinCnt = 0;
+  
   for (i = 0; i < orf_block->count; ++i)
-  {
+  { 
     orfsq = &(orf_block->list[i]);
-
     p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);  
+    
     /* Second level filter: ViterbiFilter(), multihit with <om> */
     p7_ViterbiFilter_longtarget(orfsq->dsq, orfsq->n, om, pli->oxf, nullsc, pli->F2, &vit_windowlist);
-     
-        if(vit_windowlist.count + post_vit_orf_block->count >= post_vit_orf_block->listSize)
-         esl_sq_BlockGrowTo(post_vit_orf_block, post_vit_orf_block->count + vit_windowlist.count, TRUE, orfsq->abc); 
-    for(j = 0; j < vit_windowlist.count; ++j) 
-     {
-       window = vit_windowlist.windows+j;
-       p7_hmmwindow_new(&post_vit_windowlist, window->id, window->n, window->fm_n, window->k, 
-                  window->length, window->score, p7_NOCOMPLEMENT, window->target_len);       
-       esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
-       post_vit_orf_block->count++;
-     }
+    
+    min_n = orfsq->n;
+    max_n = 0;
+    max_k = 0;
+   for(j = 0; j < vit_windowlist.count; ++j) 
+   { 
+     window = vit_windowlist.windows+j;
+     min_n = ESL_MIN( min_n, window->n);
+     max_n = ESL_MAX( max_n, window->n + window->length);
+     max_k = ESL_MAX( max_k, window->k);
+   }
+   
+   if(vit_windowlist.count < 0) 
+   {
+     p7_hmmwindow_new(&post_vit_windowlist, -1, min_n, min_n-1, window->k, (max_n - min_n), 0.0, p7_NOCOMPLEMENT, orfsq->n);       
+     post_vit_orf_block->list[post_vit_orf_block->count] = *esl_sq_CreateDigitalFrom(orfsq->abc, orfsq->name, orfsq->dsq, orfsq->n, orfsq->desc, orfsq->acc, orfsq->ss);
+     post_vit_orf_block->count++;
+   }
   }
 
   p7_pli_ConvertExtendAndMergeWindows(om,data, &post_vit_windowlist, post_vit_orf_block->list, dnasq->n,0); 
@@ -2607,21 +2658,22 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 }
 
 
+
 /* Function:  p7_Pipeline_Frameshift()
  * Synopsis:  HMMER3's accelerated seq/profile comparison pipeline for 
- *	      translated DNA to protien search with frameshit awareness.
+ *        translated DNA to protien search with frameshit awareness.
  *
  * Purpose:   Run H3's accelerated pipeline to compare a protien 
- *	      profile <gm/om> against a dna sequence <sq>. For the first 
- *	      stages of the pipeline (MSV, bias and viterbi filters) the 
- *	      sequence is translated into it's 6 amnio acid frames and 
- *	      these are compared directly to an optimized profile. For 
- *	      the forward stage onward direct dna to amino comparision 
- *	      is made using a generic profile. If a significant hit is 
- *	      found, information about it is added to the <hitlist>. 
- *	      The pipeline accumulates beancounting information about 
- *	      how many comparisons flow through the pipeline while it's 
- *	      active.
+ *        profile <gm/om> against a dna sequence <sq>. For the first 
+ *        stages of the pipeline (MSV, bias and viterbi filters) the 
+ *        sequence is translated into it's 6 amnio acid frames and 
+ *        these are compared directly to an optimized profile. For 
+ *        the forward stage onward direct dna to amino comparision 
+ *        is made using a generic profile. If a significant hit is 
+ *        found, information about it is added to the <hitlist>. 
+ *        The pipeline accumulates beancounting information about 
+ *        how many comparisons flow through the pipeline while it's 
+ *        active.
  *            
  * Returns:   <eslOK> on success. If a significant hit is obtained,
  *            its information is added to the growing <hitlist>. 
@@ -2639,60 +2691,63 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
  * 
  * Args:      pli             - the main pipeline object
  *            om              - optimized profile (query)
- *	          gm	          - generic profile (query)
+ *            gm            - generic profile (query)
  *            data            - for computing diagonals, and picking 
- *				                window edges based on maximum prefix/
- *				                suffix extensions
+ *                        window edges based on maximum prefix/
+ *                        suffix extensions
  *            bg              - background model
  *            hitlist         - pointer to hit storage bin (already 
- *				                allocated)
+ *                        allocated)
  *            seqidx          - the id # of the sequence from which 
- *				                the current window was extracted
+ *                        the current window was extracted
  *            dnasq           - digital sequence of the DNA window
  *            complementarity - is <sq> from the top strand 
- *				                (p7_NOCOMPLEMENT), or bottom strand 
- *				                (P7_COMPLEMENT)
+ *                        (p7_NOCOMPLEMENT), or bottom strand 
+ *                        (P7_COMPLEMENT)
  *
  * Throws:    <eslEMEM> on allocation failure.
  *
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data,
-                       P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode)
+p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data, P7_BG *bg, 
+                       P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode)
 {
 
   int              i;
   int              status, wstatus;
   float            nullsc;   /* null model score                        */
   float            usc;      /* msv score  */
+  float            seq_score;
+  float            filtersc;
+  float            vfsc;
   float            P;
   
   ESL_SQ         *orfsq;
-  ESL_SQ_BLOCK *post_msv_orf_block = NULL;
+  ESL_SQ_BLOCK *post_vit_orf_block = NULL;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
 
   if (dnasq->n < 3) return eslOK;
-
-  post_msv_orf_block = NULL;
-  post_msv_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
+  
+  post_vit_orf_block = NULL;
+  post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_FRAMESHIFT_OBJS));
   pli_tmp->tmpseq = NULL;
-  pli_tmp->bg = p7_bg_Clone(bg);
-  pli_tmp->gm = p7_profile_Create(gm->M, gm->abc);
+  pli_tmp->bg = p7_bg_fs_Clone(bg);
+//TODO: change to new fs emmissions
+  pli_tmp->gm = p7_profile_fs_Create(gm->M, gm->abc);
   ESL_ALLOC(pli_tmp->scores, sizeof(float) * gm->abc->Kp * 4); //allocation of space to store scores that will be used in p7_oprofile_Update(Fwd|Vit|MSV)EmissionScores
   ESL_ALLOC(pli_tmp->fwd_emissions_arr, sizeof(float) *  gm->abc->Kp * (gm->M+1));
-  
-    for (i = 0; i < orf_block->count; ++i)
+  for (i = 0; i < orf_block->count; ++i)
   {     
-  orfsq = &(orf_block->list[i]);
+    orfsq = &(orf_block->list[i]);
 
     /*
      use the name, accession, and description from the DNA sequence and
      not from the ORF which is generated by gencode and only for internal use
     */
-    if ((wstatus = esl_sq_SetName     (orfsq, dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
+  //  if ((wstatus = esl_sq_SetName     (orfsq, dnasq->name))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence name failed");
     if ((wstatus = esl_sq_SetAccession(orfsq, dnasq->acc))    != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence accession failed");
     if ((wstatus = esl_sq_SetDesc     (orfsq, dnasq->desc))   != eslOK)  ESL_EXCEPTION_SYS(eslEWRITE, "Set query sequence description failed");
     
@@ -2705,28 +2760,56 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
       p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
 
       p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
-      P = esl_gumbel_surv( (usc-nullsc)/eslCONST_LOG2,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+      seq_score = (usc - nullsc) / eslCONST_LOG2;
+      P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
       if (P > pli->F1 ) continue;    
-    pli->n_past_msv++;
-      pli->pos_past_msv += orfsq->n * 3;     
-      esl_sq_Copy(orfsq, &(post_msv_orf_block->list[post_msv_orf_block->count]));
-      post_msv_orf_block->count++;
-      if (data->prefix_lengths == NULL)  //otherwise, already filled in
-        p7_hmm_ScoreDataComputeRest(om, data); 
+      pli->n_past_msv++;
+
+      /* biased composition HMM filtering */
+      if (pli->do_biasfilter)
+      {
+        p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
+
+        seq_score = (usc - filtersc) / eslCONST_LOG2;
+        P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+        if (P > pli->F1) continue;
+      }  else filtersc = nullsc;
+      pli->n_past_bias++;
+
+      if (P > pli->F2)
+      {
+        p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
+        seq_score = (vfsc-filtersc) / eslCONST_LOG2;
+        P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
+        if (P > pli->F2) continue;
+      }
+      pli->n_past_vit++;
+
+      esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
+      post_vit_orf_block->count++;
+   
     }
     esl_sq_Reuse(orfsq);
   }
 
-  status = p7_pli_postMSV_Frameshift(pli, om, gm, bg, hitlist, seqidx, data, post_msv_orf_block, dnasq, gcode, pli_tmp);     
-   
-  pli_tmp->tmpseq->dsq = NULL;  
+  p7_profile_fs_GetFwdEmissionArray(gm, bg, pli_tmp->fwd_emissions_arr);
+ 
+   if (data->prefix_lengths == NULL)  //otherwise, already filled in
+        p7_hmm_ScoreDataComputeRest(om, data);
   
-  if ( post_msv_orf_block != NULL) esl_sq_DestroyBlock(post_msv_orf_block); 
+  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, 0.2);
+
+  pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
+
+  for(i = 0; i < post_vit_orf_block->count; i++)
+    status = p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, seqidx, post_vit_orf_block->list[i].start, post_vit_orf_block->list[i].end, dnasq, gcode, pli_tmp);
+   
+  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (pli_tmp != NULL) 
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
-    if (pli_tmp->gm != NULL)     p7_profile_Destroy(pli_tmp->gm);
+    if (pli_tmp->gm != NULL)     p7_profile_fs_Destroy(pli_tmp->gm);
     if (pli_tmp->scores != NULL)        free (pli_tmp->scores);
     if (pli_tmp->fwd_emissions_arr != NULL) free (pli_tmp->fwd_emissions_arr);
     free(pli_tmp);
@@ -2735,12 +2818,12 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   return eslOK;
 
 ERROR:
-  if ( post_msv_orf_block != NULL) esl_sq_DestroyBlock(post_msv_orf_block); 
+  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if ( pli_tmp != NULL )
   {
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
-    if (pli_tmp->gm != NULL)     p7_profile_Destroy(pli_tmp->gm);
+    if (pli_tmp->gm != NULL)     p7_profile_fs_Destroy(pli_tmp->gm);
     if (pli_tmp->scores != NULL)        free (pli_tmp->scores);
     if (pli_tmp->fwd_emissions_arr != NULL) free (pli_tmp->fwd_emissions_arr);
     free(pli_tmp);
@@ -2762,85 +2845,85 @@ ERROR:
  *
  * Returns:   <eslOK> on success.
  */
-	int
+  int
 p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
 {
-	double ntargets; 
+  double ntargets; 
 
-	fprintf(ofp, "Internal pipeline statistics summary:\n");
-	fprintf(ofp, "-------------------------------------\n");
-	if (pli->mode == p7_SEARCH_SEQS) {
-		fprintf(ofp, "Query model(s):              %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
-		fprintf(ofp, "Target sequences:            %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
-		ntargets = pli->nseqs;
-	} else {
-		fprintf(ofp, "Query sequence(s):           %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
-		fprintf(ofp, "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
-		ntargets = pli->nmodels;
-	}
+  fprintf(ofp, "Internal pipeline statistics summary:\n");
+  fprintf(ofp, "-------------------------------------\n");
+  if (pli->mode == p7_SEARCH_SEQS) {
+    fprintf(ofp, "Query model(s):              %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
+    fprintf(ofp, "Target sequences:            %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
+    ntargets = pli->nseqs;
+  } else {
+    fprintf(ofp, "Query sequence(s):           %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
+    fprintf(ofp, "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
+    ntargets = pli->nmodels;
+  }
 
-	if (pli->long_targets) { // nhmmer style
-		fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-				pli->pos_past_msv,
-				(double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,
-				pli->F1);
+  if (pli->long_targets) { // nhmmer style
+    fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
+        pli->pos_past_msv,
+        (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,
+        pli->F1);
 
-		fprintf(ofp, "Residues passing bias filter:%15" PRId64 "  (%.3g); expected (%.3g)\n",
-				pli->pos_past_bias,
-				(double)pli->pos_past_bias / (pli->nres*pli->nmodels) ,
-				pli->F1);
+    fprintf(ofp, "Residues passing bias filter:%15" PRId64 "  (%.3g); expected (%.3g)\n",
+        pli->pos_past_bias,
+        (double)pli->pos_past_bias / (pli->nres*pli->nmodels) ,
+        pli->F1);
 
-		fprintf(ofp, "Residues passing Vit filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-				pli->pos_past_vit,
-				(double)pli->pos_past_vit / (pli->nres*pli->nmodels) ,
-				pli->F2);
+    fprintf(ofp, "Residues passing Vit filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
+        pli->pos_past_vit,
+        (double)pli->pos_past_vit / (pli->nres*pli->nmodels) ,
+        pli->F2);
 
-		fprintf(ofp, "Residues passing Fwd filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-				pli->pos_past_fwd,
-				(double)pli->pos_past_fwd / (pli->nres*pli->nmodels) ,
-				pli->F3);
+    fprintf(ofp, "Residues passing Fwd filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
+        pli->pos_past_fwd,
+        (double)pli->pos_past_fwd / (pli->nres*pli->nmodels) ,
+        pli->F3);
 
-		fprintf(ofp, "Total number of hits:        %15d  (%.3g)\n",
-				(int)pli->n_output,
-				(double)pli->pos_output / (pli->nres*pli->nmodels) );
+    fprintf(ofp, "Total number of hits:        %15d  (%.3g)\n",
+        (int)pli->n_output,
+        (double)pli->pos_output / (pli->nres*pli->nmodels) );
 
-	} else { // typical case output
+  } else { // typical case output
 
-		fprintf(ofp, "Passed MSV filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-				pli->n_past_msv,
-				(double) pli->n_past_msv / ntargets,
-				pli->F1 * ntargets,
-				pli->F1);
+    fprintf(ofp, "Passed MSV filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
+        pli->n_past_msv,
+        (double) pli->n_past_msv / ntargets,
+        pli->F1 * ntargets,
+        pli->F1);
 
-		fprintf(ofp, "Passed bias filter:          %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-				pli->n_past_bias,
-				(double) pli->n_past_bias / ntargets,
-				pli->F1 * ntargets,
-				pli->F1);
+    fprintf(ofp, "Passed bias filter:          %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
+        pli->n_past_bias,
+        (double) pli->n_past_bias / ntargets,
+        pli->F1 * ntargets,
+        pli->F1);
 
-		fprintf(ofp, "Passed Vit filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-				pli->n_past_vit,
-				(double) pli->n_past_vit / ntargets,
-				pli->F2 * ntargets,
-				pli->F2);
+    fprintf(ofp, "Passed Vit filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
+        pli->n_past_vit,
+        (double) pli->n_past_vit / ntargets,
+        pli->F2 * ntargets,
+        pli->F2);
 
-		fprintf(ofp, "Passed Fwd filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-				pli->n_past_fwd,
-				(double) pli->n_past_fwd / ntargets,
-				pli->F3 * ntargets,
-				pli->F3);
+    fprintf(ofp, "Passed Fwd filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
+        pli->n_past_fwd,
+        (double) pli->n_past_fwd / ntargets,
+        pli->F3 * ntargets,
+        pli->F3);
 
-		fprintf(ofp, "Initial search space (Z):    %15.0f  %s\n", pli->Z,    pli->Z_setby    == p7_ZSETBY_OPTION ? "[as set by --Z on cmdline]"    : "[actual number of targets]");
-		fprintf(ofp, "Domain search space  (domZ): %15.0f  %s\n", pli->domZ, pli->domZ_setby == p7_ZSETBY_OPTION ? "[as set by --domZ on cmdline]" : "[number of targets reported over threshold]");
-	}
+    fprintf(ofp, "Initial search space (Z):    %15.0f  %s\n", pli->Z,    pli->Z_setby    == p7_ZSETBY_OPTION ? "[as set by --Z on cmdline]"    : "[actual number of targets]");
+    fprintf(ofp, "Domain search space  (domZ): %15.0f  %s\n", pli->domZ, pli->domZ_setby == p7_ZSETBY_OPTION ? "[as set by --domZ on cmdline]" : "[number of targets reported over threshold]");
+  }
 
-	if (w != NULL) {
-		esl_stopwatch_Display(ofp, w, "# CPU time: ");
-		fprintf(ofp, "# Mc/sec: %.2f\n", 
-				(double) pli->nres * (double) pli->nnodes / (w->elapsed * 1.0e6));
-	}
+  if (w != NULL) {
+    esl_stopwatch_Display(ofp, w, "# CPU time: ");
+    fprintf(ofp, "# Mc/sec: %.2f\n", 
+        (double) pli->nres * (double) pli->nnodes / (w->elapsed * 1.0e6));
+  }
 
-	return eslOK;
+  return eslOK;
 }
 /*------------------- end, pipeline API -------------------------*/
 
@@ -2863,121 +2946,121 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
 #include "hmmer.h"
 
 static ESL_OPTIONS options[] = {
-	/* name           type         default   env  range   toggles   reqs   incomp                             help                                                  docgroup*/
-	{ "-h",           eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  NULL,                          "show brief help on version and usage",                         0 },
-	{ "-E",           eslARG_REAL,  "10.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting significant sequence hits",       0 },
-	{ "-T",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting significant sequence hits",     0 },
-	{ "-Z",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of comparisons done, for E-value calculation",           0 },
-	{ "--domE",       eslARG_REAL,"1000.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting individual domains",              0 },
-	{ "--domT",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting individual domains",            0 },
-	{ "--domZ",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of significant seqs, for domain E-value calculation",    0 },
-	{ "--cut_ga",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use GA gathering threshold bit score cutoffs in <hmmfile>",    0 },
-	{ "--cut_nc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use NC noise threshold bit score cutoffs in <hmmfile>",        0 },
-	{ "--cut_tc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use TC trusted threshold bit score cutoffs in <hmmfile>",      0 },
-	{ "--max",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL, "--F1,--F2,--F3",               "Turn all heuristic filters off (less speed, more power)",      0 },
-	{ "--F1",         eslARG_REAL,  "0.02", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 1 (MSV) threshold: promote hits w/ P <= F1",             0 },
-	{ "--F2",         eslARG_REAL,  "1e-3", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 2 (Vit) threshold: promote hits w/ P <= F2",             0 },
-	{ "--F3",         eslARG_REAL,  "1e-5", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 3 (Fwd) threshold: promote hits w/ P <= F3",             0 },
-	{ "--nobias",     eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL, "--max",                        "turn off composition bias filter",                             0 },
-	{ "--nonull2",    eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL,  NULL,                          "turn off biased composition score corrections",                0 },
-	{ "--seed",       eslARG_INT,    "42",  NULL, "n>=0",    NULL,  NULL,  NULL,                          "set RNG seed to <n> (if 0: one-time arbitrary seed)",          0 },
-	{ "--acc",        eslARG_NONE,  FALSE,  NULL, NULL,      NULL,  NULL,  NULL,                          "output target accessions instead of names if possible",        0 },
-	{  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  /* name           type         default   env  range   toggles   reqs   incomp                             help                                                  docgroup*/
+  { "-h",           eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  NULL,                          "show brief help on version and usage",                         0 },
+  { "-E",           eslARG_REAL,  "10.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting significant sequence hits",       0 },
+  { "-T",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting significant sequence hits",     0 },
+  { "-Z",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of comparisons done, for E-value calculation",           0 },
+  { "--domE",       eslARG_REAL,"1000.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting individual domains",              0 },
+  { "--domT",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting individual domains",            0 },
+  { "--domZ",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of significant seqs, for domain E-value calculation",    0 },
+  { "--cut_ga",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use GA gathering threshold bit score cutoffs in <hmmfile>",    0 },
+  { "--cut_nc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use NC noise threshold bit score cutoffs in <hmmfile>",        0 },
+  { "--cut_tc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use TC trusted threshold bit score cutoffs in <hmmfile>",      0 },
+  { "--max",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL, "--F1,--F2,--F3",               "Turn all heuristic filters off (less speed, more power)",      0 },
+  { "--F1",         eslARG_REAL,  "0.02", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 1 (MSV) threshold: promote hits w/ P <= F1",             0 },
+  { "--F2",         eslARG_REAL,  "1e-3", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 2 (Vit) threshold: promote hits w/ P <= F2",             0 },
+  { "--F3",         eslARG_REAL,  "1e-5", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 3 (Fwd) threshold: promote hits w/ P <= F3",             0 },
+  { "--nobias",     eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL, "--max",                        "turn off composition bias filter",                             0 },
+  { "--nonull2",    eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL,  NULL,                          "turn off biased composition score corrections",                0 },
+  { "--seed",       eslARG_INT,    "42",  NULL, "n>=0",    NULL,  NULL,  NULL,                          "set RNG seed to <n> (if 0: one-time arbitrary seed)",          0 },
+  { "--acc",        eslARG_NONE,  FALSE,  NULL, NULL,      NULL,  NULL,  NULL,                          "output target accessions instead of names if possible",        0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile> <seqdb>";
 static char banner[] = "example of using acceleration pipeline in search mode (seq targets)";
 
-	int
+  int
 main(int argc, char **argv)
 {
-	ESL_GETOPTS  *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
-	char         *hmmfile = esl_opt_GetArg(go, 1);
-	char         *seqfile = esl_opt_GetArg(go, 2);
-	int           format  = eslSQFILE_FASTA;
-	P7_HMMFILE   *hfp     = NULL;
-	ESL_ALPHABET *abc     = NULL;
-	P7_BG        *bg      = NULL;
-	P7_HMM       *hmm     = NULL;
-	P7_PROFILE   *gm      = NULL;
-	P7_OPROFILE  *om      = NULL;
-	ESL_SQFILE   *sqfp    = NULL;
-	ESL_SQ       *sq      = NULL;
-	P7_PIPELINE  *pli     = NULL;
-	P7_TOPHITS   *hitlist = NULL;
-	int           h,d,namew;
+  ESL_GETOPTS  *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
+  char         *hmmfile = esl_opt_GetArg(go, 1);
+  char         *seqfile = esl_opt_GetArg(go, 2);
+  int           format  = eslSQFILE_FASTA;
+  P7_HMMFILE   *hfp     = NULL;
+  ESL_ALPHABET *abc     = NULL;
+  P7_BG        *bg      = NULL;
+  P7_HMM       *hmm     = NULL;
+  P7_PROFILE   *gm      = NULL;
+  P7_OPROFILE  *om      = NULL;
+  ESL_SQFILE   *sqfp    = NULL;
+  ESL_SQ       *sq      = NULL;
+  P7_PIPELINE  *pli     = NULL;
+  P7_TOPHITS   *hitlist = NULL;
+  int           h,d,namew;
 
-	/* Don't forget this. Null2 corrections need FLogsum() */
-	p7_FLogsumInit();
+  /* Don't forget this. Null2 corrections need FLogsum() */
+  p7_FLogsumInit();
 
-	/* Read in one HMM */
-	if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-	if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
-	p7_hmmfile_Close(hfp);
+  /* Read in one HMM */
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+  p7_hmmfile_Close(hfp);
 
-	/* Open a sequence file */
-	if (esl_sqfile_OpenDigital(abc, seqfile, format, NULL, &sqfp) != eslOK) p7_Fail("Failed to open sequence file %s\n", seqfile);
-	sq = esl_sq_CreateDigital(abc);
+  /* Open a sequence file */
+  if (esl_sqfile_OpenDigital(abc, seqfile, format, NULL, &sqfp) != eslOK) p7_Fail("Failed to open sequence file %s\n", seqfile);
+  sq = esl_sq_CreateDigital(abc);
 
-	/* Create a pipeline and a top hits list */
-	pli     = p7_pipeline_Create(go, hmm->M, 400, FALSE, p7_SEARCH_SEQS);
-	hitlist = p7_tophits_Create();
+  /* Create a pipeline and a top hits list */
+  pli     = p7_pipeline_Create(go, hmm->M, 400, FALSE, p7_SEARCH_SEQS);
+  hitlist = p7_tophits_Create();
 
-	/* Configure a profile from the HMM */
-	bg = p7_bg_Create(abc);
-	gm = p7_profile_Create(hmm->M, abc);
-	om = p7_oprofile_Create(hmm->M, abc);
-	p7_ProfileConfig(hmm, bg, gm, 400, p7_LOCAL);
-	p7_oprofile_Convert(gm, om);     /* <om> is now p7_LOCAL, multihit */
-	p7_pli_NewModel(pli, om, bg);
+  /* Configure a profile from the HMM */
+  bg = p7_bg_Create(abc);
+  gm = p7_profile_Create(hmm->M, abc);
+  om = p7_oprofile_Create(hmm->M, abc);
+  p7_ProfileConfig(hmm, bg, gm, 400, p7_LOCAL);
+  p7_oprofile_Convert(gm, om);     /* <om> is now p7_LOCAL, multihit */
+  p7_pli_NewModel(pli, om, bg);
 
-	/* Run each target sequence through the pipeline */
-	while (esl_sqio_Read(sqfp, sq) == eslOK)
-	{ 
-		p7_pli_NewSeq(pli, sq);
-		p7_bg_SetLength(bg, sq->n);
-		p7_oprofile_ReconfigLength(om, sq->n);
+  /* Run each target sequence through the pipeline */
+  while (esl_sqio_Read(sqfp, sq) == eslOK)
+  { 
+    p7_pli_NewSeq(pli, sq);
+    p7_bg_SetLength(bg, sq->n);
+    p7_oprofile_ReconfigLength(om, sq->n);
 
-		p7_Pipeline(pli, om, bg, sq, NULL, hitlist, NULL);
+    p7_Pipeline(pli, om, bg, sq, NULL, hitlist, NULL);
 
-		esl_sq_Reuse(sq);
-		p7_pipeline_Reuse(pli);
-	}
+    esl_sq_Reuse(sq);
+    p7_pipeline_Reuse(pli);
+  }
 
-	/* Print the results. 
-	 * This example is a stripped version of hmmsearch's tabular output.
-	 */
-	p7_tophits_SortBySortkey(hitlist);
-	namew = ESL_MAX(8, p7_tophits_GetMaxNameLength(hitlist));
-	for (h = 0; h < hitlist->N; h++)
-	{
-		d    = hitlist->hit[h]->best_domain;
+  /* Print the results. 
+   * This example is a stripped version of hmmsearch's tabular output.
+   */
+  p7_tophits_SortBySortkey(hitlist);
+  namew = ESL_MAX(8, p7_tophits_GetMaxNameLength(hitlist));
+  for (h = 0; h < hitlist->N; h++)
+  {
+    d    = hitlist->hit[h]->best_domain;
 
-		printf("%10.2g %7.1f %6.1f  %7.1f %6.1f %10.2g  %6.1f %5d  %-*s %s\n",
-				exp(hitlist->hit[h]->lnP) * (double) pli->Z,
-				hitlist->hit[h]->score,
-				hitlist->hit[h]->pre_score - hitlist->hit[h]->score, /* bias correction */
-				hitlist->hit[h]->dcl[d].bitscore,
-				eslCONST_LOG2R * p7_FLogsum(0.0, log(bg->omega) + hitlist->hit[h]->dcl[d].domcorrection), /* print in units of bits */
-				exp(hitlist->hit[h]->dcl[d].lnP) * (double) pli->Z,
-				hitlist->hit[h]->nexpected,
-				hitlist->hit[h]->nreported,
-				namew,
-				hitlist->hit[h]->name,
-				hitlist->hit[h]->desc);
-	}
+    printf("%10.2g %7.1f %6.1f  %7.1f %6.1f %10.2g  %6.1f %5d  %-*s %s\n",
+        exp(hitlist->hit[h]->lnP) * (double) pli->Z,
+        hitlist->hit[h]->score,
+        hitlist->hit[h]->pre_score - hitlist->hit[h]->score, /* bias correction */
+        hitlist->hit[h]->dcl[d].bitscore,
+        eslCONST_LOG2R * p7_FLogsum(0.0, log(bg->omega) + hitlist->hit[h]->dcl[d].domcorrection), /* print in units of bits */
+        exp(hitlist->hit[h]->dcl[d].lnP) * (double) pli->Z,
+        hitlist->hit[h]->nexpected,
+        hitlist->hit[h]->nreported,
+        namew,
+        hitlist->hit[h]->name,
+        hitlist->hit[h]->desc);
+  }
 
-	/* Done. */
-	p7_tophits_Destroy(hitlist);
-	p7_pipeline_Destroy(pli);
-	esl_sq_Destroy(sq);
-	esl_sqfile_Close(sqfp);
-	p7_oprofile_Destroy(om);
-	p7_profile_Destroy(gm);
-	p7_hmm_Destroy(hmm);
-	p7_bg_Destroy(bg);
-	esl_alphabet_Destroy(abc);
-	esl_getopts_Destroy(go);
-	return 0;
+  /* Done. */
+  p7_tophits_Destroy(hitlist);
+  p7_pipeline_Destroy(pli);
+  esl_sq_Destroy(sq);
+  esl_sqfile_Close(sqfp);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_hmm_Destroy(hmm);
+  p7_bg_Destroy(bg);
+  esl_alphabet_Destroy(abc);
+  esl_getopts_Destroy(go);
+  return 0;
 }
 #endif /*p7PIPELINE_EXAMPLE*/
 /*----------- end, search mode (seq db) example -----------------*/
@@ -3002,120 +3085,120 @@ main(int argc, char **argv)
 #include "hmmer.h"
 
 static ESL_OPTIONS options[] = {
-	/* name           type         default   env  range   toggles   reqs   incomp                             help                                                  docgroup*/
-	{ "-h",           eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  NULL,                          "show brief help on version and usage",                         0 },
-	{ "-E",           eslARG_REAL,  "10.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting significant sequence hits",       0 },
-	{ "-T",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting significant sequence hits",     0 },
-	{ "-Z",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of comparisons done, for E-value calculation",           0 },
-	{ "--domE",       eslARG_REAL,"1000.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting individual domains",              0 },
-	{ "--domT",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting individual domains",            0 },
-	{ "--domZ",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of significant seqs, for domain E-value calculation",    0 },
-	{ "--cut_ga",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use GA gathering threshold bit score cutoffs in <hmmfile>",    0 },
-	{ "--cut_nc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use NC noise threshold bit score cutoffs in <hmmfile>",        0 },
-	{ "--cut_tc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use TC trusted threshold bit score cutoffs in <hmmfile>",      0 },
-	{ "--max",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL, "--F1,--F2,--F3",               "Turn all heuristic filters off (less speed, more power)",      0 },
-	{ "--F1",         eslARG_REAL,  "0.02", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 1 (MSV) threshold: promote hits w/ P <= F1",             0 },
-	{ "--F2",         eslARG_REAL,  "1e-3", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 2 (Vit) threshold: promote hits w/ P <= F2",             0 },
-	{ "--F3",         eslARG_REAL,  "1e-5", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 3 (Fwd) threshold: promote hits w/ P <= F3",             0 },
-	{ "--nobias",     eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL, "--max",                        "turn off composition bias filter",                             0 },
-	{ "--nonull2",    eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL,  NULL,                          "turn off biased composition score corrections",                0 },
-	{ "--seed",       eslARG_INT,    "42",  NULL, "n>=0",    NULL,  NULL,  NULL,                          "set RNG seed to <n> (if 0: one-time arbitrary seed)",          0 },
-	{ "--acc",        eslARG_NONE,  FALSE,  NULL, NULL,      NULL,  NULL,  NULL,                          "output target accessions instead of names if possible",        0 },
-	{  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  /* name           type         default   env  range   toggles   reqs   incomp                             help                                                  docgroup*/
+  { "-h",           eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  NULL,                          "show brief help on version and usage",                         0 },
+  { "-E",           eslARG_REAL,  "10.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting significant sequence hits",       0 },
+  { "-T",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting significant sequence hits",     0 },
+  { "-Z",           eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of comparisons done, for E-value calculation",           0 },
+  { "--domE",       eslARG_REAL,"1000.0", NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "E-value cutoff for reporting individual domains",              0 },
+  { "--domT",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  "--cut_ga,--cut_nc,--cut_tc",  "bit score cutoff for reporting individual domains",            0 },
+  { "--domZ",       eslARG_REAL,   FALSE, NULL, "x>0",     NULL,  NULL,  NULL,                          "set # of significant seqs, for domain E-value calculation",    0 },
+  { "--cut_ga",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use GA gathering threshold bit score cutoffs in <hmmfile>",    0 },
+  { "--cut_nc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use NC noise threshold bit score cutoffs in <hmmfile>",        0 },
+  { "--cut_tc",     eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  "--seqE,--seqT,--domE,--domT", "use TC trusted threshold bit score cutoffs in <hmmfile>",      0 },
+  { "--max",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL, "--F1,--F2,--F3",               "Turn all heuristic filters off (less speed, more power)",      0 },
+  { "--F1",         eslARG_REAL,  "0.02", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 1 (MSV) threshold: promote hits w/ P <= F1",             0 },
+  { "--F2",         eslARG_REAL,  "1e-3", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 2 (Vit) threshold: promote hits w/ P <= F2",             0 },
+  { "--F3",         eslARG_REAL,  "1e-5", NULL, NULL,      NULL,  NULL, "--max",                        "Stage 3 (Fwd) threshold: promote hits w/ P <= F3",             0 },
+  { "--nobias",     eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL, "--max",                        "turn off composition bias filter",                             0 },
+  { "--nonull2",    eslARG_NONE,   NULL,  NULL, NULL,      NULL,  NULL,  NULL,                          "turn off biased composition score corrections",                0 },
+  { "--seed",       eslARG_INT,    "42",  NULL, "n>=0",    NULL,  NULL,  NULL,                          "set RNG seed to <n> (if 0: one-time arbitrary seed)",          0 },
+  { "--acc",        eslARG_NONE,  FALSE,  NULL, NULL,      NULL,  NULL,  NULL,                          "output target accessions instead of names if possible",        0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile> <seqfile>";
 static char banner[] = "example of using acceleration pipeline in scan mode (HMM targets)";
 
-	int
+  int
 main(int argc, char **argv)
 {
-	ESL_GETOPTS  *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
-	char         *hmmfile = esl_opt_GetArg(go, 1);
-	char         *seqfile = esl_opt_GetArg(go, 2);
-	int           format  = eslSQFILE_FASTA;
-	P7_HMMFILE   *hfp     = NULL;
-	ESL_ALPHABET *abc     = NULL;
-	P7_BG        *bg      = NULL;
-	P7_OPROFILE  *om      = NULL;
-	ESL_SQFILE   *sqfp    = NULL;
-	ESL_SQ       *sq      = NULL;
-	P7_PIPELINE  *pli     = NULL;
-	P7_TOPHITS   *hitlist = p7_tophits_Create();
-	int           h,d,namew;
+  ESL_GETOPTS  *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
+  char         *hmmfile = esl_opt_GetArg(go, 1);
+  char         *seqfile = esl_opt_GetArg(go, 2);
+  int           format  = eslSQFILE_FASTA;
+  P7_HMMFILE   *hfp     = NULL;
+  ESL_ALPHABET *abc     = NULL;
+  P7_BG        *bg      = NULL;
+  P7_OPROFILE  *om      = NULL;
+  ESL_SQFILE   *sqfp    = NULL;
+  ESL_SQ       *sq      = NULL;
+  P7_PIPELINE  *pli     = NULL;
+  P7_TOPHITS   *hitlist = p7_tophits_Create();
+  int           h,d,namew;
 
-	/* Don't forget this. Null2 corrections need FLogsum() */
-	p7_FLogsumInit();
+  /* Don't forget this. Null2 corrections need FLogsum() */
+  p7_FLogsumInit();
 
-	/* Open a sequence file, read one seq from it.
-	 * Convert to digital later, after 1st HMM is input and abc becomes known 
-	 */
-	sq = esl_sq_Create();
-	if (esl_sqfile_Open(seqfile, format, NULL, &sqfp) != eslOK) p7_Fail("Failed to open sequence file %s\n", seqfile);
-	if (esl_sqio_Read(sqfp, sq)                       != eslOK) p7_Fail("Failed to read sequence from %s\n", seqfile);
-	esl_sqfile_Close(sqfp);
+  /* Open a sequence file, read one seq from it.
+   * Convert to digital later, after 1st HMM is input and abc becomes known 
+   */
+  sq = esl_sq_Create();
+  if (esl_sqfile_Open(seqfile, format, NULL, &sqfp) != eslOK) p7_Fail("Failed to open sequence file %s\n", seqfile);
+  if (esl_sqio_Read(sqfp, sq)                       != eslOK) p7_Fail("Failed to read sequence from %s\n", seqfile);
+  esl_sqfile_Close(sqfp);
 
-	/* Open the HMM db */
-	if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  /* Open the HMM db */
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
 
-	/* Create a pipeline for the query sequence in scan mode */
-	pli      = p7_pipeline_Create(go, 100, sq->n, FALSE, p7_SCAN_MODELS);
-	p7_pli_NewSeq(pli, sq);
+  /* Create a pipeline for the query sequence in scan mode */
+  pli      = p7_pipeline_Create(go, 100, sq->n, FALSE, p7_SCAN_MODELS);
+  p7_pli_NewSeq(pli, sq);
 
-	/* Some additional config of the pipeline specific to scan mode */
-	pli->hfp = hfp;
-	if (! pli->Z_is_fixed && hfp->is_pressed) { pli->Z_is_fixed = TRUE; pli->Z = hfp->ssi->nprimary; }
+  /* Some additional config of the pipeline specific to scan mode */
+  pli->hfp = hfp;
+  if (! pli->Z_is_fixed && hfp->is_pressed) { pli->Z_is_fixed = TRUE; pli->Z = hfp->ssi->nprimary; }
 
-	/* Read (partial) of each HMM in file */
-	while (p7_oprofile_ReadMSV(hfp, &abc, &om) == eslOK) 
-	{
-		/* One time only initialization after abc becomes known */
-		if (bg == NULL) 
-		{
-			bg = p7_bg_Create(abc);
-			if (esl_sq_Digitize(abc, sq) != eslOK) p7_Die("alphabet mismatch");
-		}
-		p7_pli_NewModel(pli, om, bg);
-		p7_bg_SetLength(bg, sq->n); /* SetLength() call MUST follow NewModel() call, because NewModel() resets the filter HMM, including its default expected length; see bug #h85 */
-		p7_oprofile_ReconfigLength(om, sq->n);
+  /* Read (partial) of each HMM in file */
+  while (p7_oprofile_ReadMSV(hfp, &abc, &om) == eslOK) 
+  {
+    /* One time only initialization after abc becomes known */
+    if (bg == NULL) 
+    {
+      bg = p7_bg_Create(abc);
+      if (esl_sq_Digitize(abc, sq) != eslOK) p7_Die("alphabet mismatch");
+    }
+    p7_pli_NewModel(pli, om, bg);
+    p7_bg_SetLength(bg, sq->n); /* SetLength() call MUST follow NewModel() call, because NewModel() resets the filter HMM, including its default expected length; see bug #h85 */
+    p7_oprofile_ReconfigLength(om, sq->n);
 
-		p7_Pipeline(pli, om, bg, sq, NULL, hitlist, NULL);
+    p7_Pipeline(pli, om, bg, sq, NULL, hitlist, NULL);
 
-		p7_oprofile_Destroy(om);
-		p7_pipeline_Reuse(pli);
-	} 
+    p7_oprofile_Destroy(om);
+    p7_pipeline_Reuse(pli);
+  } 
 
-	/* Print the results. 
-	 * This example is a stripped version of hmmsearch's tabular output.
-	 */
-	p7_tophits_SortBySortkey(hitlist);
-	namew = ESL_MAX(8, p7_tophits_GetMaxNameLength(hitlist));
-	for (h = 0; h < hitlist->N; h++)
-	{
-		d    = hitlist->hit[h]->best_domain;
+  /* Print the results. 
+   * This example is a stripped version of hmmsearch's tabular output.
+   */
+  p7_tophits_SortBySortkey(hitlist);
+  namew = ESL_MAX(8, p7_tophits_GetMaxNameLength(hitlist));
+  for (h = 0; h < hitlist->N; h++)
+  {
+    d    = hitlist->hit[h]->best_domain;
 
-		printf("%10.2g %7.1f %6.1f  %7.1f %6.1f %10.2g  %6.1f %5d  %-*s %s\n",
-				exp(hitlist->hit[h]->lnP) * (double) pli->Z,
-				hitlist->hit[h]->score,
-				hitlist->hit[h]->pre_score - hitlist->hit[h]->score, /* bias correction */
-				hitlist->hit[h]->dcl[d].bitscore,
-				eslCONST_LOG2R * p7_FLogsum(0.0, log(bg->omega) + hitlist->hit[h]->dcl[d].domcorrection), /* print in units of BITS */
-				exp(hitlist->hit[h]->dcl[d].lnP) * (double) pli->Z,
-				hitlist->hit[h]->nexpected,
-				hitlist->hit[h]->nreported,
-				namew,
-				hitlist->hit[h]->name,
-				hitlist->hit[h]->desc);
-	}
+    printf("%10.2g %7.1f %6.1f  %7.1f %6.1f %10.2g  %6.1f %5d  %-*s %s\n",
+        exp(hitlist->hit[h]->lnP) * (double) pli->Z,
+        hitlist->hit[h]->score,
+        hitlist->hit[h]->pre_score - hitlist->hit[h]->score, /* bias correction */
+        hitlist->hit[h]->dcl[d].bitscore,
+        eslCONST_LOG2R * p7_FLogsum(0.0, log(bg->omega) + hitlist->hit[h]->dcl[d].domcorrection), /* print in units of BITS */
+        exp(hitlist->hit[h]->dcl[d].lnP) * (double) pli->Z,
+        hitlist->hit[h]->nexpected,
+        hitlist->hit[h]->nreported,
+        namew,
+        hitlist->hit[h]->name,
+        hitlist->hit[h]->desc);
+  }
 
-	/* Done. */
-	p7_tophits_Destroy(hitlist);
-	p7_pipeline_Destroy(pli);
-	esl_sq_Destroy(sq);
-	p7_hmmfile_Close(hfp);
-	p7_bg_Destroy(bg);
-	esl_alphabet_Destroy(abc);
-	esl_getopts_Destroy(go);
-	return 0;
+  /* Done. */
+  p7_tophits_Destroy(hitlist);
+  p7_pipeline_Destroy(pli);
+  esl_sq_Destroy(sq);
+  p7_hmmfile_Close(hfp);
+  p7_bg_Destroy(bg);
+  esl_alphabet_Destroy(abc);
+  esl_getopts_Destroy(go);
+  return 0;
 }
 #endif /*p7PIPELINE_EXAMPLE2*/
 /*--------------- end, scan mode (HMM db) example ---------------*/

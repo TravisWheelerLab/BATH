@@ -47,7 +47,7 @@
 int
 p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode)
 {
-  int   k, x, z;	/* counters over states, residues, annotation */
+  int   k, x, z;  /* counters over states, residues, annotation */
   int   status;
   float *occ = NULL;
   float *tp, *rp;
@@ -92,21 +92,21 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 
       if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
       for (k = 1; k <= hmm->M; k++) 
-	Z += occ[k] * (float) (hmm->M-k+1);
+  Z += occ[k] * (float) (hmm->M-k+1);
       for (k = 1; k <= hmm->M; k++) 
-	p7P_TSC(gm, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
+  p7P_TSC(gm, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
 
       free(occ);
     }
-  else	/* glocal modes: left wing retraction; must be in log space for precision */
+  else  /* glocal modes: left wing retraction; must be in log space for precision */
     {
       Z = log(hmm->t[0][p7H_MD]);
       p7P_TSC(gm, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
       for (k = 1; k < hmm->M; k++) 
-	{
-	   p7P_TSC(gm, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
-	   Z += log(hmm->t[k][p7H_DD]);
-	}
+  {
+     p7P_TSC(gm, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
+     Z += log(hmm->t[k][p7H_DD]);
+  }
     }
 
   /* E state loop/move probabilities: nonzero for MOVE allows loops/multihits
@@ -185,7 +185,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength()
    */
-  gm->L = 0;			/* force ReconfigLength to reconfig */
+  gm->L = 0;      /* force ReconfigLength to reconfig */
   if ((status = p7_ReconfigLength(gm, L)) != eslOK) goto ERROR;
   return eslOK;
 
@@ -409,7 +409,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
       p7P_AMINO3(gm, k, v, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
     } 
     p7P_AMINO3(gm, k, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-	
+  
     for (x = 0; x < 4; x++)
       p7P_AMINO1(gm, k, x) = max_aa1[x];
     p7P_AMINO1(gm, k, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
@@ -601,7 +601,7 @@ p7_ReconfigLength_Frameshift(P7_PROFILE *gm, int L)
   float ploop, pmove;
   int amino_len;
 
-  amino_len = L	/ 3 + 1;  
+  amino_len = L  / 3 + 1;  
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
@@ -1016,9 +1016,9 @@ static ESL_OPTIONS options[] = {
 static char usage[] = "./statprog [options]";
 
 static int ideal_local_endpoints(ESL_RANDOMNESS *r, P7_HMM *hmm, ESL_SQ *sq, P7_TRACE *tr, int Lbins,
-				 int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2);
+         int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2);
 static int profile_local_endpoints(ESL_RANDOMNESS *r, P7_HMM *core, P7_PROFILE *gm, ESL_SQ *sq, P7_TRACE *tr, int Lbins,
-				   int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2);
+           int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2);
 
 int
 main(int argc, char **argv)
@@ -1088,7 +1088,7 @@ main(int argc, char **argv)
   r = esl_randomness_CreateFast(0);
 
   if (hmmfile != NULL)
-    {	/* Read the HMM (and get alphabet from it) */
+    {  /* Read the HMM (and get alphabet from it) */
       P7_HMMFILE      *hfp     = NULL;
 
       status = p7_hmmfile_OpenE(hmmfile, NULL, &hfp, errbuf);
@@ -1097,16 +1097,16 @@ main(int argc, char **argv)
       else if (status != eslOK)        p7_Fail("Unexpected error %d in opening HMM file %s.\n%s\n",               status, hmmfile, errbuf);  
     
       if ((status = p7_hmmfile_Read(hfp, &abc, &hmm)) != eslOK) {
-	if      (status == eslEOD)       esl_fatal("read failed, HMM file %s may be truncated?", hmmfile);
-	else if (status == eslEFORMAT)   esl_fatal("bad file format in HMM file %s", hmmfile);
-	else if (status == eslEINCOMPAT) esl_fatal("HMM file %s contains different alphabets", hmmfile);
-	else                             esl_fatal("Unexpected error in reading HMMs");
+  if      (status == eslEOD)       esl_fatal("read failed, HMM file %s may be truncated?", hmmfile);
+  else if (status == eslEFORMAT)   esl_fatal("bad file format in HMM file %s", hmmfile);
+  else if (status == eslEINCOMPAT) esl_fatal("HMM file %s contains different alphabets", hmmfile);
+  else                             esl_fatal("Unexpected error in reading HMMs");
       }
       M = hmm->M;
       p7_hmmfile_Close(hfp);
     }
   else
-    {			/* Or sample the HMM (create alphabet first) */
+    {      /* Or sample the HMM (create alphabet first) */
       abc = esl_alphabet_Create(eslAMINO);    
       if      (do_ungapped) p7_hmm_SampleUngapped(r, M, abc, &hmm);
       else if (do_swlike)   p7_hmm_SampleUniform (r, M, abc, 0.05, 0.5, 0.05, 0.2, &hmm); /* tmi, tii, tmd, tdd */
@@ -1143,7 +1143,7 @@ main(int argc, char **argv)
    * cancels out the effect.
    */
   for (iseq = 0; iseq < nseq; iseq++)
-    {				
+    {        
       if (do_ilocal) ideal_local_endpoints  (r, core,     sq, tr, Lbins, &i1, &i2, &k1, &k2);
       else           profile_local_endpoints(r, core, gm, sq, tr, Lbins, &i1, &i2, &k1, &k2);
 
@@ -1170,13 +1170,13 @@ main(int argc, char **argv)
   for (i = 0; i < imx->m; i++)
     for (j = i; j < imx->m; j++)
       if (iref->mx[i][j] == 0. && imx->mx[i][j] == 0.) 
-	imx->mx[i][j] = 0.;
+  imx->mx[i][j] = 0.;
       else if (iref->mx[i][j] == 0.)
-	imx->mx[i][j] = eslINFINITY;
+  imx->mx[i][j] = eslINFINITY;
       else if (imx->mx[i][j] == 0.)
-	imx->mx[i][j] = -eslINFINITY;
+  imx->mx[i][j] = -eslINFINITY;
       else
-	imx->mx[i][j] = log(imx->mx[i][j] / iref->mx[i][j]) / log(2.0);
+  imx->mx[i][j] = log(imx->mx[i][j] / iref->mx[i][j]) / log(2.0);
   
   /* Print ps files */
   if (kpsfile != NULL) {
@@ -1249,13 +1249,13 @@ main(int argc, char **argv)
  */
 static int
 ideal_local_endpoints(ESL_RANDOMNESS *r, P7_HMM *hmm, ESL_SQ *sq, P7_TRACE *tr, int Lbins,
-		      int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2)
+          int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2)
 {
   int status;
   int tpos;
   int i1, i2, k1,k2, t1,t2;
   int all_insert;
-  int failsafe = 0;		/* a failsafe timer for rejection sampling */
+  int failsafe = 0;    /* a failsafe timer for rejection sampling */
 
   do {
     if (failsafe++ == 1000) ESL_XEXCEPTION(eslENOHALT, "failed to obtain local alignment that wasn't all inserts");
@@ -1370,16 +1370,16 @@ ideal_local_endpoints(ESL_RANDOMNESS *r, P7_HMM *hmm, ESL_SQ *sq, P7_TRACE *tr, 
  */
 static int
 profile_local_endpoints(ESL_RANDOMNESS *r, P7_HMM *core, P7_PROFILE *gm, ESL_SQ *sq, P7_TRACE *tr, int Lbins,
-			int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2)
+      int *ret_i1, int *ret_i2, int *ret_k1, int *ret_k2)
 {
   int status;
   int i1,i2;
   int k1,k2;
-  int t1,t2;			/* entry/exit positions in local trace, tr */
-  int tg1, tg2;			/* entry/exit positions in global trace, tr2 */
+  int t1,t2;      /* entry/exit positions in local trace, tr */
+  int tg1, tg2;      /* entry/exit positions in global trace, tr2 */
   int tpos;
-  int nterm, cterm;		/* offsets at N, C terminus. */
-  int L;			/* inferred length from 3-part patching */
+  int nterm, cterm;    /* offsets at N, C terminus. */
+  int L;      /* inferred length from 3-part patching */
   ESL_SQ *sq2   = NULL;
   P7_TRACE *tr2 = NULL;
   int failsafe  = 0;
@@ -1725,6 +1725,5 @@ profile_local_endpoints(ESL_RANDOMNESS *r, P7_HMM *core, P7_PROFILE *gm, ESL_SQ 
  * sense not to meet either constraint for certain modeling problems.
  *****************************************************************
  */
-
 
 

@@ -148,31 +148,16 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
                                bck->xmx[p7G_NXCELLS*i + p7G_B]     -  overall_sc); 
 
       /* proability from N, J and C states */
-      if ( i > 2 ) 
-      { 
-        XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_N] + gm->xsc[p7P_N][p7P_LOOP] + 
+        XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_N] + gm->xsc[p7P_N][p7P_LOOP] + 
                                bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
         
-        XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] +
+        XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] +
                                bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
-      }
-      else
-      {
-        XMX_FS(i,p7G_N) = expf(                                      gm->xsc[p7P_N][p7P_LOOP] +
-                               bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
 
-        XMX_FS(i,p7G_C) = expf(bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
-      }
-
-      if ( i > 3 )
-        XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] +
+        XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] +
                                bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
-      else
-         XMX_FS(i,p7G_J) = 0.;
     }
-//printf("N %f, fwd %f, loop %f, bwd %f\n", XMX_FS(9,p7G_N), expf(fwd->xmx[p7G_NXCELLS*6 + p7G_N]), expf(gm->xsc[p7P_N][p7P_LOOP]), expf(bck->xmx[p7G_NXCELLS*9 + p7G_N] ));
 
-//printf("M %f, fwd %f bwd %f\n", MMX_FS(9,3,p7G_C0),  expf(fwd->dp[9][3*p7G_NSCELLS_FS + p7G_M + p7G_C0]), expf(bck->dp[9][3*p7G_NSCELLS + p7G_M]));
   /* normailze i for all codons in which i may be present */
   for (i = 1; i <= L; i++) {
 
@@ -390,7 +375,7 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
 
   }
 
-  for (i = 1; i < L-1; i++)
+  for (i = 1; i < L; i++)
   {   
      njcp = 0.0;
      

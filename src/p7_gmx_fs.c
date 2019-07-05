@@ -42,7 +42,7 @@ p7_gmx_fs_Create(int allocM, int allocL)
 
   /* level 2: row pointers, 0.1..L; and dp cell memory  */
   ESL_ALLOC(gx->dp,      sizeof(float *) * (allocL+1));
-  ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocL+1) * p7G_NXCELLS);
+  ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocL+1) * p7G_NXCELLS_FS);
   ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+1) * (allocM+1) * p7G_NSCELLS_FS);
   
   /* Set the row pointers. */
@@ -124,7 +124,7 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L)
   /* must we reallocate the row pointers? */
   if (L >= gx->allocR)
     {
-      ESL_RALLOC(gx->xmx, p, sizeof(float)   * (L+1) * p7G_NXCELLS);
+      ESL_RALLOC(gx->xmx, p, sizeof(float)   * (L+1) * p7G_NXCELLS_FS);
       ESL_RALLOC(gx->dp,  p, sizeof(float *) * (L+1));
       gx->allocR = L+1;		/* allocW will also get set, in the do_reset block */
       do_reset   = TRUE;
@@ -164,7 +164,7 @@ p7_gmx_fs_Sizeof(P7_GMX *gx)
   n += sizeof(P7_GMX);
   n += gx->ncells * p7G_NSCELLS_FS * sizeof(float); /* main dp cells: gx->dp_mem */
   n += gx->allocR * sizeof(float *);             /* row ptrs:      gx->dp[]   */
-  n += gx->allocR * p7G_NXCELLS * sizeof(float); /* specials:      gx->xmx    */
+  n += gx->allocR * p7G_NXCELLS_FS * sizeof(float); /* specials:      gx->xmx    */
   return n;
 }
 /*****************************************************************
@@ -252,9 +252,9 @@ p7_gmx_fs_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, in
 	}
       if (! (flags & p7_HIDE_SPECIALS))
 	{
-    	  for (x = 0;  x <  p7G_NXCELLS; x++) 
+    	  for (x = 0;  x <  p7G_NXCELLS_FS; x++) 
 	    {
-	      val = gx->xmx[i * p7G_NXCELLS + x];
+	      val = gx->xmx[i * p7G_NXCELLS_FS + x];
 	      if (flags & p7_SHOW_LOG) val = log(val);
 	      fprintf(ofp, "%*.*f, ", width, precision, val);
 	    }

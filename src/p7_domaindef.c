@@ -552,7 +552,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 //fclose(out);
  ddef->rt1 = 0.625;
   ddef->rt2 = 0.25; 
- 
+
   for (j = 1; j < gxf->L; j++)
   { 
     if (! triggered)
@@ -562,6 +562,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
     }
     else 
     {
+        
       while(d > 1 && !start ) 
       { 
         d--;

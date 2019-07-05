@@ -442,9 +442,9 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int frameshift, e
   pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
-   // pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
-   // pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
-    //pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
+    pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
+    pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
+    pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
 
 
   if (go && esl_opt_GetBoolean(go, "--max")) 
@@ -2237,16 +2237,16 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
 
-  int F3_L = ESL_MIN( window_len,  pli->B3);
   float             indel_cost = 0.01;
 
   window_len = window_end - window_start + 1;
   if (window_len < 3) return eslOK;
   
+  int F3_L = ESL_MIN( window_len,  pli->B3);
   subseq = dnasq->dsq + window_start - 1;
   printf("window_start %d window_end %d window_len %d \n", window_start, window_end, window_len);  
-  p7_bg_SetLength_Frameshift(bg, window_len);
-  p7_bg_NullOne_Frameshift(bg, subseq, window_len, &nullsc);
+  p7_bg_SetLength(bg, window_len);
+  p7_bg_NullOne(bg, subseq, window_len, &nullsc);
   
   if (pli->do_biasfilter)
   {
@@ -2256,13 +2256,13 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
     bias_filter = 0.;
 
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
-  p7_ReconfigLength_Frameshift(gm, window_len);
+  p7_ReconfigLength(gm, window_len);
  
  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
 printf("fwd %f\n", fwdsc);  
- // FILE *fout = fopen("fwdout.txt", "w+");
-  // p7_gmx_fs_Dump(fout, pli->gxf, p7_DEFAULT);
-  // fclose(fout);
+  FILE *fout = fopen("fwdout.txt", "w+");
+  p7_gmx_fs_Dump(fout, pli->gxf, p7_DEFAULT);
+  fclose(fout);
 
     filtersc =  nullsc + (bias_filter * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
 
@@ -2293,10 +2293,17 @@ printf("fwd %f\n", fwdsc);
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
   p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
  printf("bwd %f\n", bwdsc);
- // FILE *bout = fopen("bwdout.txt", "w+");
- //  p7_gmx_Dump(bout, pli->gxb, p7_DEFAULT);
- //  fclose(bout);
-  //return eslOK; 
+  FILE *bout = fopen("bwdout.txt", "w+");
+   p7_gmx_Dump(bout, pli->gxb, p7_DEFAULT);
+   fclose(bout);
+ // return eslOK; 
+
+  P7_GMX *gxppfs = p7_gmx_fs_Create(gm->M, window_len);
+  p7_Decoding_Frameshift(gm, pli->gxf, pli->gxb, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
+ FILE *ppout = fopen("ppout.txt", "w+");
+   p7_gmx_fs_DumpWindow(ppout, gxppfs, 0, window_len, 0, 0, p7_DEFAULT);
+   fclose(ppout);
+p7_gmx_Destroy(gxppfs);
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, 

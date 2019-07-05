@@ -310,16 +310,15 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
   /* Match emission scores. */
   sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
-  sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
+  //sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
   for (k = 1; k <= hmm->M; k++) {
     for (x = 0; x < hmm->abc->K; x++)
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
-
-    for (x = hmm->abc->K+1; x < hmm->abc->Kp-3; x++)
-      sc[x] = esl_abc_FExpectScore(hmm->abc, x, sc, bg->f);
-
-    sc[hmm->abc->Kp-3] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
+   esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
+   
+   sc[hmm->abc->Kp-2] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
+   bg->f[hmm->abc->K] = log( (double) bg->f[esl_vec_FArgMin(hmm->mat[k], hmm->abc->K)]); 
 
     for (x = 0; x < hmm->abc->Kp; x++) {
       rp = gm->rsc[x] + k * p7P_NR;
@@ -367,37 +366,35 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     for (v = 0; v < 4; v++) {
       for (w = 0; w < 4; w++) {
         for (x = 0; x < 4; x++) {
+      
           codon = 16 * v + 4 * w + x;
-          if (esl_abc_XIsCanonical(gcode->aa_abc, gcode->basic[codon])) {
-            p7P_AMINO3(gm, k, v, w, x) = gcode->basic[codon];
-            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[v]) {
-              max_sc1[v] = p7P_MSC(gm, k, gcode->basic[codon]);
-              max_aa1[v] = gcode->basic[codon];
-            }
-            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[w]) {
-              max_sc1[w] = p7P_MSC(gm, k, gcode->basic[codon]);
-              max_aa1[w] = gcode->basic[codon];
-           }
-            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[x]) {
-              max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
-              max_aa1[x] = gcode->basic[codon];
-            }
-             
-            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
-              max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
-              max_aa2[w * 4 + x] = gcode->basic[codon];
-            }
-            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + x]) {
-              max_sc2[v * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
-              max_aa2[v * 4 + x] = gcode->basic[codon];
-            }
-            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + w]) {
-              max_sc2[v * 4 + w] = p7P_MSC(gm, k, gcode->basic[codon]);
-              max_aa2[v * 4 + w] = gcode->basic[codon];
-            }
+          p7P_AMINO3(gm, k, v, w, x) = gcode->basic[codon];
+          
+          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[v]) {
+            max_sc1[v] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa1[v] = gcode->basic[codon];
           }
-          else
-            p7P_AMINO3(gm, k, v, w, x) = esl_abc_XGetUnknown(gcode->aa_abc); 
+          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[w]) {
+            max_sc1[w] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa1[w] = gcode->basic[codon];
+         }
+          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[x]) {
+            max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa1[x] = gcode->basic[codon];
+          }
+             
+          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
+            max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa2[w * 4 + x] = gcode->basic[codon];
+          }
+          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + x]) {
+            max_sc2[v * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa2[v * 4 + x] = gcode->basic[codon];
+          }
+          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + w]) {
+            max_sc2[v * 4 + w] = p7P_MSC(gm, k, gcode->basic[codon]);
+            max_aa2[v * 4 + w] = gcode->basic[codon];
+          }
            
           p7P_AMINO3(gm, k, 4, w, x) = esl_abc_XGetUnknown(gcode->aa_abc);
           p7P_AMINO3(gm, k, 4, 4, x) = esl_abc_XGetUnknown(gcode->aa_abc);
@@ -599,13 +596,11 @@ int
 p7_ReconfigLength_Frameshift(P7_PROFILE *gm, int L)
 {
   float ploop, pmove;
-  int amino_len;
 
-  amino_len = L  / 3 + 1;  
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm->nj) / ((float) amino_len + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  pmove = (2.0f + gm->nj) / (float) (L + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
   ploop = 1.0f - pmove;
   gm->xsc[p7P_N][p7P_LOOP] =  gm->xsc[p7P_C][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm->xsc[p7P_N][p7P_MOVE] =  gm->xsc[p7P_C][p7P_MOVE] = gm->xsc[p7P_J][p7P_MOVE] = log(pmove);

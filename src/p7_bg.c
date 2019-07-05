@@ -282,25 +282,6 @@ p7_bg_SetLength(P7_BG *bg, int L)
   return eslOK;
 }
 
-/* Function:  p7_bg_SetLength_Frameshift()
- * Synopsis:  Set the null model length distribution.
- *
- * Purpose:   Sets the geometric null model length
- *            distribution in <bg> to a mean of <L> residues.
- */
-int
-p7_bg_SetLength_Frameshift(P7_BG *bg, int L)
-{
-  
-  int amino_len = L / 3 + 1;
-  bg->p1 = (float) amino_len / (float) (amino_len+1);
-
-  bg->fhmm->t[0][0] = bg->p1;
-  bg->fhmm->t[0][1] = 1.0f - bg->p1;
-
-  return eslOK;
-}
-
 /*****************************************************************
  * 2. Reading/writing residue backgrounds from files
  *****************************************************************/
@@ -463,30 +444,6 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
   return eslOK;
 }
 
-/* Function:  p7_bg_NullOne_Frameshift()
- *
- * Purpose:   Calculate the null1 lod score, for sequence <dsq>
- *            of length <L> "aligned" to the base null model <bg>.
- *
- * Note:      Because the residue composition in null1 <bg> is the
- *            same as the background used to calculate residue
- *            scores in profiles and null models, all we have to
- *            do here is score null model transitions.
- *
- *            Can accept a NULL for *dsq, in which case the returned
- *            value will be (float) L * log(bg->p1) + log(1.-bg->p1);
- */
-int
-p7_bg_NullOne_Frameshift(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
-{
-  int amino_len = L / 3 + 1;
-  *ret_sc = (float) amino_len * log(bg->p1) + log(1.-bg->p1);
-  return eslOK;
-}
-
-
-
-
 /*****************************************************************
  * 4. Filter null model
  *****************************************************************/
@@ -626,10 +583,10 @@ p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_PROFILE *gm, const 
 {
   ESL_HMX *hmx = esl_hmx_Create(L, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
  
-  float nullsc;                         /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
+  float nullsc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
   
   p7_bg_fs_Forward(dsq, L, indel_cost, gcode, bg->fhmm, gm, hmx, &nullsc);
-  
+  printf("null %f\n", nullsc); 
   /* impose the length distribution */
   *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
   esl_hmx_Destroy(hmx);
@@ -642,6 +599,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   int   i, k, m;
   int   t, u, v, w, x;
   int   M     = hmm->M;
+  float tmp;
   float logsc;
   float max;
   float one_indel = indel_cost;
@@ -655,130 +613,44 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
     if (opt_sc != NULL) *opt_sc = logsc;
     return eslOK;
   }
-  
-   for (k = 0; k < M; k++) {
-     fwd->dp[1][k] = 0.0f;
-     fwd->dp[2][k] = 0.0f;
-   }
 
+  x = esl_abc_XIsCanonical(gcode->nt_abc, dsq[1]) ? dsq[1] : 4;
   max = 0.0;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1]))
-    v = dsq[1];
-  else
-    v = 4;
-
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2]))
-    w = dsq[2];
-  else
-    w = 4;
-
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[3]))
-    x = dsq[3];
-  else
-   x = 4;
-
   for (k = 0; k < M; k++) {
-    fwd->dp[3][k] = hmm->eo[p7P_AMINO3(gm, k, v, w, x)][k] * no_indel * hmm->pi[k];
-    max = ESL_MAX(fwd->dp[3][k], max);
+    fwd->dp[1][k] = hmm->eo[p7P_AMINO1(gm, k, x)][k] * two_indel; 
+    max = ESL_MAX(fwd->dp[1][k], max);
   }
   for (k = 0; k < M; k++) {
-    fwd->dp[3][k] /= max;
+    fwd->dp[1][k] /= max;
   }
-  fwd->sc[3] = log(max);
+  fwd->sc[1] = log(max); 
 
-  max = 0.0;
-  u = v;
-  v = w;
-  w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[4]))
-    x = dsq[4];
-  else
-    x = 4;
-
-  for (k = 0; k < M; k++) {
-    fwd->dp[4][k] = (hmm->eo[p7P_AMINO1(gm, k, x)][k] * two_indel + hmm->eo[p7P_AMINO3(gm, k, v, w, x)][k] * no_indel) * hmm->pi[k];
-    max = ESL_MAX(fwd->dp[4][k], max);
-  }
-  for (k = 0; k < M; k++) {
-    fwd->dp[4][k] /= max;
-  }
-  fwd->sc[4] = log(max);
-
-  max = 0.0;
-  t = u;
-  u = v;
-  v = w;
-  w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[5]))
-    x = dsq[5];
-
-  for (k = 0; k < M; k++) {
-    fwd->dp[5][k] = (hmm->eo[p7P_AMINO1(gm, k, x)][k] * two_indel + hmm->eo[p7P_AMINO2(gm, k, w, x)][k] * one_indel + hmm->eo[p7P_AMINO3(gm, k, v, w, x)][k] * no_indel) * hmm->pi[k];
-    max = ESL_MAX(fwd->dp[5][k], max);
-  }
-  for (k = 0; k < M; k++) {
-    fwd->dp[5][k] /= max;
-  }
-  fwd->sc[5] = log(max);
-
-  max = 0.0;
-  t = u;
-  u = v;
-  v = w;
-  w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[6]))
-    x = dsq[6];
-
-  for (k = 0; k < M; k++) {
-    fwd->dp[6][k] = (hmm->eo[p7P_AMINO1(gm, k, x)][k] * two_indel + hmm->eo[p7P_AMINO2(gm, k, w, x)][k] * one_indel + hmm->eo[p7P_AMINO3(gm, k, v, w, x)][k] * no_indel) * hmm->pi[k];
-    max = ESL_MAX(fwd->dp[6][k], max);
-  }
-  for (k = 0; k < M; k++) {
-    fwd->dp[6][k] /= max;
-  }
-  fwd->sc[6] = log(max);
-
-  max = 0.0;
-  t = u;
-  u = v;
-  v = w;
-  w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[7]))
-    x = dsq[7];
-
-  for (k = 0; k < M; k++) {
-    fwd->dp[7][k] = (hmm->eo[p7P_AMINO1(gm, k, x)][k] * two_indel + hmm->eo[p7P_AMINO2(gm, k, w, x)][k] * one_indel + hmm->eo[p7P_AMINO3(gm, k, v, w, x)][k] * no_indel + hmm->eo[p7P_AMINO4(gm, k, u, v, w, x)][k] * one_indel) * hmm->pi[k];
-    max = ESL_MAX(fwd->dp[7][k], max);
-  }
-  for (k = 0; k < M; k++) {
-    fwd->dp[7][k] /= max;
-  }
-  fwd->sc[7] = log(max);
-
-  t = u;
-  u = v;
-  v = w;
-  w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[6]))
-    x = dsq[6];
-
-  for (i = 8; i <= L; i++)
+  t = u = v = w = -1;
+  for (i = 2; i <= L; i++)
     {
       max = 0.0;
       t = u;
       u = v;
       v = w;
       w = x;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i]))
-        x = dsq[i];
-
+      x = esl_abc_XIsCanonical(gcode->nt_abc, dsq[i]) ? dsq[i] : 4;
+   
       for (k = 0; k < M; k++)
         {
           fwd->dp[i][k] = 0.0;
           for (m = 0; m < M; m++)
             fwd->dp[i][k] += fwd->dp[i-1][m] * hmm->t[m][k];
-
-          fwd->dp[i][k] *= (hmm->eo[p7P_AMINO1(gm, k, x)][k] * two_indel + hmm->eo[p7P_AMINO2(gm, k, w, x)][k] * one_indel + hmm->eo[p7P_AMINO3(gm, k, v, w, x)][k] * no_indel + hmm->eo[p7P_AMINO4(gm, k, u, v, w, x)][k] * one_indel + hmm->eo[p7P_AMINO5(gm, k, t, u, v, w, x)][k] * two_indel);
+          
+          tmp = hmm->eo[p7P_AMINO1(gm, k, x)][k] * two_indel;
+          tmp += hmm->eo[p7P_AMINO2(gm, k, w, x)][k] * one_indel;
+          if(i>2)
+            tmp += hmm->eo[p7P_AMINO3(gm, k, v, w, x)][k] * no_indel;
+          if(i>3)
+            tmp += hmm->eo[p7P_AMINO4(gm, k, u, v, w, x)][k] * one_indel;
+          if(i>4)
+            tmp += hmm->eo[p7P_AMINO5(gm, k, t, u, v, w, x)][k] * two_indel;
+          
+          fwd->dp[i][k] *= tmp; 
 
           max = ESL_MAX(fwd->dp[i][k], max);
         }
@@ -795,7 +667,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   fwd->sc[L+1] = log(fwd->sc[L+1]);
 
   logsc = 0.0;
-  for (i = 3; i <= L+1; i++)
+  for (i = 1; i <= L+1; i++)
     logsc += fwd->sc[i];
   
   fwd->M = hmm->M;

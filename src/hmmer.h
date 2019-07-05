@@ -503,7 +503,14 @@ enum p7g_xcells_e {
   p7G_C  = 4
 };
 #define p7G_NXCELLS 5
-
+#define p7G_NXCELLS_FS 5
+enum p7g_xcodons_e {
+  p7G_E1  = 5,
+  p7G_E2  = 6,
+  p7G_E3  = 7,
+  p7G_E4  = 8,
+  p7G_E5  = 9,
+};
 
 typedef struct p7_gmx_s {
   int  M;    /* actual model dimension (model 1..M)    */
@@ -536,7 +543,7 @@ typedef struct p7_gmx_s {
 #define MMX_FS(i,k,c) (dp[i][(k) * p7G_NSCELLS_FS + p7G_M + (c)])
 #define IMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_I])
 #define DMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_D])
-#define XMX_FS(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
+#define XMX_FS(i,s) (xmx[(i) * p7G_NXCELLS_FS + (s)])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])

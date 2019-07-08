@@ -2236,7 +2236,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int       window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
-
   float             indel_cost = 0.01;
 
   window_len = window_end - window_start + 1;
@@ -2258,22 +2257,19 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
   p7_ReconfigLength(gm, window_len);
  
- p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
-printf("fwd %f\n", fwdsc);  
-  FILE *fout = fopen("fwdout.txt", "w+");
-  p7_gmx_fs_Dump(fout, pli->gxf, p7_DEFAULT);
-  fclose(fout);
-
-    filtersc =  nullsc + (bias_filter * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
+  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+  printf("fwd %f\n", fwdsc);  
+  filtersc =  nullsc + (bias_filter * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
 
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
+  printf("bias %f seq %f\n", bias_filter, seq_score); 
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
+  printf("filter %f null %f P %f\n", filtersc, nullsc, P);
+  
 
-  printf("null %f filter %f seq %f P %f \n", nullsc, bias_filter, fwdsc-filtersc, P); 
-    if (P > pli->F3) return eslOK;
+  if (P > pli->F3) return eslOK;
   pli->n_past_fwd++; 
      
-  
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   /*now that almost everything has been filtered away, set up seq object for domaindef function*/
   if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
@@ -2290,27 +2286,17 @@ printf("fwd %f\n", fwdsc);
   
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
+  
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
   p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
  printf("bwd %f\n", bwdsc);
-  FILE *bout = fopen("bwdout.txt", "w+");
-   p7_gmx_Dump(bout, pli->gxb, p7_DEFAULT);
-   fclose(bout);
- // return eslOK; 
 
-  P7_GMX *gxppfs = p7_gmx_fs_Create(gm->M, window_len);
-  p7_Decoding_Frameshift(gm, pli->gxf, pli->gxb, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
- FILE *ppout = fopen("ppout.txt", "w+");
-   p7_gmx_fs_DumpWindow(ppout, gxppfs, 0, window_len, 0, 0, p7_DEFAULT);
-   fclose(ppout);
-p7_gmx_Destroy(gxppfs);
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, 
            (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, 
            indel_cost, gcode);
 
- // if(emit_sc != NULL) Codon_Emissions_Destroy(emit_sc);
   pli_tmp->tmpseq->dsq = dsq_holder;
 
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
@@ -2537,6 +2523,7 @@ p7_gmx_Destroy(gxppfs);
          }
     }
 
+
     return eslOK;
 
 ERROR:
@@ -2592,6 +2579,8 @@ ERROR:
  * Throws:    <eslEMEM> on allocation failure.
  *
  */
+
+#if 0
 static int
 p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7_BG *bg, P7_TOPHITS *hitlist, 
               int64_t seqidx, const P7_SCOREDATA *data, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, 
@@ -2659,11 +2648,11 @@ p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7
 
   if (vit_windowlist.windows != NULL) free(vit_windowlist.windows);
   if (post_vit_windowlist.windows != NULL) free(post_vit_windowlist.windows);
-  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
+  if (post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
 
   return eslOK;
 }
-
+#endif
 
 
 /* Function:  p7_Pipeline_Frameshift()
@@ -2735,7 +2724,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
 
   if (dnasq->n < 3) return eslOK;
-  
+ printf("NAME %s\n", gm->name); 
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   

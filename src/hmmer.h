@@ -503,13 +503,21 @@ enum p7g_xcells_e {
   p7G_C  = 4
 };
 #define p7G_NXCELLS 5
-#define p7G_NXCELLS_FS 5
-enum p7g_xcodons_e {
-  p7G_E1  = 5,
-  p7G_E2  = 6,
-  p7G_E3  = 7,
-  p7G_E4  = 8,
-  p7G_E5  = 9,
+
+enum p7g_xcodons_b {
+  p7G_B1  = 0,
+  p7G_B2  = 1,
+  p7G_B3  = 2,
+  p7G_B4  = 3,
+  p7G_B5  = 4,
+};
+
+enum p7g_xcodons_n {
+  p7G_N1  = 0,
+  p7G_N2  = 1,
+  p7G_N3  = 2,
+  p7G_N4  = 3,
+  p7G_N5  = 4,
 };
 
 typedef struct p7_gmx_s {
@@ -543,7 +551,7 @@ typedef struct p7_gmx_s {
 #define MMX_FS(i,k,c) (dp[i][(k) * p7G_NSCELLS_FS + p7G_M + (c)])
 #define IMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_I])
 #define DMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_D])
-#define XMX_FS(i,s) (xmx[(i) * p7G_NXCELLS_FS + (s)])
+#define XMX_FS(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
@@ -1410,7 +1418,6 @@ extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_
 
 /*decoding_frameshift*/
 extern int p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
-extern int p7_Decoding_Frameshift2(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
 extern int p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_fwdback.c */
@@ -1442,9 +1449,8 @@ extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_
 extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
 
 /* optacc_frameshift.c */
-extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
-extern int p7_OptimalAccuracy_Frameshift2(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
-extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr, int start, int length);
+extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, ESL_DSQ *e_trace, float *ret_e);
+extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, ESL_DSQ *e_trace, P7_TRACE *tr, int start, int length);
 
 /* generic_stotrace.c */
 extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);

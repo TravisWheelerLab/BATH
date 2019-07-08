@@ -771,12 +771,10 @@ p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, const ESL_GENCODE *gcod
       //  sc_tmp[j] = 0;
       //else
         sc_tmp[j] = log(fwd_emissions[i*gm->abc->Kp + j] / bg->f[j]);
-    
    }
 
-    sc_tmp[gm->abc->Kp-3] = log(fwd_emissions[i*gm->abc->Kp + gm->abc->Kp-3] / bg->f[K]);
-    for (x = bg->abc->K+1; x < bg->abc->Kp-3; x++)    
-      esl_abc_FExpectScore(bg->abc, x, sc_tmp, bg->f);
+   esl_abc_FExpectScVec(bg->abc, sc_tmp, bg->f);
+   sc_tmp[gm->abc->Kp-2] = log(fwd_emissions[i*gm->abc->Kp + gm->abc->Kp-2] / bg->f[K]);
         
     for (j=0; j<Kp; j++)
       gm->rsc[j][(i) * p7P_NR  + p7P_MSC] =  sc_tmp[j];

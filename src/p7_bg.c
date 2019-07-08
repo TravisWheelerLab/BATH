@@ -586,7 +586,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_PROFILE *gm, const 
   float nullsc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
   
   p7_bg_fs_Forward(dsq, L, indel_cost, gcode, bg->fhmm, gm, hmx, &nullsc);
-  printf("null %f\n", nullsc); 
+  
   /* impose the length distribution */
   *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
   esl_hmx_Destroy(hmx);

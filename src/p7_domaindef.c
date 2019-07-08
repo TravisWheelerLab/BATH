@@ -550,8 +550,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 //FILE *out = fopen("out.txt", "w+");
 //p7_domaindef_DumpPosteriors(out, ddef); 
 //fclose(out);
- ddef->rt1 = 0.625;
-  ddef->rt2 = 0.25; 
 
   for (j = 1; j < gxf->L; j++)
   { 
@@ -562,7 +560,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
     }
     else 
     {
-        
       while(d > 1 && !start ) 
       { 
         d--;
@@ -671,7 +668,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
    } else {
 #endif
        ddef->nenvelopes++;
-
        rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr);
 
      // }
@@ -1215,16 +1211,16 @@ reparameterize_model_frameshift (P7_BG *bg, P7_PROFILE *gm, const ESL_SQ *sq, co
     status = count_residues_frameshift(sq, gcode, start, L, bgf_arr);
 
     if (status != eslOK) p7_Fail("Invalid sequence range in reparameterize_model()\n");
-    esl_vec_FNorm(bgf_arr, K);
+    esl_vec_FNorm(bgf_arr, (K+1));
 
-    for (i=0; i<K; i++) {
+    for (i=0; i<=K; i++) {
        tmp = bg->f[i];
        bg->f[i] = (bg_smooth*bg->f[i]) + ( (1.0-bg_smooth) * bgf_arr[i])  ;
        bgf_arr[i] = tmp;
     }
   } else {
     /* revert bg->f to the passed in orig_bgf   */
-    esl_vec_FCopy(bgf_arr, K, bg->f);
+    esl_vec_FCopy(bgf_arr, (K+1), bg->f);
   }
 
   p7_fs_UpdateFwdEmissionScores(gm, bg, gcode, fwd_emissions, sc_arr);
@@ -1528,38 +1524,43 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   int            status;
   int            orig_L;
   float        **emit_sc;
+  ESL_DSQ       e_trace[Ld];
 
-  //ESL_ALLOC(emit_sc[0], sizeof(float) * (j-i+1) * (gm->M+1)  * p7P_CODONS);  
   //temporarily change model length to env_len. The nhmmer pipeline will tack
   //on the appropriate cost to account for the longer actual window
   orig_L = gm->L;
-  
   p7_ReconfigLength_Frameshift(gm, j-i+1);
  
 // reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
 
   p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
-  printf("fwd %f\n", envsc);
 
   //FILE *fout = fopen("fwdout.txt", "w+");
   // p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
   // fclose(fout); 
+  
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
-  printf("bck %f\n", bcksc);
- // FILE *bout = fopen("bwdout.txt", "w+");
-   //p7_gmx_Dump(bout, gx2, p7_DEFAULT);
- //  fclose(bout); 
+
+//  FILE *bwdout = fopen("bwdout.txt", "w+");
+//   p7_gmx_DumpWindow(bwdout, gx2,0,Ld,0,0, p7_DEFAULT);
+//   fclose(bwdout); 
+
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
+
 // FILE *ppout = fopen("ppout.txt", "w+");
 //   p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
 //   fclose(ppout);
-  /* Find an optimal accuracy alignment */
-   p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
-   p7_OATrace_Frameshift(gm, gxppfs, gx2, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+
+
+   /* Find an optimal accuracy alignment */
+   p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, e_trace, &oasc);      /* <ox1> is now overwritten with OA scores              */
+   p7_OATrace_Frameshift(gm, gxppfs, gx2, e_trace, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+
 //   FILE *out = fopen("optout.txt", "w+");
 //   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
 //   fclose(out);
+
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   
   for (z = 0; z < ddef->tr->N; z++)    

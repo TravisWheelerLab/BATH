@@ -144,11 +144,11 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 
       /* proability from N, J and C states */
         XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i)] + bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
-       XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i) + p7G_C] +
+       XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] +
                               bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
         
-       XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i) + p7G_J] + 
-                              bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
+       XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] +
+                              bck->xmx[p7G_NXCELLS*i + p7G_J]     - overall_sc);
 
     }
 

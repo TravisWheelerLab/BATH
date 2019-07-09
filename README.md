@@ -1,5 +1,7 @@
 ## HMMER - biological sequence analysis using profile HMMs
 
+*** Warning:  This is not the primary repository of HMMER. Please find the official repo at: https://github.com/EddyRivasLab/hmmer ***
+
 [HMMER](http://hmmer.org) searches biological sequence databases for
 homologous sequences, using either single sequences or multiple
 sequence alignments as queries. HMMER implements a technology called
@@ -50,10 +52,13 @@ a precompiled Userguide.pdf, for example), but you can also clone our
 github repo. You need to clone both the HMMER and Easel repositories,
 as follows:
 
-```
-   % git clone https://github.com/EddyRivasLab/hmmer
+
+```bash
+   % git clone https://github.com/TravisWheelerLab/hmmer 
    % cd hmmer
-   % git clone https://github.com/EddyRivasLab/easel
+   % git checkout develop
+   % git clone https://github.com/TravisWheelerLab/easel
+   % (cd easel; git checkout develop)
    % autoconf
 ```
 
@@ -64,23 +69,19 @@ and to build:
    % make
 ```
 
-Our [git workflow](https://github.com/EddyRivasLab/hmmer/wiki/Git-workflow)
-includes three main branches:
+Our [git workflow](https://github.com/TravisWheelerLab/hmmer/wiki/Git-workflow)
+focuses on two main branches:
 
- * **master** is the stable branch for HMMER3 releases (including when
-   H3 is released as a library inside Infernal)
  * **develop** is the HMMER3 development branch
  * **h4-develop** is the HMMER4 development branch.
 
-To build the most recent official release, leave both HMMER and Easel
-on their default **master** branch.  To contribute to HMMER3
-development, you want to be on the **develop** branches. If you want
-to send us a pull request on GitHub, please base your changes on our
-**develop** branches.
+To contribute to our fork of HMMER3 development, you want to be on the **translatedsearch**
+branch. **If you want to contribute to the main HMMER codebase, go to the
+[EddyRivasLab](https://github.com/EddyRivasLab) repo**
 
 
 ### to report a problem:
 
-Visit our
+Visit the main HMMER repo
 [issues tracking page at github](https://github.com/EddyRivasLab/hmmer/issues).
 

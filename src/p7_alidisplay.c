@@ -89,6 +89,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
     for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                       /* find prev M state      */
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   }
+
   /* Now we know that z1..z2 in the trace will be represented in the
    * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
    * our display lines, so allocate z2-z1+2. We know each position is
@@ -117,7 +118,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   if (ntsq != NULL)    {  /* translated search only */
       //orf_namelen = strlen(sq->orfid);                      n += orf_namelen  + 1; /* same for orfname          */
   }
-
+  
   ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
   ad->mem = NULL;
 
@@ -142,7 +143,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   if (ntsq != NULL)    {  /* translated search only */
       ad->orfname = ad->mem + pos;  pos += orf_namelen +1;
   }
-
+ 
   strcpy(ad->hmmname, om->name);
   if (om->acc  != NULL) strcpy(ad->hmmacc,  om->acc);  else ad->hmmacc[0]  = 0;
   if (om->desc != NULL) strcpy(ad->hmmdesc, om->desc); else ad->hmmdesc[0] = 0;
@@ -188,15 +189,17 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
     for (z = z1; z <= z2; z++) ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
     ad->ppline[z-z1] = '\0';
   }
-
+  
 
   /* mandatory three alignment display lines: model, mline, aseq */
   for (z = z1; z <= z2; z++) 
     {
+      
       k = tr->k[z];
       i = tr->i[z];
       x = sq->dsq[i];
       s = tr->st[z];
+	
       if (ntsq != NULL)    { 
          /*
           * if there is a nucleotide sequence then we want to record the location 
@@ -223,16 +226,20 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
           * is 3*(i-1)		 
           */
          n1 = n2 = n3 = 78; /* use a capital 'N' for a don't know character instead of a sentinel byte used in ad->aseq */
+        
          if(i > 0)
 		 {
-
             if (sq->start < sq->end) {
+               
+	   
                 n1 = ntsq->seq[  sq->start-1 + 3*(i-1)];
+           
                 n2 = ntsq->seq[  sq->start-1 + 3*(i-1) + 1];
                 n3 = ntsq->seq[  sq->start-1 + 3*(i-1) + 2];
             }
             else
             {
+            
                 n1 = ntsq->seq[  sq->start-1 - 3*(i-1)] ;
                 n2 = ntsq->seq[  sq->start-1 - ( 3*(i-1) + 1) ] ;
                 n3 = ntsq->seq[  sq->start-1 - ( 3*(i-1) + 2) ] ;
@@ -244,7 +251,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
             }
          }
         }
-
+	
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = om->consensus[k];
@@ -284,6 +291,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
       default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
       }
     }
+
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';

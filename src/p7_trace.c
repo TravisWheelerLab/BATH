@@ -113,6 +113,20 @@ trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posterio
   return NULL;
 }
 
+int
+p7_trace_fs_Convert(P7_TRACE *tr, int start)
+{
+  int z;
+
+  for (z = 0; z < tr->N; z++)
+  {
+    if(tr[z] == p7T_M || tr[z] == p7T_I) 
+      tr->i[z] = tr->i[z] * 3 + start;
+  }
+
+  return eslOK;
+}
+
 /* Function:  p7_trace_Reuse()
  * Synopsis:  Prepare a trace for reuse.
  * Incept:    SRE, Tue Jan  9 13:02:34 2007 [Janelia]

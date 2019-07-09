@@ -742,30 +742,36 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 static int
 serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
 {
-  int  wstatus = eslOK;
+  int  sstatus = eslOK;
   int seq_id = 0;
   ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
-  wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
-  while (wstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
+
+
+  sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
+
+
+  while (sstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
       dbsq_dna->idx = seq_id;
-      if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
 
-      /* translate DNA sequence to 3 frame ORFs */
-      dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
+  if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
+
+  dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
       
-      p7_pli_NewSeq(info->pli, dbsq_dna);
+  p7_pli_NewSeq(info->pli, dbsq_dna);
 
-      if (info->wrk->do_watson) {
-         //printf("NO COMP\n");
-		 info->pli->nres -= dbsq_dna->C;
-         do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
+  if (info->wrk->do_watson) {
+    info->pli->nres -= dbsq_dna->C;
+      
+    /* translate DNA sequence to 3 frame ORFs */
+    do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 	 
-		 p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode);
-         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-      } else {
-        info->pli->nres -= dbsq_dna->n;
-      }
+    p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode);
+    p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+    
+  } else {
+    info->pli->nres -= dbsq_dna->n;
+  }
 
       if (info->wrk->do_crick) {
 		//	  printf("COMP\n");
@@ -777,13 +783,13 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
          info->pli->nres += dbsq_dna->W;
          esl_sq_ReverseComplement(dbsq_dna);
       } 
-      wstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
+      sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
       
-      if (wstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
+      if (sstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
           add_id_length(id_length_list, dbsq_dna->idx, dbsq_dna->L);
           info->pli->nseqs++;
           esl_sq_Reuse(dbsq_dna);
-          wstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
+          sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
           seq_id++;
 
       }
@@ -791,7 +797,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 
   if(abcDNA) esl_alphabet_Destroy(abcDNA);
   if(dbsq_dna) esl_sq_Destroy(dbsq_dna);
-  return wstatus;
+  return sstatus;
 }
 
 #ifdef HMMER_THREADS

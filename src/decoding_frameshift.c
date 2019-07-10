@@ -165,6 +165,12 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
               -  MMX_FS(i+1,k,p7G_C1);
         denom += IMX_FS(i+1,k);
       }
+      else
+      {
+        denom += MMX_FS(i,k,p7G_C0)
+              -  MMX_FS(i,k,p7G_C1);
+        denom += IMX_FS(i,k);
+      }
 
       if(i < L-1)
       {
@@ -172,17 +178,30 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
               -  MMX_FS(i+2,k,p7G_C2)
               -  MMX_FS(i+2,k,p7G_C1);
         denom += IMX_FS(i+2,k);
+      } 
+      else
+      {
+        denom += MMX_FS(i,k,p7G_C0)
+              -  MMX_FS(i,k,p7G_C2)
+              -  MMX_FS(i,k,p7G_C1);
+        denom += IMX_FS(i,k);
       }
 
       if(i < L-2)
       {
         denom += MMX_FS(i+3,k,p7G_C4)
               +  MMX_FS(i+3,k,p7G_C5);
-        denom += IMX_FS(i+3,k);
-      }  
+      }
+      else
+      {
+        denom += MMX_FS(i,k,p7G_C4)
+              +  MMX_FS(i,k,p7G_C5);
+      } 
 
       if(i < L-3)
         denom += MMX_FS(i+4,k,p7G_C5);
+      else
+        denom += MMX_FS(i,k,p7G_C5);
     }
     denom += MMX_FS(i,M,p7G_C0);       
     denom += XMX_FS(i,p7G_N);
@@ -191,19 +210,32 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
     if(i < L)
       denom += MMX_FS(i+1,M,p7G_C0)
             -  MMX_FS(i+1,M,p7G_C1);
-
+    else
+      denom += MMX_FS(i,M,p7G_C0)
+            -  MMX_FS(i,M,p7G_C1);
     if(i < L-1)
       denom += MMX_FS(i+2,M,p7G_C0)
             -  MMX_FS(i+2,M,p7G_C2)
             -  MMX_FS(i+2,M,p7G_C1);
+    else
+      denom += MMX_FS(i,M,p7G_C0)
+            -  MMX_FS(i,M,p7G_C2)
+            -  MMX_FS(i,M,p7G_C1);
 
     if(i < L-2)
       denom += MMX_FS(i+3,M,p7G_C4)
             +  MMX_FS(i+3,M,p7G_C5);
+    else
+      denom += MMX_FS(i,M,p7G_C4)
+            +  MMX_FS(i,M,p7G_C5);
 
     if(i < L-3)
       denom += MMX_FS(i+4,M,p7G_C5);
-denom = 1.0 / denom;
+    else
+      denom += MMX_FS(i,M,p7G_C5);
+
+    denom = 1.0 / denom;
+
     for (k = 1; k < M; k++) {  
       MMX_FS(i,k,p7G_C1) *= denom; 
       MMX_FS(i,k,p7G_C2) *= denom; 

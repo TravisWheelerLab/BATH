@@ -372,11 +372,11 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc)
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_GENCODE *gcode)
 {
   P7_ALIDISPLAY *ad       = NULL;
   char          *alphaAmino = gm->abc->sym;
-  char          *alphaDNA = ntsq->abc->sym;
+  char          *alphaDNA = sq->abc->sym;
   int            n, pos, z, y;
   int            z1, z2;
   int		 srt, end;
@@ -431,9 +431,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   hmm_namelen = strlen(gm->name);                           n += hmm_namelen + 1;
   hmm_acclen  = (gm->acc  != NULL ? strlen(gm->acc)  : 0);  n += hmm_acclen  + 1;
   hmm_desclen = (gm->desc != NULL ? strlen(gm->desc) : 0);  n += hmm_desclen + 1;
-  sq_namelen  = strlen(ntsq->name);                           n += sq_namelen  + 1;	  
-  sq_acclen   = strlen(ntsq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
-  sq_desclen  = strlen(ntsq->desc);                           n += sq_desclen  + 1; /* same for desc              */
+  sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
+  sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
+  sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
   ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
   ad->mem = NULL;
   
@@ -460,23 +460,23 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   if (gm->acc  != NULL) strcpy(ad->hmmacc,  gm->acc);  else ad->hmmacc[0]  = 0;
   if (gm->desc != NULL) strcpy(ad->hmmdesc, gm->desc); else ad->hmmdesc[0] = 0;
 
-  strcpy(ad->sqname,  ntsq->name);
-  strcpy(ad->sqacc,   ntsq->acc);
-  strcpy(ad->sqdesc,  ntsq->desc);
+  strcpy(ad->sqname,  sq->name);
+  strcpy(ad->sqacc,   sq->acc);
+  strcpy(ad->sqdesc,  sq->desc);
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
   ad->M       = gm->M;
   ad->frameshifts = 0; 
-  
   if(sq->start < sq->end) {
     ad->sqfrom  = tr->i[z1-1] + 1;
     ad->sqto    = tr->i[z2];		 
   } else {
-    ad->sqto  = tr->i[z1-1] + 1;
-    ad->sqfrom    = tr->i[z2];	
+    ad->sqto    = tr->i[z1-1] + 1;
+    ad->sqfrom  = tr->i[z2]   + 1;	
   }	 
   ad->L       = sq->n;
+  
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm->rf[tr->k[z]]);
@@ -501,30 +501,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     
 	    ad->ppline[z-z1] = '\0';
   }
-  
-  /*
-     If this is a nhmmscant scan; i.e. scan using a DNA
-	 query, put the ORF in a buffer so that if
-	 the hit is in a reverse compliment of the query, i.e.
-	 the other DNA strand, we can take the reverse complement
-	 of the nucleotide DNA to print on the alignment display
-   */
-  
-   //ntorfseqtxt = esl_sq_Create();
-#if 0   
-   if (ntsq->start < ntsq->end) {				
-        for(j= ntsq->start; j <= ntsq->end; j++) {
-           esl_sq_CAddResidue(ntorfseqtxt, ntsq->seq[j-1]);
-        }
-     }
-     else {
-     for(j= ntsq->end; j <= ntsq->start; j++) {
-           esl_sq_CAddResidue(ntorfseqtxt, ntsq->seq[j-1]);
-        }		 
-        esl_sq_ReverseComplement(ntorfseqtxt);  
-     }
-     esl_sq_CAddResidue(ntorfseqtxt, 0);
-#endif
   
   /* mandatory three alignment display lines: model, mline, aseq */
   y = 0;
@@ -780,7 +756,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       }
       y++;
     }
-  
+ 
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';

@@ -113,16 +113,29 @@ trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posterio
   return NULL;
 }
 
+/* Convert an orf trace to its dna coords */
 int
-p7_trace_fs_Convert(P7_TRACE *tr, int start)
+p7_trace_fs_Convert(P7_TRACE *tr, int start, int end)
 {
   int z;
-
+  int st;
+  if(start < end)
+    start--;
+  else
+    start = end;
   for (z = 0; z < tr->N; z++)
   {
-    if(tr[z] == p7T_M || tr[z] == p7T_I) 
+    if(tr->st[z] == p7T_M || tr->st[z] == p7T_I) 
       tr->i[z] = tr->i[z] * 3 + start;
-  }
+    else if(tr->st[z] == p7T_D)
+      tr->i[z] = tr->i[z-1];
+    else if( tr->st[z] == p7T_B)
+       tr->i[z] = (tr->i[z+1] - 1) * 3 + start; 
+    else if(tr->st[z] == p7T_N || tr->st[z] == p7T_C || tr->st[z] == p7T_J)
+      tr->i[z] = ( (tr->st[z-1] == tr->st[z]) ? tr->i[z] * 3 + start: -1); 
+    else if(tr->st[z] == p7T_X || tr->st[z] == p7T_S || tr->st[z] == p7T_E || tr->st[z] == p7T_T)
+      tr->i[z] = -1;
+  } 
 
   return eslOK;
 }
@@ -1152,7 +1165,7 @@ p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i)
   case p7T_N: 
   case p7T_C: 
   case p7T_J: 
-    tr->i[tr->N] = ( (tr->st[tr->N-1] == st) ? i : -1);
+    tr->i[tr->N] =  ( (tr->st[tr->N-1] == st) ? i : -1);
     tr->k[tr->N] = 0;
     break;
     /* Nonemitting states, outside main model: */

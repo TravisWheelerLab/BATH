@@ -48,7 +48,9 @@ static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, co
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const ESL_DSQ *dsq, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
 static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
            int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, P7_BG *bg_tmp, ESL_GENCODE *gcode, float indel_cost, float *scores_arr, float *fwd_emissions_arr);
+static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
+           int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr);
+static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float indel_cost, float *scores_arr, float *fwd_emissions_arr);
 
 
 /*****************************************************************
@@ -515,10 +517,10 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPROFILE *om, 
+p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm, P7_OPROFILE *om, 
            P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, 
            P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
-           P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr)
+           P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr)
 {
   int i, j;
   int triggered;
@@ -529,7 +531,7 @@ p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ 
   int saveL     = om->L;  /* Save the length config of <om>; will restore upon return */
   int save_mode = om->mode;  /* Likewise for the mode. */
   int status;
-  
+  printf("No Frame\n"); 
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding(om, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
 
@@ -603,7 +605,7 @@ p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ 
 
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
-                  if (rescore_isolated_domain_nonframeshift(ddef, om, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, long_target, bg_tmp, scores_arr, fwd_emissions_arr) == eslOK)
+                  if (rescore_isolated_domain_nonframeshift(ddef, gm, om, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, long_target, bg_tmp, gcode,scores_arr, fwd_emissions_arr) == eslOK)
                        last_j2 = j2;
 
       }
@@ -615,7 +617,7 @@ p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ 
 
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
-            rescore_isolated_domain_nonframeshift(ddef, om, sq, ntsq, fwd, bck, i, j, FALSE, bg, long_target, bg_tmp, scores_arr, fwd_emissions_arr);
+            rescore_isolated_domain_nonframeshift(ddef, gm, om, sq, ntsq, fwd, bck, i, j, FALSE, bg, long_target, bg_tmp, gcode, scores_arr, fwd_emissions_arr);
         }
         i     = -1;
         triggered = FALSE;
@@ -663,8 +665,8 @@ p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ 
 int
 p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm, 
            P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
-           P7_BG *bg, P7_BG *bg_tmp, float *scores_arr, 
-           float *fwd_emissions_arr, float indel_cost, ESL_GENCODE *gcode
+           P7_BG *bg, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, 
+           float *fwd_emissions_arr, float indel_cost
 )
 {
 
@@ -680,7 +682,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int save_mode = gm->mode;  /* Likewise for the mode. */
   int status;
   float k;
-
+  printf("Frame\n");
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
 
@@ -1655,9 +1657,9 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
  * 
  */
 static int
-rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq,
+rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq,
       P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg, int long_target,
-      P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr)
+      P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr)
 {
   P7_DOMAIN     *dom           = NULL;
   int            Ld            = j-i+1;
@@ -1669,23 +1671,26 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const
   int            status;
   int            max_env_extra = 20;
   int            orig_L;
-
-  orig_L = gm->L;
-  p7_ReconfigLength_Frameshift(gm, Ld)
+printf("AAAAAAAAa\n");
+  orig_L = om->L;
+  p7_oprofile_ReconfigLength(om,Ld);
   p7_Forward (sq->dsq + i-1, Ld, om,      ox1, &envsc);
   p7_Backward(sq->dsq + i-1, Ld, om, ox1, ox2, NULL);
-
+printf("BBBBBBBBBBb\n");
   status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
-
+printf("CCCCCCCc\n");
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
   p7_OATrace        (om, ox2, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-
+  printf("DDDDDDDDDDDD\n");
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)
     if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
- 
+
+  /* Convert trace sequence coodinates from those of the ORF to those of the dna sequence */ 
+  p7_trace_fs_Convert(ddef->tr, ntsq->start, ntsq->end);
+  printf("EEEEEEEEe\n");
   /* get ptr to next empty domain structure in domaindef's results */
   if (ddef->ndom == ddef->nalloc) {
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
@@ -1693,74 +1698,10 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const
   }
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_Create(ddef->tr, 0, om, sq, ntsq);
+  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, ntsq, gcode);
   dom->scores_per_pos = NULL;
 
-
-  /* For long target DNA, it's common to see a huge envelope (>1Kb longer than alignment), usually
-   * involving simple repeat part of model that attracted similar segments of the repeatedly, to
-   * acquire a large total score. Now that we have alignment boundaries, re-run Fwd/Bkwd to trim away
-   * such a long envelope and estimate the true score of the hit region
-   */
-  if (long_target) {
-    if (     i < dom->ad->sqfrom-max_env_extra   //trim the left side of the envelope
-        ||   j > dom->ad->sqto+max_env_extra     //trim the right side of the envelope
-        ) {
-
-      //trim in the envelope, and do it again
-      i = ESL_MAX(i,dom->ad->sqfrom-max_env_extra);
-      j = ESL_MIN(j,dom->ad->sqto+max_env_extra);
-      Ld = j - i + 1;
-
-      //temporarily change model length to env_len. The nhmmer pipeline will tack
-      //on the appropriate cost to account for the longer actual window
-      p7_oprofile_ReconfigRestLength(om, j-i+1);
-
-      if (scores_arr!=NULL) {
-        //revert bg and om back to original, then forward to new values
-        reparameterize_model (bg, om, NULL, 0, 0, fwd_emissions_arr, bg_tmp->f, scores_arr);
-        reparameterize_model (bg, om, sq, i, Ld, fwd_emissions_arr, bg_tmp->f, scores_arr);
-      }
-
-      p7_Forward (sq->dsq + i-1, Ld, om,      ox1, &envsc);
-      p7_Backward(sq->dsq + i-1, Ld, om, ox1, ox2, NULL);
-
-      status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
-      if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-212] */
-
-      /* Find an optimal accuracy alignment */
-      p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
-      p7_trace_Reuse(ddef->tr);
-      p7_OATrace        (om, ox2, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-
-      /* re-hack the trace's sq coords to be correct w.r.t. original dsq */
-       for (z = 0; z < ddef->tr->N; z++)
-         if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
-
-       /* store the results in it, first destroying the old alidisplay object */
-       p7_alidisplay_Destroy(dom->ad);
-       dom->ad            = p7_alidisplay_Create(ddef->tr, 0, om, sq, NULL);
-    }
-
-    /* Estimate bias correction, by computing what the score would've been without
-     * reparameterization
-     */
-    domcorrection = envsc;
-    if (scores_arr!=NULL) { //revert bg and om back to original,
-                            //and while I'm at it, capture what the default parameterized score would have been, for "null2"
-      reparameterize_model (bg, om, NULL, 0, 0, fwd_emissions_arr, bg_tmp->f, scores_arr);
-      p7_Forward (sq->dsq + i-1, Ld, om,      ox1, &domcorrection);
-    }
-
-    p7_oprofile_ReconfigRestLength(om, orig_L);
-
-    if (domcorrection < envsc)  //negative bias correction shouldn't happen. Stick with the original score.
-      envsc = domcorrection;
-
-    dom->domcorrection = domcorrection - envsc;
-
-  }  else {
-
+  printf("FFFFFFFf\n");
     /* Compute bias correction (for non-longtarget case)
      *
      * Is null2 set already for this i..j? (It is, if we're in a domain that
@@ -1768,6 +1709,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const
      * it isn't yet, if we're in a simple one-domain region). If it isn't,
      * do it now, by the expectation (posterior decoding) method.
      */
+
       if (!null2_is_done) {
         p7_Null2_ByExpectation(om, ox2, null2);
         for (pos = i; pos <= j; pos++)
@@ -1777,13 +1719,18 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const
         domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
 
       dom->domcorrection = domcorrection; /* in units of NATS */
-
-  }
-
   dom->iali          = dom->ad->sqfrom;
   dom->jali          = dom->ad->sqto;
-  dom->ienv          = i;
-  dom->jenv          = j;
+  if(sq->start < sq->end)
+  {
+    dom->ienv          = (i-1)   * 3 + sq->start;
+    dom->jenv          = (j-i+1) * 3 + sq->start + 2;
+  }
+  else
+  {
+    dom->ienv          = (i-1)   * 3 + sq->end;
+    dom->jenv          = (j-i+1) * 3 + sq->end;
+  }
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
@@ -1865,7 +1812,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const
 static int
 rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL_SQ *sq, 
            const ESL_SQ *ntsq,  P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, 
-           P7_BG *bg, P7_BG *bg_tmp, ESL_GENCODE *gcode, float indel_cost, float *scores_arr, float *fwd_emissions_arr)
+           P7_BG *bg, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float indel_cost, float *scores_arr, float *fwd_emissions_arr)
 {
 
   P7_DOMAIN     *dom           = NULL;
@@ -1878,7 +1825,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   float          null2[p7_MAXCODE];
   int            status;
   int            orig_L;
-  float        **emit_sc;
   ESL_DSQ       e_trace[Ld];
 
   //temporarily change model length to env_len. The nhmmer pipeline will tack
@@ -1917,7 +1863,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 //   fclose(out);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
-  
+  printf("i %d\n", i); 
   for (z = 0; z < ddef->tr->N; z++)    
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
   
@@ -1928,7 +1874,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   }
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, sq, ntsq, gcode, emit_sc);
+  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, sq, gcode);
   dom->scores_per_pos = NULL; 
 
   /* Compute bias correction (for non-longtarget case)

@@ -1174,6 +1174,83 @@ ERROR:
 
 }
 
+/* Function:  p7_pli_fs_computeAliScores()
+ * Synopsis:  Compute per-position scores for the alignment for a domain
+ *
+ * Purpose:   Compute per-position (Viterbi) scores for the alignment for a domain,
+ *            for the purpose of optionally printing these scores out in association
+ *            with each alignment. Such scores can, for example, be used to detangle
+ *            overlapping alignments (from different models)
+ *
+ * Args:      dom             - domain with the alignment for which we wish to compute scores
+ *            seq             - sequence in which domain resides
+ *            data            - contains model's emission and transition values in unstriped form
+ *            K               - alphabet size
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+static int
+p7_pli_fs_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, int K)
+{
+  int status;
+  int i, j, k;
+  float sc;
+  ESL_DSQ t, u, v, w, x;
+
+  //Compute score contribution of each position in the alignment to the overall Viterbi score
+  ESL_ALLOC( dom->scores_per_pos, sizeof(float) * dom->ad->N );
+  for (i=0; i<dom->ad->N; i++)  dom->scores_per_pos[i] = 0.0;
+  i = dom->iali - 1;        //sequence position
+  j = dom->ad->hmmfrom - 1; //model position
+  
+  for (k = 0; k < dom->ad->N; k++)
+  {
+
+    if (dom->ad->model[k] != '.' && dom->ad->aseq[k] != '-') { //match
+      i += dom->ad->codon[k];  j++;
+      // Including the MM cost is a hack. The cost of getting to/from this match
+      // state does matter, but an IM or DM transition would improperly deflate
+      // the score of this column, so just give MM. That amount is offset out of
+      // the score shown for preceding indels
+      dom->scores_per_pos[k] = data->fwd_scores[K * j + seq[i]]
+                             +  (j==1 ? 0 : log(data->fwd_transitions[p7O_MM][j]) );
+      k++;
+    } else if (dom->ad->model[k] == '.' ) { // insert
+      //spin through the insert, accumulating cost;  only assign to final column in gap
+      dom->scores_per_pos[k] = -eslINFINITY;
+
+      sc = log(data->fwd_transitions[p7O_MI][j]);
+      i++; k++;
+      while (k<dom->ad->N && dom->ad->model[k] == '.') { //extend insert
+        dom->scores_per_pos[k] = -eslINFINITY;
+        sc += log(data->fwd_transitions[p7O_II][j]);
+        i++; k++;
+      }
+      sc += log(data->fwd_transitions[p7O_IM][j+1]) - log(data->fwd_transitions[p7O_MM][j+1]);
+      dom->scores_per_pos[k-1] = sc;
+
+    } else if (dom->ad->aseq[k] == '-' ) { // delete
+      dom->scores_per_pos[k] = -eslINFINITY;
+      sc = log(data->fwd_transitions[p7O_MD][j]);
+      j++; k++;
+      while (k<dom->ad->N && dom->ad->aseq[k] == '-')  { //extend delete
+        dom->scores_per_pos[k] = -eslINFINITY;
+        sc += log(data->fwd_transitions[p7O_DD][j]);
+        j++; k++;
+      }
+      sc += log(data->fwd_transitions[p7O_DM][j+1]) - log(data->fwd_transitions[p7O_MM][j+1]);
+      dom->scores_per_pos[k-1] = sc;
+    }
+  }
+
+  return eslOK;
+
+ERROR:
+  return eslEMEM;
+
+}
 
 /* Function:  p7_Pipeline()
  * Synopsis:  HMMER3's accelerated seq/profile comparison pipeline.
@@ -2243,7 +2320,7 @@ ERROR:
  */
 static int
 p7_pli_postForward_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TOPHITS *hitlist, const P7_SCOREDATA *data, 
-                      int64_t seqidx, int window_start, int window_end, ESL_SQ *dnasq, ESL_GENCODE *gcode,
+                      int64_t seqidx, int window_start, int window_len, ESL_SQ *dnasq, ESL_GENCODE *gcode,
                         P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp 
 )
 {
@@ -2262,7 +2339,6 @@ p7_pli_postForward_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int              Ld;               /* # of residues in envelopes */
   int              d;
   int              status;
-  int       window_len;
   ESL_DSQ          *dsq_holder; 
   ESL_DSQ          *subseq;
   float             indel_cost = 0.01;
@@ -2292,12 +2368,12 @@ p7_pli_postForward_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
-           pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, 
+           pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, gcode,
            (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, 
-           indel_cost, gcode);
+           indel_cost);
 
   pli_tmp->tmpseq->dsq = dsq_holder;
-
+#if 0
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
   if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here       */
   if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
@@ -2311,11 +2387,13 @@ p7_pli_postForward_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
     if (ali_len < 4)  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
        dom->is_reported = FALSE;
    }
-
+#if 0
+TODO: finish updateing computeAliScores function to frameshift awareness 
    if (pli->do_alignment_score_calc) {
    for (d = 0; d < pli->ddef->ndom; d++)
-      p7_pli_computeAliScores(pli->ddef->dcl + d, dnasq->dsq, data, gm->abc->Kp);
+      p7_pli_fs_computeAliScores(pli->ddef->dcl + d, dnasq->dsq, data, gm->abc->Kp);
   }
+#endif
   
   /* Calculate the null2-corrected per-seq score */
   if (pli->do_null2)
@@ -2522,138 +2600,13 @@ p7_pli_postForward_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
          }
     }
 
-
+#endif
     return eslOK;
 
 ERROR:
   ESL_EXCEPTION(eslEMEM, "Error in LongTarget pipeline\n");
 
 }
-
-
-/* Function:  p7_pli_postMSV_Frameshift()
- * Synopsis:  the part of the Frameshift P7 search Pipeline downstream
- *            of the MSV filter
- *
- * Purpose:   This is called by the frameshift pipeline 
- *            (p7_Pipeline_Frameshift) and runs the viterbi filter on the orf
- *            sequence and the protien model using p7_ViterbiFilter_longtaget, 
- *            which returns windows for all significant hits.  These winodws 
- *            are then exteneded based on the model's max length and then 
- *            converted to the coresponding window on the original dna sequence.
- *
- * Args:      pli             - the main pipeline object
- *            om              - optimized profile (query)
- *            bg              - background model
- *            hitlist         - pointer to hit storage bin
- *            data            - for computing windows based on maximum prefix/suffix extensions
- *            seqidx          - the id # of the sequence from which the current window was extracted
- *            window_start    - the starting position of the extracted window (offset from the first
- *                              position of the block of a possibly longer sequence)
- *            window_len      - the length of the extracted window
- *            subseq          - digital sequence of the extracted window
- *            seq_start       - first position of the sequence block passed in to the calling pipeline function
- *            seq_name        - name of the sequence the window comes from
- *            seq_source      - source of the sequence the window comes from
- *            seq_acc         - acc of the sequence the window comes from
- *            seq_desc        - desc of the sequence the window comes from
- *            seq_len         - length of the sequence the window comes from (only FM will have it; otherwise, 0 and ignored)
- *            nullsc          - score of the passed window vs the bg model
- *            usc             - msv score of the passed window
- *            complementarity - boolean; is the passed window sourced from a complementary sequence block
- *            vit_windowlist  - initialized window list, in which viterbi-passing hits are captured
- *            pli_tmp         - a collection of objects used in the long target pipeline that should be
- *                              (and are) only allocated once per pipeline to minimize alloc overhead.
- *
- * Returns:   <eslOK> on success. If a significant hit is obtained,
- *            its information is added to the growing <hitlist>.
- *
- *            <eslERANGE> on numerical overflow errors in the
- *            optimized vector implementations; particularly in
- *            posterior decoding. I don't believe this is possible for
- *            multihit local models, but I'm set up to catch it
- *            anyway. We may emit a warning to the user, but cleanly
- *            skip the problematic sequence and continue.
- *
- * Throws:    <eslEMEM> on allocation failure.
- *
- */
-
-#if 0
-static int
-p7_pli_postMSV_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,  P7_BG *bg, P7_TOPHITS *hitlist, 
-              int64_t seqidx, const P7_SCOREDATA *data, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, 
-              P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp
-
-)
-{
-
-  int              i,j;
-  float            nullsc;           /* HMM null score                   */
-  int              min_n, max_n, max_k;
-
-  P7_HMM_WINDOWLIST  vit_windowlist;
-  P7_HMM_WINDOWLIST  post_vit_windowlist;
-  P7_HMM_WINDOW     *window;
-  ESL_SQ_BLOCK      *post_vit_orf_block; 
-  ESL_SQ            *orfsq;
-
-  vit_windowlist.windows = NULL;
-  post_vit_windowlist.windows = NULL;
-  p7_hmmwindow_init(&vit_windowlist);
-  p7_hmmwindow_init(&post_vit_windowlist);
-
-  post_vit_orf_block = NULL;
-  post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, gm->abc);
-  
-  for (i = 0; i < orf_block->count; ++i)
-  { 
-    orfsq = &(orf_block->list[i]);
-    esl_sq_SetSource(orfsq, NULL);
-    p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);  
-    
-    /* Second level filter: ViterbiFilter(), multihit with <om> */
-    p7_ViterbiFilter_longtarget(orfsq->dsq, orfsq->n, om, pli->oxf, nullsc, pli->F2, &vit_windowlist);
-    
-    min_n = orfsq->n;
-    max_n = 0;
-    max_k = 0;
-   for(j = 0; j < vit_windowlist.count; ++j) 
-   { 
-     window = vit_windowlist.windows+j;
-     min_n = ESL_MIN( min_n, window->n);
-     max_n = ESL_MAX( max_n, window->n + window->length);
-     max_k = ESL_MAX( max_k, window->k);
-   }
-   
-   if(vit_windowlist.count < 0) 
-   {
-     p7_hmmwindow_new(&post_vit_windowlist, -1, min_n, min_n-1, window->k, (max_n - min_n), 0.0, p7_NOCOMPLEMENT, orfsq->n);       
-     post_vit_orf_block->list[post_vit_orf_block->count] = *esl_sq_CreateDigitalFrom(orfsq->abc, orfsq->name, orfsq->dsq, orfsq->n, orfsq->desc, orfsq->acc, orfsq->ss);
-     post_vit_orf_block->count++;
-   }
-  }
-
-  p7_pli_ConvertExtendAndMergeWindows(om,data, &post_vit_windowlist, post_vit_orf_block->list, dnasq->n,0); 
-
-  pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
-  free (pli_tmp->tmpseq->dsq);
-   
-  for(i = 0; i < post_vit_windowlist.count; ++i) 
-  {
-    window = post_vit_windowlist.windows+i;
-    pli->pos_past_vit += window->length;
-    p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, seqidx, window->n, window->length, dnasq, gcode, pli_tmp);
-  }
-
-  if (vit_windowlist.windows != NULL) free(vit_windowlist.windows);
-  if (post_vit_windowlist.windows != NULL) free(post_vit_windowlist.windows);
-  if (post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
-
-  return eslOK;
-}
-#endif
-
 
 /* Function:  p7_Pipeline_Frameshift()
  * Synopsis:  HMMER3's accelerated seq/profile comparison pipeline for 
@@ -2735,7 +2688,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   int              frameshifted;
   ESL_DSQ         *subseq;
   ESL_SQ          *orfsq;
-  ESL_SQ          *dnatxt = NULL;
   ESL_SQ_BLOCK    *post_vit_orf_block;
   ESL_SQ_BLOCK    *merged_orf_block;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp =NULL; 
@@ -2850,13 +2802,16 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
 
     p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
     p7_ReconfigLength(gm, window_len);
-
+    
+   /* Run Frameshift version of Forward */
     p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
     filtersc =  nullsc + (bias_filter * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
     seq_score_fs = (fwdsc-filtersc) / eslCONST_LOG2;
  
+    /* For each ORF that falls within the current dna window run 
+     * standard forward and compare scores to frameshift forward */
     for(j = 0; j < post_vit_orf_block->count; j++)
-    {
+    {  
       orfsq = &(post_vit_orf_block->list[j]);
       if(orfsq->start >= window_start && orfsq->end <= window_end)
       { 
@@ -2877,12 +2832,18 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
           p7_omx_GrowTo(pli->oxb, om->M, 0, orfsq->n);
           p7_BackwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, pli->oxb, NULL);
        
-          dnatxt = esl_sq_Create();    
-          dnatxt->abc = dnasq->abc;
-          dnatxt->idx = dnasq->idx;
-          esl_sq_Copy(dnasq, dnatxt);
-
-          status = p7_domaindef_ByPosteriorHeuristics(orfsq, dnatxt, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, FALSE, NULL, NULL, NULL);
+          status = p7_domaindef_ByPosteriorHeuristics_NonFrameshift(orfsq, dnasq, gm, om, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef, bg, FALSE, NULL, gcode, NULL, NULL);
+        }
+      }
+    }
+    if( frameshifted )
+    {
+      p7_domaindef_Reuse(pli->ddef);
+      P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+      if (P > pli->F3 ) continue; 
+  
+      p7_pli_postForward_Frameshift(pli, gm, bg, hitlist, data, seqidx, window_start, window_len, dnasq, gcode, pli_tmp);
+    } 
 
           if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen  */
           if (pli->ddef->nregions   == 0) return eslOK; /* score passed threshold but there's no discrete domains here       */
@@ -2968,10 +2929,10 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
            {
              p7_tophits_CreateNextHit(hitlist, &hit);
              if (pli->mode == p7_SEARCH_SEQS) {
-             if (                        (status  = esl_strdup(orfsq->name,  -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-             if (orfsq->acc[0]   != '\0' && (status  = esl_strdup(orfsq->acc,   -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-             if (orfsq->desc[0]  != '\0' && (status  = esl_strdup(orfsq->desc,  -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-             if (orfsq->name[0] != '\0' && (status  = esl_strdup(orfsq->name, -1, &(hit->orfid))) != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+             if (                        (status  = esl_strdup(dnasq->name,  -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+             if (dnasq->acc[0]   != '\0' && (status  = esl_strdup(dnasq->acc,   -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+             if (dnasq->desc[0]  != '\0' && (status  = esl_strdup(dnasq->desc,  -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+             if (dnasq->name[0] != '\0' && (status  = esl_strdup(dnasq->name, -1, &(hit->orfid))) != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
            } else {
              if ((status  = esl_strdup(om->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
              if ((status  = esl_strdup(om->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
@@ -2979,7 +2940,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
              if ((status  = esl_strdup(orfsq->orfid, -1, &(hit->orfid)))!= eslOK) esl_fatal("allocation failure");
 
            }
-           hit->seqidx     = orfsq->idx;
+           hit->seqidx     = seqidx;
            hit->ndom       = pli->ddef->ndom;
            hit->nexpected  = pli->ddef->nexpected;
            hit->nregions   = pli->ddef->nregions;
@@ -3008,6 +2969,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
 
            hit->dcl         = pli->ddef->dcl;
            pli->ddef->dcl   = NULL;
+           p7_domaindef_Reuse(pli->ddef);
            hit->best_domain = 0;
 
            for (d = 0; d < hit->ndom; d++)
@@ -3065,55 +3027,44 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
              }
            }
 
-           hit->target_len = dnasq->n;
-           for (d = 0; d < hit->ndom; d++)
-           {
-             hit->dcl[d].iorf        =  orfsq->start + dnasq->start-1;
-             hit->dcl[d].jorf        =  orfsq->end   + dnasq->start-1;
-             hit->dcl[d].ad->orffrom =  hit->dcl[d].ad->sqfrom;
-             hit->dcl[d].ad->orfto   =  hit->dcl[d].ad->sqto;
+          for (d = 0; d < hit->ndom; d++)
+         {
+            if (dnasq->start < dnasq->end)
+            {
 
-             if (orfsq->start < orfsq->end)
-             {
-               hit->dcl[d].iali       = (hit->dcl[d].iali*3-2) + orfsq->start-1;
-               hit->dcl[d].jali       = (hit->dcl[d].jali*3) + orfsq->start-1;
-               hit->dcl[d].ienv       = (hit->dcl[d].ienv*3-2) + orfsq->start-1;
-               hit->dcl[d].jenv       = (hit->dcl[d].jenv*3) + orfsq->start-1;
-               hit->dcl[d].ad->sqfrom = (hit->dcl[d].ad->sqfrom*3-2) + orfsq->start-1;
-               hit->dcl[d].ad->sqto   = (hit->dcl[d].ad->sqto*3) + orfsq->start-1;
-             }
-             else
-             {
-               hit->dcl[d].iali       = orfsq->start - (hit->dcl[d].iali - 1)*3;
-               hit->dcl[d].jali       = orfsq->start - (hit->dcl[d].jali - 1)*3 - 2;
-               hit->dcl[d].ienv       = orfsq->start - (hit->dcl[d].ienv - 1)*3;
-               hit->dcl[d].jenv       = orfsq->start - (hit->dcl[d].jenv - 1)*3 - 2;
-               hit->dcl[d].ad->sqfrom = orfsq->start - (hit->dcl[d].ad->sqfrom -1)*3;
-               hit->dcl[d].ad->sqto   = orfsq->start - (hit->dcl[d].ad->sqto -1)*3 - 2;
-             }
+               hit->dcl[d].iorf       = window_start;
+               hit->dcl[d].jorf       = window_start-1 + window_len;
+               hit->dcl[d].ienv       += dnasq->start + window_start - 2;
+               hit->dcl[d].jenv       += dnasq->start + window_start - 2;
 
-             hit->dcl[d].iali       += dnasq->start-1;
-             hit->dcl[d].jali       += dnasq->start-1;
-             hit->dcl[d].ienv       += dnasq->start-1;
-             hit->dcl[d].jenv       += dnasq->start-1;
-             hit->dcl[d].ad->sqfrom += dnasq->start-1;
-             hit->dcl[d].ad->sqto   += dnasq->start-1;
-           }
+               hit->dcl[d].iali       += dnasq->start + window_start - 2;
+               hit->dcl[d].jali       += dnasq->start + window_start - 2;
+
+               hit->dcl[d].ad->sqfrom = (hit->dcl[d].ad->sqfrom) + window_start-1;
+               hit->dcl[d].ad->sqto   = (hit->dcl[d].ad->sqto) + window_start-1;
+            }
+            else
+            {
+               hit->dcl[d].iorf       = dnasq->start;
+               hit->dcl[d].jorf       = dnasq->end;
+
+               hit->dcl[d].ienv       = dnasq->start - (window_start + hit->dcl[d].ienv) + 1;
+               hit->dcl[d].jenv       = dnasq->start - (window_start + hit->dcl[d].jenv) + 1;
+
+               hit->dcl[d].iali       = dnasq->start - (window_start + hit->dcl[d].jali) + 2;
+               hit->dcl[d].jali       = hit->dcl[d].iali - (hit->dcl[d].ad->sqfrom - hit->dcl[d].ad->sqto) + 1;
+
+               hit->dcl[d].ad->sqfrom = hit->dcl[d].iali;
+               hit->dcl[d].ad->sqto   = hit->dcl[d].jali;
+            }
          }
-         p7_domaindef_Reuse(pli->ddef);
+ 
+         }
        }
-     }
-   }
-   if( frameshifted )
-   {
-     P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-     if (P > pli->F3 ) continue; 
+    
   
-     p7_pli_postForward_Frameshift(pli, gm, bg, hitlist, data, seqidx, window_start, window_len, dnasq, gcode, pli_tmp);
-    } 
-  }
+   
 
-  if ( dnatxt != NULL) esl_sq_Destroy(dnatxt);
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if ( merged_orf_block != NULL) esl_sq_DestroyBlock(merged_orf_block);
   if (pli_tmp != NULL) 
@@ -3129,7 +3080,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   return eslOK;
 
 ERROR:
-  if ( dnatxt != NULL) esl_sq_Destroy(dnatxt);
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if ( merged_orf_block != NULL) esl_sq_DestroyBlock(merged_orf_block);
   if ( pli_tmp != NULL )

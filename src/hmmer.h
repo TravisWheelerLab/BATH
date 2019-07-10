@@ -41,6 +41,7 @@
 #include "easel.h"
 #include "esl_alphabet.h"	/* ESL_DSQ, ESL_ALPHABET */
 #include "esl_dmatrix.h"	/* ESL_DMATRIX           */
+#include "esl_gencode.h"        /* ESL_GENCODE           */
 #include "esl_getopts.h"	/* ESL_GETOPTS           */
 #include "esl_histogram.h"      /* ESL_HISTOGRAM         */
 #include "esl_hmm.h"	        /* ESL_HMM               */
@@ -1566,7 +1567,7 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
-extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, ESL_GENCODE *gcode, float **emit_sc);
+extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const ESL_SQ *sq, const ESL_GENCODE *gcode);
 
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
@@ -1646,8 +1647,11 @@ extern int
 p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm,
                                    P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck,
                                    P7_DOMAINDEF *ddef, P7_BG *bg, 
-                                   P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr,
-           float indel_cost, ESL_GENCODE *gcode);
+                                   P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr,
+           float indel_cost);
+extern int p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ *ntsq,P7_PROFILE *gm, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
+                                          P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
+                                          P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
@@ -1868,6 +1872,7 @@ extern int p7_tophits_AliScores(FILE *ofp, char *qname, P7_TOPHITS *th );
 /* p7_trace.c */
 extern P7_TRACE *p7_trace_Create(void);
 extern P7_TRACE *p7_trace_CreateWithPP(void);
+extern int  p7_trace_fs_Convert(P7_TRACE *tr, int start, int end);
 extern int  p7_trace_Reuse(P7_TRACE *tr);
 extern int  p7_trace_Grow(P7_TRACE *tr);
 extern int  p7_trace_GrowIndex(P7_TRACE *tr);

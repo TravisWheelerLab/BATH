@@ -470,7 +470,6 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
   sprv = p7T_C;
   while (sprv != p7T_S) 
     { 
-     
      switch (sprv) {
       case p7T_M: scur = select_m(gm, pp, gx, &i,  k);               k--;           break;
       case p7T_D: scur = select_d(gm,     gx,  i,  k);               k--;           break;
@@ -486,9 +485,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
       if ((status = p7_trace_fs_Append(tr, scur, k, i)) != eslOK) return status;
       /* For NCJ, we had to defer i decrement. */
-      if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--;
-      if (  scur == p7T_J                   && scur == sprv) i-=3;
-
+      if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
       sprv = scur;
     }
   tr->M = gm->M;
@@ -597,8 +594,8 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i, int e_
 
   path[0] = t1 * (XMX(i-e_trace, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
   path[1] = t2 *  XMX(i,p7G_E);
-//  printf("i = %d, c-%d = %f, pp = %f, e = %f\n", i, e_trace, XMX(i-e_trace, p7G_C), pp->xmx[i*p7G_NXCELLS + p7G_C], path[1]);
-  return state[esl_vec_FArgMax(path, 4)];
+ // printf("i = %d, c-%d = %f, pp = %f, e = %f\n", i, e_trace, XMX(i-e_trace, p7G_C), pp->xmx[i*p7G_NXCELLS + p7G_C], path[1]);
+  return state[esl_vec_FArgMax(path, 2)];
 
 }
 
@@ -613,7 +610,7 @@ select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
  
   if(i <= 5) return p7T_E;
 
-  path[0] = t1 * (XMX(i-3,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]);
+  path[0] = t1 * (XMX(i,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]);
   path[1] = t2 * XMX(i,p7G_E);
   return state[esl_vec_FArgMax(path, 2)];
 }

@@ -766,7 +766,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
     /* translate DNA sequence to 3 frame ORFs */
     do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 	 
-    p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode);
+    p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
     p7_pipeline_fs_Reuse(info->pli); // prepare for next search
     
   } else {
@@ -778,7 +778,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
          esl_sq_ReverseComplement(dbsq_dna);
 	     do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode); 
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
          info->pli->nres += dbsq_dna->W;
          esl_sq_ReverseComplement(dbsq_dna);
@@ -940,7 +940,7 @@ pipeline_thread(void *arg)
       if (info->wrk->do_watson) {
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 	printf("NO COMP\n");
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode);
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
        } else {
          info->pli->nres -= dnaSeq->n;
@@ -950,7 +950,7 @@ pipeline_thread(void *arg)
          esl_sq_ReverseComplement(dnaSeq);
          do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 	printf("COMP\n");
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode);
+         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
          esl_sq_ReverseComplement(dnaSeq);
        }

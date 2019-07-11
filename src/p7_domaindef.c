@@ -48,8 +48,6 @@ static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, co
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const ESL_DSQ *dsq, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
 static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
            int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
-           int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float indel_cost, float *scores_arr, float *fwd_emissions_arr);
 
 
@@ -487,152 +485,6 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
   return eslOK;
 }
 
-/* Function:  p7_domaindef_ByPosteriorHeuristics_NonFrameshift()
- * Synopsis:  Define domains in a sequence using posterior probs.
- * Incept:    SRE, Sat Feb 23 08:17:44 2008 [Janelia]
- *
- * Purpose:   Given a sequence <sq> and model <om> for which we have
- *            already calculated a Forward and Backward parsing
- *            matrices <oxf> and <oxb>; use posterior probability
- *            heuristics to determine an annotated domain structure;
- *            and for each domain found, score it (with null2
- *            calculations) and obtain an optimal accuracy alignment,
- *            using <fwd> and <bck> matrices as workspace for the
- *            necessary full-matrix DP calculations. Caller provides a
- *            new or reused <ddef> object to hold these results.
- *            A <bg> is provided for (possible) use in biased-composition
- *            score correction (used in nhmmer), and a boolean
- *            <long_target> argument is provided to allow nhmmer-
- *            specific modifications to the behavior of this function
- *            (TRUE -> from nhmmer).
- *            
- *            Upon return, <ddef> contains the definitions of all the
- *            domains: their bounds, their null-corrected Forward
- *            scores, and their optimal posterior accuracy alignments.
- *            
- * Returns:   <eslOK> on success.           
- *            
- *            <eslERANGE> on numeric overflow in posterior
- *            decoding. This should not be possible for multihit
- *            models.
- */
-int
-p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm, P7_OPROFILE *om, 
-           P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, 
-           P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
-           P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr)
-{
-  int i, j;
-  int triggered;
-  int d;
-  int i2,j2;
-  int last_j2;
-  int nc;
-  int saveL     = om->L;  /* Save the length config of <om>; will restore upon return */
-  int save_mode = om->mode;  /* Likewise for the mode. */
-  int status;
-  printf("No Frame\n"); 
-  if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
-  if ((status = p7_DomainDecoding(om, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
-
-  esl_vec_FSet(ddef->n2sc, sq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
-  ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
-
-  p7_oprofile_ReconfigUnihit(om, saveL);     /* process each domain in unihit mode, regardless of om->mode     */
-  i     = -1;
-  triggered = FALSE;
-
-  for (j = 1; j <= sq->n; j++)
-  {
-
-    if (! triggered)
-    {      /* xref J2/101 for what the logic below is: */
-      if       (ddef->mocc[j] - (ddef->btot[j] - ddef->btot[j-1]) <  ddef->rt2) i = j;
-      else if  (i == -1)                                                        i = j;
-      if       (ddef->mocc[j]                                     >= ddef->rt1) triggered = TRUE;
-    }
-    else if (ddef->mocc[j] - (ddef->etot[j] - ddef->etot[j-1])  <  ddef->rt2)
-    {
-        /* We have a region i..j to evaluate. */
-        p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);
-        p7_omx_GrowTo(bck, om->M, j-i+1, j-i+1);
-        ddef->nregions++;
-        if (is_multidomain_region(ddef, i, j))
-        {  
-
-        /* This region appears to contain more than one domain, so we have to
-             * resolve it by cluster analysis of posterior trace samples, to define
-             * one or more domain envelopes.
-             */
-            ddef->nclustered++;
-
-            /* Resolve the region into domains by stochastic trace
-             * clustering; assign position-specific null2 model by
-             * stochastic trace clustering; there is redundancy
-             * here; we will consolidate later if null2 strategy
-             * works
-             */
-            p7_oprofile_ReconfigMultihit(om, saveL);
-            p7_Forward(sq->dsq+i-1, j-i+1, om, fwd, NULL);
-
-            region_trace_ensemble(ddef, om, sq->dsq, i, j, fwd, bck, &nc);
-            p7_oprofile_ReconfigUnihit(om, saveL);
-            /* ddef->n2sc is now set on i..j by the traceback-dependent method */
-
-            last_j2 = 0;
-            for (d = 0; d < nc; d++) {
-                  p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
-                  if (i2 <= last_j2) ddef->noverlaps++;
-
-                  /* Note that k..m coords on model are available, but
-                     * we're currently ignoring them.  This leads to a
-                     * rare clustering bug that we eventually need to fix
-                     * properly [xref J3/32]: two different regions in one
-                     * profile HMM might have hit same seq domain, and
-                     * when we now go to calculate an OA trace, nothing
-                     * constrains us to find the two different alignments
-                     * to the HMM; in fact, because OA is optimal, we'll
-                     * find one and the *same* alignment, leading to an
-                     * apparent duplicate alignment in the output.
-                     *
-                     * Registered as #h74, Dec 2009, after EBI finds and
-                     * reports it.  #h74 is worked around in p7_tophits.c
-                     * by hiding all but one envelope with an identical
-                     * alignment, in the rare event that this
-                     * happens. [xref J5/130].
-                  */
-                  ddef->nenvelopes++;
-
-                  /*the !long_target argument will cause the function to recompute null2
-                   * scores if this is part of a long_target (nhmmer) pipeline */
-                  if (rescore_isolated_domain_nonframeshift(ddef, gm, om, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, long_target, bg_tmp, gcode,scores_arr, fwd_emissions_arr) == eslOK)
-                       last_j2 = j2;
-
-      }
-            p7_spensemble_Reuse(ddef->sp);
-            p7_trace_Reuse(ddef->tr);
-        }
-        else
-        {
-
-            /* The region looks simple, single domain; convert the region to an envelope. */
-            ddef->nenvelopes++;
-            rescore_isolated_domain_nonframeshift(ddef, gm, om, sq, ntsq, fwd, bck, i, j, FALSE, bg, long_target, bg_tmp, gcode, scores_arr, fwd_emissions_arr);
-        }
-        i     = -1;
-        triggered = FALSE;
-    }
-
-  }
-
-  /* Restore model to uni/multihit mode, and to its original length model */
-  if (p7_IsMulti(save_mode)) p7_oprofile_ReconfigMultihit(om, saveL); 
-  else                       p7_oprofile_ReconfigUnihit  (om, saveL); 
-  return eslOK;
-}
-
-
-
 /* Function:  p7_domaindef_ByPosteriorHeuristics_Frameshift()
  * Synopsis:  Define domains in a sequence using posterior probs.
  * Incept:    SRE, Sat Feb 23 08:17:44 2008 [Janelia]
@@ -682,7 +534,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int save_mode = gm->mode;  /* Likewise for the mode. */
   int status;
   float k;
-  printf("Frame\n");
+  
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
 
@@ -734,7 +586,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
         if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2)
         {
           d++;
-    if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) 
+          if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) 
           {
             d++;
             if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-1]) < ddef->rt2) 
@@ -818,7 +670,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
        rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr);
 
      // }
-     //printf("I %d, J %d\n", i, j);
 
     i     = -1;
      triggered = FALSE;
@@ -1595,159 +1446,6 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
   p7_trace_Reuse(ddef->tr);
   return status;
 }
-
- /* rescore_isolated_domain_nonframshift()
- * SRE, Fri Feb  8 09:18:33 2008 [Janelia]
- *
- * We have isolated a single domain's envelope from <i>..<j> in
- * sequence <sq>, and now we want to score it in isolation and obtain
- * an alignment display for it.
- * 
- * (Later, we can add up all the individual domain scores from this
- * seq into a new per-seq score, to compare to the original per-seq
- * score).
- *  
- * The caller provides model <om> configured in unilocal mode; by
- * using unilocal (as opposed to multilocal), we're going to force the
- * identification of a single domain in this envelope now.
- * 
- * The alignment is an optimal accuracy alignment (sensu IH Holmes),
- * also obtained in unilocal mode.
- * 
- * The caller provides DP matrices <ox1> and <ox2> with sufficient
- * space to hold Forward and Backward calculations for this domain
- * against the model. (The caller will typically already have matrices
- * sufficient for the complete sequence lying around, and can just use
- * those.) The caller also provides a <P7_DOMAINDEF> object (ddef)
- * which is (efficiently, we trust) managing any necessary temporary
- * working space and heuristic thresholds.
- *
- * If <long_target> is TRUE, the calling function  optionally
- * passes in three allocated arrays (bg_tmp, scores_arr,
- * fwd_emissions_arr) used for temporary storage in
- * reparameterize_model(). If scores_arr is NULL, reparameterization
- * is not done, and the domcorrection, used to determine null2, is not
- * computed).
- * 
- * Returns <eslOK> if a domain was successfully identified, scored,
- * and aligned in the envelope; if so, the per-domain information is
- * registered in <ddef>, in <ddef->dcl>.
- * 
- * And here's what's happened to our working memory:
- * 
- * <ddef>: <ddef->tr> has been used, and possibly reallocated, for
- *         the OA trace of the domain. Before exit, we called
- *         <Reuse()> on it.
- * 
- * <ox1> : happens to be holding OA score matrix for the domain
- *         upon return, but that's not part of the spec; officially
- *         its contents are "undefined".
- *
- * <ox2> : happens to be holding a posterior probability matrix
- *         for the domain upon return, but we're not making that
- *         part of the spec, so caller shouldn't rely on this;
- *         spec just makes its contents "undefined".
- *         
- * 
- * Returns <eslFAIL> if domain is not successfully identified.  This
- * is rare; one way it can happen is if posterior decoding calculation
- * overflows, which can occur on highly repetitive sequence
- * {J3/119-121}. Beware: as a result, it is possible to have
- * <ddef->ndom = 0>, for nonzero region(s)/envelope(s). See {iss131}.
- * 
- */
-static int
-rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq,
-      P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg, int long_target,
-      P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr)
-{
-  P7_DOMAIN     *dom           = NULL;
-  int            Ld            = j-i+1;
-  float          domcorrection = 0.0;
-  float          envsc, oasc;
-  int            z;
-  int            pos;
-  float          null2[p7_MAXCODE];
-  int            status;
-  int            max_env_extra = 20;
-  int            orig_L;
-printf("AAAAAAAAa\n");
-  orig_L = om->L;
-  p7_oprofile_ReconfigLength(om,Ld);
-  p7_Forward (sq->dsq + i-1, Ld, om,      ox1, &envsc);
-  p7_Backward(sq->dsq + i-1, Ld, om, ox1, ox2, NULL);
-printf("BBBBBBBBBBb\n");
-  status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
-  if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
-printf("CCCCCCCc\n");
-  /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
-  p7_OATrace        (om, ox2, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-  printf("DDDDDDDDDDDD\n");
-  /* hack the trace's sq coords to be correct w.r.t. original dsq */
-  for (z = 0; z < ddef->tr->N; z++)
-    if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
-
-  /* Convert trace sequence coodinates from those of the ORF to those of the dna sequence */ 
-  p7_trace_fs_Convert(ddef->tr, ntsq->start, ntsq->end);
-  printf("EEEEEEEEe\n");
-  /* get ptr to next empty domain structure in domaindef's results */
-  if (ddef->ndom == ddef->nalloc) {
-    ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
-    ddef->nalloc *= 2;
-  }
-
-  dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, ntsq, gcode);
-  dom->scores_per_pos = NULL;
-
-  printf("FFFFFFFf\n");
-    /* Compute bias correction (for non-longtarget case)
-     *
-     * Is null2 set already for this i..j? (It is, if we're in a domain that
-     * was defined by stochastic traceback clustering in a multidomain region;
-     * it isn't yet, if we're in a simple one-domain region). If it isn't,
-     * do it now, by the expectation (posterior decoding) method.
-     */
-
-      if (!null2_is_done) {
-        p7_Null2_ByExpectation(om, ox2, null2);
-        for (pos = i; pos <= j; pos++)
-          ddef->n2sc[pos]  = logf(null2[sq->dsq[pos]]);
-      }
-      for (pos = i; pos <= j; pos++)
-        domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
-
-      dom->domcorrection = domcorrection; /* in units of NATS */
-  dom->iali          = dom->ad->sqfrom;
-  dom->jali          = dom->ad->sqto;
-  if(sq->start < sq->end)
-  {
-    dom->ienv          = (i-1)   * 3 + sq->start;
-    dom->jenv          = (j-i+1) * 3 + sq->start + 2;
-  }
-  else
-  {
-    dom->ienv          = (i-1)   * 3 + sq->end;
-    dom->jenv          = (j-i+1) * 3 + sq->end;
-  }
-  dom->envsc         = envsc;         /* in units of NATS */
-  dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
-  dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
-  dom->bitscore      = 0.0; /* gets set later by caller, using envsc, null score, and dombias */
-  dom->lnP           = 0.0; /* gets set later by caller, using bitscore */
-  dom->is_reported   = FALSE; /* gets set later by caller */
-  dom->is_included   = FALSE; /* gets set later by caller */
-
-  ddef->ndom++;
-
-  p7_trace_Reuse(ddef->tr);
-  return eslOK;
-
- ERROR:
-  p7_trace_Reuse(ddef->tr);
-  return status;
-}
  
  /* rescore_isolated_domain_frameshift()
  * SRE, Fri Feb  8 09:18:33 2008 [Janelia]
@@ -1825,8 +1523,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   float          null2[p7_MAXCODE];
   int            status;
   int            orig_L;
-  ESL_DSQ       e_trace[Ld];
-
+  ESL_DSQ        e_trace[Ld];
+  ESL_DSQ        v, w, x;
   //temporarily change model length to env_len. The nhmmer pipeline will tack
   //on the appropriate cost to account for the longer actual window
   orig_L = gm->L;
@@ -1863,7 +1561,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 //   fclose(out);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
-  printf("i %d\n", i); 
   for (z = 0; z < ddef->tr->N; z++)    
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
   
@@ -1878,20 +1575,28 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   dom->scores_per_pos = NULL; 
 
   /* Compute bias correction (for non-longtarget case)
-     *
-     * Is null2 set already for this i..j? (It is, if we're in a domain that
-     * was defined by stochastic traceback clustering in a multidomain region;
-     * it isn't yet, if we're in a simple one-domain region). If it isn't,
-     * do it now, by the expectation (posterior decoding) method.
-     */
-#if 0
-      if (!null2_is_done) {
-       p7_GNull2_ByExpectation(gm, gxppfs, null2);
-      }
-#endif
-      for (pos = i; pos <= j; pos++)
-        domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
-      dom->domcorrection = domcorrection; /* in units of NATS */
+   *
+   * Is null2 set already for this i..j? (It is, if we're in a domain that
+   * was defined by stochastic traceback clustering in a multidomain region;
+   * it isn't yet, if we're in a simple one-domain region). If it isn't,
+   * do it now, by the expectation (posterior decoding) method.
+   */
+
+  if (!null2_is_done) {
+    p7_Null2_fs_ByExpectation(gm, gxppfs, null2);
+    for (pos = i+2; pos <= j; pos++)
+    {
+      v = sq->dsq[pos-2];
+      w = sq->dsq[pos-1];
+      x = sq->dsq[pos];
+      ddef->n2sc[pos]  = logf(null2[gcode->basic[16 * v + 4 * w + x]]); 
+    }   
+  }
+      
+  for (pos = i; pos <= j; pos++)
+    domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
+   
+  dom->domcorrection = domcorrection; /* in units of NATS */
   dom->iali          = dom->ad->sqfrom;
   dom->jali          = dom->ad->sqto;
   dom->ienv          = i;

@@ -1443,6 +1443,7 @@ extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX 
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
 extern int p7_Null2_fs_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
+extern int p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
@@ -1781,7 +1782,7 @@ extern int p7_Pipeline_LongTarget   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCORE
                                      );
 extern int p7_Pipeline_Frameshift   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data,
              P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, 
-             ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode);
+             ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, int complementarity);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 

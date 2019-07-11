@@ -473,7 +473,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     ad->sqto    = tr->i[z2];		 
   } else {
     ad->sqto    = tr->i[z1-1] + 1;
-    ad->sqfrom  = tr->i[z2]   + 1;	
+    ad->sqfrom  = tr->i[z2];	
   }	 
   ad->L       = sq->n;
   

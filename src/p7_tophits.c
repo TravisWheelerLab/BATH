@@ -1936,6 +1936,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int64_t sqto;
   int64_t lowest;
   int64_t highest;
+  int frameshifts;
   int i;
 
   if (show_header)
@@ -1951,7 +1952,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
       }
       else if(pli->frameshift) {
 	if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %s %s %*s %*s %*s %*s %*s %6s %9s %6s %5s\n",
-          tnamew-1, " target name",        taccw, "accession",  qnamew, "query name",           qaccw, "accession", "hmmfrom", "hmm to", posw, "alifrom", posw, "ali to", posw, "envfrom", posw, "env to", posw, ( pli->mode == p7_SCAN_MODELS ? "modlen" : "sq len" ), "frame", "  E-value", " score", " bias") < 0)
+          tnamew-1, " target name",        taccw, "accession",  qnamew, "query name",           qaccw, "accession", "hmmfrom", "hmm to", posw, "alifrom", posw, "ali to", posw, "envfrom", posw, "env to", posw, ( pli->mode == p7_SCAN_MODELS ? "modlen" : "sq len" ), "frameshifts", "  E-value", " score", " bias") < 0)
           ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
         if (fprintf(ofp, "#%*s %*s %*s %*s %s %s %*s %*s %*s %*s %*s %5s %9s %6s %5s\n",
           tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "-------", "-------", posw, "-------", posw, "-------",  posw, "-------", posw, "-------", posw, "-------", "-----", "---------", "------", "-----") < 0)
@@ -2012,44 +2013,27 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
         }
         else if(pli->frameshift) 
 	{
-                int frame = p7_tophits_frame(th->hit[h]->dcl[d].iorf, th->hit[h]->dcl[d].jorf);
-
                 //get domain with earliest DNA location and domain at fartherest
                 //end of DNA and use their start and end locations on the DNA as
                 //the start and end of hit location on DNA. Also take account of
                 //whether the hit is on the reverse strand when reporting the 
                 //start and end location
+                frameshifts = 0;
                 for (i = 0; i < th->hit[h]->ndom; i++){
                     sqfrom = th->hit[h]->dcl[i].ad->sqfrom;
                     sqto = th->hit[h]->dcl[i].ad->sqto;
                     if (i==0){
-                        if (frame > 0) {
-                            lowest = sqfrom;
-                            highest = sqto;
-                        } else {
-                            highest = sqfrom;
-                            lowest = sqto;
-                        }
+                      lowest = sqfrom;
+                      highest = sqto;
                     }
-                    if (frame > 0){
-                        if (sqfrom < lowest)
-                            lowest = sqfrom;
-                        if (sqto > highest)
-                            highest = sqto;
-                    } else {
-                        if (sqto < lowest)
-                            lowest = sqto;
-                        if (sqfrom > highest)
-                            highest = sqfrom;
-                    }
+                    if (sqfrom < lowest)
+                      lowest = sqfrom;
+                    if (sqto > highest)
+                      highest = sqto;
+                   frameshifts += th->hit[h]->dcl[i].ad->frameshifts;
                 }
-                if (frame > 0){
-                    sqfrom = lowest;
-                    sqto = highest;
-                } else {
-                    sqfrom = highest;
-                    sqto = lowest;
-                }
+                sqfrom = lowest;
+                sqto = highest;
 		
 		if (fprintf(ofp, "%-*s %-*s %-*s %-*s %7d %7d %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %5d %9.2g %6.1f %5.1f\n",
                 tnamew, th->hit[h]->name,
@@ -2063,7 +2047,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 posw, th->hit[h]->dcl[d].ienv,
                 posw, th->hit[h]->dcl[d].jenv,
                 posw, th->hit[h]->dcl[d].ad->L,
-                frame,
+                frameshifts,
                 exp(th->hit[h]->lnP),
                 th->hit[h]->score,
                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R ) < 0) /* convert NATS to BITS at last moment */                  
@@ -2189,7 +2173,18 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
 
   if (show_header)
   {
-      if (th->N > 0 && th->hit[0]->ndom > 0 && th->hit[0]->dcl[0].ad->frameshifts < 0 && th->hit[0]->dcl[0].ad->ntseq != NULL)
+      if(pli->frameshift)
+      {
+        if (fprintf(ofp, "#%*s %39s %30s %11s %19s %19s\n", tnamew+qnamew-1+15+taccw+qaccw, "",                                   "--- full sequence ---",        "---- this domain ----",                   "hmm coord",                    "ali coord",                "env coord") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
+         if (fprintf(ofp, "#%-*s %-*s %15s %-*s %-*s %5s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %4s %9s %s\n",
+            tnamew-1, " target name",        taccw, "accession",  "tlen",  qnamew, "query name",           qaccw, "accession",  "qlen",  "E-value",   "score",  "bias",  "#",   "of",  "i-Evalue",  "score",  "bias",  "from",  "to",    "from",        "to",      "from",        "to",    "frameshifts",     "acc",  "description of target") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");                                                                                                                                               
+         if (fprintf(ofp, "#%*s %*s %15s %*s %*s %5s %6s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %9s %9s %11s %4s %s\n",                                                                                             
+           tnamew-1, "-------------------", taccw, "----------", "---------------", qnamew, "--------------------", qaccw, "----------", "-----", "------", "---------", "------", "-----", "---", "---",  "---------", "------", "-----", "-----", "-----", "---------", "---------", "---------", "---------", "---------", "---------", "-----------", "----", "---------------------") < 0)
+           ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
+      }
+      else if (th->N > 0 && th->hit[0]->ndom > 0 && th->hit[0]->dcl[0].ad->ntseq != NULL)
       { /* we assume that if there is a hit and it has ntseq set then all the hits will have ntseq set;  this indicates translated search */
           if (fprintf(ofp, "#%*s %39s %30s %11s %19s %19s %19s %19s\n", tnamew+qnamew-1+15+taccw+qaccw, "",                                   "--- full sequence ---",        "---- this domain ----",                   "hmm coord",                    "ami coord",                    "ali coord",                "env coord",            "orf coord") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
@@ -2199,16 +2194,7 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
          if (fprintf(ofp, "#%*s %*s %15s %*s %*s %5s %6s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %9s %9s %9s %9s %5s %4s %s\n",
            tnamew-1, "-------------------", taccw, "----------", "---------------", qnamew, "--------------------", qaccw, "----------", "-----", "------", "---------", "------", "-----", "---", "---",  "---------", "------", "-----", "-----", "-----", "---------", "---------", "---------", "---------", "---------", "---------", "---------", "---------", "-----", "----", "---------------------") < 0)
            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
-
-      } else if(th->N > 0 && th->hit[0]->ndom > 0 && th->hit[0]->dcl[0].ad->frameshifts >= 0) { //frameshift table
-         if (fprintf(ofp, "#%*s %39s %30s %11s %19s %19s\n", tnamew+qnamew-1+15+taccw+qaccw, "",                                   "--- full sequence ---",        "---- this domain ----",                   "hmm coord",                    "ali coord",                "env coord") < 0)
-            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
-	 if (fprintf(ofp, "#%-*s %-*s %15s %-*s %-*s %5s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %4s %9s %s\n",
-            tnamew-1, " target name",        taccw, "accession",  "tlen",  qnamew, "query name",           qaccw, "accession",  "qlen",  "E-value",   "score",  "bias",  "#",   "of",  "i-Evalue",  "score",  "bias",  "from",  "to",    "from",        "to",      "from",        "to",    "frameshifts",     "acc",  "description of target") < 0)
-            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");                                                                                                                                                                                                  
-         if (fprintf(ofp, "#%*s %*s %15s %*s %*s %5s %6s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %9s %9s %11s %4s %s\n",                                                                                                                                                              
-           tnamew-1, "-------------------", taccw, "----------", "---------------", qnamew, "--------------------", qaccw, "----------", "-----", "------", "---------", "------", "-----", "---", "---",  "---------", "------", "-----", "-----", "-----", "---------", "---------", "---------", "---------", "---------", "---------", "-----------", "----", "---------------------") < 0)
-           ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
+      
       }
       else
       {

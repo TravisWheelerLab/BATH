@@ -141,6 +141,7 @@ OBJS =  build.o\
 	modelconfig.o\
 	modelstats.o\
 	mpisupport.o\
+        null2_frameshift.o\
 	optacc_frameshift.o\
 	seqmodel.o\
 	stotrace_frameshift.o\

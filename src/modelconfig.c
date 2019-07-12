@@ -366,7 +366,6 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     for (v = 0; v < 4; v++) {
       for (w = 0; w < 4; w++) {
         for (x = 0; x < 4; x++) {
-      
           codon = 16 * v + 4 * w + x;
           p7P_AMINO3(gm, k, v, w, x) = gcode->basic[codon];
           
@@ -395,30 +394,18 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
             max_sc2[v * 4 + w] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa2[v * 4 + w] = gcode->basic[codon];
           }
-           
-          p7P_AMINO3(gm, k, 4, w, x) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO3(gm, k, 4, 4, x) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO3(gm, k, v, 4, x) = esl_abc_XGetUnknown(gcode->aa_abc);
         }
-        p7P_AMINO3(gm, k, 4, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO3(gm, k, v, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);      
       }
-      p7P_AMINO3(gm, k, v, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
     } 
-    p7P_AMINO3(gm, k, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
   
     for (x = 0; x < 4; x++)
       p7P_AMINO1(gm, k, x) = max_aa1[x];
-    p7P_AMINO1(gm, k, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
 
     for (w = 0; w < 4; w++) { 
       for (x = 0; x < 4; x++) {
         p7P_AMINO2(gm, k, w, x) = max_aa2[w * 4 + x];
       }
-      p7P_AMINO2(gm, k, 4, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO2(gm, k, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
     }
-    p7P_AMINO2(gm, k, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
    
     for ( u = 0; u < 4; u++) {
       for (v = 0; v < 4; v++) {
@@ -439,24 +426,9 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
             max_aa4[3] = gcode->basic[codon];
             p7P_AMINO4(gm, k, u, v, w, x) = max_aa4[esl_vec_FArgMax(max_sc4, 4)];
           }
-          p7P_AMINO4(gm, k, 4, u, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO4(gm, k, u, 4, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO4(gm, k, u, v, 4, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO4(gm, k, u, v, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
         }
-        p7P_AMINO4(gm, k, 4, 4, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO4(gm, k, 4, u, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO4(gm, k, 4, u, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO4(gm, k, u, 4, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO4(gm, k, u, 4, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO4(gm, k, u, v, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
       }   
-      p7P_AMINO4(gm, k, 4, 4, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO4(gm, k, 4, 4, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO4(gm, k, 4, u, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO4(gm, k, u, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
     }
-    p7P_AMINO4(gm, k, 4, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
 
     for (t = 0; t < 4; t++) {
       for ( u = 0; u < 4; u++) {
@@ -486,41 +458,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
               max_aa5[9] = p7P_AMINO3(gm, k, v, w, x);
               p7P_AMINO5(gm, k, t, u, v, w, x) = max_aa5[esl_vec_FArgMax(max_sc5, 10)];
              }
-            p7P_AMINO5(gm, k, 4, t, u, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-            p7P_AMINO5(gm, k, t, 4, u, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-            p7P_AMINO5(gm, k, t, u, 4, v, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-            p7P_AMINO5(gm, k, t, u, v, 4, w) = esl_abc_XGetUnknown(gcode->aa_abc);
-            p7P_AMINO5(gm, k, t, u, v, w, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
           }
-          p7P_AMINO5(gm, k, 4, 4, t, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, 4, t, 4, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, 4, t, u, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, 4, t, u, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, t, 4, 4, u, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, t, 4, u, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, t, 4, u, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, t, u, 4, 4, v) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, t, u, 4, v, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-          p7P_AMINO5(gm, k, t, u, v, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
         }
-        p7P_AMINO5(gm, k, 4, 4, 4, t, u) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, 4, 4, t, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, 4, 4, t, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, 4, t, 4, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, 4, t, 4, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, 4, t, u, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, t, 4, 4, 4, u) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, t, 4, 4, u, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, t, 4, u, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-        p7P_AMINO5(gm, k, t, u, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
       }
-      p7P_AMINO5(gm, k, 4, 4, 4, 4, t) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO5(gm, k, 4, 4, 4, t, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO5(gm, k, 4, 4, t, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO5(gm, k, 4, t, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
-      p7P_AMINO5(gm, k, t, 4, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
     }
-    p7P_AMINO5(gm, k, 4, 4, 4, 4, 4) = esl_abc_XGetUnknown(gcode->aa_abc);
   }
 
 /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength()

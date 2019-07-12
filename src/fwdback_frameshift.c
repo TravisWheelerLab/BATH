@@ -93,7 +93,12 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
     u = v;
     v = w;
     w = x;
-    x = esl_abc_XIsCanonical(gcode->nt_abc, dsq[i]) ? dsq[i] : 4;
+    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
+    {  
+      for(x = 0; x < gcode->nt_abc->K; x++)
+         if(gcode->nt_abc->degen[dsq[i]][x]) break;
+    }
 
     MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) =
     MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0)        = DMX_FS(i,0)        = -eslINFINITY;
@@ -113,7 +118,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
         MMX_FS(i,k,p7G_C2) = IVX(i,k,p7P_C2) + p7P_MSC(gm, k, p7P_AMINO2(gm, k, w, x)) + one_indel;
       else
         MMX_FS(i,k,p7G_C2) = -eslINFINITY;
-
+if( i > 2 ) printf("i %d k %d IV %f vwx %d%d%d a %d EMIT %f\n", i, k, IVX(i,k,p7P_C3), v,w,x,p7P_AMINO3(gm, k, v, w, x), p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)));
       if( i > 2 )
         MMX_FS(i,k,p7G_C3) = IVX(i,k,p7P_C3) + p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)) + no_indel;
       else
@@ -226,11 +231,12 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
     u = v;
     v = w;
     w = x;
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i]))
-      x = dsq[i];
-    else
-      x = 4; 
-
+    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
+    {
+      for(x = 0; x < gcode->nt_abc->K; x++)
+         if(gcode->nt_abc->degen[dsq[i]][x]) break;
+    }
 
     for (k = 1; k < M; k++)
     {  
@@ -405,7 +411,12 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
 
   for (i = L-1; i > L-5; i--)
   {
-    x = esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])   ? dsq[i+1]   : 4; 
+    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
+    {
+      for(x = 0; x < gcode->nt_abc->K; x++)
+         if(gcode->nt_abc->degen[dsq[i]][x]) break;
+    }
    
     iv[1] = MMX(i+1,1) + p7P_MSC(gm, 1, p7P_AMINO1(gm, 1, x)) + two_indel;
 
@@ -478,8 +489,13 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
   /* Main recursion */
   for (i = L-5; i > 0; i--)
   {
-    x = esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])   ? dsq[i+1]   : 4; 
-  
+    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
+    {
+      for(x = 0; x < gcode->nt_abc->K; x++)
+         if(gcode->nt_abc->degen[dsq[i]][x]) break;
+    }
+ 
     iv[1] = p7_FLogsum( MMX(i+1,1) + p7P_MSC(gm, 1, p7P_AMINO1(gm, 1, x)) + two_indel, 
             p7_FLogsum( MMX(i+2,1) + p7P_MSC(gm, 1, p7P_AMINO2(gm, 1, x, w)) + one_indel, 
             p7_FLogsum( MMX(i+3,1) + p7P_MSC(gm, 1, p7P_AMINO3(gm, 1, x, w, v)) + no_indel,
@@ -533,7 +549,12 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
   }
 
   /* At i=0, only N,B states are reachable. */
-  x = esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])   ? dsq[1]   : 4;
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+  else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[1]))
+  {
+    for(x = 0; x < gcode->nt_abc->K; x++)
+      if(gcode->nt_abc->degen[dsq[1]][x]) break;
+  }
 
   iv[1] = p7_FLogsum( MMX(1,1) + p7P_MSC(gm, 1, p7P_AMINO1(gm, 1, x)) + two_indel, 
           p7_FLogsum( MMX(2,1) + p7P_MSC(gm, 1, p7P_AMINO2(gm, 1, x, w)) + one_indel,

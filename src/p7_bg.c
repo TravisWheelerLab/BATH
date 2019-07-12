@@ -633,8 +633,13 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
       u = v;
       v = w;
       w = x;
-      x = esl_abc_XIsCanonical(gcode->nt_abc, dsq[i]) ? dsq[i] : 4;
-   
+      if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+      else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
+      {
+        for(x = 0; x < gcode->nt_abc->K; x++)
+          if(gcode->nt_abc->degen[dsq[i]][x]) break;
+      }
+
       for (k = 0; k < M; k++)
         {
           fwd->dp[i][k] = 0.0;

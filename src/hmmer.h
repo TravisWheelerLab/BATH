@@ -247,11 +247,11 @@ enum p7p_rsc_codon {
 };
 #define p7P_CODONS         5
 
-#define p7P_MAXCODONS      3905
-#define p7P_NUC5           625
-#define p7P_NUC4           125
-#define p7P_NUC3           25
-#define p7P_NUC2           5
+#define p7P_MAXCODONS      1364
+#define p7P_NUC5           256
+#define p7P_NUC4           64
+#define p7P_NUC3           16
+#define p7P_NUC2           4
 /* Accessing codon translations */
 #define p7P_AMINO1(gm, k, x)             ((gm)->codons[(x)][(k)])
 #define p7P_AMINO2(gm, k, w, x)          ((gm)->codons[(x) + ((w)+1) * p7P_NUC2][(k)])
@@ -1443,15 +1443,15 @@ extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX 
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
 extern int p7_Null2_fs_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
-extern int p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
+extern int p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, const ESL_ALPHABET *sq_abc, float indel_cost, float *null2);
 
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
 extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
 
 /* optacc_frameshift.c */
-extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, ESL_DSQ *e_trace, float *ret_e);
-extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, ESL_DSQ *e_trace, P7_TRACE *tr, int start, int length);
+extern int p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *b_state, int *e_trace, float *ret_e);
+extern int p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, const float *b_state, const int *e_trace, P7_TRACE *tr);
 
 /* generic_stotrace.c */
 extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);

@@ -62,17 +62,20 @@
  * Throws:    (no abnormal error conditions)
  */
 int
-p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2)
+p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, const ESL_ALPHABET *sq_abc, float indel_cost, float *null2)
 {
   int      M      = gm->M;
   int      Ld     = pp->L;
   float  **dp     = pp->dp;
   float   *xmx    = pp->xmx;
   float    xfactor;
-  int      x;			/* over symbols 0..K-1                       */
   int      i;			/* over offset envelope dsq positions 1..Ld  */
   int      k;			/* over model M states 1..M, I states 1..M-1 */
-
+  int      x;
+  ESL_DSQ  t, u, v, w;
+  float    two_indel = log(2*indel_cost);
+  float    one_indel = log(indel_cost);
+  float    no_indel  = log(1-3*indel_cost);
   /* Calculate expected # of times that each emitting state was used
    * in generating the Ld residues in this domain.
    * The 0 row in <wrk> is used to hold these numbers.
@@ -102,29 +105,43 @@ p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2)
   xfactor = XMX_FS(0,p7G_N);
   xfactor = p7_FLogsum(xfactor, XMX_FS(0,p7G_C));
   xfactor = p7_FLogsum(xfactor, XMX_FS(0,p7G_J));
-  esl_vec_FSet(null2, gm->abc->K, -eslINFINITY);
-  for (x = 0; x < gm->abc->K; x++)
-    { 
-      for (k = 1; k < M; k++)
-	{
-	  null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC(gm, k, x));
-	  null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k)        + p7P_ISC(gm, k, x));
-	}
-      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC(gm, k, x));
-      null2[x] = p7_FLogsum(null2[x], xfactor);
+  esl_vec_FSet(null2, p7P_MAXCODONS, -eslINFINITY);
+  for (k = 1; k <= M; k++)
+  {
+    for(x = 0; x < sq_abc->K; x++)
+    {
+      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C1) + p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)) + two_indel);
+      for(w = 0; w < sq_abc->K; w++)
+      {
+        null2[x + (w+1) * p7P_NUC2] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C2) + p7P_MSC(gm, k, p7P_AMINO2(gm, k, w, x)) + one_indel);
+        for (v = 0; v < sq_abc->K; v++)
+        {
+          null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C3) + p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)) + no_indel);
+          for (u = 0; u < sq_abc->K; u++)
+          {
+            null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C4) + p7P_MSC(gm, k, p7P_AMINO4(gm, k, u, v, w, x)) + one_indel);
+            for (t = 0; t < sq_abc->K; t++)
+            {
+              null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4 + (t+1) * p7P_NUC5] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C5) + p7P_MSC(gm, k, p7P_AMINO5(gm, k, t, u, v, w, x)) + two_indel);
+            }
+          }
+        }
+      }
     }
-
-  esl_vec_FExp (null2, gm->abc->K);
+  }
+  for(x = 0; x < p7P_MAXCODONS; x++)
+    null2[x] = p7_FLogsum(null2[x], xfactor);
+  esl_vec_FExp (null2, p7P_MAXCODONS);
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} for all x in alphabet,
    * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies
    * for this envelope.
    */
 
   /* make valid scores for all degeneracies, by averaging the odds ratios. */
-  esl_abc_FAvgScVec(gm->abc, null2); /* does not set gap, nonres, missing  */
-  null2[gm->abc->K]    = 1.0;                             /* gap character    */
-  null2[gm->abc->Kp-2] = esl_vec_FMin(null2, gm->abc->K); /* nonresidue "*"   */
-  null2[gm->abc->Kp-1] = 1.0;	                          /* missing data "~" */
+  //esl_abc_FAvgScVec(gm->abc, null2); /* does not set gap, nonres, missing  */
+  //null2[sq_abc->K]    = 1.0;               /* gap character    */
+  //null2[sq_abc->Kp-2] = 1.0;               /* nonresidue "*"   */
+  //null2[sq_abc->Kp-1] = 1.0;               /* missing data "~" */
 
   return eslOK;
 }
@@ -167,6 +184,7 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
   int      k;			/* index over model position     */
   int      t, u, v,w,x;			/* index over residues           */
   int      z;			/* index over trace position     */
+  int      cL;
   float    xfactor;
  
   /* We'll use the i=0 row in wrk for working space: dp[0][] and xmx[0..4]. */
@@ -176,12 +194,13 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
   /* Calculate emitting state usage in this particular trace segment: */
   for (z = zstart; z <= zend; z++) 
     {
+      cL = tr->i[z] - tr->i[z-1];
       switch (tr->st[z]) {
-      case p7T_M:  Ld += tr->i[z] - tr->i[z-1];         MMX(0,tr->k[z]) += (float) tr->i[z] - tr->i[z-1];  break;
-      case p7T_I:  Ld += 3;                             IMX(0,tr->k[z]) += 3.0;                            break;
-      case p7T_N:  if (tr->st[z-1] == p7T_N) { Ld++;    XMX(0,p7G_N)    += 1.0; }                          break;
-      case p7T_C:  if (tr->st[z-1] == p7T_C) { Ld++;    XMX(0,p7G_C)    += 1.0; }                          break;
-      case p7T_J:  if (tr->st[z-1] == p7T_J) { Ld += 3; XMX(0,p7G_J)    += 3.0; }                          break;
+      case p7T_M:                              Ld+=cL; MMX(0,tr->k[z]) += (float) cL;  break;
+      case p7T_I:                              Ld+=3;  IMX(0,tr->k[z]) += 3.0;         break;
+      case p7T_N:  if (tr->st[z-1] == p7T_N) { Ld++;   XMX(0,p7G_N)    += 1.0; }       break;
+      case p7T_C:  if (tr->st[z-1] == p7T_C) { Ld++;   XMX(0,p7G_C)    += 1.0; }       break;
+      case p7T_J:  if (tr->st[z-1] == p7T_J) { Ld++;   XMX(0,p7G_J)    += 1.0; }       break;
       }
     }
   esl_vec_FScale(wrk->dp[0], (M+1)*p7G_NSCELLS, (1.0 / (float) Ld));

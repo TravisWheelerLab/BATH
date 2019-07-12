@@ -1520,11 +1520,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   float          envsc, oasc, bcksc;
   int            z;
   int            pos;
-  float          null2[p7_MAXCODE];
+  float          null2[p7P_MAXCODONS];
   int            status;
   int            orig_L;
-  ESL_DSQ        e_trace[Ld];
-  ESL_DSQ        v, w, x;
+  int            e_trace[Ld];
+  ESL_DSQ        t, u, v, w, x;
+
   //temporarily change model length to env_len. The nhmmer pipeline will tack
   //on the appropriate cost to account for the longer actual window
   orig_L = gm->L;
@@ -1534,31 +1535,30 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 
   p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
 
-  //FILE *fout = fopen("fwdout.txt", "w+");
-  // p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
-  // fclose(fout); 
-  
+  FILE *fout = fopen("fwdout.txt", "w+");
+  p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
+  fclose(fout); 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
 
-//  FILE *bwdout = fopen("bwdout.txt", "w+");
-//   p7_gmx_DumpWindow(bwdout, gx2,0,Ld,0,0, p7_DEFAULT);
-//   fclose(bwdout); 
+  FILE *bwdout = fopen("bwdout.txt", "w+");
+   p7_gmx_Dump(bwdout, gx2, p7_DEFAULT);
+   fclose(bwdout); 
 
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
 
-// FILE *ppout = fopen("ppout.txt", "w+");
-//   p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
-//   fclose(ppout);
+ FILE *ppout = fopen("ppout.txt", "w+");
+  p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
+   fclose(ppout);
 
 
    /* Find an optimal accuracy alignment */
-   p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, e_trace, &oasc);      /* <ox1> is now overwritten with OA scores              */
-   p7_OATrace_Frameshift(gm, gxppfs, gx2, e_trace, ddef->tr, sq->start, sq->n);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+   p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, gx1->xmx, e_trace, &oasc);      /* <ox1> is now overwritten with OA scores              */
+   p7_OATrace_Frameshift(gm, gxppfs, gx2, gx1->xmx, e_trace, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
 
-//   FILE *out = fopen("optout.txt", "w+");
-//   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
-//   fclose(out);
+   FILE *out = fopen("optout.txt", "w+");
+   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
+   fclose(out);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1576,23 +1576,73 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 
   /* Compute bias correction (for non-longtarget case)
    *
+de->basic[16 * v + 4 * w + x]
    * Is null2 set already for this i..j? (It is, if we're in a domain that
    * was defined by stochastic traceback clustering in a multidomain region;
    * it isn't yet, if we're in a simple one-domain region). If it isn't,
    * do it now, by the expectation (posterior decoding) method.
    */
-
+#if 0
   if (!null2_is_done) {
-    p7_Null2_fs_ByExpectation(gm, gxppfs, null2);
-    for (pos = i+2; pos <= j; pos++)
+    p7_Null2_fs_ByExpectation(gm, gxppfs, sq->abc, indel_cost, null2);
+    if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) u = sq->dsq[i];
+    else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
     {
-      v = sq->dsq[pos-2];
-      w = sq->dsq[pos-1];
-      x = sq->dsq[pos];
-      ddef->n2sc[pos]  = logf(null2[gcode->basic[16 * v + 4 * w + x]]); 
-    }   
+      for(u = 0; u < sq->abc->K; u++)
+      if(sq->abc->degen[sq->dsq[i]][u]) break;
+    }
+    if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i+1])) v = sq->dsq[i+1];
+    else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i+1]))
+    {
+      for(v = 0; v < sq->abc->K; v++)
+       if(sq->abc->degen[sq->dsq[i+1]][v]) break;
+    }
+    if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i+2])) w = sq->dsq[i+2];
+    else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i+2]))
+    {
+      for(w = 0; w < sq->abc->K; w++)
+        if(sq->abc->degen[sq->dsq[i+2]][w]) break;
+    }
+    if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i+3])) x = sq->dsq[i+3];
+    else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i+3]))
+    {
+      for(x = 0; x < sq->abc->K; x++)
+        if(sq->abc->degen[sq->dsq[i+3]][x]) break;
+    }
+
+    ddef->n2sc[i]    = logf(null2[u]);
+    ddef->n2sc[i+1]  = logf(null2[v] + 
+                            null2[v  + (u+1) * p7P_NUC2]);
+    ddef->n2sc[i+2]  = logf(null2[w] + 
+                            null2[w  + (v+1) * p7P_NUC2] + 
+                            null2[w  + (v+1) * p7P_NUC2  + (u+1) * p7P_NUC3]);
+    ddef->n2sc[i+3]  = logf(null2[x] + 
+                            null2[x  + (w+1) * p7P_NUC2] + 
+                            null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3] +
+                            null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4]);
+
+    for (pos = i; pos <= j; pos++)
+    {
+      t = u;
+      u = v;
+      v = w;
+      w = x;
+      if(esl_abc_XIsCanonical(sq->abc, sq->dsq[pos])) x = sq->dsq[pos];
+      else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[pos]))
+      {
+        for(x = 0; x < sq->abc->K; x++)
+          if(sq->abc->degen[sq->dsq[pos]][x]) break;
+      }
+      printf("i %d 1 %f 2 %f 3 %f 4 %f 5 %f\n", pos, null2[x], null2[x  + (w+1) * p7P_NUC2], null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3], null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4], null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4  + (t+1) * p7P_NUC5]);
+      ddef->n2sc[pos]  = logf(null2[x] +
+                              null2[x  + (w+1) * p7P_NUC2] +
+                              null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3] +
+                              null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4] +
+                              null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4  + (t+1) * p7P_NUC5]);
+      printf("null %f\n", ddef->n2sc[pos]);
+    }
   }
-      
+#endif      
   for (pos = i; pos <= j; pos++)
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
    

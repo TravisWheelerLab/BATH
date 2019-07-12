@@ -380,7 +380,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            n, pos, z, y;
   int            z1, z2;
   int		 srt, end;
-  int            k,x,i,s,l;
+  int            k,a,i,s,l;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            status;
@@ -389,7 +389,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   float		 max_emit, cur_emit;
   float	        *rsc; 
   ESL_SQ        *codon;
-
+  ESL_DSQ        t, u, v, w, x;
 /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
    */
@@ -519,11 +519,16 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         max_emit = -eslINFINITY;
 	if(l == 1) {
           ad->frameshifts++;           
-	 
-	  x = p7P_AMINO1(gm, k, sq->dsq[i]); 
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
+          {
+            for(x = 0; x < sq->abc->K; x++)
+              if(sq->abc->degen[sq->dsq[i]][x]) break;
+          }	   
+	  a = p7P_AMINO1(gm, k, x); 
 	  for(g = 0; g < 4; g++) {
              for(h = 0; h < 4; h++) {
-                if (p7P_AMINO3(gm, k, g, h, sq->dsq[i]) == x) {
+                if (p7P_AMINO3(gm, k, g, h, x) == a) {
 			n1 = ' ';
                    	n2 = '-';
                    	n3 = '-';
@@ -532,7 +537,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 			h = 4;
 			g = 4;
 		} 
-		else if ( p7P_AMINO3(gm, k, sq->dsq[i], g, h) == x) {
+		else if ( p7P_AMINO3(gm, k, x, g, h) == a) {
 			n1 = ' ';
                    	n2 = alphaDNA[sq->dsq[i]];
                    	n3 = '-';
@@ -541,7 +546,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                         h = 4;
                         g = 4;
                 } 
-		else if ( p7P_AMINO3(gm, k, g, sq->dsq[i], h) == x) {
+		else if ( p7P_AMINO3(gm, k, g, x, h) == a) {
                         n1 = ' ';
                         n2 = '-';
                         n3 = alphaDNA[sq->dsq[i]];
@@ -556,10 +561,21 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 
 	if(l == 2) {
           ad->frameshifts++;
- 
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
+          {           
+            for(w = 0; w < sq->abc->K; w++)
+              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
+          {           
+            for(x = 0; x < sq->abc->K; x++)
+              if(sq->abc->degen[sq->dsq[i]][x]) break;
+          } 
+          a = p7P_AMINO2(gm, k, w, x);
 	  for(g = 0; g < 4; g++) {
-             x = p7P_AMINO2(gm, k, sq->dsq[i-1], sq->dsq[i]);
-             if (p7P_AMINO3(gm, k, g, sq->dsq[i-1], sq->dsq[i]) == x) {
+             if (p7P_AMINO3(gm, k, g, w, x) == a) {
                         n1 = ' ';
                         n2 = '-';
                		n3 = alphaDNA[sq->dsq[i-1]];
@@ -568,7 +584,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
  			h = 4;
                         g = 4;
              }
-	     else if (p7P_AMINO3(gm, k, sq->dsq[i-1], sq->dsq[i], g) == x) {
+	     else if (p7P_AMINO3(gm, k, w, x, g) == a) {
                         n1 = ' ';
                         n2 = alphaDNA[sq->dsq[i-1]];
                         n3 = alphaDNA[sq->dsq[i]];
@@ -577,7 +593,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                         h = 4;
                         g = 4;
              }
-	     else if (p7P_AMINO3(gm, k, sq->dsq[i-1], g, sq->dsq[i]) == x) {
+	     else if (p7P_AMINO3(gm, k, w, g, x) == a) {
                         n1 = ' ';
                         n2 = alphaDNA[sq->dsq[i-1]];
                         n3 = '-';
@@ -591,115 +607,187 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	 }
 	
 	if(l == 3) {
-	    x = p7P_AMINO3(gm, k, sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);
-	    n1 = ' ';
-	    n2 = alphaDNA[sq->dsq[i-2]];
-	    n3 = alphaDNA[sq->dsq[i-1]];
-	    n4 = alphaDNA[sq->dsq[i]];
-	    n5 = ' ';
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2])) v = sq->dsq[i-2];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-2]))
+          {
+            for(v = 0; v < sq->abc->K; v++)
+              if(sq->abc->degen[sq->dsq[i-2]][v]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
+          {
+            for(w = 0; w < sq->abc->K; w++)
+              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
+          {
+            for(x = 0; x < sq->abc->K; x++)
+              if(sq->abc->degen[sq->dsq[i]][x]) break;
+          }
+          a = p7P_AMINO3(gm, k, v, w, x);           
+	  n1 = ' ';
+	  n2 = alphaDNA[sq->dsq[i-2]];
+          n3 = alphaDNA[sq->dsq[i-1]];
+	  n4 = alphaDNA[sq->dsq[i]];
+          n5 = ' ';
         }
 	
 	if(l == 4) {
 	  ad->frameshifts++;
-          x = p7P_AMINO4(gm, k, sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);
-          if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1]) == x) {
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3])) u = sq->dsq[i-3];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-3]))
+          {
+            for(u = 0; u < sq->abc->K; u++)
+              if(sq->abc->degen[sq->dsq[i-3]][u]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2])) v = sq->dsq[i-2];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-2]))
+          {
+            for(v = 0; v < sq->abc->K; v++)
+              if(sq->abc->degen[sq->dsq[i-2]][v]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
+          {
+            for(w = 0; w < sq->abc->K; w++)
+              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
+          {
+            for(x = 0; x < sq->abc->K; x++)
+              if(sq->abc->degen[sq->dsq[i]][x]) break;
+          }
+          a = p7P_AMINO4(gm, k, u, v, w, x);
+          if(p7P_AMINO3(gm, k, u, v, w) == a) {
                 n1 = ' ';
 		n2 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = toupper(alphaDNA[sq->dsq[i-1]]);
                 n5 = tolower(alphaDNA[sq->dsq[i]]);
 	  }
-	  else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i]) == x) {
+          else if(p7P_AMINO3(gm, k, v, w, x) == a) {
+                n1 = tolower(alphaDNA[sq->dsq[i-3]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-2]]);
+                n3 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n4 = toupper(alphaDNA[sq->dsq[i]]);
+                n5 = ' ';
+          }
+	  else if(p7P_AMINO3(gm, k, u, v, x) == a) {
                 n1 = ' ';
                 n2 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = tolower(alphaDNA[sq->dsq[i-1]]);
                 n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-          else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-1], sq->dsq[i]) == x) {
+          else if(p7P_AMINO3(gm, k, u, w, x) == a) {
                 n1 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n2 = tolower(alphaDNA[sq->dsq[i-2]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-1]]);
                 n4 = toupper(alphaDNA[sq->dsq[i]]);
                 n5 = ' ';
           }
-	  else if(p7P_AMINO3(gm, k,sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]) == x) {
-                n1 = tolower(alphaDNA[sq->dsq[i-3]]);
-                n2 = toupper(alphaDNA[sq->dsq[i-2]]);
-                n3 = toupper(alphaDNA[sq->dsq[i-1]]);
-                n4 = toupper(alphaDNA[sq->dsq[i]]);
-                n5 = ' ';
-           }
-
         }	
        
         if(l == 5) {
 	  ad->frameshifts++;
-          x = p7P_AMINO5(gm, k, sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);	  
-	  if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2]) == x) {
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-4])) t = sq->dsq[i-4];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-4]))
+          {
+            for(t = 0; t < sq->abc->K; t++) 
+              if(sq->abc->degen[sq->dsq[i-4]][t]) break;
+          }     
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3])) u = sq->dsq[i-3];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-3]))
+          {
+            for(u = 0; u < sq->abc->K; u++)
+              if(sq->abc->degen[sq->dsq[i-3]][u]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2])) v = sq->dsq[i-2];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-2]))
+          {
+            for(v = 0; v < sq->abc->K; v++)
+              if(sq->abc->degen[sq->dsq[i-2]][v]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
+          {
+            for(w = 0; w < sq->abc->K; w++)
+              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
+          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
+          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
+          {
+            for(x = 0; x < sq->abc->K; x++)
+              if(sq->abc->degen[sq->dsq[i]][x]) break;
+          }
+
+          a = p7P_AMINO5(gm, k, t, u, v, w, x);
+	  if(p7P_AMINO3(gm, k, t, u, v) == a) {
                 n1 = toupper(alphaDNA[sq->dsq[i-4]]);
                 n2 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = tolower(alphaDNA[sq->dsq[i-1]]);
 		n5 = tolower(alphaDNA[sq->dsq[i]]);
-          }  
-	  else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i]) == x) {
-                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
-                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
-                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
-                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
-                n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-	  else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-2], sq->dsq[i]) == x) {
-                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
-                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
-                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
-                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
-                n5 = toupper(alphaDNA[sq->dsq[i]]);
-          }
-	  else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i]) == x) {
+          else if(p7P_AMINO3(gm, k, w, v, x) == a) {
                 n1 = tolower(alphaDNA[sq->dsq[i-4]]);
                 n2 = tolower(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = toupper(alphaDNA[sq->dsq[i-1]]);
                 n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-          else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1]) == x) {
+	  else if(p7P_AMINO3(gm, k, t, u, x) == a) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
+                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
+                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+	  else if(p7P_AMINO3(gm, k, t, w, x) == a) {
+                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
+                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
+                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
+                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
+                n5 = toupper(alphaDNA[sq->dsq[i]]);
+          }
+          else if(p7P_AMINO3(gm, k, u, v, w) == a) {
                 n1 = tolower(alphaDNA[sq->dsq[i-4]]);
                 n2 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = toupper(alphaDNA[sq->dsq[i-1]]);
                 n5 = tolower(alphaDNA[sq->dsq[i]]);
           }
-	  else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i]) == x) {
+	  else if(p7P_AMINO3(gm, k, u, v, x) == a) {
                 n1 = tolower(alphaDNA[sq->dsq[i-4]]);
                 n2 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = tolower(alphaDNA[sq->dsq[i-1]]);
                 n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-          else if(p7P_AMINO3(gm, k,sq->dsq[i-3], sq->dsq[i-1], sq->dsq[i]) == x) {
+          else if(p7P_AMINO3(gm, k, u, w, x) == a) {
                 n1 = tolower(alphaDNA[sq->dsq[i-4]]);
                 n2 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n3 = tolower(alphaDNA[sq->dsq[i-2]]);
                 n4 = toupper(alphaDNA[sq->dsq[i-1]]);
                 n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-          else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-2], sq->dsq[i-1]) == x) {
+          else if(p7P_AMINO3(gm, k, t, v, w) == a) {
                 n1 = toupper(alphaDNA[sq->dsq[i-4]]);
                 n2 = tolower(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = toupper(alphaDNA[sq->dsq[i-1]]);
                 n5 = tolower(alphaDNA[sq->dsq[i]]);
           }
-          else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-2], sq->dsq[i]) == x) {
+          else if(p7P_AMINO3(gm, k, t, v, x) == a) {
                 n1 = toupper(alphaDNA[sq->dsq[i-4]]);
                 n2 = tolower(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n4 = tolower(alphaDNA[sq->dsq[i-1]]);
                 n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-	  else if(p7P_AMINO3(gm, k,sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-1]) == x) {
+	  else if(p7P_AMINO3(gm, k, t, u, w) == a) {
                 n1 = toupper(alphaDNA[sq->dsq[i-4]]);
                 n2 = toupper(alphaDNA[sq->dsq[i-3]]);
                 n3 = tolower(alphaDNA[sq->dsq[i-2]]);
@@ -707,13 +795,12 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                 n5 = tolower(alphaDNA[sq->dsq[i]]);
           }
 	}	
-	
-	
-	if      (x == esl_abc_DigitizeSymbol(gm->abc, gm->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
-        else if (expf(p7P_MSC(gm, k, x)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+
+	if      (a == esl_abc_DigitizeSymbol(gm->abc, gm->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
+        else if (expf(p7P_MSC(gm, k, a)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else                                                  ad->mline[z-z1] = ' ';
 
-        ad->aseq  [z-z1] = toupper(alphaAmino[x]);
+        ad->aseq  [z-z1] = toupper(alphaAmino[a]);
         ad->ntseq [5*(z-z1)] = n1;
         ad->ntseq [5*(z-z1)+1] = n2;
         ad->ntseq [5*(z-z1)+2] = n3;
@@ -725,14 +812,14 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         ad->codon[y] = 3;
       	ad->model [z-z1] = '.';
         ad->mline [z-z1] = ' ';
-        ad->aseq  [z-z1] = tolower(alphaAmino[x]);
+        ad->aseq  [z-z1] = tolower(alphaAmino[a]);
         n1 = ' ';
         n2 = alphaDNA[sq->dsq[i-2]];	
 	n3 = alphaDNA[sq->dsq[i-1]];	
         n4 = alphaDNA[sq->dsq[i]];	
         n5 = ' ';
-        x = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
-	ad->aseq  [z-z1] = tolower(alphaAmino[x]);
+        a = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
+	ad->aseq  [z-z1] = tolower(alphaAmino[a]);
         ad->ntseq [5*(z-z1)] = ' ';
         ad->ntseq [5*(z-z1)+1] = toupper(n2);
         ad->ntseq [5*(z-z1)+2] = toupper(n3);

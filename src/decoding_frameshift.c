@@ -143,7 +143,7 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
       XMX(i,p7G_B)     = 0.0;  
 
       /* proability from N, J and C states */
-       XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i) + p7G_N] + // gm->xsc[p7P_N][p7P_LOOP] +
+       XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_N] +  gm->xsc[p7P_N][p7P_LOOP] +
                               bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
        XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_C] +  gm->xsc[p7P_C][p7P_LOOP] +
                               bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
@@ -152,9 +152,7 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
                               bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
 
     }
-// FILE *pout = fopen("pout.txt", "w+");
-//  p7_gmx_fs_Dump(pout, pp, p7_DEFAULT);
-//   fclose(pout);
+ 
   /* normailze i for all codons in which i may be present */
   for (i = 1; i <= L; i++) 
   {
@@ -211,20 +209,39 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
     denom += XMX_FS(i,p7G_J);
     denom += XMX_FS(i,p7G_C);
     if(i < L)
+    {
       denom += MMX_FS(i+1,M,p7G_C0)
             -  MMX_FS(i+1,M,p7G_C1);
+      denom += XMX_FS(i+1,p7G_N);
+      denom += XMX_FS(i+1,p7G_J);
+      denom += XMX_FS(i+1,p7G_C);
+    }
     else
+    {
       denom += MMX_FS(i,M,p7G_C0)
             -  MMX_FS(i,M,p7G_C1);
+      denom += XMX_FS(i,p7G_N);
+      denom += XMX_FS(i,p7G_J);
+      denom += XMX_FS(i,p7G_C);
+    }
     if(i < L-1)
+    {
       denom += MMX_FS(i+2,M,p7G_C0)
             -  MMX_FS(i+2,M,p7G_C2)
             -  MMX_FS(i+2,M,p7G_C1);
+      denom += XMX_FS(i+2,p7G_N);
+      denom += XMX_FS(i+2,p7G_J);
+      denom += XMX_FS(i+2,p7G_C);
+    }
     else
+    {
       denom += MMX_FS(i,M,p7G_C0)
             -  MMX_FS(i,M,p7G_C2)
             -  MMX_FS(i,M,p7G_C1);
-
+      denom += XMX_FS(i,p7G_N);
+      denom += XMX_FS(i,p7G_J);
+      denom += XMX_FS(i,p7G_C);
+    }
     if(i < L-2)
       denom += MMX_FS(i+3,M,p7G_C4)
             +  MMX_FS(i+3,M,p7G_C5);

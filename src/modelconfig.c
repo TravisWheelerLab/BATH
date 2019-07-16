@@ -373,10 +373,12 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
             max_sc1[v] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa1[v] = gcode->basic[codon];
           }
+
           if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[w]) {
             max_sc1[w] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa1[w] = gcode->basic[codon];
-         }
+          }
+
           if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[x]) {
             max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa1[x] = gcode->basic[codon];
@@ -386,10 +388,12 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
             max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa2[w * 4 + x] = gcode->basic[codon];
           }
+
           if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + x]) {
             max_sc2[v * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa2[v * 4 + x] = gcode->basic[codon];
           }
+
           if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + w]) {
             max_sc2[v * 4 + w] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa2[v * 4 + w] = gcode->basic[codon];
@@ -402,9 +406,8 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
       p7P_AMINO1(gm, k, x) = max_aa1[x];
 
     for (w = 0; w < 4; w++) { 
-      for (x = 0; x < 4; x++) {
+      for (x = 0; x < 4; x++) 
         p7P_AMINO2(gm, k, w, x) = max_aa2[w * 4 + x];
-      }
     }
    
     for ( u = 0; u < 4; u++) {

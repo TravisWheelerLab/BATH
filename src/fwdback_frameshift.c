@@ -79,14 +79,14 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
   p7_FLogsumInit();    /* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
  
   /* Initialization of the N & B states for rows 0-2 */
-  XMX_FS(0,p7G_N) = 0.; // gm->xsc[p7P_N][p7P_LOOP];   //* S->N, p=1            */
+  XMX_FS(0,p7G_N) = 0.; //* S->N, p=1            */
   XMX_FS(0,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
   XMX_FS(0,p7G_E) = XMX_FS(0,p7G_J) = XMX_FS(0,p7G_C) = -eslINFINITY;
   for (k = 0; k <= M; k++) 
     MMX_FS(0,k,p7G_C0) = MMX_FS(0,k,p7G_C1) = MMX_FS(0,k,p7G_C2) = MMX_FS(0,k,p7G_C3) =
     MMX_FS(0,k,p7G_C4) = MMX_FS(0,k,p7G_C5) = IMX_FS(0,k)        = DMX_FS(0,k)        = -eslINFINITY;
 
-  t = u = v = w = -1;
+  t = u = v = w = x = -1;
   for(i = 1; i < 5; i++)
   {
     t = u;
@@ -99,7 +99,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
       for(x = 0; x < gcode->nt_abc->K; x++)
          if(gcode->nt_abc->degen[dsq[i]][x]) break;
     }
-
+    
     MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) =
     MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0)        = DMX_FS(i,0)        = -eslINFINITY;
 
@@ -112,23 +112,20 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_
                         p7_FLogsum(IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1),
                         p7_FLogsum(DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1),
                                    XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1))));
-         MMX_FS(i,k,p7G_C1) = IVX(i,k,p7P_C1) + p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)) + two_indel;
-
+	
+      MMX_FS(i,k,p7G_C1) = IVX(i,k,p7P_C1) + p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)) + two_indel;
       if( i > 1 )
         MMX_FS(i,k,p7G_C2) = IVX(i,k,p7P_C2) + p7P_MSC(gm, k, p7P_AMINO2(gm, k, w, x)) + one_indel;
       else
         MMX_FS(i,k,p7G_C2) = -eslINFINITY;
-if( i > 2 ) printf("i %d k %d IV %f vwx %d%d%d a %d EMIT %f\n", i, k, IVX(i,k,p7P_C3), v,w,x,p7P_AMINO3(gm, k, v, w, x), p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)));
       if( i > 2 )
         MMX_FS(i,k,p7G_C3) = IVX(i,k,p7P_C3) + p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)) + no_indel;
       else
         MMX_FS(i,k,p7G_C3) = -eslINFINITY;
-
       if( i > 3 )
         MMX_FS(i,k,p7G_C4) = IVX(i,k,p7P_C4) + p7P_MSC(gm, k, p7P_AMINO4(gm, k, u, v, w, x)) + one_indel;
       else
         MMX_FS(i,k,p7G_C4) = -eslINFINITY;
-
       MMX_FS(i,k,p7G_C5) = -eslINFINITY; 
 
       MMX_FS(i,k,p7G_C0) =  p7_FLogsum(p7_FLogsum(MMX_FS(i,k,p7G_C1), MMX_FS(i,k,p7G_C2)),
@@ -162,17 +159,14 @@ if( i > 2 ) printf("i %d k %d IV %f vwx %d%d%d a %d EMIT %f\n", i, k, IVX(i,k,p7
       MMX_FS(i,M,p7G_C2) = IVX(i,M,p7P_C2) + p7P_MSC(gm, M, p7P_AMINO2(gm, M, w, x)) + one_indel;
     else
       MMX_FS(i,M,p7G_C2) = -eslINFINITY;
-
     if( i > 2 )
       MMX_FS(i,M,p7G_C3) = IVX(i,M,p7P_C3) + p7P_MSC(gm, M, p7P_AMINO3(gm, M, v, w, x)) + no_indel;
     else
       MMX_FS(i,M,p7G_C3) = -eslINFINITY;
-
     if( i > 3 )
       MMX_FS(i,M,p7G_C4) = IVX(i,M,p7P_C4) + p7P_MSC(gm, M, p7P_AMINO4(gm, M, u, v, w, x)) + one_indel;
     else
       MMX_FS(i,M,p7G_C4) = -eslINFINITY;
-
     MMX_FS(i,M,p7G_C5)   = -eslINFINITY;
 
     MMX_FS(i,M,p7G_C0) =  p7_FLogsum(p7_FLogsum(MMX_FS(i,M,p7G_C1), MMX_FS(i,M,p7G_C2)),
@@ -190,25 +184,26 @@ if( i > 2 ) printf("i %d k %d IV %f vwx %d%d%d a %d EMIT %f\n", i, k, IVX(i,k,p7
                                  XMX_FS(i,p7G_E)));
 
     /* Initialization of the J, C, N & B states for row 4 */
-
-   // if ( i > 2)
-   // {
+ 
+//    if(i > 2)
+//    {  
       XMX_FS(i,p7G_J) = p7_FLogsum(XMX_FS(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
                                    XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_LOOP]);
       XMX_FS(i,p7G_C) = p7_FLogsum(XMX_FS(i-1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP],
                                    XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_MOVE]);
-      XMX_FS(i,p7G_N) = XMX_FS(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
-   // }
-   // else
-   // {
-    //  XMX_FS(i,p7G_N) = 0.;//gm->xsc[p7P_N][p7P_LOOP];
-    //  XMX_FS(i,p7G_J) = XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_LOOP];
-    //  XMX_FS(i,p7G_C) = XMX_FS(i,p7G_E) + gm->xsc[p7P_E][p7P_MOVE];
+      XMX_FS(i,p7G_N) =            XMX_FS(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
+//    }
+//    else
+//    {
+//      XMX_FS(i,p7G_J) = p7_FLogsum(                    gm->xsc[p7P_J][p7P_LOOP],
+//                                   XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_LOOP]);
+//      XMX_FS(i,p7G_C) = p7_FLogsum(                    gm->xsc[p7P_C][p7P_LOOP],
+//                                   XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_MOVE]);
+//      XMX_FS(i,p7G_N) =                                gm->xsc[p7P_N][p7P_LOOP]; 
+//    }
 
-   // }
-
-       XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
-                                   XMX_FS(i,p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
+    XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
+                                 XMX_FS(i,p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
   }
 
 
@@ -237,13 +232,14 @@ if( i > 2 ) printf("i %d k %d IV %f vwx %d%d%d a %d EMIT %f\n", i, k, IVX(i,k,p7
       for(x = 0; x < gcode->nt_abc->K; x++)
          if(gcode->nt_abc->degen[dsq[i]][x]) break;
     }
+    
 
     for (k = 1; k < M; k++)
     {  
       
       IVX(i,k,p7P_C1) = p7_FLogsum(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1), 
-            p7_FLogsum(IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1),
-      p7_FLogsum(DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1),
+                        p7_FLogsum(IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1),
+                        p7_FLogsum(DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1),
                                    XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1))));
 
       MMX_FS(i,k,p7G_C1) = IVX(i,k,p7P_C1) + p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)) + two_indel; 
@@ -255,18 +251,17 @@ if( i > 2 ) printf("i %d k %d IV %f vwx %d%d%d a %d EMIT %f\n", i, k, IVX(i,k,p7
       MMX_FS(i,k,p7G_C4) = IVX(i,k,p7P_C4) + p7P_MSC(gm, k, p7P_AMINO4(gm, k, u, v, w, x)) + one_indel;
 
       MMX_FS(i,k,p7G_C5) = IVX(i,k,p7P_C5) + p7P_MSC(gm, k, p7P_AMINO5(gm, k, t, u, v, w, x)) + two_indel; 
-
- 
       MMX_FS(i,k,p7G_C0) =  p7_FLogsum(p7_FLogsum(MMX_FS(i,k,p7G_C1), 
-                 p7_FLogsum(MMX_FS(i,k,p7G_C2), MMX_FS(i,k,p7G_C3))),
-               p7_FLogsum(MMX_FS(i,k,p7G_C4), MMX_FS(i,k,p7G_C5)));
+                            p7_FLogsum(MMX_FS(i,k,p7G_C2), MMX_FS(i,k,p7G_C3))),
+                            p7_FLogsum(MMX_FS(i,k,p7G_C4), MMX_FS(i,k,p7G_C5)));
+
       /* insert state */
       IMX_FS(i,k) = p7_FLogsum(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
-                  IMX_FS(i-3,k)        + TSC(p7P_II,k));
+                               IMX_FS(i-3,k)        + TSC(p7P_II,k));
     
       /* delete state */
       DMX_FS(i,k) = p7_FLogsum(MMX_FS(i,k-1,p7G_C0) + TSC(p7P_MD,k-1),
-             DMX_FS(i,k-1)        + TSC(p7P_DD,k-1));
+                               DMX_FS(i,k-1)        + TSC(p7P_DD,k-1));
 
       /* E state update */
       XMX_FS(i,p7G_E) = p7_FLogsum(MMX_FS(i,k,p7G_C0) + esc,
@@ -276,48 +271,47 @@ if( i > 2 ) printf("i %d k %d IV %f vwx %d%d%d a %d EMIT %f\n", i, k, IVX(i,k,p7
 
     /* unrolled match state M_M */
     IVX(i,M,p7P_C1) = p7_FLogsum(MMX_FS(i-1,M-1,p7G_C0)   + TSC(p7P_MM,M-1), 
-          p7_FLogsum(IMX_FS(i-1,M-1)          + TSC(p7P_IM,M-1),
-          p7_FLogsum(DMX_FS(i-1,M-1)          + TSC(p7P_DM,M-1),
+                      p7_FLogsum(IMX_FS(i-1,M-1)          + TSC(p7P_IM,M-1),
+                      p7_FLogsum(DMX_FS(i-1,M-1)          + TSC(p7P_DM,M-1),
                                  XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,M-1))));
 
     MMX_FS(i,M,p7G_C1) = IVX(i,M,p7P_C1) + p7P_MSC(gm, M, p7P_AMINO1(gm, M, x)) + two_indel;
 
     MMX_FS(i,M,p7G_C2) = IVX(i,M,p7P_C2) + p7P_MSC(gm, M, p7P_AMINO2(gm, M, w, x)) + one_indel;
     
-    MMX_FS(i,M,p7G_C3) = IVX(i,M,p7P_C3) + p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)) + no_indel; 
+    MMX_FS(i,M,p7G_C3) = IVX(i,M,p7P_C3) + p7P_MSC(gm, M, p7P_AMINO3(gm, M, v, w, x)) + no_indel; 
 
     MMX_FS(i,M,p7G_C4) = IVX(i,M,p7P_C4) + p7P_MSC(gm, M, p7P_AMINO4(gm, M, u, v, w, x)) + one_indel; 
 
     MMX_FS(i,M,p7G_C5) = IVX(i,M,p7P_C5) + p7P_MSC(gm, M, p7P_AMINO5(gm, M, t, u, v, w, x)) + two_indel;
 
     MMX_FS(i,M,p7G_C0) =  p7_FLogsum(p7_FLogsum(MMX_FS(i,M,p7G_C1), 
-                   p7_FLogsum(MMX_FS(i,M,p7G_C2), MMX_FS(i,M,p7G_C3))),
-                   p7_FLogsum(MMX_FS(i,M,p7G_C4), MMX_FS(i,M,p7G_C5)));
+                          p7_FLogsum(MMX_FS(i,M,p7G_C2), MMX_FS(i,M,p7G_C3))),
+                          p7_FLogsum(MMX_FS(i,M,p7G_C4), MMX_FS(i,M,p7G_C5)));
 
     IMX_FS(i,M) = -eslINFINITY;
 
     /* unrolled delete state D_M */
     DMX_FS(i,M) = p7_FLogsum(MMX_FS(i,M-1,p7G_C0) + TSC(p7P_MD,M-1),
-           DMX_FS(i,M-1) + TSC(p7P_DD,M-1));
+                             DMX_FS(i,M-1) + TSC(p7P_DD,M-1));
 
     /* unrolled E state update */
     XMX_FS(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX_FS(i,M,p7G_C0),
-              DMX_FS(i,M)),
-              XMX_FS(i,p7G_E));
+                                            DMX_FS(i,M)),
+                                            XMX_FS(i,p7G_E));
 
     /* J, C and N states */
     XMX_FS(i,p7G_J) = p7_FLogsum(XMX_FS(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
-          XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_LOOP]);
+                                 XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_LOOP]);
     XMX_FS(i,p7G_C) = p7_FLogsum(XMX_FS(i-1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP],
-         XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_MOVE]);
-    XMX_FS(i,p7G_N) = XMX_FS(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
+                                 XMX_FS(i,p7G_E)   + gm->xsc[p7P_E][p7P_MOVE]);
+    XMX_FS(i,p7G_N) =            XMX_FS(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
     XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
-              XMX_FS(i,p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
+                                 XMX_FS(i,p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
   }
 
-  if (opt_sc != NULL) *opt_sc = p7_FLogsum(p7_FLogsum(XMX_FS(L,p7G_C), XMX(L-1,p7G_C)), 
-                              XMX(L-2,p7G_C)) + gm->xsc[p7P_C][p7P_MOVE];
   if (opt_sc != NULL) *opt_sc = XMX_FS(L,p7G_C) + gm->xsc[p7P_C][p7P_MOVE];
+ 
   gx->M = M;
   gx->L = L;
  
@@ -329,6 +323,7 @@ ERROR:
   if (iv != NULL) free(iv);
   return status;
 }
+
 
 /* Function:  p7_Backward_Frameshift()
  * Synopsis:  The Backward algorithm.
@@ -411,13 +406,13 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
 
   for (i = L-1; i > L-5; i--)
   {
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
+    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i+1]))
     {
       for(x = 0; x < gcode->nt_abc->K; x++)
-         if(gcode->nt_abc->degen[dsq[i]][x]) break;
+         if(gcode->nt_abc->degen[dsq[i+1]][x]) break;
     }
-   
+    
     iv[1] = MMX(i+1,1) + p7P_MSC(gm, 1, p7P_AMINO1(gm, 1, x)) + two_indel;
 
     if( i < L-1 )
@@ -447,11 +442,22 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
       XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), iv[k] + TSC(p7P_BM,k-1));
     }
 
-    XMX(i,p7G_J) = p7_FLogsum( XMX(i+1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm->xsc[p7P_J][p7P_MOVE]);
-    XMX(i,p7G_C) =             XMX(i+1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
-    XMX(i,p7G_N) = p7_FLogsum( XMX(i+1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);  
+//    if(i < L-2)
+//    {
+      XMX(i,p7G_J) = p7_FLogsum( XMX(i+1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
+                                 XMX(i,  p7G_B) + gm->xsc[p7P_J][p7P_MOVE]);
+      XMX(i,p7G_C) =             XMX(i+1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
+      XMX(i,p7G_N) = p7_FLogsum( XMX(i+1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP],
+                                 XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);  
+//    }
+//    else
+//    {
+//      XMX(i,p7G_J) = p7_FLogsum(                  gm->xsc[p7P_J][p7P_LOOP],
+//                                 XMX(i,  p7G_B) + gm->xsc[p7P_J][p7P_MOVE]);
+//      XMX(i,p7G_C) =                              gm->xsc[p7P_C][p7P_MOVE];
+//      XMX(i,p7G_N) = p7_FLogsum(                  gm->xsc[p7P_N][p7P_LOOP],
+//                                 XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);
+//    }
     XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm->xsc[p7P_E][p7P_LOOP],
                               XMX(i,p7G_C) + gm->xsc[p7P_E][p7P_MOVE]);
 
@@ -475,7 +481,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
         IMX(i,k) = p7_FLogsum(           IMX(i+3,k  )   + TSC(p7P_II,k),
                                          iv[k+1]          + TSC(p7P_IM,k));
       else
-        IMX(i,k) = iv[k]            + TSC(p7P_IM,k);
+        IMX(i,k) = iv[k+1]            + TSC(p7P_IM,k);
     }
 
     MMX(i,0) = IMX(i,0) = DMX(i,0)  = -eslINFINITY;
@@ -489,13 +495,13 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
   /* Main recursion */
   for (i = L-5; i > 0; i--)
   {
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
+    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i+1]))
     {
       for(x = 0; x < gcode->nt_abc->K; x++)
-         if(gcode->nt_abc->degen[dsq[i]][x]) break;
+         if(gcode->nt_abc->degen[dsq[i+1]][x]) break;
     }
- 
+
     iv[1] = p7_FLogsum( MMX(i+1,1) + p7P_MSC(gm, 1, p7P_AMINO1(gm, 1, x)) + two_indel, 
             p7_FLogsum( MMX(i+2,1) + p7P_MSC(gm, 1, p7P_AMINO2(gm, 1, x, w)) + one_indel, 
             p7_FLogsum( MMX(i+3,1) + p7P_MSC(gm, 1, p7P_AMINO3(gm, 1, x, w, v)) + no_indel,
@@ -516,7 +522,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
   
     XMX(i,p7G_J) = p7_FLogsum( XMX(i+1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
                                XMX(i,  p7G_B) + gm->xsc[p7P_J][p7P_MOVE]);
-    XMX(i,p7G_C) = XMX(i+1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
+    XMX(i,p7G_C) =             XMX(i+1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
     XMX(i,p7G_N) = p7_FLogsum( XMX(i+1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP],
                                XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);
     XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm->xsc[p7P_E][p7P_LOOP],
@@ -529,15 +535,15 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
     {
       MMX(i,k) = p7_FLogsum( p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
                              p7_FLogsum( IMX(i+3,k)   + TSC(p7P_MI,k),
-                                         iv[k+1]        + TSC(p7P_MM,k))),
+                                         iv[k+1]      + TSC(p7P_MM,k))),
                                          XMX(i,p7G_E) + esc);
 
       DMX(i,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
                                          DMX(i, k+1)  + TSC(p7P_DD,k)),
-                                         iv[k+1]        + TSC(p7P_DM,k));
+                                         iv[k+1]      + TSC(p7P_DM,k));
 
-      IMX(i,k) = p7_FLogsum(             IMX(i+3,k  )   + TSC(p7P_II,k),
-                                         iv[k+1]          + TSC(p7P_IM,k));
+      IMX(i,k) = p7_FLogsum(             IMX(i+3,k  ) + TSC(p7P_II,k),
+                                         iv[k+1]      + TSC(p7P_IM,k));
     }
 
     MMX(i,0) = IMX(i,0) = DMX(i,0)  = -eslINFINITY;
@@ -564,10 +570,10 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
                       
 
   XMX(0,p7G_B) = iv[1] + TSC(p7P_BM,0); 
-
+    
   for (k = 2; k <= M; k++) 
   {
-    iv[k] = p7_FLogsum( MMX(1,k) + p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)) + two_indel,
+   iv[k] = p7_FLogsum( MMX(1,k) + p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)) + two_indel,
             p7_FLogsum( MMX(2,k) + p7P_MSC(gm, k, p7P_AMINO2(gm, k, x, w)) + one_indel,
             p7_FLogsum( MMX(3,k) + p7P_MSC(gm, k, p7P_AMINO3(gm, k, x, w, v)) + no_indel,
             p7_FLogsum( MMX(4,k) + p7P_MSC(gm, k, p7P_AMINO4(gm, k, x, w, v, u)) + one_indel,

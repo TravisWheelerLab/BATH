@@ -1260,12 +1260,11 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
         if      (th->hit[h]->flags & p7_IS_NEW)     newness = '+';
         else if (th->hit[h]->flags & p7_IS_DROPPED) newness = '-';
         else                                        newness = ' ';
-
         if (pli->long_targets || pli->frameshift) 
         {
           if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "",
           newness,
-          exp(th->hit[h]->lnP), // * pli->Z,
+          exp(th->hit[h]->lnP),// * pli->Z,
           th->hit[h]->score,
           eslCONST_LOG2R * th->hit[h]->dcl[d].dombias, /* an nhmmer hit is really a domain, so this is the hit's bias correction */
           namew, showname,
@@ -1277,7 +1276,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
         {
 	  if (pli->mode == p7_SEARCH_SEQS && th->hit[0]->dcl[0].ad->ntseq != NULL) /* hmmsearcht hit*/
           {
-            if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %9.2g %6.1f %5.1f  %5.1f %2d  %-*s %-*s %*" PRId64 " %*" PRId64 " %s",
+           if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %9.2g %6.1f %5.1f  %5.1f %2d  %-*s %-*s %*" PRId64 " %*" PRId64 " %s",
               newness,
               exp(th->hit[h]->lnP) * pli->Z,
               th->hit[h]->score,
@@ -1417,7 +1416,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
             namew = strlen(th->hit[h]->name);
         }
 	  }
-
+      
       if (textw > 0)
       {
         descw = ESL_MAX(32, textw - namew - 5);
@@ -1744,19 +1743,18 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                 ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
               nd = 0;
             }
-
+            
             for (d = 0; d < th->hit[h]->ndom; d++)
               if (th->hit[h]->dcl[d].is_reported)
               {
                 nd++;
-
+                
                 if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
                 {
                   if (fprintf(ofp, "  == domain %d", nd ) < 0)
                     ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
                 }
-                if (fprintf(ofp, "  score: %.1f bits", th->hit[h]->dcl[d].bitscore) < 0)
-                  ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
+                if (fprintf(ofp, "  score: %.1f bits", th->hit[h]->dcl[d].bitscore) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
 		if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
                 {
                   if (fprintf(ofp, ";  conditional E-value: %.2g\n",  exp(th->hit[h]->dcl[d].lnP) * pli->domZ) < 0)

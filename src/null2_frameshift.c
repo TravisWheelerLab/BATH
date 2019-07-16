@@ -73,7 +73,7 @@ p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, const ESL_ALPHABET *
   int      k;			/* over model M states 1..M, I states 1..M-1 */
   int      x;
   ESL_DSQ  t, u, v, w;
-  float    two_indel = log(2*indel_cost);
+  float    two_indel = log(indel_cost/2);
   float    one_indel = log(indel_cost);
   float    no_indel  = log(1-3*indel_cost);
   /* Calculate expected # of times that each emitting state was used
@@ -175,7 +175,7 @@ p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, const ESL_ALPHABET *
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2)
+p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, const ESL_ALPHABET *sq_abc, float indel_cost, float *null2)
 {
   float  **dp   = wrk->dp;	/* so that {MDI}MX() macros work */
   float   *xmx  = wrk->xmx;	/* so that XMX() macro works     */
@@ -186,24 +186,32 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
   int      z;			/* index over trace position     */
   int      cL;
   float    xfactor;
- 
+  float    two_indel = log(indel_cost/2);
+  float    one_indel = log(indel_cost);
+  float    no_indel  = log(1-3*indel_cost); 
+
   /* We'll use the i=0 row in wrk for working space: dp[0][] and xmx[0..4]. */
-  esl_vec_FSet(wrk->dp[0], (M+1)*p7G_NSCELLS, 0.0);
+  esl_vec_FSet(wrk->dp[0], (M+1)*p7G_NSCELLS_FS, 0.0);
   esl_vec_FSet(wrk->xmx,   p7G_NXCELLS,       0.0);
 
   /* Calculate emitting state usage in this particular trace segment: */
   for (z = zstart; z <= zend; z++) 
-    {
-      cL = tr->i[z] - tr->i[z-1];
+    { 
       switch (tr->st[z]) {
-      case p7T_M:                              Ld+=cL; MMX(0,tr->k[z]) += (float) cL;  break;
-      case p7T_I:                              Ld+=3;  IMX(0,tr->k[z]) += 3.0;         break;
-      case p7T_N:  if (tr->st[z-1] == p7T_N) { Ld++;   XMX(0,p7G_N)    += 1.0; }       break;
-      case p7T_C:  if (tr->st[z-1] == p7T_C) { Ld++;   XMX(0,p7G_C)    += 1.0; }       break;
-      case p7T_J:  if (tr->st[z-1] == p7T_J) { Ld++;   XMX(0,p7G_J)    += 1.0; }       break;
+      case p7T_M:  cL = tr->i[z] - tr->i[z-1];  Ld+=cL;
+                   if      (cL == 1) MMX_FS(0,tr->k[z],p7G_C1) += (float) cL;  
+                   else if (cL == 2) MMX_FS(0,tr->k[z],p7G_C2) += (float) cL;  
+                   else if (cL == 3) MMX_FS(0,tr->k[z],p7G_C3) += (float) cL;
+                   else if (cL == 4) MMX_FS(0,tr->k[z],p7G_C4) += (float) cL;
+                   else if (cL == 5) MMX_FS(0,tr->k[z],p7G_C5) += (float) cL;         break; 
+      case p7T_I:                                Ld+=3;  IMX_FS(0,tr->k[z]) += 3.0;         break;
+      case p7T_N:  if (tr->st[z-1] == p7T_N) {   Ld++;   XMX_FS(0,p7G_N)    += 1.0; }       break;
+      case p7T_C:  if (tr->st[z-1] == p7T_C) {   Ld++;   XMX_FS(0,p7G_C)    += 1.0; }       break;
+      case p7T_J:  if (tr->st[z-1] == p7T_J) {   Ld++;   XMX_FS(0,p7G_J)    += 1.0; }       break;
       }
     }
-  esl_vec_FScale(wrk->dp[0], (M+1)*p7G_NSCELLS, (1.0 / (float) Ld));
+
+  esl_vec_FScale(wrk->dp[0], (M+1)*p7G_NSCELLS_FS, (1.0 / (float) Ld));
   esl_vec_FScale(wrk->xmx,   p7G_NXCELLS,       (1.0 / (float) Ld));
 
   /* Calculate null2's odds ratio emission probabilities, by taking
@@ -211,32 +219,34 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
    * explaining the domain.
    */
    esl_vec_FSet(null2, p7P_MAXCODONS, 0.0);
-  xfactor = XMX(0,p7G_N) + XMX(0,p7G_C) + XMX(0,p7G_J);
- 
+  xfactor = XMX_FS(0,p7G_N) + XMX_FS(0,p7G_C) + XMX_FS(0,p7G_J);
+
   for (k = 1; k <= M; k++)
   {  
-    for(x = 0; x < 5; x++)
-    { 
-      null2[x] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)));
-      for(w = 0; w < 5; w++)
-      { 
-        null2[x + (w+1) * p7P_NUC2] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO2(gm, k, w, x)));
-        for (v = 0; v < 5; v++)
+    for(x = 0; x < sq_abc->K; x++)
+    {
+      null2[x] += MMX_FS(0,k,p7G_C1) * expf(p7P_MSC(gm, k, p7P_AMINO1(gm, k, x)) + two_indel);
+      for(w = 0; w < sq_abc->K; w++)
+      {
+        null2[x + (w+1) * p7P_NUC2] += MMX_FS(0,k,p7G_C2) * expf(p7P_MSC(gm, k, p7P_AMINO2(gm, k, w, x)) + one_indel);
+        for (v = 0; v < sq_abc->K; v++)
         {
-          null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)));
-          for (u = 0; u < 5; u++)
-          {   
-            null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO4(gm, k, u, v, w, x)));
-            for (t = 0; t < 5; t++)
+          null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3] += MMX_FS(0,k,p7G_C3) * expf(p7P_MSC(gm, k, p7P_AMINO3(gm, k, v, w, x)) + no_indel);
+          null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3] += IMX(0,k) * expf(p7P_ISC(gm, k, p7P_AMINO3(gm, k, v, w, x)));
+          for (u = 0; u < sq_abc->K; u++)
+          {
+            null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4] += MMX_FS(0,k,p7G_C4) * expf(p7P_MSC(gm, k, p7P_AMINO4(gm, k, u, v, w, x)) + one_indel);
+            for (t = 0; t < sq_abc->K; t++)
             {
-              null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4 + (t+1) * p7P_NUC5] += MMX(0,k) * expf(p7P_MSC(gm, k, p7P_AMINO5(gm, k, t, u, v, w, x)));
+              null2[x + (w+1) * p7P_NUC2 + (v+1) * p7P_NUC3 + (u+1) * p7P_NUC4 + (t+1) * p7P_NUC5] += MMX_FS(0,k,p7G_C5) * expf(p7P_MSC(gm, k, p7P_AMINO5(gm, k, t, u, v, w, x)) + two_indel);
             }
           }
         }
       }
     }
   }
-  for(x = 0; x < p7P_MAXCODONS; x++)
+
+  for(x = 0; x < sq_abc->K; x++)
     null2[x] += xfactor;
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} odds ratios for all x in alphabet,
    * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies

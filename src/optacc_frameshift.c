@@ -225,17 +225,25 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
     /* now the special states; it's important that E is already done, and B is done after N,J */
     t1 = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
     t2 = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    XMX(i, p7G_J) = ESL_MAX( t1 * (XMX(i-1,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]),
+ //   if( i > 2 )
+      XMX(i, p7G_J) = ESL_MAX( t1 * (XMX(i-1,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]),
                                t2 * XMX(i,  p7G_E));
+//    else
+//      XMX(i, p7G_J) =          t2 * XMX(i,  p7G_E);
 
     t1 = ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
     t2 = ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-    XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-1,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
-                            t2 * XMX(i,  p7G_E));
-    
+//    if( i > 2 )
+      XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-1,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
+                              t2 * XMX(i,  p7G_E));
+//    else
+//      XMX(i,p7G_C) =          t2 * XMX(i,  p7G_E);
+
     t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    XMX(i,p7G_N) = t1 *  (XMX(i-1,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
-      
+//    if( i > 2 )
+      XMX(i,p7G_N) = t1 *  (XMX(i-1,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
+//    else
+//      XMX(i,p7G_N) = t1 *                    pp->xmx[i*p7G_NXCELLS + p7G_N];
  
     t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
     t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
@@ -403,10 +411,10 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
     t1 = ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
     t2 = ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
     XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-1,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
-                                  t2 * XMX(i,  p7G_E));
+                            t2 * XMX(i,  p7G_E));
 
     t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    XMX(i,p7G_N) = t1 *  (XMX(i-1,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
+    XMX(i,p7G_N) =          t1 *  (XMX(i-1,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
 
     t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
     t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
@@ -565,7 +573,7 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, const float *
 
   c = codon_length[esl_vec_FArgMax(match_codon, 5)];
   *ret_i -= c;
-  
+    
   path[0] = TSCDELTA(p7P_MM, k-1) * MMX(*ret_i,k-1);
   path[1] = TSCDELTA(p7P_IM, k-1) * IMX(*ret_i,k-1);
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(*ret_i,k-1);
@@ -578,14 +586,14 @@ select_m(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, const float *
     match_codon[4] = pp->dp[*ret_i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5];
 
     c = codon_length[esl_vec_FArgMax(match_codon, 5)];
-  
+    if(*ret_i-c <= 0) return p7T_B;
     path[3] = TSCDELTA(p7P_BM, k-1) * b_state[*ret_i*p7G_NXCELLS+c-1];  
   }
-  else if(state[esl_vec_FArgMax(path, 3)] == p7T_I)
-    path[3] = TSCDELTA(p7P_BM, k-1) * b_state[*ret_i*p7G_NXCELLS+p7G_B3]; 
+//  else if(state[esl_vec_FArgMax(path, 3)] == p7T_I)
+//    path[3] = TSCDELTA(p7P_BM, k-1) * b_state[*ret_i*p7G_NXCELLS+p7G_B3]; 
   else
     path[3] = TSCDELTA(p7P_BM, k-1) * XMX(*ret_i,p7G_B);
-  printf("i %d M %f I %f D %f B %f\n", *ret_i, path[0], path[1], path[2], path[3]);
+  //printf("i %d M %f I %f D %f B %f\n", *ret_i, path[0], path[1], path[2], path[3]);
   return state[esl_vec_FArgMax(path, 4)];
 }
 
@@ -626,7 +634,6 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int e_trace, 
   float  t1   =  ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float  t2   =  ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
-  int L = gm->L;
 
   float  path[2];
   int   state[2] = { p7T_C, p7T_E };
@@ -635,7 +642,7 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int e_trace, 
 
   path[0] = t1 * (XMX(i-e_trace, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
   path[1] = t2 *  XMX(i,p7G_E);
- // printf("i = %d, c-%d = %f, pp = %f, e = %f\n", i, e_trace, XMX(i-e_trace, p7G_C), pp->xmx[i*p7G_NXCELLS + p7G_C], path[1]);
+//  printf("i = %d, c-%d = %f, pp = %f, e = %f\n", i, e_trace, XMX(i-e_trace, p7G_C), pp->xmx[i*p7G_NXCELLS + p7G_C], path[1]);
   return state[esl_vec_FArgMax(path, 2)];
 
 }

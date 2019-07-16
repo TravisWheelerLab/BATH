@@ -1003,7 +1003,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
       for (d = 0; d < ddef->tr->ndom; d++)
   {
     p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
-    p7_Null2_fs_ByTrace(gm, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
+    //p7_Null2_fs_ByTrace(gm, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
     
     /* residues outside domains get bumped +1: because f'(x) = f(x), so f'(x)/f(x) = 1 in these segments */
     for (; pos <= ddef->tr->sqfrom[d]; pos++) ddef->n2sc[ireg+pos-1] += 1.0;
@@ -1535,30 +1535,30 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 
   p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
 
-  FILE *fout = fopen("fwdout.txt", "w+");
-  p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
-  fclose(fout); 
+//  FILE *fout = fopen("fwdout.txt", "w+");
+//  p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
+//  fclose(fout); 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
 
-  FILE *bwdout = fopen("bwdout.txt", "w+");
-   p7_gmx_Dump(bwdout, gx2, p7_DEFAULT);
-   fclose(bwdout); 
-
+//  FILE *bwdout = fopen("bwdout.txt", "w+");
+//   p7_gmx_Dump(bwdout, gx2, p7_DEFAULT);
+//   fclose(bwdout); 
+printf("fwd %f bck %f\n", envsc, bcksc);
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
 
- FILE *ppout = fopen("ppout.txt", "w+");
-  p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
-   fclose(ppout);
+// FILE *ppout = fopen("ppout.txt", "w+");
+//  p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
+//   fclose(ppout);
 
 
    /* Find an optimal accuracy alignment */
    p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, gx1->xmx, e_trace, &oasc);      /* <ox1> is now overwritten with OA scores              */
    p7_OATrace_Frameshift(gm, gxppfs, gx2, gx1->xmx, e_trace, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
 
-   FILE *out = fopen("optout.txt", "w+");
-   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
-   fclose(out);
+//   FILE *out = fopen("optout.txt", "w+");
+//   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
+//   fclose(out);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1573,18 +1573,17 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, sq, gcode);
   dom->scores_per_pos = NULL; 
-
+  dom->envsc = envsc; 
   /* Compute bias correction (for non-longtarget case)
-   *
-de->basic[16 * v + 4 * w + x]
    * Is null2 set already for this i..j? (It is, if we're in a domain that
    * was defined by stochastic traceback clustering in a multidomain region;
    * it isn't yet, if we're in a simple one-domain region). If it isn't,
    * do it now, by the expectation (posterior decoding) method.
    */
-#if 0
+
   if (!null2_is_done) {
-    p7_Null2_fs_ByExpectation(gm, gxppfs, sq->abc, indel_cost, null2);
+    p7_Null2_fs_ByTrace(gm, ddef->tr, 1, ddef->tr->N-1, gxppfs, sq->abc, indel_cost, null2);
+
     if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) u = sq->dsq[i];
     else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
     {
@@ -1621,7 +1620,7 @@ de->basic[16 * v + 4 * w + x]
                             null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3] +
                             null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4]);
 
-    for (pos = i; pos <= j; pos++)
+    for (pos = i+4; pos <= j; pos++)
     {
       t = u;
       u = v;
@@ -1633,24 +1632,31 @@ de->basic[16 * v + 4 * w + x]
         for(x = 0; x < sq->abc->K; x++)
           if(sq->abc->degen[sq->dsq[pos]][x]) break;
       }
-      printf("i %d 1 %f 2 %f 3 %f 4 %f 5 %f\n", pos, null2[x], null2[x  + (w+1) * p7P_NUC2], null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3], null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4], null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4  + (t+1) * p7P_NUC5]);
       ddef->n2sc[pos]  = logf(null2[x] +
                               null2[x  + (w+1) * p7P_NUC2] +
                               null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3] +
                               null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4] +
                               null2[x  + (w+1) * p7P_NUC2  + (v+1) * p7P_NUC3  + (u+1) * p7P_NUC4  + (t+1) * p7P_NUC5]);
-      printf("null %f\n", ddef->n2sc[pos]);
     }
-  }
-#endif      
+ }
   for (pos = i; pos <= j; pos++)
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
    
   dom->domcorrection = domcorrection; /* in units of NATS */
-  dom->iali          = dom->ad->sqfrom;
-  dom->jali          = dom->ad->sqto;
-  dom->ienv          = i;
-  dom->jenv          = j;
+  if(sq->start < sq->end)
+  {
+    dom->iali          = dom->ad->sqfrom;
+    dom->jali          = dom->ad->sqto;
+    dom->ienv          = i;
+    dom->jenv          = j;
+ }
+  else
+  {
+    dom->iali          = dom->ad->sqto;
+    dom->jali          = dom->ad->sqfrom;
+    dom->ienv          = j;
+    dom->jenv          = i;
+ }
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */

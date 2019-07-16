@@ -548,10 +548,16 @@ typedef struct p7_gmx_s {
 #define DMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
 #define XMX(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
 
-#define MMX_FS(i,k,c) (dp[i][(k) * p7G_NSCELLS_FS + p7G_M + (c)])
-#define IMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_I])
-#define DMX_FS(i,k) (dp[i][(k) * p7G_NSCELLS_FS + p7G_D])
-#define XMX_FS(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
+#define MMX_FS_FWD(i,k,c) (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
+#define IMX_FS_FWD(i,k)   (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_I])
+#define DMX_FS_FWD(i,k)   (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_D])
+#define XMX_FS_FWD(i,s)   (xmx[(i+5)     * p7G_NXCELLS    + (s)])
+
+#define MMX_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
+#define IMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_I])
+#define DMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
+#define XMX_FS(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
+
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
@@ -1442,7 +1448,7 @@ extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX 
 /* generic_null2.c */
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
-extern int p7_Null2_fs_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
+extern int p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, const ESL_ALPHABET *sq_abc, float indel_cost, float *null2); 
 extern int p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, const ESL_ALPHABET *sq_abc, float indel_cost, float *null2);
 
 /* generic_optacc.c */

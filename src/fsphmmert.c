@@ -939,7 +939,7 @@ pipeline_thread(void *arg)
 
       if (info->wrk->do_watson) {
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
-	printf("NO COMP\n");
+	
          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
        } else {
@@ -949,7 +949,7 @@ pipeline_thread(void *arg)
        if (info->wrk->do_crick) {
          esl_sq_ReverseComplement(dnaSeq);
          do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
-	printf("COMP\n");
+	
          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
          esl_sq_ReverseComplement(dnaSeq);

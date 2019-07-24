@@ -2173,13 +2173,13 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   {
       if(pli->frameshift)
       {
-        if (fprintf(ofp, "#%*s %39s %30s %11s %19s %19s\n", tnamew+qnamew-1+15+taccw+qaccw, "",                                   "--- full sequence ---",        "---- this domain ----",                   "hmm coord",                    "ali coord",                "env coord") < 0)
+        if (fprintf(ofp, "#%*s %33s %29s %10s %18s %18s\n", tnamew+qnamew-1+15+taccw+qaccw, "",                             "--- full sequence ---",        "---- this domain ----",                   "hmm coord",                    "ali coord",                "env coord") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
-         if (fprintf(ofp, "#%-*s %-*s %15s %-*s %-*s %5s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %4s %9s %s\n",
+         if (fprintf(ofp, "#%-*s %-*s %15s %-*s %-*s %5s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %11s %5s %s\n",
             tnamew-1, " target name",        taccw, "accession",  "tlen",  qnamew, "query name",           qaccw, "accession",  "qlen",  "E-value",   "score",  "bias",  "#",   "of",  "i-Evalue",  "score",  "bias",  "from",  "to",    "from",        "to",      "from",        "to",    "frameshifts",     "acc",  "description of target") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");                                                                                                                                               
-         if (fprintf(ofp, "#%*s %*s %15s %*s %*s %5s %6s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %9s %9s %11s %4s %s\n",                                                                                             
-           tnamew-1, "-------------------", taccw, "----------", "---------------", qnamew, "--------------------", qaccw, "----------", "-----", "------", "---------", "------", "-----", "---", "---",  "---------", "------", "-----", "-----", "-----", "---------", "---------", "---------", "---------", "---------", "---------", "-----------", "----", "---------------------") < 0)
+         if (fprintf(ofp, "#%*s %*s %15s %*s %*s %5s %9s %6s %5s %3s %3s %9s %6s %5s %5s %5s %9s %9s %9s %9s %11s %5s %s\n",                                                                                             
+           tnamew-1, "-------------------", taccw, "----------", "---------------", qnamew, "--------------------", qaccw, "----------", "-----", "---------", "------", "-----", "---", "---",  "---------", "------", "-----", "-----", "-----", "---------", "---------", "---------", "---------", "-----------", "-----", "---------------------") < 0)
            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
       }
       else if (th->N > 0 && th->hit[0]->ndom > 0 && th->hit[0]->dcl[0].ad->ntseq != NULL)
@@ -2257,8 +2257,8 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 (th->hit[h]->desc ?  th->hit[h]->desc : "-")) < 0)
                   ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-domain hit list: write failed");
               } else if (th->hit[h]->dcl[d].ad->ntseq != NULL) //frameshift
-              {
-                if (fprintf(ofp, "%-*s %-*s %15d %-*s %-*s %5d %9.2g %6.1f %5.1f %3d %3d %9.2g %6.1f %5.1f %5d %5d %9" PRId64 " %9" PRId64 " %9" PRId64 " %9" PRId64 " %4d %4.2f %s\n",
+              { 
+                if (fprintf(ofp, "%-*s %-*s %15d %-*s %-*s %5d %9.2g %6.1f %5.1f %3d %3d %9.2g %6.1f %5.1f %5d %5d %9" PRId64 " %9" PRId64 " %9" PRId64 " %9" PRId64 " %11d %5.2f %s\n",
                 tnamew, th->hit[h]->name,
                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
                 th->hit[h]->target_len,
@@ -2267,7 +2267,7 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 qlen,
                 exp(th->hit[h]->lnP) * pli->Z,
                 th->hit[h]->score,
-                0.0, /* bias correction not currently working  */
+                th->hit[h]->pre_score - th->hit[h]->score, /* bias correction */
                 nd,
                 th->hit[h]->nreported,
                 exp(th->hit[h]->dcl[d].lnP) * pli->Z,

@@ -380,7 +380,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            n, pos, z, y;
   int            z1, z2;
   int		 srt, end;
-  int            k,a,i,s,l;
+  int            k,a,i,s,c;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            status;
@@ -388,9 +388,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            g,h;
   float		 max_emit, cur_emit;
   float	        *rsc; 
-  ESL_SQ        *codon;
   ESL_DSQ        t, u, v, w, x;
-/* First figure out which piece of the trace (from first match to last match) 
+
+  /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
    */
   if (tr->ndom > 0) {		/* if we have an index, this is a little faster: */
@@ -469,10 +469,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->M       = gm->M;
   ad->frameshifts = 0; 
   if(sq->start < sq->end) {
-    ad->sqfrom  = tr->i[z1-1] + 1;
+    ad->sqfrom  = tr->i[z1]-2;
     ad->sqto    = tr->i[z2];		 
   } else {
-    ad->sqto    = tr->i[z1-1] + 1;
+    ad->sqto    = tr->i[z1];
     ad->sqfrom  = tr->i[z2];	
   }	 
   ad->L       = sq->n;
@@ -509,15 +509,17 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       k = tr->k[z];
       i = tr->i[z];
       s = tr->st[z];
-      
+      c = tr->c[z];
+      //printf("I %d k %d st %d c %d\n", i, k, s, c); 
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = gm->consensus[k];
-        l = i - tr->i[z-1];
-	ad->codon[y] = l;
+//        l = i - tr->i[z-1];
+	ad->codon[y] = c;
       	cur_emit = -eslINFINITY; 	    
         max_emit = -eslINFINITY;
-	if(l == 1) {
+        //printf("AAAAAa\n");
+	if(c == 1) {
           ad->frameshifts++;           
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
           else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
@@ -558,8 +560,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	    }
 	  }
 	}
-
-	if(l == 2) {
+	else if(c == 2) {
           ad->frameshifts++;
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
           else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
@@ -605,8 +606,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 
 	   }
 	 }
-	
-	if(l == 3) {
+	 else if(c == 3) {
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2])) v = sq->dsq[i-2];
           else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-2]))
           {
@@ -632,8 +632,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	  n4 = alphaDNA[sq->dsq[i]];
           n5 = ' ';
         }
-	
-	if(l == 4) {
+	else if(c == 4) {
 	  ad->frameshifts++;
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3])) u = sq->dsq[i-3];
           else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-3]))
@@ -689,8 +688,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                 n5 = ' ';
           }
         }	
-       
-        if(l == 5) {
+        else if(c == 5) {
 	  ad->frameshifts++;
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-4])) t = sq->dsq[i-4];
           else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-4]))

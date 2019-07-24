@@ -353,7 +353,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int frameshift, e
    */
   pli->r                  =  esl_randomness_CreateFast(seed);
   pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
-  pli->ddef               = p7_domaindef_Create(pli->r);
+  pli->ddef               = p7_domaindef_fs_Create(pli->r);
   pli->ddef->do_reseeding = pli->do_reseeding;
 
   /* Configure reporting thresholds */
@@ -573,7 +573,7 @@ p7_pipeline_fs_Destroy(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->fwd);
   p7_omx_Destroy(pli->bck);
   esl_randomness_Destroy(pli->r);
-  p7_domaindef_Destroy(pli->ddef);
+  p7_domaindef_fs_Destroy(pli->ddef);
   free(pli);
 }
 
@@ -877,7 +877,7 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
   if      (  pli->by_E )
     {
       if ( !pli->long_targets  && exp(lnP) * pli->Z <= pli->E) return TRUE;
-      if (  pli->long_targets  && exp(lnP) <= pli->E)          return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
+      if ( (pli->long_targets || pli->frameshift) && exp(lnP) <= pli->E)          return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
 
@@ -1348,8 +1348,8 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
 
   /* Parse it with Forward and obtain its real Forward score. */
   p7_ForwardParser(sq->dsq, sq->n, om, pli->oxf, &fwdsc);
-
-seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
+  
+  seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
  if (P > pli->F3) return eslOK;
   pli->n_past_fwd++;
@@ -1389,7 +1389,7 @@ seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   else seqbias = 0.0;
   pre_score =  (fwdsc - nullsc) / eslCONST_LOG2; 
   seq_score =  (fwdsc - (nullsc + seqbias)) / eslCONST_LOG2;
-  
+ 
   /* Calculate the "reconstruction score": estimated
    * per-sequence score as sum of individual domains,
    * discounting domains that aren't significant after they're
@@ -1434,15 +1434,13 @@ seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
       seq_score = sum_score;
       pre_score = pre2_score;
     }
-printf("seqsc %f biascs %f\n", seq_score, seqbias);
+
   /* Apply thresholding and determine whether to put this
    * target into the hit list. E-value thresholding may
    * only be a lower bound for now, so this list may be longer
    * than eventually reported.
    */
-  printf("seq_score %f\n", seq_score);
   lnP =  esl_exp_logsurv (seq_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-  printf("lnP %f Eval %g\n", lnP, exp(lnP));
   if (p7_pli_TargetReportable(pli, seq_score, lnP))
     {
       p7_tophits_CreateNextHit(hitlist, &hit);
@@ -1465,14 +1463,11 @@ printf("seqsc %f biascs %f\n", seq_score, seqbias);
       hit->nclustered = pli->ddef->nclustered;
       hit->noverlaps  = pli->ddef->noverlaps;
       hit->nenvelopes = pli->ddef->nenvelopes;
-
       hit->pre_score  = pre_score; /* BITS */
       hit->pre_lnP    = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
       hit->score      = seq_score; /* BITS */
       hit->lnP        = lnP;
       hit->sortkey    = pli->inc_by_E ? -lnP : seq_score; /* per-seq output sorts on bit score if inclusion is by score  */
-
       hit->sum_score  = sum_score; /* BITS */
       hit->sum_lnP    = esl_exp_logsurv (hit->sum_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
@@ -2340,7 +2335,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   float            seqbias;
   float            seq_score;          /* the corrected per-seq bit score */
   float            pre_score;
-  float            pre2_score; /* uncorrected bit scores for seq */
+  float            pre2_score;
+  float            sum_score; /* uncorrected bit scores for seq */
   double           P;                /* P-value of a hit */
   double           lnP;              /* log P-value of a hit */
   int              Ld;               /* # of residues in envelopes */
@@ -2360,7 +2356,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   int tmp_i, tmp_j; 
 
   subseq = dnasq->dsq + window_start - 1;
-  printf("window start %d\n", window_start); 
+ // printf("window start %d\n", window_start); 
   p7_bg_SetLength(bg, window_len);
   p7_bg_NullOne(bg, subseq, window_len, &nullsc);
 
@@ -2371,16 +2367,15 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   }  else
     bias_filter = 0.;
 
-  p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len+5);
+  p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
   p7_ReconfigLength(gm, window_len);
 
   p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
   filtersc =  nullsc + (bias_filter * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
+  //printf("seq_score %f fwd %f null %f bias %f\n", seq_score, fwdsc, nullsc, bias_filter);
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
   if (P > pli->F3 ) return eslOK; 
-
- printf("fwd %f\n", fwdsc); 
 
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   /*now that almost everything has been filtered away, set up seq object for domaindef function*/
@@ -2398,20 +2393,17 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
-  
   p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
   p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
- printf("bwd %f\n", bwdsc);
 
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, gcode,
            (pli->do_null2?pli_tmp->scores:NULL), pli_tmp->fwd_emissions_arr, 
            indel_cost);
-
-  
+ 
   pli_tmp->tmpseq->dsq = dsq_holder;
-    if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+  if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
   if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here       */
   if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
 
@@ -2437,21 +2429,59 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
       dom->ad->sqto   = dom->jali;
     }
     int ali_len = dom->jali - dom->iali + 1;
-    if (ali_len < 4)  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
+    if (ali_len < 8)  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       dom->is_reported = FALSE;
   }
 
-  /* Calculate the null2-corrected per-seq score */
   if (pli->do_null2)
-  {
-    seqbias = esl_vec_FSum(pli->ddef->n2sc, window_len);
-    seqbias = p7_FLogsum(0.0, log(bg->omega) + seqbias);
-  }
+    {
+      seqbias = esl_vec_FSum(pli->ddef->n2sc, window_len+1);
+      seqbias = p7_FLogsum(0.0, log(bg->omega) + seqbias);
+    }
   else seqbias = 0.0;
-   
   pre_score =  (fwdsc - nullsc) / eslCONST_LOG2;
   seq_score =  (fwdsc - (nullsc + seqbias)) / eslCONST_LOG2;
+//printf("prescore %f score %f fwd %f null %f seqbias %f\n",  pre_score, seq_score, fwdsc, nullsc, seqbias);
+  /* Calculate the null2-corrected per-seq score */
+  sum_score = 0.0f;
+  seqbias   = 0.0f;
+  Ld        = 0;
 
+  if (pli->do_null2)
+  {
+      for (d = 0; d < pli->ddef->ndom; d++)
+    {
+    if (pli->ddef->dcl[d].envsc - pli->ddef->dcl[d].domcorrection > 0.0)
+      {
+        sum_score += pli->ddef->dcl[d].envsc;         /* NATS */
+        Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+        seqbias   += pli->ddef->dcl[d].domcorrection; /* NATS */
+      }
+    }
+    seqbias = p7_FLogsum(0.0, log(bg->omega) + seqbias);  /* NATS */
+  }
+  else
+  {
+      for (d = 0; d < pli->ddef->ndom; d++)
+      {
+        if (pli->ddef->dcl[d].envsc > 0.0)
+        {
+          sum_score += pli->ddef->dcl[d].envsc;      /* NATS */
+          Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
+        }
+      }
+      seqbias = 0.0;
+    }
+  sum_score += (window_len-Ld) * log((float) window_len / (float) (window_len+3)); /* NATS */
+  pre2_score = (sum_score - nullsc) / eslCONST_LOG2;                /* BITS */
+  sum_score  = (sum_score - (nullsc + seqbias)) / eslCONST_LOG2;    /* BITS */
+ 
+  if (Ld > 0 && sum_score > seq_score)
+    {
+      seq_score = sum_score;
+      pre_score = pre2_score;
+    }
+ 
   /* Apply thresholding and determine whether to put this
    * target into the hit list. E-value thresholding may
    * only be a lower bound for now, so this list may be longer
@@ -2474,6 +2504,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
     hit->seqidx     = seqidx;
     hit->ndom       = pli->ddef->ndom;
+    hit->target_len = dnasq->n;
     hit->nexpected  = pli->ddef->nexpected;
     hit->nregions   = pli->ddef->nregions;
     hit->nclustered = pli->ddef->nclustered;
@@ -2484,6 +2515,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
     hit->score      = seq_score; /* BITS */
     hit->lnP        = lnP;
     hit->sortkey    = pli->inc_by_E ? -lnP : seq_score; /* per-seq output sorts on bit score if inclusion is by score  */
+    hit->sum_score  = sum_score; /* BITS */
+    hit->sum_lnP    = esl_exp_logsurv (hit->sum_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
 
     /* Transfer all domain coordinates (unthresholded for
      * now) with their alignment displays to the hit list,
@@ -2645,7 +2678,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   P7_HIT          *hit     = NULL;     /* ptr to the current hit output data      */
 
   if (dnasq->n < 3) return eslOK;
- 
+  
   merged_orf_block   = NULL;
   merged_orf_block   = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_orf_block = NULL;

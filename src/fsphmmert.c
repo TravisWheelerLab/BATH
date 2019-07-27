@@ -390,7 +390,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              status   = eslOK;
   int              hstatus  = eslOK;
   int              sstatus  = eslOK;
-  int              i;
+  int              i, d;
   double           resCnt    = 0;
   /* used to keep track of the lengths of the sequences that are processed */
   ID_LENGTH_LIST  *id_length_list = NULL;
@@ -639,8 +639,18 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       assign_Lengths(tophits_accumulator, id_length_list);
       p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
       p7_tophits_SortBySortkey(tophits_accumulator);
-      
       p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
+
+      pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0;
+      for (i = 0; i < tophits_accumulator->N; i++) {
+          if ( (tophits_accumulator->hit[i]->flags & p7_IS_REPORTED) || tophits_accumulator->hit[i]->flags & p7_IS_INCLUDED) {
+              pipelinehits_accumulator->n_output++;
+              for(d = 0; d < tophits_accumulator->hit[i]->ndom; d++)
+                pipelinehits_accumulator->pos_output += 1 + (tophits_accumulator->hit[i]->dcl[d].jali > tophits_accumulator->hit[i]->dcl[d].iali ? tophits_accumulator->hit[i]->dcl[d].jali - tophits_accumulator->hit[i]->dcl[d].iali : tophits_accumulator->hit[i]->dcl[d].iali - tophits_accumulator->hit[i]->dcl[d].jali) ;
+          }
+      }
+
+
       p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
       p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
       
@@ -759,9 +769,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
       
   p7_pli_NewSeq(info->pli, dbsq_dna);
-
   if (info->wrk->do_watson) {
-    info->pli->nres -= dbsq_dna->C;
       
     /* translate DNA sequence to 3 frame ORFs */
     do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
@@ -780,7 +788,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 
          p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
          p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-         info->pli->nres += dbsq_dna->W;
+         info->pli->nres += dbsq_dna->n;
          esl_sq_ReverseComplement(dbsq_dna);
       } 
       sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
@@ -936,7 +944,8 @@ pipeline_thread(void *arg)
 
       dnaSeq->L = dnaSeq->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
       p7_pli_NewSeq(info->pli, dnaSeq);
-
+      
+  
       if (info->wrk->do_watson) {
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 	
@@ -947,6 +956,7 @@ pipeline_thread(void *arg)
        } 
 
        if (info->wrk->do_crick) {
+         info->pli->nres += dnaSeq->n;
          esl_sq_ReverseComplement(dnaSeq);
          do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 	

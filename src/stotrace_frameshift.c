@@ -172,7 +172,8 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       /* J connects from E(i) or J(i-1) */
       case p7T_J:  
         if (XMX_FS(i,p7G_J) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
-  
+        if   (i < 4) { scur = p7T_E; break; }
+ 
         sc[0] = XMX_FS(i-3,p7G_J) + gm->xsc[p7P_J][p7P_LOOP];
         sc[1] = XMX_FS(i-2,p7G_J) + gm->xsc[p7P_J][p7P_LOOP];
         sc[2] = XMX_FS(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP]; 
@@ -202,7 +203,6 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       }
       else c = 0; 
       /* Append this state and the current i,k to be explained to the growing trace */
-     
       if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) goto ERROR;
 
       /* For NCJ, we had to defer i decrement. */

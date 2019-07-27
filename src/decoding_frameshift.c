@@ -369,9 +369,9 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
 
   for (i = 3; i <= L; i++)
   {
-    ddef->btot[i] = ddef->btot[i-1] + expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_B] + bck->xmx[(i-3)*p7G_NXCELLS+p7G_B] - overall_logp); 
+    ddef->btot[i] = ddef->btot[i-3] + expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_B] + bck->xmx[(i-3)*p7G_NXCELLS+p7G_B] - overall_logp); 
 
-    ddef->etot[i] = ddef->etot[i-1] + expf(fwd->xmx[i*p7G_NXCELLS+p7G_E] + bck->xmx[i*p7G_NXCELLS+p7G_E] - overall_logp);;
+    ddef->etot[i] = ddef->etot[i-3] + expf(fwd->xmx[i*p7G_NXCELLS+p7G_E] + bck->xmx[i*p7G_NXCELLS+p7G_E] - overall_logp);;
   }  
 
   ddef->mocc[0] = 0.;

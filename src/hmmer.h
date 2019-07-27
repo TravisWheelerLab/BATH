@@ -1833,6 +1833,9 @@ extern int     p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
              float min_overlap, int of_smaller, int max_diagdiff, 
              float min_posterior, float min_endpointp,
              int *ret_nclusters);
+extern int     p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
+                      float min_overlap, int of_smaller, int max_diagdiff, float min_posterior, float min_endpointp,
+                      int *ret_nclusters);
 extern int     p7_spensemble_GetClusterCoords(P7_SPENSEMBLE *sp, int which,
                 int *ret_i, int *ret_j, int *ret_k, int *ret_m, float *ret_p);
 extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);

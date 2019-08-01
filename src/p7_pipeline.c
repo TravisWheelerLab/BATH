@@ -794,6 +794,8 @@ p7_pli_fs_GetPosPast(P7_ORF_COORDS *coords)
   int64_t        min_end, max_end;
   int64_t        overlap, max_length; 
 
+  if(coords->orf_cnt == 0) return pos_cnt;
+
    for(i = 1; i < coords->orf_cnt; i++)
    {
      prev_start = coords->orf_starts[new_orf_cnt];
@@ -815,12 +817,11 @@ p7_pli_fs_GetPosPast(P7_ORF_COORDS *coords)
       coords->orf_ends[new_orf_cnt]   = max_end;
     } else new_orf_cnt++;
   }
+
   new_orf_cnt++; 
    for(i = 0; i < new_orf_cnt; i++)
-   {  
      pos_cnt += coords->orf_ends[i] - coords->orf_starts[i] + 1;
-   } 
-
+  
   return pos_cnt;
 }
 
@@ -835,7 +836,7 @@ int
 p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->by_E )
-    {  //printf("lnP %f Z %f E %f\n", lnP, pli->Z, pli->E);
+    {  
       if ( !pli->long_targets && !pli->frameshift && exp(lnP) * pli->Z <= pli->E) return TRUE;
       if ( (pli->long_targets || pli->frameshift) && exp(lnP) <= pli->E)          return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
     }
@@ -1263,7 +1264,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   int              d;
   int              status;
   if (sq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */
-printf("Z %d\n", pli->Z);
+
   p7_omx_GrowTo(pli->oxf, om->M, 0, sq->n);    /* expand the one-row omx if needed */
 
   /* Base null model score (we could calculate this in NewSeq(), for a scan pipeline) */
@@ -1401,7 +1402,7 @@ printf("Z %d\n", pli->Z);
    * only be a lower bound for now, so this list may be longer
    * than eventually reported.
    */
-// printf("seq_score %f\n", seq_score);
+
   lnP =  esl_exp_logsurv (seq_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
   if (p7_pli_TargetReportable(pli, seq_score, lnP))
     {
@@ -2675,7 +2676,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   ESL_ALLOC(vit_coords->orf_starts, sizeof(int64_t) *  orf_block->count);
   ESL_ALLOC(vit_coords->orf_ends, sizeof(int64_t) *  orf_block->count);
   vit_coords->orf_cnt = 0;
-
+  
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);
@@ -2763,7 +2764,25 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
     p7_pli_postViterbi_Frameshift(pli, gm, bg, hitlist, data, seqidx, window_start, window_len, dnasq, gcode, pli_tmp, complementarity);
     
   }
-    
+
+  if ( msv_coords != NULL)
+  {
+    if (msv_coords->orf_starts != NULL) free(msv_coords->orf_starts);
+    if (msv_coords->orf_ends != NULL) free(msv_coords->orf_ends);
+    free(msv_coords);
+  }
+  if ( bias_coords != NULL)
+  {
+    if (bias_coords->orf_starts != NULL) free(bias_coords->orf_starts);
+    if (bias_coords->orf_ends != NULL) free(bias_coords->orf_ends);
+    free(bias_coords);
+  }
+  if ( vit_coords != NULL)
+  {
+    if (vit_coords->orf_starts != NULL) free(vit_coords->orf_starts);
+    if (vit_coords->orf_ends != NULL) free(vit_coords->orf_ends);
+    free(vit_coords);
+  }
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (pli_tmp != NULL) 
   {
@@ -2778,6 +2797,34 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   return eslOK;
 
 ERROR:
+  if ( msv_coords != NULL)
+  {
+    if (msv_coords->orf_starts != NULL) free(msv_coords->orf_starts);
+    if (msv_coords->orf_ends != NULL) free(msv_coords->orf_ends);
+    free(msv_coords);
+  }
+  if ( bias_coords != NULL)
+  {
+    if (bias_coords->orf_starts != NULL) free(bias_coords->orf_starts);
+    if (bias_coords->orf_ends != NULL) free(bias_coords->orf_ends);
+    free(bias_coords);
+  }
+  if ( vit_coords != NULL)
+  {
+    if (vit_coords->orf_starts != NULL) free(vit_coords->orf_starts);
+    if (vit_coords->orf_ends != NULL) free(vit_coords->orf_ends);
+    free(vit_coords);
+  }
+  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block);
+  if (pli_tmp != NULL)
+  {
+    if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
+    if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
+    if (pli_tmp->gm != NULL)     p7_profile_fs_Destroy(pli_tmp->gm);
+    if (pli_tmp->scores != NULL)        free (pli_tmp->scores);
+    if (pli_tmp->fwd_emissions_arr != NULL) free (pli_tmp->fwd_emissions_arr);
+    free(pli_tmp);
+  }
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if ( pli_tmp != NULL )
   {

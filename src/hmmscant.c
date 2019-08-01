@@ -89,7 +89,8 @@ static ESL_OPTIONS options[] = {
   { "--seed",       eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,            "set RNG seed to <n> (if 0: one-time arbitrary seed)",          12 },
   { "--qformat",    eslARG_STRING,  NULL, NULL, NULL,    NULL,  NULL,  NULL,            "assert input <seqfile> is in format <s>: no autodetection",    12 },
 #ifdef HMMER_THREADS
-  { "--cpu",        eslARG_INT, NULL,"HMMER_NCPU","n>=0",NULL,  NULL,  CPUOPTS,         "number of parallel CPU workers to use for multithreads",       12 },
+  { "--cpu",        eslARG_INT, p7_NCPU,"HMMER_NCPU","n>=0",NULL,  NULL,  CPUOPTS,      "number of parallel CPU workers to use for multithreads",       12 },
+
 #endif
   /* name           type        default  env  range toggles reqs incomp  help                                          docgroup*/
   { "-c",         eslARG_INT,       "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table <n>", 15 },
@@ -374,7 +375,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   abcAMINO = esl_alphabet_Create(eslAMINO); 
   qsqDNA = esl_sq_CreateDigital(abcDNA);
 
- 
+
   /* Open the target profile database to get the sequence alphabet */
   status = p7_hmmfile_OpenE(cfg->hmmfile, p7_HMMDBENV, &hfp, errbuf);
   if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", cfg->hmmfile, errbuf);
@@ -409,7 +410,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   output_header(ofp, go, cfg->hmmfile, cfg->seqfile);
 
-  
+
   /* Set up the genetic code. Default = NCBI 1, the standard code; allow ORFs to start at any aa
    */
   gcode = esl_gencode_Create(abcDNA, abcAMINO);
@@ -465,8 +466,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
      /* Create processing pipeline and hit list accumulators */
      tophits_accumulator  = p7_tophits_Create(); 
      pipelinehits_accumulator = p7_pipeline_Create(go, 100, 100, FALSE, p7_SCAN_MODELS);
-     pipelinehits_accumulator->nseqs = 1;
-     pipelinehits_accumulator->nres = qsqDNA->n;
+     pipelinehits_accumulator->nseqs = 0;
+     pipelinehits_accumulator->nres = 0; //qsqDNA->n;
+     pipelinehits_accumulator->is_translated = TRUE;
 
      if (fprintf(ofp, "Query:       %s  [L=%ld]\n", qsqDNA->name, (long) qsqDNA->n) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
      if (qsqDNA->acc[0]  != 0 && fprintf(ofp, "Accession:   %s\n", qsqDNA->acc)     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -497,10 +499,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
        info[i].th  = p7_tophits_Create();
        info[i].pli = p7_pipeline_Create(go, 100, 100, FALSE, p7_SCAN_MODELS); /* M_hint = 100, L_hint = 100 are just dummies for now */
        info[i].pli->hfp = hfp;  /* for two-stage input, pipeline needs <hfp> */
+       info[i].pli->is_translated = TRUE;
        info[i].ntqsq = qsqDNA;
        info[i].ntqsq->prev_n = prev_char_cnt;
-
-      // p7_pli_NewSeq(info[i].pli, qsq);
 
 #ifdef HMMER_THREADS
        if (ncpus > 0) esl_threads_AddThread(threadObj, &info[i]);
@@ -529,6 +530,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
      {
        p7_tophits_Merge(tophits_accumulator, info[i].th);
        p7_pipeline_Merge(pipelinehits_accumulator, info[i].pli);
+       pipelinehits_accumulator->nseqs += info[i].pli->nseqs;
+       pipelinehits_accumulator->nres  += info[i].pli->nres;
 
        p7_pipeline_Destroy(info[i].pli);
        p7_tophits_Destroy(info[i].th);
@@ -644,6 +647,12 @@ serial_loop(WORKER_INFO *info, P7_HMMFILE *hfp)
 
   /* translate DNA sequence to 6 frame ORFs */
   translate_sequence(info->gcode, info->wrk, info->ntqsq);
+  for (k = 0; k < info->wrk->orf_block->count; ++k)
+  {
+      qsq_aa = &(info->wrk->orf_block->list[k]);
+      p7_pli_NewSeq(info->pli, qsq_aa);
+  }
+
 
   /* Main loop: */
   while ((status = p7_oprofile_ReadMSV(hfp, &abc, &om)) == eslOK)
@@ -778,6 +787,11 @@ pipeline_thread(void *arg)
 
         /* translate DNA sequence to 6 frame ORFs  */
         translate_sequence(info->gcode, info->wrk, qsqDNATxt);
+        for (k = 0; k < info->wrk->orf_block->count; ++k)
+        {
+            qsq_aa = &(info->wrk->orf_block->list[k]);
+            p7_pli_NewSeq(info->pli, qsq_aa);
+        }
 
         /* convert the DNA sequence to text so we can print it in the domain alignment display */
         esl_sq_Textize(qsqDNATxt);

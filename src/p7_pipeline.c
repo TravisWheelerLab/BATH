@@ -109,7 +109,7 @@ typedef struct {
  * Throws:    <NULL> on allocation failure.
  */
 P7_PIPELINE *
-p7_pipeline_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode)
+p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode)
 {
   P7_PIPELINE *pli  = NULL;
   int          seed = (go ? esl_opt_GetInteger(go, "--seed") : 42);
@@ -120,7 +120,8 @@ p7_pipeline_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, en
   pli->do_alignment_score_calc = 0;
   pli->long_targets = long_targets;
   pli->frameshift = FALSE;
-  
+  pli->is_translated = FALSE; /* translated tools will need to override this */
+
   if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->bck = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->oxf = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;
@@ -1004,6 +1005,7 @@ p7_pli_NewModelThresholds(P7_PIPELINE *pli, const P7_OPROFILE *om)
 int
 p7_pli_NewSeq(P7_PIPELINE *pli, const ESL_SQ *sq)
 {
+
   if (!pli->long_targets && !pli->frameshift) pli->nseqs++; // if long_targets, sequence counting happens in the serial loop, which can track multiple windows for a single long sequence
   pli->nres += sq->n;
   if (pli->Z_setby == p7_ZSETBY_NTARGETS && pli->mode == p7_SEARCH_SEQS) pli->Z = pli->nseqs;
@@ -2861,10 +2863,10 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
   fprintf(ofp, "-------------------------------------\n");
   if (pli->mode == p7_SEARCH_SEQS) {
     fprintf(ofp, "Query model(s):              %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
-    fprintf(ofp, "Target sequences:            %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
+    fprintf(ofp, "Target %-12s          %15" PRId64 "  (%" PRId64 " residues searched)\n", pli->is_translated?"orf(s):":"sequence(s):", pli->nseqs,   pli->nres);
     ntargets = pli->nseqs;
   } else {
-    fprintf(ofp, "Query sequence(s):           %15" PRId64 "  (%" PRId64 " residues searched)\n",  pli->nseqs,   pli->nres);
+    fprintf(ofp, "Query %-12s           %15" PRId64 "  (%" PRId64 " residues searched)\n", pli->is_translated?"orf(s):":"sequence(s):", pli->nseqs,   pli->nres);
     fprintf(ofp, "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
     ntargets = pli->nmodels;
   }

@@ -591,23 +591,20 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
 }
 
 /* Function:  p7_domaindef_ByPosteriorHeuristics_Frameshift()
- * Synopsis:  Define domains in a sequence using posterior probs.
- * Incept:    SRE, Sat Feb 23 08:17:44 2008 [Janelia]
+ * Synopsis:  Define domains in a sequence using posterior probs
+ *            with rameshift awareness.
  *
- * Purpose:   Given a sequence <sq> and model <om> for which we have
- *            already calculated a Forward and Backward parsing
- *            matrices <oxf> and <oxb>; use posterior probability
- *            heuristics to determine an annotated domain structure;
- *            and for each domain found, score it (with null2
+ * Purpose:   Given a DNA sequence <sq> and protien model <gm> 
+ *            for which we have already calculated a Forward and 
+ *            Backward parsing matrices <gxf> and <gxb>; use posterior 
+ *            probability heuristics to determine an annotated domain 
+ *            structure; and for each domain found, score it (with null2
  *            calculations) and obtain an optimal accuracy alignment,
  *            using <fwd> and <bck> matrices as workspace for the
  *            necessary full-matrix DP calculations. Caller provides a
  *            new or reused <ddef> object to hold these results.
  *            A <bg> is provided for (possible) use in biased-composition
- *            score correction (used in nhmmer), and a boolean
- *            <long_target> argument is provided to allow nhmmer-
- *            specific modifications to the behavior of this function
- *            (TRUE -> from nhmmer).
+ *            score correction (used in nhmmer).
  *            
  *            Upon return, <ddef> contains the definitions of all the
  *            domains: their bounds, their null-corrected Forward
@@ -635,10 +632,9 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int i2,j2;
   int last_j2;
   int nc;
-  int saveL     = gm->L;  /* Save the length config of <om>; will restore upon return */
+  int saveL     = gm->L;     /* Save the length config of <om>; will restore upon return */
   int save_mode = gm->mode;  /* Likewise for the mode. */
   int status;
-  float k;
   
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
@@ -647,13 +643,10 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
   p7_ReconfigUnihit_Frameshift(gm, saveL);     /* process each domain in unihit mode, regardless of om->mode     */
 
-  i     = -1;
+  i         = -1;
   triggered = FALSE;
   start     = FALSE;
   end       = FALSE;
-FILE *out = fopen("out.txt", "w+");
-p7_domaindef_DumpPosteriors(out, ddef); 
-fclose(out);
 
   for (j = 1; j < gxf->L; j++)
   { 
@@ -664,7 +657,6 @@ fclose(out);
     }
     else 
     {
-     // printf("d %d\n", d);
       while(d > 1 && !start ) 
       { 
         d--;
@@ -705,7 +697,7 @@ fclose(out);
       }
       
       j = d;
-   //printf("i %d j %d\n", i, j); 
+ 
       /* We have a region i..j to evaluate. */
       p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
       p7_gmx_GrowTo(bck, gm->M, j-i+1);
@@ -713,12 +705,12 @@ fclose(out);
       
      if (is_multidomain_region_fs(ddef, i, j))
      {  
-      //printf("MULTI\n"); 
+
         /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
         */
-     ddef->nclustered++;
+        ddef->nclustered++;
        
        /* Resolve the region into domains by stochastic trace
         * clustering; assign position-specific null2 model by
@@ -727,15 +719,15 @@ fclose(out);
         * works
         */
     
-     p7_ReconfigMultihit_Frameshift(gm, saveL);
-     p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, j-i+1, gm, fwd, NULL);
+        p7_ReconfigMultihit_Frameshift(gm, saveL);
+         p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, j-i+1, gm, fwd, NULL);
 
-     region_trace_ensemble_frameshift(ddef, gm, sq->dsq, sq->abc, i, j, fwd, bck, indel_cost, &nc);
+       region_trace_ensemble_frameshift(ddef, gm, sq->dsq, sq->abc, i, j, fwd, bck, indel_cost, &nc);
      
-     p7_ReconfigUnihit_Frameshift(gm, saveL);
+       p7_ReconfigUnihit_Frameshift(gm, saveL);
        
-     /* ddef->n2sc is now set on i..j by the traceback-dependent method */
-     last_j2 = 0;
+       /* ddef->n2sc is now set on i..j by the traceback-dependent method */
+       last_j2 = 0;
        for (d = 0; d < nc; d++) {
          
          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
@@ -759,37 +751,33 @@ fclose(out);
           * happens. [xref J5/130].
           */
          
-      ddef->nenvelopes++;
+         ddef->nenvelopes++;
         
-     /*the !long_target argument will cause the function to recompute null2
+         /*the !long_target argument will cause the function to recompute null2
           * scores if this is part of a long_target (nhmmer) pipeline */
-             if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr) == eslOK) last_j2 = j2;
-     }
+         if (rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr) == eslOK) last_j2 = j2;
+        }
 
-       p7_spensemble_Reuse(ddef->sp);
-       p7_trace_Reuse(ddef->tr);
+        p7_spensemble_Reuse(ddef->sp);
+        p7_trace_Reuse(ddef->tr);
 
-   } else {
+     } else {
        ddef->nenvelopes++;
        rescore_isolated_domain_frameshift(ddef, gm, sq, ntsq, fwd, bck, i, j, FALSE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr);
 
    }
 
     i     = -1;
-     triggered = FALSE;
-         start     = FALSE;
-         end       = FALSE;
+    triggered = FALSE;
+    start     = FALSE;
+    end       = FALSE;
 
     }
   }
   /* Restore model to uni/multihit mode, and to its original length model */
   if (p7_IsMulti(save_mode)) p7_ReconfigMultihit_Frameshift(gm, saveL); 
   else                       p7_ReconfigUnihit_Frameshift  (gm, saveL); 
-//FILE *out = fopen("out.txt", "w+");
-//p7_domaindef_DumpPosteriors(out, ddef); 
-//fclose(out);
-//printf("done\n");
-//sleep(5);
+
   return eslOK;
 }
 
@@ -798,7 +786,6 @@ fclose(out);
 /*****************************************************************
  * 3. Internal routines 
  *****************************************************************/
-
 
 /* is_multidomain_region()
  * SRE, Fri Feb  8 11:35:04 2008 [Janelia]
@@ -1694,7 +1681,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   float          one_indel = indel_cost;
   float          two_indel = indel_cost / 2.;
   float          no_indel  = 1. - indel_cost * 3.;
-//printf("i %d j %d\n", i, j);
 
   //temporarily change model length to env_len. The nhmmer pipeline will tack
   //on the appropriate cost to account for the longer actual window
@@ -1705,30 +1691,14 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 
   p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx1, &envsc);
 
-//  FILE *fout = fopen("fwdout.txt", "w+");
-//  p7_gmx_fs_Dump(fout, gx1, p7_DEFAULT);
-//  fclose(fout); 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
 
-//  FILE *bwdout = fopen("bwdout.txt", "w+");
-//   p7_gmx_Dump(bwdout, gx2, p7_DEFAULT);
-//   fclose(bwdout); 
-//printf("fwd %f bck %f\n", envsc, bcksc);
   gxppfs = p7_gmx_fs_Create(gm->M, Ld);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
-
-// FILE *ppout = fopen("ppout.txt", "w+");
-//  p7_gmx_fs_Dump(ppout, gxppfs, p7_DEFAULT);
-//   fclose(ppout);
-
 
    /* Find an optimal accuracy alignment */
    p7_OptimalAccuracy_Frameshift(gm, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores              */
    p7_OATrace_Frameshift(gm, gxppfs, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-
-//   FILE *out = fopen("optout.txt", "w+");
-//   p7_gmx_Dump(out, gx2, p7_DEFAULT); 
-//   fclose(out);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    

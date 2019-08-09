@@ -568,7 +568,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
       /* Create processing pipeline and hit list accumulators */
       tophits_accumulator  = p7_tophits_Create(); 
-      pipelinehits_accumulator = p7_pipeline_fs_Create(go, 100, 100, TRUE, p7_SEARCH_SEQS);
+      pipelinehits_accumulator = p7_pipeline_fs_Create(go, 100, 100, p7_SEARCH_SEQS);
 	  pipelinehits_accumulator->nmodels = 1;
       pipelinehits_accumulator->nnodes = hmm->M;
 
@@ -584,7 +584,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         info[i].om  = p7_oprofile_Copy(om);
         info[i].gm  = p7_profile_fs_Clone(gm_fs);
     	info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
-	info[i].pli = p7_pipeline_fs_Create(go, om->M, 100, TRUE, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
+	info[i].pli = p7_pipeline_fs_Create(go, om->M, 100, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
         status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
         if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
 

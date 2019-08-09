@@ -343,6 +343,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, int frameshift, e
   pli->do_alignment_score_calc = 0;
   pli->frameshift = frameshift;
   pli->long_targets = FALSE;
+  pli->is_translated = FALSE; /* translated tools will need to override this */
 
   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->gbck = p7_gmx_Create(M_hint, L_hint)) == NULL) goto ERROR;

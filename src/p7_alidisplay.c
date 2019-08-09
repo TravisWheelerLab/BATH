@@ -375,6 +375,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            k,a,i,s,c;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
+ int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3,n4,n5;
   int            g,h;
@@ -426,6 +427,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
   sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
   sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
+  orf_namelen = strlen(sq->orfid);                          n += orf_namelen + 1; /* same for orfname          */
+
   ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
   ad->mem = NULL;
   
@@ -447,7 +450,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->sqname  = ad->mem + pos;  pos += sq_namelen +1;
   ad->sqacc   = ad->mem + pos;  pos += sq_acclen +1;
   ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
-  
+  ad->orfname = ad->mem + pos;  pos += orf_namelen +1;  
+
   strcpy(ad->hmmname, gm->name);
   if (gm->acc  != NULL) strcpy(ad->hmmacc,  gm->acc);  else ad->hmmacc[0]  = 0;
   if (gm->desc != NULL) strcpy(ad->hmmdesc, gm->desc); else ad->hmmdesc[0] = 0;
@@ -455,6 +459,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   strcpy(ad->sqname,  sq->name);
   strcpy(ad->sqacc,   sq->acc);
   strcpy(ad->sqdesc,  sq->desc);
+  strcpy(ad->orfname,  sq->orfid);
+
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
@@ -510,7 +516,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	ad->codon[y] = c;
       	cur_emit = -eslINFINITY; 	    
         max_emit = -eslINFINITY;
-        //printf("AAAAAa\n");
+       
 	if(c == 1) {
           ad->frameshifts++;           
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
@@ -1850,6 +1856,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 
   /* dynamically size the output lines */
   namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+
   if (show_translated_sequence) {
       namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
   }

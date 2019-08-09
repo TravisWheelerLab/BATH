@@ -740,7 +740,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   if (tblfp)         fclose(tblfp);
   if (domtblfp)      fclose(domtblfp);
   if (pfamtblfp)     fclose(pfamtblfp);
-//  if (aliscoresfp)   fclose(aliscoresfp);
 
   return eslOK;
 
@@ -757,51 +756,49 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
 
-
   sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
 
-
   while (sstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
-      dbsq_dna->idx = seq_id;
+    dbsq_dna->idx = seq_id;
+    if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
 
-  if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
-
-  dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
+    dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
       
-  p7_pli_NewSeq(info->pli, dbsq_dna);
-  if (info->wrk->do_watson) {
+    p7_pli_NewSeq(info->pli, dbsq_dna);
+  
+    if (info->wrk->do_watson) {
       
-    /* translate DNA sequence to 3 frame ORFs */
-    do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
+      /* translate DNA sequence to 3 frame ORFs */
+      do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 	 
-    p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
-    p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
+      p7_pipeline_fs_Reuse(info->pli); // prepare for next search
     
-  } else {
-    info->pli->nres -= dbsq_dna->n;
-  }
+    } else {
+      info->pli->nres -= dbsq_dna->n;
+    }
 
-      if (info->wrk->do_crick) {
-		//	  printf("COMP\n");
-         esl_sq_ReverseComplement(dbsq_dna);
-	     do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
+    if (info->wrk->do_crick) {
+         
+      esl_sq_ReverseComplement(dbsq_dna);
+      do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
-         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-         info->pli->nres += dbsq_dna->n;
-         esl_sq_ReverseComplement(dbsq_dna);
-      } 
-      sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
+      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
+      p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+      info->pli->nres += dbsq_dna->n;
+      esl_sq_ReverseComplement(dbsq_dna);
+    } 
+    sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
       
-      if (sstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
-          add_id_length(id_length_list, dbsq_dna->idx, dbsq_dna->L);
-          info->pli->nseqs++;
-          esl_sq_Reuse(dbsq_dna);
-          sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
-          seq_id++;
+    if (sstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
+      add_id_length(id_length_list, dbsq_dna->idx, dbsq_dna->L);
+      info->pli->nseqs++;
+      esl_sq_Reuse(dbsq_dna);
+      sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
+      seq_id++;
 
-      }
-}
+    }
+  }
 
   if(abcDNA) esl_alphabet_Destroy(abcDNA);
   if(dbsq_dna) esl_sq_Destroy(dbsq_dna);
@@ -832,80 +829,79 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
   /* Main loop: */
   while (sstatus == eslOK)
-    {
-      block = (ESL_SQ_BLOCK *) newBlock;     
+  {
+    block = (ESL_SQ_BLOCK *) newBlock;     
 	
+    if (abort) {
+      block->count = 0;
+      sstatus = eslEOF;
+    } else {
+      sstatus = esl_sqio_ReadBlock(dbfp, block, info->pli->block_length, n_targetseqs, TRUE);
+    }
 
-      if (abort) {
-        block->count = 0;
-        sstatus = eslEOF;
-      } else {
-        sstatus = esl_sqio_ReadBlock(dbfp, block, info->pli->block_length, n_targetseqs, TRUE);
+    block->first_seqidx = info->pli->nseqs;
+    seqid = block->first_seqidx;
+
+    for (i=0; i<block->count; i++) {
+      block->list[i].idx = seqid;
+      
+      add_id_length(id_length_list, seqid, block->list[i].L);
+      seqid++;
+      if (       seqid == n_targetseqs // hit the sequence target
+           && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
+         ) 
+      {
+        abort = TRUE;
+        block->count = i+1;
+        break;
       }
+    } 
 
-      block->first_seqidx = info->pli->nseqs;
-      seqid = block->first_seqidx;
+    info->pli->nseqs += block->count  - ((abort || block->complete) ? 0 : 1);// if there's an incomplete sequence read into the block wait to count it until it's complete.	
 
-      for (i=0; i<block->count; i++) {
-        block->list[i].idx = seqid;
-        
-        add_id_length(id_length_list, seqid, block->list[i].L);
-        seqid++;
-        if (   seqid == n_targetseqs // hit the sequence target
-            && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
-        ) {
-          abort = TRUE;
-          block->count = i+1;
-          break;
+    if (sstatus == eslEOF) {
+      if (eofCount < esl_threads_GetWorkerCount(obj)) sstatus = eslOK;
+      ++eofCount;
+    } else if (!block->complete ) {
+      // The final sequence on the block was an incomplete window of the active sequence,
+      // so our next read will need a copy of it to correctly deal with overlapping
+      // regions. We capture a copy of the sequence here before sending it off to the
+      // pipeline to avoid odd race conditions that can occur otherwise.
+      // Copying the entire sequence isn't really necessary, and is a bit heavy-
+      // handed. Could accelerate if this proves to have any notable impact on speed.
+      esl_sq_Copy(block->list + (block->count - 1) , tmpsq);
+    }
+
+    if (sstatus == eslOK) {
+      status = esl_workqueue_ReaderUpdate(queue, block, &newBlock);
+      if (status != eslOK) esl_fatal("Work queue reader failed");
+
+      //newBlock needs all this information so the next ReadBlock call will know what to do
+      ((ESL_SQ_BLOCK *)newBlock)->complete = block->complete;
+      if (!block->complete) {
+        // Push the captured copy of the previously-read sequence into the new block,
+        // in preparation for ReadWindow  (double copy ... slower than necessary)
+        esl_sq_Copy(tmpsq, ((ESL_SQ_BLOCK *)newBlock)->list);
+
+        if (  ((ESL_SQ_BLOCK *)newBlock)->list->n < info->om->max_length ) {
+          //no reason to search the final partial sequence on the block, as the next block will search this whole chunk
+          ((ESL_SQ_BLOCK *)newBlock)->list->C = ((ESL_SQ_BLOCK *)newBlock)->list->n;
+          (((ESL_SQ_BLOCK *)newBlock)->count)--;
+        } else {
+          ((ESL_SQ_BLOCK *)newBlock)->list->C = info->om->max_length;
         }
-      } 
-
-      info->pli->nseqs += block->count  - ((abort || block->complete) ? 0 : 1);// if there's an incomplete sequence read into the block wait to count it until it's complete.	
-
-      if (sstatus == eslEOF) {
-          if (eofCount < esl_threads_GetWorkerCount(obj)) sstatus = eslOK;
-          ++eofCount;
-      } else if (!block->complete ) {
-          // The final sequence on the block was an incomplete window of the active sequence,
-          // so our next read will need a copy of it to correctly deal with overlapping
-          // regions. We capture a copy of the sequence here before sending it off to the
-          // pipeline to avoid odd race conditions that can occur otherwise.
-          // Copying the entire sequence isn't really necessary, and is a bit heavy-
-          // handed. Could accelerate if this proves to have any notable impact on speed.
-          esl_sq_Copy(block->list + (block->count - 1) , tmpsq);
       }
-
-      if (sstatus == eslOK) {
-          status = esl_workqueue_ReaderUpdate(queue, block, &newBlock);
-          if (status != eslOK) esl_fatal("Work queue reader failed");
-
-          //newBlock needs all this information so the next ReadBlock call will know what to do
-          ((ESL_SQ_BLOCK *)newBlock)->complete = block->complete;
-          if (!block->complete) {
-              // Push the captured copy of the previously-read sequence into the new block,
-              // in preparation for ReadWindow  (double copy ... slower than necessary)
-              esl_sq_Copy(tmpsq, ((ESL_SQ_BLOCK *)newBlock)->list);
-
-              if (  ((ESL_SQ_BLOCK *)newBlock)->list->n < info->om->max_length ) {
-                //no reason to search the final partial sequence on the block, as the next block will search this whole chunk
-                ((ESL_SQ_BLOCK *)newBlock)->list->C = ((ESL_SQ_BLOCK *)newBlock)->list->n;
-                (((ESL_SQ_BLOCK *)newBlock)->count)--;
-              } else {
-                ((ESL_SQ_BLOCK *)newBlock)->list->C = info->om->max_length;
-              }
-
-          }
-      }
+    }
   }
 
   status = esl_workqueue_ReaderUpdate(queue, block, NULL);
   if (status != eslOK) esl_fatal("Work queue reader failed");
 
   if (sstatus == eslEOF) {
-      /* wait for all the threads to complete */
-      esl_threads_WaitForFinish(obj);
-      esl_workqueue_Complete(queue);
-    }
+    /* wait for all the threads to complete */
+    esl_threads_WaitForFinish(obj);
+    esl_workqueue_Complete(queue);
+  }
 
   esl_sq_Destroy(tmpsq);
 
@@ -945,35 +941,34 @@ pipeline_thread(void *arg)
       dnaSeq->L = dnaSeq->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
       p7_pli_NewSeq(info->pli, dnaSeq);
       
-  
       if (info->wrk->do_watson) {
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 	
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
-         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-       } else {
-         info->pli->nres -= dnaSeq->n;
-       } 
+        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
+        p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+      } else {
+        info->pli->nres -= dnaSeq->n;
+      } 
 
-       if (info->wrk->do_crick) {
-         info->pli->nres += dnaSeq->n;
-         esl_sq_ReverseComplement(dnaSeq);
-         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
+      if (info->wrk->do_crick) {
+        info->pli->nres += dnaSeq->n;
+        esl_sq_ReverseComplement(dnaSeq);
+        do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 	
-         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
-         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-         esl_sq_ReverseComplement(dnaSeq);
-       }
-     }  
-     status = esl_workqueue_WorkerUpdate(info->queue, block, &newBlock);
-     if (status != eslOK) esl_fatal("Work queue worker failed");
-   
-       /* loop until all blocks have been processed */
-       block = (ESL_SQ_BLOCK *) newBlock; 
-  }
-  
-   status = esl_workqueue_WorkerUpdate(info->queue, block, NULL);
+        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
+        p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+        esl_sq_ReverseComplement(dnaSeq);
+      }
+    }  
+    status = esl_workqueue_WorkerUpdate(info->queue, block, &newBlock);
     if (status != eslOK) esl_fatal("Work queue worker failed");
+   
+    /* loop until all blocks have been processed */
+    block = (ESL_SQ_BLOCK *) newBlock; 
+  } 
+  
+  status = esl_workqueue_WorkerUpdate(info->queue, block, NULL);
+  if (status != eslOK) esl_fatal("Work queue worker failed");
 
   esl_threads_Finished(obj, workeridx);
 

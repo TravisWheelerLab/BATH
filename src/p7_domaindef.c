@@ -1174,7 +1174,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
  }
   /* Cluster the ensemble of traces to break region into envelopes. */
   p7_spensemble_fs_Cluster(ddef->sp, ddef->min_overlap, ddef->of_smaller, ddef->max_diagdiff, ddef->min_posterior, ddef->min_endpointp, &nc);
-  //printf("nc %d\n", nc);
+  
   /* A little hacky now. Remove "dominated" domains relative to seq coords. */
   for (d = 0; d < nc; d++) 
     ddef->sp->assignment[d] = 0; /* overload <assignment> to flag that a domain is dominated */
@@ -1204,7 +1204,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
       d++;
     }
   ddef->sp->nc = d;
- //printf("d %d\n", d); 
+ 
   *ret_nc = d;
   return eslOK;
 }
@@ -1721,59 +1721,63 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
    * do it now, by the expectation (posterior decoding) method.
    */
 
-  if (!null2_is_done) 
+  if (!null2_is_done)
+  { 
     p7_Null2_fs_ByExpectation(gm, gx1, null2);
 
-   t = u = v = w = x = -1;
-   z = 0;
-   pos = i;
-   while(pos <= j)
-   {
-     if(esl_abc_XIsCanonical(sq->abc, sq->dsq[pos])) x = sq->dsq[pos];
-     else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[pos]))
+     t = u = v = w = x = -1;
+     z = 0;
+     pos = i;
+  
+     while(pos <= j)
      {
-       for(x = 0; x < sq->abc->K; x++)
-         if(sq->abc->degen[sq->dsq[pos]][x]) break;
-     }
+   
+       if(esl_abc_XIsCanonical(sq->abc, sq->dsq[pos])) x = sq->dsq[pos];
+       else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[pos]))
+       {
+         for(x = 0; x < sq->abc->K; x++)
+           if(sq->abc->degen[sq->dsq[pos]][x]) break;
+       }
 
-     switch (ddef->tr->st[z]) {
-       case p7T_N:
-       case p7T_C:
-       case p7T_J:  if(ddef->tr->i[z] == pos && pos > i+1) pos++;
-                    z++;   break;
-       case p7T_X:
-       case p7T_S:
-       case p7T_B:
-       case p7T_E:
-       case p7T_T:
-       case p7T_D:  z++;   break;
-       case p7T_M:  if(ddef->tr->i[z] == pos)
-                    {
-                      if(ddef->tr->c[z] == 1)
-                        ddef->n2sc[pos]  = logf(null2[p7P_AMINO1(gm, ddef->tr->k[z], x)]);
-                      else if(ddef->tr->c[z] == 2)
-                        ddef->n2sc[pos]  = logf(null2[p7P_AMINO2(gm, ddef->tr->k[z], w, x)]);
-                      else if(ddef->tr->c[z] == 3)
+       switch (ddef->tr->st[z]) {
+         case p7T_N:
+         case p7T_C:
+         case p7T_J:  if(ddef->tr->i[z] == pos && pos > i+1) pos++;
+                      z++;   break;
+         case p7T_X:
+         case p7T_S:
+         case p7T_B:
+         case p7T_E:
+         case p7T_T:
+         case p7T_D:  z++;   break;
+         case p7T_M:  if(ddef->tr->i[z] == pos)
+                      {
+                        if(ddef->tr->c[z] == 1)
+                          ddef->n2sc[pos]  = logf(null2[p7P_AMINO1(gm, ddef->tr->k[z], x)]);
+                        else if(ddef->tr->c[z] == 2)
+                          ddef->n2sc[pos]  = logf(null2[p7P_AMINO2(gm, ddef->tr->k[z], w, x)]);
+                        else if(ddef->tr->c[z] == 3)
+                          ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm, ddef->tr->k[z], v, w, x)]);
+                        else if(ddef->tr->c[z] == 4)
+                          ddef->n2sc[pos]  = logf(null2[p7P_AMINO4(gm, ddef->tr->k[z], u, v, w, x)]);
+                        else if(ddef->tr->c[z] == 5)
+                          ddef->n2sc[pos]  = logf(null2[p7P_AMINO5(gm, ddef->tr->k[z], t, u, v, w, x)]);
+                        z++; 
+                      }
+                      pos++;  break;
+         case p7T_I:  if(ddef->tr->i[z] == pos)
+                      {
                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm, ddef->tr->k[z], v, w, x)]);
-                      else if(ddef->tr->c[z] == 4)
-                        ddef->n2sc[pos]  = logf(null2[p7P_AMINO4(gm, ddef->tr->k[z], u, v, w, x)]);
-                      else if(ddef->tr->c[z] == 5)
-                        ddef->n2sc[pos]  = logf(null2[p7P_AMINO5(gm, ddef->tr->k[z], t, u, v, w, x)]);
-                      z++; 
-                    }
-                    pos++;  break;
-       case p7T_I:  if(ddef->tr->i[z] == pos)
-                    {
-                      ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm, ddef->tr->k[z], v, w, x)]);
-                      z++;
-                    }
-                    pos++;  break;
+                        z++;
+                      }
+                      pos++;  break;
       }
       t = u;
       u = w;
       v = w;
       w = x;
-    } 
+    }
+  } 
  
   for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */

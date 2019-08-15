@@ -174,8 +174,6 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
     denom += XMX_FS(i,p7G_N);
     denom += XMX_FS(i,p7G_J);
     denom += XMX_FS(i,p7G_C);
-//    XMX_FS(i,p7G_E) = denom;
-//    printf("i %d  E %f \n", i, XMX_FS(i,p7G_E));
 
     bias_denom = 1.0 / denom;
 
@@ -263,10 +261,6 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
 
     
   }
-
-#if 0    
-   
-    #endif
 
   return eslOK;
 }

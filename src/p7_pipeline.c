@@ -2529,9 +2529,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   ESL_SQ_BLOCK    *post_vit_orf_block;
   P7_ORF_COORDS   *msv_coords, *bias_coords, *vit_coords;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
-  
-  if (dnasq->n < 3) return eslOK;
-
+ 
+  if (dnasq->n < 15) return eslOK;
+  if (orf_block->count == 0) return eslOK;
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
 

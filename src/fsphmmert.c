@@ -391,7 +391,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              hstatus  = eslOK;
   int              sstatus  = eslOK;
   int              i, d;
-  double           resCnt    = 0;
   /* used to keep track of the lengths of the sequences that are processed */
   ID_LENGTH_LIST  *id_length_list = NULL;
 
@@ -770,10 +769,10 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       
       /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
-	 
+
       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-    
+      esl_sq_ReuseBlock(info->wrk->orf_block);    
     } else {
       info->pli->nres -= dbsq_dna->n;
     }
@@ -785,6 +784,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 
       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+	  esl_sq_ReuseBlock(info->wrk->orf_block);
       info->pli->nres += dbsq_dna->n;
       esl_sq_ReverseComplement(dbsq_dna);
     } 
@@ -946,6 +946,7 @@ pipeline_thread(void *arg)
 	
         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+        esl_sq_ReuseBlock(info->wrk->orf_block);
       } else {
         info->pli->nres -= dnaSeq->n;
       } 
@@ -957,6 +958,7 @@ pipeline_thread(void *arg)
 	
         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+		esl_sq_ReuseBlock(info->wrk->orf_block);
         esl_sq_ReverseComplement(dnaSeq);
       }
     }  

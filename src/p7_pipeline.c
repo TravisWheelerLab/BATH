@@ -343,10 +343,10 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->is_translated = FALSE; 
 
   /* Create generic and optimized matricies */
-  if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint)) == NULL) goto ERROR;
+  if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS  )) == NULL) goto ERROR;
   if ((pli->gbck = p7_gmx_Create(M_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->gxf  = p7_gmx_fs_Create(M_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->gxb  = p7_gmx_Create(M_hint, L_hint)) == NULL) goto ERROR;    
+  if ((pli->gxf  = p7_gmx_fs_Create(M_hint, 3, L_hint, p7P_CODONS)) == NULL) goto ERROR;
+  if ((pli->gxb  = p7_gmx_fs_Create(M_hint, 5, L_hint, 0)) == NULL) goto ERROR;    
   if ((pli->oxf  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->oxb  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;     
 
@@ -2228,9 +2228,9 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   }  else
     bias_filtersc = nullsc;
 
-  p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len);
+  p7_gmx_fs_GrowTo(pli->gxf, gm->M, 3, window_len, p7P_CODONS);
   p7_ReconfigLength(gm, window_len);
-  p7_Forward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+  p7_Forward_Parser_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
 
   filtersc =  nullsc + (bias_filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
@@ -2255,9 +2255,9 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
-  p7_gmx_GrowTo(pli->gxb, gm->M, window_len);
-  p7_Backward_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
-
+  p7_gmx_fs_GrowTo(pli->gxb, gm->M, 5, window_len, 0);
+  p7_Backward_Parser_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
+  
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, gcode,
@@ -2529,7 +2529,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
   ESL_SQ_BLOCK    *post_vit_orf_block;
   P7_ORF_COORDS   *msv_coords, *bias_coords, *vit_coords;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
- 
+
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;
   post_vit_orf_block = NULL;

@@ -526,9 +526,10 @@ typedef struct p7_gmx_s {
   int  L;    /* actual sequence dimension (seq 1..L)   */
   
   int      allocR;      /* current allocated # of rows : L+1 <= validR <= allocR                */
-  int      validR;  /* # of rows actually pointing at DP memory                             */
-  int      allocW;  /* current set row width :  M+1 <= allocW                               */
-  uint64_t ncells;  /* total # of allocated cells in 2D matrix : ncells >= (validR)(allocW) */
+  int      validR;      /* # of rows actually pointing at DP memory                             */
+  int      allocW;      /* current set row width :  M+1 <= allocW                               */
+  int      allocC;
+  uint64_t ncells;      /* total # of allocated cells in 2D matrix : ncells >= (validR)(allocW) */
 
   float **dp;           /* logically [0.1..L][0.1..M][0..p7G_NSCELLS-1]; indexed [i][k*p7G_NSCELLS+s] */
   float  *xmx;          /* logically [0.1..L][0..p7G_NXCELLS-1]; indexed [i*p7G_NXCELLS+s]            */
@@ -1438,9 +1439,9 @@ extern float ** Codon_Emissions_Create (P7_PROFILE *gm, const ESL_DSQ *subseq, c
 void Codon_Emissions_Destroy (float **emit_sc);
 void Codon_Emmissions_Dump(FILE *ofp, float **emit_sc, int L, int M);
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
+extern int p7_Forward_Parser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
-extern int p7_Forward_Frameshift2     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
-extern int p7_Backward_Frameshift2    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
+extern int p7_Backward_Parser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
 
 
 /* generic_msv.c */
@@ -1675,8 +1676,8 @@ extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
 /* p7_gmx_fs.c */
-extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL);
-extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int allocM, int allocL);
+extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int allocC);
+extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int allocM, int allocL, int allocLx, int allocC);
 extern size_t  p7_gmx_fs_Sizeof (P7_GMX *gx);
 extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);

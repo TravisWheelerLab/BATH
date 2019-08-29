@@ -699,7 +699,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
       j = d;
  
       /* We have a region i..j to evaluate. */
-      p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1);
+      p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1, j-i+1, p7P_CODONS);
       p7_gmx_GrowTo(bck, gm->M, j-i+1);
       ddef->nregions++;
       
@@ -1693,7 +1693,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
 
-  gxppfs = p7_gmx_fs_Create(gm->M, Ld);
+  gxppfs = p7_gmx_fs_Create(gm->M, Ld, Ld, p7P_CODONS);
   p7_Decoding_Frameshift(gm, gx1, gx2, gxppfs);      /* <ox2> is now overwritten with post probabilities     */
 
    /* Find an optimal accuracy alignment */
@@ -1792,7 +1792,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
  }
   else
   {
-    dom->iali          = dom->ad->sqto;
+    dom->iali          = dom->ad->sqto - 2;
     dom->jali          = dom->ad->sqfrom;
     dom->ienv          = j;
     dom->jenv          = i;

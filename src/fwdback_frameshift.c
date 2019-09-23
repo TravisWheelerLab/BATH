@@ -354,7 +354,7 @@ ERROR:
  * Return:    <eslOK> on success.
  */
 int
-p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_sc)
+p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_sc)
 { 
 
   float const *tsc  = gm->tsc;
@@ -394,7 +394,6 @@ p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
 
   for(i = 1; i < 5; i++)
   {
-
     t = u;
     u = v;
     v = w;
@@ -403,7 +402,6 @@ p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
     else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
       for(x = 0; x < gcode->nt_abc->K; x++)
          if(gcode->nt_abc->degen[dsq[i]][x]) break;
-   
     curr  = i     % 4;
     prev1 = (i-1) % 4;
     prev3 = (i-3) % 4;
@@ -413,11 +411,11 @@ p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
     IMX_FS(curr,0)        = DMX_FS(curr,0)        = -eslINFINITY;
 
     XMX_FS(i,p7G_E) = -eslINFINITY;
-
    
     /* Initialization of the states reacheable at row i */
     for (k = 1; k < M; k++)
     {
+	
       IVX(i,k,p7P_C1) = p7_FLogsum(MMX_FS(prev1,k-1,p7G_C0)   + TSC(p7P_MM,k-1),
                         p7_FLogsum(IMX_FS(prev1,k-1)          + TSC(p7P_IM,k-1),
                         p7_FLogsum(DMX_FS(prev1,k-1)          + TSC(p7P_DM,k-1),
@@ -441,7 +439,6 @@ p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
 
       MMX_FS(curr,k,p7G_C0) =  p7_FLogsum(p7_FLogsum(MMX_FS(curr,k,p7G_C1), MMX_FS(curr,k,p7G_C2)),
                                           p7_FLogsum(MMX_FS(curr,k,p7G_C3), MMX_FS(curr,k,p7G_C4)));
-
       /* insert state */
       if ( i > 2 )
         IMX_FS(curr,k) = p7_FLogsum(MMX_FS(prev3,k,p7G_C0) + TSC(p7P_MI,k),
@@ -496,7 +493,6 @@ p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
     XMX_FS(i,p7G_E) = p7_FLogsum(MMX_FS(curr,M,p7G_C0),
                       p7_FLogsum(DMX_FS(curr,M), 
                                  XMX_FS(i,p7G_E)));
-//printf("i %d k %d E %f\n", i,M, XMX_FS(i,p7G_E));
     /* Initialization of the J, C, N & B states for row 4 */
  
     if(i > 2)
@@ -517,7 +513,6 @@ p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
                                  XMX_FS(i,p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
    
   }
-
 
   /* Recusion. Done as a pull.
    * Note some slightly wasteful boundary conditions:
@@ -616,7 +611,6 @@ p7_Forward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
     XMX_FS(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX_FS(curr,M,p7G_C0),
                                             DMX_FS(curr,M)),
                                             XMX_FS(i,p7G_E));
-//printf("i %d k %d E %f\n", i,M, XMX_FS(i,p7G_E));
 
     /* J, C and N states */
     XMX_FS(i,p7G_J) = p7_FLogsum(XMX_FS(i-3,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
@@ -924,7 +918,7 @@ ERROR:
   
 }
 
-/* Function:  p7_Backward_Praser_Frameshift()
+/* Function:  p7_BackwardPraser_Frameshift()
  * Synopsis:  The Backward algorithm.
  *
  * Purpose:   The Backward dynamic programming algorithm.
@@ -948,7 +942,7 @@ ERROR:
  * Return:    <eslOK> on success.
  */
 int
-p7_Backward_Parser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_sc)
+p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_sc)
 {
 
   float const *tsc  = gm->tsc;

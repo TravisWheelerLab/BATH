@@ -669,20 +669,16 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
           for (m = 0; m < M; m++)
           {
             fwd->dp[i][k] += fwd->dp[i-3][m] * hmm->t[m][k];
-  //          if(i == 10 || i == 7) printf("i-3 %d fwd %f t %f\n", i-3, fwd->dp[i-3][m], hmm->t[m][k]);
           }
 
           a = gcode->basic[v*16+w*4+x];
-    //      if(i == 10 || i == 7) printf("i %d k %d a %d fwd %f eo %f\n", i, k, a, fwd->dp[i][k], hmm->eo[a][k]);
           fwd->dp[i][k] *= hmm->eo[a][k]; 
 
           max = ESL_MAX(fwd->dp[i][k], max);
         }
 
       for (k = 0; k < M; k++){
-      //  printf("i %d k %d fwd %f max %f\n", i, k, fwd->dp[i][k], max);
         fwd->dp[i][k] /= max;
-     //    if(i == 10 || i == 7) printf("i %d k %d fwd %f max %f\n", i, k, fwd->dp[i][k], max);
      }
       fwd->sc[i] = log(max);
     }

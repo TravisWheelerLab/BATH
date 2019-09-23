@@ -66,10 +66,10 @@
 #define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL)
 #define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL)
 
-#define p7_NEVPARAM 6  /* number of statistical parameters stored in models                      */
+#define p7_NEVPARAM 7  /* number of statistical parameters stored in models                      */
 #define p7_NCUTOFFS 6  /* number of Pfam score cutoffs stored in models                          */
 #define p7_NOFFSETS 3  /* number of disk offsets stored in models for hmmscan's fast model input */
-enum p7_evparams_e {    p7_MMU  = 0, p7_MLAMBDA = 1,     p7_VMU = 2,  p7_VLAMBDA = 3, p7_FTAU = 4, p7_FLAMBDA = 5 };
+enum p7_evparams_e {    p7_MMU  = 0, p7_MLAMBDA = 1,     p7_VMU = 2,  p7_VLAMBDA = 3, p7_FTAU = 4, p7_FLAMBDA = 5 , p7_FTAUFS = 6 };
 enum p7_cutoffs_e  {     p7_GA1 = 0,     p7_GA2 = 1,     p7_TC1 = 2,      p7_TC2 = 3,  p7_NC1 = 4,     p7_NC2 = 5 };
 enum p7_offsets_e  { p7_MOFFSET = 0, p7_FOFFSET = 1, p7_POFFSET = 2 };
 
@@ -1416,6 +1416,7 @@ extern int p7_Lambda(P7_HMM *hmm, P7_BG *bg, double *ret_lambda);
 extern int p7_MSVMu     (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_mmu);
 extern int p7_ViterbiMu (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_vmu);
 extern int p7_Tau       (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau       (ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
 
 /* eweight.c */
 extern int p7_EntropyWeight(const P7_HMM *hmm, const P7_BG *bg, const P7_PRIOR *pri, double infotarget, double *ret_Neff);
@@ -1439,9 +1440,9 @@ extern float ** Codon_Emissions_Create (P7_PROFILE *gm, const ESL_DSQ *subseq, c
 void Codon_Emissions_Destroy (float **emit_sc);
 void Codon_Emmissions_Dump(FILE *ofp, float **emit_sc, int L, int M);
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
-extern int p7_Forward_Parser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
+extern int p7_ForwardParser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
-extern int p7_Backward_Parser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
+extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_PROFILE *gm, P7_GMX *gx, float *ret_sc);
 
 
 /* generic_msv.c */

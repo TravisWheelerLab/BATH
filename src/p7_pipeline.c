@@ -2218,8 +2218,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
   subseq = dnasq->dsq + window_start - 1;
 
-  p7_bg_SetLength(bg, window_len);
-  p7_bg_NullOne(bg, subseq, window_len, &nullsc);
+  p7_bg_SetLength(bg, window_len/3);
+  p7_bg_NullOne(bg, subseq, window_len/3, &nullsc);
 
   if (pli->do_biasfilter)
   {
@@ -2228,15 +2228,15 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   }  else
     bias_filtersc = nullsc;
 
-  p7_gmx_fs_GrowTo(pli->gxf, gm->M, 3, window_len, p7P_CODONS);
+  p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len, window_len, p7P_CODONS);
   p7_ReconfigLength(gm, window_len);
-  p7_Forward_Parser_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
+  p7_ForwardParser_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
 
   filtersc =  nullsc + (bias_filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
-  P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAU],  gm->evparam[p7_FLAMBDA]);
+  P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAUFS],  gm->evparam[p7_FLAMBDA]);
   if (P > pli->F3 ) return eslOK;
-
+	
   pli->pos_past_fwd += window_len; 
  
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
@@ -2255,8 +2255,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
 
   /* Now a Backwards parser pass, and hand it to domain definition workflow
    * In this case "domains" will end up being translated as independent "hits" */
-  p7_gmx_fs_GrowTo(pli->gxb, gm->M, 5, window_len, 0);
-  p7_Backward_Parser_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
+  p7_gmx_fs_GrowTo(pli->gxb, gm->M, window_len, window_len, 0);
+  p7_BackwardParser_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxb, &bwdsc);
   
   //if we're asked to not do null correction, pass a NULL instead of a temp scores variable - domaindef knows what to do
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
@@ -2349,7 +2349,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
    * only be a lower bound for now, so this list may be longer
    * than eventually reported.
    */
-  lnP =  esl_exp_logsurv (seq_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
+  lnP =  esl_exp_logsurv (seq_score,  gm->evparam[p7_FTAUFS], gm->evparam[p7_FLAMBDA]);
 
   if (p7_pli_TargetReportable(pli, seq_score, lnP))
   {
@@ -2374,12 +2374,12 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
     hit->noverlaps  = pli->ddef->noverlaps;
     hit->nenvelopes = pli->ddef->nenvelopes;
     hit->pre_score  = pre_score; /* BITS */
-    hit->pre_lnP    = esl_exp_logsurv (hit->pre_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
+    hit->pre_lnP    = esl_exp_logsurv (hit->pre_score,  gm->evparam[p7_FTAUFS], gm->evparam[p7_FLAMBDA]);
     hit->score      = seq_score; /* BITS */
     hit->lnP        = lnP;
     hit->sortkey    = pli->inc_by_E ? -lnP : seq_score; /* per-seq output sorts on bit score if inclusion is by score  */
     hit->sum_score  = sum_score; /* BITS */
-    hit->sum_lnP    = esl_exp_logsurv (hit->sum_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
+    hit->sum_lnP    = esl_exp_logsurv (hit->sum_score,  gm->evparam[p7_FTAUFS], gm->evparam[p7_FLAMBDA]);
 
     /* Transfer all domain coordinates (unthresholded for
      * now) with their alignment displays to the hit list,
@@ -2400,7 +2400,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
       hit->dcl[d].bitscore = hit->dcl[d].envsc + (window_len-Ld) * log((float) window_len / (float) (window_len+3)); /* NATS, for the moment... */
       hit->dcl[d].dombias  = (pli->do_null2 ? p7_FLogsum(0.0, log(bg->omega) + hit->dcl[d].domcorrection) : 0.0); /* NATS, and will stay so */
       hit->dcl[d].bitscore = (hit->dcl[d].bitscore - (nullsc + hit->dcl[d].dombias)) / eslCONST_LOG2; /* now BITS, as it should be */
-      hit->dcl[d].lnP      = esl_exp_logsurv (hit->dcl[d].bitscore,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
+      hit->dcl[d].lnP      = esl_exp_logsurv (hit->dcl[d].bitscore,  gm->evparam[p7_FTAUFS], gm->evparam[p7_FLAMBDA]);
 
       if (hit->dcl[d].bitscore > hit->dcl[hit->best_domain].bitscore) hit->best_domain = d;
     }

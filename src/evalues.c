@@ -67,11 +67,12 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   int             EvL    = ((cfg_b != NULL) ? cfg_b->EvL    : 200);
   int             EvN    = ((cfg_b != NULL) ? cfg_b->EvN    : 200);
   int             EfL    = ((cfg_b != NULL) ? cfg_b->EfL    : 100);
+  int 		  EfL_fs = EfL * 3;
   int             EfN    = ((cfg_b != NULL) ? cfg_b->EfN    : 200);
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
-  double          lambda, mmu, vmu, tau;
+  double          lambda, mmu, vmu, tau, tau_fs;
   int             status;
-  
+  P7_PROFILE     *gm_fs  = NULL;  
   /* Configure any objects we need
    * that weren't already passed to us as a bypass optimization 
    */
@@ -100,11 +101,13 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     if ((status = p7_oprofile_Convert(gm, om))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to convert to optimized profile");
   }
 
+  gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
   /* The calibration steps themselves */
-  if ((status = p7_Lambda(hmm, bg, &lambda))                          != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine lambda");
-  if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))      != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
-  if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))      != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
-  if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
+  if ((status = p7_Lambda(hmm, bg, &lambda))                             != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine lambda");
+  if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
+  if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
+  if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
+  if ((status = p7_fs_Tau   (r, gm_fs, hmm, bg, EfL_fs, EfN, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd frameshifted tau");
 
   /* Store results */
   hmm->evparam[p7_MLAMBDA] = om->evparam[p7_MLAMBDA] = lambda;
@@ -113,6 +116,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   hmm->evparam[p7_MMU]     = om->evparam[p7_MMU]     = mmu;
   hmm->evparam[p7_VMU]     = om->evparam[p7_VMU]     = vmu;
   hmm->evparam[p7_FTAU]    = om->evparam[p7_FTAU]    = tau;
+  hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
   hmm->flags              |= p7H_STATS;
 
   if (gm != NULL) {
@@ -454,6 +458,137 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
   if (ox  != NULL) p7_omx_Destroy(ox);
   return status;
 }
+
+
+/* Function:  p7_fs_Tau()
+ * Synopsis:  Determine Forward frameshifted tau by brief simulation.
+ * Incept:    SRE, Thu Aug  9 15:08:39 2007 [Janelia]
+ *
+ * Purpose:   Determine the <tau> parameter for an exponential tail fit
+ *            to the Forward score distribution for model <om>, on
+ *            random sequences with the composition of the background
+ *            model <bg>. This <tau> parameter is for an exponential
+ *            distribution anchored from $P=1.0$, so it's not really a
+ *            tail per se; but it's only an accurate fit in the tail
+ *            of the Forward score distribution, from about $P=0.001$
+ *            or so.
+ *            
+ *            The determination of <tau> is done by a brief simulation
+ *            in which we fit a Gumbel distribution to a small number
+ *            of Forward scores of random sequences, and use that to
+ *            predict the location of the tail at probability <tailp>.
+ *            
+ *            The Gumbel is of course inaccurate, but we can use it
+ *            here solely as an empirical distribution to determine
+ *            the location of a reasonable <tau> more accurately on a
+ *            smaller number of samples than we could do with raw
+ *            order statistics. 
+ *            
+ *            Typical choices are L=100, N=200, tailp=0.04, which
+ *            typically yield estimates $\hat{\mu}$ with a precision
+ *            (standard deviation) of $\pm$ 0.2 bits, corresponding to
+ *            a $\pm$ 15\% error in E-values. See [J1/135].
+ *            
+ *            The use of Gumbel fitting to a small number of $N$
+ *            samples and the extrapolation of $\hat{\mu}$ from the
+ *            estimated location of the 0.04 tail mass are both
+ *            empirical and carefully optimized against several
+ *            tradeoffs. Most importantly, around this choice of tail
+ *            probability, a systematic error introduced by the use of
+ *            the Gumbel fit is being cancelled by systematic error
+ *            introduced by the use of a higher tail probability than
+ *            the regime in which the exponential tail is a valid
+ *            approximation. See [J1/135] for discussion.
+ *            
+ *            This function changes the length configuration of both
+ *            <om> and <bg>. The caller must remember to reconfigure
+ *            both of their length models appropriately for any
+ *            subsequent alignments.
+ *            
+ * Args:      r      : source of randomness
+ *            om     : configured profile to sample sequences from
+ *            bg     : null model (for background residue frequencies)
+ *            L      : mean length model for seq emission from profile
+ *            N      : number of sequences to generate
+ *            lambda : expected slope of the exponential tail (from p7_Lambda())
+ *            tailp  : tail mass from which we will extrapolate mu
+ *            ret_mu : RETURN: estimate for the Forward mu (base of exponential tail)
+ *
+ * Returns:   <eslOK> on success, and <*ret_fv> is the score difference
+ *            in bits.
+ *
+ * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
+ */
+int
+p7_fs_Tau(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
+{
+  P7_GMX  *gx      = NULL; 
+  ESL_DSQ *dsq     = NULL;
+  double  *xv      = NULL;
+  float    fsc, nullsc;		                  
+  double   gmu, glam;
+  int      status;
+  int      i;
+  float    indel_cost = 0.01;
+  ESL_GENCODE      *gcode = NULL;
+  ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
+  float *f = NULL;  
+
+  gx = p7_gmx_fs_Create(hmm->M, 3, L, p7P_CODONS);     /* DP matrix: for ForwardParser,  L rows */
+  abcDNA = esl_alphabet_Create(eslDNA);
+
+  ESL_ALLOC(f,   sizeof(float)   * abcDNA->K);
+  ESL_ALLOC(xv,  sizeof(double)  * N);
+  ESL_ALLOC(dsq, sizeof(ESL_DSQ) * (L+2));
+  if (gx == NULL) { status = eslEMEM; goto ERROR; }
+
+  gcode = esl_gencode_Create(abcDNA, gm->abc);
+  esl_gencode_Set(gcode, 1);  //This is the default euk code - may want to allow for a flag. 
+
+  esl_vec_FSet(f, abcDNA->K, 1. / (float) abcDNA->K);
+  
+  p7_ProfileConfig_fs(hmm, bg, gcode, gm, L, p7_LOCAL);
+  //p7_ReconfigLength(gm_fs, L);
+  p7_bg_SetLength(bg, L);
+
+  for (i = 0; i < N; i++)
+    {
+      if ((status = esl_rsq_xfIID(r, bg->f, abcDNA->K, L, dsq)) != eslOK) goto ERROR;
+      if ((status = p7_ForwardParser_Frameshift(dsq, gcode, indel_cost, L, gm, gx, &fsc))      != eslOK) goto ERROR;
+      if ((status = p7_bg_NullOne(bg, dsq, L, &nullsc))          != eslOK) goto ERROR;   
+      xv[i] = (fsc - nullsc) / eslCONST_LOG2;
+    }
+  if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR;
+
+  /* Explanation of the eqn below: first find the x at which the Gumbel tail
+   * mass is predicted to be equal to tailp. Then back up from that x
+   * by log(tailp)/lambda to set the origin of the exponential tail to 1.0
+   * instead of tailp.
+   */
+  *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
+ 
+  free(f); 
+  free(xv);
+  free(dsq);
+  p7_gmx_Destroy(gx);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  return eslOK;
+
+ ERROR:
+  *ret_tau = 0.;
+  if (f   != NULL) free(f);
+  if (xv  != NULL) free(xv);
+  if (dsq != NULL) free(dsq);
+  if (gx  != NULL) p7_gmx_Destroy(gx);
+  if (gcode != NULL) esl_gencode_Destroy(gcode);
+  if (abcDNA != NULL) esl_alphabet_Destroy(abcDNA);
+  return status;
+}
+
+
+
+
 /*-------------- end, determining individual parameters ---------*/
 
 

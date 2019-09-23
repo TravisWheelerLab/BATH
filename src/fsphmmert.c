@@ -384,13 +384,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              dbfmt    = eslSQFILE_UNKNOWN; /* format code for sequence database file          */
   ESL_STOPWATCH   *w;
   P7_SCOREDATA    *scoredata = NULL;
- 
+  ESL_RANDOMNESS      *r = NULL; 
   int              textw    = 0;
   int              nquery   = 0;
   int              status   = eslOK;
   int              hstatus  = eslOK;
   int              sstatus  = eslOK;
   int              i, d;
+  double           resCnt    = 0;
+  double           tau_fs; 
   /* used to keep track of the lengths of the sequences that are processed */
   ID_LENGTH_LIST  *id_length_list = NULL;
 
@@ -410,7 +412,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_TOPHITS       *tophits_accumulator = NULL; /* to hold the top hits information from all 6 frame translations */
   P7_PIPELINE      *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
-  ESL_ALPHABET    *abcAMINO = NULL;       /* DNA sequence alphabet                               */
+  ESL_ALPHABET    *abcAMINO = NULL;       /* Amino Acid sequence alphabet                               */
   ESL_GENCODE     *gcode       = NULL;
   /* end hmmsearcht */
 
@@ -476,7 +478,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   /* <abc> is not known 'til first HMM is read. */
   hstatus = p7_hmmfile_Read(hfp, &abc, &hmm);
-  if (abc->type != eslAMINO) p7_Fail("hmmsearcht only supports amino acid HMMs; %s uses a different alphabet", cfg->hmmfile);
+
+    if (abc->type != eslAMINO) p7_Fail("hmmsearcht only supports amino acid HMMs; %s uses a different alphabet", cfg->hmmfile);
 
   if (hstatus == eslOK)
   {
@@ -534,6 +537,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       hmm->max_length *=3;
 
       nquery++;
+      resCnt = 0;
       esl_stopwatch_Start(w);
 
       /* seqfile may need to be rewound (multiquery mode) */
@@ -561,7 +565,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       gm = p7_profile_Create (hmm->M, abc);
       om = p7_oprofile_Create(hmm->M, abc);
 
-      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
+      if( ! hmm->evparam[p7_FTAUFS])
+      {
+        if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
+	p7_fs_Tau(r, gm_fs, hmm, info->bg, 300, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
+      }
+      else
+        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
+
       p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       p7_oprofile_Convert(gm, om);                  /* <om> is now p7_LOCAL, multihit */
 
@@ -614,6 +626,36 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
          else
 #endif
          sstatus = serial_loop(info, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
+
+ 	switch(sstatus) {
+        case eslEFORMAT:
+          esl_fatal("Parse failed (sequence file %s):\n%s\n",
+                    dbfp->filename, esl_sqfile_GetErrorBuf(dbfp));
+          break;
+        case eslEOF:
+        case eslOK:
+          /* do nothing */
+          break;
+        default:
+          esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
+      }
+
+	 //need to re-compute e-values before merging (when list will be sorted)
+	if (esl_opt_IsUsed(go, "-Z")) {
+          resCnt = 1000000*esl_opt_GetReal(go, "-Z");
+
+          if ( info[0].pli->strands == p7_STRAND_BOTH)
+            resCnt *= 2;
+
+      	} else {
+          for (i = 0; i < infocnt; ++i)
+            resCnt += info[i].pli->nres;
+      	}
+
+      for (i = 0; i < infocnt; ++i)
+          p7_tophits_ComputeNhmmerEvalues(info[i].th, resCnt, info[i].om->max_length*3);
+
+
          
          /* merge the results of the search results */
          for (i = 0; i < infocnt; ++i)
@@ -632,11 +674,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
             esl_gencode_WorkstateDestroy(info[i].wrk);
            }
 	}
-
-      /* Print the results.  */
+	
+        
+      /* Sort and remove duplicates */
       p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       assign_Lengths(tophits_accumulator, id_length_list);
       p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
+
+      /* Print the results.  */
       p7_tophits_SortBySortkey(tophits_accumulator);
       p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
@@ -677,7 +722,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
          esl_msa_Destroy(msa);
       }
 
-	  
+      if( r != NULL ) esl_randomness_Destroy(r);	  
       p7_pipeline_fs_Destroy(pipelinehits_accumulator);
       p7_tophits_Destroy(tophits_accumulator);
       p7_oprofile_Destroy(om);

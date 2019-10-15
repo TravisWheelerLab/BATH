@@ -2217,9 +2217,10 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
   float             indel_cost = 0.01;
 
   subseq = dnasq->dsq + window_start - 1;
-
-  p7_bg_SetLength(bg, window_len/3);
-  p7_bg_NullOne(bg, subseq, window_len/3, &nullsc);
+	//printf("wl %d wl/3 %d\n", window_len, window_len/3);
+	//printf("ml %d ml/3 %d\n", gm->max_length, gm->max_length/3);
+  p7_bg_SetLength(bg, window_len/3); // For bg model loop first two nucleotides have 0 probabilty 
+  p7_bg_NullOne(bg, subseq, window_len-2, &nullsc);
 
   if (pli->do_biasfilter)
   {
@@ -2229,7 +2230,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_PROFILE *gm, P7_BG *bg, P7_TO
     bias_filtersc = nullsc;
 
   p7_gmx_fs_GrowTo(pli->gxf, gm->M, window_len, window_len, p7P_CODONS);
-  p7_ReconfigLength(gm, window_len);
+  p7_ReconfigLength(gm, window_len/3);
   p7_ForwardParser_Frameshift(subseq, gcode, indel_cost, window_len, gm, pli->gxf, &fwdsc);
 
   filtersc =  nullsc + (bias_filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );

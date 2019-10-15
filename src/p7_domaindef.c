@@ -641,7 +641,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
 
   esl_vec_FSet(ddef->n2sc, sq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
-  p7_ReconfigUnihit_Frameshift(gm, saveL);     /* process each domain in unihit mode, regardless of om->mode     */
+  p7_ReconfigUnihit(gm, saveL/3);     /* process each domain in unihit mode, regardless of om->mode     */
 
   i         = -1;
   triggered = FALSE;
@@ -719,12 +719,12 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
         * works
         */
     
-        p7_ReconfigMultihit_Frameshift(gm, saveL);
+        p7_ReconfigMultihit(gm, saveL/3);
          p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, j-i+1, gm, fwd, NULL);
 
        region_trace_ensemble_frameshift(ddef, gm, sq->dsq, sq->abc, i, j, fwd, bck, indel_cost, &nc);
      
-       p7_ReconfigUnihit_Frameshift(gm, saveL);
+       p7_ReconfigUnihit(gm, saveL/3);
        
        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
        last_j2 = 0;
@@ -775,8 +775,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
     }
   }
   /* Restore model to uni/multihit mode, and to its original length model */
-  if (p7_IsMulti(save_mode)) p7_ReconfigMultihit_Frameshift(gm, saveL); 
-  else                       p7_ReconfigUnihit_Frameshift  (gm, saveL); 
+  if (p7_IsMulti(save_mode)) p7_ReconfigMultihit(gm, saveL/3); 
+  else                       p7_ReconfigUnihit(gm, saveL/3); 
 
   return eslOK;
 }
@@ -1208,9 +1208,6 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_PROFILE *gm, const
   *ret_nc = d;
   return eslOK;
 }
-
-
-
 
 /* Function:  reparameterize_model()
  *
@@ -1685,7 +1682,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   //temporarily change model length to env_len. The nhmmer pipeline will tack
   //on the appropriate cost to account for the longer actual window
   orig_L = gm->L;
-  p7_ReconfigLength_Frameshift(gm, j-i+1);
+  p7_ReconfigLength(gm, (j-i+1)/3);
  
 // reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
 

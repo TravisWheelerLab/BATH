@@ -294,9 +294,13 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 static void
 onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 {
-  ESL_ALPHABET *abc  = NULL;
-  P7_HMM       *hmm  = NULL;
-  int           status;
+  ESL_ALPHABET   *abc  = NULL;
+  P7_HMM         *hmm  = NULL;
+  P7_BG          *bg   = NULL;
+  ESL_RANDOMNESS *r  = NULL;
+  P7_PROFILE     *gm_fs  = NULL;
+  double          tau_fs;
+  int             status;
 
   if (hfp->ssi != NULL)
     {
@@ -320,10 +324,22 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   
   if (status == eslOK) 
     {
+      if( ! hmm->evparam[p7_FTAUFS])
+      {
+        r = esl_randomness_CreateFast(42);
+        gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+        bg = p7_bg_Create(hmm->abc);
+        p7_fs_Tau(r, gm_fs, hmm, bg, 300, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS] = tau_fs;
+      }
+
       p7_hmmfile_WriteASCII(ofp, -1, hmm);
       p7_hmm_Destroy(hmm);
     }
   else p7_Fail("HMM %s not found in file %s\n", key, hfp->fname);
 
+  if(bg != NULL)    p7_bg_Destroy(bg);
+  if(gm_fs != NULL) p7_profile_Destroy(gm_fs);
+  if(r != NULL)     esl_randomness_Destroy(r);
   esl_alphabet_Destroy(abc);
 }

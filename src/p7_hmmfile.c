@@ -1376,14 +1376,14 @@ read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
       else if (strcmp(tag, "ALPH") == 0) {
 	if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok1, NULL))  != eslOK)   ESL_XFAIL(status,    hfp->errbuf, "No alphabet type found on ALPH");
 	if ((alphatype = esl_abc_EncodeType(tok1))                        == eslUNKNOWN) ESL_XFAIL(status,    hfp->errbuf, "Unrecognized alphabet type %s", tok1);
-	if (*ret_abc == NULL) {
+
+if (*ret_abc == NULL) {
 	  if ((abc = esl_alphabet_Create(alphatype))                        == NULL)    ESL_XFAIL(eslEMEM,   hfp->errbuf, "Failed to create alphabet");
 	} else {
 	  if ((*ret_abc)->type != alphatype)                                           ESL_XFAIL(eslEINCOMPAT,hfp->errbuf,"Alphabet type mismatch: was %s, but current HMM says %s", esl_abc_DecodeType( (*ret_abc)->type), tok1);
 	  abc = *ret_abc;
 	}
-      } 
-
+} 
       else if (strcmp(tag, "RF") == 0) {
 	if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok1, NULL))   != eslOK)  ESL_XFAIL(status,    hfp->errbuf, "No yes/no found for RF line");
 	if      (strcasecmp(tok1, "yes") == 0)
@@ -1465,7 +1465,7 @@ read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
 		if      (strcasecmp(tok2, "MSV")     == 0)  { hmm->evparam[p7_MMU]  = atof(tok3); hmm->evparam[p7_MLAMBDA] = atof(tok4); statstracker |= 0x1; }
 		else if (strcasecmp(tok2, "VITERBI") == 0)  { hmm->evparam[p7_VMU]  = atof(tok3); hmm->evparam[p7_VLAMBDA] = atof(tok4); statstracker |= 0x2; }
 		else if (strcasecmp(tok2, "FORWARD") == 0)  { hmm->evparam[p7_FTAU] = atof(tok3); hmm->evparam[p7_FLAMBDA] = atof(tok4); statstracker |= 0x4; }
-                else if (strcasecmp(tok2, "FRAMESHIFT") == 0)  { hmm->evparam[p7_FTAUFS] = atof(tok4); hmm->evparam[p7_FLAMBDA] = atof(tok5); statstracker |= 0x4; }
+                else if (strcasecmp(tok2, "FRAMESHIFT") == 0)  { hmm->evparam[p7_FTAUFS] = atof(tok4); statstracker |= 0x4; }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }
@@ -1691,6 +1691,7 @@ read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
   /* Set or verify alphabet. */
   if (*ret_abc == NULL)  {  /* still unknown: set it, pass control of it back to caller */
     if ((abc = esl_alphabet_Create(alphabet_type)) == NULL)     ESL_XFAIL(eslEMEM, hfp->errbuf, "allocation failed, alphabet");
+	printf("HHHHHHHHH\n");
   } else {      /* already known: check it */
     abc = *ret_abc;
     if (abc->type != alphabet_type)                             ESL_XFAIL(eslEINCOMPAT, hfp->errbuf, "Alphabet type mismatch: was %s, but current HMM says %s", esl_abc_DecodeType( abc->type), esl_abc_DecodeType(alphabet_type));

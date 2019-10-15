@@ -11,6 +11,7 @@
 #include "p7_config.h"
 
 #include "easel.h"
+#include "esl_alphabet.h"
 #include "esl_gumbel.h"
 #include "esl_random.h"
 #include "esl_randomseq.h"
@@ -529,14 +530,13 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int L, int 
   double   gmu, glam;
   int      status;
   int      i;
-  float    indel_cost = 0.01;
+  float    indel_cost = 0.001;
   ESL_GENCODE      *gcode = NULL;
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
   float *f = NULL;  
 
   gx = p7_gmx_fs_Create(hmm->M, 3, L, p7P_CODONS);     /* DP matrix: for ForwardParser,  L rows */
   abcDNA = esl_alphabet_Create(eslDNA);
-
   ESL_ALLOC(f,   sizeof(float)   * abcDNA->K);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(dsq, sizeof(ESL_DSQ) * (L+2));
@@ -548,8 +548,8 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int L, int 
   esl_vec_FSet(f, abcDNA->K, 1. / (float) abcDNA->K);
   
   p7_ProfileConfig_fs(hmm, bg, gcode, gm, L, p7_LOCAL);
-  //p7_ReconfigLength(gm_fs, L);
-  p7_bg_SetLength(bg, L);
+  p7_ReconfigLength(gm, L/3);
+  p7_bg_SetLength(bg, L/3);
 
   for (i = 0; i < N; i++)
     {

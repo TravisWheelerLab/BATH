@@ -546,15 +546,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                         h = 4;
                         g = 4;
                 } 
-		else if ( p7P_AMINO3(gm, k, g, x, h) == a) {
-                        n1 = ' ';
-                        n2 = '-';
-                        n3 = alphaDNA[sq->dsq[i]];
-                        n4 = '-';
-                        n5 = ' ';
-                        h = 4;
-                        g = 4;
-                }
 	    }
 	  }
 	}
@@ -592,16 +583,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                         h = 4;
                         g = 4;
              }
-	     else if (p7P_AMINO3(gm, k, w, g, x) == a) {
-                        n1 = ' ';
-                        n2 = alphaDNA[sq->dsq[i-1]];
-                        n3 = '-';
-                        n4 = alphaDNA[sq->dsq[i]];
-                        n5 = ' ';
-                        h = 4;
-                        g = 4;
-             }
-
 	   }
 	 }
 	 else if(c == 3) {
@@ -624,6 +605,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
               if(sq->abc->degen[sq->dsq[i]][x]) break;
           }
           a = p7P_AMINO3(gm, k, v, w, x);           
+         // printf("A = %d codon %d%d%d\n", a, v, w, x);
 	  n1 = ' ';
 	  n2 = alphaDNA[sq->dsq[i-2]];
           n3 = alphaDNA[sq->dsq[i-1]];
@@ -657,14 +639,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
               if(sq->abc->degen[sq->dsq[i]][x]) break;
           }
           a = p7P_AMINO4(gm, k, u, v, w, x);
-          if(p7P_AMINO3(gm, k, u, v, w) == a) {
-                n1 = ' ';
-		n2 = toupper(alphaDNA[sq->dsq[i-3]]);
-                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
-                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
-                n5 = tolower(alphaDNA[sq->dsq[i]]);
-	  }
-          else if(p7P_AMINO3(gm, k, v, w, x) == a) {
+          if(p7P_AMINO3(gm, k, v, w, x) == a) {
                 n1 = tolower(alphaDNA[sq->dsq[i-3]]);
                 n2 = toupper(alphaDNA[sq->dsq[i-2]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-1]]);
@@ -720,14 +695,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
           }
 
           a = p7P_AMINO5(gm, k, t, u, v, w, x);
-	  if(p7P_AMINO3(gm, k, t, u, v) == a) {
-                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
-                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
-                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
-                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
-		n5 = tolower(alphaDNA[sq->dsq[i]]);
-          }
-          else if(p7P_AMINO3(gm, k, w, v, x) == a) {
+	  if(p7P_AMINO3(gm, k, v, w, x) == a) {
                 n1 = tolower(alphaDNA[sq->dsq[i-4]]);
                 n2 = tolower(alphaDNA[sq->dsq[i-3]]);
                 n3 = toupper(alphaDNA[sq->dsq[i-2]]);
@@ -748,49 +716,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
                 n4 = toupper(alphaDNA[sq->dsq[i-1]]);
                 n5 = toupper(alphaDNA[sq->dsq[i]]);
           }
-          else if(p7P_AMINO3(gm, k, u, v, w) == a) {
-                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
-                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
-                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
-                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
-                n5 = tolower(alphaDNA[sq->dsq[i]]);
-          }
-	  else if(p7P_AMINO3(gm, k, u, v, x) == a) {
-                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
-                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
-                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
-                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
-                n5 = toupper(alphaDNA[sq->dsq[i]]);
-          }
-          else if(p7P_AMINO3(gm, k, u, w, x) == a) {
-                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
-                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
-                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
-                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
-                n5 = toupper(alphaDNA[sq->dsq[i]]);
-          }
-          else if(p7P_AMINO3(gm, k, t, v, w) == a) {
-                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
-                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
-                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
-                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
-                n5 = tolower(alphaDNA[sq->dsq[i]]);
-          }
-          else if(p7P_AMINO3(gm, k, t, v, x) == a) {
-                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
-                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
-                n3 = toupper(alphaDNA[sq->dsq[i-2]]);
-                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
-                n5 = toupper(alphaDNA[sq->dsq[i]]);
-          }
-	  else if(p7P_AMINO3(gm, k, t, u, w) == a) {
-                n1 = toupper(alphaDNA[sq->dsq[i-4]]);
-                n2 = toupper(alphaDNA[sq->dsq[i-3]]);
-                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
-                n4 = toupper(alphaDNA[sq->dsq[i-1]]);
-                n5 = tolower(alphaDNA[sq->dsq[i]]);
-          }
-	}	
+       	}	
 
 	if      (a == esl_abc_DigitizeSymbol(gm->abc, gm->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
         else if (expf(p7P_MSC(gm, k, a)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */

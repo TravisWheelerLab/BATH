@@ -213,6 +213,7 @@ int
 p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_PROFILE *gm, int L, int mode)
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
+  int     del1, del2;
   int     codon;
   int     status;
   float   *occ = NULL;
@@ -221,12 +222,12 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    Z;
   float    max_sc1[4];;
   float    max_sc2[16];
-  float    max_sc4[4];;
+  float    max_sc4[3];;
   float    max_sc5[10];
   ESL_DSQ  max_aa1[4];
   ESL_DSQ  max_aa2[16];
-  ESL_DSQ  max_aa4[4];
-  ESL_DSQ  max_aa5[10];
+  ESL_DSQ  max_aa4[3];
+  ESL_DSQ  max_aa5[3];
 
   /* Contract checks */
   if (gm->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
@@ -315,10 +316,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   for (k = 1; k <= hmm->M; k++) {
     for (x = 0; x < hmm->abc->K; x++)
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
-   esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
+    esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
    
-   sc[hmm->abc->Kp-2] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
-   bg->f[hmm->abc->K] = log( (double) bg->f[esl_vec_FArgMin(hmm->mat[k], hmm->abc->K)]); 
+    sc[hmm->abc->Kp-2] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
+    bg->f[hmm->abc->K] = log( (double) bg->f[esl_vec_FArgMin(hmm->mat[k], hmm->abc->K)]); 
 
     for (x = 0; x < hmm->abc->Kp; x++) {
       rp = gm->rsc[x] + k * p7P_NR;
@@ -360,113 +361,114 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 #endif
 
   /* Assign all frameshift codons to an amino acid */
-  for (k = 1; k <= hmm->M; k++) {
-    esl_vec_FSet(max_sc1, 4, -eslINFINITY);
-    esl_vec_FSet(max_sc2, 16, -eslINFINITY);
-    for (v = 0; v < 4; v++) {
-      for (w = 0; w < 4; w++) {
-        for (x = 0; x < 4; x++) {
-          codon = 16 * v + 4 * w + x;
+  /* standard length three codons */
+  for (v = 0; v < 4; v++) 
+    for (w = 0; w < 4; w++) 
+      for (x = 0; x < 4; x++) {
+        codon = 16 * v + 4 * w + x;
+  	for (k = 1; k <= hmm->M; k++)  
           p7P_AMINO3(gm, k, v, w, x) = gcode->basic[codon];
-          
-          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[v]) {
-            max_sc1[v] = p7P_MSC(gm, k, gcode->basic[codon]);
-            max_aa1[v] = gcode->basic[codon];
-          }
+      }     
 
-          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[w]) {
-            max_sc1[w] = p7P_MSC(gm, k, gcode->basic[codon]);
-            max_aa1[w] = gcode->basic[codon];
-          }
-
-          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[x]) {
-            max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
-            max_aa1[x] = gcode->basic[codon];
-          }
-             
-          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
-            max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
-            max_aa2[w * 4 + x] = gcode->basic[codon];
-          }
-
-          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + x]) {
-            max_sc2[v * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
-            max_aa2[v * 4 + x] = gcode->basic[codon];
-          }
-
-          if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[v * 4 + w]) {
-            max_sc2[v * 4 + w] = p7P_MSC(gm, k, gcode->basic[codon]);
-            max_aa2[v * 4 + w] = gcode->basic[codon];
-          }
+   /* find maximum score for each two nucleotide codon (XX_ or _XX) */   
+   /* two nucleotide codons */
+   for (k = 1; k <= hmm->M; k++) { 
+     esl_vec_FSet(max_sc2, 16, -eslINFINITY);
+     //_XX
+     for (del1 = 0; del1 < 4; del1++) 
+       for (w = 0; w < 4; w++)
+         for (x = 0; x < 4; x++) {
+           codon = 16 * del1 + 4 * w + x;
+           if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
+             max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
+             p7P_AMINO2(gm, k, w, x) = gcode->basic[codon];        
+           }
+         }
+     //XX_     
+     for (w = 0; w < 4; w++)
+       for (x = 0; x < 4; x++) 
+         for (del1 = 0; del1 < 4; del1++) {
+           codon = 16 * w + 4 * x + del1;
+           if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc2[w * 4 + x]) {
+             max_sc2[w * 4 + x] = p7P_MSC(gm, k, gcode->basic[codon]);
+             p7P_AMINO2(gm, k, w, x) = gcode->basic[codon];
+           }
         }
-      }
-    } 
-  
-    for (x = 0; x < 4; x++)
-      p7P_AMINO1(gm, k, x) = max_aa1[x];
-
-    for (w = 0; w < 4; w++) { 
-      for (x = 0; x < 4; x++) 
-        p7P_AMINO2(gm, k, w, x) = max_aa2[w * 4 + x];
     }
-   
+    
+    /* find maximum score for each one nucleotide codon (X__ or __X) */
+    for (k = 1; k <= hmm->M; k++) {
+      esl_vec_FSet(max_sc1, 4, -eslINFINITY);
+      //X__
+      for (x = 0; x < 4; x++)
+        for (del1 = 0; del1 < 4; del1++)
+          for (del2 = 0; del2 < 4; del2++) {   
+            codon = 16 * x + 4 * del1 + del2;
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[x]) {
+              max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
+              p7P_AMINO1(gm, k, x) = gcode->basic[codon];
+            }
+          }
+      //__X
+      for (del1 = 0; del1 < 4; del1++)
+        for (del2 = 0; del2 < 4; del2++) 
+          for (x = 0; x < 4; x++)  {
+            codon = 16 * del1 + 4 * del2 + x;
+            if (p7P_MSC(gm, k, gcode->basic[codon]) > max_sc1[x]) {
+              max_sc1[x] = p7P_MSC(gm, k, gcode->basic[codon]);
+              p7P_AMINO1(gm, k, x) = gcode->basic[codon];
+            }
+          }
+    }
+
+  for (k = 1; k <= hmm->M; k++) {
+    /* find maximum score for each four nucleotide codon (xXXX, XxXX or XXxX) */
     for ( u = 0; u < 4; u++) {
       for (v = 0; v < 4; v++) {
         for (w = 0; w < 4; w++) {
           esl_vec_FSet(max_sc4, 4, -eslINFINITY);
           for (x = 0; x < 4; x++) {
-            codon      = 16 * u + 4 * v + w; 
+	    //XXxX
+            codon      = 16 * u + 4 * v + x;
             max_sc4[0] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa4[0] = gcode->basic[codon];
-            codon      = 16 * u + 4 * v + x;
+            //XxXX
+            codon      = 16 * u + 4 * w + x;
             max_sc4[1] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa4[1] = gcode->basic[codon];
-            codon      = 16 * u + 4 * w + x;
+            //xXXX
+	    codon      = 16 * v + 4 * w + x;  
             max_sc4[2] = p7P_MSC(gm, k, gcode->basic[codon]);
             max_aa4[2] = gcode->basic[codon];
-            codon      = 16 * v + 4 * w + x;  
-            max_sc4[3] = p7P_MSC(gm, k, gcode->basic[codon]);
-            max_aa4[3] = gcode->basic[codon];
-            p7P_AMINO4(gm, k, u, v, w, x) = max_aa4[esl_vec_FArgMax(max_sc4, 4)];
+            p7P_AMINO4(gm, k, u, v, w, x) = max_aa4[esl_vec_FArgMax(max_sc4, 3)];
           }
         }
       }   
     }
 
+    /* find maximum score for each four nucleotide codon (xxXXX, XxxXX or XXxxX) */
     for (t = 0; t < 4; t++) {
       for ( u = 0; u < 4; u++) {
         for (v = 0; v < 4; v++) {
           for (w = 0; w < 4; w++) {
             esl_vec_FSet(max_sc5, 10, -eslINFINITY);
             for (x = 0; x < 4; x++) {
-              max_sc5[0]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, u, v));
-              max_aa5[0]  = p7P_AMINO3(gm, k, t, u, v);
-              max_sc5[1]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, u, w));
-              max_aa5[1]  = p7P_AMINO3(gm, k, t, u, w);
-              max_sc5[2]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, u, x));
-              max_aa5[2]  = p7P_AMINO3(gm, k, t, u, x);
-              max_sc5[3]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, v, w));
-              max_aa5[3]  = p7P_AMINO3(gm, k, t, v, w);
-              max_sc5[4]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, v, x));
-              max_aa5[4]  = p7P_AMINO3(gm, k, t, v, x);
-              max_sc5[5]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, w, x));
-              max_aa5[5]  = p7P_AMINO3(gm, k, t, w, x);
-              max_sc5[6]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, u, v, w));
-              max_aa5[6]  = p7P_AMINO3(gm, k, u, v, w);
-              max_sc5[7]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, u, v, x));
-              max_aa5[7]  = p7P_AMINO3(gm, k, u, v, x);
-              max_sc5[8]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, u, w, x));
-              max_aa5[8]  = p7P_AMINO3(gm, k, u, w, x);
-              max_sc5[9] = p7P_MSC(gm, k,p7P_AMINO3(gm, k, v, w, x));
-              max_aa5[9] = p7P_AMINO3(gm, k, v, w, x);
-              p7P_AMINO5(gm, k, t, u, v, w, x) = max_aa5[esl_vec_FArgMax(max_sc5, 10)];
-             }
+              //XXxxX
+              max_sc5[0]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, u, x));
+              max_aa5[0]  = p7P_AMINO3(gm, k, t, u, x);
+              //XxxXX
+              max_sc5[1]  = p7P_MSC(gm, k,p7P_AMINO3(gm, k, t, w, x));
+              max_aa5[1]  = p7P_AMINO3(gm, k, t, w, x);
+              //xxXXX
+              max_sc5[2] = p7P_MSC(gm, k,p7P_AMINO3(gm, k, v, w, x));
+              max_aa5[2] = p7P_AMINO3(gm, k, v, w, x);
+              p7P_AMINO5(gm, k, t, u, v, w, x) = max_aa5[esl_vec_FArgMax(max_sc5, 3)];
+            }
           }
         }
       }
     }
   }
-
 /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength()
    */
   gm->L = 0;            /* force ReconfigLength to reconfig */

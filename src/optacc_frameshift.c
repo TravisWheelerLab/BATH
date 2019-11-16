@@ -495,6 +495,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       else c = 0;
      
       postprob = get_postprob(probs, scur, sprv, k, i); 
+     // printf("k %d i %d s %d\n", k, i, scur);
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
       /* For NCJ, we had to defer i decrement. */
       if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;

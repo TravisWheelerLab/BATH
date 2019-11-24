@@ -1657,11 +1657,11 @@ extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *nt
                                           P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                           P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
 extern int
-p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_PROFILE *gm,
-                                   P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck,
-                                   P7_DOMAINDEF *ddef, P7_BG *bg, 
-                                   P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr,
-           float indel_cost);
+p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq,
+        const ESL_SQ_BLOCK *orf_block, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf,
+        P7_OMX *oxb, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
+        P7_BG *bg, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, 
+        int window_start, int window_len, float *fwd_emissions_arr, float indel_cost, int do_biasfilter, float F3);
 extern int p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ *ntsq,P7_PROFILE *gm, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
                                           P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                           P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr);
@@ -1890,7 +1890,7 @@ extern P7_TRACE *p7_trace_Create(void);
 extern P7_TRACE *p7_trace_CreateWithPP(void);
 extern P7_TRACE *p7_trace_fs_Create(void);
 extern P7_TRACE *p7_trace_fs_CreateWithPP(void);
-extern int  p7_trace_fs_Convert(P7_TRACE *tr, int start, int end);
+extern int  p7_trace_fs_Convert(P7_TRACE *tr, int64_t orf_start, int64_t sq_start);
 extern int  p7_trace_Reuse(P7_TRACE *tr);
 extern int  p7_trace_Grow(P7_TRACE *tr);
 extern int  p7_trace_fs_Grow(P7_TRACE *tr);

@@ -224,6 +224,58 @@ p7_trace_Reuse(P7_TRACE *tr)
   return eslOK;
 }
 
+/* Function:  p7_trace_fs_Convert()
+ * Synopsis:  Convert a non-framshift protien to protien trace
+ *            to an frameshift aware DNA to protien trace.
+ *
+ * Purpose:   Allow sequences without frameshifts to be proccesed
+ *            by faster non-framshift DP functions and then pass
+ *            the trace back to the frameshift pipeline.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    (no abnormal error conditions)
+ *
+ * Xref:      STL11/124
+ */
+int
+p7_trace_fs_Convert(P7_TRACE *tr, int64_t orf_start, int64_t sq_start)
+{
+  int z;
+  int start;
+  int status;
+  
+  tr->c  = NULL;
+  ESL_ALLOC(tr->c,  sizeof(int)  * tr->nalloc);
+  
+  start = orf_start - sq_start;  
+  
+  for (z = 0; z < tr->N; ++z) { 
+    switch(tr->st[z]) {
+      case p7T_N:
+      case p7T_C:
+      case p7T_J:
+        if (tr->st[z-1] == tr->st[z])
+          tr->i[z]  = start + tr->i[z] * 3;
+        tr->c[z] = 0;
+        break;
+      case p7T_M: tr->i[z] = start + tr->i[z] * 3; tr->c[z] = 3; break;
+      case p7T_I: tr->i[z] = start + tr->i[z] * 3; tr->c[z] = 0; break;  
+      case p7T_D:
+      case p7T_X:
+      case p7T_S:
+      case p7T_B:
+      case p7T_E:
+      case p7T_T: tr->c[z] = 0; break;
+      default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
+    }
+  }
+
+  return eslOK;
+ERROR:
+  return status;
+}
+
 /* Function:  p7_trace_Grow()
  * Synopsis:  Grow the allocation for trace data.
  *

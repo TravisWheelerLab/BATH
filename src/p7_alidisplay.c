@@ -102,7 +102,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   int            status;
   char           n1,n2,n3;
   int            j;
-    
 
   ESL_SQ         *ntorfseqtxt = NULL;
 
@@ -173,7 +172,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
   ad->orfname = ad->mem + pos;  pos += orf_namelen +1;
 
-
   strcpy(ad->hmmname, om->name);
   if (om->acc  != NULL) strcpy(ad->hmmacc,  om->acc);  else ad->hmmacc[0]  = 0;
   if (om->desc != NULL) strcpy(ad->hmmdesc, om->desc); else ad->hmmdesc[0] = 0;
@@ -217,7 +215,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
     for (z = z1; z <= z2; z++) ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
     ad->ppline[z-z1] = '\0';
   }
-  
 
   /* mandatory three alignment display lines: model, mline, aseq */
   for (z = z1; z <= z2; z++) 
@@ -267,11 +264,11 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
             }
             else
             {
-            
+                
                 n1 = ntsq->seq[  sq->start-1 - 3*(i-1)] ;
                 n2 = ntsq->seq[  sq->start-1 - ( 3*(i-1) + 1) ] ;
                 n3 = ntsq->seq[  sq->start-1 - ( 3*(i-1) + 2) ] ;
-
+	
                 n1 = ntsq->abc->sym [ ntsq->abc->complement[ ntsq->abc->inmap[(int)n1] ] ];
                 n2 = ntsq->abc->sym [ ntsq->abc->complement[ ntsq->abc->inmap[(int)n2] ] ];
                 n3 = ntsq->abc->sym [ ntsq->abc->complement[ ntsq->abc->inmap[(int)n3] ] ];
@@ -279,7 +276,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
             }
          }
         }
-	
+
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = om->consensus[k];
@@ -508,7 +505,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       i = tr->i[z];
       s = tr->st[z];
       c = tr->c[z];
-      //printf("I %d k %d st %d c %d\n", i, k, s, c); 
+ 
+     // printf("I %d k %d st %d c %d z %d z2 %d\n", i, k, s, c, z, z2); 
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = gm->consensus[k];
@@ -1800,6 +1798,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   buf[aliwidth] = 0;
 
   /* Break the alignment into multiple blocks of width aliwidth for printing */
+  //printf("ad->sqfrom %d\n", ad->sqfrom);
   i1 = ad->sqfrom;
   if(ad->sqfrom < ad->sqto) i2 = i1 - 1;
   else                      i2 = i1 + 1;
@@ -2034,7 +2033,7 @@ ESL_ALLOC(buf, sizeof(char) * (aliwidth+1));
 buf[aliwidth] = 0;
 
 /* Break the alignment into multiple blocks of width aliwidth for printing */
-printf("FROM %d\n", ad->sqfrom);
+
 i1 = ad->sqfrom;
 k1 = ad->hmmfrom;
 o1 = ad->orffrom;

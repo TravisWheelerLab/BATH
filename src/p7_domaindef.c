@@ -713,7 +713,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
       p7_gmx_fs_GrowTo(fwd, gm->M, j-i+1, j-i+1, p7P_CODONS);
       p7_gmx_GrowTo(bck, gm->M, j-i+1);
       ddef->nregions++;
-      
+ 
+     
       if (is_multidomain_region_fs(ddef, i, j))
       {  
 
@@ -806,11 +807,11 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
             } 
           }
 
-          if(envsc = nucsc) {
+          if(envsc == nucsc) {
             p7_bg_SetLength(bg, (j2-i2+1)/3);
             // For bg model loop first two nucleotides have 0 probabilty
             p7_bg_NullOne(bg, sq->dsq+(i2-1), j2-i2-1, &nullsc);
-
+	
             if (do_biasfilter)
               p7_bg_fs_FilterScore(bg, sq->dsq+(i2-1), gm, gcode, (j2-i2+1), indel_cost, &filtersc);
             else
@@ -830,11 +831,12 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
         p7_trace_Reuse(ddef->tr);
 
       } else {
-        p7_ReconfigLength(gm, (j2-i2+1)/3);
-        p7_Forward_Frameshift(sq->dsq+i2-1, gcode, indel_cost, j2-i2+1, gm, fwd, &nucsc);
+        p7_ReconfigLength(gm, (j-i+1)/3);
+        p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, j-i+1, gm, fwd, &nucsc);
+	
  	envsc = nucsc;
         frameshift = TRUE;
-
+	
         for(f = 0; f < orf_block->count; ++f) {
           orfsc = -eslINFINITY;
           curr_orf = &(orf_block->list[f]);
@@ -843,18 +845,18 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
           p7_omx_GrowTo(oxf, om->M, curr_orf->n, curr_orf->n);
 
           if(curr_orf->start < curr_orf->end) {
-            max_start  = ESL_MAX(curr_orf->start, window_start+i2-1);
-            min_end    = ESL_MIN(curr_orf->end,   window_start+j2-1);
+            max_start  = ESL_MAX(curr_orf->start, window_start+i-1);
+            min_end    = ESL_MIN(curr_orf->end,   window_start+j-1);
             overlap_length = min_end - max_start + 1;
       
-            if((float)(overlap_length)/ESL_MIN(curr_orf->n, j2-i2+1) > 0.8)
+            if((float)(overlap_length)/ESL_MIN(curr_orf->n, j-i+1) > 0.8)
               p7_Forward (curr_orf->dsq, curr_orf->n, om, oxf, &orfsc);
           } else {
-            max_start  = ESL_MAX(ntsq->n - curr_orf->start, window_start+i2-1);
-            min_end    = ESL_MIN(ntsq->n - curr_orf->end,   window_start+j2-1);
+            max_start  = ESL_MAX(ntsq->n - curr_orf->start, window_start+i-1);
+            min_end    = ESL_MIN(ntsq->n - curr_orf->end,   window_start+j-1);
             overlap_length = min_end - max_start + 1;
       
-            if((float)(overlap_length)/ESL_MIN(curr_orf->n, j2-i2+1) > 0.8)
+            if((float)(overlap_length)/ESL_MIN(curr_orf->n, j-i+1) > 0.8)
               p7_Forward (curr_orf->dsq, curr_orf->n, om, oxf, &orfsc);
           }
 
@@ -867,6 +869,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
             else filtersc = nullsc;
 
             seq_score = (orfsc-filtersc) / eslCONST_LOG2;
+
             P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
 
             frameshift = FALSE;
@@ -874,24 +877,24 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
             orfsq = &(orf_block->list[f]);
           } 
         }
-
-        if(envsc = nucsc) {
-          p7_bg_SetLength(bg, (j2-i2+1)/3);
+	
+        if(envsc == nucsc) {
+          p7_bg_SetLength(bg, (j-i+1)/3);
           // For bg model loop first two nucleotides have 0 probabilty
-          p7_bg_NullOne(bg, sq->dsq+(i2-1), j2-i2-1, &nullsc);
+          p7_bg_NullOne(bg, sq->dsq+(i-1), j-i-1, &nullsc);
 
           if (do_biasfilter)
-            p7_bg_fs_FilterScore(bg, sq->dsq+(i2-1), gm, gcode, (j2-i2+1), indel_cost, &filtersc);
+            p7_bg_fs_FilterScore(bg, sq->dsq+(i-1), gm, gcode, (j-i+1), indel_cost, &filtersc);
           else
             filtersc = nullsc;
 
           seq_score = (envsc-filtersc) / eslCONST_LOG2;
           P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAUFS],  gm->evparam[p7_FLAMBDA]);
         }
-         
+	
         if (P <= F3) {
           ddef->nenvelopes++;
-          if (rescore_isolated_domain_frameshift(ddef, om, gm, orfsq, sq, ntsq, oxf, oxb, fwd, bck, i2, j2, TRUE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr, envsc, frameshift) == eslOK) last_j2 = j2;
+          rescore_isolated_domain_frameshift(ddef, om, gm, orfsq, sq, ntsq, oxf, oxb, fwd, bck, i, j, TRUE, bg, bg_tmp, gcode, indel_cost, scores_arr, fwd_emissions_arr, envsc, frameshift);
         }
       }
 
@@ -1815,6 +1818,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFI
   p7_ReconfigLength(gm, (j-i+1)/3);
  
 // reparameterize_model_frameshift (bg, gm, sq, gcode, i, j-i+1, fwd_emissions_arr, bg_tmp->f, scores_arr);
+  
   if(frameshift) {
     p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
 

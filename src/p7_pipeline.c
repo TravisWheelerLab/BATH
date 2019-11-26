@@ -2268,7 +2268,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, orf_block, om, gm, pli->oxf, pli->oxb, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, pli_tmp->bg, gcode,
            (pli->do_null2?pli_tmp->scores:NULL), window_start, window_len, pli_tmp->fwd_emissions_arr, indel_cost, pli->do_biasfilter, pli->F3);
- 
+   
   pli_tmp->tmpseq->dsq = dsq_holder;
   if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
   if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */

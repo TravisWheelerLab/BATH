@@ -1656,15 +1656,11 @@ extern int p7_domaindef_ByViterbi            (P7_PROFILE *gm, const ESL_SQ *sq, 
 extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
                                           P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                           P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-extern int
-p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq,
-        const ESL_SQ_BLOCK *orf_block, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf,
-        P7_OMX *oxb, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
-        P7_BG *bg, P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, 
-        int window_start, int window_len, float *fwd_emissions_arr, float indel_cost, int do_biasfilter, float F3);
-extern int p7_domaindef_ByPosteriorHeuristics_NonFrameshift(const ESL_SQ *sq, const ESL_SQ *ntsq,P7_PROFILE *gm, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
-                                          P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
-                                          P7_BG *bg_tmp, const ESL_GENCODE *gcode, float *scores_arr, float *fwd_emissions_arr);
+extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, 
+		P7_PROFILE *gm, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
+                P7_BG *bg, const ESL_GENCODE *gcode, int window_start, int window_len, float indel_cost);
+extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const ESL_SQ *ntsq, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm,
+           P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);

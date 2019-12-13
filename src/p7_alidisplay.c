@@ -224,7 +224,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
       i = tr->i[z];
       x = sq->dsq[i];
       s = tr->st[z];
-	
+
       if (ntsq != NULL)    { 
          /*
           * if there is a nucleotide sequence then we want to record the location 
@@ -255,7 +255,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
          if(i > 0)
 		 {
             if (sq->start < sq->end) {
-               
 	   
                 n1 = ntsq->seq[  sq->start-1 + 3*(i-1)];
            
@@ -276,7 +275,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
             }
          }
         }
-
+      
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = om->consensus[k];

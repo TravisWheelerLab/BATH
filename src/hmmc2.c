@@ -44,8 +44,6 @@ static ESL_OPTIONS searchOpts[] = {
   { "--noali",      eslARG_NONE,        FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't output alignments, so output is smaller",                2 },
   { "--notextw",    eslARG_NONE,         NULL, NULL, NULL,    NULL,  NULL, "--textw",        "unlimit ASCII text output line width",                         2 },
   { "--textw",      eslARG_INT,         "120", NULL, "n>=120",NULL,  NULL, "--notextw",      "set max width of ASCII text output lines",                     2 },
-  { "--notrans",    eslARG_NONE,        FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't show the translated DNA sequence in domain alignment",   2 }, /*for hmmscant */
-  { "--vertcodon",  eslARG_NONE,        FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "show the DNA vertically in domain alignment",                  2 }, /*for hmmscant */
   /* Control of scoring system */
   { "--popen",      eslARG_REAL,       "0.02", NULL, "0<=x<0.5",NULL,  NULL,  NULL,          "gap open probability",                                         3 },
   { "--pextend",    eslARG_REAL,        "0.4", NULL, "0<=x<1",  NULL,  NULL,  NULL,          "gap extend probability",                                       3 },
@@ -87,8 +85,6 @@ static ESL_OPTIONS searchOpts[] = {
   { "--hmmdb",      eslARG_INT,         NULL,  NULL, "n>0",   NULL,  NULL,  "--seqdb",       "hmm database to search",                                      12 },
   { "--seqdb",      eslARG_INT,         NULL,  NULL, "n>0",   NULL,  NULL,  "--hmmdb",       "protein database to search",                                  12 },
   { "--seqdb_ranges",eslARG_STRING,     NULL,  NULL,  NULL,   NULL, "--seqdb", NULL,         "range(s) of sequences within --seqdb that will be searched",  12 },
-  { "--hmmscant",   eslARG_NONE,        NULL,  NULL, NULL,    NULL,  NULL,  "--seqdb",       "search hmm database with a 6 frame translated DNA sequence",  12 },
-  { "--hmmsearcht", eslARG_NONE,        NULL,  NULL, NULL,    NULL,  NULL,  NULL/*"--hmmdb"*/, "search sequence database with a 6 frame translated DNA sequence",  12 },
 
   /* name           type        default  env  range toggles reqs incomp  help                                          docgroup*/
   { "-c",         eslARG_INT,       "1", NULL, NULL, NULL,  NULL, "--seqdb",  "use alt genetic code of NCBI transl table <n>", 15 },
@@ -98,6 +94,16 @@ static ESL_OPTIONS searchOpts[] = {
   { "--informat", eslARG_STRING,  FALSE, NULL, NULL, NULL,  NULL, "--seqdb",  "specify that input file is in format <s>",      15 },
   { "--watson",   eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "--seqdb",  "only translate top strand",                     15 },
   { "--crick",    eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "--seqdb",  "only translate bottom strand",                  15 },
+
+
+  /* Hidden options, the first required for the client to parse lines with "--hmmscant"
+   *
+   */
+  { "--hmmscant",   eslARG_NONE,        NULL,  NULL, NULL,    NULL,  NULL,  "--seqdb",       "search hmm database with a 6 frame translated DNA sequence",        99 },
+  { "--notrans",    eslARG_NONE,        FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't show the translated DNA sequence in domain alignment",   99 }, /*for hmmscant */
+  { "--vertcodon",  eslARG_NONE,        FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "show the DNA vertically in domain alignment",                  99 }, /*for hmmscant */
+
+
 
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
@@ -183,7 +189,6 @@ int main(int argc, char *argv[])
   int              i;
   uint64_t         n;
   int              eod;
-  int              eof;
   int              size;
 
   char            *seq;
@@ -293,9 +298,8 @@ int main(int argc, char *argv[])
   w  = esl_stopwatch_Create();
   go = esl_getopts_Create(searchOpts);
 
-  eof = 0;
   seq[0] = 0;
-  while (strncmp(seq, "//", 2) != 0 && !eof) {
+  while (strncmp(seq, "//", 2) != 0) {
     int rem;
     int total = 0;
 
@@ -303,7 +307,7 @@ int main(int argc, char *argv[])
     seq[0] = 0;
     rem = seqlen - 1;
     fprintf(stdout, "\n\nEnter next sequence:\n");
-    while (!eod && !eof) {
+    while (!eod) {
       if (fgets(buffer, MAX_READ_LEN, stdin) != NULL) {
         int n = strlen(buffer);
         if (n >= rem) {
@@ -319,7 +323,7 @@ int main(int argc, char *argv[])
 
         eod = (strncmp(buffer, "//", 2) == 0);
       } else {
-        eof = 1;
+        eod = 1;
       }
     }
 
@@ -384,10 +388,6 @@ int main(int argc, char *argv[])
       if (esl_getopts_Reuse(go) != eslOK) p7_Die("Internal failure reusing options object");
       if (esl_opt_ProcessSpoof(go, opts) != eslOK) { 
         printf("Failed to parse options string: %s\n", go->errbuf);
-        continue;
-      }
-      if (esl_opt_IsUsed(go, "--hmmsearcht")) {
-        printf("The translated search variant --hmmsearcht is not currently implemented by the HMMER daemon\n");
         continue;
       }
       if (esl_opt_VerifyConfig(go) != eslOK) { 
@@ -531,6 +531,7 @@ int main(int argc, char *argv[])
           th->unsrt[i].acc = NULL;
           th->unsrt[i].desc = NULL;
           th->unsrt[i].dcl = NULL;
+          th->unsrt[i].orfid = NULL;
           if((buf_offset -hits_start) != stats->hit_offsets[i]){
             printf("Hit offset %d did not match expected.  Found %d, expected %" PRIu64 "\n", i, (buf_offset-hits_start), stats->hit_offsets[i]);
           }
@@ -550,7 +551,7 @@ int main(int argc, char *argv[])
         if (ali)    { p7_tophits_Domains(stdout, th, pli, 120); fprintf(stdout, "\n\n"); }
         p7_pli_Statistics(stdout, pli, w);  
 
-        p7_pipeline_Destroy(pli); 
+        p7_pipeline_Destroy(pli);
         p7_tophits_Destroy(th);
         free(buf);
 

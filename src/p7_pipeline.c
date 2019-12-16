@@ -2602,7 +2602,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 )
 {
 
-    ESL_DSQ         *dsq_holder;             /* temporary holds memory location of <pli_tmp> sequence dsq    */
+  ESL_DSQ         *dsq_holder;             /* temporary holds memory location of <pli_tmp> sequence dsq    */
   ESL_DSQ         *subseq;                 /* subsequence of DNA efined by <window_start> and <window_len> */
   ESL_SQ          *curr_orf;
   float            fwdsc, bwdsc;           /* forward and backward scores                                  */
@@ -2627,8 +2627,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   float             indel_cost = 0.01;
 
   subseq = dnasq->dsq + window_start - 1;
-	//printf("wl %d wl/3 %d\n", window_len, window_len/3);
-	//printf("ml %d ml/3 %d\n", gm->max_length, gm->max_length/3);
+  
   p7_bg_SetLength(bg, window_len/3); // For bg model loop first two nucleotides have 0 probabilty 
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
   p7_bg_NullOne(bg, subseq, window_len-2, &nullsc);
@@ -2700,7 +2699,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     p7_bg_SetLength(bg, window_len/3);
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, gcode,
-           window_start, window_len, indel_cost); 
+           window_start, window_len, indel_cost, pli->F3, pli->do_biasfilter); 
     
  
     pli_tmp->tmpseq->dsq = dsq_holder;
@@ -2943,10 +2942,11 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCO
 	if (P <= pli->F3) { 
           esl_sq_Copy(orfsq, &(fwd_orf_block->list[fwd_orf_block->count]));
           fwd_orf_block->count++;
-	  tot_orfsc += fwdsc;
+	  tot_orfsc += (fwdsc - gm->xsc[p7P_C][p7P_MOVE]);
         }
       }	
     }
+    tot_orfsc += gm->xsc[p7P_C][p7P_MOVE];
     
     p7_pli_postViterbi_Frameshift(pli, om, gm, bg, hitlist, seqidx, window_start, window_len, fwd_orf_block, dnasq, gcode, pli_tmp, complementarity, tot_orfsc);
    

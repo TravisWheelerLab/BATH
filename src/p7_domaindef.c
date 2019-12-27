@@ -1846,7 +1846,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm->evparam[p7_FTAUFS],  gm->evparam[p7_FLAMBDA]);
   if (P > F3 ) return eslOK;
-
+ 
   ddef->nenvelopes++;
 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm, gx2, &bcksc);
@@ -1868,7 +1868,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
     ddef->nalloc *= 2;
   }
-
+  
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, sq, gcode);
   dom->scores_per_pos = NULL; 
@@ -1955,7 +1955,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
     dom->ienv          = j;
     dom->jenv          = i;
  }
-
+  
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
@@ -2108,15 +2108,16 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   {
     dom->iali          = dom->ad->sqfrom;
     dom->jali          = dom->ad->sqto;
+    dom->ienv          = orfsq->start + i*3 - 2;
+    dom->jenv          = orfsq->start + j*3;
   }
   else
   {
     dom->iali          = dom->ad->sqto - 2;
     dom->jali          = dom->ad->sqfrom;
+    dom->ienv          = orfsq->start - i*3 + 2;
+    dom->jenv          = orfsq->start - j*3;
   }
-
-  dom->ienv          = orfsq->start;
-  dom->jenv          = orfsq->end;
 
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */

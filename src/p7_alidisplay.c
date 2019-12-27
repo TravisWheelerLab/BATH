@@ -602,7 +602,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
               if(sq->abc->degen[sq->dsq[i]][x]) break;
           }
           a = p7P_AMINO3(gm, k, v, w, x);           
-         // printf("A = %d codon %d%d%d\n", a, v, w, x);
+          if(a == 27) ad->frameshifts++;
+
 	  n1 = ' ';
 	  n2 = alphaDNA[sq->dsq[i-2]];
           n3 = alphaDNA[sq->dsq[i-1]];
@@ -737,7 +738,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	n3 = alphaDNA[sq->dsq[i-1]];	
         n4 = alphaDNA[sq->dsq[i]];	
         n5 = ' ';
+
         a = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
+	if(a == 27) ad->frameshifts++;
+
 	ad->aseq  [z-z1] = tolower(alphaAmino[a]);
         ad->ntseq [5*(z-z1)] = ' ';
         ad->ntseq [5*(z-z1)+1] = toupper(n2);
@@ -1605,17 +1609,21 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
     }
   else
     {	/* deserialized form */
+	    printf("11111\n");
       if (ad->rfline)  free(ad->rfline);
       if (ad->mmline)  free(ad->mmline);
       if (ad->csline)  free(ad->csline);
       if (ad->model)   free(ad->model);
       if (ad->mline)   free(ad->mline);
+      printf("22222222\n");
       if (ad->aseq)    free(ad->aseq);
       if (ad->ntseq)   free(ad->ntseq);
+            printf("33333333\n");
       if (ad->ppline)  free(ad->ppline);
       if (ad->hmmname) free(ad->hmmname);
       if (ad->hmmacc)  free(ad->hmmacc);
       if (ad->hmmdesc) free(ad->hmmdesc);
+      printf("4444444444\n");
       if (ad->sqname)  free(ad->sqname);
       if (ad->sqacc)   free(ad->sqacc);
       if (ad->sqdesc)  free(ad->sqdesc);

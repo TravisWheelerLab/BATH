@@ -805,7 +805,7 @@ typedef struct p7_hit_s {
   int      nreported;  /* # of domains satisfying reporting thresholding  */
   int      nincluded;  /* # of domains satisfying inclusion thresholding */
   int      best_domain;  /* index of best-scoring domain in dcl */
-
+  int      frameshift;
   int64_t  seqidx;          /*unique identifier to track the database sequence from which this hit came*/
   int64_t  subseq_start; /*used to track which subsequence of a full_length target this hit came from, for purposes of removing duplicates */
   int64_t  target_len;   /* used in translated search to hold the length of the nucleotide sequence */
@@ -1866,6 +1866,7 @@ extern int         p7_tophits_Reuse(P7_TOPHITS *h);
 
 
 extern int p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W);
+extern int p7_tophits_ComputeFATHMMEvalues(P7_TOPHITS *th, double N, int W);
 extern int p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs);
 extern int p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli);
 extern int p7_tophits_CompareRanking(P7_TOPHITS *th, ESL_KEYHASH *kh, int *opt_nnew);

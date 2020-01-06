@@ -504,12 +504,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       i = tr->i[z];
       s = tr->st[z];
       c = tr->c[z];
- 
-     // printf("I %d k %d st %d c %d z %d z2 %d\n", i, k, s, c, z, z2); 
+  
+     //printf("I %d k %d st %d c %d z %d z2 %d\n", i, k, s, c, z, z2); 
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = gm->consensus[k];
-//        l = i - tr->i[z-1];
 	ad->codon[y] = c;
       	cur_emit = -eslINFINITY; 	    
         max_emit = -eslINFINITY;
@@ -1609,21 +1608,17 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
     }
   else
     {	/* deserialized form */
-	    printf("11111\n");
       if (ad->rfline)  free(ad->rfline);
       if (ad->mmline)  free(ad->mmline);
       if (ad->csline)  free(ad->csline);
       if (ad->model)   free(ad->model);
       if (ad->mline)   free(ad->mline);
-      printf("22222222\n");
       if (ad->aseq)    free(ad->aseq);
       if (ad->ntseq)   free(ad->ntseq);
-            printf("33333333\n");
       if (ad->ppline)  free(ad->ppline);
       if (ad->hmmname) free(ad->hmmname);
       if (ad->hmmacc)  free(ad->hmmacc);
       if (ad->hmmdesc) free(ad->hmmdesc);
-      printf("4444444444\n");
       if (ad->sqname)  free(ad->sqname);
       if (ad->sqacc)   free(ad->sqacc);
       if (ad->sqdesc)  free(ad->sqdesc);

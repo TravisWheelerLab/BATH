@@ -1871,6 +1871,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, const ESL
   
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, sq, gcode);
+ 
   dom->scores_per_pos = NULL; 
   dom->envsc = envsc; 
   /* Compute bias correction (for non-longtarget case)

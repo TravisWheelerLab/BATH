@@ -1801,6 +1801,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                   if (fprintf(ofp, "  == domain %d", nd ) < 0)
                     ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
                 }
+
                 if (fprintf(ofp, "  score: %.1f bits", th->hit[h]->dcl[d].bitscore) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
 		if (!pli->long_targets && th->hit[h]->dcl[d].ad->ntseq == NULL)
                 {

@@ -78,16 +78,16 @@ enum p7e_optacc_etrace {
  * Throws:    (no abnormal error conditions)
  */
 int
-p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e)
+p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_GMX *gx, float *ret_e)
 {
   int          L    = pp->L;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float const *tsc  = gm->tsc;
+  float const *tsc  = gm_fs->tsc;
   float       *rsc;
   int          i,k;
-  int          M    = gm->M;
-  float        esc  = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
+  int          M    = gm_fs->M;
+  float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 1.0 : 0.0;
   float        t1, t2;
   float        max1, max2, max3, max4, max5;
  
@@ -220,30 +220,30 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
 
     XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX(i,M), DMX(i, M)));
     /* now the special states; it's important that E is already done, and B is done after N,J */
-    t1 = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
     if( i > 2 )
       XMX(i, p7G_J) = ESL_MAX( t1 * (XMX(i-3,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]),
                                t2 * XMX(i,  p7G_E));
     else
       XMX(i, p7G_J) =          t2 * XMX(i,  p7G_E);
 
-    t1 = ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
     if( i > 2 )
       XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-3,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
                               t2 * XMX(i,  p7G_E));
     else
       XMX(i,p7G_C) =          t2 * XMX(i,  p7G_E);
 
-    t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
     if( i > 2 )
       XMX(i,p7G_N) = t1 *  (XMX(i-3,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
     else
       XMX(i,p7G_N) = t1 *                    pp->xmx[i*p7G_NXCELLS + p7G_N];
  
-    t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
       
     XMX(i,p7G_B) = ESL_MAX( t1 * XMX(i,  p7G_N), 
                             t2 * XMX(i,  p7G_J));
@@ -375,22 +375,22 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
 
 
     /* now the special states; it's important that E is already done, and B is done after N,J */
-    t1 = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
       
     XMX(i, p7G_J) = ESL_MAX( t1 * (XMX(i-3,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]),
                              t2 * XMX(i,  p7G_E));
 
-    t1 = ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
     XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-3,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
                             t2 * XMX(i,  p7G_E));
 
-    t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
     XMX(i,p7G_N) =          t1 *  (XMX(i-3,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
 
-    t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
       
     XMX(i,p7G_B) = ESL_MAX( t1 * XMX(i,  p7G_N), 
                             t2 * XMX(i,  p7G_J));
@@ -402,8 +402,6 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
   return eslOK;
 }
 
-  
-
     
 /*---------------------- end, oa fill ---------------------------*/
 
@@ -412,14 +410,14 @@ p7_OptimalAccuracy_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx
  *****************************************************************/
 
 static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
-static inline int select_m(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
-static inline int select_d(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
-static inline int select_i(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
+static inline int select_m(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
+static inline int select_d(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
+static inline int select_i(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
 static inline int select_n(int i);
-static inline int select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i);
-static inline int select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i);
-static inline int select_e(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int *ret_k);
-static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX *gx, int i);
+static inline int select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i);
+static inline int select_j(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i);
+static inline int select_e(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int *ret_k);
+static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i);
 
 
 /* Function:  p7_GOATrace()
@@ -451,11 +449,12 @@ static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX 
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr)
+p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr)
 {
   int           i   = gx->L;  /* position in seq (1..L)         */
   int           k   = 0;  /* position in model (1..M)       */
-  int          c   = 0;
+  int           arg = 0;
+  ESL_DSQ       c;
   float        postprob;
   int          sprv, scur;
   int          status;
@@ -471,14 +470,14 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
   while (sprv != p7T_S) 
     { 
      switch (sprv) {
-      case p7T_M: scur = select_m(gm,     gx, i,  k);          k--;  break;
-      case p7T_D: scur = select_d(gm,     gx, i,  k);          k--;  break;
-      case p7T_I: scur = select_i(gm,     gx, i,  k); i -= 3;        break;
+      case p7T_M: scur = select_m(gm_fs,     gx, i,  k);          k--;  break;
+      case p7T_D: scur = select_d(gm_fs,     gx, i,  k);          k--;  break;
+      case p7T_I: scur = select_i(gm_fs,     gx, i,  k); i -= 3;        break;
       case p7T_N: scur = select_n(            i);                    break;
-      case p7T_C: scur = select_c(gm, pp, gx, i);                    break;
-      case p7T_J: scur = select_j(gm, pp, gx, i);                    break;
-      case p7T_E: scur = select_e(gm,     gx, i, &k);                break;
-      case p7T_B: scur = select_b(gm,     gx, i);                    break;
+      case p7T_C: scur = select_c(gm_fs, pp, gx, i);                    break;
+      case p7T_J: scur = select_j(gm_fs, pp, gx, i);                    break;
+      case p7T_E: scur = select_e(gm_fs,     gx, i, &k);                break;
+      case p7T_B: scur = select_b(gm_fs,     gx, i);                    break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
@@ -489,8 +488,9 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
         match_codon[2] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3];
         match_codon[3] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4];
         match_codon[4] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]; 
-       // printf("match c1 %f c2 %f c3 %f c4 %f c5 %f\n", match_codon[0], match_codon[1], match_codon[2], match_codon[3], match_codon[4]);
-        c = codon_length[esl_vec_FArgMax(match_codon, 5)];
+       
+        arg = esl_vec_FArgMax(match_codon, 5);
+         
       }
       else c = 0;
      
@@ -502,7 +502,7 @@ p7_OATrace_Frameshift(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, 
       sprv = scur;
       i-=c;
     }
-  tr->M = gm->M;
+  tr->M = gm_fs->M;
   tr->L = gx->L;
   return p7_trace_fs_Reverse(tr);
 }
@@ -523,11 +523,11 @@ get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
 }
 
 static inline int
-select_m(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k)
+select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float       *xmx  = gx->xmx; /* so XMX() macro works           */
-  float const *tsc  = gm->tsc;  /* so TSCDELTA() macro works */
+  float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
   float path[4];
   int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
     
@@ -535,15 +535,17 @@ select_m(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k)
   path[1] = TSCDELTA(p7P_IM, k-1) * IMX(i,k-1);
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(i,k-1);
   path[3] = TSCDELTA(p7P_BM, k-1) * XMX(i,p7G_B);
+
+  
 //  printf("i %d k %d M %f I %f D %f B %f\n", i, k, MMX(i,k-1), IMX(i,k-1), DMX(i,k-1), XMX(i,p7G_B));  
   return state[esl_vec_FArgMax(path, 4)];
 }
 
 static inline int
-select_d(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k)
+select_d(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
-  float const *tsc  = gm->tsc;  /* so TSCDELTA() macro works */
+  float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
   float        path[2];
 
   path[0] = TSCDELTA(p7P_MD, k-1) * MMX(i, k-1);
@@ -552,10 +554,10 @@ select_d(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k)
 }
   
 static inline int
-select_i(const P7_PROFILE *gm, const P7_GMX *gx, int i, int k)
+select_i(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
-  float const *tsc  = gm->tsc;  /* so TSCDELTA() macro works */
+  float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
   float        path[2];
 
   path[0] = TSCDELTA(p7P_MI, k) * MMX(i-3,k);
@@ -571,10 +573,10 @@ select_n(int i)
 }
 
 static inline int
-select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
+select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
 {
-  float  t1   =  ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float  t2   =  ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t1   =  ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t2   =  ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float  path[4];
   int    state[4] = { p7T_C, p7T_C, p7T_C, p7T_E };
@@ -597,10 +599,10 @@ select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
 }
 
 static inline int
-select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
+select_j(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
 {
-  float  t1   = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float  t2   = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t1   = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t2   = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float  path[2];
   int    state[2] = { p7T_J, p7T_E };
@@ -613,7 +615,7 @@ select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
 }
 
 static inline int
-select_e(const P7_PROFILE *gm, const P7_GMX *gx, int i, int *ret_k)
+select_e(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int *ret_k)
 {
   float **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float   max  = -eslINFINITY;
@@ -621,13 +623,13 @@ select_e(const P7_PROFILE *gm, const P7_GMX *gx, int i, int *ret_k)
   int     kmax = -1;
   int     k;
 
-  if (! p7_profile_IsLocal(gm)) /* glocal/global is easier */
+  if (! p7_fs_profile_IsLocal(gm_fs)) /* glocal/global is easier */
     {
-      *ret_k = gm->M;
-      return ((MMX(i,gm->M) >= DMX(i,gm->M)) ? p7T_M : p7T_D);
+      *ret_k = gm_fs->M;
+      return ((MMX(i,gm_fs->M) >= DMX(i,gm_fs->M)) ? p7T_M : p7T_D);
     }
 
-  for (k = 1; k <= gm->M; k++)
+  for (k = 1; k <= gm_fs->M; k++)
     {
       if (MMX(i,k) >  max) { max = MMX(i,k); smax = p7T_M; kmax = k; }
       if (DMX(i,k) >  max) { max = DMX(i,k); smax = p7T_D; kmax = k; }
@@ -638,17 +640,16 @@ select_e(const P7_PROFILE *gm, const P7_GMX *gx, int i, int *ret_k)
 
   
 static inline int
-select_b(const P7_PROFILE *gm, const P7_GMX *gx, int i)
+select_b(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i)
 {
-  float t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float path[2];
   
   path[0] = t1 * XMX(i, p7G_N);
   path[1] = t2 * XMX(i, p7G_J);
   return  ((path[0] > path[1]) ? p7T_N : p7T_J);
-
 
 }
 

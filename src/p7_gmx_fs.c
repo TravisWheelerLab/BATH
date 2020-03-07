@@ -305,6 +305,122 @@ p7_gmx_fs_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, in
   return eslOK;
 }
 
+/* Function:  p7_gmx_fs_ParserDumpw()
+ * Synopsis:  Dump a single row of a frameshift DP matrix from a parser function.
+ *
+ * Purpose:   Dump a single row of matrix <gx> to stream <fp> for diagnostics,
+ *            from column <kstart> to <kend>.
+ *            
+ *            Asking for <i, curr,0..M> with <flags=p7_SHOW_SPECIALS>
+ *            
+ *            <flags> control some optional output behaviors, as follows:
+ *              | <p7_HIDE_SPECIALS> | don't show scores for <ENJBC> states  |
+ *              | <p7_SHOW_LOG>      | <gx> is in probs; show as log probs   |
+ *  
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int kend, int flags)
+{
+  int   width     = 9;
+  int   precision = 4;
+  int   k, c, x;
+  float val;
+
+  /* Header */
+  if(i == 0) {
+    fprintf(ofp, "     ");
+    for (k = kstart; k <= kend;  k++) {
+      fprintf(ofp, "%*d_0,", width, k);
+      for(c = 1; c <= gx->allocC; c++) 
+        fprintf(ofp, "%*d_%d,", width, k, c);
+    }
+
+    if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s, %*s, %*s, %*s, %*s,\n", width, "E", width, "N", width, "J", width, "B", width, "C");
+    fprintf(ofp, "      ");
+    for (k = kstart; k <= kend; k++) { 
+      fprintf(ofp, "%*.*s, ", width, width, "----------");
+      for (c = 1; c <= gx->allocC; c++)  	
+        fprintf(ofp, "%*.*s, ", width, width, "----------");
+    }
+
+    if (! (flags & p7_HIDE_SPECIALS)) 
+      for (x = 0; x < 5; x++) fprintf(ofp, "%*.*s, ", width, width, "----------");
+    fprintf(ofp, "\n");
+  }
+
+  /* DP matrix data */
+  
+  fprintf(ofp, "%3d, M, ", i);
+    for (k = kstart; k <= kend;        k++)  
+    {
+	val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_M + p7G_C0];
+	if (flags & p7_SHOW_LOG) val = log(val);
+	fprintf(ofp, "%*.*f, ", width, precision, val);
+         
+	val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_M + p7G_C1];
+	if (flags & p7_SHOW_LOG) val = log(val);
+	fprintf(ofp, "%*.*f, ", width, precision, val);
+
+	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_M + p7G_C2];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f, ", width, precision, val);
+
+       	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_M + p7G_C3];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f, ", width, precision, val);
+
+	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_M + p7G_C4];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f, ", width, precision, val);
+
+	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_M + p7G_C5];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f, ", width, precision, val);
+	}
+      if (! (flags & p7_HIDE_SPECIALS))
+	{
+    	  for (x = 0;  x <  p7G_NXCELLS; x++) 
+	    {
+	      val = gx->xmx[i * p7G_NXCELLS + x];
+	      if (flags & p7_SHOW_LOG) val = log(val);
+	      fprintf(ofp, "%*.*f, ", width, precision, val);
+	    }
+	}
+      fprintf(ofp, "\n");
+
+      fprintf(ofp, "%3d, I, ", i);
+      for (k = kstart; k <= kend;        k++) 
+	{
+	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_I];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f, ", width, precision, val);
+    	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	}
+      fprintf(ofp, "\n");
+
+      fprintf(ofp, "%3d, D, ", i);
+      for (k = kstart; k <= kend;        k++) 
+	{
+	  val =  gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_D];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f, ", width, precision, val);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
+        }
+      fprintf(ofp, "\n\n");
+  
+  return eslOK;
+}
+
+
 
 /*****************************************************************
  * 3. Unit tests

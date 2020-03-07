@@ -74,14 +74,14 @@
  *    
  */
 int
-p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
+p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
 {
   float      **dp   = pp->dp;
   float       *xmx  = pp->xmx;
   int          L    = fwd->L;
-  int          M    = gm->M;
+  int          M    = gm_fs->M;
   int          i,k;
-  float        overall_sc = fwd->xmx[p7G_NXCELLS*L + p7G_C] + gm->xsc[p7P_C][p7P_MOVE];
+  float        overall_sc = fwd->xmx[p7G_NXCELLS*L + p7G_C] + gm_fs->xsc[p7P_C][p7P_MOVE];
   float        denom, bias_denom;
   float        back_sc, fwd_sc;
   
@@ -145,12 +145,12 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
       /* proability from N, J and C states */
        if(i > 2)
        {
-         XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_N] +  gm->xsc[p7P_N][p7P_LOOP] +
+         XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_N] +  gm_fs->xsc[p7P_N][p7P_LOOP] +
                                 bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
-         XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_C] +  gm->xsc[p7P_C][p7P_LOOP] +
+         XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_C] +  gm_fs->xsc[p7P_C][p7P_LOOP] +
                                 bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
         
-         XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] +  gm->xsc[p7P_J][p7P_LOOP] +
+         XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] +  gm_fs->xsc[p7P_J][p7P_LOOP] +
                                 bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
        }
        else
@@ -343,14 +343,14 @@ p7_Decoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_
  *             these arrays are available.  
  */
 int
-p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef)
+p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef)
 {
   int   L            = fwd->L;
   int   M       = fwd->M;
   float overall_logp = p7_FLogsum( fwd->xmx[(L)*p7G_NXCELLS+p7G_C],
                        p7_FLogsum( fwd->xmx[(L-1)*p7G_NXCELLS+p7G_C],
                                    fwd->xmx[(L-2)*p7G_NXCELLS+p7G_C])) +
-                                   gm->xsc[p7P_C][p7P_MOVE];
+                                   gm_fs->xsc[p7P_C][p7P_MOVE];
   float njcp, bp, ep;
   int   i, k;
 
@@ -375,34 +375,34 @@ p7_DomainDecoding_Frameshift(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_G
   for (i = 3; i < L-1; i++)
   {
     njcp = 0.0;
-    njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_logp);
-    njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_logp);
-    njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_C] + bck->xmx[i*p7G_NXCELLS+p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_C] + bck->xmx[i*p7G_NXCELLS+p7G_C] + gm_fs->xsc[p7P_C][p7P_LOOP] - overall_logp);
     
-    njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_N] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_logp);  
-    njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_logp);
-    njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_C] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_N] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);  
+    njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_C] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_C] + gm_fs->xsc[p7P_C][p7P_LOOP] - overall_logp);
   
-    njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_N] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_logp);
-    njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_logp);
-    njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_C] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_N] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
+    njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_C] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_C] + gm_fs->xsc[p7P_C][p7P_LOOP] - overall_logp);
     
     ddef->mocc[i] = 1. - njcp;
   }
   njcp = 0.0;
-  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_logp);
-  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_logp);
-  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_C] + bck->xmx[i*p7G_NXCELLS+p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_C] + bck->xmx[i*p7G_NXCELLS+p7G_C] + gm_fs->xsc[p7P_C][p7P_LOOP] - overall_logp);
 
-  njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_N] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_logp);
-  njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_logp);
-  njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_C] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_N] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_C] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_C] + gm_fs->xsc[p7P_C][p7P_LOOP] - overall_logp);
   ddef->mocc[L-1] = 1. - njcp;
 
   njcp = 0.0;
-  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_logp);
-  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_logp);
-  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_C] + bck->xmx[i*p7G_NXCELLS+p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_logp); 
+  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
+  njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_C] + bck->xmx[i*p7G_NXCELLS+p7G_C] + gm_fs->xsc[p7P_C][p7P_LOOP] - overall_logp); 
   ddef->mocc[L] = 1. - njcp;
 
   ddef->L = L;

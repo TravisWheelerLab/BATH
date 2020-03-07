@@ -73,7 +73,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
   double          lambda, mmu, vmu, tau, tau_fs;
   int             status;
-  P7_PROFILE     *gm_fs  = NULL;  
+  P7_FS_PROFILE     *gm_fs  = NULL;  
   /* Configure any objects we need
    * that weren't already passed to us as a bypass optimization 
    */
@@ -521,7 +521,7 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
   P7_GMX  *gx      = NULL; 
   ESL_DSQ *dsq     = NULL;
@@ -542,19 +542,19 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int L, int 
   ESL_ALLOC(dsq, sizeof(ESL_DSQ) * (L+2));
   if (gx == NULL) { status = eslEMEM; goto ERROR; }
 
-  gcode = esl_gencode_Create(abcDNA, gm->abc);
+  gcode = esl_gencode_Create(abcDNA, gm_fs->abc);
   esl_gencode_Set(gcode, 1);  //This is the default euk code - may want to allow for a flag. 
 
   esl_vec_FSet(f, abcDNA->K, 1. / (float) abcDNA->K);
   
-  p7_ProfileConfig_fs(hmm, bg, gcode, gm, L, p7_LOCAL);
-  p7_ReconfigLength(gm, L/3);
+  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
+  p7_fs_ReconfigLength(gm_fs, L);
   p7_bg_SetLength(bg, L/3);
 
   for (i = 0; i < N; i++)
     {
       if ((status = esl_rsq_xfIID(r, bg->f, abcDNA->K, L, dsq)) != eslOK) goto ERROR;
-      if ((status = p7_ForwardParser_Frameshift(dsq, gcode, indel_cost, L, gm, gx, &fsc))      != eslOK) goto ERROR;
+      if ((status = p7_ForwardParser_Frameshift(dsq, gcode, indel_cost, L, gm_fs, gx, &fsc))      != eslOK) goto ERROR;
       if ((status = p7_bg_NullOne(bg, dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }

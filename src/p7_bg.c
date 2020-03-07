@@ -579,7 +579,7 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
  *            by <bg->p1>) that the null1 model uses is imposed.
  */
 int
-p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_PROFILE *gm, const ESL_GENCODE *gcode, int L, float indel_cost, float *ret_sc)
+p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, const ESL_GENCODE *gcode, int L, float indel_cost, float *ret_sc)
 {
   ESL_HMX *hmx = esl_hmx_Create(L+2, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
  
@@ -594,7 +594,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_PROFILE *gm, const 
 }
 
 int
-p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_PROFILE *gm, ESL_HMX *fwd, float *opt_sc)
+p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm, ESL_HMX *fwd, float *opt_sc)
 {
   int   i, k, m;
   int   a, v, w, x;
@@ -698,11 +698,8 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   fwd->sc[L+3] = log(fwd->sc[L+3]);
   logsc = 0.0;
   for (i = 3; i <= L+3; i++)
-  {
-   //printf("i %d sc %f\n", i, fwd->sc[i]);
     logsc += fwd->sc[i];
-   }
- //sleep(10); 
+ 
   fwd->M = hmm->M;
   fwd->L = L;
   if (opt_sc != NULL) *opt_sc = logsc;

@@ -44,7 +44,7 @@
  * Returns:   <eslOK> on success.
  */
 int
-p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr)
+p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr)
 {
   int     status;
   int     i;      /* position in seq (1..L) */
@@ -93,7 +93,7 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       /* E connects from any M or D state. k set here */
       case p7T_E:  
         if (XMX_FS(i, p7G_E) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
-      if (p7_profile_IsLocal(gm)) 
+      if (p7_fs_profile_IsLocal(gm)) 
       { /* local models come from any M, D */
         sc[0] = sc[M+1] = -eslINFINITY;
         for (k = 1; k <= M; k++) sc[k]   = MMX_FS(i,k,p7G_C0);

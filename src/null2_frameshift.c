@@ -62,9 +62,9 @@
  * Throws:    (no abnormal error conditions)
  */
 int
-p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2)
+p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
 {
-  int      M      = gm->M;
+  int      M      = gm_fs->M;
   int      Ld     = pp->L;
   float  **dp     = pp->dp;
   float   *xmx    = pp->xmx;
@@ -104,30 +104,30 @@ p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2)
   xfactor = p7_FLogsum(xfactor, XMX_FS(0,p7G_C));
   xfactor = p7_FLogsum(xfactor, XMX_FS(0,p7G_J));
   
-  esl_vec_FSet(null2, gm->abc->K, -eslINFINITY);
+  esl_vec_FSet(null2, gm_fs->abc->K, -eslINFINITY);
 
-  for (x = 0; x < gm->abc->K; x++)
+  for (x = 0; x < gm_fs->abc->K; x++)
   {
       for (k = 1; k < M; k++)
         {
-          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC(gm, k, x));
-          null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k)        + p7P_ISC(gm, k, x));
+          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC(gm_fs, k, x));
+          null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k)        + p7P_ISC(gm_fs, k, x));
         }
-      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC(gm, k, x));
+      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC(gm_fs, k, x));
       null2[x] = p7_FLogsum(null2[x], xfactor);
     }
     
-  esl_vec_FExp (null2, gm->abc->K);
+  esl_vec_FExp (null2, gm_fs->abc->K);
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} for all x in alphabet,
    * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies
    * for this envelope.
    */
 
   /* make valid scores for all degeneracies, by averaging the odds ratios. */
-  esl_abc_FAvgScVec(gm->abc, null2); /* does not set gap, nonres, missing  */
-  null2[gm->abc->K]    = 1.0;        /* gap character    */
-  null2[gm->abc->Kp-2] = 1.0;        /* nonresidue "*"   */
-  null2[gm->abc->Kp-1] = 1.0;        /* missing data "~" */
+  esl_abc_FAvgScVec(gm_fs->abc, null2); /* does not set gap, nonres, missing  */
+  null2[gm_fs->abc->K]    = 1.0;        /* gap character    */
+  null2[gm_fs->abc->Kp-2] = 1.0;        /* nonresidue "*"   */
+  null2[gm_fs->abc->Kp-1] = 1.0;        /* missing data "~" */
 
   return eslOK;
 }
@@ -161,12 +161,12 @@ p7_Null2_fs_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2)
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2)
+p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2)
 {
   float  **dp   = wrk->dp;	/* so that {MDI}MX() macros work */
   float   *xmx  = wrk->xmx;	/* so that XMX() macro works     */
   int      Ld   = 0;
-  int      M    = gm->M;
+  int      M    = gm_fs->M;
   int      k;			/* index over model position     */
   int      t, u, v,w,x;			/* index over residues           */
   int      z;			/* index over trace position     */
@@ -196,16 +196,16 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
    * posterior weighted sum over all emission vectors used in paths
    * explaining the domain.
    */
-  esl_vec_FSet(null2, gm->abc->K, 0.0);
+  esl_vec_FSet(null2, gm_fs->abc->K, 0.0);
   xfactor = XMX_FS(0,p7G_N) + XMX_FS(0,p7G_C) + XMX_FS(0,p7G_J);
-  for (x = 0; x < gm->abc->K; x++)
+  for (x = 0; x < gm_fs->abc->K; x++)
     {
       for (k = 1; k < M; k++)
         {
-          null2[x] += MMX_FS(0,k,p7G_C0) * expf(p7P_MSC(gm, k, x));
-          null2[x] += IMX_FS(0,k)        * expf(p7P_ISC(gm, k, x));
+          null2[x] += MMX_FS(0,k,p7G_C0) * expf(p7P_MSC(gm_fs, k, x));
+          null2[x] += IMX_FS(0,k)        * expf(p7P_ISC(gm_fs, k, x));
         }
-      null2[x] += MMX_FS(0,M,p7G_C0) * expf(p7P_MSC(gm, M, x));
+      null2[x] += MMX_FS(0,M,p7G_C0) * expf(p7P_MSC(gm_fs, M, x));
       null2[x] += xfactor;
     }
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} odds ratios for all x in alphabet,
@@ -214,10 +214,10 @@ p7_Null2_fs_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int ze
    */
 
   /* make valid scores for all degeneracies, by averaging the odds ratios. */
-  esl_abc_FAvgScVec(gm->abc, null2);
-  null2[gm->abc->K]    = 1.0;        /* gap character    */
-  null2[gm->abc->Kp-2] = 1.0;        /* nonresidue "*"   */
-  null2[gm->abc->Kp-1] = 1.0;        /* missing data "~" */
+  esl_abc_FAvgScVec(gm_fs->abc, null2);
+  null2[gm_fs->abc->K]    = 1.0;        /* gap character    */
+  null2[gm_fs->abc->Kp-2] = 1.0;        /* nonresidue "*"   */
+  null2[gm_fs->abc->Kp-1] = 1.0;        /* missing data "~" */
 
   return eslOK;
 }

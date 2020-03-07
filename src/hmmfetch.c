@@ -298,7 +298,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   P7_HMM         *hmm  = NULL;
   P7_BG          *bg   = NULL;
   ESL_RANDOMNESS *r  = NULL;
-  P7_PROFILE     *gm_fs  = NULL;
+  P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
   int             status;
 
@@ -339,7 +339,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   else p7_Fail("HMM %s not found in file %s\n", key, hfp->fname);
 
   if(bg != NULL)    p7_bg_Destroy(bg);
-  if(gm_fs != NULL) p7_profile_Destroy(gm_fs);
+  if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
   if(r != NULL)     esl_randomness_Destroy(r);
   esl_alphabet_Destroy(abc);
 }

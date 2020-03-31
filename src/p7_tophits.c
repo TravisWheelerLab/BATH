@@ -1313,7 +1313,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
           newness,
           exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
           th->hit[h]->score,
-          eslCONST_LOG2R * th->hit[h]->dcl[d].dombias, /* an nhmmer hit is really a domain, so this is the hit's bias correction */
+          eslCONST_LOG2R * th->hit[h]->dcl[d].dombias,
           namew, showname,
           posw, th->hit[h]->dcl[d].iali,
           posw, th->hit[h]->dcl[d].jali) < 0)
@@ -1982,7 +1982,6 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int64_t sqto;
   int64_t lowest;
   int64_t highest;
-  int frameshifts;
   int i;
 
   if (show_header)

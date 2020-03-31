@@ -55,7 +55,7 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
   float  *xmx = gx->xmx;
   float const *tsc  = gm->tsc;
   float  *sc;      /* scores of possible choices: up to 2M-1, in the case of exits to E  */
-  int d;
+  //int d;
   int     scur, sprv;
 
   /* we'll index M states as 1..M, and D states as 2..M = M+2..2M: M0, D1 are impossibles. */

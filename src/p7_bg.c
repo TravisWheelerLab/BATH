@@ -275,7 +275,24 @@ int
 p7_bg_SetLength(P7_BG *bg, int L)
 {
   bg->p1 = (float) L / (float) (L+1);
-  
+ 
+  bg->fhmm->t[0][0] = bg->p1;
+  bg->fhmm->t[0][1] = 1.0f - bg->p1;
+
+  return eslOK;
+}
+
+/* Function:  p7_bg_fs_SetLength()
+ * Synopsis:  Set the null model length distribution.
+ *
+ * Purpose:   Sets the geometric null model length 
+ *            distribution in <bg> to a mean of <L> residues.
+ */
+int
+p7_bg_fs_SetLength(P7_BG *bg, int L)
+{
+  bg->p1 = (float) L/3. / (float) (L/3. + 1);
+ 
   bg->fhmm->t[0][0] = bg->p1;
   bg->fhmm->t[0][1] = 1.0f - bg->p1;
 
@@ -443,6 +460,28 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
   *ret_sc = (float) L * log(bg->p1) + log(1.-bg->p1);
   return eslOK;
 }
+/* Function:  p7_bg_fs_NullOne()
+ *
+ * Purpose:   Calculate the null1 lod score, for sequence <dsq>
+ *            of length <L> "aligned" to the base null model <bg>. 
+ * 
+ * Note:      Because the residue composition in null1 <bg> is the
+ *            same as the background used to calculate residue
+ *            scores in profiles and null models, all we have to
+ *            do here is score null model transitions.
+ *
+ *            Can accept a NULL for *dsq, in which case the returned
+ *            value will be (float) L * log(bg->p1) + log(1.-bg->p1);
+ */
+int
+p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
+{
+  *ret_sc = (float) L/3 * log(bg->p1) + log(1.-bg->p1);
+   
+  *ret_sc = p7_FLogsum( p7_FLogsum( *ret_sc, *ret_sc), *ret_sc);
+  return eslOK;
+}
+
 
 /*****************************************************************
  * 4. Filter null model
@@ -552,10 +591,10 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 {
   ESL_HMX *hmx = esl_hmx_Create(L, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
  
-  float nullsc;                         /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
+  float nullsc;                          /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
   
   esl_hmm_Forward(dsq, L, bg->fhmm, hmx, &nullsc);
-
+	
   /* impose the length distribution */
   *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
   esl_hmx_Destroy(hmx);
@@ -586,7 +625,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, con
   float nullsc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
   
   p7_bg_fs_Forward(dsq, L, indel_cost, gcode, bg->fhmm, gm, hmx, &nullsc);
-
+   
   /* impose the length distribution */
   *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
   esl_hmx_Destroy(hmx);
@@ -599,12 +638,8 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   int   i, k, m;
   int   a, v, w, x;
   int   M     = hmm->M;
-  float tmp;
   float logsc;
   float max;
-  float one_indel = indel_cost;
-  float two_indel = indel_cost / 2;
-  float no_indel  = 1.0 - (indel_cost * 3);
 
   fwd->sc[0] = 0.0;
 
@@ -697,9 +732,9 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   fwd->sc[L+2] = log(fwd->sc[L+2]);
   fwd->sc[L+3] = log(fwd->sc[L+3]);
   logsc = 0.0;
-  for (i = 3; i <= L+3; i++)
+  for (i = 3; i <= L+3; i++) 
     logsc += fwd->sc[i];
- 
+    
   fwd->M = hmm->M;
   fwd->L = L;
   if (opt_sc != NULL) *opt_sc = logsc;

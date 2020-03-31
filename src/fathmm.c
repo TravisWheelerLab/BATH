@@ -565,7 +565,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if( ! hmm->evparam[p7_FTAUFS])
       {
         if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
-	p7_fs_Tau(r, gm_fs, hmm, info->bg, 300, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
       }
       else
@@ -795,7 +795,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   int  sstatus = eslOK;
   int seq_id = 0;
   double Z;
-  printf("AAAAAA\n");
+  
   ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
   sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
@@ -812,7 +812,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       
       /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
-      printf("BBBBBB\n");
+ 
       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
 
       Z = info->pli->Z;
@@ -828,7 +828,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
          
       esl_sq_ReverseComplement(dbsq_dna);
       do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
-      printf("CCCCCCCC\n");
+
       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
 
       Z = info->pli->Z;

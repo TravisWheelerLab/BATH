@@ -155,7 +155,7 @@ P7_FS_PROFILE *
 p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
 {
   P7_FS_PROFILE *gm_fs = NULL;
-  int         x, y, z;
+  int         x;// y, z;
   int         status;
 
   /* level 0 */
@@ -183,20 +183,20 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   gm_fs->indel_pos[0] = NULL;
 
   /* level 2 */
-  ESL_ALLOC(gm_fs->rsc[0], sizeof(float) * (allocM+1) * p7P_MAXCODONS);
+  ESL_ALLOC(gm_fs->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS + p7_MAXABET));
 
   for (x = 1; x <= allocM; x++)   
-    gm_fs->rsc[x] = gm_fs->rsc[0] + x * p7P_MAXCODONS;
+    gm_fs->rsc[x] = gm_fs->rsc[0] + x * (p7P_MAXCODONS + p7_MAXABET);
 
-  ESL_ALLOC(gm_fs->codons[0], sizeof(ESL_DSQ) * p7P_MAXCODONS * (allocM+1));
-
-  for (x = 1; x <= allocM; x++)
-    gm_fs->codons[x] = gm_fs->codons[0] + x * p7P_MAXCODONS;
-
-  ESL_ALLOC(gm_fs->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * p7P_MAXCODONS);
+  ESL_ALLOC(gm_fs->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS + p7_MAXABET));
 
   for (x = 1; x <= allocM; x++)
-    gm_fs->indel_pos[x] = gm_fs->indel_pos[0] + x * p7P_MAXCODONS;
+    gm_fs->codons[x] = gm_fs->codons[0] + x * (p7P_MAXCODONS + p7_MAXABET);
+
+  ESL_ALLOC(gm_fs->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS + p7_MAXABET));
+
+  for (x = 1; x <= allocM; x++)
+    gm_fs->indel_pos[x] = gm_fs->indel_pos[0] + x * (p7P_MAXCODONS + p7_MAXABET);
 
   /* Initialize some edge pieces of memory that are never used,
    * and are only present for indexing convenience.
@@ -207,7 +207,7 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
     p7P_TSC(gm_fs, 1, p7P_DD) = -eslINFINITY;
   }
 
-  for (x = 0; x < p7P_MAXCODONS; x++) 
+  for (x = 0; x < p7P_MAXCODONS + p7_MAXABET; x++) 
     p7P_MSC_FS(gm_fs, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
   
   /* Set remaining info  */
@@ -318,10 +318,10 @@ p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
   if (src->M > dst->allocM) ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
 
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
-  for (x = 0; x <= src->M;   x++) esl_vec_FCopy(src->rsc[x], p7P_MAXCODONS, dst->rsc[x]);
+  for (x = 0; x <= src->M;   x++) esl_vec_FCopy(src->rsc[x], p7P_MAXCODONS + p7_MAXABET, dst->rsc[x]);
   for (x = 0; x < p7P_NXSTATES;   x++) esl_vec_FCopy(src->xsc[x], p7P_NXTRANS,       dst->xsc[x]);
-  for (x = 0; x <= src->M;  x++) { esl_abc_dsqcpy(src->codons[x], p7P_MAXCODONS-2, dst->codons[x]); }
-  for (x = 0; x <= src->M;  x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS-2, dst->indel_pos[x]); }
+  for (x = 0; x <= src->M;  x++) { esl_abc_dsqcpy(src->codons[x], p7P_MAXCODONS-2 + p7_MAXABET, dst->codons[x]); }
+  for (x = 0; x <= src->M;  x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS-2 + p7_MAXABET, dst->indel_pos[x]); }
 
   dst->mode        = src->mode;
   dst->L           = src->L;
@@ -562,6 +562,7 @@ p7_profile_fs_Destroy(P7_FS_PROFILE *gm)
     if (gm->tsc       != NULL) free(gm->tsc);
     if (gm->rsc       != NULL) free(gm->rsc);
     if (gm->codons    != NULL) free(gm->codons);
+    if (gm->indel_pos != NULL) free(gm->indel_pos);
     if (gm->name      != NULL) free(gm->name);
     if (gm->acc       != NULL) free(gm->acc);
     if (gm->desc      != NULL) free(gm->desc);

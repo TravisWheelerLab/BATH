@@ -219,7 +219,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   int     status;
   int     max_idx;
   float   *occ = NULL;
-  float   *tp, *rp;
+  float   *tp;
   float    sc[p7_MAXCODE];
   float    Z;
   float    max_sc[16];
@@ -312,7 +312,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
  
   /* Match emission scores. */
   sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
-  //sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
+ // sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
   for (k = 1; k <= hmm->M; k++) {
     for (x = 0; x < hmm->abc->K; x++)
@@ -320,8 +320,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
    
     sc[hmm->abc->Kp-2] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
-    bg->f[hmm->abc->K] = log( (double) bg->f[esl_vec_FArgMin(hmm->mat[k], hmm->abc->K)]); 
+   // bg->f[hmm->abc->K] = log( (double) bg->f[esl_vec_FArgMin(hmm->mat[k], hmm->abc->K)]); 
 
+    for (x = 0; x < hmm->abc->K; x++)
+      p7P_MSC_FS(gm_fs, k, x) = sc[x];
     /* Assign amino acid scores to standard length codons with no substitutions 
      * or no_indel adjustments so they can be used to look up scores for 
      * frameshift codons. Substitution and no_indel adjustments are added afterwards. */
@@ -329,12 +331,15 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
       for (w = 0; w < 4; w++) 
         for (x = 0; x < 4; x++) {
           codon = 16 * v + 4 * w + x;
+          a = gcode->basic[codon];
+	  //if(a == 27) 
+//		if(k == 1) earrintf("vwx %d%d%d a %d sc %f\n", v,w,x,a, sc[a]);
           p7P_MSC_C3(gm_fs, k, v, w, x) = sc[a];
-          p7P_AMINO3(gm_fs, k, v, w, x) = gcode->basic[codon];
+          p7P_AMINO3(gm_fs, k, v, w, x) = a;
           p7P_INDEL3(gm_fs, k, v, w, x) = p7P_XXX;
         }     
   }
-  
+
   /* Assign scores, amino acids, and indel positions to all frameshift codons */
   /* find maximum score for each two nucleotide codon (XX_ or _XX) */   
   for (k = 1; k <= hmm->M; k++) { 
@@ -378,7 +383,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
       for (x = 0; x < 4; x++)
         p7P_MSC_C2(gm_fs, k, w, x) = max_sc[w * 4 + x] + one_indel;
   }
-    
+
   /* find maximum score for each one nucleotide codon (X__ or __X) */
   for (k = 1; k <= hmm->M; k++) {
     
@@ -454,7 +459,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
           for (w = 0; w < 4; w++) {
             esl_vec_FSet(max_sc, 3, -eslINFINITY);
             for (x = 0; x < 4; x++) {
-           
+            //printf("k %d tuvwx %d%d%d%d%d\n", t,u,v,w,x); 
           
               //XXxxX
               codon      = 16 * t + 4 * u + x;
@@ -570,11 +575,11 @@ p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L)
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm_fs->nj) / ((float) L/3 + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  pmove = (2.0f + gm_fs->nj) / ((float) L/3.0f + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
   ploop = 1.0f - pmove;
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
-  gm_fs->L = L/3;
+  gm_fs->L = L;
   return eslOK;
 }
 
@@ -688,7 +693,6 @@ p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L)
 int
 p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp)
 {
-  int     M   = gm->M;    /* length of the query                                          */
   int     i, j;
   int     K   = gm->abc->K;
   int     Kp  = gm->abc->Kp;

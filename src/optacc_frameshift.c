@@ -84,7 +84,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
   float const *tsc  = gm_fs->tsc;
-  float       *rsc;
+  //float       *rsc;
   int          i,k;
   int          M    = gm_fs->M;
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 1.0 : 0.0;
@@ -453,13 +453,13 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
 {
   int           i   = gx->L;  /* position in seq (1..L)         */
   int           k   = 0;  /* position in model (1..M)       */
-  int           arg = 0;
-  ESL_DSQ       c;
+  //int           arg = 0;
+  ESL_DSQ       c = 0;
   float        postprob;
   int          sprv, scur;
   int          status;
   float match_codon[5];
-  int   codon_length[5] = { 1, 2, 3, 4, 5 };   
+  //int   codon_length[5] = { 1, 2, 3, 4, 5 };   
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
 #endif
@@ -473,7 +473,7 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
       case p7T_M: scur = select_m(gm_fs,     gx, i,  k);          k--;  break;
       case p7T_D: scur = select_d(gm_fs,     gx, i,  k);          k--;  break;
       case p7T_I: scur = select_i(gm_fs,     gx, i,  k); i -= 3;        break;
-      case p7T_N: scur = select_n(            i);                    break;
+      case p7T_N: scur = select_n(               i);                    break;
       case p7T_C: scur = select_c(gm_fs, pp, gx, i);                    break;
       case p7T_J: scur = select_j(gm_fs, pp, gx, i);                    break;
       case p7T_E: scur = select_e(gm_fs,     gx, i, &k);                break;
@@ -489,13 +489,13 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
         match_codon[3] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4];
         match_codon[4] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]; 
        
-        arg = esl_vec_FArgMax(match_codon, 5);
+        c = esl_vec_FArgMax(match_codon, 5) + 1;
          
       }
       else c = 0;
      
       postprob = get_postprob(probs, scur, sprv, k, i); 
-     // printf("k %d i %d s %d\n", k, i, scur);
+//      printf("k %d i %d s %d\n", k, i, scur);
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
       /* For NCJ, we had to defer i decrement. */
       if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;

@@ -333,9 +333,9 @@ p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef)
   fprintf(ofp, "# mocc btot etot n2sc\n");
   for (i = 0; i <= ddef->L; i++) {
     fprintf(ofp, "%d %f ", i, ddef->mocc[i]);
-    fprintf(ofp, "%f ", i, ddef->btot[i]);
-    fprintf(ofp, "%f ", i, ddef->etot[i]);
-    fprintf(ofp, "%f ", i, ddef->n2sc[i]);
+    fprintf(ofp, "%f ", ddef->btot[i]);
+    fprintf(ofp, "%f ", ddef->etot[i]);
+    fprintf(ofp, "%f ", ddef->n2sc[i]);
     fprintf(ofp, "\n");
   }
   return eslOK;
@@ -634,15 +634,15 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int triggered;
   int start;
   int end;
-  int d, f;
+  int d;// f;
   int i2,j2;
   int last_j2;
-  int Ld;
+  //int Ld;
   int nc;
   int saveL     = gm_fs->L;     /* Save the length config of <om>; will restore upon return */
   int save_mode = gm_fs->mode;  /* Likewise for the mode. */
   int status;
-
+  
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm_fs, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
 
@@ -712,7 +712,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
  
 if (is_multidomain_region_fs(ddef, i, j))
      {  
-
+	
         /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
@@ -728,16 +728,18 @@ if (is_multidomain_region_fs(ddef, i, j))
     
         p7_fs_ReconfigMultihit(gm_fs, saveL);
          p7_Forward_Frameshift(sq->dsq+i-1, gcode, indel_cost, j-i+1, gm_fs, fwd, NULL);
-
+//printf("i %d j %d, saveL %d\n", i, j, saveL);
        region_trace_ensemble_frameshift(ddef, gm_fs, sq->dsq, sq->abc, i, j, fwd, bck, indel_cost, &nc);
-     
+    	
        p7_fs_ReconfigUnihit(gm_fs, saveL);
        
        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
        last_j2 = 0;
+	
        for (d = 0; d < nc; d++) {
          
          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
+		
          if (i2 <= last_j2) ddef->noverlaps++;
 
          /* Note that k..m coords on model are available, but
@@ -757,7 +759,7 @@ if (is_multidomain_region_fs(ddef, i, j))
           * alignment, in the rare event that this
           * happens. [xref J5/130].
           */
-         
+          ddef->nenvelopes++;         
       
          if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, gcode, indel_cost, F3, do_biasfilter) == eslOK) last_j2 = j2;
         }
@@ -766,7 +768,7 @@ if (is_multidomain_region_fs(ddef, i, j))
         p7_trace_Reuse(ddef->tr);
 
      } else {
-       
+	ddef->nenvelopes++;
        rescore_isolated_domain_frameshift(ddef, gm, gm_fs,sq, ntsq, fwd, bck, i, j, FALSE, bg, gcode, indel_cost, F3, do_biasfilter);
 
    }
@@ -858,7 +860,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
 	
         if (is_multidomain_region(ddef, i, j))
         {  
-
+		
         /* This region appears to contain more than one domain, so we have to
              * resolve it by cluster analysis of posterior trace samples, to define
              * one or more domain envelopes.
@@ -873,7 +875,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
              */
             p7_oprofile_ReconfigMultihit(om, saveL);
             p7_Forward(orfsq->dsq+i-1, j-i+1, om, fwd, NULL);
-
+		
             region_trace_ensemble(ddef, om, orfsq->dsq, i, j, fwd, bck, &nc);
             p7_oprofile_ReconfigUnihit(om, saveL);
             /* ddef->n2sc is now set on i..j by the traceback-dependent method */
@@ -908,13 +910,13 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
                   if (rescore_isolated_domain_nonframeshift(ddef, om, gm, gm_fs, orfsq, sq, ntsq, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
                        last_j2 = j2;
 
-      }
+          }
             p7_spensemble_Reuse(ddef->sp);
             p7_trace_Reuse(ddef->tr);
         }
         else
         {
-
+		
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
 	    
@@ -1022,6 +1024,7 @@ is_multidomain_region_fs(P7_DOMAINDEF *ddef, int i, int j)
       expected_n = ESL_MIN( (ddef->etot[z] - ddef->etot[i-1]), (ddef->btot[j-f] - ddef->btot[z-3]) );
       max        = ESL_MAX(max, expected_n);
   }
+
   f = (j-i) % 3;
   for (z = i+3; z <= j-f; z+=3)
     {
@@ -1231,9 +1234,6 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
   ESL_DSQ s, u, v, w, x;
   int     z;
   float   n2sc[Lr];
-  float   one_indel = indel_cost;
-  float   two_indel = indel_cost/2.;
-  float   no_indel  = 1. - indel_cost * 3.;
 
   esl_vec_FSet(n2sc, Lr, 0.0); /* zero the null2 scores in region */
 
@@ -1323,16 +1323,16 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
  }
   /* Cluster the ensemble of traces to break region into envelopes. */
   p7_spensemble_fs_Cluster(ddef->sp, ddef->min_overlap, ddef->of_smaller, ddef->max_diagdiff, ddef->min_posterior, ddef->min_endpointp, &nc);
-  
+ 	
   /* A little hacky now. Remove "dominated" domains relative to seq coords. */
   for (d = 0; d < nc; d++) 
     ddef->sp->assignment[d] = 0; /* overload <assignment> to flag that a domain is dominated */
 
   /* who dominates who? (by post prob) */
   for (d = 0; d < nc; d++)
-    {
-      for (d2 = d+1; d2 < nc; d2++)
   {
+    for (d2 = d+1; d2 < nc; d2++)
+    {
     nov = ESL_MIN(ddef->sp->sigc[d].j, ddef->sp->sigc[d2].j) - ESL_MAX(ddef->sp->sigc[d].i, ddef->sp->sigc[d2].i) + 1;
     if (nov == 0) break;
     n   = ESL_MIN(ddef->sp->sigc[d].j - ddef->sp->sigc[d].i + 1,  ddef->sp->sigc[d2].j - ddef->sp->sigc[d2].i + 1);
@@ -1341,11 +1341,12 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
         if (ddef->sp->sigc[d].prob > ddef->sp->sigc[d2].prob) ddef->sp->assignment[d2] = 1;
         else                                                  ddef->sp->assignment[d]  = 1;
       }
-  }
     }
+  }
 
   /* shrink the sigc list, removing dominated domains */
   d = 0;
+
   for (d2 = 0; d2 < nc; d2++)
     {
       if (ddef->sp->assignment[d2]) continue; /* skip domain d2, it's dominated. */
@@ -1725,17 +1726,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
-  int            orig_L;
-  int            e_trace[Ld];
   ESL_DSQ        t, u, v, w, x;
-  float          one_indel = indel_cost;
-  float          two_indel = indel_cost / 2.;
-  float          no_indel  = 1. - indel_cost * 3.;
 
-  orig_L = gm_fs->L;
   p7_fs_ReconfigLength(gm_fs, Ld);
  
-  p7_bg_SetLength(bg, Ld/3);
+  p7_bg_SetLength(bg, Ld);
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
   p7_bg_NullOne(bg, sq->dsq+i-1, Ld-2, &nullsc);
 
@@ -1748,9 +1743,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
 
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
+  //printf("P %f F3 %f seq %f fwd %f filter %f\n", P, F3, seq_score, envsc, filtersc);
+
   if (P > F3 ) return eslOK;
  
-  ddef->nenvelopes++;
+  //ddef->nenvelopes++;
 
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, indel_cost, Ld, gm_fs, gx2, &bcksc);
 
@@ -1842,7 +1839,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   } 
   for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
-   
+  
   dom->domcorrection = domcorrection; /* in units of NATS */
  
   if(sq->start < sq->end)
@@ -1945,7 +1942,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 {
 
   P7_DOMAIN     *dom           = NULL;
-  P7_GMX        *gxppfs;
+  //P7_GMX        *gxppfs;
   int            Ld            = j-i+1;
   float          domcorrection = 0.0;
   float          envsc, oasc, bcksc;
@@ -1953,15 +1950,6 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
-  int            orig_L;
-  ESL_DSQ        t, u, v, w, x;
- 
-  //printf("orf st %d end %d nt st %d end %d i %d j %d\n", orfsq->start, orfsq->end, sq->start, sq->end, i, j);
-  //temporarily change model length to env_len. The nhmmer pipeline will tack
-  //on the appropriate cost to account for the longer actual window
-//  orig_L = gm->L;
-//  p7_ReconfigLength(gm, (Ld)/3);
- 
     
   p7_oprofile_ReconfigLength(om, orfsq->n);
   p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 

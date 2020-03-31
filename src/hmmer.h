@@ -262,25 +262,28 @@ enum p7p_rsc_indels {
   p7P_xxXXX = 11,
 };
 
-#define p7P_MAXCODONS      1372
-#define p7P_NUC1           342
-#define p7P_NUC2           86
-#define p7P_NUC3           22
-#define p7P_NUC4           6
+#define p7P_MAXCODONS      1364
+#define p7P_NUC1           4
+#define p7P_NUC2           16
+#define p7P_NUC3           64
+#define p7P_NUC4           256
+#define p7P_CODON3         20
+#define p7P_CODON4         84
+#define p7P_CODON5         340
 
 /* Accessing codon translations */
-#define p7P_AMINO1(gm, k, x)             ((gm)->codons[(k)][(x) * p7P_NUC1])
-#define p7P_AMINO2(gm, k, w, x)          ((gm)->codons[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2])
-#define p7P_AMINO3(gm, k, v, w, x)       ((gm)->codons[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3])
-#define p7P_AMINO4(gm, k, u, v, w, x)    ((gm)->codons[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4])
-#define p7P_AMINO5(gm, k, t, u, v, w, x) ((gm)->codons[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + (t)])
+#define p7P_AMINO1(gm, k, x)             ((gm)->codons[(k)][p7_MAXABET + (x)])
+#define p7P_AMINO2(gm, k, w, x)          ((gm)->codons[(k)][p7_MAXABET + p7P_NUC1 + (x) * p7P_NUC1 + (w)])
+#define p7P_AMINO3(gm, k, v, w, x)       ((gm)->codons[(k)][p7_MAXABET + p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
+#define p7P_AMINO4(gm, k, u, v, w, x)    ((gm)->codons[(k)][p7_MAXABET + p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
+#define p7P_AMINO5(gm, k, t, u, v, w, x) ((gm)->codons[(k)][p7_MAXABET + p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
 
 /* Accessing codon indel positions */
-#define p7P_INDEL1(gm, k, x)             ((gm)->indel_pos[(k)][(x) * p7P_NUC1])
-#define p7P_INDEL2(gm, k, w, x)          ((gm)->indel_pos[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2])
-#define p7P_INDEL3(gm, k, v, w, x)       ((gm)->indel_pos[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3])
-#define p7P_INDEL4(gm, k, u, v, w, x)    ((gm)->indel_pos[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4])
-#define p7P_INDEL5(gm, k, t, u, v, w, x) ((gm)->indel_pos[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + (t)])
+#define p7P_INDEL1(gm, k, x)             ((gm)->indel_pos[(k)][p7_MAXABET + (x)])
+#define p7P_INDEL2(gm, k, w, x)          ((gm)->indel_pos[(k)][p7_MAXABET + p7P_NUC1 + (x) * p7P_NUC1 + (w)])
+#define p7P_INDEL3(gm, k, v, w, x)       ((gm)->indel_pos[(k)][p7_MAXABET + p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
+#define p7P_INDEL4(gm, k, u, v, w, x)    ((gm)->indel_pos[(k)][p7_MAXABET + p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
+#define p7P_INDEL5(gm, k, t, u, v, w, x) ((gm)->indel_pos[(k)][p7_MAXABET + p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
 
 /* Accessing transition, emission scores */
 /* _BM is specially stored off-by-one: [k-1][p7P_BM] is score for entering at Mk */
@@ -289,11 +292,11 @@ enum p7p_rsc_indels {
 #define p7P_ISC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
 
 #define p7P_MSC_FS(gm, k, x) ((gm)->rsc[(k)][(x)])
-#define p7P_MSC_C1(gm, k, x) ((gm)->rsc[(k)][(x) * p7P_NUC1])
-#define p7P_MSC_C2(gm, k, w, x) ((gm)->rsc[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2])
-#define p7P_MSC_C3(gm, k, v, w, x) ((gm)->rsc[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3])
-#define p7P_MSC_C4(gm, k, u, v, w, x) ((gm)->rsc[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4])
-#define p7P_MSC_C5(gm, k, t, u, v, w, x) ((gm)->rsc[(k)][(x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + (t)])
+#define p7P_MSC_C1(gm, k, x) ((gm)->rsc[(k)][p7_MAXABET + (x)])
+#define p7P_MSC_C2(gm, k, w, x) ((gm)->rsc[(k)][p7_MAXABET + (x) * p7P_NUC1 + (w)])
+#define p7P_MSC_C3(gm, k, v, w, x) ((gm)->rsc[(k)][p7_MAXABET + p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
+#define p7P_MSC_C4(gm, k, u, v, w, x) ((gm)->rsc[(k)][p7_MAXABET + p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
+#define p7P_MSC_C5(gm, k, t, u, v, w, x) ((gm)->rsc[(k)][p7_MAXABET + p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
 
 typedef struct p7_profile_s {
   float  *tsc;          /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
@@ -362,11 +365,9 @@ typedef struct p7_fs_profile_s {
 
   ESL_DSQ **codons;             /* maximum scoring Amino Acid tranlsations [p7P_MAXCODONS][0.1..M]    */
   ESL_DSQ **indel_pos;          /* maximum scoring indel positions [p7P_MAXCODONS][0.1..M]    */
-
-  const ESL_ALPHABET *abc;  /* copy of pointer to appropriate alphabet                */
-  
+  const ESL_ALPHABET *abc;      /* copy of pointer to appropriate alphabet                */
+ 
 } P7_FS_PROFILE;
-
 
 /*****************************************************************
  * 3. P7_BG: a null (background) model.
@@ -1675,9 +1676,9 @@ extern P7_BG *p7_bg_fs_Clone(const P7_BG *bg);
 extern int    p7_bg_Dump(FILE *ofp, const P7_BG *bg);
 extern void   p7_bg_Destroy(P7_BG *bg);
 extern int    p7_bg_SetLength(P7_BG *bg, int L);
-extern int    p7_bg_SetLength_Frameshift(P7_BG *bg, int L);
+extern int    p7_bg_fs_SetLength(P7_BG *bg, int L);
 extern int    p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-extern int    p7_bg_NullOne_Frameshift(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
+extern int    p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
 
 extern int    p7_bg_Read(char *bgfile, P7_BG *bg, char *errbuf);
 extern int    p7_bg_Write(FILE *fp, P7_BG *bg);

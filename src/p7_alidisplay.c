@@ -101,7 +101,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3;
-  int            j;
+  //int            j;
 
   ESL_SQ         *ntorfseqtxt = NULL;
 
@@ -367,7 +367,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   char          *alphaDNA = sq->abc->sym;
   int            n, pos, z, y;
   int            z1, z2;
-  int		 srt, end;
+  //int		 srt, end;
   int            k,a,i,s,c;
   int            indel;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
@@ -375,9 +375,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3,n4,n5;
-  int            g,h;
-  float		 max_emit, cur_emit;
-  float	        *rsc; 
+  //int            g,h;
+  //float		 max_emit, cur_emit;
+  //float	        *rsc; 
   ESL_DSQ        t, u, v, w, x;
 
   /* First figure out which piece of the trace (from first match to last match) 
@@ -496,7 +496,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     
 	    ad->ppline[z-z1] = '\0';
   }
- 
+
   /* mandatory three alignment display lines: model, mline, aseq */
   y = 0;
   for (z = z1; z <= z2; z++) 
@@ -506,14 +506,14 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       s = tr->st[z];
       c = tr->c[z];
   
-  //   printf("I %d k %d st %d c %d z %d z2 %d\n", i, k, s, c, z, z2); 
+//     printf("I %d k %d st %d c %d z %d z2 %d\n", i, k, s, c, z, z2); 
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = gm_fs->consensus[k];
 	ad->codon[y] = c;
-      	cur_emit = -eslINFINITY; 	    
-        max_emit = -eslINFINITY;
-       
+
+	if(c == 0) c = 3;
+
 	if(c == 1) {
           ad->frameshifts++;           
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];

@@ -236,15 +236,17 @@ link_spsamples_fs(const void *v1, const void *v2, const void *prm, int *ret_link
   nov = ESL_MIN(h1->j, h2->j) - ESL_MAX(h1->i, h2->i) + 1;      /* overlap  */
 //  printf("j1 %d j2 %d i1 %d i2 %d nov %d\n", h1->j, h2->j, h1->i, h2->i, nov);
   n = (param->of_smaller ? ESL_MIN(h1->j - h1->i + 1,  h2->j - h2->i + 1) :     /* min length of the two hits */
-                           ESL_MAX(h1->j - h1->i + 1,  h2->j - h2->i + 1));      /* max length of the two hits */
+  ESL_MAX(h1->j - h1->i + 1,  h2->j - h2->i + 1));      /* max length of the two hits */
 
-//  if(nov > 0) printf("nov %d, n %d, over %f minover %f\n", nov, n, (float) nov / (float) n, param->min_overlap);
+  
   if ((float) nov / (float) n  < param->min_overlap) { *ret_link = FALSE; return eslOK; }  
-
+ 
   /* hmm overlap test */
   nov = ESL_MIN(h1->m, h2->m) - ESL_MAX(h1->k, h2->k);
   n   = (param->of_smaller ? ESL_MIN(h1->m - h1->k + 1,  h2->m - h2->k + 1) :
                              ESL_MAX(h1->m - h1->k + 1,  h2->m - h2->k + 1));
+//printf("h1->k %d h2->k %d h1->m %d h2->m %d\n", h1->k, h2->k, h1->m, h2->m);
+//printf("nov %d, n %d, over %f minover %f\n", nov, n, (float) nov / (float) n, param->min_overlap);
   if ((float) nov / (float)  n < param->min_overlap) { *ret_link = FALSE; return eslOK; }
 //printf("param->max_diagdiff %d\n", param->max_diagdiff);
   /* nearby diagonal test */
@@ -535,6 +537,8 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
       for (ninc[c] = 0, h = 0; h < sp->n; h++) {
         //printf("%d, %d, %d, %d, %d\n", h, sp->sp[h].i, sp->sp[h].j, sp->sp[h].k, sp->sp[h].m);
 	if (sp->assignment[h] == c) {
+	//	printf("c %d\n", c);
+	//	printf("sp->sp[h].idx %d idx_of_last %d\n", sp->sp[h].idx, idx_of_last);
 	  if (sp->sp[h].idx != idx_of_last) ninc[c]++;
 	  idx_of_last = sp->sp[h].idx;
 	}
@@ -544,10 +548,10 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
       if ((float) ninc[c] / (float) sp->nsamples < min_posterior) continue;
 
       /* Find the maximum extent of all seg pairs in this cluster in i,j k,m */
-      for (imin = 0, h = 0; h < sp->n; h++) 
+      for (imin = -1, h = 0; h < sp->n; h++) 
 	if (sp->assignment[h] == c) 
 	  {
-	    if (imin == 0) {
+	    if (imin == -1) {
 	      imin = imax = sp->sp[h].i;
 	      jmin = jmax = sp->sp[h].j;
 	      kmin = kmax = sp->sp[h].k;
@@ -594,7 +598,7 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
       for (h = 0; h < sp->n; h++) if (sp->assignment[h] == c) sp->epc[sp->sp[h].m-mmin]++;
       for (best_m = mmax; best_m >= mmin; best_m--) if (sp->epc[best_m-mmin] >= epc_threshold) break;
       if (best_m < mmin) best_m = mmin + esl_vec_IArgMax(sp->epc, mmax-mmin+1);
-      
+     
       /* If there's no well-defined domain (say, a long stretch of biased composition),
 	 the coords above might come out inconsistent; in this case, just reject the domain.
        */
@@ -620,6 +624,7 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
    */
   qsort((void *) sp->sigc, sp->nsigc, sizeof(struct p7_spcoord_s), cluster_orderer);
   free(ninc);
+	
   *ret_nclusters = sp->nsigc;
   return eslOK;
 

@@ -110,10 +110,10 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
   {
       for (k = 1; k < M; k++)
         {
-          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC(gm_fs, k, x));
-          null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k)        + p7P_ISC(gm_fs, k, x));
+          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC_FS(gm_fs, k, x));
+          null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k));//        + p7P_ISC(gm_fs, k, x));
         }
-      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC(gm_fs, k, x));
+      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC_FS(gm_fs, k, x));
       null2[x] = p7_FLogsum(null2[x], xfactor);
     }
     
@@ -168,8 +168,8 @@ p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, 
   int      Ld   = 0;
   int      M    = gm_fs->M;
   int      k;			/* index over model position     */
-  int      t, u, v,w,x;			/* index over residues           */
-  int      z;			/* index over trace position     */
+ // int      t, u, v,w,x;			/* index over residues           */
+  int      x, z;			/* index over trace position     */
   float    xfactor;
 
   /* We'll use the i=0 row in wrk for working space: dp[0][] and xmx[0..4]. */
@@ -179,7 +179,6 @@ p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, 
   /* Calculate emitting state usage in this particular trace segment: */
   for (z = zstart; z < zend; z++) 
     {
-
       switch (tr->st[z]) {
         case p7T_M:                              Ld++;  MMX_FS(0,tr->k[z],p7G_C0) += 1.0;  break;
         case p7T_I:                              Ld++;  IMX_FS(0,tr->k[z]) += 1.0;         break;
@@ -198,14 +197,16 @@ p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, 
    */
   esl_vec_FSet(null2, gm_fs->abc->K, 0.0);
   xfactor = XMX_FS(0,p7G_N) + XMX_FS(0,p7G_C) + XMX_FS(0,p7G_J);
+
   for (x = 0; x < gm_fs->abc->K; x++)
     {
       for (k = 1; k < M; k++)
         {
-          null2[x] += MMX_FS(0,k,p7G_C0) * expf(p7P_MSC(gm_fs, k, x));
-          null2[x] += IMX_FS(0,k)        * expf(p7P_ISC(gm_fs, k, x));
+          null2[x] += MMX_FS(0,k,p7G_C0) * expf(p7P_MSC_FS(gm_fs, k, x));
+          null2[x] += IMX_FS(0,k);//        * expf(p7P_ISC(gm_fs, k, x));
         }
-      null2[x] += MMX_FS(0,M,p7G_C0) * expf(p7P_MSC(gm_fs, M, x));
+      
+      null2[x] += MMX_FS(0,M,p7G_C0) * expf(p7P_MSC_FS(gm_fs, M, x));
       null2[x] += xfactor;
     }
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} odds ratios for all x in alphabet,

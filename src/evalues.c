@@ -68,7 +68,6 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   int             EvL    = ((cfg_b != NULL) ? cfg_b->EvL    : 200);
   int             EvN    = ((cfg_b != NULL) ? cfg_b->EvN    : 200);
   int             EfL    = ((cfg_b != NULL) ? cfg_b->EfL    : 100);
-  int 		  EfL_fs = EfL * 3;
   int             EfN    = ((cfg_b != NULL) ? cfg_b->EfN    : 200);
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
   double          lambda, mmu, vmu, tau, tau_fs;
@@ -108,7 +107,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
   if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
   if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
-  if ((status = p7_fs_Tau   (r, gm_fs, hmm, bg, EfL_fs, EfN, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd frameshifted tau");
+  if ((status = p7_fs_Tau   (r, gm_fs, hmm, bg, EfL, EfN, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd frameshifted tau");
 
   /* Store results */
   hmm->evparam[p7_MLAMBDA] = om->evparam[p7_MLAMBDA] = lambda;
@@ -523,23 +522,37 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
 int
 p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
+
   P7_GMX  *gx      = NULL; 
-  ESL_DSQ *dsq     = NULL;
+  ESL_DSQ *amino_dsq     = NULL;
+  ESL_DSQ *dna_dsq     = NULL;
   double  *xv      = NULL;
   float    fsc, nullsc;		                  
   double   gmu, glam;
   int      status;
-  int      i;
+  int      i, j, a, x, y, z;
   float    indel_cost = 0.001;
   ESL_GENCODE      *gcode = NULL;
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
   float *f = NULL;  
+  char *n1 = NULL;
+  char *n2 = NULL; 
+  char *n3 = NULL;
 
-  gx = p7_gmx_fs_Create(hmm->M, 3, L, p7P_CODONS);     /* DP matrix: for ForwardParser,  L rows */
   abcDNA = esl_alphabet_Create(eslDNA);
+  ESL_ALLOC(n1,   sizeof(char)   * abcDNA->K);
+  ESL_ALLOC(n2,   sizeof(char)   * abcDNA->K);
+  ESL_ALLOC(n3,   sizeof(char)   * abcDNA->K);
+
+  for(x = 0; x < abcDNA->K; x++) 
+    n1[x] = n2[x] = n3[x] = x;  
+
+  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_CODONS);     /* DP matrix: for ForwardParser,  L rows */
   ESL_ALLOC(f,   sizeof(float)   * abcDNA->K);
   ESL_ALLOC(xv,  sizeof(double)  * N);
-  ESL_ALLOC(dsq, sizeof(ESL_DSQ) * (L+2));
+  ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
+  ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
+
   if (gx == NULL) { status = eslEMEM; goto ERROR; }
 
   gcode = esl_gencode_Create(abcDNA, gm_fs->abc);
@@ -548,14 +561,38 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   esl_vec_FSet(f, abcDNA->K, 1. / (float) abcDNA->K);
   
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
-  p7_fs_ReconfigLength(gm_fs, L);
-  p7_bg_SetLength(bg, L/3);
+  p7_fs_ReconfigLength(gm_fs, L*3);
+  p7_bg_SetLength(bg, L);
 
   for (i = 0; i < N; i++)
     {
-      if ((status = esl_rsq_xfIID(r, bg->f, abcDNA->K, L, dsq)) != eslOK) goto ERROR;
-      if ((status = p7_ForwardParser_Frameshift(dsq, gcode, indel_cost, L, gm_fs, gx, &fsc))      != eslOK) goto ERROR;
-      if ((status = p7_bg_NullOne(bg, dsq, L, &nullsc))          != eslOK) goto ERROR;   
+      if ((status = esl_rsq_xfIID(r, bg->f, gm_fs->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
+      dna_dsq[0] = dna_dsq[L*3+1] = eslDSQ_SENTINEL;            
+     
+      /* reverse translate amino acid sequence into dna sequence.
+       * This really should be done with a look-up table but this 
+       * is a temporary fix.  Randomly shuffling the n# strings 
+       * ensures a diversity in the codons used.                  */   
+      esl_rsq_CShuffle(r, n1, n1);
+      esl_rsq_CShuffle(r, n2, n2);
+      esl_rsq_CShuffle(r, n3, n3);
+
+      j = 1;
+      for(a = 1; a <= L; a++) { 
+      	for(x = 0; x < abcDNA->K; x++) { 
+	  for(y = 0; y < abcDNA->K; y++) {
+            for(z = 0; z < abcDNA->K; z++) { 
+	      if(gcode->basic[16*n1[x] + 4*n2[y] + n3[z]] == amino_dsq[a]) {
+                dna_dsq[j++] = n1[x];  x = abcDNA->K; 
+                dna_dsq[j++] = n2[y];  y = abcDNA->K; 
+                dna_dsq[j++] = n3[z];  z = abcDNA->K;
+              } 
+            }
+          }
+        }
+      }
+      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, indel_cost, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR;
+      if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }
   if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR;
@@ -569,7 +606,11 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
  
   free(f); 
   free(xv);
-  free(dsq);
+  free(n1);
+  free(n2);
+  free(n3);
+  free(amino_dsq);
+  free(dna_dsq);
   p7_gmx_Destroy(gx);
   esl_gencode_Destroy(gcode);
   esl_alphabet_Destroy(abcDNA);
@@ -579,7 +620,11 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   *ret_tau = 0.;
   if (f   != NULL) free(f);
   if (xv  != NULL) free(xv);
-  if (dsq != NULL) free(dsq);
+  if (n1 != NULL) free(n1);
+  if (n2 != NULL) free(n2);
+  if (n3 != NULL) free(n3);
+  if (amino_dsq != NULL) free(amino_dsq);
+  if (dna_dsq != NULL) free(dna_dsq);
   if (gx  != NULL) p7_gmx_Destroy(gx);
   if (gcode != NULL) esl_gencode_Destroy(gcode);
   if (abcDNA != NULL) esl_alphabet_Destroy(abcDNA);

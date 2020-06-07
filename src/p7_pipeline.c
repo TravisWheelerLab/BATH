@@ -852,12 +852,12 @@ p7_pli_DomainReportable(P7_PIPELINE *pli, float dom_score, double lnP)
  * Synopsis:  Returns TRUE if target score meets inclusion threshold.
  */
 int
-p7_pli_TargetIncludable(P7_PIPELINE *pli, float score, double lnP)
+p7_pli_TargetIncludable(P7_PIPELINE *pli, int frameshift, float score, double lnP)
 {
   if      (  pli->inc_by_E )
     {
-      if ( !pli->long_targets && !pli->frameshift && exp(lnP) * pli->Z <= pli->incE) return TRUE;
-      if (  (pli->long_targets || pli->frameshift) && exp(lnP) <= pli->incE) return TRUE;
+      if ( !pli->long_targets && !frameshift && exp(lnP) * pli->Z <= pli->incE) return TRUE;
+      if (  (pli->long_targets || frameshift) && exp(lnP) <= pli->incE) return TRUE;
     }
 
   else if (! pli->inc_by_E   && score         >= pli->incT) return TRUE;
@@ -1398,7 +1398,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
         if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
+          if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
@@ -1706,7 +1706,7 @@ p7_pli_postViterbi_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_T
         if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
+          if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
@@ -2276,7 +2276,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
         if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
+          if (p7_pli_TargetIncludable(pli, TRUE, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
@@ -2496,7 +2496,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
       {
         hit->flags |= p7_IS_REPORTED;
-        if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
+        if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
         hit->flags |= p7_IS_INCLUDED;
       }
 
@@ -2779,7 +2779,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;
-printf("HMM %s SEQ %s\n", gm->name, dnasq->name);
+//printf("HMM %s SEQ %s\n", gm->name, dnasq->name);
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   fwd_orf_block = NULL;

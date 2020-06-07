@@ -236,6 +236,10 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   ESL_FILEPARSER *efp    = NULL;
   ESL_ALPHABET   *abc    = NULL;
   P7_HMM         *hmm    = NULL;
+  P7_BG          *bg   = NULL;
+  ESL_RANDOMNESS *r  = NULL;
+  P7_FS_PROFILE     *gm_fs  = NULL;
+  double          tau_fs;
   int             nhmm   = 0;
   char           *key;
   int             keylen;
@@ -265,6 +269,14 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hfp->fname);
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
 
+	  if( ! hmm->evparam[p7_FTAUFS])
+      	{
+          r = esl_randomness_CreateFast(42);
+          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+          bg = p7_bg_Create(hmm->abc);
+          p7_fs_Tau(r, gm_fs, hmm, bg, 300, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS] = tau_fs;
+        }
 	  if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
 	      ((hmm->acc) && esl_keyhash_Lookup(keys, hmm->acc, -1, &keyidx) == eslOK))
 	    {
@@ -275,7 +287,10 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  p7_hmm_Destroy(hmm);
 	}
     }
-  
+ 
+  if(bg != NULL)    p7_bg_Destroy(bg);
+  if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
+  if(r != NULL)     esl_randomness_Destroy(r); 
   if (ofp != stdout) printf("\nRetrieved %d HMMs.\n", nhmm);
   if (abc != NULL) esl_alphabet_Destroy(abc);
   esl_keyhash_Destroy(keys);

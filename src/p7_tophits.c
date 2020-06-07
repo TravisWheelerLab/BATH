@@ -996,7 +996,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
           p7_pli_TargetReportable(pli, th->hit[h]->score, th->hit[h]->lnP))
       {
           th->hit[h]->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, th->hit[h]->score, th->hit[h]->lnP))
+          if (p7_pli_TargetIncludable(pli, th->hit[h]->frameshift, th->hit[h]->score, th->hit[h]->lnP))
               th->hit[h]->flags |= p7_IS_INCLUDED;
 
           if (pli->long_targets) { // no domains in dna search, so:
@@ -2064,7 +2064,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
         }
         else if(pli->frameshift) 
 	{
-		if (fprintf(ofp, "%-*s %-*s %-*s %-*s %7d %7d %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %9.2g %6.1f %5.1f %23d, %s\n",
+		if (fprintf(ofp, "%-*s %-*s %-*s %-*s %7d %7d %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %9.2g %6.1f %5.1f %23d %s\n",
                 tnamew, th->hit[h]->name,
                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
                 qnamew, qname,
@@ -2260,7 +2260,7 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
 
 	      if(pli->frameshift)
 	      {
-                if (fprintf(ofp, "%-*s %-*s %15d %-*s %-*s %5d %9.2g %6.1f %5.1f %3d %3d %9.2g %6.1f %5.1f %23d %5d %9" PRId64 " %9" PRId64 " %9" PRId64 " %9" PRId64 " %5.2f %23d %s\n",
+                if (fprintf(ofp, "%-*s %-*s %15" PRId64 " %-*s %-*s %5d %9.2g %6.1f %5.1f %3d %3d %9.2g %6.1f %5.1f %23d %5d %9" PRId64 " %9" PRId64 " %9" PRId64 " %9" PRId64 " %5.2f %23d %s\n",
                 tnamew, th->hit[h]->name,
                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
                 th->hit[h]->dcl[0].ad->L,

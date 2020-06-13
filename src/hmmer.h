@@ -1839,8 +1839,8 @@ extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
 
 extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
 extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);
-extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, float score,     double lnP);
-extern int p7_pli_DomainReportable  (P7_PIPELINE *pli, float dom_score, double lnP);
+extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, int frameshift, float score,     double lnP);
+extern int p7_pli_DomainReportable  (P7_PIPELINE *pli, int frameshift, float dom_score, double lnP);
 
 extern int p7_pli_TargetIncludable  (P7_PIPELINE *pli, int frameshift, float score,     double lnP);
 extern int p7_pli_DomainIncludable  (P7_PIPELINE *pli, float dom_score, double lnP);

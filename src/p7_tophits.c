@@ -991,9 +991,8 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
   {
     for (h = 0; h < th->N; h++)
     {
-
       if ( !(th->hit[h]->flags & p7_IS_DUPLICATE) &&
-          p7_pli_TargetReportable(pli, th->hit[h]->score, th->hit[h]->lnP))
+          p7_pli_TargetReportable(pli, th->hit[h]->frameshift, th->hit[h]->score, th->hit[h]->lnP))
       {
           th->hit[h]->flags |= p7_IS_REPORTED;
           if (p7_pli_TargetIncludable(pli, th->hit[h]->frameshift, th->hit[h]->score, th->hit[h]->lnP))
@@ -1034,7 +1033,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
       {
         for (d = 0; d < th->hit[h]->ndom; d++)
         {
-          if (p7_pli_DomainReportable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
+          if (p7_pli_DomainReportable(pli, th->hit[h]->frameshift, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
             th->hit[h]->dcl[d].is_reported = TRUE;
           if ((th->hit[h]->flags & p7_IS_INCLUDED) &&
               p7_pli_DomainIncludable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))

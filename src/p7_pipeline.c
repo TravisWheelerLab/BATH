@@ -817,12 +817,12 @@ p7_pli_fs_GetPosPast(P7_ORF_COORDS *coords)
  *            for the processing pipeline.
  */
 int
-p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
+p7_pli_TargetReportable(P7_PIPELINE *pli, int frameshift, float score, double lnP)
 {
   if      (  pli->by_E )
     {  
-      if ( !pli->long_targets && !pli->frameshift && exp(lnP) * pli->Z <= pli->E) return TRUE;
-      if ( (pli->long_targets || pli->frameshift) && exp(lnP) <= pli->E)          return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
+      if ( !pli->long_targets && !frameshift && exp(lnP) * pli->Z <= pli->E) return TRUE;
+      if ( (pli->long_targets || frameshift) && exp(lnP) <= pli->E)          return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
 
@@ -837,12 +837,12 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
  *            for the processing pipeline.
  */
 int
-p7_pli_DomainReportable(P7_PIPELINE *pli, float dom_score, double lnP)
+p7_pli_DomainReportable(P7_PIPELINE *pli, int frameshift, float dom_score, double lnP)
 {
   if      (  pli->dom_by_E )
     {
-      if ( !pli->long_targets  && !pli->frameshift &&  exp(lnP) * pli->domZ <= pli->domE) return TRUE;
-      if (  (pli->long_targets  || pli->frameshift) &&  exp(lnP) <= pli->domE) return TRUE;
+      if ( !pli->long_targets  && !frameshift &&  exp(lnP) * pli->domZ <= pli->domE) return TRUE;
+      if (  (pli->long_targets  || frameshift) &&  exp(lnP) <= pli->domE) return TRUE;
     }
   else if (! pli->dom_by_E   && dom_score        >= pli->domT) return TRUE;
   return FALSE;
@@ -1220,7 +1220,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
 
  if (P > pli->F3) return eslOK;
-
+	
   pli->n_past_fwd++;
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   p7_omx_GrowTo(pli->oxb, om->M, 0, sq->n);
@@ -1231,6 +1231,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   if (pli->ddef->nregions   == 0) return eslOK; /* score passed threshold but there's no discrete domains here       */
   if (pli->ddef->nenvelopes == 0) return eslOK; /* rarer: region was found, stochastic clustered, no envelopes found */
   if (pli->ddef->ndom       == 0) return eslOK; /* even rarer: envelope found, no domain identified {iss131}         */
+  
   if (ntsq != NULL)  // translated search, protein query, nucleotide target
   {
      P7_DOMAIN  *dom    = NULL;
@@ -1312,8 +1313,9 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
  
   lnP =  esl_exp_logsurv (seq_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
-  if (p7_pli_TargetReportable(pli, seq_score, lnP))
+  if (p7_pli_TargetReportable(pli, FALSE, seq_score, lnP))
     {
+
       p7_tophits_CreateNextHit(hitlist, &hit);
       if (pli->mode == p7_SEARCH_SEQS) {
         if (                        (status  = esl_strdup(sq->name,  -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
@@ -1395,7 +1397,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
        */
       if (pli->use_bit_cutoffs)
       {
-        if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
+        if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
           if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
@@ -1404,7 +1406,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
 
         for (d = 0; d < hit->ndom; d++)
         {
-          if (p7_pli_DomainReportable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))
+          if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
           {
             hit->dcl[d].is_reported = TRUE;
             if (p7_pli_DomainIncludable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))
@@ -1703,14 +1705,14 @@ p7_pli_postViterbi_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_T
        */
       if (pli->use_bit_cutoffs)
       {
-        if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
+        if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
           if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
-        if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+        if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
         {
           hit->dcl[0].is_reported = TRUE;
           if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
@@ -2273,14 +2275,14 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
 
       if (pli->use_bit_cutoffs)
       {
-        if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
+        if (p7_pli_TargetReportable(pli, TRUE, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
           if (p7_pli_TargetIncludable(pli, TRUE, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
-        if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+        if (p7_pli_DomainReportable(pli, TRUE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
         {
           hit->dcl[0].is_reported = TRUE;
           if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
@@ -2409,7 +2411,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
    */
   lnP =  esl_exp_logsurv (seq_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
-  if (p7_pli_TargetReportable(pli, seq_score, lnP))
+  if (p7_pli_TargetReportable(pli, FALSE, seq_score, lnP))
   {
     p7_tophits_CreateNextHit(hitlist, &hit);
     if (pli->mode == p7_SEARCH_SEQS) {
@@ -2493,7 +2495,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      */
     if (pli->use_bit_cutoffs)
     {
-      if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
+      if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
       {
         hit->flags |= p7_IS_REPORTED;
         if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
@@ -2502,7 +2504,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 
       for (d = 0; d < hit->ndom; d++)
       {
-        if (p7_pli_DomainReportable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))
+        if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
         {
           hit->dcl[d].is_reported = TRUE;
           if (p7_pli_DomainIncludable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))

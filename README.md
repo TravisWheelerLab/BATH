@@ -1,11 +1,6 @@
 ## HMMER - biological sequence analysis using profile HMMs
 
-<<<<<<< HEAD
 *** Warning:  This is not the primary repository of HMMER. Please find the official repo at: https://github.com/EddyRivasLab/hmmer ***
-=======
-[![](https://travis-ci.org/EddyRivasLab/hmmer.svg?branch=develop)](https://travis-ci.org/EddyRivasLab/hmmer)
-![](http://img.shields.io/badge/license-BSD-brightgreen.svg)
->>>>>>> develop
 
 [HMMER](http://hmmer.org) searches biological sequence databases for
 homologous sequences, using either single sequences or multiple
@@ -28,7 +23,7 @@ depends on the Easel library, also at
 ```
    % wget http://eddylab.org/software/hmmer/hmmer.tar.gz
    % tar zxf hmmer.tar.gz
-   % cd hmmer-3.2.1
+   % cd hmmer-3.3
    % ./configure --prefix /your/install/path
    % make
    % make check                 # optional: run automated tests

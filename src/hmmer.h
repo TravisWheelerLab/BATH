@@ -28,7 +28,8 @@
 #define P7_HMMERH_INCLUDED
 #include "p7_config.h"
 
-#include <stdio.h>    /* FILE */
+#include <stdio.h>		
+#include <stddef.h>             // ptrdiff_t 
 
 #ifdef HMMER_MPI
 #include "mpi.h"
@@ -761,6 +762,7 @@ typedef struct p7_dom_s {
   int            is_reported;  /* TRUE if domain meets reporting thresholds                                  */
   int            is_included;  /* TRUE if domain meets inclusion thresholds                                  */
   float         *scores_per_pos; /* score in BITS that each position in the alignment contributes to an overall viterbi score */
+
   P7_ALIDISPLAY *ad; 
 } P7_DOMAIN;
 
@@ -1328,9 +1330,8 @@ typedef struct p7_pipeline_s {
   /* Domain postprocessing                                                  */
   ESL_RANDOMNESS *r;    /* random number generator                  */
   int             do_reseeding; /* TRUE: reseed for reproducible results    */
-  int             do_alignment_score_calc;
-  P7_DOMAINDEF   *ddef;    /* domain definition workflow               */
-
+  int  do_alignment_score_calc; /* used only by nhmmer --aliscoresout       */
+  P7_DOMAINDEF   *ddef;		/* domain definition workflow               */
 
   /* Reporting threshold settings                                           */
   int     by_E;            /* TRUE to cut per-target report off by E   */

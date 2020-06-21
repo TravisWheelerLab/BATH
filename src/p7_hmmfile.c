@@ -607,13 +607,13 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
       if (fprintf(fp, "STATS LOCAL     VLAMBDA %f\n", hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL         VMU %f\n", hmm->evparam[p7_MMU])     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL        FTAU %f\n", hmm->evparam[p7_FTAU])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if (fprintf(fp, "STATS LOCAL        FTAUFS %f\n", hmm->evparam[p7_FTAUFS])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL        FTAUFS %f\n", hmm->evparam[p7_FTAUFS])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
 
     } else {        /* default stats lines */
       if (fprintf(fp, "STATS LOCAL MSV      %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL VITERBI  %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if (fprintf(fp, "STATS LOCAL FRAMESHIFT FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FRAMESHIFT FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
     }
   }
 
@@ -759,16 +759,28 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
   size += ((hmm->flags & p7H_NC) ? 8 + sprintf(buff, "%.2f", hmm->cutoff[p7_NC1])+sprintf(buff, "%.2f", hmm->cutoff[p7_NC2]) : 0);
 
   /* E-value stats */
-  size += ((hmm->flags & p7H_STATS) ?
-             ((format == p7_HMMFILE_3a) ? ( 75 + sprintf(buff, "%f", hmm->evparam[p7_MLAMBDA]) +
-                                                 sprintf(buff, "%f", hmm->evparam[p7_MMU])     +
-                                                 sprintf(buff, "%f", hmm->evparam[p7_FTAU])    +
-						 sprintf(buff, "%f", hmm->evparam[p7_FTAUFS])) :
-                                          ( 75 + sprintf(buff, "%8.4f", hmm->evparam[p7_MMU])  + sprintf(buff, "%8.5f", hmm->evparam[p7_MLAMBDA]) +
-                                                 sprintf(buff, "%8.4f", hmm->evparam[p7_VMU])  + sprintf(buff, "%8.5f", hmm->evparam[p7_VLAMBDA]) +
-                                                 sprintf(buff, "%8.4f", hmm->evparam[p7_FTAU]) + sprintf(buff, "%8.5f", hmm->evparam[p7_FLAMBDA]) +
-						 sprintf(buff, "%8.4f", hmm->evparam[p7_FTAUFS]) + sprintf(buff, "%8.5f", hmm->evparam[p7_FLAMBDA])))
+  if(hmm->abc->type == eslAMINO) {
+    size += ((hmm->flags & p7H_STATS) ?
+            ((format == p7_HMMFILE_3a) ? ( 75 + sprintf(buff, "%f", hmm->evparam[p7_MLAMBDA]) +
+                                                sprintf(buff, "%f", hmm->evparam[p7_MMU])     +
+                                                sprintf(buff, "%f", hmm->evparam[p7_FTAU])    +
+ 					        sprintf(buff, "%f", hmm->evparam[p7_FTAUFS])) :
+                                         ( 75 + sprintf(buff, "%8.4f", hmm->evparam[p7_MMU])  + sprintf(buff, "%8.5f", hmm->evparam[p7_MLAMBDA]) +
+                                                sprintf(buff, "%8.4f", hmm->evparam[p7_VMU])  + sprintf(buff, "%8.5f", hmm->evparam[p7_VLAMBDA]) +
+                                                sprintf(buff, "%8.4f", hmm->evparam[p7_FTAU]) + sprintf(buff, "%8.5f", hmm->evparam[p7_FLAMBDA]) +
+						sprintf(buff, "%8.4f", hmm->evparam[p7_FTAUFS]) + sprintf(buff, "%8.5f", hmm->evparam[p7_FLAMBDA])))
              : 0); /* No STATS */
+    } else {
+      size += ((hmm->flags & p7H_STATS) ?
+            ((format == p7_HMMFILE_3a) ? ( 75 + sprintf(buff, "%f", hmm->evparam[p7_MLAMBDA]) +
+                                                sprintf(buff, "%f", hmm->evparam[p7_MMU])     +
+                                                sprintf(buff, "%f", hmm->evparam[p7_FTAU])) :
+                                         ( 75 + sprintf(buff, "%8.4f", hmm->evparam[p7_MMU])  + sprintf(buff, "%8.5f", hmm->evparam[p7_MLAMBDA]) +
+                                                sprintf(buff, "%8.4f", hmm->evparam[p7_VMU])  + sprintf(buff, "%8.5f", hmm->evparam[p7_VLAMBDA]) +
+                                                sprintf(buff, "%8.4f", hmm->evparam[p7_FTAU]) + sprintf(buff, "%8.5f", hmm->evparam[p7_FLAMBDA])))
+	: 0); /* No STATS */
+    }
+
 
   /* Now on to the body of the HMM */
   size += 9  + (hmm->abc->K * 9);                                   /* Alphabet labels */
@@ -893,16 +905,22 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
       if ((offset =sprintf(ret_hmm + coffset, "STATS LOCAL         VMU %f\n", hmm->evparam[p7_MMU]))                                   < 0) return eslEWRITE;
       coffset += offset;
       if ((offset =sprintf(ret_hmm + coffset, "STATS LOCAL        FTAU %f\n", hmm->evparam[p7_FTAU]))                                  < 0) return eslEWRITE;
-      if ((offset =sprintf(ret_hmm + coffset, "STATS LOCAL        FTAUFS %f\n", hmm->evparam[p7_FTAUFS]))                                  < 0) return eslEWRITE;
       coffset += offset;
+      if(hmm->abc->type == eslAMINO) {
+        if ((offset =sprintf(ret_hmm + coffset, "STATS LOCAL        FTAUFS %f\n", hmm->evparam[p7_FTAUFS]))                                  < 0) return eslEWRITE;
+      	coffset += offset;
+      }
     }else{
       if ((offset =sprintf(ret_hmm + coffset, "STATS LOCAL MSV      %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]))  < 0) return eslEWRITE;
       coffset += offset;
       if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL VITERBI  %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA])) < 0) return eslEWRITE;
       coffset += offset;
       if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
-      if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FRAMESHIFT FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
       coffset += offset;
+      if(hmm->abc->type == eslAMINO) {
+        if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FRAMESHIFT FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
+        coffset += offset;
+      }
     }
   }
 
@@ -1306,7 +1324,6 @@ read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
   char         *tok2 = NULL;
   char         *tok3 = NULL;
   char         *tok4 = NULL;
-  char	       *tok5 = NULL; 
   int           alphatype;
   int           k,x;
   off_t         offset = 0;
@@ -1772,7 +1789,6 @@ read_asc20hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
   char         *tok1 = NULL;
   char         *tok2 = NULL;
   char         *tok3 = NULL;
-  char         *tok4 = NULL;
   float         null[p7_MAXABET];
   int           alphatype;
   int           k,x;

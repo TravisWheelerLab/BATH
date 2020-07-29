@@ -601,7 +601,6 @@ search_thread(void *arg)
   esl_threads_Started(obj, &workeridx);
 
   info = (WORKER_INFO *) esl_threads_GetData(obj, workeridx);
-
   w    = esl_stopwatch_Create();
   bg   = p7_bg_Create(info->abc);
   esl_stopwatch_Start(w);

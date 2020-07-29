@@ -625,6 +625,7 @@ int
 p7_fs_profile_IsMultihit(const P7_FS_PROFILE *gm)
 {
   if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL) return TRUE;
+   return FALSE;
 }
 
 

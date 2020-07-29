@@ -1484,7 +1484,7 @@ extern int p7_Lambda(P7_HMM *hmm, P7_BG *bg, double *ret_lambda);
 extern int p7_MSVMu     (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_mmu);
 extern int p7_ViterbiMu (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_vmu);
 extern int p7_Tau       (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
-extern int p7_fs_Tau       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau);
 
 /* eweight.c */
 extern int p7_EntropyWeight(const P7_HMM *hmm, const P7_BG *bg, const P7_PRIOR *pri, double infotarget, double *ret_Neff);
@@ -1504,10 +1504,10 @@ extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* fwdback_frameshift.c */
-extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_ForwardParser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_ForwardParser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 
 
 /* generic_msv.c */
@@ -1590,7 +1590,7 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
-extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode);
+extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode, float indel_cost);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
@@ -1686,8 +1686,8 @@ extern int    p7_bg_Write(FILE *fp, P7_BG *bg);
 
 extern int    p7_bg_SetFilter  (P7_BG *bg, int M, const float *compo);
 extern int    p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-extern int      p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs, const ESL_GENCODE *gcode, int L, float indel_cost, float *ret_sc);
-extern int      p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm_fs, ESL_HMX *fwd, float *opt_sc);
+extern int      p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs, const ESL_GENCODE *gcode, int L, float *ret_sc);
+extern int      p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm_fs, ESL_HMX *fwd, float *opt_sc);
 
 /* p7_builder.c */
 extern P7_BUILDER *p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc);
@@ -1723,7 +1723,7 @@ extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *nt
                                           P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
 extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, 
 		P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
-                P7_BG *bg, const ESL_GENCODE *gcode, int window_start, int window_len, float indel_cost, float F3, int do_biasfilter);
+                P7_BG *bg, const ESL_GENCODE *gcode, int64_t window_start, float F3, int do_biasfilter);
 extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const ESL_SQ *ntsq, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
            P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 

@@ -2519,7 +2519,6 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 
 
 
-
 /* Function:  p7_pli_postViterbi_Frameshift()
  * Synopsis:  the part of the Frameshift P7 search Pipeline downstream
  *            of the Viterbi filter
@@ -2562,7 +2561,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 static int
 p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
                               int64_t seqidx, int window_start, int window_len, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode,
-                              P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp, int complementarity, float orfsc 
+                              P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp, int complementarity, double orfP 
 )
 {
 
@@ -2574,38 +2573,30 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   float            nullsc;                 /* null one score for forward filter                            */
   float            filtersc;               /* total filtersc for forward filter                            */
   float            seq_score;              /* the corrected per-seq bit score                              */
-  //float            seqbias;                /* the final sequence bias score                                */
-  //float            pre_score, pre2_score;  /* uncorrected bit scores for seq */ 
-  //float            sum_score;              /* corrected bit scores for seq */
+  float            orfsc;
   double           P;                      /* P-value of a hit */
-  //double           lnP;                    /* log P-value of a hit */
-  //int              Ld;                     /* # of residues in envelopes */
   int              f;
   int              status;
-  //int              ali_len;
   int              F3_L = ESL_MIN( window_len,  pli->B3);
-  //int64_t           orf_start, orf_end;
-  /* adhoc nucleotide indel cost.  Eventually need to preform analysis to determine
-   * a viable range for this probability and the corresponding flase positive range,
-   * and then create a default and a user tuneable option flag                      */
-  float             indel_cost = 0.01;
-
-  subseq = dnasq->dsq + window_start - 1;
   
+  subseq = dnasq->dsq + window_start - 1;
+// printf("postViterbi\n");	
   p7_bg_fs_SetLength(bg, window_len); // For bg model loop first two nucleotides have 0 probabilty 
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
   p7_bg_fs_NullOne(bg, subseq, window_len-2, &nullsc);
  
   if (pli->do_biasfilter)
   {
-    p7_bg_fs_FilterScore(bg, subseq, gm_fs, gcode, window_len, indel_cost, &bias_filtersc);
+    p7_bg_fs_FilterScore(bg, subseq, gm_fs, gcode, window_len, &bias_filtersc);
     bias_filtersc -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
   }  else
     bias_filtersc = 0;
 
   p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, window_len, window_len, p7P_CODONS);
   p7_fs_ReconfigLength(gm_fs, window_len);
-  p7_ForwardParser_Frameshift(subseq, gcode, indel_cost, window_len, gm_fs, pli->gxf, &fwdsc);
+//	printf("Before ForwardParser_Frameshift\n");
+  p7_ForwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxf, &fwdsc);
+//	printf("After ForwardParser_Frameshift\n");
 //FILE *out = fopen("fathmmout.txt","w");
 //p7_gmx_fs_Dump(out,  pli->gxf, p7_DEFAULT);
 
@@ -2632,10 +2623,11 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
   /* now that the window have passed the forward filter we must deterimine if it is 
    * better to handel it as a frameshited nucleotide sequence or as non-framshifted 
-   * ORFs by comparing the forward filter scores */
+   * ORFs by comparing the forward filter P scores */
 
-  if(seq_score < orfsc) 
+  if(orfP < P) 
   {
+//	printf("ORF wins\n");
     /* ORFs win - this sequence is not frameshifted so pass ORFs to faster protien 
      * to protien routines*/
 
@@ -2645,7 +2637,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
       p7_bg_SetLength(bg, curr_orf->n);
       p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc);
-      if (pli->do_biasfilter) 
+     if (pli->do_biasfilter) 
         p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc);
       else filtersc = nullsc;
 
@@ -2672,16 +2664,17 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    } 
 
   } else {
+//	printf("DNA wins\n");
     /* DNA wins - the sequence is frameshifted so pass windoe to frameshift aware
      * translated routines*/ 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, window_len, 0);
-    p7_BackwardParser_Frameshift(subseq, gcode, indel_cost, window_len, gm_fs, pli->gxb, &bwdsc);
+    p7_BackwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxb, &bwdsc);
     p7_bg_fs_SetLength(bg, window_len);
-
+//	printf("Before ByPosteriorHeuristics_Frameshift\n");
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, gm_fs, 
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, pli_tmp->bg, gcode,
-           window_start, window_len, indel_cost, pli->F3, pli->do_biasfilter); 
- 
+           window_start, pli->F3, pli->do_biasfilter); 
+ //	printf("After ByPosteriorHeuristics_Frameshift\n");
     pli_tmp->tmpseq->dsq = dsq_holder;
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
@@ -2764,9 +2757,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   float              vfsc;             /* viterbi score                           */
   float              fwdsc;
   float              seq_score;        /* null corrected bit score                */
+  float              tot_score;
   float              filtersc;         /* bias and null score                     */
-  float              tot_orfsc;
-  double             P;
+  double             P,orfP;
   int                window_start;     /* DNA window coordinates                  */
   //int                window_end;
   int                window_len;
@@ -2781,7 +2774,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;
-//printf("HMM %s SEQ %s\n", gm->name, dnasq->name);
+  //printf("HMM %s SEQ %s\n", gm->name, dnasq->name);
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   fwd_orf_block = NULL;
@@ -2892,7 +2885,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
     window_start = post_vit_windowlist.windows[i].n;
     window_len   = post_vit_windowlist.windows[i].length; 
     if (window_len < 15) continue;
-    tot_orfsc = 0.0;
+    
+    tot_score = 0.;
+
     for(f = 0; f < post_vit_orf_block->count; ++f) {
       orfsq = &(post_vit_orf_block->list[f]);
 
@@ -2909,14 +2904,16 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
         p7_ForwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, &fwdsc);
         
         seq_score = (fwdsc-nullsc) / eslCONST_LOG2;
-	
+        tot_score += seq_score;
+
         esl_sq_Copy(orfsq, &(fwd_orf_block->list[fwd_orf_block->count]));
         fwd_orf_block->count++;
-	tot_orfsc += seq_score;
       }	
     }
+//	printf("ORFS %d\n", fwd_orf_block->count);
+    orfP = esl_exp_surv(tot_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
      
-    p7_pli_postViterbi_Frameshift(pli, om, gm, gm_fs, bg, hitlist, seqidx, window_start, window_len, fwd_orf_block, dnasq, gcode, pli_tmp, complementarity, tot_orfsc);
+    p7_pli_postViterbi_Frameshift(pli, om, gm, gm_fs, bg, hitlist, seqidx, window_start, window_len, fwd_orf_block, dnasq, gcode, pli_tmp, complementarity, orfP);
    
     esl_sq_ReuseBlock(fwd_orf_block);
   }

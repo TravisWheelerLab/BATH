@@ -50,7 +50,7 @@
  * Return:    <eslOK> on success.
  */
 int
-p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
+p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
 { 
 
   float const *tsc  = gm_fs->tsc;
@@ -354,7 +354,7 @@ ERROR:
  * Return:    <eslOK> on success.
  */
 int
-p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
+p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
 { 
 
   float const *tsc  = gm_fs->tsc;
@@ -665,7 +665,7 @@ ERROR:
  * Return:    <eslOK> on success.
  */
 int
-p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
+p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
 {
 
   float const *tsc  = gm_fs->tsc;
@@ -678,9 +678,6 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
   //float        sc;
   float       *iv   = NULL;
-  //float        one_indel = log(indel_cost);
-  //float        two_indel = log(indel_cost / 2);
-  //float        no_indel  = log(1.0 - (indel_cost * 3));
   ESL_DSQ      t, u, v, w, x;
   //float        tmp_b;
 
@@ -944,7 +941,7 @@ ERROR:
  * Return:    <eslOK> on success.
  */
 int
-p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float indel_cost, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
+p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
 {
 
   float const *tsc  = gm_fs->tsc;
@@ -957,9 +954,6 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, float
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
   //float        sc;
   float       *iv   = NULL;
-  //float        one_indel = log(indel_cost);
-  //float        two_indel = log(indel_cost / 2);
-  //float        no_indel  = log(1.0 - (indel_cost * 3));
   ESL_DSQ      t, u, v, w, x;
   //float        tmp_b;
   int          curr, prev1, prev2, prev3, prev4, prev5;

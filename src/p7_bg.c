@@ -618,13 +618,13 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
  *            by <bg->p1>) that the null1 model uses is imposed.
  */
 int
-p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, const ESL_GENCODE *gcode, int L, float indel_cost, float *ret_sc)
+p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, const ESL_GENCODE *gcode, int L, float *ret_sc)
 {
   ESL_HMX *hmx = esl_hmx_Create(L+2, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
- 
+//	printf("L+2 %d M %d\n", L+2, bg->fhmm->M); 
   float nullsc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
-  
-  p7_bg_fs_Forward(dsq, L, indel_cost, gcode, bg->fhmm, gm, hmx, &nullsc);
+	
+  p7_bg_fs_Forward(dsq, L, gcode, bg->fhmm, gm, hmx, &nullsc);
    
   /* impose the length distribution */
   *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
@@ -633,7 +633,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, con
 }
 
 int
-p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm, ESL_HMX *fwd, float *opt_sc)
+p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm, ESL_HMX *fwd, float *opt_sc)
 {
   int   i, k, m;
   int   a, v, w, x;
@@ -642,29 +642,30 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
   float max;
 
   fwd->sc[0] = 0.0;
-
+	
   if (L == 0) {
     fwd->sc[L+1] = logsc = log(hmm->pi[M]);
     if (opt_sc != NULL) *opt_sc = logsc;
     return eslOK;
   }
-
+	
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) w = dsq[1];
   else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[1]))
   {
     for(w = 0; w < gcode->nt_abc->K; w++)
        if(gcode->nt_abc->degen[dsq[1]][w]) break;
   }
-
+	
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
   else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[2]))
   {
     for(x = 0; x < gcode->nt_abc->K; x++)
        if(gcode->nt_abc->degen[dsq[2]][x]) break;
   }
-
+	
   for (i = 3; i < 6; i++)
   {
+//	printf("i %d\n", i);
     max = 0.0;
     v = w;
     w = x;
@@ -674,10 +675,10 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
       for(x = 0; x < gcode->nt_abc->K; x++)
         if(gcode->nt_abc->degen[dsq[i]][x]) break;
     }
-
     for (k = 0; k < M; k++) {
+//	printf("k %d\n", k);
       a = gcode->basic[v*16+w*4+x];
-      fwd->dp[i][k] = hmm->eo[a][k]; 
+      fwd->dp[i][k] = hmm->eo[a][k];
       max = ESL_MAX(fwd->dp[i][k], max);
     }
     for (k = 0; k < M; k++) {
@@ -685,7 +686,6 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
     }
     fwd->sc[i] = log(max); 
   }
-
   for (i = 6; i <= L; i++)
     { 
       max = 0.0;
@@ -717,7 +717,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
      }
       fwd->sc[i] = log(max);
     }
-
+	
   fwd->sc[L+1] = 0.0;
   fwd->sc[L+2] = 0.0;
   fwd->sc[L+3] = 0.0;
@@ -727,7 +727,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, float indel_cost, const ESL_GENCODE 
     fwd->sc[L+2] += fwd->dp[L-1][m] * hmm->t[m][M];
     fwd->sc[L+3] += fwd->dp[L  ][m] * hmm->t[m][M];
   }  
-
+	
   fwd->sc[L+1] = log(fwd->sc[L+1]);
   fwd->sc[L+2] = log(fwd->sc[L+2]);
   fwd->sc[L+3] = log(fwd->sc[L+3]);

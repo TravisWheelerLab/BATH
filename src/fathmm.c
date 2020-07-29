@@ -122,14 +122,17 @@ static ESL_OPTIONS options[] = {
 #endif
 
   /* name           type        default  env  range toggles reqs incomp  help                                          docgroup*/
-  { "-c",         eslARG_INT,       "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table <n>", 15 },
+  { "-c",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table <n>", 15 },
+  { "-f",         eslARG_REAL,      "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty", 15 },
   { "-l",         eslARG_INT,      "20", NULL, NULL, NULL,  NULL, NULL,  "minimum ORF length",                            15 },
   { "-m",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-M",  "ORFs must initiate with AUG only",              15 },
   { "-M",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-m",  "ORFs must start with allowed initiation codon", 15 },
   { "--informat", eslARG_STRING,  FALSE, NULL, NULL, NULL,  NULL, NULL,  "specify that input file is in format <s>",      15 },
   { "--rosalind",   eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, NULL,  "only translate top strand",                     15 },
   { "--franklin",    eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, NULL,  "only translate bottom strand",                  15 },
-
+   { "--crick",   eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, NULL,  "only translate top strand",                     15 },
+  { "--watson",    eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, NULL,  "only translate bottom strand",                  15 },
+  
   /* Restrict search to subset of database - hidden because these flags are
    *   (a) currently for internal use
    *   (b) probably going to change
@@ -181,6 +184,15 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
 {
   ESL_GETOPTS *go = esl_getopts_Create(options);
   int          status;
+  int          i;
+
+  for(i = 0; i < argc; i++) 
+  {
+    if(strcmp(argv[i], "--rosalind") == 0)
+      argv[i] = "--crick";
+    else if(strcmp(argv[i], "--franklin") == 0)
+      argv[i] = "--watson";
+  }
 
   if (esl_opt_ProcessEnvironment(go)         != eslOK)  { if (printf("Failed to process environment: %s\n", go->errbuf) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed"); goto FAILURE; }
   if (esl_opt_ProcessCmdline(go, argc, argv) != eslOK)  { if (printf("Failed to parse command line: %s\n",  go->errbuf) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed"); goto FAILURE; }
@@ -212,8 +224,11 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
       if (puts("\nOther expert options:")                                    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 12, 2, 80); 
       
-      if (puts("\nTranslation options:")                                    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nTranslation and frameshift options:")                      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 15, 2, 80); 
+
+      if (puts("\nAvailable NCBI genetic code tables (for -c <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_gencode_DumpAltCodeTable(stdout);
 
 	  exit(0);
     }
@@ -294,6 +309,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--cpu")        && fprintf(ofp, "# number of worker threads:        %d\n",             esl_opt_GetInteger(go, "--cpu"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
 #endif
   if (esl_opt_IsUsed(go, "-c")           && fprintf(ofp, "# use alt genetic code of NCBI transl table: %d\n",             esl_opt_GetInteger(go, "-c")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "-f")           && fprintf(ofp, "# frameshift probability: %f\n",             esl_opt_GetReal(go, "-f")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-l")           && fprintf(ofp, "# minimum ORF length: %d\n",                           esl_opt_GetInteger(go, "-l"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-m")           && fprintf(ofp, "# ORFs must initiate with AUG only:    yes\n")                                                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-M")           && fprintf(ofp, "# ORFs must start with allowed initiation codon:    yes\n")                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -390,6 +406,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              hstatus  = eslOK;
   int              sstatus  = eslOK;
   int              i, d;
+  float            indel_cost;
   double           resCnt    = 0;
   double           tau_fs; 
   /* used to keep track of the lengths of the sequences that are processed */
@@ -507,6 +524,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   gcode = esl_gencode_Create(abcDNA, abc);
   esl_gencode_Set(gcode, esl_opt_GetInteger(go, "-c"));  // default = 1, the standard genetic code
 
+  /* Get the frameshift probablity */
+  indel_cost = esl_opt_GetReal(go, "-f");
+
   if      (esl_opt_GetBoolean(go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
   else if (! esl_opt_GetBoolean(go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m or -M are set
 
@@ -562,14 +582,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       p7_oprofile_Convert(gm, om);                  /* <om> is now p7_LOCAL, multihit */
 
-      if( ! hmm->evparam[p7_FTAUFS])
+      if( ! hmm->evparam[p7_FTAUFS] || ! esl_opt_IsDefault(go, "-f"))
       {
         if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
-	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
       }
       else
-        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
+        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL, indel_cost);
 
       /* Create processing pipeline and hit list accumulators */
       tophits_accumulator  = p7_tophits_Create(); 
@@ -577,9 +597,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       pipelinehits_accumulator->nmodels = 1;
       pipelinehits_accumulator->nnodes = hmm->M;
 
-	  scoredata = p7_hmm_ScoreDataCreate(om, NULL);
-      
-	  for (i = 0; i < infocnt; ++i)
+      scoredata = p7_hmm_ScoreDataCreate(om, NULL);
+
+      for (i = 0; i < infocnt; ++i)
       {
         /* Create processing pipeline and hit list */
         info[i].gcode = gcode;
@@ -596,9 +616,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
         info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
 
-        if (  esl_opt_IsUsed(go, "--rosalind") )
+        if (  esl_opt_IsUsed(go, "--crick") )
           info[i].pli->strands = p7_STRAND_TOPONLY;
-        else if (  esl_opt_IsUsed(go, "--franklin") )
+        else if (  esl_opt_IsUsed(go, "--watson") )
           info[i].pli->strands = p7_STRAND_BOTTOMONLY;
         else
           info[i].pli->strands = p7_STRAND_BOTH;
@@ -887,7 +907,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
       block->count = 0;
       sstatus = eslEOF;
     } else {
-      sstatus = esl_sqio_ReadBlock(dbfp, block, info->pli->block_length, n_targetseqs, TRUE);
+      sstatus = esl_sqio_ReadBlock(dbfp, block, info->pli->block_length, n_targetseqs, FALSE, TRUE);
     }
 
     block->first_seqidx = info->pli->nseqs;

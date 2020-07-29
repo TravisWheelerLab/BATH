@@ -210,7 +210,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode)
+p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode, float indel_cost)
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
@@ -225,7 +225,6 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    max_sc[16];
   float    max_aa[10];
   float    max_pos[10];
-  float    indel_cost = 0.01;
   float    one_indel  = log(indel_cost);
   float    two_indel  = log(indel_cost/2);
   float    no_indel   = log(1.-indel_cost);

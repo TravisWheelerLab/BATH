@@ -245,7 +245,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             keylen;
   int             keyidx;
   int             status;
-  
+  float           indel_cost = 0.01;  
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
   esl_fileparser_SetCommentChar(efp, '#');
 
@@ -269,12 +269,12 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hfp->fname);
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
 
-	  if( hmm->abc == eslAMINO && ! hmm->evparam[p7_FTAUFS])
+	  if( hmm->abc->type == eslAMINO && ! hmm->evparam[p7_FTAUFS])
       	{
           r = esl_randomness_CreateFast(42);
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
           bg = p7_bg_Create(hmm->abc);
-          p7_fs_Tau(r, gm_fs, hmm, bg, 300, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          p7_fs_Tau(r, gm_fs, hmm, bg, 300, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS] = tau_fs;
         }
 	  if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
@@ -316,7 +316,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
   int             status;
-
+  float           indel_cost = 0.01;
   if (hfp->ssi != NULL)
     {
       status = p7_hmmfile_PositionByKey(hfp, key);
@@ -339,12 +339,12 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   
   if (status == eslOK) 
     {
-      if(hmm->abc == eslAMINO && ! hmm->evparam[p7_FTAUFS])
+      if(hmm->abc->type == eslAMINO && ! hmm->evparam[p7_FTAUFS])
       {
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
         bg = p7_bg_Create(hmm->abc);
-        p7_fs_Tau(r, gm_fs, hmm, bg, 300, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        p7_fs_Tau(r, gm_fs, hmm, bg, 300, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS] = tau_fs;
       }
 

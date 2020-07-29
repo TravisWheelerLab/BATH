@@ -58,7 +58,6 @@ typedef struct {
   int              *blk_size;    /* sequences per block              */
   int              *limit;       /* point to decrease block size     */
   int              *inx;         /* next index to process            */
-
   P7_HMM           *hmm;         /* query HMM                        */
   ESL_SQ           *seq;         /* query sequence                   */
   ESL_ALPHABET     *abc;         /* digital alphabet                 */

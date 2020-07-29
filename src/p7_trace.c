@@ -1072,7 +1072,7 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
 	    }
 	  else tsc = 0.0f;
 
-	  fprintf(fp, "%1s  %4d %6d  %8.4f", p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
+	  fprintf(fp, "%1s  %4d %6d %4d %8.4f", p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
 	  sc += tsc;
 	  
 	  if (dsq != NULL) {
@@ -1315,7 +1315,6 @@ p7_trace_fs_SetPP(P7_TRACE *tr, const P7_GMX *pp)
   float **dp  = pp->dp;		/* so {MDI}MX() macros work */
   float  *xmx = pp->xmx;	/* so XMX() macro works     */
   int z;
-  int codon;
   int status;
 
   if (tr->pp == NULL) ESL_ALLOC(tr->pp, sizeof(float) * tr->nalloc);

@@ -642,10 +642,10 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *nt
   int saveL     = gm_fs->L;     /* Save the length config of <om>; will restore upon return */
   int save_mode = gm_fs->mode;  /* Likewise for the mode. */
   int status;
- //	printf("Before DomainDecoding_Frameshift\n"); 
+ 
   if ((status = p7_domaindef_GrowTo(ddef, sq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding_Frameshift(gm_fs, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
-//	printf("After DomainDecoding_Frameshift\n");
+
   esl_vec_FSet(ddef->n2sc, sq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[sq->n];             /* posterior expectation for # of domains (same as etot[sq->n])   */
   p7_fs_ReconfigUnihit(gm_fs, saveL);     /* process each domain in unihit mode, regardless of om->mode     */
@@ -729,9 +729,9 @@ if (is_multidomain_region_fs(ddef, i, j))
         p7_fs_ReconfigMultihit(gm_fs, saveL);
          p7_Forward_Frameshift(sq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
 //printf("i %d j %d, saveL %d\n", i, j, saveL);
-//	printf("Before region_trace_ensemble_frameshift\n");
+
        region_trace_ensemble_frameshift(ddef, gm_fs, sq->dsq, sq->abc, i, j, fwd, bck, &nc);
-    //	printf("After region_trace_ensemble_frameshift\n");
+
        p7_fs_ReconfigUnihit(gm_fs, saveL);
        
        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
@@ -761,9 +761,7 @@ if (is_multidomain_region_fs(ddef, i, j))
           * happens. [xref J5/130].
           */
           ddef->nenvelopes++;         
-  //    		printf("Before rescore_isolated_domain_frameshift\n");
          if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, sq, ntsq, fwd, bck, i2, j2, TRUE, bg, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
-//		printf("After rescore_isolated_domain_frameshift\n");
         }
 
         p7_spensemble_Reuse(ddef->sp);
@@ -771,9 +769,7 @@ if (is_multidomain_region_fs(ddef, i, j))
 
      } else {
 	ddef->nenvelopes++;
-//	printf("Before rescore_isolated_domain_frameshift\n");
        rescore_isolated_domain_frameshift(ddef, gm, gm_fs,sq, ntsq, fwd, bck, i, j, FALSE, bg, gcode, F3, do_biasfilter);
-      // printf("After rescore_isolated_domain_frameshift\n");
 
    }
 
@@ -1734,43 +1730,27 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
  
   if (Ld < 15) return eslOK;
 
-//	printf("AAAAAAAAAAA\n");
   p7_fs_ReconfigLength(gm_fs, Ld);
-//	printf("BBBBBBBBBBBBB\n"); 
   p7_bg_SetLength(bg, Ld);
-//	printf("CCCCCCCCCCC\n");
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
   p7_bg_NullOne(bg, sq->dsq+i-1, Ld-2, &nullsc);
-//	printf("DDDDDDDDDDDDDd\n");
   if (do_biasfilter){
-//	printf("EEEEEEEEEEEEE\n");
     p7_bg_fs_FilterScore(bg, sq->dsq+i-1, gm_fs, gcode, Ld, &filtersc);
-//	printf("FFFFFFFFFFF\n");
   }
   else
     filtersc = nullsc;
-//	printf("Before  p7_Forward_Frameshift\n");
   p7_Forward_Frameshift(sq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
-//	printf("After p7_Forward_Frameshift\n");
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
   //printf("P %f F3 %f seq %f fwd %f filter %f\n", P, F3, seq_score, envsc, filtersc);
 
   if (P > F3 ) return eslOK;
-  //	printf("Before Backward_Frameshift\n");
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, Ld, gm_fs, gx2, &bcksc);
-//	printf("After Backward_Frameshift\n");
   gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS);
-//	printf("Before Decoding_Frameshift\n");
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
-//	printf("After Decoding_Frameshift\n");
   /* Find an optimal accuracy alignment */
-//  printf("Before OptimalAccuracy_Frameshift\n");
   p7_OptimalAccuracy_Frameshift(gm_fs, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores */
-  // printf("After OptimalAccuracy_Frameshift\n");
-//	printf("Before OATrace_Frameshift\n");
   p7_OATrace_Frameshift(gm_fs, gxppfs, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-//	printf("After OATrace_Frameshift\n");
   p7_gmx_Destroy(gxppfs);
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1783,9 +1763,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   }
   
   dom = &(ddef->dcl[ddef->ndom]);
-	printf("Before p7_alidisplay_fs_Create\n");
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, sq, gcode);
- 	printf("After p7_alidisplay_fs_Create\n");
   dom->scores_per_pos = NULL; 
   dom->envsc = envsc; 
   /* Compute bias correction (for non-longtarget case)

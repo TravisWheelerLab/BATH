@@ -742,7 +742,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         n5 = ' ';
 
         a = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
-	if(a == 27) ad->frameshifts++;
 
 	ad->aseq  [z-z1] = tolower(alphaAmino[a]);
         ad->ntseq [5*(z-z1)] = ' ';

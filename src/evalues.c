@@ -74,7 +74,6 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   int             status;
   P7_FS_PROFILE     *gm_fs  = NULL;  
 
-  float indel_cost = 0.01;
   /* Configure any objects we need
    * that weren't already passed to us as a bypass optimization 
    */
@@ -109,7 +108,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
   if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
   if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
-  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau   (r, gm_fs, hmm, bg, EfL, EfN, indel_cost, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd frameshifted tau");
+  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau   (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd frameshifted tau");
 
   /* Store results */
   hmm->evparam[p7_MLAMBDA] = om->evparam[p7_MLAMBDA] = lambda;
@@ -540,6 +539,8 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   char *n2 = NULL; 
   char *n3 = NULL;
 
+  hmm->fs = indel_cost;
+ 
   abcDNA = esl_alphabet_Create(eslDNA);
   ESL_ALLOC(n1,   sizeof(char)   * abcDNA->K);
   ESL_ALLOC(n2,   sizeof(char)   * abcDNA->K);
@@ -561,7 +562,7 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
 
   esl_vec_FSet(f, abcDNA->K, 1. / (float) abcDNA->K);
   
-  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL, indel_cost);
+  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
   p7_fs_ReconfigLength(gm_fs, L*3);
   p7_bg_SetLength(bg, L);
 

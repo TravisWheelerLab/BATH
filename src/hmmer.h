@@ -164,6 +164,7 @@ typedef struct p7_hmm_s {
   float **t;                    /* transition prob's. t[(0),1..M][0..p7H_NTRANSITIONS-1]   */
   float **mat;                  /* match emissions.  mat[1..M][0..K-1]                     */ 
   float **ins;                  /* insert emissions. ins[1..M][0..K-1]                     */
+  float   fs;                   /* frameshift probability.                                 */
   /*::cexcerpt::plan7_core::end::*/
 
   /* Annotation. Everything but <name> is optional. Flags are set when
@@ -1416,6 +1417,7 @@ typedef struct p7_builder_s {
   enum p7_archchoice_e arch_strategy;    /* choice of model architecture determination algorithm   */
   float                symfrac;           /* residue occ thresh for fast architecture determination */
   float                fragthresh;   /* if L <= fragthresh*alen, seq is called a fragment      */
+  float                fs;           /* frameshift probability                                 */
 
   /* Relative sequence weights                                                                     */
   enum p7_wgtchoice_e  wgt_strategy;     /* choice of relative sequence weighting algorithm        */
@@ -1590,7 +1592,7 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
-extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode, float indel_cost);
+extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);

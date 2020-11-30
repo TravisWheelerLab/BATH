@@ -210,7 +210,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode, float indel_cost)
+p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode)
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
@@ -225,9 +225,9 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    max_sc[16];
   float    max_aa[10];
   float    max_pos[10];
-  float    one_indel  = log(indel_cost);
-  float    two_indel  = log(indel_cost/2);
-  float    no_indel   = log(1.- indel_cost*3);
+  float    one_indel  = log(hmm->fs);
+  float    two_indel  = log(hmm->fs/2);
+  float    no_indel   = log(1.- hmm->fs*3);
 
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");

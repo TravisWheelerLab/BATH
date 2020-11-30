@@ -84,6 +84,7 @@ p7_hmm_CreateShell(void)
   hmm->t          = NULL;
   hmm->mat        = NULL;
   hmm->ins        = NULL;
+  hmm->fs         = 0.;
 
   hmm->name       = NULL;
   hmm->acc        = NULL;

@@ -123,7 +123,7 @@ static ESL_OPTIONS options[] = {
 
   /* name           type        default  env  range toggles reqs incomp  help                                          docgroup*/
   { "-c",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table <n>", 15 },
-  { "-f",         eslARG_REAL,      "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty", 15 },
+  { "--fs",         eslARG_REAL,      "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty", 15 },
   { "-l",         eslARG_INT,      "20", NULL, NULL, NULL,  NULL, NULL,  "minimum ORF length",                            15 },
   { "-m",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-M",  "ORFs must initiate with AUG only",              15 },
   { "-M",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-m",  "ORFs must start with allowed initiation codon", 15 },
@@ -309,7 +309,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--cpu")        && fprintf(ofp, "# number of worker threads:        %d\n",             esl_opt_GetInteger(go, "--cpu"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
 #endif
   if (esl_opt_IsUsed(go, "-c")           && fprintf(ofp, "# use alt genetic code of NCBI transl table: %d\n",             esl_opt_GetInteger(go, "-c")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "-f")           && fprintf(ofp, "# frameshift probability: %f\n",             esl_opt_GetReal(go, "-f")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--fs")           && fprintf(ofp, "# frameshift probability: %f\n",             esl_opt_GetReal(go, "--fs")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-l")           && fprintf(ofp, "# minimum ORF length: %d\n",                           esl_opt_GetInteger(go, "-l"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-m")           && fprintf(ofp, "# ORFs must initiate with AUG only:    yes\n")                                                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-M")           && fprintf(ofp, "# ORFs must start with allowed initiation codon:    yes\n")                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -525,8 +525,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   esl_gencode_Set(gcode, esl_opt_GetInteger(go, "-c"));  // default = 1, the standard genetic code
 
   /* Get the frameshift probablity */
-  indel_cost = esl_opt_GetReal(go, "-f");
-
+  indel_cost = esl_opt_GetReal(go, "--fs");
+ 
   if      (esl_opt_GetBoolean(go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
   else if (! esl_opt_GetBoolean(go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m or -M are set
 
@@ -582,14 +582,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       p7_oprofile_Convert(gm, om);                  /* <om> is now p7_LOCAL, multihit */
 
-      if( ! hmm->evparam[p7_FTAUFS] || ! esl_opt_IsDefault(go, "-f"))
+      if( ! hmm->fs || hmm->fs != indel_cost)
       {
         if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
 	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
       }
       else
-        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL, indel_cost);
+        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
 
       /* Create processing pipeline and hit list accumulators */
       tophits_accumulator  = p7_tophits_Create(); 

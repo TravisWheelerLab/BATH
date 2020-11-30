@@ -160,7 +160,7 @@ p7_Fastmodelmaker(ESL_MSA *msa, float symfrac, P7_BUILDER *bld, P7_HMM **ret_hmm
   int      apos;             /* counter for aligned columns         */
   float    r;		         /* weighted residue count              */
   float    totwgt;	     /* weighted residue+gap count          */
-
+  
   if (! (msa->flags & eslMSA_DIGITAL)) ESL_XEXCEPTION(eslEINVAL, "need digital MSA");
 
   /* Allocations: matassign is 1..alen array of bit flags.
@@ -293,9 +293,8 @@ matassign2hmm(ESL_MSA *msa, int *matassign, P7_HMM **ret_hmm, P7_TRACE ***opt_tr
 
   hmm->nseq     = msa->nseq;
   hmm->eff_nseq = msa->nseq;
-
-  /* Transfer annotation from the MSA to the new model
-   */
+ 
+  /* Transfer annotation from the MSA to the new model   */
   if ((status = annotate_model(hmm, matassign, msa)) != eslOK) goto ERROR;
 
   /* Reset #=RF line of alignment to reflect our assignment

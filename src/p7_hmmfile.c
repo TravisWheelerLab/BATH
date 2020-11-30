@@ -610,10 +610,10 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
       if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL        FTAUFS %f\n", hmm->evparam[p7_FTAUFS])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
 
     } else {        /* default stats lines */
-      if (fprintf(fp, "STATS LOCAL MSV      %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if (fprintf(fp, "STATS LOCAL VITERBI  %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if (fprintf(fp, "STATS LOCAL FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FRAMESHIFT FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if (fprintf(fp, "STATS LOCAL MSV         %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if (fprintf(fp, "STATS LOCAL VITERBI     %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if (fprintf(fp, "STATS LOCAL FORWARD     %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FRAMESHIFT  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->fs) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
     }
   }
 
@@ -911,14 +911,14 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
       	coffset += offset;
       }
     }else{
-      if ((offset =sprintf(ret_hmm + coffset, "STATS LOCAL MSV      %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]))  < 0) return eslEWRITE;
+      if ((offset =sprintf(ret_hmm + coffset, "STATS LOCAL MSV         %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]))  < 0) return eslEWRITE;
       coffset += offset;
-      if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL VITERBI  %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA])) < 0) return eslEWRITE;
+      if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL VITERBI     %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA])) < 0) return eslEWRITE;
       coffset += offset;
-      if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
+      if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FORWARD     %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
       coffset += offset;
       if(hmm->abc->type == eslAMINO) {
-        if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FRAMESHIFT FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
+        if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FRAMESHIFT  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->fs)) < 0) return eslEWRITE;
         coffset += offset;
       }
     }
@@ -1479,10 +1479,10 @@ if (*ret_abc == NULL) {
 	    if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok4, NULL))   != eslOK)  ESL_XFAIL(status,     hfp->errbuf, "Too few fields on STATS line"); /* lambda */
 	    if (strcasecmp(tok1, "LOCAL") == 0)
 	      {
-		if      (strcasecmp(tok2, "MSV")     == 0)  { hmm->evparam[p7_MMU]  = atof(tok3); hmm->evparam[p7_MLAMBDA] = atof(tok4); statstracker |= 0x1; }
-		else if (strcasecmp(tok2, "VITERBI") == 0)  { hmm->evparam[p7_VMU]  = atof(tok3); hmm->evparam[p7_VLAMBDA] = atof(tok4); statstracker |= 0x2; }
-		else if (strcasecmp(tok2, "FORWARD") == 0)  { hmm->evparam[p7_FTAU] = atof(tok3); hmm->evparam[p7_FLAMBDA] = atof(tok4); statstracker |= 0x4; }
-                else if (strcasecmp(tok2, "FRAMESHIFT") == 0)  { hmm->evparam[p7_FTAUFS] = atof(tok4); statstracker |= 0x4; }
+		if      (strcasecmp(tok2, "MSV")     == 0)     { hmm->evparam[p7_MMU]  = atof(tok3);   hmm->evparam[p7_MLAMBDA] = atof(tok4); statstracker |= 0x1; }
+		else if (strcasecmp(tok2, "VITERBI") == 0)     { hmm->evparam[p7_VMU]  = atof(tok3);   hmm->evparam[p7_VLAMBDA] = atof(tok4); statstracker |= 0x2; }
+		else if (strcasecmp(tok2, "FORWARD") == 0)     { hmm->evparam[p7_FTAU] = atof(tok3);   hmm->evparam[p7_FLAMBDA] = atof(tok4); statstracker |= 0x4; }
+                else if (strcasecmp(tok2, "FRAMESHIFT") == 0)  { hmm->evparam[p7_FTAUFS] = atof(tok3); hmm->fs = atof(tok4); }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }

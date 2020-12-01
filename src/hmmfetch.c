@@ -83,7 +83,7 @@ main(int argc, char **argv)
   if (esl_opt_VerifyConfig(go)               != eslOK) cmdline_failure(argv[0], "Error in configuration: %s\n",       go->errbuf);
   if (esl_opt_GetBoolean(go, "-h") )                   cmdline_help   (argv[0], go);
   if (esl_opt_ArgNumber(go) < 1)                       cmdline_failure(argv[0], "Incorrect number of command line arguments.\n");        
-  
+
   /* Check arguments. Consider three modes separately.
    */
   if (esl_opt_GetBoolean(go, "--index")) 
@@ -96,7 +96,6 @@ main(int argc, char **argv)
 
       if (strcmp(hmmfile, "-") == 0) cmdline_failure(argv[0], "Can't use - with --index, can't index <stdin>.\n");
     }
-
   else if (esl_opt_GetBoolean(go, "-f"))
     {
       if (esl_opt_ArgNumber(go) != 2) cmdline_failure(argv[0], "Incorrect number of command line arguments.\n");        
@@ -116,13 +115,15 @@ main(int argc, char **argv)
       keyfile = NULL;
       keyname = esl_opt_GetArg(go, 2);
     }
+
     
+   
   /* Open the HMM file.  */
   status  = p7_hmmfile_OpenE(hmmfile, NULL, &hfp, errbuf);
   if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", hmmfile, errbuf);
   else if (status == eslEFORMAT)   p7_Fail("File format problem in trying to open HMM file %s.\n%s\n",                hmmfile, errbuf);
   else if (status != eslOK)        p7_Fail("Unexpected error %d in opening HMM file %s.\n%s\n",                       status, hmmfile, errbuf);  
-
+  
  /* Open the output file, if any  */
   if (esl_opt_GetBoolean(go, "-O")) 
     {
@@ -135,7 +136,7 @@ main(int argc, char **argv)
 	esl_fatal("Failed to open output file %s\n", esl_opt_GetString(go, "-o"));
     }
   else ofp = stdout;
-
+ 
   
   /* Hand off to the appropriate routine */
   if     (esl_opt_GetBoolean(go, "--index"))  create_ssi_index(go, hfp);
@@ -250,15 +251,19 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
   esl_fileparser_SetCommentChar(efp, '#');
 
+
   while (esl_fileparser_NextLine(efp) == eslOK)
     {
       if (esl_fileparser_GetTokenOnLine(efp, &key, &keylen) != eslOK)
 	p7_Fail("Failed to read HMM name on line %d of file %s\n", efp->linenumber, keyfile);
-      
+
+     
       status = esl_keyhash_Store(keys, key, -1, &keyidx);
       if (status == eslEDUP) p7_Fail("HMM key %s occurs more than once in file %s\n", key, keyfile);
-	
+
+
       if (hfp->ssi != NULL) { onefetch(go, ofp, key, hfp);  nhmm++; }
+
     }
 
   if (hfp->ssi == NULL) 
@@ -289,8 +294,8 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  p7_hmm_Destroy(hmm);
 	}
     }
- 
-  if(bg != NULL)    p7_bg_Destroy(bg);
+
+   if(bg != NULL)    p7_bg_Destroy(bg);
   if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
   if(r != NULL)     esl_randomness_Destroy(r); 
   if (ofp != stdout) printf("\nRetrieved %d HMMs.\n", nhmm);
@@ -318,7 +323,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
   int             status;
-  
+
   if (hfp->ssi != NULL)
     {
       status = p7_hmmfile_PositionByKey(hfp, key);
@@ -338,7 +343,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       p7_hmm_Destroy(hmm);
       hmm = NULL;
     }
-  
+
   if (status == eslOK) 
     {
       if(hmm->abc->type == eslAMINO && esl_opt_IsUsed(go, "--fs"))
@@ -355,7 +360,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       p7_hmm_Destroy(hmm);
     }
   else p7_Fail("HMM %s not found in file %s\n", key, hfp->fname);
-
+	
   if(bg != NULL)    p7_bg_Destroy(bg);
   if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
   if(r != NULL)     esl_randomness_Destroy(r);

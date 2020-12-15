@@ -1949,7 +1949,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 	
   p7_Forward (orfsq->dsq + i-1, Ld, om,      ox1, &envsc);
   p7_Backward(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc);
-    
+   
   status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
  
@@ -1992,15 +1992,15 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   {
     dom->iali          = dom->ad->sqfrom;
     dom->jali          = dom->ad->sqto;
-    dom->ienv          = orfsq->start + i*3 - 2;
-    dom->jenv          = orfsq->start + j*3;
+    dom->ienv          = i; //orfsq->start + i*3 - 2;
+    dom->jenv          = j; //orfsq->start + j*3;
   }
   else
   {
     dom->iali          = dom->ad->sqto - 2;
     dom->jali          = dom->ad->sqfrom;
-    dom->ienv          = orfsq->start - i*3 + 2;
-    dom->jenv          = orfsq->start - j*3;
+    dom->ienv          = i; //orfsq->start - i*3 + 2;
+    dom->jenv          = j; //orfsq->start - j*3;
   }
 
   dom->envsc         = envsc;         /* in units of NATS */

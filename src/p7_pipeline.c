@@ -1366,7 +1366,6 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
         hit->dcl[d].dombias  = (pli->do_null2 ? p7_FLogsum(0.0, log(bg->omega) + hit->dcl[d].domcorrection) : 0.0); /* NATS, and will stay so */
         hit->dcl[d].bitscore = (hit->dcl[d].bitscore - (nullsc + hit->dcl[d].dombias)) / eslCONST_LOG2; /* now BITS, as it should be */
         hit->dcl[d].lnP      = esl_exp_logsurv (hit->dcl[d].bitscore,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
         if (hit->dcl[d].bitscore > hit->dcl[hit->best_domain].bitscore) hit->best_domain = d;
       }
 
@@ -2187,9 +2186,11 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     ali_len = dom->jali - dom->iali + 1;
     bitscore = dom->envsc;
     
-    if (ali_len < 8)   // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
-        continue;
-
+    if (ali_len < 8)   
+    {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
+      p7_alidisplay_Destroy(dom->ad);
+      continue;
+    }
   if (!complementarity)
     { 
       env_len = dom->jenv - dom->ienv + 1;
@@ -2259,7 +2260,9 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     
       hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
       hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
-
+    
+      hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
+      //printf("FRAME lnP %f, score %f, sortkey %f\n", dom_lnP, dom_score, hit->sortkey);
       hit->frameshift = TRUE;
       
       if (pli->mode == p7_SEARCH_SEQS)
@@ -2312,14 +2315,12 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 {
 
   int              d;
-  int              ali_len;
-  int              Ld;
+  int              ali_len, env_len;
   int              status;
-  float            seqbias; 
-  float            pre_score, pre2_score;
-  float            seq_score;
-  float            sum_score;
-  double           lnP;
+  float            bitscore;
+  float            dom_score;
+  float            dom_bias;
+  float            dom_lnP;
   P7_DOMAIN       *dom        = NULL;      /* convenience variable, ptr to current domain  */
   P7_HIT          *hit        = NULL;      /* ptr to the current hit output data           */
 
@@ -2327,31 +2328,101 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
   {      
     dom = pli->ddef->dcl + d;
 
+    env_len = dom->jenv - dom->ienv + 1;	
     ali_len = dom->jali - dom->iali + 1;
-    if (ali_len < 8)  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
-     dom->is_reported = FALSE;
-
+    if (ali_len < 8) 
+    {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
+      p7_alidisplay_Destroy(dom->ad);
+      continue; 
+    }
+ 
     if (!complementarity)
     { 
-	
-      dom->ienv       = dnasq->start + dom->ienv - 1;
-      dom->jenv       = dnasq->start + dom->jenv - 1;
+      dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 3;
+      dom->jenv       = dnasq->start + orfsq->start + dom->jenv*3 - 1;
       dom->iali       = dnasq->start + window_start + dom->iali - 2;
       dom->jali       = dnasq->start + window_start + dom->jali - 2;
 
     }
     else
     {
-      dom->ienv       = dnasq->end + dom->ienv - 1;
-      dom->jenv       = dnasq->end + dom->jenv - 1;
+      dom->ienv       = dnasq->end + (orfsq->start - dom->ienv*3) + 1;
+      dom->jenv       = dnasq->end + (orfsq->start - dom->jenv*3) - 1;
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2;
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
     }
       
     dom->ad->sqfrom = dom->iali;
     dom->ad->sqto   = dom->jali;
+  
+    bitscore = dom->envsc;
+    // (1) the entrance/exit costs are shifted from env_len to orf_length:
+    bitscore -= 2 * log(2. / (env_len+2)) ;
+    bitscore += 2 * log(2. / (orfsq->n+2)); 
+     // (2) the extension cost for going from ali bounds to oenv bounds is removed,
+     // and replaced with the cost of going from ali bounds to orf length
+     bitscore -=  (env_len-(ali_len/3))                            * log((float)env_len / (env_len+2));
+     bitscore +=  (orfsq->n- (ali_len/3)) * log((float)orfsq->n / (float) (orfsq->n+2));
+
+     dom_bias   = dom->domcorrection;
+ 
+     p7_bg_SetLength(bg, orfsq->n);
+     p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
+     dom_score  = (bitscore - (nullsc))  / eslCONST_LOG2; 
+
+     dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+     p7_tophits_CreateNextHit(hitlist, &hit);
+  
+     hit->ndom        = 1;
+     hit->best_domain = 0;
+
+     hit->window_length = orfsq->n;
+     hit->seqidx = seqidx;
+     hit->subseq_start = orfsq->start;
+
+     ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
+     hit->dcl[0] = pli->ddef->dcl[d];
+
+     hit->dcl[0].ad->L = 0;
+
+     hit->pre_score = bitscore  / eslCONST_LOG2;
+     hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+     
+     hit->dcl[0].dombias  = dom_bias;
+ 
+     hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
+     hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
+
+     hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
+	
+     if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+     if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+     if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+ 
+     if (pli->use_bit_cutoffs)
+     {
+       if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
+       {
+         hit->flags |= p7_IS_REPORTED;
+         if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
+           hit->flags |= p7_IS_INCLUDED;
+       }
+
+       if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+       {
+         hit->dcl[0].is_reported = TRUE;
+         if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+           hit->dcl[0].is_included = TRUE;
+       }
+     }
+    
   }
 
+  free(pli->ddef->dcl);
+  pli->ddef->dcl = NULL;
+  p7_domaindef_Reuse(pli->ddef);
+
+/*
   if (pli->do_null2)
     {
       seqbias = esl_vec_FSum(pli->ddef->n2sc, orfsq->n+1);
@@ -2361,25 +2432,27 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 
   pre_score =  (fwdsc - nullsc) / eslCONST_LOG2;
   seq_score =  (fwdsc - (nullsc + seqbias)) / eslCONST_LOG2;
+*/
 
   /* Calculate the null2-corrected per-seq score */
-  sum_score = 0.0f;
-  seqbias   = 0.0f;
-  Ld        = 0;
+//  sum_score = 0.0f;
+//  seqbias   = 0.0f;
+//  Ld        = 0;
 
+/*
   if (pli->do_null2)
   {
       for (d = 0; d < pli->ddef->ndom; d++)
     {
     if (pli->ddef->dcl[d].envsc - pli->ddef->dcl[d].domcorrection > 0.0)
       {
-        sum_score += pli->ddef->dcl[d].envsc;         /* NATS */
+        sum_score += pli->ddef->dcl[d].envsc;         //NATS
         Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
-        seqbias   += pli->ddef->dcl[d].domcorrection; /* NATS */
+        seqbias   += pli->ddef->dcl[d].domcorrection; // NATS
 	Ld /= 3;
       }
     }
-    seqbias = p7_FLogsum(0.0, log(bg->omega) + seqbias);  /* NATS */
+    seqbias = p7_FLogsum(0.0, log(bg->omega) + seqbias);  // NATS 
   }
   else
   {
@@ -2387,30 +2460,31 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       {
         if (pli->ddef->dcl[d].envsc > 0.0)
         {
-          sum_score += pli->ddef->dcl[d].envsc;      /* NATS */
+          sum_score += pli->ddef->dcl[d].envsc;      // NATS 
           Ld        += pli->ddef->dcl[d].jenv  - pli->ddef->dcl[d].ienv + 1;
 	  Ld /= 3;
         }
       }
       seqbias = 0.0;
     }
-  sum_score += (orfsq->n-Ld) * log((float) orfsq->n / (float) (orfsq->n+3)); /* NATS */
-  pre2_score = (sum_score - nullsc) / eslCONST_LOG2;                /* BITS */
-  sum_score  = (sum_score - (nullsc + seqbias)) / eslCONST_LOG2;    /* BITS */
-
+*/
+//  sum_score += (orfsq->n-Ld) * log((float) orfsq->n / (float) (orfsq->n+3)); /* NATS */
+//  pre2_score = (sum_score - nullsc) / eslCONST_LOG2;                /* BITS */
+//  sum_score  = (sum_score - (nullsc + seqbias)) / eslCONST_LOG2;    /* BITS */
+/*
   if (Ld > 0 && sum_score > seq_score)
     {
       seq_score = sum_score;
       pre_score = pre2_score;
     }
-
+*/
   /* Apply thresholding and determine whether to put this
    * target into the hit list. E-value thresholding may
    * only be a lower bound for now, so this list may be longer
    * than eventually reported.
    */
-  lnP =  esl_exp_logsurv (seq_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
+//  lnP =  esl_exp_logsurv (seq_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+/*
   if (p7_pli_TargetReportable(pli, FALSE, seq_score, lnP))
   {
     p7_tophits_CreateNextHit(hitlist, &hit);
@@ -2433,14 +2507,14 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     hit->nclustered = pli->ddef->nclustered;
     hit->noverlaps  = pli->ddef->noverlaps;
     hit->nenvelopes = pli->ddef->nenvelopes;
-    hit->pre_score  = pre_score; /* BITS */
+    hit->pre_score  = pre_score; // BITS 
     hit->pre_lnP    = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-    hit->score      = seq_score; /* BITS */
+    hit->score      = seq_score; // BITS 
     hit->lnP        = lnP;
-    hit->sortkey    = pli->inc_by_E ? -lnP : seq_score; /* per-seq output sorts on bit score if inclusion is by score  */
-    hit->sum_score  = sum_score; /* BITS */
+    hit->sortkey    = pli->inc_by_E ? -lnP : seq_score; // per-seq output sorts on bit score if inclusion is by score  
+    hit->sum_score  = sum_score; // BITS 
     hit->sum_lnP    = esl_exp_logsurv (hit->sum_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
+*/
     /* Transfer all domain coordinates (unthresholded for
      * now) with their alignment displays to the hit list,
      * associated with the sequence. Domain reporting will
@@ -2449,6 +2523,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      * hits found to set domZ, and thence threshold and
      * count reported domains.
      */
+/*
     hit->dcl         = pli->ddef->dcl;
     pli->ddef->dcl   = NULL;
     p7_domaindef_Reuse(pli->ddef);
@@ -2461,14 +2536,15 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       else
         Ld = (hit->dcl[d].ienv - hit->dcl[d].jenv + 1) / 3;
 
-      hit->dcl[d].bitscore = hit->dcl[d].envsc + (orfsq->n-Ld) * log((float) orfsq->n / (float) (orfsq->n+3)); /* NATS, for the moment... */
-      hit->dcl[d].dombias  = (pli->do_null2 ? p7_FLogsum(0.0, log(bg->omega) + hit->dcl[d].domcorrection) : 0.0); /* NATS, and will stay so */
-      hit->dcl[d].bitscore = (hit->dcl[d].bitscore - (nullsc + hit->dcl[d].dombias)) / eslCONST_LOG2; /* now BITS, as it should be */
+      hit->dcl[d].bitscore = hit->dcl[d].envsc + (orfsq->n-Ld) * log((float) orfsq->n / (float) (orfsq->n+3)); // NATS, for the moment... 
+      hit->dcl[d].dombias  = (pli->do_null2 ? p7_FLogsum(0.0, log(bg->omega) + hit->dcl[d].domcorrection) : 0.0); // NATS, and will stay so 
+      hit->dcl[d].bitscore = (hit->dcl[d].bitscore - (nullsc + hit->dcl[d].dombias)) / eslCONST_LOG2; // now BITS, as it should be 
 
       hit->dcl[d].lnP      = esl_exp_logsurv (hit->dcl[d].bitscore,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
       if (hit->dcl[d].bitscore > hit->dcl[hit->best_domain].bitscore) hit->best_domain = d;
     }
+*/
     /* If we're using model-specific bit score thresholds (GA | TC |
      * NC) and we're in an hmmscan pipeline (mode = p7_SCAN_MODELS),
      * then we *must* apply those reporting or inclusion thresholds
@@ -2492,7 +2568,8 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      * responsible for *counting* the reported, included sequences.
      *
      * [xref J5/92]
-     */
+     */ 
+/*
     if (pli->use_bit_cutoffs)
     {
       if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
@@ -2504,7 +2581,13 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 
       for (d = 0; d < hit->ndom; d++)
       {
-        if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
+        ali_len = hit->dcl[d].jali - hit->dcl[d].iali + 1;
+        if (ali_len < 8) 
+	{ 
+	  hit->dcl[d].is_reported = FALSE; 
+          hit->dcl[d].is_included = FALSE;
+	}
+	else if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
         {
           hit->dcl[d].is_reported = TRUE;
           if (p7_pli_DomainIncludable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))
@@ -2512,9 +2595,12 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
         }
       }
     }
-  } 
-
+  }
+*/ 
   return eslOK;
+
+ERROR:
+  ESL_EXCEPTION(eslEMEM, "Error in nonFrameshift pipeline\n");
 }
 
 
@@ -2568,122 +2654,182 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   ESL_DSQ         *dsq_holder;             /* temporary holds memory location of <pli_tmp> sequence dsq    */
   ESL_DSQ         *subseq;                 /* subsequence of DNA efined by <window_start> and <window_len> */
   ESL_SQ          *curr_orf;
-  float            fwdsc, bwdsc;           /* forward and backward scores                                  */
-  float            bias_filtersc;          /* bias score for forward filter                                */
-  float            nullsc;                 /* null one score for forward filter                            */
-  float            filtersc;               /* total filtersc for forward filter                            */
-  float            seq_score;              /* the corrected per-seq bit score                              */
-  float            orfsc;
-  double           P;                      /* P-value of a hit */
+  float            fwdsc_fs, fwdsc_orf;           /* forward and backward scores                                  */
+  float            bias_filtersc_fs;          /* bias score for forward filter                                */
+  float            nullsc_fs, nullsc_orf;                 /* null one score for forward filter                            */
+  float            filtersc_fs, filtersc_orf;               /* total filtersc for forward filter                            */
+  float            seq_score_fs, seq_score_orf;              /* the corrected per-seq bit score                              */
+ // float            orfsc;
+  double           P_fs, P_orf;                      /* P-value of a hit */
   int              f;
   int              status;
   int              F3_L = ESL_MIN( window_len,  pli->B3);
-  
+  int              orf_past_forward = 0;
   subseq = dnasq->dsq + window_start - 1;
-// printf("postViterbi\n");	
+
+  /*First run Frameshift Forward on full Window and save score and P value.*/
   p7_bg_fs_SetLength(bg, window_len); // For bg model loop first two nucleotides have 0 probabilty 
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
-  p7_bg_fs_NullOne(bg, subseq, window_len-2, &nullsc);
- 
+  p7_bg_fs_NullOne(bg, subseq, window_len-2, &nullsc_fs);
+
   if (pli->do_biasfilter)
   {
-    p7_bg_fs_FilterScore(bg, subseq, gm_fs, gcode, window_len, &bias_filtersc);
-    bias_filtersc -= nullsc; //remove nullsc, so bias scaling can be done, then add it back on later
+    p7_bg_fs_FilterScore(bg, subseq, gm_fs, gcode, window_len, &bias_filtersc_fs);
+    bias_filtersc_fs -= nullsc_fs; //remove nullsc, so bias scaling can be done, then add it back on later
   }  else
-    bias_filtersc = 0;
+    bias_filtersc_fs = 0;
 
   p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, window_len, window_len, p7P_CODONS);
   p7_fs_ReconfigLength(gm_fs, window_len);
-//	printf("Before ForwardParser_Frameshift\n");
-  p7_ForwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxf, &fwdsc);
-//	printf("After ForwardParser_Frameshift\n");
-//FILE *out = fopen("fathmmout.txt","w");
-//p7_gmx_fs_Dump(out,  pli->gxf, p7_DEFAULT);
 
-  filtersc = nullsc + (bias_filtersc * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
-  seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
-  P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
-  //printf("P %f F3 %f seq %f fwd %f filter %f orf %f\n", P, pli->F3, seq_score, fwdsc, filtersc, orfsc); 
-  if (P > pli->F3 ) return eslOK;
-  
-  pli->pos_past_fwd += window_len; 
+  p7_ForwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxf, &fwdsc_fs);
 
-     /*set up seq object for domaindef function*/
-    if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
-    if ((status = esl_sq_SetSource   (pli_tmp->tmpseq, dnasq->source)) != eslOK) goto ERROR;
-    if ((status = esl_sq_SetAccession(pli_tmp->tmpseq, dnasq->acc))    != eslOK) goto ERROR;
-    if ((status = esl_sq_SetDesc     (pli_tmp->tmpseq, dnasq->desc))   != eslOK) goto ERROR;
+  filtersc_fs = nullsc_fs + (bias_filtersc_fs * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
+  seq_score_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
+  P_fs = esl_exp_surv(seq_score_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
 
-    pli_tmp->tmpseq->L = -1;
-    pli_tmp->tmpseq->n = window_len;
-    pli_tmp->tmpseq->start = window_start;
-    pli_tmp->tmpseq->end = (dnasq->end < dnasq->start) ? (window_start - window_len + 1) : (window_start + window_len - 1); 
-    dsq_holder = pli_tmp->tmpseq->dsq; // will point back to the original at the end
-    pli_tmp->tmpseq->dsq = subseq;
+   /*set up seq object for domaindef function*/
+  if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
+  if ((status = esl_sq_SetSource   (pli_tmp->tmpseq, dnasq->source)) != eslOK) goto ERROR;
+  if ((status = esl_sq_SetAccession(pli_tmp->tmpseq, dnasq->acc))    != eslOK) goto ERROR;
+  if ((status = esl_sq_SetDesc     (pli_tmp->tmpseq, dnasq->desc))   != eslOK) goto ERROR;
+
+  pli_tmp->tmpseq->L = -1;
+  pli_tmp->tmpseq->n = window_len;
+  pli_tmp->tmpseq->start = window_start;
+  pli_tmp->tmpseq->end = (dnasq->end < dnasq->start) ? (window_start - window_len + 1) : (window_start + window_len - 1); 
+  dsq_holder = pli_tmp->tmpseq->dsq; // will point back to the original at the end
+  pli_tmp->tmpseq->dsq = subseq;
+
+
+  /*Run regular Froward on each ORF in window then compare to Framehisft P value. */ 
+  for(f = 0; f < orf_block->count; ++f) {
+
+    curr_orf = &(orf_block->list[f]);
+
+    p7_bg_SetLength(bg, curr_orf->n);
+    p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);
+
+    if (pli->do_biasfilter)
+      p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc_orf);
+    else filtersc_orf = nullsc_orf;
+
+    p7_oprofile_ReconfigLength(om, curr_orf->n);
+    p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc_orf);
+
+    seq_score_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
+    P_orf = esl_exp_surv(seq_score_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+
+    if(P_orf <= pli->F3) 
+   {
+      orf_past_forward += curr_orf->n;
+
+    /*If ORF passes the forward parser and has lower p-value then the frameshift window we will run the ORF through the full pipeline. */ 
+     if(P_orf < P_fs) 
+     {
+        p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);
+        p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
+
+        p7_oprofile_ReconfigLength(pli_tmp->om, curr_orf->n);
+
+        status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq, gcode, pli_tmp->om, gm, gm_fs, pli->oxf, pli->oxb, pli->oxf, pli->oxb, pli->ddef, pli_tmp->bg);
+
+        if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+        if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
+        if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
+
+        p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, window_start, curr_orf, dnasq, complementarity, fwdsc_orf, nullsc_orf);
+     }
+   }
+ }
+
+  /* If the frameshift window passes the Forward Parser we run it through the full pipleine. */
+  if (P_fs <= pli->F3 ) 
+  {
+    pli->pos_past_fwd += window_len; 
 
   /* now that the window have passed the forward filter we must deterimine if it is 
    * better to handel it as a frameshited nucleotide sequence or as non-framshifted 
    * ORFs by comparing the forward filter P scores */
 
-  if(orfP < P) 
-  {
-//	printf("ORF wins\n");
-    /* ORFs win - this sequence is not frameshifted so pass ORFs to faster protien 
-     * to protien routines*/
-
-    for(f = 0; f < orf_block->count; ++f) {
-	
-      curr_orf = &(orf_block->list[f]);
-
-      p7_bg_SetLength(bg, curr_orf->n);
-      p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc);
-     if (pli->do_biasfilter) 
-        p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc);
-      else filtersc = nullsc;
-
-      p7_oprofile_ReconfigLength(om, curr_orf->n);
-      p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &orfsc);
-    
-      seq_score = (orfsc-filtersc) / eslCONST_LOG2;
-      P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-
-      if (P > pli->F3 ) continue;
-
-      p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);
-      p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
-
-      p7_oprofile_ReconfigLength(pli_tmp->om, curr_orf->n);
-      status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq, gcode, pli_tmp->om, gm, gm_fs, pli->oxf, pli->oxb, pli->oxf, pli->oxb, pli->ddef, pli_tmp->bg);
-
-      if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
-    if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
-    if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
-
-   
-      p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, window_start, curr_orf, dnasq, complementarity, orfsc, nullsc);
-   } 
-
-  } else {
-//	printf("DNA wins\n");
-    /* DNA wins - the sequence is frameshifted so pass windoe to frameshift aware
-     * translated routines*/ 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, window_len, 0);
-    p7_BackwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxb, &bwdsc);
+    p7_BackwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxb, NULL);
     p7_bg_fs_SetLength(bg, window_len);
-//	printf("Before ByPosteriorHeuristics_Frameshift\n");
-    status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, gm_fs, 
+
+    status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, pli_tmp->bg, gcode,
-           window_start, pli->F3, pli->do_biasfilter); 
- //	printf("After ByPosteriorHeuristics_Frameshift\n");
-    pli_tmp->tmpseq->dsq = dsq_holder;
+           window_start, pli->F3, pli->do_biasfilter);
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
-    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, window_start, window_len, dnasq, complementarity, fwdsc);
+    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, window_start, window_len, dnasq, complementarity, fwdsc_fs);
   }
+  else if(orf_past_forward) 
+    pli->pos_past_fwd += orf_past_forward * 3;
+
+
+    pli_tmp->tmpseq->dsq = dsq_holder;
+
+//  if(orfP < P) 
+//  {
+//	printf("ORF wins\n");
+    /* ORFs win - this sequence is not frameshifted so pass ORFs to faster protien 
+     * to protien routines*/
+
+//    for(f = 0; f < orf_block->count; ++f) {
+	
+//      curr_orf = &(orf_block->list[f]);
+
+//      p7_bg_SetLength(bg, curr_orf->n);
+//      p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc);
+//     if (pli->do_biasfilter) 
+//        p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc);
+//      else filtersc = nullsc;
+
+//      p7_oprofile_ReconfigLength(om, curr_orf->n);
+//      p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &orfsc);
+    
+//      seq_score = (orfsc-filtersc) / eslCONST_LOG2;
+//      P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+//	printf("ORF score %f P %f\n", seq_score, P);
+//      if (P > pli->F3 ) continue;
+
+//      p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);
+//      p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
+
+//      p7_oprofile_ReconfigLength(pli_tmp->om, curr_orf->n);
+//      status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq, gcode, pli_tmp->om, gm, gm_fs, pli->oxf, pli->oxb, pli->oxf, pli->oxb, pli->ddef, pli_tmp->bg);
+
+//      if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+//    if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
+//    if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
+
+   
+//      p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, window_start, curr_orf, dnasq, complementarity, orfsc, nullsc);
+//   } 
+
+//  } else {
+//	printf("DNA wins\n");
+    /* DNA wins - the sequence is frameshifted so pass windoe to frameshift aware
+     * translated routines*/ 
+//    p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, window_len, 0);
+//    p7_BackwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxb, &bwdsc);
+  //  p7_bg_fs_SetLength(bg, window_len);
+
+  //  status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, dnasq, gm, gm_fs, 
+//           pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, pli_tmp->bg, gcode,
+//           window_start, pli->F3, pli->do_biasfilter); 
+
+//    pli_tmp->tmpseq->dsq = dsq_holder;
+
+//    if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+//    if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
+//    if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
+//    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, window_start, window_len, dnasq, complementarity, fwdsc);
+//  }
   
-  pli_tmp->tmpseq->dsq = dsq_holder;
+ // pli_tmp->tmpseq->dsq = dsq_holder;
 
   return eslOK;
 
@@ -2755,9 +2901,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   float              nullsc;           /* null model score                        */
   float              usc;              /* msv score                               */
   float              vfsc;             /* viterbi score                           */
-  float              fwdsc;
+  //float              fwdsc;
   float              seq_score;        /* null corrected bit score                */
-  float              tot_score;
+  //float              tot_score;
   float              filtersc;         /* bias and null score                     */
   double             P,orfP;
   int                window_start;     /* DNA window coordinates                  */
@@ -2886,7 +3032,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
     window_len   = post_vit_windowlist.windows[i].length; 
     if (window_len < 15) continue;
     
-    tot_score = 0.;
+    //tot_score = 0.;
 
     for(f = 0; f < post_vit_orf_block->count; ++f) {
       orfsq = &(post_vit_orf_block->list[f]);
@@ -2900,19 +3046,19 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
       }
       
       if(window_start <= orf_start && window_start+window_len-1 >= orf_end) {
-        p7_oprofile_ReconfigLength(om, orfsq->n);
-        p7_ForwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, &fwdsc);
+    //    p7_oprofile_ReconfigLength(om, orfsq->n);
+    //    p7_ForwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, &fwdsc);
         
-        seq_score = (fwdsc-nullsc) / eslCONST_LOG2;
-        tot_score += seq_score;
+    //    seq_score = (fwdsc-nullsc) / eslCONST_LOG2;
+    //    tot_score += seq_score;
 
         esl_sq_Copy(orfsq, &(fwd_orf_block->list[fwd_orf_block->count]));
         fwd_orf_block->count++;
       }	
     }
-//	printf("ORFS %d\n", fwd_orf_block->count);
-    orfP = esl_exp_surv(tot_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-     
+    //orfP = esl_exp_surv(tot_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+     orfP=1.;
+
     p7_pli_postViterbi_Frameshift(pli, om, gm, gm_fs, bg, hitlist, seqidx, window_start, window_len, fwd_orf_block, dnasq, gcode, pli_tmp, complementarity, orfP);
    
     esl_sq_ReuseBlock(fwd_orf_block);

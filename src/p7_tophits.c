@@ -344,7 +344,9 @@ p7_tophits_SortBySortkey(P7_TOPHITS *h)
   int i;
   if (h->is_sorted_by_sortkey)  return eslOK;
   for (i = 0; i < h->N; i++) h->hit[i] = h->unsrt + i;
+
   if (h->N > 1)  qsort(h->hit, h->N, sizeof(P7_HIT *), hit_sorter_by_sortkey);
+
   h->is_sorted_by_seqidx  = FALSE;
   h->is_sorted_by_sortkey = TRUE;
   return eslOK;
@@ -428,7 +430,7 @@ p7_tophits_Merge(P7_TOPHITS *h1, P7_TOPHITS *h2)
   int      i,j,k;
   uint64_t Nalloc = h1->N + h2->N;
   int      status;
-
+	
   if(h2->N <= 0) return eslOK;
   
   /* Make sure the two lists are sorted */
@@ -997,9 +999,10 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
       {
           th->hit[h]->flags |= p7_IS_REPORTED;
           if (p7_pli_TargetIncludable(pli, th->hit[h]->frameshift, th->hit[h]->score, th->hit[h]->lnP))
+	   {
               th->hit[h]->flags |= p7_IS_INCLUDED;
-
-          if (pli->long_targets) { // no domains in dna search, so:
+          }
+          if (pli->long_targets || pli->frameshift) { // no domains in dna search, so:
             th->hit[h]->dcl[0].is_reported = th->hit[h]->flags & p7_IS_REPORTED;
             th->hit[h]->dcl[0].is_included = th->hit[h]->flags & p7_IS_INCLUDED;
           }
@@ -2097,6 +2100,9 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 //whether the hit is on the reverse strand when reporting the 
                 //start and end location
                 for (i = 0; i < th->hit[h]->ndom; i++){
+                  if(th->hit[h]->dcl[i].is_reported && 
+                     th->hit[h]->dcl[i].is_included)
+                  {    
                     sqfrom = th->hit[h]->dcl[i].ad->sqfrom;
                     sqto = th->hit[h]->dcl[i].ad->sqto;
                     if (i==0){
@@ -2119,6 +2125,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                         if (sqfrom > highest)
                             highest = sqfrom;
                     }
+                  }
                 }
                 if (frame > 0){
                     sqfrom = lowest;

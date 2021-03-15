@@ -234,9 +234,9 @@ link_spsamples_fs(const void *v1, const void *v2, const void *prm, int *ret_link
   
   /* seq overlap test */
   nov = ESL_MIN(h1->j, h2->j) - ESL_MAX(h1->i, h2->i) + 1;      /* overlap  */
-//  printf("j1 %d j2 %d i1 %d i2 %d nov %d\n", h1->j, h2->j, h1->i, h2->i, nov);
+
   n = (param->of_smaller ? ESL_MIN(h1->j - h1->i + 1,  h2->j - h2->i + 1) :     /* min length of the two hits */
-  ESL_MAX(h1->j - h1->i + 1,  h2->j - h2->i + 1));      /* max length of the two hits */
+                           ESL_MAX(h1->j - h1->i + 1,  h2->j - h2->i + 1));      /* max length of the two hits */
 
   
   if ((float) nov / (float) n  < param->min_overlap) { *ret_link = FALSE; return eslOK; }  
@@ -245,12 +245,11 @@ link_spsamples_fs(const void *v1, const void *v2, const void *prm, int *ret_link
   nov = ESL_MIN(h1->m, h2->m) - ESL_MAX(h1->k, h2->k);
   n   = (param->of_smaller ? ESL_MIN(h1->m - h1->k + 1,  h2->m - h2->k + 1) :
                              ESL_MAX(h1->m - h1->k + 1,  h2->m - h2->k + 1));
-//printf("h1->k %d h2->k %d h1->m %d h2->m %d\n", h1->k, h2->k, h1->m, h2->m);
-//printf("nov %d, n %d, over %f minover %f\n", nov, n, (float) nov / (float) n, param->min_overlap);
+
   if ((float) nov / (float)  n < param->min_overlap) { *ret_link = FALSE; return eslOK; }
-//printf("param->max_diagdiff %d\n", param->max_diagdiff);
+
   /* nearby diagonal test */
-  d1 = ((float) h1->i/3.0 - (float) h1->k); d2 = ( (float) h2->i/3.0 - (float) h2->k);  if (abs(d1-d2) <= param->max_diagdiff) { *ret_link = TRUE; return eslOK; }	
+  d1 = ((h1->i/3) - h1->k); d2 = ((h2->i/3) - h2->k);  if (abs(d1-d2) <= param->max_diagdiff) { *ret_link = TRUE; return eslOK; }	
   d1 = ((h1->j/3) - h1->m); d2 = ((h2->j/3) - h2->m);  if (abs(d1-d2) <= param->max_diagdiff) { *ret_link = TRUE; return eslOK; }	
 
   *ret_link = FALSE;
@@ -533,18 +532,18 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
        * That's what the idx_of_last logic is doing, avoiding double-counting.
        */
       idx_of_last = -1;
-       //printf("\n\n\n#, i, j, k, m\n");
+
       for (ninc[c] = 0, h = 0; h < sp->n; h++) {
-        //printf("%d, %d, %d, %d, %d\n", h, sp->sp[h].i, sp->sp[h].j, sp->sp[h].k, sp->sp[h].m);
+
 	if (sp->assignment[h] == c) {
-	//	printf("c %d\n", c);
-	//	printf("sp->sp[h].idx %d idx_of_last %d\n", sp->sp[h].idx, idx_of_last);
+
+
 	  if (sp->sp[h].idx != idx_of_last) ninc[c]++;
 	  idx_of_last = sp->sp[h].idx;
 	}
       }
       /* Reject low probability clusters: */
-  //    printf("ninc %f, nsamp %f, ninc/nsamp %f, minp %f\n", (float) ninc[c], (float) sp->nsamples, (float) ninc[c] / (float) sp->nsamples, min_posterior);
+
       if ((float) ninc[c] / (float) sp->nsamples < min_posterior) continue;
 
       /* Find the maximum extent of all seg pairs in this cluster in i,j k,m */
@@ -564,7 +563,7 @@ p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
 	    }
 	  }
 
-            //printf("%d %d %d %d %d %d %d %d %d\n",c, imin, imax, jmin, jmax, kmin, kmax, mmin, mmax);
+
       /* Set up a window in which we can examine the end point distributions for i,j,k,m in turn, independently */
       cwindow_width = ESL_MAX(ESL_MAX(imax-imin+1, jmax-jmin+1),
 			      ESL_MAX(kmax-kmin+1, mmax-mmin+1));

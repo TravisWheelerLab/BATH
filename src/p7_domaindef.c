@@ -727,19 +727,18 @@ if (is_multidomain_region_fs(ddef, i, j))
         */
     
         p7_fs_ReconfigMultihit(gm_fs, saveL);
-         p7_Forward_Frameshift(sq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
-//printf("i %d j %d, saveL %d\n", i, j, saveL);
+        p7_Forward_Frameshift(sq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
 
-       region_trace_ensemble_frameshift(ddef, gm_fs, sq->dsq, sq->abc, i, j, fwd, bck, &nc);
+        region_trace_ensemble_frameshift(ddef, gm_fs, sq->dsq, sq->abc, i, j, fwd, bck, &nc);
 
-       p7_fs_ReconfigUnihit(gm_fs, saveL);
+        p7_fs_ReconfigUnihit(gm_fs, saveL);
        
-       /* ddef->n2sc is now set on i..j by the traceback-dependent method */
-       last_j2 = 0;
+        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
+        last_j2 = 0;
 	
-       for (d = 0; d < nc; d++) {
+        for (d = 0; d < nc; d++) {
          
-         p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
+          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
 		
          if (i2 <= last_j2) ddef->noverlaps++;
 
@@ -1620,7 +1619,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
         for (pos = i; pos <= j; pos++) 
           ddef->n2sc[pos]  = logf(null2[sq->dsq[pos]]);
       }
-      for (pos = i; pos <= j; pos++)
+      for (pos = i; pos <= j; pos++) 
         domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
 
       dom->domcorrection = domcorrection; /* in units of NATS */
@@ -1742,7 +1741,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   p7_Forward_Frameshift(sq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
-  //printf("P %f F3 %f seq %f fwd %f filter %f\n", P, F3, seq_score, envsc, filtersc);
 
   if (P > F3 ) return eslOK;
   p7_Backward_Frameshift(sq->dsq+i-1, gcode, Ld, gm_fs, gx2, &bcksc);
@@ -1978,16 +1976,18 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, sq, gcode);
   
   dom->scores_per_pos = NULL;  
-   
-  p7_Null2_ByExpectation(om, ox2, null2);
-  
-  for (pos = 1; pos <= orfsq->n; pos++) {
-    ddef->n2sc[pos]  = logf(null2[orfsq->dsq[pos]]);
-    domcorrection   += ddef->n2sc[pos];
+
+  if (!null2_is_done) {   
+    p7_Null2_ByExpectation(om, ox2, null2);
+    for (pos = i; pos <= j; pos++) 
+      ddef->n2sc[pos]  = logf(null2[orfsq->dsq[pos]]);
   }
- 
+  
+  for (pos = i; pos <= j; pos++)
+    domcorrection   += ddef->n2sc[pos];
+
   dom->domcorrection = domcorrection; /* in units of NATS */
- 
+	
   if(orfsq->start < orfsq->end)
   {
     dom->iali          = dom->ad->sqfrom;

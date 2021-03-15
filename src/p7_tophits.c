@@ -2100,8 +2100,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 //whether the hit is on the reverse strand when reporting the 
                 //start and end location
                 for (i = 0; i < th->hit[h]->ndom; i++){
-                  if(th->hit[h]->dcl[i].is_reported && 
-                     th->hit[h]->dcl[i].is_included)
+                  if(th->hit[h]->dcl[i].is_reported)
                   {    
                     sqfrom = th->hit[h]->dcl[i].ad->sqfrom;
                     sqto = th->hit[h]->dcl[i].ad->sqto;

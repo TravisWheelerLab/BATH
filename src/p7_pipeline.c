@@ -2468,7 +2468,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 )
 {
 
-  ESL_DSQ         *dsq_holder;             /* temporary holds memory location of <pli_tmp> sequence dsq    */
+//  ESL_DSQ         *dsq_holder;             /* temporary holds memory location of <pli_tmp> sequence dsq    */
   ESL_DSQ         *subseq;                 /* subsequence of DNA efined by <window_start> and <window_len> */
   ESL_SQ          *curr_orf;
   float            fwdsc_fs, fwdsc_orf;           /* forward and backward scores                                  */
@@ -2484,7 +2484,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   int              orf_passed_forward = 0;
 
   subseq = dnasq->dsq + window_start - 1;
-  //printf("WINDOW ST %d END %d\n", window_start+dnasq->start, window_start+dnasq->start+window_len);
+  printf("WINDOW ST %d END %d\n", window_start+dnasq->start, window_start+dnasq->start+window_len);
   /*First run Frameshift Forward on full Window and save score and P value.*/
   p7_bg_fs_SetLength(bg, window_len); // For bg model loop first two nucleotides have 0 probabilty 
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
@@ -2517,7 +2517,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   pli_tmp->tmpseq->n = window_len;
   pli_tmp->tmpseq->start = window_start;
   pli_tmp->tmpseq->end = (dnasq->end < dnasq->start) ? (window_start - window_len + 1) : (window_start + window_len - 1); 
-  dsq_holder = pli_tmp->tmpseq->dsq; // will point back to the original at the end
+  //dsq_holder = pli_tmp->tmpseq->dsq; // will point back to the original at the end
+
   pli_tmp->tmpseq->dsq = subseq;
 
   /*Run regular Froward on each ORF in window then compare to Framehisft P value. */ 
@@ -2587,7 +2588,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     pli->pos_passed_fwd += orf_passed_forward * 3;
 
 
-    pli_tmp->tmpseq->dsq = dsq_holder;
+    //pli_tmp->tmpseq->dsq = dsq_holder;
 
   return eslOK;
 
@@ -2672,7 +2673,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   P7_HMM_WINDOWLIST  post_vit_windowlist;
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
- //printf("HMM %s\n", gm->name); 
+ printf("HMM %s\n", gm->name); 
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;
   //printf("DNA ST %d END %d\n", dnasq->start, dnasq->end);	
@@ -2779,6 +2780,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
+  free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object
 
   for(i = 0; i < post_vit_windowlist.count; i++)
   {
@@ -2827,9 +2829,10 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   }
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if ( fwd_orf_block != NULL) esl_sq_DestroyBlock(fwd_orf_block);
+  pli_tmp->tmpseq->dsq = NULL;
   if (pli_tmp != NULL) 
   {
-    if (pli_tmp->tmpseq != NULL)  pli_tmp->tmpseq = NULL;
+    if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
     if (pli_tmp->om != NULL)     p7_oprofile_Destroy(pli_tmp->om);
     if (pli_tmp->gm_fs != NULL)     p7_profile_fs_Destroy(pli_tmp->gm_fs);

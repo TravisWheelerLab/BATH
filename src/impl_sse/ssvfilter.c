@@ -891,6 +891,7 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
     {
       /* We have an overflow. */
       *ret_sc = eslINFINITY;
+	
       if (om->base_b - om->tjb_b - om->tbm_b < 128) 
         {
           /* The original MSV filter may not overflow, so we are not sure our result is correct */

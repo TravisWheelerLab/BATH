@@ -102,7 +102,7 @@ p7_MSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float
   /* Try highly optimized ssv filter first */
   status = p7_SSVFilter(dsq, L, om, ret_sc);
   if (status != eslENORESULT) return status;
-
+	
   /* Initialization. In offset unsigned arithmetic, -infinity is 0, and 0 is om->base.
    */
   biasv = _mm_set1_epi8((int8_t) om->bias_b); /* yes, you can set1() an unsigned char vector this way */

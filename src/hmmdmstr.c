@@ -823,10 +823,10 @@ forward_results(QUEUE_DATA *query, SEARCH_RESULTS *results)
     pli = p7_pipeline_Create(query->opts, 100, 100, FALSE, mode);
     pli->nmodels     = results->stats.nmodels;
     pli->nseqs       = results->stats.nseqs;
-    pli->n_past_msv  = results->stats.n_past_msv;
-    pli->n_past_bias = results->stats.n_past_bias;
-    pli->n_past_vit  = results->stats.n_past_vit;
-    pli->n_past_fwd  = results->stats.n_past_fwd;
+    pli->n_passed_msv  = results->stats.n_past_msv;
+    pli->n_passed_bias = results->stats.n_past_bias;
+    pli->n_passed_vit  = results->stats.n_past_vit;
+    pli->n_passed_fwd  = results->stats.n_past_fwd;
 
     pli->Z           = results->stats.Z;
     pli->domZ        = results->stats.domZ;

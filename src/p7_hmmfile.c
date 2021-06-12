@@ -1496,7 +1496,7 @@ if (*ret_abc == NULL) {
 		if      (strcasecmp(tok2, "VLAMBDA") == 0)  { hmm->evparam[p7_MLAMBDA] = hmm->evparam[p7_VLAMBDA] = hmm->evparam[p7_FLAMBDA] = atof(tok3);  statstracker |= 0x1; }
 		else if (strcasecmp(tok2, "VMU")     == 0)  {                            hmm->evparam[p7_MMU]     = hmm->evparam[p7_VMU]     = atof(tok3);  statstracker |= 0x2; }
 		else if (strcasecmp(tok2, "FTAU")    == 0)  {                                                       hmm->evparam[p7_FTAU]    = atof(tok3);  statstracker |= 0x4; }
-		else if (strcasecmp(tok2, "FTAUFS")    == 0)  {                                                     hmm->evparam[p7_FTAUFS]    = atof(tok3);  statstracker |= 0x4; }
+		else if (strcasecmp(tok2, "FTAUFS")    == 0)  {                                                     hmm->evparam[p7_FTAUFS]    = atof(tok3); }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }

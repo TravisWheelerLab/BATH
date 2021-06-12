@@ -605,7 +605,7 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
    * instead of tailp.
    */
   *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
- 
+	
   free(f); 
   free(xv);
   free(n1);

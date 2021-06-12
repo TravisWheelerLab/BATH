@@ -250,14 +250,14 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   pli->nseqs           = 0;
   pli->nres            = 0;
   pli->nnodes          = 0;
-  pli->n_past_msv      = 0;
-  pli->n_past_bias     = 0;
-  pli->n_past_vit      = 0;
-  pli->n_past_fwd      = 0;
-  pli->pos_past_msv    = 0;
-  pli->pos_past_bias   = 0;
-  pli->pos_past_vit    = 0;
-  pli->pos_past_fwd    = 0;
+  pli->n_passed_msv      = 0;
+  pli->n_passed_bias     = 0;
+  pli->n_passed_vit      = 0;
+  pli->n_passed_fwd      = 0;
+  pli->pos_passed_msv    = 0;
+  pli->pos_passed_bias   = 0;
+  pli->pos_passed_vit    = 0;
+  pli->pos_passed_fwd    = 0;
   pli->mode            = mode;
   pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
@@ -463,14 +463,14 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->nseqs           = 0;
   pli->nres            = 0;
   pli->nnodes          = 0;
-  pli->n_past_msv      = 0;
-  pli->n_past_bias     = 0;
-  pli->n_past_vit      = 0;
-  pli->n_past_fwd      = 0;
-  pli->pos_past_msv    = 0;
-  pli->pos_past_bias   = 0;
-  pli->pos_past_vit    = 0;
-  pli->pos_past_fwd    = 0;
+  pli->n_passed_msv      = 0;
+  pli->n_passed_bias     = 0;
+  pli->n_passed_vit      = 0;
+  pli->n_passed_fwd      = 0;
+  pli->pos_passed_msv    = 0;
+  pli->pos_passed_bias   = 0;
+  pli->pos_passed_vit    = 0;
+  pli->pos_passed_fwd    = 0;
   pli->mode            = mode;
   pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
@@ -1021,16 +1021,16 @@ p7_pipeline_Merge(P7_PIPELINE *p1, P7_PIPELINE *p2)
       p1->nnodes  += p2->nnodes;
     }
 
-  p1->n_past_msv  += p2->n_past_msv;
-  p1->n_past_bias += p2->n_past_bias;
-  p1->n_past_vit  += p2->n_past_vit;
-  p1->n_past_fwd  += p2->n_past_fwd;
+  p1->n_passed_msv  += p2->n_passed_msv;
+  p1->n_passed_bias += p2->n_passed_bias;
+  p1->n_passed_vit  += p2->n_passed_vit;
+  p1->n_passed_fwd  += p2->n_passed_fwd;
   p1->n_output    += p2->n_output;
 
-  p1->pos_past_msv  += p2->pos_past_msv;
-  p1->pos_past_bias += p2->pos_past_bias;
-  p1->pos_past_vit  += p2->pos_past_vit;
-  p1->pos_past_fwd  += p2->pos_past_fwd;
+  p1->pos_passed_msv  += p2->pos_passed_msv;
+  p1->pos_passed_bias += p2->pos_passed_bias;
+  p1->pos_passed_vit  += p2->pos_passed_vit;
+  p1->pos_passed_fwd  += p2->pos_passed_fwd;
   p1->pos_output    += p2->pos_output;
 
   if (p1->Z_setby == p7_ZSETBY_NTARGETS)
@@ -1178,7 +1178,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   seq_score = (usc - nullsc) / eslCONST_LOG2;
   P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
   if (P > pli->F1) return eslOK;
-  pli->n_past_msv++;
+  pli->n_passed_msv++;
 
   /* biased composition HMM filtering */
   if (pli->do_biasfilter)
@@ -1190,7 +1190,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
       if (P > pli->F1) return eslOK;
     }
   else filtersc = nullsc;
-  pli->n_past_bias++;
+  pli->n_passed_bias++;
 
   /* In scan mode, if it passes the MSV filter, read the rest of the profile.*/
   if (pli->mode == p7_SCAN_MODELS)
@@ -1208,7 +1208,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
       P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
       if (P > pli->F2) return eslOK;
     }
-  pli->n_past_vit++;
+  pli->n_passed_vit++;
 
   /* Parse it with Forward and obtain its real Forward score. */
   p7_ForwardParser(sq->dsq, sq->n, om, pli->oxf, &fwdsc);
@@ -1218,7 +1218,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
 
  if (P > pli->F3) return eslOK;
 	
-  pli->n_past_fwd++;
+  pli->n_passed_fwd++;
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   p7_omx_GrowTo(pli->oxb, om->M, 0, sq->n);
   p7_BackwardParser(sq->dsq, sq->n, om, pli->oxf, pli->oxb, NULL);
@@ -1559,7 +1559,7 @@ p7_pli_postViterbi_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_T
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   if (P > pli->F3 ) return eslOK;
 
-  pli->pos_past_fwd += window_len - *overlap;
+  pli->pos_passed_fwd += window_len - *overlap;
 
   *overlap = -1; // overload variable to tell calling function that this window passed fwd
 
@@ -1815,7 +1815,7 @@ p7_pli_postSSV_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
   } else {
     bias_filtersc = 0; // mullsc will be added in later
   }
-  pli->pos_past_bias += window_len;
+  pli->pos_passed_bias += window_len;
 
   //establish a possibly shorter target window parameterization
   loc_window_len = ESL_MIN(window_len,om->max_length);
@@ -1862,10 +1862,10 @@ p7_pli_postSSV_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
 
   overlap = 0;
   for (i=0; i<vit_windowlist->count; i++) {
-    pli->pos_past_vit += vit_windowlist->windows[i].length;
+    pli->pos_passed_vit += vit_windowlist->windows[i].length;
     //remove overlap with preceding window
     if (i>0)
-      pli->pos_past_vit -= ESL_MAX(0,  vit_windowlist->windows[i-1].n + vit_windowlist->windows[i-1].length - vit_windowlist->windows[i].n );
+      pli->pos_passed_vit -= ESL_MAX(0,  vit_windowlist->windows[i-1].n + vit_windowlist->windows[i-1].length - vit_windowlist->windows[i].n );
 
     p7_pli_postViterbi_LongTarget(pli, om, bg, hitlist, data, seqidx,
         window_start+vit_windowlist->windows[i].n-1, vit_windowlist->windows[i].length,
@@ -2089,7 +2089,7 @@ p7_Pipeline_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
       P = esl_gumbel_surv( (usc-nullsc)/eslCONST_LOG2,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
 
       if (P > pli->F1 ) continue;
-      pli->pos_past_msv += window->length;
+      pli->pos_passed_msv += window->length;
 
       if (fmf) {
         seq_data = fm_cfg->meta->seq_data[window->id];
@@ -2477,12 +2477,14 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   float            filtersc_fs, filtersc_orf;               /* total filtersc for forward filter                            */
   float            seq_score_fs, seq_score_orf;              /* the corrected per-seq bit score                              */
   double           P_fs, P_orf;                      /* P-value of a hit */
+  double           min_P_orf = eslINFINITY;
   int              f;
   int              status;
   int              F3_L = ESL_MIN( window_len,  pli->B3);
-  int              orf_past_forward = 0;
-  subseq = dnasq->dsq + window_start - 1;
+  int              orf_passed_forward = 0;
 
+  subseq = dnasq->dsq + window_start - 1;
+  //printf("WINDOW ST %d END %d\n", window_start+dnasq->start, window_start+dnasq->start+window_len);
   /*First run Frameshift Forward on full Window and save score and P value.*/
   p7_bg_fs_SetLength(bg, window_len); // For bg model loop first two nucleotides have 0 probabilty 
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
@@ -2503,6 +2505,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   filtersc_fs = nullsc_fs + (bias_filtersc_fs * ( F3_L>window_len ? 1.0 : (float)F3_L/window_len) );
   seq_score_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
   P_fs = esl_exp_surv(seq_score_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
+  if (P_fs <= pli->F3) pli->pos_passed_fwd += window_len;
 
    /*set up seq object for domaindef function*/
   if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
@@ -2534,9 +2537,10 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
     seq_score_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
     P_orf = esl_exp_surv(seq_score_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+
     if(P_orf <= pli->F3) 
    {
-      orf_past_forward += curr_orf->n;
+      orf_passed_forward += curr_orf->n;
 
     /*If ORF passes the forward parser and has lower p-value then the frameshift window we will run the ORF through the full pipeline. */ 
      if(P_orf < P_fs) 
@@ -2555,13 +2559,13 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
         p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, window_start, curr_orf, dnasq, complementarity, fwdsc_orf, nullsc_orf);
      }
    }
- }
+   if(P_orf < min_P_orf) min_P_orf = P_orf;
+  }
 
   /* If the frameshift window passes the Forward Parser we run it through the full pipleine. */
-  if (P_fs <= pli->F3 ) 
+  if (P_fs <= pli->F3 && P_fs <= min_P_orf) 
   {
-    pli->pos_past_fwd += window_len; 
-
+     
   /* now that the window have passed the forward filter we must deterimine if it is 
    * better to handel it as a frameshited nucleotide sequence or as non-framshifted 
    * ORFs by comparing the forward filter P scores */
@@ -2579,8 +2583,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
     p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, window_start, window_len, dnasq, complementarity, fwdsc_fs);
   }
-  else if(orf_past_forward) 
-    pli->pos_past_fwd += orf_past_forward * 3;
+  else if(orf_passed_forward) 
+    pli->pos_passed_fwd += orf_passed_forward * 3;
 
 
     pli_tmp->tmpseq->dsq = dsq_holder;
@@ -2668,10 +2672,10 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   P7_HMM_WINDOWLIST  post_vit_windowlist;
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
-  
+ //printf("HMM %s\n", gm->name); 
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;
- 
+  //printf("DNA ST %d END %d\n", dnasq->start, dnasq->end);	
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   fwd_orf_block = NULL;
@@ -2755,7 +2759,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
       vit_coords->orf_ends[vit_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       vit_coords->orf_cnt++;
       
-      /* Collect all ORFs which past Viterbi Filter */
+      /* Collect all ORFs which passed Viterbi Filter */
       esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
       post_vit_orf_block->count++;
     }
@@ -2763,9 +2767,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   }
 
   min_length = ESL_MIN(dnasq->n, om->max_length * 3);
-  pli->pos_past_msv += ESL_MAX(p7_pli_fs_GetPosPast(msv_coords), min_length);
-  pli->pos_past_bias += ESL_MAX(p7_pli_fs_GetPosPast(bias_coords), min_length);
-  pli->pos_past_vit += ESL_MAX(p7_pli_fs_GetPosPast(vit_coords), min_length);
+  pli->pos_passed_msv += ESL_MAX(p7_pli_fs_GetPosPast(msv_coords), min_length);
+  pli->pos_passed_bias += ESL_MAX(p7_pli_fs_GetPosPast(bias_coords), min_length);
+  pli->pos_passed_vit += ESL_MAX(p7_pli_fs_GetPosPast(vit_coords), min_length);
 
   if (data->prefix_lengths == NULL)  //otherwise, already filled in
     p7_hmm_ScoreDataComputeRest(om, data);
@@ -2825,7 +2829,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   if ( fwd_orf_block != NULL) esl_sq_DestroyBlock(fwd_orf_block);
   if (pli_tmp != NULL) 
   {
-    if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
+    if (pli_tmp->tmpseq != NULL)  pli_tmp->tmpseq = NULL;
     if (pli_tmp->bg != NULL)     p7_bg_Destroy(pli_tmp->bg);
     if (pli_tmp->om != NULL)     p7_oprofile_Destroy(pli_tmp->om);
     if (pli_tmp->gm_fs != NULL)     p7_profile_fs_Destroy(pli_tmp->gm_fs);
@@ -2907,23 +2911,23 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
 
   if (pli->long_targets || pli->frameshift) { // nhmmer style
     fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_msv,
-        (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,
+        pli->pos_passed_msv,
+        (double)pli->pos_passed_msv / (pli->nres*pli->nmodels) ,
         pli->F1);
 
     fprintf(ofp, "Residues passing bias filter:%15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_bias,
-        (double)pli->pos_past_bias / (pli->nres*pli->nmodels) ,
+        pli->pos_passed_bias,
+        (double)pli->pos_passed_bias / (pli->nres*pli->nmodels) ,
         pli->F1);
 
     fprintf(ofp, "Residues passing Vit filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_vit,
-        (double)pli->pos_past_vit / (pli->nres*pli->nmodels) ,
+        pli->pos_passed_vit,
+        (double)pli->pos_passed_vit / (pli->nres*pli->nmodels) ,
         pli->F2);
 
     fprintf(ofp, "Residues passing Fwd filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_fwd,
-        (double)pli->pos_past_fwd / (pli->nres*pli->nmodels) ,
+        pli->pos_passed_fwd,
+        (double)pli->pos_passed_fwd / (pli->nres*pli->nmodels) ,
         pli->F3);
 
     fprintf(ofp, "Total number of hits:        %15d  (%.3g)\n",
@@ -2933,26 +2937,26 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
   } else { // typical case output
 
     fprintf(ofp, "Passed MSV filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_msv,
-        (double) pli->n_past_msv / ntargets,
+        pli->n_passed_msv,
+        (double) pli->n_passed_msv / ntargets,
         pli->F1 * ntargets,
         pli->F1);
 
     fprintf(ofp, "Passed bias filter:          %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_bias,
-        (double) pli->n_past_bias / ntargets,
+        pli->n_passed_bias,
+        (double) pli->n_passed_bias / ntargets,
         pli->F1 * ntargets,
         pli->F1);
 
     fprintf(ofp, "Passed Vit filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_vit,
-        (double) pli->n_past_vit / ntargets,
+        pli->n_passed_vit,
+        (double) pli->n_passed_vit / ntargets,
         pli->F2 * ntargets,
         pli->F2);
 
     fprintf(ofp, "Passed Fwd filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_fwd,
-        (double) pli->n_past_fwd / ntargets,
+        pli->n_passed_fwd,
+        (double) pli->n_passed_fwd / ntargets,
         pli->F3 * ntargets,
         pli->F3);
 

@@ -126,7 +126,7 @@ print_timings(int i, double elapsed, P7_PIPELINE *pli)
   sprintf(buf1, "%02d:%02d.%02d", m,s,hs);
 
   fprintf (stdout, "%2d %9" PRId64 " %9" PRId64 " %7" PRId64 " %7" PRId64 " %6" PRId64 " %5" PRId64 " %s\n",
-           i, pli->nseqs, pli->nres, pli->n_past_msv, pli->n_past_bias, pli->n_past_vit, pli->n_past_fwd, buf1);
+           i, pli->nseqs, pli->nres, pli->n_passed_msv, pli->n_passed_bias, pli->n_passed_vit, pli->n_passed_fwd, buf1);
 }
 
 static int
@@ -973,7 +973,7 @@ scan_thread_translated(void *arg)
           p7_pipeline_Merge(pipelinehits_accumulator, pli);
 
           p7_pipeline_Reuse(pli);
-          pli->n_output = pli->n_past_bias = pli->n_past_msv = pli->n_past_vit = pli->n_past_fwd = 0;
+          pli->n_output = pli->n_passed_bias = pli->n_passed_msv = pli->n_passed_vit = pli->n_passed_fwd = 0;
           p7_tophits_Reuse(th);
         }
       }
@@ -1043,10 +1043,10 @@ send_results(int fd, ESL_STOPWATCH *w, P7_TOPHITS *th, P7_PIPELINE *pli){
 
   stats.nmodels     = pli->nmodels;
   stats.nseqs       = pli->nseqs;
-  stats.n_past_msv  = pli->n_past_msv;
-  stats.n_past_bias = pli->n_past_bias;
-  stats.n_past_vit  = pli->n_past_vit;
-  stats.n_past_fwd  = pli->n_past_fwd;
+  stats.n_past_msv  = pli->n_passed_msv;
+  stats.n_past_bias = pli->n_passed_bias;
+  stats.n_past_vit  = pli->n_passed_vit;
+  stats.n_past_fwd  = pli->n_passed_fwd;
 
   stats.Z           = pli->Z;
   stats.domZ        = pli->domZ;

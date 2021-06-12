@@ -1373,15 +1373,15 @@ typedef struct p7_pipeline_s {
   uint64_t      nseqs;          /* # of sequences searched                  */
   uint64_t      nres;          /* # of residues searched                   */
   uint64_t      nnodes;          /* # of model nodes searched                */
-  uint64_t      n_past_msv;  /* # comparisons that pass MSVFilter()      */
-  uint64_t      n_past_bias;  /* # comparisons that pass bias filter      */
-  uint64_t      n_past_vit;  /* # comparisons that pass ViterbiFilter()  */
-  uint64_t      n_past_fwd;  /* # comparisons that pass ForwardFilter()  */
+  uint64_t      n_passed_msv;  /* # comparisons that pass MSVFilter()      */
+  uint64_t      n_passed_bias;  /* # comparisons that pass bias filter      */
+  uint64_t      n_passed_vit;  /* # comparisons that pass ViterbiFilter()  */
+  uint64_t      n_passed_fwd;  /* # comparisons that pass ForwardFilter()  */
   uint64_t      n_output;      /* # alignments that make it to the final output (used for nhmmer) */
-  uint64_t      pos_past_msv;  /* # positions that pass MSVFilter()  (used for nhmmer) */
-  uint64_t      pos_past_bias;  /* # positions that pass bias filter  (used for nhmmer) */
-  uint64_t      pos_past_vit;  /* # positions that pass ViterbiFilter()  (used for nhmmer) */
-  uint64_t      pos_past_fwd;  /* # positions that pass ForwardFilter()  (used for nhmmer) */
+  uint64_t      pos_passed_msv;  /* # positions that pass MSVFilter()  (used for nhmmer) */
+  uint64_t      pos_passed_bias;  /* # positions that pass bias filter  (used for nhmmer) */
+  uint64_t      pos_passed_vit;  /* # positions that pass ViterbiFilter()  (used for nhmmer) */
+  uint64_t      pos_passed_fwd;  /* # positions that pass ForwardFilter()  (used for nhmmer) */
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
   enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */

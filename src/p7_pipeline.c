@@ -2484,7 +2484,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   int              orf_passed_forward = 0;
 
   subseq = dnasq->dsq + window_start - 1;
-  printf("WINDOW ST %d END %d\n", window_start+dnasq->start, window_start+dnasq->start+window_len);
+  //printf("WINDOW ST %d END %d\n", window_start+dnasq->start, window_start+dnasq->start+window_len);
   /*First run Frameshift Forward on full Window and save score and P value.*/
   p7_bg_fs_SetLength(bg, window_len); // For bg model loop first two nucleotides have 0 probabilty 
   //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
@@ -2673,7 +2673,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   P7_HMM_WINDOWLIST  post_vit_windowlist;
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
- printf("HMM %s\n", gm->name); 
+ //printf("HMM %s\n", gm->name); 
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;
   //printf("DNA ST %d END %d\n", dnasq->start, dnasq->end);	

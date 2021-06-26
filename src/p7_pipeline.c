@@ -2334,16 +2334,16 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
  
     if (!complementarity)
     { 
-      dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 3;
-      dom->jenv       = dnasq->start + orfsq->start + dom->jenv*3 - 1;
+      dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 4; // minus one for orf start which is in nucleotide positions and minus 3 for inev which is in amino acid positions.  
+      dom->jenv       = dnasq->start + orfsq->start + dom->jenv*3 - 2; // same as above plus two to move to the end of the codon. 
       dom->iali       = dnasq->start + window_start + dom->iali - 2;
       dom->jali       = dnasq->start + window_start + dom->jali - 2;
 
     }
     else
     {
-      dom->ienv       = dnasq->end + (orfsq->start - dom->ienv*3) + 1;
-      dom->jenv       = dnasq->end + (orfsq->start - dom->jenv*3) - 1;
+      dom->ienv       = dnasq->end + orfsq->start - dom->ienv*3 + 2;   // minus one for orf start which is in nucleotide positions and plus 3 for inev which is in amino acid positions. 
+      dom->jenv       = dnasq->end + orfsq->start - dom->jenv*3; // minus one for orf start, plus 3 for ienv and minus two to get to the end of the codon = 0
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2;
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
     }

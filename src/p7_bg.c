@@ -476,9 +476,11 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 int
 p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 {
-  *ret_sc = (float) L/3 * log(bg->p1) + log(1.-bg->p1);
+  float nullsc;
+
+  nullsc = (float) L/3 * log(bg->p1) + log(1.-bg->p1);
    
-  *ret_sc = p7_FLogsum( p7_FLogsum( *ret_sc, *ret_sc), *ret_sc);
+  *ret_sc = p7_FLogsum( p7_FLogsum( nullsc, nullsc), nullsc);
   return eslOK;
 }
 
@@ -622,12 +624,15 @@ p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, con
 {
   ESL_HMX *hmx = esl_hmx_Create(L+2, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
 //	printf("L+2 %d M %d\n", L+2, bg->fhmm->M); 
-  float nullsc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
-	
-  p7_bg_fs_Forward(dsq, L, gcode, bg->fhmm, gm, hmx, &nullsc);
-   
+  float filtersc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
+  float nullsc;
+
+  p7_bg_fs_Forward(dsq, L, gcode, bg->fhmm, gm, hmx, &filtersc);
+  nullsc = (float) L/3 * log(bg->p1) + log(1.-bg->p1);
+
   /* impose the length distribution */
-  *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
+  *ret_sc = filtersc + p7_FLogsum( p7_FLogsum( nullsc, nullsc), nullsc); 
+ 
   esl_hmx_Destroy(hmx);
   return eslOK;
 }
@@ -638,14 +643,14 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
   int   i, k, m;
   int   a, v, w, x;
   int   M     = hmm->M;
-  float logsc;
+  float logsc1, logsc2, logsc3;
   float max;
 
   fwd->sc[0] = 0.0;
 	
   if (L == 0) {
-    fwd->sc[L+1] = logsc = log(hmm->pi[M]);
-    if (opt_sc != NULL) *opt_sc = logsc;
+    fwd->sc[L+1] = logsc1 = log(hmm->pi[M]);
+    if (opt_sc != NULL) *opt_sc = logsc1;
     return eslOK;
   }
 	
@@ -662,10 +667,11 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
     for(x = 0; x < gcode->nt_abc->K; x++)
        if(gcode->nt_abc->degen[dsq[2]][x]) break;
   }
-	
+
+  //first codons in the three frames end at i = 3, i = 4 and i = 5 	
   for (i = 3; i < 6; i++)
   {
-//	printf("i %d\n", i);
+
     max = 0.0;
     v = w;
     w = x;
@@ -676,9 +682,9 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
         if(gcode->nt_abc->degen[dsq[i]][x]) break;
     }
     for (k = 0; k < M; k++) {
-//	printf("k %d\n", k);
+
       a = gcode->basic[v*16+w*4+x];
-      fwd->dp[i][k] = hmm->eo[a][k];
+      fwd->dp[i][k] = hmm->eo[a][k] * hmm->pi[k];
       max = ESL_MAX(fwd->dp[i][k], max);
     }
     for (k = 0; k < M; k++) {
@@ -686,6 +692,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
     }
     fwd->sc[i] = log(max); 
   }
+
   for (i = 6; i <= L; i++)
     { 
       max = 0.0;
@@ -702,9 +709,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
         {
           fwd->dp[i][k] = 0.0;
           for (m = 0; m < M; m++)
-          {
             fwd->dp[i][k] += fwd->dp[i-3][m] * hmm->t[m][k];
-          }
 
           a = gcode->basic[v*16+w*4+x];
           fwd->dp[i][k] *= hmm->eo[a][k]; 
@@ -712,9 +717,9 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
           max = ESL_MAX(fwd->dp[i][k], max);
         }
 
-      for (k = 0; k < M; k++){
+      for (k = 0; k < M; k++)
         fwd->dp[i][k] /= max;
-     }
+     
       fwd->sc[i] = log(max);
     }
 	
@@ -731,13 +736,21 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
   fwd->sc[L+1] = log(fwd->sc[L+1]);
   fwd->sc[L+2] = log(fwd->sc[L+2]);
   fwd->sc[L+3] = log(fwd->sc[L+3]);
-  logsc = 0.0;
-  for (i = 3; i <= L+3; i++) 
-    logsc += fwd->sc[i];
-    
+  logsc1 = logsc2 = logsc3 = 0.0;
+  for (i = 3; i <= L+3; i++) {
+    switch (i%3) {
+      case 0: logsc1 += fwd->sc[i]; break;
+      case 1: logsc2 += fwd->sc[i]; break;
+      case 2: logsc3 += fwd->sc[i]; break;
+      default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
+    }
+  }
+  
+  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3);
+
   fwd->M = hmm->M;
   fwd->L = L;
-  if (opt_sc != NULL) *opt_sc = logsc;
+  if (opt_sc != NULL) *opt_sc = logsc1;
   return eslOK;
 }
 

@@ -586,15 +586,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if( ! hmm->fs || hmm->fs != indel_cost)
       {
         if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
-	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+	p7_fs_Tau(r, gm_fs, hmm, info->bg, 300, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
       }
       else
-        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
-
+        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 300, p7_LOCAL);
+      
       /* Create processing pipeline and hit list accumulators */
       tophits_accumulator  = p7_tophits_Create(); 
-      pipelinehits_accumulator = p7_pipeline_fs_Create(go, 100, 100, p7_SEARCH_SEQS);
+      pipelinehits_accumulator = p7_pipeline_fs_Create(go, 100, 300, p7_SEARCH_SEQS);
       pipelinehits_accumulator->nmodels = 1;
       pipelinehits_accumulator->nnodes = hmm->M;
 

@@ -1688,8 +1688,8 @@ extern int    p7_bg_Write(FILE *fp, P7_BG *bg);
 
 extern int    p7_bg_SetFilter  (P7_BG *bg, int M, const float *compo);
 extern int    p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-extern int      p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs, const ESL_GENCODE *gcode, int L, float *ret_sc);
-extern int      p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm_fs, ESL_HMX *fwd, float *opt_sc);
+extern int    p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int L, int do_biasfilter, float *ret_sc);
+extern int      p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, ESL_HMX *fwd, float *opt_sc);
 
 /* p7_builder.c */
 extern P7_BUILDER *p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc);
@@ -1723,9 +1723,9 @@ extern int p7_domaindef_ByViterbi            (P7_PROFILE *gm, const ESL_SQ *sq, 
 extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
                                           P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                           P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(const ESL_SQ *sq, const ESL_SQ *ntsq, 
+extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, 
 		P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
-                P7_BG *bg, const ESL_GENCODE *gcode, int64_t window_start, float F3, int do_biasfilter);
+                P7_BG *bg, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int64_t window_start, float F3, int do_biasfilter);
 extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const ESL_SQ *ntsq, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
            P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 
@@ -1858,7 +1858,7 @@ extern int p7_Pipeline_LongTarget   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCORE
                                      );
 extern int p7_Pipeline_Frameshift   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data,
              P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, 
-             ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, int complementarity);
+             ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 

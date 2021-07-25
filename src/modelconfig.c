@@ -500,7 +500,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
-  if ((status = p7_fs_ReconfigLength(gm_fs, L)) != eslOK) goto ERROR;
+  if ((status = p7_fs_ReconfigLength(gm_fs, L*3)) != eslOK) goto ERROR;
   return eslOK;
 
  ERROR:

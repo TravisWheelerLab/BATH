@@ -1281,6 +1281,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
       if (th->hit[h]->flags & p7_IS_REPORTED)
       {
         d    = th->hit[h]->best_domain;
+        //printf("best_domain = %d\n", d); 
         if (! (th->hit[h]->flags & p7_IS_INCLUDED) && ! have_printed_incthresh) 
         {
           if (fprintf(ofp, "  ------ inclusion threshold ------\n") < 0)
@@ -1312,6 +1313,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 	}
 	else if (pli->frameshift)
         {
+          
           if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "",
           newness,
           exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
@@ -2081,7 +2083,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 posw, th->hit[h]->dcl[d].ad->L,
                 exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
                 th->hit[h]->score,
-                th->hit[h]->frameshift ? th->hit[h]->dcl[d].dombias * eslCONST_LOG2R : th->hit[h]->pre_score - th->hit[h]->score, /* convert NATS to BITS at last moment */
+                th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
                 th->hit[h]->dcl[d].ad->frameshifts,
 	        th->hit[h]->frameshift ? "fs" : "nfs"	) < 0) 
 		ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
@@ -2249,7 +2251,7 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
     if (th->hit[h]->flags & p7_IS_REPORTED) {
 
         nd = 0;
-
+//printf("number of domains %d\n", th->hit[h]->ndom);
         for (d = 0; d < th->hit[h]->ndom; d++)
           if (th->hit[h]->dcl[d].is_reported)
           {
@@ -2275,12 +2277,12 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 qlen,
 		exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
                 th->hit[h]->score,
-                th->hit[h]->frameshift ? th->hit[h]->dcl[d].dombias * eslCONST_LOG2R : th->hit[h]->pre_score - th->hit[h]->score, /* bias correction */
+                th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* bias correction */
                 nd,
                 th->hit[h]->nreported,
                 exp(th->hit[h]->dcl[d].lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
                 th->hit[h]->dcl[d].bitscore,
-                th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* NATS to BITS at last moment */
+                eslCONST_LOG2R * th->hit[h]->dcl[d].dombias,
                 th->hit[h]->dcl[d].ad->hmmfrom,
                 th->hit[h]->dcl[d].ad->hmmto,
                 th->hit[h]->dcl[d].ad->sqfrom,

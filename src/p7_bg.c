@@ -292,7 +292,7 @@ int
 p7_bg_fs_SetLength(P7_BG *bg, int L)
 {
   bg->p1 = (float) L/3. / (float) (L/3. + 1);
- 
+  
   bg->fhmm->t[0][0] = bg->p1;
   bg->fhmm->t[0][1] = 1.0f - bg->p1;
 
@@ -478,9 +478,9 @@ p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 {
   float nullsc;
 
-  nullsc = (float) L/3 * log(bg->p1) + log(1.-bg->p1);
-   
-  *ret_sc = p7_FLogsum( p7_FLogsum( nullsc, nullsc), nullsc);
+  nullsc = (float) L/3 * log(bg->p1);    
+  
+  *ret_sc = p7_FLogsum( p7_FLogsum( nullsc, nullsc), nullsc) + log(1.-bg->p1);
   return eslOK;
 }
 
@@ -620,25 +620,48 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
  *            by <bg->p1>) that the null1 model uses is imposed.
  */
 int
-p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, const ESL_GENCODE *gcode, int L, float *ret_sc)
+p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int L, int do_biasfilter, float *ret_sc)
 {
-  ESL_HMX *hmx = esl_hmx_Create(L+2, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
-//	printf("L+2 %d M %d\n", L+2, bg->fhmm->M); 
-  float filtersc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
-  float nullsc;
 
-  p7_bg_fs_Forward(dsq, L, gcode, bg->fhmm, gm, hmx, &filtersc);
-  nullsc = (float) L/3 * log(bg->p1) + log(1.-bg->p1);
+  ESL_HMX *hmx = esl_hmx_Create(100, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. Use 100 length as place holder*/
 
-  /* impose the length distribution */
-  *ret_sc = filtersc + p7_FLogsum( p7_FLogsum( nullsc, nullsc), nullsc); 
- 
+  int     i;
+  float   filtersc;
+  ESL_SQ *orfsq;
+
+  /*translate the DNA sequence into the set of ORFs from all three frames*/
+  esl_gencode_ProcessStart(gcode, wrk, dnasq);
+  esl_gencode_ProcessPiece(gcode, wrk, dnasq);
+  esl_gencode_ProcessEnd(wrk, dnasq);
+  
+  *ret_sc = -eslINFINITY;
+  /*Get a bias score for each orf in the DNA sequence and sum them in probabbilioty space*/
+  for (i = 0; i < wrk->orf_block->count; ++i)
+  {
+    orfsq = &(wrk->orf_block->list[i]); 
+    p7_bg_SetLength(bg, orfsq->n);
+    
+    filtersc = 0; 
+    if(do_biasfilter) {
+      esl_hmx_GrowTo(hmx, orfsq->n, bg->fhmm->M);
+      esl_hmm_Forward(orfsq->dsq, orfsq->n, bg->fhmm, hmx, &filtersc);
+    }
+    /* impose the length distribution */
+	//printf("orf %d n %d p1 %f L %d\n", i, orfsq->n, bg->p1, L);	
+      //printf("bias %f Length distribution %f filtersc %f\n", filtersc, (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1), (filtersc + (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1)));
+	
+    filtersc += (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1);
+    *ret_sc = p7_FLogsum(*ret_sc, filtersc);
+  }
+  //p7_bg_fs_Forward(dnasq->dsq, L, gcode, bg->fhmm, hmx, &filtersc);
+  
   esl_hmx_Destroy(hmx);
+  esl_sq_ReuseBlock(wrk->orf_block);
   return eslOK;
 }
 
 int
-p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm, ESL_HMX *fwd, float *opt_sc)
+p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, ESL_HMX *fwd, float *opt_sc)
 {
   int   i, k, m;
   int   a, v, w, x;
@@ -746,7 +769,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
     }
   }
   
-  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3);
+  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3)  + log(1.0/3.0);
 
   fwd->M = hmm->M;
   fwd->L = L;

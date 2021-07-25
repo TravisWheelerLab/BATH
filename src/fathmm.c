@@ -44,7 +44,8 @@ typedef struct {
   P7_FS_PROFILE    *gm_fs;
   P7_SCOREDATA     *scoredata;
   ESL_GENCODE      *gcode;        /* used for translating ORFs               */
-  ESL_GENCODE_WORKSTATE *wrk;     /* */
+  ESL_GENCODE_WORKSTATE *wrk1;     /* */
+  ESL_GENCODE_WORKSTATE *wrk2;
 } WORKER_INFO;
 
 typedef struct {
@@ -586,11 +587,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if( ! hmm->fs || hmm->fs != indel_cost)
       {
         if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
-	p7_fs_Tau(r, gm_fs, hmm, info->bg, 300, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
       }
       else
-        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 300, p7_LOCAL);
+        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
       
       /* Create processing pipeline and hit list accumulators */
       tophits_accumulator  = p7_tophits_Create(); 
@@ -604,14 +605,16 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       {
         /* Create processing pipeline and hit list */
         info[i].gcode = gcode;
-        info[i].wrk = esl_gencode_WorkstateCreate(go, gcode);
-        info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abc);
+        info[i].wrk1 = esl_gencode_WorkstateCreate(go, gcode);
+        info[i].wrk1->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abc);
+	info[i].wrk2 = esl_gencode_WorkstateCreate(go, gcode);
+        info[i].wrk2->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abc);
         info[i].th     = p7_tophits_Create();
         info[i].om     = p7_oprofile_Clone(om);
         info[i].gm     = p7_profile_Clone(gm);
         info[i].gm_fs  = p7_profile_fs_Clone(gm_fs);
     	info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
-	info[i].pli = p7_pipeline_fs_Create(go, om->M, 100, p7_SEARCH_SEQS); /* L_hint = 100 is just a dummy for now */
+	info[i].pli = p7_pipeline_fs_Create(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
         status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
         if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
 
@@ -683,11 +686,17 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
            p7_profile_Destroy(info[i].gm);
            p7_profile_fs_Destroy(info[i].gm_fs);
 	   p7_hmm_ScoreDataDestroy(info[i].scoredata);
-           if(info[i].wrk->orf_block != NULL)
+           if(info[i].wrk1->orf_block != NULL)
            {
-            esl_sq_DestroyBlock(info[i].wrk->orf_block);
-            info[i].wrk->orf_block = NULL;
-            esl_gencode_WorkstateDestroy(info[i].wrk);
+            esl_sq_DestroyBlock(info[i].wrk1->orf_block);
+            info[i].wrk1->orf_block = NULL;
+            esl_gencode_WorkstateDestroy(info[i].wrk1);
+           }
+           if(info[i].wrk2->orf_block != NULL)
+           {
+            esl_sq_DestroyBlock(info[i].wrk2->orf_block);
+            info[i].wrk2->orf_block = NULL;
+            esl_gencode_WorkstateDestroy(info[i].wrk2);
            }
 	}
        
@@ -837,32 +846,32 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       
     info->pli->nres += dbsq_dna->n;
   
-    if (info->wrk->do_watson) {
+    if (info->wrk1->do_watson) {
       
       /* translate DNA sequence to 3 frame ORFs */
-      do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
+      do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 
-      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
+      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
       Z = info->pli->Z;
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       info->pli->Z = Z;
 
-      esl_sq_ReuseBlock(info->wrk->orf_block);    
+      esl_sq_ReuseBlock(info->wrk1->orf_block);    
     } else {
       info->pli->nres -= dbsq_dna->n;
     }
 
-    if (info->wrk->do_crick) {
+    if (info->wrk1->do_crick) {
       esl_sq_ReverseComplement(dbsq_dna);
-      do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
+      do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 	
-      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
+      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT); 
 
       Z = info->pli->Z;
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       info->pli->Z = Z;
       
-      esl_sq_ReuseBlock(info->wrk->orf_block);
+      esl_sq_ReuseBlock(info->wrk1->orf_block);
       info->pli->nres += dbsq_dna->n;
       esl_sq_ReverseComplement(dbsq_dna);
     } 
@@ -1020,32 +1029,32 @@ pipeline_thread(void *arg)
      
       info->pli->nres += dnaSeq->n;
 
-      if (info->wrk->do_watson) {
-        do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
+      if (info->wrk1->do_watson) {
+        do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
        
-        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
+        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
 
 	Z = info->pli->Z;
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 	info->pli->Z = Z;
 
-        esl_sq_ReuseBlock(info->wrk->orf_block);
+        esl_sq_ReuseBlock(info->wrk1->orf_block);
       } else {
         info->pli->nres -= dnaSeq->n;
       } 
 
-      if (info->wrk->do_crick) {
+      if (info->wrk1->do_crick) {
         info->pli->nres += dnaSeq->n;
         esl_sq_ReverseComplement(dnaSeq);
-        do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
+        do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
 	
-        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
+        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT);
 
 	Z = info->pli->Z;
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 	info->pli->Z = Z;
 
-	esl_sq_ReuseBlock(info->wrk->orf_block);
+	esl_sq_ReuseBlock(info->wrk1->orf_block);
         esl_sq_ReverseComplement(dnaSeq);
       }
     }  

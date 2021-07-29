@@ -1548,6 +1548,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
    * such a long envelope and estimate the true score of the hit region
    */
   if (long_target) {
+//printf("dom->ad->sqfrom - i %d, j - dom->ad->sqto %d\n", dom->ad->sqfrom - i, j - dom->ad->sqto);
     if (     i < dom->ad->sqfrom-max_env_extra   //trim the left side of the envelope
         ||   j > dom->ad->sqto+max_env_extra     //trim the right side of the envelope
         ) {
@@ -1728,13 +1729,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            status;
   ESL_DSQ        t, u, v, w, x;
   ESL_DSQ       *dsq_holder;
- 
+int            max_env_extra = 20; 
   if (Ld < 15) return eslOK;
 
   p7_fs_ReconfigLength(gm_fs, Ld);
   p7_bg_SetLength(bg, Ld);
-  //Need to subtract 2 from length because the first two nuclotides cannot be the end of codons
-  p7_bg_NullOne(bg, windowsq->dsq+i-1, Ld-2, &nullsc);
+  p7_bg_NullOne(bg, windowsq->dsq+i-1, Ld, &nullsc);
   
   dsq_holder = windowsq->dsq;
   windowsq->dsq = windowsq->dsq+i-1;
@@ -1754,10 +1754,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, &bcksc);
   gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS);
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
+
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy_Frameshift(gm_fs, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores */
   p7_OATrace_Frameshift(gm_fs, gxppfs, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
   p7_gmx_Destroy(gxppfs);
+
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
@@ -1772,13 +1774,16 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, windowsq, gcode);
   dom->scores_per_pos = NULL; 
   dom->envsc = envsc; 
+
   /* Compute bias correction (for non-longtarget case)
    * Is null2 set already for this i..j? (It is, if we're in a domain that
    * was defined by stochastic traceback clustering in a multidomain region;
    * it isn't yet, if we're in a simple one-domain region). If it isn't,
    * do it now, by the expectation (posterior decoding) method.
    */
-
+  
+    //printf("dom->ad->sqfrom - i %d, j - dom->ad->sqto %d\n", dom->ad->sqfrom - i, j - dom->ad->sqto);
+  
   if (!null2_is_done)
   { 
     p7_Null2_fs_ByExpectation(gm_fs, gx1, null2);
@@ -1838,7 +1843,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
   
-  dom->domcorrection = domcorrection; /* in units of NATS */
+  dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
  
   if(windowsq->start < windowsq->end)
   {

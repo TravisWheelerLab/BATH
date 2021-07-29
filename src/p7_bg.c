@@ -627,34 +627,52 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
 
   int     i;
   float   filtersc;
+  float   bias_sum1, bias_sum2, bias_sum3, bias_sum4;
+  float   len_dist;
   ESL_SQ *orfsq;
-
+  
   /*translate the DNA sequence into the set of ORFs from all three frames*/
   esl_gencode_ProcessStart(gcode, wrk, dnasq);
   esl_gencode_ProcessPiece(gcode, wrk, dnasq);
   esl_gencode_ProcessEnd(wrk, dnasq);
   
-  *ret_sc = -eslINFINITY;
+   bias_sum1 = bias_sum2 = bias_sum3 = 0;
   /*Get a bias score for each orf in the DNA sequence and sum them in probabbilioty space*/
   for (i = 0; i < wrk->orf_block->count; ++i)
   {
     orfsq = &(wrk->orf_block->list[i]); 
     p7_bg_SetLength(bg, orfsq->n);
-    
+ 
     filtersc = 0; 
     if(do_biasfilter) {
       esl_hmx_GrowTo(hmx, orfsq->n, bg->fhmm->M);
       esl_hmm_Forward(orfsq->dsq, orfsq->n, bg->fhmm, hmx, &filtersc);
     }
-    /* impose the length distribution */
-	//printf("orf %d n %d p1 %f L %d\n", i, orfsq->n, bg->p1, L);	
-      //printf("bias %f Length distribution %f filtersc %f\n", filtersc, (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1), (filtersc + (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1)));
-	
-    filtersc += (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1);
-    *ret_sc = p7_FLogsum(*ret_sc, filtersc);
+    switch (orfsq->start%3) {
+      case 0: bias_sum1 += filtersc; break;
+      case 1: bias_sum2 += filtersc; break;
+      case 2: bias_sum3 += filtersc; break;
+      default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
+    }
+
+   // filtersc += (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1);
+   //     *ret_sc =  p7_FLogsum(*ret_sc, filtersc);
   }
-  //p7_bg_fs_Forward(dnasq->dsq, L, gcode, bg->fhmm, hmx, &filtersc);
-  
+    
+  bias_sum4 = p7_FLogsum(bias_sum1, p7_FLogsum(bias_sum2, bias_sum3));
+    
+  /* impose the length distribution */
+
+  p7_bg_fs_SetLength(bg, L);
+  len_dist = (float) L * logf(bg->p1) + logf(1.-bg->p1);
+  *ret_sc = bias_sum4 + p7_FLogsum(len_dist, p7_FLogsum(len_dist, len_dist)); 
+
+ //iprintf("sum_frames_bias %f\n", sum4);
+ // esl_hmx_GrowTo(hmx, L+3, bg->fhmm->M);
+ // p7_bg_fs_Forward(dnasq->dsq, L, gcode, bg->fhmm, hmx, &windowsc);  
+ // p2 = (float) L/(float) (L+1);
+ // p3 = (float) (L/3.)/(float) (L/3. + 1);
+ // printf("window_bias %f window_len_dist %f window_len/3_dist %f\n", windowsc, L*logf(p2) + logf(1. - p2),  L/3. *logf(p3) + logf(1. - p3) );
   esl_hmx_Destroy(hmx);
   esl_sq_ReuseBlock(wrk->orf_block);
   return eslOK;
@@ -694,7 +712,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
   //first codons in the three frames end at i = 3, i = 4 and i = 5 	
   for (i = 3; i < 6; i++)
   {
-
+//	printf("i %d\n", i);
     max = 0.0;
     v = w;
     w = x;
@@ -718,6 +736,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
 
   for (i = 6; i <= L; i++)
     { 
+//	printf("i %d or %d\n", i, L);
       max = 0.0;
       v = w;
       w = x;
@@ -730,10 +749,12 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
 
       for (k = 0; k < M; k++)
         {
+//		printf("k %d of %d\n", k, M);
           fwd->dp[i][k] = 0.0;
+  //              printf("k %d of %d\n", k, M);
           for (m = 0; m < M; m++)
             fwd->dp[i][k] += fwd->dp[i-3][m] * hmm->t[m][k];
-
+//	printf("i %d or %d\n", i, L);
           a = gcode->basic[v*16+w*4+x];
           fwd->dp[i][k] *= hmm->eo[a][k]; 
 
@@ -769,7 +790,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
     }
   }
   
-  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3)  + log(1.0/3.0);
+  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3);
 
   fwd->M = hmm->M;
   fwd->L = L;

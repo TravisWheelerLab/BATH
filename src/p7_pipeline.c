@@ -1215,7 +1215,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   
   /* Parse it with Forward and obtain its real Forward score. */
   p7_ForwardParser(sq->dsq, sq->n, om, pli->oxf, &fwdsc);
-
+ // filtersc = ESL_MAX(0, filtersc);
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
  
@@ -2478,15 +2478,14 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   float            nullsc_orf;                 /* null one score for forward filter                            */
   float            filtersc_fs, filtersc_orf;               /* total filtersc for forward filter                            */
   float            seq_score_fs, seq_score_orf;              /* the corrected per-seq bit score                              */
-  float 	  tot_orf_sc = 0;
+  float 	  tot_orf_sc = -eslINFINITY;
   double           P_fs;                           /* P-value of frameshift forward for window*/
+  double  P_fs_nobias;
   double           tot_orf_P;                      /* P-value of sum stadard forward score for all orf */
+  double           min_P_orf = eslINFINITY;
   double          *P_orf = NULL;                         /* list of standard forward P-values for each orf*/ 
   int              f;
   int              status;
-
-  //temp vars
-  double  P_fs_nobias;
 
   subseq = dnasq->dsq + window_start - 1;
 
@@ -2501,7 +2500,12 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   pli_tmp->tmpseq->start = window_start;
   pli_tmp->tmpseq->end = (complementarity) ? (window_start - window_len + 1) : (window_start + window_len - 1); 
   pli_tmp->tmpseq->dsq = subseq;
- //printf("START\n"); 
+
+  //if (!complementarity)
+//	printf("start %lld end %lld\n", dnasq->start + window_start -1, dnasq->start + window_start +window_len -2);
+  //  else
+//	printf("start %lld end %lld\n", dnasq->start - window_start + 1, dnasq->start - (window_start +window_len) + 2);
+
   /*First run Frameshift Forward on full Window and save score and P value.*/
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, window_len, pli->do_biasfilter, &filtersc_fs);
 
@@ -2513,7 +2517,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   seq_score_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
   P_fs = esl_exp_surv(seq_score_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
   P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]); 
-
+   //printf("window seqsc %f fwdsc %f bias %f bias_P %e no bias_P %e\n", seq_score_fs * eslCONST_LOG2, fwdsc_fs, filtersc_fs, P_fs, P_fs_nobias);
   /*now run stardard froward on all orfs used to make the window*/
   P_orf = malloc(sizeof(double) * orf_block->count);
    for(f = 0; f < orf_block->count; f++) {
@@ -2533,18 +2537,20 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
       p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);
 
       p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc_orf);
-    
+   
       seq_score_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
       P_orf[f] = esl_exp_surv(seq_score_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-      tot_orf_sc += fwdsc_orf;
+    //  printf("orf %d seqsc %f fwdsc %f bias %f P %e\n", f, seq_score_orf * eslCONST_LOG2,  fwdsc_orf, filtersc_orf, P_orf[f]);
+      min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);
+      tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf);
     }
   }
  
   tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
 
   /*Compare Pvalues to select either the standard or the frameshift pipeline*/
-
-  if(P_fs < pli->F3 && P_fs_nobias < tot_orf_P) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
+ // printf("orf tot fwdsc %f no_bias_P %e\n\n", tot_orf_sc, tot_orf_P); 
+  if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
 
     pli->pos_passed_fwd += window_len; 
    
@@ -2566,7 +2572,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
      
      for(f = 0; f < orf_block->count; f++) {
       
-      if(orf_window[f] == windowID && P_orf[f] < pli->F3) { //only run the orfs that pass the froward parser 
+      if(orf_window[f] == windowID && P_orf[f] <= pli->F3) { //only run the orfs that pass the froward parser 
         curr_orf = &(orf_block->list[f]);
 
         pli->pos_passed_fwd += curr_orf->n * 3;

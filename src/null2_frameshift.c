@@ -416,7 +416,6 @@ main(int argc, char **argv)
   dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
   fwd  = p7_gmx_Create(gm->M, L);
   bck  = p7_gmx_Create(gm->M, L);
-  p7_FLogsumInit();
 
   utest_correct_normalization(r, gm, bg, dsq, L, fwd, bck);
 

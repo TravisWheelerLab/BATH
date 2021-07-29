@@ -717,7 +717,6 @@ main(int argc, char **argv)
   double          Mcs;
 
   p7_FLogsumInit();
-
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
@@ -864,8 +863,8 @@ main(int argc, char **argv)
   gx1 = p7_gmx_Create(gm->M, sq->n);
   gx2 = p7_gmx_Create(gm->M, sq->n);
   tr  = p7_trace_CreateWithPP();
-  p7_FLogsumInit();
 
+  p7_FLogsumInit();
   /* Run Forward, Backward; do OA fill and trace */
   p7_GForward (sq->dsq, sq->n, gm, gx1, &fsc);
   p7_GBackward(sq->dsq, sq->n, gm, gx2, &bsc);

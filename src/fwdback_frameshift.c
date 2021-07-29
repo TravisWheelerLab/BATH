@@ -71,8 +71,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
       IVX(5,k,c) = -eslINFINITY;
   }
 
-  p7_FLogsumInit();    /* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
- 
   /* Initialization of the N & B states for rows 0-2 */
   XMX_FS(0,p7G_N) = 0.; //* S->N, p=1            */
   XMX_FS(0,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
@@ -377,8 +375,6 @@ p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
       IVX(5,k,c) = -eslINFINITY;
   }
 
-  p7_FLogsumInit();    /* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
- 
   /* Initialization of the N & B states for rows 0-2 */
   XMX_FS(0,p7G_N) = 0.; //* S->N, p=1            */
   XMX_FS(0,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
@@ -690,7 +686,6 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   /* Note: backward calculates the probability we can get *out* of
    * cell i,k; exclusive of emitting residue x_i.
    */
-  p7_FLogsumInit();
   
   /* Initialization of row L  */
   XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY; /* need to enter and exit model */
@@ -967,7 +962,6 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
   /* Note: backward calculates the probability we can get *out* of
    * cell i,k; exclusive of emitting residue x_i.
    */
-  p7_FLogsumInit();
   curr = L % 6;
   
   /* Initialization of row L  */

@@ -664,7 +664,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
   /* impose the length distribution */
 
   p7_bg_fs_SetLength(bg, L);
-  len_dist = (float) L * logf(bg->p1) + logf(1.-bg->p1);
+  len_dist = (float) L/3. * logf(bg->p1) + logf(1.-bg->p1);
   *ret_sc = bias_sum4 + p7_FLogsum(len_dist, p7_FLogsum(len_dist, len_dist)); 
 
  //iprintf("sum_frames_bias %f\n", sum4);

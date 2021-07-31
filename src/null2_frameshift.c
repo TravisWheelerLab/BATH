@@ -200,6 +200,7 @@ p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, 
 
   for (x = 0; x < gm_fs->abc->K; x++)
     {
+      null2[x] = 0.;
       for (k = 1; k < M; k++)
         {
           null2[x] += MMX_FS(0,k,p7G_C0) * expf(p7P_MSC_FS(gm_fs, k, x));

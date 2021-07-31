@@ -760,7 +760,7 @@ if (is_multidomain_region_fs(ddef, i, j))
           * happens. [xref J5/130].
           */
           ddef->nenvelopes++;         
-         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, TRUE, bg, wrk, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
+         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, wrk, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
         }
 
         p7_spensemble_Reuse(ddef->sp);
@@ -1232,9 +1232,9 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
   float  null2[p7_MAXCODE];
   ESL_DSQ s, u, v, w, x;
   int     z;
-  float   n2sc[Lr];
+  //float   n2sc[Lr];
 
-  esl_vec_FSet(n2sc, Lr, 0.0); /* zero the null2 scores in region */
+  //esl_vec_FSet(n2sc, Lr, 0.0); /* zero the null2 scores in region */
 
   /* By default, we make results reproducible by forcing a reset of
    * the RNG to its originally seeded state.
@@ -1250,11 +1250,13 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
       p7_trace_fs_Index(ddef->tr);
  
       pos = 1;
-      for (d = 0; d < ddef->tr->ndom; d++)
+    for (d = 0; d < ddef->tr->ndom; d++)
     {
  
       p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
 
+//TODO: This null be trace needs to be fixed. Just use ByExpectation for now
+/* 
     p7_Null2_fs_ByTrace(gm_fs, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
    
     s = u = v = w = x = -1;
@@ -1273,8 +1275,8 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
         case p7T_C:
         case p7T_J:  if(ddef->tr->i[z] == pos)
                      {
-                       n2sc[pos] += 1.0;
-                      pos++;
+                       ddef->n2sc[pos] += 1.0;
+                       pos++;
                      } 
                      z++; break;
         case p7T_X:
@@ -1284,23 +1286,22 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
         case p7T_T:
         case p7T_D:  z++;   break;
         case p7T_M:  if(ddef->tr->i[z] == pos)
-                     { 
-                       if(ddef->tr->c[z] == 1)
-                         n2sc[pos]  += null2[p7P_AMINO1(gm_fs, ddef->tr->k[z], x)];
-                       else if(ddef->tr->c[z] == 2)
-                         n2sc[pos]  += null2[p7P_AMINO2(gm_fs, ddef->tr->k[z], w, x)];
-                       else if(ddef->tr->c[z] == 3)
-                         n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)];
-                       else if(ddef->tr->c[z] == 4)
-                         n2sc[pos]  += null2[p7P_AMINO4(gm_fs, ddef->tr->k[z], u, v, w, x)];
-                       else if(ddef->tr->c[z] == 5)
-                         n2sc[pos]  += null2[p7P_AMINO5(gm_fs, ddef->tr->k[z], s, u, v, w, x)];
+                     {
+		       switch (ddef->tr->c[z]) {
+			 case 1: ddef->n2sc[pos]  += null2[p7P_AMINO1(gm_fs, ddef->tr->k[z], x)]; break;
+                         case 2: ddef->n2sc[pos]  += null2[p7P_AMINO2(gm_fs, ddef->tr->k[z], w, x)]; break;
+                         case 3: ddef->n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]; break; 
+                         case 4: ddef->n2sc[pos]  += null2[p7P_AMINO4(gm_fs, ddef->tr->k[z], u, v, w, x)]; break;
+                         case 5: ddef->n2sc[pos]  += null2[p7P_AMINO5(gm_fs, ddef->tr->k[z], s, u, v, w, x)]; break;
+		         default:    ESL_EXCEPTION(eslEINVAL, "no such codon; can't use for null calc");
+		       }
+	//		printf("pos %d n2sc[pos] %f\n", pos, n2sc[pos]);
                        z++;
                      }
                      pos++;  break;
         case p7T_I:  if(ddef->tr->i[z] == pos)
                      {
-                       n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)];
+                       ddef->n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)];
                        z++;
                      }
                      pos++;  break;
@@ -1310,16 +1311,20 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
        u = w;
        v = w;
        w = x;
-     } 
+     }
+*/ 
     } 
      p7_trace_Reuse(ddef->tr);   
-    }
+  }
 
   /* Convert the accumulated n2sc[] ratios in this region to log odds null2 scores on each residue. */
+/*
   for (pos = 1; pos < Lr; pos++){
-    if (n2sc[pos] != 0.0)
-      n2sc[pos] = logf(n2sc[pos] / (float) ddef->nsamples);
+    if (ddef->n2sc[pos] != 0.0) 
+      ddef->n2sc[pos] = logf(ddef->n2sc[pos] / (float) ddef->nsamples);
+	
  }
+*/
   /* Cluster the ensemble of traces to break region into envelopes. */
   p7_spensemble_fs_Cluster(ddef->sp, ddef->min_overlap, ddef->of_smaller, ddef->max_diagdiff, ddef->min_posterior, ddef->min_endpointp, &nc);
  	
@@ -1720,7 +1725,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            Ld            = j-i+1;
   int            n_holder;
   float          domcorrection = 0.0;
-  float          envsc, seq_score, oasc, bcksc;
+  float          envsc, seq_score, oasc;
   float          nullsc, filtersc;
   float          P;
   int            z;
@@ -1741,6 +1746,7 @@ int            max_env_extra = 20;
   n_holder = windowsq->n;
   windowsq->n = Ld;
   windowsq->L = Ld;
+// printf("rescore domain\n");
   p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, Ld, do_biasfilter, &filtersc);
   windowsq->dsq = dsq_holder;
   windowsq->n = n_holder; 
@@ -1751,7 +1757,8 @@ int            max_env_extra = 20;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
 
   if (P > F3 ) return eslOK;
-  p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, &bcksc);
+	//printf("P %e envsc%f filtersc %f\n", P, envsc, filtersc); 
+  p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);
   gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS);
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
 
@@ -1763,12 +1770,23 @@ int            max_env_extra = 20;
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
-  
   /* get ptr to next empty domain structure in domaindef's results */
   if (ddef->ndom == ddef->nalloc) {
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
     ddef->nalloc *= 2;
   }
+
+  dsq_holder = windowsq->dsq;
+  windowsq->dsq = windowsq->dsq+i-1;
+  n_holder = windowsq->n;
+  windowsq->n = Ld;
+  windowsq->L = Ld;
+
+  p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, Ld, do_biasfilter, &filtersc);
+  windowsq->dsq = dsq_holder;
+  windowsq->n = n_holder;
+  windowsq->L = n_holder;
+ 
   
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, windowsq, gcode);
@@ -1840,11 +1858,12 @@ int            max_env_extra = 20;
       w = x;
     } 
   } 
+
   for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
-  
+
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
- 
+    
   if(windowsq->start < windowsq->end)
   {
     dom->iali          = dom->ad->sqfrom;

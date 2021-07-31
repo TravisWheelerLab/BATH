@@ -581,8 +581,10 @@ select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
   float  path[4];
   int    state[4] = { p7T_C, p7T_C, p7T_C, p7T_E };
 
+  /* If we have gotten all the way up to the last possible codon enter the model */
   if(i < 4)                                                           return p7T_E;
 
+  /* Possible paths include any of the three C state frames or moving to the E state at the current index */
   path[0] = t1 * (XMX(i-3, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
   if(i < gx->L)
     path[1] = t1 * (XMX(i-2, p7G_C) + pp->xmx[(i+1)*p7G_NXCELLS + p7G_C]);
@@ -593,8 +595,7 @@ select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
   else
     path[2] = FLT_MIN;
   path[3] = t2 *  XMX(i,p7G_E);
-  //printf("C i-3 %f pp i %f C i-2 %f pp i+1 %f C i-1 %f pp i+2 %f\n", XMX(i-3, p7G_C), pp->xmx[i*p7G_NXCELLS + p7G_C], XMX(i-2, p7G_C), pp->xmx[(i+1)*p7G_NXCELLS + p7G_C], XMX(i-1, p7G_C), pp->xmx[(i+2)*p7G_NXCELLS + p7G_C]);
-  //printf("i = %d, c-3 %f, c-2 %f, c-1 %f, e %f\n", i, path[0], path[1], path[2], path[3]);
+//TODO: does it make snce to set to FLTMIN or should I just not add from the pp matrix  
   return state[esl_vec_FArgMax(path, 4)];
 }
 

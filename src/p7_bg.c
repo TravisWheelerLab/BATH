@@ -628,6 +628,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
   int     i;
   float   filtersc;
   float   bias_sum1, bias_sum2, bias_sum3, bias_sum4;
+  int64_t   leng_sum1, leng_sum2, leng_sum3;
   float   len_dist;
   ESL_SQ *orfsq;
   
@@ -637,6 +638,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
   esl_gencode_ProcessEnd(wrk, dnasq);
   
    bias_sum1 = bias_sum2 = bias_sum3 = 0;
+   leng_sum1 = leng_sum2 = leng_sum3 = 0;
   /*Get a bias score for each orf in the DNA sequence and sum them in probabbilioty space*/
   for (i = 0; i < wrk->orf_block->count; ++i)
   {
@@ -649,30 +651,29 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
       esl_hmm_Forward(orfsq->dsq, orfsq->n, bg->fhmm, hmx, &filtersc);
     }
     switch (orfsq->start%3) {
-      case 0: bias_sum1 += filtersc; break;
-      case 1: bias_sum2 += filtersc; break;
-      case 2: bias_sum3 += filtersc; break;
+      case 0: bias_sum1 += filtersc; leng_sum1 += orfsq->n; break;
+      case 1: bias_sum2 += filtersc; leng_sum2 += orfsq->n; break;
+      case 2: bias_sum3 += filtersc; leng_sum3 += orfsq->n; break;
       default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
     }
 
-   // filtersc += (float) orfsq->n * logf(bg->p1) + logf(1.-bg->p1);
-   //     *ret_sc =  p7_FLogsum(*ret_sc, filtersc);
   }
     
   bias_sum4 = p7_FLogsum(bias_sum1, p7_FLogsum(bias_sum2, bias_sum3));
     
   /* impose the length distribution */
 
-  p7_bg_fs_SetLength(bg, L);
-  len_dist = (float) L/3. * logf(bg->p1) + logf(1.-bg->p1);
-  *ret_sc = bias_sum4 + p7_FLogsum(len_dist, p7_FLogsum(len_dist, len_dist)); 
+  p7_bg_SetLength(bg, leng_sum1);
+  len_dist = (float) leng_sum1 * logf(bg->p1) + logf(1.-bg->p1);
 
- //iprintf("sum_frames_bias %f\n", sum4);
- // esl_hmx_GrowTo(hmx, L+3, bg->fhmm->M);
- // p7_bg_fs_Forward(dnasq->dsq, L, gcode, bg->fhmm, hmx, &windowsc);  
- // p2 = (float) L/(float) (L+1);
- // p3 = (float) (L/3.)/(float) (L/3. + 1);
- // printf("window_bias %f window_len_dist %f window_len/3_dist %f\n", windowsc, L*logf(p2) + logf(1. - p2),  L/3. *logf(p3) + logf(1. - p3) );
+  p7_bg_SetLength(bg, leng_sum2);
+  len_dist = p7_FLogsum(len_dist, (float) leng_sum2 * logf(bg->p1) + logf(1.-bg->p1));
+
+  p7_bg_SetLength(bg, leng_sum3);
+  len_dist = p7_FLogsum(len_dist, (float) leng_sum3 * logf(bg->p1) + logf(1.-bg->p1));
+
+  *ret_sc = bias_sum4 + len_dist; 
+
   esl_hmx_Destroy(hmx);
   esl_sq_ReuseBlock(wrk->orf_block);
   return eslOK;

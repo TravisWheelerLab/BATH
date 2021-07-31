@@ -2177,7 +2177,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
   double           dom_lnP;
   P7_DOMAIN       *dom        = NULL;      /* convenience variable, ptr to current domain  */
   P7_HIT          *hit        = NULL;      /* ptr to the current hit output data                           */
-
+  
   for (d = 0; d < pli->ddef->ndom; d++)
   {      
     dom = pli->ddef->dcl + d;
@@ -2506,13 +2506,13 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
   p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, window_len, window_len, p7P_CODONS);
   p7_fs_ReconfigLength(gm_fs, window_len);
-
+	
   p7_ForwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxf, &fwdsc_fs);
   
   seq_score_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
   P_fs = esl_exp_surv(seq_score_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
   P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]); 
-   //printf("window seqsc %f fwdsc %f bias %f bias_P %e no bias_P %e\n", seq_score_fs * eslCONST_LOG2, fwdsc_fs, filtersc_fs, P_fs, P_fs_nobias);
+   
   /*now run stardard froward on all orfs used to make the window*/
   P_orf = malloc(sizeof(double) * orf_block->count);
    for(f = 0; f < orf_block->count; f++) {
@@ -2530,12 +2530,11 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
       p7_oprofile_ReconfigLength(om, curr_orf->n);
       p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);
-
+	
       p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc_orf);
    
       seq_score_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
       P_orf[f] = esl_exp_surv(seq_score_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-    //  printf("orf %d seqsc %f fwdsc %f bias %f P %e\n", f, seq_score_orf * eslCONST_LOG2,  fwdsc_orf, filtersc_orf, P_orf[f]);
       min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);
       tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf);
     }
@@ -2544,14 +2543,14 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
 
   /*Compare Pvalues to select either the standard or the frameshift pipeline*/
- // printf("orf tot fwdsc %f no_bias_P %e\n\n", tot_orf_sc, tot_orf_P); 
+
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
 	//if (!complementarity)
 	  //printf("wstart %lld end %lld\n", dnasq->start + window_start -1, dnasq->start + window_start +window_len -2);
   	//else
 	 // printf("wstart %lld end %lld\n", dnasq->start - window_start + 1, dnasq->start - (window_start +window_len) + 2);
 	
-	//printf("window seqsc %f fwdsc %f bias %f bias_P %e no bias_P %e\n", seq_score_fs * eslCONST_LOG2, fwdsc_fs, filtersc_fs, P_fs, P_fs_nobias);
+	
     pli->pos_passed_fwd += window_len; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, window_len, 0);
@@ -2580,14 +2579,13 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
         //else
          // printf("ostart %lld end %lld\n", dnasq->end + curr_orf->start - 1, dnasq->end + curr_orf->end - 1);
 
-//printf("ostart %lld end %lld\n", dnasq->start + curr_orf->start - 1, dnasq->start + curr_orf->end -1);
         pli->pos_passed_fwd += curr_orf->n * 3;
 
         p7_oprofile_ReconfigLength(om, curr_orf->n);
           
         p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);
         p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, NULL);
-
+	
         p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);     
         p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
           
@@ -2694,7 +2692,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   P7_HMM_WINDOWLIST  post_vit_windowlist;
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
- 
+
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;
 
@@ -2745,6 +2743,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
       p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
 	
       p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
+	
       /* MSV Filter on ORF */
       p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
       seq_score = (usc - nullsc) / eslCONST_LOG2;
@@ -2768,7 +2767,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
       bias_coords->orf_starts[bias_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
       bias_coords->orf_ends[bias_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       bias_coords->orf_cnt++;
-
 
       /* Viterbi filer on ORF */
       if (P > pli->F2)

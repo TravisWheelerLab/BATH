@@ -631,7 +631,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
   int64_t   leng_sum1, leng_sum2, leng_sum3;
   float   len_dist;
   ESL_SQ *orfsq;
-  
+
   /*translate the DNA sequence into the set of ORFs from all three frames*/
   esl_gencode_ProcessStart(gcode, wrk, dnasq);
   esl_gencode_ProcessPiece(gcode, wrk, dnasq);
@@ -639,6 +639,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
   
    bias_sum1 = bias_sum2 = bias_sum3 = 0;
    leng_sum1 = leng_sum2 = leng_sum3 = 0;
+ 
   /*Get a bias score for each orf in the DNA sequence and sum them in probabbilioty space*/
   for (i = 0; i < wrk->orf_block->count; ++i)
   {
@@ -662,15 +663,28 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
   bias_sum4 = p7_FLogsum(bias_sum1, p7_FLogsum(bias_sum2, bias_sum3));
     
   /* impose the length distribution */
-
-  p7_bg_SetLength(bg, leng_sum1);
-  len_dist = (float) leng_sum1 * logf(bg->p1) + logf(1.-bg->p1);
-
-  p7_bg_SetLength(bg, leng_sum2);
-  len_dist = p7_FLogsum(len_dist, (float) leng_sum2 * logf(bg->p1) + logf(1.-bg->p1));
-
-  p7_bg_SetLength(bg, leng_sum3);
-  len_dist = p7_FLogsum(len_dist, (float) leng_sum3 * logf(bg->p1) + logf(1.-bg->p1));
+  if(leng_sum1 > 0) 
+  {
+    p7_bg_SetLength(bg, leng_sum1);
+    len_dist = (float) leng_sum1 * logf(bg->p1) + logf(1.-bg->p1);
+  }
+  else
+    len_dist = -eslINFINITY;
+   
+  if(leng_sum2 > 0)
+  { 
+    p7_bg_SetLength(bg, leng_sum2);
+    len_dist = p7_FLogsum(len_dist, (float) leng_sum2 * logf(bg->p1) + logf(1.-bg->p1));
+  }
+ 
+  if(leng_sum3 > 0)
+  { 
+    p7_bg_SetLength(bg, leng_sum3);
+    len_dist = p7_FLogsum(len_dist, (float) leng_sum3 * logf(bg->p1) + logf(1.-bg->p1));
+  }
+  
+  if(len_dist == -eslINFINITY)
+    len_dist = 0.;
 
   *ret_sc = bias_sum4 + len_dist; 
 

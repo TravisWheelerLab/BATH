@@ -767,6 +767,7 @@ if (is_multidomain_region_fs(ddef, i, j))
         p7_trace_Reuse(ddef->tr);
 
      } else {
+	
 	ddef->nenvelopes++;
        rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, wrk, gcode, F3, do_biasfilter);
 
@@ -1726,7 +1727,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            n_holder;
   float          domcorrection = 0.0;
   float          envsc, seq_score, oasc;
-  float          nullsc, filtersc;
+  float          filtersc;
   float          P;
   int            z;
   int            pos;
@@ -1736,32 +1737,32 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   ESL_DSQ       *dsq_holder;
 int            max_env_extra = 20; 
   if (Ld < 15) return eslOK;
-
+	
   p7_fs_ReconfigLength(gm_fs, Ld);
-  p7_bg_SetLength(bg, Ld);
-  p7_bg_NullOne(bg, windowsq->dsq+i-1, Ld, &nullsc);
   
   dsq_holder = windowsq->dsq;
   windowsq->dsq = windowsq->dsq+i-1;
   n_holder = windowsq->n;
   windowsq->n = Ld;
   windowsq->L = Ld;
-// printf("rescore domain\n");
+	
   p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, Ld, do_biasfilter, &filtersc);
+
   windowsq->dsq = dsq_holder;
   windowsq->n = n_holder; 
-  windowsq->L = n_holder;   
+  windowsq->L = n_holder;  
  
+  
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
 
   if (P > F3 ) return eslOK;
-	//printf("P %e envsc%f filtersc %f\n", P, envsc, filtersc); 
+   
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);
   gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS);
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
-
+  
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy_Frameshift(gm_fs, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores */
   p7_OATrace_Frameshift(gm_fs, gxppfs, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
@@ -1776,18 +1777,6 @@ int            max_env_extra = 20;
     ddef->nalloc *= 2;
   }
 
-  dsq_holder = windowsq->dsq;
-  windowsq->dsq = windowsq->dsq+i-1;
-  n_holder = windowsq->n;
-  windowsq->n = Ld;
-  windowsq->L = Ld;
-
-  p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, Ld, do_biasfilter, &filtersc);
-  windowsq->dsq = dsq_holder;
-  windowsq->n = n_holder;
-  windowsq->L = n_holder;
- 
-  
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, windowsq, gcode);
   dom->scores_per_pos = NULL; 
@@ -1800,7 +1789,6 @@ int            max_env_extra = 20;
    * do it now, by the expectation (posterior decoding) method.
    */
   
-    //printf("dom->ad->sqfrom - i %d, j - dom->ad->sqto %d\n", dom->ad->sqfrom - i, j - dom->ad->sqto);
   
   if (!null2_is_done)
   { 

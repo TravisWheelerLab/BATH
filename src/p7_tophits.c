@@ -991,7 +991,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
   int h, d;    /* counters over sequence hits, domains in sequences */
   /* Flag reported, included targets (if we're using general thresholds) */
   if (! pli->use_bit_cutoffs) 
-  {
+  {  
     for (h = 0; h < th->N; h++)
     {
       if ( !(th->hit[h]->flags & p7_IS_DUPLICATE) &&
@@ -1040,7 +1040,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
           if (p7_pli_DomainReportable(pli, th->hit[h]->frameshift, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
             th->hit[h]->dcl[d].is_reported = TRUE;
           if ((th->hit[h]->flags & p7_IS_INCLUDED) &&
-              p7_pli_DomainIncludable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
+              p7_pli_DomainIncludable(pli, th->hit[h]->frameshift, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
             th->hit[h]->dcl[d].is_included = TRUE;
         }
       }

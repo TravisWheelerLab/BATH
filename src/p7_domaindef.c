@@ -1756,7 +1756,7 @@ int            max_env_extra = 20;
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
-
+	
   if (P > F3 ) return eslOK;
    
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);
@@ -1849,7 +1849,6 @@ int            max_env_extra = 20;
 
   for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
-
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
     
   if(windowsq->start < windowsq->end)

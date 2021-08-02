@@ -868,9 +868,11 @@ p7_pli_TargetIncludable(P7_PIPELINE *pli, int frameshift, float score, double ln
  * Synopsis:  Returns TRUE if domain score meets inclusion threshold.
  */
 int
-p7_pli_DomainIncludable(P7_PIPELINE *pli, float dom_score, double lnP)
+p7_pli_DomainIncludable(P7_PIPELINE *pli, int frameshift, float dom_score, double lnP)
 {
-  if      (  pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
+
+  if      ( ! frameshift && pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
+  else if (   frameshift && pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
   else if (! pli->incdom_by_E   && dom_score        >= pli->incdomT) return TRUE;
   else return FALSE;
 }
@@ -1409,7 +1411,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
           if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
           {
             hit->dcl[d].is_reported = TRUE;
-            if (p7_pli_DomainIncludable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))
+            if (p7_pli_DomainIncludable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
               hit->dcl[d].is_included = TRUE;
           }
         }
@@ -1715,7 +1717,7 @@ p7_pli_postViterbi_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_T
         if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
         {
           hit->dcl[0].is_reported = TRUE;
-          if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+          if (p7_pli_DomainIncludable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
             hit->dcl[0].is_included = TRUE;
         }
 
@@ -2237,7 +2239,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
      dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
 	
      dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
-
+      
      p7_tophits_CreateNextHit(hitlist, &hit);
 
       hit->ndom        = 1;
@@ -2287,7 +2289,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
         if (p7_pli_DomainReportable(pli, TRUE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
         {
           hit->dcl[0].is_reported = TRUE;
-          if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+          if (p7_pli_DomainIncludable(pli, TRUE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
             hit->dcl[0].is_included = TRUE;
         }
 
@@ -2406,7 +2408,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
        if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
        {
          hit->dcl[0].is_reported = TRUE;
-         if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+         if (p7_pli_DomainIncludable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
            hit->dcl[0].is_included = TRUE;
        }
      }
@@ -2543,14 +2545,13 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
 
   /*Compare Pvalues to select either the standard or the frameshift pipeline*/
-
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
-	//if (!complementarity)
-	  //printf("wstart %lld end %lld\n", dnasq->start + window_start -1, dnasq->start + window_start +window_len -2);
-  	//else
-	 // printf("wstart %lld end %lld\n", dnasq->start - window_start + 1, dnasq->start - (window_start +window_len) + 2);
 	
-	
+//	if (!complementarity)
+//	  printf("wstart %lld end %lld\n", dnasq->start + window_start -1, dnasq->start + window_start +window_len -2);
+  //	else
+//	  printf("wstart %lld end %lld\n", dnasq->start - window_start + 1, dnasq->start - (window_start +window_len) + 2);
+
     pli->pos_passed_fwd += window_len; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, window_len, 0);
@@ -2573,7 +2574,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
        if(orf_window[f] == windowID && P_orf[f] <= pli->F3) { //only run the orfs that pass the froward parser 
         curr_orf = &(orf_block->list[f]);
-
+	
 	//if (!complementarity)
           //printf("pstart %lld end %lld\n", dnasq->start + curr_orf->start - 1, dnasq->start + curr_orf->end -1);
         //else

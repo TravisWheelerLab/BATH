@@ -21,6 +21,7 @@ static ESL_OPTIONS options[] = {
   { "-b",        eslARG_NONE,   FALSE, NULL, NULL, "-a,-b,-2",      NULL,    NULL, "binary: output models in HMMER3 binary format",                    0 },
   { "-2",        eslARG_NONE,   FALSE, NULL, NULL, "-a,-b,-2",      NULL,    NULL, "HMMER2: output backward compatible HMMER2 ASCII format (ls mode)", 0 },
   { "--outfmt",  eslARG_STRING, NULL,  NULL, NULL,      NULL,       NULL,    "-2", "choose output legacy 3.x file formats by name, such as '3/a'",     0 },
+  { "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
@@ -40,6 +41,11 @@ main(int argc, char **argv)
   int            fmtcode = -1;	/* -1 = write the current default format */
   int            status;
   char           errbuf[eslERRBUFSIZE];
+  float          fs;
+  P7_BG          *bg   = NULL;
+  ESL_RANDOMNESS *r  = NULL;
+  P7_FS_PROFILE     *gm_fs  = NULL;
+  double          tau_fs;
 
   if (outfmt != NULL) {
     if      (strcmp(outfmt, "3/a") == 0) fmtcode = p7_HMMFILE_3a;
@@ -58,6 +64,18 @@ main(int argc, char **argv)
 
   while ((status = p7_hmmfile_Read(hfp, &abc, &hmm)) == eslOK)
     {
+      fs = esl_opt_GetReal(go, "--fs");
+    
+      if(hmm->abc->type == eslAMINO && fs != hmm->fs)
+        {
+          hmm->fs = fs;
+          r = esl_randomness_CreateFast(42);
+          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+          bg = p7_bg_Create(hmm->abc);
+
+          p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS] = tau_fs;
+        } 
       if      (esl_opt_GetBoolean(go, "-a") == TRUE) p7_hmmfile_WriteASCII (ofp, fmtcode, hmm);
       else if (esl_opt_GetBoolean(go, "-b") == TRUE) p7_hmmfile_WriteBinary(ofp, fmtcode, hmm);
       else if (esl_opt_GetBoolean(go, "-2") == TRUE) p7_h2io_WriteASCII    (ofp, hmm);
@@ -67,7 +85,10 @@ main(int argc, char **argv)
   if      (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hmmfile);
   else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hmmfile);
   else if (status != eslEOF)       p7_Fail("Unexpected error in reading HMMs from %s",   hmmfile);
-
+  
+  if(bg != NULL)    p7_bg_Destroy(bg);
+  if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
+  if(r != NULL)     esl_randomness_Destroy(r);
   p7_hmmfile_Close(hfp);
   esl_alphabet_Destroy(abc);
   esl_getopts_Destroy(go);

@@ -410,7 +410,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              i, d, h;
   float            indel_cost;
   double           resCnt    = 0;
-  double           tau_fs; 
+//  double           tau_fs; 
   /* used to keep track of the lengths of the sequences that are processed */
   ID_LENGTH_LIST  *id_length_list = NULL;
 
@@ -494,8 +494,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* <abc> is not known 'til first HMM is read. */
   hstatus = p7_hmmfile_Read(hfp, &abc, &hmm);
  
+   /* Check for correct HMM alphabet */
     if (abc->type != eslAMINO) p7_Fail("fathmm only supports amino acid HMMs; %s uses a different alphabet", cfg->hmmfile);
 
+  /* Check for presence of frameshift tau and matching frameshift probabilities */
+  indel_cost = esl_opt_GetReal(go, "--fs");
+  if( ! hmm->fs ) p7_Fail("HMM file %s not formated for fathmm. Please run hmmconvert.\n", cfg->hmmfile);
+   if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probabilty of %f does not match the frameshift probablity in the HMM file %s. Please run hummcovert with option '--fs %f'.\n", indel_cost, cfg->hmmfile, indel_cost);
+      
   if (hstatus == eslOK)
   {
       /* One-time initializations after alphabet <abc> becomes known */
@@ -526,9 +532,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   gcode = esl_gencode_Create(abcDNA, abc);
   esl_gencode_Set(gcode, esl_opt_GetInteger(go, "-c"));  // default = 1, the standard genetic code
 
-  /* Get the frameshift probablity */
-  indel_cost = esl_opt_GetReal(go, "--fs");
- 
+   
   if      (esl_opt_GetBoolean(go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
   else if (! esl_opt_GetBoolean(go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m or -M are set
 
@@ -584,14 +588,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       p7_oprofile_Convert(gm, om);                  /* <om> is now p7_LOCAL, multihit */
 
-      if( ! hmm->fs || hmm->fs != indel_cost)
-      {
-        if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
-	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
-      }
-      else
-        p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
+//      if( ! hmm->fs || hmm->fs != indel_cost)
+//      {
+//        if ((r = esl_randomness_CreateFast(42)) == NULL) ESL_XFAIL(eslEMEM, errbuf, "failed to create RNG");
+//	p7_fs_Tau(r, gm_fs, hmm, info->bg, 100, 200, indel_cost, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+//        hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
+//      }
+//      else
+//         
+      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);
       
       /* Create processing pipeline and hit list accumulators */
       tophits_accumulator  = p7_tophits_Create(); 

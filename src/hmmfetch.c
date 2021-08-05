@@ -242,11 +242,14 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   ESL_RANDOMNESS *r  = NULL;
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
+  float           fs;
   int             nhmm   = 0;
   char           *key;
   int             keylen;
   int             keyidx;
   int             status;
+
+  fs = esl_opt_GetReal(go, "--fs");
 
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
   esl_fileparser_SetCommentChar(efp, '#');
@@ -274,10 +277,9 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  else if (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hfp->fname);
 	  else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hfp->fname);
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
-
-          if(hmm->abc->type == eslAMINO && esl_opt_GetReal(go, "--fs") != hmm->fs)
+          if(hmm->abc->type == eslAMINO && fs != hmm->fs)
         {
-          hmm->fs = esl_opt_GetReal(go, "--fs");
+          hmm->fs = fs;
           r = esl_randomness_CreateFast(42);
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
           bg = p7_bg_Create(hmm->abc);
@@ -323,7 +325,10 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   ESL_RANDOMNESS *r  = NULL;
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
+  float           fs; 
   int             status;
+
+  fs = esl_opt_GetReal(go, "--fs");
 
   if (hfp->ssi != NULL)
     {
@@ -346,9 +351,10 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
     }
 
   if (status == eslOK) 
-    {
-      if(hmm->abc->type == eslAMINO && esl_opt_GetReal(go, "--fs") != hmm->fs)
-      {
+    { 
+
+      if(hmm->abc->type == eslAMINO && fs != hmm->fs)
+      { 
 	hmm->fs = esl_opt_GetReal(go, "--fs");
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);

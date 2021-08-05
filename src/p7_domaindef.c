@@ -1229,10 +1229,10 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
   int    t, d, d2;
   int    nov, n;
   int    nc;
-  int    pos;
-  float  null2[p7_MAXCODE];
-  ESL_DSQ s, u, v, w, x;
-  int     z;
+  //int    pos;
+  //float  null2[p7_MAXCODE];
+  //ESL_DSQ s, u, v, w, x;
+  //int     z;
   //float   n2sc[Lr];
 
   //esl_vec_FSet(n2sc, Lr, 0.0); /* zero the null2 scores in region */
@@ -1250,7 +1250,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
 
       p7_trace_fs_Index(ddef->tr);
  
-      pos = 1;
+    //  pos = 1;
     for (d = 0; d < ddef->tr->ndom; d++)
     {
  
@@ -1735,7 +1735,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            status;
   ESL_DSQ        t, u, v, w, x;
   ESL_DSQ       *dsq_holder;
-int            max_env_extra = 20; 
+
   if (Ld < 15) return eslOK;
 	
   p7_fs_ReconfigLength(gm_fs, Ld);
@@ -1746,7 +1746,7 @@ int            max_env_extra = 20;
   windowsq->n = Ld;
   windowsq->L = Ld;
 	
-  p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, Ld, do_biasfilter, &filtersc);
+  p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, do_biasfilter, &filtersc);
 
   windowsq->dsq = dsq_holder;
   windowsq->n = n_holder; 
@@ -1756,7 +1756,7 @@ int            max_env_extra = 20;
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
-	
+  //printf("envsc %f filtersc %f P %e\n", envsc, filtersc, P);	
   if (P > F3 ) return eslOK;
    
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);

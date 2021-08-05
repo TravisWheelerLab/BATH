@@ -1029,7 +1029,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
    * (sequence|domain) must be reported to be included, and
    * domain can only be (reported|included) if whole sequence is too.
    */
-  if (! pli->use_bit_cutoffs && !pli->long_targets)
+  if (! pli->use_bit_cutoffs && !pli->long_targets && !pli->frameshift)
   {
     for (h = 0; h < th->N; h++)
     {

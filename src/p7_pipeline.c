@@ -819,7 +819,7 @@ int
 p7_pli_TargetReportable(P7_PIPELINE *pli, int frameshift, float score, double lnP)
 {
   if      (  pli->by_E )
-    {  
+    { 
       if ( !pli->long_targets && !frameshift && exp(lnP) * pli->Z <= pli->E) return TRUE;
       if ( (pli->long_targets || frameshift) && exp(lnP) <= pli->E)          return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
     }
@@ -2504,7 +2504,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   pli_tmp->tmpseq->dsq = subseq;
 
     /*First run Frameshift Forward on full Window and save score and P value.*/
-    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, window_len, pli->do_biasfilter, &filtersc_fs);
+    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
   p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, window_len, window_len, p7P_CODONS);
   p7_fs_ReconfigLength(gm_fs, window_len);
@@ -2551,7 +2551,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 //	  printf("wstart %lld end %lld\n", dnasq->start + window_start -1, dnasq->start + window_start +window_len -2);
   //	else
 //	  printf("wstart %lld end %lld\n", dnasq->start - window_start + 1, dnasq->start - (window_start +window_len) + 2);
-
+//	printf("P_fs %e min_P_orf %e P_fs_nobias %e tot_orf_P %e\n", P_fs, min_P_orf, P_fs_nobias, tot_orf_P);
+	//printf("fwdsc_fs %f filtersc_fs %f\n", fwdsc_fs, filtersc_fs);
     pli->pos_passed_fwd += window_len; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, window_len, 0);
@@ -2576,10 +2577,10 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
         curr_orf = &(orf_block->list[f]);
 	
 	//if (!complementarity)
-          //printf("pstart %lld end %lld\n", dnasq->start + curr_orf->start - 1, dnasq->start + curr_orf->end -1);
+        //  printf("ostart %lld end %lld\n", dnasq->start + curr_orf->start - 1, dnasq->start + curr_orf->end -1);
         //else
-         // printf("ostart %lld end %lld\n", dnasq->end + curr_orf->start - 1, dnasq->end + curr_orf->end - 1);
-
+        //  printf("ostart %lld end %lld\n", dnasq->end + curr_orf->start - 1, dnasq->end + curr_orf->end - 1);
+        //printf("P_fs %e min_P_orf %e P_fs_nobias %e tot_orf_P %e\n", P_fs, min_P_orf, P_fs_nobias, tot_orf_P);
         pli->pos_passed_fwd += curr_orf->n * 3;
 
         p7_oprofile_ReconfigLength(om, curr_orf->n);

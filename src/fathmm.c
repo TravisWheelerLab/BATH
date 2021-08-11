@@ -87,6 +87,7 @@ static ESL_OPTIONS options[] = {
   { "--noali",      eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't output alignments, so output is smaller",                2 },
   { "--notrans",    eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't show the translated DNA sequence in domain alignment",   2 }, /*for hmmsearcht */
   { "--vertcodon",  eslARG_NONE,   FALSE,  NULL, NULL,   NULL,  NULL,  NULL,            "show the DNA codon vertically in domain alignment",            2 }, /*for hmmsearcht */
+  { "--frameline",  eslARG_NONE,   FALSE,  NULL, NULL,   NULL,  NULL,  NULL,            "show the frame of each codond"                     ,           2 }, /*for fathmm */
   { "--notextw",    eslARG_NONE,    NULL, NULL, NULL,    NULL,  NULL, "--textw",        "unlimit ASCII text output line width",                         2 },
   { "--textw",      eslARG_INT,    "150", NULL, "n>=150",NULL,  NULL, "--notextw",      "set max width of ASCII text output lines",                     2 },
   /* Control of reporting thresholds */
@@ -280,6 +281,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--textw")      && fprintf(ofp, "# max ASCII text line length:      %d\n",             esl_opt_GetInteger(go, "--textw"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--notrans")    && fprintf(ofp, "# show translated DNA sequence:    no\n")                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--vertcodon")  && fprintf(ofp, "# show DNA codon vertically:       no\n")                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--frameline")  && fprintf(ofp, "# show frame of each codon:        no\n")                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-E")           && fprintf(ofp, "# sequence reporting threshold:    E-value <= %g\n",  esl_opt_GetReal(go, "-E"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-T")           && fprintf(ofp, "# sequence reporting threshold:    score >= %g\n",    esl_opt_GetReal(go, "-T"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--domE")       && fprintf(ofp, "# domain reporting threshold:      E-value <= %g\n",  esl_opt_GetReal(go, "--domE"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -500,7 +502,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* Check for presence of frameshift tau and matching frameshift probabilities */
   indel_cost = esl_opt_GetReal(go, "--fs");
   if( ! hmm->fs ) p7_Fail("HMM file %s not formated for fathmm. Please run hmmconvert.\n", cfg->hmmfile);
-   if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probabilty of %f does not match the frameshift probablity in the HMM file %s. Please run hummcovert with option '--fs %f'.\n", indel_cost, cfg->hmmfile, indel_cost);
+   if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probabilty of %f does not match the frameshift probablity in the HMM file %s. Please run hmmcovert with option '--fs %f'.\n", indel_cost, cfg->hmmfile, indel_cost);
       
   if (hstatus == eslOK)
   {

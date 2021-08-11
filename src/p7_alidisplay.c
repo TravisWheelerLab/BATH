@@ -375,9 +375,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3,n4,n5;
-  //int            g,h;
-  //float		 max_emit, cur_emit;
-  //float	        *rsc; 
   ESL_DSQ        t, u, v, w, x;
 
   /* First figure out which piece of the trace (from first match to last match) 
@@ -488,8 +485,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->cs[tr->k[z]]);
     ad->csline[z-z1] = '\0';
   }
-  
-  /* optional pp line */
+ 
   if (ad->ppline != NULL) {
     for (z = z1; z <= z2; z++) 
 	    ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
@@ -506,7 +502,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
       s = tr->st[z];
       c = tr->c[z];
   
-//     printf("I %d k %d st %d c %d z %d z2 %d\n", i, k, s, c, z, z2); 
       switch (s) {
       case p7T_M:
         ad->model[z-z1] = gm_fs->consensus[k];
@@ -693,8 +688,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
           }
 
           a = p7P_AMINO5(gm_fs, k, t, u, v, w, x);
-          indel = p7P_INDEL4(gm_fs, k, u, v, w, x);
-
+          indel = p7P_INDEL5(gm_fs, k, t, u, v, w, x);
+	
 	  if(indel == p7P_xxXXX) {
                 n1 = tolower(alphaDNA[sq->dsq[i-4]]);
                 n2 = tolower(alphaDNA[sq->dsq[i-3]]);
@@ -756,11 +751,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	ad->model [z-z1] = gm_fs->consensus[k];
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = '-';
-        ad->ntseq [5*(z-z1)] = '-';
+        ad->ntseq [5*(z-z1)] = ' ';
         ad->ntseq [5*(z-z1)+1] = '-';
         ad->ntseq [5*(z-z1)+2] = '-';
         ad->ntseq [5*(z-z1)+3] = '-';
-        ad->ntseq [5*(z-z1)+4] = '-';
+        ad->ntseq [5*(z-z1)+4] = ' ';
         break;
 
       default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
@@ -1732,6 +1727,26 @@ p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth
 	return status;
 }
 
+
+int
+p7_alidiplay_frame(int nuc_from, int nuc_to)
+{
+  int frame = 0;
+  if (nuc_from < nuc_to)
+  {
+    frame = (nuc_to+1) % 3;
+    if (frame == 0)
+      frame = 3;
+  }
+  else
+  {
+    frame = (-1)*(nuc_to % 3);
+    if (frame == 0)
+      frame = -3;
+  }
+  return frame;
+}
+
 /* Function:  p7_frameshift_alidisplay_Print()
 * Synopsis:  Human readable output of <P7_ALIDISPLAY> for nhmmscant
 *
@@ -1758,12 +1773,15 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   char *buf          = NULL;
   char *show_hmmname = NULL;
   char *show_seqname = NULL;
+  int  *frameline    = NULL;
   int   namewidth, coordwidth, aliwidth;
+  int   frame;
   int   pos;
   int   status;
   int   ni, nk;
   int   z;
   long  i1,i2;
+  long  c1;
   int   a1,a2;
   int   k1,k2;
   int   k;
@@ -1799,9 +1817,10 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 
   ESL_ALLOC(buf, sizeof(char) * (aliwidth+1));
   buf[aliwidth] = 0;
-
-  /* Break the alignment into multiple blocks of width aliwidth for printing */
-  //printf("ad->sqfrom %d\n", ad->sqfrom);
+	
+ if(pli->show_frameline) ESL_ALLOC(frameline, sizeof(int) * (aliwidth+1));
+ 
+   /* Break the alignment into multiple blocks of width aliwidth for printing */
   i1 = ad->sqfrom;
   if(ad->sqfrom < ad->sqto) i2 = i1 - 1;
   else                      i2 = i1 + 1;
@@ -1903,6 +1922,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
    else { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
    npos = pos * 5;
+   
    if(show_vertical_codon)
    {
      /*
@@ -1933,13 +1953,37 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
       {
         if (ad->ntseq[npos+i] == 0) break; 
         if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	if(ad->sqfrom < ad->sqto) i2 += ad->codon[pos+y];	 
-	else                      i2 -= ad->codon[pos+y];
+	if(ad->sqfrom < ad->sqto) { c1 = i2; i2 += ad->codon[pos+y]; } 
+	else                      { c1 = i2 - 1; i2 -= ad->codon[pos+y]; }
+
+	if(frameline != NULL) 
+	{
+	  if(ad->codon[pos+y] == 0) frame = 0;
+	  else                      frame = p7_alidiplay_frame(c1, i2);
+	  
+          frameline[j] = frame;
+        }
       }
     }		
 	
     if (ni > 0) { if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     else { if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+
+    if(frameline != NULL)
+    {
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+
+      for (i = 0; i < aliwidth; i++)
+      {
+	if (ad->aseq[pos+i] == 0) break;
+	if(frameline[i] > 0) { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+        else if(frameline[i] < 0) { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+        else { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+      }
+
+      if (fprintf(fp, " FRAME\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+
 
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 

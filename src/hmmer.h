@@ -719,7 +719,7 @@ typedef struct p7_alidisplay_s {
   char *mline;                  /* "identities", conservation +'s, etc. */
   char *aseq;                   /* aligned target sequence              */
   char *ntseq;                  /* nucleotide target sequence if hmmscant */
-  char *ppline;            /* posterior prob annotation; or NULL   */
+  char *ppline;                 /* posterior prob annotation; or NULL   */
   char *codon;                  /* number of nuceltides in each codon   */
   int   frameshifts;            /* number of codons with frameshifts    */
   int   N;            /* length of strings                    */
@@ -1396,6 +1396,7 @@ typedef struct p7_pipeline_s {
   int           is_translated;  /* TRUE is hmmscant or hmmsearcht           */
   int           show_translated_sequence; /* TRUE to display translated DNA sequence in domain display for hmmscant */
   int           show_vertical_codon; /* TRUE to display the DNA codon vertically in the alignment display */
+  int           show_frameline;  /* TRUE to display the frrame of each codon in the alignment display */
 
   P7_HMMFILE   *hfp;    /* COPY of open HMM database (if scan mode) */
   char          errbuf[eslERRBUFSIZE];

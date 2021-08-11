@@ -263,6 +263,7 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
   pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
   pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
+  pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in domain display for fathmm */
   pli->hfp             = NULL;
   pli->errbuf[0]       = '\0';
 
@@ -476,6 +477,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
   pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
   pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
+  pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in domain display for fathmm */
   pli->hfp             = NULL;
   pli->errbuf[0]       = '\0';
 

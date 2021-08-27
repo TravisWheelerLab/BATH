@@ -263,7 +263,6 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
   pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
   pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
-  pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in domain display for fathmm */
   pli->hfp             = NULL;
   pli->errbuf[0]       = '\0';
 
@@ -1439,21 +1438,21 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
 
             if (sq->start < sq->end)
             {
-               hit->dcl[d].iali       = (hit->dcl[d].iali*3-2) + sq->start-1;
-               hit->dcl[d].jali       = (hit->dcl[d].jali*3) + sq->start-1;
-               hit->dcl[d].ienv       = (hit->dcl[d].ienv*3-2) + sq->start-1;
-               hit->dcl[d].jenv       = (hit->dcl[d].jenv*3) + sq->start-1;
-               hit->dcl[d].ad->sqfrom = (hit->dcl[d].ad->sqfrom*3-2) + sq->start-1;
-               hit->dcl[d].ad->sqto   = (hit->dcl[d].ad->sqto*3) + sq->start-1;
+               hit->dcl[d].iali       = ((hit->dcl[d].iali-1)*3) + sq->start;
+               hit->dcl[d].jali       = ((hit->dcl[d].jali-1)*3) + sq->start + 2;  
+               hit->dcl[d].ienv       = ((hit->dcl[d].ienv-1)*3) + sq->start;
+               hit->dcl[d].jenv       = ((hit->dcl[d].jenv-1)*3) + sq->start + 2;
+               hit->dcl[d].ad->sqfrom = ((hit->dcl[d].ad->sqfrom-1)*3) + sq->start;
+               hit->dcl[d].ad->sqto   = ((hit->dcl[d].ad->sqto-1)*3) + sq->start + 2;
             }
             else
             {
-               hit->dcl[d].iali       = sq->start - (hit->dcl[d].iali - 1)*3;
+               hit->dcl[d].iali       = sq->start - (hit->dcl[d].iali - 1)*3; 
                hit->dcl[d].jali       = sq->start - (hit->dcl[d].jali - 1)*3 - 2;
                hit->dcl[d].ienv       = sq->start - (hit->dcl[d].ienv - 1)*3;
                hit->dcl[d].jenv       = sq->start - (hit->dcl[d].jenv - 1)*3 - 2;
                hit->dcl[d].ad->sqfrom = sq->start - (hit->dcl[d].ad->sqfrom -1)*3;
-               hit->dcl[d].ad->sqto   = sq->start - (hit->dcl[d].ad->sqto -1)*3 - 2;
+               hit->dcl[d].ad->sqto   = sq->start - (hit->dcl[d].ad->sqto - 1)*3 - 2;
             }
 
             hit->dcl[d].iali       += ntsq->start-1;
@@ -2208,10 +2207,10 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       env_len = dom->ienv - dom->jenv + 1;
      
       temp_ienv       = dom->ienv;
-      dom->ienv       = dnasq->start - (window_start + dom->jenv) + 2;
-      dom->jenv       = dnasq->start - (window_start + temp_ienv) + 2;
-      dom->iali       = dnasq->start - (window_start + dom->iali) + 2;
-      dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
+      dom->ienv       = dnasq->start - (window_start + dom->jenv) + 1;
+      dom->jenv       = dnasq->start - (window_start + temp_ienv) + 1;
+      dom->iali       = dnasq->start - (window_start + dom->iali) + 1;
+      dom->jali       = dnasq->start - (window_start + dom->jali) + 1;
     }
    
     dom->ad->sqfrom = dom->iali;
@@ -2341,18 +2340,18 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
  
     if (!complementarity)
     { 
-      dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 4; // minus one for orf start which is in nucleotide positions and minus 3 for inev which is in amino acid positions.  
+      dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 3; // minus 3 for inev which is in amino acid positions.  
       dom->jenv       = dnasq->start + orfsq->start + dom->jenv*3 - 2; // same as above plus two to move to the end of the codon. 
-      dom->iali       = dnasq->start + window_start + dom->iali - 2;
+      dom->iali       = dnasq->start + window_start + dom->iali - 1;
       dom->jali       = dnasq->start + window_start + dom->jali - 2;
 
     }
     else
     {
       dom->ienv       = dnasq->end + orfsq->start - dom->ienv*3 + 2;   // minus one for orf start which is in nucleotide positions and plus 3 for inev which is in amino acid positions. 
-      dom->jenv       = dnasq->end + orfsq->start - dom->jenv*3; // minus one for orf start, plus 3 for ienv and minus two to get to the end of the codon = 0
+      dom->jenv       = dnasq->end + orfsq->start - dom->jenv*3 + 1; // plus 3 for ienv and minus two to get to the end of the codon = +1
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2;
-      dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
+      dom->jali       = dnasq->start - (window_start + dom->jali) + 1;
     }
      
     dom->ad->sqfrom = dom->iali;

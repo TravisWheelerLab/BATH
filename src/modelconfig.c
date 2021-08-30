@@ -224,8 +224,8 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    sc[p7_MAXCODE];
   float    Z;
   float    max_sc[16];
-  float    max_aa[10];
-  float    max_pos[10];
+  int      max_aa[10];
+  int      max_pos[10];
   float    one_indel  = log(hmm->fs);
   float    two_indel  = log(hmm->fs/2);
   float    no_indel   = log(1.- hmm->fs*3);
@@ -482,7 +482,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
               max_pos[2] = p7P_xxXXX;
               
               max_idx = esl_vec_FArgMax(max_sc, 3);
-              
+               
               p7P_MSC_C5(gm_fs, k, t, u, v, w, x) = max_sc[max_idx] + two_indel;
               
               p7P_AMINO5(gm_fs, k, t, u, v, w, x) = max_aa[max_idx];
@@ -545,7 +545,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
-  if ((status = p7_fs_ReconfigLength(gm_fs, L)) != eslOK) goto ERROR;
+  if ((status = p7_fs_ReconfigLength(gm_fs, L*3)) != eslOK) goto ERROR;
   return eslOK;
 
  ERROR:

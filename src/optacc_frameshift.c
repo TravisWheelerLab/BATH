@@ -410,14 +410,14 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
  *****************************************************************/
 
 static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
-static inline int select_m(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
-static inline int select_d(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
-static inline int select_i(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
+static inline int select_m(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int c, int i, int k);
+static inline int select_d(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx,        int i, int k);
+static inline int select_i(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx,        int i, int k);
 static inline int select_n(int i);
-static inline int select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i);
-static inline int select_j(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i);
-static inline int select_e(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int *ret_k);
-static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i);
+static inline int select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx,        int i);
+static inline int select_j(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx,        int i);
+static inline int select_e(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx,        int i, int *ret_k);
+static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx,        int i);
 
 
 /* Function:  p7_GOATrace()
@@ -459,7 +459,7 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
   int          sprv, scur;
   int          status;
   float match_codon[5];
-  //int   codon_length[5] = { 1, 2, 3, 4, 5 };   
+
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
 #endif
@@ -470,14 +470,14 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
   while (sprv != p7T_S) 
     { 
      switch (sprv) {
-      case p7T_M: scur = select_m(gm_fs,     gx, i,  k);          k--;  break;
-      case p7T_D: scur = select_d(gm_fs,     gx, i,  k);          k--;  break;
-      case p7T_I: scur = select_i(gm_fs,     gx, i,  k); i -= 3;        break;
-      case p7T_N: scur = select_n(               i);                    break;
-      case p7T_C: scur = select_c(gm_fs, pp, gx, i);                    break;
-      case p7T_J: scur = select_j(gm_fs, pp, gx, i);                    break;
-      case p7T_E: scur = select_e(gm_fs,     gx, i, &k);                break;
-      case p7T_B: scur = select_b(gm_fs,     gx, i);                    break;
+      case p7T_M: scur = select_m(gm_fs,     gx, c, i,  k);          k--;  break;
+      case p7T_D: scur = select_d(gm_fs,     gx,    i,  k);          k--;  break;
+      case p7T_I: scur = select_i(gm_fs,     gx,    i,  k); i -= 3;        break;
+      case p7T_N: scur = select_n(                  i);                    break;
+      case p7T_C: scur = select_c(gm_fs, pp, gx,    i);                    break;
+      case p7T_J: scur = select_j(gm_fs, pp, gx,    i);                    break;
+      case p7T_E: scur = select_e(gm_fs,     gx,    i, &k);                break;
+      case p7T_B: scur = select_b(gm_fs,     gx,    i);                    break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
@@ -490,13 +490,13 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
         match_codon[4] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]; 
        
         c = esl_vec_FArgMax(match_codon, 5) + 1;
-         
       }
       else c = 0;
      
       postprob = get_postprob(probs, scur, sprv, k, i); 
-//      printf("k %d i %d s %d\n", k, i, scur);
+
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
+
       /* For NCJ, we had to defer i decrement. */
       if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
       sprv = scur;
@@ -523,22 +523,21 @@ get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
 }
 
 static inline int
-select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
+select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int c, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float       *xmx  = gx->xmx; /* so XMX() macro works           */
   float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
   float path[4];
   int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
-    
+  
   path[0] = TSCDELTA(p7P_MM, k-1) * MMX(i,k-1);
   path[1] = TSCDELTA(p7P_IM, k-1) * IMX(i,k-1);
   path[2] = TSCDELTA(p7P_DM, k-1) * DMX(i,k-1);
+  //path[3] = (c == 3) ? TSCDELTA(p7P_BM, k-1) * XMX(i,p7G_B) : FLT_MIN;
   path[3] = TSCDELTA(p7P_BM, k-1) * XMX(i,p7G_B);
-
-  
-//  printf("i %d k %d M %f I %f D %f B %f\n", i, k, MMX(i,k-1), IMX(i,k-1), DMX(i,k-1), XMX(i,p7G_B));  
   return state[esl_vec_FArgMax(path, 4)];
+
 }
 
 static inline int
@@ -581,8 +580,10 @@ select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
   float  path[4];
   int    state[4] = { p7T_C, p7T_C, p7T_C, p7T_E };
 
+  /* If we have gotten all the way up to the last possible codon enter the model */
   if(i < 4)                                                           return p7T_E;
 
+  /* Possible paths include any of the three C state frames or moving to the E state at the current index */
   path[0] = t1 * (XMX(i-3, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
   if(i < gx->L)
     path[1] = t1 * (XMX(i-2, p7G_C) + pp->xmx[(i+1)*p7G_NXCELLS + p7G_C]);
@@ -593,8 +594,7 @@ select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
   else
     path[2] = FLT_MIN;
   path[3] = t2 *  XMX(i,p7G_E);
-  //printf("C i-3 %f pp i %f C i-2 %f pp i+1 %f C i-1 %f pp i+2 %f\n", XMX(i-3, p7G_C), pp->xmx[i*p7G_NXCELLS + p7G_C], XMX(i-2, p7G_C), pp->xmx[(i+1)*p7G_NXCELLS + p7G_C], XMX(i-1, p7G_C), pp->xmx[(i+2)*p7G_NXCELLS + p7G_C]);
-  //printf("i = %d, c-3 %f, c-2 %f, c-1 %f, e %f\n", i, path[0], path[1], path[2], path[3]);
+//TODO: does it make snce to set to FLTMIN or should I just not add from the pp matrix  
   return state[esl_vec_FArgMax(path, 4)];
 }
 
@@ -717,7 +717,6 @@ main(int argc, char **argv)
   double          Mcs;
 
   p7_FLogsumInit();
-
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
@@ -864,8 +863,8 @@ main(int argc, char **argv)
   gx1 = p7_gmx_Create(gm->M, sq->n);
   gx2 = p7_gmx_Create(gm->M, sq->n);
   tr  = p7_trace_CreateWithPP();
-  p7_FLogsumInit();
 
+  p7_FLogsumInit();
   /* Run Forward, Backward; do OA fill and trace */
   p7_GForward (sq->dsq, sq->n, gm, gx1, &fsc);
   p7_GBackward(sq->dsq, sq->n, gm, gx2, &bsc);

@@ -292,7 +292,7 @@ int
 p7_bg_fs_SetLength(P7_BG *bg, int L)
 {
   bg->p1 = (float) L/3. / (float) (L/3. + 1);
- 
+  
   bg->fhmm->t[0][0] = bg->p1;
   bg->fhmm->t[0][1] = 1.0f - bg->p1;
 
@@ -476,9 +476,11 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 int
 p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 {
-  *ret_sc = (float) L/3 * log(bg->p1) + log(1.-bg->p1);
-   
-  *ret_sc = p7_FLogsum( p7_FLogsum( *ret_sc, *ret_sc), *ret_sc);
+  float nullsc;
+
+  nullsc = (float) L/3 * log(bg->p1);    
+  
+  *ret_sc = p7_FLogsum( p7_FLogsum( nullsc, nullsc), nullsc) + log(1.-bg->p1);
   return eslOK;
 }
 
@@ -618,34 +620,93 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
  *            by <bg->p1>) that the null1 model uses is imposed.
  */
 int
-p7_bg_fs_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, const P7_FS_PROFILE *gm, const ESL_GENCODE *gcode, int L, float *ret_sc)
+p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
 {
-  ESL_HMX *hmx = esl_hmx_Create(L+2, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. */
-//	printf("L+2 %d M %d\n", L+2, bg->fhmm->M); 
-  float nullsc;              /* (or it could be passed in as an arg, but for sure it shouldn't be alloc'ed here */
-	
-  p7_bg_fs_Forward(dsq, L, gcode, bg->fhmm, gm, hmx, &nullsc);
-   
+
+  ESL_HMX *hmx = esl_hmx_Create(100, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. Use 100 length as place holder*/
+
+  int     i;
+  float   filtersc;
+  float   bias_sum1, bias_sum2, bias_sum3, bias_sum4;
+  int64_t   leng_sum1, leng_sum2, leng_sum3;
+  float   len_dist;
+  ESL_SQ *orfsq;
+
+  /*translate the DNA sequence into the set of ORFs from all three frames*/
+  esl_gencode_ProcessStart(gcode, wrk, dnasq);
+  esl_gencode_ProcessPiece(gcode, wrk, dnasq);
+  esl_gencode_ProcessEnd(wrk, dnasq);
+  
+   bias_sum1 = bias_sum2 = bias_sum3 = 0;
+   leng_sum1 = leng_sum2 = leng_sum3 = 0;
+ 
+  /*Get a bias score for each orf in the DNA sequence and sum them in probabbilioty space*/
+  for (i = 0; i < wrk->orf_block->count; ++i)
+  {
+    orfsq = &(wrk->orf_block->list[i]); 
+    p7_bg_SetLength(bg, orfsq->n);
+ 
+    filtersc = 0; 
+    if(do_biasfilter) {
+      esl_hmx_GrowTo(hmx, orfsq->n, bg->fhmm->M);
+      esl_hmm_Forward(orfsq->dsq, orfsq->n, bg->fhmm, hmx, &filtersc);
+    }
+    switch (orfsq->start%3) {
+      case 0: bias_sum1 += filtersc; leng_sum1 += orfsq->n; break;
+      case 1: bias_sum2 += filtersc; leng_sum2 += orfsq->n; break;
+      case 2: bias_sum3 += filtersc; leng_sum3 += orfsq->n; break;
+      default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
+    }
+
+  }
+    
+  bias_sum4 = p7_FLogsum(bias_sum1, p7_FLogsum(bias_sum2, bias_sum3));
+ 
   /* impose the length distribution */
-  *ret_sc = nullsc + (float) L * logf(bg->p1) + logf(1.-bg->p1);
+  if(leng_sum1 > 0) 
+  {
+    p7_bg_SetLength(bg, leng_sum1);
+    len_dist = (float) leng_sum1 * logf(bg->p1) + logf(1.-bg->p1);
+  }
+  else
+    len_dist = -eslINFINITY;
+   
+  if(leng_sum2 > 0)
+  { 
+    p7_bg_SetLength(bg, leng_sum2);
+    len_dist = p7_FLogsum(len_dist, (float) leng_sum2 * logf(bg->p1) + logf(1.-bg->p1));
+  }
+ 
+  if(leng_sum3 > 0)
+  { 
+    p7_bg_SetLength(bg, leng_sum3);
+    len_dist = p7_FLogsum(len_dist, (float) leng_sum3 * logf(bg->p1) + logf(1.-bg->p1));
+  }
+  
+  if(len_dist == -eslINFINITY)
+    len_dist = 0.;
+
+  *ret_sc = bias_sum4 + len_dist; 
+
   esl_hmx_Destroy(hmx);
+  esl_sq_ReuseBlock(wrk->orf_block);
   return eslOK;
 }
 
 int
-p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, const P7_FS_PROFILE *gm, ESL_HMX *fwd, float *opt_sc)
+p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, ESL_HMX *fwd, float *opt_sc)
 {
   int   i, k, m;
   int   a, v, w, x;
   int   M     = hmm->M;
-  float logsc;
+  float logsc1, logsc2, logsc3;
   float max;
 
   fwd->sc[0] = 0.0;
 	
   if (L == 0) {
-    fwd->sc[L+1] = logsc = log(hmm->pi[M]);
-    if (opt_sc != NULL) *opt_sc = logsc;
+    fwd->sc[L+1] = logsc1 = log(hmm->pi[M]);
+    if (opt_sc != NULL) *opt_sc = logsc1;
     return eslOK;
   }
 	
@@ -662,7 +723,8 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
     for(x = 0; x < gcode->nt_abc->K; x++)
        if(gcode->nt_abc->degen[dsq[2]][x]) break;
   }
-	
+
+  //first codons in the three frames end at i = 3, i = 4 and i = 5 	
   for (i = 3; i < 6; i++)
   {
 //	printf("i %d\n", i);
@@ -676,9 +738,9 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
         if(gcode->nt_abc->degen[dsq[i]][x]) break;
     }
     for (k = 0; k < M; k++) {
-//	printf("k %d\n", k);
+
       a = gcode->basic[v*16+w*4+x];
-      fwd->dp[i][k] = hmm->eo[a][k];
+      fwd->dp[i][k] = hmm->eo[a][k] * hmm->pi[k];
       max = ESL_MAX(fwd->dp[i][k], max);
     }
     for (k = 0; k < M; k++) {
@@ -686,8 +748,10 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
     }
     fwd->sc[i] = log(max); 
   }
+
   for (i = 6; i <= L; i++)
     { 
+//	printf("i %d or %d\n", i, L);
       max = 0.0;
       v = w;
       w = x;
@@ -700,21 +764,21 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
 
       for (k = 0; k < M; k++)
         {
+//		printf("k %d of %d\n", k, M);
           fwd->dp[i][k] = 0.0;
+  //              printf("k %d of %d\n", k, M);
           for (m = 0; m < M; m++)
-          {
             fwd->dp[i][k] += fwd->dp[i-3][m] * hmm->t[m][k];
-          }
-
+//	printf("i %d or %d\n", i, L);
           a = gcode->basic[v*16+w*4+x];
           fwd->dp[i][k] *= hmm->eo[a][k]; 
 
           max = ESL_MAX(fwd->dp[i][k], max);
         }
 
-      for (k = 0; k < M; k++){
+      for (k = 0; k < M; k++)
         fwd->dp[i][k] /= max;
-     }
+     
       fwd->sc[i] = log(max);
     }
 	
@@ -731,13 +795,21 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
   fwd->sc[L+1] = log(fwd->sc[L+1]);
   fwd->sc[L+2] = log(fwd->sc[L+2]);
   fwd->sc[L+3] = log(fwd->sc[L+3]);
-  logsc = 0.0;
-  for (i = 3; i <= L+3; i++) 
-    logsc += fwd->sc[i];
-    
+  logsc1 = logsc2 = logsc3 = 0.0;
+  for (i = 3; i <= L+3; i++) {
+    switch (i%3) {
+      case 0: logsc1 += fwd->sc[i]; break;
+      case 1: logsc2 += fwd->sc[i]; break;
+      case 2: logsc3 += fwd->sc[i]; break;
+      default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
+    }
+  }
+  
+  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3);
+
   fwd->M = hmm->M;
   fwd->L = L;
-  if (opt_sc != NULL) *opt_sc = logsc;
+  if (opt_sc != NULL) *opt_sc = logsc1;
   return eslOK;
 }
 

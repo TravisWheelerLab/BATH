@@ -134,7 +134,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
     tp[p7P_DD] = log(hmm->t[k][p7H_DD]);
   }
   
-  /* Match emission scores. */
+  //* Match emission scores. */
   sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
   sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
@@ -215,6 +215,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
   int     del1, del2;
+  int     sub, sub_cnt;
   int     codon;
   int     status;
   int     max_idx;
@@ -228,6 +229,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    one_indel  = log(hmm->fs);
   float    two_indel  = log(hmm->fs/2);
   float    no_indel   = log(1.- hmm->fs*3);
+  float   stop_subs[9]; 
 
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
@@ -311,19 +313,22 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
  
   /* Match emission scores. */
   sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
- // sc[hmm->abc->Kp-2]  = -eslINFINITY; /* nonresidue character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
+  sc[hmm->abc->Kp-2]  = -eslINFINITY; /* STOP character */
+  /* Turn amino acid emissions into log odds */
   for (k = 1; k <= hmm->M; k++) {
     for (x = 0; x < hmm->abc->K; x++)
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
+    
     esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
-   
-    sc[hmm->abc->Kp-2] = log( (double) esl_vec_FMin(hmm->mat[k], hmm->abc->K));
-   // bg->f[hmm->abc->K] = log( (double) bg->f[esl_vec_FArgMin(hmm->mat[k], hmm->abc->K)]); 
+    
+   // sc[hmm->abc->Kp-2] = log( (double) esl_vec_FMax(hmm->mat[k], hmm->abc->K) / bg->f[esl_vec_FArgMax(hmm->mat[k], hmm->abc->K)]) + one_indel;
 
     for (x = 0; x < hmm->abc->K; x++)
       p7P_MSC_FS(gm_fs, k, x) = sc[x];
-    /* Assign amino acid scores to standard length codons with no substitutions 
+ 
+ 
+	/* Assign amino acid scores to standard length codons with no substitutions 
      * or no_indel adjustments so they can be used to look up scores for 
      * frameshift codons. Substitution and no_indel adjustments are added afterwards. */
      for (v = 0; v < 4; v++) 
@@ -331,8 +336,6 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
         for (x = 0; x < 4; x++) {
           codon = 16 * v + 4 * w + x;
           a = gcode->basic[codon];
-	  //if(a == 27) 
-//		if(k == 1) earrintf("vwx %d%d%d a %d sc %f\n", v,w,x,a, sc[a]);
           p7P_MSC_C3(gm_fs, k, v, w, x) = sc[a];
           p7P_AMINO3(gm_fs, k, v, w, x) = a;
           p7P_INDEL3(gm_fs, k, v, w, x) = p7P_XXX;
@@ -490,12 +493,54 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
           }
   }
 
+  /*stop codon treated as substiution error*/
+  /* currently substiution cost is same as indel cost */
+  for (k = 1; k <= hmm->M; k++)
+    for (v = 0; v < 4; v++)
+      for (w = 0; w < 4; w++)
+        for (x = 0; x < 4; x++) {
+          codon = 16 * v + 4 * w + x;
+          a = gcode->basic[codon];
+		  if(a == hmm->abc->Kp-2) {
+			sub_cnt = 0;
+		    for(sub = 0; sub < 4; sub++) {
+			  if(sub != v) {
+			    codon = 16 * sub + 4 * w + x;
+				if(gcode->basic[codon] != hmm->abc->Kp-2) {
+				  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
+				  sub_cnt++;
+				}
+			  }
+
+			  if(sub != w) {
+                codon = 16 * v + 4 * sub + x;
+                if(gcode->basic[codon] != hmm->abc->Kp-2) {
+                  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
+                  sub_cnt++;
+                }
+			  }
+
+			  if(sub != x) {
+                codon = 16 * v + 4 * w + sub;
+                if(gcode->basic[codon] != hmm->abc->Kp-2) {
+                  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
+                  sub_cnt++;
+                }
+			  }
+			}
+		    
+			p7P_MSC_C3(gm_fs, k, v, w, x) = esl_vec_FSum(stop_subs, sub_cnt) / sub_cnt + one_indel;
+          }
+		}  
+
   for (k = 1; k <= hmm->M; k++) 
     for (v = 0; v < 4; v++)
       for (w = 0; w < 4; w++)
         for (x = 0; x < 4; x++) {
-          p7P_MSC_C3(gm_fs, k, v, w, x) += no_indel;
+		  if(gcode->basic[16 * v + 4 * w + x] != hmm->abc->Kp-2)
+            p7P_MSC_C3(gm_fs, k, v, w, x) += no_indel;
         }
+
   //TODO: Substitution Model
 
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */

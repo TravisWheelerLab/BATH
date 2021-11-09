@@ -75,7 +75,11 @@ main(int argc, char **argv)
 
           p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS] = tau_fs;
-        } 
+        }
+      if(hmm->abc->type == eslAMINO && hmm->max_length == -1)
+	{
+		p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);	
+	} 
       if      (esl_opt_GetBoolean(go, "-a") == TRUE) p7_hmmfile_WriteASCII (ofp, fmtcode, hmm);
       else if (esl_opt_GetBoolean(go, "-b") == TRUE) p7_hmmfile_WriteBinary(ofp, fmtcode, hmm);
       else if (esl_opt_GetBoolean(go, "-2") == TRUE) p7_h2io_WriteASCII    (ofp, hmm);

@@ -552,11 +552,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       P7_OPROFILE     *om      = NULL;       /* optimized query profile                  */
 
 
-      /* defining the maximum window overlap in case the target DNA sequence is very long and
-       * multiple windows are taken for a single sequence
-       */
-      p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
-      hmm->max_length *=3;
+      if(hmm->max_length == -1)
+       p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
 
       nquery++;
       resCnt = 0;

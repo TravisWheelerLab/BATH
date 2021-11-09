@@ -291,7 +291,10 @@ p7_bg_SetLength(P7_BG *bg, int L)
 int
 p7_bg_fs_SetLength(P7_BG *bg, int L)
 {
-  bg->p1 = (float) L/3. / (float) (L/3. + 1);
+  /* The frameshift null model loops through the three frames indeppendently 	*/
+  /* The length of each frame is 1/3 the length of the full sequence 		*/
+  /* (1/3*L)/((1/3*L)+1) = L/L+3 					 	*/
+  bg->p1 = (float) L / (float) (L + 3);
   
   bg->fhmm->t[0][0] = bg->p1;
   bg->fhmm->t[0][1] = 1.0f - bg->p1;
@@ -476,11 +479,11 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 int
 p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 {
-  float nullsc;
-
-  nullsc = (float) L/3 * log(bg->p1);    
-  
-  *ret_sc = p7_FLogsum( p7_FLogsum( nullsc, nullsc), nullsc) + log(1.-bg->p1);
+  /* The length distirbution of the three frames are calculated */
+  /* seperatly as p1^(L/3) and then added together		*/ 
+  /* log(3 * p1^(L/3) * (1-p1)) = L/3 * log(p1) + log(3) + log(1-p1)) */
+ 
+  *ret_sc = (float) L/3. * log(bg->p1) + log(3) + log(1.-bg->p1);    
   return eslOK;
 }
 

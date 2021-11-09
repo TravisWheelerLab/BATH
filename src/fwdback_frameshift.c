@@ -384,8 +384,6 @@ p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
     MMX_FS(0,k,p7G_C4) = MMX_FS(0,k,p7G_C5) = IMX_FS(0,k)        = DMX_FS(0,k)        = -eslINFINITY;
 
   t = u = v = w = x = -1;
-//FILE *out = fopen("fwdout.txt","w");
-//p7_gmx_fs_ParserDump(out, gx, 0, 0, 0, M, p7_DEFAULT); 
 
   for(i = 1; i < 5; i++)
   {
@@ -410,7 +408,9 @@ p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
     /* Initialization of the states reacheable at row i */
     for (k = 1; k < M; k++)
     {
-	
+	/* For every row the 1 nuc codon translations must be reclacuated (i-1).
+ 	 * The other codon transtions can be reused with i-1 becoming 1-2,
+ 	 * i-2 becoming i-3 and so on */	
       IVX(i,k,p7P_C1) = p7_FLogsum(MMX_FS(prev1,k-1,p7G_C0)   + TSC(p7P_MM,k-1),
                         p7_FLogsum(IMX_FS(prev1,k-1)          + TSC(p7P_IM,k-1),
                         p7_FLogsum(DMX_FS(prev1,k-1)          + TSC(p7P_DM,k-1),
@@ -506,7 +506,6 @@ p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
 
     XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE],
                                  XMX_FS(i,p7G_J) + gm_fs->xsc[p7P_J][p7P_MOVE]);
-//   p7_gmx_fs_ParserDump(out, gx, i, curr, 0, M, p7_DEFAULT); 
 
   }
 
@@ -616,7 +615,6 @@ p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
     XMX_FS(i,p7G_N) =            XMX_FS(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
     XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE],
                                  XMX_FS(i,p7G_J) + gm_fs->xsc[p7P_J][p7P_MOVE]);
-//p7_gmx_fs_ParserDump(out, gx, i, curr, 0, M, p7_DEFAULT);
   }
 
 

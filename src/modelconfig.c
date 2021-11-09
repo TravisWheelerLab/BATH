@@ -227,8 +227,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   int      max_aa[10];
   int      max_pos[10];
   float    one_indel  = log(hmm->fs);
+  float    one_sub    = log(hmm->fs);
   float    two_indel  = log(hmm->fs/2);
-  float    no_indel   = log(1.- hmm->fs*3);
+  float    no_indel   = log(1. - hmm->fs*3);
+  float    no_sub     = log(1. - hmm->fs);
   float   stop_subs[9]; 
 
   /* Contract checks */
@@ -391,6 +393,17 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     
     esl_vec_FSet(max_sc, 4, -eslINFINITY);
 
+    for (x = 0; x < 4; x++) {
+      for (del1 = 0; del1 < 4; del1++)
+        for (del2 = 0; del2 < 4; del2++)
+          if (p7P_MSC_C3(gm_fs, k, x, del1, del2) > max_sc[x]) {
+            max_sc[x] = p7P_MSC_C3(gm_fs, k, x, del1, del2);
+            codon = 16 * x + 4 * del1 + del2;
+            p7P_AMINO1(gm_fs, k, x) = gcode->basic[codon];
+            p7P_INDEL1(gm_fs, k, x) = p7P_Xxx;
+          }
+    }
+
     //X__
     for (x = 0; x < 4; x++)
       for (del1 = 0; del1 < 4; del1++)
@@ -461,7 +474,6 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
           for (w = 0; w < 4; w++) {
             esl_vec_FSet(max_sc, 3, -eslINFINITY);
             for (x = 0; x < 4; x++) {
-            //printf("k %d tuvwx %d%d%d%d%d\n", t,u,v,w,x); 
           
               //XXxxX
               codon      = 16 * t + 4 * u + x;
@@ -495,50 +507,43 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
   /*stop codon treated as substiution error*/
   /* currently substiution cost is same as indel cost */
-  for (k = 1; k <= hmm->M; k++)
-    for (v = 0; v < 4; v++)
-      for (w = 0; w < 4; w++)
+  for (k = 1; k <= hmm->M; k++) {
+    for (v = 0; v < 4; v++) {
+      for (w = 0; w < 4; w++) {
         for (x = 0; x < 4; x++) {
-          codon = 16 * v + 4 * w + x;
-          a = gcode->basic[codon];
-		  if(a == hmm->abc->Kp-2) {
-			sub_cnt = 0;
-		    for(sub = 0; sub < 4; sub++) {
-			  if(sub != v) {
-			    codon = 16 * sub + 4 * w + x;
-				if(gcode->basic[codon] != hmm->abc->Kp-2) {
-				  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
-				  sub_cnt++;
-				}
-			  }
+	  if(gcode->basic[16 * v + 4 * w + x] == hmm->abc->Kp-2) {
+	    sub_cnt = 0;
+	    for(sub = 0; sub < 4; sub++) {
+		if(gcode->basic[16 * sub + 4 * w + x] != hmm->abc->Kp-2) {
+		  max_sc[sub_cnt] = sc[gcode->basic[codon]];
+		  sub_cnt++;
+		}
+		
+		if(gcode->basic[16 * v + 4 * sub + x] != hmm->abc->Kp-2) {
+                  max_sc[sub_cnt] = sc[gcode->basic[codon]];
+                  sub_cnt++;
+                }	  
 
-			  if(sub != w) {
-                codon = 16 * v + 4 * sub + x;
-                if(gcode->basic[codon] != hmm->abc->Kp-2) {
+                if(gcode->basic[16 * v + 4 * w + sub] != hmm->abc->Kp-2) {
                   stop_subs[sub_cnt] = sc[gcode->basic[codon]];
                   sub_cnt++;
                 }
-			  }
+	      }
+	      p7P_MSC_C3(gm_fs, k, v, w, x) = esl_vec_FMax(stop_subs, sub_cnt) + one_sub;
+            }
+	  }
+	}
+      }
+    }
 
-			  if(sub != x) {
-                codon = 16 * v + 4 * w + sub;
-                if(gcode->basic[codon] != hmm->abc->Kp-2) {
-                  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
-                  sub_cnt++;
-                }
-			  }
-			}
-		    
-			p7P_MSC_C3(gm_fs, k, v, w, x) = esl_vec_FSum(stop_subs, sub_cnt) / sub_cnt + one_indel;
-          }
-		}  
-
+  /* Normailze codon scores to account for probability of frameshifts and subsititutions*/ 
   for (k = 1; k <= hmm->M; k++) 
     for (v = 0; v < 4; v++)
       for (w = 0; w < 4; w++)
         for (x = 0; x < 4; x++) {
-		  if(gcode->basic[16 * v + 4 * w + x] != hmm->abc->Kp-2)
-            p7P_MSC_C3(gm_fs, k, v, w, x) += no_indel;
+	  if(gcode->basic[16 * v + 4 * w + x] != hmm->abc->Kp-2)
+            p7P_MSC_C3(gm_fs, k, v, w, x) += no_sub;
+	   p7P_MSC_C3(gm_fs, k, v, w, x) += no_indel;
         }
 
   //TODO: Substitution Model

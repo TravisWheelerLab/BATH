@@ -685,7 +685,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
 
   if (orf_block->count == 0)
     return eslOK;
-printf("\n\nBEGIN\n\n");
+
   vgx = p7_gmx_Create(gm->M, 100);
   vtr = p7_trace_Create();
  
@@ -703,9 +703,7 @@ printf("\n\nBEGIN\n\n");
    
     orf_start   = i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1;
     orf_end     = j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1; 
-	printf("orflen %lld i_coords %d j_coords %d\n", curr_orf->n, i_coords, j_coords);
-	printf("gm->M %lld k_coords %d m_coords %d\n", gm->M, k_coords, m_coords);
-	printf("gm->max_length %lld, prefix %f sufix %f\n", gm->max_length, data->prefix_lengths[k_coords], data->suffix_lengths[m_coords]);   
+	
     if(complementarity == p7_NOCOMPLEMENT)
     {
       dna_start = ESL_MAX(1,         curr_orf->start + (orf_start * 3));
@@ -716,7 +714,7 @@ printf("\n\nBEGIN\n\n");
       dna_end   = dna_sq->n - ESL_MAX(1,         curr_orf->end + (orf_start * 3)) + 1;
       dna_start = dna_sq->n - ESL_MIN(dna_sq->n, curr_orf->end + (orf_end   * 3)) + 1; 
     }
-	printf("orfstart %d orfend %d dnastart %d dnaend %d\n", orf_start, orf_end, dna_start, dna_end);
+
     p7_hmmwindow_new(windowlist, 0, dna_start, dna_start-1, k_coords, dna_end-dna_start+1, 0.0, complementarity, dna_sq->n);
 
     orf_window[i] = i;

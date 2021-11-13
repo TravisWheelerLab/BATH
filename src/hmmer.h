@@ -722,6 +722,7 @@ typedef struct p7_alidisplay_s {
   char *ppline;                 /* posterior prob annotation; or NULL   */
   char *codon;                  /* number of nuceltides in each codon   */
   int   frameshifts;            /* number of codons with frameshifts    */
+  int   stops;                  /* number of stop codons */
   int   N;            /* length of strings                    */
 
   char *hmmname;    /* name of HMM                          */

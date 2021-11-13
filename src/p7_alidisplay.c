@@ -191,6 +191,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->L       = sq->n;
   
   ad->frameshifts = -1;
+  ad->stops = -1;
 
   /* optional rf line */
   if (ad->rfline != NULL) {
@@ -460,6 +461,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->hmmto   = tr->k[z2];
   ad->M       = gm_fs->M;
   ad->frameshifts = 0; 
+  ad->stops = 0;
   if(sq->start < sq->end) {
     ad->sqfrom  = tr->i[z1]-2;
     ad->sqto    = tr->i[z2];		 
@@ -595,7 +597,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
           }
           
           a = p7P_AMINO3(gm_fs, k, v, w, x);           
-          if(a == 27) ad->frameshifts++;
+          if(a == 27) ad->stops++;
          
 	  n1 = ' ';
 	  n2 = alphaDNA[sq->dsq[i-2]];

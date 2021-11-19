@@ -700,10 +700,11 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
     p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, NULL);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
-   
+    
     orf_start   = i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1;
     orf_end     = j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1; 
 	
+ 	
     if(complementarity == p7_NOCOMPLEMENT)
     {
       dna_start = ESL_MAX(1,         curr_orf->start + (orf_start * 3));
@@ -714,7 +715,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
       dna_end   = dna_sq->n - ESL_MAX(1,         curr_orf->end + (orf_start * 3)) + 1;
       dna_start = dna_sq->n - ESL_MIN(dna_sq->n, curr_orf->end + (orf_end   * 3)) + 1; 
     }
-
+	
     p7_hmmwindow_new(windowlist, 0, dna_start, dna_start-1, k_coords, dna_end-dna_start+1, 0.0, complementarity, dna_sq->n);
 
     orf_window[i] = i;
@@ -2506,7 +2507,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     /*First run Frameshift Forward on full Window and save score and P value.*/
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
-  p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, window_len, window_len, p7P_CODONS);
+  p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, 4, window_len, 0);
   p7_fs_ReconfigLength(gm_fs, window_len);
 	
   p7_ForwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxf, &fwdsc_fs);

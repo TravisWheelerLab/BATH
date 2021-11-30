@@ -212,6 +212,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 int
 p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode)
 {
+  int p;
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
   int     del1, del2;
@@ -515,12 +516,12 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 	    sub_cnt = 0;
 	    for(sub = 0; sub < 4; sub++) {
 		if(gcode->basic[16 * sub + 4 * w + x] != hmm->abc->Kp-2) {
-		  max_sc[sub_cnt] = sc[gcode->basic[codon]];
+		  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
 		  sub_cnt++;
 		}
 		
 		if(gcode->basic[16 * v + 4 * sub + x] != hmm->abc->Kp-2) {
-                  max_sc[sub_cnt] = sc[gcode->basic[codon]];
+                  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
                   sub_cnt++;
                 }	  
 
@@ -529,7 +530,13 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
                   sub_cnt++;
                 }
 	      }
+		//printf("k %d\n", k);
+		
+		//printf("sub_cnt %d\n", sub_cnt);
+		//for(p=0;p<sub_cnt;p++)
+		//	printf("p %d stop_subs %f\n", p, stop_subs[p]);
 	      p7P_MSC_C3(gm_fs, k, v, w, x) = esl_vec_FMax(stop_subs, sub_cnt) + one_sub;
+		//sleep(100);
             }
 	  }
 	}

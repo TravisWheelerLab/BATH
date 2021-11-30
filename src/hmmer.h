@@ -579,7 +579,7 @@ enum p7g_xcodons_b {
   p7G_B2  = 1,
   p7G_B3  = 2,
   p7G_B4  = 3,
-  p7G_B5  = 4,
+  p7G_B5  = 4
 };
 
 enum p7g_xcodons_n {
@@ -587,7 +587,7 @@ enum p7g_xcodons_n {
   p7G_N2  = 1,
   p7G_N3  = 2,
   p7G_N4  = 3,
-  p7G_N5  = 4,
+  p7G_N5  = 4
 };
 
 typedef struct p7_gmx_s {
@@ -598,6 +598,7 @@ typedef struct p7_gmx_s {
   int      validR;      /* # of rows actually pointing at DP memory                             */
   int      allocW;      /* current set row width :  M+1 <= allocW                               */
   int      allocC;
+ 
   uint64_t ncells;      /* total # of allocated cells in 2D matrix : ncells >= (validR)(allocW) */
 
   float **dp;           /* logically [0.1..L][0.1..M][0..p7G_NSCELLS-1]; indexed [i][k*p7G_NSCELLS+s] */
@@ -1522,7 +1523,7 @@ extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX 
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
 extern int p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2); 
-extern int p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2);
+extern int p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2F1, float *null2F2, float *null2F3);
 
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
@@ -1743,7 +1744,7 @@ extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int
 
 /* p7_gmx_fs.c */
 extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int allocC);
-extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int allocM, int allocL, int allocLx, int allocC);
+extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int M, int L, int Lx, int C);
 extern size_t  p7_gmx_fs_Sizeof (P7_GMX *gx);
 extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);

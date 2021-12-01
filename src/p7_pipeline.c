@@ -1172,7 +1172,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   int              d;
   int              status;
   if (sq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */
-   
+  
   p7_omx_GrowTo(pli->oxf, om->M, 0, sq->n);    /* expand the one-row omx if needed */
 
   /* Base null model score (we could calculate this in NewSeq(), for a scan pipeline) */
@@ -1271,7 +1271,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
    */
   sum_score = 0.0f;
   seqbias   = 0.0f;
-
+printf("dna start %lld\n", ntsq->start);
   Ld        = 0;  
   if (pli->do_null2) 
     {
@@ -1284,7 +1284,10 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
         seqbias   += pli->ddef->dcl[d].domcorrection; /* NATS */  
       }
     }
+printf("seqbias %f log(bg->omega) %f\n", seqbias, log(bg->omega));
+
       seqbias = p7_FLogsum(0.0, log(bg->omega) + seqbias);  /* NATS */
+	printf("seqbias %f\n", seqbias);
   }
   else 
   {
@@ -2232,8 +2235,10 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       bitscore -=  (env_len-ali_len)                            * log((float)env_len / (env_len+2));
       bitscore +=  (ESL_MAX(gm_fs->max_length, env_len) - ali_len) * log((float)gm_fs->max_length / (float) (gm_fs->max_length+2));    
 
-     
-     dom_bias   = dom->domcorrection;
+     if (pli->do_null2)
+      dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
+    else
+      dom_bias = 0.0; 
 
      p7_bg_SetLength(bg, ESL_MAX(gm_fs->max_length, env_len));
      p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(gm_fs->max_length, env_len), &nullsc);

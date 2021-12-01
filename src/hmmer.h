@@ -269,23 +269,26 @@ enum p7p_rsc_indels {
 #define p7P_NUC2           16
 #define p7P_NUC3           64
 #define p7P_NUC4           256
-#define p7P_CODON3         20
-#define p7P_CODON4         84
-#define p7P_CODON5         340
+#define p7P_CODON1         20
+#define p7P_CODON2         24
+#define p7P_CODON3         40
+#define p7P_CODON4         104
+#define p7P_CODON5         360
+#define p7P_
 
 /* Accessing codon translations */
-#define p7P_AMINO1(gm, k, x)             ((gm)->codons[(k)][p7_MAXABET + (x)])
-#define p7P_AMINO2(gm, k, w, x)          ((gm)->codons[(k)][p7_MAXABET + p7P_NUC1 + (x) * p7P_NUC1 + (w)])
-#define p7P_AMINO3(gm, k, v, w, x)       ((gm)->codons[(k)][p7_MAXABET + p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
-#define p7P_AMINO4(gm, k, u, v, w, x)    ((gm)->codons[(k)][p7_MAXABET + p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
-#define p7P_AMINO5(gm, k, t, u, v, w, x) ((gm)->codons[(k)][p7_MAXABET + p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
+#define p7P_AMINO1(gm, k, x)             ((gm)->codons[(k)][p7P_CODON1 + (x)])
+#define p7P_AMINO2(gm, k, w, x)          ((gm)->codons[(k)][p7P_CODON2 + (x) * p7P_NUC1 + (w)])
+#define p7P_AMINO3(gm, k, v, w, x)       ((gm)->codons[(k)][p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
+#define p7P_AMINO4(gm, k, u, v, w, x)    ((gm)->codons[(k)][p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
+#define p7P_AMINO5(gm, k, t, u, v, w, x) ((gm)->codons[(k)][p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
 
 /* Accessing codon indel positions */
-#define p7P_INDEL1(gm, k, x)             ((gm)->indel_pos[(k)][p7_MAXABET + (x)])
-#define p7P_INDEL2(gm, k, w, x)          ((gm)->indel_pos[(k)][p7_MAXABET + p7P_NUC1 + (x) * p7P_NUC1 + (w)])
-#define p7P_INDEL3(gm, k, v, w, x)       ((gm)->indel_pos[(k)][p7_MAXABET + p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
-#define p7P_INDEL4(gm, k, u, v, w, x)    ((gm)->indel_pos[(k)][p7_MAXABET + p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
-#define p7P_INDEL5(gm, k, t, u, v, w, x) ((gm)->indel_pos[(k)][p7_MAXABET + p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
+#define p7P_INDEL1(gm, k, x)             ((gm)->indel_pos[(k)][p7P_CODON1 + (x)])
+#define p7P_INDEL2(gm, k, w, x)          ((gm)->indel_pos[(k)][p7P_CODON2 + (x) * p7P_NUC1 + (w)])
+#define p7P_INDEL3(gm, k, v, w, x)       ((gm)->indel_pos[(k)][p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
+#define p7P_INDEL4(gm, k, u, v, w, x)    ((gm)->indel_pos[(k)][p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
+#define p7P_INDEL5(gm, k, t, u, v, w, x) ((gm)->indel_pos[(k)][p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
 
 /* Accessing transition, emission scores */
 /* _BM is specially stored off-by-one: [k-1][p7P_BM] is score for entering at Mk */
@@ -293,12 +296,18 @@ enum p7p_rsc_indels {
 #define p7P_MSC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
 #define p7P_ISC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
 
-#define p7P_MSC_FS(gm, k, x) ((gm)->rsc[(k)][(x)])
-#define p7P_MSC_C1(gm, k, x) ((gm)->rsc[(k)][p7_MAXABET + (x)])
-#define p7P_MSC_C2(gm, k, w, x) ((gm)->rsc[(k)][p7_MAXABET + (x) * p7P_NUC1 + (w)])
-#define p7P_MSC_C3(gm, k, v, w, x) ((gm)->rsc[(k)][p7_MAXABET + p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
-#define p7P_MSC_C4(gm, k, u, v, w, x) ((gm)->rsc[(k)][p7_MAXABET + p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
-#define p7P_MSC_C5(gm, k, t, u, v, w, x) ((gm)->rsc[(k)][p7_MAXABET + p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
+/*0 to 19*/
+#define p7P_MSC_FS(gm, k, x)             ((gm)->rsc[(k)][(x)])
+/*20 to 23*/
+#define p7P_MSC_C1(gm, k, x)             ((gm)->rsc[(k)][p7P_CODON1 + (x)])                                                                                       
+/*24 to 39*/
+#define p7P_MSC_C2(gm, k, w, x)          ((gm)->rsc[(k)][p7P_CODON2 + (x) * p7P_NUC1 + (w)])
+/*40 to 103*/
+#define p7P_MSC_C3(gm, k, v, w, x)       ((gm)->rsc[(k)][p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
+/*104 to 359 */
+#define p7P_MSC_C4(gm, k, u, v, w, x)    ((gm)->rsc[(k)][p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
+/*360 to 1383 */
+#define p7P_MSC_C5(gm, k, t, u, v, w, x) ((gm)->rsc[(k)][p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
 
 typedef struct p7_profile_s {
   float  *tsc;          /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */

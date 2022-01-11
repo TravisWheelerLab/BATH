@@ -2,6 +2,9 @@
 
 *** Warning:  This is not the primary repository of HMMER. Please find the official repo at: https://github.com/EddyRivasLab/hmmer ***
 
+[![](https://travis-ci.org/EddyRivasLab/hmmer.svg?branch=develop)](https://travis-ci.org/EddyRivasLab/hmmer)
+![](http://img.shields.io/badge/license-BSD-brightgreen.svg)
+
 [HMMER](http://hmmer.org) searches biological sequence databases for
 homologous sequences, using either single sequences or multiple
 sequence alignments as queries. HMMER implements a technology called
@@ -23,7 +26,7 @@ depends on the Easel library, also at
 ```
    % wget http://eddylab.org/software/hmmer/hmmer.tar.gz
    % tar zxf hmmer.tar.gz
-   % cd hmmer-3.2.1
+   % cd hmmer-3.3.2
    % ./configure --prefix /your/install/path
    % make
    % make check                 # optional: run automated tests
@@ -75,10 +78,15 @@ focuses on two main branches:
  * **develop** is the HMMER3 development branch
  * **h4-develop** is the HMMER4 development branch.
 
-To contribute to our fork of HMMER3 development, you want to be on the **translatedsearch**
-branch. **If you want to contribute to the main HMMER codebase, go to the
-[EddyRivasLab](https://github.com/EddyRivasLab) repo**
+To contribute to our fork of HMMER3 development, you want to be on the
+**translatedsearch** branch. **If you want to contribute to the main HMMER
+codebase, go to the [EddyRivasLab](https://github.com/EddyRivasLab) repo**.
 
+To build the most recent official release, leave both HMMER and Easel
+on their default **master** branch.  To contribute to HMMER3
+development, you want to be on the **develop** branches. If you want
+to send us a pull request on GitHub, please base your changes on our
+**develop** branches.
 
 ### to report a problem:
 

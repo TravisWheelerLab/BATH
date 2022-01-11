@@ -537,40 +537,59 @@ main(int argc, char **argv)
 
   /* Allocate BWT, Text, SA, and FM-index data structures, allowing storage of maximally large sequence*/
   ESL_ALLOC(fm_data, sizeof(FM_DATA) );
-
-  if (fm_data == NULL) {
-    esl_fatal( "%s: Cannot allocate memory.\n", argv[0]);
-  }
+  fm_data->T          = NULL;
+  fm_data->BWT_mem    = NULL;
+  fm_data->BWT        = NULL;
+  fm_data->SA         = NULL;
+  fm_data->C          = NULL;
+  fm_data->occCnts_sb = NULL;
+  fm_data->occCnts_b  = NULL;
 
   ESL_ALLOC (fm_data->T, max_block_size * sizeof(uint8_t));
   ESL_ALLOC (fm_data->BWT_mem, max_block_size * sizeof(uint8_t));
-     fm_data->BWT = fm_data->BWT_mem;  // in SSE code, used to align memory. Here, doesn't matter
+  fm_data->BWT = fm_data->BWT_mem;  // in SSE code, used to align memory. Here, doesn't matter
   ESL_ALLOC (fm_data->SA, max_block_size * sizeof(int));
   ESL_ALLOC (SAsamp,     (floor((double)max_block_size/meta->freq_SA) ) * sizeof(uint32_t));
-
   ESL_ALLOC (fm_data->occCnts_sb, (1+ceil((double)max_block_size/meta->freq_cnt_sb)) *  meta->alph_size * sizeof(uint32_t)); // every freq_cnt_sb positions, store an array of ints
   ESL_ALLOC (fm_data->occCnts_b,  ( 1+ceil((double)max_block_size/meta->freq_cnt_b)) *  meta->alph_size * sizeof(uint16_t)); // every freq_cnt_b positions, store an array of 8-byte ints
   ESL_ALLOC (cnts_sb,    meta->alph_size * sizeof(uint32_t));
   ESL_ALLOC (cnts_b,     meta->alph_size * sizeof(uint16_t));
 
-  if((fm_data->T == NULL)  || (fm_data->BWT == NULL)  || (fm_data->SA==NULL) ||
-      (fm_data->occCnts_b==NULL)  || (fm_data->occCnts_sb==NULL) ||
-      (SAsamp==NULL) || (cnts_b==NULL) || (cnts_sb==NULL)  ) {
-    esl_fatal( "%s: Cannot allocate memory.\n", argv[0]);
-  }
-
-
   // Open a temporary file, to which FM-index data will be written
   if (esl_tmpfile(tmp_filename, &fptmp) != eslOK) esl_fatal("unable to open fm-index tmpfile");
 
-
   /* Main loop: */
   while (status == eslOK ) {
-
     //reset block as an empty vessel
-    for (i=0; i<block->count; i++)
-        esl_sq_Reuse(block->list + i);
+    for (i=0; i<block->count; i++){
+      esl_sq_Reuse(block->list + i);  
+    }
+    // Check how much space the block structure is using and re-allocate if it has grown to more than 20*block_size bytes
+    // this loop iterates from 0 to block->listsize rather than block->count because we want to count all of the
+    // block's sub-structures, not just the ones that contained sequence data after the last call to ReadBlock()    
+    // This doesn't check some of the less-common sub-structures in a sequence, but it should be good enough for
+    // our goal of keeping block size under control
+    uint64_t block_space = 0;
+    for(i=0; i<block->listSize; i++){
+      block_space += block->list[i].nalloc;
+      block_space += block->list[i].aalloc;   
+      block_space += block->list[i].dalloc;
+      block_space += block->list[i].srcalloc; 
+      block_space += block->list[i].salloc;
+      if (block->list[i].ss != NULL){ 
+        block_space += block->list[i].salloc; // ss field is not always presesnt, but takes salloc bytes if it is
+      }
+    }
 
+    if(block_space > 20*block_size){
+      ESL_SQ_BLOCK *new_block = esl_sq_CreateDigitalBlock(FM_BLOCK_COUNT, abc);
+      new_block->count = block->count; // copying this field shouldn't be necessary, but I can't guarantee that it isn't.
+      new_block->listSize = block->listSize;  
+      new_block->complete = block->complete;  
+      new_block->first_seqidx = block->first_seqidx;
+      esl_sq_DestroyBlock(block);   
+      block = new_block; 
+    }
     if (use_tmpsq) {
         esl_sq_Copy(tmpsq , block->list);
         block->complete = FALSE;  //this lets ReadBlock know that it needs to append to a small bit of previously-read seqeunce
@@ -580,7 +599,8 @@ main(int argc, char **argv)
         block->complete = TRUE;
     }
 
-    status = esl_sqio_ReadBlock(sqfp, block, block_size, -1, alphatype != eslAMINO);
+    
+    status = esl_sqio_ReadBlock(sqfp, block, block_size, -1, /*max_init_window=*/FALSE, alphatype != eslAMINO);
     if (status == eslEOF) continue;
     if (status != eslOK)  esl_fatal("Parse failed (sequence file %s): status:%d\n%s\n",
                                                   sqfp->filename, status, esl_sqfile_GetErrorBuf(sqfp));

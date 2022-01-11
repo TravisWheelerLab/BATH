@@ -49,6 +49,7 @@ extern P7_DOMAIN *p7_domain_Create_empty(){
   the_domain->is_included = 0;
   the_domain->scores_per_pos = NULL;
   the_domain->ad = NULL;
+  the_domain->tr = NULL;
 
   return the_domain;
 
@@ -79,6 +80,9 @@ extern void p7_domain_Destroy(P7_DOMAIN *obj){
   }
   if(obj->ad != NULL){
     p7_alidisplay_Destroy(obj->ad);
+  }
+  if(obj->tr != NULL){
+    p7_trace_fs_Destroy(obj->tr);
   }
   free(obj);
   return;

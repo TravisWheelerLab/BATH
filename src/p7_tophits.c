@@ -1955,6 +1955,154 @@ p7_tophits_Alignment(const P7_TOPHITS *th, const ESL_ALPHABET *abc,
  * 3. Tabular (parsable) output of pipeline results.
  *****************************************************************/
 
+
+
+/* Function:  p7_tophits_TabularFrameshifts()
+ * Synopsis:  Output parsable table of per-alignment frameshift locations.
+ *
+ * Purpose:   Output a parseable table of frameshift and stop codon 
+ *            locations from reportable hits in sorted tophits list 
+ *            <th> in an easily parsed ASCII tabular form to stream 
+ *            <ofp>.
+ *
+ * Returns:   <eslOK> on success.
+ *          
+ * Throws:    <eslEWRITE> if a write to <ofp> fails; for example, if
+ *            the disk fills up.
+ */
+int
+p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header)
+{
+
+  P7_TRACE *tr = NULL;
+  int qnamew = ESL_MAX(20, strlen(qname));
+  int tnamew = ESL_MAX(20, p7_tophits_GetMaxNameLength(th));
+  int qaccw  = ((qacc != NULL) ? ESL_MAX(10, strlen(qacc)) : 10);
+  int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
+  int posw   = ESL_MAX(7, p7_tophits_GetMaxPositionLength(th));
+  int z, h,d;
+  int z1, z2;
+  int ali_pos;
+  char fs_type;
+  int fs_length;
+  int ali_start;
+  int64_t seq_start, seq_from, seq_to;
+  int fs;
+  int status;
+
+    if (show_header)
+  {
+      
+      if (th->N > 0 && th->hit[0]->ndom > 0)
+      {
+          if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %9s %9s %9s %5s %5s %9s %9s\n",
+            tnamew-1, " target name",        taccw, "accession",  qnamew, "query name",           qaccw, "accession",  "  E-value", "ali from", "   ali to",  " I D ", "length", "seq start", "ali start") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+          if (fprintf(ofp, "#%*s %*s %*s %*s %9s %9s %9s %5s %5s %9s %9s\n",
+            tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "-----","-----", "---------", "---------") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        }
+    }
+
+  for (h = 0; h < th->N; h++)
+    if (th->hit[h]->flags & p7_IS_REPORTED && th->hit[h]->frameshift)    
+    {
+        d    = th->hit[h]->best_domain;
+        tr = th->hit[h]->dcl[d].tr;
+
+        seq_from = th->hit[h]->dcl[d].iali;
+        seq_to   = th->hit[h]->dcl[d].jali;
+	
+        for (z1 = 0; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;            /* find first M state      */
+        if (z1 == tr->N) ESL_XEXCEPTION(eslFAIL, "corrupt trace - no M state");                                                
+
+        for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;           /* find the E state  */
+        for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                    /* find prev M state      */
+        if (z2 == -1) ESL_XEXCEPTION(eslFAIL, "corrupt trace - no M state");           /* no M? corrupt trace    */
+
+         ali_pos = 1;
+        for(z = z1; z <= z2; z++) 
+        {
+          if(tr->st[z] == p7T_M)
+          {
+	    if(tr->c[z] == 1)
+            {
+              fs = TRUE;  
+              fs_type = 'D';
+              fs_length = 2;
+              ali_start = ali_pos;
+              seq_start = (seq_from < seq_to) ? seq_from + ali_pos - 1: seq_from - ali_pos + 1;
+              ali_pos += 1;
+             }
+             else if(tr->c[z] == 2)
+            {
+              fs = TRUE;
+              fs_type = 'D';
+              fs_length = 1;
+              ali_start = ali_pos;
+              seq_start = (seq_from < seq_to) ? seq_from + ali_pos - 1: seq_from - ali_pos + 1; 
+              ali_pos += 2;
+             }
+	     else if(tr->c[z] == 4)
+            {
+              fs = TRUE;
+              fs_type = 'I';
+              fs_length = 1;
+              ali_start = ali_pos;
+              seq_start = (seq_from < seq_to) ? seq_from + ali_pos - 1 : seq_from - ali_pos + 1;
+              ali_pos += 4;
+             }
+             else if(tr->c[z] == 5)
+            {
+              fs = TRUE;
+              fs_type = 'I';
+              fs_length = 2;
+              ali_start = ali_pos;
+              seq_start = (seq_from < seq_to) ? seq_from + ali_pos - 1: seq_from - ali_pos + 1; 
+              ali_pos += 5;
+             }
+             else
+            { 
+              fs = FALSE;
+              ali_pos += 3;
+            }
+          } 
+          else if (tr->st[z] == p7T_I)
+          {
+             fs = FALSE;
+              ali_pos += 3;
+          }
+          else if (tr->st[z] == p7T_D)
+              fs = FALSE;
+          else
+             ESL_XEXCEPTION(eslFAIL, "impossible trace");
+             
+           if(fs) 
+           {
+ 	      if (fprintf(ofp, "%-*s %-*s %-*s %-*s %9.2g %*" PRId64 " %*" PRId64 " %5c %5d %*" PRId64 " %9d\n",
+                 tnamew, th->hit[h]->name,
+                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
+                 qnamew, qname,
+                 qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
+                 exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
+                 posw, th->hit[h]->dcl[d].iali,
+                 posw, th->hit[h]->dcl[d].jali,
+                 fs_type,
+                 fs_length,
+                 posw, seq_start,
+                 ali_start) < 0)            
+                 ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-aligment frameshift list: write failed");
+             }
+       }
+   }
+
+   return eslOK;
+ ERROR:
+  return status;
+}
+
+
+
 /* Function:  p7_tophits_TabularTargets()
  * Synopsis:  Output parsable table of per-sequence hits.
  *

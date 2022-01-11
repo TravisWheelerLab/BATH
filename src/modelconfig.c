@@ -212,7 +212,6 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 int
 p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode)
 {
-  int p;
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
   int     del1, del2;

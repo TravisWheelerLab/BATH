@@ -776,6 +776,7 @@ typedef struct p7_dom_s {
   float         *scores_per_pos; /* score in BITS that each position in the alignment contributes to an overall viterbi score */
 
   P7_ALIDISPLAY *ad; 
+  P7_TRACE      *tr;  /*used by FATHMM when --fstblout flag is used */
 } P7_DOMAIN;
 
 /* Structure: P7_DOMAINDEF
@@ -834,6 +835,9 @@ typedef struct p7_domaindef_s {
   int    nclustered;  /* number of regions evaluated by clustering ensemble of tracebacks */
   int    noverlaps;  /* number of envelopes defined in ensemble clustering that overlap w/ prev envelope */
   int    nenvelopes;  /* number of envelopes handed over for domain definition, null2, alignment, and scoring. */
+
+  /* flags */
+  int fstbl;     /* True if --fstblout flag in on for FATHMM */
 
 } P7_DOMAINDEF;
 
@@ -1395,9 +1399,10 @@ typedef struct p7_pipeline_s {
   uint64_t      pos_passed_fwd;  /* # positions that pass ForwardFilter()  (used for nhmmer) */
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
-  enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
+  enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
-  int           frameshift;    /* TRUE for searches with fathmm */
+  int           frameshift;     /* TRUE for searches with fathmm */
+  int           fs_only;        /* TRUE for FATHMM searches that only use the fs pipeline branch */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
@@ -1723,7 +1728,7 @@ extern int p7_domain_Compare(P7_DOMAIN *first, P7_DOMAIN *second, double atol, d
 
 /* p7_domaindef.c */
 extern P7_DOMAINDEF *p7_domaindef_Create (ESL_RANDOMNESS *r);
-extern P7_DOMAINDEF *p7_domaindef_fs_Create (ESL_RANDOMNESS *r);
+extern P7_DOMAINDEF *p7_domaindef_fs_Create (ESL_RANDOMNESS *r, ESL_GETOPTS *go);
 extern int           p7_domaindef_Fetch  (P7_DOMAINDEF *ddef, int which, int *opt_i, int *opt_j, float *opt_sc, P7_ALIDISPLAY **opt_ad);
 extern int           p7_domaindef_GrowTo (P7_DOMAINDEF *ddef, int L);
 extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);
@@ -1964,12 +1969,14 @@ extern int p7_tophits_TabularXfam(FILE *ofp, char *qname, char *qacc, P7_TOPHITS
 extern int p7_tophits_TabularTail(FILE *ofp, const char *progname, enum p7_pipemodes_e pipemode, 
           const char *qfile, const char *tfile, const ESL_GETOPTS *go);
 extern int p7_tophits_AliScores(FILE *ofp, char *qname, P7_TOPHITS *th );
+extern int p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header);
 
 /* p7_trace.c */
 extern P7_TRACE *p7_trace_Create(void);
 extern P7_TRACE *p7_trace_CreateWithPP(void);
 extern P7_TRACE *p7_trace_fs_Create(void);
 extern P7_TRACE *p7_trace_fs_CreateWithPP(void);
+extern P7_TRACE *p7_trace_fs_Clone(const P7_TRACE *tr);
 extern int  p7_trace_fs_Convert(P7_TRACE *tr, int64_t orf_start, int64_t sq_start);
 extern int  p7_trace_Reuse(P7_TRACE *tr);
 extern int  p7_trace_Grow(P7_TRACE *tr);

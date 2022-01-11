@@ -15,6 +15,8 @@
 
 #include "p7_config.h"
 
+#include <string.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -200,6 +202,83 @@ trace_fs_create_engine(int initial_nalloc, int initial_ndomalloc, int with_poste
   if (tr != NULL) p7_trace_Destroy(tr);
   return NULL;
 }
+
+/* Function:  p7_trace_fs_Clone()
+ * Synopsis:  Create a duplicate of an existing <P7_TRACE> object.
+ * 
+ * Purpose:   Creates a duplicate of the existing <P7_TRACE> object <tr>.
+ *    
+ * Returns:   ptr to the duplicate <P7_TRACE> object.
+ *   
+ * Throws:    <NULL> on allocation failure.
+ */
+P7_TRACE *
+p7_trace_fs_Clone(const P7_TRACE *tr)
+{
+  P7_TRACE *dup = NULL;
+  int    status;
+
+  ESL_ALLOC(dup, sizeof(P7_TRACE));
+  dup->st = NULL;
+  dup->k  = NULL;
+  dup->i  = NULL;
+  dup->c  = NULL;
+  dup->pp = NULL;
+
+  dup->N         = tr->N;
+  dup->nalloc    = tr->nalloc;
+  dup->ndomalloc = tr->ndomalloc;
+  dup->ndom      = tr->ndom;
+  dup->M         = tr->M;
+  dup->L         = tr->L;
+
+  dup->tfrom     = dup->tto      = NULL;
+  dup->sqfrom    = dup->sqto     = NULL;
+  dup->hmmfrom   = dup->hmmto    = NULL;
+
+ /* The trace data itself */
+  ESL_ALLOC(dup->st, sizeof(char) * dup->nalloc);
+  memcpy(dup->st, tr->st, sizeof(char) * dup->nalloc);
+
+  ESL_ALLOC(dup->k,  sizeof(int)  * dup->nalloc);
+  memcpy(dup->k, tr->k, sizeof(int) * dup->nalloc);
+
+  ESL_ALLOC(dup->i,  sizeof(int)  * dup->nalloc);
+  memcpy(dup->i, tr->i, sizeof(int) * dup->nalloc);
+
+  ESL_ALLOC(dup->c,  sizeof(int)  * dup->nalloc);
+  memcpy(dup->c, tr->c, sizeof(int) * dup->nalloc);
+
+  if (tr->pp != NULL)
+    ESL_ALLOC(dup->pp, sizeof(float) * dup->nalloc);
+    memcpy(dup->pp, tr->pp, sizeof(float) * dup->nalloc);
+
+   /* The trace's index: table of domain start/stop coords */
+  ESL_ALLOC(dup->tfrom,   sizeof(int) * dup->ndomalloc);
+  memcpy(dup->tfrom, tr->tfrom, sizeof(int) * dup->ndomalloc);
+  
+  ESL_ALLOC(dup->tto,     sizeof(int) * dup->ndomalloc);
+  memcpy(dup->tto, tr->tto, sizeof(int) * dup->ndomalloc);
+
+  ESL_ALLOC(dup->sqfrom,  sizeof(int) * dup->ndomalloc);
+  memcpy(dup->sqfrom, tr->sqfrom, sizeof(int) * dup->ndomalloc);
+  
+  ESL_ALLOC(dup->sqto,    sizeof(int) * dup->ndomalloc);
+  memcpy(dup->sqto, tr->sqto, sizeof(int) * dup->ndomalloc);  
+
+  ESL_ALLOC(dup->hmmfrom, sizeof(int) * dup->ndomalloc);
+  memcpy(dup->hmmfrom, tr->hmmfrom, sizeof(int) * dup->ndomalloc);  
+
+  ESL_ALLOC(dup->hmmto,   sizeof(int) * dup->ndomalloc);
+  memcpy(dup->hmmto, tr->hmmto, sizeof(int) * dup->ndomalloc);  
+
+  return dup;
+
+ ERROR:
+  p7_trace_fs_Destroy(dup);
+  return NULL;
+}
+
 
 /* Function:  p7_trace_Reuse()
  * Synopsis:  Prepare a trace for reuse.

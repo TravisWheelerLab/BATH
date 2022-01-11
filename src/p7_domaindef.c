@@ -149,7 +149,7 @@ p7_domaindef_Create(ESL_RANDOMNESS *r)
  * Throws:    <NULL> on allocation failure.
  */
 P7_DOMAINDEF *
-p7_domaindef_fs_Create(ESL_RANDOMNESS *r)
+p7_domaindef_fs_Create(ESL_RANDOMNESS *r, ESL_GETOPTS *go)
 {
   P7_DOMAINDEF *ddef   = NULL;
   int           Lalloc = 512;  /* this initial alloc doesn't matter much; space is realloced as needed */
@@ -203,6 +203,9 @@ p7_domaindef_fs_Create(ESL_RANDOMNESS *r)
   /* keep a copy of ptr to the RNG */
   ddef->r            = r;  
   ddef->do_reseeding = TRUE;
+
+  ddef->fstbl = esl_opt_IsUsed(go, "--fstblout"); /* TRUE to produce tabular frameshift location output */
+
   return ddef;
   
  ERROR:
@@ -1781,8 +1784,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, windowsq, gcode);
   dom->scores_per_pos = NULL; 
   dom->envsc = envsc; 
-
-  /* Compute bias correction (for non-longtarget case)
+  
+  if(ddef->fstbl) //copy trace to use for frameshift tablular output
+    dom->tr = p7_trace_fs_Clone(ddef->tr); 
+  
+   /* Compute bias correction (for non-longtarget case)
    * Is null2 set already for this i..j? (It is, if we're in a domain that
    * was defined by stochastic traceback clustering in a multidomain region;
    * it isn't yet, if we're in a simple one-domain region). If it isn't,

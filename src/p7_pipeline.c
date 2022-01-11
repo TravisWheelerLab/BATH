@@ -340,6 +340,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->frameshift = TRUE;
   pli->long_targets = FALSE;
   pli->is_translated = FALSE; 
+  pli->fs_only = (go ? esl_opt_IsUsed(go, "--fsonly") : 0); 
 
   /* Create generic and optimized matricies */
   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS  )) == NULL) goto ERROR;
@@ -356,7 +357,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    */
   pli->r                  =  esl_randomness_CreateFast(seed);
   pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
-  pli->ddef               = p7_domaindef_fs_Create(pli->r);
+  pli->ddef               = p7_domaindef_fs_Create(pli->r, go);
   pli->ddef->do_reseeding = pli->do_reseeding;
 
   /* Configure reporting thresholds */
@@ -475,7 +476,6 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
   pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
-  pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
   pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in domain display for fathmm */
   pli->hfp             = NULL;
   pli->errbuf[0]       = '\0';
@@ -1271,7 +1271,6 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
    */
   sum_score = 0.0f;
   seqbias   = 0.0f;
-printf("dna start %lld\n", ntsq->start);
   Ld        = 0;  
   if (pli->do_null2) 
     {
@@ -2549,7 +2548,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   }
  
   tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-
   /*Compare Pvalues to select either the standard or the frameshift pipeline*/
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
 	

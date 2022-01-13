@@ -1,4 +1,4 @@
-/* fathmm: search protien profile HMM(s) against a DNA sequence database.
+/* fathmm: search protein profile HMM(s) against a DNA sequence database.
  *
  */
 #include "p7_config.h"
@@ -20,7 +20,6 @@
 #include "esl_gencode.h"
 
 #ifdef HMMER_THREADS
-#include <unistd.h>
 #include "esl_threads.h"
 #include "esl_workqueue.h"
 #endif /*HMMER_THREADS*/
@@ -28,7 +27,7 @@
 #include "hmmer.h"
 
 /* set the max residue count to 1/4 meg when reading a block */
-#define FSPHMMERT_MAX_RESIDUE_COUNT (1024 * 256)  /* 1/4 Mb */
+#define FATHMM_MAX_RESIDUE_COUNT (1024 * 256)  /* 1/4 Mb */
 
 
 typedef struct {
@@ -36,7 +35,7 @@ typedef struct {
   ESL_WORK_QUEUE   *queue;
 #endif /*HMMER_THREADS*/
   P7_BG            *bg;	         /* null model                              */
-  ESL_SQ           *ntqsq;      /* query or target sequence; this is a DNA sequence in the case of hmmscant */
+  ESL_SQ           *ntsq;      /* query or target sequence; this is a DNA sequence in the case of hmmscant */
   P7_PIPELINE      *pli;         /* work pipeline                           */
   P7_TOPHITS       *th;          /* top hit results                         */
   P7_OPROFILE      *om;          /* optimized query profile                 */
@@ -80,7 +79,7 @@ static ESL_OPTIONS options[] = {
   { "-o",           eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "direct output to file <f>, not stdout",                        2 },
   { "-A",           eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save multiple alignment of all hits to file <f>",              2 },
   { "--tblout",     eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save parseable table of hits to file <f>",        2 },
-  { "--fstblout",  eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save table of per-alignment framshift locations to file <f>",          2 },  
+  { "--fstblout",  eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save table of per-alignment frameshift locations to file <f>",          2 },
   { "--aliscoresout", eslARG_OUTFILE, NULL,NULL,NULL,    NULL,  NULL,  NULL,              "save scores for each position in each alignment to <f>",       2 },
   { "--acc",        eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "prefer accessions over names in output",                       2 },
   { "--noali",      eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't output alignments, so output is smaller",                2 },
@@ -148,7 +147,7 @@ static ESL_OPTIONS options[] = {
   { "--B2",         eslARG_INT,         "240", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (Vit)",          99 },
   { "--B3",         eslARG_INT,        "1000", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (Fwd)",          99 },
  
-  /* Not used, but retained because esl option-handling code errors if it isn't kept here.  Placed in group 99 so it doesn't print to help*/
+  /* Not used, but retained because esl option-handling code errors if it isn't kept here.  Placed in group 99 so that it doesn't print to help*/
   { "--domZ",       eslARG_REAL,        FALSE, NULL, "x>0",   NULL,  NULL,  NULL,            "Not used",   99 },
   { "--domE",       eslARG_REAL,       "10.0", NULL, "x>0",   NULL,  NULL,  DOMREPOPTS,      "Not used",   99 },
   { "--domT",       eslARG_REAL,        FALSE, NULL, NULL,    NULL,  NULL,  DOMREPOPTS,      "Not used",   99 },
@@ -416,7 +415,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              i, d, h;
   float            indel_cost;
   double           resCnt    = 0;
-//  double           tau_fs; 
+
   /* used to keep track of the lengths of the sequences that are processed */
   ID_LENGTH_LIST  *id_length_list = NULL;
 
@@ -504,7 +503,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* Check for presence of frameshift tau and matching frameshift probabilities */
   indel_cost = esl_opt_GetReal(go, "--fs");
   if( ! hmm->fs ) p7_Fail("HMM file %s not formated for fathmm. Please run hmmconvert.\n", cfg->hmmfile);
-   if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probabilty of %f does not match the frameshift probablity in the HMM file %s. Please run hummcovert with option '--fs %f'.\n", indel_cost, cfg->hmmfile, indel_cost);
+   if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run hummcovert with option '--fs %f'.\n", indel_cost, cfg->hmmfile, indel_cost);
       
   if (hstatus == eslOK)
   {
@@ -538,7 +537,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
    
   if      (esl_opt_GetBoolean(go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
-  else if (! esl_opt_GetBoolean(go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m or -M are set
+  else if (! esl_opt_GetBoolean(go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m nor -M are set
 
 
   /* Set up the workstate structure, which contains both stateful 
@@ -636,7 +635,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         if (  esl_opt_IsUsed(go, "--block_length") )
           info[i].pli->block_length = esl_opt_GetInteger(go, "--block_length");
         else
-          info[i].pli->block_length = FSPHMMERT_MAX_RESIDUE_COUNT;
+          info[i].pli->block_length = FATHMM_MAX_RESIDUE_COUNT;
 
 #ifdef HMMER_THREADS
         if (ncpus > 0) esl_threads_AddThread(threadObj, &info[i]);
@@ -934,7 +933,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
     for (i=0; i<block->count; i++) {
       block->list[i].idx = seqid;
       
-      add_id_length(id_length_list, seqid, block->list[i].L);
+      add_id_length(id_length_list, seqid, block->list[i].L); // NOLINT(cppcoreguidelines-narrowing-conversions)
       seqid++;
       if (       seqid == n_targetseqs // hit the sequence target
            && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
@@ -1071,8 +1070,6 @@ pipeline_thread(void *arg)
   if (status != eslOK) esl_fatal("Work queue worker failed");
 
   esl_threads_Finished(obj, workeridx);
-
-  return;
 }
 #endif   /* HMMER_THREADS */
  

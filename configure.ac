@@ -78,12 +78,6 @@ m4_include([easel/m4/esl_pic_flags.m4])
 AC_INIT(HMMER, 3.3.2, sean@eddylab.org, hmmer)
 AC_MSG_NOTICE([Configuring HMMER3 for your system.])
 
-# remember if the user is overriding CFLAGS
-esl_cflags_env_set=no
-if test x"$CFLAGS" != x; then 
-  esl_cflags_env_set=yes
-fi
-
 ################################################################
 # 3. Info on the package
 ################################################################
@@ -227,15 +221,28 @@ fi
 # Choose our compiler - which might be mpicc, if enable_mpi is "yes".
 #   AX_PROG_CC_MPI will call AC_PROG_CC if enable_mpi is "no".
 #
+# If CFLAGS hasn't been set by the user, set it to an empty string
+# in the environment. This prevents AC_PROG_CC from setting it to
+# "-g -O2" or "-g". Some of our --enable-* options will add to CFLAGS.
+#
+# The `: ${CFLAGS=""}` shell syntax uses the null operator `:` to
+# discard the output of `${CFLAGS=""}`, which returns the value of
+# CFLAGS if already set.
+#
+: ${CFLAGS=""}
 AX_PROG_CC_MPI([test x"$enable_mpi" = xyes],
-    [AC_DEFINE(HAVE_MPI,  1, [Use MPI parallelization])
-     AC_DEFINE(HMMER_MPI, 1, [Use MPI parallelization])
-     AC_SUBST([MPI_UTESTS],     ["mpi_utest"])
-     AC_SUBST([MPI_BENCHMARKS], ["mpi_benchmark"])],
-    [ if test x"$enable_mpi" = xyes; then
-        AC_MSG_ERROR([MPI library not found for --enable-mpi]);
-      fi])
-AC_PROG_CC_STDC
+  [
+    AC_DEFINE(HAVE_MPI,  1, [Use MPI parallelization])
+    AC_DEFINE(HMMER_MPI, 1, [Use MPI parallelization])
+    AC_SUBST([MPI_UTESTS],     ["mpi_utest"])
+    AC_SUBST([MPI_BENCHMARKS], ["mpi_benchmark"])
+  ],
+  [
+    if test x"$enable_mpi" = xyes; then
+      AC_MSG_ERROR([MPI library not found for --enable-mpi]);
+    fi
+  ])
+AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_CHECK_TOOL([STRIP],[strip])
@@ -247,20 +254,16 @@ AC_PROG_LN_S
 #  --enable-gcov, --enable-gprof, and --enable-debugging are mutually exclusive.
 #
 if test "$enable_gcov" = "yes"; then
-   if test "$esl_cflags_env_set" = "yes"; then 
-     AC_MSG_ERROR([--enable-gcov overrides CFLAGS, so don't set CFLAGS])
-   fi
-   CFLAGS="-g -Wall -fprofile-arcs -ftest-coverage"
+   CFLAGS="${CFLAGS} -g -Wall -fprofile-arcs -ftest-coverage"
 elif test "$enable_gprof" = "yes"; then
-   if test "$esl_cflags_env_set" = "yes"; then 
-     AC_MSG_ERROR([--enable-gprof overrides CFLAGS, so don't set CFLAGS])
-   fi
-   CFLAGS="-O -g -pg"
+   CFLAGS="${CFLAGS} -O -g -pg"
 elif test "$enable_debugging" != "no"; then
    if test "$GCC" = "yes"; then
-      CFLAGS="-g -Wall"
+      CFLAGS="${CFLAGS} -g -Wall"
+   else
+      AC_MSG_ERROR([--enable-debugging only works for a gcc-like compiler])
    fi
-elif test "$esl_cflags_env_set" != "yes"; then
+elif test x"${CFLAGS}" = x; then
    CFLAGS="-O3"
 fi
 

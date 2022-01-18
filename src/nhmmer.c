@@ -193,6 +193,11 @@ struct cfg_s {
   char            *queryfile;         /* query file (hmm, fasta, or some MSA)            */
   int              qfmt;
 
+
+  int              do_mpi;            /* TRUE if we're doing MPI parallelization         */
+  int              nproc;             /* how many MPI processes, total                   */
+  int              my_rank;           /* who am I, in 0..nproc-1                         */
+
   char             *firstseq_key;     /* name of the first sequence in the restricted db range */
   int              n_targetseq;       /* number of sequences in the restricted range */
 };

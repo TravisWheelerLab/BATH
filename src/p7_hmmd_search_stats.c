@@ -44,8 +44,9 @@
  *            n == NULL, or
  *            if an unknown enum value is found in obj
  */
-extern int p7_hmmd_search_stats_Serialize(const HMMD_SEARCH_STATS *obj, uint8_t **buf, uint32_t *n, uint32_t *nalloc){
-
+extern int p7_hmmd_search_stats_Serialize(const HMMD_SEARCH_STATS *obj, uint8_t **buf, uint32_t *n, uint32_t *nalloc) 
+{
+  int i;
   int status; // error variable used by ESL_ALLOC
   int ser_size; // size of the structure when serialized
   uint8_t *ptr; // current ptrition within the buffer
@@ -201,7 +202,7 @@ extern int p7_hmmd_search_stats_Serialize(const HMMD_SEARCH_STATS *obj, uint8_t 
     ptr += sizeof(uint64_t);
   }
   else{
-    for(int i = 0; i < obj->nhits; i++){
+    for(i = 0; i < obj->nhits; i++){
       network_64bit = esl_hton64(obj->hit_offsets[i]);
       memcpy((void *) ptr, (void *) &network_64bit, sizeof(uint64_t));  
       ptr += sizeof(uint64_t);
@@ -236,7 +237,9 @@ ERROR: // We only get here if memory (re)allocation failed, so no cleanup requir
  *.           value is found in one of the fields of the serialized object.
  *            Returns eslEMEM if unable to allocate memory
  */
-extern int p7_hmmd_search_stats_Deserialize(const uint8_t *buf, uint32_t *n, HMMD_SEARCH_STATS *ret_obj){
+extern int p7_hmmd_search_stats_Deserialize(const uint8_t *buf, uint32_t *n, HMMD_SEARCH_STATS *ret_obj)
+{
+  int i;
   uint8_t *ptr;
   uint64_t network_64bit; // holds 64-bit values in network order 
   uint64_t host_64bit; //variable to hold 64-bit values after conversion to host order
@@ -374,7 +377,7 @@ extern int p7_hmmd_search_stats_Deserialize(const uint8_t *buf, uint32_t *n, HMM
     }
 
     ret_obj->hit_offsets[0] = esl_ntoh64(network_64bit); //already have the first offset read out of the buffer
-    for(int i = 1; i < ret_obj->nhits; i++){
+    for(i = 1; i < ret_obj->nhits; i++){
       memcpy(&network_64bit, ptr, sizeof(uint64_t));
       ptr += sizeof(uint64_t);
       ret_obj->hit_offsets[i] = esl_ntoh64(network_64bit);
@@ -400,7 +403,9 @@ ERROR:
  * comparing floating-point numbers for equality.  That is why it is a static function and not part of the general API for 
  * HMMD_SEARCH_STATS objects.
  */
-static int hmmd_search_stats_Same(const HMMD_SEARCH_STATS *first, const HMMD_SEARCH_STATS *second){
+static int hmmd_search_stats_Same(const HMMD_SEARCH_STATS *first, const HMMD_SEARCH_STATS *second)
+{
+  int i;
   if((first == NULL)||(second==NULL)){ // we've been passed bad pointers
     return eslFAIL;
   }
@@ -476,7 +481,7 @@ static int hmmd_search_stats_Same(const HMMD_SEARCH_STATS *first, const HMMD_SEA
   }
 
   if(first->hit_offsets != NULL){ // both must have a hit_offsets array, since we'd already have failed if only one did
-    for(int i = 0; i < first->nhits; i++){ // we've already checked that both objects have the same value for nhits
+    for(i = 0; i < first->nhits; i++){ // we've already checked that both objects have the same value for nhits
       if(first->hit_offsets[i] != second->hit_offsets[i]){
         return eslFAIL;
       }

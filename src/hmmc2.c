@@ -497,10 +497,10 @@ int main(int argc, char *argv[])
 
         pli->nmodels     = stats->nmodels;
         pli->nseqs       = stats->nseqs;
-        pli->n_passed_msv  = stats->n_past_msv;
-        pli->n_passed_bias = stats->n_past_bias;
-        pli->n_passed_vit  = stats->n_past_vit;
-        pli->n_passed_fwd  = stats->n_past_fwd;
+        pli->n_past_msv  = stats->n_past_msv;
+        pli->n_past_bias = stats->n_past_bias;
+        pli->n_past_vit  = stats->n_past_vit;
+        pli->n_past_fwd  = stats->n_past_fwd;
 
         pli->Z           = stats->Z;
         pli->domZ        = stats->domZ;

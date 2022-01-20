@@ -250,14 +250,14 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   pli->nseqs           = 0;
   pli->nres            = 0;
   pli->nnodes          = 0;
-  pli->n_passed_msv      = 0;
-  pli->n_passed_bias     = 0;
-  pli->n_passed_vit      = 0;
-  pli->n_passed_fwd      = 0;
-  pli->pos_passed_msv    = 0;
-  pli->pos_passed_bias   = 0;
-  pli->pos_passed_vit    = 0;
-  pli->pos_passed_fwd    = 0;
+  pli->n_past_msv      = 0;
+  pli->n_past_bias     = 0;
+  pli->n_past_vit      = 0;
+  pli->n_past_fwd      = 0;
+  pli->pos_past_msv    = 0;
+  pli->pos_past_bias   = 0;
+  pli->pos_past_vit    = 0;
+  pli->pos_past_fwd    = 0;
   pli->mode            = mode;
   pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
@@ -464,14 +464,14 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->nseqs           = 0;
   pli->nres            = 0;
   pli->nnodes          = 0;
-  pli->n_passed_msv      = 0;
-  pli->n_passed_bias     = 0;
-  pli->n_passed_vit      = 0;
-  pli->n_passed_fwd      = 0;
-  pli->pos_passed_msv    = 0;
-  pli->pos_passed_bias   = 0;
-  pli->pos_passed_vit    = 0;
-  pli->pos_passed_fwd    = 0;
+  pli->n_past_msv      = 0;
+  pli->n_past_bias     = 0;
+  pli->n_past_vit      = 0;
+  pli->n_past_fwd      = 0;
+  pli->pos_past_msv    = 0;
+  pli->pos_past_bias   = 0;
+  pli->pos_past_vit    = 0;
+  pli->pos_past_fwd    = 0;
   pli->mode            = mode;
   pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
@@ -1026,16 +1026,16 @@ p7_pipeline_Merge(P7_PIPELINE *p1, P7_PIPELINE *p2)
       p1->nnodes  += p2->nnodes;
     }
 
-  p1->n_passed_msv  += p2->n_passed_msv;
-  p1->n_passed_bias += p2->n_passed_bias;
-  p1->n_passed_vit  += p2->n_passed_vit;
-  p1->n_passed_fwd  += p2->n_passed_fwd;
+  p1->n_past_msv  += p2->n_past_msv;
+  p1->n_past_bias += p2->n_past_bias;
+  p1->n_past_vit  += p2->n_past_vit;
+  p1->n_past_fwd  += p2->n_past_fwd;
   p1->n_output    += p2->n_output;
 
-  p1->pos_passed_msv  += p2->pos_passed_msv;
-  p1->pos_passed_bias += p2->pos_passed_bias;
-  p1->pos_passed_vit  += p2->pos_passed_vit;
-  p1->pos_passed_fwd  += p2->pos_passed_fwd;
+  p1->pos_past_msv  += p2->pos_past_msv;
+  p1->pos_past_bias += p2->pos_past_bias;
+  p1->pos_past_vit  += p2->pos_past_vit;
+  p1->pos_past_fwd  += p2->pos_past_fwd;
   p1->pos_output    += p2->pos_output;
 
   if (p1->Z_setby == p7_ZSETBY_NTARGETS)
@@ -1195,7 +1195,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   seq_score = (usc - nullsc) / eslCONST_LOG2;
   P = esl_gumbel_surv(seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
   if (P > pli->F1) return eslOK;
-  pli->n_passed_msv++;
+  pli->n_past_msv++;
 
   /* biased composition HMM filtering */
   if (pli->do_biasfilter)
@@ -1207,7 +1207,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
       if (P > pli->F1) return eslOK;
     }
   else filtersc = nullsc;
-  pli->n_passed_bias++;
+  pli->n_past_bias++;
 
   /* In scan mode, if it passes the MSV filter, read the rest of the profile.*/
   if (pli->mode == p7_SCAN_MODELS)
@@ -1226,7 +1226,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
 	  
       if (P > pli->F2) return eslOK;
     }
-  pli->n_passed_vit++;
+  pli->n_past_vit++;
   
   /* Parse it with Forward and obtain its real Forward score. */
   p7_ForwardParser(sq->dsq, sq->n, om, pli->oxf, &fwdsc);
@@ -1236,7 +1236,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
  
  if (P > pli->F3) return eslOK;
 	
-  pli->n_passed_fwd++;
+  pli->n_past_fwd++;
   /* ok, it's for real. Now a Backwards parser pass, and hand it to domain definition workflow */
   p7_omx_GrowTo(pli->oxb, om->M, 0, sq->n);
   p7_BackwardParser(sq->dsq, sq->n, om, pli->oxf, pli->oxb, NULL);
@@ -1579,7 +1579,7 @@ p7_pli_postViterbi_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_T
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   if (P > pli->F3 ) return eslOK;
 
-  pli->pos_passed_fwd += window_len - *overlap;
+  pli->pos_past_fwd += window_len - *overlap;
 
   *overlap = -1; // overload variable to tell calling function that this window passed fwd
 
@@ -1835,7 +1835,7 @@ p7_pli_postSSV_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
   } else {
     bias_filtersc = 0; // mullsc will be added in later
   }
-  pli->pos_passed_bias += window_len;
+  pli->pos_past_bias += window_len;
 
   //establish a possibly shorter target window parameterization
   loc_window_len = ESL_MIN(window_len,om->max_length);
@@ -1882,10 +1882,10 @@ p7_pli_postSSV_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
 
   overlap = 0;
   for (i=0; i<vit_windowlist->count; i++) {
-    pli->pos_passed_vit += vit_windowlist->windows[i].length;
+    pli->pos_past_vit += vit_windowlist->windows[i].length;
     //remove overlap with preceding window
     if (i>0)
-      pli->pos_passed_vit -= ESL_MAX(0,  vit_windowlist->windows[i-1].n + vit_windowlist->windows[i-1].length - vit_windowlist->windows[i].n );
+      pli->pos_past_vit -= ESL_MAX(0,  vit_windowlist->windows[i-1].n + vit_windowlist->windows[i-1].length - vit_windowlist->windows[i].n );
 
     p7_pli_postViterbi_LongTarget(pli, om, bg, hitlist, data, seqidx,
         window_start+vit_windowlist->windows[i].n-1, vit_windowlist->windows[i].length,
@@ -2109,7 +2109,7 @@ p7_Pipeline_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
       P = esl_gumbel_surv( (usc-nullsc)/eslCONST_LOG2,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
 
       if (P > pli->F1 ) continue;
-      pli->pos_passed_msv += window->length;
+      pli->pos_past_msv += window->length;
 
       if (fmf) {
         seq_data = fm_cfg->meta->seq_data[window->id];
@@ -2563,7 +2563,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   /*Compare Pvalues to select either the standard or the frameshift pipeline*/
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
 	
-    pli->pos_passed_fwd += window_len; 
+    pli->pos_past_fwd += window_len; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, window_len, 0);
     p7_BackwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxb, NULL);
@@ -2586,7 +2586,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
        if(orf_window[f] == windowID && P_orf[f] <= pli->F3) { //only run the orfs that pass the froward parser 
         curr_orf = &(orf_block->list[f]);
 	
-        pli->pos_passed_fwd += curr_orf->n * 3;
+        pli->pos_past_fwd += curr_orf->n * 3;
 
         p7_oprofile_ReconfigLength(om, curr_orf->n);
           
@@ -2796,9 +2796,9 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   }
   
   min_length = ESL_MIN(dnasq->n, om->max_length * 3);
-  pli->pos_passed_msv += ESL_MAX(p7_pli_fs_GetPosPast(msv_coords), min_length);
-  pli->pos_passed_bias += ESL_MAX(p7_pli_fs_GetPosPast(bias_coords), min_length);
-  pli->pos_passed_vit += ESL_MAX(p7_pli_fs_GetPosPast(vit_coords), min_length);
+  pli->pos_past_msv += ESL_MAX(p7_pli_fs_GetPosPast(msv_coords), min_length);
+  pli->pos_past_bias += ESL_MAX(p7_pli_fs_GetPosPast(bias_coords), min_length);
+  pli->pos_past_vit += ESL_MAX(p7_pli_fs_GetPosPast(vit_coords), min_length);
 
   if (data->prefix_lengths == NULL)  //otherwise, already filled in
     p7_hmm_ScoreDataComputeRest(om, data);
@@ -2933,23 +2933,23 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
 
   if (pli->long_targets || pli->frameshift) { // nhmmer style
     fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_passed_msv,
-        (double)pli->pos_passed_msv / (pli->nres*pli->nmodels) ,
+        pli->pos_past_msv,
+        (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,
         pli->F1);
 
     fprintf(ofp, "Residues passing bias filter:%15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_passed_bias,
-        (double)pli->pos_passed_bias / (pli->nres*pli->nmodels) ,
+        pli->pos_past_bias,
+        (double)pli->pos_past_bias / (pli->nres*pli->nmodels) ,
         pli->F1);
 
     fprintf(ofp, "Residues passing Vit filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_passed_vit,
-        (double)pli->pos_passed_vit / (pli->nres*pli->nmodels) ,
+        pli->pos_past_vit,
+        (double)pli->pos_past_vit / (pli->nres*pli->nmodels) ,
         pli->F2);
 
     fprintf(ofp, "Residues passing Fwd filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_passed_fwd,
-        (double)pli->pos_passed_fwd / (pli->nres*pli->nmodels) ,
+        pli->pos_past_fwd,
+        (double)pli->pos_past_fwd / (pli->nres*pli->nmodels) ,
         pli->F3);
 
     fprintf(ofp, "Total number of hits:        %15d  (%.3g)\n",
@@ -2959,26 +2959,26 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
   } else { // typical case output
 
     fprintf(ofp, "Passed MSV filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_passed_msv,
-        (double) pli->n_passed_msv / ntargets,
+        pli->n_past_msv,
+        (double) pli->n_past_msv / ntargets,
         pli->F1 * ntargets,
         pli->F1);
 
     fprintf(ofp, "Passed bias filter:          %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_passed_bias,
-        (double) pli->n_passed_bias / ntargets,
+        pli->n_past_bias,
+        (double) pli->n_past_bias / ntargets,
         pli->F1 * ntargets,
         pli->F1);
 
     fprintf(ofp, "Passed Vit filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_passed_vit,
-        (double) pli->n_passed_vit / ntargets,
+        pli->n_past_vit,
+        (double) pli->n_past_vit / ntargets,
         pli->F2 * ntargets,
         pli->F2);
 
     fprintf(ofp, "Passed Fwd filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_passed_fwd,
-        (double) pli->n_passed_fwd / ntargets,
+        pli->n_past_fwd,
+        (double) pli->n_past_fwd / ntargets,
         pli->F3 * ntargets,
         pli->F3);
 

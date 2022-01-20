@@ -1711,7 +1711,6 @@ read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
   /* Set or verify alphabet. */
   if (*ret_abc == NULL)  {  /* still unknown: set it, pass control of it back to caller */
     if ((abc = esl_alphabet_Create(alphabet_type)) == NULL)     ESL_XFAIL(eslEMEM, hfp->errbuf, "allocation failed, alphabet");
-	printf("HHHHHHHHH\n");
   } else {      /* already known: check it */
     abc = *ret_abc;
     if (abc->type != alphabet_type)                             ESL_XFAIL(eslEINCOMPAT, hfp->errbuf, "Alphabet type mismatch: was %s, but current HMM says %s", esl_abc_DecodeType( abc->type), esl_abc_DecodeType(alphabet_type));

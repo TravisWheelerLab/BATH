@@ -470,6 +470,7 @@ extern int p7_domain_TestSample(ESL_RAND64 *rng, P7_DOMAIN **ret_obj)
   the_domain->lnP = esl_rand64_double(rng);
   the_domain->is_reported = esl_rand64_Roll(rng, 1);
   the_domain->is_included = esl_rand64_Roll(rng, 1);
+  the_domain->tr = NULL;
 
   // sample an alignment with length ranging uniformly from 50-350
   ESL_RANDOMNESS *rng2 = esl_randomness_Create((uint32_t) esl_rand64(rng));  // This is inefficient, but probably the best we can do

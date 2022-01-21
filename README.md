@@ -6,7 +6,7 @@ multiple sequence alignments as queries. FATHMM implements
 innovations in profile hidden Markov model (pHMM) architecture 
 and dynamic programing algotithms to align protein coding DNA 
 directly to amino acid sequences even in the presecense of 
-framethifts.
+frameshifts.
 
 ### to download FATHMM:
 Please select the correct binaries from the relseases section of 

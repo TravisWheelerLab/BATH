@@ -1,6 +1,6 @@
 ## FATHMM - Frameshift Aware Traslated Hidden Markov Models for the Annotation of Protien Coding DNA
 
-[FATHMM] searches protein sequence databases for
+FATHMM searches protein sequence databases for
 homologous sequences, using either single DNA sequences or DNA 
 multiple sequence alignments as queries. FATHMM implements 
 innovations in profile hidden Markov model (pHMM) architecture 

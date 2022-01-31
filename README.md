@@ -44,4 +44,6 @@ To run FATHMM:
 fathmm [options] queryfile targetfile
 
 **Options** 
+         **-h**   Help; print a brief reminder of command line usage and all
+                  available options
 

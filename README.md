@@ -41,9 +41,11 @@ FATHMM requires a protien query and a DNA target.  The target file must include 
 of formats (see --qformat), and can typically be autodetected. Note that only Stockholm format supports queries made up of more than one sequence alignment. If you have a profile model built for HMMER you will need to run fathmmconvert to reformat it for FATHMM. If you anticipate using the query more than once it is highly recomended that you create an hmm file either by prebuilding it with fathmmbuild or by building it as you run FATHMM by using the -hmmout flag. 
 
 To run FATHMM: 
-fathmm [options] queryfile targetfile
+```bash
+   % fathmm [options] queryfile targetfile
+```
 
 **Options** 
-         **-h**   Help; print a brief reminder of command line usage and all
-                  available options
+
+            **-h**    Help; print a brief reminder of command line usage and all available options
 

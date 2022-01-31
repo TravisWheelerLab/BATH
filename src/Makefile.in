@@ -47,56 +47,64 @@ MYINCDIRS = -I../${ESLDIR} \
 	    -I${srcdir}
 
 
-PROGS = alimask\
-        fathmm\
-	hmmalign\
-	hmmbuild\
-	hmmconvert\
-	hmmemit\
-	hmmfetch\
-	hmmlogo\
-	hmmpgmd\
-	hmmpgmd_shard\
-	hmmpress\
-	hmmscan\
-	hmmsearch\
-	hmmsim\
-	hmmstat\
-	jackhmmer\
-	phmmer\
-	hmmsearcht\
-	nhmmer\
-	nhmmscan\
-	hmmscant\
-	makehmmerdb
+PROGS = fathmm\
+        fathmmbuild\
+        fathmmconvert\
+        fathmmfetch
+
+        #alimask\
+        #fathmm\
+	#hmmalign\
+	#hmmbuild\
+	#hmmconvert\
+	#hmmemit\
+	#hmmfetch\
+	#hmmlogo\
+	#hmmpgmd\
+	#hmmpgmd_shard\
+	#hmmpress\
+	#hmmscan\
+	#hmmsearch\
+	#hmmsim\
+	#hmmstat\
+	#jackhmmer\
+	#phmmer\
+	#hmmsearcht\
+	#nhmmer\
+	#nhmmscan\
+	#hmmscant\
+	#makehmmerdb
 
 # "auxprogs" are built but not installed.
 AUXPROGS = \
 	hmmc2 \
 	hmmerfm-exactmatch
 
-PROGOBJS =\
-	alimask.o\
-        fathmm.o\
-	hmmalign.o\
-	hmmbuild.o\
-	hmmconvert.o\
-	hmmemit.o\
-	hmmfetch.o\
-	hmmlogo.o\
-	hmmpgmd.o\
-	hmmpress.o\
-	hmmscan.o\
-	hmmsearch.o\
-	hmmsim.o\
-	hmmstat.o\
-	jackhmmer.o\
-	phmmer.o\
-	hmmsearcht.o\
-	nhmmer.o\
-	nhmmscan.o\
-	hmmscant.o\
-	makehmmerdb.o
+PROGOBJS = fathmm.o\
+           fathmmbuild.o\
+           fathmmconvert.o\
+           fathmmfetch.o
+	#alimask.o\
+        #fathmm.o\
+	#hmmalign.o\
+	#hmmbuild.o\
+	#hmmconvert.o\
+	#hmmemit.o\
+	#hmmfetch.o\
+	#hmmlogo.o\
+	#hmmpgmd.o\
+	#hmmpress.o\
+	#hmmscan.o\
+	#hmmsearch.o\
+	#hmmsim.o\
+	#hmmstat.o\
+	#jackhmmer.o\
+	#phmmer.o\
+	#hmmsearcht.o\
+	#nhmmer.o\
+	#nhmmscan.o\
+	#hmmscant.o\
+	#makehmmerdb.o
 
 AUXPROGOBJS = \
 	hmmc2.o \

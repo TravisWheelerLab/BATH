@@ -80,13 +80,19 @@ static ESL_OPTIONS options[] = {
   { "-A",           eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save multiple alignment of all hits to file <f>",              2 },
   { "--tblout",     eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save parseable table of hits to file <f>",        2 },
   { "--fstblout",   eslARG_OUTFILE, NULL, NULL, NULL,    NULL,  NULL,  NULL,            "save table of frameshift locations to file <f>",               2 },
-  { "--aliscoresout", eslARG_OUTFILE, NULL,NULL,NULL,    NULL,  NULL,  NULL,              "save scores for each position in each alignment to <f>",      2 },
+  { "--hmmout",     eslARG_OUTFILE,      NULL, NULL, NULL,    NULL,  NULL,  NULL,              "if input is alignment(s), write produced hmms to file <f>",    2 },
   { "--acc",        eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "prefer accessions over names in output",                       2 },
   { "--noali",      eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't output alignments, so output is smaller",                2 },
   { "--notrans",    eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  NULL,            "don't show the translated DNA sequence in domain alignment",   2 }, /*for hmmsearcht */
   { "--frameline",  eslARG_NONE,   FALSE,  NULL, NULL,   NULL,  NULL,  NULL,            "include frame of each codon in domain alignment",            2 }, /*for fathmm */
   { "--notextw",    eslARG_NONE,    NULL, NULL, NULL,    NULL,  NULL, "--textw",        "unlimit ASCII text output line width",                         2 },
   { "--textw",      eslARG_INT,    "150", NULL, "n>=150",NULL,  NULL, "--notextw",      "set max width of ASCII text output lines",                     2 },
+  /* Control of scoring system */
+  { "--singlemx",   eslARG_NONE,        FALSE,   NULL, NULL,    NULL,  NULL,   "",           "use substitution score matrix w/ single-sequence MSA-format inputs",  3 },
+  { "--popen",      eslARG_REAL,       "0.02", NULL, "0<=x<0.5",NULL,  NULL,  NULL,              "gap open probability",                                         3 },
+  { "--pextend",    eslARG_REAL,        "0.4", NULL, "0<=x<1",  NULL,  NULL,  NULL,              "gap extend probability",                                       3 },
+  { "--mx",         eslARG_STRING, "BLOSUM62", NULL, NULL,      NULL,  NULL,  "--mxfile",        "substitution score matrix choice (of some built-in matrices)", 3 },
+  { "--mxfile",     eslARG_INFILE,       NULL, NULL, NULL,      NULL,  NULL,  "--mx",            "read substitution score matrix from file <f>",                 3 },
   /* Control of reporting thresholds */
   { "-E",           eslARG_REAL,  "10.0", NULL, "x>0",   NULL,  NULL,  REPOPTS,         "report sequences <= this E-value threshold in output",         4 },
   { "-T",           eslARG_REAL,   FALSE, NULL, NULL,    NULL,  NULL,  REPOPTS,         "report sequences >= this score threshold in output",           4 },
@@ -105,14 +111,15 @@ static ESL_OPTIONS options[] = {
   { "--nobias",     eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL, "--max",          "turn off composition bias filter",                             7 },
   { "--fsonly",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, NULL,             "Only use Frameshift Aware Fwd filter",                         7 },
 /* Other options */
-  { "--nonull2",    eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL,  NULL,            "turn off biased composition score corrections",               12 },
-  { "-Z",           eslARG_REAL,   FALSE, NULL, "x>0",   NULL,  NULL,  NULL,            "set # of comparisons done, for E-value calculation",          12 },
-//  { "--domZ",       eslARG_REAL,   FALSE, NULL, "x>0",   NULL,  NULL,  NULL,            "set # of significant seqs, for domain E-value calculation",   12 },
-  { "--seed",       eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,            "set RNG seed to <n> (if 0: one-time arbitrary seed)",         12 },
+  { "--nonull2",      eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL,  NULL,          "turn off biased composition score corrections",               12 },
+  { "-Z",             eslARG_REAL,   FALSE, NULL, "x>0",   NULL,  NULL,  NULL,          "set # of comparisons done, for E-value calculation",          12 },
+  { "--seed",         eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,          "set RNG seed to <n> (if 0: one-time arbitrary seed)",         12 },
+  { "--qformat",      eslARG_STRING, NULL,  NULL, NULL,    NULL,  NULL , NULL,          "assert query is in format <s> (can be seq or msa format)",      12 },
+  { "--qsingle_seqs", eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL , NULL,          "force query to be read as individual sequences, even if in an msa format", 12 },
   { "--tformat",    eslARG_STRING,  NULL, NULL, NULL,    NULL,  NULL,  NULL,            "assert target <seqfile> is in format <s>: no autodetection",  12 },
 #ifdef HMMER_THREADS 
   { "--block_length", eslARG_INT,   NULL, NULL,"n>=50000",NULL, NULL,  NULL,            "length of blocks read from target database (threaded) ",      12 },
-  { "--cpu",        eslARG_INT, NULL,"HMMER_NCPU","n>=0",NULL,  NULL,  CPUOPTS,         "number of parallel CPU workers to use for multithreads",      12 },
+  { "--cpu",        eslARG_INT, p7_NCPU,"HMMER_NCPU","n>=0",NULL,  NULL,  CPUOPTS,         "number of parallel CPU workers to use for multithreads",      12 },
 #endif
 
   /* name           type        default  env  range toggles reqs incomp  help                                          docgroup*/
@@ -161,7 +168,8 @@ static ESL_OPTIONS options[] = {
  */
 struct cfg_s {
   char            *dbfile;            /* target sequence database file                   */
-  char            *hmmfile;           /* query HMM file                                  */
+  char            *queryfile;         /* query file (hmm, fasta, or some MSA)            */
+  int              qfmt;  
 
   char             *firstseq_key;     /* name of the first sequence in the restricted db range */
   int              n_targetseq;       /* number of sequences in the restricted range */
@@ -206,28 +214,28 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
       p7_banner(stdout, argv[0], banner);
       esl_usage(stdout, argv[0], usage);
       if (puts("\nBasic options:")                                           < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 1, 2, 80); /* 1= group; 2 = indentation; 80=textwidth*/
+      esl_opt_DisplayHelp(stdout, go, 1, 2, 100); /* 1= group; 2 = indentation; 100=textwidth*/
 
       if (puts("\nOptions directing output:")                                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 2, 2, 80); 
+      esl_opt_DisplayHelp(stdout, go, 2, 2, 100); 
 
       if (puts("\nOptions controlling reporting thresholds:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 4, 2, 80); 
+      esl_opt_DisplayHelp(stdout, go, 4, 2, 100); 
 
       if (puts("\nOptions controlling inclusion (significance) thresholds:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 5, 2, 80); 
+      esl_opt_DisplayHelp(stdout, go, 5, 2, 100); 
 
       if (puts("\nOptions controlling model-specific thresholding:")         < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 6, 2, 80); 
+      esl_opt_DisplayHelp(stdout, go, 6, 2, 100); 
 
       if (puts("\nOptions controlling acceleration heuristics:")             < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 7, 2, 80); 
+      esl_opt_DisplayHelp(stdout, go, 7, 2, 100); 
 
       if (puts("\nOther expert options:")                                    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 12, 2, 80); 
+      esl_opt_DisplayHelp(stdout, go, 12, 2, 100); 
       
       if (puts("\nTranslation and frameshift options:")                      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 15, 2, 80); 
+      esl_opt_DisplayHelp(stdout, go, 15, 2, 100); 
 
       if (puts("\nAvailable NCBI genetic code tables (for -c <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_gencode_DumpAltCodeTable(stdout);
@@ -272,21 +280,21 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "-A")           && fprintf(ofp, "# MSA of all hits saved to file:   %s\n",             esl_opt_GetString(go, "-A"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--tblout")     && fprintf(ofp, "# per-seq hits tabular output:     %s\n",             esl_opt_GetString(go, "--tblout"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fstblout")     && fprintf(ofp, "# per-alignment frameshift tabular output:     %s\n",             esl_opt_GetString(go, "--fstblout"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-
-
+   if (esl_opt_IsUsed(go, "--hmmout")        && fprintf(ofp, "# hmm output:                      %s\n",            esl_opt_GetString(go, "--hmmout"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--acc")        && fprintf(ofp, "# prefer accessions over names:    yes\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--noali")      && fprintf(ofp, "# show alignments in output:       no\n")                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--notextw")    && fprintf(ofp, "# max ASCII text line length:      unlimited\n")                                             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--textw")      && fprintf(ofp, "# max ASCII text line length:      %d\n",             esl_opt_GetInteger(go, "--textw"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--notrans")    && fprintf(ofp, "# show translated DNA sequence:    no\n")                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+   if (esl_opt_IsUsed(go, "--singlemx")   && fprintf(ofp, "# Use score matrix for 1-seq MSAs:  on\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--popen")     && fprintf(ofp, "# gap open probability:            %f\n",             esl_opt_GetReal  (go, "--popen"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--pextend")   && fprintf(ofp, "# gap extend probability:          %f\n",             esl_opt_GetReal  (go, "--pextend"))   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--mx")        && fprintf(ofp, "# subst score matrix (built-in):   %s\n",             esl_opt_GetString(go, "--mx"))        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--mxfile")    && fprintf(ofp, "# subst score matrix (file):       %s\n",             esl_opt_GetString(go, "--mxfile"))    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-E")           && fprintf(ofp, "# sequence reporting threshold:    E-value <= %g\n",  esl_opt_GetReal(go, "-E"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-T")           && fprintf(ofp, "# sequence reporting threshold:    score >= %g\n",    esl_opt_GetReal(go, "-T"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  //if (esl_opt_IsUsed(go, "--domE")       && fprintf(ofp, "# domain reporting threshold:      E-value <= %g\n",  esl_opt_GetReal(go, "--domE"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  //if (esl_opt_IsUsed(go, "--domT")       && fprintf(ofp, "# domain reporting threshold:      score >= %g\n",    esl_opt_GetReal(go, "--domT"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--incE")       && fprintf(ofp, "# sequence inclusion threshold:    E-value <= %g\n",  esl_opt_GetReal(go, "--incE"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--incT")       && fprintf(ofp, "# sequence inclusion threshold:    score >= %g\n",    esl_opt_GetReal(go, "--incT"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  //if (esl_opt_IsUsed(go, "--incdomE")    && fprintf(ofp, "# domain inclusion threshold:      E-value <= %g\n",  esl_opt_GetReal(go, "--incdomE"))      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  //if (esl_opt_IsUsed(go, "--incdomT")    && fprintf(ofp, "# domain inclusion threshold:      score >= %g\n",    esl_opt_GetReal(go, "--incdomT"))      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--cut_ga")     && fprintf(ofp, "# model-specific thresholding:     GA cutoffs\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
   if (esl_opt_IsUsed(go, "--cut_nc")     && fprintf(ofp, "# model-specific thresholding:     NC cutoffs\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
   if (esl_opt_IsUsed(go, "--cut_tc")     && fprintf(ofp, "# model-specific thresholding:     TC cutoffs\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -307,6 +315,8 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
     if (esl_opt_GetInteger(go, "--seed") == 0 && fprintf(ofp, "# random number seed:              one-time arbitrary\n")                               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
     else if (                               fprintf(ofp, "# random number seed set to:       %d\n",             esl_opt_GetInteger(go, "--seed"))      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   }
+if (esl_opt_IsUsed(go, "--qformat")    && fprintf(ofp, "# query format asserted:           %s\n",              esl_opt_GetString(go, "--qformat"))   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--qsingle_seqs")&& fprintf(ofp,"# query contains individual seqs:  on\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
   if (esl_opt_IsUsed(go, "--tformat")    && fprintf(ofp, "# targ <seqfile> format asserted:  %s\n",             esl_opt_GetString(go, "--tformat"))    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
  
 #ifdef HMMER_THREADS
@@ -338,11 +348,23 @@ main(int argc, char **argv)
 
   /* Initialize what we can in the config structure (without knowing the alphabet yet) 
    */
-  cfg.hmmfile    = NULL;
+  cfg.queryfile    = NULL;
   cfg.dbfile     = NULL;
+  cfg.qfmt       = eslSQFILE_UNKNOWN;
   cfg.firstseq_key = NULL;
   cfg.n_targetseq  = -1;
-  process_commandline(argc, argv, &go, &cfg.hmmfile, &cfg.dbfile);    
+  process_commandline(argc, argv, &go, &cfg.queryfile, &cfg.dbfile);    
+
+  if (esl_opt_IsOn(go, "--qformat")) { /* is this an msa or a single sequence file? */
+      cfg.qfmt = esl_sqio_EncodeFormat(esl_opt_GetString(go, "--qformat")); // try single sequence format
+      if (cfg.qfmt == eslSQFILE_UNKNOWN) {
+          p7_Fail("%s is not a recognized input file format\n", esl_opt_GetString(go, "--qformat"));
+      } else { /* disallow target-only formats */
+          if (cfg.qfmt == eslSQFILE_NCBI    || cfg.qfmt == eslSQFILE_DAEMON ||
+              cfg.qfmt == eslSQFILE_HMMPGMD || cfg.qfmt == eslSQFILE_FMINDEX )
+                  p7_Fail("%s is not a valid query format\n", esl_opt_GetString(go, "--qformat"));
+      }
+  }
 
 /* is the range restricted? */
 
@@ -352,7 +374,6 @@ main(int argc, char **argv)
 #else
   if (esl_opt_IsUsed(go, "--restrictdb_stkey") )
     if ((cfg.firstseq_key = esl_opt_GetString(go, "--restrictdb_stkey")) == NULL)  p7_Fail("Failure capturing --restrictdb_stkey\n");
-
   if (esl_opt_IsUsed(go, "--restrictdb_n") )
     cfg.n_targetseq = esl_opt_GetInteger(go, "--restrictdb_n");
 
@@ -378,8 +399,65 @@ do_sq_by_sequences(ESL_GENCODE *gcode, ESL_GENCODE_WORKSTATE *wrk, ESL_SQ *sq)
   return eslOK;
 }
 
+static int
+fathmm_open_hmm_file(struct cfg_s *cfg,  P7_HMMFILE **hfp, char *errbuf, ESL_ALPHABET **abc, P7_HMM **hmm   ) {
+    int status = p7_hmmfile_OpenE(cfg->queryfile, NULL, hfp, errbuf);
+
+    if (status == eslENOTFOUND) {
+        p7_Fail("File existence/permissions problem in trying to open query file %s.\n%s\n", cfg->queryfile, errbuf);
+    } else if (status == eslOK) {
+        //Successfully opened HMM file
+        status = p7_hmmfile_Read(*hfp, abc, hmm);
+        if (status != eslOK) p7_Fail("Error reading hmm from file %s (%d)\n", cfg->queryfile, status);
+    }
+    return status;
+}
+
+static int
+fathmm_open_msa_file(struct cfg_s *cfg,  ESL_MSAFILE **qfp_msa, ESL_ALPHABET **abc, ESL_MSA **msa  ) {
+    int status = esl_msafile_Open(abc, cfg->queryfile, NULL, cfg->qfmt, NULL, qfp_msa);
+    if (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open query file %s.\n", cfg->queryfile);
+    if (status == eslOK) {
+        status = esl_msafile_Read(*qfp_msa, msa);
+    }
+    return status;
+}
+
+static int
+fathmm_open_seq_file (struct cfg_s *cfg, ESL_SQFILE **qfp_sq, ESL_ALPHABET **abc, ESL_SQ **qsq, int used_qsingle_seqs) {
+    int status = esl_sqfile_Open(cfg->queryfile, cfg->qfmt, NULL, qfp_sq);
+    if (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open query file %s.\n", cfg->queryfile);
+    if (status == eslOK) {
+        if (*abc == NULL) {
+            int q_type = eslUNKNOWN;
+            status = esl_sqfile_GuessAlphabet(*qfp_sq, &q_type);
+            if (  (*qfp_sq)->format == eslSQFILE_FASTA  /* we've guessed or been told it's a single sequence fasta file */
+                && status == eslEFORMAT /* format error most likely to be due to presence of a gap character, so it's really an afa file */
+                && used_qsingle_seqs  /* we were instructed to treat the input as single seqs, so override the fasta guess/instruction, and force single-sequence handling of afa file */
+                ) {
+                esl_sqfile_Close(*qfp_sq);
+                status = esl_sqfile_Open(cfg->queryfile, eslMSAFILE_AFA, NULL, qfp_sq);
+                if (status == eslOK && *abc == NULL)
+                        status = esl_sqfile_GuessAlphabet(*qfp_sq, &q_type);
+            }
+            if (status == eslEFORMAT) p7_Fail("Parse failed (sequence file %s):\n%s\n", (*qfp_sq)->filename, esl_sqfile_GetErrorBuf(*qfp_sq));
+            if (q_type == eslUNKNOWN) p7_Fail("Unable to guess alphabet for the %s%s query file %s\n", (cfg->qfmt==eslUNKNOWN ? "" : esl_sqio_DecodeFormat(cfg->qfmt)), (cfg->qfmt==eslSQFILE_UNKNOWN ? "":"-formatted"), cfg->queryfile);
+            *abc = esl_alphabet_Create(q_type);
+        }
+        if (!(*abc)->type == eslAMINO)
+            p7_Fail("Invalid alphabet type in the %s%squery file %s. Expect Amino Acid\n", (cfg->qfmt==eslUNKNOWN ? "" : esl_sqio_DecodeFormat(cfg->qfmt)), (cfg->qfmt==eslSQFILE_UNKNOWN ? "":"-formatted "), cfg->queryfile);
+
+        esl_sqfile_SetDigital(*qfp_sq, *abc);
+        // read first sequence
+        *qsq = esl_sq_CreateDigital(*abc);
+        status = esl_sqio_Read(*qfp_sq, *qsq);
+        if (status != eslOK) p7_Fail("reading sequence from file %s (%d): \n%s\n", cfg->queryfile, status, esl_sqfile_GetErrorBuf(*qfp_sq));
+    }
+    return status;
+}
+
 /* serial_master()
- * The serial version of hmmsearcht.
+ * The serial version of fathmm.
  * For each query HMM in <hmmfile> search the database for hits.
  * 
  * A master can only return if it's successful. All errors are handled
@@ -398,7 +476,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_HMMFILE      *hfp      = NULL;              /* open input HMM file                             */
   ESL_SQFILE      *dbfp     = NULL;              /* open input sequence file                        */
   P7_HMM          *hmm      = NULL;              /* one HMM query                                   */
+  ESL_MSAFILE     *qfp_msa    = NULL;              /* open query alifile     */
+  ESL_SQFILE      *qfp_sq     = NULL;              /* open query seqfile     */
+  ESL_SQ          *qsq        = NULL;              /* query sequence         */
+  FILE            *hmmoutfp   = NULL;              /* output stream for hmms (--hmmout),  only if input is an alignment file    */
+  char            *hmmfile    = NULL;              /* file to write HMM to   */
   ESL_ALPHABET    *abc      = NULL;              /* digital alphabet                                */
+  
   int              dbfmt    = eslSQFILE_UNKNOWN; /* format code for sequence database file          */
   ESL_STOPWATCH   *w;
   P7_SCOREDATA    *scoredata = NULL;
@@ -406,12 +490,12 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              textw    = 0;
   int              nquery   = 0;
   int              status   = eslOK;
-  int              hstatus  = eslOK;
+  int              qhstatus  = eslOK;
   int              sstatus  = eslOK;
   int              i, d, h;
   float            indel_cost;
   double           resCnt    = 0;
-
+  int               force_single = ( esl_opt_IsOn(go, "--singlemx") ? TRUE : FALSE );
   /* used to keep track of the lengths of the sequences that are processed */
   ID_LENGTH_LIST  *id_length_list = NULL;
 
@@ -427,7 +511,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
   char             errbuf[eslERRBUFSIZE];
 
-  /* hmmsearcht */
+  P7_BUILDER       *builder     = NULL;
+  ESL_MSA          *msa         = NULL;
+  int               msas_named  = 0;
+
+  /* fathmm */
   P7_TOPHITS       *tophits_accumulator = NULL; /* to hold the top hits information from all 6 frame translations */
   P7_PIPELINE      *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
@@ -439,7 +527,91 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
   else                                     textw = esl_opt_GetInteger(go, "--textw");
 
-  if (esl_opt_IsOn(go, "--tformat")) {
+  /* fathmm accepts _query_ files that are either (i) hmm(s), (2) msa(s), or (3) sequence(s).
+ *    * The following code will follow the mandate of --qformat, and otherwise figure what
+ *       * the file type is.
+ *          */
+
+  /* (1)
+ *    * If we were told a specific query file type, just do what we're told
+ *       */
+  if (esl_sqio_IsAlignment(cfg->qfmt) /* msa file */ && !esl_opt_IsOn(go, "--qsingle_seqs") /* msa intent is not overridden */) {
+      status = fathmm_open_msa_file(cfg, &qfp_msa, &abc, &msa);
+      if (status != eslOK) p7_Fail("Error reading msa from the %s-formatted file %s (%d)\n", esl_sqio_DecodeFormat(cfg->qfmt), cfg->queryfile, status);
+  } else if (cfg->qfmt != eslSQFILE_UNKNOWN /* sequence file */) {
+      status = fathmm_open_seq_file(cfg, &qfp_sq, &abc, &qsq, esl_opt_IsOn(go, "--qsingle_seqs"));
+      if (status != eslOK) p7_Fail("Error reading sequence from the %s-formatted file %s (%d)\n", esl_sqio_DecodeFormat(cfg->qfmt), cfg->queryfile, status);
+  }
+
+/* (2)
+ * Guessing query format.
+ *
+ * First check if it's an HMM.  This fails easily if it's not,
+ * and lets us either (a) give up right away if the input is piped (not rewindable),
+ * or (b) continue guessing
+ *
+ * If it isn't an HMM, and it's a rewindable file, we'll check to see
+ * if it's obviously an MSA file or obviously a sequence file
+ * If not obvious, we'll force the user to tell us.
+ * That looks like this:
+ *      - Try to open it as an MSA file
+ *         - if ok (i.e. it opens and passes the MSA check, including that
+ *           all sequences are the same length)
+ *            - if it's a FASTA format, it still might be a sequence file
+ *              (note: a2m is FASTA-like, but explicitly a multiple sequence alignment)
+ *                 - if the "MSA" is a single sequence, then rewind and call it
+ *                   a sequence input.  Otherwise give "must specify" message
+ *            - otherwise, it's an MSA;  proceed accordingly
+ *         - if not ok (i.e. it's not an MSA file)
+ *            - if it's anything, it must be a sequence file, proceed accordingly *
+ */
+
+
+ if ( cfg->qfmt == eslSQFILE_UNKNOWN ) {
+      status = fathmm_open_hmm_file(cfg, &hfp, errbuf, &abc, &hmm);
+      if (status != eslOK) { /* if it is eslOK, then it's an HMM, so we're done guessing */
+          if (hfp!=NULL) { p7_hmmfile_Close(hfp); hfp=NULL;}
+          if (strcmp(cfg->queryfile, "-") == 0 ) {
+              /* we can't rewind a piped file, so we can't perform any more autodetection on the query format*/
+              p7_Fail("Must specify query file format (--qformat) to read <query file> from stdin ('-')");
+          } else {
+              if (esl_opt_IsOn(go, "--qsingle_seqs")) { /* only try to open as a seq file*/
+                  status = fathmm_open_seq_file(cfg, &qfp_sq, &abc, &qsq, esl_opt_IsOn(go, "--qsingle_seqs"));
+                  if (status != eslOK) p7_Fail("Error reading query file %s (%d)\n", cfg->queryfile, status);
+              } else { /* first try as an msa, then fall back to seq */
+                  status = fathmm_open_msa_file(cfg, &qfp_msa, &abc, &msa);
+                  if (status == eslOK) {
+                      if (qfp_msa->format == eslMSAFILE_AFA) {
+                          /* this could just be a sequence file with o single sequence (in which case, fall through
+ *                            * to the "sequence" case), or with several same-sized sequences (in which case ask for guidance) */
+                          if (msa->nseq > 1)
+                              p7_Fail("Query file type could be either aligned or unaligned; please specify (--qformat [afa|fasta])");
+                      } else {
+                          /* if ok, and not fasta, then it's an MSA ... proceed */
+                          cfg->qfmt = qfp_msa->format;
+                      }
+                  }
+                  if (cfg->qfmt == eslSQFILE_UNKNOWN) { /* it's not an MSA, try seq */
+                      if (qfp_msa) {
+                          esl_msafile_Close(qfp_msa);
+                          qfp_msa = NULL;
+                          esl_msa_Destroy(msa);
+                      }
+                      status = fathmm_open_seq_file(cfg, &qfp_sq, &abc, &qsq, esl_opt_IsOn(go, "--qsingle_seqs"));
+                      if (status != eslOK) p7_Fail("Error reading query file %s (%d)\n", cfg->queryfile, status);
+                  }
+              }
+          }
+      }  else {
+          if (esl_opt_IsOn(go, "--qsingle_seqs"))
+              p7_Fail("--qsingle_seqs flag is incompatible with an hmm-formatted query file\n");
+      }
+  }
+
+  if (! abc->type == eslAMINO)
+     p7_Fail("Invalid alphabet type in query for fathmm. Expect Amino Acid.\n"); if 
+
+(esl_opt_IsOn(go, "--tformat")) {
     dbfmt = esl_sqio_EncodeFormat(esl_opt_GetString(go, "--tformat"));
     if (dbfmt == eslSQFILE_UNKNOWN) p7_Fail("%s is not a recognized sequence database file format\n", esl_opt_GetString(go, "--tformat"));
   }
@@ -457,24 +629,24 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       esl_sqfile_OpenSSI(dbfp, NULL);
   }
 
-
-
-  /* Open the query profile HMM file */
-  status = p7_hmmfile_OpenE(cfg->hmmfile, NULL, &hfp, errbuf);
-  if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", cfg->hmmfile, errbuf);
-  else if (status == eslEFORMAT)   p7_Fail("File format problem in trying to open HMM file %s.\n%s\n",                cfg->hmmfile, errbuf);
-  else if (status != eslOK)        p7_Fail("Unexpected error %d in opening HMM file %s.\n%s\n",               status, cfg->hmmfile, errbuf);  
-
   /* Open the results output files */
   if (esl_opt_IsOn(go, "-o"))          { if ((ofp      = fopen(esl_opt_GetString(go, "-o"), "w")) == NULL) p7_Fail("Failed to open output file %s for writing\n",    esl_opt_GetString(go, "-o")); }
   if (esl_opt_IsOn(go, "-A"))          { if ((afp      = fopen(esl_opt_GetString(go, "-A"), "w")) == NULL) p7_Fail("Failed to open alignment file %s for writing\n", esl_opt_GetString(go, "-A")); }
   if (esl_opt_IsOn(go, "--tblout"))    { if ((tblfp    = fopen(esl_opt_GetString(go, "--tblout"),    "w")) == NULL)  esl_fatal("Failed to open tabular per-seq output file %s for writing\n", esl_opt_GetString(go, "--tblout")); }
   if (esl_opt_IsOn(go, "--fstblout"))    { if ((fstblfp    = fopen(esl_opt_GetString(go, "--fstblout"),    "w")) == NULL)  esl_fatal("Failed to open tabular per-ali frameshift file %s for writing\n", esl_opt_GetString(go, "--fstblout")); }
 
+
+  if (qfp_msa != NULL || qfp_sq != NULL) {
+    if (esl_opt_IsOn(go, "--hmmout")) {
+      hmmfile = esl_opt_GetString(go, "--hmmout");
+      if ((hmmoutfp        = fopen(hmmfile,"w")) == NULL)        esl_fatal("Failed to open hmm output file %s for writing\n", hmmfile);
+    }
+  }
+
+
 #ifdef HMMER_THREADS
   /* initialize thread data */
-  if (esl_opt_IsOn(go, "--cpu")) ncpus = esl_opt_GetInteger(go, "--cpu");
-  else                                   esl_threads_CPUCount(&ncpus);
+   ncpus = ESL_MIN(esl_opt_GetInteger(go, "--cpu"), esl_threads_GetCPUCount());
  
   if (ncpus > 0)
     {
@@ -486,25 +658,18 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   infocnt = (ncpus == 0) ? 1 : ncpus;
   ESL_ALLOC(info, sizeof(*info) * infocnt);
   
+
    /*the query sequence will be DNA but will be translated to amino acids */
   /* TODO can we detect the type???? */
   abcDNA = esl_alphabet_Create(eslDNA); 
 
-  /* <abc> is not known 'til first HMM is read. */
-  hstatus = p7_hmmfile_Read(hfp, &abc, &hmm);
- 
-   /* Check for correct HMM alphabet */
-    if (abc->type != eslAMINO) p7_Fail("fathmm only supports amino acid HMMs; %s uses a different alphabet", cfg->hmmfile);
-
   /* Check for presence of frameshift tau and matching frameshift probabilities */
   indel_cost = esl_opt_GetReal(go, "--fs");
-  if( ! hmm->fs ) p7_Fail("HMM file %s not formated for fathmm. Please run hmmconvert.\n", cfg->hmmfile);
-   if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run hummcovert with option '--fs %f'.\n", indel_cost, cfg->hmmfile, indel_cost);
-      
-  if (hstatus == eslOK)
+
+  if (status == eslOK)
   {
       /* One-time initializations after alphabet <abc> becomes known */
-      output_header(ofp, go, cfg->hmmfile, cfg->dbfile);
+      output_header(ofp, go, cfg->queryfile, cfg->dbfile);
       esl_sqfile_SetDigital(dbfp, abcDNA); //ReadBlock requires knowledge of the alphabet to decide how best to read blocks
 
     for (i = 0; i < infocnt; ++i)
@@ -527,6 +692,23 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
   }
 
+  if (qfp_sq != NULL || qfp_msa  != NULL )  {  // need to convert query sequence / msa to HMM
+    builder = p7_builder_Create(NULL, abc);
+    if (builder == NULL)  p7_Fail("p7_builder_Create failed");
+    // special arguments for hmmbuild
+    builder->fs         = (go != NULL)                                    ?  esl_opt_GetReal(go, "--fs"): 0.01;
+    
+  }
+
+   if (qfp_sq != NULL || (qfp_msa != NULL && force_single )) {
+    /* We'll use this scoring matrix whenever we have a single sequence (even in MSA format)
+ *      * Default is stored in the --mx option, so it's always IsOn(). Check --mxfile first; then go to the --mx option and the default.
+ *           */
+    if (esl_opt_IsOn(go, "--mxfile")) status = p7_builder_SetScoreSystem (builder, esl_opt_GetString(go, "--mxfile"), NULL, esl_opt_GetReal(go, "--popen"), esl_opt_GetReal(go, "--pextend"), info->bg);
+    else                              status = p7_builder_LoadScoreSystem(builder, esl_opt_GetString(go, "--mx"),           esl_opt_GetReal(go, "--popen"), esl_opt_GetReal(go, "--pextend"), info->bg);
+    if (status != eslOK) p7_Fail("Failed to set single query seq score system:\n%s\n", builder->errbuf);
+  }
+
   /* Set up the genetic code. Default = NCBI 1, the standard code; allow ORFs to start at any aa   */
   gcode = esl_gencode_Create(abcDNA, abc);
   esl_gencode_Set(gcode, esl_opt_GetInteger(go, "-c"));  // default = 1, the standard genetic code
@@ -542,16 +724,59 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    */
   //wrk = esl_gencode_WorkstateCreate(go, gcode);
 
-  /* Outer loop: over each query HMM in <hmmfile>. */
-  while (hstatus == eslOK) 
+  /* Outer loop: over each query HMM or alignment in <query file>. */
+  while (qhstatus == eslOK) 
     {
       P7_FS_PROFILE   *gm_fs   = NULL;
       P7_PROFILE      *gm      = NULL;
       P7_OPROFILE     *om      = NULL;       /* optimized query profile                  */
 
+      if ( qfp_sq != NULL) {//  FASTA format, each query is a single sequence, they all have names
+        //Turn sequence into an HMM     
+        if ((qhstatus = p7_SingleBuilder(builder, qsq, info->bg, &hmm, NULL, NULL, NULL)) != eslOK) p7_Fail("build failed: %s", builder->errbuf);
+
+      } else if ( qfp_msa != NULL ) {
+        //deal with recently read MSA
+        //if name isn't assigned, give it one (can only do this if there's a single unnamed alignment, so pick its filename)
+        
+        if (msa->name == NULL) {
+          char *name = NULL;
+          if (msas_named>0) p7_Fail("Name annotation is required for each alignment in a multi MSA file; failed on #%d", nquery+1);
+
+          if (cfg->queryfile != NULL) {
+            if ((status = esl_FileTail(cfg->queryfile, TRUE, &name)) != eslOK) return status; /* TRUE=nosuffix */
+          } else {
+            name = "Query";
+          }
+
+          if ((status = esl_msa_SetName(msa, name, -1)) != eslOK) p7_Fail("Error assigning name to alignment");
+          msas_named++;
+
+          free(name);
+        }
+
+        //Turn sequence alignment into an HMM
+         if (msa->nseq == 1 && force_single) {
+          if (qsq!=NULL) esl_sq_Destroy(qsq);
+          qsq = esl_sq_CreateDigitalFrom(msa->abc, (msa->sqname?msa->sqname[0]:"Query"), msa->ax[0], msa->alen, (msa->sqdesc?msa->sqdesc[0]:NULL), (msa->sqacc?msa->sqacc[0]:NULL), NULL);
+          esl_abc_XDealign(qsq->abc, qsq->dsq,  qsq->dsq, &(qsq->n));
+          if ((qhstatus = p7_SingleBuilder(builder, qsq, info->bg, &hmm, NULL, NULL, NULL)) != eslOK) p7_Fail("build failed: %s", builder->errbuf);
+        } else {
+          if ((qhstatus = p7_Builder(builder, msa, info->bg, &hmm, NULL, NULL, NULL, NULL)) != eslOK) p7_Fail("build failed: %s", builder->errbuf);
+        }
+      }
+      else { //check that HMM is properly formated for FATHMM
+        if( ! hmm->fs ) p7_Fail("HMM file %s not formated for fathmm. Please run fathmmconvert.\n", cfg->queryfile);
+        
+        if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run fathmmcovert with option '--fs %f'.\n", indel_cost, cfg->queryfile, indel_cost);
+      }
 
       if(hmm->max_length == -1)
        p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
+ 
+      if (hmmoutfp != NULL) 
+        if ((status = p7_hmmfile_WriteASCII(hmmoutfp, -1, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
+      
 
       nquery++;
       resCnt = 0;
@@ -618,8 +843,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	info[i].pli = p7_pipeline_fs_Create(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
         status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
         if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
-
-        info[i].pli->do_alignment_score_calc = esl_opt_IsOn(go, "--aliscoresout") ;
 
         if (  esl_opt_IsUsed(go, "--rosalind") )
           info[i].pli->strands = p7_STRAND_TOPONLY;
@@ -767,21 +990,42 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_hmm_Destroy(hmm);
       p7_hmm_ScoreDataDestroy(scoredata);
       destroy_id_length(id_length_list);
-      hstatus = p7_hmmfile_Read(hfp, &abc, &hmm);
+      if (qsq != NULL) esl_sq_Reuse(qsq);
+      
+      if (hfp != NULL) {
+        qhstatus = p7_hmmfile_Read(hfp, &abc, &hmm);
+      } else if (qfp_msa != NULL){
+        esl_msa_Destroy(msa);
+        qhstatus = esl_msafile_Read(qfp_msa, &msa);
+      } else { // qfp_sq
+        qhstatus = esl_sqio_Read(qfp_sq, qsq);
+      } 
+       if (qhstatus != eslOK && qhstatus != eslEOF) p7_Fail("reading from query file %s (%d)\n", cfg->queryfile, qhstatus);
     } /* end outer loop over query HMMs */
 
-  switch(hstatus) {
-  case eslEOD:       p7_Fail("read failed, HMM file %s may be truncated?", cfg->hmmfile);      break;
-  case eslEFORMAT:   p7_Fail("bad file format in HMM file %s",             cfg->hmmfile);      break;
-  case eslEINCOMPAT: p7_Fail("HMM file %s contains different alphabets",   cfg->hmmfile);      break;
-  case eslEOF:       /* do nothing. EOF is what we want. */                                    break;
-  default:           p7_Fail("Unexpected error (%d) in reading HMMs from %s", hstatus, cfg->hmmfile);
+  if (hfp != NULL) {
+    switch(qhstatus) {
+    case eslEOD:       p7_Fail("read failed, HMM file %s may be truncated?", cfg->queryfile);      break;
+    case eslEFORMAT:   p7_Fail("bad file format in HMM file %s",             cfg->queryfile);      break;
+    case eslEINCOMPAT: p7_Fail("HMM file %s contains different alphabets",   cfg->queryfile);      break;
+    case eslEOF:       /* do nothing. EOF is what we want. */                                    break;
+    default:           p7_Fail("Unexpected error (%d) in reading HMMs from %s", qhstatus, cfg->queryfile);
+    }
+  } else if (qfp_msa != NULL){
+    if (qhstatus != eslEOF ) esl_msafile_ReadFailure(qfp_msa, status);
+  } else { // qfp_sq
+    if      (qhstatus == eslEFORMAT) p7_Fail("Parse failed (sequence file %s):\n%s\n",
+                qfp_sq->filename, esl_sqfile_GetErrorBuf(qfp_sq));
+    else if (qhstatus != eslEOF)     p7_Fail("Unexpected error %d reading sequence file %s",
+                qhstatus, qfp_sq->filename);
   }
-
+  
+  if (hmmoutfp != NULL)
+        fclose(hmmoutfp);
 
   /* Terminate outputs... any last words?
    */
-  if (tblfp)    p7_tophits_TabularTail(tblfp,    "fathmm", p7_SEARCH_SEQS, cfg->hmmfile, cfg->dbfile, go);
+  if (tblfp)    p7_tophits_TabularTail(tblfp,    "fathmm", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go);
   if (ofp)      { if (fprintf(ofp, "[ok]\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
   /* Cleanup - prepare for exit
@@ -807,7 +1051,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   esl_alphabet_Destroy(abcDNA);
     
-  p7_hmmfile_Close(hfp);
+  if (hfp) p7_hmmfile_Close(hfp);
+  if (qfp_msa) esl_msafile_Close(qfp_msa);
+  if (qfp_sq)  esl_sqfile_Close(qfp_sq);
+  
+  if (builder) p7_builder_Destroy(builder);
+  if (qsq)     esl_sq_Destroy(qsq);
+  
   esl_sqfile_Close(dbfp);
   esl_alphabet_Destroy(abc);
   esl_stopwatch_Destroy(w);
@@ -820,6 +1070,20 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   return eslOK;
 
  ERROR:
+
+  if (hfp) p7_hmmfile_Close(hfp);
+  if (qfp_msa) esl_msafile_Close(qfp_msa);
+  if (qfp_sq)  esl_sqfile_Close(qfp_sq);
+
+  if (builder) p7_builder_Destroy(builder);
+  if (qsq)     esl_sq_Destroy(qsq);
+
+  if (ofp != stdout) fclose(ofp);
+  if (afp)           fclose(afp);
+  if (tblfp)         fclose(tblfp);
+  if (fstblfp)         fclose(fstblfp);
+
+  if (hmmfile != NULL) free (hmmfile);
   return eslFAIL;
 }
 

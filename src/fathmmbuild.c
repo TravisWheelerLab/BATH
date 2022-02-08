@@ -69,8 +69,8 @@ static ESL_OPTIONS options[] = {
   { "-n",        eslARG_STRING,  NULL, NULL,   NULL,      NULL,      NULL,    NULL, "name the HMM <s>",                                      1 },
   { "-o",        eslARG_OUTFILE,FALSE, NULL,   NULL,      NULL,      NULL,    NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",        eslARG_OUTFILE,FALSE, NULL,   NULL,      NULL,      NULL,    NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
-  { "--fs",      eslARG_REAL,          "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty", 1 },
- 
+  { "--fs",      eslARG_REAL,          "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty",                  1 },
+  { "-c",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n>",        1 }, 
   /* Selecting the alphabet rather than autoguessing it */
   { "--amino",   eslARG_NONE,   FALSE, NULL, NULL,   ALPHOPTS,    NULL,     NULL, "input alignment is protein sequence data",              2 },
   { "--dna",     eslARG_NONE,   FALSE, NULL, NULL,   ALPHOPTS,    NULL,     NULL, "input alignment is DNA sequence data",                  2 },
@@ -249,6 +249,9 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
 
       if (puts("\nOther options:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 8, 2, 80);
+
+      if (puts("\nAvailable NCBI genetic code tables (for -c <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_gencode_DumpAltCodeTable(stdout);
       exit(0);
     }
 

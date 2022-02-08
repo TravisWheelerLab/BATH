@@ -114,6 +114,8 @@ static ESL_OPTIONS options[] = {
   { "--nonull2",      eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL,  NULL,          "turn off biased composition score corrections",               12 },
   { "-Z",             eslARG_REAL,   FALSE, NULL, "x>0",   NULL,  NULL,  NULL,          "set # of comparisons done, for E-value calculation",          12 },
   { "--seed",         eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,          "set RNG seed to <n> (if 0: one-time arbitrary seed)",         12 },
+   { "--w_beta",     eslARG_REAL,         NULL, NULL, NULL,    NULL,  NULL,           NULL,     "tail mass at which window length is determined",                12 },
+  { "--w_length",   eslARG_INT,          NULL, NULL, NULL,    NULL,  NULL,           NULL,     "window length - essentially max expected hit length" ,          12 },
   { "--qformat",      eslARG_STRING, NULL,  NULL, NULL,    NULL,  NULL , NULL,          "assert query is in format <s> (can be seq or msa format)",      12 },
   { "--qsingle_seqs", eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL , NULL,          "force query to be read as individual sequences, even if in an msa format", 12 },
   { "--tformat",    eslARG_STRING,  NULL, NULL, NULL,    NULL,  NULL,  NULL,            "assert target <seqfile> is in format <s>: no autodetection",  12 },
@@ -310,15 +312,15 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
 
   if (esl_opt_IsUsed(go, "--nonull2")    && fprintf(ofp, "# null2 bias corrections:          off\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-Z")           && fprintf(ofp, "# sequence search space set to:    %.0f\n",           esl_opt_GetReal(go, "-Z"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-//  if (esl_opt_IsUsed(go, "--domZ")       && fprintf(ofp, "# domain search space set to:      %.0f\n",           esl_opt_GetReal(go, "--domZ"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--seed"))  {
-    if (esl_opt_GetInteger(go, "--seed") == 0 && fprintf(ofp, "# random number seed:              one-time arbitrary\n")                               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_GetInteger(go, "--seed") == 0 && fprintf(ofp, "# random number seed:              one-time arbitrary\n")                               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
     else if (                               fprintf(ofp, "# random number seed set to:       %d\n",             esl_opt_GetInteger(go, "--seed"))      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   }
 if (esl_opt_IsUsed(go, "--qformat")    && fprintf(ofp, "# query format asserted:           %s\n",              esl_opt_GetString(go, "--qformat"))   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--qsingle_seqs")&& fprintf(ofp,"# query contains individual seqs:  on\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
   if (esl_opt_IsUsed(go, "--tformat")    && fprintf(ofp, "# targ <seqfile> format asserted:  %s\n",             esl_opt_GetString(go, "--tformat"))    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
- 
+  if (esl_opt_IsUsed(go, "--w_beta")     && fprintf(ofp, "# window length beta value:        %g\n",             esl_opt_GetReal(go, "--w_beta"))      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--w_length")   && fprintf(ofp, "# window length :                  %d\n",             esl_opt_GetInteger(go, "--w_length")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
 #ifdef HMMER_THREADS
   if (esl_opt_IsUsed(go, "--cpu")        && fprintf(ofp, "# number of worker threads:        %d\n",             esl_opt_GetInteger(go, "--cpu"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
 #endif
@@ -510,6 +512,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_WORK_QUEUE  *queue    = NULL;
 #endif
   char             errbuf[eslERRBUFSIZE];
+  double window_beta = -1.0 ;
+  int window_length  = -1;
 
   P7_BUILDER       *builder     = NULL;
   ESL_MSA          *msa         = NULL;
@@ -521,6 +525,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
   ESL_GENCODE     *gcode       = NULL;
   /* end hmmsearcht */
+
+  if (esl_opt_IsUsed(go, "--w_beta")) { if (  ( window_beta   = esl_opt_GetReal(go, "--w_beta") )  < 0 || window_beta > 1  ) esl_fatal("Invalid window-length beta value\n"); }
+  if (esl_opt_IsUsed(go, "--w_length")) { if (( window_length = esl_opt_GetInteger(go, "--w_length")) < 4  ) esl_fatal("Invalid window length value\n"); }
 
   w = esl_stopwatch_Create();
 
@@ -696,6 +703,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     builder = p7_builder_Create(NULL, abc);
     if (builder == NULL)  p7_Fail("p7_builder_Create failed");
     // special arguments for hmmbuild
+    builder->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
+    builder->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
+    if ( builder->w_beta < 0 || builder->w_beta > 1  ) esl_fatal("Invalid window-length beta value\n");
     builder->fs         = (go != NULL)                                    ?  esl_opt_GetReal(go, "--fs"): 0.01;
     
   }

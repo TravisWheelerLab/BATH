@@ -128,7 +128,8 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     gm->evparam[p7_VMU]     = vmu;
     gm->evparam[p7_FTAU]    = tau;
   }
-    
+  
+  if (gm_fs   != NULL)                     p7_profile_fs_Destroy(gm_fs); 
   if (byp_rng != NULL) *byp_rng = r;  else esl_randomness_Destroy(r); /* bypass convention: no-op if rng was provided.*/
   if (byp_bg  != NULL) *byp_bg  = bg; else p7_bg_Destroy(bg);         /* bypass convention: no-op if bg was provided. */
   if (byp_gm  != NULL) *byp_gm  = gm; else p7_profile_Destroy(gm);    /* bypass convention: no-op if gm was provided. */
@@ -136,6 +137,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   return eslOK;
 
  ERROR:
+  if (gm_fs   != NULL)                     p7_profile_fs_Destroy(gm_fs);
   if (! esl_byp_IsProvided(byp_rng)) esl_randomness_Destroy(r);
   if (! esl_byp_IsProvided(byp_bg))  p7_bg_Destroy(bg);
   if (! esl_byp_IsProvided(byp_gm))  p7_profile_Destroy(gm);
@@ -534,10 +536,11 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   int      i, j, a, x, y, z;
   ESL_GENCODE      *gcode = NULL;
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
-  float *f = NULL;  
   char *n1 = NULL;
   char *n2 = NULL; 
   char *n3 = NULL;
+ 
+  p7_FLogsumInit(); 
 
   hmm->fs = indel_cost;
  
@@ -550,7 +553,6 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
     n1[x] = n2[x] = n3[x] = x;  
 
   gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_CODONS);     /* DP matrix: for ForwardParser,  L rows */
-  ESL_ALLOC(f,   sizeof(float)   * abcDNA->K);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
@@ -560,8 +562,6 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   gcode = esl_gencode_Create(abcDNA, gm_fs->abc);
   esl_gencode_Set(gcode, 1);  //This is the default euk code - may want to allow for a flag. 
 
-  esl_vec_FSet(f, abcDNA->K, 1. / (float) abcDNA->K);
-  
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
   p7_fs_ReconfigLength(gm_fs, L*3);
   p7_bg_SetLength(bg, L);
@@ -606,7 +606,6 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
    */
   *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
 	
-  free(f); 
   free(xv);
   free(n1);
   free(n2);
@@ -620,7 +619,6 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
 
  ERROR:
   *ret_tau = 0.;
-  if (f   != NULL) free(f);
   if (xv  != NULL) free(xv);
   if (n1 != NULL) free(n1);
   if (n2 != NULL) free(n2);

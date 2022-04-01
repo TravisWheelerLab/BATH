@@ -397,32 +397,6 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
     pli->incdom_by_E = FALSE;
   }
 
-  /* Configure for one of the model-specific thresholding options */
-  if (go && esl_opt_GetBoolean(go, "--cut_ga"))
-  {
-    pli->T        = pli->domT        = 0.0;
-    pli->by_E     = pli->dom_by_E    = FALSE;
-    pli->incT     = pli->incdomT     = 0.0;
-    pli->inc_by_E = pli->incdom_by_E = FALSE;
-    pli->use_bit_cutoffs = p7H_GA;
-  }
-  if (go && esl_opt_GetBoolean(go, "--cut_nc"))
-  {
-    pli->T        = pli->domT        = 0.0;
-    pli->by_E     = pli->dom_by_E    = FALSE;
-    pli->incT     = pli->incdomT     = 0.0;
-    pli->inc_by_E = pli->incdom_by_E = FALSE;
-    pli->use_bit_cutoffs = p7H_NC;
-  }
-  if (go && esl_opt_GetBoolean(go, "--cut_tc"))
-  {
-    pli->T        = pli->domT        = 0.0;
-    pli->by_E     = pli->dom_by_E    = FALSE;
-    pli->incT     = pli->incdomT     = 0.0;
-    pli->inc_by_E = pli->incdom_by_E = FALSE;
-    pli->use_bit_cutoffs = p7H_TC;
-  }
-
   /* Configure search space sizes for E value calculations  */
   pli->Z       = pli->domZ       = 0.0;
   pli->Z_setby = pli->domZ_setby = p7_ZSETBY_NTARGETS;
@@ -2534,32 +2508,37 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    
   /*now run stardard froward on all orfs used to make the window*/
   P_orf = malloc(sizeof(double) * orf_block->count);
-   for(f = 0; f < orf_block->count; f++) {
-    if(orf_window[f] == windowID)
-    {
+  if( ! pli->fs_only) {
+    for(f = 0; f < orf_block->count; f++) {
+      if(orf_window[f] == windowID)
+      {
       
-      curr_orf = &(orf_block->list[f]);
+        curr_orf = &(orf_block->list[f]);
 
-      p7_bg_SetLength(bg, curr_orf->n);
-      p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);
+        p7_bg_SetLength(bg, curr_orf->n);
+        p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);
 
-      if (pli->do_biasfilter)
-        p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc_orf);
-      else filtersc_orf = nullsc_orf;
+        if (pli->do_biasfilter)
+          p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc_orf);
+        else filtersc_orf = nullsc_orf;
 
-      p7_oprofile_ReconfigLength(om, curr_orf->n);
-      p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);
+        p7_oprofile_ReconfigLength(om, curr_orf->n);
+        p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);
 	
-      p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc_orf);
+        p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc_orf);
    
-      seq_score_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
-      P_orf[f] = esl_exp_surv(seq_score_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-      min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);
-      tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf);
+        seq_score_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
+        P_orf[f] = esl_exp_surv(seq_score_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+        min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);
+        tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf);
+      }
     }
-  }
- 
-  tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+  
+    tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+  } else {
+    tot_orf_P = eslINFINITY;
+  } 
+
   /*Compare Pvalues to select either the standard or the frameshift pipeline*/
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
 	
@@ -2579,7 +2558,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     
     p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, window_start, window_len, dnasq, complementarity, fwdsc_fs);
 
-  } else { //If the window did not pass frameshift forward OR the sum orf P-value is lower than the window P-value we need to check all ORFs to see if they passed standard forward
+  } else if (! pli->fs_only) { //If the window did not pass frameshift forward OR the sum orf P-value is lower than the window P-value we need to check all ORFs to see if they passed standard forward
      
      for(f = 0; f < orf_block->count; f++) {
 
@@ -2699,6 +2678,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   P7_HMM_WINDOWLIST  post_vit_windowlist;
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;
   P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
+
 
   if (dnasq->n < 15) return eslOK;
   if (orf_block->count == 0) return eslOK;

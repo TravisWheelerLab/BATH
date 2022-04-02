@@ -712,15 +712,16 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
       p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);
       p7_gmx_GrowTo(bck, gm_fs->M, j-i+1);
       ddef->nregions++;
- 
-if (is_multidomain_region_fs(ddef, i, j))
-     {  
+
+//TODO: multidommain region is out of orfer until I fix fs null2 by trace, Also, maybe I don't need it for FATHMM?  
+//if (is_multidomain_region_fs(ddef, i, j))
+//     {  
 	
         /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
         */
-        ddef->nclustered++;
+//        ddef->nclustered++;
        
        /* Resolve the region into domains by stochastic trace
         * clustering; assign position-specific null2 model by
@@ -729,21 +730,20 @@ if (is_multidomain_region_fs(ddef, i, j))
         * works
         */
     
-        p7_fs_ReconfigMultihit(gm_fs, saveL);
-        p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
+//        p7_fs_ReconfigMultihit(gm_fs, saveL);
+//        p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
 
-        region_trace_ensemble_frameshift(ddef, gm_fs, windowsq->dsq, windowsq->abc, i, j, fwd, bck, &nc);
+//        region_trace_ensemble_frameshift(ddef, gm_fs, windowsq->dsq, windowsq->abc, i, j, fwd, bck, &nc);
 
-        p7_fs_ReconfigUnihit(gm_fs, saveL);
+//        p7_fs_ReconfigUnihit(gm_fs, saveL);
        
         /* ddef->n2sc is now set on i..j by the traceback-dependent method */
-        last_j2 = 0;
+//        last_j2 = 0;
 	
-        for (d = 0; d < nc; d++) {
+//        for (d = 0; d < nc; d++) {
          
-          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
-		
-         if (i2 <= last_j2) ddef->noverlaps++;
+//          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
+//         if (i2 <= last_j2) ddef->noverlaps++;
 
          /* Note that k..m coords on model are available, but
           * we're currently ignoring them.  This leads to a
@@ -762,19 +762,21 @@ if (is_multidomain_region_fs(ddef, i, j))
           * alignment, in the rare event that this
           * happens. [xref J5/130].
           */
-          ddef->nenvelopes++;         
-         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, wrk, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
-        }
+//          ddef->nenvelopes++;         
+  
+//         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, wrk, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
+//        }
 
-        p7_spensemble_Reuse(ddef->sp);
-        p7_trace_Reuse(ddef->tr);
+//        p7_spensemble_Reuse(ddef->sp);
+//        p7_trace_Reuse(ddef->tr);
 
-     } else {
+//     } else {
 	
 	ddef->nenvelopes++;
+       
        rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, wrk, gcode, F3, do_biasfilter);
 
-   }
+//   }
 
     i     = -1;
     triggered = FALSE;
@@ -1757,7 +1759,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   n_holder = windowsq->n;
   windowsq->n = Ld;
   windowsq->L = Ld;
-	
+  
   p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, do_biasfilter, &filtersc);
 
   windowsq->dsq = dsq_holder;

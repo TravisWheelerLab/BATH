@@ -112,7 +112,7 @@ static ESL_OPTIONS options[] = {
   { "--nonull2",      eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL,  NULL,          "turn off biased composition score corrections",               7 },
   { "--fsonly",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, NULL,             "Only use Frameshift Aware Fwd filter",                         7 },
 /* Other options */
-  { "-Z",             eslARG_REAL,   FALSE, NULL, "x>0",   NULL,  NULL,  NULL,          "set # of comparisons done, for E-value calculation",          12 },
+  { "-Z",             eslARG_REAL,   FALSE, NULL, "x>=0",   NULL,  NULL,  NULL,          "set database size (Megabases) to <x> for E-value calculations",          12 },
   { "--seed",         eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,          "set RNG seed to <n> (if 0: one-time arbitrary seed)",         12 },
    { "--w_beta",     eslARG_REAL,         NULL, NULL, NULL,    NULL,  NULL,           NULL,     "tail mass at which window length is determined",                12 },
   { "--w_length",   eslARG_INT,          NULL, NULL, NULL,    NULL,  NULL,           NULL,     "window length - essentially max expected hit length" ,          12 },
@@ -896,8 +896,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       	}
 
       for (i = 0; i < infocnt; ++i)
-          p7_tophits_ComputeFATHMMEvalues(info[i].th, resCnt, info[i].om->max_length*3);
-
+          p7_tophits_ComputeFATHMMEvalues(info[i].th, resCnt, info[i].om->max_length);
+       
 
          /* merge the results of the search results */
          for (i = 0; i < infocnt; ++i)

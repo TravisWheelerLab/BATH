@@ -2,28 +2,9 @@
 
 FraHMMER builds protein profile hidden Markov models (pHMMs)  and searches them against DNA sequence databases for translated  homologies.  By converting the protein pHMMs to frameshift aware  codon pHMMs, FraHMMER's search tool (frahmmsearch) can detect and align these translated homologies even in the presence of frameshift errors. 
 
-# [Installation: how to install FraHMMER](documentation/userguide/install.tex)
+# [Installation: how to install FraHMMER](documentation/userguide/installation.md)
 
-### to download FraHMMER:
-Please select the correct binaries from the releases section of  the FraHMMER GitHub page.
 
-### to clone a copy of the FraHMMER source code from GitHub:
-
-```bash
-   % git clone https://github.com/TravisWheelerLab/FraHMMER
-   % cd FraHMMER
-   % git clone https://github.com/TravisWheelerLab/easel
-   % (cd easel; git checkout develop)
-   % autoconf
-```
-
-and to build:
-
-```bash
-   % ./configure
-   % make
-   % make install               # optional: install FraHMMER programs, man pages
-```
 
 ### to report a problem:
 [issues tracking page at GitHub](https://github.com/TravisWheelerLab/FraHMMER/issues).

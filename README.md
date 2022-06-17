@@ -127,4 +127,3 @@ Available NCBI genetic code tables (for -c \<id>):
 | 23 | Thraustochytrium mitochondrial |
 | 24 | Pterobranchia mitochondrial |
 | 25 | Candidate Division SR1 and Gracilibacteria |
-![image](https://user-images.githubusercontent.com/25143308/174349915-fb8d8fd2-3424-40ee-b31a-58ce5ec20fd8.png)

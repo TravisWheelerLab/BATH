@@ -1,48 +1,23 @@
-## FATHMM - Frameshift Aware Traslated Hidden Markov Models for the Annotation of Protien Coding DNA
+## FraHMMER
 
-FATHMM searches protein sequence databases for
-homologous sequences, using either single DNA sequences or DNA 
-multiple sequence alignments as queries. FATHMM implements 
-innovations in profile hidden Markov model (pHMM) architecture 
-and dynamic programing algotithms to align protein coding DNA 
-directly to amino acid sequences even in the presecense of 
-frameshifts.
+FraHMMER builds protein profile hidden Markov models (pHMMs)  and searches them against DNA sequence databases for translated  homologies.  By converting the protein pHMMs to frameshift aware  codon pHMMs, FraHMMER's search tool (frahmmsearch) can detect and align these translated homologies even in the presence of frameshift errors. 
 
-### to download FATHMM:
-Please select the correct binaries from the relseases section of 
-the FATHMM github page.
+# [Installation: how to install FraHMMER](documentation/userguide/installation.md)
 
-### to clone a copy of FATHMM source from github:
 
-```bash
-   % git clone https://github.com/TravisWheelerLab/fathmm
-   % cd fathmm
-   % git clone https://github.com/TravisWheelerLab/easel
-   % (cd easel; git checkout develop)
-   % autoconf
-```
-
-and to build:
-
-```bash
-   % ./configure
-   % make
-   % make install               # optional: install FATHMM programs, man pages
-```
 
 ### to report a problem:
-[issues tracking page at github](https://github.com/TravisWheelerLab/fathmm/issues).
+[issues tracking page at GitHub](https://github.com/TravisWheelerLab/FraHMMER/issues).
 
 ### User Guide
 
-Install and Build FATHMM using one of the methods above.
+Install and Build FraHMMER using one of the methods above.
 
-FATHMM requires a protien query and a DNA target.  The target file must include one or more DNA sequences in a recognizable format (see --tformat). The query file may be either a profile model built using fathmmbuild, a sequence alignment, or a single sequence. Sequence based queries can be in a number
-of formats (see --qformat), and can typically be autodetected. Note that only Stockholm format supports queries made up of more than one sequence alignment. If you have a profile model built for HMMER you will need to run fathmmconvert to reformat it for FATHMM. If you anticipate using the query more than once it is highly recomended that you create an hmm file either by prebuilding it with fathmmbuild or by building it as you run FATHMM by using the --hmmout flag. 
+FraHMMER requires a protein query and a DNA target.  The target file must include one or more DNA sequences in a recognizable format (see --tformat). The query file may be either a profile model built using frahmmbuild, a sequence alignment, or a single sequence. Sequence based queries can be in a number of formats (see --qformat), and can typically be autodetected. Note that only Stockholm format supports queries made up of more than one sequence alignment. If you have a profile model built for HMMER you will need to run frahmmconvert to reformat it for FraHMMER. If you anticipate using the query more than once it is highly recommended that you create an hmm file either by prebuilding it with frahmmbuild or by building it as you run frahmmsearch and using the --hmmout flag to save it to file. 
 
-To run FATHMM: 
+To run frahmmsearch: 
 ```bash
-   % fathmm [options] queryfile targetfile
+   % frahmmsearch [options] queryfile targetfile
 ```
 
 **Options** 
@@ -65,7 +40,7 @@ Options directing output:
 | **--notrans** | Omit the translated DNA sequence in the alignment output. |
 | **--frameline** | Include the frame of each codon in the alignment output. |
 | **--notextw** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Unlimit the length of each line in the main output. The default is a limit of 120 characters per line, which helps in displaying the output cleanly on terminals and in editors, but can truncate target profile description lines.|
-|**--textw \<n>**| Set the main output’s line length limit to \<n> characters per line. The default is 120. |
+|**--textw \<n>**| Set the main output’s line length limit to \<n> characters per line. The default is 120. |
             
 Options controlling translation:
 | Flag | Description |
@@ -94,7 +69,7 @@ Options controlling acceleration heuristics:
 | Flag | Description |
 | :--- | :--- |   
 | **--max** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Maximum sensitivity. Turn off all filters, including the bias filter, and run full Forward/Backward postprocessing on every target. This increases sensitivity slightly, at a large cost in speed. |
-| **--F1 \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Set the P-value threshold for the MSV filter step. The default is 0.02, meaning that roughly 2% of the highest scoring nonhomologous targets are expected to pass the filter. |
+| **--F1 \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Set the P-value threshold for the MSV filter step. The default is 0.02, meaning that roughly 2% of the highest scoring nonhomologous targets are expected to pass the filter. |
 | **--F2 \<x>** | Set the P-value threshold for the Viterbi filter step. The default is 0.001. |
 | **--F3 \<x>** | Set the P-value threshold for the Forward filter step. The default is 1e-5. |
 | **--nobias** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Turn off the bias filter. This increases sensitivity somewhat, but can come at a high cost in speed, especially if the query has biased residue composition (such as a repetitive sequence region, or if it is a membrane protein with large regions of hydrophobicity). Without the bias filter, too many sequences may pass the filter with biased queries, leading to slower than expected performance as the computationally intensive Forward/Backward algorithms shoulder an abnormally heavy load. |
@@ -104,15 +79,15 @@ Options controlling acceleration heuristics:
 Other expert options:
 | Flag | Description |
 | :--- | :--- |   
-| **-Z \<x>**  | Assert that the total number of targets in your searches is \<x>, for the purposes of per-sequence E-value calculations, rather than the actual number of targets seen. |
-| **--seed \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Set the random number seed to \<n>. Some steps in postprocessing require Monte Carlo simulation. The default is to use a fixed seed (42), so that results are exactly reproducible. Any other positive integer will give different (but also reproducible) results. A choice of 0 uses a randomly chosen seed. |
-| **--w_beta \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Window length tail mass. The upper bound, W, on the length at which fathmm expects to find an instance of the model is set such that the fraction of all sequences generated by the model with length >= W is less than <x>. The default is 1e-7. This flag may be used to override the value of W established for the model by fathmmbuild, or when the query is sequence based. |
+| **-Z \<x>**  | Assert that the total number of targets in your searches is \<x>, for the purposes of per-sequence E-value calculations, rather than the actual number of targets seen. |
+| **--seed \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Set the random number seed to \<n>. Some steps in postprocessing require Monte Carlo simulation. The default is to use a fixed seed (42), so that results are exactly reproducible. Any other positive integer will give different (but also reproducible) results. A choice of 0 uses a randomly chosen seed. |
+| **--w_beta \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Window length tail mass. The upper bound, W, on the length at which FraHMMER expects to find an instance of the model is set such that the fraction of all sequences generated by the model with length >= W is less than <x>. The default is 1e-7. This flag may be used to override the value of W established for the model by frahmmbuild, or when the query is sequence based. |
 |**--w_length \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Override the model instance length upper bound, W, which is otherwise controlled by --w_beta. It should be larger than the model length. The value of W is used deep in the acceleration pipeline, and modest changes are not expected to impact results (though larger values of W do lead to longer run time). This flag may be used to override the value of W established for the model by hmmbuild, or when the query is sequence-based. |
-| **--qformat \<s>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Assert that input queryfile is a sequence file (unaligned or aligned), in format \<s>, bypassing format autodetection. Common choices for \<s> include: fasta, embl, genbank. Alignment formats also work, and will serve as the basis for automatic creation of a profile HMM used for searching; common choices include: stockholm, a2m, afa, psiblast, clustal, phylip. |
-|**--qsingle_seqs** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Force queryfile to be read as individual sequences, even if it is in an msa format. For example, if the input is in aligned stockholm format, the --qsingle_seqs flag will cause each sequence in that alignment to be used as a seperate query sequence. |
+| **--qformat \<s>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Assert that input queryfile is a sequence file (unaligned or aligned), in format \<s>, bypassing format autodetection. Common choices for \<s> include: fasta, embl, genbank. Alignment formats also work, and will serve as the basis for automatic creation of a profile HMM used for searching; common choices include: stockholm, a2m, afa, psiblast, clustal, phylip. |
+|**--qsingle_seqs** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Force queryfile to be read as individual sequences, even if it is in an msa format. For example, if the input is in aligned stockholm format, the --qsingle_seqs flag will cause each sequence in that alignment to be used as a seperate query sequence. |
 | **--tformat \<s>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Assert that target sequence file seqfile is in format \<s>, bypassing format autodetection. Common choices for \<s> include: fasta, embl, genbank. Alignment formats also work; common choices include: stockholm, a2m, afa, psiblast, clustal, phylip. For more information, and for codes for some less common formats, see main documentation. The string \<s> is case-insensitive (fasta or FASTA both work). |
 | **--block_length \<n>** | The input sequence is broken into blocks of size \<n> million letters. |
-| **--cpu \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Set the number of parallel worker threads to \<n>. On multicore machines, the default is 2. You can also control this number by setting an environment variable, HMMER_NCPU. There is also a master thread, so the actual number of threads that FATHMM spawns is \<n>+1. This option is not available if FATHMM was compiled with POSIX threads support turned off. |
+| **--cpu \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Set the number of parallel worker threads to \<n>. On multicore machines, the default is 2. You can also control this number by setting an environment variable, HMMER_NCPU. There is also a master thread, so the actual number of threads that frahmmsearch spawns is \<n>+1. This option is not available if FraHMMER was compiled with POSIX threads support turned off. |
    
 Available NCBI genetic code tables (for -c \<id>):
 | id | Description |
@@ -135,7 +110,3 @@ Available NCBI genetic code tables (for -c \<id>):
 | 23 | Thraustochytrium mitochondrial |
 | 24 | Pterobranchia mitochondrial |
 | 25 | Candidate Division SR1 and Gracilibacteria |
-   
-            
-            
-

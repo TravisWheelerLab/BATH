@@ -795,7 +795,7 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, int frameshift, float score, double ln
 {
   if      (  pli->by_E )
     { 
-      if      ( frameshift && exp(lnP) * 3 <= pli->E) return TRUE;  // database size must be multiplyied by three for the three frames per strand
+      if      ( frameshift && exp(lnP) <= pli->E) return TRUE;  // database size must be multiplyied by three for the three frames per strand
       else if ( pli->long_targets && exp(lnP) <= pli->E) return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
       else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
     }
@@ -816,7 +816,7 @@ p7_pli_DomainReportable(P7_PIPELINE *pli, int frameshift, float dom_score, doubl
 {
   if      (  pli->dom_by_E )
     {
-      if      ( frameshift && exp(lnP) * 3 <= pli->domE) return TRUE;  
+      if      ( frameshift && exp(lnP) <= pli->domE) return TRUE;  
       else if ( pli->long_targets && exp(lnP) <= pli->domE) return TRUE;
       else if ( exp(lnP) * pli->domZ <= pli->domE) return TRUE;
     }
@@ -832,7 +832,7 @@ p7_pli_TargetIncludable(P7_PIPELINE *pli, int frameshift, float score, double ln
 {
   if      (  pli->inc_by_E )
     {
-      if      ( frameshift && exp(lnP) * 3 <= pli->incE) return TRUE;
+      if      ( frameshift && exp(lnP) <= pli->incE) return TRUE;
       else if ( pli->long_targets && exp(lnP) <= pli->incE) return TRUE;
       else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
     }
@@ -849,7 +849,7 @@ int
 p7_pli_DomainIncludable(P7_PIPELINE *pli, int frameshift, float dom_score, double lnP)
 {
 
-  if      ( frameshift && pli->incdom_by_E    && exp(lnP) * 3 <= pli->incdomE) return TRUE;
+  if      ( frameshift && pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
   else if ( pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
   else if (! pli->incdom_by_E   && dom_score        >= pli->incdomT) return TRUE;
   else return FALSE;

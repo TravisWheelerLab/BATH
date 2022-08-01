@@ -1770,7 +1770,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
-  //printf("envsc %f filtersc %f P %e\n", envsc, filtersc, P);	
+ 
   if (P > F3 ) return eslOK;
    
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);

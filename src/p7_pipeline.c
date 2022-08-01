@@ -2161,7 +2161,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
   int              d;
   int              ali_len;
   int              env_len;
-  //int              Ld;
   int              status;
   int              temp_ienv;
   float            bitscore;

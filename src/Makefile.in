@@ -47,64 +47,22 @@ MYINCDIRS = -I../${ESLDIR} \
 	    -I${srcdir}
 
 
-PROGS = fathmm\
-        fathmmbuild\
-        fathmmconvert\
-        fathmmfetch
-
-        #alimask\
-        #fathmm\
-	#hmmalign\
-	#hmmbuild\
-	#hmmconvert\
-	#hmmemit\
-	#hmmfetch\
-	#hmmlogo\
-	#hmmpgmd\
-	#hmmpgmd_shard\
-	#hmmpress\
-	#hmmscan\
-	#hmmsearch\
-	#hmmsim\
-	#hmmstat\
-	#jackhmmer\
-	#phmmer\
-	#hmmsearcht\
-	#nhmmer\
-	#nhmmscan\
-	#hmmscant\
-	#makehmmerdb
+PROGS = frahmmsearch\
+        frahmmbuild\
+        frahmmconvert\
+        frahmmfetch\
+        frahmmstat
 
 # "auxprogs" are built but not installed.
 AUXPROGS = \
 	hmmc2 \
 	hmmerfm-exactmatch
 
-PROGOBJS = fathmm.o\
-           fathmmbuild.o\
-           fathmmconvert.o\
-           fathmmfetch.o
-	#alimask.o\
-        #fathmm.o\
-	#hmmalign.o\
-	#hmmbuild.o\
-	#hmmconvert.o\
-	#hmmemit.o\
-	#hmmfetch.o\
-	#hmmlogo.o\
-	#hmmpgmd.o\
-	#hmmpress.o\
-	#hmmscan.o\
-	#hmmsearch.o\
-	#hmmsim.o\
-	#hmmstat.o\
-	#jackhmmer.o\
-	#phmmer.o\
-	#hmmsearcht.o\
-	#nhmmer.o\
-	#nhmmscan.o\
-	#hmmscant.o\
-	#makehmmerdb.o
+PROGOBJS = frahmmsearch.o\
+           frahmmbuild.o\
+           frahmmconvert.o\
+           frahmmfetch.o\
+           frahmmstat.o
 
 AUXPROGOBJS = \
 	hmmc2.o \

@@ -1,11 +1,13 @@
 /* H3's accelerated seq/profile comparison pipeline
- *  
+ * Modified for use by FraHMMER
+ *
  * Contents:
  *   1. P7_PIPELINE: allocation, initialization, destruction
  *   2. Pipeline API
  *   3. Example 1: search mode (in a sequence db)
  *   4. Example 2: scan mode (in an HMM db)
  */
+
 #include "p7_config.h"
 
 #include <stdlib.h>
@@ -19,9 +21,10 @@
 #include "esl_vectorops.h"
 #include "hmmer.h"
 #include "esl_gencode.h"
+
 /* Struct used to pass a collection of useful temporary objects around
- * within the LongTarget functions
- *  */
+ * within the LongTarget functions (nhmmer)
+ */
 typedef struct {
   ESL_SQ           *tmpseq; // - a new or reused digital sequence object used for p7_alidisplay_Create() call
   P7_BG            *bg;
@@ -31,8 +34,8 @@ typedef struct {
 } P7_PIPELINE_LONGTARGET_OBJS;
 
 /* Struct used to pass a collection of useful temporary objects around
- * within the Frameshift functions
- *  */
+ * within the Frameshift functions (FraHMMER)
+ */
 typedef struct {
   ESL_SQ           *tmpseq; // - a new or reused digital sequence object used for p7_alidisplay_Create() call
   P7_BG            *bg;
@@ -40,6 +43,7 @@ typedef struct {
   P7_FS_PROFILE    *gm_fs;
 } P7_PIPELINE_FRAMESHIFT_OBJS;
 
+/* Struct used to keep track of the # and length of ORFs passing filters */
 typedef struct {
   int64_t          *orf_starts;
   int64_t          *orf_ends;
@@ -50,7 +54,7 @@ typedef struct {
  * 1. The P7_PIPELINE object: allocation, initialization, destruction.
  *****************************************************************/
 
-/* Function:  p7_pipeline_Create()
+/* Function:  p7_pipeline_Create() - HMMER
  * Synopsis:  Create a new accelerated comparison pipeline.
  *
  * Purpose:   Given an application configuration structure <go>
@@ -155,7 +159,6 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
       pli->dom_by_E = FALSE;
     }
 
-
   /* Configure inclusion thresholds */
   pli->inc_by_E           = TRUE;
   pli->incE               = (go ? esl_opt_GetReal(go, "--incE") : 0.01);
@@ -173,7 +176,6 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
       pli->incdomT     = esl_opt_GetReal(go, "--incdomT"); 
       pli->incdom_by_E = FALSE;
     }
-
 
   /* Configure for one of the model-specific thresholding options */
   if (go && esl_opt_GetBoolean(go, "--cut_ga"))
@@ -201,7 +203,6 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
       pli->use_bit_cutoffs = p7H_TC;
     }
 
-
   /* Configure search space sizes for E value calculations  */
   pli->Z       = pli->domZ       = 0.0;
   pli->Z_setby = pli->domZ_setby = p7_ZSETBY_NTARGETS;
@@ -215,7 +216,6 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
       pli->domZ_setby = p7_ZSETBY_OPTION;
       pli->domZ       = esl_opt_GetReal(go, "--domZ");
     }
-
 
   /* Configure acceleration pipeline thresholds */
   pli->do_max        = FALSE;
@@ -232,7 +232,6 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
     pli->B1 = pli->B2 = pli->B3 = -1;
   }
 
-
   if (go && esl_opt_GetBoolean(go, "--max")) 
     {
       pli->do_max        = TRUE;
@@ -243,7 +242,6 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
     }
   if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
   if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
-  
 
   /* Accounting as we collect results */
   pli->nmodels         = 0;
@@ -273,7 +271,7 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   return NULL;
 }
 
-/* Function:  p7_pipeline_fs_Create()
+/* Function:  p7_pipeline_fs_Create() - FraHMMER
  * Synopsis:  Create a new frameshift aware comparison pipeline.
  *
  * Purpose:   Given an application configuration structure <go>
@@ -336,125 +334,136 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   ESL_ALLOC(pli, sizeof(P7_PIPELINE));
 
   pli->do_alignment_score_calc = 0;
+
   /* Set Frameshift Mode */
   pli->frameshift = TRUE;
   pli->long_targets = FALSE;
   pli->is_translated = FALSE; 
   pli->fs_only = (go ? esl_opt_IsUsed(go, "--fsonly") : 0); 
 
-  /* Create generic and optimized matricies */
-  if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS  )) == NULL) goto ERROR;
-  if ((pli->gbck = p7_gmx_Create(M_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->gxf  = p7_gmx_fs_Create(M_hint, 3, L_hint, p7P_CODONS)) == NULL) goto ERROR;
-  if ((pli->gxb  = p7_gmx_fs_Create(M_hint, 5, L_hint, 0)) == NULL) goto ERROR;    
-  if ((pli->oxf  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->oxb  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;     
+  /* Create forward and backward optimized matricies for use in the 
+   * non-frameshift pipeline branch
+   */
+   if ((pli->oxf  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+   if ((pli->oxb  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+
+  /* Create sparce memeory forward and backward generic frameshift aware matricies 
+   * for use in the frameshift pipeline filters
+   */  
+   if ((pli->gxf  = p7_gmx_fs_Create(M_hint, 3, L_hint, p7P_CODONS)) == NULL) goto ERROR;
+   if ((pli->gxb  = p7_gmx_fs_Create(M_hint, 5, L_hint, 0)) == NULL) goto ERROR;   
+
+  /* Create full memeory forward and backward generic frameshift aware matricies
+   * for use in the frameshift pipeline alignment
+   */ 
+   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS  )) == NULL) goto ERROR;
+   if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint, 0)) == NULL) goto ERROR;
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
    * about to collect a stochastic trace ensemble. This eliminates run-to-run
    * variability. As a special case, if seed==0, we choose an arbitrary one-time 
    * seed: time() sets the seed, and we turn off the reinitialization.
    */
-  pli->r                  =  esl_randomness_CreateFast(seed);
-  pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
-  pli->ddef               = p7_domaindef_fs_Create(pli->r, go);
-  pli->ddef->do_reseeding = pli->do_reseeding;
+   pli->r                  =  esl_randomness_CreateFast(seed);
+   pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
+   pli->ddef               = p7_domaindef_fs_Create(pli->r, go);
+   pli->ddef->do_reseeding = pli->do_reseeding;
 
-  /* Configure reporting thresholds */
-  pli->by_E            = TRUE;
-  pli->E               = (go ? esl_opt_GetReal(go, "-E") : 10.0);
-  pli->T               = 0.0;
-  pli->dom_by_E        = TRUE;
-  pli->domE            = (go ? esl_opt_GetReal(go, "--domE") : 10.0);
-  pli->domT            = 0.0;
-  pli->use_bit_cutoffs = FALSE;
-  if (go && esl_opt_IsOn(go, "-T")) 
-  {
-    pli->T    = esl_opt_GetReal(go, "-T");  
-    pli->by_E = FALSE;
-  }
-  if (go && esl_opt_IsOn(go, "--domT")) 
-  {
-    pli->domT     = esl_opt_GetReal(go, "--domT"); 
-    pli->dom_by_E = FALSE;
-  }
+   /* Configure reporting thresholds */
+   pli->by_E            = TRUE;
+   pli->E               = (go ? esl_opt_GetReal(go, "-E") : 10.0);
+   pli->T               = 0.0;
+   pli->dom_by_E        = TRUE;
+   pli->domE            = (go ? esl_opt_GetReal(go, "--domE") : 10.0);
+   pli->domT            = 0.0;
+   pli->use_bit_cutoffs = FALSE;
+   if (go && esl_opt_IsOn(go, "-T")) 
+   {
+     pli->T    = esl_opt_GetReal(go, "-T");  
+     pli->by_E = FALSE;
+   }
+   if (go && esl_opt_IsOn(go, "--domT")) 
+   {
+     pli->domT     = esl_opt_GetReal(go, "--domT"); 
+     pli->dom_by_E = FALSE;
+   }
 
-  /* Configure inclusion thresholds */
-  pli->inc_by_E           = TRUE;
-  pli->incE               = (go ? esl_opt_GetReal(go, "--incE") : 0.01);
-  pli->incT               = 0.0;
-  pli->incdom_by_E        = TRUE;
-  pli->incdomE            = (go ? esl_opt_GetReal(go, "--incdomE") : 0.01);
-  pli->incdomT            = 0.0;
-  if (go && esl_opt_IsOn(go, "--incT")) 
-  {
-    pli->incT     = esl_opt_GetReal(go, "--incT"); 
-    pli->inc_by_E = FALSE;
-  } 
-  if (go && esl_opt_IsOn(go, "--incdomT")) 
-  {
-    pli->incdomT     = esl_opt_GetReal(go, "--incdomT"); 
-    pli->incdom_by_E = FALSE;
-  }
+   /* Configure inclusion thresholds */
+   pli->inc_by_E           = TRUE;
+   pli->incE               = (go ? esl_opt_GetReal(go, "--incE") : 0.01);
+   pli->incT               = 0.0;
+   pli->incdom_by_E        = TRUE;
+   pli->incdomE            = (go ? esl_opt_GetReal(go, "--incdomE") : 0.01);
+   pli->incdomT            = 0.0;
+   if (go && esl_opt_IsOn(go, "--incT")) 
+   {
+     pli->incT     = esl_opt_GetReal(go, "--incT"); 
+     pli->inc_by_E = FALSE;
+   } 
+   if (go && esl_opt_IsOn(go, "--incdomT")) 
+   {
+     pli->incdomT     = esl_opt_GetReal(go, "--incdomT"); 
+     pli->incdom_by_E = FALSE;
+   }
 
-  /* Configure search space sizes for E value calculations  */
-  pli->Z       = pli->domZ       = 0.0;
-  pli->Z_setby = pli->domZ_setby = p7_ZSETBY_NTARGETS;
-  if (go && esl_opt_IsOn(go, "-Z")) 
-  {
-    pli->Z_setby = p7_ZSETBY_OPTION;
-    pli->Z       = esl_opt_GetReal(go, "-Z");
-  }
-  if (go && esl_opt_IsOn(go, "--domZ")) 
-  {
-    pli->domZ_setby = p7_ZSETBY_OPTION;
-    pli->domZ       = esl_opt_GetReal(go, "--domZ");
-  }
+   /* Configure search space sizes for E value calculations  */
+   pli->Z       = pli->domZ       = 0.0;
+   pli->Z_setby = pli->domZ_setby = p7_ZSETBY_NTARGETS;
+   if (go && esl_opt_IsOn(go, "-Z")) 
+   {
+     pli->Z_setby = p7_ZSETBY_OPTION;
+     pli->Z       = esl_opt_GetReal(go, "-Z");
+   }
+   if (go && esl_opt_IsOn(go, "--domZ")) 
+   {
+     pli->domZ_setby = p7_ZSETBY_OPTION;
+     pli->domZ       = esl_opt_GetReal(go, "--domZ");
+   }
 
-  /* Configure acceleration pipeline thresholds */
-  pli->do_max        = FALSE;
-  pli->do_biasfilter = TRUE;
-  pli->do_null2      = TRUE;
-  pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
-  pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
-  pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
-  pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
-  pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
-  pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
+   /* Configure acceleration pipeline thresholds */
+   pli->do_max        = FALSE;
+   pli->do_biasfilter = TRUE;
+   pli->do_null2      = TRUE;
+   pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
+   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
+   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
+   pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
+   pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
+   pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
 
-  if (go && esl_opt_GetBoolean(go, "--max")) 
-  {
+   if (go && esl_opt_GetBoolean(go, "--max")) 
+   {
     pli->do_max        = TRUE;
     pli->do_biasfilter = FALSE;
 
     pli->F2 = pli->F3 = 1.0;
-    pli->F1 = 0.3; // need to set some threshold for F1 even on long targets. Should this be tighter?
-  }
-  if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
-  if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
+    pli->F1 = 1.0; // need to set some threshold for F1 even on long targets. Should this be tighter?
+   }
+   if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
+   if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
   
-  /* Accounting as we collect results */
-  pli->nmodels         = 0;
-  pli->nseqs           = 0;
-  pli->nres            = 0;
-  pli->nnodes          = 0;
-  pli->n_past_msv      = 0;
-  pli->n_past_bias     = 0;
-  pli->n_past_vit      = 0;
-  pli->n_past_fwd      = 0;
-  pli->pos_past_msv    = 0;
-  pli->pos_past_bias   = 0;
-  pli->pos_past_vit    = 0;
-  pli->pos_past_fwd    = 0;
-  pli->mode            = mode;
-  pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
-  pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
-  pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for nhmmscant */
-  pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in domain display for fathmm */
-  pli->hfp             = NULL;
-  pli->errbuf[0]       = '\0';
+   /* Accounting as we collect results */
+   pli->nmodels         = 0;
+   pli->nseqs           = 0;
+   pli->nres            = 0;
+   pli->nnodes          = 0;
+   pli->n_past_msv      = 0;
+   pli->n_past_bias     = 0;
+   pli->n_past_vit      = 0;
+   pli->n_past_fwd      = 0;
+   pli->pos_past_msv    = 0;
+   pli->pos_past_bias   = 0;
+   pli->pos_past_vit    = 0;
+   pli->pos_past_fwd    = 0;
+   pli->mode            = mode;
+   pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
+   pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
+   pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in alignment display for frahmmer */
+   pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in alignment display for frahmmer */
+   pli->hfp             = NULL;
+   pli->errbuf[0]       = '\0';
 
-  return pli;
+   return pli;
 
 ERROR:
   p7_pipeline_fs_Destroy(pli);
@@ -482,8 +491,8 @@ p7_pipeline_Reuse(P7_PIPELINE *pli)
   return eslOK;
 }
 
-/* Function:  p7_pipeline_fs_Reuse()
- * Synopsis:  Reuse a pipeline for next target.
+/* Function:  p7_pipeline_fs_Reuse() - FraHMMER
+ * Synopsis:  Reuse a frameshift pipeline for next target.
  *
  * Purpose:   Reuse frameshift aware <pli> for next target sequence.
  */
@@ -518,7 +527,7 @@ p7_pipeline_Destroy(P7_PIPELINE *pli)
   free(pli);
 }
 
-/* Function:  p7_pipeline_fs_Destroy()
+/* Function:  p7_pipeline_fs_Destroy() - FraHMMER
  * Synopsis:  Free a frameshift aware <P7_PIPELINE> object.
  *
  * Purpose:   Free a frameshift aware <P7_PIPELINE> object.
@@ -627,10 +636,8 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
   return eslOK;
 }
 
-/* Function:  p7_pli_ExtendAndMergeORFs
- * Synopsis:  Extends the DNA cooridnates of ORFs depending on their 
- *            alignment to the model and merges those with overalpping 
- *            coodinates.
+/* Function:  p7_pli_ExtendAndMergeORFs - FraHMMER
+ * Synopsis:  Creates a DNA window around the coodinated of an ORF 
  *
  * Purpose:   Accepts a <orf_block> of ORFs, extends the DNA coordinates 
  *            based on a combination of the max_length value from <om> 
@@ -663,7 +670,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
   vgx = p7_gmx_Create(gm->M, 100);
   vtr = p7_trace_Create();
  
-  /* extend orf dna positions based on model max length*/
+  /* extend each ORF's DNA coordinates based on the model's max length*/
   for(i = 0; i < orf_block->count; i++)
   {
     curr_orf = &(orf_block->list[i]);
@@ -678,7 +685,6 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
     orf_start   = i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1;
     orf_end     = j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1; 
 	
- 	
     if(complementarity == p7_NOCOMPLEMENT)
     {
       dna_start = ESL_MAX(1,         curr_orf->start + (orf_start * 3));
@@ -699,7 +705,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
   }
 
    /* merge overlapping windows, compressing list in place. */
-  for (i=1; i<windowlist->count; i++) {
+   for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
 
@@ -711,7 +717,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
           prev_window->id == curr_window->id &&
           (float)(window_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap )
     {
-      //merge windows
+      
       window_start        = ESL_MIN(prev_window->n, curr_window->n);
       window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
       prev_window->fm_n  -= (prev_window->n - window_start);
@@ -732,8 +738,8 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, int *orf_window, ESL_SQ *dna
   return eslOK;
 }
 
-/* Function:  p7_pli_fs_UpdatePosPast
- * Synopsis:  Counts DNA positions passing filter as ORFs 
+/* Function:  p7_pli_fs_GetPosPast
+ * Synopsis:  Counts DNA positions passing MSV, Viterbi or Forward filter as ORFs 
  *
  * Purpose:    Uses ORF start and end positons on the DNA sequence to 
  *             calculate the number of unique DNA positions passing a 
@@ -795,8 +801,7 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, int frameshift, float score, double ln
 {
   if      (  pli->by_E )
     { 
-      if      ( frameshift && exp(lnP) <= pli->E) return TRUE;  // database size must be multiplyied by three for the three frames per strand
-      else if ( pli->long_targets && exp(lnP) <= pli->E) return TRUE; // database size is already built into the Pval if pli->targetlength == p7_TARGET_LONG
+      if      ( (pli->long_targets || frameshift) && exp(lnP) <= pli->E) return TRUE;  // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
       else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
@@ -816,8 +821,7 @@ p7_pli_DomainReportable(P7_PIPELINE *pli, int frameshift, float dom_score, doubl
 {
   if      (  pli->dom_by_E )
     {
-      if      ( frameshift && exp(lnP) <= pli->domE) return TRUE;  
-      else if ( pli->long_targets && exp(lnP) <= pli->domE) return TRUE;
+      if      ( (pli->long_targets || frameshift) && exp(lnP) <= pli->domE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE 
       else if ( exp(lnP) * pli->domZ <= pli->domE) return TRUE;
     }
   else if (! pli->dom_by_E   && dom_score        >= pli->domT) return TRUE;
@@ -832,8 +836,7 @@ p7_pli_TargetIncludable(P7_PIPELINE *pli, int frameshift, float score, double ln
 {
   if      (  pli->inc_by_E )
     {
-      if      ( frameshift && exp(lnP) <= pli->incE) return TRUE;
-      else if ( pli->long_targets && exp(lnP) <= pli->incE) return TRUE;
+      if      ( (pli->long_targets || frameshift) && exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
       else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
     }
 
@@ -849,7 +852,7 @@ int
 p7_pli_DomainIncludable(P7_PIPELINE *pli, int frameshift, float dom_score, double lnP)
 {
 
-  if      ( frameshift && pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
+  if      ( (pli->long_targets || frameshift) && pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
   else if ( pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
   else if (! pli->incdom_by_E   && dom_score        >= pli->incdomT) return TRUE;
   else return FALSE;
@@ -964,7 +967,7 @@ int
 p7_pli_NewSeq(P7_PIPELINE *pli, const ESL_SQ *sq)
 {
 
-  if (!pli->long_targets && !pli->frameshift) pli->nseqs++; // if long_targets, sequence counting happens in the serial loop, which can track multiple windows for a single long sequence
+  if (!pli->long_targets && !pli->frameshift) pli->nseqs++; // if target is DNA, sequence counting happens in the serial loop, which can track multiple windows for a single long sequence
   pli->nres += sq->n;
   if (pli->Z_setby == p7_ZSETBY_NTARGETS && pli->mode == p7_SEARCH_SEQS) pli->Z = pli->nseqs;
   return eslOK;
@@ -1159,6 +1162,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   int              Ld;               /* # of residues in envelopes */
   int              d;
   int              status;
+
   if (sq->n == 0) return eslOK;    /* silently skip length 0 seqs; they'd cause us all sorts of weird problems */
   if (sq->n > 100000) ESL_EXCEPTION(eslETYPE, "Target sequence length > 100K, over comparison pipeline limit.\n(Did you mean to use nhmmer/nhmmscan?)");
 
@@ -1207,7 +1211,6 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
   
   /* Parse it with Forward and obtain its real Forward score. */
   p7_ForwardParser(sq->dsq, sq->n, om, pli->oxf, &fwdsc);
- // filtersc = ESL_MAX(0, filtersc);
   seq_score = (fwdsc-filtersc) / eslCONST_LOG2;
   P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
  
@@ -1461,8 +1464,6 @@ printf("seqbias %f log(bg->omega) %f\n", seqbias, log(bg->omega));
     }
   return eslOK;
 }
-
-
 
 /* Function:  p7_pli_postViterbi_LongTarget()
  * Synopsis:  the part of the LongTarget P7 search Pipeline downstream
@@ -1724,7 +1725,6 @@ ERROR:
 
 }
 
-
 /* Function:  p7_pli_postSSV_LongTarget()
  * Synopsis:  the part of the LongTarget P7 search Pipeline downstream
  *            of the SSV filter
@@ -1885,7 +1885,6 @@ p7_pli_postSSV_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
 
 }
 
-
 /* Function:  p7_Pipeline_LongTarget()
  * Synopsis:  Accelerated seq/profile comparison pipeline for long target sequences.
  *
@@ -1954,7 +1953,6 @@ p7_Pipeline_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data,
 
   ESL_DSQ          *subseq;
   uint64_t         seq_start;
-  //int u;
 
   P7_HMM_WINDOWLIST msv_windowlist;
   P7_HMM_WINDOWLIST vit_windowlist;
@@ -2151,6 +2149,32 @@ ERROR:
 
 }
 
+/* Function:  p7_pli_postDomainDef_Frameshift() - FraHMMER
+ * Synopsis:  the part of the FraHMMER search Pipeline downstream
+ *            of Domain Definition
+ *
+ * Purpose:   This is called by p7_pli_postViterbi_Frameshift(), and 
+ *            runs the post-Domain Definition part of the frameshift 
+ *            aware branch of the FraHMMER pipeline. It consists of 
+ *            running various bookkeeping and sanity checks on hits 
+ *            reported by  p7_pli_postDomainDef_Frameshift().   
+ *
+ * Args:      pli             - the main pipeline object
+ *            gm_fs           - fs-aware codon profile (query)
+ *            bg              - background model
+ *            hitlist         - pointer to hit storage bin
+ *            seqidx          - the id # of the target sequence from which 
+ *                              the ORFs were translated
+ *            window_start    - the starting position of the DNA window
+ *            window_len      - the length of the DNA window
+ *            dnasq           - the target dna sequence
+ *            complementarity - boolean; is the passed window sourced from a complementary sequence block
+ *            fwdsc           - domain score from frameshift aware Forward algorithim
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ *
+ */
 static int 
 p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, 
                               int64_t seqidx, int window_start, int window_len, ESL_SQ *dnasq, 
@@ -2183,6 +2207,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       p7_alidisplay_Destroy(dom->ad);
       continue;
     }
+
+  /* map alignment and envelope coodinates to orignal DNA target sequence */
   if (!complementarity)
     { 
       env_len = dom->jenv - dom->ienv + 1;
@@ -2222,6 +2248,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       bitscore -=  (env_len-ali_len)                            * log((float)env_len / (env_len+2));
       bitscore +=  (ESL_MAX(gm_fs->max_length, env_len) - ali_len) * log((float)gm_fs->max_length / (float) (gm_fs->max_length+2));    
 
+     /* Bias calculation and adjustments to Forward score */
      if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
     else
@@ -2230,9 +2257,11 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
      p7_bg_SetLength(bg, ESL_MAX(gm_fs->max_length, env_len));
      p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(gm_fs->max_length, env_len), &nullsc);
      dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
-	
+
+     /* P-vaule calculation */	
      dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
       
+     /* Add hits to hitlist and check if they are reprotable*/
      p7_tophits_CreateNextHit(hitlist, &hit);
 
       hit->ndom        = 1;
@@ -2301,6 +2330,34 @@ ERROR:
 
 }
 
+/* Function:  p7_pli_postDomainDef_nonFrameshift() - FraHMMER
+ * Synopsis:  the part of the FraHMMER search Pipeline downstream
+ *            of Domain Definition
+ *
+ * Purpose:   This is called by p7_pli_postViterbi_Frameshift(), and 
+ *            runs the post-Domain Definition part of the "statndard" 
+ *            or non-frameshift aware branch of the FraHMMER pipeline. 
+ *            It consists of running various bookkeeping and sanity 
+ *            checks on hits reported by p7_pli_postDomainDef_nonFrameshift().   
+ *
+ * Args:      pli             - the main pipeline object
+ *            om              - optimized protien profile (query)  
+ *            bg              - background model
+ *            hitlist         - pointer to hit storage bin
+ *            seqidx          - the id # of the target sequence from which 
+ *                              the ORFs were translated
+ *            window_start    - the starting position of the DNA window
+ *            orfsq           - the target ORF  
+ *            dnasq           - the target dna sequence
+ *            complementarity - boolean; is the passed window sourced from a complementary sequence block
+ *            fwdsc           - domain score from the standard Forward algorithim
+ *            nullsc          - domain nullsc
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ *
+ */
+
 static int 
 p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, 
                                    int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, 
@@ -2329,7 +2386,8 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       p7_alidisplay_Destroy(dom->ad);
       continue; 
     }
- 
+
+    /* map alignment and envelope coodinates to orignal DNA target sequence */ 
     if (!complementarity)
     { 
       dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 3; // minus 3 for inev which is in amino acid positions.  
@@ -2349,8 +2407,10 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     dom->ad->sqfrom = dom->iali;
     dom->ad->sqto   = dom->jali;
       
+  
+    
+    /* Bias calculation and adjustments to Forward score */
     bitscore = dom->envsc + (orfsq->n-env_len) * log((float) orfsq->n / (float) (orfsq->n+3));
-
    
     if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
@@ -2361,7 +2421,11 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      p7_bg_SetLength(bg, orfsq->n);
      p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
      dom_score =  (bitscore - (nullsc + dom_bias)) / eslCONST_LOG2;
+     
+     /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+    
+     /* Add hits to hitlist and check if they are reprotable*/   
      p7_tophits_CreateNextHit(hitlist, &hit);
   
      hit->ndom        = 1;
@@ -2418,39 +2482,43 @@ ERROR:
   ESL_EXCEPTION(eslEMEM, "Error in nonFrameshift pipeline\n");
 }
 
-
-
 /* Function:  p7_pli_postViterbi_Frameshift()
- * Synopsis:  the part of the Frameshift P7 search Pipeline downstream
+ * Synopsis:  the part of the FraHMMER search Pipeline downstream
  *            of the Viterbi filter
  *
- * Purpose:   This is called by Pipeline_Frameshift(), and runs the
- *            post-Viterbi part of the frameshift aware pipeline to
- *            compare a protien profile <gm> against a DNA sequence <sq>. 
- *            If a significant hit is found, information about it is
- *            added to the <hitlist>.
- *            The pipeline accumulates beancounting information
- *            about how many comparisons (and residues) flow through
- *            the pipeline while it's active.
+ * Purpose:   This is called by p7_Pipeline_Frameshift(), and runs the
+ *            post-Viterbi part of the frameshift aware pipeline. It 
+ *            consists of running Forward filters on ORFs and protien 
+ *            profiles <om> and on corresponding DNA windows and fs-
+ *            aware codon models <gm-fs>. Whichever target-query pair 
+ *            produces the lowest p-value (that also passes the F3 
+ *            threshhold) will be run through the backward filter and 
+ *            passed to the remained of the apporptirate branch of the 
+ *            pipeline.  
  *
  * Args:      pli             - the main pipeline object
- *            gm              - profile (query)
+ *            om              - optimized protien profile (query)
+ *            gm              - non-optimized protien profile (query)
+ *            gm_fs           - fs-aware codon profile (query)
  *            bg              - background model
  *            hitlist         - pointer to hit storage bin
- *            data            - for computing windows based on maximum prefix/suffix extensions
- *            seqidx          - the id # of the sequence from which the current window was extracted
- *            window_start    - the starting position of the extracted window (offset from the first
- *                              position of the block of a possibly longer sequence)
- *            window_len      - the length of the extracted window
- *            dnasq           - the dna sequence
- *            gcode           - genetic code inromation for codon translation
+ *            seqidx          - the id # of the target sequence from which 
+ *                              the ORFs were translated
+ *            window_start    - the starting position of the DNA window
+ *            window_len      - the length of the DNA window
+ *            orf_block       - block of ORFs used to make DNA windows
+ *            orf_window      - window ID for every orf in orf_block
+ *            windowID        - window ID for current DNA window
+ *            dnasq           - the target dna sequence
+ *            wrk             - workstate for translating codons
+ *            gcode           - genetic code information for codon translation
  *            pli_tmp         - frameshift pipeline object for use in domain definition 
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
  * Returns:   <eslOK> on success. If a significant hit is obtained,
  *            its information is added to the growing <hitlist>.
  *
- *            <eslERANGE> on numerical overflow errors in the
- *            optimized vector implementations; particularly in
+ *            <eslERANGE> on numerical overflow errors in the optimized 
+ *            vector implementations; particularly in non-frameshift
  *            posterior decoding. I don't believe this is possible for
  *            multihit local models, but I'm set up to catch it
  *            anyway. We may emit a warning to the user, but cleanly
@@ -2466,21 +2534,20 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 )
 {
 
-  ESL_DSQ         *subseq;                 /* subsequence of DNA efined by <window_start> and <window_len> */
-  ESL_SQ          *curr_orf;
-  float            fwdsc_fs, fwdsc_orf;           /* forward and backward scores                                  */
-  //float            bias_filtersc_fs;          /* bias score for forward filter                                */
-  float            nullsc_orf;                 /* null one score for forward filter                            */
-  float            filtersc_fs, filtersc_orf;               /* total filtersc for forward filter                            */
-  float            seq_score_fs, seq_score_orf;              /* the corrected per-seq bit score                              */
-  float 	  tot_orf_sc = -eslINFINITY;
-  double           P_fs;                           /* P-value of frameshift forward for window*/
-  double  P_fs_nobias;
-  double           tot_orf_P;                      /* P-value of sum stadard forward score for all orf */
-  double           min_P_orf = eslINFINITY;
-  double          *P_orf = NULL;                         /* list of standard forward P-values for each orf*/ 
   int              f;
   int              status;
+  ESL_DSQ         *subseq;                     /* current DNA window holder                    */ 
+  ESL_SQ          *curr_orf;                   /* current ORF holder                           */
+  float            fwdsc_fs, fwdsc_orf;        /* forward scores                               */
+  float            nullsc_orf;                 /* ORF null score for forward filter            */
+  float            filtersc_fs, filtersc_orf;  /* total filterscs for forward filters          */
+  float            seqscore_fs, seqscore_orf;  /* the corrected per-seq bit score              */
+  float 	   tot_orf_sc;                 /* summed score for all ORFs in current DNA window */
+  double           P_fs;                       /* P-value of frameshift forward for window*/
+  double           P_fs_nobias;                /* P-value of frameshift forward for window w/o bias adjustments*/
+  double           tot_orf_P;                  /* P-value of summed forward score for all ORFs */
+  double           min_P_orf;                  /* lowest p-value produced by an ORF */
+  double          *P_orf;                      /* list of standard forward P-values for each ORf*/
 
   subseq = dnasq->dsq + window_start - 1;
 
@@ -2496,21 +2563,26 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   pli_tmp->tmpseq->end = (complementarity) ? (window_start - window_len + 1) : (window_start + window_len - 1); 
   pli_tmp->tmpseq->dsq = subseq;
 
-    /*First run Frameshift Forward on full Window and save score and P value.*/
-    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
+  /*First run Frameshift Forward on full Window and save score and P value.*/
+  p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
   p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, 4, window_len, 0);
   p7_fs_ReconfigLength(gm_fs, window_len);
 	
   p7_ForwardParser_Frameshift(subseq, gcode, window_len, gm_fs, pli->gxf, &fwdsc_fs);
   
-  seq_score_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-  P_fs = esl_exp_surv(seq_score_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
+  seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
+  P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
   P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]); 
    
-  /*now run stardard froward on all orfs used to make the window*/
+  /* Second run stardard froward on all orfs used to make the window 
+   * saving sumed scores and p-values */
+  tot_orf_sc = -eslINFINITY;
+  min_P_orf  = -eslINFINITY;
   P_orf = malloc(sizeof(double) * orf_block->count);
-  if( ! pli->fs_only) {
+  if( pli->fs_only ) { // send all portential hits down frameshift aware pipeline
+    tot_orf_P = eslINFINITY;
+  } else { // compare ORFS to widows and select appropraite pipeline 
     for(f = 0; f < orf_block->count; f++) {
       if(orf_window[f] == windowID)
       {
@@ -2529,20 +2601,21 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 	
         p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc_orf);
    
-        seq_score_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
-        P_orf[f] = esl_exp_surv(seq_score_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+        seqscore_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
+        P_orf[f] = esl_exp_surv(seqscore_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
         min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);
         tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf);
       }
     }
-  
     tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
-  } else {
-    tot_orf_P = eslINFINITY;
   } 
 
-  /*Compare Pvalues to select either the standard or the frameshift pipeline*/
-  if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { //If the window passed frameshift forward AND produced a lower P-value than the sum of all orfs in that window then we proceed with the fraemshift pipeline 
+  /* Compare Pvalues to select either the standard or the frameshift pipeline
+   * If the DNA window passed frameshift forward AND produced a lower P-value 
+   * than the sumed Forward score of the orfs used to costruct that window 
+   * then we proceed with the fraemshift pipeline
+   */
+  if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
 	
     pli->pos_past_fwd += window_len; 
    
@@ -2554,13 +2627,20 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, wrk, gcode,
            window_start, pli->F3, pli->do_biasfilter);
 
-    if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+    if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
     
     p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, window_start, window_len, dnasq, complementarity, fwdsc_fs);
 
-  } else if (! pli->fs_only) { //If the window did not pass frameshift forward OR the sum orf P-value is lower than the window P-value we need to check all ORFs to see if they passed standard forward
+  } 
+
+  /* If the DNA window did NOT pass pass frameshift forward OR did NOT produced a 
+   * lower P-value than the sumed Forward score of the ORFs used to costruct that 
+   * window then we check each of those ORFs individually to to see if they pass 
+   * the standard Forward filter and it they do proceed with the standard pipeline
+   */
+   else if (! pli->fs_only) { 
      
      for(f = 0; f < orf_block->count; f++) {
 
@@ -2579,7 +2659,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
           
         p7_oprofile_ReconfigLength(om, curr_orf->n);
 
-        status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq, gcode, om, gm, gm_fs, pli->oxf, pli->oxb, pli->oxf, pli->oxb, pli->ddef, bg);
+        status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli->oxf, pli->oxb, pli->oxf, pli->oxb, pli->ddef, bg);
 
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
@@ -2604,16 +2684,20 @@ ERROR:
 }
 
 /* Function:  p7_Pipeline_Frameshift()
- * Synopsis:  frameshift aware seq/profile comparison pipeline for 
- *            DNA to protien search.
+ * Synopsis:  Sequence to profile comparison pipeline for 
+ *            frameshift aware translated search.
  *
  * Purpose:   Run frameshift aware pipeline to compare a protien 
- *            profile <gm/om> against a dna sequence <sq>. For the first 
- *            stages of the pipeline (MSV, bias and viterbi filters) the 
- *            sequence is translated into it's 6 amnio acid frames and 
- *            these are compared directly to an optimized profile. For 
- *            the forward stage onward direct dna to amino comparision 
- *            is made using a generic profile. If a significant hit is 
+ *            profile <gm/om> against a DNA sequence <sq>. For the 
+ *            first stages of the pipeline (MSV, bias and viterbi 
+ *            filters) each DNA strand is translated into ORFs in 
+ *            all 3 frames and these are compared directly to an 
+ *            optimized protien profile <om>. For the forward filter
+ *            both an ORF to <om> and a DNA window to frameshift 
+ *            aware codon model <gm_fs> comparison are preformed. 
+ *            Which ever comparrison produces the lower p-value will 
+ *            determine which target and query form are used for the 
+ *            remainder of the pipeline. If a significant hit is 
  *            found, information about it is added to the <hitlist>. 
  *            The pipeline accumulates beancounting information about 
  *            how many comparisons flow through the pipeline while it's 
@@ -2634,8 +2718,9 @@ ERROR:
  *            skip the problematic sequence and continue.
  * 
  * Args:      pli             - the main pipeline object
- *            om              - optimized profile (query)
- *            gm              - generic profile (query)
+ *            om              - optimized protein profile (query)
+ *            gm              - generic protein profile (query)
+ *            gm_fs           - generic fs-aware codon profile (query)
  *            data            - for computing diagonals, and picking 
  *                              window edges based on maximum prefix/
  *                              suffix extensions
@@ -2646,6 +2731,7 @@ ERROR:
  *                              the current window was extracted
  *            dnasq           - digital sequence of the DNA window
  *            orf_block       - collection of ORFs translated form <dnasq>
+ *            wrk             - codon translation workstate
  *            gcode           - genetic code information for codon translation
  *            complementarity - is <sq> from the top strand 
  *                        (p7_NOCOMPLEMENT), or bottom strand 
@@ -2656,34 +2742,30 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, 
-                       P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, 
-                       ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity)
+p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity)
 {
 
-  int                i;// f;
+  int                i;
   int                status, wstatus;
-  float              nullsc;           /* null model score                        */
-  float              usc;              /* msv score                               */
-  float              vfsc;             /* viterbi score                           */
-  float              seq_score;        /* null corrected bit score                */
-  float              filtersc;         /* bias and null score                     */
-  double             P;
-  int                window_start;     /* DNA window coordinates                  */
-  int                window_len;
-  int                min_length;      /* minimum number of nucleutides passing a filter */
-  //int64_t            orf_start, orf_end;
-  int               *orf_window = NULL;
-  ESL_SQ            *orfsq;
-  ESL_SQ_BLOCK      *post_vit_orf_block;
-  //ESL_SQ_BLOCK      *fwd_orf_block;
-  P7_HMM_WINDOWLIST  post_vit_windowlist;
-  P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;
-  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp; 
+  float              nullsc;              /* null model score                        */
+  float              usc;                 /* msv score                               */
+  float              vfsc;                /* viterbi score                           */
+  float              seq_score;           /* null corrected bit score                */
+  float              filtersc;            /* bias and null score                     */
+  double             P;                   /* p-value holder                          */
+  int                window_start;        /* DNA window coordinates                  */
+  int                window_len;          /* length of DNA window                    */
+  int                min_length;          /* minimum number of nucs passing a filter */
+  int               *orf_window;          /* DNA window index tracking               */ 
+  ESL_SQ            *orfsq;               /* ORF sequence                            */
+  ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */
+  P7_HMM_WINDOWLIST  post_vit_windowlist; /* list of windows from ORFs that pass viterbi */
+  P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;  /* number of nucleotieds passing filters */
+  P7_PIPELINE_FRAMESHIFT_OBJS *pli_tmp;   
 
 
-  if (dnasq->n < 15) return eslOK;
-  if (orf_block->count == 0) return eslOK;
+  if (dnasq->n < 15) return eslOK;         //DNA to short
+  if (orf_block->count == 0) return eslOK; //No ORFS translated
 
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
@@ -2785,24 +2867,22 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   if (data->prefix_lengths == NULL)  //otherwise, already filled in
     p7_hmm_ScoreDataComputeRest(om, data);
 
-  p7_hmmwindow_init(&post_vit_windowlist); 
- 
+  /* convert block of ORFs that passed viterbi into collection of non-overlapping DNA windows */
+  p7_hmmwindow_init(&post_vit_windowlist);  
   orf_window = malloc(sizeof(int) * post_vit_orf_block->count); 
   p7_pli_ExtendAndMergeORFs (post_vit_orf_block, orf_window, dnasq, gm, data, &post_vit_windowlist, 0., complementarity);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object
 
+  /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filter */
   for(i = 0; i < post_vit_windowlist.count; i++)
   {
     window_start = post_vit_windowlist.windows[i].n;
     window_len   = post_vit_windowlist.windows[i].length; 
     if (window_len < 15) continue;
-    
 
     p7_pli_postViterbi_Frameshift(pli, om, gm, gm_fs, bg, hitlist, seqidx, window_start, window_len, post_vit_orf_block, orf_window, i, dnasq, wrk, gcode, pli_tmp, complementarity);
-   
-    //esl_sq_ReuseBlock(fwd_orf_block);
   }
 
   if ( msv_coords != NULL)
@@ -2824,7 +2904,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
     free(vit_coords);
   }
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
-  //if ( fwd_orf_block != NULL) esl_sq_DestroyBlock(fwd_orf_block);
   pli_tmp->tmpseq->dsq = NULL;
   if (pli_tmp != NULL) 
   {

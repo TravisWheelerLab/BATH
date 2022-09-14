@@ -47,7 +47,7 @@ MYINCDIRS = -I../${ESLDIR} \
 	    -I${srcdir}
 
 
-PROGS = frahmmsearch\
+PROGS = frahmmer\
         frahmmbuild\
         frahmmconvert\
         frahmmfetch\
@@ -58,7 +58,7 @@ AUXPROGS = \
 	hmmc2 \
 	hmmerfm-exactmatch
 
-PROGOBJS = frahmmsearch.o\
+PROGOBJS = frahmmer.o\
            frahmmbuild.o\
            frahmmconvert.o\
            frahmmfetch.o\

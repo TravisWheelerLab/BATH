@@ -1,6 +1,14 @@
-### User Guide
+### Tutorial
 
-FraHMMER requires a protein query and a DNA target.  The target file must include one or more DNA sequences in a recognizable format (see --tformat). The query file may be either a profile model built using frahmmbuild, a sequence alignment, or a single sequence. Sequence based queries can be in a number of formats (see --qformat), and can typically be autodetected. Note that only Stockholm format supports queries made up of more than one sequence alignment. If you have a profile model built for HMMER you will need to run frahmmconvert to reformat it for FraHMMER. If you anticipate using the query more than once it is highly recommended that you create an hmm file either by prebuilding it with frahmmbuild or by building it as you run frahmmsearch and using the --hmmout flag to save it to file. 
+Once you have installed and built FraHMMER you will ba able to use the main search tool - frahmmer - as well as several support tools to help create, format and anayisis profile hidden Markov model (pHMM) files. You will also have access to the suite of easle miniapps developed by the Eddy/Rivas Lab (for details on easle tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER specific tools that will allow you to perform frameshift-aware translated homology searchs.
+
+## Step 1 - preparing input files
+
+Every frahmmer search requires two input files - a query and a target.  The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip.
+
+The query file may be either a (1) pHMM, (2) multiple sequence alignment, or (3) unalgined sequence file.
+
+Sequence based queries can be in a number of formats (see --qformat), and can typically be autodetected. Note that only Stockholm format supports queries made up of more than one sequence alignment. If you have a profile model built for HMMER you will need to run frahmmconvert to reformat it for FraHMMER. If you anticipate using the query more than once it is highly recommended that you create an hmm file either by prebuilding it with frahmmbuild or by building it as you run frahmmsearch and using the --hmmout flag to save it to file. 
 
 To run frahmmer: 
 ```bash

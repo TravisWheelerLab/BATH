@@ -4,7 +4,7 @@ FraHMMER builds protein profile hidden Markov models (pHMMs)  and searches them 
 
 # [Installation: how to install and build FraHMMER](documentation/userguide/installation.md)
 
-
+# [Tutorial: how to use FraHMMER](documentation/userguide/tutorial.md)
 
 ### to report a problem:
 [issues tracking page at GitHub](https://github.com/TravisWheelerLab/FraHMMER/issues).

@@ -830,14 +830,14 @@ p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W)
   return eslOK;
 }
 
-/* Function:  p7_tophits_ComputeFATHMMEvalues()
+/* Function:  p7_tophits_ComputeFrahmmerEvalues()
  * Synopsis:  Compute e-values based on pvalues and window sizes for hits 
  *            that went through full frameshifted pipline.
  *
- * Purpose:   After fathmm  pipeline has completed, the th object contains
+ * Purpose:   After frahmmer pipeline has completed, the th object contains
  *               hits where the p-values haven't yet been converted to
  *               e-values. That modification depends on an established
- *               number of sequences. In fathmm, this is computed as 
+ *               number of sequences. In frahmmer, this is computed as 
  *               pli->Z for those hits prosecced as ORFs but as N/W, 
  *               for a database of N residues, where W is some standardized
  *               window length (nhmmer passes om->max_length),
@@ -848,7 +848,7 @@ p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W)
  * Returns:   <eslOK> on success.
  */
 int
-p7_tophits_ComputeFATHMMEvalues(P7_TOPHITS *th, double N, int W)
+p7_tophits_ComputeFrahmmerEvalues(P7_TOPHITS *th, double N, int W)
 {
   int i;    /* counters over hits */
 
@@ -2149,16 +2149,16 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
           ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-per-sequence hit list: write failed");
       }
       else if (pli->frameshift)
-      {
-        if (th->N > 0 && th->hit[0]->ndom > 0)
+      {  
+        if (th->N > 0 || th->hit[0]->ndom > 0) 
         {
           if (fprintf(ofp, "#%*s %47s\n", tnamew+qnamew+taccw+qaccw+2, "", "-------------------------- full sequence ------------------------") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-          if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %6s %5s %12s %6s %9s\n",
-            tnamew-1, " target name",        taccw, "accession",  qnamew, "query name",           qaccw, "accession",  " hmm from", "   hmm to", " ali from", "   ali to", " env from", "   env to", "  E-value", " score", " bias", "frameshifts", "stops",  "pipeline") < 0)
+          if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %9s %6s %5s %12s %6s %9s\n",
+            tnamew-1, " target name",        taccw, "accession",  qnamew, "query name",           qaccw, "accession",  "  hmm len",  " hmm from", "   hmm to", " ali from", "   ali to", " env from", "   env to", "  E-value", " score", " bias", "frameshifts", "stops",  "pipeline") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
           if (fprintf(ofp, "#%*s %*s %*s %*s %9s %9s %9s %9s %9s %9s %9s %6s %5s %12s %6s, %9s\n",
-            tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "---------","---------", "---------", "---------", "------", "-----", "------------", "------", "---------") < 0)
+            tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "---------", "---------","---------", "---------", "---------", "------", "-----", "------------", "------", "---------") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
         }
       }
@@ -2217,12 +2217,13 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
         }
         else if(pli->frameshift) 
 	{
-		if (fprintf(ofp, "%-*s %-*s %-*s %-*s %7d %7d %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %9.2g %6.1f %5.1f %12d %6d %s\n",
+		if (fprintf(ofp, "%-*s %-*s %-*s %-*s %7d %7d %7d %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %9.2g %6.1f %5.1f %12d %6d %s\n",
                 tnamew, th->hit[h]->name,
                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
                 qnamew, qname,
                 qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
-                th->hit[h]->dcl[d].ad->hmmfrom,
+                th->hit[h]->dcl[d].ad->M,          
+		th->hit[h]->dcl[d].ad->hmmfrom,
                 th->hit[h]->dcl[d].ad->hmmto,
                 posw, th->hit[h]->dcl[d].iali,
                 posw, th->hit[h]->dcl[d].jali,

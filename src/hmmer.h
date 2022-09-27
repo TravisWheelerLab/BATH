@@ -776,7 +776,7 @@ typedef struct p7_dom_s {
   float         *scores_per_pos; /* score in BITS that each position in the alignment contributes to an overall viterbi score */
 
   P7_ALIDISPLAY *ad; 
-  P7_TRACE      *tr;  /*used by FATHMM when --fstblout flag is used */
+  P7_TRACE      *tr;  /*used by frahmmer when --fstblout flag is used */
 } P7_DOMAIN;
 
 /* Structure: P7_DOMAINDEF
@@ -837,7 +837,7 @@ typedef struct p7_domaindef_s {
   int    nenvelopes;  /* number of envelopes handed over for domain definition, null2, alignment, and scoring. */
 
   /* flags */
-  int fstbl;     /* True if --fstblout flag in on for FATHMM */
+  int fstbl;     /* True if --fstblout flag in on for frahmmer*/
 
 } P7_DOMAINDEF;
 
@@ -1401,9 +1401,9 @@ typedef struct p7_pipeline_s {
 
   enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
-  int           frameshift;     /* TRUE for searches with fathmm */
-  int           fs_only;        /* TRUE for FATHMM searches that only use the fs pipeline branch */
-  int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
+  int           frameshift;     /* TRUE for searches with frahmmer */
+  int           fs_only;        /* TRUE for frahmmer searches that only use the fs pipeline branch */
+  int           strands;        /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
 
@@ -1743,7 +1743,7 @@ extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *nt
 extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, 
 		P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
                 P7_BG *bg, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int64_t window_start, float F3, int do_biasfilter);
-extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const ESL_SQ *ntsq, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
+extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
            P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 
 /* p7_gmx.c */
@@ -1952,7 +1952,7 @@ extern int         p7_tophits_Reuse(P7_TOPHITS *h);
 
 
 extern int p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W);
-extern int p7_tophits_ComputeFATHMMEvalues(P7_TOPHITS *th, double N, int W);
+extern int p7_tophits_ComputeFrahmmerEvalues(P7_TOPHITS *th, double N, int W);
 extern int p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs);
 extern int p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli);
 extern int p7_tophits_CompareRanking(P7_TOPHITS *th, ESL_KEYHASH *kh, int *opt_nnew);

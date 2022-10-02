@@ -2405,7 +2405,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     { 
       dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 3; // minus 3 for inev which is in amino acid positions.  
       dom->jenv       = dnasq->start + orfsq->start + dom->jenv*3 - 2; // same as above plus two to move to the end of the codon. 
-      dom->iali       = dnasq->start + window_start + dom->iali - 1;
+      dom->iali       = dnasq->start + window_start + dom->iali - 2;
       dom->jali       = dnasq->start + window_start + dom->jali - 2;
 
     }

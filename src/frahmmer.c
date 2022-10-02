@@ -104,17 +104,17 @@ static ESL_OPTIONS options[] = {
   { "--cut_nc",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  THRESHOPTS,      "use profile's NC noise cutoffs to set all thresholding",       6 },
   { "--cut_tc",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  THRESHOPTS,      "use profile's TC trusted cutoffs to set all thresholding",     6 },
   /* Control of acceleration pipeline */
-  { "--max",        eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, "--F1,--F2,--F3", "Turn all heuristic filters off (less speed, more power)",      7 },
-  { "--F1",         eslARG_REAL,  "0.02", NULL, NULL,    NULL,  NULL, "--max",          "Stage 1 (MSV) threshold: promote hits w/ P <= F1",             7 },
-  { "--F2",         eslARG_REAL,  "1e-3", NULL, NULL,    NULL,  NULL, "--max",          "Stage 2 (Vit) threshold: promote hits w/ P <= F2",             7 },
-  { "--F3",         eslARG_REAL,  "1e-5", NULL, NULL,    NULL,  NULL, "--max",          "Stage 3 (Fwd) threshold: promote hits w/ P <= F3",             7 },
+  { "--max",        eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, "--F1,--F2,--F3", "turn all heuristic filters off (less speed, more power)",      7 },
+  { "--F1",         eslARG_REAL,  "0.02", NULL, NULL,    NULL,  NULL, "--max",          "stage 1 (MSV) threshold: promote hits w/ P <= F1",             7 },
+  { "--F2",         eslARG_REAL,  "1e-3", NULL, NULL,    NULL,  NULL, "--max",          "stage 2 (Vit) threshold: promote hits w/ P <= F2",             7 },
+  { "--F3",         eslARG_REAL,  "1e-5", NULL, NULL,    NULL,  NULL, "--max",          "stage 3 (Fwd) threshold: promote hits w/ P <= F3",             7 },
   { "--nobias",     eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL, "--max",          "turn off composition bias filter",                             7 },
-  { "--nonull2",      eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL,  NULL,          "turn off biased composition score corrections",               7 },
-  { "--fsonly",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, NULL,             "Only use Frameshift Aware Fwd filter",                         7 },
+  { "--nonull2",      eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL,  NULL,          "turn off biased composition score corrections",                7 },
+  { "--fsonly",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, NULL,             "send all potential hits to the frameshift aware pipeline",     7 },
 /* Other options */
   { "-Z",             eslARG_REAL,   FALSE, NULL, "x>=0",   NULL,  NULL,  NULL,          "set database size (Megabases) to <x> for E-value calculations",          12 },
   { "--seed",         eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,          "set RNG seed to <n> (if 0: one-time arbitrary seed)",         12 },
-   { "--w_beta",     eslARG_REAL,         NULL, NULL, NULL,    NULL,  NULL,           NULL,     "tail mass at which window length is determined",                12 },
+  { "--w_beta",     eslARG_REAL,         NULL, NULL, NULL,    NULL,  NULL,           NULL,     "tail mass at which window length is determined",                12 },
   { "--w_length",   eslARG_INT,          NULL, NULL, NULL,    NULL,  NULL,           NULL,     "window length - essentially max expected hit length" ,          12 },
   { "--qformat",      eslARG_STRING, NULL,  NULL, NULL,    NULL,  NULL , NULL,          "assert query is in format <s> (can be seq or msa format)",      12 },
   { "--qsingle_seqs", eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL , NULL,          "force query to be read as individual sequences, even if in an msa format", 12 },
@@ -415,7 +415,9 @@ frahmmer_open_msa_file(struct cfg_s *cfg,  ESL_MSAFILE **qfp_msa, ESL_ALPHABET *
 
 static int
 frahmmer_open_seq_file (struct cfg_s *cfg, ESL_SQFILE **qfp_sq, ESL_ALPHABET **abc, ESL_SQ **qsq, int used_qsingle_seqs) {
+
     int status = esl_sqfile_Open(cfg->queryfile, cfg->qfmt, NULL, qfp_sq);
+
     if (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open query file %s.\n", cfg->queryfile);
     if (status == eslOK) {
         if (*abc == NULL) {
@@ -437,7 +439,6 @@ frahmmer_open_seq_file (struct cfg_s *cfg, ESL_SQFILE **qfp_sq, ESL_ALPHABET **a
         if ((*abc)->type != eslAMINO) 
             p7_Fail("Invalid alphabet type in the %s%squery file %s. Expect Amino Acid\n", (cfg->qfmt==eslUNKNOWN ? "" : esl_sqio_DecodeFormat(cfg->qfmt)), (cfg->qfmt==eslSQFILE_UNKNOWN ? "":"-formatted "), cfg->queryfile);
 
-	printf("TYPE %d\n", (*abc)->type);
         esl_sqfile_SetDigital(*qfp_sq, *abc);
         // read first sequence
         *qsq = esl_sq_CreateDigital(*abc);
@@ -522,7 +523,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
   else                                     textw = esl_opt_GetInteger(go, "--textw");
-
+ 
   /* frahmmer accepts _query_ files that are eitherhmm(s) ,msa(s), or sequence(s).
    * The following code will follow the mandate of --qformat, and otherwise figure what
    * the file type is.
@@ -829,7 +830,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	info[i].pli = p7_pipeline_fs_Create(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
         status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
         if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
-
         if (  esl_opt_IsUsed(go, "--rosalind") )
           info[i].pli->strands = p7_STRAND_TOPONLY;
         else if (  esl_opt_IsUsed(go, "--franklin") )
@@ -1088,9 +1088,8 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   while (sstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
     dbsq_dna->idx = seq_id;
     if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
-    
+
     dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
-      
     info->pli->nres += dbsq_dna->n;
   
     if (info->wrk1->do_watson) {
@@ -1122,9 +1121,11 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       info->pli->nres += dbsq_dna->n;
       esl_sq_ReverseComplement(dbsq_dna);
     } 
+
     sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
-      
-    if (sstatus == eslEOD) { // no more left of this sequence ... move along to the next sequence.
+    
+    if (sstatus == eslEOD) { 
+      /* no more left of this sequence ... move along to the next sequence. */
       add_id_length(id_length_list, dbsq_dna->idx, dbsq_dna->L);
       info->pli->nseqs++;
       esl_sq_Reuse(dbsq_dna);
@@ -1391,3 +1392,5 @@ assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list) {
 
   return eslOK;
 }
+
+

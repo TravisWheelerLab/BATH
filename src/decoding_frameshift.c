@@ -17,15 +17,15 @@
  * 1. Posterior decoding algorithms.
  *****************************************************************/
 
-/* Function:  p7_Decoding_Frameshift()
+/* Function:  p7_Decoding_Frameshift() - FraHMMER
  * Synopsis:  Posterior decoding of residue assignments.
  *
- * Purpose:   Calculates a posterior decoding of the residues in a
- *            target sequence, given profile <gm> and filled Forward
- *            and Backward matrices <fwd>, <bck> for the profile
- *            aligned to that target sequence. The resulting posterior
- *            decoding is stored in a DP matrix <pp>, provided by the
- *            caller.
+ * Purpose:   Calculates a posterior decoding of the residues in a DNA
+ *            target sequence, given framshift aware codon profile 
+ *            <gm_fs> and filled Forward and Backward matrices <fwd>, 
+ *            <bck> for the profile aligned to that target sequence. The 
+ *            resulting posterior decoding is stored in a DP matrix <pp>, 
+ *            provided by the caller.
  *            
  *            Each residue <i> must have been emitted by match state
  *            <1..M>, insert state <1..M-1>, or an NN, CC, or JJ loop
@@ -415,7 +415,6 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
   ddef->mocc[L] = 1. - njcp;
 
   ddef->L = L;
-  //p7_domaindef_DumpPosteriors(stdout, ddef);
   return eslOK;
 }
 

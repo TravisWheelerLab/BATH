@@ -956,16 +956,17 @@ typedef struct p7_scoredata_s {
 
 
 typedef struct p7_hmm_window_s {
-  float      score;
-  float      null_sc;
-  int32_t    id;          //sequence id of the database sequence hit
-  int64_t    n;           //position in database sequence at which the diagonal/window starts
-  int64_t    fm_n;        //position in the concatenated fm-index sequence at which the diagonal starts
-  int32_t    length;      // length of the diagonal/window
-  int16_t    k;           //position of the model at which the diagonal ends
-  int64_t    target_len;  //length of the target sequence
-  int8_t     complementarity;
-  int8_t     used_to_extend;
+  float         score;
+  float         null_sc;
+  int32_t       id;          //sequence id of the database sequence hit
+  int64_t       n;           //position in database sequence at which the diagonal/window starts
+  int64_t       fm_n;        //position in the concatenated fm-index sequence at which the diagonal starts
+  int32_t       length;      // length of the diagonal/window
+  int16_t       k;           //position of the model at which the diagonal ends
+  int64_t       target_len;  //length of the target sequence
+  int8_t        complementarity;
+  int8_t        used_to_extend;
+  ESL_SQ_BLOCK *orf_block;   // all orfs used to create the window - FarHMMER
 } P7_HMM_WINDOW;
 
 typedef struct p7_hmm_window_list_s {
@@ -1829,9 +1830,8 @@ extern int  p7_hmmfile_Position(P7_HMMFILE *hfp, const off_t offset);
 
 
 /* p7_hmmwindow.c */
-int p7_hmmwindow_init (P7_HMM_WINDOWLIST *list);
-P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
-
+extern int p7_hmmwindow_init (P7_HMM_WINDOWLIST *list);
+extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
 
 
 /* p7_msvdata.c */

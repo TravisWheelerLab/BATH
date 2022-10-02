@@ -7,7 +7,6 @@
 #include "p7_config.h"
 #include "hmmer.h"
 
-
 /*********************************************************************
  *# 1. The P7_MSVDATA object: allocation, initialization, destruction.
  *********************************************************************/
@@ -45,7 +44,6 @@ ERROR:
  * Returns:   NULL in event of allocation failure, otherwise pointer to
  *            the next seed diagonal
  */
-//p7_hmmwindow_new(windowlist, 0, i, i-1, (q+Q*z+1), 1, 0.0, p7_NOCOMPLEMENT, L );
 P7_HMM_WINDOW *
 p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len) {
   int status;
@@ -72,4 +70,35 @@ p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t f
 ERROR:
   return NULL;
 }
+
+/* window_sorter(): qsort's pawn, below */
+static int
+window_sorter(const void *vw1, const void *vw2)
+{
+  P7_HMM_WINDOW w1 = *((P7_HMM_WINDOW *) vw1);  /* don't ask. don't change. Don't Panic. */
+  P7_HMM_WINDOW w2 = *((P7_HMM_WINDOW *) vw2);
+
+  if      (w1.n > w2.n) return  1;
+  else if (w1.n < w2.n) return -1;
+  else                    return  0;
+}
+
+
+
+/* Function:  p7_hmmwindow_SortByStart()
+ * Synopsis:  Sorts a hit list.
+ *
+ * Purpose:   Sorts a top hit list. After this call,
+ *            <h->hit[i]> points to the i'th ranked
+ *            <P7_HIT> for all <h->N> hits.
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_hmmwindow_SortByStart(P7_HMM_WINDOWLIST *w)
+{
+  if (w->count > 1)  qsort(w->windows, w->count, sizeof(P7_HMM_WINDOW), window_sorter);
+  return eslOK;
+}
+
 

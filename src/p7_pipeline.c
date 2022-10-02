@@ -689,16 +689,23 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     
     orf_start   = i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1;
     orf_end     = j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1; 
-
+    printf("i_coords %d j_coords %d\n", i_coords, j_coords);
+    printf("exteded orf coords start %d end %d\n", orf_start, orf_end);
     if(complementarity == p7_NOCOMPLEMENT)
     {
       dna_start = ESL_MAX(1,         curr_orf->start + (orf_start * 3));
       dna_end   = ESL_MIN(dna_sq->n, curr_orf->start + (orf_end   * 3));
+
+      dna_start = ESL_MIN(dna_start, curr_orf->start);
+      dna_end   = ESL_MAX(dna_end, curr_orf->end);
     }
     else
     {
-      dna_end   = dna_sq->n - ESL_MAX(1,         curr_orf->end + (orf_start * 3)) + 1;
-      dna_start = dna_sq->n - ESL_MIN(dna_sq->n, curr_orf->end + (orf_end   * 3)) + 1; 
+      dna_start = dna_sq->n - ESL_MIN(dna_sq->n, curr_orf->end + (orf_end   * 3)); 
+      dna_end   = dna_sq->n - ESL_MAX(1,         curr_orf->end + (orf_start * 3));
+      
+      dna_start = ESL_MIN(dna_start, curr_orf->end);
+      dna_end   = ESL_MAX(dna_end,   curr_orf->start);
     }
     
     p7_hmmwindow_new(windowlist, 0, dna_start, dna_start-1, k_coords, dna_end-dna_start+1, 0.0, complementarity, dna_sq->n);
@@ -713,8 +720,6 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
 
-//    printf("new_hit_cnt %d prev_window->n %d i %d curr_window->n %d\n", new_hit_cnt, prev_window->n, i, curr_window->n);
-
     max_window_start =  ESL_MAX(prev_window->n, curr_window->n);
     min_window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
     overlap_len   = min_window_end - max_window_start + 1;
@@ -724,9 +729,9 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
 
       min_window_start        = ESL_MIN(prev_window->n, curr_window->n);
       max_window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-//	printf("merge length %d max length %d\n", max_window_end -  min_window_start + 1, 2.2 * (gm->max_length * 3));
+
       if((max_window_end -  min_window_start + 1) < (2.2 * (gm->max_length * 3))) {
-//        printf("merge\n");
+
         prev_window->fm_n  -= (prev_window->n - min_window_start);
         prev_window->n      = min_window_start;
         prev_window->length = max_window_end - min_window_start + 1;
@@ -2600,13 +2605,16 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   
   } else { // compare ORFS to widows and select appropraite pipeline 
     
- 
+      
      for(f = 0; f < orf_block->count; f++) {
        curr_orf = &(orf_block->list[f]);
        orf_start = ESL_MIN(curr_orf->start, curr_orf->end);
        orf_end   = ESL_MAX(curr_orf->start, curr_orf->end);
-      
+  	printf("orf_start %d orf_end %d\n", orf_start, orf_end);
+	    
        if(orf_start >= window_start && orf_end <= window_end) {
+
+	printf("orf_start %d orf_end %d\n", orf_start, orf_end);
 
          p7_bg_SetLength(bg, curr_orf->n);
          p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);
@@ -2634,6 +2642,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the fraemshift pipeline
    */
+  printf("complementarity %d dna_window->start %d dna_window->end %d\n", complementarity, window_start, window_end);
+  printf("P_fs %f P_fs_nobias %f tot_P_orf %f min_P_orf %f\n", P_fs, P_fs_nobias, tot_orf_P, min_P_orf);
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
 	
     pli->pos_past_fwd += dna_window->length; 

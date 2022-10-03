@@ -816,10 +816,9 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
         p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);
         p7_omx_GrowTo(bck, om->M, j-i+1, j-i+1);
         ddef->nregions++;
-	
+        
         if (is_multidomain_region(ddef, i, j))
         {  
-		
         /* This region appears to contain more than one domain, so we have to
              * resolve it by cluster analysis of posterior trace samples, to define
              * one or more domain envelopes.
@@ -838,8 +837,9 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
             region_trace_ensemble(ddef, om, orfsq->dsq, i, j, fwd, bck, &nc);
             p7_oprofile_ReconfigUnihit(om, saveL);
             /* ddef->n2sc is now set on i..j by the traceback-dependent method */
-
+	    
             last_j2 = 0;
+            if(nc == 0) ddef->nenvelopes++;
             for (d = 0; d < nc; d++) {
                   p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
                   if (i2 <= last_j2) ddef->noverlaps++;
@@ -1884,7 +1884,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
-    
+  
   p7_oprofile_ReconfigLength(om, orfsq->n);
   p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
   p7_omx_GrowTo(ox2, om->M, orfsq->n, orfsq->n); 
@@ -1932,20 +1932,20 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 
   dom->domcorrection = domcorrection; /* in units of NATS */
 	
-  if(orfsq->start < orfsq->end)
-  {
+  //if(orfsq->start < orfsq->end)
+  //{
     dom->iali          = dom->ad->sqfrom;
     dom->jali          = dom->ad->sqto;
     dom->ienv          = i; 
     dom->jenv          = j; 
-  }
-  else
-  {
-    dom->iali          = dom->ad->sqto - 2;
-    dom->jali          = dom->ad->sqfrom;
-    dom->ienv          = i; 
-    dom->jenv          = j; 
-  }
+  //}
+ // else
+  //{
+    //dom->iali          = dom->ad->sqto - 2;
+    //dom->jali          = dom->ad->sqfrom;
+    //dom->ienv          = i; 
+    //dom->jenv          = j; 
+  //}
 
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;          /* in units of expected # of correctly aligned residues */

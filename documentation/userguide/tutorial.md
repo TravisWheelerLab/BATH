@@ -6,9 +6,13 @@ Once you have installed and built FraHMMER you will ba able to use the main sear
 
 Every frahmmer search requires two input files - a query and a target.  The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip.
 
-The query file may be either a (1) pHMM, (2) multiple sequence alignment, or (3) unalgined sequence file.
+The query file may be either a (1) pHMM, (2) multiple sequence alignment (MSA), or (3) unalgined sequence file.
+In case (2) and (3), each MSA or unalgined sequence will be coverted to a pHMM.  Building there pHMM can be computationally expensive so it is recomended to either build and save them with frahmmbuild before searching, or to use the frahmmer flag --hmmout to save the pHMMs to a file. 
 
-Sequence based queries can be in a number of formats (see --qformat), and can typically be autodetected. Note that only Stockholm format supports queries made up of more than one sequence alignment. If you have a profile model built for HMMER you will need to run frahmmconvert to reformat it for FraHMMER. If you anticipate using the query more than once it is highly recommended that you create an hmm file either by prebuilding it with frahmmbuild or by building it as you run frahmmsearch and using the --hmmout flag to save it to file. 
+# Practice 1 - Build pHMMs with frahmmbuild.
+
+
+
 
 To run frahmmer: 
 ```bash

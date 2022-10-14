@@ -1,4 +1,4 @@
-### Tutorial
+# Tutorial
 
 Once you have installed and built FraHMMER you will ba able to use the main search tool - frahmmer - as well as several support tools to help create, format and anayisis profile hidden Markov model (pHMM) files. You will also have access to the suite of easle miniapps developed by the Eddy/Rivas Lab (for details on easle tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER specific tools that will allow you to perform frameshift-aware translated homology searchs.
 
@@ -9,7 +9,7 @@ Every frahmmer search requires two input files - a query and a target.  The targ
 The query file may be either a (1) pHMM, (2) multiple sequence alignment (MSA), or (3) unalgined sequence file.
 In case (2) and (3), each MSA or unalgined sequence will be coverted to a pHMM.  Building there pHMM can be computationally expensive so it is recomended to either build and save them with frahmmbuild before searching, or to use the frahmmer flag --hmmout to save the pHMMs to a file. 
 
-# Practice 1 - Build pHMMs with frahmmbuild.
+### Practice 1 - Build pHMMs with frahmmbuild.
 
 
 

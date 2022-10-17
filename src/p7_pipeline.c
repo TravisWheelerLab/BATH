@@ -689,26 +689,19 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     
     ext_i_coords   =  ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1));
     ext_j_coords   =  ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); 
-  //printf("\ncurr_orf->start %d curr_orf->end %d\n", curr_orf->start, curr_orf->end);
-    // printf("3x ext_i_coords %d 3x ext_j_coords end %d\n", ext_i_coords*3, ext_j_coords*3);
    
     if(complementarity == p7_NOCOMPLEMENT)
     {
-     // printf("OPT 1 window_start %d window_end %d\n", 1, dna_sq->n);
-     // printf("OPT 2 window_start %d window_end %d\n", curr_orf->start + (ext_i_coords * 3), curr_orf->start + (ext_j_coords   * 3));
       window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3));
       window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords   * 3) + 2);
     }
     else
     {
 
-     // printf("OPT 1 window_start %d window_end %d\n", 1, dna_sq->n);
-     // printf("OPT 2 window_start %d window_end %d\n", (dna_sq->n - curr_orf->start + 1) + (ext_i_coords   * 3), (dna_sq->n - curr_orf->start + 1) + (ext_j_coords   * 3) + 2); 
       window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords   * 3));
       window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords   * 3) + 2); 
     }
     
-    //printf("ACCTUAL window_start %d window_end %d\n", window_start, window_end);
     p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
     p7_gmx_Reuse(vgx);
     p7_trace_Reuse(vtr);
@@ -2579,9 +2572,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   pli_tmp->tmpseq->start = dna_window->n;
   pli_tmp->tmpseq->end = dna_window->n + dna_window->length - 1; 
   pli_tmp->tmpseq->dsq = subseq;
-  //printf("dnasq->n %d dnasq->start %d dnasq->end %d comp %d\n", dnasq->n, dnasq->start, dnasq->end, complementarity); 
-  //printf("seq name %s hmm name %s\n", dnasq->name, om->name);
-  //printf("tmp seq start %d end %d length %d\n", pli_tmp->tmpseq->start, pli_tmp->tmpseq->end, pli_tmp->tmpseq->n);
+  
   /*First run Frameshift Forward on full Window and save score and P value.*/
   p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
@@ -2638,9 +2629,9 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the fraemshift pipeline
    */
-//printf("P_fs %d, P_fs_nobias %d, tot_orf_P %d,  min_P_orf %d\n", P_fs, P_fs_nobias, tot_orf_P, min_P_orf);
+
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
-	printf("window start %d wnindow end %d\n", window_start, window_end);	
+	
     pli->pos_past_fwd += dna_window->length; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, dna_window->length, 0);

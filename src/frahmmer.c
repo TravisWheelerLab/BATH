@@ -602,7 +602,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       }
   }
 
-  if (! abc->type == eslAMINO)
+  if (abc->type != eslAMINO)
      p7_Fail("Invalid alphabet type in query for frahmmer. Expect Amino Acid.\n"); if 
 
 (esl_opt_IsOn(go, "--tformat")) {

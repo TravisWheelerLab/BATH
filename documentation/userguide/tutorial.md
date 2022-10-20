@@ -11,13 +11,54 @@ In case (2) and (3), each MSA or unalgined sequence will be coverted to a pHMM. 
 
 ### Practice 1 - Build pHMMs with frahmmbuild.
 
+In this practice you will build two HMM files - one from and MSA file and one from a single sequence file. 
 
-
-
-To run frahmmer: 
+**1)** Build one HMM from an MSA file and print to an HMM file using frahmmbuild
+   After cding into your FraHMMER directory run:
 ```bash
-   % frahmmsearch [options] queryfile targetfile
+   % frahmmbuild tutorial/xxx.hmm tutorial/xxx.msa
 ```
+   This will create the file xxx.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file yyy.hmm.  If the diff comand bellow produces no output then frahmmbuild is working correctly. 
+```bash
+   % diff tutorial/xxx.hmm tutorial/yyy.hmm
+```
+
+**2)** Build an HMM file from a single sequence file and print to an HMM file using the --hmmout flag for frahmmer
+   Endsure you are still in the FraHMMER directory and run:
+```bash
+   % frahmmer --hmmout tutorial/aaa.hmm -o tutorial/aaa.aliout tutorial/aaa.fa tutorial/seq1.fa
+```
+   This will create the file aaa.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file bbb.hmm.  If the diff comand bellow produces no output then the --hmmout flag is working correctly. 
+```bash
+   % diff tutorial/aaa.hmm tutorial/bbb.hmm
+```      
+**Optional:**. If you would like to understand the contents on HMM files follow this link : LINK GOES HERE
+
+## Step 1 - running frahmmer
+
+Now that you know both methods for creating FraHMMER HMM files, you can use them to run a frahmmer homology search. The usage for frahmmer is as follows:
+```bash
+Usage: frahmmer [options] <hmm, msa, or seq query file> <seq target file>
+```
+We will cover a few basic optios, or flags, here but a full list can be viewed by running:
+```bash
+frahmmer -h
+```
+For a more detailed explination of these optiond see: LINK GOES HERE
+
+**1)** You already ran frahmmer when you used the --hmmout flag to build the aaa.hmm file from a single sequence file.  The alignments for this search were directed to the file tutorial/aaa.aliout.  To check that this output is correct run the following:
+```bash
+   % diff tutorial/aaa.aliout tutorial/bbb.aliout
+```    
+**2)** Now you will run frahmmer using the HMM file you created with frahmmbuild.  The -o flag will be used to redirect the alignments to tutorial/xxx.aliout and the --tblout flag will be used to gernerate a table listing each hit with all relevant data. 
+```bash
+   % frahmmer -o tutorial/xxx.aliout --tblout tutorial/xxx.tblout tutorial/xxx.hmm tutorial/seq2.fa 
+```
+
+To cheack that the table output is correct run the following:
+```bash
+   % diff tutorial/xxx.tblout tutorial/xxx.tblout
+``` 
 
 **Options** 
 

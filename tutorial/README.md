@@ -2,6 +2,6 @@
 
 This folder contians files used in the FraHMMER tutorial. 
 
-To read and follow the tutorial see: 
+To read and follow the tutorial see: [TUTORIAL](documentation/userguide/installation.md)
 
-For intalation instructions see: 
+For instalation instructions see: [INSTALL](documentation/userguide/tutorial.md)

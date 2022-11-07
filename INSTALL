@@ -1,19 +1,17 @@
 Brief installation instructions 
-HMMER 3.3.2 (Nov 2020)
+FraHMMER (Oct 2022)
 
-Starting from a source distribution, hmmer-3.3.2.tar.gz:
-   uncompress hmmer-3.3.2.tar.gz  
-   tar xf hmmer-3.3.2.tar
-   cd hmmer-3.3.2
+Install source code from GitHub:
+   git clone https://github.com/TravisWheelerLab/FraHMMER.git
+   cd FraHMMER
+   git clone https://github.com/TravisWheelerLab/easel
+   (cd easel; git checkout develop)
+   autoconf
    ./configure
    make
    make check                        # optional: automated tests
-   make install                      # optional: install HMMER programs and man pages
-   (cd easel; make install)          # optional: install Easel tools too
+   make install                      # optional: install FraHMMER programs and man pages
 
-For more details including customization, supported platforms, and
-troubleshooting, see the Installation chapter in the HMMER User's
-Guide (Userguide.pdf).
 
 
 

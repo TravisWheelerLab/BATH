@@ -9,21 +9,27 @@ Every frahmmer search requires two input files - a query and a target.  The targ
 The query file may be either a (1) pHMM, (2) multiple sequence alignment (MSA), or (3) unalgined sequence file.
 In case (2) and (3), each MSA or unalgined sequence will be coverted to a pHMM.  Building there pHMM can be computationally expensive so it is recomended to either build and save them with frahmmbuild before searching, or to use the frahmmer flag --hmmout to save the pHMMs to a file. 
 
-### Practice 1 - Build pHMMs with frahmmbuild.
+### Practice 1 - Build HMM with frahmmbuild.
 
-In this practice you will build two HMM files - one from and MSA file and one from a single sequence file. 
+**1)** The tool frahmmbuild takes two arguments.  
+'''bash
+   % Usage: frahmmbuild [-options] <hmmfile_out> <msafile>
+'''
+   
+first the name of the file you would like the pHMM to printed to, and the name of the file containing the MSA(s) or the single sequence you would like ot build the pHMM form. 
 
-**1)** Build one HMM from an MSA file and print to an HMM file using frahmmbuild
-   After cding into your FraHMMER directory run:
+After cding into your FraHMMER directory run:
 ```bash
    % frahmmbuild tutorial/xxx.hmm tutorial/xxx.msa
 ```
-   This will create the file xxx.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file yyy.hmm.  If the diff comand bellow produces no output then frahmmbuild is working correctly. 
+**2)** This will create the file xxx.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file yyy.hmm.  If the diff comand bellow produces no output then frahmmbuild is working correctly. 
 ```bash
    % diff tutorial/xxx.hmm tutorial/yyy.hmm
 ```
 
-**2)** Build an HMM file from a single sequence file and print to an HMM file using the --hmmout flag for frahmmer
+### Practice 2 - Outpur HMM with --hmmout flag.
+
+**1)** Build an HMM file from a single sequence file and print to an HMM file using the --hmmout flag for frahmmer
    Endsure you are still in the FraHMMER directory and run:
 ```bash
    % frahmmer --hmmout tutorial/aaa.hmm -o tutorial/aaa.aliout tutorial/aaa.fa tutorial/seq1.fa
@@ -34,9 +40,9 @@ In this practice you will build two HMM files - one from and MSA file and one fr
 ```      
 **Optional:**. If you would like to understand the contents on HMM files follow this link : LINK GOES HERE
 
-## Step 1 - running frahmmer
+## Step 2 - running frahmmer
 
-Now that you know both methods for creating FraHMMER HMM files, you can use them to run a frahmmer homology search. The usage for frahmmer is as follows:
+Now that you know all three methods for creating FraHMMER formated HMM files, you are ready to run a frahmmer homology search. The usage for frahmmer is as follows:
 ```bash
 Usage: frahmmer [options] <hmm, msa, or seq query file> <seq target file>
 ```
@@ -44,9 +50,10 @@ We will cover a few basic optios, or flags, here but a full list can be viewed b
 ```bash
 frahmmer -h
 ```
-For a more detailed explination of these optiond see: LINK GOES HERE
+For a more detailed explination of all frahmmer options see: LINK GOES HERE
 
-**1)** You already ran frahmmer when you used the --hmmout flag to build the aaa.hmm file from a single sequence file.  The alignments for this search were directed to the file tutorial/aaa.aliout.  To check that this output is correct run the following:
+
+ You already ran frahmmer when you used the --hmmout flag to build the aaa.hmm file from a single sequence file.  The alignments for this search were directed to the file tutorial/aaa.aliout.  To check that this output is correct run the following:
 ```bash
    % diff tutorial/aaa.aliout tutorial/bbb.aliout
 ```    

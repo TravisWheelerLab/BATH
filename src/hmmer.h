@@ -1832,7 +1832,7 @@ extern int  p7_hmmfile_Position(P7_HMMFILE *hfp, const off_t offset);
 /* p7_hmmwindow.c */
 extern int p7_hmmwindow_init (P7_HMM_WINDOWLIST *list);
 extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
-
+extern int p7_hmmwindow_SortByStart(P7_HMM_WINDOWLIST *w);
 
 /* p7_msvdata.c */
 extern P7_SCOREDATA   *p7_hmm_ScoreDataCreate(P7_OPROFILE *om, P7_PROFILE *gm );

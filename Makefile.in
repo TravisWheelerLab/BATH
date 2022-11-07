@@ -90,7 +90,7 @@ all:
 	${QUIET_SUBDIR0}${ESLDIR}     ${QUIET_SUBDIR1} all
 	${QUIET_SUBDIR0}${SADIR}      ${QUIET_SUBDIR1} all
 	${QUIET_SUBDIR0}src           ${QUIET_SUBDIR1} all
-	${QUIET_SUBDIR0}profmark      ${QUIET_SUBDIR1} all
+#	${QUIET_SUBDIR0}profmark      ${QUIET_SUBDIR1} all
 
 # dev: compile all executables, including drivers.
 #
@@ -98,7 +98,7 @@ dev:
 	${QUIET_SUBDIR0}${ESLDIR}  ${QUIET_SUBDIR1} dev
 	${QUIET_SUBDIR0}${SADIR}   ${QUIET_SUBDIR1} all
 	${QUIET_SUBDIR0}src        ${QUIET_SUBDIR1} dev
-	${QUIET_SUBDIR0}profmark   ${QUIET_SUBDIR1} dev
+#	${QUIET_SUBDIR0}profmark   ${QUIET_SUBDIR1} dev
 
 # tests: compile all test drivers for 'make check'
 #
@@ -153,7 +153,7 @@ uninstall:
 #
 clean:
 	${QUIET_SUBDIR0}src           ${QUIET_SUBDIR1} clean
-	${QUIET_SUBDIR0}profmark      ${QUIET_SUBDIR1} clean
+#	${QUIET_SUBDIR0}profmark      ${QUIET_SUBDIR1} clean
 	${QUIET_SUBDIR0}testsuite     ${QUIET_SUBDIR1} clean
 	${QUIET_SUBDIR0}documentation ${QUIET_SUBDIR1} clean
 	${QUIET_SUBDIR0}${ESLDIR}     ${QUIET_SUBDIR1} clean
@@ -167,7 +167,7 @@ endif
 #
 distclean:
 	${QUIET_SUBDIR0}src           ${QUIET_SUBDIR1} distclean
-	${QUIET_SUBDIR0}profmark      ${QUIET_SUBDIR1} distclean
+#	${QUIET_SUBDIR0}profmark      ${QUIET_SUBDIR1} distclean
 	${QUIET_SUBDIR0}testsuite     ${QUIET_SUBDIR1} distclean
 	${QUIET_SUBDIR0}documentation ${QUIET_SUBDIR1} distclean
 	${QUIET_SUBDIR0}${ESLDIR}     ${QUIET_SUBDIR1} distclean

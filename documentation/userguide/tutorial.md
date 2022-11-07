@@ -1,4 +1,4 @@
-### Tutorial
+# Tutorial
 
 Once you have installed and built FraHMMER you will ba able to use the main search tool - frahmmer - as well as several support tools to help create, format and anayisis profile hidden Markov model (pHMM) files. You will also have access to the suite of easel miniapps developed by the Eddy/Rivas Lab (for details on easel tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER specific tools that will allow you to perform frameshift-aware translated homology searchs.
 
@@ -6,14 +6,66 @@ Once you have installed and built FraHMMER you will ba able to use the main sear
 
 Every frahmmer search requires two input files - a query and a target.  The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip.
 
-The query file may be either a (1) pHMM, (2) multiple sequence alignment, or (3) unalgined sequence file.
+The query file may be either a (1) pHMM, (2) multiple sequence alignment (MSA), or (3) unalgined sequence file.
+In case (2) and (3), each MSA or unalgined sequence will be coverted to a pHMM.  Building there pHMM can be computationally expensive so it is recomended to either build and save them with frahmmbuild before searching, or to use the frahmmer flag --hmmout to save the pHMMs to a file. 
 
-Sequence based queries can be in a number of formats (see --qformat), and can typically be autodetected. Note that only Stockholm format supports queries made up of more than one sequence alignment. If you have a profile model built for HMMER you will need to run frahmmconvert to reformat it for FraHMMER. If you anticipate using the query more than once it is highly recommended that you create an hmm file either by prebuilding it with frahmmbuild or by building it as you run frahmmer and using the --hmmout flag to save it to file. 
+### Practice 1 - Build HMM with frahmmbuild.
 
-To run frahmmer: 
+**1)** The tool frahmmbuild takes two arguments.  
+'''bash
+   % Usage: frahmmbuild [-options] <hmmfile_out> <msafile>
+'''
+   
+first the name of the file you would like the pHMM to printed to, and the name of the file containing the MSA(s) or the single sequence you would like ot build the pHMM form. 
+
+After cding into your FraHMMER directory run:
 ```bash
-   % frahmmer [options] queryfile targetfile
+   % frahmmbuild tutorial/xxx.hmm tutorial/xxx.msa
 ```
+**2)** This will create the file xxx.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file yyy.hmm.  If the diff comand bellow produces no output then frahmmbuild is working correctly. 
+```bash
+   % diff tutorial/xxx.hmm tutorial/yyy.hmm
+```
+
+### Practice 2 - Outpur HMM with --hmmout flag.
+
+**1)** Build an HMM file from a single sequence file and print to an HMM file using the --hmmout flag for frahmmer
+   Endsure you are still in the FraHMMER directory and run:
+```bash
+   % frahmmer --hmmout tutorial/aaa.hmm -o tutorial/aaa.aliout tutorial/aaa.fa tutorial/seq1.fa
+```
+   This will create the file aaa.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file bbb.hmm.  If the diff comand bellow produces no output then the --hmmout flag is working correctly. 
+```bash
+   % diff tutorial/aaa.hmm tutorial/bbb.hmm
+```      
+**Optional:**. If you would like to understand the contents on HMM files follow this link : LINK GOES HERE
+
+## Step 2 - running frahmmer
+
+Now that you know all three methods for creating FraHMMER formated HMM files, you are ready to run a frahmmer homology search. The usage for frahmmer is as follows:
+```bash
+Usage: frahmmer [options] <hmm, msa, or seq query file> <seq target file>
+```
+We will cover a few basic optios, or flags, here but a full list can be viewed by running:
+```bash
+   frahmmer -h
+```
+For a more detailed explination of all frahmmer options see: LINK GOES HERE
+
+
+ You already ran frahmmer when you used the --hmmout flag to build the aaa.hmm file from a single sequence file.  The alignments for this search were directed to the file tutorial/aaa.aliout.  To check that this output is correct run the following:
+```bash
+   % diff tutorial/aaa.aliout tutorial/bbb.aliout
+```    
+**2)** Now you will run frahmmer using the HMM file you created with frahmmbuild.  The -o flag will be used to redirect the alignments to tutorial/xxx.aliout and the --tblout flag will be used to gernerate a table listing each hit with all relevant data. 
+```bash
+   % frahmmer -o tutorial/xxx.aliout --tblout tutorial/xxx.tblout tutorial/xxx.hmm tutorial/seq2.fa 
+```
+
+To cheack that the table output is correct run the following:
+```bash
+   % diff tutorial/xxx.tblout tutorial/xxx.tblout
+``` 
 
 **Options** 
 

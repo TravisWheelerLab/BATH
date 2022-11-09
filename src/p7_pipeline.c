@@ -2640,7 +2640,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    */
 //printf("P_fs %d, P_fs_nobias %d, tot_orf_P %d,  min_P_orf %d\n", P_fs, P_fs_nobias, tot_orf_P, min_P_orf);
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
-	printf("window start %d wnindow end %d\n", window_start, window_end);	
     pli->pos_past_fwd += dna_window->length; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, dna_window->length, 0);

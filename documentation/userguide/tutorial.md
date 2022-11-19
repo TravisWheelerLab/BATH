@@ -1,19 +1,19 @@
 # Tutorial
 
-Once you have installed and built FraHMMER you will ba able to use the main search tool - frahmmer - as well as several support tools to help create, format and anayisis profile hidden Markov model (pHMM) files. You will also have access to the suite of easel miniapps developed by the Eddy/Rivas Lab (for details on easel tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER specific tools that will allow you to perform frameshift-aware translated homology searchs.
+Once you have installed and built FraHMMER you will ba able to use the main search tool - frahmmer - as well as several support tools to help create, format and anayisis profile hidden Markov model (pHMM) files. You will also have access to the suite of easel miniapps developed by the Eddy/Rivas Lab (for details on easel tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER tools and files that will allow you to perform frameshift-aware translated homology searchs.  The all files nessicary to complete the practices bellow are located in the directory FraHMMER/tutorial/
 
-## Step 1 - Preparing HMM files
+## Step 1 - Preparing input files
 
-Every frahmmer search requires two input files - a query and a target.  The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip.
+Every frahmmer search requires two input files - a query and a target.  The target file must include one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment format. Common unaligned sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip.
 
-The query file may be either an (1) HMM, (2) multiple sequence alignment (MSA), or (3) unalgined sequence file. In case (2) and (3), each MSA or unalgined sequence will be coverted to a pHMM. Building pHMMs can be computationally expensive so it is recomended to save them to file to avoid having to reporoduce the same calculations in subsequent searches. build them with frahmmbuild before searching. 
+The query file must be either a FraHMMER formated protien pHMM file, a protien multiple sequence alignment (MSA), or an unalgined protien sequence file. A FraHMMER formated pHMM file can be built from an MSA or unalgined sequence file using frahmmbuild, or converted from exisiting HMMER formated pHMM files using frahmmconvert.  If an MSA or unalgined sequence file is used as the frahmmer query the pHMM(s) will need to be built before the search can proceed. Since building FraHMMER pHMMs can be computationally expensive, it is recomended to either prebuild with frahmmbuild or save the pHMMs built by frahmmer ofr future use using the flag '--hmmout'.
 
-If you prefer, you can also use an MSA or unalgined sequence file as the query and save the resulting HMMs to a file using the frahmmer flag '--hmmout'.
+### Practice 1 - Three ways to build and save FraHMMER formated pHMMs
+In this practice you will build the three idetical pHMM files from the same MSA file using (1) frahmmbuild, (2) frahmmconvert, and (3) frahmmer with the '--hmmout' flag. You will then (4) comapre these files using diff to test for accuracy. 
 
-
-### Practice 1 - Build HMM with frahmmbuild.
-
-**1)** The tool frahmmbuild takes two arguments.  
+**(1)** Prebuild with frahmmbuild
+   Uing the file located as /your_install_directory/FraHMMER/tutorial/XXX.msa you will build first pHMM with frahmmbuild and save it to /your_install_directory/FraHMMER/tutorial/XXX_build.hmm  
+   
 '''bash
    % Usage: frahmmbuild [-options] <hmmfile_out> <msafile>
 '''

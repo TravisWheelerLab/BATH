@@ -1,57 +1,52 @@
 # Tutorial
 
-Once you have installed and built FraHMMER you will ba able to use the main search tool - frahmmer - as well as several support tools to help create, format and anayisis profile hidden Markov model (pHMM) files. You will also have access to the suite of easel miniapps developed by the Eddy/Rivas Lab (for details on easel tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER tools and files that will allow you to perform frameshift-aware translated homology searchs.  The all files nessicary to complete the practices bellow are located in the directory FraHMMER/tutorial/
+Once you have built FraHMMER you will be able to use the main search tool - frahmmer - as well as the several support tools which help create and format profile hidden Markov model (pHMM) files. You will also have access to the suite of easel tools developed by the Eddy/Rivas Lab (for details on easel tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER tools and files that will allow you to perform frameshift-aware translated homology searches. The following is a list of those tools.
 
-## Step 1 - Preparing input files
+**frahmmbuild**   - build and save FraHMMER formated pHMM from an input multiple sequence alignment (MSA) or unaligned sequences file
+**frahmmconvert** - convert HMMER formated pHMM files to FraHMMER formated pHMM files
+**frahmmfetch**   - copy selected pHMMs from a HMMER or FraHMMER formated file (converting if necissary) to a new FraHMMER formated pHMM file
+**frahmmstat***   - show summary statistics for a FraHMMER formated pHMM file
+**frahmmer**      - search one or more protein pHMMs against a DNA sequence database
 
-Every frahmmer search requires two input files - a query and a target.  The target file must include one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment format. Common unaligned sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip.
+All files necessary to complete the practices below are located in the directory FraHMMER/tutorial/. Run the following command to insure you are in the tutorial directotry before you proceed with the practices bellow.
 
-The query file must be either a FraHMMER formated protien pHMM file, a protien multiple sequence alignment (MSA), or an unalgined protien sequence file. A FraHMMER formated pHMM file can be built from an MSA or unalgined sequence file using frahmmbuild, or converted from exisiting HMMER formated pHMM files using frahmmconvert.  If an MSA or unalgined sequence file is used as the frahmmer query the pHMM(s) will need to be built before the search can proceed. Since building FraHMMER pHMMs can be computationally expensive, it is recomended to either prebuild with frahmmbuild or save the pHMMs built by frahmmer ofr future use using the flag '--hmmout'.
-
-### Practice 1 - Three ways to build and save FraHMMER formated pHMMs
-In this practice you will build the three idetical pHMM files from the same MSA file using (1) frahmmbuild, (2) frahmmconvert, and (3) frahmmer with the '--hmmout' flag. You will then (4) comapre these files using diff to test for accuracy. 
-
-**(1)** Prebuild with frahmmbuild
-   Uing the file located as /your_install_directory/FraHMMER/tutorial/XXX.msa you will build first pHMM with frahmmbuild and save it to /your_install_directory/FraHMMER/tutorial/XXX_build.hmm  
-   
-'''bash
-   % Usage: frahmmbuild [-options] <hmmfile_out> <msafile>
-'''
-   
-first the name of the file you would like the pHMM to printed to, and the name of the file containing the MSA(s) or the single sequence you would like ot build the pHMM form. 
-
-After cding into your FraHMMER directory run:
 ```bash
-   % frahmmbuild tutorial/xxx.hmm tutorial/xxx.msa
+   % cd /your_install_path/FraHMMER/tutorial/
 ```
-**2)** This will create the file xxx.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file yyy.hmm.  If the diff comand bellow produces no output then frahmmbuild is working correctly. 
+If you have not added FraHMMER executables to your path (e.g. by running 'make install') you will need to add the path to the FraHMMER/src/ directory to the start of any FraHMMER command. 
+
+## Step 1 - Preparing pHMM files
+
+The sensativity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and almost identical to ones used by HMMER, but contain additional vital statistics needed to provide reliable evalues. Three of FraHMMERs five tools (frahmmbuild, frahmmconvert, and frahmmfetch) are used mainly to create or manipulate FraHMMER formated pHMM files.
+
+# frahmmbuild
+
+**Practice 1 : building a pHMM from and MSA using frahmmbuild 
+
+The file aaa.sto contains three stokholm formated protein MSAs (note that stokholm is the only format which allows multiple MSAs in a single file). By running the following command the each of those MSAs will be used to build a pHMM and ouput to the file aaa.hmm. 
+
 ```bash
-   % diff tutorial/xxx.hmm tutorial/yyy.hmm
+   % frahmmbuild aaa.hmm aaa.sto
 ```
 
-### Practice 2 - Outpur HMM with --hmmout flag.
 
-**1)** Build an HMM file from a single sequence file and print to an HMM file using the --hmmout flag for frahmmer
-   Endsure you are still in the FraHMMER directory and run:
-```bash
-   % frahmmer --hmmout tutorial/aaa.hmm -o tutorial/aaa.aliout tutorial/aaa.fa tutorial/seq1.fa
-```
-   This will create the file aaa.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file bbb.hmm.  If the diff comand bellow produces no output then the --hmmout flag is working correctly. 
-```bash
-   % diff tutorial/aaa.hmm tutorial/bbb.hmm
-```      
-**Optional:**. If you would like to understand the contents on HMM files follow this link : LINK GOES HERE
 
-## Step 2 - running frahmmer
+Every frahmmer search requires two input files - a query and a target. The target file must include one or more DNA sequences in a recognizable format. These sequences may be aligned or unaligned. Common unaligned sequence formats include fasta, embl, and genbank. Common alignment formats include stockholm, a2m, afa, psiblast, clustal, and phylip.
 
-Now that you know all three methods for creating FraHMMER formated HMM files, you are ready to run a frahmmer homology search. The usage for frahmmer is as follows:
+The query file must be either a FraHMMER formatted protein pHMM file, a protein multiple sequence alignment (MSA) or an unaligned protein sequence file. If you use an MSA or an unaligned sequence file the pHMMs will need to be built before the search can proceed and it is recommended that you use the --hmmout flag to save these pHMMs to file for future use (see Practice 1). You can also prebuild and save the pHMMs from your MSA or unaligned sequence file using frahmmbuild (see Practice 2). If you already have a HMMER formated pHMM file you can convert it to a FraHMMER formated pHMM file using frahmmconvert (see Practice 3).
+
+### Practice 1 - Output pHMM with --hmmout flag.
+In this practice, you will use an MSA file as the query in a frahmmer search and output the pHMMs to file using the --hmmout flag.  
+
+First, cd into your FraHMMER directory then run the following command:
 ```bash
-Usage: frahmmer [options] <hmm, msa, or seq query file> <seq target file>
+   % frahmmer --hmmout tutorial/aaa.hmm tutorial/aaa.msa tutorial/seq1.fa
 ```
-We will cover a few basic optios, or flags, here but a full list can be viewed by running:
-```bash
-frahmmer -h
-```
+This command will turn the MSA in the file aaa.msa into a protein pHMM and then run a frameshift-aware translated homology search between that pHMM and the DNA sequences in the file seq1.fa.  A summary of the results, along with any alignments, will be printed to stdout.  For help interpreting these results see ???.  The --hmmout flag used in the above command directed frahmmer to print the pHMM to the file aaa.hmm.  By usinsing aaa.hmm as the query in any subsequent searches you will reduce the overall runtime. For an explanation of the contents of pHMM files see ???. 
+
+
+
+
 For a more detailed explination of all frahmmer options see: LINK GOES HERE
 
 

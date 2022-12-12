@@ -46,7 +46,6 @@ This command should produce the following output to stdout:
     1      Glucosamine_iso      PF01182.15         30     1.18    193 0.01000         1   0.59   0.62   0.54   0.02
     2      Ribosomal_S19e       PF01090.14         21     0.73    139 0.01000         1   0.59   0.59   0.53   0.02
     3      K_oxygenase          PF13434.1          14     0.70    337 0.01000         1   0.59   0.57   0.52   0.01
-```
 
 Some of the fields above will be more meaningful to you than others. A brief description of each field is provided below.
 

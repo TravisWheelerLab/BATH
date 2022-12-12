@@ -697,7 +697,6 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     }
     else
     {
-
       window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords   * 3));
       window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords   * 3) + 2); 
     }
@@ -2631,7 +2630,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    */
 
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
-	
     pli->pos_past_fwd += dna_window->length; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, dna_window->length, 0);

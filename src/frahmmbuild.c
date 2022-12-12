@@ -45,7 +45,7 @@ typedef struct {
   ESL_MSA    *msa;
   P7_HMM     *hmm;
   double      entropy;
-  int         force_single; /* FALSE by default,  TRUE if esl_opt_IsUsed(go, "--singlemx") ;  only matters for single sequences */
+  int         force_single; /* FALSE by default,  TRUE if esl_opt_IsUsed(go, "--single") ;  only matters for single sequences */
 } WORK_ITEM;
 
 typedef struct _pending_s {
@@ -69,8 +69,9 @@ static ESL_OPTIONS options[] = {
   { "-n",        eslARG_STRING,  NULL, NULL,   NULL,      NULL,      NULL,    NULL, "name the HMM <s>",                                      1 },
   { "-o",        eslARG_OUTFILE,FALSE, NULL,   NULL,      NULL,      NULL,    NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",        eslARG_OUTFILE,FALSE, NULL,   NULL,      NULL,      NULL,    NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
+  { "--single", eslARG_NONE,   FALSE, NULL,   NULL,   NULL,  NULL,           "",   "use single-sequence inputs",     1 },
   { "--fs",      eslARG_REAL,          "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty",                  1 },
-  { "-c",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n>",        1 }, 
+  { "-c",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> (see end of help)",        1 }, 
   /* Selecting the alphabet rather than autoguessing it */
   { "--amino",   eslARG_NONE,   FALSE, NULL, NULL,   ALPHOPTS,    NULL,     NULL, "input alignment is protein sequence data",              2 },
   { "--dna",     eslARG_NONE,   FALSE, NULL, NULL,   ALPHOPTS,    NULL,     NULL, "input alignment is DNA sequence data",                  2 },
@@ -105,11 +106,10 @@ static ESL_OPTIONS options[] = {
   { "--plaplace",eslARG_NONE,  FALSE,  NULL, NULL,       NULL,  NULL,   "--pnone", "use a Laplace +1 prior",                               9 },
 
   /* Single sequence methods */
-  { "--singlemx", eslARG_NONE,   FALSE, NULL,   NULL,   NULL,  NULL,           "",   "use substitution score matrix for single-sequence inputs",     10 },
-  { "--mx",     eslARG_STRING, "BLOSUM62", NULL, NULL,   NULL, NULL,   "--mxfile",   "substitution score matrix (built-in matrices, with --singlemx)", 10 },
-  { "--mxfile", eslARG_INFILE,     NULL, NULL,   NULL,   NULL, NULL,       "--mx",   "read substitution score matrix from file <f> (with --singlemx)", 10 },
-  { "--popen",    eslARG_REAL,  NULL,  NULL,"0<=x<0.5",NULL, NULL,           "",   "force gap open prob. (w/ --singlemx, aa default 0.02, nt 0.031)",  10 },
-  { "--pextend",  eslARG_REAL,  NULL,  NULL, "0<=x<1", NULL, NULL,           "",   "force gap extend prob. (w/ --singlemx, aa default 0.4, nt 0.75)",  10 },
+  { "--mx",     eslARG_STRING, "BLOSUM62", NULL, NULL,   NULL, NULL,   "--mxfile",   "substitution score matrix (built-in matrices, with --single)", 10 },
+  { "--mxfile", eslARG_INFILE,     NULL, NULL,   NULL,   NULL, NULL,       "--mx",   "read substitution score matrix from file <f> (with --single)", 10 },
+  { "--popen",    eslARG_REAL,  NULL,  NULL,"0<=x<0.5",NULL, NULL,           "",   "force gap open prob. (w/ --single, aa default 0.02, nt 0.031)",  10 },
+  { "--pextend",  eslARG_REAL,  NULL,  NULL, "0<=x<1", NULL, NULL,           "",   "force gap extend prob. (w/ --single, aa default 0.4, nt 0.75)",  10 },
 
   /* Control of E-value calibration */
   { "--EmL",     eslARG_INT,    "200", NULL,"n>0",       NULL,    NULL,      NULL, "length of sequences for MSV Gumbel mu fit",            6 },   
@@ -185,7 +185,7 @@ struct cfg_s {
 
 
 static char usage[]  = "[-options] <hmmfile_out> <msafile>";
-static char banner[] = "profile HMM construction from multiple sequence alignments";
+static char banner[] = "profile HMM construction from multiple sequence alignments or single sequences";
 
 static int  usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg);
 static void serial_loop  (WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPTS *go);
@@ -219,7 +219,7 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
   /* help format: */
   if (esl_opt_GetBoolean(go, "-h") == TRUE) 
     {
-      p7_banner(stdout, argv[0], banner);
+      //p7_banner(stdout, argv[0], banner); This is HMMER banner - need to format FraHMMER version
       esl_usage(stdout, argv[0], usage);
 
       if (puts("\nBasic options:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
@@ -298,7 +298,7 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
 {
   if (cfg->my_rank > 0)  return eslOK;
 
-  p7_banner(cfg->ofp, go->argv[0], banner);
+  // p7_banner(cfg->ofp, go->argv[0], banner); This is HMMER banner - need to format FraHMMER version
   
   if (fprintf(cfg->ofp, "# input alignment file:             %s\n", cfg->alifile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(cfg->ofp, "# output HMM file:                  %s\n", cfg->hmmfile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -336,7 +336,7 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
   if (esl_opt_IsUsed(go, "--EfL")        && fprintf(cfg->ofp, "# seq length for Fwd exp tau fit:   %d\n",        esl_opt_GetInteger(go, "--EfL"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--EfN")        && fprintf(cfg->ofp, "# seq number for Fwd exp tau fit:   %d\n",        esl_opt_GetInteger(go, "--EfN"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--Eft")        && fprintf(cfg->ofp, "# tail mass for Fwd exp tau fit:    %f\n",        esl_opt_GetReal(go, "--Eft"))        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--singlemx")   && fprintf(cfg->ofp, "# use score matrix for 1-seq MSAs:  on\n")                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--single")   && fprintf(cfg->ofp, "# use score matrix for 1-seq MSAs:  on\n")                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--popen")      && fprintf(cfg->ofp, "# gap open probability:             %f\n",         esl_opt_GetReal   (go, "--popen"))   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--pextend")    && fprintf(cfg->ofp, "# gap extend probability:           %f\n",         esl_opt_GetReal   (go, "--pextend")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--mx")         && fprintf(cfg->ofp, "# subst score matrix (built-in):    %s\n",         esl_opt_GetString (go, "--mx"))      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -590,7 +590,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       /* Default matrix is stored in the --mx option, so it's always IsOn().
        * Check --mxfile first; then go to the --mx option and the default.
        */
-      if ( esl_opt_IsUsed(go, "--singlemx") ) {
+      if ( esl_opt_IsUsed(go, "--single") ) {
         char  *mx      = esl_opt_GetString(go, "--mx");
 
         if ( cfg->abc->type == eslDNA || cfg->abc->type == eslRNA ) {
@@ -962,7 +962,7 @@ mpi_worker(const ESL_GETOPTS *go, struct cfg_s *cfg)
       /* Build the HMM */
       ESL_DPRINTF2(("worker %d: has received MSA %s (%d columns, %d seqs)\n", cfg->my_rank, msa->name, msa->alen, msa->nseq));
 
-      if ( msa->nseq == 1 && esl_opt_IsUsed(go, "--singlemx")) {
+      if ( msa->nseq == 1 && esl_opt_IsUsed(go, "--single")) {
         //for, single sequence, use blosum matrix:
         sq = esl_sq_CreateDigital(cfg->abc);
         if ((status = esl_sq_FetchFromMSA(msa, 0, &sq)) != eslOK) { strcpy(errmsg, bld->errbuf); goto ERROR; }
@@ -1041,7 +1041,7 @@ serial_loop(WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPTS *go)
 
 
       /*         bg   new-HMM trarr gm   om  */
-      if ( msa->nseq == 1 && esl_opt_IsUsed(go, "--singlemx")) {
+      if ( msa->nseq == 1 && esl_opt_IsUsed(go, "--single")) {
         if ((status = esl_sq_FetchFromMSA(msa, 0, &sq)) != eslOK) p7_Fail("build failed: %s", bld->errbuf);
         if ((status = p7_SingleBuilder(info->bld, sq, info->bg, &hmm, NULL, NULL, NULL)) != eslOK) p7_Fail("build failed: %s", bld->errbuf);
         esl_sq_Destroy(sq);
@@ -1050,7 +1050,7 @@ serial_loop(WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPTS *go)
       } else {
         if ((status = p7_Builder(info->bld, msa, info->bg, &hmm, NULL, NULL, NULL, postmsa_ptr )) != eslOK) p7_Fail("build failed: %s", bld->errbuf);
 
-        //if not --singlemx, but the user set the popen/pextend flags, override the computed gap params now:
+        //if not --single, but the user set the popen/pextend flags, override the computed gap params now:
         if (info->bld->popen != -1 || info->bld->pextend != -1) {
           apply_fixed_gap_params(hmm, info->bld->popen, info->bld->pextend);
         }
@@ -1102,7 +1102,7 @@ thread_loop(ESL_THREADS *obj, ESL_WORK_QUEUE *queue, struct cfg_s *cfg, const ES
       esl_msafile_ReadFailure(cfg->afp, sstatus);
 	  
     if (sstatus == eslOK) {
-      item->force_single = esl_opt_IsUsed(go, "--singlemx");
+      item->force_single = esl_opt_IsUsed(go, "--single");
       status = esl_workqueue_ReaderUpdate(queue, item, &newItem);
       if (status != eslOK) esl_fatal("Work queue reader failed");
 
@@ -1245,7 +1245,7 @@ pipeline_thread(void *arg)
         status = p7_Builder(info->bld, item->msa, info->bg, &item->hmm, NULL, NULL, NULL, &item->postmsa);
         if (status != eslOK) p7_Fail("build failed: %s", info->bld->errbuf);
 
-        //if not --singlemx, but the user set the popen/pextend flags, override the computed gap params now:
+        //if not --single, but the user set the popen/pextend flags, override the computed gap params now:
         if (info->bld->popen != -1 || info->bld->pextend != -1) {
           apply_fixed_gap_params(item->hmm, info->bld->popen, info->bld->pextend);
         }
@@ -1283,20 +1283,20 @@ output_result(const struct cfg_s *cfg, char *errbuf, int msaidx, ESL_MSA *msa, P
   if (msa == NULL)
   {
     if (cfg->abc->type == eslAMINO) {
-      if (fprintf(cfg->ofp, "#%4s %-20s %5s %5s %5s %8s %6s %s\n", " idx", "name",                 "nseq",  "alen",  "mlen",  "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-      if (fprintf(cfg->ofp, "#%4s %-20s %5s %5s %5s %8s %6s %s\n", "----", "--------------------", "-----", "-----", "-----", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %8s %6s %s\n", "idx", "name",                 "nseq",  "alen",  "mlen",  "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
     } else {
-      if (fprintf(cfg->ofp, "#%4s %-20s %5s %5s %5s %5s %8s %6s %s\n", " idx", "name",                 "nseq",  "alen",  "mlen",  "W", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-      if (fprintf(cfg->ofp, "#%4s %-20s %5s %5s %5s %5s %8s %6s %s\n", "----", "--------------------", "-----", "-----", "-----", "-----", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %5s %8s %6s %s\n", "idx", "name",                 "nseq",  "alen",  "mlen",  "W", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %5s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "-----", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
     }
     return eslOK;
   }
 //  if ((status = p7_hmm_Validate(hmm, errbuf, 0.0001))       != eslOK) return status;
-  if ((status = p7_hmmfile_WriteASCII(cfg->hmmfp, -1, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
+  if ((status = p7_hmmfile_WriteASCII(cfg->hmmfp, 7, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
 
 	             /* #   name nseq alen M max_length eff_nseq re/pos description */
   if (cfg->abc->type == eslAMINO) {
-    if (fprintf(cfg->ofp, "%-5d %-20s %5d %5" PRId64 " %5d %8.2f %6.3f %s\n",
+    if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %8.2f %6.3f %s\n",
           msaidx,
           (msa->name != NULL) ? msa->name : "",
           msa->nseq,

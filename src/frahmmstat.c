@@ -50,7 +50,7 @@ main(int argc, char **argv)
     }
   if (esl_opt_GetBoolean(go, "-h") == TRUE) 
     {
-      p7_banner(stdout, argv[0], banner);
+      //p7_banner(stdout, argv[0], banner); This is HMMER banner - need to format FraHMMER version
       esl_usage(stdout, argv[0], usage);
       puts("\nOptions:");
       esl_opt_DisplayHelp(stdout, go, 0, 2, 80); /* 0=docgroup, 2 = indentation; 80=textwidth*/
@@ -71,7 +71,7 @@ main(int argc, char **argv)
       exit(1);
     }
 
-  p7_banner(stdout, go->argv[0], banner);
+  //p7_banner(stdout, go->argv[0], banner); This is HMMER banner - need to format FraHMMER version
 
 
 
@@ -86,8 +86,8 @@ main(int argc, char **argv)
   /* Output header 
    */
   printf("#\n");
-  printf("# %-4s %-20s %-12s %8s %8s %6s %6s %6s %6s %6s\n", "idx",  "name",                 "accession",    "nseq",     "eff_nseq", "M",      "relent", "info",   "p relE", "compKL");
-  printf("# %-4s %-20s %-12s %8s %8s %6s %6s %6s %6s %6s\n", "----", "--------------------", "------------", "--------", "--------", "------", "------", "------", "------", "------");
+  printf("# %-6s %-20s %-12s %8s %8s %6s %6s %6s %6s %6s\n", "idx",  "name",                 "accession",    "nseq",     "eff_nseq", "M",      "relent", "info",   "p relE", "compKL");
+  printf("# %-6s %-20s %-12s %8s %8s %6s %6s %6s %6s %6s\n", "------", "--------------------", "------------", "--------", "--------", "------", "------", "------", "------", "------");
 
 
   /* Main body: read HMMs one at a time, print one line of stats per profile
@@ -106,7 +106,7 @@ main(int argc, char **argv)
       p7_MeanPositionRelativeEntropy(hmm, bg, &x); 
       p7_hmm_CompositionKLD(hmm, bg, &KL, NULL);
 
-      printf("%-6d %-20s %-12s %8d %8.2f %6d %6.2f %6.2f %6.2f %6.2f\n",
+      printf("  %-6d %-20s %-12s %8d %8.2f %6d %6.2f %6.2f %6.2f %6.2f\n",
 	     nhmm,
 	     hmm->name,
 	     hmm->acc == NULL ? "-" : hmm->acc,

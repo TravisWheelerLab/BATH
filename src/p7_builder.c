@@ -105,7 +105,8 @@ p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc)
     }
   }
 
-  bld->fs         = 0.0; //(go != NULL) ?  esl_opt_GetReal   (go, "--fs")         : 0.0;
+  bld->fs         = (go != NULL) ?  esl_opt_GetReal   (go, "--fs")         : 0.01;
+  bld->ct         = (go != NULL) ?  esl_opt_GetInteger(go, "-c")           : 1;
   bld->symfrac    = (go != NULL) ?  esl_opt_GetReal   (go, "--symfrac")    : 0.5; 
   bld->fragthresh = (go != NULL) ?  esl_opt_GetReal   (go, "--fragthresh") : 0.5; 
   bld->wid        = (go != NULL) ?  esl_opt_GetReal   (go, "--wid")        : 0.62;
@@ -436,6 +437,7 @@ p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg,
       hmm->t[i][p7H_II] = ESL_MIN(hmm->t[i][p7H_II], bld->max_insert_len*hmm->t[i][p7H_MI]);
 
   hmm->fs = bld->fs;
+  hmm->ct = bld->ct;
 
   if ((status =  effective_seqnumber  (bld, msa, hmm, bg))              != eslOK) goto ERROR;
   if ((status =  parameterize         (bld, hmm))                       != eslOK) goto ERROR;
@@ -519,6 +521,7 @@ p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq, P7_BG *bg, P7_HMM **opt_hmm,
   }
 
   hmm->fs = bld->fs;
+  hmm->ct = bld->ct;
 
   /* build a faux trace: relative to core model (B->M_1..M_L->E) */
   if (opt_tr != NULL) 

@@ -201,7 +201,7 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
   /* help format: */
   if (esl_opt_GetBoolean(go, "-h") == TRUE) 
     {
-      p7_banner(stdout, argv[0], banner);
+      // p7_banner(stdout, argv[0], banner); This is HMMER banner - need to format FraHMMER version
       esl_usage(stdout, argv[0], usage);
       if (puts("\nBasic options:")                                           < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 1, 2, 100); /* 1= group; 2 = indentation; 100=textwidth*/
@@ -260,7 +260,7 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
 static int
 output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
 {
-  p7_banner(ofp, go->argv[0], banner);
+  //p7_banner(ofp, go->argv[0], banner); This is HMMER banner - need to format FraHMMER version
   
   if (fprintf(ofp, "# query HMM file:                  %s\n", hmmfile)                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(ofp, "# target sequence database:        %s\n", seqfile)                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -486,6 +486,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              sstatus  = eslOK;
   int              i, d, h;
   float            indel_cost;
+  int              codon_table;
   double           resCnt    = 0;
   int               force_single = ( esl_opt_IsOn(go, "--singlemx") ? TRUE : FALSE );
   /* used to keep track of the lengths of the sequences that are processed */
@@ -658,7 +659,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   /* Get frameshift probabilities */
   indel_cost = esl_opt_GetReal(go, "--fs");
-
+  codon_table = esl_opt_GetInteger(go, "-c");
+ 
   if (status == eslOK)
   {
       /* One-time initializations after alphabet <abc> becomes known */
@@ -707,7 +709,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   /* Set up the genetic code. Default = NCBI 1, the standard code; allow ORFs to start at any aa   */
   gcode = esl_gencode_Create(abcDNA, abc);
-  esl_gencode_Set(gcode, esl_opt_GetInteger(go, "-c"));  // default = 1, the standard genetic code
+  esl_gencode_Set(gcode, codon_table);  // default = 1, the standard genetic code
 
    
   if      (esl_opt_GetBoolean(go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
@@ -761,9 +763,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         }
       }
       else { //check that HMM is properly formated for frahmmer
-        if( ! hmm->fs ) p7_Fail("HMM file %s not formated for frahmmer. Please run frahmmconvert.\n", cfg->queryfile);
+        if( ! (hmm->evparam[p7_FTAUFS] && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for frahmmer. Please run frahmmconvert.\n", cfg->queryfile);
         
         if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run frahmmcovert with option '--fs %f'.\n", indel_cost, cfg->queryfile, indel_cost);
+      
+      if( hmm->ct != esl_opt_GetInteger(go, "-c"))  p7_Fail("Requested codon tranlsation tabel id %d does not match the codon tranlsation tabel id in the HMM file %s. Please run frahmmcovert with option '-c %d'.\n", codon_table, cfg->queryfile, codon_table);
       }
 
       if(hmm->max_length == -1)

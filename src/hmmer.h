@@ -165,6 +165,7 @@ typedef struct p7_hmm_s {
   float **mat;                  /* match emissions.  mat[1..M][0..K-1]                     */ 
   float **ins;                  /* insert emissions. ins[1..M][0..K-1]                     */
   float   fs;                   /* frameshift probability.                                 */
+  int     ct;                   /* codon translationa table                                */
   /*::cexcerpt::plan7_core::end::*/
 
   /* Annotation. Everything but <name> is optional. Flags are set when
@@ -516,6 +517,7 @@ enum p7_hmmfile_formats_e {
   p7_HMMFILE_3d = 4,
   p7_HMMFILE_3e = 5,
   p7_HMMFILE_3f = 6,
+  p7_FraHMMER1a = 7,
 };
 
 typedef struct p7_hmmfile_s {
@@ -1435,7 +1437,7 @@ typedef struct p7_builder_s {
   enum p7_archchoice_e arch_strategy;    /* choice of model architecture determination algorithm   */
   float                symfrac;           /* residue occ thresh for fast architecture determination */
   float                fragthresh;   /* if L <= fragthresh*alen, seq is called a fragment      */
-  float                fs;           /* frameshift probability                                 */
+   
 
   /* Relative sequence weights                                                                     */
   enum p7_wgtchoice_e  wgt_strategy;     /* choice of relative sequence weighting algorithm        */
@@ -1476,6 +1478,11 @@ typedef struct p7_builder_s {
 
   const ESL_ALPHABET  *abc;     /* COPY of alphabet                                       */
   char errbuf[eslERRBUFSIZE];            /* informative message on model construction failure      */
+
+  /*FraHMMER parameters */
+  int                  ct;           /* NCBI codon translation table ID                        */
+  float                fs;           /* frameshift probability                                 */
+
 } P7_BUILDER;
 
 

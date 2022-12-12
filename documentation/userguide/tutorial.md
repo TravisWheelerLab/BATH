@@ -23,7 +23,7 @@ The Easel software suite developed by the Eddy/Rivas Lab (https://github.com/Edd
 
 The query file must contian the protiens you wish to search the against the target DNA. The prefered format for query files is a FraHMMER formated pHMM file (altough you may also use a multiple sequence alignment (MSA), or an unalgined sequence file - see practice # and #). Since a pHMM file may coanin any number of individual models it is usefull to be able to quickly sumerize the contents.  The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.
  
-**Practice 1 : summerizing a pHMM file with frahmmstat
+**Practice 1 : summerizing a pHMM file with frahmmstat**
 
 The file ggg.hmm contains three FraHMMER foramted pHMMs. By running the following comand we will get a set of facts about each of these pHMMs:
 

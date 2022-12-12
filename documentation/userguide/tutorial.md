@@ -184,7 +184,7 @@ id  description
 Since we did not use the --ct flag in Practice 2 the pHMMs in met.hmm were built with codon translation table 1, but these proteins actually come from endosymbiotic bacterial genomes which uses codon translation table 4.  In this practice, we will again build pHMMs from the MSAs in met.stk, but this time with the correct codon table via the --ct flag.  Run the following command and compare the output:
    
 ```bash
-   % frahmmbuild -c 4 met-C4.hmm met.stk
+   % frahmmbuild --ct 4 met-C4.hmm met.stk
 ```
    
 ```bash

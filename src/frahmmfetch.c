@@ -45,7 +45,7 @@ cmdline_help(char *argv0, ESL_GETOPTS *go)
   esl_usage (stdout, argv0, usage3);
   puts("\nOptions:");
   esl_opt_DisplayHelp(stdout, go, 0, 2, 80);
-  puts("\nAvailable NCBI genetic code tables (for -c <id>):");
+  puts("\nAvailable NCBI genetic code tables (for --ct <id>):");
   esl_gencode_DumpAltCodeTable(stdout);
   exit(0);
 }
@@ -57,7 +57,7 @@ static ESL_OPTIONS options[] = {
   { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          0 },
   { "-O",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
   { "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 0 },
-  { "-c",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
+  { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
   { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       0 },
   { 0,0,0,0,0,0,0,0,0,0 },
 };
@@ -254,7 +254,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             status;
 
   fs = esl_opt_GetReal(go, "--fs");
-  ct = esl_opt_GetInteger(go, "-c");
+  ct = esl_opt_GetInteger(go, "--ct");
 
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
   esl_fileparser_SetCommentChar(efp, '#');
@@ -336,7 +336,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   int             status;
 
   fs = esl_opt_GetReal(go, "--fs");
-  ct = esl_opt_GetInteger(go, "-c");
+  ct = esl_opt_GetInteger(go, "--ct");
 
   if (hfp->ssi != NULL)
     {

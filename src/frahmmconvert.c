@@ -16,7 +16,7 @@ static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,    NULL, "show brief help on version and usage",                             1 },
   { "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 1 },
-  { "-c",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
+  { "--ct",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -51,7 +51,7 @@ main(int argc, char **argv)
      if (puts("\nBasic options:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 1, 2, 80);
 
-     if (puts("\nAvailable NCBI genetic code tables (for -c <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+     if (puts("\nAvailable NCBI genetic code tables (for --ct <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_gencode_DumpAltCodeTable(stdout);
       exit(0);
   }
@@ -69,7 +69,7 @@ main(int argc, char **argv)
       if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hmmfile_in); 
 
       fs = esl_opt_GetReal(go, "--fs");
-      ct = esl_opt_GetInteger(go, "-c");
+      ct = esl_opt_GetInteger(go, "--ct");
  
       if(fs != hmm->fs || ct != hmm->ct)
         {

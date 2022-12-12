@@ -86,8 +86,8 @@ main(int argc, char **argv)
   /* Output header 
    */
   printf("#\n");
-  printf("# %-6s %-20s %-12s %8s %8s %6s %6s %6s %6s %6s\n", "idx",  "name",                 "accession",    "nseq",     "eff_nseq", "M",      "relent", "info",   "p relE", "compKL");
-  printf("# %-6s %-20s %-12s %8s %8s %6s %6s %6s %6s %6s\n", "------", "--------------------", "------------", "--------", "--------", "------", "------", "------", "------", "------");
+  printf("# %-6s %-20s %-12s %8s %8s %6s %7s %9s %6s %6s %6s %6s\n", "idx",    "name",                 "accession",    "nseq",     "eff_nseq", "mlen",   "fs prob", "codon tbl", "relent", "info",   "p relE", "compKL");
+  printf("# %-6s %-20s %-12s %8s %8s %6s %7s %9s %6s %6s %6s %6s\n", "------", "--------------------", "------------", "--------", "--------", "------", "-------", "---------", "------", "------", "------", "------");
 
 
   /* Main body: read HMMs one at a time, print one line of stats per profile
@@ -106,13 +106,15 @@ main(int argc, char **argv)
       p7_MeanPositionRelativeEntropy(hmm, bg, &x); 
       p7_hmm_CompositionKLD(hmm, bg, &KL, NULL);
 
-      printf("  %-6d %-20s %-12s %8d %8.2f %6d %6.2f %6.2f %6.2f %6.2f\n",
+      printf("  %-6d %-20s %-12s %8d %8.2f %6d %7.5f %9d %6.2f %6.2f %6.2f %6.2f\n",
 	     nhmm,
 	     hmm->name,
 	     hmm->acc == NULL ? "-" : hmm->acc,
 	     hmm->nseq,
 	     hmm->eff_nseq,
 	     hmm->M,
+             hmm->fs,
+             hmm->ct,
 	     p7_MeanMatchRelativeEntropy(hmm, bg),
 	     p7_MeanMatchInfo(hmm, bg),
 	     x,

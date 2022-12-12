@@ -125,7 +125,7 @@ static ESL_OPTIONS options[] = {
 #endif
 
   /* name           type        default  env  range toggles reqs incomp  help                                          docgroup*/
-  { "-c",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 15 },
+  { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 15 },
   { "-l",         eslARG_INT,      "20", NULL, NULL, NULL,  NULL, NULL,  "minimum ORF length",                            15 },
   { "-m",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-M",  "ORFs must initiate with AUG only",              15 },
   { "-M",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-m",  "ORFs must start with allowed initiation codon", 15 },
@@ -227,7 +227,7 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
       if (puts("\nOther expert options:")                                    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 12, 2, 100); 
       
-      if (puts("\nAvailable NCBI genetic code tables (for -c <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nAvailable NCBI genetic code tables (for --ct <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_gencode_DumpAltCodeTable(stdout);
 
 	  exit(0);
@@ -312,7 +312,7 @@ if (esl_opt_IsUsed(go, "--qformat")    && fprintf(ofp, "# query format asserted:
 #ifdef HMMER_THREADS
   if (esl_opt_IsUsed(go, "--cpu")        && fprintf(ofp, "# number of worker threads:        %d\n",             esl_opt_GetInteger(go, "--cpu"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
 #endif
-  if (esl_opt_IsUsed(go, "-c")           && fprintf(ofp, "# use alt genetic code of NCBI transl table: %d\n",             esl_opt_GetInteger(go, "-c")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--ct")           && fprintf(ofp, "# use alt genetic code of NCBI transl table: %d\n",             esl_opt_GetInteger(go, "--ct")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-l")           && fprintf(ofp, "# minimum ORF length: %d\n",                           esl_opt_GetInteger(go, "-l"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-m")           && fprintf(ofp, "# ORFs must initiate with AUG only:    yes\n")                                                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-M")           && fprintf(ofp, "# ORFs must start with allowed initiation codon:    yes\n")                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -659,7 +659,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   /* Get frameshift probabilities */
   indel_cost = esl_opt_GetReal(go, "--fs");
-  codon_table = esl_opt_GetInteger(go, "-c");
+  codon_table = esl_opt_GetInteger(go, "--ct");
  
   if (status == eslOK)
   {
@@ -767,7 +767,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         
         if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run frahmmcovert with option '--fs %f'.\n", indel_cost, cfg->queryfile, indel_cost);
       
-      if( hmm->ct != esl_opt_GetInteger(go, "-c"))  p7_Fail("Requested codon tranlsation tabel id %d does not match the codon tranlsation tabel id in the HMM file %s. Please run frahmmcovert with option '-c %d'.\n", codon_table, cfg->queryfile, codon_table);
+      if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon tranlsation tabel id %d does not match the codon tranlsation tabel id in the HMM file %s. Please run frahmmcovert with option '--ct %d'.\n", codon_table, cfg->queryfile, codon_table);
       }
 
       if(hmm->max_length == -1)

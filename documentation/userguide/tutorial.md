@@ -1,160 +1,210 @@
 # Tutorial
 
-Once you have installed and built FraHMMER you will ba able to use the main search tool - frahmmer - as well as several support tools to help create, format and anayisis profile hidden Markov model (pHMM) files. You will also have access to the suite of easel miniapps developed by the Eddy/Rivas Lab (for details on easel tools see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf). This tutorial will focus on getting you familiar with the FraHMMER specific tools that will allow you to perform frameshift-aware translated homology searchs.
+Once you have built FraHMMER you will be able to use the main search tool - frahmmer - as well as several support tools. This tutorial will focus on a basic introduction to using the FraHMMER tools and files that will allow you to perform frameshift-aware translated homology searches. The following is a list of those tools.
 
-## Step 1 - preparing input files
+**frahmmstat***   - show summary statistics for a FraHMMER formated pHMM file 
+**frahmmbuild**   - build and save FraHMMER formated pHMMs from multiple sequence alignment (MSA) files
+**frahmmconvert** - cconvert HMMER formated pHMM files to FraHMMER formated pHMM files
+**frahmmfetch**   - copy selected pHMMs from one pHMM file to a new pHMM file (converting to FraHMMER format if necessary) 
+**frahmmemit**    - generate sample sequences from a FraHMMER formated pHMM 
+**frahmmer**      - search one or more protein pHMMs against a DNA sequence database using frameshift aware translation
 
-Every frahmmer search requires two input files - a query and a target.  The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip.
+If you desire more information on these tools than is provided in this tutoria, see the man pages. All files necessary to complete the practices below are located in the directory FraHMMER/tutorial/. Please cd into that directory before you proceed with the practices bellow.  If you have not added FraHMMER executables to your path (e.g. by running 'make install') you will need to include the full path to the FraHMMER/src/ to the start of any FraHMMER tool commands. 
 
-The query file may be either a (1) pHMM, (2) multiple sequence alignment (MSA), or (3) unalgined sequence file.
-In case (2) and (3), each MSA or unalgined sequence will be coverted to a pHMM.  Building there pHMM can be computationally expensive so it is recomended to either build and save them with frahmmbuild before searching, or to use the frahmmer flag --hmmout to save the pHMMs to a file. 
-
-### Practice 1 - Build HMM with frahmmbuild.
-
-**1)** The tool frahmmbuild takes two arguments.  
-'''bash
-   % Usage: frahmmbuild [-options] <hmmfile_out> <msafile>
-'''
+<details><summary>Step 1 - File types</summary>
+<p>
    
-first the name of the file you would like the pHMM to printed to, and the name of the file containing the MSA(s) or the single sequence you would like ot build the pHMM form. 
+Before you begin using FraHMMER, it will be helpful to become familiar with the file types that are required for each frahmmer search. To conduct a frahmmer search you will need a query file and a target file. The target file must include one or more DNA sequences in a recognizable unaligned single sequence or MSA format. Common single sequence formats include fasta, embl, and genbank. Common alignment formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-After cding into your FraHMMER directory run:
-```bash
-   % frahmmbuild tutorial/xxx.hmm tutorial/xxx.msa
-```
-**2)** This will create the file xxx.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file yyy.hmm.  If the diff comand bellow produces no output then frahmmbuild is working correctly. 
-```bash
-   % diff tutorial/xxx.hmm tutorial/yyy.hmm
-```
+The Easel software suite developed by the Eddy/Rivas Lab (https://github.com/EddyRivasLab/easel) includes several miniapps designed to easily perform a number of operations on MSA and unaligned single sequence files (see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf page 145-204). If you have already installed HMMER (https://github.com/EddyRivasLab/hmmer) you will also have installed the Easel miniapps. To avoid overwriting such a previous install, the miniapps are built but not installed with FraHMMER. If you do not have, nor desire to have, HMMER installed you can still use the miniapps with FraHMMER by including the full path to FraHMMER/easel/miniapps/ to each command.
 
-### Practice 2 - Outpur HMM with --hmmout flag.
+The query file must contain the proteins you wish to search against the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use a multiple sequence alignment (MSA), or an unaligned sequence file - see practice #TBD). Since a pHMM file may contain any number of individual models it is useful to be able to quickly summarize the contents.  The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  To try using frahmmstat, and learn how to interpret its output, click on Practice 1 below and follow the instructions. 
 
-**1)** Build an HMM file from a single sequence file and print to an HMM file using the --hmmout flag for frahmmer
-   Endsure you are still in the FraHMMER directory and run:
-```bash
-   % frahmmer --hmmout tutorial/aaa.hmm -o tutorial/aaa.aliout tutorial/aaa.fa tutorial/seq1.fa
-```
-   This will create the file aaa.hmm and output a FraHMMER foramted HMM to that file. To ensure that the file was built properly you can compare it to the pre-built file bbb.hmm.  If the diff comand bellow produces no output then the --hmmout flag is working correctly. 
-```bash
-   % diff tutorial/aaa.hmm tutorial/bbb.hmm
-```      
-**Optional:**. If you would like to understand the contents on HMM files follow this link : LINK GOES HERE
-
-## Step 2 - running frahmmer
-
-Now that you know all three methods for creating FraHMMER formated HMM files, you are ready to run a frahmmer homology search. The usage for frahmmer is as follows:
-```bash
-Usage: frahmmer [options] <hmm, msa, or seq query file> <seq target file>
-```
-We will cover a few basic optios, or flags, here but a full list can be viewed by running:
-```bash
-   frahmmer -h
-```
-For a more detailed explination of all frahmmer options see: LINK GOES HERE
-
-
- You already ran frahmmer when you used the --hmmout flag to build the aaa.hmm file from a single sequence file.  The alignments for this search were directed to the file tutorial/aaa.aliout.  To check that this output is correct run the following:
-```bash
-   % diff tutorial/aaa.aliout tutorial/bbb.aliout
-```    
-**2)** Now you will run frahmmer using the HMM file you created with frahmmbuild.  The -o flag will be used to redirect the alignments to tutorial/xxx.aliout and the --tblout flag will be used to gernerate a table listing each hit with all relevant data. 
-```bash
-   % frahmmer -o tutorial/xxx.aliout --tblout tutorial/xxx.tblout tutorial/xxx.hmm tutorial/seq2.fa 
-```
-
-To cheack that the table output is correct run the following:
-```bash
-   % diff tutorial/xxx.tblout tutorial/xxx.tblout
-``` 
-
-**Options** 
-
-Basic Options:<br>
-|Flag  | Description |
-|:---|:---|
-|**-h** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Help; print a brief reminder of command line usage and all available options|                                               
-            
-Options directing output:
-| Flag | Description |
-| :--- | :--- |
-| **-o \<f>** | Direct the main human-readable output to a file \<f> instead of the default stdout. |
-| **-A \<f>** | Save a multiple alignment of all significant hits (those satisfying "inclusion thresholds") to the file \<f>. |
-| **--tblout \<f>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Save a simple tabular (space-delimited) file summarizing the per-target output, with one data line per homologous target sequence found. |
-| **--fstblout \<f>** | Save a simple tabular (space-delimited) file \<f> of the frameshift locations for each alignment. |
-| **--hmmout \<f>** | If queryfile is sequence-based, write the internally-computed HMM(s) to file \<f>. |
-| **--acc** | Use accessions instead of names in the main output, where available for profiles and/or sequences. |
-| **--noali** | Omit the alignment section from the main output. This can greatly reduce the output volume. |
-| **--notrans** | Omit the translated DNA sequence in the alignment output. |
-| **--frameline** | Include the frame of each codon in the alignment output. |
-| **--notextw** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Unlimit the length of each line in the main output. The default is a limit of 120 characters per line, which helps in displaying the output cleanly on terminals and in editors, but can truncate target profile description lines.|
-|**--textw \<n>**| Set the main output’s line length limit to \<n> characters per line. The default is 120. |
-            
-Options controlling translation:
-| Flag | Description |
-| :--- | :--- |   
-| **-c \<id>** | Choose alternative genetic code <id> where <id> is the numerical code of one of the NCBI transl_tables. |
-| **-l \<n>** | Set the minimum reported ORF length to \<n> aa. |
-| **-m**      | Require ORFs to start with an initiator codon AUG (Met). |
-| **-M** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Require ORFs to start with an initiator codon, as specified by the allowed initiator codons in the NCBI transl_table. In the default Standard code, AUG, CUG, and UUG are allowed as initiators. An initiation codon is always translated as Met even if it does not normally encode Met as an elongator. |
-| **--fs \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Set the frameshift probabilty.  \<x> equals the probabilty of a emitting a psuedo-codon with a single nucleotide indel (defaults to 0.01).  For psuedo-codons with a two nucleotide indel the probability will be \<x>/2. The accepted range is 0.001<=\<x><=0.05. |
-| **--rosalind** | Only align the top strand. |
-| **--franklin** | Only align the bottom strand. |
-            
-Options controlling reporting thresholds:
-| Flag | Description |
-| :--- | :--- |   
-| **-E \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Report target sequences with an E-value of <= \<x>. The default is 10.0, meaning that on average, about 10 false positives will be reported per query, so you can see the top of the noise and decide for yourself if it’s really noise. |
-| **-T \<x>**  | Instead of thresholding output on E-value, instead report target sequences with a bit score of >= \<x>. |
-            
-Options controlling inclusion (significance) thresholds:
-| Flag | Description |
-| :--- | :--- |   
-| **--incE \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Use an E-value of <= \<x> as the inclusion threshold. The defaul is 0.01, meaning that on average, about 1 false positive would be expected in every 100 searches with different query sequences. |
-| **--incT \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Instead of using E-values for setting the inclusion threshold, use a bit score of >= \<x> as the inclusion threshold. By default this option is unset. |
-            
-Options controlling acceleration heuristics:
-| Flag | Description |
-| :--- | :--- |   
-| **--max** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Maximum sensitivity. Turn off all filters, including the bias filter, and run full Forward/Backward postprocessing on every target. This increases sensitivity slightly, at a large cost in speed. |
-| **--F1 \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Set the P-value threshold for the MSV filter step. The default is 0.02, meaning that roughly 2% of the highest scoring nonhomologous targets are expected to pass the filter. |
-| **--F2 \<x>** | Set the P-value threshold for the Viterbi filter step. The default is 0.001. |
-| **--F3 \<x>** | Set the P-value threshold for the Forward filter step. The default is 1e-5. |
-| **--nobias** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Turn off the bias filter. This increases sensitivity somewhat, but can come at a high cost in speed, especially if the query has biased residue composition (such as a repetitive sequence region, or if it is a membrane protein with large regions of hydrophobicity). Without the bias filter, too many sequences may pass the filter with biased queries, leading to slower than expected performance as the computationally intensive Forward/Backward algorithms shoulder an abnormally heavy load. |
-| **--nonull2** | Turn off the null2 score corrections for biased composition. |
-| **--fsonly** | Turn off standard Forward filter, using only the frameshift aware Forward filter and pipeline. |
-            
-Other expert options:
-| Flag | Description |
-| :--- | :--- |   
-| **-Z \<x>**  | Assert that the total number of targets in your searches is \<x>, for the purposes of per-sequence E-value calculations, rather than the actual number of targets seen. |
-| **--seed \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Set the random number seed to \<n>. Some steps in postprocessing require Monte Carlo simulation. The default is to use a fixed seed (42), so that results are exactly reproducible. Any other positive integer will give different (but also reproducible) results. A choice of 0 uses a randomly chosen seed. |
-| **--w_beta \<x>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Window length tail mass. The upper bound, W, on the length at which FraHMMER expects to find an instance of the model is set such that the fraction of all sequences generated by the model with length >= W is less than <x>. The default is 1e-7. This flag may be used to override the value of W established for the model by frahmmbuild, or when the query is sequence based. |
-|**--w_length \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Override the model instance length upper bound, W, which is otherwise controlled by --w_beta. It should be larger than the model length. The value of W is used deep in the acceleration pipeline, and modest changes are not expected to impact results (though larger values of W do lead to longer run time). This flag may be used to override the value of W established for the model by hmmbuild, or when the query is sequence-based. |
-| **--qformat \<s>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Assert that input queryfile is a sequence file (unaligned or aligned), in format \<s>, bypassing format autodetection. Common choices for \<s> include: fasta, embl, genbank. Alignment formats also work, and will serve as the basis for automatic creation of a profile HMM used for searching; common choices include: stockholm, a2m, afa, psiblast, clustal, phylip. |
-|**--qsingle_seqs** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Force queryfile to be read as individual sequences, even if it is in an msa format. For example, if the input is in aligned stockholm format, the --qsingle_seqs flag will cause each sequence in that alignment to be used as a seperate query sequence. |
-| **--tformat \<s>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Assert that target sequence file seqfile is in format \<s>, bypassing format autodetection. Common choices for \<s> include: fasta, embl, genbank. Alignment formats also work; common choices include: stockholm, a2m, afa, psiblast, clustal, phylip. For more information, and for codes for some less common formats, see main documentation. The string \<s> is case-insensitive (fasta or FASTA both work). |
-| **--block_length \<n>** | The input sequence is broken into blocks of size \<n> million letters. |
-| **--cpu \<n>** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Set the number of parallel worker threads to \<n>. On multicore machines, the default is 2. You can also control this number by setting an environment variable, HMMER_NCPU. There is also a master thread, so the actual number of threads that frahmmsearch spawns is \<n>+1. This option is not available if FraHMMER was compiled with POSIX threads support turned off. |
+<details><summary>Practice 1 : summarizing a pHMM file with frahmmstat</summary>
+<p>
    
-Available NCBI genetic code tables (for -c \<id>):
-| id | Description |
-| :--- | :--- |   
-| 1 | Standard |
-| 2 | Vertebrate mitochondrial |
-| 3 | Yeast mitochondrial |
-| 4 | Mold, protozoan, coelenterate mitochondrial; Mycoplasma/Spiroplasma |
-| 5 | Invertebrate mitochondrial |
-| 6 | Ciliate, dasycladacean, Hexamita nuclear |
-| 9 | Echinoderm and flatworm mitochondrial |
-| 10 | Euplotid nuclear |
-| 11 | Bacterial, archaeal; and plant plastid |
-| 12 | Alternative yeast |
-| 13 | Ascidian mitochondrial |
-| 14 | Alternative flatworm mitochondrial |
-| 16 | Chlorophycean mitochondrial |
-| 21 | Trematode mitochondrial |
-| 22 | Scenedesmus obliquus mitochondrial |
-| 23 | Thraustochytrium mitochondrial |
-| 24 | Pterobranchia mitochondrial |
-| 25 | Candidate Division SR1 and Gracilibacteria |
+```bash
+   Usage: frahmmstat [-options] <hmmfile>
+```
+   
+The file GRK.hmm contains three FraHMMER formated pHMMs. By running the following command we will get a set of facts about each of these pHMMs:
+   
+```bash
+   % frahmmstat GRK.hmm
+```
+This command should produce the following output to stdout:
+
+```bash
+  #
+  # idx    name                 accession        nseq eff_nseq   mlen fs prob codon tbl relent   info p relE compKL
+  # ------ -------------------- ------------ -------- -------- ------ ------- --------- ------ ------ ------ ------
+    1      Glucosamine_iso      PF01182.15         30     1.18    193 0.01000         1   0.59   0.62   0.54   0.02
+    2      Ribosomal_S19e       PF01090.14         21     0.73    139 0.01000         1   0.59   0.59   0.53   0.02
+    3      K_oxygenase          PF13434.1          14     0.70    337 0.01000         1   0.59   0.57   0.52   0.01
+```
+
+Some of the fields above will be more meaningful to you than others. A brief description of each field is provided below.
+
+```
+idx            Number, in order in the database.
+
+name           Name of the profile.
+
+accession      Accession (if present; else ’-’).
+
+nseq           Number of sequences in the alignment this profile was built from.
+
+eff_nseq       Effective sequence number. This was the “effective” number of independent sequences that hmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. 
+
+mlen           Length of the profile in consensus residues (match states).
+   
+fs prob        The probability of a single nucleotide indel - resulting in a frameshift - used to calculate important E-value parameters. This will need to match the frameshift probability used by any frahmmer search with this pHMM as the query.  
+   
+codon tbl      The NCBI codon translation table ID is used to calculate important E-value parameters. This will need to match the codon table used by any frahmmer search with this pHMM as the query.
+
+relent         Mean relative entropy of the match state emission probabilities, relative to default null background frequencies, in bits. This is the average bit score per aligned consensus residue. This quantity is the target of frahmmbuild’s entropy weighting procedure for determining eff_nseq.
+
+info           Mean information content per match state emission probability vector, in bits. Probably not useful to you. Information content is just a slightly different calculation from relent.
+
+p relE         Mean positional relative entropy, in bits. Also probably not useful to you. This is an average relative entropy per position that takes into account the transition (insertion/deletion) probabilities. It should be a more accurate estimation of the average bit score contributed per aligned model consensus position.
+
+compKL         Kullback-Leibler (KL) divergence from the average composition of the profile’s consensus match states to the default background frequency distribution, in bits. The higher this number, the more biased the residue composition of the profile is. Highly biased profiles may produce more false positives in searches, and can also slow the acceleration pipeline, by causing too many nonhomologous sequences to pass the filters. 
+
+```
+</p>
+</details>
+   
+</p>
+</details>
+
+<details><summary>Step 2 - Preparing pHMM files</summary>
+<p>
+
+The sensitivity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and almost identical to the ones used by HMMER, but they contain additional information needed to perform accurate translations and provide reliable e-values. Three of FraHMMERs five tools (frahmmbuild, frahmmconvert, and frahmmfetch) are used mainly to create or manipulate FraHMMER formated pHMM files. Practices 2 thru #TBD will cover the use of these tools.
+
+<details><summary>Practice 2 : building pHMMs from MSAs using frahmmbuild</summary>
+<p>
+   
+```bash
+   Usage: frahmmbuild [-options] <hmmfile_out> <msafile>
+```   
+
+The file met.stk contains two stokholm formated protein MSAs (note that stokholm is the only format which allows multiple MSAs in a single file). In this pracitce you will use the frahmmbuild command to build pHMMs from those MSAs and save them to the file JB.hmm. Run the following comand... 
+
+```bash
+   % frahmmbuild met.hmm met.stk
+```
+...and compare the summary output that is printed to your stdout to the text below (the exact CPU and Elapsed time will vary):
+   
+```bash
+   # input alignment file:             met.stk
+   # output HMM file:                  met.hmm
+   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   # idx    name                  nseq  alen  mlen fs prob codon tbl eff_nseq re/pos description
+   # ------ -------------------- ----- ----- ----- ------- --------- -------- ------ -----------
+     1      metC                    11   487   409 0.01000         1     0.60  0.588
+     2      metH                     8  1214  1204 0.01000         1     0.57  0.589
+
+   # CPU time: 8.04u 0.01s 00:00:08.04 Elapsed: 00:00:06.01
+```
+
+Some of the fields above will be more meaningful to you than others.  A brief description of each field is provided below.
+
+```
+idx            Number, in order in the database.
+
+name           Name of the profile.
+
+nseq           Number of sequences in the alignment this profile was built from.
+
+alen           Length of alignment - number of columns in the MSA.
+
+mlen           Length of the profile in consensus residues (match states).
+   
+fs prob        The probability of a single nucleotide indel - resulting in a frameshift - used to calculate important E-value parameters. This will need to match the frameshift probability used by any frahmmer search with this pHMM as the query.
+   
+codon tbl      The NCBI codon translation table ID is used to calculate important E-value parameters. This will need to match the codon table used by any frahmmer search with this pHMM as the query.
+
+eff_nseq       Effective sequence number. This was the “effective” number of independent sequences that hmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. 
+
+re/pos         Mean positional relative entropy, in bits. 
+
+description    Description of the protein family - may be blank.
+```
+
+To check that the pHMMs were built and writen correctly, run frahmmstat on met.hmm and compare your output to the text below:
+
+```bash
+  % frahmmstat met.hmm
+```
+   
+```bash
+   #
+   # idx    name                 accession        nseq eff_nseq   mlen fs prob codon tbl relent   info p relE compKL
+   # ------ -------------------- ------------ -------- -------- ------ ------- --------- ------ ------ ------ ------
+     1      metC                 -                  11     0.60    409 0.01000         1   0.59   0.60   0.52   0.02
+     2      metH                 -                   8     0.57   1204 0.01000         1   0.59   0.60   0.52   0.02
+```
+</p>
+</details>
+ 
+<details><summary>Practice 3 : building pHMMs from MSAs using frahmmbuild with a non-standard codon translation table</summary>
+<p>
+
+```bash
+   Usage: frahmmbuild [-options] <hmmfile_out> <msafile>
+```  
+   
+One of the fields that distinguishes a FraHMMER formatted pHMM file from an HMMER formated pHMM file is an NCBI codon translation table ID (for more information see https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. Matching the codon table of your target sequence to the one used to build your query will have an impact on the accuracy of the reported e-values when running a frahmmer search. By default, frahmmbuild will use the standard code used by eukaryotic nuclear DNA.  To use an alternate codon translation table include the option --ct followed by a table ID from the list below:
+   
+```bash
+id  description
+--- -----------------------------------
+  1 Standard
+  2 Vertebrate mitochondrial
+  3 Yeast mitochondrial
+  4 Mold, protozoan, coelenterate mitochondrial; Mycoplasma/Spiroplasma
+  5 Invertebrate mitochondrial
+  6 Ciliate, dasycladacean, Hexamita nuclear
+  9 Echinoderm and flatworm mitochondrial
+ 10 Euplotid nuclear
+ 11 Bacterial, archaeal; and plant plastid
+ 12 Alternative yeast
+ 13 Ascidian mitochondrial
+ 14 Alternative flatworm mitochondrial
+ 16 Chlorophycean mitochondrial
+ 21 Trematode mitochondrial
+ 22 Scenedesmus obliquus mitochondrial
+ 23 Thraustochytrium mitochondrial
+ 24 Pterobranchia mitochondrial
+ 25 Candidate Division SR1 and Gracilibacteria
+```
+
+Since we did not use the --ct flag in Practice 2 the pHMMs in met.hmm were built with codon translation table 1, but these proteins actually come from endosymbiotic bacterial genomes which uses codon translation table 4.  In this practice, we will again build pHMMs from the MSAs in met.stk, but this time with the correct codon table via the --ct flag.  Run the following command and compare the output:
+   
+```bash
+   % frahmmbuild -c 4 met-C4.hmm met.stk
+```
+   
+```bash
+   # input alignment file:             met.stk
+   # output HMM file:                  met-C4.hmm
+   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   # idx    name                  nseq  alen  mlen fs prob codon tbl eff_nseq re/pos description
+   # ------ -------------------- ----- ----- ----- ------- --------- -------- ------ -----------
+     1      metC                    11   487   409 0.01000         4     0.60  0.588
+     2      metH                     8  1214  1204 0.01000         4     0.57  0.589
+
+   # CPU time: 8.03u 0.01s 00:00:08.03 Elapsed: 00:00:06.01
+```
+   
+You can see that the codon tbl column now says 4. Using the correct codon translation table improves the accuracy of alignments and e-values.  We will see the effect of this difference on a frahmmer search in practice #TBD. 
+   
+</p>
+</details>
+   
+</p>
+</details>
 

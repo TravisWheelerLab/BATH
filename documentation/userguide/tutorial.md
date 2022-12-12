@@ -3,10 +3,15 @@
 Once you have built FraHMMER you will be able to use the main search tool - frahmmer - as well as several support tools. This tutorial will focus on a basic introduction to using the FraHMMER tools and files that will allow you to perform frameshift-aware translated homology searches. The following is a list of those tools.
 
 **frahmmstat***   - show summary statistics for a FraHMMER formated pHMM file 
+
 **frahmmbuild**   - build and save FraHMMER formated pHMMs from multiple sequence alignment (MSA) files
+
 **frahmmconvert** - cconvert HMMER formated pHMM files to FraHMMER formated pHMM files
+
 **frahmmfetch**   - copy selected pHMMs from one pHMM file to a new pHMM file (converting to FraHMMER format if necessary) 
+
 **frahmmemit**    - generate sample sequences from a FraHMMER formated pHMM 
+
 **frahmmer**      - search one or more protein pHMMs against a DNA sequence database using frameshift aware translation
 
 If you desire more information on these tools than is provided in this tutoria, see the man pages. All files necessary to complete the practices below are located in the directory FraHMMER/tutorial/. Please cd into that directory before you proceed with the practices bellow.  If you have not added FraHMMER executables to your path (e.g. by running 'make install') you will need to include the full path to the FraHMMER/src/ to the start of any FraHMMER tool commands. 

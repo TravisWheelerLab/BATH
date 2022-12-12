@@ -2,7 +2,7 @@
 
 Once you have built FraHMMER you will be able to use the main search tool - frahmmer - as well as several support tools. This tutorial will focus on a basic introduction to using the FraHMMER tools and files that will allow you to perform frameshift-aware translated homology searches. The following is a list of those tools.
 
-**frahmmstat***   - show summary statistics for a FraHMMER formated pHMM file 
+**frahmmstat**   - show summary statistics for a FraHMMER formated pHMM file 
 
 **frahmmbuild**   - build and save FraHMMER formated pHMMs from multiple sequence alignment (MSA) files
 

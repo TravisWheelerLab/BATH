@@ -15,7 +15,7 @@ All files necessary to complete the practices below are located in the directory
 ```
 If you have not added FraHMMER executables to your path (e.g. by running 'make install') you will need to add the full path to the FraHMMER/src/ directory to the start of any FraHMMER commands. 
 
-## Step 1 - File types
+## Part 1 - Input files 
 
 Before you begin using FraHMMER, it will be helpful to become familar with the file types that are required for each frahmmer search. To cunduct a frahmmer search you will need a query file and a target file. The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
@@ -23,7 +23,9 @@ The Easel software suite developed by the Eddy/Rivas Lab (https://github.com/Edd
 
 The query file must contian the protiens you wish to search the against the target DNA. The prefered format for query files is a FraHMMER formated pHMM file (altough you may also use a multiple sequence alignment (MSA), or an unalgined sequence file - see practice # and #). Since a pHMM file may coanin any number of individual models it is usefull to be able to quickly sumerize the contents.  The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.
 
-### Practice 1 : summerizing a pHMM file with frahmmstat
+<details><summary>Practice 1 : summerizing a pHMM file with frahmmstat</summary>
+<p>
+
 
 The file GRK.hmm contains three FraHMMER foramted pHMMs. By running the following comand we will get a set of facts about each of these pHMMs:
 
@@ -68,11 +70,15 @@ compKL         Kullback-Leibler (KL) divergence from the average composition of 
 
 You will use frahmmstat several times in Step 2 as you get used to creating and manipulating pHMM files. 
 
-## Step 2 - Preparing pHMM files
+</p>
+</details>
+
+## Part 2 - Preparing pHMM files
 
 The sensativity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and almost identical to ones used by HMMER, but contains additional infomration needed to perform accurate translation and provide reliable e-values. Three of FraHMMERs five tools (frahmmbuild, frahmmconvert, and frahmmfetch) are used mainly to create or manipulate FraHMMER formated pHMM files. Practices 1 thru ? will cover the use of these tools.
 
-###Practice 2 : building a pHMM from and MSA using frahmmbuild 
+<details><summary>Practice 2 : building a pHMM from and MSA using frahmmbuild</summary>
+<p>
 
 The file JB.stk contains two stokholm formated protein MSAs (note that stokholm is the only format which allows multiple MSAs in a single file). In this pracitce you will use the frahmmbuild command to build pHMMs from those MSAs and dave them to the file JB.hmm. Run the following comand... 
 
@@ -124,8 +130,11 @@ To check that the pHMMs were built and writen correctly, run frahmmstat on JB.hm
   1      Jag_N                PF14804.1          30     5.01     52   1.07   1.16   1.04   0.07
   2      BMFP                 PF04380.8          30     1.48     79   0.72   0.76   0.67   0.08
 ```
+</p>
+</details>
 
-###Practice 2 : building a pHMM from and MSA using frahmmbuild with a non-standard codon translation table
+<details><summary>Practice 3 : building a pHMM from and MSA using frahmmbuild with a non-standard codon translation table</summary>
+<p>
 
 One of the fields that distingishes a FraHMMER fromated pHMM file from a HMMER formated pHMM file is a NCBI codon tranlsation table ID (for more information see https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search you pHMMs against. Matching the codon table of yout target sequence to the the one used to build your query will have an impact on the accuracy of the reported e-values when running a frahmmer search. By default frahmmbuild will use the standard code used by eukoriotic nuclear DNA.  To use an altenate codon translation table include the option -c followed by a table ID from the list bellow:
 
@@ -152,19 +161,12 @@ id  description
  25 Candidate Division SR1 and Gracilibacteria
 ```
 
+</p>
+</details>
 
-
-###Practice 2 : building a pHMM from single sequences using frahmmbuild 
-
-If you wish to build a seperate pHMM for each sequence in your MSA or unaligned sequence file you will need to use the flag "--singlemx".  The file bbb.fa continans the consencus seqeunces from the two MSAs in aaa.sto.  To build two pHMMs from these single sequences use the following command:
-
-```bash
-   % frahmmbuild --singlemx -c ?? bbb.hmm bbb.fa
-```
-
-# frahmmconvert
-
-**Practice 3 : converting a HMMER formated pHMM file to FraHMMER format using frahmmconvert
+<details><summary>Practice 4 : converting a HMMER formated pHMM file to FraHMMER format using frahmmconvert</summary>
+<p>
+   
 
 If you have an existing HMMER formated pHMM file, either one you built yourself or one you downloaded from a site such as PFAM, and want to use it to run a frahmmer search you will first need to covert it to the FraHMMER format. The file ccc.hmm contians three pHMMs in HMMER format. The following comand will create the FraHMMER formated file ddd.hmm containing the same three pHMMs:
 
@@ -173,28 +175,34 @@ If you have an existing HMMER formated pHMM file, either one you built yourself 
    % frahmmconvert ccc.hmm ddd.hmm
 ```
 
-# frahmmfetch
+</p>
+</details>
 
-**Practice 4 : copying and converting a single pHMM from larger pHMM file using frahmmfetch 
+<details><summary>Practice 5 : copying and converting a single pHMM from larger pHMM file using frahmmfetch </summary>
+<p>
+
 
 If you only need to search with a single pHMM but it is located in file with multiple pHMMs, you can save time by copying the desireed pHMM to a new file using frahmmfetch. If the originial pHMM file is in HMMER format, frahmmfeatch will aslo convert the selected pHMM to FraHMMER format. Use the following command to copy and convert the pHMM XXX from the HMMER formated pHMM file ccc.hmmm and write it it the file XXX.hmm:
 
 ```bash
    % frahmmfetch -o xxx.hmm ccc.hmm XXX
 ```
+</p>
+</details>
 
-**Practice 5 : copying multiple pHMMs from larger pHMM file using frahmmfetch 
+<details><summary>Practice 6 : copying multiple pHMMs from larger pHMM file using frahmmfetch </summary>
+<p>
+
 
 You can aslo use frahmmfetch to multiple pHMMs. To do so you will need to create a file contian the names of all the pHMMs you wish to copy.  
 
+</p>
+</details>
 
 
-**Practice 4 : copying a multiple pHMMs from larger pHMM file and converting to FraHMMR format using frahmmfetch 
+## Part 3 - Running frahmmer searches
 
 
-Every frahmmer search requires two input files - a query and a target. The target file must include one or more DNA sequences in a recognizable format. These sequences may be aligned or unaligned. Common unaligned sequence formats include fasta, embl, and genbank. Common alignment formats include stockholm, a2m, afa, psiblast, clustal, and phylip.
-
-The query file must be either a FraHMMER formatted protein pHMM file, a protein multiple sequence alignment (MSA) or an unaligned protein sequence file. If you use an MSA or an unaligned sequence file the pHMMs will need to be built before the search can proceed and it is recommended that you use the --hmmout flag to save these pHMMs to file for future use (see Practice 1). You can also prebuild and save the pHMMs from your MSA or unaligned sequence file using frahmmbuild (see Practice 2). If you already have a HMMER formated pHMM file you can convert it to a FraHMMER formated pHMM file using frahmmconvert (see Practice 3).
 
 
 

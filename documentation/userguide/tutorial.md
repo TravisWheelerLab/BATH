@@ -1,25 +1,24 @@
 # Tutorial
 
-Once you have built FraHMMER you will be able to use the main search tool - frahmmer - as well as the several support tools which help create and format profile hidden Markov model (pHMM) files. This tutorial will focus on getting you familiar with the FraHMMER tools and files that will allow you to perform frameshift-aware translated homology searches. The following is a list of those tools.
+This tutorial will focus on getting you familiar with FraHMMER.  It is split into three parts: (1) Input files, (2) Running searches, and (3) Output files, and includes practices that will provide you with specific instructions on using the FraHMMER tools below. 
 
-**frahmmstat***   - show summary statistics for a FraHMMER formated pHMM file
+**frahmmstat**   - show summary statistics for a FraHMMER formated pHMM file
+
 **frahmmbuild**   - build and save FraHMMER formated pHMM from an input multiple sequence alignment (MSA) or unaligned sequences file
+
 **frahmmconvert** - convert HMMER formated pHMM files to FraHMMER formated pHMM files
-**frahmmfetch**   - copy selected pHMMs from a HMMER or FraHMMER formated file (converting if necissary) to a new FraHMMER formated pHMM file
+
+**frahmmfetch**   - copy selected pHMMs from a HMMER or FraHMMER formatted file (converting if necessary) to a new FraHMMER formated pHMM file
+
 **frahmmer**      - search one or more protein pHMMs against a DNA sequence database
 
-All files necessary to complete the practices below are located in the directory FraHMMER/tutorial/. Run the following command to insure you are in the tutorial directotry before you proceed with the practices bellow.
-
-```bash
-   % cd /your_install_path/FraHMMER/tutorial/
-```
-If you have not added FraHMMER executables to your path (e.g. by running 'make install') you will need to add the full path to the FraHMMER/src/ directory to the start of any FraHMMER commands. 
+All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. You should cd into this directory before running the practice commands. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
 
 ## Part 1 - Input files 
 
 Before you begin using FraHMMER, it will be helpful to become familar with the file types that are required for each frahmmer search. To cunduct a frahmmer search you will need a query file and a target file. The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-The Easel software suite developed by the Eddy/Rivas Lab (https://github.com/EddyRivasLab/easel)inculdes several miniapps deignsed to easily perform a number opertations on MSA and unaligned sequence files (see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf page 145-204). If you have already installed HMMER (https://github.com/EddyRivasLab/hmmer) you will also have installed the Easel miniapps. To avoid overwiting such a pervious install the miniapps are built but not installed with FraHMMER. If you do not have, nor desire to have, HMMER installed you can still use the miniapps with FraHMMER by including the full path <~/your_install_directory/FraHMMER/easel/miniapps/> to each command.
+The Easel software suite developed by the Eddy/Rivas Lab (https://github.com/EddyRivasLab/easel)inculdes several tools deignsed to easily perform a number opertations on MSA and unaligned sequence files (see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf page 145-204). The execuctables for these tools are included with the install of Frahmmer at /your_install_path/FraHMMER/easel/miniapps/.
 
 The query file must contian the protiens you wish to search the against the target DNA. The prefered format for query files is a FraHMMER formated pHMM file (altough you may also use a multiple sequence alignment (MSA), or an unalgined sequence file - see practice # and #). Since a pHMM file may coanin any number of individual models it is usefull to be able to quickly sumerize the contents.  The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.
 

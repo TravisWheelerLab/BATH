@@ -1,6 +1,6 @@
 # Tutorial
 
-This tutorial will focus on getting you familiar with FraHMMER.  It is split into three parts: (1) Input files, (2) Running searches, and (3) Output files, and includes practices that will provide you with specific instructions on using the FraHMMER tools below. 
+This tutorial will focus on getting you familiar with FraHMMER. It is split into three sections: (1) Input files, (2) Running searches, and (3) Output files.  The included practices will provide you with specific instructions on using the FraHMMER tools below. 
 
 **frahmmstat**   - show summary statistics for a FraHMMER formated pHMM file
 
@@ -14,32 +14,124 @@ This tutorial will focus on getting you familiar with FraHMMER.  It is split int
 
 All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. You should cd into this directory before running the practice commands. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
 
-## Part 1 - Input files 
+## Section 1 - Input files 
 
-Before you begin using FraHMMER, it will be helpful to become familar with the file types that are required for each frahmmer search. To cunduct a frahmmer search you will need a query file and a target file. The target file must include one or more DNA sequences in a recognizable single sequence or multiple sequence alignment format. Common single sequence formats include: fasta, embl, and genbank. Common alignment formats include: stockholm, a2m, afa, psiblast, clustal, and phylip. 
+Before you begin using FraHMMER, it will be helpful to become familiar with the file types that are required as inputs. Each frahmmer search needs a protein query file and a DNA target file. The target file must include one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment (MSA) format. Common unaligned sequence formats include fasta, embl, and genbank. Common MSA formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-The Easel software suite developed by the Eddy/Rivas Lab (https://github.com/EddyRivasLab/easel)inculdes several tools deignsed to easily perform a number opertations on MSA and unaligned sequence files (see the HMMER user guide http://eddylab.org/software/hmmer/Userguide.pdf page 145-204). The execuctables for these tools are included with the install of Frahmmer at /your_install_path/FraHMMER/easel/miniapps/.
+FraHMMER includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
 
-The query file must contian the protiens you wish to search the against the target DNA. The prefered format for query files is a FraHMMER formated pHMM file (altough you may also use a multiple sequence alignment (MSA), or an unalgined sequence file - see practice # and #). Since a pHMM file may coanin any number of individual models it is usefull to be able to quickly sumerize the contents.  The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.
+The query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice # and #). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate these pHMM files.
 
-<details><summary>Practice 1 : summerizing a pHMM file with frahmmstat</summary>
+<details><summary>Practice 1: building a pHMM from an MSA using frahmmbuild</summary>
 <p>
 
+The sensitivity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and almost identical to the ones used by HMMER, but contains additional information needed to perform accurate frameshift-aware translations and provide reliable e-values.   FraHMMER formated pHMMs can be created from MSA files using the tool frahmmbuild. 
 
-The file GRK.hmm contains three FraHMMER foramted pHMMs. By running the following comand we will get a set of facts about each of these pHMMs:
+The file JB.stk contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). To build pHMMs from those MSAs and save them to the file JB.hmm. Run the following command:
 
 ```bash
-   % frahmmstat GRK.hmm
+   % frahmmbuild JB.hmm JB.stk
 ```
-This comand should produce the following output to stdout:
+Now compare the summary output that is printed to your stdout to the text below (the exact CPU and elapsed time will vary):
+
+```bash
+  # input alignment file:             JB.stk
+  # output HMM file:                  JB.hmm
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+  # idx    name                  nseq  alen  mlen eff_nseq re/pos description
+# ------ -------------------- ----- ----- ----- -------- ------ -----------
+  1      Jag_N                   30    60    52     5.01  1.066 Jag N-terminus
+  2      BMFP                    30   102    79     1.48  0.717 Membrane fusogenic activity
+
+# CPU time: 0.67u 0.00s 00:00:00.67 Elapsed: 00:00:00.41
+```
+The following is a brief description of each of the above fields. 
+
+```
+idx            Number, in order in the database.
+
+name           Name of the profile.
+
+nseq           Number of sequences in the alignment this profile was built from.
+
+alen           Length of alignment - number of columns in the MSA.
+
+mlen           Length of the profile in consensus residues (match states).
+
+eff_nseq       Effective sequence number. This was the “effective” number of independent sequences that frahmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. 
+
+re/pos         Mean positional relative entropy, in bits. 
+
+description Description of the protein family - may be blank.
+```
+</p>
+</details>
+
+<details><summary>Practice 2: building a pHMM from an MSA using frahmmbuild with a non-standard codon translation table</summary>
+<p>
+
+One of the fields that distinguishes a FraHMMER formatted pHMM file from a HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. Matching the codon table of the target sequence to the one used to build your query will have an impact on the accuracy of the reported e-values when running a frahmmer search. By default, frahmmbuild will use the standard code employed by eukaryotic nuclear DNA.  To use an alternate codon translation table include the option -c followed by a table ID from the list below:
+
+```bash
+id  description
+--- -----------------------------------
+  1 Standard
+  2 Vertebrate mitochondrial
+  3 Yeast mitochondrial
+  4 Mold, protozoan, coelenterate mitochondrial; Mycoplasma/Spiroplasma
+  5 Invertebrate mitochondrial
+  6 Ciliate, dasycladacean, Hexamita nuclear
+  9 Echinoderm and flatworm mitochondrial
+ 10 Euplotid nuclear
+ 11 Bacterial, archaeal; and plant plastid
+ 12 Alternative yeast
+ 13 Ascidian mitochondrial
+ 14 Alternative flatworm mitochondrial
+ 16 Chlorophycean mitochondrial
+ 21 Trematode mitochondrial
+ 22 Scenedesmus obliquus mitochondrial
+ 23 Thraustochytrium mitochondrial
+ 24 Pterobranchia mitochondrial
+ 25 Candidate Division SR1 and Gracilibacteria
+```
+
+The proteins that we used to build pHMMs in Practice 1 come from the genomes of endosymbiotic bacteria.  In a later practice, you will search them against the genome of another endosymbiotic bacteria which uses codon translation table 4. To rebuild the pHMMs using the correct run the following command:
+
+```bash
+   % frahmmbuild -c 4 JB4.hmm JB.stk
+```
+Now compare the summary output that is printed to your stdout to the text below (the exact CPU and elapsed time will vary):
+
+```bash
+  # input alignment file:             JB.stk
+  # output HMM file:                  JB.hmm
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+  # idx    name                  nseq  alen  mlen eff_nseq re/pos description
+# ------ -------------------- ----- ----- ----- -------- ------ -----------
+  1      Jag_N                   30    60    52     5.01  1.066 Jag N-terminus
+  2      BMFP                    30   102    79     1.48  0.717 Membrane fusogenic activity
+
+# CPU time: 0.67u 0.00s 00:00:00.67 Elapsed: 00:00:00.41
+```
+</p>
+</details>
+
+<details><summary>Practice 3: summerizing pHMM files with frahmmstat</summary>
+<p>
+
+Since a pHMM file may contain any number of individual models it is useful to be able to quickly summarize the contents.  The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  In this practice, you will compare the summaries of the two pHMM files made in practices 1 and 2.  First, run the following command to summarize the file built with the standard codon table. 
+```bash
+   % frahmmstat JB1.hmm
+```
+This command should produce the following output to stdout:
 
 ```bash
   #
   # idx    name                 accession        nseq eff_nseq      M relent   info p relE compKL
   # ------ -------------------- ------------ -------- -------- ------ ------ ------ ------ ------
-    1      Glucosamine_iso      PF01182.15         30     1.18    193   0.59   0.62   0.54   0.02
-    2      Ribosomal_S19e       PF01090.14         21     0.73    139   0.59   0.59   0.53   0.02
-    3      K_oxygenase          PF13434.1          14     0.70    337   0.59   0.57   0.52   0.01
+    
 ```
 
 Some of the fields above will be more meaningful to you than others. A brief description of each field is provided below.
@@ -67,139 +159,10 @@ compKL         Kullback-Leibler (KL) divergence from the average composition of 
 
 ```
 
-You will use frahmmstat several times in Step 2 as you get used to creating and manipulating pHMM files. 
-
 </p>
 </details>
-
-## Part 2 - Preparing pHMM files
-
-The sensativity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and almost identical to ones used by HMMER, but contains additional infomration needed to perform accurate translation and provide reliable e-values. Three of FraHMMERs five tools (frahmmbuild, frahmmconvert, and frahmmfetch) are used mainly to create or manipulate FraHMMER formated pHMM files. Practices 1 thru ? will cover the use of these tools.
-
-<details><summary>Practice 2 : building a pHMM from and MSA using frahmmbuild</summary>
-<p>
-
-The file JB.stk contains two stokholm formated protein MSAs (note that stokholm is the only format which allows multiple MSAs in a single file). In this pracitce you will use the frahmmbuild command to build pHMMs from those MSAs and dave them to the file JB.hmm. Run the following comand... 
-
-```bash
-   % frahmmbuild JB.hmm JB.stk
-```
-...and compare the sumary output that is printed to your stdout to the text bellow (the exact CPU and Elapsed time will vary):
-
-```bash
-  # input alignment file:             JB.stk
-  # output HMM file:                  JB.hmm
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-  # idx    name                  nseq  alen  mlen eff_nseq re/pos description
-# ------ -------------------- ----- ----- ----- -------- ------ -----------
-  1      Jag_N                   30    60    52     5.01  1.066 Jag N-terminus
-  2      BMFP                    30   102    79     1.48  0.717 Membrane fusogenic activity
-
-# CPU time: 0.67u 0.00s 00:00:00.67 Elapsed: 00:00:00.41
-```
-
-Some of the fields above will be more meaningful to you than others.  A brief description of each field is provided below.
-
-```
-idx            Number, in order in the database.
-
-name           Name of the profile.
-
-nseq           Number of sequences in the alignment this profile was built from.
-
-alen           Length of alignment - number of columns in the MSA.
-
-mlen           Length of the profile in consensus residues (match states).
-
-eff_nseq       Effective sequence number. This was the “effective” number of independent sequences that hmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. 
-
-re/pos         Mean positional relative entropy, in bits. 
-
-description    Despcriptoin on protien family - may be blank.
-```
-
-To check that the pHMMs were built and writen correctly, run frahmmstat on JB.hmm and compare your output to the text below:
-
-```bash
-  % frahmmstat JB.hmm
-#
-# idx    name                 accession        nseq eff_nseq      M relent   info p relE compKL
-# ------ -------------------- ------------ -------- -------- ------ ------ ------ ------ ------
-  1      Jag_N                PF14804.1          30     5.01     52   1.07   1.16   1.04   0.07
-  2      BMFP                 PF04380.8          30     1.48     79   0.72   0.76   0.67   0.08
-```
-</p>
-</details>
-
-<details><summary>Practice 3 : building a pHMM from and MSA using frahmmbuild with a non-standard codon translation table</summary>
-<p>
-
-One of the fields that distingishes a FraHMMER fromated pHMM file from a HMMER formated pHMM file is a NCBI codon tranlsation table ID (for more information see https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search you pHMMs against. Matching the codon table of yout target sequence to the the one used to build your query will have an impact on the accuracy of the reported e-values when running a frahmmer search. By default frahmmbuild will use the standard code used by eukoriotic nuclear DNA.  To use an altenate codon translation table include the option -c followed by a table ID from the list bellow:
-
-```bash
-id  description
---- -----------------------------------
-  1 Standard
-  2 Vertebrate mitochondrial
-  3 Yeast mitochondrial
-  4 Mold, protozoan, coelenterate mitochondrial; Mycoplasma/Spiroplasma
-  5 Invertebrate mitochondrial
-  6 Ciliate, dasycladacean, Hexamita nuclear
-  9 Echinoderm and flatworm mitochondrial
- 10 Euplotid nuclear
- 11 Bacterial, archaeal; and plant plastid
- 12 Alternative yeast
- 13 Ascidian mitochondrial
- 14 Alternative flatworm mitochondrial
- 16 Chlorophycean mitochondrial
- 21 Trematode mitochondrial
- 22 Scenedesmus obliquus mitochondrial
- 23 Thraustochytrium mitochondrial
- 24 Pterobranchia mitochondrial
- 25 Candidate Division SR1 and Gracilibacteria
-```
-
-</p>
-</details>
-
-<details><summary>Practice 4 : converting a HMMER formated pHMM file to FraHMMER format using frahmmconvert</summary>
-<p>
    
 
-If you have an existing HMMER formated pHMM file, either one you built yourself or one you downloaded from a site such as PFAM, and want to use it to run a frahmmer search you will first need to covert it to the FraHMMER format. The file ccc.hmm contians three pHMMs in HMMER format. The following comand will create the FraHMMER formated file ddd.hmm containing the same three pHMMs:
-
-
-```bash
-   % frahmmconvert ccc.hmm ddd.hmm
-```
-
-</p>
-</details>
-
-<details><summary>Practice 5 : copying and converting a single pHMM from larger pHMM file using frahmmfetch </summary>
-<p>
-
-
-If you only need to search with a single pHMM but it is located in file with multiple pHMMs, you can save time by copying the desireed pHMM to a new file using frahmmfetch. If the originial pHMM file is in HMMER format, frahmmfeatch will aslo convert the selected pHMM to FraHMMER format. Use the following command to copy and convert the pHMM XXX from the HMMER formated pHMM file ccc.hmmm and write it it the file XXX.hmm:
-
-```bash
-   % frahmmfetch -o xxx.hmm ccc.hmm XXX
-```
-</p>
-</details>
-
-<details><summary>Practice 6 : copying multiple pHMMs from larger pHMM file using frahmmfetch </summary>
-<p>
-
-
-You can aslo use frahmmfetch to multiple pHMMs. To do so you will need to create a file contian the names of all the pHMMs you wish to copy.  
-
-</p>
-</details>
-
-
-## Part 3 - Running frahmmer searches
 
 
 

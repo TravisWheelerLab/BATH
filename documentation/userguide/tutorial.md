@@ -146,6 +146,73 @@ The fields are mainly the same as those produced by frahmbuild, and detailed in 
 
 </p>
 </details>
+
+<details><summary>Practice 4: converting a HMMER formated pHMM file to FraHMMER format using frahmmconvert</summary>
+<p>
+
+If you have an existing HMMER formatted pHMM file and want to use it to run a frahmmer search, you will first need to convert it to the FraHMMER format using frahmmconvert. The file GRK-hmmer.hmm contains three pHMMs in HMMER3 format. The following command will create the FraHMMER formatted file GRK-frahmmer.hmm containing the same three pHMMs:
+
+```bash
+   % frahmmconvert GRK-hmmer.hmm GRK-frahmmer.hmm
+```
+Your summary output should match that shown below.
+```
+# input HMM file:                   GRK-hmmer.hmm
+# output HMM file:                 GRK-frahmmer.hmm
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# idx    name                  nseq  mlen fs_prob codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- ------- --------- -------- ------ -----------
+  1      Glucosamine_iso         30   193 0.01000         1     1.18  0.590 Glucosamine-6-phosphate isomerases/6-phosphogluconolactonase
+  2      Ribosomal_S19e          21   139 0.01000         1     0.73  0.591 Ribosomal protein S19e
+  3      K_oxygenase             14   337 0.01000         1     0.70  0.589 L-lysine 6-monooxygenase (NADPH-requiring)
+# CPU time: 2.75u 0.00s 00:00:02.75 Elapsed: 00:00:02.76
+```
+You can also use frahmmconvert to change the codon table of an existing FraHMMER pHMM file using the --ct flag.  This will be faster than rebuilding from the original MSA. 
+
+</p>
+</details>
+
+<details><summary>Practice 5: indexing a pHMM file and copying a single pHMM using frahmmfetch </summary>
+<p>
+
+If you only need to search with a single pHMM but it is located in a file with multiple pHMMs, you can save time by copying the desired pHMM to a new file using frahmmfetch. If the original file contains a large number of pHMMs, you may want to create an index file to speed up the fetch process.  The following command will index the create the index file GRK-frahmmer.ssi for the FraHMMER pHMM file we created in Practice 4. 
+```bash
+   % frahmmfetch --index GRK-frahmer.hmm 
+```
+The summary output should read as follows:
+```
+Working...    done.
+Indexed 3 HMMs (3 names and 3 accessions).
+SSI index written to file GRK-frahmmer.hmm.ssi
+```
+Whether or not you choose to create an index you will need the name of the pHMM you wish to copy to use as a key. The command below will copy the pHMM Ribosomal_S19e from the GRK-frahmmer.hmm.  The -o flag will direct the copied pHMM to the specified output file (RIB.hmm in this case). Otherwise, it will be printed to standard out. 
+```bash
+   % frahmmfetch -o RIB.hmm GRK-frahmer.hmm Ribosomal_S19e
+```
+The summary output should simply read as:
+```
+Retrieved HMM Ribosomal_S19e.
+```
+</p>
+</details>
+
+<details><summary>Practice 6: converting and copying pHMMs using frahmmfetch </summary>
+<p>
+
+You can also use frahmmfetch to copy multiple pHMMs. To do so you will need to create a key file that contains the names of all the pHMMs you wish to copy with one name per line and use the -f flag.  If the original pHMM file is in HMMER format frahmmfetch will automatically convert it to FraHMMER format. The following command will copy both of the pHMMs listed in the key file GK.txt (Glucosamine_iso and K_oxygenase) from a HMMER formated pHMM file, convert them to FraHMMER format, and print them to the output file GK.hmm
+```bash
+   % frahmmfetch -f -o GK.hmm GRK-hmmer.hmm GK.txt
+```
+The summary output should simply read as:
+```
+Retrieved 2 HMMs.
+```
+As with frahmmconvert, you can also use the --ct flag to change the codon table
+</p>
+</details>
+
+
    
 
 

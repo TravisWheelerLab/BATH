@@ -1,6 +1,6 @@
 # Tutorial
 
-FraHMMER was built on top of of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are three sections in this tutorial: (1) Input files, (2) Running searches, and (3) Output files.  The included practices will provide you with specific instructions on how to use the FraHMMER tools.  All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
+FraHMMER was built on top of of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are three sections in this tutorial: (1) Input files, (2) Running frahmmer searches, and (3) Output files.  The included practices will provide you with specific instructions on how to use the FraHMMER tools.  All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
 
 **Tools**
 ---
@@ -212,11 +212,33 @@ As with frahmmconvert, you can also use the --ct flag to change the codon table
 </p>
 </details>
 
+## Section 2 - Running frahmmer searches
 
-   
+This section of the tutorial will focus on the tool frahmmer, which performs frameshift aware translated homology search using pHMMs and dynamic programming.  This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts.   Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
 
+<details><summary>Practice 7: running a simple frahmmer search</summary>
+<p>
 
+Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM you copied to its own file in Practice 5 (RIB.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out.  Run the following command:
+```bash
+   % frahmmer -o RIB.out RIB.hmm seq1.fa
+```
+The file RIB.out should contain a single hit between the Ribosomal_S19e protein and the DNA sequence. In Section 3 we will examine this output in detail.
 
+</p>
+</details>
+ 
+<details><summary>Practice 8: running a frahmmer search on a target with an alternate codon translation table</summary>
+<p>
 
+As discussed in Practice 2, some DNA sequences use alternate codon translation tables. For frahmmer searches that use such DNA as the target, the best results are achieved by specifying the correct codon table both during the actual search and when building the pHMMs. In this  Practice you will first attempt to run a frahmmer search with a mismatch between the codon table specified for the target and the codon table used to build the pHMM, resulting in an error message.  
 
+Run the following command to search the pHMMs in MET.hmm, which you built in practice 1 using the standard codon translation, against the target DNA in the file seq2.fa that you will specify as using codon table 4 with the --ct flag
+
+```bash
+   % frahmmer --ct 4 -o MET.out MET.hmm seq2.fa
+```
+
+</p>
+</details>
 

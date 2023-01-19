@@ -236,8 +236,9 @@ p7_hmmfile_OpenBuffer(const char *buffer, int size, P7_HMMFILE **ret_hfp)
   if ((hfp->efp = esl_fileparser_CreateMapped(buffer, size))         == NULL)   { status = eslEMEM; goto ERROR; }
   if ((status = esl_fileparser_SetCommentChar(hfp->efp, '#'))        != eslOK)  goto ERROR;
   if ((status = esl_fileparser_GetToken(hfp->efp, &tok, &toklen))    != eslOK)  goto ERROR;
-
-  if      (strcmp("HMMER3/f", tok) == 0) { hfp->format = p7_HMMFILE_3f; hfp->parser = read_asc30hmm; }
+  
+  if      (strcmp("FraHMMER3/f", tok) == 0) { hfp->format = p7_FraHMMER_3f; hfp->parser = read_asc30hmm; }
+  else if (strcmp("HMMER3/f", tok) == 0) { hfp->format = p7_HMMFILE_3f; hfp->parser = read_asc30hmm; }
   else if (strcmp("HMMER3/e", tok) == 0) { hfp->format = p7_HMMFILE_3e; hfp->parser = read_asc30hmm; }
   else if (strcmp("HMMER3/d", tok) == 0) { hfp->format = p7_HMMFILE_3d; hfp->parser = read_asc30hmm; }
   else if (strcmp("HMMER3/c", tok) == 0) { hfp->format = p7_HMMFILE_3c; hfp->parser = read_asc30hmm; }
@@ -447,7 +448,8 @@ open_engine(const char *filename, char *env, P7_HMMFILE **ret_hfp, int do_ascii_
     if ((status = esl_fileparser_NextLinePeeked(hfp->efp, magic.c, 4)) != eslOK)  ESL_XFAIL(status,  errbuf, "internal error in esl_fileparser_NextLinePeeked()");
     if ((status = esl_fileparser_GetToken(hfp->efp, &tok, &toklen))    != eslOK)  ESL_XFAIL(status,  errbuf, "internal error in esl_fileparser_GetToken()");
 
-    if      (strcmp("HMMER3/f", tok) == 0) { hfp->format = p7_HMMFILE_3f; hfp->parser = read_asc30hmm; }
+    if      (strcmp("FraHMMER3/f", tok) == 0) { hfp->format = p7_FraHMMER_3f; hfp->parser = read_asc30hmm; }
+    else if (strcmp("HMMER3/f", tok) == 0) { hfp->format = p7_HMMFILE_3f; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER3/e", tok) == 0) { hfp->format = p7_HMMFILE_3e; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER3/d", tok) == 0) { hfp->format = p7_HMMFILE_3d; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER3/c", tok) == 0) { hfp->format = p7_HMMFILE_3c; hfp->parser = read_asc30hmm; }
@@ -456,7 +458,7 @@ open_engine(const char *filename, char *env, P7_HMMFILE **ret_hfp, int do_ascii_
     else if (strcmp("HMMER2.0", tok) == 0) { hfp->format = p7_HMMFILE_20; hfp->parser = read_asc20hmm; }
     else ESL_XFAIL(eslEFORMAT, errbuf, "Format tag is '%s': unrecognized.\nCurrent H3 format is 'HMMER3/f'. Previous H2/H3 formats also supported.", tok);
   }
-
+  
   *ret_hfp = hfp;
   return eslOK;
 
@@ -568,7 +570,8 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
 
   if (format == -1) format = p7_HMMFILE_3f;
 
-  if      (format == p7_HMMFILE_3f)  { if (fprintf(fp, "HMMER3/f [%s | %s]\n",                             HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
+  if      (format == p7_FraHMMER_3f)  { if (fprintf(fp, "FraHMMER3/f\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
+  else if (format == p7_HMMFILE_3f)  { if (fprintf(fp, "HMMER3/f [%s | %s]\n",                             HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
   else if (format == p7_HMMFILE_3e)  { if (fprintf(fp, "HMMER3/e [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
   else if (format == p7_HMMFILE_3d)  { if (fprintf(fp, "HMMER3/d [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
   else if (format == p7_HMMFILE_3c)  { if (fprintf(fp, "HMMER3/c [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
@@ -613,8 +616,11 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
       if (fprintf(fp, "STATS LOCAL MSV         %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL VITERBI     %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL FORWARD     %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FRAMESHIFT  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->fs) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FS FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "FRAMESHIFT PROB  %8.4f\n", hmm->fs) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "CODON TABLE  %d\n", hmm->ct) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
     }
+      
   }
 
   if (fprintf(fp, "HMM     ")                                         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
@@ -921,7 +927,11 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
       if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FORWARD     %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
       coffset += offset;
       if(hmm->abc->type == eslAMINO) {
-        if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FRAMESHIFT  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->fs)) < 0) return eslEWRITE;
+        if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FS FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
+        coffset += offset;
+        if ((offset = sprintf(ret_hmm + coffset, "FRAMESHIFT PROB  %8.4f\n", hmm->fs)) < 0) return eslEWRITE;
+        coffset += offset;
+        if ((offset = sprintf(ret_hmm + coffset, "CODON TABLE  %d\n", hmm->ct)) < 0) return eslEWRITE;
         coffset += offset;
       }
     }
@@ -1349,8 +1359,9 @@ read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
       /* First line of file: "HMMER3/f". Allocate shell for HMM annotation information (we don't know K,M yet) */
       if ((status = esl_fileparser_NextLine(hfp->efp))                   != eslOK)  goto ERROR;  /* EOF here is normal; could also be a thrown EMEM */
       if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tag, NULL)) != eslOK)  ESL_XFAIL(status,     hfp->errbuf, "unexpected absence of tokens on data line");
-
-      if      (hfp->format == p7_HMMFILE_3f) { if (strcmp(tag, "HMMER3/f") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/f tag: bad format or not a HMMER save file?"); }
+      
+      if      (hfp->format == p7_FraHMMER_3f) { if (strcmp(tag, "FraHMMER3/f") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find FraHMMER3/f tag: bad format or not a FraHMMER save file?"); }
+      else if (hfp->format == p7_HMMFILE_3f) { if (strcmp(tag, "HMMER3/f") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/f tag: bad format or not a HMMER save file?"); }
       else if (hfp->format == p7_HMMFILE_3e) { if (strcmp(tag, "HMMER3/e") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/e tag: bad format or not a HMMER save file?"); }
       else if (hfp->format == p7_HMMFILE_3d) { if (strcmp(tag, "HMMER3/d") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/d tag: bad format or not a HMMER save file?"); }
       else if (hfp->format == p7_HMMFILE_3c) { if (strcmp(tag, "HMMER3/c") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/c tag: bad format or not a HMMER save file?"); }
@@ -1486,6 +1497,7 @@ if (*ret_abc == NULL) {
 		else if (strcasecmp(tok2, "VITERBI") == 0)     { hmm->evparam[p7_VMU]  = atof(tok3);   hmm->evparam[p7_VLAMBDA] = atof(tok4); statstracker |= 0x2; }
 		else if (strcasecmp(tok2, "FORWARD") == 0)     { hmm->evparam[p7_FTAU] = atof(tok3);   hmm->evparam[p7_FLAMBDA] = atof(tok4); statstracker |= 0x4; }
                 else if (strcasecmp(tok2, "FRAMESHIFT") == 0)  { hmm->evparam[p7_FTAUFS] = atof(tok3); hmm->fs = atof(tok4); }
+                else if (strcasecmp(tok2, "FS") == 0)  { hmm->evparam[p7_FTAUFS] = atof(tok4); }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }
@@ -1504,8 +1516,19 @@ if (*ret_abc == NULL) {
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }
       }
+      
+      else if (strcmp(tag, "FRAMESHIFT") == 0) {
+        if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok2, NULL))  != eslOK)   ESL_XFAIL(status,    hfp->errbuf, "No frameshift probaility found on FRAMESHIFT PROB line");
+        if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok3, NULL))  != eslOK)   ESL_XFAIL(status,    hfp->errbuf, "No frameshift probaility found on FRAMESHIFT PROB line");
+        if ((hmm->fs = atof(tok3))                                            == 0)     ESL_XFAIL(status,    hfp->errbuf, "Invalid frameshift probability %s on FRAMESHIFT PROB line", tok3);	
+      }
 
-      else if (strcmp(tag, "GA") == 0) {
+      else if (strcmp(tag, "CODON") == 0) {
+        if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok2, NULL))  != eslOK)   ESL_XFAIL(status,    hfp->errbuf, "No codon translations table id found on CODON TABLE line");
+	if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok3, NULL))  != eslOK)   ESL_XFAIL(status,    hfp->errbuf, "No codon translations table id found on CODON TABLE line");
+	if ((hmm->ct = atoi(tok3))                                            == 0)     ESL_XFAIL(status,    hfp->errbuf, "Invalid codon translations table id %s on CODON TABLE line", tok3);
+      }  
+    else if (strcmp(tag, "GA") == 0) {
         if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok1, NULL))   != eslOK)  ESL_XFAIL(status,     hfp->errbuf, "Too few fields on GA line");
         hmm->cutoff[p7_GA1] = atof(tok1);
         if ( (abc->type == eslDNA || abc->type == eslRNA) ) { //if DNA, there's no need for a 2nd value (domain GA)
@@ -1544,13 +1567,12 @@ if (*ret_abc == NULL) {
       else if (strcmp(tag, "HMM") == 0) 
   break;
     } /* end, loop over possible header tags */
-
+  
   if (status != eslOK) goto ERROR;
 
   /* If we saw one STATS line, we need all 3. (True for both 3/a and 3/b formats) */
   if      (statstracker == 0x7) hmm->flags |= p7H_STATS;
   else if (statstracker != 0x0) ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Missing one or more STATS parameter lines");
-
   
   /* Skip main model header lines; allocate body of HMM now that K,M are known */
   if ((status = esl_fileparser_NextLine(hfp->efp))                            != eslOK)  ESL_XFAIL(status,     hfp->errbuf, "Premature end of data before main model section");

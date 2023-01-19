@@ -47,3 +47,9 @@ src/makehmmerdb
 src/nhmmer
 src/nhmmscan
 src/phmmer
+src/frahmmbuild
+src/frahmmconvert
+src/frahmmemit
+src/frahmmer
+src/frahmmfetch
+src/frahmmstat

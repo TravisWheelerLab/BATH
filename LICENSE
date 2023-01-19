@@ -1,3 +1,21 @@
+FraHMMER - Frameshift-aware HMMER
+-----------------------------------------------------------------------
+
+The code of FraHMMER (pronounced with a long-'a' like "gamer") is 
+highly derivative of HMMER - enough that the entire LICENCE file 
+for HMMER is reproduced below.
+
+FraHMMER-specific code includes contributions and input from 
+   Genevieve Krause
+   Walt Shands
+   Travis Wheeler
+
+It is released under the same BSD three-clause license as HMMER,
+which may be found at the bottom of this file
+
+-----------------------------------------------------------------------
+-----------------------------------------------------------------------
+
 HMMER - Biological sequence analysis with profile hidden Markov models
 Copyright (C) 1992-2020 Sean R. Eddy
 Copyright (C) 2000-2020 Howard Hughes Medical Institute

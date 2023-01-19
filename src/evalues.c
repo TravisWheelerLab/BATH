@@ -560,7 +560,7 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   if (gx == NULL) { status = eslEMEM; goto ERROR; }
 
   gcode = esl_gencode_Create(abcDNA, gm_fs->abc);
-  esl_gencode_Set(gcode, 1);  //This is the default euk code - may want to allow for a flag. 
+  esl_gencode_Set(gcode, hmm->ct);  //This is the default euk code - may want to allow for a flag. 
 
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
   p7_fs_ReconfigLength(gm_fs, L*3);

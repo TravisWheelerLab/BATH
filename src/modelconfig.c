@@ -529,13 +529,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
                   sub_cnt++;
                 }
 	      }
-		//printf("k %d\n", k);
-		
-		//printf("sub_cnt %d\n", sub_cnt);
-		//for(p=0;p<sub_cnt;p++)
-		//	printf("p %d stop_subs %f\n", p, stop_subs[p]);
 	      p7P_MSC_C3(gm_fs, k, v, w, x) = esl_vec_FMax(stop_subs, sub_cnt) + one_sub;
-		//sleep(100);
             }
 	  }
 	}

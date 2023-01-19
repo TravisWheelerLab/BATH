@@ -584,7 +584,6 @@ AC_CONFIG_FILES([ \
   Makefile                                     \
   src/Makefile                                 \
   testsuite/Makefile                           \
-  profmark/Makefile                            \
   src/impl_${impl_choice}/Makefile             \
   documentation/Makefile                       \
   documentation/man/Makefile                   \

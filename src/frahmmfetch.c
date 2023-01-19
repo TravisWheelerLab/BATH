@@ -17,9 +17,9 @@
 #include "hmmer.h"
 
 static char banner[] = "retrieve profile HMM(s) from a file";
-static char usage1[] = "[options] <hmmfile> <key>         (retrieves HMM named <key>)";
-static char usage2[] = "[options] -f <hmmfile> <keyfile>  (retrieves all HMMs in <keyfile>)";
-static char usage3[] = "[options] --index <hmmfile>       (indexes <hmmfile>)";
+static char usage1[] = "[options] <hmmfile_in> <key>         (retrieves HMM named <key>)";
+static char usage2[] = "[options] -f <hmmfile_in> <keyfile>  (retrieves all HMMs in <keyfile>)";
+static char usage3[] = "[options] --index <hmmfile_in>       (indexes <hmmfile>)";
 
 static void
 cmdline_failure(char *argv0, char *format, ...) 
@@ -45,6 +45,8 @@ cmdline_help(char *argv0, ESL_GETOPTS *go)
   esl_usage (stdout, argv0, usage3);
   puts("\nOptions:");
   esl_opt_DisplayHelp(stdout, go, 0, 2, 80);
+  puts("\nAvailable NCBI genetic code tables (for --ct <id>):");
+  esl_gencode_DumpAltCodeTable(stdout);
   exit(0);
 }
 
@@ -55,6 +57,7 @@ static ESL_OPTIONS options[] = {
   { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          0 },
   { "-O",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
   { "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 0 },
+  { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
   { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       0 },
   { 0,0,0,0,0,0,0,0,0,0 },
 };
@@ -243,6 +246,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
   float           fs;
+  int             ct;
   int             nhmm   = 0;
   char           *key;
   int             keylen;
@@ -250,6 +254,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             status;
 
   fs = esl_opt_GetReal(go, "--fs");
+  ct = esl_opt_GetInteger(go, "--ct");
 
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
   esl_fileparser_SetCommentChar(efp, '#');
@@ -277,9 +282,10 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  else if (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hfp->fname);
 	  else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hfp->fname);
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
-          if(hmm->abc->type == eslAMINO && fs != hmm->fs)
+          if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
         {
           hmm->fs = fs;
+          hmm->ct = ct;
           r = esl_randomness_CreateFast(42);
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
           bg = p7_bg_Create(hmm->abc);
@@ -326,9 +332,11 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
   float           fs; 
+  int             ct;
   int             status;
 
   fs = esl_opt_GetReal(go, "--fs");
+  ct = esl_opt_GetInteger(go, "--ct");
 
   if (hfp->ssi != NULL)
     {
@@ -353,14 +361,16 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   if (status == eslOK) 
     { 
 
-      if(hmm->abc->type == eslAMINO && fs != hmm->fs)
+      if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
       { 
 	hmm->fs = esl_opt_GetReal(go, "--fs");
+        hmm->ct = ct;
+ 
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
         bg = p7_bg_Create(hmm->abc);
 
-       p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS] = tau_fs;
       }
 

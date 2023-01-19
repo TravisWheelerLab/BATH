@@ -51,7 +51,8 @@ PROGS = frahmmer\
         frahmmbuild\
         frahmmconvert\
         frahmmfetch\
-        frahmmstat
+        frahmmstat\
+        frahmmemit
 
 # "auxprogs" are built but not installed.
 AUXPROGS = \
@@ -62,7 +63,8 @@ PROGOBJS = frahmmer.o\
            frahmmbuild.o\
            frahmmconvert.o\
            frahmmfetch.o\
-           frahmmstat.o
+           frahmmstat.o\
+           frahmmemit.o
 
 AUXPROGOBJS = \
 	hmmc2.o \

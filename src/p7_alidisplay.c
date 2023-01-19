@@ -368,7 +368,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   char          *alphaDNA = sq->abc->sym;
   int            n, pos, z, y;
   int            z1, z2;
-  //int		 srt, end;
   int            k,a,i,s,c;
   int            indel;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
@@ -597,13 +596,23 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
           }
           
           a = p7P_AMINO3(gm_fs, k, v, w, x);           
-          if(a == 27) ad->stops++;
-         
-	  n1 = ' ';
-	  n2 = alphaDNA[sq->dsq[i-2]];
-          n3 = alphaDNA[sq->dsq[i-1]];
-	  n4 = alphaDNA[sq->dsq[i]];
-          n5 = ' ';
+          if(a == 27) 
+          {
+            ad->stops++;
+            n1 = ' ';
+            n2 = tolower(alphaDNA[sq->dsq[i-2]]);
+            n3 = tolower(alphaDNA[sq->dsq[i-1]]);
+            n4 = tolower(alphaDNA[sq->dsq[i]]);
+            n5 = ' ';
+          }
+          else
+          {
+	    n1 = ' ';
+	    n2 = alphaDNA[sq->dsq[i-2]];
+            n3 = alphaDNA[sq->dsq[i-1]];
+	    n4 = alphaDNA[sq->dsq[i]];
+            n5 = ' ';
+          }
         }
 	else if(c == 4) {
 	  ad->frameshifts++;
@@ -719,7 +728,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         else if (expf(p7P_MSC(gm, k, a)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else                                                  ad->mline[z-z1] = ' ';
 
-        ad->aseq  [z-z1] = toupper(alphaAmino[a]);
+        if(a == 27) ad->aseq[z-z1] = toupper(alphaAmino[26]);
+        else        ad->aseq[z-z1] = toupper(alphaAmino[a]);
         ad->ntseq [5*(z-z1)] = n1;
         ad->ntseq [5*(z-z1)+1] = n2;
         ad->ntseq [5*(z-z1)+2] = n3;

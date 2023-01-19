@@ -1283,7 +1283,7 @@ output_result(const struct cfg_s *cfg, char *errbuf, int msaidx, ESL_MSA *msa, P
   if (msa == NULL)
   {
     if (cfg->abc->type == eslAMINO) {
-      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "alen",  "mlen",  "fs prob", "codon tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "alen",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
       if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
     } else {
       if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %5s %8s %6s %s\n", "idx", "name",                 "nseq",  "alen",  "mlen",  "W", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
@@ -1291,7 +1291,6 @@ output_result(const struct cfg_s *cfg, char *errbuf, int msaidx, ESL_MSA *msa, P
     }
     return eslOK;
   }
-//  if ((status = p7_hmm_Validate(hmm, errbuf, 0.0001))       != eslOK) return status;
   if ((status = p7_hmmfile_WriteASCII(cfg->hmmfp, 7, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
 
 	             /* #   name nseq alen M max_length eff_nseq re/pos description */

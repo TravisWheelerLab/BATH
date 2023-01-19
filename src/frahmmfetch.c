@@ -17,9 +17,9 @@
 #include "hmmer.h"
 
 static char banner[] = "retrieve profile HMM(s) from a file";
-static char usage1[] = "[options] <hmmfile> <key>         (retrieves HMM named <key>)";
-static char usage2[] = "[options] -f <hmmfile> <keyfile>  (retrieves all HMMs in <keyfile>)";
-static char usage3[] = "[options] --index <hmmfile>       (indexes <hmmfile>)";
+static char usage1[] = "[options] <hmmfile_in> <key>         (retrieves HMM named <key>)";
+static char usage2[] = "[options] -f <hmmfile_in> <keyfile>  (retrieves all HMMs in <keyfile>)";
+static char usage3[] = "[options] --index <hmmfile_in>       (indexes <hmmfile>)";
 
 static void
 cmdline_failure(char *argv0, char *format, ...) 

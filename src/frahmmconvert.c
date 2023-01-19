@@ -1,5 +1,4 @@
-/* frahmmconvert: converting HMMER formated profile HMM files to FraHMMER format.
- */
+/* frahmmconvert: converting HMMER formated profile HMM files to FraHMMER format. */
 #include "p7_config.h"
 
 #include <stdio.h>
@@ -9,6 +8,7 @@
 #include "easel.h"
 #include "esl_alphabet.h"
 #include "esl_getopts.h"
+#include "esl_stopwatch.h"
 
 #include "hmmer.h"
 
@@ -22,12 +22,53 @@ static ESL_OPTIONS options[] = {
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
 static char banner[] = "convert HMMER format pHMM to FraHMMER format";
 
+static int
+output_header(char *hmmfile_in, char *hmmfile_out)
+{
+
+  // p7_banner(stdout, go->argv[0], banner); This is HMMER banner - need to format FraHMMER version
+  
+  if (fprintf(stdout, "# input HMM file:                   %s\n", hmmfile_in) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (fprintf(stdout, "# output HMM file:                  %s\n", hmmfile_out) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+
+  if (fprintf(stdout, "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  return eslOK;
+}
+
+static int
+output_result(int hmmidx, P7_HMM *hmm, double entropy)
+{
+  int status;
+
+  if (hmm == NULL)
+  {
+      if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+    return eslOK;
+  }
+  else {
+    if (fprintf(stdout, "  %-6d %-20s %5d %5" PRId64 " %7.5f %9d %8.2f %6.3f %s\n",
+          hmmidx,
+          (hmm->name != NULL) ? hmm->name : "",
+          hmm->nseq,
+          hmm->M,
+          hmm->fs,
+          hmm->ct,
+          hmm->eff_nseq,
+          entropy,
+          (hmm->desc != NULL) ? hmm->desc : "") < 0)
+      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+  }
+
+  return eslOK;
+}
 
 int 
 main(int argc, char **argv)
 {
   ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
   ESL_ALPHABET  *abc     = NULL;
+  ESL_STOPWATCH   *w  = esl_stopwatch_Create();
   char          *hmmfile_out = esl_opt_GetArg(go, 1);
   char          *hmmfile_in  = esl_opt_GetArg(go, 2);
   P7_HMMFILE    *hfp     = NULL;
@@ -35,6 +76,7 @@ main(int argc, char **argv)
   FILE          *ofp     = NULL;
   int            fmtcode = 7;	/* 7 = FraHMMER format */
   int            status;
+  int            hmmidx;
   char           errbuf[eslERRBUFSIZE];
   float          fs;
   int            ct;
@@ -42,6 +84,7 @@ main(int argc, char **argv)
   ESL_RANDOMNESS *r  = NULL;
   P7_FS_PROFILE  *gm_fs  = NULL;
   double          tau_fs;
+  double          entropy;
 
   if (esl_opt_GetBoolean(go, "-h") == TRUE)
   {
@@ -55,7 +98,10 @@ main(int argc, char **argv)
       esl_gencode_DumpAltCodeTable(stdout);
       exit(0);
   }
-  
+ 
+  /* Start timing. */
+  esl_stopwatch_Start(w);
+ 
   status = p7_hmmfile_OpenE(hmmfile_in, NULL, &hfp, errbuf);
   if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", hmmfile_in, errbuf);
   else if (status == eslEFORMAT)   p7_Fail("File format problem in trying to open HMM file %s.\n%s\n",                hmmfile_in, errbuf);
@@ -64,6 +110,12 @@ main(int argc, char **argv)
   ofp = fopen(hmmfile_out, "w");
   if (ofp == NULL) p7_Fail("Failed to open HMM file %s for writing", hmmfile_out);
 
+  hmmidx =  0;
+  entropy = 0.0;
+
+  output_header(hmmfile_in, hmmfile_out);
+  output_result(hmmidx, hmm, entropy); 
+ 
   while ((status = p7_hmmfile_Read(hfp, &abc, &hmm)) == eslOK)
     {
       if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hmmfile_in); 
@@ -86,8 +138,13 @@ main(int argc, char **argv)
 	{
 		p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);	
 	} 
+     
+      hmmidx++;
+      entropy = p7_MeanMatchRelativeEntropy(hmm, bg); 
+      output_result(hmmidx, hmm, entropy);
 
       p7_hmmfile_WriteASCII (ofp, fmtcode, hmm);
+
 
       p7_hmm_Destroy(hmm);
     }
@@ -95,6 +152,10 @@ main(int argc, char **argv)
   else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hmmfile_in);
   else if (status != eslEOF)       p7_Fail("Unexpected error in reading HMMs from %s",   hmmfile_in);
   
+  esl_stopwatch_Stop(w);
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+
+  esl_stopwatch_Destroy(w);
   if(bg != NULL)    p7_bg_Destroy(bg);
   if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
   if(r != NULL)     esl_randomness_Destroy(r);
@@ -105,6 +166,7 @@ main(int argc, char **argv)
   return 0;
 
  ERROR:
+  esl_stopwatch_Destroy(w);
   if(bg != NULL)    p7_bg_Destroy(bg);
   if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
   if(r != NULL)     esl_randomness_Destroy(r);

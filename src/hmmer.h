@@ -275,7 +275,6 @@ enum p7p_rsc_indels {
 #define p7P_CODON3         40
 #define p7P_CODON4         104
 #define p7P_CODON5         360
-#define p7P_
 
 /* Accessing codon translations */
 #define p7P_AMINO1(gm, k, x)             ((gm)->codons[(k)][p7P_CODON1 + (x)])
@@ -517,7 +516,7 @@ enum p7_hmmfile_formats_e {
   p7_HMMFILE_3d = 4,
   p7_HMMFILE_3e = 5,
   p7_HMMFILE_3f = 6,
-  p7_FraHMMER1a = 7,
+  p7_FraHMMER_3f = 7,
 };
 
 typedef struct p7_hmmfile_s {
@@ -730,12 +729,12 @@ typedef struct p7_alidisplay_s {
   char *model;                  /* aligned query consensus sequence     */
   char *mline;                  /* "identities", conservation +'s, etc. */
   char *aseq;                   /* aligned target sequence              */
-  char *ntseq;                  /* nucleotide target sequence if hmmscant */
+  char *ntseq;                  /* nucleotide target sequence if hmmscant or frahmmer */
   char *ppline;                 /* posterior prob annotation; or NULL   */
   char *codon;                  /* number of nuceltides in each codon   */
   int   frameshifts;            /* number of codons with frameshifts    */
   int   stops;                  /* number of stop codons */
-  int   N;            /* length of strings                    */
+  int   N;                      /* length of strings                    */
 
   char *hmmname;    /* name of HMM                          */
   char *hmmacc;      /* accession of HMM; or [0]='\0'        */

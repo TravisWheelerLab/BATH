@@ -233,12 +233,25 @@ The file RIB.out should contain a single hit between the Ribosomal_S19e protein 
 
 As discussed in Practice 2, some DNA sequences use alternate codon translation tables. For frahmmer searches that use such DNA as the target, the best results are achieved by specifying the correct codon table both during the actual search and when building the pHMMs. In this  Practice you will first attempt to run a frahmmer search with a mismatch between the codon table specified for the target and the codon table used to build the pHMM, resulting in an error message.  
 
-Run the following command to search the pHMMs in MET.hmm, which you built in practice 1 using the standard codon translation, against the target DNA in the file seq2.fa that you will specify as using codon table 4 with the --ct flag
+Run the following command to search the pHMMs in MET.hmm, which you built in Practice 1 using the standard codon translation, against the target DNA in the file seq2.fa that you will specify as using codon table 4 with the --ct flag
 
 ```bash
    % frahmmer --ct 4 -o MET.out MET.hmm seq2.fa
 ```
+   
+This will result in the following error message:
 
+```bash
+   Error: Requested codon tranlsation tabel ID 4 does not match the codon tranlsation tabel ID of the HMM file MET.hmm. Please run frahmmcovert with option '--ct 4'.
+```
+
+To avoid this error we need to use the pHMM file with the correct codon translation table by running the following command:
+
+```bash
+   % frahmmer --ct 4 -o MET.out MET-ct4.hmm seq2.fa
+```
+The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence. In Section 3 we will examine this output in detail.
+   
 </p>
 </details>
 

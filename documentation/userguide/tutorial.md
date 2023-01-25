@@ -1,6 +1,6 @@
 # Tutorial
 
-FraHMMER was built on top of of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are three sections in this tutorial: (1) Input files, (2) Running frahmmer searches, and (3) Output files.  The included practices will provide you with specific instructions on how to use the FraHMMER tools.  All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
+FraHMMER was built on top of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are two sections in this tutorial. The first section - Input files - will cover the tools that can be used to prepare your data before you begin a homology search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated searchs and interpreting the results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
 
 **Tools**
 ---
@@ -214,16 +214,18 @@ As with frahmmconvert, you can also use the --ct flag to change the codon table
 
 ## Section 2 - Running frahmmer searches
 
-This section of the tutorial will focus on the tool frahmmer, which performs frameshift aware translated homology search using pHMMs and dynamic programming.  This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts.   Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
+This section of the tutorial will focus on the tool frahmmer. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
 
 <details><summary>Practice 7: running a simple frahmmer search</summary>
 <p>
 
-Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM you copied to its own file in Practice 5 (RIB.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out.  Run the following command:
+Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM you copied to its own file in Practice 5 (RIB.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. You will also use the flag '-o' to ridect the output to the file RIB.out rather tahn standard out. 
+   
 ```bash
    % frahmmer -o RIB.out RIB.hmm seq1.fa
 ```
-The file RIB.out should contain a single hit between the Ribosomal_S19e protein and the DNA sequence. In Section 3 we will examine this output in detail.
+ 
+ The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. 
 
 </p>
 </details>
@@ -250,8 +252,30 @@ To avoid this error we need to use the pHMM file with the correct codon translat
 ```bash
    % frahmmer --ct 4 -o MET.out MET-ct4.hmm seq2.fa
 ```
-The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence. In Section 3 we will examine this output in detail.
+The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence. 
    
+</p>
+</details>
+
+<details><summary>Practice 9: running a frahmmer search with a sequence based query</summary>
+<p>
+
+If you do not wish to build the query pHMMs ahead of time, frahmmer can build them for you on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming.  If you chose to use a sequence based query file it is recommended that you save the pHMMs to use in any subsequent searches.  The following command uses the unaligned sequences in the file XXX.fa as the queries, building a pHMM for each one.   The '--hmmout' flag will direct frahmmer to print those pHMMs to the file XXX.hmm.
+
+```bash
+   % frahmmer -o XXX.out --hmmout XXX.hmm XXX.fa seq1.fa
+```
+</p>
+</details>
+
+<details><summary>Practice 10: producing tabular output for a frahmmer search</summary>
+<p>
+
+The outputs we saw in Practice 7 & 8 provide the user with a way to integrate individual alignments, but are not the cleanest format for parsing a large number of hits.  For this reason, frahmmer can produce a separate tabular output file.  The following command directs this output to GK.tbl using the '--tblout' flag, while directing the standard output to GK.out with the '-o' flag.
+
+```bash
+   % frahmmer -o GK.out --tblout GK.tbl GK.hmm seq1.fa
+```
 </p>
 </details>
 

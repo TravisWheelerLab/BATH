@@ -677,6 +677,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
   vtr = p7_trace_Create();
 
   /* extend each ORF's DNA coordinates based on the model's max length*/
+  
   for(i = 0; i < orf_block->count; i++)
   {
     curr_orf = &(orf_block->list[i]);
@@ -708,7 +709,9 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
 
   p7_hmmwindow_SortByStart(windowlist); 
   new_hit_cnt = 0;
-     /* merge overlapping windows, compressing list in place. */
+   
+   /* merge overlapping windows, compressing list in place. */
+   
    for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
@@ -716,34 +719,29 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     max_window_start =  ESL_MAX(prev_window->n, curr_window->n);
     min_window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
     overlap_len   = min_window_end - max_window_start + 1;
+    
     if (  prev_window->complementarity == curr_window->complementarity &&
           (float)(overlap_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap )
     {
 
       min_window_start        = ESL_MIN(prev_window->n, curr_window->n);
       max_window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-
-      if((max_window_end -  min_window_start + 1) < (2.2 * (gm->max_length * 3))) {
+      /* If length of merged window would not be too long then merge windows */  
+      if((max_window_end -  min_window_start + 1) < (2.2 * (gm->max_length * 3))) 
+      {
         prev_window->fm_n  -= (prev_window->n - min_window_start);
         prev_window->n      = min_window_start;
         prev_window->length = max_window_end - min_window_start + 1;
       } else {
         new_hit_cnt++;
-        max_window_start = max_window_end - (1.1 * (gm->max_length * 3));
-        new_start_window = new_hit_cnt;
-        for(j = new_hit_cnt; j < i ; j++) {
-          merged_window = windowlist->windows+j;
-	  if(merged_window->n < max_window_start) new_start_window = j;
-        }
-        windowlist->windows[new_hit_cnt] = windowlist->windows[new_start_window];
-        i = new_start_window + 1;
+        windowlist->windows[new_hit_cnt] = windowlist->windows[i];
       }
-      
     } else {
       new_hit_cnt++;
       windowlist->windows[new_hit_cnt] = windowlist->windows[i];
     }
   }
+  
   windowlist->count = new_hit_cnt+1;
 
   p7_gmx_Destroy(vgx);
@@ -2594,7 +2592,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   
   } else { // compare ORFS to widows and select appropraite pipeline 
     
-      
      for(f = 0; f < orf_block->count; f++) {
        curr_orf = &(orf_block->list[f]);
        orf_start = ESL_MIN(curr_orf->start, curr_orf->end);
@@ -2626,10 +2623,11 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   /* Compare Pvalues to select either the standard or the frameshift pipeline
    * If the DNA window passed frameshift forward AND produced a lower P-value 
    * than the sumed Forward score of the orfs used to costruct that window 
-   * then we proceed with the fraemshift pipeline
+   * then we proceed with the frameshift pipeline
    */
-
-  if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
+	
+  if(P_fs <= pli->F3 && (P_fs_nobias <= tot_orf_P || min_P_orf > pli->F3)) { 
+	
     pli->pos_past_fwd += dna_window->length; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, dna_window->length, 0);
@@ -2854,10 +2852,10 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
         p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
         seq_score = (vfsc-filtersc) / eslCONST_LOG2;
         P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
-		
         if (P > pli->F2) continue;
       }
 	
+      
       vit_coords->orf_starts[vit_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
       vit_coords->orf_ends[vit_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       vit_coords->orf_cnt++;

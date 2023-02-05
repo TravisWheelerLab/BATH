@@ -284,8 +284,9 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
           if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
         {
-          hmm->fs = fs;
-          hmm->ct = ct;
+	  if(esl_opt_IsUsed(go, "--fs")) { hmm->fs = fs; }
+          if(esl_opt_IsUsed(go, "--ct")) { hmm->ct = ct; }
+
           r = esl_randomness_CreateFast(42);
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
           bg = p7_bg_Create(hmm->abc);
@@ -363,8 +364,8 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 
       if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
       { 
-	hmm->fs = esl_opt_GetReal(go, "--fs");
-        hmm->ct = ct;
+	if(esl_opt_IsUsed(go, "--fs")) hmm->fs = fs;
+        if(esl_opt_IsUsed(go, "--fs")) hmm->ct = ct;
  
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);

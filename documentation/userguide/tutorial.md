@@ -1,11 +1,11 @@
 # Tutorial
 
-FraHMMER was built on top of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are two sections in this tutorial. The first section - Input files - will cover the tools that can be used to prepare your data before you begin a homology search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated searchs and interpreting the results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
+FraHMMER was built on top of the existing HMMER3 code-base. Users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a frahmmer search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated homology search and on interpreting the search results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the commands.
 
 **Tools**
 ---
 
-**frahmmbuild**   - build and save FraHMMER formated pHMM file from an input multiple sequence alignment (MSA) file
+**frahmmbuild**   - build FraHMMER formated profile hidden Markov models (pHMMs) from input multiple sequence alignments (MSAs) and save to file
 ```
 Usage: frahmmbuild [-options] <hmmfile_out> <msafile_in>
 ```
@@ -219,14 +219,39 @@ This section of the tutorial will focus on the tool frahmmer. This tool allows t
 <details><summary>Practice 7: running a simple frahmmer search</summary>
 <p>
 
-Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM you copied to its own file in Practice 5 (RIB.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. You will also use the flag '-o' to ridect the output to the file RIB.out rather tahn standard out. 
+Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM you copied to its own file in Practice 5 (RIB.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. 
    
 ```bash
    % frahmmer -o RIB.out RIB.hmm seq1.fa
 ```
  
- The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. 
-
+ The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. If you open this file you will see that it cintains the following information:
+     
+   1) File Header - lines begin with '#' and contains basic information about the search parameters
+```
+   # query HMM file:                  Rib.hmm
+   # target sequence database:        seq1.fa
+   # frameshift probability:          0.010000
+   # codon tranlsation table          1
+   # output directed to file:         Rib.out
+   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+```
+    2) Query Header - One for every query in pHMM file - inculdes summary of any hits found for that query 
+```
+   Query:       Ribosomal_S19e  [M=139]
+   Accession:   PF01090.14
+   Description: Ribosomal protein S19e
+   Scores for complete hits:
+      E-value  score  bias  Sequence   start     end  shifts  stops  Description
+      ------- ------ -----  --------   -----   -----  ------  -----  -----------
+      1.6e-28  110.7   0.1  seq1     3197980 3197584       1      0
+```
+   For each hit the query header lists the E-value, bit score and the bias score adjustment.  This is followed by name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and the number od stop codons in that alignment, and finaly a target despriprion (which may be blank).
+   
+      3) Annotation and Alignment - for each hit between the query and target frahmmer will prouduce an annotaion line containing usefull information about the hit as well as the alignment. 
+   
+      4) Query Footer - 
+      5) File Foot
 </p>
 </details>
  

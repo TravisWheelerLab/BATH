@@ -236,7 +236,9 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
    # output directed to file:         Rib.out
    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ```
-    2) Query Header - One for every query in pHMM file - inculdes summary of any hits found for that query 
+    
+   2) Query Header - inculdes summary of each query and any hits found with the target.  For each hit the query header lists the E-value, bit score and the bias score adjustment.  This is followed by name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and the number of stop codons in that alignment, and finaly a target despriprion (which may be blank).
+
 ```
    Query:       Ribosomal_S19e  [M=139]
    Accession:   PF01090.14
@@ -246,10 +248,29 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
       ------- ------ -----  --------   -----   -----  ------  -----  -----------
       1.6e-28  110.7   0.1  seq1     3197980 3197584       1      0
 ```
-   For each hit the query header lists the E-value, bit score and the bias score adjustment.  This is followed by name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and the number od stop codons in that alignment, and finaly a target despriprion (which may be blank).
    
-      3) Annotation and Alignment - for each hit between the query and target frahmmer will prouduce an annotaion line containing usefull information about the hit as well as the alignment. 
+   3) Annotation - for each hit between the query and target frahmmer will prouduce an annotaion line containing usefull information about the hit. As in the query header, the annotaion line lists the score, bias and Evalue for each hit. It also lists three types of coordinats for the hit. These include alignment start and end coodinates for the query (hmm-from & hmm-to) and for the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to).  The envelope is the region of the target which frahmmer identified as homologous and whose bound were used to produce the reported score, bias and Evalue. The annotition line also lists the frameshift and stop codon counts, the full length of the target sequence and alignment accuracy score (acc) which is the average expected per residue accuracy of the alignment.
+  
+```
+   Annotation for each hit (and alignments):
+   >> seq1
+       score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
+      ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
+    !  110.7   0.1   1.6e-28          8       137 ..   3197980   3197584 ..   3198010   3197575 ..      1      0  30000000   0.89
+```
    
+      3) Alignment 
+   Bellow each annotation line is the alignment (here just the first line of the aligment is shown). This alignment contiains 5 rows which are, from top to bottom, (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row.
+
+```
+     Alignment:
+     score: 110.7 bits
+     Ribosomal_S19e       8   a    d    k    l    i    e    k    v    a    e    e    l    k    e    k    d    k    i    k    p    p    e    W   30
+                              +    +    +    +    i    +              a    +         l    k    +    +         +    +    +         p    +    W
+               seq1 1065993   P    Q    E    F    I    A    T    Y    A    R    F    L    K    K    T    G    R    V    Q    I    P    K    W   1065971
+               seq1 3197980  CCA  CAA  GAA  TTC  ATT  GCT  ACC  TAC  GCA  AGA  TTC  TTA  AAG  AAA  ACT  GGT  CGT  GTT  CAA  ATC  CCA  AAA  TGG  3197912
+                              5    7    8    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
+```
       4) Query Footer - 
       5) File Foot
 </p>

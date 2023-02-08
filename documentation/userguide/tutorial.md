@@ -33,7 +33,7 @@ Usage: frahmmer [options] <protein-queryfile> <DNA-targetfile>
 
 Before you begin using FraHMMER, it will be helpful to become familiar with the file types that are required as inputs. Each frahmmer search needs a protein query file and a DNA target file. The target file must include one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment (MSA) format. Common unaligned sequence formats include fasta, embl, and genbank. Common MSA formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-FraHMMER includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
+FraHMMER includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the / (pages 145-204). 
 
 The query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice # and #). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate these pHMM files.
 
@@ -225,7 +225,7 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
    % frahmmer -o RIB.out RIB.hmm seq1.fa
 ```
  
- The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. If you open this file you will see that it cintains the following information:
+ The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. If you open this file you will see that it contains the following information:
      
    1) File Header - lines begin with '#' and contains basic information about the search parameters
 ```
@@ -249,7 +249,7 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
       1.6e-28  110.7   0.1  seq1     3197980 3197584       1      0
 ```
    
-   3) Annotation - for each hit between the query and target frahmmer will prouduce an annotaion line containing usefull information about the hit. As in the query header, the annotaion line lists the score, bias and Evalue for each hit. It also lists three types of coordinats for the hit. These include alignment start and end coodinates for the query (hmm-from & hmm-to) and for the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to).  The envelope is the region of the target which frahmmer identified as homologous and whose bound were used to produce the reported score, bias and Evalue. The annotition line also lists the frameshift and stop codon counts, the full length of the target sequence and alignment accuracy score (acc) which is the average expected per residue accuracy of the alignment.
+   3) Annotation - for each hit between the query and target, frahmmer will prouduce an annotaion line containing usefull information about the hit. As in the query header, the annotaion line lists the score, bias and Evalue for each hit. It also lists three types of coordinats for the hit. These include alignment start and end coodinates for the query (hmm-from & hmm-to) and for the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to).  The envelope is the region of the target which frahmmer identified as homologous and whose bound were used to produce the reported score, bias and Evalue. The annotition line also lists the frameshift and stop codon counts, the full length of the target sequence and alignment accuracy score (acc) which is the average expected per residue accuracy of the alignment.
   
 ```
    Annotation for each hit (and alignments):
@@ -259,20 +259,37 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
     !  110.7   0.1   1.6e-28          8       137 ..   3197980   3197584 ..   3198010   3197575 ..      1      0  30000000   0.89
 ```
    
-      3) Alignment 
-   Bellow each annotation line is the alignment (here just the first line of the aligment is shown). This alignment contiains 5 rows which are, from top to bottom, (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row.
+   4) Alignment - Bellow each annotation line is the alignment (here just the first line of the aligment is shown). This alignment contiains 5 rows which are, from top to bottom, (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. The query row contains the query consunsus letter for each match and delete and a '.' for and insertions.  The target row shows the target codons and pseudo-codons which have been aligned to the taget.  In this example only codons are present in the first row (no frameshifts).  Both the query and target row also show the name of the query or target and the start and end coodinates of the letters sown on that line of the alignment. The translation line shows the amino acid transaltions of those codons.  The match line shows whether each position in the alignment was a match (letter), a positive scoring mis-match ('+'), or a negative scoring mis-match (blank).  Finally the posterior probability (PP) row gives the expected accuracy for each position of the alginment.
 
 ```
      Alignment:
      score: 110.7 bits
      Ribosomal_S19e       8   a    d    k    l    i    e    k    v    a    e    e    l    k    e    k    d    k    i    k    p    p    e    W   30
                               +    +    +    +    i    +              a    +         l    k    +    +         +    +    +         p    +    W
-               seq1 1065993   P    Q    E    F    I    A    T    Y    A    R    F    L    K    K    T    G    R    V    Q    I    P    K    W   1065971
+                              P    Q    E    F    I    A    T    Y    A    R    F    L    K    K    T    G    R    V    Q    I    P    K    W   
                seq1 3197980  CCA  CAA  GAA  TTC  ATT  GCT  ACC  TAC  GCA  AGA  TTC  TTA  AAG  AAA  ACT  GGT  CGT  GTT  CAA  ATC  CCA  AAA  TGG  3197912
                               5    7    8    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
 ```
-      4) Query Footer - 
-      5) File Foot
+      
+   5) Query Footer - each queries output will conclude with a footer that provides infomrtation about the hit filtering process inside frahmmer.  The average user can ignore this data.  For those who are interested, more informatoin on these data can be found on page 54 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  There will also be a couple of lines listing run times and a line with just '//' indicating the end of the output for the query.
+
+```
+   Internal pipeline statistics summary:
+   -------------------------------------
+   Query model(s):                            1  (139 nodes)
+   Target sequence(s):                        1  (60040812 residues searched)
+   Residues passing SSV filter:         1327090  (0.0221); expected (0.02)
+   Residues passing bias filter:        1222149  (0.0204); expected (0.02)
+   Residues passing Vit filter:          129784  (0.00216); expected (0.001)
+   Residues passing Fwd filter:             653  (1.09e-05); expected (1e-05)
+   Total number of hits:                      1  (6.61e-06) 
+   # CPU time: 3.86u 0.04s 00:00:03.90 Elapsed: 00:00:01.91
+   # Mc/sec: 4360.71
+   // 
+```
+   
+   6) File Footer - If frahmmer did not encounter any errors the last line of the file will simply read '[ok]'
+    
 </p>
 </details>
  

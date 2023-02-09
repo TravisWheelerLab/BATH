@@ -315,8 +315,64 @@ To avoid this error we need to use the pHMM file with the correct codon translat
 ```bash
    % frahmmer --ct 4 -o MET.out MET-ct4.hmm seq2.fa
 ```
-The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence. 
+The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence. Bellow are select positions from one of the alignents in MET.out which wil illistrate the different types of alignment positions. 
    
+The most common type of position is a match (or mis-match) between a codon with three target nucleotides and a single query amino acid.  When the codon in question does not translate to an amino acid, but instead is a stop codon, the nucleotids will be printed in lower case and a 'X' will apear on the translation line, as seen bellow in bold.
+  
+<pre>  
+   metC   165   t    r    l    v    h    l    e    s    <b>p</b>    g    s    g    t    f    e    m    q    d    v    k    a    i    c    d    y    v   190
+                +    r    l    +    +    l         s         +    s    +              +    +         +                   i    c    +    +    +
+                S    R    L    I    Y    L    G    S    <b>X</b>    C    S    E    I    S    K    I    L    N    T    Y    Q    I    C    K    H    I   
+   seq2 34401  TCA  AGG  TTA  ATC  TAC  TTA  GGA  TCA  <b>tag</b>  TGT  TCG  GAG  ATA  TCC  AAG  ATC  TTA  AAT  ACT  TAT  CAA  ATT  TGT  AAA  CAC  ATA  34324
+                *    *    *    *    *    *    *    *    <b>*</b>    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
+</pre>
+   
+   
+ When a frameshift occures in a frahmmer alignment it is still considered a match or mis-match, but instead of the query amino acid aligning to a codon it will be aligned to a pseudo-codon.  Pseudo-codons are codons with indels of one or two nucleotides which cause them to be either shorter or longer than a standard codon (pseudo-codons may be one, two, four or five nucleotides long).  When the frameshift was caused by a deletion the missing nucleotide(s) in the psuedo-codon will be replaced by '-' cahracters.  One such psuedo-codon is shown bellow in bold.
+   
+ <pre>  
+   metG    34   k    n    w    h    n    v    k    l    a    i    G    a    d    d    h    G    a    k    i    <b>q</b>    n    l    s    k    l    k   59
+                          w    h    +    +    k    l    +    i              d    +              +    k    +    <b>q</b>    +    +              +
+                S    L    W    H    K    L    K    L    I    I    E    I    D    N    R    E    T    K    L    <b>Q</b>    E    A    P    M    V    V   
+   seq2 18568  AGT  TTA  TGA  CAC  AAA  CTA  AAA  TTA  ATA  ATC  GAG  ATT  GAT  AAT  CGT  GAA  ACA  AAA  CTC  <b>--A</b>  GAA  GCT  CCA  ATG  GTT  GTG  18643
+                *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    <b>9</b>    9    9    9    9    9    9   PP
+</pre> 
+   
+When the frameshift was caused by an insertion the extra nucleotide(s) in the psuedo-codon will be printed in lowercase. One such psuedo-codon is shown bellow in bold.
+   
+<pre>  
+   metC    37   m    f    d    d    i    d    s    g    f    v    n    s    <b>g</b>    v    t    g    g    s    t    v    l    f    k    t    s    a   62
+                +         +    d    +    d                   +    n    +    <b>+</b>    +                             +    l    f    +    +    +    +
+                T    S    E    D    M    D    N    R    S    M    N    N    <b>S</b>    P    L    I    D    Q    W    I    L    F    R    N    T    S   
+   seq2 34795  ACA  TCC  GAA  GAC  ATG  GAC  AAC  AGA  TCC  ATG  AAC  AAC <b>aTCT</b>  CCA  TTA  ATA  GAT  CAA  TGA  ATT  TTA  TTC  AGG  AAT  ACA  TCT  34717
+                *    *    *    *    *    *    *    *    *    *    *    9    <b>9</b>    9    9    9    9    9    *    *    *    *    *    *    *    *   PP
+</pre>
+ 
+```   
+   metC   115   v    k    p    g    d    h    v    l    i    v    d    t    a    y    e    p    .    l    r    e    f    c    c    w    y    l   139
+                          +         d    h    v    l    +    v    d         +    y    +              +    +    +    +    c         +    +
+                F    G    S    N    D    H    V    L    V    V    D    S    V    Y    K    S    f    I    K    Q    L    C    K    Q    F    S   
+   seq2 34559  TTC  GGA  TCA  AAC  GAC  CAT  GTG  -TT  GTG  GTA  GAT  TCC  GTT  TAT  AAG  TCT  TTT  ATA  AAA  CAA  CTA  TGT  AAA  CAA  TTC  TCA  34483
+                *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    7    4    7    9    *    *    *    *    *    *    *   PP
+ 
+   metC   140   e    r    l    g    v    s    f    d    f    y    d    p    a    .    d    d    r    s    l    k    c    l    l    r    s    n   164
+                     r    +    +    v    +    +         f    +    d    p    +         +    +              l    k         l    +    r    +
+                T    R    I    D    V    H    L    G    F    V    D    P    S    g    N    E    C    N    L    K    I    L    F    R    T    M   
+   seq2 34482  ACG  AGA  ATC  GAT  GTC CAtgT TTG  GGT  TTT  GTT  GAT  CCA  AGC  GGG  AAT  GAA  TGT  AAC  TTA  AAG  ATA  TTA  TTT  AGA  ACcG ATG  34402
+                *    *    *    *    *    9    *    *    *    *    *    9    8    3    5    6    7    8    *    *    *    *    *    *    *    *   PP
+
+   metC   165   t    r    l    v    h    l    e    s    p    g    s    g    t    f    e    m    q    d    v    k    a    i    c    d    y    v   190
+                +    r    l    +    +    l         s         +    s    +              +    +         +                   i    c    +    +    +
+                S    R    L    I    Y    L    G    S    X    C    S    E    I    S    K    I    L    N    T    Y    Q    I    C    K    H    I   
+   seq2 34401  TCA  AGG  TTA  ATC  TAC  TTA  GGA  TCA  tag  TGT  TCG  GAG  ATA  TCC  AAG  ATC  TTA  AAT  ACT  TAT  CAA  ATT  TGT  AAA  CAC  ATA  34324
+                *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
+
+   metC   191   h    n    r    n    p    e    c    f    v    s    l    d    n    t    w    a    t    p    l    l    f    k    p    i    a    h   216
+                +    +    r         +              +    +    s    +    d    n                        +         +    +    k    p    i    +
+                K    Q    R    P    N    R    H    V    I    S    V    D    N    N    -    -    -    T    Q    I    Y    K    P    I    T    X   
+   seq2 34323  AAG  CAA  CGT  CCG  AAC  AGA  CAT  GTT  ATA  TCG  GTG  GAC  AAT  AAC  ---  ---  ---  ACC  CAA  ATA  TAT  AAA  CCA  ATA  ACA  taa  34255
+                *    *    *    *    *    *    *    *    *    *    *    *    *    6    .    .    .    5    6    8    *    *    *    *    *    *   PP
+ ```
 </p>
 </details>
 

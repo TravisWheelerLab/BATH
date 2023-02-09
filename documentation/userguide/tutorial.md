@@ -219,7 +219,7 @@ This section of the tutorial will focus on the tool frahmmer. This tool allows t
 <details><summary>Practice 7: running a simple frahmmer search</summary>
 <p>
 
-Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM you copied to its own file in Practice 5 (RIB.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. 
+Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file Rib.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. 
    
 ```bash
    % frahmmer -o RIB.out RIB.hmm seq1.fa
@@ -227,17 +227,17 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
  
  The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. If you open this file you will see that it contains the following information:
      
-   1) File Header - lines begin with '#' and contains basic information about the search parameters
+   1) File Header - lines begin with '#' and contain basic information about the search parameters
 ```
    # query HMM file:                  Rib.hmm
    # target sequence database:        seq1.fa
    # frameshift probability:          0.010000
-   # codon tranlsation table          1
+   # codon translation table          1
    # output directed to file:         Rib.out
    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ```
     
-   2) Query Header - inculdes summary of each query and any hits found with the target.  For each hit the query header lists the E-value, bit score and the bias score adjustment.  This is followed by name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and the number of stop codons in that alignment, and finaly a target despriprion (which may be blank).
+   2) Query Header - includes a summary of each query and a hits list sorted by E-value.  For each hit, the query header lists the E-value, bit score, and bias score adjustment (for more information on bias scores see pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  This is followed by name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and stop codons in that alignment, and finally a target description (which may be blank).
 
 ```
    Query:       Ribosomal_S19e  [M=139]
@@ -249,7 +249,7 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
       1.6e-28  110.7   0.1  seq1     3197980 3197584       1      0
 ```
    
-   3) Annotation - for each hit between the query and target, frahmmer will prouduce an annotaion line containing usefull information about the hit. As in the query header, the annotaion line lists the score, bias and Evalue for each hit. It also lists three types of coordinats for the hit. These include alignment start and end coodinates for the query (hmm-from & hmm-to) and for the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to).  The envelope is the region of the target which frahmmer identified as homologous and whose bound were used to produce the reported score, bias and Evalue. The annotition line also lists the frameshift and stop codon counts, the full length of the target sequence and alignment accuracy score (acc) which is the average expected per residue accuracy of the alignment.
+   3) Annotation - for each hit between the query and target, frahmmer will produce an annotation line containing useful information about the hit. As in the query header, the annotations line lists the score, bias, and E-value for each hit. It also lists three types of coordinates for the hit. These include the alignment start and end coordinates for the query (hmm-from & hmm-to) and for the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to).  The envelope is the region of the target that frahmmer has identified as homologous and the hit alignment is always contained within the envelope. The reported score, bias, and E-value are all calculated for the target subsequence bound by the envelope coordinates. The annotation line also lists the frameshift and stop codon counts, the full length of the target sequence, and the alignment's accuracy score (acc) which is the average expected per residue accuracy of the alignment.
   
 ```
    Annotation for each hit (and alignments):
@@ -259,7 +259,7 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
     !  110.7   0.1   1.6e-28          8       137 ..   3197980   3197584 ..   3198010   3197575 ..      1      0  30000000   0.89
 ```
    
-   4) Alignment - Bellow each annotation line is the alignment (here just the first line of the aligment is shown). This alignment contiains 5 rows which are, from top to bottom, (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. The query row contains the query consunsus letter for each match and delete and a '.' for and insertions.  The target row shows the target codons and pseudo-codons which have been aligned to the taget.  In this example only codons are present in the first row (no frameshifts).  Both the query and target row also show the name of the query or target and the start and end coodinates of the letters sown on that line of the alignment. The translation line shows the amino acid transaltions of those codons.  The match line shows whether each position in the alignment was a match (letter), a positive scoring mis-match ('+'), or a negative scoring mis-match (blank).  Finally the posterior probability (PP) row gives the expected accuracy for each position of the alginment.
+   4) Alignment - Bellow each annotation line is the alignment (here just the first line of the alignment is shown). This alignment contains 5 rows which are, from top to bottom, (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. The query row contains the query consensus letter for matched and deletions and a '.' for insertions.  The target row shows the target codons and pseudo-codons which have been aligned to the target.  In this example, only codons are present in the first row (no frameshifts).  In the case of an amino acid deletion target line will print three dashed '---' in place of the codon. Both the query and target row also show the name of the query or target and the start and end coordinates of the residues sown on that line of the alignment. The translation line shows the amino acid translations of the codons on the target line.  The match line shows which positions in the alignment are positive scoring.  Exact matches are shown as the matched amino acid residue (in lowercase) and positive scoring mismatches are shown as a '+'.   Finally, the posterior probability (PP) row gives the expected accuracy for each position of the alignment.
 
 ```
      Alignment:
@@ -271,7 +271,7 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
                               5    7    8    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
 ```
       
-   5) Query Footer - each queries output will conclude with a footer that provides infomrtation about the hit filtering process inside frahmmer.  The average user can ignore this data.  For those who are interested, more informatoin on these data can be found on page 54 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  There will also be a couple of lines listing run times and a line with just '//' indicating the end of the output for the query.
+   5) Query Footer - each query's output will conclude with a footer that provides information about the hit filtering process inside frahmmer.  The average user can ignore this data.  For those who are interested, more information on these data can be found on page 54 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  There will also be a couple of lines listing run times and a line with just '//' indicating the end of the output for the query.
 
 ```
    Internal pipeline statistics summary:
@@ -292,7 +292,7 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
     
 </p>
 </details>
- 
+
 <details><summary>Practice 8: running a frahmmer search on a target with an alternate codon translation table</summary>
 <p>
 
@@ -307,7 +307,7 @@ Run the following command to search the pHMMs in MET.hmm, which you built in Pra
 This will result in the following error message:
 
 ```bash
-   Error: Requested codon tranlsation tabel ID 4 does not match the codon tranlsation tabel ID of the HMM file MET.hmm. Please run frahmmcovert with option '--ct 4'.
+   Error: Requested codon translation tabel ID 4 does not match the codon translation tabel ID of the HMM file MET.hmm. Please run frahmmcovert with option '--ct 4'.
 ```
 
 To avoid this error we need to use the pHMM file with the correct codon translation table by running the following command:
@@ -315,86 +315,9 @@ To avoid this error we need to use the pHMM file with the correct codon translat
 ```bash
    % frahmmer --ct 4 -o MET.out MET-ct4.hmm seq2.fa
 ```
-The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence. Bellow are select positions from one of the alignents in MET.out which wil illistrate the different types of alignment positions. 
+The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence.
    
-The most common type of position is a match (or mis-match) between a codon with three target nucleotides and a single query amino acid.  When the codon in question does not translate to an amino acid, but instead is a stop codon, the nucleotids will be printed in lower case and a 'X' will apear on the translation line, as seen bellow in bold.
-  
-<pre>  
-   metC   165   t    r    l    v    h    l    e    s    <b>p</b>    g    s    g    t    f    e    m    q    d    v    k    a    i    c    d    y    v   190
-                +    r    l    +    +    l         s         +    s    +              +    +         +                   i    c    +    +    +
-                S    R    L    I    Y    L    G    S    <b>X</b>    C    S    E    I    S    K    I    L    N    T    Y    Q    I    C    K    H    I   
-   seq2 34401  TCA  AGG  TTA  ATC  TAC  TTA  GGA  TCA  <b>tag</b>  TGT  TCG  GAG  ATA  TCC  AAG  ATC  TTA  AAT  ACT  TAT  CAA  ATT  TGT  AAA  CAC  ATA  34324
-                *    *    *    *    *    *    *    *    <b>*</b>    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-</pre>
-   
-   
- When a frameshift occures in a frahmmer alignment it is still considered a match or mis-match, but instead of the query amino acid aligning to a codon it will be aligned to a pseudo-codon.  Pseudo-codons are codons with indels of one or two nucleotides which cause them to be either shorter or longer than a standard codon (pseudo-codons may be one, two, four or five nucleotides long).  When the frameshift was caused by a deletion the missing nucleotide(s) in the psuedo-codon will be replaced by '-' cahracters.  One such psuedo-codon is shown bellow in bold.
-   
- <pre>  
-   metG    34   k    n    w    h    n    v    k    l    a    i    G    a    d    d    h    G    a    k    i    <b>q</b>    n    l    s    k    l    k   59
-                          w    h    +    +    k    l    +    i              d    +              +    k    +    <b>q</b>    +    +              +
-                S    L    W    H    K    L    K    L    I    I    E    I    D    N    R    E    T    K    L    <b>Q</b>    E    A    P    M    V    V   
-   seq2 18568  AGT  TTA  TGA  CAC  AAA  CTA  AAA  TTA  ATA  ATC  GAG  ATT  GAT  AAT  CGT  GAA  ACA  AAA  CTC  <b>--A</b>  GAA  GCT  CCA  ATG  GTT  GTG  18643
-                *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    <b>9</b>    9    9    9    9    9    9   PP
-</pre> 
-   
-When the frameshift was caused by an insertion the extra nucleotide(s) in the psuedo-codon will be printed in lowercase. One such psuedo-codon is shown bellow in bold.
-   
-<pre>  
-   metC    37   m    f    d    d    i    d    s    g    f    v    n    s    <b>g</b>    v    t    g    g    s    t    v    l    f    k    t    s    a   62
-                +         +    d    +    d                   +    n    +    <b>+</b>    +                             +    l    f    +    +    +    +
-                T    S    E    D    M    D    N    R    S    M    N    N    <b>S</b>    P    L    I    D    Q    W    I    L    F    R    N    T    S   
-   seq2 34795  ACA  TCC  GAA  GAC  ATG  GAC  AAC  AGA  TCC  ATG  AAC  AAC <b>aTCT</b>  CCA  TTA  ATA  GAT  CAA  TGA  ATT  TTA  TTC  AGG  AAT  ACA  TCT  34717
-                *    *    *    *    *    *    *    *    *    *    *    9    <b>9</b>    9    9    9    9    9    *    *    *    *    *    *    *    *   PP
-</pre>
- 
-```   
-   metC   115   v    k    p    g    d    h    v    l    i    v    d    t    a    y    e    p    .    l    r    e    f    c    c    w    y    l   139
-                          +         d    h    v    l    +    v    d         +    y    +              +    +    +    +    c         +    +
-                F    G    S    N    D    H    V    L    V    V    D    S    V    Y    K    S    f    I    K    Q    L    C    K    Q    F    S   
-   seq2 34559  TTC  GGA  TCA  AAC  GAC  CAT  GTG  -TT  GTG  GTA  GAT  TCC  GTT  TAT  AAG  TCT  TTT  ATA  AAA  CAA  CTA  TGT  AAA  CAA  TTC  TCA  34483
-                *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    7    4    7    9    *    *    *    *    *    *    *   PP
- 
-   metC   140   e    r    l    g    v    s    f    d    f    y    d    p    a    .    d    d    r    s    l    k    c    l    l    r    s    n   164
-                     r    +    +    v    +    +         f    +    d    p    +         +    +              l    k         l    +    r    +
-                T    R    I    D    V    H    L    G    F    V    D    P    S    g    N    E    C    N    L    K    I    L    F    R    T    M   
-   seq2 34482  ACG  AGA  ATC  GAT  GTC CAtgT TTG  GGT  TTT  GTT  GAT  CCA  AGC  GGG  AAT  GAA  TGT  AAC  TTA  AAG  ATA  TTA  TTT  AGA  ACcG ATG  34402
-                *    *    *    *    *    9    *    *    *    *    *    9    8    3    5    6    7    8    *    *    *    *    *    *    *    *   PP
-
-   metC   165   t    r    l    v    h    l    e    s    p    g    s    g    t    f    e    m    q    d    v    k    a    i    c    d    y    v   190
-                +    r    l    +    +    l         s         +    s    +              +    +         +                   i    c    +    +    +
-                S    R    L    I    Y    L    G    S    X    C    S    E    I    S    K    I    L    N    T    Y    Q    I    C    K    H    I   
-   seq2 34401  TCA  AGG  TTA  ATC  TAC  TTA  GGA  TCA  tag  TGT  TCG  GAG  ATA  TCC  AAG  ATC  TTA  AAT  ACT  TAT  CAA  ATT  TGT  AAA  CAC  ATA  34324
-                *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-   metC   191   h    n    r    n    p    e    c    f    v    s    l    d    n    t    w    a    t    p    l    l    f    k    p    i    a    h   216
-                +    +    r         +              +    +    s    +    d    n                        +         +    +    k    p    i    +
-                K    Q    R    P    N    R    H    V    I    S    V    D    N    N    -    -    -    T    Q    I    Y    K    P    I    T    X   
-   seq2 34323  AAG  CAA  CGT  CCG  AAC  AGA  CAT  GTT  ATA  TCG  GTG  GAC  AAT  AAC  ---  ---  ---  ACC  CAA  ATA  TAT  AAA  CCA  ATA  ACA  taa  34255
-                *    *    *    *    *    *    *    *    *    *    *    *    *    6    .    .    .    5    6    8    *    *    *    *    *    *   PP
- ```
 </p>
 </details>
 
-<details><summary>Practice 9: running a frahmmer search with a sequence based query</summary>
-<p>
-
-If you do not wish to build the query pHMMs ahead of time, frahmmer can build them for you on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming.  If you chose to use a sequence based query file it is recommended that you save the pHMMs to use in any subsequent searches.  The following command uses the unaligned sequences in the file XXX.fa as the queries, building a pHMM for each one.   The '--hmmout' flag will direct frahmmer to print those pHMMs to the file XXX.hmm.
-
-```bash
-   % frahmmer -o XXX.out --hmmout XXX.hmm XXX.fa seq1.fa
-```
-</p>
-</details>
-
-<details><summary>Practice 10: producing tabular output for a frahmmer search</summary>
-<p>
-
-The outputs we saw in Practice 7 & 8 provide the user with a way to integrate individual alignments, but are not the cleanest format for parsing a large number of hits.  For this reason, frahmmer can produce a separate tabular output file.  The following command directs this output to GK.tbl using the '--tblout' flag, while directing the standard output to GK.out with the '-o' flag.
-
-```bash
-   % frahmmer -o GK.out --tblout GK.tbl GK.hmm seq1.fa
-```
-</p>
-</details>
 

@@ -1,11 +1,11 @@
 # Tutorial
 
-FraHMMER was built on top of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are two sections in this tutorial. The first section - Input files - will cover the tools that can be used to prepare your data before you begin a homology search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated searchs and interpreting the results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
+FraHMMER was built on top of the existing HMMER3 code-base. Users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a frahmmer search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated homology search and on interpreting the search results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the commands.
 
 **Tools**
 ---
 
-**frahmmbuild**   - build and save FraHMMER formated pHMM file from an input multiple sequence alignment (MSA) file
+**frahmmbuild**   - build FraHMMER formated profile hidden Markov models (pHMMs) from input multiple sequence alignments (MSAs) and save to file
 ```
 Usage: frahmmbuild [-options] <hmmfile_out> <msafile_in>
 ```
@@ -33,7 +33,7 @@ Usage: frahmmer [options] <protein-queryfile> <DNA-targetfile>
 
 Before you begin using FraHMMER, it will be helpful to become familiar with the file types that are required as inputs. Each frahmmer search needs a protein query file and a DNA target file. The target file must include one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment (MSA) format. Common unaligned sequence formats include fasta, embl, and genbank. Common MSA formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-FraHMMER includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
+FraHMMER includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the / (pages 145-204). 
 
 The query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice # and #). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate these pHMM files.
 
@@ -219,17 +219,80 @@ This section of the tutorial will focus on the tool frahmmer. This tool allows t
 <details><summary>Practice 7: running a simple frahmmer search</summary>
 <p>
 
-Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM you copied to its own file in Practice 5 (RIB.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. You will also use the flag '-o' to ridect the output to the file RIB.out rather tahn standard out. 
+Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file Rib.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. 
    
 ```bash
    % frahmmer -o RIB.out RIB.hmm seq1.fa
 ```
  
- The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. 
+ The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. If you open this file you will see that it contains the following information:
+     
+   1) File Header - lines begin with '#' and contain basic information about the search parameters
+```
+   # query HMM file:                  Rib.hmm
+   # target sequence database:        seq1.fa
+   # frameshift probability:          0.010000
+   # codon translation table          1
+   # output directed to file:         Rib.out
+   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+```
+    
+   2) Query Header - includes a summary of each query and a hits list sorted by E-value.  For each hit, the query header lists the E-value, bit score, and bias score adjustment (for more information on bias scores see pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  This is followed by name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and stop codons in that alignment, and finally a target description (which may be blank).
 
+```
+   Query:       Ribosomal_S19e  [M=139]
+   Accession:   PF01090.14
+   Description: Ribosomal protein S19e
+   Scores for complete hits:
+      E-value  score  bias  Sequence   start     end  shifts  stops  Description
+      ------- ------ -----  --------   -----   -----  ------  -----  -----------
+      1.6e-28  110.7   0.1  seq1     3197980 3197584       1      0
+```
+   
+   3) Annotation - for each hit between the query and target, frahmmer will produce an annotation line containing useful information about the hit. As in the query header, the annotations line lists the score, bias, and E-value for each hit. It also lists three types of coordinates for the hit. These include the alignment start and end coordinates for the query (hmm-from & hmm-to) and for the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to).  The envelope is the region of the target that frahmmer has identified as homologous and the hit alignment is always contained within the envelope. The reported score, bias, and E-value are all calculated for the target subsequence bound by the envelope coordinates. The annotation line also lists the frameshift and stop codon counts, the full length of the target sequence, and the alignment's accuracy score (acc) which is the average expected per residue accuracy of the alignment.
+  
+```
+   Annotation for each hit (and alignments):
+   >> seq1
+       score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
+      ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
+    !  110.7   0.1   1.6e-28          8       137 ..   3197980   3197584 ..   3198010   3197575 ..      1      0  30000000   0.89
+```
+   
+   4) Alignment - Bellow each annotation line is the alignment (here just the first line of the alignment is shown). This alignment contains 5 rows which are, from top to bottom, (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. The query row contains the query consensus letter for matched and deletions and a '.' for insertions.  The target row shows the target codons and pseudo-codons which have been aligned to the target.  In this example, only codons are present in the first row (no frameshifts).  In the case of an amino acid deletion target line will print three dashed '---' in place of the codon. Both the query and target row also show the name of the query or target and the start and end coordinates of the residues sown on that line of the alignment. The translation line shows the amino acid translations of the codons on the target line.  The match line shows which positions in the alignment are positive scoring.  Exact matches are shown as the matched amino acid residue (in lowercase) and positive scoring mismatches are shown as a '+'.   Finally, the posterior probability (PP) row gives the expected accuracy for each position of the alignment.
+
+```
+     Alignment:
+     score: 110.7 bits
+     Ribosomal_S19e       8   a    d    k    l    i    e    k    v    a    e    e    l    k    e    k    d    k    i    k    p    p    e    W   30
+                              +    +    +    +    i    +              a    +         l    k    +    +         +    +    +         p    +    W
+                              P    Q    E    F    I    A    T    Y    A    R    F    L    K    K    T    G    R    V    Q    I    P    K    W   
+               seq1 3197980  CCA  CAA  GAA  TTC  ATT  GCT  ACC  TAC  GCA  AGA  TTC  TTA  AAG  AAA  ACT  GGT  CGT  GTT  CAA  ATC  CCA  AAA  TGG  3197912
+                              5    7    8    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
+```
+      
+   5) Query Footer - each query's output will conclude with a footer that provides information about the hit filtering process inside frahmmer.  The average user can ignore this data.  For those who are interested, more information on these data can be found on page 54 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  There will also be a couple of lines listing run times and a line with just '//' indicating the end of the output for the query.
+
+```
+   Internal pipeline statistics summary:
+   -------------------------------------
+   Query model(s):                            1  (139 nodes)
+   Target sequence(s):                        1  (60040812 residues searched)
+   Residues passing SSV filter:         1327090  (0.0221); expected (0.02)
+   Residues passing bias filter:        1222149  (0.0204); expected (0.02)
+   Residues passing Vit filter:          129784  (0.00216); expected (0.001)
+   Residues passing Fwd filter:             653  (1.09e-05); expected (1e-05)
+   Total number of hits:                      1  (6.61e-06) 
+   # CPU time: 3.86u 0.04s 00:00:03.90 Elapsed: 00:00:01.91
+   # Mc/sec: 4360.71
+   // 
+```
+   
+   6) File Footer - If frahmmer did not encounter any errors the last line of the file will simply read '[ok]'
+    
 </p>
 </details>
- 
+
 <details><summary>Practice 8: running a frahmmer search on a target with an alternate codon translation table</summary>
 <p>
 
@@ -244,7 +307,7 @@ Run the following command to search the pHMMs in MET.hmm, which you built in Pra
 This will result in the following error message:
 
 ```bash
-   Error: Requested codon tranlsation tabel ID 4 does not match the codon tranlsation tabel ID of the HMM file MET.hmm. Please run frahmmcovert with option '--ct 4'.
+   Error: Requested codon translation tabel ID 4 does not match the codon translation tabel ID of the HMM file MET.hmm. Please run frahmmcovert with option '--ct 4'.
 ```
 
 To avoid this error we need to use the pHMM file with the correct codon translation table by running the following command:
@@ -252,30 +315,9 @@ To avoid this error we need to use the pHMM file with the correct codon translat
 ```bash
    % frahmmer --ct 4 -o MET.out MET-ct4.hmm seq2.fa
 ```
-The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence. 
+The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence.
    
 </p>
 </details>
 
-<details><summary>Practice 9: running a frahmmer search with a sequence based query</summary>
-<p>
-
-If you do not wish to build the query pHMMs ahead of time, frahmmer can build them for you on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming.  If you chose to use a sequence based query file it is recommended that you save the pHMMs to use in any subsequent searches.  The following command uses the unaligned sequences in the file XXX.fa as the queries, building a pHMM for each one.   The '--hmmout' flag will direct frahmmer to print those pHMMs to the file XXX.hmm.
-
-```bash
-   % frahmmer -o XXX.out --hmmout XXX.hmm XXX.fa seq1.fa
-```
-</p>
-</details>
-
-<details><summary>Practice 10: producing tabular output for a frahmmer search</summary>
-<p>
-
-The outputs we saw in Practice 7 & 8 provide the user with a way to integrate individual alignments, but are not the cleanest format for parsing a large number of hits.  For this reason, frahmmer can produce a separate tabular output file.  The following command directs this output to GK.tbl using the '--tblout' flag, while directing the standard output to GK.out with the '-o' flag.
-
-```bash
-   % frahmmer -o GK.out --tblout GK.tbl GK.hmm seq1.fa
-```
-</p>
-</details>
 

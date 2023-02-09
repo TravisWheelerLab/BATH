@@ -374,7 +374,7 @@ typedef struct p7_fs_profile_s {
   off_t  roff;                  /* record offset (start of record); -1 if none            */
   off_t  eoff;                  /* offset to last byte of record; -1 if unknown           */
 
-  ESL_DSQ **codons;             /* maximum scoring Amino Acid tranlsations [p7P_MAXCODONS][0.1..M]    */
+  ESL_DSQ **codons;             /* maximum scoring Amino Acid translations [p7P_MAXCODONS][0.1..M]    */
   ESL_DSQ **indel_pos;          /* maximum scoring indel positions [p7P_MAXCODONS][0.1..M]    */
   const ESL_ALPHABET *abc;      /* copy of pointer to appropriate alphabet                */
  

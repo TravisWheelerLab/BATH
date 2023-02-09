@@ -1523,11 +1523,11 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
           ------ ----- --------- ------- -------    --------- ---------    --------- ---------     ------     ----- ---------    ----
        */
 
-          if (fprintf(ofp, "   %6s %5s %9s %9s %9s    %9s %9s    %9s %9s    %6s  %5s %9s   %4s\n",  
-           "score",  "bias",   "   Evalue", "hmmfrom", " hmm to", "  alifrom", "   ali to", "  envfrom", "   env to", "shifts", "stops", "   sq len", "acc")  < 0)
+          if (fprintf(ofp, "   %6s %5s %9s %10s %9s    %9s %9s    %9s %9s    %6s  %5s %9s   %4s\n",  
+           "score",  "bias",   "   Evalue", "hmm-from", " hmm-to", " ali-from", "   ali-to", " env-from", "   env-to", "shifts", "stops", "   sq-len", "acc")  < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
-        if (fprintf(ofp, "   %6s %5s %9s %9s %9s    %9s %9s    %9s %9s    %6s  %5s %9s   %4s\n",  
-            "------", "-----", "---------", "-------", "-------", "---------", "---------", "---------", "---------", "------",  "-----", "---------", "----") < 0)
+        if (fprintf(ofp, "   %6s %5s %9s %10s %9s    %9s %9s    %9s %9s    %6s  %5s %9s   %4s\n",  
+            "------", "-----", "---------", "--------", "-------", "---------", "---------", "---------", "---------", "------",  "-----", "---------", "----") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
      } 
      else 
@@ -1594,7 +1594,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 		  }
                 if (pli->frameshift)
                   {
-                    if (fprintf(ofp, " %c %6.1f %5.1f %9.2g %9d %9d %c%c %9" PRId64 " %9" PRId64 " %c%c %9" PRId64 " %9" PRId64 " %c%c %6d  %5d %9" PRId64 "    %4.2f\n",
+                    if (fprintf(ofp, " %c %6.1f %5.1f %9.2g %10d %9d %c%c %9" PRId64 " %9" PRId64 " %c%c %9" PRId64 " %9" PRId64 " %c%c %6d  %5d %9" PRId64 "   %4.2f\n",
                                 th->hit[h]->dcl[d].is_included ? '!' : '?',
                                 th->hit[h]->dcl[d].bitscore,
                                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
@@ -1614,7 +1614,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                                 th->hit[h]->dcl[d].ad->frameshifts,
                                 th->hit[h]->dcl[d].ad->stops,
                                 th->hit[h]->dcl[d].ad->L,
-                                (th->hit[h]->dcl[d].oasc / (1.0 + fabs((float) (th->hit[h]->dcl[d].jenv - th->hit[h]->dcl[d].ienv))))) < 0)
+                                (th->hit[h]->dcl[d].oasc / (1.0 + fabs((float) (th->hit[h]->dcl[d].jenv - th->hit[h]->dcl[d].ienv) / 3)))) < 0)
                       ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
                   }
 		else

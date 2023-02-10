@@ -320,4 +320,13 @@ The file MET.out should contain a single hit between each of the pHMMS in MET-ct
 </p>
 </details>
 
+<details><summary>Practice 9: running a frahmmer search with a sequence query</summary>
+<p>
 
+If you do not wish to build the query pHMMs ahead of time, frahmmer can build them for you on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming.  If you chose to use a sequence query file (unaligned sequences or MSAs) it is recommended that you save the pHMMs to use in any subsequent searches.  The following command uses the unaligned sequences in the file Rib-Seqs.fa as the queries, building a pHMM for each one.   The '--hmmout' flag will direct frahmmer to print those pHMMs to the file Rib-Seqs.hmm.
+
+```bash
+   % frahmmer --hmmout Rib-Seqs.hmm -o Rib-Seqs.out Rib-Seqs.fa seq1.fa
+```
+</p>
+</details>

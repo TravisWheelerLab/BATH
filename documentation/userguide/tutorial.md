@@ -216,7 +216,7 @@ As with frahmmconvert, you can also use the --ct flag to change the codon table
 
 This section of the tutorial will focus on the tool frahmmer. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
 
-<details><summary>Practice 7: running a simple frahmmer search</summary>
+<details><summary>Practice 7: running a simple frahmmer search and reading the output</summary>
 <p>
 
 Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file Rib.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. 

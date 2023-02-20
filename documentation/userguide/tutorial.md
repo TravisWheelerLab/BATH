@@ -1,6 +1,8 @@
 # Tutorial
 
-FraHMMER was built on top of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are two sections in this tutorial. The first section - Input files - will cover the tools that can be used to prepare your data before you begin a homology search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated searchs and interpreting the results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
+FraHMMER<sup>\*</sup> was built on top of the existing HMMER3 code-base, and users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. There are two sections in this tutorial. The first section - Input files - will cover the tools that can be used to prepare your data before you begin a homology search. The second section - Running frahmmer searches - will focus on using frahmmer<sup>\*</sup> to perform frameshift aware tranlsated searchs and interpreting the results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the executables.
+
+
 
 **Tools**
 ---
@@ -33,20 +35,22 @@ Usage: frahmmer [options] <protein-queryfile> <DNA-targetfile>
 
 Before you begin using FraHMMER, it will be helpful to become familiar with the file types that are required as inputs. Each frahmmer search needs a protein query file and a DNA target file. The target file must include one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment (MSA) format. Common unaligned sequence formats include fasta, embl, and genbank. Common MSA formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-FraHMMER includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
+The instalation of FraHMMER includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). If you have not run 'make install' you will need to include the full path to FraHMMER/easel/miniapps/ to any miniapp executalble. 
 
-The query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice # and #). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate these pHMM files.
+A frahmmer query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 9). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate FraHMMER pHMM files.
 
 <details><summary>Practice 1: building a pHMM from an MSA using frahmmbuild</summary>
 <p>
 
-The sensitivity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and almost identical to the ones used by HMMER, but contains additional information needed to perform accurate frameshift-aware translations and provide reliable e-values. If you would like more information on the pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). FraHMMER formated pHMMs can be created from MSA files using the tool frahmmbuild. 
+The sensitivity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER are almost identical to the ones used by HMMER, but contain additional information needed to perform accurate frameshift-aware translations and provide reliable e-values.  This includes values for  the assumed codon translation table, the frameshift probability, and the mu and tau values for the curve that describes evalue distributions for the frameshift aware Forward algorithim. If you would like to learn more about the other information in pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
+   
+FraHMMER formated pHMMs can be created from MSA files using the tool frahmmbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). Running the following command will build pHMMs from these MSAs and save them to the file MET.hmm:
 
-The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). To build pHMMs from those MSAs and save them to the file JB.hmm. Run the following command:
 ```bash
    % frahmmbuild MET.hmm MET.msa
 ```
-Now compare the summary output that is printed to your stdout to the text below (the exact CPU and elapsed time will vary):
+   
+The summary output that is printed to your stdout should reselmble the text below (the exact CPU and elapsed time will vary):
 
 ```bash
 # input alignment file:             MET.msa
@@ -61,8 +65,9 @@ Now compare the summary output that is printed to your stdout to the text below 
 
 # CPU time: 8.08u 0.00s 00:00:08.08 Elapsed: 00:00:06.04
 ```
+   
 The following is a brief description of each of the above fields. 
-
+   
 ```
 idx            Number, in order of the MSA file.
 
@@ -78,7 +83,7 @@ fs_prob        The probability assigned to a nucleotide insertion that results i
 
 codon_tbl      The NCBI codon translation table ID assumed for the target DNA
 
-eff_nseq       Effective sequence number. This was the “effective” number of independent sequences that frahmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. 
+eff_nseq       Effective sequence number. This is the “effective” number of independent sequences that frahmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. The higher the number the more diversity there is amoung the sequences in the MSA. 
 
 re/pos         Mean positional relative entropy, in bits. This can be ignored by most users. 
    
@@ -90,7 +95,7 @@ description    Description of the protein family - may be blank.
 <details><summary>Practice 2: building a pHMM from an MSA using frahmmbuild with an alternate codon translation table</summary>
 <p>
 
-One of the fields that distinguishes a FraHMMER formatted pHMM file from a HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. When you run a frahmer search selecting the correct codon table will the highest quality alignments. Ensuring that the pHMMs were built with that same the codon table will produce the most accurate e-values for those alignments. By default, frahmmbuild will use the standard code employed by eukaryotic nuclear DNA. To use an alternate codon translation table include the option --ct followed by a table ID from the list below:
+One of the fields that distinguishes a FraHMMER formatted pHMM file from a HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. When you run a frahmmer search, selecting the correct codon table will produce the highest quality alignments. Ensuring that the pHMMs were built with that same codon table will produce the most accurate e-values for those alignments. By default, frahmmbuild will use the standard code employed by eukaryotic nuclear DNA. To use an alternate codon translation table include the option --ct followed by a table ID from the list below:
 
 ```bash
 id  description
@@ -115,7 +120,8 @@ id  description
  25 Candidate Division SR1 and Gracilibacteria
 ```
 
-In a later practice, you will search the pHMMs in MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Run the following command to rebuild the pHMMs using the correct codon table for that target:
+In a practice 8, the pHMMs in MET.msa are searched against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Runing the following command will build the pHMMs using the correct codon table for that target:
+   
 ```bash
    % frahmmbuild --ct 4 MET-ct4.hmm MET.msa
 ```
@@ -127,7 +133,8 @@ The summary output should be nearly identical to that in Pracitce 1, except for 
 <details><summary>Practice 3: summerizing pHMM files with frahmmstat</summary>
 <p>
 
-Since a pHMM file may contain any number of individual models, it is useful to be able to quickly summarize the contents. The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  In this practice, you will compare the summaries of the two pHMM files made in practices 1 and 2.  First, run the following command to summarize the file built with the standard codon table. 
+Since a pHMM file may contain any number of individual models, it is useful to be able to quickly summarize the contents. The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  By running the following command you can produce a sumary for the file MET.hmm from practice 1:
+   
 ```bash
    % frahmmstat MET.hmm
 ```
@@ -142,7 +149,7 @@ This command should produce the following output to stdout:
     
 ```
 
-The fields are mainly the same as those produced by frahmbuild, and detailed in practice 1, with the exception on the accession field which may contian an alphanumeric idetifier for the protein family. 
+The fields are mainly the same as those produced by frahmbuild, and detailed in practice 1. The exception is the accession field which may contian an alphanumeric idetifier for the protein family, or be blank as it is in this case. 
 
 </p>
 </details>
@@ -155,10 +162,12 @@ If you have an existing HMMER formatted pHMM file and want to use it to run a fr
 ```bash
    % frahmmconvert GRK-hmmer.hmm GRK-frahmmer.hmm
 ```
-Your summary output should match that shown below.
+
+The summary output from this cammand should match that shown below.
+
 ```
 # input HMM file:                   GRK-hmmer.hmm
-# output HMM file:                 GRK-frahmmer.hmm
+# output HMM file:                  GRK-frahmmer.hmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq  mlen fs_prob codon_tbl eff_nseq re/pos description
@@ -170,6 +179,10 @@ Your summary output should match that shown below.
 ```
 You can also use frahmmconvert to change the codon table of an existing FraHMMER pHMM file using the --ct flag.  This will be faster than rebuilding from the original MSA. 
 
+```bash
+   % frahmmconvert --ct 4 MET.hmm MET-ct4.hmm
+```
+   
 </p>
 </details>
 
@@ -279,3 +292,4 @@ The outputs we saw in Practice 7 & 8 provide the user with a way to integrate in
 </p>
 </details>
 
+<sup>\*</sup>'FraHMMER' with capitalizations refers to the software package which includes a varaity of tools used to support and preform frameshift aware tranalsted homology search. When writen in all lowercase, 'frahmmer' refers to the primiary search tool inside of FraHMMER.

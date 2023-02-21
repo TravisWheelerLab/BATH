@@ -93,12 +93,16 @@ static ESL_OPTIONS options[] = {
   { "--pextend",    eslARG_REAL,        "0.4", NULL, "0<=x<1",  NULL,  NULL,  NULL,              "gap extend probability",                                       3 },
   { "--mx",         eslARG_STRING, "BLOSUM62", NULL, NULL,      NULL,  NULL,  "--mxfile",        "substitution score matrix choice (of some built-in matrices)", 3 },
   { "--mxfile",     eslARG_INFILE,       NULL, NULL, NULL,      NULL,  NULL,  "--mx",            "read substitution score matrix from file <f>",                 3 },
-  /* Control of reporting thresholds */
+  /* Control of reporting and inclusion thresholds */
   { "-E",           eslARG_REAL,  "10.0", NULL, "x>0",   NULL,  NULL,  REPOPTS,         "report sequences <= this E-value threshold in output",         4 },
   { "-T",           eslARG_REAL,   FALSE, NULL, NULL,    NULL,  NULL,  REPOPTS,         "report sequences >= this score threshold in output",           4 },
-  /* Control of inclusion (significance) thresholds */
-  { "--incE",       eslARG_REAL,  "0.01", NULL, "x>0",   NULL,  NULL,  INCOPTS,         "consider sequences <= this E-value threshold as significant",  5 },
-  { "--incT",       eslARG_REAL,   FALSE, NULL, NULL,    NULL,  NULL,  INCOPTS,         "consider sequences >= this score threshold as significant",    5 },
+  { "--incE",       eslARG_REAL,  "0.01", NULL, "x>0",   NULL,  NULL,  INCOPTS,         "consider sequences <= this E-value threshold as significant",  4 },
+  { "--incT",       eslARG_REAL,   FALSE, NULL, NULL,    NULL,  NULL,  INCOPTS,         "consider sequences >= this score threshold as significant",    4 },
+  /* input formats */
+  { "--qformat",      eslARG_STRING, NULL,  NULL, NULL,    NULL,  NULL , NULL,          "assert query is in format <s> (can be seq or msa format)",      5 },
+  { "--qsingle_seqs", eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL , NULL,          "force query to be read as individual sequences, even if in an msa format", 5 },
+  { "--tformat",    eslARG_STRING,  NULL, NULL, NULL,    NULL,  NULL,  NULL,            "assert target <seqfile> is in format <s>: no autodetection",  5 },
+
  /* Model-specific thresholding for both reporting and inclusion */
   { "--cut_ga",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  THRESHOPTS,      "use profile's GA gathering cutoffs to set all thresholding",   6 },
   { "--cut_nc",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  THRESHOPTS,      "use profile's NC noise cutoffs to set all thresholding",       6 },
@@ -116,20 +120,17 @@ static ESL_OPTIONS options[] = {
   { "--seed",         eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,          "set RNG seed to <n> (if 0: one-time arbitrary seed)",         12 },
   { "--w_beta",     eslARG_REAL,         NULL, NULL, NULL,    NULL,  NULL,           NULL,     "tail mass at which window length is determined",                12 },
   { "--w_length",   eslARG_INT,          NULL, NULL, NULL,    NULL,  NULL,           NULL,     "window length - essentially max expected hit length" ,          12 },
-  { "--qformat",      eslARG_STRING, NULL,  NULL, NULL,    NULL,  NULL , NULL,          "assert query is in format <s> (can be seq or msa format)",      12 },
-  { "--qsingle_seqs", eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL , NULL,          "force query to be read as individual sequences, even if in an msa format", 12 },
-  { "--tformat",    eslARG_STRING,  NULL, NULL, NULL,    NULL,  NULL,  NULL,            "assert target <seqfile> is in format <s>: no autodetection",  12 },
-#ifdef HMMER_THREADS 
+  #ifdef HMMER_THREADS 
   { "--block_length", eslARG_INT,   NULL, NULL,"n>=50000",NULL, NULL,  NULL,            "length of blocks read from target database (threaded) ",      12 },
   { "--cpu",        eslARG_INT, p7_NCPU,"HMMER_NCPU","n>=0",NULL,  NULL,  CPUOPTS,         "number of parallel CPU workers to use for multithreads",      12 },
 #endif
 
   /* name           type        default  env  range toggles reqs incomp  help                                          docgroup*/
-  { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 15 },
+  { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI translation table (see end of help)", 15 },
+  { "--fs",         eslARG_REAL,      "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty", 15 },
   { "-l",         eslARG_INT,      "20", NULL, NULL, NULL,  NULL, NULL,  "minimum ORF length",                            15 },
   { "-m",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-M",  "ORFs must initiate with AUG only",              15 },
   { "-M",         eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, "-m",  "ORFs must start with allowed initiation codon", 15 },
-  { "--fs",         eslARG_REAL,      "0.01", NULL, "0.001<=x<=0.05", NULL,  NULL, NULL,  "set the frameshift probabilty", 15 },
   { "--rosalind",   eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, NULL,  "only translate top strand",                     15 },
   { "--franklin",    eslARG_NONE,    FALSE, NULL, NULL, NULL,  NULL, NULL,  "only translate bottom strand",                  15 },
   
@@ -212,11 +213,14 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
       if (puts("\nOptions controlling translation:")                      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 15, 2, 100); 
 
-      if (puts("\nOptions controlling reporting thresholds:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nOptions controlling reporting and inclusion thresholds:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 4, 2, 100); 
 
-      if (puts("\nOptions controlling inclusion (significance) thresholds:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 5, 2, 100); 
+      if (puts("\nOptions setting input formats:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_opt_DisplayHelp(stdout, go, 5, 2, 100);
+
+      if (puts("\nOptions handling single sequence inputs:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_opt_DisplayHelp(stdout, go, 3, 2, 100);
 
      // if (puts("\nOptions controlling model-specific thresholding:")         < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
      // esl_opt_DisplayHelp(stdout, go, 6, 2, 100); 
@@ -525,7 +529,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
   else                                     textw = esl_opt_GetInteger(go, "--textw");
  
-  /* frahmmer accepts _query_ files that are eitherhmm(s) ,msa(s), or sequence(s).
+  /* frahmmer accepts query files that are either hmm(s), msa(s), or sequence(s).
    * The following code will follow the mandate of --qformat, and otherwise figure what
    * the file type is.
    */

@@ -144,7 +144,6 @@ static ESL_OPTIONS options[] = {
     Uniform scaling causes low-coverage regions to be scaled down to
     essentially no (weighted) observations, leading to low local relative
     entropy, which produces high overextension.
-
     However, we don't recommend using this method in general, as it
     may show odd behavior (or fail to even work) in the case of low
     overall observed counts (e.g. an alignemnt of 2 or 4 sequences)
@@ -1393,5 +1392,3 @@ set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
     }
   return eslOK;
 }
-
-

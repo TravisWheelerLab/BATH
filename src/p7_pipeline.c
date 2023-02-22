@@ -2591,12 +2591,12 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     tot_orf_P = eslINFINITY;
   
   } else { // compare ORFS to widows and select appropraite pipeline 
-    
+    //if(window_start == 6629364) printf("orf_block->count %d\n", orf_block->count);
      for(f = 0; f < orf_block->count; f++) {
        curr_orf = &(orf_block->list[f]);
-       orf_start = ESL_MIN(curr_orf->start, curr_orf->end);
-       orf_end   = ESL_MAX(curr_orf->start, curr_orf->end);
-  
+       orf_start = dnasq->start + ESL_MIN(curr_orf->start, curr_orf->end) - 1;
+       orf_end   = dnasq->start + ESL_MAX(curr_orf->start, curr_orf->end) - 1;
+ //	if(window_start == 6629364) printf("orf_start %d orf_end %d\n", orf_start, orf_end);
        if(orf_start >= window_start && orf_end <= window_end) {
 
          p7_bg_SetLength(bg, curr_orf->n);
@@ -2613,6 +2613,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    
          seqscore_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
          P_orf[f] = esl_exp_surv(seqscore_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+
          min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);
          tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf);
       }
@@ -2625,9 +2626,12 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
-	
+// if(window_start == 6629364) {
+//	printf("window start %d end %d\n", window_start, window_end); 
+//	printf("pli->F3 %f P_fs %.20f P_fs_nobias %.20f tot_orf_P %.20f min_P_orf %.20f\n", pli->F3, P_fs, P_fs_nobias, tot_orf_P, min_P_orf);	
+//}
   if(P_fs <= pli->F3 && (P_fs_nobias <= tot_orf_P || min_P_orf > pli->F3)) { 
-	
+
     pli->pos_past_fwd += dna_window->length; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, dna_window->length, 0);
@@ -2654,8 +2658,9 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
      
      for(f = 0; f < orf_block->count; f++) {	
       curr_orf = &(orf_block->list[f]);
-      orf_start = ESL_MIN(curr_orf->start, curr_orf->end);
-      orf_end   = ESL_MAX(curr_orf->start, curr_orf->end);
+      orf_start = dnasq->start + ESL_MIN(curr_orf->start, curr_orf->end) - 1;
+      orf_end   = dnasq->start + ESL_MAX(curr_orf->start, curr_orf->end) - 1;
+
       if(orf_start >= window_start && orf_end <= window_end && P_orf[f] <= pli->F3) { //only run the orfs that pass the froward parser 
         pli->pos_past_fwd += curr_orf->n * 3;
         p7_oprofile_ReconfigLength(om, curr_orf->n);

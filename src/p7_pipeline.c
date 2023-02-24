@@ -2631,7 +2631,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    * then we proceed with the frameshift pipeline
    */
 
-  if(P_fs <= pli->F3 && (P_fs_nobias <= tot_orf_P || min_P_orf > pli->F3)) { 
+  if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
     pli->pos_past_fwd += dna_window->length; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, dna_window->length, 0);

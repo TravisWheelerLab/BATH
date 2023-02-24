@@ -688,8 +688,8 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
     
-    ext_i_coords   =  ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1));
-    ext_j_coords   =  ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); 
+    ext_i_coords   =  ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
+    ext_j_coords   =  ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
    
     if(complementarity == p7_NOCOMPLEMENT)
     {
@@ -698,8 +698,8 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     }
     else
     {
-      window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords   * 3));
-      window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords   * 3) + 2); 
+      window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
+      window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->end   + 1) + (ext_j_coords * 3) + 2); 
     }
     
     p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
@@ -2591,12 +2591,16 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     tot_orf_P = eslINFINITY;
   
   } else { // compare ORFS to widows and select appropraite pipeline 
-    //if(window_start == 6629364) printf("orf_block->count %d\n", orf_block->count);
      for(f = 0; f < orf_block->count; f++) {
        curr_orf = &(orf_block->list[f]);
-       orf_start = dnasq->start + ESL_MIN(curr_orf->start, curr_orf->end) - 1;
-       orf_end   = dnasq->start + ESL_MAX(curr_orf->start, curr_orf->end) - 1;
- //	if(window_start == 6629364) printf("orf_start %d orf_end %d\n", orf_start, orf_end);
+       if(complementarity) {
+         orf_start =  dnasq->start - (dnasq->n - curr_orf->end   + 1) + 1;
+         orf_end   =  dnasq->start - (dnasq->n - curr_orf->start + 1) + 1;
+       } else {    
+         orf_start = dnasq->start + curr_orf->start - 1;
+         orf_end   = dnasq->start + curr_orf->end   - 1;
+       } 
+        
        if(orf_start >= window_start && orf_end <= window_end) {
 
          p7_bg_SetLength(bg, curr_orf->n);
@@ -2626,12 +2630,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
-// if(window_start == 6629364) {
-//	printf("window start %d end %d\n", window_start, window_end); 
-//	printf("pli->F3 %f P_fs %.20f P_fs_nobias %.20f tot_orf_P %.20f min_P_orf %.20f\n", pli->F3, P_fs, P_fs_nobias, tot_orf_P, min_P_orf);	
-//}
-  if(P_fs <= pli->F3 && (P_fs_nobias <= tot_orf_P || min_P_orf > pli->F3)) { 
 
+  if(P_fs <= pli->F3 && (P_fs_nobias <= tot_orf_P || min_P_orf > pli->F3)) { 
     pli->pos_past_fwd += dna_window->length; 
    
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 4, dna_window->length, 0);
@@ -2658,8 +2658,13 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
      
      for(f = 0; f < orf_block->count; f++) {	
       curr_orf = &(orf_block->list[f]);
-      orf_start = dnasq->start + ESL_MIN(curr_orf->start, curr_orf->end) - 1;
-      orf_end   = dnasq->start + ESL_MAX(curr_orf->start, curr_orf->end) - 1;
+      if(complementarity) {
+         orf_start =  dnasq->start - (dnasq->n - curr_orf->end   + 1) + 1;
+         orf_end   =  dnasq->start - (dnasq->n - curr_orf->start + 1) + 1;
+       } else {    
+         orf_start = dnasq->start + curr_orf->start - 1;
+         orf_end   = dnasq->start + curr_orf->end   - 1;
+       } 
 
       if(orf_start >= window_start && orf_end <= window_end && P_orf[f] <= pli->F3) { //only run the orfs that pass the froward parser 
         pli->pos_past_fwd += curr_orf->n * 3;

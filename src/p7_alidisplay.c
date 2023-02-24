@@ -1906,10 +1906,10 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 
     if (show_translated_sequence)
     {
-      if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp, "  %*s", namewidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 
-      if (ni > 0) { if (fprintf(fp, " %*d ", coordwidth, a1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-      else { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+      if (ni > 0) { if (fprintf(fp, " %*s ", coordwidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+      else { if (fprintf(fp, " %*s ", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 	   
       for (i = 0, y = 0; i < aliwidth; i++, y++)
       {
@@ -1921,8 +1921,8 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 	  else                      a2--;	 
 	} 
       }
-      if (ni > 0) { if (fprintf(fp, " %-*d\n", coordwidth, a2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-      else { if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+      if (ni > 0) { if (fprintf(fp, " %-*s\n", coordwidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+      else { if (fprintf(fp, " %*s\n", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     }
   
     if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");

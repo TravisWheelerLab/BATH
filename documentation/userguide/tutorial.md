@@ -1,10 +1,12 @@
 # Tutorial
 
-FraHMMER<sup>\*</sup> was built on top of the existing HMMER3 code-base. Users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. 
+FraHMMER\* was built on top of the existing HMMER3 code-base. Users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundency, will link to the HMMER user guide where applicable. 
 
-There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a frahmmer<sup>\*</sup> search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated homology search, and on interpreting the search results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the commands.
+There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a frahmmer\*\* search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware tranlsated homology search, and on interpreting the search results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the commands.
 
-<sup>\* 'FraHMMER' with capitalizations refers to the software package which includes a varaity of tools used to support and preform frameshift aware tranalsted homology search. When writen in all lowercase, 'frahmmer' refers to the primiary search tool inside of FraHMMER.</sup>
+<sup>\* 'FraHMMER' with capitalizations refers to the software package which includes a varaity of tools used to support and preform frameshift aware tranalsted homology search. </sup>
+
+<sup>\*\* When writen in all lowercase, 'frahmmer' refers to the frameshift aware tranalsted homology search tool inside of FraHMMER.</sup>
 
 
 **Tools**
@@ -96,7 +98,9 @@ description    Description of the protein family - may be blank.
 <details><summary>Practice 2: building a pHMM from an MSA using frahmmbuild with an alternate codon translation table</summary>
 <p>
 
-One of the fields that distinguishes a FraHMMER formatted pHMM file from a HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. When you run a frahmmer search, selecting the correct codon table will produce the highest quality alignments. Ensuring that the pHMMs were built with that same the codon table will produce the most accurate e-values for those alignments. By default, frahmmbuild will use the standard code employed by eukaryotic nuclear DNA. To use an alternate codon translation table include the option --ct followed by a table ID from the list below:
+One of the fields that distinguishes a FraHMMER formatted pHMM file from a HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. When you run a frahmmer search, selecting the correct codon table will produce the highest quality alignments. Ensuring that the pHMMs were built with that same the codon table will produce the most accurate e-values for those alignments. 
+   
+By default, frahmmbuild will use the standard code employed by eukaryotic nuclear DNA. To use an alternate codon translation table include the option --ct followed by a table ID from the list below:
 
 ```bash
 id  description
@@ -121,11 +125,12 @@ id  description
  25 Candidate Division SR1 and Gracilibacteria
 ```
 
-In practice 8 you will search the pHMMs in MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Run the following command to build the pHMMs using the correct codon table for that target:
+In practice 8 you will search the pHMMs in MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
    
 ```bash
    % frahmmbuild --ct 4 MET-ct4.fhmm MET.msa
 ```
+   
 The summary output should be nearly identical to that in Pracitce 1, except for the output file name and the codon table field which should now say 4 for both pHMMs. 
 
 </p>
@@ -134,10 +139,12 @@ The summary output should be nearly identical to that in Pracitce 1, except for 
 <details><summary>Practice 3: summerizing pHMM files with frahmmstat</summary>
 <p>
 
-Since a pHMM file may contain any number of individual models, it is useful to be able to quickly summarize the contents. The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  In this practice, you will compare the summaries of the two pHMM files made in practices 1 and 2.  First, run the following command to summarize the file built with the standard codon table. 
+Since a pHMM file may contain any number of individual models, it is useful to be able to quickly summarize the contents. The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  The following command will summarize the pHMM file built in practice 1:
+   
 ```bash
-   % frahmmstat MET.hmm
+   % frahmmstat MET.fhmm
 ```
+   
 This command should produce the following output to stdout:
 
 ```bash
@@ -148,7 +155,7 @@ This command should produce the following output to stdout:
   2      metG                 -                  24     0.62    458 0.01000         1   0.53
 ```
 
-The fields are mainly the same as those produced by frahmbuild, and detailed in practice 1, with the exception on the accession field which may contian an alphanumeric idetifier for the protein family. 
+The fields are mainly the same as those produced by frahmbuild, and detailed in practice 1, with the exception on the accession field which may contian an alphanumeric idetifier for the protein family or be left blank if no accession is listed for the pHMM. 
 
 </p>
 </details>
@@ -156,30 +163,39 @@ The fields are mainly the same as those produced by frahmbuild, and detailed in 
 <details><summary>Practice 4: converting a HMMER formated pHMM file to FraHMMER format using frahmmconvert</summary>
 <p>
 
-If you have an existing HMMER formatted pHMM file and want to use it to run a frahmmer search, you will first need to convert it to the FraHMMER format using frahmmconvert. The file GRK-hmmer.hmm contains three pHMMs in HMMER3 format. The following command will create the FraHMMER formatted file GRK-frahmmer.hmm containing the same three pHMMs:
+If you have an existing HMMER formatted pHMM file and want to use it to run a frahmmer search, you will first need to convert it to the FraHMMER format using frahmmconvert. The file XXX.hmm contains three pHMMs in HMMER3 format. The following command will create the FraHMMER formatted file XXX.fhmm containing the same three pHMMs:
 
 ```bash
-   % frahmmconvert GRK-hmmer.hmm GRK-frahmmer.hmm
+   % frahmmconvert XXX.fhmm XXX.hmm
 ```
 Your summary output should match that shown below.
+   
 ```
-# input HMM file:                   GRK-hmmer.hmm
-# output HMM file:                 GRK-frahmmer.hmm
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-# idx    name                  nseq  mlen fs_prob codon_tbl eff_nseq re/pos description
-# ------ -------------------- ----- ----- ------- --------- -------- ------ -----------
-  1      Glucosamine_iso         30   193 0.01000         1     1.18  0.590 Glucosamine-6-phosphate isomerases/6-phosphogluconolactonase
-  2      Ribosomal_S19e          21   139 0.01000         1     0.73  0.591 Ribosomal protein S19e
-  3      K_oxygenase             14   337 0.01000         1     0.70  0.589 L-lysine 6-monooxygenase (NADPH-requiring)
-# CPU time: 2.75u 0.00s 00:00:02.75 Elapsed: 00:00:02.76
+TBD
 ```
-You can also use frahmmconvert to change the codon table of an existing FraHMMER pHMM file using the --ct flag.  This will be faster than rebuilding from the original MSA. 
 
 </p>
 </details>
 
-<details><summary>Practice 5: indexing a pHMM file and copying a single pHMM using frahmmfetch </summary>
+<details><summary>Practice 5: changing the codon table of a FraHMMER formated pHMM using frahmmconvert</summary>
+<p>
+ 
+You can also use frahmmconvert to change the codon table of an existing FraHMMER pHMM file using the --ct flag. This is faster than rebuilding from the original MSA.  The following command will create the file XXX-ct11.fhmm containing the same three pHMMs as XXX.fhmm but modified to use NCBI codon tranlsation table 11:
+   
+```bash
+   % frahmmconvert --ct 11 XXX-ct11.fhmm XXX.fhmm
+```
+
+This should produce to following output:
+ 
+```
+TBD
+```
+ 
+</p>
+</details>
+
+<details><summary>Practice 6: indexing a pHMM file and copying a single pHMM using frahmmfetch </summary>
 <p>
 
 If you only need to search with a single pHMM but it is located in a file with multiple pHMMs, you can save time by copying the desired pHMM to a new file using frahmmfetch. If the original file contains a large number of pHMMs, you may want to create an index file to speed up the fetch process.  The following command will index the create the index file GRK-frahmmer.ssi for the FraHMMER pHMM file we created in Practice 4. 
@@ -203,7 +219,7 @@ Retrieved HMM Ribosomal_S19e.
 </p>
 </details>
 
-<details><summary>Practice 6: converting and copying pHMMs using frahmmfetch </summary>
+<details><summary>Practice 7: copying and converting multiple pHMMs using frahmmfetch </summary>
 <p>
 
 You can also use frahmmfetch to copy multiple pHMMs. To do so you will need to create a key file that contains the names of all the pHMMs you wish to copy with one name per line and use the -f flag.  If the original pHMM file is in HMMER format frahmmfetch will automatically convert it to FraHMMER format. The following command will copy both of the pHMMs listed in the key file GK.txt (Glucosamine_iso and K_oxygenase) from a HMMER formated pHMM file, convert them to FraHMMER format, and print them to the output file GK.hmm
@@ -222,7 +238,7 @@ As with frahmmconvert, you can also use the --ct flag to change the codon table
 
 This section of the tutorial will focus on the tool frahmmer. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
 
-<details><summary>Practice 7: running a simple frahmmer search and reading the output</summary>
+<details><summary>Practice 8: running a simple frahmmer search and reading the output</summary>
 <p>
 
 Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file Rib.hmm) as the query.  For the target, you will use a single DNA sequence in the file seq1.fa, and the -o flag will be used to direct the hit data and alignment to the file RIB.out. 
@@ -231,7 +247,16 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
    % frahmmer -o RIB.out RIB.hmm seq1.fa
 ```
  
- The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. If you open this file you will see that it contains the following information:
+ The file RIB.out should now contain a single hit between the Ribosomal_S19e protein family and the DNA sequence. TO better understand the information in that file see Practice 9.
+   
+    
+</p>
+</details>
+
+<details><summary>Practice 9: interpreting standard frahmmer output</summary>
+<p>
+
+The file RIB.out contains the standard frahmmer output for a search between the query file RIB.hmm and the target file seq1.fa. If you open this file you will see that it is orgainized into the following sections:
      
    1) File Header - lines begin with '#' and contain basic information about the search parameters
 ```
@@ -295,11 +320,12 @@ Every frahmmer search requires two inputs - the query and the target.  In this p
 ```
    
    6) File Footer - If frahmmer did not encounter any errors the last line of the file will simply read '[ok]'
-    
+   
 </p>
 </details>
 
-<details><summary>Practice 8: running a frahmmer search on a target with an alternate codon translation table</summary>
+
+<details><summary>Practice 10: running a frahmmer search on a target with an alternate codon translation table</summary>
 <p>
 
 As discussed in Practice 2, some DNA sequences use alternate codon translation tables. For frahmmer searches that use such DNA as the target, the best results are achieved by specifying the correct codon table both during the actual search and when building the pHMMs. In this  Practice you will first attempt to run a frahmmer search with a mismatch between the codon table specified for the target and the codon table used to build the pHMM, resulting in an error message.  
@@ -326,7 +352,7 @@ The file MET.out should contain a single hit between each of the pHMMS in MET-ct
 </p>
 </details>
 
-<details><summary>Practice 9: running a frahmmer search with a sequence query</summary>
+<details><summary>Practice 11: running a frahmmer search with a sequence query</summary>
 <p>
 
 If you do not wish to build the query pHMMs ahead of time, frahmmer can build them for you on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming.  If you chose to use a sequence query file (unaligned sequences or MSAs) it is recommended that you save the pHMMs to use in any subsequent searches.  The following command uses the unaligned sequences in the file Rib-Seqs.fa as the queries, building a pHMM for each one.   The '--hmmout' flag will direct frahmmer to print those pHMMs to the file Rib-Seqs.hmm.

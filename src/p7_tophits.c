@@ -1598,7 +1598,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                                 th->hit[h]->dcl[d].is_included ? '!' : '?',
                                 th->hit[h]->dcl[d].bitscore,
                                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
-                                exp(th->hit[h]->dcl[d].lnP),
+                                exp(th->hit[h]->dcl[d].lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
                                 th->hit[h]->dcl[d].ad->hmmfrom,
                                 th->hit[h]->dcl[d].ad->hmmto,
                                 (th->hit[h]->dcl[d].ad->hmmfrom == 1) ? '[' : '.',

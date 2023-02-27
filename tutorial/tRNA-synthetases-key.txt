@@ -1,0 +1,3 @@
+tRNA-synt_1_2
+tRNA-synt_1c_C
+tRNA-synt_2d

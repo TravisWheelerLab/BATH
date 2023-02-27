@@ -284,8 +284,8 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
           if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
         {
-	  if(esl_opt_IsUsed(go, "--fs")) { hmm->fs = fs; }
-          if(esl_opt_IsUsed(go, "--ct")) { hmm->ct = ct; }
+	  if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0)  hmm->fs = fs; 
+          if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)    hmm->ct = ct; 
 
           r = esl_randomness_CreateFast(42);
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
@@ -297,7 +297,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
 	      ((hmm->acc) && esl_keyhash_Lookup(keys, hmm->acc, -1, &keyidx) == eslOK))
 	    {
-	      p7_hmmfile_WriteASCII(ofp, -1, hmm);
+	      p7_hmmfile_WriteASCII(ofp, p7_FraHMMER_3f, hmm);
 	      nhmm++;
 	    }
 
@@ -364,8 +364,8 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 
       if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
       { 
-	if(esl_opt_IsUsed(go, "--fs")) hmm->fs = fs;
-        if(esl_opt_IsUsed(go, "--fs")) hmm->ct = ct;
+	if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0) hmm->fs = fs;
+        if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)   hmm->ct = ct;
  
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
@@ -375,7 +375,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
         hmm->evparam[p7_FTAUFS] = tau_fs;
       }
 
-      p7_hmmfile_WriteASCII(ofp, -1, hmm);
+      p7_hmmfile_WriteASCII(ofp, p7_FraHMMER_3f, hmm);
       p7_hmm_Destroy(hmm);
     }
   else p7_Fail("HMM %s not found in file %s\n", key, hfp->fname);

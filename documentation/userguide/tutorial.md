@@ -382,16 +382,13 @@ Total number of hits:                      3  (0.187)
 </p>
 </details>
 
-
 <details><summary>Practice 10: running a frahmmer search on a target with an alternate codon translation table</summary>
 <p>
 
-As discussed in Practice 2, some DNA sequences use alternate codon translation tables. For frahmmer searches that use such DNA as the target, the best results are achieved by specifying the correct codon table both during the actual search and when building the pHMMs. In this  Practice you will first attempt to run a frahmmer search with a mismatch between the codon table specified for the target and the codon table used to build the pHMM, resulting in an error message.  
-
-Run the following command to search the pHMMs in MET.hmm, which you built in Practice 1 using the standard codon translation, against the target DNA in the file seq2.fa that you will specify as using codon table 4 with the --ct flag
-
+As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, frahmmer respondes to such searches with an error message. Runing the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the stadard codon table, against the target DNA in the file target-MET.fa while speciying the use of the alternate codon table 4. 
+   
 ```bash
-   % frahmmer --ct 4 -o MET.out MET.hmm seq2.fa
+   % frahmmer --ct 4 -o MET.out MET.fhmm target-MET.fa
 ```
    
 This will result in the following error message:
@@ -400,12 +397,12 @@ This will result in the following error message:
    Error: Requested codon translation tabel ID 4 does not match the codon translation tabel ID of the HMM file MET.hmm. Please run frahmmcovert with option '--ct 4'.
 ```
 
-To avoid this error we need to use the pHMM file with the correct codon translation table by running the following command:
+In this case, we already have a pHMM file built with the correct codon table and can skip running frahmmconvert. The follwoing command will use that pHMM file to run the same search, but without a codon table mismatch. 
 
 ```bash
-   % frahmmer --ct 4 -o MET.out MET-ct4.hmm seq2.fa
+   % frahmmer --ct 4 -o MET-ct4.out MET-ct4.hmm  target-MET.fa
 ```
-The file MET.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence.
+The file MET-ct4.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence in target-MET.fa.
    
 </p>
 </details>
@@ -416,7 +413,7 @@ The file MET.out should contain a single hit between each of the pHMMS in MET-ct
 If you do not wish to build the query pHMMs ahead of time, frahmmer can build them for you on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming.  If you chose to use a sequence query file (unaligned sequences or MSAs) it is recommended that you save the pHMMs to use in any subsequent searches.  The following command uses the unaligned sequences in the file Rib-Seqs.fa as the queries, building a pHMM for each one.   The '--hmmout' flag will direct frahmmer to print those pHMMs to the file Rib-Seqs.hmm.
 
 ```bash
-   % frahmmer --hmmout Rib-Seqs.hmm -o Rib-Seqs.out Rib-Seqs.fa seq1.fa
+   % 
 ```
 </p>
 </details>

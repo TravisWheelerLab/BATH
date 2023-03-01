@@ -1290,7 +1290,7 @@ output_result(const struct cfg_s *cfg, char *errbuf, int msaidx, ESL_MSA *msa, P
     }
     return eslOK;
   }
-  if ((status = p7_hmmfile_WriteASCII(cfg->hmmfp, 7, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
+  if ((status = p7_hmmfile_WriteASCII(cfg->hmmfp, p7_FraHMMER_3f, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
 
 	             /* #   name nseq alen M max_length eff_nseq re/pos description */
   if (cfg->abc->type == eslAMINO) {

@@ -74,7 +74,7 @@ main(int argc, char **argv)
   P7_HMMFILE    *hfp     = NULL;
   P7_HMM        *hmm     = NULL;
   FILE          *ofp     = NULL;
-  int            fmtcode = 7;	/* 7 = FraHMMER format */
+  int            fmtcode = p7_FraHMMER_3f;	/* FraHMMER format */
   int            status;
   int            hmmidx;
   char           errbuf[eslERRBUFSIZE];

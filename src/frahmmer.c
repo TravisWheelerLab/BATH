@@ -768,23 +768,25 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       }
       else { //check that HMM is properly formated for frahmmer
         if( ! (hmm->evparam[p7_FTAUFS] && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for frahmmer. Please run frahmmconvert.\n", cfg->queryfile);
-        
+      
         if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run frahmmcovert with option '--fs %f'.\n", indel_cost, cfg->queryfile, indel_cost);
       
       if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please run frahmmcovert with option '--ct %d'.\n", codon_table, cfg->queryfile, codon_table);
-      }
+     } 
 
       if(hmm->max_length == -1)
        p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
  
-      if (hmmoutfp != NULL) 
-        if ((status = p7_hmmfile_WriteASCII(hmmoutfp, -1, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
-      
+      if (hmmoutfp != NULL) {
+        if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0)  hmm->fs = indel_cost;
+        if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)    hmm->ct = esl_opt_GetInteger(go, "--ct");	
+        if ((status = p7_hmmfile_WriteASCII(hmmoutfp, p7_FraHMMER_3f, hmm)) != eslOK) ESL_FAIL(status, errbuf, "HMM save failed");
+      }
 
       nquery++;
       resCnt = 0;
       esl_stopwatch_Start(w);
-
+	
       /* seqfile may need to be rewound (multiquery mode) */
       if (nquery > 1)
       {
@@ -1020,6 +1022,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* Terminate outputs... any last words?
    */
   if (tblfp)    p7_tophits_TabularTail(tblfp,    "frahmmer", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go);
+  if (fstblfp)  p7_tophits_TabularTail(fstblfp,  "frahmmer", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go); 
   if (ofp)      { if (fprintf(ofp, "[ok]\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
   /* Cleanup - prepare for exit

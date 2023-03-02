@@ -1,0 +1,22 @@
+# target name         accession  query name           accession  E-value   ali from  ali to     I D S  length  seq start  ali start
+#------------------- ----------- -------------------- ---------- --------- --------- ---------  -----  ------  ---------  ---------
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       2  26756             79
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       1  26815            138
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  26958            281
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  26995            318
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       1  27029            352
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27076            399
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27116            439
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27177            500
+ seq1                 -          gidA                 -              2e-12 26678     27756          S       0  27283            606
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27370            693
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27647            970
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27696           1019
+#
+# Program:         frahmmer
+# Query file:      gidA.fhmm
+# Target file:     target-gidA.fa
+# Option settings: /home/u3/gkrause/git/FraHMMER/src/frahmmer -o gidA-fstbl.out --fstblout gidA.fstbl --ct 4 gidA.fhmm target-gidA.fa 
+# Current dir:     /home/u3/gkrause/git/FraHMMER/tutorial
+# Date:            Thu Mar  2 13:54:51 2023
+# [ok]

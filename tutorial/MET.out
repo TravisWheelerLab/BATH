@@ -1,0 +1,8 @@
+# query HMM file:                  MET.fhmm
+# target sequence database:        target-MET.fa
+# frameshift probability:          0.010000
+# codon translation table          4
+# output directed to file:         MET.out
+# use alt genetic code of NCBI transl table: 4
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+

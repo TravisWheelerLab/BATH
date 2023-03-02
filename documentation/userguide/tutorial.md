@@ -42,7 +42,7 @@ Before you begin using FraHMMER, it will be helpful to become familiar with the 
 
 FraHMMER's installation includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
 
-The query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice # and #). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate these pHMM files.
+A frahmmer query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 9). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate FraHMMER pHMM files.
 
 <details><summary>Practice 1: building a pHMM from an MSA using frahmmbuild</summary>
 <p>
@@ -54,7 +54,8 @@ FraHMMER formated pHMMs can be created from MSA files using the tool frahmmbuild
 ```bash
    % frahmmbuild MET.fhmm MET.msa
 ```
-Now compare the summary output that is printed to your stdout to the text below (the exact CPU and elapsed time will vary):
+   
+The summary output that is printed to your stdout should reselmble the text below (the exact CPU and elapsed time will vary):
 
 ```bash
 # input alignment file:             MET.msa
@@ -70,7 +71,7 @@ Now compare the summary output that is printed to your stdout to the text below 
 ```
    
 The following is a brief description of each of the above fields. 
-
+   
 ```
 idx            Number, in order of the MSA file.
 
@@ -86,7 +87,7 @@ fs_prob        The probability assigned to a nucleotide insertion that results i
 
 codon_tbl      The NCBI codon translation table ID assumed for the target DNA
 
-eff_nseq       Effective sequence number. This was the “effective” number of independent sequences that frahmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. 
+eff_nseq       Effective sequence number. This is the “effective” number of independent sequences that frahmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. The higher the number the more diversity there is amoung the sequences in the MSA. 
 
 re/pos         Mean positional relative entropy, in bits. This can be ignored by most users. 
    

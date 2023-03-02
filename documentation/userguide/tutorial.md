@@ -385,7 +385,7 @@ Total number of hits:                      3  (0.187)
 <details><summary>Practice 10: running a frahmmer search on a target with an alternate codon translation table</summary>
 <p>
 
-As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, frahmmer respondes to such searches with an error message. Runing the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the stadard codon table, against the target DNA in the file target-MET.fa while speciying the use of the alternate codon table 4. 
+As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, frahmmer responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
    
 ```bash
    % frahmmer --ct 4 -o MET.out MET.fhmm target-MET.fa
@@ -394,10 +394,10 @@ As discussed in Practice 2, some DNA sequences use alternate codon translation t
 This will result in the following error message:
 
 ```bash
-   Error: Requested codon translation tabel ID 4 does not match the codon translation tabel ID of the HMM file MET.hmm. Please run frahmmcovert with option '--ct 4'.
+   Error: Requested codon translation table ID 4 does not match the codon translation table ID of the HMM file MET.hmm. Please run frahmmconvert with option '--ct 4'.
 ```
 
-In this case, we already have a pHMM file built with the correct codon table and can skip running frahmmconvert. The follwoing command will use that pHMM file to run the same search, but without a codon table mismatch. 
+In this case, we already have a pHMM file built with the correct codon table and can skip running frahmmconvert. The following command will use that pHMM file to run the same search, but without a codon table mismatch. 
 
 ```bash
    % frahmmer --ct 4 -o MET-ct4.out MET-ct4.hmm  target-MET.fa
@@ -410,17 +410,85 @@ The file MET-ct4.out should contain a single hit between each of the pHMMS in ME
 <details><summary>Practice 11: running a frahmmer search with a sequence query</summary>
 <p>
 
-If you do not wish to build the query pHMMs ahead of time, frahmmer can build them for you on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming.  If you chose to use a sequence query file (unaligned sequences or MSAs) it is recommended that you save the pHMMs to use in any subsequent searches.  The following command uses the unaligned sequences in the file Rib-Seqs.fa as the queries, building a pHMM for each one.   The '--hmmout' flag will direct frahmmer to print those pHMMs to the file Rib-Seqs.hmm.
-
+If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and frahmmer will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time consuming. If you chose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file glyA.fa as the query, building a pHMM for that sequence and printing it the to file glyA.fhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file glyA.out using the '-o' flag. 
+   
 ```bash
-   % 
+   % frahmmer --ct 4 --hmmout glyA.fhmm -o glyA.out glyA.fa target-glyA.fa
 ```
+   
+The file glyA.fhmm will now contain a single pHMM built with codon table 4 and glyA.out will contain output for a single git between that pHMM and the DNA sequence in target-glyA.fa.
 </p>
 </details>
 
 <details><summary>Practice 12: producing and interpreting tabular output from a frahmmer search</summary>
 <p>
    
+In addition to the standard output, frahmmer can also produce a tabular summary file with a more easily parsable list of the hits found in a search. By using the '--tblout' flag you can direct frahmmer to create this tabular output and save it to the file of your choosing. The following command will run the same search as in Practice 8, but with the addition of the '--tblout' flag directing the tabular output to the file PTH2.tbl.
+   
+```bash
+   % frahmmer -o PTH2.out --tblout PTH2.tbl PTH2.fhmm target-PTH2.fa
+``` 
+
+If you open the file PTH2.tbl you will see the following text (file directories and dates may vary):
+
+```
+# target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to   E-value  score  bias  shifts  stops  pipe description of target
+#------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- --------- --------- ------ ----- ------- ------ ----- ---------------------
+seq1                 -          PTH2                 PF01981.11       116         2       116      3000       672       325       675       325   3.4e-34  110.1   0.3       0      0   std -
+seq1                 -          PTH2                 PF01981.11       116         2       116      3000      1273      1731      1263      1734   4.2e-33  110.3   0.0       0      0    fs -
+seq1                 -          PTH2                 PF01981.11       116         5       113      3000      2659      2343      2677      2327   2.7e-27   91.6   0.2       2      1    fs -
+#
+# Program:         frahmmer
+# Query file:      PTH2.fhmm
+# Target file:     target-PTH2.fa
+# Option settings: frahmmer -o PTH2.out --tblout PTH2.tbl PTH2.fhmm target-PTH2.fa
+# Current dir:     FraHMMER/tutorial
+# Date:            Wed Mar  1 18:27:58 2023
+# [ok]
+``` 
+
+A brief description of each column header (from left to right) is provided below.
+
+```
+target name             Name of the target sequence where the hit is located.
+
+accession               Alphanumeric ID for the target sequence (if provided in the target file).
+
+query name              Name of the query pHMM. 
+
+accession               Alphanumeric ID for the query (if provided in the query file).
+
+hmm len                 Length (number of match states) of the query pHMM.
+   
+hmm from                The start position of the alignment on the query pHMM. 
+   
+hmm to                  The end position of the alignment on the query pHMM. 
+   
+seq len                 The length of the target sequence (in nucleotides).
+   
+ali from                The start position of the alignment on the target sequence. If the hit is located on the reverse complement strand, ali from will be greater than ali to.
+   
+ali to                  The end position of the alignment on the target sequence.
+   
+env from                The start position of the hit envelope on the target sequence.  See practice 9 for an explanation of hit envelopes. 
+   
+env to                  The end position of the hit envelope on the target sequence. 
+
+E-value                 The hit e-value. 
+   
+score                   The hit bit score.
+   
+bias                    The hit bias adjustment score. See pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) for an explanation of bias adjustment. 
+   
+shifts                  The number of frameshifts reported in the alignment.
+   
+stops                   The number of stop codons reported in the alignment.
+   
+pipe                    The translation pipeline used to produce the hit, either standard 'std' or frameshift aware 'fs'. To reduce runtimes and the potential for false frameshifts frahmmer uses standard (non frameshift aware) translation for hits it determines are unlikely to contain frameshifts.  Most users can ignore this column. 
+   
+description of target   Description of the target sequence (if provided in the target file).
+```
+
 </p>
 </details>
 

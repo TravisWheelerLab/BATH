@@ -410,13 +410,13 @@ The file MET-ct4.out should contain a single hit between each of the pHMMS in ME
 <details><summary>Practice 11: running a frahmmer search with a sequence query</summary>
 <p>
 
-If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and frahmmer will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time consuming. If you chose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file glyA.fa as the query, building a pHMM for that sequence and printing it the to file glyA.fhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file glyA.out using the '-o' flag. 
+If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and frahmmer will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time consuming. If you chose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file gidA.fa as the query, building a pHMM for that sequence and printing it the to file gidA.fhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file gidA.out using the '-o' flag. 
    
 ```bash
-   % frahmmer --ct 4 --hmmout glyA.fhmm -o glyA.out glyA.fa target-glyA.fa
+   % frahmmer --ct 4 --hmmout gidA.fhmm -o gidA.out gidA.fa target-gidA.fa
 ```
    
-The file glyA.fhmm will now contain a single pHMM built with codon table 4 and glyA.out will contain output for a single git between that pHMM and the DNA sequence in target-glyA.fa.
+The file gidA.fhmm will now contain a single pHMM built with codon table 4 and gidA.out will contain output for a single git between that pHMM and the DNA sequence in target-gidA.fa.
 </p>
 </details>
 
@@ -492,9 +492,124 @@ description of target   Description of the target sequence (if provided in the t
 </p>
 </details>
 
-<details><summary>Practice 13: finding frameshifts and stop codons in frahmmer alignments </summary>
+<details><summary>Practice 13: locating frameshifts and stop codons in frahmmer alignments using '--frameline' </summary>
 <p>
    
+While both the standard and tabular outputs give the user the count of frameshifts and stop codons in an alignment, the user may also want to locate the quasi and stop codons.  Quasi-codons with deletions can be identified by looking for codons with one or two '-' characters in place of a nucleotide. Quasi-codons with insertions can be identified by looking for codons with more than 4 or 5 nucleotides (the nucleotides frahmmer determines to be the insertions will be shown in lowercase).  Stop codons can be identified by looking for codons with all three nucleotides in lowercase and an 'X' on the translation row. Below are examples of quasi and stop codons taken from the alignment in gidA.out from Practice 10:
+ 
+```
+ | one nucleotide deletion | two nucleotide deletions | one nucleotide insertion | two nucleotide insertions | stop codon |
+ |            w            |            g             |            k             |            v              |      a     |
+ |            w            |            g             |            +             |            v              |            |
+ |            W            |            G             |            Q             |            V              |      X     |
+ |           -GA           |           --A            |          CtAA            |          GTtaT            |     taa    |
+ |            6            |            3             |            8             |            7              |      8     |
+```
+
+To make it easier to locate frameshifts and stop codons the '--frameline' flag can be used to add a row to the alignment that numbers the frame of each codon and quasi-codon. This line can be used to locate quasi-codons by looking for a change from one frame to another.  Stop codons can be identified on the frameline by a '0'. Note that, for hits on the reverse complement strand of a sequence, the frames will be negative (i.e. -1, -2, & -3). 
+   
+ Running the follwing comand will use the file gidA.fhmm, created in Practice 10, to search a single pHMM against the DNA sequence in the file target-gidA.fa using codon table 4. The '-o' flag will direct the standard output to the file gidA-frameline.out and the '--frameline' flag will add the frameline row to the alignment.
+   
+```bash
+   % frahmmer --ct 4 --frameline -o gidA-frameline.out gidA.fhmm target-gidA.fa
+```
+   
+The following is an excerpt of four lines from the alignment in gidA-frameline.out. This excerpt shows two frameshifts (one by deletion and one by insertion) as well as one stop codon (the frame is shown directly beneath each codon or quasi-codon). On the first line, the frame changes - from 3 to 1 -  due to the deletion of two nucleotides. There is a stop codon on the third line, with a 0 in the frameline.  On the fourth line, the frame changes again - from 1 to 2 - due to a single nucleotide insertion. 
+ 
+```
+  gidA   218   a    v    y    t    l    i    k    a    s    a    .    n    q    a    p    m    c    l    g    .    .    r    l    l    a    k   240
+                         y         l    +                                            p    m                             r         l
+               N    T    Y    K    L    L    N    T    Y    T    v    V    L    T    P    M    K    K    Q    h    h    R    T    L    D    P
+  seq1 27132  AAC  ACC  TAC  AAA  CTA  TTA  AAT  ACC  TAC  ACC  GTT  GTT  CTA  ACT  CCC  A--  AAG  AAA  CAA  CAC  CAC  CGA  ACG  TTG  GAC  CCA  27207
+               3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    1    1    1    1    1    1    1    1    1    1    1   FRAME
+               *    *    *    9    9    9    7    6    5    4    1    3    4    5    5    2    2    2    3    0    0    5    4    4    2    1   PP
+
+  gidA   241   g    p    r    y    c    l    s    i    e    g    k    t    l    k    f    g    r    k    p    q    k    l    i    m    e    p   266
+                                                                                                                   +         i    +    e    p
+               T    S    T    L    F    N    Q    T    -    K    M    K    H    P    -    T    I    N    I    Y    R    P    I    I    E    P
+  seq1 27208  ACA  TCC  ACC  CTT  TTC  AAC  CAA  ACT  ---  AAA  ATG  AAA  CAT  CCA  ---  ACC  ATA  AAC  ATC  TAC  AGA  CCC  ATC  ATA  GAA  CCA  27279
+               1    1    1    1    1    1    1    1    .    1    1    1    1    1    .    1    1    1    1    1    1    1    1    1    1    1   FRAME
+               1    0    0    0    0    0    0    1    .    0    0    0    0    0    .    4    4    5    6    7    8    8    9    *    *    *   PP
+
+  gidA   267   e    a    t    g    s    s    s    v    y    v    n    g    l    s    t    s    m    .    p    i    e    l    q    l    q    l   291
+               e                   +         +    v    +    +    n    g         s         s                   +         +    q    l         +
+               E    X    L    D    T    K    T    V    H    L    N    G    T    S    I    S    T    s    N    L    V    I    Q    L    N    I
+  seq1 27280  GAA  taa  CTT  GAT  ACT  AAA  ACT  GTA  CAC  CTA  AAT  GGT  ACC  TCT  ATC  TCA  ACC  TCC  AAT  CTG  GTA  ATC  CAA  CTT  AAC  ATA  27357
+               1    0    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1   FRAME
+               *    8    8    9    9    9    *    *    *    *    *    *    9    9    7    7    5    1    6    8    9    9    *    *    *    *   PP
+
+  gidA   292   l    k    f    t    k    a    f    r    g    a    k    i    i    k    a    g    y    a    i    e    y    d    c    v    c    s   317
+               l    k         t    +                                  +    +    k    +         +         i    e    y    d              c    s
+               L    K    P    T    Q    H    P    I    D    V    C    V    V    K    S    K    H    T    I    E    Y    D    V    T    C    S
+  seq1 27358  CTA  AAA  CCC  ACA CtAA  CAC  CCA  ATT  GAT  GTC  TGT  GTT  GTT  AAG  TCC  AAA  CAC  ACC  ATA  GAA  TAC  GAT  GTA  ACT  TGT  TCA  27436
+               1    1    1    1    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2   FRAME
+               *    *    *    *    8    7    7    8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
+```
+ 
+</p>
+</details>
+
+<details><summary>Practice 14: locating frameshifts and stop codons with a tabular output </summary>
+<p>
+   
+While the frameline makes it easier to find frameshifts and stop codons in individual alignments, some users may want to see the locations of frameshifts and stop codons across multiple alignments and in a  more parseable form.  For this reason, the flag '--fstblout' allows the user to create a tabular output of frameshift and stop codon locations for all hits. The following command reruns the same search as in Practice 13, but rather than using '--frameline' it uses '--fstblout' to save frameshift and stop codon locations to the file gidA.fstbl.  
+   
+```bash
+   % frahmmer --ct 4 -o gidA-fstbl.out --fstblout gidA.fstbl gidA.fhmm target-gidA.fa
+``` 
+
+If you open the file PTH2.tbl you will see the following text (file directories and dates may vary):
+
+```
+# target name         accession  query name           accession  E-value   ali from  ali to     I D S  length  seq start  ali start
+#------------------- ----------- -------------------- ---------- --------- --------- ---------  -----  ------  ---------  ---------
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       2  26756             79
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       1  26815            138
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  26958            281
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  26995            318
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       1  27029            352
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27076            399
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27116            439
+ seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27177            500
+ seq1                 -          gidA                 -              2e-12 26678     27756          S       0  27283            606
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27370            693
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27647            970
+ seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27696           1019
+#
+# Program:         frahmmer
+# Query file:      gidA.fhmm
+# Target file:     target-gidA.fa
+# Option settings: frahmmer -o gidA.out --fstblout gidA.fstbl --ct 4 gidA.fhmm target-gidA.fa
+# Current dir:     FraHMMER/tutorial
+# Date:            Thu Mar  2 13:16:45 2023
+# [ok]
+```
+
+A brief description of each column header (from left to right) is provided below.
+
+```
+target name             Name of the target sequence where the hit is located.
+
+accession               Alphanumeric ID for the target sequence (if provided in the target file).
+
+query name              Name of the query pHMM. 
+
+accession               Alphanumeric ID for the query (if provided in the query file).
+
+E-value                 The hit e-value. 
+   
+ali from                The start position of the alignment on the target sequence. If the hit is located on the reverse complement strand, ali from will be greater than ali to.
+   
+ali to                  The end position of the alignment on the target sequence.
+   
+I D S                   Type of codon/quasi-codons.  I - insertion.  D - deletion. S - stop codon.
+   
+length                  Number of nucleotides inserted or deleted (0 for stop codons).
+   
+seq start               Position (in the target sequence) of the start of the quasi-codon or stop codon.
+   
+ali start               Position (in the alignment) of the start of the quasi-codon or stop codon.  First nucleotide in the alignment = 1.
+```
 </p>
 </details>
 

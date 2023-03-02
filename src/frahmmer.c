@@ -786,7 +786,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       nquery++;
       resCnt = 0;
       esl_stopwatch_Start(w);
-
+	
       /* seqfile may need to be rewound (multiquery mode) */
       if (nquery > 1)
       {

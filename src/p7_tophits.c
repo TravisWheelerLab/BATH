@@ -2038,7 +2038,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int64_t lowest;
   int64_t highest;
   int i;
-
+	
   if (show_header)
   {
       if (pli->long_targets) 
@@ -2052,15 +2052,12 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
       }
       else if (pli->frameshift)
       {  
-        if (th->N > 0 || th->hit[0]->ndom > 0) 
-        {
           if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %9s %9s %6s %5s %7s %6s %5s %s\n",
             tnamew-1, " target name",        taccw, " accession",  qnamew, " query name",          qaccw, " accession",  "  hmm len",  " hmm from", "   hmm to", "  seq len", " ali from", "   ali to", " env from", "   env to", "  E-value", " score", " bias", " shifts", " stops",  " pipe", "description of target") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
           if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %9s %9s %6s %5s %7s %6s %5s %s\n",
             tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "---------", "---------","---------", "---------", "---------", "---------", "------", "-----", "-------", "------", "-----", "---------------------") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-        }
       }
       else
       {
@@ -2685,8 +2682,8 @@ p7_tophits_TabularTail(FILE *ofp, const char *progname, enum p7_pipemodes_e pipe
 
   if (fprintf(ofp, "#\n") < 0)                                                                    ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Program:         %s\n",      (progname == NULL) ? "[none]" : progname) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
-  if (fprintf(ofp, "# Version:         %s (%s)\n", HMMER_VERSION, HMMER_DATE) < 0)                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
-  if (fprintf(ofp, "# Pipeline mode:   %s\n",      modestamp) < 0)                                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
+//  if (fprintf(ofp, "# Version:         %s (%s)\n", HMMER_VERSION, HMMER_DATE) < 0)                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
+//  if (fprintf(ofp, "# Pipeline mode:   %s\n",      modestamp) < 0)                                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Query file:      %s\n",      (qfile    == NULL) ? "[none]" : qfile) < 0)    ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Target file:     %s\n",      (tfile    == NULL) ? "[none]" : tfile) < 0)    ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Option settings: %s\n",      spoof_cmd) < 0)                                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");

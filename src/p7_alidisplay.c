@@ -1935,16 +1935,16 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
      /*
       * Display the DNA codon horizontally
       */
-      for (i = 0, j = 0, y = 0; j < aliwidth; i+=5, j++, y++)
+      for (i = 0, j = 0; j < aliwidth; i+=5, j++)
       {
         if (ad->ntseq[npos+i] == 0) break; 
         if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	if(ad->sqfrom < ad->sqto) { c1 = i2; i2 += ad->codon[pos+y]; } 
-	else                      { c1 = i2 - 1; i2 -= ad->codon[pos+y]; }
+	if(ad->sqfrom < ad->sqto)       { c1 = i2; i2 += ad->codon[pos+j]; } 
+	else                            { c1 = i2 - 1; i2 -= ad->codon[pos+j]; }
 
 	if(frameline != NULL) 
 	{
-	  if(ad->codon[pos+y] == 0) frame = 0;
+	  if(ad->codon[pos+j] == 0 || ad->aseq[pos+j] == 'X') frame = 0;
 	  else                      frame = p7_alidiplay_frame(c1, i2);
 	  
           frameline[j] = frame;
@@ -1962,14 +1962,14 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
       for (i = 0; i < aliwidth; i++)
       {
 	if (ad->aseq[pos+i] == 0) break;
-	if(frameline[i] > 0) { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-        else if(frameline[i] < 0) { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-        else { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+	if(frameline[i] > 0)            { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+	else if(frameline[i] < 0)       { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+        else if(ad->aseq[pos+i] == 'X') { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } 
+	else                            { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
       }
 
       if (fprintf(fp, " FRAME\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-
 
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 

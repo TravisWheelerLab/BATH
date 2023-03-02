@@ -92,11 +92,12 @@ main(int argc, char **argv)
      esl_usage(stdout, argv[0], usage);
 
      if (puts("\nBasic options:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 1, 2, 80);
+     esl_opt_DisplayHelp(stdout, go, 1, 2, 80);
 
      if (puts("\nAvailable NCBI genetic code tables (for --ct <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_gencode_DumpAltCodeTable(stdout);
-      exit(0);
+     esl_gencode_DumpAltCodeTable(stdout);
+      
+     exit(0);
   }
  
   /* Start timing. */

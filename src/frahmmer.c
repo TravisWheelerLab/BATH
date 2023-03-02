@@ -1022,6 +1022,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* Terminate outputs... any last words?
    */
   if (tblfp)    p7_tophits_TabularTail(tblfp,    "frahmmer", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go);
+  if (fstblfp)  p7_tophits_TabularTail(fstblfp,  "frahmmer", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go); 
   if (ofp)      { if (fprintf(ofp, "[ok]\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
   /* Cleanup - prepare for exit

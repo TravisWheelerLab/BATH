@@ -1,0 +1,13 @@
+# target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to   E-value  score  bias  shifts  stops  pipe description of target
+#------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- --------- --------- ------ ----- ------- ------ ----- ---------------------
+seq1                 -          PTH2                 PF01981.11       116         2       116      3000       672       325       675       325   3.4e-34  110.1   0.3       0      0   std -
+seq1                 -          PTH2                 PF01981.11       116         2       116      3000      1273      1731      1263      1734   4.2e-33  110.3   0.0       0      0    fs -
+seq1                 -          PTH2                 PF01981.11       116         5       113      3000      2659      2343      2677      2327   2.7e-27   91.6   0.2       2      1    fs -
+#
+# Program:         frahmmer
+# Query file:      PTH2.fhmm
+# Target file:     target-PTH2.fa
+# Option settings: frahmmer -o PTH2.out --tblout PTH2.tbl PTH2.fhmm target-PTH2.fa 
+# Current dir:     FraHMMER/tutorial
+# Date:            Wed Mar  1 18:27:58 2023
+# [ok]

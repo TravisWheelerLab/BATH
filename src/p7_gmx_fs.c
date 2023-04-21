@@ -28,12 +28,16 @@
  * Throws:    <NULL> on allocation error.
  */
 P7_GMX *
-p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
+p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int frameshift)
 {
   int     status;
   P7_GMX *gx = NULL;
   int     i;
-  
+  int     allocC;
+
+ if(frameshift) allocC = 5;
+  else          allocC = p7P_CODONS;
+
   /* level 1: the structure itself */
   ESL_ALLOC(gx, sizeof(P7_GMX));
   gx->dp     = NULL;
@@ -48,24 +52,26 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
   /* Set the row pointers. */
   for (i = 0; i <= allocL; i++)  
     gx->dp[i] = gx->dp_mem + i * (allocM+1) * (p7G_NSCELLS + allocC);
-  
+   
   /* Initialize memory that's allocated but unused, only to keep
    * valgrind and friends happy.
    */
   for (i = 0; i <= allocL; i++) 
     { 
       gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C0] = -eslINFINITY; /* M_0 Codon 0*/
-      gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C1] = -eslINFINITY; /* M_0 Codon 1*/
-      gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C2] = -eslINFINITY; /* M_0 Codon 2*/
-      gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C3] = -eslINFINITY; /* M_0 Codon 3*/
-      gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C4] = -eslINFINITY; /* M_0 Codon 4*/
-      gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C5] = -eslINFINITY; /* M_0 Codon 5*/
+      if(frameshift) { 
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C1] = -eslINFINITY; /* M_0 Codon 1*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C2] = -eslINFINITY; /* M_0 Codon 2*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C3] = -eslINFINITY; /* M_0 Codon 3*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C4] = -eslINFINITY; /* M_0 Codon 4*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C5] = -eslINFINITY; /* M_0 Codon 5*/
+      }
       gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_I] = -eslINFINITY; /* I_0 */      
       gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_D] = -eslINFINITY; /* D_0 */
       gx->dp[i][1      * (p7G_NSCELLS + allocC) + p7G_D] = -eslINFINITY; /* D_1 */
       gx->dp[i][allocM * (p7G_NSCELLS + allocC) + p7G_I] = -eslINFINITY; /* I_M */
     }
-
+ 
   gx->M      = 0;
   gx->L      = 0;
   gx->allocW = allocM+1;

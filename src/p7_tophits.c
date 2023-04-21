@@ -840,7 +840,7 @@ p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W)
  *               number of sequences. In frahmmer, this is computed as 
  *               pli->Z for those hits prosecced as ORFs but as N/W, 
  *               for a database of N residues, where W is some standardized
- *               window length (nhmmer passes om->max_length),
+ *               window length (frahmmer passes om->max_length),
  *               for hits that go though the full frameshift pipeline. 
  *               E-values are set here based on that formula. We also set 
  *               the sortkey so the output will be sorted correctly.
@@ -1207,7 +1207,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
       "-------", "------", "-----", namew, "--------", posw, "-----", posw, "-----",  "-----------") < 0)
         ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
   }
-  if (pli->long_targets || pli->frameshift) 
+  if (pli->frameshift) 
   {
       posw = ESL_MAX(6, p7_tophits_GetMaxPositionLength(th));
 
@@ -1223,7 +1223,6 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
       "-------", "------", "-----", namew, "--------", posw, "-----", posw, "-----", "------", "-----", "-----------") < 0)
         ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
   }
-
   else
   { 
 

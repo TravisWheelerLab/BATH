@@ -350,14 +350,14 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   /* Create sparce memeory forward and backward generic frameshift aware matricies 
    * for use in the frameshift pipeline filters
    */  
-   if ((pli->gxf  = p7_gmx_fs_Create(M_hint, 3, L_hint, p7P_CODONS)) == NULL) goto ERROR;
-   if ((pli->gxb  = p7_gmx_fs_Create(M_hint, 5, L_hint, 0)) == NULL) goto ERROR;   
+   if ((pli->gxf  = p7_gmx_fs_Create(M_hint, 3, L_hint, TRUE )) == NULL) goto ERROR;
+   if ((pli->gxb  = p7_gmx_fs_Create(M_hint, 5, L_hint, FALSE)) == NULL) goto ERROR;   
 
   /* Create full memeory forward and backward generic frameshift aware matricies
    * for use in the frameshift pipeline alignment
    */ 
-   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS  )) == NULL) goto ERROR;
-   if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint, 0)) == NULL) goto ERROR;
+   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, TRUE )) == NULL) goto ERROR;
+   if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint, FALSE)) == NULL) goto ERROR;
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
    * about to collect a stochastic trace ensemble. This eliminates run-to-run

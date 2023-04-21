@@ -1701,7 +1701,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);
 
   /* Posterior Probabilities */
-  if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS)) == NULL) goto ERROR;
+  if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, TRUE)) == NULL) goto ERROR;
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
   
   /* Find an optimal accuracy alignment */

@@ -63,7 +63,7 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
   gm->mm        = NULL;
   gm->cs        = NULL;
   gm->consensus = NULL;
-
+  
   /* level 1 */
   ESL_ALLOC(gm->tsc,       sizeof(float)   * allocM * p7P_NTRANS); 
   ESL_ALLOC(gm->rsc,       sizeof(float *) * abc->Kp);

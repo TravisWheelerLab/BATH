@@ -567,10 +567,9 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
   int k, x;
   int status;
   
-
   if (format == -1) format = p7_HMMFILE_3f;
 
-  if      (format == p7_FraHMMER_3f)  { if (fprintf(fp, "FraHMMER3/f\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
+  if      (format == p7_FraHMMER_3f) { if (fprintf(fp, "FraHMMER3/f\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
   else if (format == p7_HMMFILE_3f)  { if (fprintf(fp, "HMMER3/f [%s | %s]\n",                             HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
   else if (format == p7_HMMFILE_3e)  { if (fprintf(fp, "HMMER3/e [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
   else if (format == p7_HMMFILE_3d)  { if (fprintf(fp, "HMMER3/d [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }

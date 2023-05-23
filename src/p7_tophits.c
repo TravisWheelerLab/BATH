@@ -830,39 +830,6 @@ p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W)
   return eslOK;
 }
 
-/* Function:  p7_tophits_ComputeFrahmmerEvalues()
- * Synopsis:  Compute e-values based on pvalues and window sizes for hits 
- *            that went through full frameshifted pipline.
- *
- * Purpose:   After frahmmer pipeline has completed, the th object contains
- *               hits where the p-values haven't yet been converted to
- *               e-values. That modification depends on an established
- *               number of sequences. In frahmmer, this is computed as 
- *               pli->Z for those hits prosecced as ORFs but as N/W, 
- *               for a database of N residues, where W is some standardized
- *               window length (frahmmer passes om->max_length),
- *               for hits that go though the full frameshift pipeline. 
- *               E-values are set here based on that formula. We also set 
- *               the sortkey so the output will be sorted correctly.
- *
- * Returns:   <eslOK> on success.
- */
-int
-p7_tophits_ComputeFrahmmerEvalues(P7_TOPHITS *th, double N, int W)
-{
-  int i;    /* counters over hits */
-
-  for (i = 0; i < th->N ; i++)
-  {
-    if(th->unsrt[i].frameshift == TRUE) {
-      if (N > 0) { th->unsrt[i].lnP += log((float)N / (float)W); }
-      th->unsrt[i].dcl[0].lnP  = th->unsrt[i].lnP;
-      th->unsrt[i].sortkey     = -1.0 * th->unsrt[i].lnP;
-    }
-  }
-  return eslOK;
-}
-
 
 /* Function:  p7_tophits_RemoveDuplicates()
  * Synopsis:  Remove overlapping hits.
@@ -995,10 +962,10 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
     for (h = 0; h < th->N; h++)
     {
       if ( !(th->hit[h]->flags & p7_IS_DUPLICATE) &&
-          p7_pli_TargetReportable(pli, th->hit[h]->frameshift, th->hit[h]->score, th->hit[h]->lnP))
+          p7_pli_TargetReportable(pli, th->hit[h]->score, th->hit[h]->lnP))
       {
           th->hit[h]->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, th->hit[h]->frameshift, th->hit[h]->score, th->hit[h]->lnP))
+          if (p7_pli_TargetIncludable(pli, th->hit[h]->score, th->hit[h]->lnP))
 	   {
               th->hit[h]->flags |= p7_IS_INCLUDED;
           }
@@ -1037,10 +1004,10 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
       {
         for (d = 0; d < th->hit[h]->ndom; d++)
         {
-          if (p7_pli_DomainReportable(pli, th->hit[h]->frameshift, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
+          if (p7_pli_DomainReportable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
             th->hit[h]->dcl[d].is_reported = TRUE;
           if ((th->hit[h]->flags & p7_IS_INCLUDED) &&
-              p7_pli_DomainIncludable(pli, th->hit[h]->frameshift, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
+              p7_pli_DomainIncludable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
             th->hit[h]->dcl[d].is_included = TRUE;
         }
       }
@@ -1330,7 +1297,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
         {
           if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "  %6d  %5d",
           newness,
-          exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
+          exp(th->hit[h]->lnP) * pli->Z,
           th->hit[h]->score,
           eslCONST_LOG2R * th->hit[h]->dcl[d].dombias,
           namew, showname,
@@ -1597,7 +1564,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                                 th->hit[h]->dcl[d].is_included ? '!' : '?',
                                 th->hit[h]->dcl[d].bitscore,
                                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
-                                exp(th->hit[h]->dcl[d].lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
+                                exp(th->hit[h]->dcl[d].lnP) * pli->Z,
                                 th->hit[h]->dcl[d].ad->hmmfrom,
                                 th->hit[h]->dcl[d].ad->hmmto,
                                 (th->hit[h]->dcl[d].ad->hmmfrom == 1) ? '[' : '.',
@@ -1985,7 +1952,7 @@ p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th
                  taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
                  qnamew, qname,
                  qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
-                 exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
+                 exp(th->hit[h]->lnP) * pli->Z,
                  posw, th->hit[h]->dcl[d].iali,
                  posw, th->hit[h]->dcl[d].jali,
                  fs_type,
@@ -2126,7 +2093,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 posw, th->hit[h]->dcl[d].jali,
                 posw, th->hit[h]->dcl[d].ienv,
                 posw, th->hit[h]->dcl[d].jenv,
-                exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
+                exp(th->hit[h]->lnP) * pli->Z,
                 th->hit[h]->score,
                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
                 th->hit[h]->dcl[d].ad->frameshifts,
@@ -2322,12 +2289,12 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 qnamew, qname,
                 qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
                 qlen,
-		exp(th->hit[h]->lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
+		exp(th->hit[h]->lnP) * pli->Z,
                 th->hit[h]->score,
                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* bias correction */
                 nd,
                 th->hit[h]->nreported,
-                exp(th->hit[h]->dcl[d].lnP) * (th->hit[h]->frameshift ? 1.0 : pli->Z),
+                exp(th->hit[h]->dcl[d].lnP) * pli->Z,
                 th->hit[h]->dcl[d].bitscore,
                 eslCONST_LOG2R * th->hit[h]->dcl[d].dombias,
                 th->hit[h]->dcl[d].ad->hmmfrom,

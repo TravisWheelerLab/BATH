@@ -808,11 +808,11 @@ p7_pli_fs_GetPosPast(P7_ORF_COORDS *coords)
  *            for the processing pipeline.
  */
 int
-p7_pli_TargetReportable(P7_PIPELINE *pli, int frameshift, float score, double lnP)
+p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->by_E )
     { 
-      if      ( (pli->long_targets || frameshift) && exp(lnP) <= pli->E) return TRUE;  // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
+      if      ( pli->long_targets && exp(lnP) <= pli->E) return TRUE;  // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
       else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
@@ -828,11 +828,11 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, int frameshift, float score, double ln
  *            for the processing pipeline.
  */
 int
-p7_pli_DomainReportable(P7_PIPELINE *pli, int frameshift, float dom_score, double lnP)
+p7_pli_DomainReportable(P7_PIPELINE *pli, float dom_score, double lnP)
 {
   if      (  pli->dom_by_E )
     {
-      if      ( (pli->long_targets || frameshift) && exp(lnP) <= pli->domE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE 
+      if      ( pli->long_targets  && exp(lnP) <= pli->domE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE 
       else if ( exp(lnP) * pli->domZ <= pli->domE) return TRUE;
     }
   else if (! pli->dom_by_E   && dom_score        >= pli->domT) return TRUE;
@@ -843,11 +843,11 @@ p7_pli_DomainReportable(P7_PIPELINE *pli, int frameshift, float dom_score, doubl
  * Synopsis:  Returns TRUE if target score meets inclusion threshold.
  */
 int
-p7_pli_TargetIncludable(P7_PIPELINE *pli, int frameshift, float score, double lnP)
+p7_pli_TargetIncludable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->inc_by_E )
     {
-      if      ( (pli->long_targets || frameshift) && exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
+      if      ( pli->long_targets && exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
       else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
     }
 
@@ -860,10 +860,10 @@ p7_pli_TargetIncludable(P7_PIPELINE *pli, int frameshift, float score, double ln
  * Synopsis:  Returns TRUE if domain score meets inclusion threshold.
  */
 int
-p7_pli_DomainIncludable(P7_PIPELINE *pli, int frameshift, float dom_score, double lnP)
+p7_pli_DomainIncludable(P7_PIPELINE *pli, float dom_score, double lnP)
 {
 
-  if      ( (pli->long_targets || frameshift) && pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
+  if      ( pli->long_targets && pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
   else if ( pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
   else if (! pli->incdom_by_E   && dom_score        >= pli->incdomT) return TRUE;
   else return FALSE;
@@ -1320,7 +1320,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
  
   lnP =  esl_exp_logsurv (seq_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
-  if (p7_pli_TargetReportable(pli, FALSE, seq_score, lnP))
+  if (p7_pli_TargetReportable(pli, seq_score, lnP))
     {
 
       p7_tophits_CreateNextHit(hitlist, &hit);
@@ -1403,19 +1403,19 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
        */
       if (pli->use_bit_cutoffs)
       {
-        if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
+        if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
+          if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
         for (d = 0; d < hit->ndom; d++)
         {
-          if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
+          if (p7_pli_DomainReportable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))
           {
             hit->dcl[d].is_reported = TRUE;
-            if (p7_pli_DomainIncludable(pli, FALSE, hit->dcl[d].bitscore, hit->dcl[d].lnP))
+            if (p7_pli_DomainIncludable(pli, hit->dcl[d].bitscore, hit->dcl[d].lnP))
               hit->dcl[d].is_included = TRUE;
           }
         }
@@ -1709,17 +1709,17 @@ p7_pli_postViterbi_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_T
        */
       if (pli->use_bit_cutoffs)
       {
-        if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
+        if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
+          if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
-        if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+        if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
         {
           hit->dcl[0].is_reported = TRUE;
-          if (p7_pli_DomainIncludable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+          if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
             hit->dcl[0].is_included = TRUE;
         }
 
@@ -2306,17 +2306,17 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
 
       if (pli->use_bit_cutoffs)
       {
-        if (p7_pli_TargetReportable(pli, TRUE, hit->score, hit->lnP))
+        if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
         {
           hit->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, TRUE, hit->score, hit->lnP))
+          if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
             hit->flags |= p7_IS_INCLUDED;
         }
 
-        if (p7_pli_DomainReportable(pli, TRUE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+        if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
         {
           hit->dcl[0].is_reported = TRUE;
-          if (p7_pli_DomainIncludable(pli, TRUE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+          if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
             hit->dcl[0].is_included = TRUE;
         }
 
@@ -2460,17 +2460,17 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
      if (pli->use_bit_cutoffs)
      {
-       if (p7_pli_TargetReportable(pli, FALSE, hit->score, hit->lnP))
+       if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
        {
          hit->flags |= p7_IS_REPORTED;
-         if (p7_pli_TargetIncludable(pli, FALSE, hit->score, hit->lnP))
+         if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
            hit->flags |= p7_IS_INCLUDED;
        }
 
-       if (p7_pli_DomainReportable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+       if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
        {
          hit->dcl[0].is_reported = TRUE;
-         if (p7_pli_DomainIncludable(pli, FALSE, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+         if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
            hit->dcl[0].is_included = TRUE;
        }
      }

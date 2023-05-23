@@ -469,7 +469,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
     ad->sqfrom  = tr->i[z2];	
   }	 
   ad->L       = sq->n;
-  
+ printf("ad->L %d\n", ad->L); 
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->rf[tr->k[z]]);

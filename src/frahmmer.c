@@ -146,7 +146,7 @@ static ESL_OPTIONS options[] = {
    * hidden because they are confusing/expert options. May drag them out
    * into the daylight eventually
    */
-    { "--B1",         eslARG_INT,         "110", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (SSV)",          99 },
+  { "--B1",         eslARG_INT,         "110", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (SSV)",          99 },
   { "--B2",         eslARG_INT,         "240", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (Vit)",          99 },
   { "--B3",         eslARG_INT,        "1000", NULL, NULL,    NULL,  NULL, "--max,--nobias", "window length for biased-composition modifier (Fwd)",          99 },
  
@@ -891,10 +891,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
             resCnt += info[i].pli->nres;
       	}
 
-      for (i = 0; i < infocnt; ++i)
-          p7_tophits_ComputeFrahmmerEvalues(info[i].th, resCnt, info[i].om->max_length);
-       
-
          /* merge the results of the search results */
          for (i = 0; i < infocnt; ++i)
          {
@@ -1190,9 +1186,9 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
     for (i=0; i<block->count; i++) {
       block->list[i].idx = seqid;
-      
       add_id_length(id_length_list, seqid, block->list[i].L); // NOLINT(cppcoreguidelines-narrowing-conversions)
       seqid++;
+
       if (       seqid == n_targetseqs // hit the sequence target
            && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
          ) 

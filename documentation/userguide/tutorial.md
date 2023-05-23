@@ -12,9 +12,9 @@ There are two sections in this tutorial. The first section - Input files - will 
 **Tools**
 ---
 
-**frahmmbuild**   - build FraHMMER formatted profile hidden Markov models (pHMMs) from input multiple sequence alignments (MSAs) and save to file
+**frahmmbuild**   - build FraHMMER formatted profile hidden Markov models (pHMMs) from input multiple sequence alignments (MSAs) or unaligned sequences and save to file
 ```
-Usage: frahmmbuild [-options] <hmmfile_out> <msafile_in>
+Usage: frahmmbuild [-options] <hmmfile_out> <msa_or_seq_file_in>
 ```
 **frahmmstat**   - show summary statistics for a FraHMMER formated pHMM file
 ```
@@ -49,16 +49,16 @@ A frahmmer query file contains the proteins you wish to search for in the target
 
 The sensitivity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and nearly identical to the ones used by HMMER, but contain additional information needed to perform accurate frameshift-aware translations and provide reliable e-values. This additional information includes the frameshift rate and codon translation table to be used in the frahmmer search as well as tau and lambda values that define the curve for the pHMMs score distribution from the frameshift-aware Forward algorithm. If you would like more information on the other information in pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
    
-FraHMMER formated pHMMs can be created from MSA files using the tool frahmmbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.fhmm by running the following command: (note the file suffix '.fhmm' - this can help distinguish FraHMMER formated pHMM files from HMMER formatted ones, which often have the suffix '.hmm')
+FraHMMER formated pHMMs can be created from MSA files or unaligned sequence files using the tool frahmmbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.fhmm by running the following command: (note the file suffix '.fhmm' - this can help distinguish FraHMMER formated pHMM files from HMMER formatted ones, which often have the suffix '.hmm')
    
 ```bash
    % frahmmbuild MET.fhmm MET.msa
 ```
-   
-The summary output that is printed to your stdout should reselmble the text below (the exact CPU and elapsed time will vary):
+
+The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
 
 ```bash
-# input alignment file:             MET.msa
+# input      file:                  MET.msa
 # output HMM file:                  MET.fhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -83,7 +83,10 @@ alen           Length of alignment - number of columns in the MSA.
 
 mlen           Length of the pHMM - number of match states.
    
-fs_prob        The probability assigned to a nucleotide insertion that results in a frameshift
+fs_prob        The probability assigned to a nucleotide insertion that 
+   
+   
+   ults in a frameshift
 
 codon_tbl      The NCBI codon translation table ID assumed for the target DNA
 
@@ -132,12 +135,53 @@ In practice 8 you will search the pHMMs in MET.msa against a target sequence fro
    % frahmmbuild --ct 4 MET-ct4.fhmm MET.msa
 ```
    
-The summary output should be nearly identical to that in Practice 1, except for the output file name and the codon table field which should now say 4 for both pHMMs. 
+The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
+
+```bash
+# input file:                       MET.msa
+# output HMM file:                  MET.fhmm
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# idx    name                  nseq  alen  mlen fs_prob codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- ----- ------- --------- -------- ------ -----------
+  1      metC                    11   483   409 0.01000         1     0.60  0.591 Cystathionine beta-lyase
+  2      metG                    24   494   458 0.01000         1     0.62  0.589 Methionine--tRNA ligase
+
+# CPU time: 4.38u 0.00s 00:00:04.38 Elapsed: 00:00:02.33
+```
 
 </p>
 </details>
 
-<details><summary>Practice 3: summerizing pHMM files with frahmmstat</summary>
+<details><summary>Practice 3: building a pHMM from an unaligned sequences file</summary>
+<p>
+
+If your queries are single unaligned sequences rather than MSAs yo can still build HMMs using frahmmbuild and the flag '--unali'. The file three_seqs.fa contains three district unaligned protein sequences.  To build three HMMs (one for each sequence) use the following command. 
+   
+```bash
+   % frahmmbuild --unali three_seqs.fhmm three_seqs.fa
+```
+
+The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
+
+```bash
+# input file:                       three_seqs.fa
+# output HMM file:                  three_seqs.fhmm
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# idx    name                  nseq   len  mlen fs_prob codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- ----- ------- --------- -------- ------ -----------
+  1      AT1G01010.1              1   429   429 0.01000         1     1.00  0.591
+  2      AT1G01020.1              1   245   245 0.01000         1     1.00  0.552
+  3      AT1G01030.1              1   358   358 0.01000         1     1.00  0.600
+
+# CPU time: 2.62u 0.00s 00:00:02.62 Elapsed: 00:00:02.14
+```
+
+</p>
+</details>
+
+<details><summary>Practice 4: summerizing pHMM files with frahmmstat</summary>
 <p>
 
 Since a pHMM file may contain any number of individual models, it is useful to be able to quickly summarize the contents. The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  The following command will summarize the pHMM file built in practice 1:
@@ -161,7 +205,7 @@ The fields are mainly the same as those produced by frahmmbuild, and detailed in
 </p>
 </details>
 
-<details><summary>Practice 4: converting an HMMER formated pHMM file to FraHMMER format using frahmmconvert</summary>
+<details><summary>Practice 5: converting an HMMER formated pHMM file to FraHMMER format using frahmmconvert</summary>
 <p>
 
 If you have an existing HMMER formatted pHMM file and want to use it to run a frahmmer search, you will first need to convert it to the FraHMMER format using frahmmconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the FraHMMER formatted file tRNA-proteins.fhmm containing the same three pHMMs:
@@ -195,7 +239,7 @@ Your summary output should match that shown below.
 </p>
 </details>
 
-<details><summary>Practice 5: changing the codon table of a FraHMMER formated pHMM using frahmmconvert</summary>
+<details><summary>Practice 6: changing the codon table of a FraHMMER formated pHMM using frahmmconvert</summary>
 <p>
  
 You can also use frahmmconvert to change the codon table of an existing FraHMMER pHMM file using the --ct flag. This is faster than rebuilding from the original MSA.  The following command will create the file tRNA-proteins-ct11.fhmm containing the same 12 pHMMs as tRNA-proteins.fhmm but modified to use NCBI codon translation table 11:
@@ -231,7 +275,7 @@ This should produce the following output:
 </p>
 </details>
 
-<details><summary>Practice 6: indexing a pHMM file and copying a single pHMM using frahmmfetch </summary>
+<details><summary>Practice 7: indexing a pHMM file and copying a single pHMM using frahmmfetch </summary>
 <p>
 
 If you only need to search with a single pHMM but it is located in a file with multiple pHMMs, you can save time by copying the desired pHMM to a new file using frahmmfetch. If the original file contains a large number of pHMMs, you may want to create an index file to speed up the fetch process.  The following command will index the create the index file tRNA-proteins.fhmm.ssi for the FraHMMER pHMM file created in Practice 4. 
@@ -256,7 +300,7 @@ Retrieved HMM PTH2.
 </p>
 </details>
 
-<details><summary>Practice 7: copying and converting multiple pHMMs using frahmmfetch </summary>
+<details><summary>Practice 8: copying and converting multiple pHMMs using frahmmfetch </summary>
 <p>
 
 You can also use frahmmfetch to copy multiple pHMMs. To do so you will need to create a key file that contains the names of all the pHMMs you wish to copy, with one name per line, and use the -f flag. If the original pHMM file is in HMMER format frahmmfetch will automatically convert it to FraHMMER format. The following command will copy all 3 of the pHMMs listed in the key file tRNA-synthetases-key.txt from an HMMER formated pHMM file, convert them to FraHMMER format, and print them to the output file tRNA-synthetases.fhmm.
@@ -280,7 +324,7 @@ As with frahmmconvert, you can also use the --ct flag with frahmmfetch to change
 
 This section of the tutorial will focus on the tool frahmmer. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
 
-<details><summary>Practice 8: running a simple frahmmer search and reading the output</summary>
+<details><summary>Practice 9: running a simple frahmmer search and reading the output</summary>
 <p>
 
 Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file PTH2.fhmm as the query.  For the target, you will use a single DNA sequence in the file target-PTH2.fa. The -o flag is used to direct the standard output to the file PTH2.out. 
@@ -295,7 +339,7 @@ See Practice 9 for a breakdown of the frahmmer standard output in PTH2.out
 </p>
 </details>
 
-<details><summary>Practice 9: interpreting frahmmer standard output</summary>
+<details><summary>Practice 10: interpreting frahmmer standard output</summary>
 <p>
 
 The file PTH2.out contains the standard frahmmer output for a search between the query file PTH2.fhmm and the target file target-PTH2.fa. If you open this file you will see that it is organized into the following sections:
@@ -383,7 +427,7 @@ Total number of hits:                      3  (0.187)
 </p>
 </details>
 
-<details><summary>Practice 10: running a frahmmer search on a target with an alternate codon translation table</summary>
+<details><summary>Practice 11: running a frahmmer search on a target with an alternate codon translation table</summary>
 <p>
 
 As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, frahmmer responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
@@ -408,7 +452,7 @@ The file MET-ct4.out should contain a single hit between each of the pHMMS in ME
 </p>
 </details>
 
-<details><summary>Practice 11: running a frahmmer search with a sequence query</summary>
+<details><summary>Practice 12: running a frahmmer search with a sequence query</summary>
 <p>
 
 If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and frahmmer will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time consuming. If you chose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file gidA.fa as the query, building a pHMM for that sequence and printing it the to file gidA.fhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file gidA.out using the '-o' flag. 
@@ -421,7 +465,7 @@ The file gidA.fhmm will now contain a single pHMM built with codon table 4 and g
 </p>
 </details>
 
-<details><summary>Practice 12: producing and interpreting tabular output from a frahmmer search</summary>
+<details><summary>Practice 13: producing and interpreting tabular output from a frahmmer search</summary>
 <p>
    
 In addition to the standard output, frahmmer can also produce a tabular summary file with a more easily parsable list of the hits found in a search. By using the '--tblout' flag you can direct frahmmer to create this tabular output and save it to the file of your choosing. The following command will run the same search as in Practice 8, but with the addition of the '--tblout' flag directing the tabular output to the file PTH2.tbl.
@@ -493,7 +537,7 @@ description of target   Description of the target sequence (if provided in the t
 </p>
 </details>
 
-<details><summary>Practice 13: locating frameshifts and stop codons in frahmmer alignments using '--frameline' </summary>
+<details><summary>Practice 14: locating frameshifts and stop codons in frahmmer alignments using '--frameline' </summary>
 <p>
    
 While both the standard and tabular outputs give the user the count of frameshifts and stop codons in an alignment, the user may also want to locate the quasi and stop codons.  Quasi-codons with deletions can be identified by looking for codons with one or two '-' characters in place of a nucleotide. Quasi-codons with insertions can be identified by looking for codons with more than 4 or 5 nucleotides (the nucleotides frahmmer determines to be the insertions will be shown in lowercase).  Stop codons can be identified by looking for codons with all three nucleotides in lowercase and an 'X' on the translation row. Below are examples of quasi and stop codons taken from the alignment in gidA.out from Practice 10:
@@ -550,7 +594,7 @@ The following is an excerpt of four lines from the alignment in gidA-frameline.o
 </p>
 </details>
 
-<details><summary>Practice 14: locating frameshifts and stop codons with a tabular output </summary>
+<details><summary>Practice 15: locating frameshifts and stop codons with a tabular output </summary>
 <p>
    
 While the frameline makes it easier to find frameshifts and stop codons in individual alignments, some users may want to see the locations of frameshifts and stop codons across multiple alignments and in a  more parseable form.  For this reason, the flag '--fstblout' allows the user to create a tabular output of frameshift and stop codon locations for all hits. The following command reruns the same search as in Practice 13, but rather than using '--frameline' it uses '--fstblout' to save frameshift and stop codon locations to the file gidA.fstbl.  

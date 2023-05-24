@@ -1478,7 +1478,7 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
       esl_msafile_Write(cfg->postmsafp, postmsa, eslMSAFILE_STOCKHOLM);
     }
   }
-  else if (sq != NULL)
+  else if (sq != NULL) {
     if (cfg->abc->type == eslAMINO) {
       if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %7.5f %9d %8.2f %6.3f %s\n",
           idx,
@@ -1491,8 +1491,9 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
           hmm->eff_nseq,
           entropy,
           (sq->desc != NULL) ? sq->desc : "") < 0)
-      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-    } else if (fprintf(cfg->ofp, "%-5d %-20s %5d %5" PRId64 " %5d %5d %8.2f %6.3f %s\n",
+          ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      } else {
+		if (fprintf(cfg->ofp, "%-5d %-20s %5d %5" PRId64 " %5d %5d %8.2f %6.3f %s\n",
           idx,
           (sq->name != NULL) ? sq->name : "",
           1,
@@ -1502,8 +1503,9 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
           hmm->eff_nseq,
           entropy,
           (sq->desc != NULL) ? sq->desc : "") < 0)
-      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-
+          ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed"); 
+      }
+    }
   return eslOK;
 }
 

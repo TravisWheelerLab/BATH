@@ -673,7 +673,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
       p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);
       p7_gmx_GrowTo(bck, gm_fs->M, j-i+1);
       ddef->nregions++;
-#if 0
+
 //TODO: multidommain region is out of order until I fix fs null2 by trace, Also, maybe I don't need it for frahmmer?  
       if (is_multidomain_region_fs(ddef, i, j))
       {
@@ -731,13 +731,12 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         p7_spensemble_Reuse(ddef->sp);
         p7_trace_Reuse(ddef->tr);
 
-     }
+     } else {
 	
-#endif
-    ddef->nenvelopes++;
+      ddef->nenvelopes++;
        
-    rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, wrk, gcode, F3, do_biasfilter);
-
+      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, wrk, gcode, F3, do_biasfilter);
+    }
     i     = -1;
     triggered = FALSE;
     start     = FALSE;
@@ -1663,8 +1662,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            Ld            = j-i+1;
   int            n_holder;
   float          domcorrection = 0.0;
-  float          envsc, seq_score, oasc;
-  float          filtersc;
+  float          envsc, oasc;
   float          P;
   int            z;
   int            pos;
@@ -1683,20 +1681,13 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   windowsq->n = Ld;
   windowsq->L = Ld;
   
-  p7_bg_fs_FilterScore(bg, windowsq, wrk, gcode, do_biasfilter, &filtersc);
-
   windowsq->dsq = dsq_holder;
   windowsq->n = n_holder; 
   windowsq->L = n_holder;  
  
   /* Forward */ 
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
-
-  /* Extra p-value check to save on expensive frameshift aware calculations */ 
-  seq_score = (envsc-filtersc) / eslCONST_LOG2;
-  P = esl_exp_surv(seq_score,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
-  if (P > F3 ) return eslOK;
-   
+  
   /* Backward */
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);
 
@@ -1738,7 +1729,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
    * take all three frames into account - just as the Forward score does
    */
   
-  
   if (!null2_is_done)
   { 
     p7_Null2_fs_ByExpectation(gm_fs, gx1, null2);
@@ -1768,7 +1758,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
         case p7T_T:
         case p7T_D:  z++;   break;
         case p7T_M:  if(ddef->tr->i[z] == pos)
-                     {
+                     {  
                        if(ddef->tr->c[z] == 1)
                          ddef->n2sc[pos]  = logf(null2[p7P_AMINO1(gm_fs, ddef->tr->k[z], x)]);
                        else if(ddef->tr->c[z] == 2)
@@ -1781,12 +1771,16 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
                          ddef->n2sc[pos]  = logf(null2[p7P_AMINO5(gm_fs, ddef->tr->k[z], t, u, v, w, x)]);
                        z++; 
                      }
+                     else 
+                        ddef->n2sc[pos]  = 0.0;
                      pos++;  break;
         case p7T_I:  if(ddef->tr->i[z] == pos)
                      {
                        ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]);
                        z++;
                      }
+                     else 
+                        ddef->n2sc[pos]  = 0.0;
                      pos++;  break;
       }
       t = u;
@@ -1796,8 +1790,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
     } 
   } 
 
-  for (pos = i; pos <= j; pos++)  
+  for (pos = i; pos <= j; pos++) 
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
+ 
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
     
   if(windowsq->start < windowsq->end)
@@ -1884,7 +1879,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
-  
+ 
   p7_oprofile_ReconfigLength(om, orfsq->n);
   p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
   p7_omx_GrowTo(ox2, om->M, orfsq->n, orfsq->n); 

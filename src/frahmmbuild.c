@@ -1492,8 +1492,7 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
           entropy,
           (sq->desc != NULL) ? sq->desc : "") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-    } else {
-      if (fprintf(cfg->ofp, "%-5d %-20s %5d %5" PRId64 " %5d %5d %8.2f %6.3f %s\n",
+    } else if (fprintf(cfg->ofp, "%-5d %-20s %5d %5" PRId64 " %5d %5d %8.2f %6.3f %s\n",
           idx,
           (sq->name != NULL) ? sq->name : "",
           1,
@@ -1504,7 +1503,6 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
           entropy,
           (sq->desc != NULL) ? sq->desc : "") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-  }
 
   return eslOK;
 }

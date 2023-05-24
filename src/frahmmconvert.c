@@ -47,7 +47,7 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
     return eslOK;
   }
   else {
-    if (fprintf(stdout, "  %-6d %-20s %5d %5" PRId64 " %7.5f %9d %8.2f %6.3f %s\n",
+    if (fprintf(stdout, "  %-6d %-20s %5d %5d %7.5f %9d %8.2f %6.3f %s\n",
           hmmidx,
           (hmm->name != NULL) ? hmm->name : "",
           hmm->nseq,

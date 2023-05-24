@@ -230,7 +230,7 @@ link_spsamples_fs(const void *v1, const void *v2, const void *prm, int *ret_link
   struct p7_spcoord_s   *h2    = (struct p7_spcoord_s *)   v2;
   struct p7_linkparam_s *param = (struct p7_linkparam_s *) prm;
   int  nov, n;
-  float  d1, d2;
+  int  d1, d2;
   
   /* seq overlap test */
   nov = ESL_MIN(h1->j, h2->j) - ESL_MAX(h1->i, h2->i) + 1;      /* overlap  */

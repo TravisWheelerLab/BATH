@@ -245,6 +245,7 @@ p7_tophits_Add(P7_TOPHITS *h,
   h->unsrt[h->N].best_domain= 0;
   h->unsrt[h->N].frameshift = FALSE;
   h->unsrt[h->N].dcl        = NULL;
+  h->unsrt[h->N].orfid      = NULL;
   h->N++;
 
   if (h->N >= 2) {

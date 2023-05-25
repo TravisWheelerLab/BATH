@@ -23,39 +23,39 @@
 # Unit test drivers for each .c file
 ################################################################
 
-#1 exercise hmmer              @src/hmmer_utest@
-#1 exercise build              @src/build_utest@
-#1 exercise generic_fwdback    @src/generic_fwdback_utest@
-#1 exercise generic_msv        @src/generic_msv_utest@
-#1 exercise generic_stotrace   @src/generic_stotrace_utest@
-#1 exercise generic_viterbi    @src/generic_viterbi_utest@
-#1 exercise hmmd_search_status    @src/hmmd_search_status_utest@
-#1 exercise logsum             @src/logsum_utest@
-#1 exercise modelconfig        @src/modelconfig_utest@
-#1 exercise seqmodel           @src/seqmodel_utest@
-#1 exercise p7_alidisplay      @src/p7_alidisplay_utest@
-#1 exercise p7_bg              @src/p7_bg_utest@
-#1 exercise p7_domain          @src/p7_domain_utest@
-#1 exercise p7_gmx             @src/p7_gmx_utest@
-#1 exercise p7_hit             @src/p7_hit_utest@
-#1 exercise p7_hmm             @src/p7_hmm_utest@
-#1 exercise p7_hmmfile         @src/p7_hmmfile_utest@
-#1 exercise p7_hmmd_search_stats @src/p7_hmmd_search_stats_utest@
-#1 exercise p7_profile         @src/p7_profile_utest@
-#1 exercise p7_tophits         @src/p7_tophits_utest@
-#1 exercise p7_trace           @src/p7_trace_utest@
-#1 exercise p7_scoredata       @src/p7_scoredata_utest@
+1 exercise hmmer              @src/hmmer_utest@
+1 exercise build              @src/build_utest@
+1 exercise generic_fwdback    @src/generic_fwdback_utest@
+1 exercise generic_msv        @src/generic_msv_utest@
+1 exercise generic_stotrace   @src/generic_stotrace_utest@
+1 exercise generic_viterbi    @src/generic_viterbi_utest@
+1 exercise hmmd_search_status    @src/hmmd_search_status_utest@
+1 exercise logsum             @src/logsum_utest@
+1 exercise modelconfig        @src/modelconfig_utest@
+1 exercise seqmodel           @src/seqmodel_utest@
+1 exercise p7_alidisplay      @src/p7_alidisplay_utest@
+1 exercise p7_bg              @src/p7_bg_utest@
+1 exercise p7_domain          @src/p7_domain_utest@
+1 exercise p7_gmx             @src/p7_gmx_utest@
+1 exercise p7_hit             @src/p7_hit_utest@
+1 exercise p7_hmm             @src/p7_hmm_utest@
+1 exercise p7_hmmfile         @src/p7_hmmfile_utest@
+1 exercise p7_hmmd_search_stats @src/p7_hmmd_search_stats_utest@
+1 exercise p7_profile         @src/p7_profile_utest@
+1 exercise p7_tophits         @src/p7_tophits_utest@
+1 exercise p7_trace           @src/p7_trace_utest@
+1 exercise p7_scoredata       @src/p7_scoredata_utest@
 
 
-#1 exercise decoding           @src/impl/decoding_utest@
-#1 exercise fwdback            @src/impl/fwdback_utest@
-#1 exercise io                 @src/impl/io_utest@
-#1 exercise msvfilter          @src/impl/msvfilter_utest@
-#1 exercise null2              @src/impl/null2_utest@
-#1 exercise optacc             @src/impl/optacc_utest@
-#1 exercise stotrace           @src/impl/stotrace_utest@
-#1 exercise vitfilter          @src/impl/vitfilter_utest@
-#1 exercise  hmmpgmd2msa       @src/hmmpgmd2msa_utest@     !testsuite/Caudal_act.hmm!
+1 exercise decoding           @src/impl/decoding_utest@
+1 exercise fwdback            @src/impl/fwdback_utest@
+1 exercise io                 @src/impl/io_utest@
+1 exercise msvfilter          @src/impl/msvfilter_utest@
+1 exercise null2              @src/impl/null2_utest@
+1 exercise optacc             @src/impl/optacc_utest@
+1 exercise stotrace           @src/impl/stotrace_utest@
+1 exercise vitfilter          @src/impl/vitfilter_utest@
+1 exercise  hmmpgmd2msa       @src/hmmpgmd2msa_utest@     !testsuite/Caudal_act.hmm!
 # Still to come, unit tests for
 #   emit.c
 #   errors.c
@@ -79,8 +79,8 @@
 # Prep a press'ed "minifam" that's used here and also in some integration tests,
 # and extract an individual 'typical' model Caudal_act.
 #1 prep      Caudal                @easel/miniapps/esl-afetch@ !testsuite/minifam! Caudal_act > %CAUDAL.STO%
-#1 prep      hmm                   @src/frahmmbuild@ %CAUDAL.HMM% %CAUDAL.STO%
-#1 prep      minifam               @src/frahmmbuild@ %MINIFAM.HMM% !testsuite/minifam!
+#1 prep      hmm                   @src/hmmbuild@ %CAUDAL.HMM% %CAUDAL.STO%
+#1 prep      minifam               @src/hmmbuild@ %MINIFAM.HMM% !testsuite/minifam!
 #1 prep      minifam_press         @src/hmmpress@ %MINIFAM.HMM% 
 
 
@@ -95,43 +95,43 @@
 #1 exercise  hmmalign/--informat  @src/hmmalign@ --informat fasta                     !testsuite/Caudal_act.hmm! %TESTSEQ%
 #1 exercise  hmmalign/--outformat @src/hmmalign@ --outformat a2m                      !testsuite/Caudal_act.hmm! %TESTSEQ%
 
-# frahmmbuild  xxxxxxxxxxxxxxxxxxxx
-#1 exercise  frahmmbuild             @src/frahmmbuild@                    --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/-h             @src/frahmmbuild@  -h
-#1 exercise  build/-n             @src/frahmmbuild@  -n foo            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/-o             @src/frahmmbuild@  -o %HMMBUILD.out% --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/-O             @src/frahmmbuild@  -O %HMMBUILD.sto% --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--amino        @src/frahmmbuild@  --amino           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/M1.sto!
-#1 exercise  build/--dna          @src/frahmmbuild@  --dna             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/M1.sto!
-#1 exercise  build/--rna          @src/frahmmbuild@  --rna             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/M1.sto!
-#1 exercise  build/--fast         @src/frahmmbuild@  --fast            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--hand         @src/frahmmbuild@  --hand            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--symfrac      @src/frahmmbuild@  --symfrac 1.0     --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--fragthresh   @src/frahmmbuild@  --fragthresh 0.4  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--wpb          @src/frahmmbuild@  --wpb             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--wgsc         @src/frahmmbuild@  --wgsc            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--wblosum      @src/frahmmbuild@  --wblosum         --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--wnone        @src/frahmmbuild@  --wnone           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+# hmmbuild  xxxxxxxxxxxxxxxxxxxx
+#1 exercise  hmmbuild             @src/hmmbuild@                    --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/-h             @src/hmmbuild@  -h
+#1 exercise  build/-n             @src/hmmbuild@  -n foo            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/-o             @src/hmmbuild@  -o %HMMBUILD.out% --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/-O             @src/hmmbuild@  -O %HMMBUILD.sto% --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--amino        @src/hmmbuild@  --amino           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/M1.sto!
+#1 exercise  build/--dna          @src/hmmbuild@  --dna             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/M1.sto!
+#1 exercise  build/--rna          @src/hmmbuild@  --rna             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/M1.sto!
+#1 exercise  build/--fast         @src/hmmbuild@  --fast            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--hand         @src/hmmbuild@  --hand            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--symfrac      @src/hmmbuild@  --symfrac 1.0     --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--fragthresh   @src/hmmbuild@  --fragthresh 0.4  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--wpb          @src/hmmbuild@  --wpb             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--wgsc         @src/hmmbuild@  --wgsc            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--wblosum      @src/hmmbuild@  --wblosum         --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--wnone        @src/hmmbuild@  --wnone           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
 # --wgiven not tested
-#1 exercise  build/--wid          @src/frahmmbuild@  --wblosum --wid 0.5  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--eent         @src/frahmmbuild@  --eent               --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--eclust       @src/frahmmbuild@  --eclust             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--enone        @src/frahmmbuild@  --enone              --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--eset         @src/frahmmbuild@  --eset 1.0           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--ere          @src/frahmmbuild@  --eent --ere  0.55   --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--esigma       @src/frahmmbuild@  --eent --esigma 44.0 --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--eid          @src/frahmmbuild@  --eclust --eid 0.60  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--pnone        @src/frahmmbuild@  --pnone              --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--plaplace     @src/frahmmbuild@  --plaplace           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--EmL          @src/frahmmbuild@  --EmL 100                    --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--EmN          @src/frahmmbuild@  --EmN 250            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--EvL          @src/frahmmbuild@  --EvL 100            --EmL 10          --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--EvN          @src/frahmmbuild@  --EvN 250            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--EfL          @src/frahmmbuild@  --EfL 100            --EmL 10 --EvL 10          %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--EfN          @src/frahmmbuild@  --EfN 250            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--Eft          @src/frahmmbuild@  --Eft 0.045          --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--informat     @src/frahmmbuild@  --informat stockholm --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
-#1 exercise  build/--seed         @src/frahmmbuild@  --seed 42             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--wid          @src/hmmbuild@  --wblosum --wid 0.5  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--eent         @src/hmmbuild@  --eent               --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--eclust       @src/hmmbuild@  --eclust             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--enone        @src/hmmbuild@  --enone              --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--eset         @src/hmmbuild@  --eset 1.0           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--ere          @src/hmmbuild@  --eent --ere  0.55   --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--esigma       @src/hmmbuild@  --eent --esigma 44.0 --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--eid          @src/hmmbuild@  --eclust --eid 0.60  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--pnone        @src/hmmbuild@  --pnone              --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--plaplace     @src/hmmbuild@  --plaplace           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--EmL          @src/hmmbuild@  --EmL 100                    --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--EmN          @src/hmmbuild@  --EmN 250            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--EvL          @src/hmmbuild@  --EvL 100            --EmL 10          --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--EvN          @src/hmmbuild@  --EvN 250            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--EfL          @src/hmmbuild@  --EfL 100            --EmL 10 --EvL 10          %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--EfN          @src/hmmbuild@  --EfN 250            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--Eft          @src/hmmbuild@  --Eft 0.045          --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--informat     @src/hmmbuild@  --informat stockholm --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
+#1 exercise  build/--seed         @src/hmmbuild@  --seed 42             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.hmm% !testsuite/20aa.sto!
 
 
 # hmmsearch xxxxxxxxxxxxxxxxxxxx
@@ -443,10 +443,10 @@
 #1 exercise  hmmemit/--uniglocal  @src/hmmemit@ -p --uniglocal !testsuite/Caudal_act.hmm!
 
 # xxxxxxxxx xxxxxxxxxxxxxxxxxxxx
-#1 exercise  frahmmfetch             @src/frahmmfetch@   %MINIFAM.HMM% Caudal_act
-#1 exercise  frahmmstat              @src/frahmmstat@    !testsuite/Caudal_act.hmm!
+#1 exercise  hmmfetch             @src/hmmfetch@   %MINIFAM.HMM% Caudal_act
+#1 exercise  hmmstat              @src/hmmstat@    !testsuite/Caudal_act.hmm!
 #1 exercise  hmmlogo              @src/hmmlogo@    !testsuite/Caudal_act.hmm!
-#1 exercise  frahmmconvert           @src/frahmmconvert@ !testsuite/Caudal_act.hmm!
+#1 exercise  hmmconvert           @src/hmmconvert@ !testsuite/Caudal_act.hmm!
 #1 exercise  hmmsim               @src/hmmsim@     !testsuite/Caudal_act.hmm!
 
 #################################################################
@@ -468,13 +468,13 @@
 #1 prep      db_1                  @src/hmmemit@  --seed 35 -p %CAUDAL.HMM% > %TESTDB%
 #1 prep      db_2                  @easel/miniapps/esl-reformat@ fasta !testsuite/Caudal_act.sto! >> %TESTDB%
 #1 prep      db_3                  @easel/miniapps/esl-shuffle@ -G --amino -N 100 -L 350 >> %TESTDB%
-#1 exercise  frahmmbuild_variation    !testsuite/i1-build-variation.sh!     @src/frahmmbuild@   !testsuite/Caudal_act.sto!          %OUTFILES%
+#1 exercise  hmmbuild_variation    !testsuite/i1-build-variation.sh!     @src/hmmbuild@   !testsuite/Caudal_act.sto!          %OUTFILES%
 #1 exercise  hmmscan_variation     !testsuite/i2-search-variation.sh!    @src/hmmscan@    %MINIFAM.HMM%   %TESTSEQ% %OUTFILES%
 #1 exercise  hmmsearch_variation   !testsuite/i2-search-variation.sh!    @src/hmmsearch@  %CAUDAL.HMM%    %TESTDB%  %OUTFILES%
 #1 exercise  phmmer_variation      !testsuite/i3-seqsearch-variation.sh! @src/phmmer@                               %OUTFILES%
 #3 exercise  jackhmmer_variation   !testsuite/i3-seqsearch-variation.sh! @src/jackhmmer@                            %OUTFILES%
 #1 exercise  mapali                !testsuite/i6-hmmalign-mapali.pl!     @src/hmmalign@   @easel/miniapps/esl-reformat@  !testsuite!  %OUTFILES%
-#1 exercise  fragments             !testsuite/i7-frahmmbuild-fragments.pl!  @src/frahmmbuild@               %OUTFILES%
+#1 exercise  fragments             !testsuite/i7-hmmbuild-fragments.pl!  @src/hmmbuild@               %OUTFILES%
 #1 exercise  nonresidues           !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
 #1 exercise  opt-annotation        !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
 #1 exercise  dup-names             !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
@@ -482,7 +482,7 @@
 #1 exercise  delete-corruption     !testsuite/i12-delete-corruption.pl!  @@ !! %OUTFILES%
 #1 exercise  msa-integrity         !testsuite/i13-msa-integrity.pl!      @@ !! %OUTFILES%
 #1 exercise  hmmemit-consensus     !testsuite/i14-hmmemit-consensus.pl!  @@ !! %OUTFILES%
-#1 exercise  frahmmconvert            !testsuite/i15-frahmmconvert.pl!         @@ !! %OUTFILES%
+#1 exercise  hmmconvert            !testsuite/i15-hmmconvert.pl!         @@ !! %OUTFILES%
 #1 exercise  stdin_pipes           !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
 #1 exercise  nhmmer_generic        !testsuite/i18-nhmmer-generic.pl!     @@ !! %OUTFILES%
 #1 exercise  hmmpgmd_ga            !testsuite/i19-hmmpgmd-ga.pl!         @@ !! %OUTFILES% 
@@ -501,7 +501,7 @@
 #           xxxxxxxxxxxxxxxxxxxx
 #1 exercise  h39                  @src/hmmsearch@ !testsuite/M1.hmm! !testsuite/M1.sto!
 #1 exercise  h45                  !testsuite/i4-zerolength-seqs.sh!    @@ !! %MINIFAM.HMM% %OUTFILES%
-#1 exercise  h50                  !testsuite/i5-frahmmbuild-naming.pl!    @@ !! %OUTFILES%
+#1 exercise  h50                  !testsuite/i5-hmmbuild-naming.pl!    @@ !! %OUTFILES%
 #1 exercise  h82                  !testsuite/i16-build-allins.pl!      @@ !! %OUTFILES%
 #1 exercise  iss159               !testsuite/iss159-nhmmer-overlap.py! @@ !! %OUTFILES%
 
@@ -510,44 +510,44 @@
 ################################################################
 
 #           xxxxxxxxxxxxxxxxxxxx
-#3 valgrind  hmmer                 @src/hmmer_utest@
-#3 valgrind  build                 @src/build_utest@
-#3 valgrind  generic_fwdback       @src/generic_fwdback_utest@
-#3 valgrind  generic_msv           @src/generic_msv_utest@
-#3 valgrind  generic_stotrace      @src/generic_stotrace_utest@
-#3 valgrind  generic_viterbi       @src/generic_viterbi_utest@
-#3 valgrind  logsum                @src/logsum_utest@
-#3 valgrind  modelconfig           @src/modelconfig_utest@
-#3 valgrind  p7_alidisplay         @src/p7_alidisplay_utest@
-#3 valgrind  p7_bg                 @src/p7_bg_utest@
-#3 valgrind  p7_gmx                @src/p7_gmx_utest@
-#3 valgrind  p7_hmm                @src/p7_hmm_utest@
-#3 valgrind  p7_hmmfile            @src/p7_hmmfile_utest@
-#3 valgrind  p7_profile            @src/p7_profile_utest@
-#3 valgrind  p7_tophits            @src/p7_tophits_utest@
-#3 valgrind  p7_trace              @src/p7_trace_utest@
+3 valgrind  hmmer                 @src/hmmer_utest@
+3 valgrind  build                 @src/build_utest@
+3 valgrind  generic_fwdback       @src/generic_fwdback_utest@
+3 valgrind  generic_msv           @src/generic_msv_utest@
+3 valgrind  generic_stotrace      @src/generic_stotrace_utest@
+3 valgrind  generic_viterbi       @src/generic_viterbi_utest@
+3 valgrind  logsum                @src/logsum_utest@
+3 valgrind  modelconfig           @src/modelconfig_utest@
+3 valgrind  p7_alidisplay         @src/p7_alidisplay_utest@
+3 valgrind  p7_bg                 @src/p7_bg_utest@
+3 valgrind  p7_gmx                @src/p7_gmx_utest@
+3 valgrind  p7_hmm                @src/p7_hmm_utest@
+3 valgrind  p7_hmmfile            @src/p7_hmmfile_utest@
+3 valgrind  p7_profile            @src/p7_profile_utest@
+3 valgrind  p7_tophits            @src/p7_tophits_utest@
+3 valgrind  p7_trace              @src/p7_trace_utest@
 
-#3 valgrind  decoding              @src/impl/decoding_utest@
-#3 valgrind  fwdback               @src/impl/fwdback_utest@
-#3 valgrind  io                    @src/impl/io_utest@
-#3 valgrind  msvfilter             @src/impl/msvfilter_utest@
-#3 valgrind  null2                 @src/impl/null2_utest@
-#3 valgrind  optacc                @src/impl/optacc_utest@
-#3 valgrind  stotrace              @src/impl/stotrace_utest@
-#3 valgrind  vitfilter             @src/impl/vitfilter_utest@
+3 valgrind  decoding              @src/impl/decoding_utest@
+3 valgrind  fwdback               @src/impl/fwdback_utest@
+3 valgrind  io                    @src/impl/io_utest@
+3 valgrind  msvfilter             @src/impl/msvfilter_utest@
+3 valgrind  null2                 @src/impl/null2_utest@
+3 valgrind  optacc                @src/impl/optacc_utest@
+3 valgrind  stotrace              @src/impl/stotrace_utest@
+3 valgrind  vitfilter             @src/impl/vitfilter_utest@
 
-#1 prep      minifam               @src/frahmmbuild@ %MINIFAM.HMM% !testsuite/minifam!
+#1 prep      minifam               @src/hmmbuild@ %MINIFAM.HMM% !testsuite/minifam!
 
-#3 valgrind  frahmmbuild              @src/frahmmbuild@   %GLOBIN.HMM% !tutorial/globins4.sto!
-#3 valgrind  frahmmconvert            @src/frahmmconvert@ -b %GLOBIN.HMM%
+#3 valgrind  hmmbuild              @src/hmmbuild@   %GLOBIN.HMM% !tutorial/globins4.sto!
+#3 valgrind  hmmconvert            @src/hmmconvert@ -b %GLOBIN.HMM%
 #3 valgrind  hmmalign              @src/hmmalign@   %GLOBIN.HMM% !tutorial/globins45.fa!
 #3 valgrind  hmmemit               @src/hmmemit@    -N10 %GLOBIN.HMM% 
 #3 valgrind  hmmpress              @src/hmmpress@   -f %MINIFAM.HMM%
-#3 valgrind  frahmmfetch              @src/frahmmfetch@   %MINIFAM.HMM% Caudal_act
+#3 valgrind  hmmfetch              @src/hmmfetch@   %MINIFAM.HMM% Caudal_act
 #3 valgrind  hmmscan               @src/hmmscan@    %MINIFAM.HMM% !tutorial/HBB_HUMAN!
 #3 valgrind  hmmsearch             @src/hmmsearch@  %GLOBIN.HMM% !tutorial/globins45.fa!
 #3 valgrind  hmmsim                @src/hmmsim@     %GLOBIN.HMM% 
-#3 valgrind  frahmmstat               @src/frahmmstat@    %MINIFAM.HMM% 
+#3 valgrind  hmmstat               @src/hmmstat@    %MINIFAM.HMM% 
 #3 valgrind  jackhmmer             @src/jackhmmer@  !tutorial/HBB_HUMAN! !tutorial/globins45.fa!
 #3 valgrind  phmmer                @src/phmmer@     !tutorial/HBB_HUMAN! !tutorial/globins45.fa!
 #3 valgrind  nhmmer                @src/nhmmer@     !tutorial/MADE1.hmm! !tutorial/dna_target.fa!

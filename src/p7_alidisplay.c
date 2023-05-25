@@ -1525,7 +1525,8 @@ p7_alidisplay_Serialize_old(P7_ALIDISPLAY *ad)
   n = 1 + strlen(ad->sqname);   memcpy(ad->mem + pos, ad->sqname,  n); free(ad->sqname);  ad->sqname  = ad->mem+pos; pos += n;
   n = 1 + strlen(ad->sqacc);    memcpy(ad->mem + pos, ad->sqacc,   n); free(ad->sqacc);   ad->sqacc   = ad->mem+pos; pos += n;
   n = 1 + strlen(ad->sqdesc);   memcpy(ad->mem + pos, ad->sqdesc,  n); free(ad->sqdesc);  ad->sqdesc  = ad->mem+pos; pos += n;
-  
+  n = 1 + strlen(ad->orfname);  memcpy(ad->mem + pos, ad->orfname, n); free(ad->orfname); ad->orfname = ad->mem+pos; pos += n;
+ 
   return eslOK;
 
  ERROR:

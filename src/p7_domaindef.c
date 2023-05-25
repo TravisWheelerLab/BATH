@@ -1672,7 +1672,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   ESL_DSQ       *dsq_holder;
 
   if (Ld < 15) return eslOK;
-	
+  
   p7_fs_ReconfigLength(gm_fs, Ld);
   
   dsq_holder = windowsq->dsq;
@@ -1745,11 +1745,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
         for(x = 0; x < windowsq->abc->K; x++)
           if(windowsq->abc->degen[windowsq->dsq[pos]][x]) break;
       }
-
+      
       switch (ddef->tr->st[z]) {
         case p7T_N:
         case p7T_C:
-        case p7T_J:  if(ddef->tr->i[z] == pos && pos > i+1) pos++;
+        case p7T_J:  ddef->n2sc[pos]  = 0.0;
+                     if(ddef->tr->i[z] == pos && pos > i+1) pos++;
                      z++;   break;
         case p7T_X:
         case p7T_S:
@@ -1792,9 +1793,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
 
   for (pos = i; pos <= j; pos++) 
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
- 
+  
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
-    
+   
   if(windowsq->start < windowsq->end)
   {
     dom->iali          = dom->ad->sqfrom;

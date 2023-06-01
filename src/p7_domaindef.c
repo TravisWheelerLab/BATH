@@ -674,7 +674,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
       p7_gmx_GrowTo(bck, gm_fs->M, j-i+1);
       ddef->nregions++;
 
-//TODO: multidommain region is out of order until I fix fs null2 by trace, Also, maybe I don't need it for frahmmer?  
       if (is_multidomain_region_fs(ddef, i, j))
       {
 	

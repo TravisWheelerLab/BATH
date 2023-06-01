@@ -1767,8 +1767,9 @@ extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int
 extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int frameshift);
 extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int M, int L, int Lx, int C);
 extern size_t  p7_gmx_fs_Sizeof (P7_GMX *gx);
-extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags);
+extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags, int scientific);
 extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
+extern int     p7_gmx_fs_DumpWindow_Scientific(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 extern int     p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int kend, int flags);
 
 /* p7_hit.c */

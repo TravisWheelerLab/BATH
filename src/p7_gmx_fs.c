@@ -28,15 +28,11 @@
  * Throws:    <NULL> on allocation error.
  */
 P7_GMX *
-p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int frameshift)
+p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
 {
   int     status;
   P7_GMX *gx = NULL;
   int     i;
-  int     allocC;
-
- if(frameshift) allocC = 5;
-  else          allocC = p7P_CODONS;
 
   /* level 1: the structure itself */
   ESL_ALLOC(gx, sizeof(P7_GMX));
@@ -59,7 +55,7 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int frameshift)
   for (i = 0; i <= allocL; i++) 
     { 
       gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C0] = -eslINFINITY; /* M_0 Codon 0*/
-      if(frameshift) { 
+      if(allocC) {// allocC should equal either 0 or 5
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C1] = -eslINFINITY; /* M_0 Codon 1*/
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C2] = -eslINFINITY; /* M_0 Codon 2*/
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C3] = -eslINFINITY; /* M_0 Codon 3*/

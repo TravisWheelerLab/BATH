@@ -1340,10 +1340,10 @@ typedef struct p7_pipeline_s {
   P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe      */
   P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes     */
   P7_OMX     *bck;    /* full Bck matrix for domain envelopes     */
-  P7_GMX     *gxf;    /* full generic Forward matrix for frameshift    */
-  P7_GMX     *gxb;    /* full generic Backward matrix for frameshifts      */
-  P7_GMX     *gfwd;    /* full Fwd generic matrix for domain envelopes     */
-  P7_GMX     *gbck;    /* full Fwd generic matrix for domain envelopes     */
+  P7_GMX     *gxf;    /* three-row generic Forward matrix for frameshift    */
+  P7_GMX     *gxb;    /* five-row generic Backward matrix for frameshifts   */
+  P7_GMX     *gfwd;   /* full Fwd generic matrix for domain envelopes     */
+  P7_GMX     *gbck;   /* full Fwd generic matrix for domain envelopes     */
  
   /* Domain postprocessing                                                  */
   ESL_RANDOMNESS *r;    /* random number generator                  */
@@ -1764,7 +1764,7 @@ extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
 /* p7_gmx_fs.c */
-extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int frameshift);
+extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int allocC);
 extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int M, int L, int Lx, int C);
 extern size_t  p7_gmx_fs_Sizeof (P7_GMX *gx);
 extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags, int scientific);

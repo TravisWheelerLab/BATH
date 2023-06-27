@@ -671,7 +671,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
  
       /* We have a region i..j to evaluate. */
       p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);
-      p7_gmx_GrowTo(bck, gm_fs->M, j-i+1);
+      p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);
       ddef->nregions++;
 
       if (is_multidomain_region_fs(ddef, i, j))
@@ -1691,7 +1691,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);
 
   /* Posterior Probabilities */
-  if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, TRUE)) == NULL) goto ERROR;
+  if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS)) == NULL) goto ERROR;
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
   
   /* Find an optimal accuracy alignment */

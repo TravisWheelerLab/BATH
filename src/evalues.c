@@ -552,7 +552,7 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   for(x = 0; x < abcDNA->K; x++) 
     n1[x] = n2[x] = n3[x] = x;  
 
-  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, TRUE);     /* DP matrix: for ForwardParser,  L rows */
+  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_CODONS);     /* DP matrix: for ForwardParser,  L rows */
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));

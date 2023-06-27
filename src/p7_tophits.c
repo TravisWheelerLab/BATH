@@ -1996,7 +1996,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int qaccw  = ((qacc != NULL) ? ESL_MAX(10, strlen(qacc)) : 10);
   int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
   int posw   = (pli->long_targets ? ESL_MAX(7, p7_tophits_GetMaxPositionLength(th)) : 0);
-  posw   = (pli->frameshift ? ESL_MAX(9, p7_tophits_GetMaxPositionLength(th)) : 0);
+      posw   = (pli->frameshift ? ESL_MAX(9, p7_tophits_GetMaxPositionLength(th)) : 0);
   int h,d;
 
 

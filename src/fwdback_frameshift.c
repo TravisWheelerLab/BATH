@@ -906,17 +906,14 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
 {
 
   float const *tsc  = gm_fs->tsc;
-  //float const *rsc  = NULL; 
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;           
   int          M    = gm_fs->M;
   int          i, k;// c;  
   int          status;
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
-  //float        sc;
   float       *iv   = NULL;
   ESL_DSQ      t, u, v, w, x;
-  //float        tmp_b;
   int          curr, prev1, prev2, prev3, prev4, prev5;
 
   /* Allocation and initalization of invermediate value array */
@@ -929,7 +926,7 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
    * cell i,k; exclusive of emitting residue x_i.
    */
   curr = L % 6;
-  
+
   /* Initialization of row L  */
   XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY; /* need to enter and exit model */
   XMX(L,p7G_C) = gm_fs->xsc[p7P_C][p7P_MOVE];                   /* C<-T          */
@@ -1008,7 +1005,7 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
                                  XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE]);
     } else {
       XMX(i,p7G_J) =              XMX(i,  p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
-       XMX(i,p7G_N) =             XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
+      XMX(i,p7G_N) =             XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
       XMX(i,p7G_C) =                              gm_fs->xsc[p7P_C][p7P_MOVE];
     }
 
@@ -1077,7 +1074,7 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
               p7_FLogsum( MMX(prev2,k) + p7P_MSC_C2(gm_fs, k, x, w),
               p7_FLogsum( MMX(prev3,k) + p7P_MSC_C3(gm_fs, k, x, w, v),
               p7_FLogsum( MMX(prev4,k) + p7P_MSC_C4(gm_fs, k, x, w, v, u),
-                         MMX(prev5,k) + p7P_MSC_C5(gm_fs, k, x, w, v, u, t)))));
+                          MMX(prev5,k) + p7P_MSC_C5(gm_fs, k, x, w, v, u, t)))));
 
       XMX(i,p7G_B) = p7_FLogsum( XMX(i, p7G_B), iv[k] + TSC(p7P_BM,k-1));  
     }
@@ -1087,8 +1084,8 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
     XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
     XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP],
                                XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE]);
-    XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
-                              XMX(i,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
+    XMX(i,p7G_E) = p7_FLogsum( XMX(i,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
+                               XMX(i,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
     
     MMX(curr,M)     = DMX(curr,M) = XMX(i,p7G_E); /* {MD}_M <- E (prob 1.0) */
     IMX(curr,M)     = -eslINFINITY;            /* no I_M state        */
@@ -1098,7 +1095,7 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
       MMX(curr,k) = p7_FLogsum( p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
                                 p7_FLogsum( IMX(prev3,k)   + TSC(p7P_MI,k),
                                             iv[k+1]      + TSC(p7P_MM,k))),
-                                         XMX(i,p7G_E) + esc);
+                                            XMX(i,p7G_E) + esc);
 
       DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
                                             DMX(curr, k+1)  + TSC(p7P_DD,k)),
@@ -1132,7 +1129,7 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
                       
 
   XMX(0,p7G_B) = iv[1] + TSC(p7P_BM,0); 
-    
+
   for (k = 2; k <= M; k++) 
   {
    iv[k] =  p7_FLogsum( MMX(1,k) + p7P_MSC_C1(gm_fs, k, x),
@@ -1155,7 +1152,6 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
   if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
                                  p7_FLogsum( XMX(1,p7G_N),
                                              XMX(2,p7G_N)));
-  
   gx->M = M;
   gx->L = L;
   if (iv != NULL) free(iv);

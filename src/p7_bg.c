@@ -660,7 +660,6 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
       case 2: bias_sum3 += filtersc; leng_sum3 += orfsq->n; break;
       default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
     }
-
   }
     
   bias_sum4 = p7_FLogsum(bias_sum1, p7_FLogsum(bias_sum2, bias_sum3));

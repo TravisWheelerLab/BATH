@@ -271,7 +271,7 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
 
     
   }
-//p7_gmx_fs_Dump(stdout, fwd, p7_DEFAULT);
+
   return eslOK;
 }
 

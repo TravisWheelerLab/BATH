@@ -767,7 +767,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         }
       }
       else { //check that HMM is properly formated for frahmmer
-        if( ! (hmm->evparam[p7_FTAUFS] && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for frahmmer. Please run frahmmconvert.\n", cfg->queryfile);
+        if( ! (hmm->evparam[p7_FTAUFS] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for frahmmer. Please run frahmmconvert.\n", cfg->queryfile);
       
         if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run frahmmcovert with option '--fs %f'.\n", indel_cost, cfg->queryfile, indel_cost);
       
@@ -926,7 +926,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       {
         for(h = 0;h < tophits_accumulator->N; h++)
         {
-	  if(!tophits_accumulator->hit[h]->frameshift)
 	    tophits_accumulator->hit[h]->sortkey -= log(pipelinehits_accumulator->Z);
         }
       }

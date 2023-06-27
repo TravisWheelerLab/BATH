@@ -1371,7 +1371,6 @@ read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
 
   if ((hmm = p7_hmm_CreateShell())                                   == NULL)   ESL_XFAIL(eslEMEM,    hfp->errbuf, "allocation failure, HMM shell");
   hmm->offset = offset;
-  hmm->evparam[p7_FTAUFS] = 0.;
 
   /* Header section */
   while ((status = esl_fileparser_NextLine(hfp->efp)) == eslOK)

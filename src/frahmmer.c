@@ -1104,9 +1104,8 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 
       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
-      Z = info->pli->Z;
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-      info->pli->Z = Z;
+     
 
       esl_sq_ReuseBlock(info->wrk1->orf_block);    
     } else {
@@ -1118,10 +1117,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 	
       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT); 
-
-      Z = info->pli->Z;
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-      info->pli->Z = Z;
       
       esl_sq_ReuseBlock(info->wrk1->orf_block);
       info->pli->nres += dbsq_dna->n;
@@ -1288,9 +1284,7 @@ pipeline_thread(void *arg)
        
         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
 
-	Z = info->pli->Z;
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-	info->pli->Z = Z;
 
         esl_sq_ReuseBlock(info->wrk1->orf_block);
       } else {
@@ -1304,9 +1298,7 @@ pipeline_thread(void *arg)
 	
         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT);
 
-	Z = info->pli->Z;
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
-	info->pli->Z = Z;
 
 	esl_sq_ReuseBlock(info->wrk1->orf_block);
         esl_sq_ReverseComplement(dnaSeq);

@@ -769,9 +769,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       else { //check that HMM is properly formated for frahmmer
         if( ! (hmm->evparam[p7_FTAUFS] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for frahmmer. Please run frahmmconvert.\n", cfg->queryfile);
       
-        if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please run frahmmcovert with option '--fs %f'.\n", indel_cost, cfg->queryfile, indel_cost);
+        if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run frahmmer with option '--fs %f' or run frahmmconvert with option '--fs %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);
       
-      if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please run frahmmcovert with option '--ct %d'.\n", codon_table, cfg->queryfile, codon_table);
+      if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run frahmmer with option '--ct %d' or run frahmmconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
      } 
 
       if(hmm->max_length == -1)

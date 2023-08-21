@@ -692,19 +692,19 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     m_coords_list[i] = m_coords;
 
     ext_i_coords   =  ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
-    ext_j_coords   =  ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
-   
+    ext_j_coords   = ESL_MAX(0,  (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1) - curr_orf->n); //positive numbers
+    
     if(complementarity == p7_NOCOMPLEMENT)
     {
       window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3));
-      window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords   * 3) + 2);
+      window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords   * 3));
     }
     else
     {
       window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
-      window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->end   + 1) + (ext_j_coords * 3) + 2); 
+      window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->end   + 1) + (ext_j_coords * 3)); 
     }
-        
+       
     p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
     p7_gmx_Reuse(vgx);
     p7_trace_Reuse(vtr);
@@ -718,7 +718,7 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
    for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
-
+    
     max_window_start =  ESL_MAX(prev_window->n, curr_window->n);
     min_window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
     overlap_len   = min_window_end - max_window_start + 1;
@@ -729,7 +729,8 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
 
       min_window_start        = ESL_MIN(prev_window->n, curr_window->n);
       max_window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-      /* If length of merged window would not be too long then merge windows */  
+      /* If length of merged window would not be too long then merge windows */
+
       if((max_window_end -  min_window_start + 1) < (2.2 * (gm->max_length * 3))) 
       {
         prev_window->fm_n  -= (prev_window->n - min_window_start);
@@ -2206,7 +2207,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
   double           dom_lnP;
   P7_DOMAIN       *dom        = NULL;      /* convenience variable, ptr to current domain  */
   P7_HIT          *hit        = NULL;      /* ptr to the current hit output data                           */
-  
+ 
   for (d = 0; d < pli->ddef->ndom; d++)
   {      
     dom = pli->ddef->dcl + d;
@@ -2219,7 +2220,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       p7_alidisplay_Destroy(dom->ad);
       continue;
     }
-  
+ 	
   env_len = dom->jenv - dom->ienv + 1;
   /* map alignment and envelope coodinates to orignal DNA target sequence */
   if (!complementarity)
@@ -2655,7 +2656,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
- 
+  
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
     pli->pos_past_fwd += dna_window->length; 
 

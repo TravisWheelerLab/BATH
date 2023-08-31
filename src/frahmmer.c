@@ -114,7 +114,8 @@ static ESL_OPTIONS options[] = {
   { "--F3",         eslARG_REAL,  "1e-5", NULL, NULL,    NULL,  NULL, "--max",          "stage 3 (Fwd) threshold: promote hits w/ P <= F3",             7 },
   { "--nobias",     eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL, "--max",          "turn off composition bias filter",                             7 },
   { "--nonull2",      eslARG_NONE,   NULL,  NULL, NULL,    NULL,  NULL,  NULL,          "turn off biased composition score corrections",                7 },
-  { "--fsonly",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, NULL,             "send all potential hits to the frameshift aware pipeline",     7 },
+  { "--fsonly",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, "--nofs",             "send all potential hits to the frameshift aware pipeline",     7 },
+  { "--nofs",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL, "--fsonly",             "send all potential hits to the non-frameshift aware pipeline",     7 },
 /* Other options */
   { "-Z",             eslARG_REAL,   FALSE, NULL, "x>=0",   NULL,  NULL,  NULL,          "set database size (Megabases) to <x> for E-value calculations",          12 },
   { "--seed",         eslARG_INT,    "42",  NULL, "n>=0",  NULL,  NULL,  NULL,          "set RNG seed to <n> (if 0: one-time arbitrary seed)",         12 },
@@ -298,7 +299,8 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--F3")         && fprintf(ofp, "# Fwd filter P threshold:       <= %g\n",             esl_opt_GetReal(go, "--F3"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nobias")     && fprintf(ofp, "# biased composition HMM filter:   off\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nonull2")    && fprintf(ofp, "# null2 bias corrections:          off\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--fsonly")     && fprintf(ofp, "# Use only the Frameshift Aware Fwd filter\n")                                               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
+  if (esl_opt_IsUsed(go, "--fsonly")     && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
+  if (esl_opt_IsUsed(go, "--nofs")       && fprintf(ofp, "# Use only the non-frameshift aware pipeline\n")                                           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--restrictdb_stkey") && fprintf(ofp, "# Restrict db to start at seq key: %s\n",            esl_opt_GetString(go, "--restrictdb_stkey"))  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--restrictdb_n")     && fprintf(ofp, "# Restrict db to # target seqs:    %d\n",            esl_opt_GetInteger(go, "--restrictdb_n")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--ssifile")          && fprintf(ofp, "# Override ssi file to:            %s\n",            esl_opt_GetString(go, "--ssifile"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");

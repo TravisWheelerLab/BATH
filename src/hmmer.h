@@ -1404,7 +1404,8 @@ typedef struct p7_pipeline_s {
   enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
   int           frameshift;     /* TRUE for searches with frahmmer */
-  int           fs_only;        /* TRUE for frahmmer searches that only use the fs pipeline branch */
+  int           fs_pipe;        /* TRUE for frahmmer searches that are able to use the frameshift aware pipeline branch (do not use --nofs flag) */
+  int           std_pipe;          /* TRUE for frahmmer searches that are able to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;        /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
@@ -1959,7 +1960,7 @@ extern int         p7_tophits_Reuse(P7_TOPHITS *h);
 
 
 extern int p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W);
-extern int p7_tophits_ComputeFrahmmerEvalues(P7_TOPHITS *th, double N, int W);
+extern int p7_tophits_ComputeBathvalues(P7_TOPHITS *th, double N, int W);
 extern int p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs);
 extern int p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli);
 extern int p7_tophits_CompareRanking(P7_TOPHITS *th, ESL_KEYHASH *kh, int *opt_nnew);

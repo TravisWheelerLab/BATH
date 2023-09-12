@@ -345,7 +345,7 @@ p7_tophits_SortBySortkey(P7_TOPHITS *h)
   int i;
   if (h->is_sorted_by_sortkey)  return eslOK;
   for (i = 0; i < h->N; i++) h->hit[i] = h->unsrt + i;
-
+                               
   if (h->N > 1)  qsort(h->hit, h->N, sizeof(P7_HIT *), hit_sorter_by_sortkey);
 
   h->is_sorted_by_seqidx  = FALSE;
@@ -831,6 +831,45 @@ p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W)
   return eslOK;
 }
 
+/* Function:  p7_tophits_ComputeBathEvalues()
+ * Synopsis:  Compute e-values based on pvalues and window sizes.
+ *
+ * Purpose:      After bathsearch pipeline has completed, the th object 
+ *               contains hits where the p-values haven't yet been converted 
+ *               to e-values. That modification depends on an established
+ *               number of sequences. In bathcsearch, this is computed as N/W,
+ *               for a database of N residues, where W is some standardized
+ *               window length (bathsearch passes om->max_length*3). E-values 
+ *               are set here based on that formula. We also set the sortkey 
+ *               so the output will be sorted correctly.
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_tophits_ComputeBathEvalues(P7_TOPHITS *th, int64_t N, int W)
+{
+  int i;    /* counters over hits */
+  
+  if(N)
+  {
+    for (i = 0; i < th->N ; i++)
+    {
+      th->unsrt[i].lnP        += log((float)N / (float)W);
+      th->unsrt[i].dcl[0].lnP  = th->unsrt[i].lnP;
+      th->unsrt[i].sortkey     = -1.0 * th->unsrt[i].lnP;
+    }
+  }
+  else
+  {
+    for (i = 0; i < th->N ; i++)
+    {
+      th->unsrt[i].dcl[0].lnP  = th->unsrt[i].lnP;
+      th->unsrt[i].sortkey     = -1.0 * th->unsrt[i].lnP;
+    }
+  }
+  return eslOK;
+}
+
 
 /* Function:  p7_tophits_RemoveDuplicates()
  * Synopsis:  Remove overlapping hits.
@@ -985,6 +1024,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
   {
       if (th->hit[h]->flags & p7_IS_REPORTED)  th->nreported++;
       if (th->hit[h]->flags & p7_IS_INCLUDED)  th->nincluded++;
+	//printf("E %f report %d\n", exp(th->hit[h]->lnP), th->nreported);
   }
   
   /* Now we can determined domZ, the effective search space in which additional domains are found */
@@ -1298,7 +1338,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
         {
           if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "  %6d  %5d",
           newness,
-          exp(th->hit[h]->lnP) * pli->Z,
+          exp(th->hit[h]->lnP), // * pli->Z,
           th->hit[h]->score,
           eslCONST_LOG2R * th->hit[h]->dcl[d].dombias,
           namew, showname,
@@ -1565,7 +1605,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
                                 th->hit[h]->dcl[d].is_included ? '!' : '?',
                                 th->hit[h]->dcl[d].bitscore,
                                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
-                                exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+                                exp(th->hit[h]->dcl[d].lnP), // * pli->Z,
                                 th->hit[h]->dcl[d].ad->hmmfrom,
                                 th->hit[h]->dcl[d].ad->hmmto,
                                 (th->hit[h]->dcl[d].ad->hmmfrom == 1) ? '[' : '.',
@@ -1953,7 +1993,7 @@ p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th
                  taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
                  qnamew, qname,
                  qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
-                 exp(th->hit[h]->lnP) * pli->Z,
+                 exp(th->hit[h]->lnP), //* pli->Z,
                  posw, th->hit[h]->dcl[d].iali,
                  posw, th->hit[h]->dcl[d].jali,
                  fs_type,
@@ -2094,7 +2134,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 posw, th->hit[h]->dcl[d].jali,
                 posw, th->hit[h]->dcl[d].ienv,
                 posw, th->hit[h]->dcl[d].jenv,
-                exp(th->hit[h]->lnP) * pli->Z,
+                exp(th->hit[h]->lnP), //* pli->Z,
                 th->hit[h]->score,
                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
                 th->hit[h]->dcl[d].ad->frameshifts,
@@ -2290,12 +2330,12 @@ p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 qnamew, qname,
                 qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
                 qlen,
-		exp(th->hit[h]->lnP) * pli->Z,
+		exp(th->hit[h]->lnP), // * pli->Z,
                 th->hit[h]->score,
                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R, /* bias correction */
                 nd,
                 th->hit[h]->nreported,
-                exp(th->hit[h]->dcl[d].lnP) * pli->Z,
+                exp(th->hit[h]->dcl[d].lnP), // * pli->Z,
                 th->hit[h]->dcl[d].bitscore,
                 eslCONST_LOG2R * th->hit[h]->dcl[d].dombias,
                 th->hit[h]->dcl[d].ad->hmmfrom,
@@ -2845,6 +2885,3 @@ main(int argc, char **argv)
   return eslOK;
 }
 #endif /*p7TOPHITS_TESTDRIVE*/
-
-
-

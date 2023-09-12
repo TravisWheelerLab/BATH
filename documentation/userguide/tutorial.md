@@ -1,65 +1,60 @@
 # Tutorial
 
-FraHMMER\* was built on top of the existing HMMER3 code base. Users who are familiar with HMMER will find that FraHMMER uses many of the same conventions. This tutorial will focus on getting you familiar with the five FraHMMER tools listed below and, to avoid redundancy, will link to the HMMER user guide where applicable. 
+BATH was built on top of the existing HMMER3 code base. Users who are familiar with HMMER will find that BATH uses many of the same conventions. This tutorial will focus on getting you familiar with the five BATH tools listed below and, to avoid redundancy, will link to the HMMER user guide where applicable. 
 
-There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a frahmmer\*\* search. The second section - Running frahmmer searches - will focus on using frahmmer to perform frameshift aware translated homology search, and on interpreting the search results. All the necessary files to complete the practices are located in the directory FraHMMER/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the FraHMMER/src/ directory to the commands.
-
-<sup>\* 'FraHMMER' with capitalizations refers to the software package which includes a variety of tools used to support and perform frameshift aware translated homology search. </sup>
-
-<sup>\*\* When written in all lowercase, 'frahmmer' refers to the frameshift aware translated homology search tool inside of FraHMMER.</sup>
-
+There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a search. The second section - Running bathsearch - will focus on using BATH to perform translated homology search, and on interpreting the search results. All the necessary files to complete the practices are located in the directory BATH/tutorial/. **You should cd into this directory before running the practice commands**. If you have not run 'make install' you will need to add the path to the BATH/src/ directory to the commands.
 
 **Tools**
 ---
 
-**frahmmbuild**   - build FraHMMER formatted profile hidden Markov models (pHMMs) from input multiple sequence alignments (MSAs) or unaligned sequences and save to file
+**bathbuild**   - build BATH formatted profile hidden Markov models (pHMMs) from input multiple sequence alignments (MSAs) or unaligned sequences and save to file
 ```
-Usage: frahmmbuild [-options] <hmmfile_out> <msa_or_seq_file_in>
+Usage: bathbuild [-options] <hmmfile_out> <msa_or_seq_file_in>
 ```
-**frahmmstat**   - show summary statistics for a FraHMMER formated pHMM file
+**bathstat**   - show summary statistics for a BATH formated pHMM file
 ```
-Usage: frahmmstat [-options] <hmmfile_in>
+Usage: bathstat [-options] <hmmfile_in>
 ```
-**frahmmconvert** - convert HMMER formated pHMM files to FraHMMER formated pHMM files
+**bathconvert** - convert HMMER formated pHMM files to BATH formated pHMM files
 ```
 Usage: frahmmconvert [-options] <hmmfile_out> <hmmfile_in>
 ```
-**frahmmfetch**   - copy selected pHMMs from an HMMER or FraHMMER formatted file (converting if necessary) to a new FraHMMER formated pHMM file
+**bathfetch**   - copy selected pHMMs from an HMMER or BATH formatted file (converting if necessary) to a new BATH formated pHMM file
 ```
-Usage: frahmmfetch [options] <hmmfile_in> <key>         (retrieves HMM named <key>)
-Usage: frahmmfetch [options] -f <hmmfile_in> <keyfile>  (retrieves all HMMs in <keyfile>)
-Usage: frahmmfetch [options] --index <hmmfile_in>       (indexes <hmmfile>)
+Usage: bathfetch [options] <hmmfile_in> <key>         (retrieves HMM named <key>)
+Usage: bathfetch [options] -f <hmmfile_in> <keyfile>  (retrieves all HMMs in <keyfile>)
+Usage: bathfetch [options] --index <hmmfile_in>       (indexes <hmmfile>)
 ```
-**frahmmer**      - search one or more protein pHMMs against a DNA sequence database
+**bathsearch**      - search one or more protein pHMMs against a DNA sequence database
 ```
-Usage: frahmmer [options] <protein-queryfile> <DNA-targetfile>
+Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
 ```
 
 
 ## Section 1 - Input files 
 
-Before you begin using FraHMMER, it will be helpful to become familiar with the file types it uses. Each frahmmer search requires two input files; a protein query file and a DNA target file. The target file contains one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment (MSA) format. Accepted unaligned sequence formats include fasta, embl, and genbank. Accepted MSA formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
+Before you begin using BATH, it will be helpful to become familiar with the file types it uses. Running bathsearch requires two input files; a protein query file and a DNA target file. The target file must contain one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment (MSA) format. Accepted unaligned sequence formats include fasta, embl, and genbank. Accepted MSA formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-FraHMMER's installation includes the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
+BATH's installation includes a branch of the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
 
-A frahmmer query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a FraHMMER formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 9). The rest of this section will focus on practices to get you acquainted with the FraHMMER tools which are used to create and manipulate FraHMMER pHMM files.
+A bathsearch query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a BATH formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 9). If you are not interested in taking advantage of BATH's frameshift-aware algorithms, you can also use a HMMER formatted pHMM file along with the '--nofs' flag. The rest of this section will focus on practices to get you acquainted with the BATH tools that are used to create and manipulate BATH formated pHMM files.
 
-<details><summary>Practice 1: building a pHMM from an MSA using frahmmbuild</summary>
+<details><summary>Practice 1: building a pHMM from an MSA using bathbuild</summary>
 <p>
 
-The sensitivity of FraHMMER is powered, in large part, by the use of pHMMs. The pHMM files used by FraHMMER and nearly identical to the ones used by HMMER, but contain additional information needed to perform accurate frameshift-aware translations and provide reliable e-values. This additional information includes the frameshift rate and codon translation table to be used in the frahmmer search as well as tau and lambda values that define the curve for the pHMMs score distribution from the frameshift-aware Forward algorithm. If you would like more information on the other information in pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
+The sensitivity of BATH is powered, in large part, by the use of pHMMs. The pHMM files used by BATH and nearly identical to the ones used by HMMER, but contain additional information needed to perform accurate frameshift-aware translations and provide reliable e-values for the alignments. This additional information includes the frameshift rate and codon translation table to be used by bathsearch as well as tau and lambda values that define the curve for the pHMMs score distribution from the frameshift-aware Forward algorithm. If you would like more information on pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
    
-FraHMMER formated pHMMs can be created from MSA files or unaligned sequence files using the tool frahmmbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.fhmm by running the following command: (note the file suffix '.fhmm' - this can help distinguish FraHMMER formated pHMM files from HMMER formatted ones, which often have the suffix '.hmm')
+BATH formated pHMMs can be created from MSA files or unaligned sequence files using the tool bathbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.bhmm by running the following command: (note the file suffix '.bhmm' - this can help distinguish BATH formated pHMM files from HMMER formatted ones, which often have the suffix '.hmm')
    
 ```bash
-   % frahmmbuild MET.fhmm MET.msa
+   % bathbuild MET.bhmm MET.msa
 ```
 
 The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
 
 ```bash
 # input      file:                  MET.msa
-# output HMM file:                  MET.fhmm
+# output HMM file:                  MET.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq  alen  mlen fs_prob codon_tbl eff_nseq re/pos description
@@ -83,14 +78,11 @@ alen           Length of alignment - number of columns in the MSA.
 
 mlen           Length of the pHMM - number of match states.
    
-fs_prob        The probability assigned to a nucleotide insertion that 
-   
-   
-   ults in a frameshift
+fs_prob        The assigned probability of a frameshift-inducing indel
 
 codon_tbl      The NCBI codon translation table ID assumed for the target DNA
 
-eff_nseq       Effective sequence number. This is the “effective” number of independent sequences that frahmmbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. The higher the number the more diversity there is amoung the sequences in the MSA. 
+eff_nseq       Effective sequence number. This is the “effective” number of independent sequences that bathbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. The higher the number the more diversity there is among the sequences in the MSA. 
 
 re/pos         Mean positional relative entropy, in bits. This can be ignored by most users. 
    
@@ -99,7 +91,7 @@ description    Description of the protein family - may be blank.
 </p>
 </details>
 
-<details><summary>Practice 2: building a pHMM from an MSA using frahmmbuild with an alternate codon translation table</summary>
+<details><summary>Practice 2: building a pHMM from an MSA using bathbuild with an alternate codon translation table</summary>
 <p>
 
 One of the fields that distinguishes a FraHMMER formatted pHMM file from an HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. When you run a frahmmer search, selecting the correct codon table will produce the highest quality alignments. Ensuring that the pHMMs were built with that same codon table will produce the most accurate e-values for those alignments. 

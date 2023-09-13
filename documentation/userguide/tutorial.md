@@ -314,31 +314,31 @@ As with bathconvert, you can also use the --ct flag with bathfetch to change the
 
 ## Section 2 - Running bathsearch
 
-This section of the tutorial will focus on the tool frahmmer. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
+This section of the tutorial will focus on the tool bathsearch. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running bathsearch with a different set of input formats, options, and outputs. 
 
-<details><summary>Practice 9: running a simple frahmmer search and reading the output</summary>
+<details><summary>Practice 9: running a simple bathsearch and reading the output</summary>
 <p>
 
-Every frahmmer search requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file PTH2.fhmm as the query.  For the target, you will use a single DNA sequence in the file target-PTH2.fa. The -o flag is used to direct the standard output to the file PTH2.out. 
+Bathsearch requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file PTH2.bhmm as the query.  For the target, you will use a single DNA sequence in the file target-PTH2.fa. The -o flag is used to direct the standard output to the file PTH2.out. 
    
 ```bash
-   % frahmmer -o PTH2.out PTH2.fhmm target-PTH2.fa
+   % bathsearch -o PTH2.out PTH2.fhmm target-PTH2.fa
 ```
  
-See Practice 9 for a breakdown of the frahmmer standard output in PTH2.out
+See Practice 9 for a breakdown of the bathsearch standard output in PTH2.out
   
     
 </p>
 </details>
 
-<details><summary>Practice 10: interpreting frahmmer standard output</summary>
+<details><summary>Practice 10: interpreting bathsearch standard output</summary>
 <p>
 
-The file PTH2.out contains the standard frahmmer output for a search between the query file PTH2.fhmm and the target file target-PTH2.fa. If you open this file you will see that it is organized into the following sections:
+The file PTH2.out contains the standard bathsearch output for a search between the query file PTH2.fhmm and the target file target-PTH2.fa. If you open this file you will see that it is organized into the following sections:
      
    1) File Header - lines begin with '#' and contain basic information about the search parameters
 ```
-# query HMM file:                  PTH2.fhmm
+# query HMM file:                  PTH2.bhmm
 # target sequence database:        target-PTH2.fa
 # frameshift probability:          0.010000
 # codon translation table          1
@@ -346,7 +346,7 @@ The file PTH2.out contains the standard frahmmer output for a search between the
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -   
 ```
     
-   2) Query Header - includes a summary of each query and a hits list sorted by E-value.  For each hit, the query header lists the E-value, bit score, and bias score adjustment (for more information on bias scores see pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  This is followed by name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and stop codons in that alignment, and finally a target description (which may be blank).
+   2) Query Header - includes a summary of each query and a hits list sorted by E-value.  For each hit, the query header lists the E-value, bit score, and bias score adjustment (for more information on bias scores see pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  This is followed by the name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and stop codons in that alignment, and finally a target description (which may be blank).
 
 ```
    Query:       PTH2  [M=116]
@@ -360,9 +360,9 @@ The file PTH2.out contains the standard frahmmer output for a search between the
     2.7e-27   91.6   0.2  PTH2-target   2659   2343       2      1
 ```
    
-   3) Annotation Lines- for each hit listed in the query header, frahmmer will produce an annotation line containing useful information about the hit. After the line 'Annotation for each hit (and alignments):' these annotation lines (as well as the alignments) will appear, sorted first by target sequence and then by e-value.
+   3) Annotation Lines- for each hit listed in the query header, bathsearch will produce an annotation line containing useful information about the hit. After the line 'Annotation for each hit (and alignments):' these annotation lines (as well as the alignments) will appear, sorted first by target sequence and then by e-value.
    
-       As in the query header, the annotations line lists the score, bias, and E-value for each hit. It also lists three types of coordinates for the hit - the alignment start and end coordinates for both the query (hmm-from & hmm-to) and the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to). The envelope is the region of the target that frahmmer has identified as containing the homology (the hit alignment is always contained within the envelope). It is the envelope coordinates that bound the target subsequence used to calculate the score, bias, and E-value. An explanation of the characters seen after the coordinates ('.','[', & ']') can be found on page 38 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf). The annotation line also lists the number of frameshifts and stop codons in the alignment (shift & stops), the full length of the target sequence (sq-len), and the alignment's accuracy score (acc) which is the average expected per residue accuracy of the alignment. 
+       As in the query header, the annotations line lists the score, bias, and E-value for each hit. It also lists three types of coordinates for the hit - the alignment start and end coordinates for both the query (hmm-from & hmm-to) and the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to). The envelope is the region of the target that bathsearch has identified as containing the homology (the alignment coordinates are always contained within the envelope). It is the envelope coordinates that bound the target subsequence used to calculate the score, bias, and E-value. An explanation of the characters seen after the coordinates ('.','[', & ']') can be found on page 38 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf). The annotation line also lists the number of frameshifts and stop codons in the alignment (shift & stops), the full length of the target sequence (sq-len), and the alignment's accuracy score (acc) which is the average expected per residue accuracy of the alignment. 
        
        Below is the annotation line for the first hit in the file PTH2.out
   
@@ -374,7 +374,7 @@ Annotation for each hit (and alignments):
  !  110.1   0.3   3.4e-34          2       116 .]       672       325 ..       675       325 ..      0      0      3000   0.92
 ```
    
-   4) Alignment - Bellow each annotation line frahmmer prints the alignment for that query-target hit. A typical frahmmer alignment will contain at least the following five rows (in order from top to bottom): (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. If the pHMM was built from an MSA containing consensus structure or reference annotations those will be visible on separate CS and RF rows above the query row.  There are also three types of columns: (1) a match in which a query amino is aligned to a target codon or quasi-codon, (2) a deletion in which the query amino acid is aligned to target gap characters, or (3) an insertion in which the target codon is aligned to a query gap character. 
+   4) Alignment - Below each annotation line bathsearch prints the alignment for that query-target hit. A typical bathsearch alignment will contain at least the following five rows (in order from top to bottom): (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. If the pHMM was built from an MSA containing consensus structure or reference annotations those will be visible on separate CS and RF rows above the query row.  There are also three types of columns: (1) a match in which a query amino is aligned to a target codon or quasi-codon, (2) a deletion in which the query amino acid is aligned to target gap characters, or (3) an insertion in which the target codon is aligned to a query gap character. 
    
        The query row begins with the name of the query pHMM followed by the coordinates of the first amino acid on that line of the alignment and ends with the coordinates of the last amino acid on that line of the alignment. For each column, the query row shows either the query consensus letter, for matches and deletions, or a gap character ('.') for insertions. 
    
@@ -395,7 +395,7 @@ Annotation for each hit (and alignments):
                     8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
 ```
       
-   5) Query Footer - each query's output will conclude with a footer that provides information about the hit filtering process inside frahmmer.  The average user can ignore this data.  For those who are interested, more information on these data can be found on page 54 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  There will also be a couple of lines listing run times and a line with just '//', indicating the end of the output for the query.
+   5) Query Footer - each query's output will conclude with a footer that provides information about the hit filtering process inside bathsearch.  The average user can ignore this data.  For those who are interested, more information on these data can be found on page 54 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  There will also be a couple of lines listing run times and a line with just '//', indicating the end of the output for the query.
    
        Bellow is the query footer from PTH2.out.
 
@@ -414,56 +414,56 @@ Total number of hits:                      3  (0.187)
 //
 ```
    
-   6) File Footer - If frahmmer did not encounter any errors the last line of the file will simply read '[ok]'
+   6) File Footer - If bathsearch did not encounter any errors the last line of the file will simply read '[ok]'
    
 </p>
 </details>
 
-<details><summary>Practice 11: running a frahmmer search on a target with an alternate codon translation table</summary>
+<details><summary>Practice 11: running a batchsearch search on a target with an alternate codon translation table</summary>
 <p>
 
-As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, frahmmer responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
+As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, bathsearch responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
    
 ```bash
-   % frahmmer --ct 4 -o MET.out MET.fhmm target-MET.fa
+   % bathsearch --ct 4 -o MET.out MET.bhmm target-MET.fa
 ```
    
 This will result in the following error message:
 
 ```bash
-   Error: Requested codon translation table ID 4 does not match the codon translation table ID of the HMM file MET.hmm. Please run frahmmconvert with option '--ct 4'.
+   Error: Requested codon translation table ID 4 does not match the codon translation table ID of the HMM file MET.bhmm. Please run bathconvert with option '--ct 4'.
 ```
 
-In this case, we already have a pHMM file built with the correct codon table and can skip running frahmmconvert. The following command will use that pHMM file to run the same search, but without a codon table mismatch. 
+In this case, we already have a pHMM file built with the correct codon table and can skip running bathonvert. The following command will use that pHMM file to run the same search without a codon table mismatch. 
 
 ```bash
-   % frahmmer --ct 4 -o MET-ct4.out MET-ct4.hmm  target-MET.fa
+   % bathsearch --ct 4 -o MET-ct4.out MET-ct4.bhmm  target-MET.fa
 ```
-The file MET-ct4.out should contain a single hit between each of the pHMMS in MET-ct4.hmm and the DNA sequence in target-MET.fa.
+The file MET-ct4.out should contain a single hit between each of the pHMMS in MET-ct4.bhmm and the DNA sequence in target-MET.fa.
    
 </p>
 </details>
 
-<details><summary>Practice 12: running a frahmmer search with a sequence query</summary>
+<details><summary>Practice 12: running bathsearch with a sequence query</summary>
 <p>
 
-If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and frahmmer will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time consuming. If you chose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file gidA.fa as the query, building a pHMM for that sequence and printing it the to file gidA.fhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file gidA.out using the '-o' flag. 
+If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and bathsearch will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming. If you choose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file gidA.fa as the query, building a pHMM for that sequence and printing it the to file gidA.bhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file gidA.out using the '-o' flag. 
    
 ```bash
    % frahmmer --ct 4 --hmmout gidA.fhmm -o gidA.out gidA.fa target-gidA.fa
 ```
    
-The file gidA.fhmm will now contain a single pHMM built with codon table 4 and gidA.out will contain output for a single git between that pHMM and the DNA sequence in target-gidA.fa.
+The file gidA.bhmm will now contain a single pHMM built with codon table 4 and gidA.out will contain output for a single git between that pHMM and the DNA sequence in target-gidA.fa.
 </p>
 </details>
 
-<details><summary>Practice 13: producing and interpreting tabular output from a frahmmer search</summary>
+<details><summary>Practice 13: producing and interpreting tabular output from bathsearch</summary>
 <p>
    
-In addition to the standard output, frahmmer can also produce a tabular summary file with a more easily parsable list of the hits found in a search. By using the '--tblout' flag you can direct frahmmer to create this tabular output and save it to the file of your choosing. The following command will run the same search as in Practice 8, but with the addition of the '--tblout' flag directing the tabular output to the file PTH2.tbl.
+In addition to the standard output, bathsearch can also produce a tabular summary file with a more easily parsable list of the hits found in a search. By using the '--tblout' flag you can direct bathsearch to create this tabular output and save it to the file of your choosing. The following command will run the same search as in Practice 8, but with the addition of the '--tblout' flag directing the tabular output to the file PTH2.tbl.
    
 ```bash
-   % frahmmer -o PTH2.out --tblout PTH2.tbl PTH2.fhmm target-PTH2.fa
+   % bathsearch -o PTH2.out --tblout PTH2.tbl PTH2.bhmm target-PTH2.fa
 ``` 
 
 If you open the file PTH2.tbl you will see the following text (file directories and dates may vary):
@@ -475,11 +475,11 @@ seq1                 -          PTH2                 PF01981.11       116       
 seq1                 -          PTH2                 PF01981.11       116         2       116      3000      1273      1731      1263      1734   4.2e-33  110.3   0.0       0      0    fs -
 seq1                 -          PTH2                 PF01981.11       116         5       113      3000      2659      2343      2677      2327   2.7e-27   91.6   0.2       2      1    fs -
 #
-# Program:         frahmmer
-# Query file:      PTH2.fhmm
+# Program:         bathsearch
+# Query file:      PTH2.bhmm
 # Target file:     target-PTH2.fa
-# Option settings: frahmmer -o PTH2.out --tblout PTH2.tbl PTH2.fhmm target-PTH2.fa
-# Current dir:     FraHMMER/tutorial
+# Option settings: bathsearch -o PTH2.out --tblout PTH2.tbl PTH2.bhmm target-PTH2.fa
+# Current dir:     BATH/tutorial
 # Date:            Wed Mar  1 18:27:58 2023
 # [ok]
 ``` 
@@ -521,7 +521,7 @@ shifts                  The number of frameshifts reported in the alignment.
    
 stops                   The number of stop codons reported in the alignment.
    
-pipe                    The translation pipeline used to produce the hit, either standard 'std' or frameshift aware 'fs'. To reduce runtimes and the potential for false frameshifts frahmmer uses standard (non frameshift aware) translation for hits it determines are unlikely to contain frameshifts.  Most users can ignore this column. 
+pipe                    The translation pipeline used to produce the hit, either standard 'std' or frameshift aware 'fs'. To reduce runtimes and the potential for false frameshifts bathsearch uses standard (non frameshift aware) translation for hits it determines are unlikely to contain frameshifts.  Most users can ignore this column. 
    
 description of target   Description of the target sequence (if provided in the target file).
 ```
@@ -529,10 +529,10 @@ description of target   Description of the target sequence (if provided in the t
 </p>
 </details>
 
-<details><summary>Practice 14: locating frameshifts and stop codons in frahmmer alignments using '--frameline' </summary>
+<details><summary>Practice 14: locating frameshifts and stop codons in bathsearch alignments using '--frameline' </summary>
 <p>
    
-While both the standard and tabular outputs give the user the count of frameshifts and stop codons in an alignment, the user may also want to locate the quasi and stop codons.  Quasi-codons with deletions can be identified by looking for codons with one or two '-' characters in place of a nucleotide. Quasi-codons with insertions can be identified by looking for codons with more than 4 or 5 nucleotides (the nucleotides frahmmer determines to be the insertions will be shown in lowercase).  Stop codons can be identified by looking for codons with all three nucleotides in lowercase and an 'X' on the translation row. Below are examples of quasi and stop codons taken from the alignment in gidA.out from Practice 10:
+While both the standard and tabular outputs give the user the count of frameshifts and stop codons in an alignment, the user may also want to locate the quasi and stop codons.  Quasi-codons with deletions can be identified by looking for codons with one or two '-' characters in place of a nucleotide. Quasi-codons with insertions can be identified by looking for codons with more than 4 or 5 nucleotides (the nucleotides bathsearch determines to be the insertions will be shown in lowercase).  Stop codons can be identified by looking for codons with all three nucleotides in lowercase and an 'X' on the translation row. Below are examples of quasi and stop codons taken from the alignment in gidA.out from Practice 10:
  
 ```
  | one nucleotide deletion | two nucleotide deletions | one nucleotide insertion | two nucleotide insertions | stop codon |
@@ -545,7 +545,7 @@ While both the standard and tabular outputs give the user the count of frameshif
 
 To make it easier to locate frameshifts and stop codons the '--frameline' flag can be used to add a row to the alignment that numbers the frame of each codon and quasi-codon. This line can be used to locate quasi-codons by looking for a change from one frame to another.  Stop codons can be identified on the frameline by a '0'. Note that, for hits on the reverse complement strand of a sequence, the frames will be negative (i.e. -1, -2, & -3). 
    
- Running the follwing comand will use the file gidA.fhmm, created in Practice 10, to search a single pHMM against the DNA sequence in the file target-gidA.fa using codon table 4. The '-o' flag will direct the standard output to the file gidA-frameline.out and the '--frameline' flag will add the frameline row to the alignment.
+ Running the follwing comand will use the file gidA.bhmm, created in Practice 10, to search a single pHMM against the DNA sequence in the file target-gidA.fa using codon table 4. The '-o' flag will direct the standard output to the file gidA-frameline.out and the '--frameline' flag will add the frameline row to the alignment.
    
 ```bash
    % frahmmer --ct 4 --frameline -o gidA-frameline.out gidA.fhmm target-gidA.fa
@@ -589,10 +589,10 @@ The following is an excerpt of four lines from the alignment in gidA-frameline.o
 <details><summary>Practice 15: locating frameshifts and stop codons with a tabular output </summary>
 <p>
    
-While the frameline makes it easier to find frameshifts and stop codons in individual alignments, some users may want to see the locations of frameshifts and stop codons across multiple alignments and in a  more parseable form.  For this reason, the flag '--fstblout' allows the user to create a tabular output of frameshift and stop codon locations for all hits. The following command reruns the same search as in Practice 13, but rather than using '--frameline' it uses '--fstblout' to save frameshift and stop codon locations to the file gidA.fstbl.  
+While the frameline makes it easier to find frameshifts and stop codons in individual alignments, some users may want to see the locations of frameshifts and stop codons across multiple alignments and in a  more parseable form. For this reason, the flag '--fstblout' allows the user to create a tabular output of frameshift and stop codon locations for all hits. The following command reruns the same search as in Practice 13, but rather than using '--frameline' it uses '--fstblout' to save frameshift and stop codon locations to the file gidA.fstbl.  
    
 ```bash
-   % frahmmer --ct 4 -o gidA-fstbl.out --fstblout gidA.fstbl gidA.fhmm target-gidA.fa
+   % bathsearch --ct 4 -o gidA-fstbl.out --fstblout gidA.fstbl gidA.fhmm target-gidA.fa
 ``` 
 
 If you open the file PTH2.tbl you will see the following text (file directories and dates may vary):
@@ -613,11 +613,11 @@ If you open the file PTH2.tbl you will see the following text (file directories 
  seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27647            970
  seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27696           1019
 #
-# Program:         frahmmer
-# Query file:      gidA.fhmm
+# Program:         bathsearch
+# Query file:      gidA.bhmm
 # Target file:     target-gidA.fa
-# Option settings: frahmmer -o gidA.out --fstblout gidA.fstbl --ct 4 gidA.fhmm target-gidA.fa
-# Current dir:     FraHMMER/tutorial
+# Option settings: bathsearch -o gidA.out --fstblout gidA.fstbl --ct 4 gidA.bhmm target-gidA.fa
+# Current dir:     BATH/tutorial
 # Date:            Thu Mar  2 13:16:45 2023
 # [ok]
 ```
@@ -645,7 +645,7 @@ length                  Number of nucleotides inserted or deleted (0 for stop co
    
 seq start               Position (in the target sequence) of the start of the quasi-codon or stop codon.
    
-ali start               Position (in the alignment) of the start of the quasi-codon or stop codon.  First nucleotide in the alignment = 1.
+ali start               Position (in the alignment) of the start of the quasi-codon or stop codon.  The first nucleotide in the alignment = 1.
 ```
 </p>
 </details>

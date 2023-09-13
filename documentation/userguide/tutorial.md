@@ -94,9 +94,9 @@ description    Description of the protein family - may be blank.
 <details><summary>Practice 2: building a pHMM from an MSA using bathbuild with an alternate codon translation table</summary>
 <p>
 
-One of the fields that distinguishes a FraHMMER formatted pHMM file from an HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. When you run a frahmmer search, selecting the correct codon table will produce the highest quality alignments. Ensuring that the pHMMs were built with that same codon table will produce the most accurate e-values for those alignments. 
+One of the fields that distinguishes a BATH formatted pHMM file from an HMMER formated pHMM file is an [NCBI codon translation table ID](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi). The correct codon table depends on the origins of the target DNA you intend to search the pHMMs against. When you run bathsearch, selecting the correct codon table will produce the highest quality alignments. Ensuring that the pHMMs were built with that same codon table will produce the most accurate e-values for those alignments. 
    
-By default, frahmmbuild will use the standard code employed by eukaryotic nuclear DNA. To use an alternate codon translation table include the option --ct followed by a table ID from the list below:
+By default, bathbuild will use the standard code employed by eukaryotic nuclear DNA. To use an alternate codon translation table include the option --ct followed by a table ID from the list below:
 
 ```bash
 id  description
@@ -124,14 +124,14 @@ id  description
 In practice 8 you will search the pHMMs in MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
    
 ```bash
-   % frahmmbuild --ct 4 MET-ct4.fhmm MET.msa
+   % bathbuild --ct 4 MET-ct4.bhmm MET.msa
 ```
    
 The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
 
 ```bash
 # input file:                       MET.msa
-# output HMM file:                  MET.fhmm
+# output HMM file:                  MET.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq  alen  mlen fs_prob codon_tbl eff_nseq re/pos description
@@ -148,10 +148,10 @@ The summary output that is printed to your stdout should resemble the text below
 <details><summary>Practice 3: building a pHMM from an unaligned sequences file</summary>
 <p>
 
-If your queries are single unaligned sequences rather than MSAs yo can still build HMMs using frahmmbuild and the flag '--unali'. The file three_seqs.fa contains three district unaligned protein sequences.  To build three HMMs (one for each sequence) use the following command. 
+If your queries are single unaligned sequences rather than MSAs you can still build HMMs using bathbuild and the flag '--unali'. The file three_seqs.fa contains three district unaligned protein sequences. To build three HMMs (one for each sequence) use the following command. 
    
 ```bash
-   % frahmmbuild --unali three_seqs.fhmm three_seqs.fa
+   % bathbuild --unali three_seqs.bhmm three_seqs.fa
 ```
 
 The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):

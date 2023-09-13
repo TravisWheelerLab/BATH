@@ -17,7 +17,7 @@ Usage: bathstat [-options] <hmmfile_in>
 ```
 **bathconvert** - convert HMMER formated pHMM files to BATH formated pHMM files
 ```
-Usage: frahmmconvert [-options] <hmmfile_out> <hmmfile_in>
+Usage: bathconvert [-options] <hmmfile_out> <hmmfile_in>
 ```
 **bathfetch**   - copy selected pHMMs from an HMMER or BATH formatted file (converting if necessary) to a new BATH formated pHMM file
 ```
@@ -158,7 +158,7 @@ The summary output that is printed to your stdout should resemble the text below
 
 ```bash
 # input file:                       three_seqs.fa
-# output HMM file:                  three_seqs.fhmm
+# output HMM file:                  three_seqs.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq   len  mlen fs_prob codon_tbl eff_nseq re/pos description
@@ -173,13 +173,13 @@ The summary output that is printed to your stdout should resemble the text below
 </p>
 </details>
 
-<details><summary>Practice 4: summerizing pHMM files with frahmmstat</summary>
+<details><summary>Practice 4: summerizing pHMM files with bathstat</summary>
 <p>
 
-Since a pHMM file may contain any number of individual models, it is useful to be able to quickly summarize the contents. The tool frahmmstat is designed to provide such a summary for FraHMMER formated pHMM files.  The following command will summarize the pHMM file built in practice 1:
+Since a pHMM file may contain any number of individual models, it is useful to be able to quickly summarize the contents. The tool bathstat is designed to provide such a summary for BATH formated pHMM files.  The following command will summarize the pHMM file built in practice 1:
    
 ```bash
-   % frahmmstat MET.fhmm
+   % bathstat MET.bhmm
 ```
    
 This command should produce the following output to stdout:
@@ -192,24 +192,24 @@ This command should produce the following output to stdout:
   2      metG                 -                  24     0.62    458 0.01000         1   0.53
 ```
 
-The fields are mainly the same as those produced by frahmmbuild, and detailed in practice 1, except for the accession field which may contain an alphanumeric identifier for the protein family or be left blank if no accession is listed for the pHMM. 
+The fields are mainly the same as those produced by bathbuild, and detailed in practice 1, except for the accession field which may contain an alphanumeric identifier for the protein family or be left blank if no accession is listed for the pHMM. 
 
 </p>
 </details>
 
-<details><summary>Practice 5: converting an HMMER formated pHMM file to FraHMMER format using frahmmconvert</summary>
+<details><summary>Practice 5: converting an HMMER formated pHMM file to BATH format using bathconvert</summary>
 <p>
 
-If you have an existing HMMER formatted pHMM file and want to use it to run a frahmmer search, you will first need to convert it to the FraHMMER format using frahmmconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the FraHMMER formatted file tRNA-proteins.fhmm containing the same three pHMMs:
+If you have an existing HMMER formatted pHMM file and want to use it to run bathsearch with frameshift detetcion you will first need to convert it to the BATH format using bathconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the BATH formatted file tRNA-proteins.bhmm containing the same three pHMMs:
 
 ```bash
-   % frahmmconvert XXX.fhmm XXX.hmm
+   % bathconvert  tRNA-proteins.bhmm  tRNA-proteins.hmm
 ```
 Your summary output should match that shown below.
    
 ```
 # input HMM file:                   tRNA-proteins.hmm
-# output HMM file:                  tRNA-proteins.fhmm
+# output HMM file:                  tRNA-proteins.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq  mlen fs_prob codon_tbl eff_nseq re/pos description
@@ -231,20 +231,20 @@ Your summary output should match that shown below.
 </p>
 </details>
 
-<details><summary>Practice 6: changing the codon table of a FraHMMER formated pHMM using frahmmconvert</summary>
+<details><summary>Practice 6: changing the codon table of a BATH formated pHMM using bathconvert</summary>
 <p>
  
-You can also use frahmmconvert to change the codon table of an existing FraHMMER pHMM file using the --ct flag. This is faster than rebuilding from the original MSA.  The following command will create the file tRNA-proteins-ct11.fhmm containing the same 12 pHMMs as tRNA-proteins.fhmm but modified to use NCBI codon translation table 11:
+You can also use bathconvert to change the codon table of an existing BATH pHMM file using the --ct flag. This is faster than rebuilding from the original MSA.  The following command will create the file tRNA-proteins-ct11.bhmm containing the same 12 pHMMs as tRNA-proteins.bhmm but modified to use NCBI codon translation table 11:
    
 ```bash
-   % frahmmconvert --ct 11 tRNA-proteins-ct11.fhmm tRNA-proteins.fhmm
+   % bathconvert --ct 11 tRNA-proteins-ct11.bhmm tRNA-proteins.bhmm
 ```
 
 This should produce the following output:
  
 ```
-# input HMM file:                   tRNA-proteins.fhmm
-# output HMM file:                  tRNA-proteins=ct11.fhmm
+# input HMM file:                   tRNA-proteins.bhmm
+# output HMM file:                  tRNA-proteins=ct11.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq  mlen fs_prob codon_tbl eff_nseq re/pos description
@@ -267,23 +267,23 @@ This should produce the following output:
 </p>
 </details>
 
-<details><summary>Practice 7: indexing a pHMM file and copying a single pHMM using frahmmfetch </summary>
+<details><summary>Practice 7: indexing a pHMM file and copying a single pHMM using bathfetch </summary>
 <p>
 
-If you only need to search with a single pHMM but it is located in a file with multiple pHMMs, you can save time by copying the desired pHMM to a new file using frahmmfetch. If the original file contains a large number of pHMMs, you may want to create an index file to speed up the fetch process.  The following command will index the create the index file tRNA-proteins.fhmm.ssi for the FraHMMER pHMM file created in Practice 4. 
+If you only need to search with a single pHMM but it is located in a file with multiple pHMMs, you can save time by copying the desired pHMM to a new file using bathfetch. If the original file contains a large number of pHMMs, you may want to create an index file to speed up the fetch process.  The following command will create the index file tRNA-proteins.fhmm.ssi for the BATH pHMM file created in Practice 4. 
 ```bash
-   % frahmmfetch --index tRNA-proteins.fhmm 
+   % bathfetch --index tRNA-proteins.bhmm 
 ```
 The summary output should read as follows:
    
 ```
 Working...    done.
 Indexed 12 HMMs (12 names and 12 accessions).
-SSI index written to file tRNA-proteins.fhmm.ssi
+SSI index written to file tRNA-proteins.bhmm.ssi
 ```
-Whether or not you choose to create an index you will need the name of the pHMM you wish to copy to use as a key. The command below will copy the pHMM PTH2 from the tRNA-proteins.fhmm.  The -o flag will direct the copied pHMM to the specified output file (PTH2.hmm in this case). Otherwise, it will be printed to standard out. 
+Whether or not you choose to create an index you will need the name of the pHMM you wish to copy to use as a key. The command below will copy the pHMM PTH2 from the tRNA-proteins.bhmm.  The -o flag will direct the copied pHMM to the specified output file (PTH2.hmm in this case). Otherwise, it will be printed to standard out. 
 ```bash
-   % frahmmfetch -o PTH2.fhmm tRNA-proteins.fhmm PTH2
+   %  bathfetch -o PTH2.fhmm tRNA-proteins.bhmm PTH2
 ```
 The summary output should simply read as:
 ```
@@ -292,13 +292,13 @@ Retrieved HMM PTH2.
 </p>
 </details>
 
-<details><summary>Practice 8: copying and converting multiple pHMMs using frahmmfetch </summary>
+<details><summary>Practice 8: copying and converting multiple pHMMs using bathfetch </summary>
 <p>
 
-You can also use frahmmfetch to copy multiple pHMMs. To do so you will need to create a key file that contains the names of all the pHMMs you wish to copy, with one name per line, and use the -f flag. If the original pHMM file is in HMMER format frahmmfetch will automatically convert it to FraHMMER format. The following command will copy all 3 of the pHMMs listed in the key file tRNA-synthetases-key.txt from an HMMER formated pHMM file, convert them to FraHMMER format, and print them to the output file tRNA-synthetases.fhmm.
+You can also use bathfetch to copy multiple pHMMs. To do so you will need to create a key file that contains the names of all the pHMMs you wish to copy, with one name per line, and use the -f flag. If the original pHMM file is in HMMER format bathfetch will automatically convert it to BATH format. The following command will copy all 3 of the pHMMs listed in the key file tRNA-synthetases-key.txt from an HMMER formated pHMM file, convert them to BATH format, and print them to the output file tRNA-synthetases.bhmm.
    
 ```bash
-   % frahmmfetch -f -o tRNA-synthetases.fhmm tRNA-proteins.hmm tRNA-synthetases-key.txt
+   % bathfetch -f -o tRNA-synthetases.bhmm tRNA-proteins.hmm tRNA-synthetases-key.txt
 ```
    
 The summary output should simply read as:
@@ -307,12 +307,12 @@ The summary output should simply read as:
 Retrieved 3 HMMs.
 ```
    
-As with frahmmconvert, you can also use the --ct flag with frahmmfetch to change the codon table.
+As with bathconvert, you can also use the --ct flag with bathfetch to change the codon table.
    
 </p>
 </details>
 
-## Section 2 - Running frahmmer searches
+## Section 2 - Running bathsearch
 
 This section of the tutorial will focus on the tool frahmmer. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running a frahmmer search with a different set of input formats,  options, and outputs. 
 

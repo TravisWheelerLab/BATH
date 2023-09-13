@@ -270,7 +270,7 @@ This should produce the following output:
 <details><summary>Practice 7: indexing a pHMM file and copying a single pHMM using bathfetch </summary>
 <p>
 
-If you only need to search with a single pHMM but it is located in a file with multiple pHMMs, you can save time by copying the desired pHMM to a new file using bathfetch. If the original file contains a large number of pHMMs, you may want to create an index file to speed up the fetch process.  The following command will create the index file tRNA-proteins.fhmm.ssi for the BATH pHMM file created in Practice 4. 
+If you only need to search with a single pHMM but it is located in a file with multiple pHMMs, you can save time by copying the desired pHMM to a new file using bathfetch. If the original file contains a large number of pHMMs, you may want to create an index file to speed up the fetch process.  The following command will create the index file tRNA-proteins.bhmm.ssi for the BATH pHMM file created in Practice 4. 
 ```bash
    % bathfetch --index tRNA-proteins.bhmm 
 ```
@@ -283,7 +283,7 @@ SSI index written to file tRNA-proteins.bhmm.ssi
 ```
 Whether or not you choose to create an index you will need the name of the pHMM you wish to copy to use as a key. The command below will copy the pHMM PTH2 from the tRNA-proteins.bhmm.  The -o flag will direct the copied pHMM to the specified output file (PTH2.hmm in this case). Otherwise, it will be printed to standard out. 
 ```bash
-   %  bathfetch -o PTH2.fhmm tRNA-proteins.bhmm PTH2
+   %  bathfetch -o PTH2.bhmm tRNA-proteins.bhmm PTH2
 ```
 The summary output should simply read as:
 ```
@@ -322,7 +322,7 @@ This section of the tutorial will focus on the tool bathsearch. This tool allows
 Bathsearch requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file PTH2.bhmm as the query.  For the target, you will use a single DNA sequence in the file target-PTH2.fa. The -o flag is used to direct the standard output to the file PTH2.out. 
    
 ```bash
-   % bathsearch -o PTH2.out PTH2.fhmm target-PTH2.fa
+   % bathsearch -o PTH2.out PTH2.bhmm target-PTH2.fa
 ```
  
 See Practice 9 for a breakdown of the bathsearch standard output in PTH2.out
@@ -334,7 +334,7 @@ See Practice 9 for a breakdown of the bathsearch standard output in PTH2.out
 <details><summary>Practice 10: interpreting bathsearch standard output</summary>
 <p>
 
-The file PTH2.out contains the standard bathsearch output for a search between the query file PTH2.fhmm and the target file target-PTH2.fa. If you open this file you will see that it is organized into the following sections:
+The file PTH2.out contains the standard bathsearch output for a search between the query file PTH2.bhmm and the target file target-PTH2.fa. If you open this file you will see that it is organized into the following sections:
      
    1) File Header - lines begin with '#' and contain basic information about the search parameters
 ```
@@ -450,7 +450,7 @@ The file MET-ct4.out should contain a single hit between each of the pHMMS in ME
 If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and bathsearch will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming. If you choose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file gidA.fa as the query, building a pHMM for that sequence and printing it the to file gidA.bhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file gidA.out using the '-o' flag. 
    
 ```bash
-   % frahmmer --ct 4 --hmmout gidA.fhmm -o gidA.out gidA.fa target-gidA.fa
+   % bathsearch --ct 4 --hmmout gidA.bhmm -o gidA.out gidA.fa target-gidA.fa
 ```
    
 The file gidA.bhmm will now contain a single pHMM built with codon table 4 and gidA.out will contain output for a single git between that pHMM and the DNA sequence in target-gidA.fa.
@@ -548,7 +548,7 @@ To make it easier to locate frameshifts and stop codons the '--frameline' flag c
  Running the follwing comand will use the file gidA.bhmm, created in Practice 10, to search a single pHMM against the DNA sequence in the file target-gidA.fa using codon table 4. The '-o' flag will direct the standard output to the file gidA-frameline.out and the '--frameline' flag will add the frameline row to the alignment.
    
 ```bash
-   % frahmmer --ct 4 --frameline -o gidA-frameline.out gidA.fhmm target-gidA.fa
+   % bathsearch --ct 4 --frameline -o gidA-frameline.out gidA.bhmm target-gidA.fa
 ```
    
 The following is an excerpt of four lines from the alignment in gidA-frameline.out. This excerpt shows two frameshifts (one by deletion and one by insertion) as well as one stop codon (the frame is shown directly beneath each codon or quasi-codon). On the first line, the frame changes - from 3 to 1 -  due to the deletion of two nucleotides. There is a stop codon on the third line, with a 0 in the frameline.  On the fourth line, the frame changes again - from 1 to 2 - due to a single nucleotide insertion. 
@@ -592,7 +592,7 @@ The following is an excerpt of four lines from the alignment in gidA-frameline.o
 While the frameline makes it easier to find frameshifts and stop codons in individual alignments, some users may want to see the locations of frameshifts and stop codons across multiple alignments and in a  more parseable form. For this reason, the flag '--fstblout' allows the user to create a tabular output of frameshift and stop codon locations for all hits. The following command reruns the same search as in Practice 13, but rather than using '--frameline' it uses '--fstblout' to save frameshift and stop codon locations to the file gidA.fstbl.  
    
 ```bash
-   % bathsearch --ct 4 -o gidA-fstbl.out --fstblout gidA.fstbl gidA.fhmm target-gidA.fa
+   % bathsearch --ct 4 -o gidA-fstbl.out --fstblout gidA.fstbl gidA.bhmm target-gidA.fa
 ``` 
 
 If you open the file PTH2.tbl you will see the following text (file directories and dates may vary):

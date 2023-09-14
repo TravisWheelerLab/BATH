@@ -1,6 +1,6 @@
-# Top level Makefile for HMMER3
+# Top level Makefile for BATH
 # 
-# On most systems, to build H3 you should only need:
+# On most systems, to build you should only need:
 #     % ./configure; make
 #
 # Optionally, you can run a test suite:

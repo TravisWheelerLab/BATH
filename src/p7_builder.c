@@ -453,7 +453,7 @@ p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg,
         for (j=0; j<hmm->abc->K; j++)
           hmm->mat[i][j] = bg->f[j];
 
-  /*frahmmer requires MaxLength for amino acid HMMs*/
+  /*bathsearch requires MaxLength for amino acid HMMs*/
   //if ( bld->abc->type == eslDNA ||  bld->abc->type == eslRNA ) {
   if (bld->w_len > 0)           hmm->max_length = bld->w_len;
   else if (bld->w_beta == 0.0)  hmm->max_length = hmm->M *4;

@@ -47,24 +47,22 @@ MYINCDIRS = -I../${ESLDIR} \
 	    -I${srcdir}
 
 
-PROGS = frahmmer\
-        frahmmbuild\
-        frahmmconvert\
-        frahmmfetch\
-        frahmmstat\
-        frahmmemit
+PROGS = bathsearch\
+        bathbuild\
+        bathconvert\
+        bathfetch\
+        bathstat
 
 # "auxprogs" are built but not installed.
 AUXPROGS = \
 	hmmc2 \
 	hmmerfm-exactmatch
 
-PROGOBJS = frahmmer.o\
-           frahmmbuild.o\
-           frahmmconvert.o\
-           frahmmfetch.o\
-           frahmmstat.o\
-           frahmmemit.o
+PROGOBJS = bathsearch.o\
+           bathbuild.o\
+           bathconvert.o\
+           bathfetch.o\
+           bathstat.o
 
 AUXPROGOBJS = \
 	hmmc2.o \
@@ -143,7 +141,6 @@ OBJS =  build.o\
 	fm_general.o\
 	fm_sse.o\
 	fm_ssv.o
-#	island.o\
 
 STATS = \
 	evalues_stats

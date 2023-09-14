@@ -516,7 +516,7 @@ enum p7_hmmfile_formats_e {
   p7_HMMFILE_3d = 4,
   p7_HMMFILE_3e = 5,
   p7_HMMFILE_3f = 6,
-  p7_FraHMMER_3f = 7,
+  p7_BATH_3f    = 7,
 };
 
 typedef struct p7_hmmfile_s {
@@ -729,7 +729,7 @@ typedef struct p7_alidisplay_s {
   char *model;                  /* aligned query consensus sequence     */
   char *mline;                  /* "identities", conservation +'s, etc. */
   char *aseq;                   /* aligned target sequence              */
-  char *ntseq;                  /* nucleotide target sequence if hmmscant or frahmmer */
+  char *ntseq;                  /* nucleotide target sequence for bath  */
   char *ppline;                 /* posterior prob annotation; or NULL   */
   char *codon;                  /* number of nuceltides in each codon   */
   int   frameshifts;            /* number of codons with frameshifts    */
@@ -777,7 +777,7 @@ typedef struct p7_dom_s {
   float         *scores_per_pos; /* score in BITS that each position in the alignment contributes to an overall viterbi score */
 
   P7_ALIDISPLAY *ad; 
-  P7_TRACE      *tr;  /*used by frahmmer when --fstblout flag is used */
+  P7_TRACE      *tr;  /*used by bathsearch when --fstblout flag is used */
 } P7_DOMAIN;
 
 /* Structure: P7_DOMAINDEF
@@ -838,7 +838,7 @@ typedef struct p7_domaindef_s {
   int    nenvelopes;  /* number of envelopes handed over for domain definition, null2, alignment, and scoring. */
 
   /* flags */
-  int fstbl;     /* True if --fstblout flag in on for frahmmer*/
+  int fstbl;     /* True if --fstblout flag in on for bathsearch */
 
 } P7_DOMAINDEF;
 
@@ -1403,9 +1403,9 @@ typedef struct p7_pipeline_s {
 
   enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
-  int           frameshift;     /* TRUE for searches with frahmmer */
-  int           fs_pipe;        /* TRUE for frahmmer searches that are able to use the frameshift aware pipeline branch (do not use --nofs flag) */
-  int           std_pipe;          /* TRUE for frahmmer searches that are able to use the standard translation pipeline (do not use --fsonly flag)  */
+  int           frameshift;     /* TRUE for searches with bathsearch */
+  int           fs_pipe;        /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (do not use --nofs flag) */
+  int           std_pipe;          /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;        /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
@@ -1479,7 +1479,7 @@ typedef struct p7_builder_s {
   const ESL_ALPHABET  *abc;     /* COPY of alphabet                                       */
   char errbuf[eslERRBUFSIZE];            /* informative message on model construction failure      */
 
-  /*FraHMMER parameters */
+  /* BATH parameters */
   int                  ct;           /* NCBI codon translation table ID                        */
   float                fs;           /* frameshift probability                                 */
 

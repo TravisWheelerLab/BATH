@@ -237,7 +237,7 @@ p7_hmmfile_OpenBuffer(const char *buffer, int size, P7_HMMFILE **ret_hfp)
   if ((status = esl_fileparser_SetCommentChar(hfp->efp, '#'))        != eslOK)  goto ERROR;
   if ((status = esl_fileparser_GetToken(hfp->efp, &tok, &toklen))    != eslOK)  goto ERROR;
   
-  if      (strcmp("FraHMMER3/f", tok) == 0) { hfp->format = p7_FraHMMER_3f; hfp->parser = read_asc30hmm; }
+  if      (strcmp("BATH3/f", tok) == 0)  { hfp->format = p7_BATH_3f; hfp->parser = read_asc30hmm;    }
   else if (strcmp("HMMER3/f", tok) == 0) { hfp->format = p7_HMMFILE_3f; hfp->parser = read_asc30hmm; }
   else if (strcmp("HMMER3/e", tok) == 0) { hfp->format = p7_HMMFILE_3e; hfp->parser = read_asc30hmm; }
   else if (strcmp("HMMER3/d", tok) == 0) { hfp->format = p7_HMMFILE_3d; hfp->parser = read_asc30hmm; }
@@ -448,7 +448,7 @@ open_engine(const char *filename, char *env, P7_HMMFILE **ret_hfp, int do_ascii_
     if ((status = esl_fileparser_NextLinePeeked(hfp->efp, magic.c, 4)) != eslOK)  ESL_XFAIL(status,  errbuf, "internal error in esl_fileparser_NextLinePeeked()");
     if ((status = esl_fileparser_GetToken(hfp->efp, &tok, &toklen))    != eslOK)  ESL_XFAIL(status,  errbuf, "internal error in esl_fileparser_GetToken()");
 
-    if      (strcmp("FraHMMER3/f", tok) == 0) { hfp->format = p7_FraHMMER_3f; hfp->parser = read_asc30hmm; }
+    if      (strcmp("BATH3/f", tok) == 0)  { hfp->format = p7_BATH_3f; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER3/f", tok) == 0) { hfp->format = p7_HMMFILE_3f; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER3/e", tok) == 0) { hfp->format = p7_HMMFILE_3e; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER3/d", tok) == 0) { hfp->format = p7_HMMFILE_3d; hfp->parser = read_asc30hmm; }
@@ -456,7 +456,7 @@ open_engine(const char *filename, char *env, P7_HMMFILE **ret_hfp, int do_ascii_
     else if (strcmp("HMMER3/b", tok) == 0) { hfp->format = p7_HMMFILE_3b; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER3/a", tok) == 0) { hfp->format = p7_HMMFILE_3a; hfp->parser = read_asc30hmm; }
     else if (strcmp("HMMER2.0", tok) == 0) { hfp->format = p7_HMMFILE_20; hfp->parser = read_asc20hmm; }
-    else ESL_XFAIL(eslEFORMAT, errbuf, "Format tag is '%s': unrecognized.\nCurrent H3 format is 'HMMER3/f'. Current FraHMMER format is 'FraHMMER3/f'. Previous H2/H3 formats also supported.", tok);
+    else ESL_XFAIL(eslEFORMAT, errbuf, "Format tag is '%s': unrecognized.\nCurrent H3 format is 'HMMER3/f'. Current BATH format is 'BATH3/f'. Previous H2/H3 formats also supported.", tok);
   }
   
   *ret_hfp = hfp;
@@ -569,7 +569,7 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
   
   if (format == -1) format = p7_HMMFILE_3f;
 
-  if      (format == p7_FraHMMER_3f) { if (fprintf(fp, "FraHMMER3/f\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
+  if      (format == p7_BATH_3f)     { if (fprintf(fp, "BATH3/f\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
   else if (format == p7_HMMFILE_3f)  { if (fprintf(fp, "HMMER3/f [%s | %s]\n",                             HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
   else if (format == p7_HMMFILE_3e)  { if (fprintf(fp, "HMMER3/e [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
   else if (format == p7_HMMFILE_3d)  { if (fprintf(fp, "HMMER3/d [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
@@ -1359,7 +1359,7 @@ read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
       if ((status = esl_fileparser_NextLine(hfp->efp))                   != eslOK)  goto ERROR;  /* EOF here is normal; could also be a thrown EMEM */
       if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tag, NULL)) != eslOK)  ESL_XFAIL(status,     hfp->errbuf, "unexpected absence of tokens on data line");
       
-      if      (hfp->format == p7_FraHMMER_3f) { if (strcmp(tag, "FraHMMER3/f") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find FraHMMER3/f tag: bad format or not a FraHMMER save file?"); }
+      if      (hfp->format == p7_BATH_3f)    { if (strcmp(tag, "BATH3/f") != 0)      ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find BATH3/f tag: bad format or not a BATH save file?"); }
       else if (hfp->format == p7_HMMFILE_3f) { if (strcmp(tag, "HMMER3/f") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/f tag: bad format or not a HMMER save file?"); }
       else if (hfp->format == p7_HMMFILE_3e) { if (strcmp(tag, "HMMER3/e") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/e tag: bad format or not a HMMER save file?"); }
       else if (hfp->format == p7_HMMFILE_3d) { if (strcmp(tag, "HMMER3/d") != 0)     ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Didn't find HMMER3/d tag: bad format or not a HMMER save file?"); }

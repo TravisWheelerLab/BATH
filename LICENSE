@@ -1,11 +1,10 @@
-FraHMMER - Frameshift-aware HMMER
+BATH - Better Alignments with Translated HMMER
 -----------------------------------------------------------------------
 
-The code of FraHMMER (pronounced with a long-'a' like "gamer") is 
-highly derivative of HMMER - enough that the entire LICENCE file 
-for HMMER is reproduced below.
+The code of BATH is highly derivative of HMMER - enough that 
+the entire LICENCE file for HMMER is reproduced below.
 
-FraHMMER-specific code includes contributions and input from 
+BATH-specific code includes contributions and input from 
    Genevieve Krause
    Walt Shands
    Travis Wheeler

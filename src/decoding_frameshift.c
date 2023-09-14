@@ -17,7 +17,7 @@
  * 1. Posterior decoding algorithms.
  *****************************************************************/
 
-/* Function:  p7_Decoding_Frameshift() - FraHMMER
+/* Function:  p7_Decoding_Frameshift() - BATH
  * Synopsis:  Posterior decoding of residue assignments.
  *
  * Purpose:   Calculates a posterior decoding of the residues in a DNA

@@ -7,7 +7,7 @@
  * Exegesis:
  * 
  * The key function here is <p7_domaindef_ByPosteriorHeuristics()> 
- * and its FraHMMER analogs:
+ * and its BATH analogs:
  * <p7_domaindef_ByPosteriorHeuristics_Frameshift()>
  * and <p7_domaindef_ByPosteriorHeuristics_nonFrameshift()>
  * Everything else is support structure. 
@@ -142,7 +142,7 @@ p7_domaindef_Create(ESL_RANDOMNESS *r)
   return NULL;
 }
 
-/* Function:  p7_domaindef_fs_Create() - FraHMMER
+/* Function:  p7_domaindef_fs_Create() - BATH
  * Synopsis:  Creates a new <P7_DOMAINDEF> object.
  *
  * Purpose:   Creates a new <P7_DOMAINDEF> object, with <r> registered
@@ -383,7 +383,7 @@ p7_domaindef_Destroy(P7_DOMAINDEF *ddef)
   return;
 }
 
-/* Function:  p7_domaindef_fs_Destroy() - FraHMMER
+/* Function:  p7_domaindef_fs_Destroy() - BATH
  * Synopsis:  Destroys a <P7_DOMAINDEF>.
  * Incept:    SRE, Fri Jan 25 13:52:46 2008 [Janelia]
  *
@@ -563,7 +563,7 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
   return eslOK;
 }
 
-/* Function:  p7_domaindef_ByPosteriorHeuristics_Frameshift() - FraHMMER
+/* Function:  p7_domaindef_ByPosteriorHeuristics_Frameshift() - BATH
  * Synopsis:  Define "domains" in a DNA window using posterior probs
  *            with frameshift awareness.
  *
@@ -751,7 +751,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 }
 
 
-/* Function:  p7_domaindef_ByPosteriorHeuristics_nonFrameshift() - FraHMMER
+/* Function:  p7_domaindef_ByPosteriorHeuristics_nonFrameshift() - BATH
  * Synopsis:  Define domains in a sequence using posterior probs.
  * Incept:    SRE, Sat Feb 23 08:17:44 2008 [Janelia]
  *
@@ -938,9 +938,7 @@ is_multidomain_region(P7_DOMAINDEF *ddef, int i, int j)
   return ( (max >= ddef->rt3) ? TRUE : FALSE);
 }
 
-/* is_multidomain_region_fs() - FraHMMER
- *
- *                ***** UNDER CONSTRUCTION*****
+/* is_multidomain_region_fs() - BATH
  *
  * This function is supposed to define the trigger for when we need 
  * to hand a "region" of a DNA window off to a deeper analysis (using 
@@ -1132,7 +1130,7 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
   return eslOK;
 }
 
-/* region_trace_ensemble_frameshift() - FraHMMER
+/* region_trace_ensemble_frameshift() - BATH
  *
  *                   ***** UNDER CONSTRUCTION*****
  *                       
@@ -1618,7 +1616,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
   return status;
 }
  
- /* rescore_isolated_domain_frameshift() - FraHMMER
+ /* rescore_isolated_domain_frameshift() - BATH
  *
  * We have isolated a single domain's envelope from <i>..<j> in DNA 
  * window <windowsq>, and now we want to score it in isolation and 
@@ -1830,7 +1828,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   return eslEMEM;
 }
 
-/* rescore_isolated_domain_nonframeshift() - FraHMMER
+/* rescore_isolated_domain_nonframeshift() - BATH
  *
  * We have isolated a single domain's envelope from <i>..<j> in
  * translated ORF sequence <orfsq>, and now we want to score it 

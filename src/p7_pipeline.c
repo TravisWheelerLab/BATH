@@ -1,5 +1,5 @@
 /* H3's accelerated seq/profile comparison pipeline
- * Modified for use by FraHMMER
+ * Modified for use by BATH
  *
  * Contents:
  *   1. P7_PIPELINE: allocation, initialization, destruction
@@ -34,7 +34,7 @@ typedef struct {
 } P7_PIPELINE_LONGTARGET_OBJS;
 
 /* Struct used to pass a collection of useful temporary objects around
- * within the Frameshift functions (FraHMMER)
+ * within the Frameshift functions (BATH)
  */
 typedef struct {
   ESL_SQ           *tmpseq; // - a new or reused digital sequence object used for p7_alidisplay_Create() call
@@ -271,7 +271,7 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   return NULL;
 }
 
-/* Function:  p7_pipeline_fs_Create() - FraHMMER
+/* Function:  p7_pipeline_fs_Create() - BATH 
  * Synopsis:  Create a new frameshift aware comparison pipeline.
  *
  * Purpose:   Given an application configuration structure <go>
@@ -459,8 +459,8 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    pli->mode            = mode;
    pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
    pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
-   pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in alignment display for frahmmer */
-   pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in alignment display for frahmmer */
+   pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in alignment display for bathsearch */
+   pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in alignment display for bathsearch */
    pli->hfp             = NULL;
    pli->errbuf[0]       = '\0';
 
@@ -492,7 +492,7 @@ p7_pipeline_Reuse(P7_PIPELINE *pli)
   return eslOK;
 }
 
-/* Function:  p7_pipeline_fs_Reuse() - FraHMMER
+/* Function:  p7_pipeline_fs_Reuse() - BATH 
  * Synopsis:  Reuse a frameshift pipeline for next target.
  *
  * Purpose:   Reuse frameshift aware <pli> for next target sequence.
@@ -528,7 +528,7 @@ p7_pipeline_Destroy(P7_PIPELINE *pli)
   free(pli);
 }
 
-/* Function:  p7_pipeline_fs_Destroy() - FraHMMER
+/* Function:  p7_pipeline_fs_Destroy() - BATH 
  * Synopsis:  Free a frameshift aware <P7_PIPELINE> object.
  *
  * Purpose:   Free a frameshift aware <P7_PIPELINE> object.
@@ -637,7 +637,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
   return eslOK;
 }
 
-/* Function:  p7_pli_ExtendAndMergeORFs - FraHMMER
+/* Function:  p7_pli_ExtendAndMergeORFs - BATH 
  * Synopsis:  Creates a DNA window around the coodinated of an ORF 
  *
  * Purpose:   Accepts a <orf_block> of ORFs, extends the DNA coordinates 
@@ -2172,13 +2172,13 @@ ERROR:
 
 }
 
-/* Function:  p7_pli_postDomainDef_Frameshift() - FraHMMER
- * Synopsis:  the part of the FraHMMER search Pipeline downstream
+/* Function:  p7_pli_postDomainDef_Frameshift() - BATH 
+ * Synopsis:  the part of the BATH search Pipeline downstream
  *            of Domain Definition
  *
  * Purpose:   This is called by p7_pli_postViterbi_Frameshift(), and 
  *            runs the post-Domain Definition part of the frameshift 
- *            aware branch of the FraHMMER pipeline. It consists of 
+ *            aware branch of the BATH pipeline. It consists of 
  *            running various bookkeeping and sanity checks on hits 
  *            reported by  p7_pli_postDomainDef_Frameshift().   
  *
@@ -2349,13 +2349,13 @@ ERROR:
 
 }
 
-/* Function:  p7_pli_postDomainDef_nonFrameshift() - FraHMMER
- * Synopsis:  the part of the FraHMMER search Pipeline downstream
+/* Function:  p7_pli_postDomainDef_nonFrameshift() - BATH
+ * Synopsis:  the part of the BATH search Pipeline downstream
  *            of Domain Definition
  *
  * Purpose:   This is called by p7_pli_postViterbi_Frameshift(), and 
  *            runs the post-Domain Definition part of the "statndard" 
- *            or non-frameshift aware branch of the FraHMMER pipeline. 
+ *            or non-frameshift aware branch of the BATH pipeline. 
  *            It consists of running various bookkeeping and sanity 
  *            checks on hits reported by p7_pli_postDomainDef_nonFrameshift().   
  *
@@ -2500,7 +2500,7 @@ ERROR:
 }
 
 /* Function:  p7_pli_postViterbi_Frameshift()
- * Synopsis:  the part of the FraHMMER search Pipeline downstream
+ * Synopsis:  the part of the BATH search Pipeline downstream
  *            of the Viterbi filter
  *
  * Purpose:   This is called by p7_Pipeline_Frameshift(), and runs the

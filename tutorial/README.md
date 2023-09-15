@@ -1,6 +1,6 @@
-## FraHMMER
+## BATH
 
-This folder contians files used in the FraHMMER tutorial. 
+This folder contians files used in the BATH tutorial. 
 
 To read and follow the tutorial see: [TUTORIAL](../documentation/userguide/installation.md)
 

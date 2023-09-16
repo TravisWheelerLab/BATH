@@ -767,7 +767,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       
         if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fs %f' or run bathconvert with option '--fs %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);
       
-      if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bath with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
+      if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
      } 
 
       if(hmm->max_length == -1)
@@ -874,19 +874,22 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         default:
           esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
       }
-
+      
 	 //need to re-compute e-values before merging (when list will be sorted)
-       for (i = 0; i < infocnt; ++i)
-         resCnt += info[i].pli->nres;
-
-
-       for (i = 0; i < infocnt; ++i)
-       {
-         if(esl_opt_IsUsed(go, "-Z")) 
-           p7_tophits_ComputeBathEvalues(info[i].th, esl_opt_GetReal(go, "-Z")*3.0, (info[i].om->max_length*3.0));
-         else
-           p7_tophits_ComputeBathEvalues(info[i].th, resCnt*3.0,                    (info[i].om->max_length*3.0));
+       if (esl_opt_IsUsed(go, "-Z")) {
+          resCnt = 1000000*esl_opt_GetReal(go, "-Z");
+          if ( info[0].pli->strands == p7_STRAND_BOTH)
+            resCnt *= 2;
        }
+       else
+       {
+         for (i = 0; i < infocnt; ++i){
+           resCnt += info[i].pli->nres;
+         }
+       }
+
+       for (i = 0; i < infocnt; ++i)
+         p7_tophits_ComputeBathEvalues(info[i].th, resCnt*3,(info[i].om->max_length*3));
 
          /* merge the results of the search results */
          for (i = 0; i < infocnt; ++i)

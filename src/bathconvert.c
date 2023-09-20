@@ -15,8 +15,8 @@
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,    NULL, "show brief help on version and usage",                             1 },
-  { "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 1 },
   { "--ct",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
+  //{ "--fs",     eslARG_REAL,  "0.01",NULL, "0.0<=x<=1.0", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -64,7 +64,7 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
 int 
 main(int argc, char **argv)
 {
-  ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
+  ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, NULL, usage);
   ESL_ALPHABET  *abc     = NULL;
   ESL_STOPWATCH   *w  = esl_stopwatch_Create();
   char          *hmmfile_out = esl_opt_GetArg(go, 1);

@@ -71,7 +71,6 @@ static ESL_OPTIONS options[] = {
   { "-n",          eslARG_STRING, NULL,     NULL, NULL,             NULL, NULL,     NULL, "name the HMM <s>",                                      1 },
   { "-o",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
-  { "--fs",        eslARG_REAL,   "0.01",   NULL, "0.001<=x<=0.05", NULL, NULL,     NULL, "set the frameshift probabilty",                         1 },
   { "--ct",        eslARG_INT,    "1",      NULL, NULL,             NULL, NULL,     NULL, "use alt genetic code of NCBI transl table <n>",         1 }, 
   { "--unali",     eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     "-O", "input file is an unaligned sequence file",              1 },
 
@@ -153,6 +152,8 @@ static ESL_OPTIONS options[] = {
     overall observed counts (e.g. an alignemnt of 2 or 4 sequences)
     */
     { "--eentexp", eslARG_NONE,"default",NULL, NULL,    EFFOPTS,    NULL,      NULL, "adjust eff seq # to reach rel. ent. target using exp scaling",  99 },
+    
+  { "--fs",        eslARG_REAL,   "0.01",   NULL, "0.0<=x<=1.0", NULL, NULL,     NULL, "set the frameshift probabilty",                         99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 

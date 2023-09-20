@@ -849,7 +849,7 @@ int
 p7_tophits_ComputeBathEvalues(P7_TOPHITS *th, int64_t N, int W)
 {
   int i;    /* counters over hits */
- 
+
   for (i = 0; i < th->N ; i++)
   {
     th->unsrt[i].lnP        += log((float)N / (float)W);

@@ -723,7 +723,9 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
           * happens. [xref J5/130].
           */
           ddef->nenvelopes++;         
-  
+         
+         i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
+
          if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, wrk, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
         }
 

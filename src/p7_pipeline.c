@@ -339,8 +339,8 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->frameshift = TRUE;
   pli->long_targets = FALSE;
   pli->is_translated = FALSE; 
-  pli->fs_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1); 
-  pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--nofs") : 1);
+  pli->fs_pipe  = (go ? !esl_opt_IsUsed(go, "--nofs")   : 1); 
+  pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
 
   /* Create forward and backward optimized matricies for use in the 
    * non-frameshift pipeline branch

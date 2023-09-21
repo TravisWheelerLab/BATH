@@ -1119,7 +1119,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       info->pli->nres += dbsq_dna->n;
       esl_sq_ReverseComplement(dbsq_dna);
     } 
-printf("info->om->max_length %d\n", info->om->max_length);
+
     sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
     
     if (sstatus == eslEOD) { 

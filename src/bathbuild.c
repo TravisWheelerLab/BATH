@@ -1449,7 +1449,8 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
   if (msa != NULL) 
   {
     if (cfg->abc->type == eslAMINO) {
-      if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %7.5f %9d %8.2f %6.3f %s\n",
+      /*
+       if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %7.5f %9d %8.2f %6.3f %s\n",
           idx,
           (msa->name != NULL) ? msa->name : "",
           msa->nseq,
@@ -1461,6 +1462,19 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
           entropy,
           (msa->desc != NULL) ? msa->desc : "") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+    */
+      if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %9d %8.2f %6.3f %s\n",
+          idx,
+          (msa->name != NULL) ? msa->name : "",
+          msa->nseq,
+          msa->alen,
+          hmm->M,
+          hmm->ct,
+          hmm->eff_nseq,
+          entropy,
+          (msa->desc != NULL) ? msa->desc : "") < 0)
+      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+
     } else {
       if (fprintf(cfg->ofp, "%-5d %-20s %5d %5" PRId64 " %5d %5d %8.2f %6.3f %s\n",
           idx,

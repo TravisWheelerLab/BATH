@@ -36,15 +36,20 @@ output_header(char *hmmfile_in, char *hmmfile_out)
 static int
 output_result(int hmmidx, P7_HMM *hmm, double entropy)
 {
-  //int status;
 
   if (hmm == NULL)
   {
-      if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-      if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      /* Temporariliy remove fs_prob from output */
+      //if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      //if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+
+      if (fprintf(stdout, "# %-6s %-20s %5s %5s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(stdout, "# %-6s %-20s %5s %5s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+
     return eslOK;
   }
   else {
+    /*
     if (fprintf(stdout, "  %-6d %-20s %5d %5d %7.5f %9d %8.2f %6.3f %s\n",
           hmmidx,
           (hmm->name != NULL) ? hmm->name : "",
@@ -56,6 +61,17 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
           entropy,
           (hmm->desc != NULL) ? hmm->desc : "") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+    */
+    if (fprintf(stdout, "  %-6d %-20s %5d %5d %9d %8.2f %6.3f %s\n",
+          hmmidx,
+          (hmm->name != NULL) ? hmm->name : "",
+          hmm->nseq,
+          hmm->M,
+          hmm->ct,
+          hmm->eff_nseq,
+          entropy,
+          (hmm->desc != NULL) ? hmm->desc : "") < 0)
+      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed"); 
   }
 
   return eslOK;

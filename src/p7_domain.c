@@ -31,7 +31,6 @@ extern P7_DOMAIN *p7_domain_Create_empty()
 {
   P7_DOMAIN *the_domain;
   int status;
-  int i;
   ESL_ALLOC(the_domain, sizeof(P7_DOMAIN));
 
   the_domain->ienv = 0;

@@ -263,7 +263,6 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (fprintf(ofp, "# frameshift probability:          %f\n", esl_opt_GetReal(go, "--fs"))                                                             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(ofp, "# codon translation table          %d\n", esl_opt_GetInteger(go, "--ct"))                                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")           && fprintf(ofp, "# output directed to file:         %s\n",             esl_opt_GetString(go, "-o"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "-A")           && fprintf(ofp, "# MSA of all hits saved to file:   %s\n",             esl_opt_GetString(go, "-A"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--tblout")     && fprintf(ofp, "# per-seq hits tabular output:     %s\n",             esl_opt_GetString(go, "--tblout"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fstblout")     && fprintf(ofp, "# frameshift tabular output:       %s\n",             esl_opt_GetString(go, "--fstblout"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
    if (esl_opt_IsUsed(go, "--hmmout")        && fprintf(ofp, "# hmm output:                      %s\n",            esl_opt_GetString(go, "--hmmout"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -460,7 +459,7 @@ static int
 serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 {
 
-  int              i, d, h;
+  int              i, d;
   
   /* output files */
   FILE            *ofp                      = stdout;            /* results output file (-o)                        */
@@ -875,7 +874,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     }
 
     for (i = 0; i < infocnt; ++i)
-      p7_tophits_ComputeBathEvalues(info[i].th, resCnt*3,(info[i].om->max_length*3));
+      p7_tophits_ComputeBathEvalues(info[i].th, resCnt, info[i].om->max_length);
 
     /* merge the results of the search results */
     for (i = 0; i < infocnt; ++i)
@@ -1044,7 +1043,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 {
   int  sstatus = eslOK;
   int seq_id = 0;
-  double Z;
+  
   
   ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
@@ -1206,7 +1205,6 @@ static void
 pipeline_thread(void *arg)
 {
   int i;
-  double Z;
   int status;
   int workeridx;
   WORKER_INFO   *info;

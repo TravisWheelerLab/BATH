@@ -36,7 +36,7 @@ output_header(char *hmmfile_in, char *hmmfile_out)
 static int
 output_result(int hmmidx, P7_HMM *hmm, double entropy)
 {
-  int status;
+  //int status;
 
   if (hmm == NULL)
   {

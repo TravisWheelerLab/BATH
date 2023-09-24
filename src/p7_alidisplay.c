@@ -1801,7 +1801,6 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   long  c1;
   int   a1,a2;
   int   k1,k2;
-  int   k;
   int   npos;
   int   i,j,y;
   int   show_accessions;

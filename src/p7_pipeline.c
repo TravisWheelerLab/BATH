@@ -650,8 +650,8 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
 int
 p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int32_t *k_coords_list, int32_t *m_coords_list) {
 
-  int            i, j;
-  int            new_hit_cnt, new_start_window;
+  int            i;
+  int            new_hit_cnt;
 
   int32_t        i_coords, j_coords;          /* original ORF hit coords */
   int32_t        ext_i_coords, ext_j_coords;  /* extended ORF hit coords */
@@ -661,12 +661,12 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
   int64_t        overlap_len;
   int64_t        max_window_start, min_window_end;
   int64_t        min_window_start, max_window_end;
-  int64_t        max_new_window_start, min_new_window_start;
+  
   
   ESL_SQ        *curr_orf      = NULL;
   P7_HMM_WINDOW *prev_window   = NULL;
   P7_HMM_WINDOW *curr_window   = NULL;
-  P7_HMM_WINDOW *merged_window = NULL; 
+  
   P7_GMX        *vgx           = NULL;
   P7_TRACE      *vtr           = NULL;
 
@@ -876,7 +876,8 @@ p7_pli_DomainIncludable(P7_PIPELINE *pli, float dom_score, double lnP)
   }
   else if ( pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
   else if (! pli->incdom_by_E   && dom_score        >= pli->incdomT) return TRUE;
-  else return FALSE;
+  
+  return FALSE;
 }
 
 /* Function:  p7_pli_NewModel()
@@ -2205,7 +2206,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
   int              ali_len;
   int              env_len;
   int              status;
-  int              temp_ienv;
+  
   float            bitscore;
   float            dom_bias; 
   float            dom_score;
@@ -2276,7 +2277,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
      /* P-vaule calculation */	
      dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
      
-     pli->Z = ((float)pli->nres * 3.0) / ((float)gm_fs->max_length * 3.0);
+     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
 
      if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
      { 
@@ -2337,6 +2338,9 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
 
 	}
 */
+    }
+    else { //delete unused P7_ALIDSPLAY
+        p7_alidisplay_Destroy(dom->ad);
     }
   }
 
@@ -2446,7 +2450,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
      /* To prevent the accumultion of excessive low quailty hits when filters are turned off we need to begin weeding out those hits now.  To do this we estimate Z based on crruent target residue count. This will allways be an understimation so we don't risk thowing away good hits.  The ture Z is calcualted at the end by p7_tophits_ComputeBathEvalues() */
-     pli->Z = ((float)pli->nres * 3.0) / ((float)om->max_length * 3.0);
+     pli->Z = (float)pli->nres / (float)om->max_length;
       
      if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
      { 
@@ -2496,6 +2500,9 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 	 }
        }
 */      
+    } 
+    else { //delete unused P7_ALIDSPLAY
+        p7_alidisplay_Destroy(dom->ad);
     }
   }
 
@@ -2834,7 +2841,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   float              seq_score;           /* null corrected bit score                */
   float              filtersc;            /* bias and null score                     */
   double             P;                   /* p-value holder                          */
-  int                window_start;        /* DNA window coordinates                  */
   int                window_len;          /* length of DNA window                    */
   int                min_length;          /* minimum number of nucs passing a filter */
   int32_t           *k_coords_list, *m_coords_list; /* ORF Viterbi trace HMM coords            */

@@ -363,6 +363,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
 P7_ALIDISPLAY *
 p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode)
 {
+
   P7_ALIDISPLAY *ad       = NULL;
   char          *alphaAmino = gm_fs->abc->sym;
   char          *alphaDNA = sq->abc->sym;
@@ -429,6 +430,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   pos = 0; 
   ad->memsize = sizeof(char) * n;
   ESL_ALLOC(ad->mem, ad->memsize);
+ 
+  //printf("memsize %d\n", ad->memsize);
   if (gm_fs->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
   ad->mmline = NULL;
   if (gm_fs->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
@@ -1610,6 +1613,7 @@ p7_alidisplay_Deserialize_old(P7_ALIDISPLAY *ad)
 void
 p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
 {
+
   if (ad == NULL) return;
   if (ad->mem)
     {	/* serialized form */

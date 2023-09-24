@@ -936,7 +936,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_pli_Statistics(ofp, pipelinehits_accumulator, watch);
     if (fprintf(ofp, "//\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
-    //if( rand != NULL ) esl_randomness_Destroy(rand);	  
     p7_pipeline_fs_Destroy(pipelinehits_accumulator);
     p7_tophits_Destroy(tophits_accumulator);
     p7_oprofile_Destroy(om);
@@ -1044,31 +1043,35 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
   int  sstatus = eslOK;
   int seq_id = 0;
   
-  
   ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
   sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
 
-  while (sstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) {
+  while (sstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) 
+  {
     dbsq_dna->idx = seq_id;
     if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
 
     dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
-    info->pli->nres += dbsq_dna->n;
   
-    if (info->wrk1->do_watson) {
-      /* translate DNA sequence to 3 frame ORFs */
+    if (info->wrk1->do_watson) 
+    {
+      info->pli->nres += dbsq_dna->n;
+     
+       /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 
       p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
       esl_sq_ReuseBlock(info->wrk1->orf_block);    
-    } else {
-      info->pli->nres -= dbsq_dna->n;
-    }
+    } 
 
-    if (info->wrk1->do_crick) {
+    if (info->wrk1->do_crick) 
+    {   
+      info->pli->nres += dbsq_dna->n;
+     
+      /* Reverse complement and translate DNA sequence to 3 frame ORFs */
       esl_sq_ReverseComplement(dbsq_dna);
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 	
@@ -1076,25 +1079,27 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       
       esl_sq_ReuseBlock(info->wrk1->orf_block);
-      info->pli->nres += dbsq_dna->n;
+      
+      /* Reverse sequence back to original */
       esl_sq_ReverseComplement(dbsq_dna);
     } 
 
     sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
     
-    if (sstatus == eslEOD) { 
+    if (sstatus == eslEOD) 
+    { 
       /* no more left of this sequence ... move along to the next sequence. */
       add_id_length(id_length_list, dbsq_dna->idx, dbsq_dna->L);
       info->pli->nseqs++;
       esl_sq_Reuse(dbsq_dna);
       sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
       seq_id++;
-
     }
   }
 
   if(abcDNA) esl_alphabet_Destroy(abcDNA);
   if(dbsq_dna) esl_sq_Destroy(dbsq_dna);
+  
   return sstatus;
 }
 
@@ -1103,15 +1108,16 @@ static int
 thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
 {
   int i;
-  int  status  = eslOK;
-  int  sstatus = eslOK;
-  int  eofCount = 0;
+  int           status   = eslOK;
+  int           sstatus  = eslOK;
+  int           eofCount = 0;
+  int           seqid    = -1;
+  int           abort    = FALSE; // in the case n_targetseqs != -1, a block may get abbreviated
   ESL_SQ_BLOCK *block;
+  ESL_SQ       *tmpsq;
   void         *newBlock;
-  int          seqid = -1;
   
-  ESL_SQ      *tmpsq = esl_sq_CreateDigital(dbfp->abc);
-  int          abort = FALSE; // in the case n_targetseqs != -1, a block may get abbreviated
+  tmpsq = esl_sq_CreateDigital(dbfp->abc);
 
   esl_workqueue_Reset(queue);
   esl_threads_WaitForStart(obj);
@@ -1156,12 +1162,13 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
       if (eofCount < esl_threads_GetWorkerCount(obj)) sstatus = eslOK;
       ++eofCount;
     } else if (!block->complete ) {
-      // The final sequence on the block was an incomplete window of the active sequence,
-      // so our next read will need a copy of it to correctly deal with overlapping
-      // regions. We capture a copy of the sequence here before sending it off to the
-      // pipeline to avoid odd race conditions that can occur otherwise.
-      // Copying the entire sequence isn't really necessary, and is a bit heavy-
-      // handed. Could accelerate if this proves to have any notable impact on speed.
+      /* The final sequence on the block was an incomplete window of the 
+       * active sequence, so our next read will need a copy of it to 
+       * correctly deal with overlapping regions. We capture a copy of the 
+       * sequence here before sending it off to the pipeline to avoid odd 
+       * race conditions that can occur otherwise. Copying the entire sequence 
+       * isn't really necessary, and is a bit heavy-handed. Could accelerate 
+       * if this proves to have any notable impact on speed. */
       esl_sq_Copy(block->list + (block->count - 1) , tmpsq);
     }
 
@@ -1169,15 +1176,16 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
       status = esl_workqueue_ReaderUpdate(queue, block, &newBlock);
       if (status != eslOK) esl_fatal("Work queue reader failed");
 
-      //newBlock needs all this information so the next ReadBlock call will know what to do
+      /*newBlock needs all this information so the next ReadBlock call will know what to do */
       ((ESL_SQ_BLOCK *)newBlock)->complete = block->complete;
       if (!block->complete) {
-        // Push the captured copy of the previously-read sequence into the new block,
-        // in preparation for ReadWindow  (double copy ... slower than necessary)
+        /* Push the captured copy of the previously-read sequence into the new block,
+         * in preparation for ReadWindow  (double copy ... slower than necessary) */
         esl_sq_Copy(tmpsq, ((ESL_SQ_BLOCK *)newBlock)->list);
 
         if (  ((ESL_SQ_BLOCK *)newBlock)->list->n < info->om->max_length ) {
-          //no reason to search the final partial sequence on the block, as the next block will search this whole chunk
+          /*no reason to search the final partial sequence on the block, as 
+           * the next block will search this whole chunk */
           ((ESL_SQ_BLOCK *)newBlock)->list->C = ((ESL_SQ_BLOCK *)newBlock)->list->n;
           (((ESL_SQ_BLOCK *)newBlock)->count)--;
         } else {
@@ -1232,9 +1240,10 @@ pipeline_thread(void *arg)
       ESL_SQ *dnaSeq = block->list + i;
       dnaSeq->L = dnaSeq->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
      
-      info->pli->nres += dnaSeq->n;
 
       if (info->wrk1->do_watson) {
+
+        info->pli->nres += dnaSeq->n;
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
        
         p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
@@ -1242,8 +1251,6 @@ pipeline_thread(void *arg)
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
         esl_sq_ReuseBlock(info->wrk1->orf_block);
-      } else {
-        info->pli->nres -= dnaSeq->n;
       } 
 
       if (info->wrk1->do_crick) {
@@ -1310,7 +1317,7 @@ add_id_length(ID_LENGTH_LIST *list, int id, int L)
   int status;
 
   if (list->count > 0 && list->id_lengths[list->count-1].id == id) {
-    // the last time this gets updated, it'll have the sequence's actual length
+    /* the last time this gets updated, it'll have the sequence's actual length */
     list->id_lengths[list->count-1].length = L;
   } else {
     if (list->count == list->size) {

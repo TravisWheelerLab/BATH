@@ -2559,7 +2559,7 @@ NC    23.60 23.30
 STATS LOCAL MSV         -10.6717  0.70343
 STATS LOCAL VITERBI     -11.4526  0.70343
 STATS LOCAL FORWARD      -5.3353  0.70343
-STATS LOCAL FS FORWARD    1.0631  0.70343
+STATS LOCAL FS FORWARD    1.0632  0.70343
 FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   

@@ -2449,7 +2449,12 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
-     /* To prevent the accumultion of excessive low quailty hits when filters are turned off we need to begin weeding out those hits now.  To do this we estimate Z based on crruent target residue count. This will allways be an understimation so we don't risk thowing away good hits.  The ture Z is calcualted at the end by p7_tophits_ComputeBathEvalues() */
+     /* To prevent the accumultion of excessive low quailty hits when 
+      * filters are turned off we need to begin weeding out those hits 
+      * now. To do this we estimate Z based on crruent target residue 
+      * count. This will allways be an understimation so we don't risk 
+      * thowing away good hits.  The ture Z is calcualted at the end 
+      * by p7_tophits_ComputeBathEvalues() */
      pli->Z = (float)pli->nres / (float)om->max_length;
       
      if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))

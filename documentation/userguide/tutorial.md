@@ -431,10 +431,10 @@ As discussed in Practice 2, some DNA sequences use alternate codon translation t
 This will result in the following error message:
 
 ```bash
-   Error: Requested codon translation table ID 4 does not match the codon translation table ID of the HMM file MET.bhmm. Please run bathconvert with option '--ct 4'.
+   Error: Requested codon translation tabel ID 4 does not match the codon translation tabel ID of the HMM file MET.bhmm. Please either run bathsearch with option '--ct 1' or run bathconvert with option '--ct 4'.
 ```
 
-In this case, we already have a pHMM file built with the correct codon table and can skip running bathonvert. The following command will use that pHMM file to run the same search without a codon table mismatch. 
+In this case, we already have a pHMM file built with the correct codon table and can skip running bathconvert. The following command will use that pHMM file to run the same search without a codon table mismatch. 
 
 ```bash
    % bathsearch --ct 4 -o MET-ct4.out MET-ct4.bhmm  target-MET.fa

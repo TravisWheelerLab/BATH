@@ -816,9 +816,7 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->by_E )
     { 
-      if      ( pli->long_targets || pli->frameshift ) {
-         if (exp(lnP) <= pli->E) return TRUE;  // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
-      }
+      if      ( pli->long_targets ) { if (exp(lnP) <= pli->E) return TRUE; } // database size is already built into the Pval if pli->long_targets 
       else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
@@ -2278,62 +2276,68 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
      /* P-vaule calculation */	
      dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
      
-     /* Add hits to hitlist and check if they are reprotable*/
-     p7_tophits_CreateNextHit(hitlist, &hit);
+     pli->Z = ((float)pli->nres * 3.0) / ((float)gm_fs->max_length * 3.0);
 
-      hit->ndom        = 1;
-      hit->best_domain = 0;
+     if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
+     { 
+   
+       /* Add hits to hitlist and check if they are reprotable*/
+       p7_tophits_CreateNextHit(hitlist, &hit);
 
-      hit->window_length = gm_fs->max_length;
-      hit->seqidx = seqidx;
-      hit->subseq_start = dnasq->start;
+	hit->ndom        = 1;
+	hit->best_domain = 0;
 
-      ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
-      hit->dcl[0] = pli->ddef->dcl[d];
+	hit->window_length = gm_fs->max_length;
+	hit->seqidx = seqidx;
+	hit->subseq_start = dnasq->start;
 
-      hit->dcl[0].ad->L = 0;     
+	ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
+	hit->dcl[0] = pli->ddef->dcl[d];
+
+	hit->dcl[0].ad->L = 0;     
+	
+	hit->pre_score = bitscore  / eslCONST_LOG2;
+	hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+
+	hit->dcl[0].dombias  = dom_bias;
       
-      hit->pre_score = bitscore  / eslCONST_LOG2;
-      hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+	hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
+	hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
 
-      hit->dcl[0].dombias  = dom_bias;
+	hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
     
-      hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
-      hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
+	hit->frameshift = TRUE;
+	
+	if (pli->mode == p7_SEARCH_SEQS)
+	{
+	  if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+	  if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+	  if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+	} else {
+	  if ((status  = esl_strdup(gm_fs->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
+	  if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
+	  if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
+	}
+/*
+	if (pli->use_bit_cutoffs)
+	{
+	  if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
+	  {
+	    hit->flags |= p7_IS_REPORTED;
+	    if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
+	      hit->flags |= p7_IS_INCLUDED;
+	  }
 
-      hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
-  
-      hit->frameshift = TRUE;
-      
-      if (pli->mode == p7_SEARCH_SEQS)
-      {
-        if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-      } else {
-        if ((status  = esl_strdup(gm_fs->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
-        if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
-        if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
-      }
+	  if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+	  {
+	    hit->dcl[0].is_reported = TRUE;
+	    if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+	      hit->dcl[0].is_included = TRUE;
+	  }
 
-      if (pli->use_bit_cutoffs)
-      {
-        if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
-        {
-          hit->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
-            hit->flags |= p7_IS_INCLUDED;
-        }
-
-        if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-        {
-          hit->dcl[0].is_reported = TRUE;
-          if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-            hit->dcl[0].is_included = TRUE;
-        }
-
-      }
-
+	}
+*/
+    }
   }
 
   free(pli->ddef->dcl);
@@ -2440,51 +2444,59 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
      
      /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+
+     /* To prevent the accumultion of excessive low quailty hits when filters are turned off we need to begin weeding out those hits now.  To do this we estimate Z based on crruent target residue count. This will allways be an understimation so we don't risk thowing away good hits.  The ture Z is calcualted at the end by p7_tophits_ComputeBathEvalues() */
+     pli->Z = ((float)pli->nres * 3.0) / ((float)om->max_length * 3.0);
       
-     /* Add hits to hitlist and check if they are reprotable*/   
-     p7_tophits_CreateNextHit(hitlist, &hit);
-  
-     hit->ndom        = 1;
-     hit->best_domain = 0;
-     hit->window_length = orfsq->n;
-     hit->seqidx = seqidx;
-     hit->subseq_start = orfsq->start;
-
-     ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
-     hit->dcl[0] = pli->ddef->dcl[d];
-
-     hit->dcl[0].ad->L = 0;
-
-     hit->pre_score = bitscore  / eslCONST_LOG2;
-     hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-     
-     hit->dcl[0].dombias  = dom_bias;
- 
-     hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
-     hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
-
-     hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
-
-     if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-     if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-     if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-     if (pli->use_bit_cutoffs)
-     {
-       if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
-       {
-         hit->flags |= p7_IS_REPORTED;
-         if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
-           hit->flags |= p7_IS_INCLUDED;
-       }
-
-       if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-       {
-         hit->dcl[0].is_reported = TRUE;
-         if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-           hit->dcl[0].is_included = TRUE;
-       }
-     }
+     if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
+     { 
+       /* Add hits to hitlist and check if they are reprotable*/   
+       p7_tophits_CreateNextHit(hitlist, &hit);
     
+       hit->ndom        = 1;
+       hit->best_domain = 0;
+       hit->window_length = orfsq->n;
+       hit->seqidx = seqidx;
+       hit->subseq_start = orfsq->start;
+
+       ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
+       hit->dcl[0] = pli->ddef->dcl[d];
+
+       hit->dcl[0].ad->L = 0;
+
+       hit->pre_score = bitscore  / eslCONST_LOG2;
+       hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+       
+       hit->dcl[0].dombias  = dom_bias;
+   
+       hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
+       hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
+
+       hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
+
+       if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+       if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+       if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+
+/*
+       if (pli->use_bit_cutoffs)
+       {
+	 if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
+	 {
+	   hit->flags |= p7_IS_REPORTED;
+	   if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
+	     hit->flags |= p7_IS_INCLUDED;
+	 }
+
+	 if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+	 {
+	   hit->dcl[0].is_reported = TRUE;
+	   if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
+	     hit->dcl[0].is_included = TRUE;
+	 }
+       }
+*/      
+    }
   }
 
   free(pli->ddef->dcl);

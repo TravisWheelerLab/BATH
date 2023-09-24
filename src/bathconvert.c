@@ -134,7 +134,8 @@ main(int argc, char **argv)
     {
       if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hmmfile_in); 
 
-      fs = esl_opt_GetReal(go, "--fs");
+      //fs = esl_opt_GetReal(go, "--fs");
+      fs = 0.01;
       ct = esl_opt_GetInteger(go, "--ct");
  
       if(fs != hmm->fs || ct != hmm->ct)

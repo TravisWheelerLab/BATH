@@ -57,10 +57,10 @@ The summary output that is printed to your stdout should resemble the text below
 # output HMM file:                  MET.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# idx    name                  nseq  alen  mlen fs_prob codon_tbl eff_nseq re/pos description
-# ------ -------------------- ----- ----- ----- ------- --------- -------- ------ -----------
-  1      metC                    11   483   409 0.01000         1     0.60  0.591 Cystathionine beta-lyase
-  2      metG                    24   494   458 0.01000         1     0.62  0.589 Methionine--tRNA ligase
+# idx    name                  nseq  alen  mlen codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- ----- --------- -------- ------ -----------
+  1      metC                    11   483   409         1     0.60  0.591 Cystathionine beta-lyase
+  2      metG                    24   494   458         1     0.62  0.589 Methionine--tRNA ligase
 
 # CPU time: 4.38u 0.00s 00:00:04.38 Elapsed: 00:00:02.33
 ```
@@ -77,8 +77,6 @@ nseq           Number of sequences in the alignment this pHMM was built from.
 alen           Length of alignment - number of columns in the MSA.
 
 mlen           Length of the pHMM - number of match states.
-   
-fs_prob        The assigned probability of a frameshift-inducing indel
 
 codon_tbl      The NCBI codon translation table ID assumed for the target DNA
 
@@ -134,10 +132,10 @@ The summary output that is printed to your stdout should resemble the text below
 # output HMM file:                  MET.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# idx    name                  nseq  alen  mlen fs_prob codon_tbl eff_nseq re/pos description
-# ------ -------------------- ----- ----- ----- ------- --------- -------- ------ -----------
-  1      metC                    11   483   409 0.01000         1     0.60  0.591 Cystathionine beta-lyase
-  2      metG                    24   494   458 0.01000         1     0.62  0.589 Methionine--tRNA ligase
+# idx    name                  nseq  alen  mlen codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- ----- --------- -------- ------ -----------
+  1      metC                    11   483   409         1     0.60  0.591 Cystathionine beta-lyase
+  2      metG                    24   494   458         1     0.62  0.589 Methionine--tRNA ligase
 
 # CPU time: 4.38u 0.00s 00:00:04.38 Elapsed: 00:00:02.33
 ```
@@ -161,11 +159,11 @@ The summary output that is printed to your stdout should resemble the text below
 # output HMM file:                  three_seqs.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# idx    name                  nseq   len  mlen fs_prob codon_tbl eff_nseq re/pos description
-# ------ -------------------- ----- ----- ----- ------- --------- -------- ------ -----------
-  1      AT1G01010.1              1   429   429 0.01000         1     1.00  0.591
-  2      AT1G01020.1              1   245   245 0.01000         1     1.00  0.552
-  3      AT1G01030.1              1   358   358 0.01000         1     1.00  0.600
+# idx    name                  nseq   len  mlen codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- ----- --------- -------- ------ -----------
+  1      AT1G01010.1              1   429   429         1     1.00  0.591
+  2      AT1G01020.1              1   245   245         1     1.00  0.552
+  3      AT1G01030.1              1   358   358         1     1.00  0.600
 
 # CPU time: 2.62u 0.00s 00:00:02.62 Elapsed: 00:00:02.14
 ```
@@ -186,10 +184,10 @@ This command should produce the following output to stdout:
 
 ```bash
 #
-# idx    name                 accession        nseq eff_nseq   mlen fs_prob codon_tbl re/pos
-# ------ -------------------- ------------ -------- -------- ------ ------- --------- ------
-  1      metC                 -                  11     0.60    409 0.01000         1   0.53
-  2      metG                 -                  24     0.62    458 0.01000         1   0.53
+# idx    name                 accession        nseq eff_nseq   mlen codon_tbl re/pos
+# ------ -------------------- ------------ -------- -------- ------ --------- ------
+  1      metC                 -                  11     0.60    409         1   0.53
+  2      metG                 -                  24     0.62    458         1   0.53
 ```
 
 The fields are mainly the same as those produced by bathbuild, and detailed in practice 1, except for the accession field which may contain an alphanumeric identifier for the protein family or be left blank if no accession is listed for the pHMM. 
@@ -212,20 +210,20 @@ Your summary output should match that shown below.
 # output HMM file:                  tRNA-proteins.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# idx    name                  nseq  mlen fs_prob codon_tbl eff_nseq re/pos description
-# ------ -------------------- ----- ----- ------- --------- -------- ------ -----------
-  1      ATE_N                   30    78 0.01000         1     1.11  0.726 Arginine-tRNA-protein transferase, N terminus
-  2      GlutR_N                 12   152 0.01000         1     0.87  0.590 Glutamyl-tRNAGlu reductase, N-terminal domain
-  3      PTH2                    10   116 0.01000         1     0.74  0.589 Peptidyl-tRNA hydrolase PTH2
-  4      RtcB                    30   459 0.01000         1     0.83  0.590 tRNA-splicing ligase RtcB
-  5      TGT                     15   238 0.01000         1     0.80  0.589 Queuine tRNA-ribosyltransferase
-  6      Thg1                    30   131 0.01000         1     0.69  0.589 tRNAHis guanylyltransferase
-  7      Trm56                   11   121 0.01000         1     0.64  0.590 tRNA ribose 2'-O-methyltransferase, aTrm56
-  8      tRNA-synt_1_2           30   185 0.01000         1     0.91  0.590 Leucyl-tRNA synthetase, Domain 2
-  9      tRNA-synt_1c_C          14   192 0.01000         1     0.81  0.591 tRNA synthetases class I (E and Q), anti-codon binding domain
-  10     tRNA-synt_2d            19   247 0.01000         1     0.73  0.592 tRNA synthetases class II core domain (F)
-  11     tRNA-Thr_ED             12   136 0.01000         1     0.63  0.590 Archaea-specific editing domain of threonyl-tRNA synthetase
-  12     TruB_C                  11    56 0.01000         1     1.64  0.994 tRNA Pseudouridine synthase II, C terminal
+# idx    name                  nseq  mlen codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- --------- -------- ------ -----------
+  1      ATE_N                   30    78         1     1.11  0.726 Arginine-tRNA-protein transferase, N terminus
+  2      GlutR_N                 12   152         1     0.87  0.590 Glutamyl-tRNAGlu reductase, N-terminal domain
+  3      PTH2                    10   116         1     0.74  0.589 Peptidyl-tRNA hydrolase PTH2
+  4      RtcB                    30   459         1     0.83  0.590 tRNA-splicing ligase RtcB
+  5      TGT                     15   238         1     0.80  0.589 Queuine tRNA-ribosyltransferase
+  6      Thg1                    30   131         1     0.69  0.589 tRNAHis guanylyltransferase
+  7      Trm56                   11   121         1     0.64  0.590 tRNA ribose 2'-O-methyltransferase, aTrm56
+  8      tRNA-synt_1_2           30   185         1     0.91  0.590 Leucyl-tRNA synthetase, Domain 2
+  9      tRNA-synt_1c_C          14   192         1     0.81  0.591 tRNA synthetases class I (E and Q), anti-codon binding domain
+  10     tRNA-synt_2d            19   247         1     0.73  0.592 tRNA synthetases class II core domain (F)
+  11     tRNA-Thr_ED             12   136         1     0.63  0.590 Archaea-specific editing domain of threonyl-tRNA synthetase
+  12     TruB_C                  11    56         1     1.64  0.994 tRNA Pseudouridine synthase II, C terminal
 ```
 
 </p>
@@ -247,20 +245,20 @@ This should produce the following output:
 # output HMM file:                  tRNA-proteins=ct11.bhmm
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# idx    name                  nseq  mlen fs_prob codon_tbl eff_nseq re/pos description
-# ------ -------------------- ----- ----- ------- --------- -------- ------ -----------
-  1      ATE_N                   30    78 0.01000        11     1.11  0.726 Arginine-tRNA-protein transferase, N terminus
-  2      GlutR_N                 12   152 0.01000        11     0.87  0.590 Glutamyl-tRNAGlu reductase, N-terminal domain
-  3      PTH2                    10   116 0.01000        11     0.74  0.589 Peptidyl-tRNA hydrolase PTH2
-  4      RtcB                    30   459 0.01000        11     0.83  0.590 tRNA-splicing ligase RtcB
-  5      TGT                     15   238 0.01000        11     0.80  0.589 Queuine tRNA-ribosyltransferase
-  6      Thg1                    30   131 0.01000        11     0.69  0.589 tRNAHis guanylyltransferase
-  7      Trm56                   11   121 0.01000        11     0.64  0.590 tRNA ribose 2'-O-methyltransferase, aTrm56
-  8      tRNA-synt_1_2           30   185 0.01000        11     0.91  0.590 Leucyl-tRNA synthetase, Domain 2
-  9      tRNA-synt_1c_C          14   192 0.01000        11     0.81  0.591 tRNA synthetases class I (E and Q), anti-codon binding domain
-  10     tRNA-synt_2d            19   247 0.01000        11     0.73  0.592 tRNA synthetases class II core domain (F)
-  11     tRNA-Thr_ED             12   136 0.01000        11     0.63  0.590 Archaea-specific editing domain of threonyl-tRNA synthetase
-  12     TruB_C                  11    56 0.01000        11     1.64  0.994 tRNA Pseudouridine synthase II, C terminal
+# idx    name                  nseq  mlen codon_tbl eff_nseq re/pos description
+# ------ -------------------- ----- ----- --------- -------- ------ -----------
+  1      ATE_N                   30    78        11     1.11  0.726 Arginine-tRNA-protein transferase, N terminus
+  2      GlutR_N                 12   152        11     0.87  0.590 Glutamyl-tRNAGlu reductase, N-terminal domain
+  3      PTH2                    10   116        11     0.74  0.589 Peptidyl-tRNA hydrolase PTH2
+  4      RtcB                    30   459        11     0.83  0.590 tRNA-splicing ligase RtcB
+  5      TGT                     15   238        11     0.80  0.589 Queuine tRNA-ribosyltransferase
+  6      Thg1                    30   131        11     0.69  0.589 tRNAHis guanylyltransferase
+  7      Trm56                   11   121        11     0.64  0.590 tRNA ribose 2'-O-methyltransferase, aTrm56
+  8      tRNA-synt_1_2           30   185        11     0.91  0.590 Leucyl-tRNA synthetase, Domain 2
+  9      tRNA-synt_1c_C          14   192        11     0.81  0.591 tRNA synthetases class I (E and Q), anti-codon binding domain
+  10     tRNA-synt_2d            19   247        11     0.73  0.592 tRNA synthetases class II core domain (F)
+  11     tRNA-Thr_ED             12   136        11     0.63  0.590 Archaea-specific editing domain of threonyl-tRNA synthetase
+  12     TruB_C                  11    56        11     1.64  0.994 tRNA Pseudouridine synthase II, C terminal
 # CPU time: 8.65u 0.00s 00:00:08.65 Elapsed: 00:00:08.67
 ```
  

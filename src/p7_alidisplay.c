@@ -515,14 +515,12 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 
 	if(c == 1) {
           ad->frameshifts++;           
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
-          {
-            for(x = 0; x < sq->abc->K; x++)
-              if(sq->abc->degen[sq->dsq[i]][x]) break;
-          }	   
-	  a = p7P_AMINO1(gm_fs, k, x);
-          indel = p7P_INDEL1(gm_fs, k, x); 
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) 
+	    a = p7P_AMINO1(gm_fs, k, sq->dsq[i]);
+          else
+            a = gcode->aa_abc->Kp-3;
+
+          indel = p7P_INDEL1(gm_fs, k, sq->dsq[i]); 
            
           if(indel == p7P_Xxx) {
             n1 = ' ';
@@ -541,20 +539,12 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 	}
 	else if(c == 2) {
           ad->frameshifts++;
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
-          {           
-            for(w = 0; w < sq->abc->K; w++)
-              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
-          {           
-            for(x = 0; x < sq->abc->K; x++)
-              if(sq->abc->degen[sq->dsq[i]][x]) break;
-          } 
-          a = p7P_AMINO2(gm_fs, k, w, x);
-          indel = p7P_INDEL2(gm_fs, k, w, x);
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) &&  esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
+            a = p7P_AMINO2(gm_fs, k, sq->dsq[i-1], sq->dsq[i]);
+          else
+            a = gcode->aa_abc->Kp-3;          
+
+          indel = p7P_INDEL2(gm_fs, k, sq->dsq[i-1], sq->dsq[i]);
 
           if(indel == p7P_XXx) {
             n1 = ' ';
@@ -579,27 +569,12 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
           }    
 	 }
 	 else if(c == 3) {
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2])) v = sq->dsq[i-2];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-2]))
-          {
-            for(v = 0; v < sq->abc->K; v++)
-              if(sq->abc->degen[sq->dsq[i-2]][v]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
-          {
-            for(w = 0; w < sq->abc->K; w++)
-              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
-          {
-            for(x = 0; x < sq->abc->K; x++)
-              if(sq->abc->degen[sq->dsq[i]][x]) break;
-          }
-          
-          a = p7P_AMINO3(gm_fs, k, v, w, x);           
-          if(a == 27) 
+         if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))  
+            a = p7P_AMINO3(gm_fs, k, sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);		
+	 else 
+	    a = gcode->aa_abc->Kp-3;
+
+          if(a > gcode->aa_abc->K) 
           {
             ad->stops++;
             n1 = ' ';
@@ -619,31 +594,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         }
 	else if(c == 4) {
 	  ad->frameshifts++;
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3])) u = sq->dsq[i-3];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-3]))
-          {
-            for(u = 0; u < sq->abc->K; u++)
-              if(sq->abc->degen[sq->dsq[i-3]][u]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2])) v = sq->dsq[i-2];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-2]))
-          {
-            for(v = 0; v < sq->abc->K; v++)
-              if(sq->abc->degen[sq->dsq[i-2]][v]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
-          {
-            for(w = 0; w < sq->abc->K; w++)
-              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
-          {
-            for(x = 0; x < sq->abc->K; x++)
-              if(sq->abc->degen[sq->dsq[i]][x]) break;
-          }
-          a = p7P_AMINO4(gm_fs, k, u, v, w, x);
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
+            a = p7P_AMINO4(gm_fs, k, sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);
+          else
+            a = gcode->aa_abc->Kp-3;   
+
           indel = p7P_INDEL4(gm_fs, k, u, v, w, x);
 
           if(indel == p7P_xXXX) { 
@@ -670,38 +625,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         }	
         else if(c == 5) {
 	  ad->frameshifts++;
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-4])) t = sq->dsq[i-4];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-4]))
-          {
-            for(t = 0; t < sq->abc->K; t++) 
-              if(sq->abc->degen[sq->dsq[i-4]][t]) break;
-          }     
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3])) u = sq->dsq[i-3];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-3]))
-          {
-            for(u = 0; u < sq->abc->K; u++)
-              if(sq->abc->degen[sq->dsq[i-3]][u]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2])) v = sq->dsq[i-2];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-2]))
-          {
-            for(v = 0; v < sq->abc->K; v++)
-              if(sq->abc->degen[sq->dsq[i-2]][v]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1])) w = sq->dsq[i-1];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i-1]))
-          {
-            for(w = 0; w < sq->abc->K; w++)
-              if(sq->abc->degen[sq->dsq[i-1]][w]) break;
-          }
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) x = sq->dsq[i];
-          else if(esl_abc_XIsDegenerate(sq->abc, sq->dsq[i]))
-          {
-            for(x = 0; x < sq->abc->K; x++)
-              if(sq->abc->degen[sq->dsq[i]][x]) break;
-          }
+          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-4]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) 
+            a = p7P_AMINO5(gm_fs, k, sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);
+          else
+            a = gcode->aa_abc->Kp-3;
 
-          a = p7P_AMINO5(gm_fs, k, t, u, v, w, x);
           indel = p7P_INDEL5(gm_fs, k, t, u, v, w, x);
 	
 	  if(indel == p7P_xxXXX) {
@@ -752,7 +680,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
         n5 = ' ';
 
         a = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
-
+        
 	ad->aseq  [z-z1] = tolower(alphaAmino[a]);
         ad->ntseq [5*(z-z1)] = ' ';
         ad->ntseq [5*(z-z1)+1] = toupper(n2);

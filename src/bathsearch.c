@@ -61,9 +61,9 @@ static void            destroy_id_length( ID_LENGTH_LIST *list );
 static int             add_id_length(ID_LENGTH_LIST *list, int id, int L);
 static int             assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list);
 
-#define REPOPTS     "-E,-T,--cut_ga,--cut_nc,--cut_tc"
+#define REPOPTS     "-E,-T"//--cut_ga,--cut_nc,--cut_tc"
 #define DOMREPOPTS  "--domE,--domT,--cut_ga,--cut_nc,--cut_tc"
-#define INCOPTS     "--incE,--incT,--cut_ga,--cut_nc,--cut_tc"
+#define INCOPTS     "--incE,--incT"//--cut_ga,--cut_nc,--cut_tc"
 #define INCDOMOPTS  "--incdomE,--incdomT,--cut_ga,--cut_nc,--cut_tc"
 #define THRESHOPTS  "-E,-T,--domE,--domT,--incE,--incT,,--incdomE,--incdomT,--cut_ga,--cut_nc,--cut_tc"
 
@@ -212,14 +212,14 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
       if (puts("\nOptions controlling reporting and inclusion thresholds:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 4, 2, 100); 
 
+      if (puts("\nOptions controlling acceleration heuristics:")             < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_opt_DisplayHelp(stdout, go, 7, 2, 100); 
+
       if (puts("\nOptions setting input formats:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 5, 2, 100);
 
       if (puts("\nOptions handling single sequence inputs:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 3, 2, 100);
-
-      if (puts("\nOptions controlling acceleration heuristics:")             < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 7, 2, 100); 
 
       if (puts("\nOther expert options:")                                    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 12, 2, 100); 
@@ -859,7 +859,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       default:
         esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
     }
-       
+      
     //need to re-compute e-values before merging (when list will be sorted)
     if (esl_opt_IsUsed(go, "-Z")) {
       resCnt = 1000000*esl_opt_GetReal(go, "-Z");
@@ -901,20 +901,22 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         esl_gencode_WorkstateDestroy(info[i].wrk2);
       }
     }
-      
+
     /* Sort and remove duplicates */
     p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
     assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
-            /* Print the results.  */
-  
-      p7_tophits_SortBySortkey(tophits_accumulator);
-      /* Set Z = 1 to prevent changing e-values. Correct Z 
+
+    /* Sort and remove hits bellow threshold */
+    p7_tophits_SortBySortkey(tophits_accumulator);
+       /* Set Z = 1 to prevent changing e-values. Correct Z 
        * was calcualted by p7_tophits_ComputeBathEvalues() */
       pipelinehits_accumulator->Z = 1;    
       p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
-      
+
+
+      /* Print the results.  */
       pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
       for (i = 0; i < tophits_accumulator->N; i++) {
         if ( (tophits_accumulator->hit[i]->flags & p7_IS_REPORTED) || tophits_accumulator->hit[i]->flags & p7_IS_INCLUDED) {
@@ -925,10 +927,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       }
     }
 
-
     p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
     p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-      
+
+
     if (tblfp)     p7_tophits_TabularTargets(tblfp,    hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
     if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,    hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
 

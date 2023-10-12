@@ -2741,7 +2741,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
         
         p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], pli->oxb, NULL);
         
-        status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli_tmp->oxf_holder[f], pli->oxb, pli->ddef, bg);
+        status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli_tmp->oxf_holder[f], pli->oxf, pli->oxb, pli->ddef, bg);
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
@@ -2887,7 +2887,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);
-
+   
     if (   (orfsq->start < orfsq->end    &&  orfsq->end < dnasq->C )  ||
            (orfsq->end < orfsq->start    &&  orfsq->start < dnasq->C ) )
         continue; /* don't bother with an orf that showed up completely within a previous window */

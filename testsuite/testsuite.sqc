@@ -186,42 +186,14 @@
 # looking for high scoring sequences that force a stochastic clustering step.
 #
 #           xxxxxxxxxxxxxxxxxxxx
-#1 prep      seq                   @src/hmmemit@  --seed 35 -p %CAUDAL.HMM% > %TESTSEQ%
-#1 prep      db_1                  @src/hmmemit@  --seed 35 -p %CAUDAL.HMM% > %TESTDB%
-#1 prep      db_2                  @easel/miniapps/esl-reformat@ fasta !testsuite/Caudal_act.sto! >> %TESTDB%
-#1 prep      db_3                  @easel/miniapps/esl-shuffle@ -G --amino -N 100 -L 350 >> %TESTDB%
 1 exercise  bathbuild_variation    !testsuite/i1-build-variation.sh!     @src/bathbuild@   !testsuite/Caudal_act.sto!          %OUTFILES%
 1 exercise  bathsearch_variation   !testsuite/i2-search-variation.sh!    @src/bathsearch@  %CAUDAL.BHMM%   !testsuite/Caudal_act-nt.fa!  %OUTFILES%
 1 exercise  fragments              !testsuite/i7-bathbuild-fragments.pl! @src/bathbuild@               %OUTFILES%
 1 exercise  nonresidues            !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
-#1 exercise  opt-annotation        !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
-#1 exercise  dup-names             !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
-#1 exercise  mapali-again          !testsuite/i11-hmmalign-mapali.pl!    @@ !! %OUTFILES%
-#1 exercise  delete-corruption     !testsuite/i12-delete-corruption.pl!  @@ !! %OUTFILES%
-#1 exercise  msa-integrity         !testsuite/i13-msa-integrity.pl!      @@ !! %OUTFILES%
-#1 exercise  hmmemit-consensus     !testsuite/i14-hmmemit-consensus.pl!  @@ !! %OUTFILES%
-#1 exercise  hmmconvert            !testsuite/i15-hmmconvert.pl!         @@ !! %OUTFILES%
-#1 exercise  stdin_pipes           !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
-#1 exercise  nhmmer_generic        !testsuite/i18-nhmmer-generic.pl!     @@ !! %OUTFILES%
-#1 exercise  hmmpgmd_ga            !testsuite/i19-hmmpgmd-ga.pl!         @@ !! %OUTFILES% 
-#comment out fmindex test until it's been returned to life
-#1 exercise  fmindex-core          !testsuite/i20-fmindex-core.pl!       @@ !! %OUTFILES%
-#1 exercise  rewind                !testsuite/i21-rewind.pl!             @@ !! %OUTFILES%
-#1 exercise  hmmpgmd_shard_ga      !testsuite/i22-hmmpgmd-shard-ga.pl!   @@ !! %OUTFILES% 
-#1 exercise  bad-fasta             !testsuite/i23-bad-fasta.sh!          @@ !! %OUTFILES% 
+1 exercise  opt-annotation         !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
+1 exercise  dup-names             !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
+1 exercise  stdin_pipes           !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
 #1 exercise  brute-itest           @src/itest_brute@  
-#1 exercise  hmmpress-itest        !src/hmmpress.itest.pl! @src/hmmpress@ %MINIFAM.HMM% %TMPPFX%
-
-################################################################
-# Fixed bug tests
-################################################################
-
-#           xxxxxxxxxxxxxxxxxxxx
-#1 exercise  h39                  @src/hmmsearch@ !testsuite/M1.hmm! !testsuite/M1.sto!
-#1 exercise  h45                  !testsuite/i4-zerolength-seqs.sh!    @@ !! %MINIFAM.HMM% %OUTFILES%
-#1 exercise  h50                  !testsuite/i5-hmmbuild-naming.pl!    @@ !! %OUTFILES%
-#1 exercise  h82                  !testsuite/i16-build-allins.pl!      @@ !! %OUTFILES%
-#1 exercise  iss159               !testsuite/iss159-nhmmer-overlap.py! @@ !! %OUTFILES%
 
 ################################################################
 # valgrind tests  (optional. 'make SQCLEVEL=3 check')
@@ -254,23 +226,11 @@
 3 valgrind  stotrace              @src/impl/stotrace_utest@
 3 valgrind  vitfilter             @src/impl/vitfilter_utest@
 
-#1 prep      minifam               @src/hmmbuild@ %MINIFAM.HMM% !testsuite/minifam!
+1 prep      minifam               @src/bathbuild@ %MINIFAM.HMM% !testsuite/minifam!
 
-#3 valgrind  hmmbuild              @src/hmmbuild@   %GLOBIN.HMM% !tutorial/globins4.sto!
-#3 valgrind  hmmconvert            @src/hmmconvert@ -b %GLOBIN.HMM%
-#3 valgrind  hmmalign              @src/hmmalign@   %GLOBIN.HMM% !tutorial/globins45.fa!
-#3 valgrind  hmmemit               @src/hmmemit@    -N10 %GLOBIN.HMM% 
-#3 valgrind  hmmpress              @src/hmmpress@   -f %MINIFAM.HMM%
-#3 valgrind  hmmfetch              @src/hmmfetch@   %MINIFAM.HMM% Caudal_act
-#3 valgrind  hmmscan               @src/hmmscan@    %MINIFAM.HMM% !tutorial/HBB_HUMAN!
-#3 valgrind  hmmsearch             @src/hmmsearch@  %GLOBIN.HMM% !tutorial/globins45.fa!
-#3 valgrind  hmmsim                @src/hmmsim@     %GLOBIN.HMM% 
-#3 valgrind  hmmstat               @src/hmmstat@    %MINIFAM.HMM% 
-#3 valgrind  jackhmmer             @src/jackhmmer@  !tutorial/HBB_HUMAN! !tutorial/globins45.fa!
-#3 valgrind  phmmer                @src/phmmer@     !tutorial/HBB_HUMAN! !tutorial/globins45.fa!
-#3 valgrind  nhmmer                @src/nhmmer@     !tutorial/MADE1.hmm! !tutorial/dna_target.fa!
-
-# some derivatives of tmpfiles created by hmmpress, not sqc itself: clean up
-#1 prep     minifam                rm -f %MINIFAM.HMM%.h3f %MINIFAM.HMM%.h3p %MINIFAM.HMM%.h3m %MINIFAM.HMM%.h3i 
-
+3 valgrind  bathbuild             @src/bathbuild@   %GLOBIN.HMM% !testsuite/globins4.sto!
+3 valgrind  bathconvert           @src/bathconvert@ %M1.BHMM% !testsuite/M1.hmm!
+3 valgrind  bathfetch             @src/bathfetch@   %MINIFAM.HMM% Caudal_act
+3 valgrind  bathsearch            @src/bathsearch@  %GLOBIN.HMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathstat              @src/bathstat@    %MINIFAM.HMM% 
 

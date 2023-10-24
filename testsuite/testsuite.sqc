@@ -193,7 +193,7 @@
 1 exercise  bathbuild_variation    !testsuite/i1-build-variation.sh!     @src/bathbuild@   !testsuite/Caudal_act.sto!          %OUTFILES%
 1 exercise  bathsearch_variation   !testsuite/i2-search-variation.sh!    @src/bathsearch@  %CAUDAL.BHMM%   !testsuite/Caudal_act-nt.fa!  %OUTFILES%
 1 exercise  fragments              !testsuite/i7-bathbuild-fragments.pl! @src/bathbuild@               %OUTFILES%
-#1 exercise  nonresidues            !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
+1 exercise  nonresidues            !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
 #1 exercise  opt-annotation        !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
 #1 exercise  dup-names             !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
 #1 exercise  mapali-again          !testsuite/i11-hmmalign-mapali.pl!    @@ !! %OUTFILES%

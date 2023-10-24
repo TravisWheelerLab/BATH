@@ -219,6 +219,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   int     codon;
   int     status;
   int     max_idx;
+  int     codon_idx;
   float   *occ = NULL;
   float   *tp;
   float    sc[p7_MAXCODE];
@@ -226,11 +227,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    max_sc[16];
   int      max_aa[10];
   int      max_pos[10];
-  float    one_indel  = log(hmm->fs);
   float    one_sub    = log(hmm->fs);
+  float    one_indel  = log(hmm->fs);
   float    two_indel  = log(hmm->fs/2);
-  float    no_indel   = log(1. - hmm->fs*3);
-  float    no_sub     = log(1. - hmm->fs);
+  float    no_indel   = log(1. - hmm->fs*4);
   float   stop_subs[9]; 
 
   /* Contract checks */
@@ -317,236 +317,231 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
   sc[hmm->abc->Kp-2]  = -eslINFINITY; /* STOP character */
-  /* Turn amino acid emissions into log odds */
+  
   for (k = 1; k <= hmm->M; k++) {
+    /* Turn amino acid emissions into log odds */
     for (x = 0; x < hmm->abc->K; x++)
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
     
     esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
     
-   // sc[hmm->abc->Kp-2] = log( (double) esl_vec_FMax(hmm->mat[k], hmm->abc->K) / bg->f[esl_vec_FArgMax(hmm->mat[k], hmm->abc->K)]) + one_indel;
+    for (x = 0; x < hmm->abc->Kp; x++)  
+      p7P_MSC_AMINO(gm_fs, k, x) = sc[x];
+  } 
 
-    for (x = 0; x < hmm->abc->K; x++)
-      p7P_MSC_FS(gm_fs, k, x) = sc[x];
- 
- 
-	/* Assign amino acid scores to standard length codons with no substitutions 
-     * or no_indel adjustments so they can be used to look up scores for 
-     * frameshift codons. Substitution and no_indel adjustments are added afterwards. */
-     for (v = 0; v < 4; v++) 
-      for (w = 0; w < 4; w++) 
-        for (x = 0; x < 4; x++) {
-          codon = 16 * v + 4 * w + x;
-          a = gcode->basic[codon];
-          p7P_MSC_C3(gm_fs, k, v, w, x) = sc[a];
-          p7P_AMINO3(gm_fs, k, v, w, x) = a;
-          p7P_INDEL3(gm_fs, k, v, w, x) = p7P_XXX;
-        }     
-  }
-
-  /* Assign scores, amino acids, and indel positions to all frameshift codons */
-  /* find maximum score for each two nucleotide codon (XX_ or _XX) */   
+  /* Assign scores, amino acids, and indel positions to all codons and quasicodons*/
   for (k = 1; k <= hmm->M; k++) { 
-    
-    esl_vec_FSet(max_sc, 16, -eslINFINITY);
-    
-    //_XX
-    for (del1 = 0; del1 < 4; del1++) 
-      for (w = 0; w < 4; w++)
-        for (x = 0; x < 4; x++) 
-          if (p7P_MSC_C3(gm_fs, k, del1, w, x) > max_sc[w * 4 + x]) {
-            max_sc[w * 4 + x] = p7P_MSC_C3(gm_fs, k, del1, w, x);
-            codon = 16 * del1 + 4 * w + x;
-            p7P_AMINO2(gm_fs, k, w, x) = gcode->basic[codon];  
-            p7P_INDEL2(gm_fs, k, w, x) =  p7P_xXX;    
-          }
-     
-    //X_X
-    for (w = 0; w < 4; w++)
-      for (del1 = 0; del1 < 4; del1++) 
-        for (x = 0; x < 4; x++) 
-          if (p7P_MSC_C3(gm_fs, k, w, del1, x) > max_sc[w * 4 + x]) {
-            max_sc[w * 4 + x] = p7P_MSC_C3(gm_fs, k, w, x, del1);
-            codon = 16 * w + 4 * del1 + x;
-            p7P_AMINO2(gm_fs, k, w, x) = gcode->basic[codon];
-            p7P_INDEL2(gm_fs, k, w, x) =  p7P_XxX;
-          }
-    
-    //XX_     
-    for (w = 0; w < 4; w++)
-      for (x = 0; x < 4; x++) 
-        for (del1 = 0; del1 < 4; del1++) 
-          if (p7P_MSC_C3(gm_fs, k, w, x, del1) > max_sc[w * 4 + x]) {
-            max_sc[w * 4 + x] = p7P_MSC_C3(gm_fs, k, w, x, del1);
-            codon = 16 * w + 4 * x + del1;
-            p7P_AMINO2(gm_fs, k, w, x) = gcode->basic[codon];
-            p7P_INDEL2(gm_fs, k, w, x) =  p7P_XXx;
-          }
+  
+    /* set all scoresfor the current model postion to negative infinity */ 
+    esl_vec_FSet(gm_fs->rsc[k], p7P_MAXCODONS, -eslINFINITY);
 
-    for (w = 0; w < 4; w++)
-      for (x = 0; x < 4; x++)
-        p7P_MSC_C2(gm_fs, k, w, x) = max_sc[w * 4 + x] + one_indel;
-  }
-
-  /* find maximum score for each one nucleotide codon (X__ or __X) */
-  for (k = 1; k <= hmm->M; k++) {
-    
-    esl_vec_FSet(max_sc, 4, -eslINFINITY);
-
-    for (x = 0; x < 4; x++) {
-      for (del1 = 0; del1 < 4; del1++)
-        for (del2 = 0; del2 < 4; del2++)
-          if (p7P_MSC_C3(gm_fs, k, x, del1, del2) > max_sc[x]) {
-            max_sc[x] = p7P_MSC_C3(gm_fs, k, x, del1, del2);
-            codon = 16 * x + 4 * del1 + del2;
-            p7P_AMINO1(gm_fs, k, x) = gcode->basic[codon];
-            p7P_INDEL1(gm_fs, k, x) = p7P_Xxx;
-          }
-    }
-
-    //X__
-    for (x = 0; x < 4; x++)
-      for (del1 = 0; del1 < 4; del1++)
-        for (del2 = 0; del2 < 4; del2++)    
-          if (p7P_MSC_C3(gm_fs, k, x, del1, del2) > max_sc[x]) {
-            max_sc[x] = p7P_MSC_C3(gm_fs, k, x, del1, del2);
-            codon = 16 * x + 4 * del1 + del2;
-            p7P_AMINO1(gm_fs, k, x) = gcode->basic[codon];
-            p7P_INDEL1(gm_fs, k, x) = p7P_Xxx;
-          }
-
-    //__X
+    /* find maximum scoring amio acid for each one nucleotide quasicodon (__X or X__) */
     for (del1 = 0; del1 < 4; del1++)
-      for (del2 = 0; del2 < 4; del2++) 
-        for (x = 0; x < 4; x++)  
-          if (p7P_MSC_C3(gm_fs, k, del1, del2, x) > max_sc[x]) {
-            max_sc[x] = p7P_MSC_C3(gm_fs, k, del1, del2, x);
-            codon = 16 * del1 + 4 * del2 + x;
-            p7P_AMINO1(gm_fs, k, x) = gcode->basic[codon];
-            p7P_INDEL1(gm_fs, k, x) = p7P_xxX;
+      for (del2 = 0; del2 < 4; del2++)
+        for (x = 0; x < 4; x++) {
+          codon_idx = p7P_CODON1(x);
+          //__X
+          codon = 16 * del1 + 4 * del2 + x;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+            p7P_AMINO(gm_fs, k, codon_idx) = a;
+            p7P_INDEL(gm_fs, k, codon_idx) =  p7P___X;
           }
-          
-    for (x = 0; x < 4; x++)
-      p7P_MSC_C1(gm_fs, k, x) = max_sc[x] + two_indel; 
-  }
-
-  /* find maximum score for each four nucleotide codon (xXXX, XxXX or XXxX) */
-  for (k = 1; k <= hmm->M; k++) {
-    
-    for ( u = 0; u < 4; u++) 
-      for (v = 0; v < 4; v++) 
-        for (w = 0; w < 4; w++) {
-          esl_vec_FSet(max_sc, 4, -eslINFINITY);
-          for (x = 0; x < 4; x++) {
-	    
-            //XXxX
-            codon       = 16 * u + 4 * v + x;
-            max_sc[0]  = p7P_MSC_C3(gm_fs, k, u, v, x);
-            max_aa[0]  = gcode->basic[codon];
-            max_pos[0] = p7P_XXxX;
-            
-            //XxXX
-            codon      = 16 * u + 4 * w + x;
-            max_sc[1]  = p7P_MSC_C3(gm_fs, k, u, w, x); 
-            max_aa[1]  = gcode->basic[codon];
-            max_pos[1] = p7P_XxXX; 
-
-            //xXXX
-            codon      = 16 * v + 4 * w + x;  
-            max_sc[2]  = p7P_MSC_C3(gm_fs, k, v, w, x); 
-            max_aa[2]  = gcode->basic[codon];
-            max_pos[2] = p7P_xXXX;
-
-            max_idx = esl_vec_FArgMax(max_sc, 3);
-            p7P_MSC_C4(gm_fs, k, u, v, w, x) = max_sc[max_idx] + one_indel;
-            p7P_AMINO4(gm_fs, k, u, v, w, x) = max_aa[max_idx];
-            p7P_INDEL4(gm_fs, k, u, v, w, x) = max_pos[max_idx];
+          //__X
+          codon = 16 * x + 4 * del1 + del2;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+            p7P_AMINO(gm_fs, k, codon_idx) = a;
+            p7P_INDEL(gm_fs, k, codon_idx) =  p7P_X__;
           }
         }
-  }  
 
-  /* find maximum score for each four nucleotide codon (xxXXX, XxxXX or XXxxX) */
-  for (k = 1; k <= hmm->M; k++) {
-    
+    /* find maximum scoring amio acid for each two nucleotide quasicodon (_XX or X_X or XX_) */   
+    for (del1 = 0; del1 < 4; del1++) 
+      for (w = 0; w < 4; w++)
+        for (x = 0; x < 4; x++) {
+          codon_idx = p7P_CODON2(w, x);
+          //_XX
+          codon = 16 * del1 + 4 * w + x;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+            p7P_AMINO(gm_fs, k, codon_idx) = a;
+            p7P_INDEL(gm_fs, k, codon_idx) =  p7P__XX;    
+          }
+       
+          //X_X
+          codon = 16 * w + 4 * del1 + x;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+            p7P_AMINO(gm_fs, k, codon_idx) = a;
+            p7P_INDEL(gm_fs, k, codon_idx) =  p7P_X_X;
+          } 
+
+          //XX_   
+          codon = 16 * w + 4 * x + del1;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+            p7P_AMINO(gm_fs, k, codon_idx) = a;
+            p7P_INDEL(gm_fs, k, codon_idx) =  p7P_XX_;
+          }  
+        }
+ 
+    /* find maximum scoring amio acid for each three nucleotide codon */
+    for (v = 0; v < 4; v++)
+       for (w = 0; w < 4; w++)
+         for (x = 0; x < 4; x++) {
+           codon_idx = p7P_CODON3(v, w, x);
+           codon = 16 * v + 4 * w + x;
+           a = gcode->basic[codon];
+           /* stop codons are treated like codons with a single substitution error */
+           if(a == hmm->abc->Kp-2) { 
+             for (sub = 0; sub < 4; sub ++) {
+                codon = 16 * sub + 4 * w + x;
+                a = gcode->basic[codon];
+                if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+                   p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+                   p7P_AMINO(gm_fs, k, codon_idx) = a;
+                   p7P_INDEL(gm_fs, k, codon_idx) = p7P_xXX;
+                }
+                codon = 16 * v + 4 * sub + x;
+                a = gcode->basic[codon];
+                if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+                   p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+                   p7P_AMINO(gm_fs, k, codon_idx) = a;
+                   p7P_INDEL(gm_fs, k, codon_idx) = p7P_XxX;
+                }
+                codon = 16 * v + 4 * w + sub;
+                a = gcode->basic[codon];
+                if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+                   p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+                   p7P_AMINO(gm_fs, k, codon_idx) = a;
+                   p7P_INDEL(gm_fs, k, codon_idx) = p7P_XXx;
+                }
+             }
+           } else {
+             p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+             p7P_AMINO(gm_fs, k, codon_idx) = a;
+             p7P_INDEL(gm_fs, k, codon_idx) = p7P_XXX;
+           }             
+         }
+
+    /* find maximum scoring amio acid for each four nucleotide quasicodon (XXxX, XxXX, or xXXX) */ 
+    for ( u = 0; u < 4; u++) 
+      for (v = 0; v < 4; v++) 
+        for (w = 0; w < 4; w++) 
+          for (x = 0; x < 4; x++) {
+	    codon_idx = p7P_CODON4(u, v, w, x);
+            //XXxX
+            codon       = 16 * u + 4 * v + x;
+            a = gcode->basic[codon];
+            if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+              p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+              p7P_AMINO(gm_fs, k, codon_idx) = a;
+              p7P_INDEL(gm_fs, k, codon_idx) =  p7P_XXxX;
+            }
+            //XxXX
+            codon      = 16 * u + 4 * w + x;
+            a = gcode->basic[codon];
+            if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+              p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+              p7P_AMINO(gm_fs, k, codon_idx) = a;
+              p7P_INDEL(gm_fs, k, codon_idx) =  p7P_XxXX;
+            }           
+            //xXXX
+            codon      = 16 * v + 4 * w + x;  
+            a = gcode->basic[codon];
+            if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+              p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+              p7P_AMINO(gm_fs, k, codon_idx) = a;
+              p7P_INDEL(gm_fs, k, codon_idx) =  p7P_xXXX;
+            }
+          }
+
+    /* find maximum score for each five nucleotide quasicodon (xxXXX, XxxXX or XXxxX) */
     for (t = 0; t < 4; t++) 
       for ( u = 0; u < 4; u++) 
         for (v = 0; v < 4; v++) 
-          for (w = 0; w < 4; w++) {
-            esl_vec_FSet(max_sc, 3, -eslINFINITY);
+          for (w = 0; w < 4; w++) 
             for (x = 0; x < 4; x++) {
-          
+              codon_idx = p7P_CODON5(t, u, v, w, x);          
+
               //XXxxX
               codon      = 16 * t + 4 * u + x;
-              max_sc[0]  = p7P_MSC_C3(gm_fs, k, t, u, x); 
-              max_aa[0]  = gcode->basic[codon];
-              max_pos[0] = p7P_XXxxX;
-   
+              a = gcode->basic[codon];
+              if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+                p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+                p7P_AMINO(gm_fs, k, codon_idx) = a;
+                p7P_INDEL(gm_fs, k, codon_idx) =  p7P_XXxxX;
+              }            
               //XxxXX
               codon      = 16 * t + 4 * w + x;
-              max_sc[1]  = p7P_MSC_C3(gm_fs, k, t, w, x); 
-              max_aa[1]  = gcode->basic[codon];
-              max_pos[1] = p7P_XxxXX;
-       
+              a = gcode->basic[codon];
+              if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+                p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+                p7P_AMINO(gm_fs, k, codon_idx) = a;
+                p7P_INDEL(gm_fs, k, codon_idx) =  p7P_XxxXX;
+              } 
               //xxXXX
               codon      = 16 * v + 4 * w + x;
-              max_sc[2]  = p7P_MSC_C3(gm_fs, k, v, w, x); 
-              max_aa[2]  = gcode->basic[codon];
-              max_pos[2] = p7P_xxXXX;
-              
-              max_idx = esl_vec_FArgMax(max_sc, 3);
-               
-              p7P_MSC_C5(gm_fs, k, t, u, v, w, x) = max_sc[max_idx] + two_indel;
-              
-              p7P_AMINO5(gm_fs, k, t, u, v, w, x) = max_aa[max_idx];
-              
-              p7P_INDEL5(gm_fs, k, t, u, v, w, x) = max_pos[max_idx];
-              
+              a = gcode->basic[codon];
+              if (p7P_MSC_AMINO(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
+                p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a);
+                p7P_AMINO(gm_fs, k, codon_idx) = a;
+                p7P_INDEL(gm_fs, k, codon_idx) =  p7P_xxXXX;
+              } 
+            }
+
+    
+    /* add substitution and indel cost */
+    for (t = 0; t < 4; t++) {
+      codon_idx = p7P_CODON1(t);
+      p7P_MSC_CODON(gm_fs, k, codon_idx) += two_indel;   
+      for ( u = 0; u < 4; u++) {
+        codon_idx = p7P_CODON2(u, t);
+        p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
+        for (v = 0; v < 4; v++) {
+          codon_idx = p7P_CODON3(v, u, t);
+          codon = 16 * v + 4 * u + t;
+          a = gcode->basic[codon];
+          if(a == hmm->abc->Kp-2) // stop codon
+            p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
+          else
+            p7P_MSC_CODON(gm_fs, k, codon_idx) += no_indel;
+          for (w = 0; w < 4; w++) {
+            codon_idx = p7P_CODON4(w, v, u, t);
+            p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
+            for (x = 0; x < 4; x++) {
+              codon_idx = p7P_CODON5(x, w, v, u, t);
+              p7P_MSC_CODON(gm_fs, k, codon_idx) += two_indel;
             }
           }
-  }
-
-  /*stop codon treated as substiution error*/
-  /* currently substiution cost is same as indel cost */
-  for (k = 1; k <= hmm->M; k++) {
-    for (v = 0; v < 4; v++) {
-      for (w = 0; w < 4; w++) {
-        for (x = 0; x < 4; x++) {
-	  if(gcode->basic[16 * v + 4 * w + x] == hmm->abc->Kp-2) {
-	    sub_cnt = 0;
-	    for(sub = 0; sub < 4; sub++) {
-		if(gcode->basic[16 * sub + 4 * w + x] != hmm->abc->Kp-2) {
-		  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
-		  sub_cnt++;
-		}
-		
-		if(gcode->basic[16 * v + 4 * sub + x] != hmm->abc->Kp-2) {
-                  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
-                  sub_cnt++;
-                }	  
-
-                if(gcode->basic[16 * v + 4 * w + sub] != hmm->abc->Kp-2) {
-                  stop_subs[sub_cnt] = sc[gcode->basic[codon]];
-                  sub_cnt++;
-                }
-	      }
-	      p7P_MSC_C3(gm_fs, k, v, w, x) = esl_vec_FMax(stop_subs, sub_cnt) + one_sub;
-            }
-	  }
-	}
+        }
       }
     }
 
-  /* Normailze codon scores to account for probability of frameshifts and subsititutions*/ 
-  for (k = 1; k <= hmm->M; k++) 
-    for (v = 0; v < 4; v++)
-      for (w = 0; w < 4; w++)
-        for (x = 0; x < 4; x++) {
-	  if(gcode->basic[16 * v + 4 * w + x] != hmm->abc->Kp-2)
-            p7P_MSC_C3(gm_fs, k, v, w, x) += no_sub;
-	   p7P_MSC_C3(gm_fs, k, v, w, x) += no_indel;
-        }
+     /* additional index for codons and quasicodons containing degenerate nucleotides */
+     a = hmm->abc->Kp-3;
+    
+     codon_idx = p7P_DEGEN_C;
+     p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a) + no_indel;
+     p7P_AMINO(gm_fs, k, codon_idx) = a;
+     p7P_INDEL(gm_fs,k, codon_idx) = p7P_xxx;
 
-  //TODO: Substitution Model
+    codon_idx = p7P_DEGEN_QC1; 
+    p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a) + one_indel;
+    p7P_AMINO(gm_fs, k, codon_idx) = a;
+    p7P_INDEL(gm_fs,k, codon_idx) = p7P_xxx;
+
+    codon_idx = p7P_DEGEN_QC2;
+    p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO(gm_fs, k, a) + two_indel;
+    p7P_AMINO(gm_fs, k, codon_idx) = a;
+    p7P_INDEL(gm_fs,k, codon_idx) = p7P_xxx;
+  }
 
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */

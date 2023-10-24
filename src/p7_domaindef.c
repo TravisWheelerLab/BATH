@@ -1212,74 +1212,9 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
  
     pos = 1;
     for (d = 0; d < ddef->tr->ndom; d++)
-    {
- 
       p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
-
-//TODO: This null be trace needs to be fixed
-    p7_Null2_fs_ByTrace(gm_fs, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
-   
-    s = u = v = w = x = -1;
-    z = 0;
-    while(pos <= Lr && z < ddef->tr->N)
-    {
-      if(esl_abc_XIsCanonical(abc, dsq[ireg+pos-1])) x = dsq[ireg+pos-1];
-      else if(esl_abc_XIsDegenerate(abc, dsq[pos]))
-      {
-        for(x = 0; x < abc->K; x++)
-          if(abc->degen[dsq[pos]][x]) break;
-      }
-
-      switch (ddef->tr->st[z]) {
-        case p7T_N:
-        case p7T_C:
-        case p7T_J:  if(ddef->tr->i[z] == pos)
-                     {
-                       ddef->n2sc[pos] += 1.0;
-                       pos++;
-                     } 
-                     z++; break;
-        case p7T_X:
-        case p7T_S:
-        case p7T_B:
-        case p7T_E:
-        case p7T_T:
-        case p7T_D:  z++;   break;
-        case p7T_M:  if(ddef->tr->i[z] == pos)
-                     {
-		       switch (ddef->tr->c[z]) {
-			 case 1: ddef->n2sc[pos]  += null2[p7P_AMINO1(gm_fs, ddef->tr->k[z], x)]; break;
-                         case 2: ddef->n2sc[pos]  += null2[p7P_AMINO2(gm_fs, ddef->tr->k[z], w, x)]; break;
-                         case 3: ddef->n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]; break; 
-                         case 4: ddef->n2sc[pos]  += null2[p7P_AMINO4(gm_fs, ddef->tr->k[z], u, v, w, x)]; break;
-                         case 5: ddef->n2sc[pos]  += null2[p7P_AMINO5(gm_fs, ddef->tr->k[z], s, u, v, w, x)]; break;
-		         default:    ESL_EXCEPTION(eslEINVAL, "no such codon; can't use for null calc");
-		       }
-                       z++;
-                     }
-                     pos++;  break;
-        case p7T_I:  if(ddef->tr->i[z] == pos)
-                     {
-                       ddef->n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)];
-                       z++;
-                     }
-                     pos++;  break;
-        default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't use for null calc");
-       }
-       s = u;
-       u = w;
-       v = w;
-       w = x;
-     }
-    } 
+     
      p7_trace_Reuse(ddef->tr);   
-  }
-
-  /* Convert the accumulated n2sc[] ratios in this region to log odds null2 scores on each residue. */
-  for (pos = 1; pos < Lr; pos++){
-    if (ddef->n2sc[pos] != 0.0) 
-      ddef->n2sc[pos] = logf(ddef->n2sc[pos] / (float) ddef->nsamples);
-	
   }
 
   /* Cluster the ensemble of traces to break region into envelopes. */
@@ -1662,12 +1597,13 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            n_holder;
   float          domcorrection = 0.0;
   float          envsc, oasc;
-  
+  int            codon_idx;  
   int            z;
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
   ESL_DSQ        t, u, v, w, x;
+  ESL_DSQ        aa;
   ESL_DSQ       *dsq_holder;
 
   if (Ld < 15) return eslOK;
@@ -1743,7 +1679,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
       {
         for(x = 0; x < windowsq->abc->K; x++)
           if(windowsq->abc->degen[windowsq->dsq[pos]][x]) break;
-      }
+      }      
       
       switch (ddef->tr->st[z]) {
         case p7T_N:
@@ -1759,24 +1695,22 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
         case p7T_D:  z++;   break;
         case p7T_M:  if(ddef->tr->i[z] == pos)
                      {  
-                       if(ddef->tr->c[z] == 1)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO1(gm_fs, ddef->tr->k[z], x)]);
-                       else if(ddef->tr->c[z] == 2)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO2(gm_fs, ddef->tr->k[z], w, x)]);
-                       else if(ddef->tr->c[z] == 3)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]);
-                       else if(ddef->tr->c[z] == 4)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO4(gm_fs, ddef->tr->k[z], u, v, w, x)]);
-                       else if(ddef->tr->c[z] == 5)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO5(gm_fs, ddef->tr->k[z], t, u, v, w, x)]);
+                       if(ddef->tr->c[z] == 1)      { codon_idx = p7P_CODON1(x);             codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC2); }      
+                       else if(ddef->tr->c[z] == 2) { codon_idx = p7P_CODON2(w, x);          codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC1); }
+                       else if(ddef->tr->c[z] == 3) { codon_idx = p7P_CODON3(v, w, x);       codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_C); } 
+                       else if(ddef->tr->c[z] == 4) { codon_idx = p7P_CODON4(u, v, w, x);    codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC1); }
+                       else if(ddef->tr->c[z] == 5) { codon_idx = p7P_CODON5(t, u, v, w, x); codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC2); }
+                       ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs, ddef->tr->k[z], codon_idx)]);
                        z++; 
                      }
                      else 
-                        ddef->n2sc[pos]  = 0.0;
+                       ddef->n2sc[pos]  = 0.0;
                      pos++;  break;
         case p7T_I:  if(ddef->tr->i[z] == pos)
                      {
-                       ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]);
+                       codon_idx = p7P_CODON3(v, w, x);       
+                       codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_C);
+                       ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs, ddef->tr->k[z], codon_idx)]);
                        z++;
                      }
                      else 

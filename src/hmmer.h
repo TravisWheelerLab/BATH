@@ -241,6 +241,7 @@ enum p7p_rsc_e {
   p7P_ISC = 1
 };
 #define p7P_NR 2
+
 enum p7p_rsc_codon {
   p7P_C1 = 0, 
   p7P_C2 = 1,
@@ -251,132 +252,124 @@ enum p7p_rsc_codon {
 #define p7P_CODONS         5
 
 enum p7p_rsc_indels {
-  p7P_Xxx   = 0,
-  p7P_xxX   = 1,
-  p7P_XXx   = 2,
-  p7P_XxX   = 3,
-  p7P_xXX   = 4,
+  p7P___X   = 0,
+  p7P_X__   = 1,
+  p7P_XX_   = 2,
+  p7P_X_X   = 3,
+  p7P__XX   = 4,
   p7P_XXX   = 5,
-  p7P_XXxX  = 6,
-  p7P_XxXX  = 7,
-  p7P_xXXX  = 8,
-  p7P_XXxxX = 9,
-  p7P_XxxXX = 10,
-  p7P_xxXXX = 11,
+  p7P_XXx   = 6,
+  p7P_XxX   = 7,
+  p7P_xXX   = 8,
+  p7P_xxx   = 9,  
+  p7P_XXxX  = 10,
+  p7P_XxXX  = 11,
+  p7P_xXXX  = 12,
+  p7P_XXxxX = 13,
+  p7P_XxxXX = 14,
+  p7P_xxXXX = 15,
 };
 
-#define p7P_MAXCODONS      1364
-#define p7P_NUC1           4
-#define p7P_NUC2           16
-#define p7P_NUC3           64
-#define p7P_NUC4           256
-#define p7P_CODON1         20
-#define p7P_CODON2         24
-#define p7P_CODON3         40
-#define p7P_CODON4         104
-#define p7P_CODON5         360
+/* Indexing variables for codons and quasicodons */
+#define p7P_MAXCODONS      1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 */ 
+#define p7P_DEGEN_C        1364    /* index for degnerate codon */
+#define p7P_DEGEN_QC1      1365    /* index for degnerate quasicodons with one indel  */
+#define p7P_DEGEN_QC2      1366    /* index for degnerate quasicodons with two indels */
+#define p7P_NUC1           341     
+#define p7P_NUC2           85
+#define p7P_NUC3           21
+#define p7P_NUC4           5
+
+/* find the correct emmisions array index of a codon or quasicodon */
+#define p7P_CODON1(x)             ((x) * p7P_NUC1) 
+#define p7P_CODON2(w, x)          ((x) * p7P_NUC1 + (w) * p7P_NUC2 + p7P_C2)
+#define p7P_CODON3(v, w, x)       ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + p7P_C3)
+#define p7P_CODON4(u, v, w, x)    ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + p7P_C4)
+#define p7P_CODON5(t, u, v, w, x) ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + (t) + p7P_C5)
+#define p7P_MINIDX(a,b)           ((b) ^ (((a) ^ (b)) & -((a) < (b))))  
 
 /* Accessing codon translations */
-#define p7P_AMINO1(gm, k, x)             ((gm)->codons[(k)][p7P_CODON1 + (x)])
-#define p7P_AMINO2(gm, k, w, x)          ((gm)->codons[(k)][p7P_CODON2 + (x) * p7P_NUC1 + (w)])
-#define p7P_AMINO3(gm, k, v, w, x)       ((gm)->codons[(k)][p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
-#define p7P_AMINO4(gm, k, u, v, w, x)    ((gm)->codons[(k)][p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
-#define p7P_AMINO5(gm, k, t, u, v, w, x) ((gm)->codons[(k)][p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
+#define p7P_AMINO(gm, k, x)       ((gm)->codons[(k)][(x)])
 
 /* Accessing codon indel positions */
-#define p7P_INDEL1(gm, k, x)             ((gm)->indel_pos[(k)][p7P_CODON1 + (x)])
-#define p7P_INDEL2(gm, k, w, x)          ((gm)->indel_pos[(k)][p7P_CODON2 + (x) * p7P_NUC1 + (w)])
-#define p7P_INDEL3(gm, k, v, w, x)       ((gm)->indel_pos[(k)][p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
-#define p7P_INDEL4(gm, k, u, v, w, x)    ((gm)->indel_pos[(k)][p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
-#define p7P_INDEL5(gm, k, t, u, v, w, x) ((gm)->indel_pos[(k)][p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
+#define p7P_INDEL(gm, k, x)      ((gm)->indel_pos[(k)][(x)])
 
 /* Accessing transition, emission scores */
 /* _BM is specially stored off-by-one: [k-1][p7P_BM] is score for entering at Mk */
-#define p7P_TSC(gm, k, s) ((gm)->tsc[(k) * p7P_NTRANS + (s)])
-#define p7P_MSC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
-#define p7P_ISC(gm, k, x) ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
-
-/*0 to 19*/
-#define p7P_MSC_FS(gm, k, x)             ((gm)->rsc[(k)][(x)])
-/*20 to 23*/
-#define p7P_MSC_C1(gm, k, x)             ((gm)->rsc[(k)][p7P_CODON1 + (x)])                                                                                       
-/*24 to 39*/
-#define p7P_MSC_C2(gm, k, w, x)          ((gm)->rsc[(k)][p7P_CODON2 + (x) * p7P_NUC1 + (w)])
-/*40 to 103*/
-#define p7P_MSC_C3(gm, k, v, w, x)       ((gm)->rsc[(k)][p7P_CODON3 + (x) * p7P_NUC2 + (w) * p7P_NUC1 + (v)])
-/*104 to 359 */
-#define p7P_MSC_C4(gm, k, u, v, w, x)    ((gm)->rsc[(k)][p7P_CODON4 + (x) * p7P_NUC3 + (w) * p7P_NUC2 + (v) * p7P_NUC1 + (u)])
-/*360 to 1383 */
-#define p7P_MSC_C5(gm, k, t, u, v, w, x) ((gm)->rsc[(k)][p7P_CODON5 + (x) * p7P_NUC4 + (w) * p7P_NUC3 + (v) * p7P_NUC2 + (u) * p7P_NUC1 + (t)])
+#define p7P_TSC(gm, k, s)        ((gm)->tsc[(k) * p7P_NTRANS + (s)])
+#define p7P_MSC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
+#define p7P_ISC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
+#define p7P_MSC_CODON(gm, k ,x)  ((gm)->rsc[(k)][(x)])
+#define p7P_MSC_AMINO(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS + (x)])
 
 typedef struct p7_profile_s {
-  float  *tsc;          /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
-  float **rsc;          /* emissions [0..Kp-1][0.1..M][p7P_NR], hand-indexed       */
+  float  *tsc;                            /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
+  float **rsc;                            /* emissions [0..Kp-1][0.1..M][p7P_NR], hand-indexed       */
   float   xsc[p7P_NXSTATES][p7P_NXTRANS]; /* special transitions [NECJ][LOOP,MOVE] */
 
-  int     mode;          /* configured algorithm mode (e.g. p7_LOCAL)               */ 
-  int     L;    /* current configured target seq length                    */
-  int     allocM;  /* max # of nodes allocated in this structure              */
-  int     M;    /* number of nodes in the model                            */
-  int     max_length;  /* calculated upper bound on emitted seq length            */
-  float   nj;    /* expected # of uses of J; precalculated from loop config */
+  int     mode;                           /* configured algorithm mode (e.g. p7_LOCAL)               */ 
+  int     L;                              /* current configured target seq length                    */
+  int     allocM;                         /* max # of nodes allocated in this structure              */
+  int     M;                              /* number of nodes in the model                            */
+  int     max_length;                     /* calculated upper bound on emitted seq length            */
+  float   nj;                             /* expected # of uses of J; precalculated from loop config */
 
-  /* Info, most of which is a copy from parent HMM:                                       */
-  char  *name;      /* unique name of model                                   */
-  char  *acc;      /* unique accession of model, or NULL                     */
-  char  *desc;                  /* brief (1-line) description of model, or NULL           */
-  char  *rf;                    /* reference line from alignment 1..M; *rf=0 means unused */
-  char  *mm;                    /* modelmask line           1..M; *ref=0: unused     */
-  char  *cs;                    /* consensus structure line      1..M, *cs=0 means unused */
-  char  *consensus;    /* consensus residues to display in alignments, 1..M      */
-  float  evparam[p7_NEVPARAM];   /* parameters for determining E-values, or UNSET          */
-  float  cutoff[p7_NCUTOFFS];   /* per-seq/per-domain bit score cutoffs, or UNSET         */
-  float  compo[p7_MAXABET];  /* per-model HMM filter composition, or UNSET             */
+  /* Info, most of which is a copy from parent HMM:                                                 */
+  char  *name;                            /* unique name of model                                   */
+  char  *acc;                             /* unique accession of model, or NULL                     */
+  char  *desc;                            /* brief (1-line) description of model, or NULL           */
+  char  *rf;                              /* reference line from alignment 1..M; *rf=0 means unused */
+  char  *mm;                              /* modelmask line           1..M; *ref=0: unused          */
+  char  *cs;                              /* consensus structure line      1..M, *cs=0 means unused */
+  char  *consensus;                       /* consensus residues to display in alignments, 1..M      */
+  float  evparam[p7_NEVPARAM];            /* parameters for determining E-values, or UNSET          */
+  float  cutoff[p7_NCUTOFFS];             /* per-seq/per-domain bit score cutoffs, or UNSET         */
+  float  compo[p7_MAXABET];               /* per-model HMM filter composition, or UNSET             */
 
-  /* Disk offset information for hmmpfam's fast model retrieval                           */
-  off_t  offs[p7_NOFFSETS];     /* p7_{MFP}OFFSET, or -1                                  */
+  /* Disk offset information for hmmpfam's fast model retrieval                                     */
+  off_t  offs[p7_NOFFSETS];               /* p7_{MFP}OFFSET, or -1                                  */
 
-  off_t  roff;                  /* record offset (start of record); -1 if none            */
-  off_t  eoff;                  /* offset to last byte of record; -1 if unknown           */
+  off_t  roff;                            /* record offset (start of record); -1 if none            */
+  off_t  eoff;                            /* offset to last byte of record; -1 if unknown           */
 
-  const ESL_ALPHABET *abc;  /* copy of pointer to appropriate alphabet                */
+  const ESL_ALPHABET *abc;                /* copy of pointer to appropriate alphabet                */
   
 } P7_PROFILE;
 
 typedef struct p7_fs_profile_s {
-  float  *tsc;          /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
-  float **rsc;          /* codon emissions [p7P_MAXCODONS][0.1..M], hand-indexed       */
+  float  *tsc;                            /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed           */
+  float **rsc;                            /* codon emissions [p7P_MAXCODONS+Kp][0.1..M], hand-indexed         */
   
-  float   xsc[p7P_NXSTATES][p7P_NXTRANS]; /* special transitions [NECJ][LOOP,MOVE] */
+  float   xsc[p7P_NXSTATES][p7P_NXTRANS]; /* special transitions [NECJ][LOOP,MOVE]                            */
 
-  int     mode;          /* configured algorithm mode (e.g. p7_LOCAL)               */ 
-  int     L;    /* current configured target seq length                    */
-  int     allocM;  /* max # of nodes allocated in this structure              */
-  int     M;    /* number of nodes in the model                            */
-  int     max_length;  /* calculated upper bound on emitted seq length            */
-  float   nj;    /* expected # of uses of J; precalculated from loop config */
+  int     mode;                           /* configured algorithm mode (e.g. p7_LOCAL)                        */ 
+  int     L;                              /* current configured target seq length                             */
+  int     allocM;                         /* max # of nodes allocated in this structure                       */
+  int     M;                              /* number of nodes in the model                                     */
+  int     max_length;                     /* calculated upper bound on emitted seq length                     */
+  float   nj;                             /* expected # of uses of J; precalculated from loop config          */
 
-  /* Info, most of which is a copy from parent HMM:                                       */
-  char  *name;      /* unique name of model                                   */
-  char  *acc;      /* unique accession of model, or NULL                     */
-  char  *desc;                  /* brief (1-line) description of model, or NULL           */
-  char  *rf;                    /* reference line from alignment 1..M; *rf=0 means unused */
-  char  *mm;                    /* modelmask line           1..M; *ref=0: unused     */
-  char  *cs;                    /* consensus structure line      1..M, *cs=0 means unused */
-  char  *consensus;    /* consensus residues to display in alignments, 1..M      */
-  float  evparam[p7_NEVPARAM];   /* parameters for determining E-values, or UNSET          */
-  float  cutoff[p7_NCUTOFFS];   /* per-seq/per-domain bit score cutoffs, or UNSET         */
-  float  compo[p7_MAXABET];  /* per-model HMM filter composition, or UNSET             */
+  /* Info, most of which is a copy from parent HMM:                                                           */
+  char  *name;                            /* unique name of model                                             */
+  char  *acc;                             /* unique accession of model, or NULL                               */
+  char  *desc;                            /* brief (1-line) description of model, or NULL                     */
+  char  *rf;                              /* reference line from alignment 1..M; *rf=0 means unused           */
+  char  *mm;                              /* modelmask line           1..M; *ref=0: unused                    */
+  char  *cs;                              /* consensus structure line      1..M, *cs=0 means unused           */
+  char  *consensus;                       /* consensus residues to display in alignments, 1..M                */
+  float  evparam[p7_NEVPARAM];            /* parameters for determining E-values, or UNSET                    */
+  float  cutoff[p7_NCUTOFFS];             /* per-seq/per-domain bit score cutoffs, or UNSET                   */
+  float  compo[p7_MAXABET];               /* per-model HMM filter composition, or UNSET                       */
 
-  /* Disk offset information for hmmpfam's fast model retrieval                           */
-  off_t  offs[p7_NOFFSETS];     /* p7_{MFP}OFFSET, or -1                                  */
+  /* Disk offset information for hmmpfam's fast model retrieval                                               */
+  off_t  offs[p7_NOFFSETS];               /* p7_{MFP}OFFSET, or -1                                            */
 
-  off_t  roff;                  /* record offset (start of record); -1 if none            */
-  off_t  eoff;                  /* offset to last byte of record; -1 if unknown           */
+  off_t  roff;                            /* record offset (start of record); -1 if none                      */
+  off_t  eoff;                            /* offset to last byte of record; -1 if unknown                     */
 
-  ESL_DSQ **codons;             /* maximum scoring Amino Acid translations [p7P_MAXCODONS][0.1..M]    */
-  ESL_DSQ **indel_pos;          /* maximum scoring indel positions [p7P_MAXCODONS][0.1..M]    */
-  const ESL_ALPHABET *abc;      /* copy of pointer to appropriate alphabet                */
+  ESL_DSQ **codons;                       /* maximum scoring Amino Acid translations [p7P_MAXCODONS][0.1..M]  */
+  ESL_DSQ **indel_pos;                    /* maximum scoring indel positions [p7P_MAXCODONS][0.1..M]          */
+  const ESL_ALPHABET *abc;                /* copy of pointer to appropriate alphabet                          */
  
 } P7_FS_PROFILE;
 

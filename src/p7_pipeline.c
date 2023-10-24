@@ -2621,7 +2621,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     p7_fs_ReconfigLength(gm_fs, dna_window->length);
 	
     p7_ForwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxf, &fwdsc_fs);
-
+    
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
     P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
     P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]); 
@@ -2666,7 +2666,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
        p7_oprofile_ReconfigLength(om, curr_orf->n);
        if ((pli_tmp->oxf_holder[f] = p7_omx_Create(om->M, 0, curr_orf->n)) == NULL) goto ERROR ;
        p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], &fwdsc_orf);
-
+       
        /* Find the individual p-value (with bias) of each ORF in 
         * the window and store it. Also find the minimum p-value 
         * (with bias) of all ORFs in the window to test it at 
@@ -2698,7 +2698,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
-  
+   
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
     pli->pos_past_fwd += dna_window->length; 
   

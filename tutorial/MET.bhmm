@@ -1,4 +1,4 @@
-FraHMMER3/f
+BATH3/f
 NAME  metC
 DESC  Cystathionine beta-lyase
 LENG  409
@@ -9,16 +9,16 @@ MM    no
 CONS  yes
 CS    no
 MAP   yes
-DATE  Mon Feb 20 16:08:41 2023
+DATE  Sat Sep 23 23:52:28 2023
 NSEQ  11
 EFFN  0.604248
 CKSUM 1405781331
 STATS LOCAL MSV         -11.5034  0.69910
 STATS LOCAL VITERBI     -12.3758  0.69910
 STATS LOCAL FORWARD      -5.9341  0.69910
-STATS LOCAL FS FORWARD   -1.9815  0.69910
+STATS LOCAL FS FORWARD   -2.1663  0.69910
 FRAMESHIFT PROB    0.0100
-CODON TABLE  4
+CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.44899  3.94183  2.94937  2.87688  3.24278  2.82268  3.77606  2.80657  2.83519  2.25778  3.59195  3.14688  3.48118  3.33345  3.03547  2.54719  2.85975  2.51524  4.52957  3.56949
@@ -1252,7 +1252,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01969  3.93756        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  metG
 DESC  Methionine--tRNA ligase
 LENG  458
@@ -1263,16 +1263,16 @@ MM    no
 CONS  yes
 CS    no
 MAP   yes
-DATE  Mon Feb 20 16:08:41 2023
+DATE  Sat Sep 23 23:52:29 2023
 NSEQ  24
 EFFN  0.618164
 CKSUM 136805707
 STATS LOCAL MSV         -11.8793  0.69848
 STATS LOCAL VITERBI     -12.6687  0.69848
 STATS LOCAL FORWARD      -5.8725  0.69848
-STATS LOCAL FS FORWARD    0.4858  0.69848
+STATS LOCAL FS FORWARD    0.0739  0.69848
 FRAMESHIFT PROB    0.0100
-CODON TABLE  4
+CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.48463  4.12851  3.11369  2.87920  3.33933  3.11589  3.60130  2.66153  2.58018  2.34135  3.69219  2.98746  3.57400  3.22473  3.00300  2.67709  2.83488  2.53947  4.14522  3.32384

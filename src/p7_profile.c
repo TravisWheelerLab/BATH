@@ -183,32 +183,31 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   gm_fs->indel_pos[0] = NULL;
 
   /* level 2 */
-  ESL_ALLOC(gm_fs->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS + p7_MAXABET));
+  ESL_ALLOC(gm_fs->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS + abc->Kp));
 
   for (x = 1; x <= allocM; x++)   
-    gm_fs->rsc[x] = gm_fs->rsc[0] + x * (p7P_MAXCODONS + p7_MAXABET);
+    gm_fs->rsc[x] = gm_fs->rsc[0] + x * (p7P_MAXCODONS + abc->Kp);
 
-  ESL_ALLOC(gm_fs->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS + p7_MAXABET));
-
-  for (x = 1; x <= allocM; x++)
-    gm_fs->codons[x] = gm_fs->codons[0] + x * (p7P_MAXCODONS + p7_MAXABET);
-
-  ESL_ALLOC(gm_fs->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS + p7_MAXABET));
+  ESL_ALLOC(gm_fs->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
 
   for (x = 1; x <= allocM; x++)
-    gm_fs->indel_pos[x] = gm_fs->indel_pos[0] + x * (p7P_MAXCODONS + p7_MAXABET);
+    gm_fs->codons[x] = gm_fs->codons[0] + x * p7P_MAXCODONS;
+
+  ESL_ALLOC(gm_fs->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
+
+  for (x = 1; x <= allocM; x++)
+    gm_fs->indel_pos[x] = gm_fs->indel_pos[0] + x * p7P_MAXCODONS;
 
   /* Initialize some edge pieces of memory that are never used,
-   * and are only present for indexing convenience.
-   */
+   * and are only present for indexing convenience. */
   esl_vec_FSet(gm_fs->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
   if (allocM > 1) {
     p7P_TSC(gm_fs, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
     p7P_TSC(gm_fs, 1, p7P_DD) = -eslINFINITY;
   }
 
-  for (x = 0; x < p7P_MAXCODONS + p7_MAXABET; x++) 
-    p7P_MSC_FS(gm_fs, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
+  for (x = 0; x < (p7P_MAXCODONS + abc->Kp); x++) 
+    p7P_MSC_CODON(gm_fs, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
   
   /* Set remaining info  */
   gm_fs->mode             = p7_NO_MODE;
@@ -318,10 +317,10 @@ p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
   if (src->M > dst->allocM) ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
 
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
-  for (x = 0; x <= src->M;   x++) esl_vec_FCopy(src->rsc[x], p7P_MAXCODONS + p7_MAXABET, dst->rsc[x]);
-  for (x = 0; x < p7P_NXSTATES;   x++) esl_vec_FCopy(src->xsc[x], p7P_NXTRANS,       dst->xsc[x]);
-  for (x = 0; x <= src->M;  x++) { esl_abc_dsqcpy(src->codons[x], p7P_MAXCODONS-2 + p7_MAXABET, dst->codons[x]); }
-  for (x = 0; x <= src->M;  x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS-2 + p7_MAXABET, dst->indel_pos[x]); }
+  for (x = 0; x <= src->M;      x++) { esl_vec_FCopy( src->rsc[x],       (p7P_MAXCODONS + src->abc->Kp), dst->rsc[x]);       }
+  for (x = 0; x < p7P_NXSTATES; x++) { esl_vec_FCopy( src->xsc[x],       p7P_NXTRANS,                    dst->xsc[x]);       }
+  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->codons[x],    p7P_MAXCODONS,                  dst->codons[x]);    }
+  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS,                  dst->indel_pos[x]); }
 
   dst->mode        = src->mode;
   dst->L           = src->L;
@@ -385,7 +384,6 @@ p7_profile_fs_Clone(const P7_FS_PROFILE *gm)
 {
   P7_FS_PROFILE *g2 = NULL;
   int         status;
-
   if ((g2 = p7_profile_fs_Create(gm->allocM, gm->abc)) == NULL) return NULL;
   if ((status = p7_profile_fs_Copy(gm, g2)) != eslOK) goto ERROR;
   return g2;

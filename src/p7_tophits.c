@@ -849,23 +849,12 @@ int
 p7_tophits_ComputeBathEvalues(P7_TOPHITS *th, int64_t N, int W)
 {
   int i;    /* counters over hits */
-  
-  if(N)
+
+  for (i = 0; i < th->N ; i++)
   {
-    for (i = 0; i < th->N ; i++)
-    {
-      th->unsrt[i].lnP        += log((float)N / (float)W);
-      th->unsrt[i].dcl[0].lnP  = th->unsrt[i].lnP;
-      th->unsrt[i].sortkey     = -1.0 * th->unsrt[i].lnP;
-    }
-  }
-  else
-  {
-    for (i = 0; i < th->N ; i++)
-    {
-      th->unsrt[i].dcl[0].lnP  = th->unsrt[i].lnP;
-      th->unsrt[i].sortkey     = -1.0 * th->unsrt[i].lnP;
-    }
+    th->unsrt[i].lnP        += log((float)N / (float)W);
+    th->unsrt[i].dcl[0].lnP  = th->unsrt[i].lnP;
+    th->unsrt[i].sortkey     = -1.0 * th->unsrt[i].lnP;
   }
   return eslOK;
 }

@@ -1,4 +1,4 @@
-# query HMM file:                  PTH2.fhmm
+# query HMM file:                  PTH2.bhmm
 # target sequence database:        target-PTH2.fa
 # frameshift probability:          0.010000
 # codon translation table          1
@@ -12,145 +12,13 @@ Description: Peptidyl-tRNA hydrolase PTH2
 Scores for complete hits:
     E-value  score  bias  Sequence  start    end  shifts  stops  Description
     ------- ------ -----  --------  -----  -----  ------  -----  -----------
-    3.4e-34  110.1   0.3  seq1        672    325       0      0 
-    4.2e-33  110.3   0.0  seq1       1273   1731       0      0 
-    2.7e-27   91.6   0.2  seq1       2659   2343       2      1 
+
+   [No hits detected that satisfy reporting thresholds]
 
 
 Annotation for each hit (and alignments):
->> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
- !  110.1   0.3   3.4e-34          2       116 .]       672       325 ..       675       325 ..      0      0      3000   0.92
 
-  Alignment:
-  score: 110.1 bits
-             E    E    E    E    E    E    E    E    S    C    C    S    S    -    H    H    H    H    H    H    H    H    H    H    H    H    H  CS
-  PTH2   2   l    k    q    v    i    v    v    r    t    d    l    k    m    g    k    G    k    l    a    a    q    v    a    h    a    a    v   28 
-             +    k         v    +    v    v    r    t    d    l         m    +    k    G    k    +    a    a    q    +    +    h    a    +       
-             V    K    L    V    L    V    V    R    T    D    L    G    M    T    K    G    K    I    A    A    Q    C    S    H    A    T    L      
-  seq1 672  GTG  AAG  CTT  GTG  CTG  GTT  GTG  AGG  ACA  GAT  CTG  GGC  ATG  ACC  AAA  GGC  AAA  ATC  GCC  GCC  CAG  TGC  TCG  CAT  GCA  ACG  CTC  592
-             8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    8    7   PP
-
-             H    H    H    H    H    H    .    .    H    H    H    H    H    H    H    H    H    H    H    H    H    T    T    S    S    E    E  CS
-  PTH2  29   s    a    v    l    e    i    .    .    r    k    k    k    r    e    w    l    e    e    W    l    e    e    g    q    k    k    v   53 
-                                                     +    +         +              +    l    +    +    W         +    +    g    q    +    k    +  
-             A    C    Y    K    Y    L    i    a    H    N    P    Q    S    P    I    L    R    R    W    E    Q    Q    G    Q    A    K    I      
-  seq1 591  GCC  TGC  TAC  AAA  TAC  CTC  ATT  GCG  CAT  AAC  CCG  CAG  TCA  CCT  ATC  CTG  CGG  AGA  TGG  GAA  CAA  CAG  GGA  CAA  GCA  AAG  ATC  511
-             6    5    5    4    4    3    3    3    8    8    8    8    8    9    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-             E    E    E    E    S    S    H    H    H    H    H    H    H    H    H    H    H    H    H    T    T    -    -    E    E    E    E  CS
-  PTH2  54   v    v    k    v    e    s    e    e    e    l    l    k    v    k    k    k    a    e    e    l    g    l    p    a    s    l    i   80 
-                  +    +         +    s    e    e    e    l    +         +    +    +    +    a    +    +    l    g    l         a         +    i  
-             A    L    Q    T    K    S    E    E    E    L    Q    L    L    Q    A    Q    A    M    S    L    G    L    C    A    R    V    I      
-  seq1 510  GCC  TTG  CAG  ACA  AAG  TCG  GAG  GAG  GAA  TTA  CAG  TTG  CTG  CAA  GCA  CAG  GCG  ATG  AGC  CTG  GGT  CTC  TGT  GCT  CGC  GTG  ATC  430
-             *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-             E    E    T    T    S    S    S    S    S    T    T    C    E    E    E    E    E    E    E    E    E    E    H    H    H    H    H  CS
-  PTH2  81   e    d    a    G    k    t    q    l    e    P    g    t    v    t    a    v    a    i    G    P    a    p    e    e    l    v    d   107
-             +    d    a    G    +    t    q    +    +         g              t    +    +    +    +              +    p    +    +    +    v    d  
-             Q    D    A    G    R    T    Q    I    A    S    G    S    R    T    V    L    G    V    -    L    G    P    K    S    V    V    D      
-  seq1 429  CAG  GAT  GCT  GGA  CGG  ACA  CAG  ATC  GCC  AGC  GGA  AGC  AGG  ACG  GTG  CTT  GGA  GTT  ---  TTG  GGG  CCA  AAG  AGT  GTG  GTT  GAT  352
-             *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    .    4    7    8    9    9    *    *    *   PP
-
-             H    H    H    T    T    S    E    B    -  CS
-  PTH2 108   k    v    t    G    d    l    k    l    l   116
-             +    v    t    G    +    l    k    l    l  
-             Q    V    T    G    H    L    K    L    L      
-  seq1 351  CAA  GTA  ACG  GGG  CAT  CTA  AAG  CTG  TTG  325
-             *    *    *    *    *    *    *    *    8   PP
-
->> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
- !  110.3   0.0   4.2e-33          2       116 .]      1273      1731 ..      1263      1734 ..      0      0      3000   0.95
-
-  Alignment:
-  score: 110.3 bits
-              E    E    E    E    E    E    E    E    S    C    C    S    S    -    H    H    H    H    H    H    H    H    H    H    H    H  CS
-  PTH2    2   l    k    q    v    i    v    v    r    t    d    l    k    m    g    k    G    k    l    a    a    q    v    a    h    a    a   27  
-              l    k    +    +    +    v    v    r    +    d    l    k    m    g         G    k    +    a    a    q    +    a    h    a    a  
-              L    K    M    T    L    V    V    R    R    D    L    K    M    G    T    G    K    I    A    A    Q    C    A    H    A    A       
-  seq1 1273  CTT  AAG  ATG  ACT  TTG  GTT  GTG  CGC  AGG  GAC  CTA  AAA  ATG  GGA  ACG  GGG  AAA  ATT  GCT  GCG  CAG  TGC  GCT  CAC  GCG  GCC  1350
-              6    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-              H    H    H    H    H    H    H    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .  CS
-  PTH2   28   v    s    a    v    l    e    i    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .   34  
-              v                        +    +                                                                                                 
-              V    A    H    G    G    S    A    k    s    a    q    *    *    w    c    *    l    q    r    q    l    s    t    y    g    y       
-  seq1 1351  GTT  GCC  CAT  GGA  GGA  AGT  GCA  AAG  TCG  GCG  CAG  TGA  TAA  TGG  TGC  TAA  CTG  CAA  CGA  CAG  CTG  TCT  ACG  TAT  GGT  TAC  1428
-              *    9    8    7    7    7    7    7    7    8    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-              .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    H    H    H    H    H    H    H  CS
-  PTH2   35   .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    .    r    k    k    k    r    e    w   41  
-                                                                                                                       k    +              w  
-              s    g    n    s    d    h    y    s    p    a    a    s    q    m    c    g    g    s    g    A    D    K    W    V    S    W       
-  seq1 1429  AGT  GGC  AAC  AGT  GAT  CAT  TAC  TCC  CCT  GCT  GCA  TCT  CAA  ATG  TGC  GGT  GGG  AGT  GGT  GCA  GAT  AAG  TGG  GTG  TCG  TGG  1506
-              *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    9    9    9    *    *    *    *    *   PP
-
-              H    H    H    H    H    H    T    T    S    S    E    E    E    E    E    E    S    S    H    H    H    H    H    H    H    H  CS
-  PTH2   42   l    e    e    W    l    e    e    g    q    k    k    v    v    v    k    v    e    s    e    e    e    l    l    k    v    k   67  
-              +    +    +    W    +              g         k    k    v         +    +         e         e    e    +    l    +    +         +  
-              Y    D    A    W    R    F    A    G    S    K    K    V    A    L    Q    C    E    N    E    E    Q    L    M    E    A    Y       
-  seq1 1507  TAT  GAT  GCA  TGG  AGG  TTT  GCT  GGC  AGC  AAG  AAA  GTT  GCT  CTT  CAG  TGT  GAA  AAT  GAA  GAG  CAA  CTA  ATG  GAA  GCC  TAC  1584
-              *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-              H    H    H    H    H    T    T    -    -    E    E    E    E    E    E    T    T    S    S    S    S    S    T    T    C    E  CS
-  PTH2   68   k    k    a    e    e    l    g    l    p    a    s    l    i    e    d    a    G    k    t    q    l    e    P    g    t    v   93  
-              +         a         +    +    g    +    p         +    +    i    +    d    a    G    +    t    q    +    +         g            
-              R    A    A    R    R    E    G    I    P    H    A    V    I    R    D    A    G    R    T    Q    I    A    A    G    S    K       
-  seq1 1585  AGA  GCC  GCC  AGG  CGT  GAG  GGA  ATT  CCA  CAC  GCT  GTA  ATC  CGT  GAC  GCG  GGA  AGA  ACT  CAA  ATT  GCC  GCG  GGG  AGC  AAA  1662
-              *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-              E    E    E    E    E    E    E    E    E    H    H    H    H    H    H    H    H    T    T    S    E    B    -  CS
-  PTH2   94   t    a    v    a    i    G    P    a    p    e    e    l    v    d    k    v    t    G    d    l    k    l    l   116 
-              t    +    +    a    +    G    P    a    p    +    +    l    v    d    +    v    t    G    +    +    k    l    l  
-              T    V    L    A    V    G    P    A    P    D    S    L    V    D    R    V    T    G    H    F    K    L    L       
-  seq1 1663  ACC  GTG  CTG  GCT  GTG  GGA  CCT  GCC  CCA  GAT  TCA  CTT  GTA  GAC  CGT  GTA  ACA  GGT  CAT  TTC  AAA  CTC  CTT  1731
-              *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    8   PP
-
->> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
- !   91.6   0.2   2.7e-27          5       113 ..      2659      2343 ..      2677      2327 ..      2      1      3000   0.87
-
-  Alignment:
-  score: 91.6 bits
-              E    E    E    E    E    S    C    C    S    S    -    H    H    H    H    H    H    H    H    H    H    H    H    H    H    H  CS
-  PTH2    5   v    i    v    v    r    t    d    l    k    m    g    k    G    k    l    a    a    q    v    a    h    a    a    v    s    a   30  
-                   i    v    +    r    +    d    l    k    m    g    k    G    k         a    a    q    +    +    h    a    +    +    +    a  
-              G    I    V    I    R    N    D    L    K    M    G    K    G    K    X    A    A    Q    A    C    H    A    S    I    Q    A       
-  seq1 2659  GGC  ATT  GTT  ATT  CGA  AAT  GAT  CTA  AAA  ATG  GGA  AAG  GGA  AAA  tga  GCG  GCT  CAA  GCC  TGT  CAT  GCA  TCA  ATT  CAA  GCT  2582
-              6    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-              H    H    H    H    H    H    H    H    H    H    H    H    H    H    H    H    H    T    T    S    S    E    E    E    E    E  CS
-  PTH2   31   v    l    e    i    r    k    k    k    r    e    w    l    e    e    W    l    e    e    g    q    k    k    v    v    v    k   56  
-                   l    +    +    +    k                             +    +         W    +    +              q    k    k    v    v    +    k  
-              F    L    H    A    Q    K    I    S    S    S    A    V    S    G    W    M    S    C    N    Q    K    K    V    V    L    K       
-  seq1 2581  TTT  TTA  CAT  GCT  CAA  AAA  ATA  AGT  TCA  TCT  GCA  GTT  AGT  GGC  TGG  ATG  AGC  TGC  AAT  --G  AAG  AAA  GTT  GTT  TTA  AAA  2506
-              *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    9    *    *    *    *    *    *    *    *   PP
-
-              E    S    S    H    H    H    H    H    H    H    H    H    H    H    H    H    T    T    -    -    E    E    E    E    E    E  CS
-  PTH2   57   v    e    s    e    e    e    l    l    k    v    k    k    k    a    e    e    l    g    l    p    a    s    l    i    e    d   82  
-              v    +         e    +    e    l    l    +    +    +    k    +         +         +    g    l    p         s    l    i    +    d  
-              V    T    -    E    K    E    L    L    E    I    Y    K    N    V    N    I    E    G    L    P    C    S    L    I    R    D       
-  seq1 2505  GTA  ACT  ---  GAG  AAG  GAA  CTT  TTA  GAA  ATT  T--  AAA  AAC  GTT  AAT  ATC  GAA  GGA  CTT  CCG  TGC  AGT  TTA  ATA  AGA  GAT  2433
-              9    6    .    7    8    9    9    9    *    *    8    8    8    9    9    9    9    *    *    *    *    *    *    *    *    *   PP
-
-              T    T    S    S    S    S    S    T    T    C    E    E    E    E    E    E    E    E    E    E    H    H    H    H    H    H  CS
-  PTH2   83   a    G    k    t    q    l    e    P    g    t    v    t    a    v    a    i    G    P    a    p    e    e    l    v    d    k   108 
-              a    G         t    q    +    e    P    g         +    t    a    v    +    i    G    P              e    e         +         k  
-              A    G    -    T    Q    I    E    P    G    S    L    T    A    V    G    I    G    P    E    K    E    E    K    I    S    K       
-  seq1 2432  GCG  GGA  ---  ACC  CAG  ATT  GAA  CCT  GGA  AGT  CTT  ACT  GCT  GTT  GGA  ATT  GGC  CCT  GAA  AAA  GAA  GAA  AAA  ATT  TCA  AAA  2358
-              *    9    .    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-              H    H    T    T    S  CS
-  PTH2  109   v    t    G    d    l   113 
-              v              d    l  
-              V    K    K    D    L       
-  seq1 2357  GTT  AAG  AAA  GAT  TTG  2343
-              *    8    8    7    6   PP
-
+   [No targets detected that satisfy reporting thresholds]
 
 
 Internal pipeline statistics summary:
@@ -160,9 +28,9 @@ Target sequence(s):                        1  (6000 residues searched)
 Residues passing SSV filter:            1503  (0.251); expected (0.02)
 Residues passing bias filter:           1503  (0.251); expected (0.02)
 Residues passing Vit filter:            1401  (0.234); expected (0.001)
-Residues passing Fwd filter:            1961  (0.327); expected (1e-05)
-Total number of hits:                      3  (0.187)
-# CPU time: 0.05u 0.01s 00:00:00.06 Elapsed: 00:00:00.05
-# Mc/sec: 12.26
+Residues passing Fwd filter:            1734  (0.289); expected (1e-05)
+Total number of hits:                      0  (0)
+# CPU time: 0.08u 0.00s 00:00:00.08 Elapsed: 00:00:00.07
+# Mc/sec: 8.76
 //
 [ok]

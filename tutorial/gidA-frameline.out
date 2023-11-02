@@ -1,4 +1,4 @@
-# query HMM file:                  gidA.fhmm
+# query HMM file:                  gidA.bhmm
 # target sequence database:        target-gidA.fa
 # frameshift probability:          0.010000
 # codon translation table          4
@@ -10,122 +10,13 @@ Query:       gidA  [M=485]
 Scores for complete hits:
     E-value  score  bias  Sequence  start    end  shifts  stops  Description
     ------- ------ -----  --------  -----  -----  ------  -----  -----------
-      2e-12   44.9   0.0  seq1      26678  27756      11      1 
+
+   [No hits detected that satisfy reporting thresholds]
 
 
 Annotation for each hit (and alignments):
->> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
- !   44.9   0.0     2e-12         63       419 ..     26678     27756 ..     26630     27947 ..     11      1     33827   0.56
 
-  Alignment:
-  score: 44.9 bits
-  gidA    63   l    t    s    s    l    r    l    q    l    d    k    r    l    y    k    l    l    s    t    h    s    l    t    t    h    k   88   
-               +         +    s    l    +    l    +    l    +    k    +         y              l    s                   l         t         k  
-               V    I    T    S    L    E    L    K    L    N    K    E    T    Y    N    N    L    S    -    -    -    L    E    T    S    K        
-  seq1 26678  GTT  ATA  ACT  TCT  TTA  GAA  TTA  AAA  CTC  AAC  AAA  GAA  ACA  TAC  AAC  AAC  CTA  TCA  ---  ---  ---  CTT  GAA  ACA  TCC  AAG  26746
-               2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    .    .    .    2    2    2    2    2   FRAME
-               5    6    8    9    9    *    *    *    *    *    *    *    *    9    9    8    7    5    .    .    .    6    7    7    7    8   PP
-
-  gidA    89   i    k    i    v    k    a    l    v    t    q    i    k    r    i    s    k    g    f    e    i    k    l    e    .    q    l   113  
-               i              v                   v    t         i         +    +    +              +         i    +    +    e                 
-               I    L    T    V    H    N    E    V    T    D    I    I    H    L    T    N    K    I    Y    I    E    I    E    h    H    N        
-  seq1 26747  ATC  CTA  ACC GTtaT CAC  AAC  GAA  GTT  ACC  GAT  ATA  ATA  CAT  CTA  ACC  AAC  AAA  ATC  TAT  ATT  GAG  ATT  -AA  CAT  CAC  AAC  26825
-               2    2    2    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    3    3    3    3   FRAME
-               7    6    6    7    8    8    9    9    9    9    9    9    9    9    8    8    8    7    7    8    7    7    4    0    7    7   PP
-
-  gidA   114   d    a    i    t    t    k    t    i    v    l    a    t    g    t    s    a    r    s    v    c    r    i    g    e    c    s   139  
-                         +    +         k    t    +    +    l                                  +              c    +    i         e    c       
-               P    E    L    S    I    K    T    V    I    L    V    P    K    P    L    N    K    P    T    C    H    I    D    E    C    V        
-  seq1 26826  CCA  GAA  CTA  TCC  ATC  AAA  ACT  GTT  ATA  CTA  GTA  CCA  AAA  CCA  TTA  AAC  AAA  CCA  ACA  TGC  CAC  ATC  GAT  GAA  TGT  GTT  26903
-               3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3   FRAME
-               8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-  gidA   140   l    a    l    d    r    l    s    d    k    s    n    e    c    v    y    s    l    f    k    a    h    g    a    s    l    k   165  
-               +         +              +                        +                        +         f    k         +    +                   k  
-               I    P    V    V    T    I    I    H    H    Q    H    P    Y    T    L    N    P    F    K    N    Y    N    I    R    S    K        
-  seq1 26904  ATA  CCT  GTT  GTA  ACC  ATT  ATT  CAC  CAC  CAA  CAT  CCA  TAC  ACG  TTA  AAC  CCA  TTC  AAtA AAT  TAT  AAC  ATT  AGA  TCT  AAA  26982
-               3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    1    1    1    1    1    1    1    1   FRAME
-               *    9    9    9    9    9    8    8    8    7    7    7    7    7    7    7    7    8    5    6    6    6    6    6    6    6   PP
-
-  gidA   166   r    f    k    t    g    t    s    p    r    l    e    k    a    s    v    c    w    s    a    a    s    q    n    k    d    v   191  
-               +              t    g         s                                  +              w    +              s         n    +            
-               H    P    I    T    G    M    S    S    S    W    L    I    I    N    T    N    W    T    E    T    S    L    N    Q    Y    Q        
-  seq1 26983  CAT  CCC  ATA  ACA  --A  ATG  TCC  TCA  TCA  TGA  CTA  ATA  ATA  AAC  ACC  AAC  -GA  ACT  GAG  ACC  TCA  CTC  AAC  CAA  TAC  CAA  27057
-               1    1    1    1    2    2    2    2    2    2    2    2    2    2    2    2    1    1    1    1    1    1    1    1    1    1   FRAME
-               6    6    6    6    3    3    2    2    2    2    2    3    4    4    5    5    6    6    6    6    6    6    7    6    5    4   PP
-
-  gidA   192   a    t    r    h    g    f    c    g    t    l    n    r    v    t    l    s    t    r    c    k    w    t    h    t    n    e   217  
-                         +    h         +    c                   n         +         l         t    +              w         h    t    n    +  
-               T    R    N    H    C    I    C    L    Q    W    N    Y    L    Q    L    Q    T    N    H    T    W    L    H    T    N    K        
-  seq1 27058  ACA  AGG  AAC  CAT  TGT  ATA  --C  CTT  CAA  TGG  AAT  TAC  CTT  CAA  TTA  CAA  ACC  AAT  CAT  ACC  --A  TTA  CAC  ACC  AAC  AAA  27131
-               1    1    1    1    1    1    2    2    2    2    2    2    2    2    2    2    2    2    2    2    3    3    3    3    3    3   FRAME
-               4    4    4    5    4    5    6    7    8    8    9    9    9    9    9    9    9    9    9    9    9    9    *    *    *    *   PP
-
-  gidA   218   a    v    y    t    l    i    k    a    s    a    .    n    q    a    p    m    c    l    g    .    .    r    l    l    a    k   240  
-                         y         l    +                                            p    m                             r         l            
-               N    T    Y    K    L    L    N    T    Y    T    v    V    L    T    P    M    K    K    Q    h    h    R    T    L    D    P        
-  seq1 27132  AAC  ACC  TAC  AAA  CTA  TTA  AAT  ACC  TAC  ACC  GTT  GTT  CTA  ACT  CCC  A--  AAG  AAA  CAA  CAC  CAC  CGA  ACG  TTG  GAC  CCA  27207
-               3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    1    1    1    1    1    1    1    1    1    1    1   FRAME
-               *    *    *    9    9    9    7    6    5    4    1    3    4    5    5    2    2    2    3    0    0    5    4    4    2    1   PP
-
-  gidA   241   g    p    r    y    c    l    s    i    e    g    k    t    l    k    f    g    r    k    p    q    k    l    i    m    e    p   266  
-                                                                                                                   +         i    +    e    p  
-               T    S    T    L    F    N    Q    T    -    K    M    K    H    P    -    T    I    N    I    Y    R    P    I    I    E    P        
-  seq1 27208  ACA  TCC  ACC  CTT  TTC  AAC  CAA  ACT  ---  AAA  ATG  AAA  CAT  CCA  ---  ACC  ATA  AAC  ATC  TAC  AGA  CCC  ATC  ATA  GAA  CCA  27279
-               1    1    1    1    1    1    1    1    .    1    1    1    1    1    .    1    1    1    1    1    1    1    1    1    1    1   FRAME
-               1    0    0    0    0    0    0    1    .    0    0    0    0    0    .    4    4    5    6    7    8    8    9    *    *    *   PP
-
-  gidA   267   e    a    t    g    s    s    s    v    y    v    n    g    l    s    t    s    m    .    p    i    e    l    q    l    q    l   291  
-               e                   +         +    v    +    +    n    g         s         s                   +         +    q    l         +  
-               E    X    L    D    T    K    T    V    H    L    N    G    T    S    I    S    T    s    N    L    V    I    Q    L    N    I        
-  seq1 27280  GAA  taa  CTT  GAT  ACT  AAA  ACT  GTA  CAC  CTA  AAT  GGT  ACC  TCT  ATC  TCA  ACC  TCC  AAT  CTG  GTA  ATC  CAA  CTT  AAC  ATA  27357
-               1    0    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1   FRAME
-               *    8    8    9    9    9    *    *    *    *    *    *    9    9    7    7    5    1    6    8    9    9    *    *    *    *   PP
-
-  gidA   292   l    k    f    t    k    a    f    r    g    a    k    i    i    k    a    g    y    a    i    e    y    d    c    v    c    s   317  
-               l    k         t    +                                  +    +    k    +         +         i    e    y    d              c    s  
-               L    K    P    T    Q    H    P    I    D    V    C    V    V    K    S    K    H    T    I    E    Y    D    V    T    C    S        
-  seq1 27358  CTA  AAA  CCC  ACA CtAA  CAC  CCA  ATT  GAT  GTC  TGT  GTT  GTT  AAG  TCC  AAA  CAC  ACC  ATA  GAA  TAC  GAT  GTA  ACT  TGT  TCA  27436
-               1    1    1    1    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2   FRAME
-               *    *    *    *    8    7    7    8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
-
-  gidA   318   s    g    l    k    s    t    l    e    s    a    .    n    a    s    n    i    y    t    a    g    q    i    n    g    t    t   342  
-                         +              t              +                             n    i    y                        +                      
-               G    E    V    D    E    T    A    T    T    Q    m    Y    I    K    N    I    Y    G    K    P    N    L    W    P    N    H        
-  seq1 27437  GGT  GAA  GTA  GAT  GAA  ACC  GCT  ACA  ACC  CAG  ATG  TAC  ATC  AAG  AAC  ATT  TAT  GGT  AAA  CCA  AAT  CTA  TGA  CCA  AAC  CAC  27514
-               2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2   FRAME
-               *    *    *    9    9    9    8    7    6    5    1    7    8    9    *    *    *    *    9    9    9    9    8    8    8    9   PP
-
-  gidA   343   g    y    e    e    a    s    a    q    g    f    v    a    g    l    .    .    n    a    a    a    r    v    l    a    k    r   366  
-               +         e    e         +         q         +    +    a                        n                             +    +            
-               N    M    E    E    P    T    T    Q    R    W    L    A    D    A    t    t    N    N    I    L    P    T    I    S    P    V        
-  seq1 27515  AAC  ATG  GAA  GAA  CCA  ACA  ACC  CAA  CGT  TGA  TTA  GCA  GAT  GCA  ACT  ACC  AAC  AAC  ATA  CTA  CCC  ACC  ATC  TCC  CCA  GTA  27592
-               2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2   FRAME
-               9    9    *    *    *    *    *    *    *    *    9    8    7    5    2    2    5    5    6    6    6    7    7    8    8    8   PP
-
-  gidA   367   e    y    t    f    g    k    q    f    s    y    i    g    i    l    i    d    n    i    t    n    n    a    l    s    e    p   392  
-                              +    +    k         +    s    y    i    g    +    l    +         +    +    t                        +         p  
-               S    T    N    L    N    K    T    Y    S    Y    I    G    L    L    M    S    D    L    T    I    K    E    P    N    P    P        
-  seq1 27593  TCT  ACA  AAC  CTC  AAT  AAA  ACA  TAT  TCG  TAT  ATT  GGA  CTA  CTA  ATG  TCC  GAT  CTC AgCC  ATC  AAA  GAA  CCA  AAC  CCA  CCA  27671
-               2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    3    3    3    3    3    3    3    3   FRAME
-               8    8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    8    8    9    9    9    9    *    *   PP
-
-  gidA   393   y    r    v    l    t    t    r    a    r    n    r    t    q    l    r    q    r    n    a    .    i    l    r    l    f    p   417  
-               y    r         l    +                   +         r         q    l    +    q    +                             +         +    p  
-               Y    R    T    L    S    V    S    T    Q    P    R    N    Q    L    K    Q    Q    T    H    h    T    S    N    R    Y    P        
-  seq1 27672  TAT  CGA  ACT  TTA  AGT  GTA  AGT  ACT CtAA  CCA  AGA  AAT  CAA  TTA  AAA  CAA  CAA  ACA  CAC  CAC  ACC  TCC  AAC  CGT  TAT  CCT  27750
-               3    3    3    3    3    3    3    3    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1   FRAME
-               *    *    *    *    9    9    9    8    8    9    9    9    *    9    9    9    7    5    3    1    3    4    4    5    5    5   PP
-
-  gidA   418   h    s   419  
-                    +  
-               P    N        
-  seq1 27751  CCT  AAC  27756
-               1    1   FRAME
-               5    5   PP
-
+   [No targets detected that satisfy reporting thresholds]
 
 
 Internal pipeline statistics summary:
@@ -135,9 +26,9 @@ Target sequence(s):                        1  (67654 residues searched)
 Residues passing SSV filter:            3222  (0.0476); expected (0.02)
 Residues passing bias filter:           3222  (0.0476); expected (0.02)
 Residues passing Vit filter:            3222  (0.0476); expected (0.001)
-Residues passing Fwd filter:            1926  (0.0285); expected (1e-05)
-Total number of hits:                      1  (0.0159)
-# CPU time: 0.26u 0.02s 00:00:00.28 Elapsed: 00:00:00.27
-# Mc/sec: 117.71
+Residues passing Fwd filter:            1924  (0.0284); expected (1e-05)
+Total number of hits:                      0  (0)
+# CPU time: 0.26u 0.02s 00:00:00.28 Elapsed: 00:00:00.28
+# Mc/sec: 114.94
 //
 [ok]

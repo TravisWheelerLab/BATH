@@ -1,9 +1,9 @@
 #! /bin/sh
 #
-# Verify that hmmsearch/hmmscan runs are reproducible (no stochastic variation)
+# Verify that bathsearch runs are reproducible (no stochastic variation)
 #
 if test ! $# -eq 4; then 
-  echo "Usage: $0 <hmmscan/hmmsearch binary> <query hmmfile> <target seqfile> <tmpfile prefix>"
+  echo "Usage: $0 <bathsearch binary> <query hmmfile> <target seqfile> <tmpfile prefix>"
   exit 1
 fi
 

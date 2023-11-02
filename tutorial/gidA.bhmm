@@ -1,4 +1,4 @@
-FraHMMER3/f
+BATH3/f
 NAME  gidA
 LENG  485
 MAXL  537
@@ -8,7 +8,7 @@ MM    no
 CONS  yes
 CS    no
 MAP   no
-DATE  Thu Mar  2 13:55:49 2023
+DATE  Fri Sep 15 11:24:38 2023
 COM   [1] [HMM created from a query sequence]
 NSEQ  1
 STATS LOCAL MSV         -11.8023  0.69873

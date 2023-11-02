@@ -37,8 +37,7 @@ main(int argc, char **argv)
   char             errbuf[eslERRBUFSIZE];
   int              status;
 
-  /* Process command line
-   */
+  /* Process command line */
   go = esl_getopts_Create(options);
   if (esl_opt_ProcessCmdline(go, argc, argv) != eslOK || 
       esl_opt_VerifyConfig(go)               != eslOK)
@@ -82,10 +81,12 @@ main(int argc, char **argv)
   /* Output header 
    */
   printf("#\n");
-  printf("# %-6s %-20s %-12s %8s %8s %6s %7s %9s %6s\n", "idx",    "name",                 "accession",    "nseq",     "eff_nseq", "mlen",   "fs_prob", "codon_tbl", "re/pos");
-  printf("# %-6s %-20s %-12s %8s %8s %6s %7s %9s %6s\n", "------", "--------------------", "------------", "--------", "--------", "------", "-------", "---------", "------");
+  /* Temporarily removing fs prob from outputs */
+  //printf("# %-6s %-20s %-12s %8s %8s %6s %7s %9s %6s\n", "idx",    "name",                 "accession",    "nseq",     "eff_nseq", "mlen",   "fs_prob", "codon_tbl", "re/pos");
+  //printf("# %-6s %-20s %-12s %8s %8s %6s %7s %9s %6s\n", "------", "--------------------", "------------", "--------", "--------", "------", "-------", "---------", "------");
 
-
+  printf("# %-6s %-20s %-12s %8s %8s %6s %9s %6s\n", "idx",    "name",                 "accession",    "nseq",     "eff_nseq", "mlen", "codon_tbl", "re/pos");
+  printf("# %-6s %-20s %-12s %8s %8s %6s %9s %6s\n", "------", "--------------------", "------------", "--------", "--------", "------", "---------", "------");
   /* Main body: read HMMs one at a time, print one line of stats per profile
    */
   nhmm = 0;
@@ -102,7 +103,8 @@ main(int argc, char **argv)
       p7_MeanPositionRelativeEntropy(hmm, bg, &x); 
       p7_hmm_CompositionKLD(hmm, bg, &KL, NULL);
 
-      printf("  %-6d %-20s %-12s %8d %8.2f %6d %7.5f %9d %6.2f\n",
+     /* Temporarily removing fs prob from outputs */
+     /* printf("  %-6d %-20s %-12s %8d %8.2f %6d %7.5f %9d %6.2f\n",
 	     nhmm,
 	     hmm->name,
 	     hmm->acc == NULL ? "-" : hmm->acc,
@@ -112,7 +114,18 @@ main(int argc, char **argv)
              hmm->fs,
              hmm->ct,
 	     x);
+      */
 
+      printf("  %-6d %-20s %-12s %8d %8.2f %6d %9d %6.2f\n",
+             nhmm,
+             hmm->name,
+             hmm->acc == NULL ? "-" : hmm->acc,
+             hmm->nseq,
+             hmm->eff_nseq,
+             hmm->M,
+             hmm->ct,
+             x);
+      
       p7_hmm_Destroy(hmm);
     }
 

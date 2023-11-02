@@ -1,4 +1,4 @@
-FraHMMER3/f
+BATH3/f
 NAME  ATE_N
 ACC   PF04376.8
 DESC  Arginine-tRNA-protein transferase, N terminus
@@ -22,7 +22,7 @@ STATS LOCAL VITERBI      -9.7170  0.71859
 STATS LOCAL FORWARD      -4.0397  0.71859
 STATS LOCAL FS FORWARD    2.4321  0.71859
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.55086  3.18859  3.13192  2.75215  3.15928  3.12864  3.68991  3.09656  2.68459  2.63606  3.86913  3.16709  3.18642  3.03125  2.47890  2.61046  2.83655  2.80200  5.09971  3.17729
@@ -263,7 +263,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01450  4.24092        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  GlutR_N
 ACC   PF05201.10
 DESC  Glutamyl-tRNAGlu reductase, N-terminal domain
@@ -287,7 +287,7 @@ STATS LOCAL VITERBI     -10.8728  0.70922
 STATS LOCAL FORWARD      -4.4547  0.70922
 STATS LOCAL FS FORWARD   -0.1396  0.70922
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.37539  4.23125  3.07659  2.63924  3.52623  2.81886  3.47911  2.84485  2.82779  2.35212  3.67636  3.23106  3.75544  3.03190  2.91195  2.65437  2.82255  2.41856  5.20393  3.59648
@@ -750,7 +750,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01657  4.10852        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  PTH2
 ACC   PF01981.11
 DESC  Peptidyl-tRNA hydrolase PTH2
@@ -774,7 +774,7 @@ STATS LOCAL VITERBI     -10.4334  0.71422
 STATS LOCAL FORWARD      -4.2299  0.71422
 STATS LOCAL FS FORWARD    0.8961  0.71422
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.42499  4.42388  3.01192  2.73557  3.72759  2.76096  3.79148  2.70306  2.57342  2.42007  3.65916  3.26448  3.34197  3.07037  2.97627  2.74814  2.79048  2.41470  4.39077  3.93749
@@ -1129,7 +1129,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01799  4.02677        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  RtcB
 ACC   PF01139.12
 DESC  tRNA-splicing ligase RtcB
@@ -1153,7 +1153,7 @@ STATS LOCAL VITERBI     -12.5154  0.69846
 STATS LOCAL FORWARD      -6.0995  0.69846
 STATS LOCAL FS FORWARD   -0.1363  0.69846
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.42797  4.28020  3.01279  2.69291  3.46022  2.59813  3.60040  2.80370  2.72438  2.53309  3.61391  3.14605  3.42054  3.09339  2.90510  2.68881  2.90269  2.51359  4.93233  3.55457
@@ -2537,7 +2537,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01696  4.08531        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  TGT
 ACC   PF01702.13
 DESC  Queuine tRNA-ribosyltransferase
@@ -2561,7 +2561,7 @@ STATS LOCAL VITERBI     -11.4526  0.70343
 STATS LOCAL FORWARD      -5.3353  0.70343
 STATS LOCAL FS FORWARD    1.0631  0.70343
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.46975  3.92639  2.94886  2.69020  3.34042  2.78111  3.67725  2.89519  2.78490  2.40807  3.48264  3.16611  3.34520  3.09129  2.82449  2.70679  2.86082  2.68989  4.68624  3.45126
@@ -3282,7 +3282,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01727  4.06743        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  Thg1
 ACC   PF04446.7
 DESC  tRNAHis guanylyltransferase
@@ -3306,7 +3306,7 @@ STATS LOCAL VITERBI     -10.7516  0.71180
 STATS LOCAL FORWARD      -4.1039  0.71180
 STATS LOCAL FS FORWARD    1.1334  0.71180
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.60266  4.39379  2.90293  2.70680  2.91099  3.15492  3.73552  2.87413  2.66124  2.46915  3.60220  3.11029  3.35723  3.16138  2.87061  2.66992  2.91689  2.60893  4.51568  3.06990
@@ -3706,7 +3706,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01853  3.99737        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  Trm56
 ACC   PF01994.11
 DESC  tRNA ribose 2'-O-methyltransferase, aTrm56
@@ -3730,7 +3730,7 @@ STATS LOCAL VITERBI     -10.6648  0.71332
 STATS LOCAL FORWARD      -4.3455  0.71332
 STATS LOCAL FS FORWARD    0.2264  0.71332
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.57336  4.56920  3.00442  2.67570  3.27148  2.75867  3.64715  2.68311  2.60779  2.46282  3.61493  3.08794  3.48749  3.14944  2.99275  2.75627  2.96619  2.47727  4.38389  3.42034
@@ -4100,7 +4100,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01925  3.95990        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  tRNA-synt_1_2
 ACC   PF13603.1
 DESC  Leucyl-tRNA synthetase, Domain 2
@@ -4124,7 +4124,7 @@ STATS LOCAL VITERBI     -11.0576  0.70634
 STATS LOCAL FORWARD      -5.0031  0.70634
 STATS LOCAL FS FORWARD    1.2437  0.70634
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.46699  4.55155  2.89788  2.61444  3.23659  2.82086  3.72869  2.80203  2.67385  2.56448  3.61286  3.05297  3.37328  3.12285  3.03227  2.71017  2.77677  2.61903  4.50796  3.39968
@@ -4686,7 +4686,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01617  4.13290        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  tRNA-synt_1c_C
 ACC   PF03950.13
 DESC  tRNA synthetases class I (E and Q), anti-codon binding domain
@@ -4710,7 +4710,7 @@ STATS LOCAL VITERBI     -11.0706  0.70583
 STATS LOCAL FORWARD      -4.9342  0.70583
 STATS LOCAL FS FORWARD    0.5468  0.70583
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.56368  4.35324  2.81411  2.54291  3.23333  2.97444  3.71582  2.93760  2.67641  2.50488  3.75291  3.08683  3.14457  3.06925  2.78885  2.73392  2.94419  2.63593  4.60526  3.38715
@@ -5293,7 +5293,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01718  4.07238        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  tRNA-synt_2d
 ACC   PF01409.15
 DESC  tRNA synthetases class II core domain (F)
@@ -5317,7 +5317,7 @@ STATS LOCAL VITERBI     -11.7067  0.70300
 STATS LOCAL FORWARD      -5.2848  0.70300
 STATS LOCAL FS FORWARD    0.4893  0.70300
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.64913  4.33512  2.90160  2.67110  3.00268  2.87927  3.54901  2.76614  2.77179  2.44099  3.48601  3.12168  3.34553  3.10427  2.91100  2.77182  2.86056  2.59525  4.77647  3.41428
@@ -6065,7 +6065,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01810  4.02096        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  tRNA-Thr_ED
 ACC   PF08915.6
 DESC  Archaea-specific editing domain of threonyl-tRNA synthetase
@@ -6089,7 +6089,7 @@ STATS LOCAL VITERBI     -10.8525  0.71108
 STATS LOCAL FORWARD      -4.0528  0.71108
 STATS LOCAL FS FORWARD    0.6975  0.71108
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.48602  4.29019  2.94350  2.54914  3.32602  3.13287  3.59272  2.76070  2.60818  2.40404  3.66249  3.15556  3.38545  3.17977  3.02060  2.61557  2.93318  2.56802  4.68173  3.40847
@@ -6504,7 +6504,7 @@ HMM          A        C        D        E        F        G        H        I   
           2.68618  4.42225  2.77519  2.73123  3.46354  2.40513  3.72494  3.29354  2.67741  2.69355  4.24690  2.90347  2.73739  3.18146  2.89801  2.37887  2.77519  2.98518  4.58477  3.61503
           0.01934  3.95537        *  0.61958  0.77255  0.00000        *
 //
-FraHMMER3/f
+BATH3/f
 NAME  TruB_C
 ACC   PF09142.6
 DESC  tRNA Pseudouridine synthase II, C terminal
@@ -6528,7 +6528,7 @@ STATS LOCAL VITERBI      -8.5531  0.71901
 STATS LOCAL FORWARD      -4.7031  0.71901
 STATS LOCAL FS FORWARD    0.3500  0.71901
 FRAMESHIFT PROB    0.0100
-CODON TABLE  1
+CODON TABLE  11
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
   COMPO   2.16264  4.77905  2.80944  2.85497  3.53519  2.32575  3.93089  2.87980  2.99602  2.53726  4.04641  3.47701  3.36367  3.33023  2.52469  2.80364  2.92034  2.48121  5.28810  3.68823

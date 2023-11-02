@@ -15,8 +15,8 @@
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,    NULL, "show brief help on version and usage",                             1 },
-  { "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 1 },
   { "--ct",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
+  //{ "--fs",     eslARG_REAL,  "0.01",NULL, "0.0<=x<=1.0", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -36,15 +36,20 @@ output_header(char *hmmfile_in, char *hmmfile_out)
 static int
 output_result(int hmmidx, P7_HMM *hmm, double entropy)
 {
-  int status;
 
   if (hmm == NULL)
   {
-      if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-      if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      /* Temporariliy remove fs_prob from output */
+      //if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      //if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+
+      if (fprintf(stdout, "# %-6s %-20s %5s %5s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(stdout, "# %-6s %-20s %5s %5s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+
     return eslOK;
   }
   else {
+    /*
     if (fprintf(stdout, "  %-6d %-20s %5d %5d %7.5f %9d %8.2f %6.3f %s\n",
           hmmidx,
           (hmm->name != NULL) ? hmm->name : "",
@@ -56,6 +61,17 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
           entropy,
           (hmm->desc != NULL) ? hmm->desc : "") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+    */
+    if (fprintf(stdout, "  %-6d %-20s %5d %5d %9d %8.2f %6.3f %s\n",
+          hmmidx,
+          (hmm->name != NULL) ? hmm->name : "",
+          hmm->nseq,
+          hmm->M,
+          hmm->ct,
+          hmm->eff_nseq,
+          entropy,
+          (hmm->desc != NULL) ? hmm->desc : "") < 0)
+      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed"); 
   }
 
   return eslOK;
@@ -64,7 +80,7 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
 int 
 main(int argc, char **argv)
 {
-  ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
+  ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, NULL, usage);
   ESL_ALPHABET  *abc     = NULL;
   ESL_STOPWATCH   *w  = esl_stopwatch_Create();
   char          *hmmfile_out = esl_opt_GetArg(go, 1);
@@ -118,7 +134,8 @@ main(int argc, char **argv)
     {
       if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hmmfile_in); 
 
-      fs = esl_opt_GetReal(go, "--fs");
+      //fs = esl_opt_GetReal(go, "--fs");
+      fs = 0.01;
       ct = esl_opt_GetInteger(go, "--ct");
  
       if(fs != hmm->fs || ct != hmm->ct)

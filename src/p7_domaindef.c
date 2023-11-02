@@ -57,7 +57,7 @@ static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ES
            int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq,  
            P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, 
-           ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, float F3, int do_biasfilter);
+           ESL_GENCODE *gcode, float F3, int do_biasfilter);
 static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
 	   const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
            P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg);
@@ -589,7 +589,7 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
 int
 p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
            P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg, 
-	  ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int64_t window_start, float F3, int do_biasfilter
+	  ESL_GENCODE *gcode, int64_t window_start, float F3, int do_biasfilter
 )
 {
 
@@ -726,7 +726,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
          
          i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
 
-         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, wrk, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
+         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, gcode, F3, do_biasfilter) == eslOK) last_j2 = j2;
         }
 
         p7_spensemble_Reuse(ddef->sp);
@@ -736,7 +736,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 	
       ddef->nenvelopes++;
        
-      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, wrk, gcode, F3, do_biasfilter);
+      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, gcode, F3, do_biasfilter);
     }
     i     = -1;
     triggered = FALSE;
@@ -778,7 +778,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
  */
 int
 p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
-	   P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg)
+	   P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg)
 {
   int i, j;
   int triggered;
@@ -791,7 +791,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
   int status;
 
   if ((status = p7_domaindef_GrowTo(ddef, orfsq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
-  if ((status = p7_DomainDecoding(om, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
+  if ((status = p7_DomainDecoding(om, tmp_fwd, bck, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
 
   esl_vec_FSet(ddef->n2sc, orfsq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[orfsq->n];             /* posterior expectation for # of domains (same as etot[orfsq->n])   */
@@ -1212,74 +1212,9 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
  
     pos = 1;
     for (d = 0; d < ddef->tr->ndom; d++)
-    {
- 
       p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
-
-//TODO: This null be trace needs to be fixed
-    p7_Null2_fs_ByTrace(gm_fs, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
-   
-    s = u = v = w = x = -1;
-    z = 0;
-    while(pos <= Lr && z < ddef->tr->N)
-    {
-      if(esl_abc_XIsCanonical(abc, dsq[ireg+pos-1])) x = dsq[ireg+pos-1];
-      else if(esl_abc_XIsDegenerate(abc, dsq[pos]))
-      {
-        for(x = 0; x < abc->K; x++)
-          if(abc->degen[dsq[pos]][x]) break;
-      }
-
-      switch (ddef->tr->st[z]) {
-        case p7T_N:
-        case p7T_C:
-        case p7T_J:  if(ddef->tr->i[z] == pos)
-                     {
-                       ddef->n2sc[pos] += 1.0;
-                       pos++;
-                     } 
-                     z++; break;
-        case p7T_X:
-        case p7T_S:
-        case p7T_B:
-        case p7T_E:
-        case p7T_T:
-        case p7T_D:  z++;   break;
-        case p7T_M:  if(ddef->tr->i[z] == pos)
-                     {
-		       switch (ddef->tr->c[z]) {
-			 case 1: ddef->n2sc[pos]  += null2[p7P_AMINO1(gm_fs, ddef->tr->k[z], x)]; break;
-                         case 2: ddef->n2sc[pos]  += null2[p7P_AMINO2(gm_fs, ddef->tr->k[z], w, x)]; break;
-                         case 3: ddef->n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]; break; 
-                         case 4: ddef->n2sc[pos]  += null2[p7P_AMINO4(gm_fs, ddef->tr->k[z], u, v, w, x)]; break;
-                         case 5: ddef->n2sc[pos]  += null2[p7P_AMINO5(gm_fs, ddef->tr->k[z], s, u, v, w, x)]; break;
-		         default:    ESL_EXCEPTION(eslEINVAL, "no such codon; can't use for null calc");
-		       }
-                       z++;
-                     }
-                     pos++;  break;
-        case p7T_I:  if(ddef->tr->i[z] == pos)
-                     {
-                       ddef->n2sc[pos]  += null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)];
-                       z++;
-                     }
-                     pos++;  break;
-        default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't use for null calc");
-       }
-       s = u;
-       u = w;
-       v = w;
-       w = x;
-     }
-    } 
+     
      p7_trace_Reuse(ddef->tr);   
-  }
-
-  /* Convert the accumulated n2sc[] ratios in this region to log odds null2 scores on each residue. */
-  for (pos = 1; pos < Lr; pos++){
-    if (ddef->n2sc[pos] != 0.0) 
-      ddef->n2sc[pos] = logf(ddef->n2sc[pos] / (float) ddef->nsamples);
-	
   }
 
   /* Cluster the ensemble of traces to break region into envelopes. */
@@ -1653,7 +1588,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
 static int
 rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, 
 		                   P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, 
-				   ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, float F3, int do_biasfilter)
+				   ESL_GENCODE *gcode, float F3, int do_biasfilter)
 {
 
   P7_DOMAIN     *dom           = NULL;
@@ -1662,12 +1597,13 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   int            n_holder;
   float          domcorrection = 0.0;
   float          envsc, oasc;
-  float          P;
+  int            codon_idx;  
   int            z;
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
   ESL_DSQ        t, u, v, w, x;
+  ESL_DSQ        aa;
   ESL_DSQ       *dsq_holder;
 
   if (Ld < 15) return eslOK;
@@ -1683,7 +1619,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   windowsq->dsq = dsq_holder;
   windowsq->n = n_holder; 
   windowsq->L = n_holder;  
- 
+   
   /* Forward */ 
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
   
@@ -1743,7 +1679,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
       {
         for(x = 0; x < windowsq->abc->K; x++)
           if(windowsq->abc->degen[windowsq->dsq[pos]][x]) break;
-      }
+      }      
       
       switch (ddef->tr->st[z]) {
         case p7T_N:
@@ -1759,24 +1695,22 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
         case p7T_D:  z++;   break;
         case p7T_M:  if(ddef->tr->i[z] == pos)
                      {  
-                       if(ddef->tr->c[z] == 1)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO1(gm_fs, ddef->tr->k[z], x)]);
-                       else if(ddef->tr->c[z] == 2)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO2(gm_fs, ddef->tr->k[z], w, x)]);
-                       else if(ddef->tr->c[z] == 3)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]);
-                       else if(ddef->tr->c[z] == 4)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO4(gm_fs, ddef->tr->k[z], u, v, w, x)]);
-                       else if(ddef->tr->c[z] == 5)
-                         ddef->n2sc[pos]  = logf(null2[p7P_AMINO5(gm_fs, ddef->tr->k[z], t, u, v, w, x)]);
+                       if(ddef->tr->c[z] == 1)      { codon_idx = p7P_CODON1(x);             codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC2); }      
+                       else if(ddef->tr->c[z] == 2) { codon_idx = p7P_CODON2(w, x);          codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC1); }
+                       else if(ddef->tr->c[z] == 3) { codon_idx = p7P_CODON3(v, w, x);       codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_C); } 
+                       else if(ddef->tr->c[z] == 4) { codon_idx = p7P_CODON4(u, v, w, x);    codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC1); }
+                       else if(ddef->tr->c[z] == 5) { codon_idx = p7P_CODON5(t, u, v, w, x); codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC2); }
+                       ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs, ddef->tr->k[z], codon_idx)]);
                        z++; 
                      }
                      else 
-                        ddef->n2sc[pos]  = 0.0;
+                       ddef->n2sc[pos]  = 0.0;
                      pos++;  break;
         case p7T_I:  if(ddef->tr->i[z] == pos)
                      {
-                       ddef->n2sc[pos]  = logf(null2[p7P_AMINO3(gm_fs, ddef->tr->k[z], v, w, x)]);
+                       codon_idx = p7P_CODON3(v, w, x);       
+                       codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_C);
+                       ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs, ddef->tr->k[z], codon_idx)]);
                        z++;
                      }
                      else 

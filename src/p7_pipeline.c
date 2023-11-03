@@ -2629,7 +2629,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
 
   tot_orf_sc = eslINFINITY;
   min_P_orf  = eslINFINITY;
-
+  P_orf = NULL;
   /* If this search is using the standard translation pipeline
    *  (user did not specify --fsonly) than run the standard
    *  Foward on every ORF that is within the current window */ 

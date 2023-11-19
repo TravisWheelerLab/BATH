@@ -1629,9 +1629,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   /* Posterior Probabilities */
   if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS)) == NULL) goto ERROR;
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
-  
+   p7_gmx_fs_Dump(stdout, gxppfs, p7_DEFAULT, FALSE); 
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(gm_fs, gxppfs, gx2, &oasc);      /* <ox1> is now overwritten with OA scores */
+  p7_OptimalAccuracy_Frameshift(gm_fs, gxppfs, gx2, &oasc);      
   p7_OATrace_Frameshift(gm_fs, gxppfs, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */

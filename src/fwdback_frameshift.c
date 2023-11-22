@@ -842,16 +842,16 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     c1 = p7P_CODON1(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
 
-    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_CODON5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
 
     iv[1] = p7_FLogsum( MMX(i+1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 
@@ -916,18 +916,17 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     c1 = p7P_CODON1(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
 
-    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_CODON5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
-
 
   iv[1] = p7_FLogsum( MMX(1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 
           p7_FLogsum( MMX(2,1) + p7P_MSC_CODON(gm_fs, 1, c2),
@@ -1166,16 +1165,16 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
     c1 = p7P_CODON1(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
 
-    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_CODON5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
 
     curr  =  i    % 6;
@@ -1247,16 +1246,16 @@ p7_BackwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
     c1 = p7P_CODON1(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
 
-    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_CODON5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
 
   iv[1] = p7_FLogsum( MMX(1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 

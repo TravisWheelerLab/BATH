@@ -466,14 +466,14 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   ad->frameshifts = 0; 
   ad->stops = 0;
   if(sq->start < sq->end) {
-    ad->sqfrom  = tr->i[z1]-2;
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
     ad->sqto    = tr->i[z2];		 
   } else {
     ad->sqto    = tr->i[z1];
     ad->sqfrom  = tr->i[z2];	
   }	 
   ad->L       = sq->n;
- 
+  
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->rf[tr->k[z]]);

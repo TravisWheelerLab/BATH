@@ -7,6 +7,11 @@ There are two sections in this tutorial. The first section - Input files - will 
 **Tools**
 ---
 
+**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 9 below) or a file containing sequences or sequence alignments (see Practice 12).
+```
+Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
+```
+
 **bathbuild**   - build BATH formatted profile hidden Markov models (pHMMs) from input multiple sequence alignments (MSAs) or unaligned sequences and save to file
 ```
 Usage: bathbuild [-options] <hmmfile_out> <msa_or_seq_file_in>
@@ -24,10 +29,6 @@ Usage: bathconvert [-options] <hmmfile_out> <hmmfile_in>
 Usage: bathfetch [options] <hmmfile_in> <key>         (retrieves HMM named <key>)
 Usage: bathfetch [options] -f <hmmfile_in> <keyfile>  (retrieves all HMMs in <keyfile>)
 Usage: bathfetch [options] --index <hmmfile_in>       (indexes <hmmfile>)
-```
-**bathsearch**      - search one or more protein pHMMs against a DNA sequence database
-```
-Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
 ```
 
 

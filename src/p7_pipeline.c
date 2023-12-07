@@ -2708,7 +2708,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, gcode,
-           dna_window->n, pli->F3, pli->do_biasfilter);
+           dna_window->n, pli->do_biasfilter);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/

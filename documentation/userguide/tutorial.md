@@ -449,7 +449,7 @@ The file MET-ct4.out should contain a single hit between each of the pHMMS in ME
 If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and bathsearch will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming. If you choose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file gidA.fa as the query, building a pHMM for that sequence and printing it the to file gidA.bhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file gidA.out using the '-o' flag. 
    
 ```bash
-   % frahmmer --ct 4 --hmmout gidA.fhmm -o gidA.out gidA.fa target-gidA.fa
+   % bathsearch --ct 4 --hmmout gidA.fhmm -o gidA.out gidA.fa target-gidA.fa
 ```
    
 The file gidA.bhmm will now contain a single pHMM built with codon table 4 and gidA.out will contain output for a single git between that pHMM and the DNA sequence in target-gidA.fa.
@@ -547,7 +547,7 @@ To make it easier to locate frameshifts and stop codons the '--frameline' flag c
  Running the follwing comand will use the file gidA.bhmm, created in Practice 10, to search a single pHMM against the DNA sequence in the file target-gidA.fa using codon table 4. The '-o' flag will direct the standard output to the file gidA-frameline.out and the '--frameline' flag will add the frameline row to the alignment.
    
 ```bash
-   % frahmmer --ct 4 --frameline -o gidA-frameline.out gidA.fhmm target-gidA.fa
+   % bathsearch --ct 4 --frameline -o gidA-frameline.out gidA.fhmm target-gidA.fa
 ```
    
 The following is an excerpt of four lines from the alignment in gidA-frameline.out. This excerpt shows two frameshifts (one by deletion and one by insertion) as well as one stop codon (the frame is shown directly beneath each codon or quasi-codon). On the first line, the frame changes - from 3 to 1 -  due to the deletion of two nucleotides. There is a stop codon on the third line, with a 0 in the frameline.  On the fourth line, the frame changes again - from 1 to 2 - due to a single nucleotide insertion. 

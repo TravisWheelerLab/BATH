@@ -473,6 +473,18 @@ enum p7t_codontype_e {
 };
 #define p7T_NCODONTYPES 6
 
+/* cigar string types */
+enum p7t_cigartype_e {
+  p7T_1M = 0,
+  p7T_1D = 1,
+  p7T_1I = 2,
+  p7T_2F = 3,
+  p7T_1F = 4,
+  p7T_1B = 5,
+  p7T_2B = 6,
+};
+
+
 typedef struct p7_trace_s {
   int    N;              /* length of traceback                       */
   int    nalloc;         /* allocated length of traceback             */
@@ -1408,7 +1420,8 @@ typedef struct p7_pipeline_s {
   int           is_translated;  /* TRUE is hmmscant or hmmsearcht           */
   int           show_translated_sequence; /* TRUE to display translated DNA sequence in domain display for hmmscant */
   int           show_vertical_codon; /* TRUE to display the DNA codon vertically in the alignment display */
-  int           show_frameline;  /* TRUE to display the frrame of each codon in the alignment display */
+  int           show_frameline;  /* TRUE to display the frame of each codon in the alignment display */
+  int           show_cigar;      /* TRUE to display the CIGAR sring in tabular output */ 
 
   P7_HMMFILE   *hfp;    /* COPY of open HMM database (if scan mode) */
   char          errbuf[eslERRBUFSIZE];
@@ -1952,7 +1965,7 @@ extern int         p7_tophits_Reuse(P7_TOPHITS *h);
 
 
 extern int p7_tophits_ComputeNhmmerEvalues(P7_TOPHITS *th, double N, int W);
-extern int p7_tophits_ComputeBathEvalues(P7_TOPHITS *th, int64_t N, int W);
+extern int p7_tophits_ComputeBATHEvalues(P7_TOPHITS *th, int64_t N, int W);
 extern int p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs);
 extern int p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli);
 extern int p7_tophits_CompareRanking(P7_TOPHITS *th, ESL_KEYHASH *kh, int *opt_nnew);

@@ -1647,11 +1647,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, windowsq, gcode);
   dom->scores_per_pos = NULL; 
-  dom->envsc = envsc; 
-  
-  /* if the --fstbl flag was used, copy trace to use for frameshift tablular output */
-  if(ddef->fstbl)
-    dom->tr = p7_trace_fs_Clone(ddef->tr); 
   
    /* Compute bias correction
    * Is null2 set already for this i..j? (It is, if we're in a domain that
@@ -1751,7 +1746,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   dom->lnP           = 0.0; /* gets set later by caller, using bitscore */
   dom->is_reported   = FALSE; /* gets set later by caller */
   dom->is_included   = FALSE; /* gets set later by caller */
-
+  dom->tr            = p7_trace_fs_Clone(ddef->tr); 
+  
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);
   p7_gmx_Destroy(gxppfs);
@@ -1873,6 +1869,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   dom->lnP           = 0.0;           /* gets set later by caller, using bitscore */
   dom->is_reported   = FALSE;         /* gets set later by caller */
   dom->is_included   = FALSE;         /* gets set later by caller */
+  dom->tr            = p7_trace_fs_Clone(ddef->tr); 
 
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);

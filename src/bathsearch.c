@@ -80,8 +80,9 @@ static ESL_OPTIONS options[] = {
   { "--hmmout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "if input is alignment(s) or sequence(s) write produced hmms to file <f>",  2 },
   { "--acc",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "prefer accessions over names in output",                                   2 },
   { "--noali",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't output alignments, so output is smaller",                            2 },
-  { "--notrans",      eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't show the translated DNA sequence in domain alignment",               2 }, 
-  { "--frameline",    eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "include frame of each codon in domain alignment",                          2 },
+  { "--notrans",      eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't show the translated DNA sequence in  alignment",                     2 }, 
+  { "--frameline",    eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "include frame of each codon in  alignment",                                2 },
+  { "--cigar",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--tblout", NULL,        "include alignment CIGAR string in table output (with --tblout)",           2 },
   { "--notextw",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--textw",       "unlimit ASCII text output line width",                                     2 },
   { "--textw",        eslARG_INT,    "150",      NULL,       "n>=150",   NULL,   NULL,"--notextw",     "set max width of ASCII text output lines",                                 2 },
   /* Control of scoring system */
@@ -874,7 +875,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     }
 
     for (i = 0; i < infocnt; ++i)
-      p7_tophits_ComputeBathEvalues(info[i].th, resCnt, info[i].om->max_length);
+      p7_tophits_ComputeBATHEvalues(info[i].th, resCnt, info[i].om->max_length);
 
     /* merge the results of the search results */
     for (i = 0; i < infocnt; ++i)

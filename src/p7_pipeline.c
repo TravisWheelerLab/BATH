@@ -459,6 +459,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
    pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in alignment display for bathsearch */
    pli->show_frameline = (go && esl_opt_GetBoolean(go, "--frameline") ? TRUE : FALSE); /* TRUE to display the frame of each codon in alignment display for bathsearch */
+   pli->show_cigar     = (go && esl_opt_GetBoolean(go, "--cigar") ? TRUE : FALSE); /* TRUE to alignment CIGAR string int tabular output for bathsearch */
    pli->hfp             = NULL;
    pli->errbuf[0]       = '\0';
 
@@ -2214,7 +2215,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
   double           dom_lnP;
   P7_DOMAIN       *dom        = NULL;      /* convenience variable, ptr to current domain  */
   P7_HIT          *hit        = NULL;      /* ptr to the current hit output data                           */
- 
+
   for (d = 0; d < pli->ddef->ndom; d++)
   {      
     dom = pli->ddef->dcl + d;
@@ -2225,6 +2226,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     if (ali_len < 8)   
     {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       p7_alidisplay_Destroy(dom->ad);
+      p7_trace_fs_Destroy(dom->tr);
       continue;
     }
  	
@@ -2319,28 +2321,10 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
 	  if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
 	  if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
 	}
-/*
-	if (pli->use_bit_cutoffs)
-	{
-	  if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
-	  {
-	    hit->flags |= p7_IS_REPORTED;
-	    if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
-	      hit->flags |= p7_IS_INCLUDED;
-	  }
-
-	  if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-	  {
-	    hit->dcl[0].is_reported = TRUE;
-	    if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-	      hit->dcl[0].is_included = TRUE;
-	  }
-
-	}
-*/
     }
     else { //delete unused P7_ALIDSPLAY
         p7_alidisplay_Destroy(dom->ad);
+        p7_trace_fs_Destroy(dom->tr);
     }
   }
 
@@ -2409,6 +2393,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     if (ali_len < 8) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       p7_alidisplay_Destroy(dom->ad);
+      p7_trace_fs_Destroy(dom->tr);
       continue; 
     }
 
@@ -2508,6 +2493,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     } 
     else { //delete unused P7_ALIDSPLAY
         p7_alidisplay_Destroy(dom->ad);
+        p7_trace_fs_Destroy(dom->tr);
     }
   }
 
@@ -2588,7 +2574,6 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   double           min_P_orf;                  /* lowest p-value produced by an ORF */
   double          *P_orf;                      /* list of standard forward P-values for each ORf*/
 
-
   pli_tmp->oxf_holder = NULL;
 
   subseq = dnasq->dsq + dna_window->n - 1;
@@ -2628,6 +2613,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
   }
 
   tot_orf_sc = eslINFINITY;
+  tot_orf_P  = eslINFINITY;
   min_P_orf  = eslINFINITY;
   P_orf = NULL;
   /* If this search is using the standard translation pipeline
@@ -2692,23 +2678,22 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     }
     tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   } 
- 
+
   /* Compare Pvalues to select either the standard or the frameshift pipeline
    * If the DNA window passed frameshift forward AND produced a lower P-value 
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
-   
+  
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
     pli->pos_past_fwd += dna_window->length; 
-  
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 6, dna_window->length, 0);
     p7_BackwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxb, NULL);
     p7_bg_fs_SetLength(bg, dna_window->length);
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, gcode,
-           dna_window->n, pli->F3, pli->do_biasfilter);
+           dna_window->n, pli->do_biasfilter);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
@@ -2883,7 +2868,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
 
   k_coords_list = NULL; 
   m_coords_list = NULL;
-  
+
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);
@@ -2955,7 +2940,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
       post_vit_orf_block->count++;
     }
   }
-  
+
   min_length = ESL_MIN(dnasq->n, om->max_length * 3);
   pli->pos_past_msv += ESL_MAX(p7_pli_fs_GetPosPast(msv_coords), min_length);
   pli->pos_past_bias += ESL_MAX(p7_pli_fs_GetPosPast(bias_coords), min_length);
@@ -2971,7 +2956,7 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
     ESL_ALLOC(k_coords_list, sizeof(int32_t) * post_vit_orf_block->count); 
     ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
   }
-  
+
 p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity, k_coords_list, m_coords_list);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);

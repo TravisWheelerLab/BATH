@@ -2713,7 +2713,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
         if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
           
-        p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, fwdsc_orf, nullsc_orf);
+        p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
       }
     }  
   } 

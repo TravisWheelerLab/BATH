@@ -817,7 +817,7 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->by_E )
     { 
-      if      ( pli->long_targets ) { if (exp(lnP) <= pli->E) return TRUE; } // database size is already built into the Pval if pli->long_targets 
+      if      ( pli->long_targets || pli->frameshift ) { if (exp(lnP) <= pli->E) return TRUE; } // database size is already built into the Pval if pli->long_targets 
       else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
@@ -855,7 +855,7 @@ p7_pli_TargetIncludable(P7_PIPELINE *pli, float score, double lnP)
   if      (  pli->inc_by_E )
     {
       if      ( pli->long_targets || pli->frameshift ) {
-        if (exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
+        if (exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or pli->frameshift = TRUE
       }
       else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
     }
@@ -872,7 +872,7 @@ int
 p7_pli_DomainIncludable(P7_PIPELINE *pli, float dom_score, double lnP)
 {
 
-  if      ( pli->long_targets || pli->frameshift ) {
+  if      ( pli->long_targets ) {
     if (pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
   }
   else if ( pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
@@ -2280,11 +2280,12 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
      dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
      
      pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-
-     if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
+     /* Check if hit passes the e-value cutoff based on the current
+      * residue count. This prevents hits from accumulating and using
+      * excessive memmory. */
+     if ( exp(dom_lnP) * pli->Z <= pli->E ) 
      { 
    
-       /* Add hits to hitlist and check if they are reprotable*/
        p7_tophits_CreateNextHit(hitlist, &hit);
 
 	hit->ndom        = 1;
@@ -2441,8 +2442,10 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       * thowing away good hits.  The ture Z is calcualted at the end 
       * by p7_tophits_ComputeBathEvalues() */
      pli->Z = (float)pli->nres / (float)om->max_length;
-      
-     if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
+     /* Check if hit passes the e-value cutoff based on the current
+      * residue count. This prevents hits from accumulating and using
+      * excessive memmory. */
+     if ( exp(dom_lnP) * pli->Z <= pli->E ) 
      { 
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
@@ -2472,24 +2475,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
 
-/*
-       if (pli->use_bit_cutoffs)
-       {
-	 if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
-	 {
-	   hit->flags |= p7_IS_REPORTED;
-	   if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
-	     hit->flags |= p7_IS_INCLUDED;
-	 }
-
-	 if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-	 {
-	   hit->dcl[0].is_reported = TRUE;
-	   if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-	     hit->dcl[0].is_included = TRUE;
-	 }
-       }
-*/      
+     
     } 
     else { //delete unused P7_ALIDSPLAY
         p7_alidisplay_Destroy(dom->ad);

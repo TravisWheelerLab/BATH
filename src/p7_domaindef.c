@@ -1134,8 +1134,6 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
 
 /* region_trace_ensemble_frameshift() - BATH
  *
- *                   ***** UNDER CONSTRUCTION*****
- *                       
  * Here, we've decided that region <ireg>..<jreg> in dna window <dsq> 
  * might be composed of more than one homologous region or domain, and 
  * we're going to use clustering of a posterior ensemble of stochastic 
@@ -1189,10 +1187,6 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
   int    t, d, d2;
   int    nov, n;
   int    nc;
-  int    pos;
-  float  null2[p7_MAXCODE];
-  ESL_DSQ s, u, v, w, x;
-  int     z;
   float   n2sc[Lr];
 
   esl_vec_FSet(n2sc, Lr, 0.0); /* zero the null2 scores in region */
@@ -1210,7 +1204,6 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
 
       p7_trace_fs_Index(ddef->tr);
  
-    pos = 1;
     for (d = 0; d < ddef->tr->ndom; d++)
       p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
      
@@ -1603,7 +1596,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   float          null2[p7_MAXCODE];
   int            status;
   ESL_DSQ        t, u, v, w, x;
-  ESL_DSQ        aa;
   ESL_DSQ       *dsq_holder;
 
   if (Ld < 15) return eslOK;

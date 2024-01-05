@@ -1856,7 +1856,6 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
   int       s, c;
   int       prev_s;
   int       s_count;
-  int       inc;
   int       cur_cigar_length;
   int       max_cigar_length;
   int       status;

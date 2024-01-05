@@ -2187,10 +2187,8 @@ ERROR:
  *            seqidx          - the id # of the target sequence from which 
  *                              the ORFs were translated
  *            window_start    - the starting position of the DNA window
- *            window_len      - the length of the DNA window
  *            dnasq           - the target dna sequence
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
- *            fwdsc           - domain score from frameshift aware Forward algorithim
  * Returns:   <eslOK> on success.
  *
  * Throws:    <eslEMEM> on allocation failure.
@@ -2198,8 +2196,7 @@ ERROR:
  */
 static int 
 p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, 
-                              int64_t seqidx, int window_start, int window_len, ESL_SQ *dnasq, 
-                              int complementarity, float fwdsc 
+                              int64_t seqidx, int window_start, ESL_SQ *dnasq, int complementarity 
 )
 {
 
@@ -2253,7 +2250,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
      /* note: this bitscore was computed under a model with length of
       * env_len (jenv-ienv+1). Here, the score is modified (reduced) by
       * treating the hit as though it came from a window of length
-      * om->max_length. To do this:
+      * gm_fs->max_length. To do this:
       */
 
       // (1) the entrance/exit costs are shifted from env_len to max_length:
@@ -2272,8 +2269,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     else
       dom_bias = 0.0; 
 
-     p7_bg_SetLength(bg, ESL_MAX(gm_fs->max_length, env_len));
-     p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(gm_fs->max_length, env_len), &nullsc);
+     p7_bg_SetLength(bg, ESL_MAX(gm_fs->max_length*3, env_len));
+     p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(gm_fs->max_length*3, env_len), &nullsc);
      dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
 
      /* P-vaule calculation */	
@@ -2360,7 +2357,6 @@ ERROR:
  *            orfsq           - the target ORF  
  *            dnasq           - the target dna sequence
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
- *            fwdsc           - domain score from the standard Forward algorithim
  *            nullsc          - domain nullsc
  * Returns:   <eslOK> on success.
  *
@@ -2371,7 +2367,7 @@ ERROR:
 static int 
 p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, 
                                    int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, 
-                                   int complementarity, float fwdsc, float nullsc 
+                                   int complementarity, float nullsc 
 )
 {
 
@@ -2675,7 +2671,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     pli->pos_past_fwd += dna_window->length; 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 6, dna_window->length, 0);
     p7_BackwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxb, NULL);
-    p7_bg_fs_SetLength(bg, dna_window->length);
+    p7_bg_SetLength(bg, dna_window->length);
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, gcode,
@@ -2684,7 +2680,7 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
     
-    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dna_window->length, dnasq, complementarity, fwdsc_fs);
+    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dnasq, complementarity);
 
   } 
 

@@ -2227,9 +2227,9 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       continue;
     }
  	
-  env_len = dom->jenv - dom->ienv + 1;
-  /* map alignment and envelope coodinates to orignal DNA target sequence */
-  if (!complementarity)
+    env_len = dom->jenv - dom->ienv + 1;
+    /* map alignment and envelope coodinates to orignal DNA target sequence */
+    if (!complementarity)
     { 
       dom->ienv       = dnasq->start + window_start + dom->ienv - 2;
       dom->jenv       = dnasq->start + window_start + dom->jenv - 2;
@@ -2247,82 +2247,67 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     dom->ad->sqfrom = dom->iali;
     dom->ad->sqto   = dom->jali;
 
-     /* note: this bitscore was computed under a model with length of
-      * env_len (jenv-ienv+1). Here, the score is modified (reduced) by
-      * treating the hit as though it came from a window of length
-      * gm_fs->max_length. To do this:
-      */
-
-      // (1) the entrance/exit costs are shifted from env_len to max_length:
-      bitscore -= 2 * log(2. / (env_len+2)) ;
-      bitscore += 2 * log(2. / (gm_fs->max_length*3+2)) ;
-      
-      // (2) the extension cost for going from ali bounds to env bounds is removed,
-      // and replaced with the cost of going from ali bounds to max length (or env
-      // bounds in the extremely rare case that the env_len is actually larger than om->max_length).
-      bitscore -=  (env_len-ali_len)                                 * log((float)env_len               / (float)(env_len+2));
-      bitscore +=  (ESL_MAX(gm_fs->max_length*3, env_len) - ali_len) * log((float)(gm_fs->max_length*3) / (float)(gm_fs->max_length*3+2));    
-
-     /* Bias calculation and adjustments to Forward score */
-     if (pli->do_null2)
+    /* Bias calculation and adjustments to Forward score */
+    if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
-     else
+    else
       dom_bias = 0.0; 
 
-     p7_bg_SetLength(bg, ESL_MAX(gm_fs->max_length*3, env_len));
-     p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(gm_fs->max_length*3, env_len), &nullsc);
-     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
+    p7_bg_SetLength(bg, env_len);
+    p7_bg_NullOne  (bg, dnasq->dsq, env_len, &nullsc);
+    dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
-     /* P-vaule calculation */	
-     dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+    /* P-vaule calculation */	
+    dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
      
-     /* Check if hit passes the e-value cutoff based on the current
-      * residue count. This prevents hits from accumulating and using
-      * excessive memmory. */
-     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-     if ( exp(dom_lnP) * pli->Z <= pli->E ) 
-     { 
+    /* Check if hit passes the e-value cutoff based on the current
+     * residue count. This prevents hits from accumulating and using
+     * excessive memmory. */
+    pli->Z = (float)pli->nres / (float)gm_fs->max_length;
+    if ( exp(dom_lnP) * pli->Z <= pli->E ) 
+    { 
    
-       p7_tophits_CreateNextHit(hitlist, &hit);
+      p7_tophits_CreateNextHit(hitlist, &hit);
 
-	hit->ndom        = 1;
-	hit->best_domain = 0;
+      hit->ndom        = 1;
+      hit->best_domain = 0;
 
-	hit->window_length = gm_fs->max_length;
-	hit->seqidx = seqidx;
-	hit->subseq_start = dnasq->start;
+      hit->window_length = gm_fs->max_length;
+      hit->seqidx = seqidx;
+      hit->subseq_start = dnasq->start;
 
-	ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
-	hit->dcl[0] = pli->ddef->dcl[d];
+      ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
+      hit->dcl[0] = pli->ddef->dcl[d];
 
-	hit->dcl[0].ad->L = 0;     
+      hit->dcl[0].ad->L = 0;     
 	
-	hit->pre_score = bitscore  / eslCONST_LOG2;
-	hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+      hit->pre_score = bitscore  / eslCONST_LOG2;
+      hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
 
-	hit->dcl[0].dombias  = dom_bias;
+      hit->dcl[0].dombias  = dom_bias;
       
-	hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
-	hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
+      hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
+      hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
 
-	hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
+      hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
     
-	hit->frameshift = TRUE;
+      hit->frameshift = TRUE;
 	
-	if (pli->mode == p7_SEARCH_SEQS)
-	{
-	  if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-	  if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-	  if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-	} else {
-	  if ((status  = esl_strdup(gm_fs->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
-	  if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
-	  if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
-	}
+      if (pli->mode == p7_SEARCH_SEQS)
+      {
+        if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+      } else {
+        if ((status  = esl_strdup(gm_fs->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
+        if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
+        if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
+      }
     }
-    else { //delete unused P7_ALIDSPLAY and P7_TRACE
-        p7_alidisplay_Destroy(dom->ad);
-        p7_trace_fs_Destroy(dom->tr);
+    else  //delete unused P7_ALIDSPLAY and P7_TRACE
+    {
+      p7_alidisplay_Destroy(dom->ad);
+      p7_trace_fs_Destroy(dom->tr);
     }
   }
 

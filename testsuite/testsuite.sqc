@@ -142,8 +142,8 @@
 1 exercise  bathsearch/-l              @src/bathsearch@  -l -95                       !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-m              @src/bathsearch@  -m                           !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-M              @src/bathsearch@  -M                           !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
-1 exercise  bathsearch/--rosalind      @src/bathsearch@  --rosalind                   !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
-1 exercise  bathsearch/--franklin      @src/bathsearch@  --franklin                   !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/topstrand       @src/bathsearch@  --strand plus                !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/botstrand       @src/bathsearch@  --strand minus               !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-E              @src/bathsearch@  -E 0.01                      !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-T              @src/bathsearch@  -T 20                        !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--incE          @src/bathsearch@  --incE 0.01                  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!

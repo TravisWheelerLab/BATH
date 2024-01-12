@@ -282,25 +282,6 @@ p7_bg_SetLength(P7_BG *bg, int L)
   return eslOK;
 }
 
-/* Function:  p7_bg_fs_SetLength()
- * Synopsis:  Set the null model length distribution.
- *
- * Purpose:   Sets the geometric null model length 
- *            distribution in <bg> to a mean of <L> residues.
- */
-int
-p7_bg_fs_SetLength(P7_BG *bg, int L)
-{
-  /* The frameshift null model loops through the three frames indeppendently 	*/
-  /* The length of each frame is 1/3 the length of the full sequence 		*/
-  /* (1/3*L)/((1/3*L)+1) = L/L+3 					 	*/
-  bg->p1 = (float) L / (float) (L + 3);
-  
-  bg->fhmm->t[0][0] = bg->p1;
-  bg->fhmm->t[0][1] = 1.0f - bg->p1;
-
-  return eslOK;
-}
 
 /*****************************************************************
  * 2. Reading/writing residue backgrounds from files

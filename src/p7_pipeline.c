@@ -817,7 +817,7 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->by_E )
     { 
-      if      ( pli->long_targets ) { if (exp(lnP) <= pli->E) return TRUE; } // database size is already built into the Pval if pli->long_targets 
+      if      ( pli->long_targets || pli->frameshift ) { if (exp(lnP) <= pli->E) return TRUE; } // database size is already built into the Pval if pli->long_targets 
       else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
@@ -855,7 +855,7 @@ p7_pli_TargetIncludable(P7_PIPELINE *pli, float score, double lnP)
   if      (  pli->inc_by_E )
     {
       if      ( pli->long_targets || pli->frameshift ) {
-        if (exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE
+        if (exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or pli->frameshift = TRUE
       }
       else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
     }
@@ -872,7 +872,7 @@ int
 p7_pli_DomainIncludable(P7_PIPELINE *pli, float dom_score, double lnP)
 {
 
-  if      ( pli->long_targets || pli->frameshift ) {
+  if      ( pli->long_targets ) {
     if (pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
   }
   else if ( pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
@@ -2174,7 +2174,7 @@ ERROR:
  * Synopsis:  the part of the BATH search Pipeline downstream
  *            of Domain Definition
  *
- * Purpose:   This is called by p7_pli_postViterbi_Frameshift(), and 
+ * Purpose:   This is called by p7_pli_postViterbi_BATH(), and 
  *            runs the post-Domain Definition part of the frameshift 
  *            aware branch of the BATH pipeline. It consists of 
  *            running various bookkeeping and sanity checks on hits 
@@ -2187,10 +2187,8 @@ ERROR:
  *            seqidx          - the id # of the target sequence from which 
  *                              the ORFs were translated
  *            window_start    - the starting position of the DNA window
- *            window_len      - the length of the DNA window
  *            dnasq           - the target dna sequence
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
- *            fwdsc           - domain score from frameshift aware Forward algorithim
  * Returns:   <eslOK> on success.
  *
  * Throws:    <eslEMEM> on allocation failure.
@@ -2198,8 +2196,7 @@ ERROR:
  */
 static int 
 p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, 
-                              int64_t seqidx, int window_start, int window_len, ESL_SQ *dnasq, 
-                              int complementarity, float fwdsc 
+                              int64_t seqidx, int window_start, ESL_SQ *dnasq, int complementarity 
 )
 {
 
@@ -2230,9 +2227,9 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       continue;
     }
  	
-  env_len = dom->jenv - dom->ienv + 1;
-  /* map alignment and envelope coodinates to orignal DNA target sequence */
-  if (!complementarity)
+    env_len = dom->jenv - dom->ienv + 1;
+    /* map alignment and envelope coodinates to orignal DNA target sequence */
+    if (!complementarity)
     { 
       dom->ienv       = dnasq->start + window_start + dom->ienv - 2;
       dom->jenv       = dnasq->start + window_start + dom->jenv - 2;
@@ -2250,81 +2247,67 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     dom->ad->sqfrom = dom->iali;
     dom->ad->sqto   = dom->jali;
 
-     /* note: this bitscore was computed under a model with length of
-      * env_len (jenv-ienv+1). Here, the score is modified (reduced) by
-      * treating the hit as though it came from a window of length
-      * om->max_length. To do this:
-      */
-
-      // (1) the entrance/exit costs are shifted from env_len to max_length:
-      bitscore -= 2 * log(2. / (env_len+2)) ;
-      bitscore += 2 * log(2. / (gm_fs->max_length+2)) ;
-
-      // (2) the extension cost for going from ali bounds to env bounds is removed,
-      // and replaced with the cost of going from ali bounds to max length (or env
-      // bounds in the extremely rare case that the env_len is actually larger than om->max_length).
-      bitscore -=  (env_len-ali_len)                            * log((float)env_len / (env_len+2));
-      bitscore +=  (ESL_MAX(gm_fs->max_length, env_len) - ali_len) * log((float)gm_fs->max_length / (float) (gm_fs->max_length+2));    
-
-     /* Bias calculation and adjustments to Forward score */
-     if (pli->do_null2)
+    /* Bias calculation and adjustments to Forward score */
+    if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
     else
       dom_bias = 0.0; 
 
-     p7_bg_SetLength(bg, ESL_MAX(gm_fs->max_length, env_len));
-     p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(gm_fs->max_length, env_len), &nullsc);
-     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
-
-     /* P-vaule calculation */	
-     dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+    p7_bg_SetLength(bg, env_len);
+    p7_bg_NullOne  (bg, dnasq->dsq, env_len, &nullsc);
+    dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
-     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-
-     if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
-     { 
+    /* P-vaule calculation */	
+    dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+     
+    /* Check if hit passes the e-value cutoff based on the current
+     * residue count. This prevents hits from accumulating and using
+     * excessive memmory. */
+    pli->Z = (float)pli->nres / (float)gm_fs->max_length;
+    if ( exp(dom_lnP) * pli->Z <= pli->E ) 
+    { 
    
-       /* Add hits to hitlist and check if they are reprotable*/
-       p7_tophits_CreateNextHit(hitlist, &hit);
+      p7_tophits_CreateNextHit(hitlist, &hit);
 
-	hit->ndom        = 1;
-	hit->best_domain = 0;
+      hit->ndom        = 1;
+      hit->best_domain = 0;
 
-	hit->window_length = gm_fs->max_length;
-	hit->seqidx = seqidx;
-	hit->subseq_start = dnasq->start;
+      hit->window_length = gm_fs->max_length;
+      hit->seqidx = seqidx;
+      hit->subseq_start = dnasq->start;
 
-	ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
-	hit->dcl[0] = pli->ddef->dcl[d];
+      ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
+      hit->dcl[0] = pli->ddef->dcl[d];
 
-	hit->dcl[0].ad->L = 0;     
+      hit->dcl[0].ad->L = 0;     
 	
-	hit->pre_score = bitscore  / eslCONST_LOG2;
-	hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+      hit->pre_score = bitscore  / eslCONST_LOG2;
+      hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
 
-	hit->dcl[0].dombias  = dom_bias;
+      hit->dcl[0].dombias  = dom_bias;
       
-	hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
-	hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
+      hit->sum_score  = hit->score  = hit->dcl[0].bitscore = dom_score;
+      hit->sum_lnP    = hit->lnP    = hit->dcl[0].lnP  = dom_lnP;
 
-	hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
+      hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score; // per-seq output sorts on bit score if inclusion is by score
     
-	hit->frameshift = TRUE;
+      hit->frameshift = TRUE;
 	
-	if (pli->mode == p7_SEARCH_SEQS)
-	{
-	  if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-	  if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-	  if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-	} else {
-	  if ((status  = esl_strdup(gm_fs->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
-	  if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
-	  if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
-	}
+      if (pli->mode == p7_SEARCH_SEQS)
+      {
+        if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+      } else {
+        if ((status  = esl_strdup(gm_fs->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
+        if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
+        if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
+      }
     }
-    else { //delete unused P7_ALIDSPLAY
-        p7_alidisplay_Destroy(dom->ad);
-        p7_trace_fs_Destroy(dom->tr);
+    else  //delete unused P7_ALIDSPLAY and P7_TRACE
+    {
+      p7_alidisplay_Destroy(dom->ad);
+      p7_trace_fs_Destroy(dom->tr);
     }
   }
 
@@ -2343,7 +2326,7 @@ ERROR:
  * Synopsis:  the part of the BATH search Pipeline downstream
  *            of Domain Definition
  *
- * Purpose:   This is called by p7_pli_postViterbi_Frameshift(), and 
+ * Purpose:   This is called by p7_pli_postViterbi_BATH(), and 
  *            runs the post-Domain Definition part of the "statndard" 
  *            or non-frameshift aware branch of the BATH pipeline. 
  *            It consists of running various bookkeeping and sanity 
@@ -2359,7 +2342,6 @@ ERROR:
  *            orfsq           - the target ORF  
  *            dnasq           - the target dna sequence
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
- *            fwdsc           - domain score from the standard Forward algorithim
  *            nullsc          - domain nullsc
  * Returns:   <eslOK> on success.
  *
@@ -2370,7 +2352,7 @@ ERROR:
 static int 
 p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, 
                                    int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, 
-                                   int complementarity, float fwdsc, float nullsc 
+                                   int complementarity, float nullsc 
 )
 {
 
@@ -2400,7 +2382,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     /* map alignment and envelope coodinates to orignal DNA target sequence */ 
     if (!complementarity)
     { 
-      dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 4; 
+      dom->ienv       = dnasq->start + orfsq->start + dom->ienv*3 - 4; //minus an extra 2 to get to start of codon 
       dom->jenv       = dnasq->start + orfsq->start + dom->jenv*3 - 2;
      
       dom->iali       = dnasq->start + window_start + dom->iali - 2;
@@ -2408,7 +2390,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     }
     else
     {
-      dom->ienv       = dnasq->end + orfsq->start - dom->ienv*3 + 2;   
+      dom->ienv       = dnasq->end + orfsq->start - dom->ienv*3 + 2;  //plus 2 to get to end of codon
       dom->jenv       = dnasq->end + orfsq->start - dom->jenv*3; 
 
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
@@ -2441,8 +2423,10 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       * thowing away good hits.  The ture Z is calcualted at the end 
       * by p7_tophits_ComputeBathEvalues() */
      pli->Z = (float)pli->nres / (float)om->max_length;
-      
-     if (p7_pli_TargetReportable(pli, dom_score, dom_lnP))
+     /* Check if hit passes the e-value cutoff based on the current
+      * residue count. This prevents hits from accumulating and using
+      * excessive memmory. */
+     if ( exp(dom_lnP) * pli->Z <= pli->E ) 
      { 
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
@@ -2472,24 +2456,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
 
-/*
-       if (pli->use_bit_cutoffs)
-       {
-	 if (p7_pli_TargetReportable(pli, hit->score, hit->lnP))
-	 {
-	   hit->flags |= p7_IS_REPORTED;
-	   if (p7_pli_TargetIncludable(pli, hit->score, hit->lnP))
-	     hit->flags |= p7_IS_INCLUDED;
-	 }
-
-	 if (p7_pli_DomainReportable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-	 {
-	   hit->dcl[0].is_reported = TRUE;
-	   if (p7_pli_DomainIncludable(pli, hit->dcl[0].bitscore, hit->dcl[0].lnP))
-	     hit->dcl[0].is_included = TRUE;
-	 }
-       }
-*/      
+     
     } 
     else { //delete unused P7_ALIDSPLAY
         p7_alidisplay_Destroy(dom->ad);
@@ -2507,7 +2474,7 @@ ERROR:
   ESL_EXCEPTION(eslEMEM, "Error in nonFrameshift pipeline\n");
 }
 
-/* Function:  p7_pli_postViterbi_Frameshift()
+/* Function:  p7_pli_postViterbi_BATH()
  * Synopsis:  the part of the BATH search Pipeline downstream
  *            of the Viterbi filter
  *
@@ -2550,7 +2517,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
                               int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode,
                              P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity, int32_t *k_coords_list, int32_t *m_coords_list
 )
@@ -2649,6 +2616,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
          p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc_orf);
        else filtersc_orf = nullsc_orf;
 
+       /* Save the Forward Martix for each ORF so we do not have to rerun 
+        * Forward in the event that the standard pipeline is selected */
        p7_oprofile_ReconfigLength(om, curr_orf->n);
        if ((pli_tmp->oxf_holder[f] = p7_omx_Create(om->M, 0, curr_orf->n)) == NULL) goto ERROR ;
        p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], &fwdsc_orf);
@@ -2662,8 +2631,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
        min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);  
         
        /* Sum the scores of all ORFs in the window (without bias). 
-        * If there are multiple ORFs and thier Viterbi trace 
-        * coordinates are within 20 Amino Acids assume these are 
+        * If there are multiple ORFs, and thier Viterbi trace 
+        * coordinates are within 20 Amino Acids, assume these are 
         * exons and remove addtional core model entry cost to 
         * simulate the use of an intron state rather than a J state*/  
          
@@ -2686,10 +2655,11 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
    */
   
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
+    
     pli->pos_past_fwd += dna_window->length; 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 6, dna_window->length, 0);
     p7_BackwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxb, NULL);
-    p7_bg_fs_SetLength(bg, dna_window->length);
+    p7_bg_SetLength(bg, dna_window->length);
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, gcode,
@@ -2697,8 +2667,9 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
-    
-    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dna_window->length, dnasq, complementarity, fwdsc_fs);
+   
+    /* Send any hits from the Frameshift aware pipeline to be further processed */ 
+    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dnasq, complementarity);
 
   } 
 
@@ -2719,7 +2690,8 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
          orf_end   = dnasq->start + curr_orf->end   - 1;
        } 
 
-      if(orf_start >= window_start && orf_end <= window_end && P_orf[f] <= pli->F3) { //only rerun the orfs that passed the froward filter the first time. 
+      /* Ensure current ORF is within the current window and that it passed  the Forward filter */
+      if(orf_start >= window_start && orf_end <= window_end && P_orf[f] <= pli->F3) { 
         pli->pos_past_fwd += curr_orf->n * 3;
         p7_oprofile_ReconfigLength(om, curr_orf->n);
         p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);     
@@ -2730,20 +2702,23 @@ p7_pli_postViterbi_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm,
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
-          
-        p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, fwdsc_orf, nullsc_orf);
+        
+        /* Send any hits from the standard pipeline to be further processed */   
+        p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
       }
     }  
   } 
-  
-    if(P_orf != NULL)  
-     free(P_orf);
+
+  /* clean up */  
+  if(P_orf != NULL)  
+    free(P_orf);
    
-    if(pli_tmp->oxf_holder != NULL) {
-      for(f = 0; f < orf_block->count; f++) 
-        p7_omx_Destroy(pli_tmp->oxf_holder[f]);
-      free(pli_tmp->oxf_holder);
-    } 
+  if(pli_tmp->oxf_holder != NULL) 
+  {
+    for(f = 0; f < orf_block->count; f++) 
+      p7_omx_Destroy(pli_tmp->oxf_holder[f]);
+    free(pli_tmp->oxf_holder);
+  } 
     
   return eslOK;
 
@@ -2753,7 +2728,8 @@ ERROR:
   if(P_orf != NULL)
     free(P_orf);
 
- if(pli_tmp->oxf_holder != NULL) {
+  if(pli_tmp->oxf_holder != NULL) 
+  {
     for(f = 0; f < orf_block->count; f++) 
       p7_omx_Destroy(pli_tmp->oxf_holder[f]);
     free(pli_tmp->oxf_holder);
@@ -2761,23 +2737,23 @@ ERROR:
 
 }
 
-/* Function:  p7_Pipeline_Frameshift()
+/* Function:  p7_Pipeline_BATH()
  * Synopsis:  Sequence to profile comparison pipeline for 
- *            frameshift aware translated search.
+ *            frameshift aware translated search - bathsearch.
  *
- * Purpose:   Run frameshift aware pipeline to compare a protien 
+ * Purpose:   Run translated search pipeline to compare a protien 
  *            profile <gm/om> against a DNA sequence <sq>. For the 
  *            first stages of the pipeline (MSV, bias and viterbi 
  *            filters) each DNA strand is translated into ORFs in 
  *            all 3 frames and these are compared directly to an 
  *            optimized protien profile <om>. For the forward filter
  *            both an ORF to <om> and a DNA window to frameshift 
- *            aware codon model <gm_fs> comparison are preformed. 
- *            Which ever comparrison produces the lower p-value will 
- *            determine which target and query form are used for the 
+ *            aware codon model <gm_fs> and a comparison is preformed. 
+ *            Which ever Forward filter produces the lower p-value  
+ *            determines which target and query form are used for the 
  *            remainder of the pipeline. If a significant hit is 
  *            found, information about it is added to the <hitlist>. 
- *            The pipeline accumulates beancounting information about 
+ *            The pipeline accumulates bean-counting information about 
  *            how many comparisons flow through the pipeline while it's 
  *            active.
  *            
@@ -2799,9 +2775,8 @@ ERROR:
  *            om              - optimized protein profile (query)
  *            gm              - generic protein profile (query)
  *            gm_fs           - generic fs-aware codon profile (query)
- *            data            - for computing diagonals, and picking 
- *                              window edges based on maximum prefix/
- *                              suffix extensions
+ *            data            - for picking window edges based on 
+ *                              maximum prefix/suffix extensions
  *            bg              - background model
  *            hitlist         - pointer to hit storage bin (already 
  *                              allocated)
@@ -2820,7 +2795,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity)
 {
 
   int                i;
@@ -2876,14 +2851,6 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
     if (   (orfsq->start < orfsq->end    &&  orfsq->end < dnasq->C )  ||
            (orfsq->end < orfsq->start    &&  orfsq->start < dnasq->C ) )
         continue; /* don't bother with an orf that showed up completely within a previous window */
-
-	/* Count number of indepentdent tests (1 for each ORF) to use in 
-         * e-value calcualtion. Short ORFs (those less than 100 * amino 
-         * acids) are very hard to detect, but are produced in abundance 
-         * by the transaltion of DNA. To acconut for this length effect we 
-         * discount these short ORFs in the counting of experiments (counting 
-         * them  as less than 1) */
-	 //if (pli->Z_setby == p7_ZSETBY_NTARGETS) pli->Z += ESL_MIN(1.0, orfsq->n / 100.0);
 
     /* use the name, accession, and description from the DNA sequence and
      not from the ORF which is generated by gencode and only for internal use */
@@ -2949,27 +2916,30 @@ p7_Pipeline_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_
   if (data->prefix_lengths == NULL)  //otherwise, already filled in
     p7_hmm_ScoreDataComputeRest(om, data);
 
-  /* convert block of ORFs that passed viterbi into collection of non-overlapping DNA windows */
+  /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
   p7_hmmwindow_init(&post_vit_windowlist);  
   
-  if(post_vit_orf_block->count > 0) {
+  if(post_vit_orf_block->count > 0) 
+  {
     ESL_ALLOC(k_coords_list, sizeof(int32_t) * post_vit_orf_block->count); 
     ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
   }
 
-p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity, k_coords_list, m_coords_list);
+  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity, k_coords_list, m_coords_list);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object
 
-  /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filter */
+  /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
   for(i = 0; i < post_vit_windowlist.count; i++)
   {
     window_len   = post_vit_windowlist.windows[i].length; 
     if (window_len < 15) continue;
-    p7_pli_postViterbi_Frameshift(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, k_coords_list, m_coords_list);
+    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, k_coords_list, m_coords_list);
   }
 
+
+  /* clean up */ 
   if ( msv_coords != NULL)
   {
     if (msv_coords->orf_starts != NULL) free(msv_coords->orf_starts);

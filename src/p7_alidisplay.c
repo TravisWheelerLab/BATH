@@ -377,7 +377,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3,n4,n5;
-  ESL_DSQ        t, u, v, w, x;
 
   /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.

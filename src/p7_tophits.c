@@ -707,6 +707,7 @@ p7_tophits_Destroy(P7_TOPHITS *h)
         for (j = 0; j < h->unsrt[i].ndom; j++) {
 
           if (h->unsrt[i].dcl[j].ad             != NULL) p7_alidisplay_Destroy(h->unsrt[i].dcl[j].ad);
+          if (h->unsrt[i].dcl[j].tr             != NULL) p7_trace_fs_Destroy(h->unsrt[i].dcl[j].tr);
 	  if (h->unsrt[i].dcl[j].scores_per_pos != NULL) free (h->unsrt[i].dcl->scores_per_pos);
 	}
         free(h->unsrt[i].dcl);
@@ -1856,7 +1857,6 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
   int       s, c;
   int       prev_s;
   int       s_count;
-  int       inc;
   int       cur_cigar_length;
   int       max_cigar_length;
   int       status;
@@ -2041,9 +2041,9 @@ p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th
         ad = th->hit[h]->dcl[d].ad;
         seq_from = th->hit[h]->dcl[d].iali;
         seq_to   = th->hit[h]->dcl[d].jali;
-	
+        
         for (z1 = 0; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;            /* find first M state      */
-        if (z1 == tr->N) ESL_XEXCEPTION(eslFAIL, "corrupt trace - no M state");                                                
+        if (z1 == tr->N) { printf("target %s query %s from %d to %d\n", th->hit[h]->name, qname, seq_from, seq_to); ESL_XEXCEPTION(eslFAIL, "corrupt trace - no M state"); }                                                
 
         for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;           /* find the E state  */
         for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                    /* find prev M state      */
@@ -2112,8 +2112,11 @@ p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th
           else if (tr->st[z] == p7T_D)
               fs = FALSE;
           else
+          {
+             printf("state %d\n", tr->st[z]);
+             printf("target %s query %s\n", th->hit[h]->name, qname);	
              ESL_XEXCEPTION(eslFAIL, "impossible trace");
-            
+          } 
 
            if(fs) 
            {
@@ -2370,7 +2373,6 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
       }
       free(cigar);
       cigar = NULL;
-      p7_trace_fs_Destroy(th->hit[h]->dcl[d].tr);
     }
   return eslOK;
 

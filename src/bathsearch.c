@@ -101,10 +101,6 @@ static ESL_OPTIONS options[] = {
   { "--qsingle_seqs", eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "force query to be read as individual sequences, even if in an msa format", 5 },
   { "--tformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert target <seqfile> is in format <s>: no autodetection",               5 },
 
- /* Model-specific thresholding for both reporting and inclusion */
- // { "--cut_ga",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  THRESHOPTS,      "use profile's GA gathering cutoffs to set all thresholding",   6 },
- // { "--cut_nc",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  THRESHOPTS,      "use profile's NC noise cutoffs to set all thresholding",       6 },
-//  { "--cut_tc",     eslARG_NONE,   FALSE, NULL, NULL,    NULL,  NULL,  THRESHOPTS,      "use profile's TC trusted cutoffs to set all thresholding",     6 },
   /* Control of acceleration pipeline */
   { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3","turn all heuristic filters off (less speed, more power)",                  7 },
   { "--F1",           eslARG_REAL,   "0.02",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                         7 },
@@ -128,8 +124,7 @@ static ESL_OPTIONS options[] = {
   { "-l",             eslARG_INT,    "20",       NULL,        NULL,      NULL,   NULL, NULL,           "minimum ORF length",                                                       15 },
   { "-m",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-M",            "ORFs must initiate with AUG only",                                         15 },
   { "-M",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-m",            "ORFs must start with allowed initiation codon",                            15 },
-  { "--rosalind",     eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "only translate top strand",                                                15 },
-  { "--franklin",     eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "only translate bottom strand",                                             15 },
+  { "--strand",       eslARG_STRING, "both",     NULL,        NULL,      NULL,   NULL, NULL,           "translate only forward strand 'plus' or reverse complement strand 'minus'",15 },
   
   /* Restrict search to subset of database - hidden because these flags are
    *   (a) currently for internal use
@@ -259,65 +254,62 @@ static int
 output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
 {
   
-  if (fprintf(ofp, "# query HMM file:                  %s\n", hmmfile)                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(ofp, "# target sequence database:        %s\n", seqfile)                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(ofp, "# frameshift probability:          %f\n", esl_opt_GetReal(go, "--fs"))                                                             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(ofp, "# codon translation table          %d\n", esl_opt_GetInteger(go, "--ct"))                                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "-o")           && fprintf(ofp, "# output directed to file:         %s\n",             esl_opt_GetString(go, "-o"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--tblout")     && fprintf(ofp, "# per-seq hits tabular output:     %s\n",             esl_opt_GetString(go, "--tblout"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--fstblout")     && fprintf(ofp, "# frameshift tabular output:       %s\n",             esl_opt_GetString(go, "--fstblout"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-   if (esl_opt_IsUsed(go, "--hmmout")        && fprintf(ofp, "# hmm output:                      %s\n",            esl_opt_GetString(go, "--hmmout"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--acc")        && fprintf(ofp, "# prefer accessions over names:    yes\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--noali")      && fprintf(ofp, "# show alignments in output:       no\n")                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--notextw")    && fprintf(ofp, "# max ASCII text line length:      unlimited\n")                                             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--textw")      && fprintf(ofp, "# max ASCII text line length:      %d\n",             esl_opt_GetInteger(go, "--textw"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--notrans")    && fprintf(ofp, "# show translated DNA sequence:    no\n")                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-   if (esl_opt_IsUsed(go, "--singlemx")   && fprintf(ofp, "# Use score matrix for 1-seq MSAs:  on\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--popen")     && fprintf(ofp, "# gap open probability:            %f\n",             esl_opt_GetReal  (go, "--popen"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--pextend")   && fprintf(ofp, "# gap extend probability:          %f\n",             esl_opt_GetReal  (go, "--pextend"))   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--mx")        && fprintf(ofp, "# subst score matrix (built-in):   %s\n",             esl_opt_GetString(go, "--mx"))        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--mxfile")    && fprintf(ofp, "# subst score matrix (file):       %s\n",             esl_opt_GetString(go, "--mxfile"))    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "-E")           && fprintf(ofp, "# sequence reporting threshold:    E-value <= %g\n",  esl_opt_GetReal(go, "-E"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "-T")           && fprintf(ofp, "# sequence reporting threshold:    score >= %g\n",    esl_opt_GetReal(go, "-T"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--incE")       && fprintf(ofp, "# sequence inclusion threshold:    E-value <= %g\n",  esl_opt_GetReal(go, "--incE"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--incT")       && fprintf(ofp, "# sequence inclusion threshold:    score >= %g\n",    esl_opt_GetReal(go, "--incT"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-//   if (esl_opt_IsUsed(go, "--cut_ga")     && fprintf(ofp, "# model-specific thresholding:     GA cutoffs\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-//  if (esl_opt_IsUsed(go, "--cut_nc")     && fprintf(ofp, "# model-specific thresholding:     NC cutoffs\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-//  if (esl_opt_IsUsed(go, "--cut_tc")     && fprintf(ofp, "# model-specific thresholding:     TC cutoffs\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--max")        && fprintf(ofp, "# Max sensitivity mode:            on [all heuristic filters off]\n")                        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--F1")         && fprintf(ofp, "# MSV filter P threshold:       <= %g\n",             esl_opt_GetReal(go, "--F1"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--F2")         && fprintf(ofp, "# Vit filter P threshold:       <= %g\n",             esl_opt_GetReal(go, "--F2"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--F3")         && fprintf(ofp, "# Fwd filter P threshold:       <= %g\n",             esl_opt_GetReal(go, "--F3"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--nobias")     && fprintf(ofp, "# biased composition HMM filter:   off\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--nonull2")    && fprintf(ofp, "# null2 bias corrections:          off\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--fsonly")     && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
-  if (esl_opt_IsUsed(go, "--nofs")       && fprintf(ofp, "# Use only the non-frameshift aware pipeline\n")                                           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--restrictdb_stkey") && fprintf(ofp, "# Restrict db to start at seq key: %s\n",            esl_opt_GetString(go, "--restrictdb_stkey"))  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--restrictdb_n")     && fprintf(ofp, "# Restrict db to # target seqs:    %d\n",            esl_opt_GetInteger(go, "--restrictdb_n")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--ssifile")          && fprintf(ofp, "# Override ssi file to:            %s\n",            esl_opt_GetString(go, "--ssifile"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (fprintf(ofp, "# query HMM file:                  %s\n", hmmfile)                                                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (fprintf(ofp, "# target sequence database:        %s\n", seqfile)                                                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (fprintf(ofp, "# frameshift probability:          %f\n", esl_opt_GetReal(go, "--fs"))                                                                                             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (fprintf(ofp, "# codon translation table          %d\n", esl_opt_GetInteger(go, "--ct"))                                                                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "-o")                              && fprintf(ofp, "# output directed to file:                       %s\n",      esl_opt_GetString(go, "-o"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--tblout")                        && fprintf(ofp, "# per-seq hits tabular output:                   %s\n",      esl_opt_GetString(go, "--tblout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--fstblout")                      && fprintf(ofp, "# frameshift tabular output:                     %s\n",      esl_opt_GetString(go, "--fstblout"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--hmmout")                        && fprintf(ofp, "# hmm output:                                    %s\n",      esl_opt_GetString(go, "--hmmout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--acc")                           && fprintf(ofp, "# prefer accessions over names:                  yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--noali")                         && fprintf(ofp, "# show alignments in output:                     no\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--notextw")                       && fprintf(ofp, "# max ASCII text line length:                    unlimited\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--textw")                         && fprintf(ofp, "# max ASCII text line length:                    %d\n",      esl_opt_GetInteger(go, "--textw"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--notrans")                       && fprintf(ofp, "# show translated DNA sequence:                  no\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--singlemx")                      && fprintf(ofp, "# Use score matrix for 1-seq MSAs:               on\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--popen")                         && fprintf(ofp, "# gap open probability:                          %f\n",      esl_opt_GetReal  (go, "--popen"))            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--pextend")                       && fprintf(ofp, "# gap extend probability:                        %f\n",      esl_opt_GetReal  (go, "--pextend"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--mx")                            && fprintf(ofp, "# subst score matrix (built-in):                 %s\n",      esl_opt_GetString(go, "--mx"))               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--mxfile")                        && fprintf(ofp, "# subst score matrix (file):                     %s\n",      esl_opt_GetString(go, "--mxfile"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "-E")                              && fprintf(ofp, "# sequence reporting threshold:       E-value <= %g\n",      esl_opt_GetReal(go, "-E"))                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "-T")                              && fprintf(ofp, "# sequence reporting threshold:         score >= %g\n",      esl_opt_GetReal(go, "-T"))                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--incE")                          && fprintf(ofp, "# sequence inclusion threshold:       E-value <= %g\n",      esl_opt_GetReal(go, "--incE"))               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--incT")                          && fprintf(ofp, "# sequence inclusion threshold:         score >= %g\n",      esl_opt_GetReal(go, "--incT"))               < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--max")                           && fprintf(ofp, "# Max sensitivity mode:                          on [all heuristic filters off]\n")                       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--F1")                            && fprintf(ofp, "# MSV filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F1"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--F2")                            && fprintf(ofp, "# Vit filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F2"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--F3")                            && fprintf(ofp, "# Fwd filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F3"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--nobias")                        && fprintf(ofp, "# biased composition HMM filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--nonull2")                       && fprintf(ofp, "# null2 bias corrections:                        off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--fsonly")                        && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
+  if (esl_opt_IsUsed(go, "--nofs")                          && fprintf(ofp, "# Use only the non-frameshift aware pipeline\n")                                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--restrictdb_stkey")              && fprintf(ofp, "# Restrict db to start at seq key:               %s\n",      esl_opt_GetString(go, "--restrictdb_stkey")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--restrictdb_n")                  && fprintf(ofp, "# Restrict db to # target seqs:                  %d\n",      esl_opt_GetInteger(go, "--restrictdb_n"))    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--ssifile")                       && fprintf(ofp, "# Override ssi file to:                          %s\n",      esl_opt_GetString(go, "--ssifile"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
-  if (esl_opt_IsUsed(go, "-Z")          && fprintf(ofp, "# database size is set to:         %.1f Mb\n",        esl_opt_GetReal(go, "-Z"))            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
+  if (esl_opt_IsUsed(go, "-Z")                              && fprintf(ofp, "# database size is set to:                       %.1f Mb\n", esl_opt_GetReal(go, "-Z"))                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
   if (esl_opt_IsUsed(go, "--seed"))  {
-    if (esl_opt_GetInteger(go, "--seed") == 0  && fprintf(ofp, "# random number seed:                            one-time arbitrary\n")                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-    else if (                                     fprintf(ofp, "# random number seed set to:                     %d\n",      esl_opt_GetInteger(go, "--seed"))            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+    if (esl_opt_GetInteger(go, "--seed") == 0               && fprintf(ofp, "# random number seed:                            one-time arbitrary\n")                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+    else if (                                                  fprintf(ofp, "# random number seed set to:                     %d\n",      esl_opt_GetInteger(go, "--seed"))            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   }
-  if (esl_opt_IsUsed(go, "--qformat")          && fprintf(ofp, "# query format asserted:                         %s\n",      esl_opt_GetString(go, "--qformat"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--qsingle_seqs")     && fprintf(ofp,"# query contains individual seqs:                 on\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
-  if (esl_opt_IsUsed(go, "--tformat")          && fprintf(ofp, "# targ <seqfile> format asserted:                %s\n",      esl_opt_GetString(go, "--tformat"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--w_beta")           && fprintf(ofp, "# window length beta value:                      %g\n",      esl_opt_GetReal(go, "--w_beta"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--w_length")         && fprintf(ofp, "# window length :                                %d\n",      esl_opt_GetInteger(go, "--w_length"))        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
+  if (esl_opt_IsUsed(go, "--qformat")                       && fprintf(ofp, "# query format asserted:                         %s\n",      esl_opt_GetString(go, "--qformat"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--qsingle_seqs")                  && fprintf(ofp, "# query contains individual seqs:                on\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
+  if (esl_opt_IsUsed(go, "--tformat")                       && fprintf(ofp, "# targ <seqfile> format asserted:                %s\n",      esl_opt_GetString(go, "--tformat"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--w_beta")                        && fprintf(ofp, "# window length beta value:                      %g\n",      esl_opt_GetReal(go, "--w_beta"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--w_length")                      && fprintf(ofp, "# window length :                                %d\n",      esl_opt_GetInteger(go, "--w_length"))        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
 #ifdef HMMER_THREADS
-  if (esl_opt_IsUsed(go, "--cpu")              && fprintf(ofp, "# number of worker threads:                      %d\n",      esl_opt_GetInteger(go, "--cpu"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
+  if (esl_opt_IsUsed(go, "--cpu")                           && fprintf(ofp, "# number of worker threads:                      %d\n",      esl_opt_GetInteger(go, "--cpu"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
 #endif
-  if (esl_opt_IsUsed(go, "-l")                 && fprintf(ofp, "# minimum ORF length:                            %d\n",      esl_opt_GetInteger(go, "-l"))                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "-m")                 && fprintf(ofp, "# ORFs must initiate with AUG only:              yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "-M")                 && fprintf(ofp, "# ORFs must start with allowed initiation codon: yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--rosalind")         && fprintf(ofp, "# only translate top strand:                     yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--franklin")         && fprintf(ofp, "# only translate bottom strand:                  yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-
-
-
-  if (fprintf(ofp, "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n\n")                                                                       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "-l")                              && fprintf(ofp, "# minimum ORF length:                            %d\n",      esl_opt_GetInteger(go, "-l"))                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "-m")                              && fprintf(ofp, "# ORFs must initiate with AUG only:              yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "-M")                              && fprintf(ofp, "# ORFs must start with allowed initiation codon: yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--strand")) {
+     if     ((esl_opt_GetString(go, "--strand") == "plus")   && fprintf(ofp, "# only translate the forward strand:             yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+     else if((esl_opt_GetString(go, "--strand") == "minus")  && fprintf(ofp, "# only translate the reverse complement strand:  yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+     else if((esl_opt_GetString(go, "--strand") == "both")   && fprintf(ofp, "# translate both strands:                        yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  }
+  if (fprintf(ofp, "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n\n")                                                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   return eslOK;
 }
 
@@ -822,12 +814,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info[i].pli = p7_pipeline_fs_Create(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
       status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
       if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
-      if (  esl_opt_IsUsed(go, "--rosalind") )
-        info[i].pli->strands = p7_STRAND_TOPONLY;
-      else if (  esl_opt_IsUsed(go, "--franklin") )
-        info[i].pli->strands = p7_STRAND_BOTTOMONLY;
-      else
-        info[i].pli->strands = p7_STRAND_BOTH;
+
+      if      (strcmp(esl_opt_GetString(go, "--strand"), "both")  == 0) info[i].pli->strands = p7_STRAND_BOTH; 
+      else if (strcmp(esl_opt_GetString(go, "--strand"), "plus")  == 0) info[i].pli->strands = p7_STRAND_TOPONLY;
+      else if (strcmp(esl_opt_GetString(go, "--strand"), "minus") == 0) info[i].pli->strands = p7_STRAND_BOTTOMONLY;
+      else     p7_Fail("Unrecognized argument for --strand ('%s'). Only 'both', 'plus', and 'minus' allowed.", esl_opt_GetString(go, "--strand"));
 
       if (  esl_opt_IsUsed(go, "--block_length") )
         info[i].pli->block_length = esl_opt_GetInteger(go, "--block_length");
@@ -1056,29 +1047,29 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
     if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
 
     dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
-  
-    if (info->wrk1->do_watson) 
+    
+    if (info->pli->strands != p7_STRAND_BOTTOMONLY) 
     {
       info->pli->nres += dbsq_dna->n;
-     
+   
        /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 
-      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
+      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
       esl_sq_ReuseBlock(info->wrk1->orf_block);    
     } 
 
-    if (info->wrk1->do_crick) 
+    if (info->pli->strands != p7_STRAND_TOPONLY) 
     {   
       info->pli->nres += dbsq_dna->n;
-     
+  
       /* Reverse complement and translate DNA sequence to 3 frame ORFs */
       esl_sq_ReverseComplement(dbsq_dna);
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 	
-      p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT); 
+      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT); 
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       
       esl_sq_ReuseBlock(info->wrk1->orf_block);
@@ -1244,24 +1235,24 @@ pipeline_thread(void *arg)
       dnaSeq->L = dnaSeq->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
      
 
-      if (info->wrk1->do_watson) {
+      if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
 
         info->pli->nres += dnaSeq->n;
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
        
-        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
 
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
         esl_sq_ReuseBlock(info->wrk1->orf_block);
       } 
 
-      if (info->wrk1->do_crick) {
+      if (info->pli->strands != p7_STRAND_TOPONLY) {
         info->pli->nres += dnaSeq->n;
         esl_sq_ReverseComplement(dnaSeq);
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
 	
-        p7_Pipeline_Frameshift(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT);
 
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 

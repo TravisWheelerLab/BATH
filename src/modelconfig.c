@@ -215,23 +215,17 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
   int     del1, del2;
-  int     sub, sub_cnt;
+  int     sub;
   int     codon;
   int     status;
-  int     max_idx;
   int     codon_idx;
   float   *occ = NULL;
   float   *tp;
   float    sc[p7_MAXCODE];
   float    Z;
-  float    max_sc[16];
-  int      max_aa[10];
-  int      max_pos[10];
-  float    one_sub    = log(hmm->fs);
   float    one_indel  = log(hmm->fs);
   float    two_indel  = log(hmm->fs/2);
   float    no_indel   = log(1. - hmm->fs*4);
-  float   stop_subs[9]; 
 
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");

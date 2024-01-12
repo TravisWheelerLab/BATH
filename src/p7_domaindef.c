@@ -1434,7 +1434,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = p7_alidisplay_Create(ddef->tr, 0, om, sq, ntsq);
   dom->scores_per_pos = NULL;
-
+  dom->tr             = NULL;
 
   /* For long target DNA, it's common to see a huge envelope (>1Kb longer than alignment), usually
    * involving simple repeat part of model that attracted similar segments of the repeatedly, to

@@ -739,7 +739,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       } else {
         if ((qhstatus = p7_Builder(builder, msa, info->bg, &hmm, NULL, NULL, NULL, NULL)) != eslOK) p7_Fail("build failed: %s", builder->errbuf);
       }
-    } else { //check that HMM is properly formated for bathsearch
+    } else if(! (esl_opt_IsUsed(go, "--nofs"))) { //check that HMM is properly formated for bathsearch
       if( ! (hmm->evparam[p7_FTAUFS] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for bathsearch. Please run bathconvert.\n", cfg->queryfile);
      
       if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fs %f' or run bathconvert with option '--fs %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);

@@ -7,7 +7,7 @@ There are two sections in this tutorial. The first section - Input files - will 
 **Tools**
 ---
 
-**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 9 below) or a file containing sequences or sequence alignments (see Practice 12).
+**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 5 below) or a file containing sequences or sequence alignments (see Practice 12).
 ```
 Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
 ```

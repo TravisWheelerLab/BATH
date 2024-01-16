@@ -38,7 +38,7 @@ Before you begin using BATH, it will be helpful to become familiar with the file
 
 BATH's installation includes a branch of the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
 
-A bathsearch query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a BATH formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 9). If you are not interested in taking advantage of BATH's frameshift-aware algorithms, you can also use a HMMER formatted pHMM file along with the '--nofs' flag. The rest of this section will focus on practices to get you acquainted with the BATH tools that are used to create and manipulate BATH formated pHMM files.
+A bathsearch query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a BATH formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 12). If you are not interested in taking advantage of BATH's frameshift-aware algorithms, you can also use a HMMER formatted pHMM file along with the '--nofs' flag. The rest of this section will focus on practices to get you acquainted with the BATH tools that are used to create and manipulate BATH formated pHMM files.
 
 <details><summary>Practice 1: building a pHMM from an MSA using bathbuild</summary>
 <p>

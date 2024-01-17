@@ -45,11 +45,12 @@ A bathsearch query file contains the proteins you wish to search for in the targ
 
 The sensitivity of BATH is powered, in large part, by the use of pHMMs. The pHMM files used by BATH and nearly identical to the ones used by HMMER, but contain additional information needed to perform accurate frameshift-aware translations and provide reliable e-values for the alignments. This additional information includes the frameshift rate and codon translation table to be used by bathsearch as well as tau and lambda values that define the curve for the pHMMs score distribution from the frameshift-aware Forward algorithm. If you would like more information on pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
    
-BATH formated pHMMs can be created from MSA files or unaligned sequence files using the tool bathbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.bhmm by running the following command: (note the file suffix '.bhmm' - this can help distinguish BATH formated pHMM files from HMMER formatted ones, which often have the suffix '.hmm')
+BATH formated pHMMs can be created from MSA files or unaligned sequence files using the tool bathbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.bhmm by running the following command: 
    
 ```bash
    % bathbuild MET.bhmm MET.msa
 ```
+(note the file suffix '.bhmm' - this can help distinguish BATH formated pHMM files from HMMER formatted ones, which often have the suffix '.hmm')
 
 The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
 

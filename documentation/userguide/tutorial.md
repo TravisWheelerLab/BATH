@@ -121,7 +121,7 @@ id  description
  25 Candidate Division SR1 and Gracilibacteria
 ```
 
-In practice 11 you will search the pHMMs in MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
+In practice 11 you will search pHMMs built from MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
    
 ```bash
    % bathbuild --ct 4 MET-ct4.bhmm MET.msa

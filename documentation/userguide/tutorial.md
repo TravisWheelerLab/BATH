@@ -148,7 +148,7 @@ The summary output that is printed to your stdout should resemble the text below
 <details><summary>Practice 3: building a pHMM from an unaligned sequences file</summary>
 <p>
 
-If your queries are single unaligned sequences rather than MSAs you can still build HMMs using bathbuild and the flag '--unali'. The file three_seqs.fa contains three district unaligned protein sequences. To build three HMMs (one for each sequence) use the following command. 
+If your queries are single unaligned sequences rather than MSAs you can still build HMMs using bathbuild and the flag '--unali'. The file three_seqs.fa contains three unaligned protein sequences. To build three HMMs (one for each sequence) use the following command. 
    
 ```bash
    % bathbuild --unali three_seqs.bhmm three_seqs.fa

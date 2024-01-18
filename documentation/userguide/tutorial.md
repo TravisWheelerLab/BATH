@@ -314,7 +314,7 @@ As with bathconvert, you can also use the --ct flag with bathfetch to change the
 
 ## Section 2 - Running bathsearch
 
-This section of the tutorial will focus on the tool bathsearch. This tool allows the user to perform translated annotate of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running bathsearch with a different set of input formats, options, and outputs. 
+This section of the tutorial will focus on the tool bathsearch. This tool allows the user to perform translated annotation of protein-coding DNA even when mutations or sequencing errors have introduced frameshifts. Each of the practices in this section will involve running bathsearch with a different set of input formats, options, and outputs. 
 
 <details><summary>Practice 9: running a simple bathsearch and reading the output</summary>
 <p>

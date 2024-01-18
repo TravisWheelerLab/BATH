@@ -325,15 +325,6 @@ Bathsearch requires two inputs - the query and the target.  In this practice, yo
    % bathsearch -o PTH2.out PTH2.bhmm target-PTH2.fa
 ```
  
-See Practice 9 for a breakdown of the bathsearch standard output in PTH2.out
-  
-    
-</p>
-</details>
-
-<details><summary>Practice 10: interpreting bathsearch standard output</summary>
-<p>
-
 The file PTH2.out contains the standard bathsearch output for a search between the query file PTH2.bhmm and the target file target-PTH2.fa. If you open this file you will see that it is organized into the following sections:
      
    1) File Header - lines begin with '#' and contain basic information about the search parameters
@@ -415,11 +406,12 @@ Total number of hits:                      3  (0.187)
 ```
    
    6) File Footer - If bathsearch did not encounter any errors the last line of the file will simply read '[ok]'
-   
+     
+    
 </p>
 </details>
 
-<details><summary>Practice 11: running a batchsearch search on a target with an alternate codon translation table</summary>
+<details><summary>Practice 10: running a batchsearch search on a target with an alternate codon translation table</summary>
 <p>
 
 As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, bathsearch responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
@@ -444,7 +436,7 @@ The file MET-ct4.out should contain a single hit between each of the pHMMS in ME
 </p>
 </details>
 
-<details><summary>Practice 12: running bathsearch with a sequence query</summary>
+<details><summary>Practice 11: running bathsearch with a sequence query</summary>
 <p>
 
 If you do not wish to build the query pHMMs ahead of time you can use a sequence file (MSA of unaligned) as the query and bathsearch will build the pHMMs on the fly. However, depending on the number and length of the proteins, building pHMMs can be time-consuming. If you choose to use a sequence query file it is recommended that you use the '--hmmout' flag to save the pHMMs for use in any subsequent searches. The following command uses the single unaligned sequence in the file gidA.fa as the query, building a pHMM for that sequence and printing it the to file gidA.bhmm. The use of the '--ct' flag will determine the codon table used both to build the pHMM and to conduct the search. The standard output is directed to the file gidA.out using the '-o' flag. 
@@ -457,7 +449,7 @@ The file gidA.bhmm will now contain a single pHMM built with codon table 4 and g
 </p>
 </details>
 
-<details><summary>Practice 13: producing and interpreting tabular output from bathsearch</summary>
+<details><summary>Practice 12: producing and interpreting tabular output from bathsearch</summary>
 <p>
    
 In addition to the standard output, bathsearch can also produce a tabular summary file with a more easily parsable list of the hits found in a search. By using the '--tblout' flag you can direct bathsearch to create this tabular output and save it to the file of your choosing. The following command will run the same search as in Practice 8, but with the addition of the '--tblout' flag directing the tabular output to the file PTH2.tbl.
@@ -529,7 +521,7 @@ description of target   Description of the target sequence (if provided in the t
 </p>
 </details>
 
-<details><summary>Practice 14: locating frameshifts and stop codons in bathsearch alignments using '--frameline' </summary>
+<details><summary>Practice 13: locating frameshifts and stop codons in bathsearch alignments using '--frameline' </summary>
 <p>
    
 While both the standard and tabular outputs give the user the count of frameshifts and stop codons in an alignment, the user may also want to locate the quasi and stop codons.  Quasi-codons with deletions can be identified by looking for codons with one or two '-' characters in place of a nucleotide. Quasi-codons with insertions can be identified by looking for codons with more than 4 or 5 nucleotides (the nucleotides bathsearch determines to be the insertions will be shown in lowercase).  Stop codons can be identified by looking for codons with all three nucleotides in lowercase and an 'X' on the translation row. Below are examples of quasi and stop codons taken from the alignment in gidA.out from Practice 10:
@@ -586,7 +578,7 @@ The following is an excerpt of four lines from the alignment in gidA-frameline.o
 </p>
 </details>
 
-<details><summary>Practice 15: locating frameshifts and stop codons with a tabular output </summary>
+<details><summary>Practice 14: locating frameshifts and stop codons with a tabular output </summary>
 <p>
    
 While the frameline makes it easier to find frameshifts and stop codons in individual alignments, some users may want to see the locations of frameshifts and stop codons across multiple alignments and in a  more parseable form. For this reason, the flag '--fstblout' allows the user to create a tabular output of frameshift and stop codon locations for all hits. The following command reruns the same search as in Practice 13, but rather than using '--frameline' it uses '--fstblout' to save frameshift and stop codon locations to the file gidA.fstbl.  

@@ -7,7 +7,7 @@ There are two sections in this tutorial. The first section - Input files - will 
 **Tools**
 ---
 
-**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 5 below) or a file containing sequences or sequence alignments (see Practice 12).
+**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 5 below) or a file containing sequences or sequence alignments (see Practice 11).
 ```
 Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
 ```
@@ -38,7 +38,7 @@ Before you begin using BATH, it will be helpful to become familiar with the file
 
 BATH's installation includes a branch of the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
 
-A bathsearch query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a BATH formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 12). If you are not interested in taking advantage of BATH's frameshift-aware algorithms, you can also use a HMMER formatted pHMM file along with the '--nofs' flag. The rest of this section will focus on practices to get you acquainted with the BATH tools that are used to create and manipulate BATH formated pHMM files.
+A bathsearch query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a BATH formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 11). If you are not interested in taking advantage of BATH's frameshift-aware algorithms, you can also use a HMMER formatted pHMM file along with the '--nofs' flag. The rest of this section will focus on practices to get you acquainted with the BATH tools that are used to create and manipulate BATH formated pHMM files.
 
 <details><summary>Practice 1: building a pHMM from an MSA using bathbuild</summary>
 <p>
@@ -121,7 +121,7 @@ id  description
  25 Candidate Division SR1 and Gracilibacteria
 ```
 
-In practice 11 you will search pHMMs built from MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
+In practice 10 you will search pHMMs built from MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
    
 ```bash
    % bathbuild --ct 4 MET-ct4.bhmm MET.msa
@@ -319,13 +319,13 @@ This section of the tutorial will focus on the tool bathsearch. This tool allows
 <details><summary>Practice 9: running a simple bathsearch and reading the output</summary>
 <p>
 
-Bathsearch requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file PTH2.bhmm as the query.  For the target, you will use a single DNA sequence in the file target-PTH2.fa. The -o flag is used to direct the standard output to the file PTH2.out. 
+Bathsearch requires two inputs - the query and the target.  In this practice, you will use the single pHMM in the file PTH2.bhmm as the query.  For the target, you will use a single DNA sequence in the file target-PTH2.fa. The -o flag is used to direct the standard output to the file PTH2.out (otherwise it will be printed to stdout).
    
 ```bash
    % bathsearch -o PTH2.out PTH2.bhmm target-PTH2.fa
 ```
  
-The file PTH2.out contains the standard bathsearch output for a search between the query file PTH2.bhmm and the target file target-PTH2.fa. If you open this file you will see that it is organized into the following sections:
+We can now open the file PTH2.out and see that the output is organized into the following sections:
      
    1) File Header - lines begin with '#' and contain basic information about the search parameters
 ```

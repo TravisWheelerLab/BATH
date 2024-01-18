@@ -200,7 +200,7 @@ The fields are mainly the same as those produced by bathbuild, and detailed in p
 <details><summary>Practice 5: converting an HMMER formated pHMM file to BATH format using bathconvert</summary>
 <p>
 
-If you have an existing HMMER formatted pHMM file and want to use it to run bathsearch with frameshift detetcion you will first need to convert it to the BATH format using bathconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the BATH formatted file tRNA-proteins.bhmm containing the same three pHMMs:
+If you have an existing HMMER formatted pHMM file and want to use it to run bathsearch with frameshift detetcion you will first need to convert it to the BATH format using bathconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the BATH formatted file tRNA-proteins.bhmm containing the same twelve pHMMs:
 
 ```bash
    % bathconvert  tRNA-proteins.bhmm  tRNA-proteins.hmm

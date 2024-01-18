@@ -414,7 +414,7 @@ Total number of hits:                      3  (0.187)
 <details><summary>Practice 10: running a batchsearch search on a target with an alternate codon translation table</summary>
 <p>
 
-As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, bathsearch responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.hmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
+As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, bathsearch responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.bhmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
    
 ```bash
    % bathsearch --ct 4 -o MET.out MET.bhmm target-MET.fa

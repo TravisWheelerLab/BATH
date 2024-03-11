@@ -43,7 +43,7 @@ A bathsearch query file contains the proteins you wish to search for in the targ
 <details><summary>Practice 1: building a pHMM from an MSA using bathbuild</summary>
 <p>
 
-The sensitivity of BATH is powered, in large part, by the use of pHMMs. The pHMM files used by BATH and nearly identical to the ones used by HMMER, but contain additional information needed to perform accurate frameshift-aware translations and provide reliable e-values for the alignments. This additional information includes the frameshift rate and codon translation table to be used by bathsearch as well as tau and lambda values that define the curve for the pHMMs score distribution from the frameshift-aware Forward algorithm. If you would like more information on pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
+The sensitivity of BATH is powered, in large part, by the use of pHMMs. The pHMM files used by BATH are nearly identical to the ones used by HMMER, but contain additional information needed to perform accurate frameshift-aware translations and provide reliable e-values for the alignments. This additional information includes the frameshift rate and codon translation table to be used by bathsearch as well as tau and lambda values that define the curve for the pHMMs score distribution from the frameshift-aware Forward algorithm. If you would like more information on pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
    
 BATH formated pHMMs can be created from MSA files or unaligned sequence files using the tool bathbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.bhmm by running the following command: 
    
@@ -200,7 +200,7 @@ The fields are mainly the same as those produced by bathbuild, and detailed in p
 <details><summary>Practice 5: converting an HMMER formated pHMM file to BATH format using bathconvert</summary>
 <p>
 
-If you have an existing HMMER formatted pHMM file and want to use it to run bathsearch with frameshift detetcion you will first need to convert it to the BATH format using bathconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the BATH formatted file tRNA-proteins.bhmm containing the same twelve pHMMs:
+If you have an existing HMMER formatted pHMM file and want to use it to run bathsearch with frameshift detectionG you will first need to convert it to the BATH format using bathconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the BATH formatted file tRNA-proteins.bhmm containing the same twelve pHMMs:
 
 ```bash
    % bathconvert  tRNA-proteins.bhmm  tRNA-proteins.hmm
@@ -340,15 +340,16 @@ We can now open the file PTH2.out and see that the output is organized into the 
    2) Query Header - includes a summary of each query and a hits list sorted by E-value.  For each hit, the query header lists the E-value, bit score, and bias score adjustment (for more information on bias scores see pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  This is followed by the name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, the number of frameshifts and stop codons in that alignment, and finally a target description (which may be blank).
 
 ```
-   Query:       PTH2  [M=116]
-   Accession:   PF01981.11
-   Description: Peptidyl-tRNA hydrolase PTH2
-   Scores for complete hits:
-    E-value  score  bias  Sequence     start    end  shifts  stops  Description
-    ------- ------ -----  --------     -----  -----  ------  -----  -----------
-    3.4e-34  110.1   0.3  PTH2-target    672    325       0      0
-    4.2e-33  110.3   0.0  PTH2-target   1273   1731       0      0
-    2.7e-27   91.6   0.2  PTH2-target   2659   2343       2      1
+Query:       PTH2  [M=116]
+Accession:   PF01981.11
+Description: Peptidyl-tRNA hydrolase PTH2
+Scores for complete hits:
+    E-value  score  bias  Sequence  start    end  shifts  stops  Description
+    ------- ------ -----  --------  -----  -----  ------  -----  -----------
+    1.3e-34  110.1   0.3  seq1        672    325       0      0
+    7.4e-27   90.7   0.0  seq1       2670   2343       3      1
+    2.1e-25   86.0   0.0  seq1       1486   1731       0      0
+    3.3e-11   40.2   0.0  seq1       1273   1387       1      0
 ```
    
    3) Annotation Lines- for each hit listed in the query header, bathsearch will produce an annotation line containing useful information about the hit. After the line 'Annotation for each hit (and alignments):' these annotation lines (as well as the alignments) will appear, sorted first by target sequence and then by e-value.
@@ -359,10 +360,10 @@ We can now open the file PTH2.out and see that the output is organized into the 
   
 ```
 Annotation for each hit (and alignments):
->> PTH2-target
+>> seq1
     score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
    ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
- !  110.1   0.3   3.4e-34          2       116 .]       672       325 ..       675       325 ..      0      0      3000   0.92
+ !  110.1   0.3   1.3e-34          2       116 .]       672       325 ..       675       325 ..      0      0      3000   0.92
 ```
    
    4) Alignment - Below each annotation line bathsearch prints the alignment for that query-target hit. A typical bathsearch alignment will contain at least the following five rows (in order from top to bottom): (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. If the pHMM was built from an MSA containing consensus structure or reference annotations those will be visible on separate CS and RF rows above the query row.  There are also three types of columns: (1) a match in which a query amino is aligned to a target codon or quasi-codon, (2) a deletion in which the query amino acid is aligned to target gap characters, or (3) an insertion in which the target codon is aligned to a query gap character. 
@@ -378,17 +379,17 @@ Annotation for each hit (and alignments):
 ```
   Alignment:
   score: 110.1 bits
-                    E    E    E    E    E    E    E    E    S    C    C    S    S    -    H    H    H    H    H    H    H    H    H    H    H  CS
-         PTH2   2   l    k    q    v    i    v    v    r    t    d    l    k    m    g    k    G    k    l    a    a    q    v    a    h    a   26
-                    +    k         v    +    v    v    r    t    d    l         m    +    k    G    k    +    a    a    q    +    +    h    a
-                    V    K    L    V    L    V    V    R    T    D    L    G    M    T    K    G    K    I    A    A    Q    C    S    H    A
-  PTH2-target 672  GTG  AAG  CTT  GTG  CTG  GTT  GTG  AGG  ACA  GAT  CTG  GGC  ATG  ACC  AAA  GGC  AAA  ATC  GCC  GCC  CAG  TGC  TCG  CAT  GCA  598
-                    8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *   PP
+             E    E    E    E    E    E    E    E    S    C    C    S    S    -    H    H    H    H    H    H    H    H    H    H    H    H    H  CS
+  PTH2   2   l    k    q    v    i    v    v    r    t    d    l    k    m    g    k    G    k    l    a    a    q    v    a    h    a    a    v   28
+             +    k         v    +    v    v    r    t    d    l         m    +    k    G    k    +    a    a    q    +    +    h    a    +
+             V    K    L    V    L    V    V    R    T    D    L    G    M    T    K    G    K    I    A    A    Q    C    S    H    A    T    L
+  seq1 672  GTG  AAG  CTT  GTG  CTG  GTT  GTG  AGG  ACA  GAT  CTG  GGC  ATG  ACC  AAA  GGC  AAA  ATC  GCC  GCC  CAG  TGC  TCG  CAT  GCA  ACG  CTC  592
+             8    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    8    7   PP
 ```
       
    5) Query Footer - each query's output will conclude with a footer that provides information about the hit filtering process inside bathsearch.  The average user can ignore this data.  For those who are interested, more information on these data can be found on page 54 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  There will also be a couple of lines listing run times and a line with just '//', indicating the end of the output for the query.
    
-       Bellow is the query footer from PTH2.out.
+       Below is the query footer from PTH2.out.
 
 ```
 Internal pipeline statistics summary:
@@ -399,19 +400,19 @@ Residues passing SSV filter:            1503  (0.251); expected (0.02)
 Residues passing bias filter:           1503  (0.251); expected (0.02)
 Residues passing Vit filter:            1401  (0.234); expected (0.001)
 Residues passing Fwd filter:            1961  (0.327); expected (1e-05)
-Total number of hits:                      3  (0.187)
+Total number of hits:                      4  (0.173)
 # CPU time: 0.04u 0.01s 00:00:00.05 Elapsed: 00:00:00.05
 # Mc/sec: 12.20
 //
 ```
    
-   6) File Footer - If bathsearch did not encounter any errors the last line of the file will simply read '[ok]'
+   6) File Footer - If bathsearch did not encounter any errors the last line of the file will read '[ok]'
      
     
 </p>
 </details>
 
-<details><summary>Practice 10: running a batchsearch search on a target with an alternate codon translation table</summary>
+<details><summary>Practice 10: running a bathsearch search on a target with an alternate codon translation table</summary>
 <p>
 
 As discussed in Practice 2, some DNA sequences use alternate codon translation tables and the best results are achieved by specifying the correct codon table both when building the pHMMs and when performing the search. To prevent searches with mismatched codon tables, bathsearch responds to such searches with an error message. Running the following command will attempt a mismatches search by searching the pHMMs in MET.bhmm, built with the standard codon table, against the target DNA in the file target-MET.fa while specifying the use of the alternate codon table 4. 
@@ -463,9 +464,10 @@ If you open the file PTH2.tbl you will see the following text (file directories 
 ```
 # target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to   E-value  score  bias  shifts  stops  pipe description of target
 #------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- --------- --------- ------ ----- ------- ------ ----- ---------------------
-seq1                 -          PTH2                 PF01981.11       116         2       116      3000       672       325       675       325   3.4e-34  110.1   0.3       0      0   std -
-seq1                 -          PTH2                 PF01981.11       116         2       116      3000      1273      1731      1263      1734   4.2e-33  110.3   0.0       0      0    fs -
-seq1                 -          PTH2                 PF01981.11       116         5       113      3000      2659      2343      2677      2327   2.7e-27   91.6   0.2       2      1    fs -
+seq1                 -          PTH2                 PF01981.11       116         2       116      3000       672       325       675       325   1.3e-34  110.1   0.3       0      0   std -
+seq1                 -          PTH2                 PF01981.11       116         1       113      3000      2670      2343      2677      2327   7.4e-27   90.7   0.0       3      1    fs -
+seq1                 -          PTH2                 PF01981.11       116        35       116      3000      1486      1731      1426      1731   2.1e-25   86.0   0.0       0      0    fs -
+seq1                 -          PTH2                 PF01981.11       116         2        40      3000      1273      1387      1269      1491   3.3e-11   40.2   0.0       1      0    fs -
 #
 # Program:         bathsearch
 # Query file:      PTH2.bhmm
@@ -524,48 +526,41 @@ description of target   Description of the target sequence (if provided in the t
 <details><summary>Practice 13: locating frameshifts and stop codons in bathsearch alignments using '--frameline' </summary>
 <p>
    
-While both the standard and tabular outputs give the user the count of frameshifts and stop codons in an alignment, the user may also want to locate the quasi and stop codons.  Quasi-codons with deletions can be identified by looking for codons with one or two '-' characters in place of a nucleotide. Quasi-codons with insertions can be identified by looking for codons with more than 4 or 5 nucleotides (the nucleotides bathsearch determines to be the insertions will be shown in lowercase).  Stop codons can be identified by looking for codons with all three nucleotides in lowercase and an 'X' on the translation row. Below are examples of quasi and stop codons taken from the alignment in gidA.out from Practice 10:
+While both the standard and tabular outputs give the user the count of frameshifts and stop codons in an alignment, the user may also want to locate the quasi and stop codons.  Quasi-codons with deletions can be identified by looking for codons with one or two '-' characters in place of a nucleotide. Quasi-codons with insertions can be identified by looking for codons with more than 4 or 5 nucleotides (the nucleotides bathsearch determines to be the insertions will be shown in lowercase).  Stop codons can be identified by looking for codons with all two uppercase and one lowercase nucleotide (the nucleotide bathsearch determined to be a substitution will be in lowercase). Below are examples of quasi and stop codons taken from the alignment in gidA.out from Practice 11:
  
 ```
  | one nucleotide deletion | two nucleotide deletions | one nucleotide insertion | two nucleotide insertions | stop codon |
  |            w            |            g             |            k             |            v              |      a     |
- |            w            |            g             |            +             |            v              |            |
- |            W            |            G             |            Q             |            V              |      X     |
- |           -GA           |           --A            |          CtAA            |          GTtaT            |     taa    |
- |            6            |            3             |            8             |            7              |      8     |
+ |            w            |            g             |            +             |            v              |      +     |
+ |            W            |            G             |            Q             |            V              |      S     |
+ |           -GA           |           --A            |          CtAA            |          GTtaT            |     TaA    |
+ |            6            |            3             |            8             |            7              |      9     |
 ```
 
 To make it easier to locate frameshifts and stop codons the '--frameline' flag can be used to add a row to the alignment that numbers the frame of each codon and quasi-codon. This line can be used to locate quasi-codons by looking for a change from one frame to another.  Stop codons can be identified on the frameline by a '0'. Note that, for hits on the reverse complement strand of a sequence, the frames will be negative (i.e. -1, -2, & -3). 
    
- Running the follwing comand will use the file gidA.bhmm, created in Practice 10, to search a single pHMM against the DNA sequence in the file target-gidA.fa using codon table 4. The '-o' flag will direct the standard output to the file gidA-frameline.out and the '--frameline' flag will add the frameline row to the alignment.
+ Running the follwing comand will use the file gidA.bhmm, created in Practice 11, to search a single pHMM against the DNA sequence in the file target-gidA.fa using codon table 4. The '-o' flag will direct the standard output to the file gidA-frameline.out and the '--frameline' flag will add the frameline row to the alignment.
    
 ```bash
    % bathsearch --ct 4 --frameline -o gidA-frameline.out gidA.bhmm target-gidA.fa
 ```
    
-The following is an excerpt of four lines from the alignment in gidA-frameline.out. This excerpt shows two frameshifts (one by deletion and one by insertion) as well as one stop codon (the frame is shown directly beneath each codon or quasi-codon). On the first line, the frame changes - from 3 to 1 -  due to the deletion of two nucleotides. There is a stop codon on the third line, with a 0 in the frameline.  On the fourth line, the frame changes again - from 1 to 2 - due to a single nucleotide insertion. 
+The following is an excerpt of four lines from the alignment in gidA-frameline.out. This excerpt shows two frameshifts (one by deletion and one by insertion) as well as one stop codon (the frame is shown directly beneath each codon or quasi-codon). On the first line, the frame changes - from 2 to 1 -  due to the deletion of one nucleotide. There is a stop codon on the second line, with a 0 in the frameline.  On the third line, the frame changes again - from 1 to 2 - due to a single nucleotide insertion. 
  
 ```
-  gidA   218   a    v    y    t    l    i    k    a    s    a    .    n    q    a    p    m    c    l    g    .    .    r    l    l    a    k   240
-                         y         l    +                                            p    m                             r         l
-               N    T    Y    K    L    L    N    T    Y    T    v    V    L    T    P    M    K    K    Q    h    h    R    T    L    D    P
-  seq1 27132  AAC  ACC  TAC  AAA  CTA  TTA  AAT  ACC  TAC  ACC  GTT  GTT  CTA  ACT  CCC  A--  AAG  AAA  CAA  CAC  CAC  CGA  ACG  TTG  GAC  CCA  27207
-               3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    1    1    1    1    1    1    1    1    1    1    1   FRAME
-               *    *    *    9    9    9    7    6    5    4    1    3    4    5    5    2    2    2    3    0    0    5    4    4    2    1   PP
-
   gidA   241   g    p    r    y    c    l    s    i    e    g    k    t    l    k    f    g    r    k    p    q    k    l    i    m    e    p   266
-                                                                                                                   +         i    +    e    p
-               T    S    T    L    F    N    Q    T    -    K    M    K    H    P    -    T    I    N    I    Y    R    P    I    I    E    P
-  seq1 27208  ACA  TCC  ACC  CTT  TTC  AAC  CAA  ACT  ---  AAA  ATG  AAA  CAT  CCA  ---  ACC  ATA  AAC  ATC  TAC  AGA  CCC  ATC  ATA  GAA  CCA  27279
-               1    1    1    1    1    1    1    1    .    1    1    1    1    1    .    1    1    1    1    1    1    1    1    1    1    1   FRAME
-               1    0    0    0    0    0    0    1    .    0    0    0    0    0    .    4    4    5    6    7    8    8    9    *    *    *   PP
+                    p         +    c                                                                               +         i    +    e    p
+               H    P    P    F    C    N    Q    T    -    K    M    K    H    P    -    T    I    N    I    Y    R    P    I    I    E    P
+  seq1 27209  CAT  CCA  CCC  TTT  T-C  AAC  CAA  ACT  ---  AAA  ATG  AAA  CAT  CCA  ---  ACC  ATA  AAC  ATC  TAC  AGA  CCC  ATC  ATA  GAA  CCA  27279
+               2    2    2    2    1    1    1    1    .    1    1    1    1    1    .    1    1    1    1    1    1    1    1    1    1    1   FRAME
+               7    7    7    7    1    1    1    1    .    0    0    0    0    0    .    4    4    5    6    7    8    8    9    *    *    *   PP
 
   gidA   267   e    a    t    g    s    s    s    v    y    v    n    g    l    s    t    s    m    .    p    i    e    l    q    l    q    l   291
-               e                   +         +    v    +    +    n    g         s         s                   +         +    q    l         +
-               E    X    L    D    T    K    T    V    H    L    N    G    T    S    I    S    T    s    N    L    V    I    Q    L    N    I
-  seq1 27280  GAA  taa  CTT  GAT  ACT  AAA  ACT  GTA  CAC  CTA  AAT  GGT  ACC  TCT  ATC  TCA  ACC  TCC  AAT  CTG  GTA  ATC  CAA  CTT  AAC  ATA  27357
-               1    0    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1   FRAME
-               *    8    8    9    9    9    *    *    *    *    *    *    9    9    7    7    5    1    6    8    9    9    *    *    *    *   PP
+               e    +              +         +    v    +    +    n    g         s         s                   +         +    q    l         +
+               E    S    L    D    T    K    T    V    H    L    N    G    T    S    I    S    T    s    N    L    V    I    Q    L    N    I
+  seq1 27280  GAA  TaA  CTT  GAT  ACT  AAA  ACT  GTA  CAC  CTA  AAT  GGT  ACC  TCT  ATC  TCA  ACC  TCC  AAT  CTG  GTA  ATC  CAA  CTT  AAC  ATA  27357
+               1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1   FRAME
+               *    9    9    9    *    *    *    *    *    *    *    *    9    9    7    7    5    1    5    8    8    9    *    *    *    *   PP
 
   gidA   292   l    k    f    t    k    a    f    r    g    a    k    i    i    k    a    g    y    a    i    e    y    d    c    v    c    s   317
                l    k         t    +                                  +    +    k    +         +         i    e    y    d              c    s
@@ -587,30 +582,30 @@ While the frameline makes it easier to find frameshifts and stop codons in indiv
    % bathsearch --ct 4 -o gidA-fstbl.out --fstblout gidA.fstbl gidA.bhmm target-gidA.fa
 ``` 
 
-If you open the file PTH2.tbl you will see the following text (file directories and dates may vary):
+If you open the file gidA.fstbl you will see the following text (file directories and dates may vary):
 
 ```
 # target name         accession  query name           accession  E-value   ali from  ali to     I D S  length  seq start  ali start
 #------------------- ----------- -------------------- ---------- --------- --------- ---------  -----  ------  ---------  ---------
- seq1                 -          gidA                 -              2e-12 26678     27756          I       2  26756             79
- seq1                 -          gidA                 -              2e-12 26678     27756          D       1  26815            138
- seq1                 -          gidA                 -              2e-12 26678     27756          I       1  26958            281
- seq1                 -          gidA                 -              2e-12 26678     27756          D       2  26995            318
- seq1                 -          gidA                 -              2e-12 26678     27756          D       1  27029            352
- seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27076            399
- seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27116            439
- seq1                 -          gidA                 -              2e-12 26678     27756          D       2  27177            500
- seq1                 -          gidA                 -              2e-12 26678     27756          S       0  27283            606
- seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27370            693
- seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27647            970
- seq1                 -          gidA                 -              2e-12 26678     27756          I       1  27696           1019
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       2  26747             70
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  26815            138
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  26958            281
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       2  26995            318
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  27029            352
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       2  27076            399
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       2  27116            439
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  27141            464
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  27221            544
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  27370            693
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  27647            970
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  27696           1019
 #
 # Program:         bathsearch
 # Query file:      gidA.bhmm
 # Target file:     target-gidA.fa
-# Option settings: bathsearch -o gidA.out --fstblout gidA.fstbl --ct 4 gidA.bhmm target-gidA.fa
-# Current dir:     BATH/tutorial
-# Date:            Thu Mar  2 13:16:45 2023
+# Option settings: /home/u3/gkrause/git/BATH/src/bathsearch -o gidA-fstbl.out --fstblout gidA.fstbl --ct 4 gidA.bhmm target-gidA.fa
+# Current dir:     /home/u3/gkrause/git/BATH/tutorial
+# Date:            Mon Mar 11 14:40:19 2024
 # [ok]
 ```
 

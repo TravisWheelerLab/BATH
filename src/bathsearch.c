@@ -254,10 +254,10 @@ static int
 output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
 {
   
-  if (fprintf(ofp, "# query HMM file:                  %s\n", hmmfile)                                                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(ofp, "# target sequence database:        %s\n", seqfile)                                                                                                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(ofp, "# frameshift probability:          %f\n", esl_opt_GetReal(go, "--fs"))                                                                                             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(ofp, "# codon translation table          %d\n", esl_opt_GetInteger(go, "--ct"))                                                                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (                                                         fprintf(ofp, "# query HMM file:                                %s\n", hmmfile)                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (                                                         fprintf(ofp, "# target sequence database:                      %s\n", seqfile)                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (	                                                       fprintf(ofp, "# frameshift probability:                        %f\n", esl_opt_GetReal(go, "--fs"))                      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (                                                         fprintf(ofp, "# codon translation table:                       %d\n", esl_opt_GetInteger(go, "--ct"))                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")                              && fprintf(ofp, "# output directed to file:                       %s\n",      esl_opt_GetString(go, "-o"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--tblout")                        && fprintf(ofp, "# per-seq hits tabular output:                   %s\n",      esl_opt_GetString(go, "--tblout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fstblout")                      && fprintf(ofp, "# frameshift tabular output:                     %s\n",      esl_opt_GetString(go, "--fstblout"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -305,9 +305,9 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "-m")                              && fprintf(ofp, "# ORFs must initiate with AUG only:              yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-M")                              && fprintf(ofp, "# ORFs must start with allowed initiation codon: yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--strand")) {
-     if     ((esl_opt_GetString(go, "--strand") == "plus")   && fprintf(ofp, "# only translate the forward strand:             yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-     else if((esl_opt_GetString(go, "--strand") == "minus")  && fprintf(ofp, "# only translate the reverse complement strand:  yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-     else if((esl_opt_GetString(go, "--strand") == "both")   && fprintf(ofp, "# translate both strands:                        yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+     if     (!strcmp(esl_opt_GetString(go, "--strand"), "plus")   && fprintf(ofp, "# only translate the forward strand:             yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+     else if(!strcmp(esl_opt_GetString(go, "--strand"), "minus")  && fprintf(ofp, "# only translate the reverse complement strand:  yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+     else if(!strcmp(esl_opt_GetString(go, "--strand"), "both")   && fprintf(ofp, "# translate both strands:                        yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   }
   if (fprintf(ofp, "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n\n")                                                                                    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   return eslOK;

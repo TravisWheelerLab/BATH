@@ -1,4 +1,4 @@
-# Process this file with autoconf to produce the HMMER3 configure script.
+# Process this file with autoconf to produce the BATH configure script.
 #
 # HMMER configures Easel in addition to itself, so this is
 # synchronized with Easel's configure script.  Saves having to do a
@@ -76,7 +76,7 @@ m4_include([easel/m4/esl_pic_flags.m4])
 ################################################################
 
 AC_INIT(HMMER, 3.3.2, sean@eddylab.org, hmmer)
-AC_MSG_NOTICE([Configuring HMMER3 for your system.])
+AC_MSG_NOTICE([Configuring BATH for your system.])
 
 ################################################################
 # 3. Info on the package
@@ -351,7 +351,7 @@ sse)  AC_MSG_NOTICE([Activating Intel/AMD SSE vector DP implementation])
 vmx)  AC_MSG_NOTICE([Activating Altivec/VMX vector DP implementation])   
       ;;
 *)    AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-      AC_MSG_NOTICE([HMMER3 requires SSE or VMX vector instructions.])
+      AC_MSG_NOTICE([BATH requires SSE or VMX vector instructions.])
       AC_MSG_NOTICE([Supported platforms are x86 (Intel/AMD) and PowerPC.])
       AC_MSG_ERROR([No supported vectorization found for your machine.])
       ;;
@@ -361,7 +361,7 @@ AC_SUBST(IMPL_CHOICE)
 
 
 
-# Easel has additional vector implementations that HMMER3 does not
+# Easel has additional vector implementations that BATH does not
 # support. Provide blank config for those CFLAGS.
 AC_SUBST(SSE4_CFLAGS)
 AC_SUBST(AVX_CFLAGS)
@@ -497,13 +497,13 @@ AC_C_BIGENDIAN([
   ],[
   if test "$enable_vmx" = "yes"; then
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-    AC_MSG_NOTICE([HMMER3 Altivec/VMX only supports bigendian platforms: e.g. ppc64 not ppc64le])
+    AC_MSG_NOTICE([BATH Altivec/VMX only supports bigendian platforms: e.g. ppc64 not ppc64le])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   fi
   ],[
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
     AC_MSG_NOTICE([Couldn't determine byte order for your platform.])
-    AC_MSG_NOTICE([HMMER3 vector code is sensitive to byte order.])
+    AC_MSG_NOTICE([BATH vector code is sensitive to byte order.])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   ])
 

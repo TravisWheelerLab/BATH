@@ -8,13 +8,13 @@ MM    no
 CONS  yes
 CS    no
 MAP   no
-DATE  Fri Sep 15 11:24:38 2023
+DATE  Mon Mar 11 14:24:13 2024
 COM   [1] [HMM created from a query sequence]
 NSEQ  1
 STATS LOCAL MSV         -11.8023  0.69873
 STATS LOCAL VITERBI     -12.8986  0.69873
 STATS LOCAL FORWARD      -5.7563  0.69873
-STATS LOCAL FS FORWARD   -0.6448  0.69873
+STATS LOCAL FS FORWARD   -0.6449  0.69873
 FRAMESHIFT PROB    0.0100
 CODON TABLE  4
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   

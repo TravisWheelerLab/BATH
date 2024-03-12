@@ -1,10 +1,22 @@
 # target name         accession  query name           accession  E-value   ali from  ali to     I D S  length  seq start  ali start
 #------------------- ----------- -------------------- ---------- --------- --------- ---------  -----  ------  ---------  ---------
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       2  26747             70
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  26815            138
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  26958            281
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       2  26995            318
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  27029            352
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       2  27076            399
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       2  27116            439
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  27141            464
+ seq1                 -          gidA                 -              3e-13 26678     27759          D       1  27221            544
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  27370            693
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  27647            970
+ seq1                 -          gidA                 -              3e-13 26678     27759          I       1  27696           1019
 #
 # Program:         bathsearch
 # Query file:      gidA.bhmm
 # Target file:     target-gidA.fa
 # Option settings: /home/u3/gkrause/git/BATH/src/bathsearch -o gidA-fstbl.out --fstblout gidA.fstbl --ct 4 gidA.bhmm target-gidA.fa 
 # Current dir:     /home/u3/gkrause/git/BATH/tutorial
-# Date:            Fri Sep 15 11:26:05 2023
+# Date:            Mon Mar 11 14:40:19 2024
 # [ok]

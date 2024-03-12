@@ -1,10 +1,14 @@
 # target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to   E-value  score  bias  shifts  stops  pipe description of target
 #------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- --------- --------- ------ ----- ------- ------ ----- ---------------------
+seq1                 -          PTH2                 PF01981.11       116         2       116      3000       672       325       675       325   1.3e-34  110.1   0.3       0      0   std -
+seq1                 -          PTH2                 PF01981.11       116         1       113      3000      2670      2343      2677      2327   7.4e-27   90.7   0.0       3      1    fs -
+seq1                 -          PTH2                 PF01981.11       116        35       116      3000      1486      1731      1426      1731   2.1e-25   86.0   0.0       0      0    fs -
+seq1                 -          PTH2                 PF01981.11       116         2        40      3000      1273      1387      1269      1491   3.3e-11   40.2   0.0       1      0    fs -
 #
 # Program:         bathsearch
 # Query file:      PTH2.bhmm
 # Target file:     target-PTH2.fa
 # Option settings: /home/u3/gkrause/git/BATH/src/bathsearch -o PTH2.out --tblout PTH2.tbl PTH2.bhmm target-PTH2.fa 
 # Current dir:     /home/u3/gkrause/git/BATH/tutorial
-# Date:            Fri Sep 15 11:25:01 2023
+# Date:            Mon Mar 11 14:14:24 2024
 # [ok]

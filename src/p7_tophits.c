@@ -2071,7 +2071,7 @@ p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th
               seq_start = (seq_from < seq_to) ? seq_from + ali_pos - 1: seq_from - ali_pos + 1; 
               ali_pos += 2;
             }
-            else if(tr->c[z] == 3 && ad->aseq[z-z1] == 'X')
+            else if(tr->c[z] == 3 && ad->codon[z-z1] == 6)
             {
               fs = TRUE;
               fs_type = 'S';

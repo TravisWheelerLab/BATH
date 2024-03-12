@@ -192,13 +192,7 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
        sc[3] = MMX_FS(i,k,p7G_C4);
        sc[4] = MMX_FS(i,k,p7G_C5);
        esl_vec_FLogNorm(sc, 5);
-       switch (esl_rnd_FChoose(r, sc, 5)) {
-         case 0: c = 1; break; 
-         case 1: c = 2; break; 
-         case 2: c = 3; break; 
-         case 3: c = 4; break; 
-         case 4: c = 5; break; 
-       }
+       c = esl_rnd_FChoose(r, sc, 5) + 1;
        if(i - c < 1) scur = p7T_B;
       }
       else c = 0; 

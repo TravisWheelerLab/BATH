@@ -479,6 +479,7 @@ main(int argc, char **argv)
   if (cfg.my_rank == 0) {
     if (esl_opt_IsOn(go, "-o")) { fclose(cfg.ofp); }
     if (cfg.afp)   esl_msafile_Close(cfg.afp);
+    if (cfg.sfp)   esl_sqfile_Close(cfg.sfp); 
     if (cfg.abc)   esl_alphabet_Destroy(cfg.abc);
     if (cfg.hmmfp) fclose(cfg.hmmfp);
   }

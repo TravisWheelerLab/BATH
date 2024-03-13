@@ -720,7 +720,10 @@ p7_hmm_SetConsensus(P7_HMM *hmm, ESL_SQ *sq)
   for (k = 1; k <= hmm->M; k++) 
     {
       x = (sq ?  sq->dsq[k] : esl_vec_FArgMax(hmm->mat[k], hmm->abc->K));
-      hmm->consensus[k] = ((hmm->mat[k][x] >= mthresh) ? toupper(hmm->abc->sym[x]) : tolower(hmm->abc->sym[x]));
+      if (x < hmm->abc->K) 
+        hmm->consensus[k] = ((hmm->mat[k][x] >= mthresh) ? toupper(hmm->abc->sym[x]) : tolower(hmm->abc->sym[x]));
+      else
+        hmm->consensus[k] = tolower(hmm->abc->sym[x]);
     }
   hmm->consensus[hmm->M+1] = '\0';
   hmm->flags  |= p7H_CONS;	

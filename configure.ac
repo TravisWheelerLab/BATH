@@ -55,14 +55,16 @@
 ################################################################
 # Autoconf 2.61 (circa 2006) has a bug in AC_FUNC_FSEEKO; don't use it.
 # 2.63 was released in 2008.
-AC_PREREQ(2.63)
+AC_PREREQ([2.71])
 
 # Our extra macros are with Easel, in easel/m4.
 # It's sort of standard to expect them in m4/, don't 
 # be confused that they're down in easel.
 #
+m4_include([easel/m4/ax_check_compile_flag.m4])
 m4_include([easel/m4/ax_gcc_func_attribute.m4])
 
+m4_include([easel/m4/esl_neon.m4])
 m4_include([easel/m4/esl_sse.m4])
 m4_include([easel/m4/esl_vmx.m4])
 
@@ -75,8 +77,14 @@ m4_include([easel/m4/esl_pic_flags.m4])
 # 2. AC_INIT
 ################################################################
 
-AC_INIT(HMMER, 3.3.2, sean@eddylab.org, hmmer)
+AC_INIT([HMMER], [3.3.2], [sean@eddylab.org], [hmmer])
 AC_MSG_NOTICE([Configuring BATH for your system.])
+
+# remember if the user is overriding CFLAGS
+esl_cflags_env_set=no
+if test x"$CFLAGS" != x; then
+  esl_cflags_env_set=yes
+fi
 
 ################################################################
 # 3. Info on the package
@@ -188,6 +196,7 @@ esac
 AC_ARG_ENABLE(gcov,    [AS_HELP_STRING([--enable-gcov],    [compile for code coverage testing])],        enable_gcov=$enableval,    enable_gcov=no)
 AC_ARG_ENABLE(gprof,   [AS_HELP_STRING([--enable-gprof],   [compile for gcc code profiling])],           enable_gprof=$enableval,   enable_gprof=no)
 
+AC_ARG_ENABLE(neon,    [AS_HELP_STRING([--enable-neon],    [enable our ARM Neon vector code])],          enable_neon=$enableval,    enable_neon=check)
 AC_ARG_ENABLE(sse,     [AS_HELP_STRING([--enable-sse],     [enable our SSE vector code])],               enable_sse=$enableval,     enable_sse=check)
 AC_ARG_ENABLE(vmx,     [AS_HELP_STRING([--enable-vmx],     [enable our Altivec/VMX vector code])],       enable_vmx=$enableval,     enable_vmx=check)
 
@@ -204,13 +213,18 @@ AC_ARG_WITH(gsl,       [AS_HELP_STRING([--with-gsl],       [use the GSL, GNU Sci
 # If a vector implementation is force-selected, make sure only one is,
 # and turn off checking for the others.
 vecsel=0
+if test "$enable_neon"    = "yes"; then vecsel=$((vecsel+1)); fi
 if test "$enable_sse"     = "yes"; then vecsel=$((vecsel+1)); fi
 if test "$enable_vmx"     = "yes"; then vecsel=$((vecsel+1)); fi
+if test "$enable_neon"    = "yes"; then vecsel=             ; fi
+
 if   [[ $vecsel -gt 1 ]]; then
-  AC_MSG_ERROR([Select only one implementation: sse or vmx])
+  AC_MSG_ERROR([Select only one implementation: sse, neon,  or vmx])
 elif [[ $vecsel -eq 1 ]]; then
+  if test "$enable_neon"  = "check"; then enable_neon="no";  fi
   if test "$enable_sse"   = "check"; then enable_sse="no";   fi
   if test "$enable_vmx"   = "check"; then enable_vmx="no";   fi
+  if test "$enable_neon"   = "check"; then enable_neon="no";   fi
 fi
 
 
@@ -231,17 +245,14 @@ fi
 #
 : ${CFLAGS=""}
 AX_PROG_CC_MPI([test x"$enable_mpi" = xyes],
-  [
-    AC_DEFINE(HAVE_MPI,  1, [Use MPI parallelization])
+  [AC_DEFINE(HAVE_MPI,  1, [Use MPI parallelization])
     AC_DEFINE(HMMER_MPI, 1, [Use MPI parallelization])
     AC_SUBST([MPI_UTESTS],     ["mpi_utest"])
-    AC_SUBST([MPI_BENCHMARKS], ["mpi_benchmark"])
-  ],
-  [
-    if test x"$enable_mpi" = xyes; then
+    AC_SUBST([MPI_BENCHMARKS], ["mpi_benchmark"])],
+  [if test x"$enable_mpi" = xyes; then
       AC_MSG_ERROR([MPI library not found for --enable-mpi]);
-    fi
-  ])
+    fi])
+
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_INSTALL
@@ -254,9 +265,15 @@ AC_PROG_LN_S
 #  --enable-gcov, --enable-gprof, and --enable-debugging are mutually exclusive.
 #
 if test "$enable_gcov" = "yes"; then
-   CFLAGS="${CFLAGS} -g -Wall -fprofile-arcs -ftest-coverage"
+    if test "$esl_cflags_env_set" = "yes"; then
+     AC_MSG_ERROR([--enable-gcov overrides CFLAGS, so don't set CFLAGS])
+   fi
+   CFLAGS="-g -Wall -fprofile-arcs -ftest-coverage"
 elif test "$enable_gprof" = "yes"; then
-   CFLAGS="${CFLAGS} -O -g -pg"
+    if test "$esl_cflags_env_set" = "yes"; then
+     AC_MSG_ERROR([--enable-gprof overrides CFLAGS, so don't set CFLAGS])
+   fi
+   CFLAGS="-O -g -pg"
 elif test "$enable_debugging" != "no"; then
    if test "$GCC" = "yes"; then
       CFLAGS="${CFLAGS} -g -Wall"
@@ -312,6 +329,24 @@ fi
 #    - set shell variable $esl_have_foo to "yes"
 #    - set shell var $esl_foo_cflags to any necessary compiler flags
 #
+
+if test "$enable_neon" = "yes" || test "$enable_neon" = "check"; then
+  ESL_NEON([
+    AC_DEFINE(eslENABLE_NEON, 1, [Enable ARM Neon vector implementation])
+    AS_VAR_IF([esl_have_neon_aarch64],[yes],[AC_DEFINE(eslHAVE_NEON_AARCH64, 1, [Set to enable the ARM AARCH64 version of NEON])])
+    AC_SUBST([HMMERIMPLLIB], ["impl_neon/libhmmerimpl.a"])
+    NEON_CFLAGS="$esl_neon_cflags"
+    AC_SUBST(NEON_CFLAGS)
+    enable_neon=yes
+    impl_choice=neon
+    ],[
+    if test "$enable_neon" = "yes"; then
+      AC_MSG_FAILURE([Unable to compile our ARM Neon implementations. Try another compiler?])
+    fi
+    enable_neon=no
+    ])
+fi
+
 if test "$enable_vmx" = "yes" || test "$enable_vmx" = "check"; then
   ESL_VMX([
     AC_DEFINE(eslENABLE_VMX, 1, [Enable Altivec/VMX vector implementation])
@@ -344,15 +379,35 @@ if test "$enable_sse" = "yes" || test "$enable_sse" = "check"; then
     ])
 fi
 
+if test "$enable_neon" = "yes" || test "$enable_neon" = "check"; then
+  ESL_NEON([
+    AC_DEFINE(eslENABLE_NEON,  1, [Enable ARM NEON vector implementation])
+    NEON_CFLAGS=$esl_neon_cflags
+    AC_SUBST(NEON_CFLAGS)
+    AC_SUBST([HMMERIMPLLIB], ["impl_sse/libhmmerimpl.a"])
+    enable_neon=yes
+    impl_choice=neon
+    ],[
+    if test "$enable_neon" = "yes"; then
+      AC_MSG_FAILURE([Unable to compile our NEON implementation. Try another compiler?])
+    fi
+    enable_neon=no
+    ])
+fi
+
 # If we didn't choose an implementation, die.
-case "$impl_choice" in 
+case "$impl_choice" in
+neon) AC_MSG_NOTICE([Activating ARM Neon vector DP implementation])
+      ;;
 sse)  AC_MSG_NOTICE([Activating Intel/AMD SSE vector DP implementation]) 
       ;;
 vmx)  AC_MSG_NOTICE([Activating Altivec/VMX vector DP implementation])   
       ;;
+neon)  AC_MSG_NOTICE([Activating ARM NEON vector DP implementation])   
+      ;;  
 *)    AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-      AC_MSG_NOTICE([BATH requires SSE or VMX vector instructions.])
-      AC_MSG_NOTICE([Supported platforms are x86 (Intel/AMD) and PowerPC.])
+      AC_MSG_NOTICE([BATH requires SSE, NEON  or VMX vector instructions.])
+      AC_MSG_NOTICE([Supported platforms are x86 (Intel/AMD), ARM (v7 or later) and PowerPC.])
       AC_MSG_ERROR([No supported vectorization found for your machine.])
       ;;
 esac
@@ -366,7 +421,6 @@ AC_SUBST(IMPL_CHOICE)
 AC_SUBST(SSE4_CFLAGS)
 AC_SUBST(AVX_CFLAGS)
 AC_SUBST(AVX512_CFLAGS)
-AC_SUBST(NEON_CFLAGS)
 
 
 # For x86 processors check if the flush to zero macro is available
@@ -460,6 +514,16 @@ AC_CHECK_HEADERS([sys/sysctl.h], [], [],
 #endif
 ]])
 
+# arm_neon.h requires the simd cflags and little endian mode
+if test "$impl_choice" = "neon"; then
+   esl_save_CFLAGS="$CFLAGS"
+   esl_save_CPPFLAGS="$CPPFLAGS"
+   CFLAGS="$CFLAGS $NEON_CFLAGS"
+   CPPFLAGS="$CPPFLAGS $NEON_CFLAGS"
+   AC_CHECK_HEADERS([arm_neon.h])
+   CFLAGS="$esl_save_CFLAGS"
+   CPPFLAGS="$esl_save_CPPFLAGS"
+fi
 
 # altivec.h requires the simd cflags
 # For reasons I don't understand, this needs to come after any other CHECK_HEADERS().
@@ -497,14 +561,22 @@ AC_C_BIGENDIAN([
   ],[
   if test "$enable_vmx" = "yes"; then
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-    AC_MSG_NOTICE([BATH Altivec/VMX only supports bigendian platforms: e.g. ppc64 not ppc64le])
+    AC_MSG_NOTICE([BATH Altivec/VMX only supports big-endian platforms: e.g. ppc64 not ppc64le])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
+  elif test "$enable_neon" = "yes"; then
+    AX_CHECK_COMPILE_FLAG([-mlittle-endian], [NEON_CFLAGS="$NEON_CFLAGS -mlittle-endian"], [], [$NEON_CFLAGS])
   fi
   ],[
+  if test "$enable_neon" = "yes"; then
+    AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
+    AC_MSG_NOTICE([HMMER3 NEON only supports little-endian platforms: e.g. aarch64 not aarch64be])
+    AC_MSG_ERROR([No supported vectorization found for your machine.])
+  else
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
     AC_MSG_NOTICE([Couldn't determine byte order for your platform.])
     AC_MSG_NOTICE([BATH vector code is sensitive to byte order.])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
+  fi	
   ])
 
 # __attribute__() tags on function declarations
@@ -684,7 +756,7 @@ AC_OUTPUT
 echo "
 
 HMMER configuration:
-   compiler:             ${CC} ${CFLAGS} ${SSE_CFLAGS} ${VMX_CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS}
+   compiler:             ${CC} ${CFLAGS} ${SSE_CFLAGS} ${VMX_CFLAGS} ${NEON_CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS}
    host:                 $host
    linker:               ${LDFLAGS}
    libraries:            ${LIBS} ${LIBGSL} ${PTHREAD_LIBS}

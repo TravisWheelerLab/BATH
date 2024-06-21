@@ -56,6 +56,7 @@ man1ext     = .1
 CC             = @CC@
 CFLAGS         = @CFLAGS@ 
 PTHREAD_CFLAGS = @PTHREAD_CFLAGS@ 
+NEON_CFLAGS    = @NEON_CFLAGS@
 SSE_CFLAGS     = @SSE_CFLAGS@
 VMX_CFLAGS     = @VMX_CFLAGS@
 LDFLAGS        = -static @LDFLAGS@

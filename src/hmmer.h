@@ -548,6 +548,7 @@ typedef struct p7_hmmfile_s {
 #endif
 
   char          errbuf[eslERRBUFSIZE];
+  char          rr_errbuf[eslERRBUFSIZE];  // p7_oprofile_ReadRest() uses this instead of errbuf, as a workaround for a thread race issue. See notes there.
 } P7_HMMFILE;
 
 /* note on <fname>, above:

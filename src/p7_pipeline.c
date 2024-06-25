@@ -2822,6 +2822,13 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_windowlist.windows = NULL;
 
+  k_coords_list = NULL; 
+  m_coords_list = NULL;
+ 
+  msv_coords = NULL;
+  bias_coords = NULL;
+  vit_coords = NULL;
+
   pli_tmp = NULL;
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_BATH_OBJS));
   pli_tmp->tmpseq = NULL;
@@ -2840,10 +2847,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   ESL_ALLOC(vit_coords->orf_starts, sizeof(int64_t) *  orf_block->count);
   ESL_ALLOC(vit_coords->orf_ends, sizeof(int64_t) *  orf_block->count);
   vit_coords->orf_cnt = 0;
-
-  k_coords_list = NULL; 
-  m_coords_list = NULL;
-
+  
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);

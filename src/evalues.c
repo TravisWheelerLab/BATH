@@ -109,6 +109,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
   if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
   if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau   (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd frameshifted tau");
+ 
 
   /* Store results */
   hmm->evparam[p7_MLAMBDA] = om->evparam[p7_MLAMBDA] = lambda;
@@ -117,7 +118,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   hmm->evparam[p7_MMU]     = om->evparam[p7_MMU]     = mmu;
   hmm->evparam[p7_VMU]     = om->evparam[p7_VMU]     = vmu;
   hmm->evparam[p7_FTAU]    = om->evparam[p7_FTAU]    = tau;
-  hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]    = tau_fs;
+  hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]  = (hmm->abc->type == eslAMINO) ? tau_fs : 0.0;
   hmm->flags              |= p7H_STATS;
 
   if (gm != NULL) {

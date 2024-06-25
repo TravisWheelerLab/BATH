@@ -834,7 +834,7 @@ utest_ReadWrite(P7_HMM *hmm, P7_OPROFILE *om)
   esl_newssi_Close(nssi);
 
   /* 2. read the optimized profile back in */
-  if ( p7_hmmfile_Open(tmpfile, NULL, &hfp, NULL)  != eslOK) esl_fatal(msg);
+  if ( p7_hmmfile_OpenE(tmpfile, NULL, &hfp, NULL)  != eslOK) esl_fatal(msg);
   if ( p7_oprofile_ReadMSV(hfp, &abc, &om2)        != eslOK) esl_fatal(msg);
   if ( p7_oprofile_ReadRest(hfp, om2)              != eslOK) esl_fatal(msg);
 
@@ -966,7 +966,7 @@ main(int argc, char **argv)
   int            status;
   char           errbuf[eslERRBUFSIZE];
 
-  status = p7_hmmfile_Open(hmmfile, NULL, &hfp, errbuf);
+  status = p7_hmmfile_OpenE(hmmfile, NULL, &hfp, errbuf);
   if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", hmmfile, errbuf);
   else if (status == eslEFORMAT)   p7_Fail("File format problem in trying to open HMM file %s.\n%s\n",                hmmfile, errbuf);
   else if (status != eslOK)        p7_Fail("Unexpected error %d in opening HMM file %s.\n%s\n",               status, hmmfile, errbuf);

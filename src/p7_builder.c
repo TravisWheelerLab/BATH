@@ -504,15 +504,29 @@ p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq, P7_BG *bg, P7_HMM **opt_hmm,
 {
   P7_HMM   *hmm = NULL;
   P7_TRACE *tr  = NULL;
-  int       k;
+  ESL_SQ   *sq_cp = NULL;
+  int       i, j, k;
   int       status;
   
   bld->errbuf[0] = '\0';
   if (! bld->Q) ESL_XEXCEPTION(eslEINVAL, "score system not initialized");
   
-  if ((status = p7_Seqmodel(bld->abc, sq->dsq, sq->n, sq->name, bld->Q, bg->f, bld->popen, bld->pextend, &hmm)) != eslOK) goto ERROR;
+   /* Remove all non-residues from the sequence */
+  sq_cp = esl_sq_CreateDigital(sq->abc);
+  esl_sq_Copy(sq, sq_cp);
+
+  for (i = 1, j = 1; i <= sq->n; i++)  {
+    if(esl_abc_XIsResidue(sq->abc, sq->dsq[i])) {
+      sq_cp->dsq[j] = sq->dsq[i];
+      j++;
+    }
+  }
+  sq_cp->n = j-1;
+  sq_cp->dsq[j] = sq->dsq[sq->n+1];
+
+  if ((status = p7_Seqmodel(bld->abc, sq_cp->dsq, sq_cp->n, sq_cp->name, bld->Q, bg->f, bld->popen, bld->pextend, &hmm)) != eslOK) goto ERROR;
   if ((status = p7_hmm_SetComposition(hmm))                                                                     != eslOK) goto ERROR;
-  if ((status = p7_hmm_SetConsensus(hmm, sq))                                                                   != eslOK) goto ERROR; 
+  if ((status = p7_hmm_SetConsensus(hmm, sq_cp))                                                                   != eslOK) goto ERROR; 
   if ((status = calibrate(bld, hmm, bg, opt_gm, opt_om))                                                        != eslOK) goto ERROR;
 
   if ( bld->abc->type == eslDNA ||  bld->abc->type == eslRNA ) {
@@ -529,16 +543,17 @@ p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq, P7_BG *bg, P7_HMM **opt_hmm,
     {
       if ((tr = p7_trace_Create())                      == NULL)  goto ERROR;
       if ((status = p7_trace_Append(tr, p7T_B, 0, 0))   != eslOK) goto ERROR; 
-      for (k = 1; k <= sq->n; k++)
+      for (k = 1; k <= sq_cp->n; k++)
         if ((status = p7_trace_Append(tr, p7T_M, k, k)) != eslOK) goto ERROR;
       if ((status = p7_trace_Append(tr, p7T_E, 0, 0))   != eslOK) goto ERROR; 
-      tr->M = sq->n;
-      tr->L = sq->n;
+      tr->M = sq_cp->n;
+      tr->L = sq_cp->n;
     }
 
   /* note that <opt_gm> and <opt_om> were already set by calibrate() call above. */
   if (opt_hmm   != NULL) *opt_hmm = hmm; else p7_hmm_Destroy(hmm);
   if (opt_tr    != NULL) *opt_tr  = tr;
+  if(sq_cp      != NULL) esl_sq_Destroy(sq_cp);  
   return eslOK;
 
  ERROR:
@@ -546,6 +561,7 @@ p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq, P7_BG *bg, P7_HMM **opt_hmm,
   if (tr        != NULL) p7_trace_Destroy(tr);
   if (opt_gm    != NULL) p7_profile_Destroy(*opt_gm);
   if (opt_om    != NULL) p7_oprofile_Destroy(*opt_om);
+  if(sq_cp      != NULL) esl_sq_Destroy(sq_cp);
   return status;
 }
 

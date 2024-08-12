@@ -1872,6 +1872,10 @@ extern P7_PIPELINE* p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hin
 extern int          p7_pipeline_fs_Reuse  (P7_PIPELINE *pli);
 extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
 
+//SPLASH
+extern P7_PIPELINE * p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode);
+
+
 extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
 extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);
 extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, float score,     double lnP);
@@ -1939,6 +1943,10 @@ extern int     p7_spensemble_fs_Cluster(P7_SPENSEMBLE *sp,
 extern int     p7_spensemble_GetClusterCoords(P7_SPENSEMBLE *sp, int which,
                 int *ret_i, int *ret_j, int *ret_k, int *ret_m, float *ret_p);
 extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
+
+/* p7_splice.c */
+extern void SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
+                       ESL_GENCODE *gcode, ESL_GETOPTS *go, FILE *ofp, int textw);
 
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);

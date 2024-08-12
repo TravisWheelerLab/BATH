@@ -899,6 +899,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
+    if (tophits_accumulator->N) SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
+
 
     /* Sort and remove hits bellow threshold */
     p7_tophits_SortBySortkey(tophits_accumulator);

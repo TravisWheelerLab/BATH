@@ -469,8 +469,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_MSAFILE     *qfp_msa                  = NULL;              /* open query alifile                              */
   ESL_SQFILE      *qfp_sq                   = NULL;              /* open query seqfile                              */
   int              dbfmt                    = eslSQFILE_UNKNOWN; /* format code for sequence database file          */
-  
-  /* query formats and HMM construction*/
+
+  /* SSI index */
+  ESL_NEWSSI      *newssi                   = NULL;             /* new SSI index                                    */
+  ESL_SQ          *ssisq                    = NULL;
+  char            *ssifile                  = NULL;             /* name of new SSI index file                       */
+  uint16_t         fh;
+  int              nssiseq;
+
+ /* query formats and HMM construction*/
   P7_HMM          *hmm                      = NULL;              /* one HMM query                                   */
   ESL_SQ          *qsq                      = NULL;              /* query sequence                                  */
   ESL_MSA         *msa                      = NULL;              /* query MSA */
@@ -515,7 +522,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              status                   = eslOK;
   int              qhstatus                 = eslOK;
   int              sstatus                  = eslOK;
-  
+  int              ssistatus                = eslOK;  
 
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
   else                                     textw = esl_opt_GetInteger(go, "--textw");
@@ -610,11 +617,58 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   else if (status == eslEFORMAT)   p7_Fail("Sequence file %s is empty or misformatted\n",            cfg->dbfile);
   else if (status == eslEINVAL)    p7_Fail("Can't autodetect format of a stdin or .gz seqfile");
   else if (status != eslOK)        p7_Fail("Unexpected error %d opening sequence file %s\n", status, cfg->dbfile);  
-  if (esl_opt_IsUsed(go, "--restrictdb_stkey") || esl_opt_IsUsed(go, "--restrictdb_n")) {
-    if (esl_opt_IsUsed(go, "--ssifile"))
-      esl_sqfile_OpenSSI(dbfp, esl_opt_GetString(go, "--ssifile"));
-    else
-      esl_sqfile_OpenSSI(dbfp, NULL);
+
+  /* Check if SSI index exists for use by SPLICE algorithms */
+  if (esl_opt_IsUsed(go, "--ssifile"))
+      ssistatus = esl_sqfile_OpenSSI(dbfp, esl_opt_GetString(go, "--ssifile"));
+  else
+      ssistatus = esl_sqfile_OpenSSI(dbfp, NULL);
+
+  /* If SSI index index does not exist create it */
+  if (ssistatus == eslENOTFOUND)  {
+    esl_strdup(dbfp->filename, -1, &ssifile);
+    esl_strcat(&ssifile, -1, ".ssi", 4);
+
+    ssistatus = esl_newssi_Open(ssifile, TRUE, &newssi);
+    if (ssistatus != eslOK) p7_Fail("Failed to create SSI index for sequence file %s\n",          cfg->dbfile); 
+
+    if (esl_newssi_AddFile(newssi, dbfp->filename, dbfp->format, &fh) != eslOK)
+    p7_Fail("Failed to add sequence file %s to new SSI index\n", dbfp->filename);
+
+    ssisq   = esl_sq_Create();
+    nssiseq = 0;
+    while ((ssistatus = esl_sqio_ReadInfo(dbfp, ssisq)) == eslOK)
+    {
+      nssiseq++;
+      if (ssisq->name == NULL) p7_Fail("Every sequence must have a name to be indexed. Failed to find name of seq #%d\n", nssiseq);
+
+      if (esl_newssi_AddKey(newssi, ssisq->name, fh, ssisq->roff, ssisq->doff, ssisq->L) != eslOK)
+        p7_Fail("Failed to add key %s to SSI index", ssisq->name);
+
+      if (ssisq->acc[0] != '\0') {
+        if (esl_newssi_AddAlias(newssi, ssisq->acc, ssisq->name) != eslOK)
+          p7_Fail("Failed to add secondary key %s to SSI index", ssisq->acc);
+      }
+      esl_sq_Reuse(ssisq);
+    }  
+    if      (ssistatus == eslEFORMAT) p7_Fail("Parse failed (sequence file %s):\n%s\n",
+                                           dbfp->filename, esl_sqfile_GetErrorBuf(dbfp));
+    else if (ssistatus != eslEOF)     p7_Fail("Unexpected error %d reading sequence file %s",
+                                            ssistatus,dbfp->filename);
+
+    if (dbfp->data.ascii.bpl > 0 && dbfp->data.ascii.rpl > 0) {
+      if ((ssistatus = esl_newssi_SetSubseq(newssi, fh, dbfp->data.ascii.bpl, dbfp->data.ascii.rpl)) != eslOK)
+        p7_Fail("Failed to set %s for fast subseq lookup.", dbfp->filename);
+    }
+ 
+    if (esl_newssi_Write(newssi) != eslOK)
+      p7_Fail("\nFailed to write keys to ssi file %s:\n  %s", ssifile, newssi->errbuf);
+  
+    esl_sqfile_Position(dbfp, 0);
+    
+    free(ssifile);
+    esl_sq_Destroy(ssisq);
+    esl_newssi_Close(newssi);
   }
 
   /* Open the results output files */
@@ -899,7 +953,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
-    if (tophits_accumulator->N) SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
+    if (tophits_accumulator->N) p7_splice_SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
 
 
     /* Sort and remove hits bellow threshold */
@@ -1038,7 +1092,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 {
   int  sstatus = eslOK;
   int seq_id = 0;
-  
+
   ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
   ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
   sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);

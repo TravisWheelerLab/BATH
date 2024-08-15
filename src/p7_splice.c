@@ -109,7 +109,7 @@
  *
  *
  *
- *  FLAGSHIP: SpliceHits : Calls 'GetTargetNuclSeq' to acquire a general coding region on the nucleotide target
+ *  FLAGSHIP: p7_splice_SpliceHits : Calls 'GetTargetNuclSeq' to acquire a general coding region on the nucleotide target
  *                       : Calls 'BuildSpliceGraph' to build a first pass of the splice graph using the results from translated HMMER
  *                       : Calls 'AddMissingExonsToGraph' to identify and patch any potential holes in the splice graph (missing exons)
  *                       : Calls 'RunModelOnExonSets' to generate the final spliced alignments of sets of exons to the model
@@ -907,44 +907,52 @@ TARGET_SET * SelectTargetRanges
   if (DEBUGGING) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
 
-  int hit_id, dom_id, i;
-
+  int           hit_id, dom_id, i;
+  int           num_hits;
+  int           num_targets;
+  int           sort_id;
+  int           base_hit_id;
+  int           candidate_best_dom;
+  int           *HitScoreSort;
+  float         *HitScores;
+  char          *CandidateSeqName;
+  TARGET_SET    *TargetSet; 
+  P7_ALIDISPLAY *CandidateAD;
 
   // Because we go through
-  int num_hits = (int)(TopHits->N);
-  float * HitScores = malloc(num_hits * sizeof(float));
+  num_hits = (int)(TopHits->N);
+
+  HitScores = malloc(num_hits * sizeof(float));
+
+  /* get the score of esch hit */  
   for (hit_id = 0; hit_id < num_hits; hit_id++) {
     dom_id = TopHits->hit[hit_id]->best_domain;
     HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[dom_id])->envsc;
   }
-  int * HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
+
+  /* Generate a sort index for hit scores (in decreasing value) */
+  HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
 
 
   // Initialize our TARGET_SETS struct
-  TARGET_SET * TargetSet     = malloc(sizeof(TARGET_SET));
+  TargetSet                  = malloc(sizeof(TARGET_SET));
   TargetSet->TargetSeqNames  = malloc(MAX_TARGET_REGIONS * sizeof(char *));
   TargetSet->TargetStarts    = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
   TargetSet->TargetEnds      = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
   TargetSet->TargetIsRevcomp = malloc(MAX_TARGET_REGIONS * sizeof(int));
 
 
-
   // We'll need to check each target sequence's length to make sure we don't
   // let our range exceed the length of the chromosome.
 
-
-
-  int num_targets = 0;
-
-  int sort_id;
+  num_targets = 0;
   for (sort_id = 0; sort_id < num_hits; sort_id++) {
 
+    base_hit_id = HitScoreSort[sort_id];
 
-    int base_hit_id = HitScoreSort[sort_id];
-
-    char * CandidateSeqName     = TopHits->hit[base_hit_id]->name;
-    int candidate_best_dom      = TopHits->hit[base_hit_id]->best_domain;
-    P7_ALIDISPLAY * CandidateAD = (&TopHits->hit[base_hit_id]->dcl[candidate_best_dom])->ad;
+    CandidateSeqName     = TopHits->hit[base_hit_id]->name;
+    candidate_best_dom      = TopHits->hit[base_hit_id]->best_domain;
+    CandidateAD = (&TopHits->hit[base_hit_id]->dcl[candidate_best_dom])->ad;
 
     int candidate_revcomp = 0;
     if (CandidateAD->sqfrom > CandidateAD->sqto)
@@ -1111,15 +1119,15 @@ TARGET_SEQ * GetTargetNuclSeq
 
 
   TargetNuclSeq->esl_sq = esl_sq_CreateDigital(TargetNuclSeq->abc);
+
+   
   int fetch_err_code    = esl_sqio_FetchSubseq(TmpSeqFile,TargetNuclSeq->SeqName,TargetNuclSeq->start,TargetNuclSeq->end,TargetNuclSeq->esl_sq);
-
-
+   
   esl_sqfile_Close(TmpSeqFile);
   esl_sq_Destroy(SeqInfo);
 
-
   if (fetch_err_code != eslOK) {
-    fprintf(stderr,"\n  ERROR: Failed to fetch target subsequence (is there an .ssi index for the sequence file?)\n");
+    fprintf(stderr,"\n  ERROR: Failed to fetch target subsequence for splice graph\n");
     fprintf(stderr,"         Requested search area: %s:%ld..%ld\n\n",TargetNuclSeq->SeqName,TargetNuclSeq->start,TargetNuclSeq->end);
     exit(1);
   }
@@ -7365,7 +7373,7 @@ void RunModelOnExonSets
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
- *  Function: SpliceHits
+ *  Function: p7_splice_SpliceHits
  *
  *  Desc. :  This is the top-level function for spliced hmmsearcht
  *
@@ -7385,7 +7393,7 @@ void RunModelOnExonSets
  *           input hits they're written out to the ofp.
  *
  */
-void SpliceHits
+void p7_splice_SpliceHits
 (
   P7_TOPHITS  * TopHits,
   ESL_SQFILE  * GenomicSeqFile,
@@ -7399,7 +7407,6 @@ void SpliceHits
 {
 
   if (DEBUGGING) DEBUG_OUT("Starting 'SpliceHits'",1);
-
 
   // Start the timer!  You're on the clock, splash!
   //
@@ -7421,19 +7428,16 @@ void SpliceHits
   TARGET_SET * TargetSet = SelectTargetRanges(TopHits);
 
 
-
   int target_set_id;
   for (target_set_id = 0; target_set_id < TargetSet->num_target_seqs; target_set_id++) {
 
-
+   printf("target set %d of %d\n", target_set_id+1, TargetSet->num_target_seqs);
 
     // Given that our hits are organized by target sequence, we can
     // be a bit more efficient in our file reading by only pulling
     // target sequences as they change (wrt the upstream hit)
     //
     TARGET_SEQ * TargetNuclSeq = GetTargetNuclSeq(GenomicSeqFile,TargetSet,target_set_id);
-
-
 
     // This function encapsulates a *ton* of the work we do.
     // In short, take the collection of unspliced hits and build
@@ -7471,7 +7475,6 @@ void SpliceHits
 
 
   }
-
 
   // More cleanup!
   TARGET_SET_Destroy(TargetSet);

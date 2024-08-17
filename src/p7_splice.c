@@ -190,6 +190,7 @@ typedef struct _target_set {
   int num_target_seqs;
 
   char    ** TargetSeqNames; // Also (individually) borrowed pointers!
+  int64_t  * TagetSeqidx;
   int64_t  * TargetStarts;
   int64_t  * TargetEnds;
   int      * TargetIsRevcomp;
@@ -514,6 +515,7 @@ void TARGET_SET_Destroy
 (TARGET_SET * TS)
 {
   free(TS->TargetSeqNames);
+  free(TS->TagertSeqidx);
   free(TS->TargetStarts);
   free(TS->TargetEnds);
   free(TS->TargetIsRevcomp);
@@ -906,9 +908,6 @@ TARGET_SET * SelectTargetRanges
 
   if (DEBUGGING) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
-  
-
-
   int           hit_id, dom_id, i;
   int           num_hits;
   int           num_targets;
@@ -918,12 +917,18 @@ TARGET_SET * SelectTargetRanges
   int           new_target;
   int64_t       min_coord, max_coord;
   int64_t       min_cap, max_cap;
+  int64_t       curr_seqidx;
   int           *HitScoreSort;
   float         *HitScores;
   char          *CandidateSeqName;
   TARGET_SET    *TargetSet; 
   P7_ALIDISPLAY *CandidateAD;
   P7_ALIDISPLAY *AD;
+
+  // Very first thing we want to do is make sure that our hits are
+  // organized by the 'Seqidx' (the target genomic sequence), strand,
+  // and alignment postion. We wil take advantage of that sorting. 
+  p7_tophits_SortBySeqidxAndAlipos(TopHits);
 
   num_hits = (int)(TopHits->N);
   HitScores = malloc(num_hits * sizeof(float));
@@ -939,6 +944,7 @@ TARGET_SET * SelectTargetRanges
   // Initialize our TARGET_SETS struct
   TargetSet                  = malloc(sizeof(TARGET_SET));
   TargetSet->TargetSeqNames  = malloc(num_hits * sizeof(char *));
+  TargetSet->TargetSeqidx    = malloc(num_hits * sizeof(int64_t));
   TargetSet->TargetStarts    = malloc(num_hits * sizeof(int64_t));
   TargetSet->TargetEnds      = malloc(num_hits * sizeof(int64_t));
   TargetSet->TargetIsRevcomp = malloc(num_hits * sizeof(int));
@@ -952,17 +958,17 @@ TARGET_SET * SelectTargetRanges
 
     base_hit_id = HitScoreSort[sort_id];
 
+    curr_seqidx             = TopHits->hit[base_hit_id]->seqidx;
     CandidateSeqName        = TopHits->hit[base_hit_id]->name;
     CandidateAD = (&TopHits->hit[base_hit_id]->dcl[0])->ad;
 
     candidate_revcomp = 0;
     if (CandidateAD->sqfrom > CandidateAD->sqto)
       candidate_revcomp = 1;
-
-
+   
     new_target = 1;
     for (i=0; i<num_targets; i++) {
-      if (!strcmp(CandidateSeqName,TargetSet->TargetSeqNames[i]) && candidate_revcomp == TargetSet->TargetIsRevcomp[i]) {
+      if (curr_seqidx == TargetSet->TargetSeqidx[i] && candidate_revcomp == TargetSet->TargetIsRevcomp[i]) {
         new_target = 0;
         break;
       }
@@ -1024,6 +1030,7 @@ TARGET_SET * SelectTargetRanges
     }
 
     TargetSet->TargetSeqNames[num_targets]  = CandidateSeqName;
+    TargetSet->TargetSeqidx[num_targets]    = curr_seqidx;
     TargetSet->TargetStarts[num_targets]    = min_coord;
     TargetSet->TargetEnds[num_targets]      = max_coord;
     TargetSet->TargetIsRevcomp[num_targets] = candidate_revcomp;
@@ -7409,15 +7416,7 @@ void p7_splice_SpliceHits
   esl_stopwatch_Start(Timer);
 
 
-  // Very first thing we want to do is make sure that our hits are
-  // organized by the 'Seqidx' (the target genomic sequence) and position
-  // within that file.
-  //
-  // NOTE: I still need to ensure I'm taking advantage of this sorting!
-  //
-  p7_tophits_SortBySeqidxAndAlipos(TopHits);
-
-  // We'll iterate over search regions (max-2MB ranges of chromosomes)
+    // We'll iterate over search regions (max-2MB ranges of chromosomes)
   TARGET_SET * TargetSet = SelectTargetRanges(TopHits);
 
 

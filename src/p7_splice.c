@@ -906,40 +906,42 @@ TARGET_SET * SelectTargetRanges
 
   if (DEBUGGING) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
+  
+
 
   int           hit_id, dom_id, i;
   int           num_hits;
   int           num_targets;
   int           sort_id;
   int           base_hit_id;
-  int           candidate_best_dom;
+  int           candidate_revcomp;
+  int           new_target;
+  int64_t       min_coord, max_coord;
+  int64_t       min_cap, max_cap;
   int           *HitScoreSort;
   float         *HitScores;
   char          *CandidateSeqName;
   TARGET_SET    *TargetSet; 
   P7_ALIDISPLAY *CandidateAD;
+  P7_ALIDISPLAY *AD;
 
-  // Because we go through
   num_hits = (int)(TopHits->N);
-
   HitScores = malloc(num_hits * sizeof(float));
 
-  /* get the score of esch hit */  
+  /* get the score of esch hit (only one domain per hit in BATH) */  
   for (hit_id = 0; hit_id < num_hits; hit_id++) {
-    dom_id = TopHits->hit[hit_id]->best_domain;
-    HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[dom_id])->envsc;
+    HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[0])->envsc;
   }
 
   /* Generate a sort index for hit scores (in decreasing value) */
   HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
 
-
   // Initialize our TARGET_SETS struct
   TargetSet                  = malloc(sizeof(TARGET_SET));
-  TargetSet->TargetSeqNames  = malloc(MAX_TARGET_REGIONS * sizeof(char *));
-  TargetSet->TargetStarts    = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
-  TargetSet->TargetEnds      = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
-  TargetSet->TargetIsRevcomp = malloc(MAX_TARGET_REGIONS * sizeof(int));
+  TargetSet->TargetSeqNames  = malloc(num_hits * sizeof(char *));
+  TargetSet->TargetStarts    = malloc(num_hits * sizeof(int64_t));
+  TargetSet->TargetEnds      = malloc(num_hits * sizeof(int64_t));
+  TargetSet->TargetIsRevcomp = malloc(num_hits * sizeof(int));
 
 
   // We'll need to check each target sequence's length to make sure we don't
@@ -950,16 +952,15 @@ TARGET_SET * SelectTargetRanges
 
     base_hit_id = HitScoreSort[sort_id];
 
-    CandidateSeqName     = TopHits->hit[base_hit_id]->name;
-    candidate_best_dom      = TopHits->hit[base_hit_id]->best_domain;
-    CandidateAD = (&TopHits->hit[base_hit_id]->dcl[candidate_best_dom])->ad;
+    CandidateSeqName        = TopHits->hit[base_hit_id]->name;
+    CandidateAD = (&TopHits->hit[base_hit_id]->dcl[0])->ad;
 
-    int candidate_revcomp = 0;
+    candidate_revcomp = 0;
     if (CandidateAD->sqfrom > CandidateAD->sqto)
       candidate_revcomp = 1;
 
 
-    int new_target = 1;
+    new_target = 1;
     for (i=0; i<num_targets; i++) {
       if (!strcmp(CandidateSeqName,TargetSet->TargetSeqNames[i]) && candidate_revcomp == TargetSet->TargetIsRevcomp[i]) {
         new_target = 0;
@@ -974,7 +975,6 @@ TARGET_SET * SelectTargetRanges
     // Now that we know this is a new chromosome, define a coding region!
     // First, what we'll do is define a hard maximum search area defined
     // by the highest-scoring hit to this sequence.
-    int64_t min_coord, max_coord;
     if (candidate_revcomp) {
       min_coord = CandidateAD->sqto;
       max_coord = CandidateAD->sqfrom;
@@ -983,8 +983,8 @@ TARGET_SET * SelectTargetRanges
       max_coord = CandidateAD->sqto;
     }
 
-    int64_t min_cap = min_coord - 1000000;
-    int64_t max_cap = max_coord + 1000000;
+    min_cap = min_coord - 1000000;
+    max_cap = max_coord + 1000000;
 
 
     // The min_cap and max_cap now define the absolute furthest we're
@@ -992,42 +992,36 @@ TARGET_SET * SelectTargetRanges
     // down to a much tighter zone
     for (hit_id = 0; hit_id < num_hits; hit_id++) {
 
+       /* GENEVIEVE: Does this allow for two sepreate hits on the same target and stand 
+        * but seperated by more than the min_cap, max_cap window? */
 
       if (strcmp(CandidateSeqName,TopHits->hit[hit_id]->name))
         continue;
 
-
-      P7_ALIDISPLAY * AD = (&TopHits->hit[hit_id]->dcl[0])->ad; 
+      AD = (&TopHits->hit[hit_id]->dcl[0])->ad; 
 
       if ( candidate_revcomp && AD->sqfrom < AD->sqto) continue;
       if (!candidate_revcomp && AD->sqfrom > AD->sqto) continue;
+    
+      AD = (&TopHits->hit[hit_id]->dcl[0])->ad;
 
-
-      for (dom_id = 0; dom_id < TopHits->hit[hit_id]->ndom; dom_id++) {
-      
+      // New minimum?
+      // We could revcomp check, but I don't know if it's any faster...
+      if (AD->sqto < min_coord && AD->sqto > min_cap)
+        min_coord = AD->sqto;
           
-        AD = (&TopHits->hit[hit_id]->dcl[dom_id])->ad;
-
-        // New minimum?
-        // We could revcomp check, but I don't know if it's any faster...
-        if (AD->sqto < min_coord && AD->sqto > min_cap)
-          min_coord = AD->sqto;
+      if (AD->sqfrom < min_coord && AD->sqfrom > min_cap)
+        min_coord = AD->sqfrom;
           
-        if (AD->sqfrom < min_coord && AD->sqfrom > min_cap)
-          min_coord = AD->sqfrom;
+      // New maximum?
+      if (AD->sqto > max_coord && AD->sqto < max_cap)
+        max_coord = AD->sqto;
           
+      if (AD->sqfrom > max_coord && AD->sqfrom < max_cap)
+        max_coord = AD->sqfrom;
 
-        // New maximum?
-        if (AD->sqto > max_coord && AD->sqto < max_cap)
-          max_coord = AD->sqto;
-          
-        if (AD->sqfrom > max_coord && AD->sqfrom < max_cap)
-          max_coord = AD->sqfrom;
-
-      }
 
     }
-
 
     TargetSet->TargetSeqNames[num_targets]  = CandidateSeqName;
     TargetSet->TargetStarts[num_targets]    = min_coord;
@@ -1035,8 +1029,9 @@ TARGET_SET * SelectTargetRanges
     TargetSet->TargetIsRevcomp[num_targets] = candidate_revcomp;
 
     num_targets++;
-
-    if (num_targets == MAX_TARGET_REGIONS)
+    
+     /* GENEVIEVE: get rid of this hard stop */
+    if (num_targets == num_hits)
       break;
 
 
@@ -7421,8 +7416,6 @@ void p7_splice_SpliceHits
   // NOTE: I still need to ensure I'm taking advantage of this sorting!
   //
   p7_tophits_SortBySeqidxAndAlipos(TopHits);
-
-
 
   // We'll iterate over search regions (max-2MB ranges of chromosomes)
   TARGET_SET * TargetSet = SelectTargetRanges(TopHits);

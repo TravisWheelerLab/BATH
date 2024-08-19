@@ -190,7 +190,7 @@ typedef struct _target_set {
   int num_target_seqs;
 
   char    ** TargetSeqNames; // Also (individually) borrowed pointers!
-  int64_t  * TagetSeqidx;
+  int64_t  * TargetSeqidx;
   int64_t  * TargetStarts;
   int64_t  * TargetEnds;
   int      * TargetIsRevcomp;
@@ -515,7 +515,7 @@ void TARGET_SET_Destroy
 (TARGET_SET * TS)
 {
   free(TS->TargetSeqNames);
-  free(TS->TagertSeqidx);
+  free(TS->TargetSeqidx);
   free(TS->TargetStarts);
   free(TS->TargetEnds);
   free(TS->TargetIsRevcomp);

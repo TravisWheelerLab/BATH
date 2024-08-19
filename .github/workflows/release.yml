@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]  # build for ubuntu and mac
         arch: [x86, x64, arm]
     steps:
       - name: Checkout code

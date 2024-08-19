@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]  # build for ubuntu and mac
-        arch: [x86, x64, arm]
+        arch: [x64, arm] # x64 and arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v3

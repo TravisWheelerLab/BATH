@@ -908,18 +908,15 @@ TARGET_SET * SelectTargetRanges
 
   if (DEBUGGING) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
-  int           hit_id, dom_id, i;
+  int           hit_id, i;
   int           num_hits;
   int           num_targets;
   int           sort_id;
-  int           base_hit_id;
   int           candidate_revcomp;
   int           new_target;
   int64_t       min_coord, max_coord;
   int64_t       min_cap, max_cap;
   int64_t       curr_seqidx;
-  int           *HitScoreSort;
-  float         *HitScores;
   char          *CandidateSeqName;
   TARGET_SET    *TargetSet; 
   P7_ALIDISPLAY *CandidateAD;
@@ -931,15 +928,6 @@ TARGET_SET * SelectTargetRanges
   p7_tophits_SortBySeqidxAndAlipos(TopHits);
 
   num_hits = (int)(TopHits->N);
-  HitScores = malloc(num_hits * sizeof(float));
-
-  /* get the score of esch hit (only one domain per hit in BATH) */  
-  for (hit_id = 0; hit_id < num_hits; hit_id++) {
-    HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[0])->envsc;
-  }
-
-  /* Generate a sort index for hit scores (in decreasing value) */
-  HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
 
   // Initialize our TARGET_SETS struct
   TargetSet                  = malloc(sizeof(TARGET_SET));
@@ -956,11 +944,9 @@ TARGET_SET * SelectTargetRanges
   num_targets = 0;
   for (sort_id = 0; sort_id < num_hits; sort_id++) {
 
-    base_hit_id = HitScoreSort[sort_id];
-
-    curr_seqidx             = TopHits->hit[base_hit_id]->seqidx;
-    CandidateSeqName        = TopHits->hit[base_hit_id]->name;
-    CandidateAD = (&TopHits->hit[base_hit_id]->dcl[0])->ad;
+    curr_seqidx             = TopHits->hit[sort_id]->seqidx;
+    CandidateSeqName        = TopHits->hit[sort_id]->name;
+    CandidateAD = (&TopHits->hit[sort_id]->dcl[0])->ad;
 
     candidate_revcomp = 0;
     if (CandidateAD->sqfrom > CandidateAD->sqto)

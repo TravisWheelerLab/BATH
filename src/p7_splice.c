@@ -607,12 +607,12 @@ void SPLICE_GRAPH_Destroy
     int node_id, in_edge_index;
     SPLICE_NODE * Node;
     for (node_id=1; node_id<=Graph->num_nodes; node_id++) {
-
       Node = Graph->Nodes[node_id];
-
+      free(Node->DownstreamNodes);
+      free(Node->UpstreamNodes);
       for (in_edge_index = 0; in_edge_index < Node->num_in_edges; in_edge_index++) 
         DOMAIN_OVERLAP_Destroy(Node->InEdges[in_edge_index]);
-
+     
       free(Node->InEdges);
       free(Node->OutEdges);
       free(Node);
@@ -1040,6 +1040,8 @@ TARGET_SET * SelectTargetRanges
 
   if (DEBUGGING) DEBUG_OUT("'SelectTargetRanges' Complete",-1);
 
+  free(HitScores);
+  free(HitScoreSort);
 
   return TargetSet;
 
@@ -2697,7 +2699,6 @@ SPLICE_NODE * InitSpliceNode
   NewNode->OutEdges        = (DOMAIN_OVERLAP **)malloc(NewNode->out_edge_cap*sizeof(DOMAIN_OVERLAP *));
   NewNode->DownstreamNodes = (SPLICE_NODE    **)malloc(NewNode->out_edge_cap*sizeof(SPLICE_NODE    *));
 
-
   NewNode->in_edge_cap    = 10;
   NewNode->num_in_edges   =  0;
   NewNode->best_in_edge   = -1;
@@ -3154,7 +3155,7 @@ void FillOutGraphStructure
 
   if (DEBUGGING) DEBUG_OUT("Starting 'FillOutGraphStructure'",1);
 
-
+   int i;
   // We'll want to be a little careful, just because this is our flagship
   // datastructure...
   int node_id;
@@ -3207,11 +3208,8 @@ void FillOutGraphStructure
         Graph->TH_HitDomToNodeID[hit_id][dom_id] = ++node_id;
         
         Graph->Nodes[node_id] = InitSpliceNode(Graph,node_id,hit_id,dom_id,0);
-
       }
-
     }
-
   }
   Graph->num_nodes = node_id;
 
@@ -3234,7 +3232,7 @@ void FillOutGraphStructure
 
   EvaluatePaths(Graph);
 
-
+  
   if (DEBUGGING) DEBUG_OUT("'FillOutGraphStructure' Complete",-1);
 
 }
@@ -3369,7 +3367,6 @@ SPLICE_GRAPH * BuildSpliceGraph
   // Build that stinky graph!
   FillOutGraphStructure(Graph,TargetNuclSeq,SpliceEdges,num_splice_edges);
   FindBestFullPath(Graph);
-
 
   free(SpliceEdges);
 
@@ -4241,7 +4238,7 @@ int * GetBoundedSearchRegions
     x++;
   }
   free(DCCSearchRegions);
-  //free(MidSearchRegions);
+  free(MidSearchRegions);
   free(TermSearchRegions);
 
 
@@ -6572,7 +6569,6 @@ void PrintExon
   char * FormattedTNSName = RightAlignStr(TNSName,EDI->name_str_len);
 
 
-
   int formatted_int_len; // We just need a pointer for 'IntToCharArr'
   char * CharredInt;
   char * FormattedInt;
@@ -6700,7 +6696,9 @@ void PrintExon
   free(TransAli);
   free(NuclAli);
   free(PPAli);
-
+  free(exon_id_str);
+  free(TNSName);
+  free(FormattedTNSName);
 
   if (DEBUGGING) DEBUG_OUT("'PrintExon' Complete",-1);
 
@@ -7234,8 +7232,8 @@ void RunModelOnExonSets
 
   // It's better to be re-using these than destroying
   // and re-allocating every time
-  ESL_SQ      * NuclSeq           = esl_sq_Create();
-  ESL_SQ      * AminoSeq          = esl_sq_Create();
+  ESL_SQ      * NuclSeq           = NULL; 
+  ESL_SQ      * AminoSeq          = NULL; 
   P7_PIPELINE * ExonSetPipeline   = NULL;
   P7_TOPHITS  * ExonSetTopHits    = NULL;
   P7_OPROFILE * ExonSetOModel     = p7_oprofile_Clone(Graph->OModel);
@@ -7245,7 +7243,6 @@ void RunModelOnExonSets
   int coord_set_id;
   int exon_set_id = 0;
   for (coord_set_id = 0; coord_set_id < num_coord_sets; coord_set_id++) {
-
 
     // If there's only one exon in this set of exons, we'll
     // skip reporting it (maybe have this be a user option?)
@@ -7276,9 +7273,7 @@ void RunModelOnExonSets
     ESL_SQ  * AminoSeq     = esl_sq_CreateDigitalFrom(Graph->OModel->abc,TargetNuclSeq->SeqName,ExonSetTrans,(int64_t)trans_len,NULL,NULL,NULL);
     AminoSeq->idx = coord_set_id+1;
     strcpy(AminoSeq->orfid,"exon");
-
-
-
+    
     // Prep a P7_PIPELINE datastructure and all of the other
     // friends that we need in order to produce our full evaluation
     // of the set of exons as a coding region for this protein model
@@ -7329,12 +7324,11 @@ void RunModelOnExonSets
     // DESTRUCTION AND REBIRTH!
     free(ExonSetNucls);
     free(ExonSetTrans);
-    esl_sq_Reuse(NuclSeq);  // Takes care of 'ExonSetNucls'
-    esl_sq_Reuse(AminoSeq); // Takes care of 'ExonSetTrans'
-    p7_tophits_Reuse(ExonSetTopHits);
-    p7_pipeline_Reuse(ExonSetPipeline);
+    esl_sq_Destroy(NuclSeq);
+    esl_sq_Destroy(AminoSeq);
+    p7_tophits_Destroy(ExonSetTopHits);
+    p7_pipeline_Destroy(ExonSetPipeline);
     free(ExonCoordSets[coord_set_id]);
-
 
   }
 
@@ -7345,8 +7339,6 @@ void RunModelOnExonSets
   p7_oprofile_Destroy(ExonSetOModel);
   p7_bg_Destroy(ExonSetBackground);
   free(ExonCoordSets);
-
-
   if (DEBUGGING) DEBUG_OUT("'RunModelOnExonSets' Complete",-1);
 
 }

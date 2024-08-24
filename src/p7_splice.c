@@ -5590,7 +5590,7 @@ ESL_DSQ * GrabExonCoordSetNucls
   for (exon_id = 0; exon_id < num_exons; exon_id++)
     num_nucls += abs(ExonCoordSet[exon_id*5 + 1] - ExonCoordSet[exon_id*5 + 3]) + 1;
 
-  ESL_DSQ * ExonSetNucls = malloc((num_nucls+1) * sizeof(ESL_DSQ));
+  ESL_DSQ * ExonSetNucls = malloc((num_nucls+2) * sizeof(ESL_DSQ));
   *coding_region_len = num_nucls;
 
 

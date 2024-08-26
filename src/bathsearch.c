@@ -917,10 +917,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Sort and remove hits bellow threshold */
     p7_tophits_SortBySortkey(tophits_accumulator);
-       /* Set Z = 1 to prevent changing e-values. Correct Z 
-       * was calcualted by p7_tophits_ComputeBathEvalues() */
-      pipelinehits_accumulator->Z = 1;    
-      p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
+
+   /* Set Z = 1 to prevent changing e-values. Correct Z 
+    * was calcualted by p7_tophits_ComputeBathEvalues() */
+    pipelinehits_accumulator->Z = 1;    
+     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
 
       /* Print the results.  */

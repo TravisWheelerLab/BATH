@@ -122,14 +122,19 @@
 // Before we get to the fun stuff, let's just set up some
 // bureaucratic stuff to make debugging relatively (hopefully)
 // painless
-static int ALEX_MODE = 1; // Print some extra metadata around hits
-static int DEBUGGING = 0; // Print debugging output?
+static int ALEX_MODE  = 1; // Print some extra metadata around hits
+static int DEBUGGING1 = 0; // Print debugging output?
+static int DEBUGGING2 = 0; // Print debugging output?
 
+static time_t INIT_SECONDS;
 
 // Ever want to know what function you're in, and how deep it
 // is (roughly)? Well, wonder no more!
 int FUNCTION_DEPTH = 0;
 void DEBUG_OUT (const char * message, const int func_depth_change) {
+
+  time_t curr_seconds;
+  curr_seconds = time(NULL);
 
   if (func_depth_change > 0) 
     FUNCTION_DEPTH += func_depth_change;
@@ -138,9 +143,9 @@ void DEBUG_OUT (const char * message, const int func_depth_change) {
   int debug_depth;
   for (debug_depth=0; debug_depth<FUNCTION_DEPTH; debug_depth++) 
     fprintf(stderr,"  ");
-  fprintf(stderr,"%s\n",message);
+  fprintf(stderr,"%s Time: %ld\n",message, (curr_seconds - INIT_SECONDS));
   fflush(stderr);
-  
+ 
   if (func_depth_change < 0) 
     FUNCTION_DEPTH += func_depth_change;
 
@@ -153,8 +158,8 @@ static float EDGE_FAIL_SCORE = -14773.0;   // Makes me thirsty for a latte!
 static char  AMINO_CHARS[21] = {'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y','-'};
 static char    DNA_CHARS[ 6] = {'A','C','G','T','-','N'};
 static char LC_DNA_CHARS[ 6] = {'a','c','g','t','-','n'};
-static char    RNA_CHARS[ 6] = {'A','C','G','U','-','N'};
-static char LC_RNA_CHARS[ 6] = {'a','c','g','u','-','n'};
+//static char    RNA_CHARS[ 6] = {'A','C','G','U','-','N'};
+//static char LC_RNA_CHARS[ 6] = {'a','c','g','u','-','n'};
 
 
 // How many chromosome ranges are we willing to try splicing into?
@@ -546,6 +551,7 @@ void TARGET_SEQ_Destroy
 void DOMAIN_OVERLAP_Destroy
 (DOMAIN_OVERLAP * DO)
 {
+  
   free(DO->UpstreamNucls);
   free(DO->DownstreamNucls);
   free(DO);
@@ -596,7 +602,8 @@ void SPLICE_GRAPH_Destroy
 (SPLICE_GRAPH * Graph)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'SPLICE_GRAPH_Destroy'",1);
+  
+  if (DEBUGGING1) DEBUG_OUT("Starting 'SPLICE_GRAPH_Destroy'",1);
 
 
   // Because we don't want to accidentally double-free any
@@ -604,15 +611,19 @@ void SPLICE_GRAPH_Destroy
   // charge of its incoming DOs.
   if (Graph->Nodes) {
     
-    int node_id, in_edge_index;
+    int node_id, in_edge_index, out_edge_index;
     SPLICE_NODE * Node;
+     int tmp = 0;
     for (node_id=1; node_id<=Graph->num_nodes; node_id++) {
       Node = Graph->Nodes[node_id];
       free(Node->DownstreamNodes);
       free(Node->UpstreamNodes);
-      for (in_edge_index = 0; in_edge_index < Node->num_in_edges; in_edge_index++) 
+      //printf("Node->num_in_edges %d\n", Node->num_in_edges);
+      for (in_edge_index = 0; in_edge_index < Node->num_in_edges; in_edge_index++) { 
         DOMAIN_OVERLAP_Destroy(Node->InEdges[in_edge_index]);
-     
+        tmp++;
+       }
+
       free(Node->InEdges);
       free(Node->OutEdges);
       free(Node);
@@ -646,11 +657,13 @@ void SPLICE_GRAPH_Destroy
 
       // Luckily, the AD is for real (generally) so we should
       // be able to use the generic destructor
+      if(Graph->MissedHits->hit[hit_id]->dcl->ad->ntseq) free(Graph->MissedHits->hit[hit_id]->dcl->ad->ntseq);
       p7_alidisplay_Destroy(Graph->MissedHits->hit[hit_id]->dcl->ad);
       free(Graph->MissedHits->hit[hit_id]->dcl);
       free(Graph->MissedHits->hit[hit_id]);
 
     }
+    free(Graph->MissedHits->hit);
     free(Graph->MissedHits);
 
   }
@@ -660,7 +673,7 @@ void SPLICE_GRAPH_Destroy
   Graph = NULL;
 
 
-  if (DEBUGGING) DEBUG_OUT("'SPLICE_GRAPH_Destroy' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'SPLICE_GRAPH_Destroy' Complete",-1);
 
 }
 
@@ -686,7 +699,7 @@ void SPLICE_GRAPH_Destroy
 int * FloatHighLowSortIndex
 (float * Vals, int num_vals)
 {
-  if (DEBUGGING) DEBUG_OUT("Starting 'FloatHighLowSortIndex'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'FloatHighLowSortIndex'",1);
 
   int * Write = malloc(num_vals * sizeof(int));
   int * Read  = malloc(num_vals * sizeof(int));
@@ -754,7 +767,7 @@ int * FloatHighLowSortIndex
 
   }
 
-  if (DEBUGGING) DEBUG_OUT("'FloatHighLowSortIndex' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'FloatHighLowSortIndex' Complete",-1);
 
   free(Write);
   return Read;
@@ -768,7 +781,7 @@ int * FloatHighLowSortIndex
 int * FloatLowHighSortIndex
 (float * Vals, int num_vals)
 {
-  if (DEBUGGING) DEBUG_OUT("Starting 'FloatLowHighSortIndex'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'FloatLowHighSortIndex'",1);
   int * SortIndex = FloatHighLowSortIndex(Vals,num_vals);
   int i;
   for (i=0; i<num_vals/2; i++) {
@@ -776,7 +789,7 @@ int * FloatLowHighSortIndex
     SortIndex[i] = SortIndex[(num_vals-1)-i];
     SortIndex[(num_vals-1)-i] = tmp;
   }
-  if (DEBUGGING) DEBUG_OUT("'FloatLowHighSortIndex' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'FloatLowHighSortIndex' Complete",-1);
   return SortIndex;
 }
 
@@ -808,7 +821,7 @@ void GetMinAndMaxCoords
 (P7_TOPHITS * TopHits, TARGET_SEQ * TargetNuclSeq)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'GetMinAndMaxCoords'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'GetMinAndMaxCoords'",1);
 
   // First, let's figure out if we're revcomp
   int revcomp = 0;
@@ -876,7 +889,7 @@ void GetMinAndMaxCoords
   TargetNuclSeq->start = min;
   TargetNuclSeq->end   = max;
 
-  if (DEBUGGING) DEBUG_OUT("'GetMinAndMaxCoords' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'GetMinAndMaxCoords' Complete",-1);
 
 }
 
@@ -904,7 +917,7 @@ TARGET_SET * SelectTargetRanges
 (P7_TOPHITS * TopHits)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
 
   int hit_id, dom_id, i;
@@ -1038,7 +1051,7 @@ TARGET_SET * SelectTargetRanges
   TargetSet->num_target_seqs = num_targets;
 
 
-  if (DEBUGGING) DEBUG_OUT("'SelectTargetRanges' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'SelectTargetRanges' Complete",-1);
 
   free(HitScores);
   free(HitScoreSort);
@@ -1080,7 +1093,7 @@ TARGET_SEQ * GetTargetNuclSeq
 (ESL_SQFILE * GenomicSeqFile, TARGET_SET * TargetSet, int target_set_id)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'GetTargetNuclSeq'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'GetTargetNuclSeq'",1);
 
 
   TARGET_SEQ * TargetNuclSeq = (TARGET_SEQ *)malloc(sizeof(TARGET_SEQ));
@@ -1130,7 +1143,7 @@ TARGET_SEQ * GetTargetNuclSeq
   TargetNuclSeq->Seq = TargetNuclSeq->esl_sq->dsq;
 
 
-  if (DEBUGGING) DEBUG_OUT("'GetTargetNuclSeq' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'GetTargetNuclSeq' Complete",-1);
 
 
   return TargetNuclSeq;
@@ -1178,12 +1191,10 @@ ESL_DSQ * GrabNuclRange
 {
 
   int len = abs(end - start) + 1;
-
-  char * Seq = malloc((len+1) * sizeof(char));
-
+  char * Seq = malloc((len+2) * sizeof(char));
   // Keep in mind that DSQs are [1..n]
   int read_index = start - (int)(TargetNuclSeq->start) + 1;
-
+  if(read_index < 0) printf("start %d end %d read_index %d\n", start, end, read_index);
   if (start < end) {
   
     int i;
@@ -1200,7 +1211,7 @@ ESL_DSQ * GrabNuclRange
     }
 
   }
-  Seq[len] = 0;
+  Seq[len] = '\0';
 
 
   ESL_DSQ * NuclSubseq;
@@ -1449,15 +1460,21 @@ float AminoScoreAtPosition
 )
 {
 
-
-  if (amino_index > 20) {
-    if      (*state == p7P_MM) { *state = p7P_MD; }
-    else if (*state == p7P_MD) { *state = p7P_DD; }
-    // Otherwise, we *should* be staying DD
-  } else if (AD && AD->ntseq[3*display_pos] == '-') {
+  float transition_score;
+  float emission_score;
+  
+  if (amino_index == 27) {
     if      (*state == p7P_MM) { *state = p7P_MI; }
     else if (*state == p7P_MI) { *state = p7P_II; }
+    else if (*state == p7P_IM) { *state = p7P_MM; }
+    else if (*state != p7P_II) { printf("incorrect state %d, should be %d\n", *state, p7P_II); }
     // Otherwise, we *should* be staying II
+  } else if (AD && AD->model[display_pos] == '.') {
+    if      (*state == p7P_MM) { *state = p7P_MD; }
+    else if (*state == p7P_MD) { *state = p7P_DD; }
+    else if (*state == p7P_DM) { *state = p7P_MM; }
+    else if (*state != p7P_DD) { printf("incorrect state %d, should be %d\n", *state, p7P_DD); }
+    // Otherwise, we *should* be staying DD
   } else {
     if      (*state == p7P_MI) { *state = p7P_IM; }
     else if (*state == p7P_II) { *state = p7P_IM; }
@@ -1465,26 +1482,17 @@ float AminoScoreAtPosition
     else if (*state == p7P_DD) { *state = p7P_DM; }
     else                       { *state = p7P_MM; }
   }
-  float transition_score = p7P_TSC(gm,model_pos,*state);
-
   
-  float emission_score = 0.0;
-  if (*state != p7P_MD && *state != p7P_DD) {
-    if (*state == p7P_MI || *state == p7P_II)
-      emission_score = p7P_ISC(gm,model_pos,amino_index);
-    else
-      emission_score = p7P_MSC(gm,model_pos,amino_index);
-  }
+  if (model_pos < gm->M) transition_score = p7P_TSC(gm,model_pos,*state);
+  else                   transition_score = 0.;
 
+   emission_score = p7P_MSC(gm,model_pos,amino_index);
+   if (emission_score == -eslINFINITY) emission_score = 0;
 
   return transition_score + emission_score;
 
 
 }
-
-
-
-
 
 
 
@@ -1515,10 +1523,7 @@ float FindOptimalSpliceSite
   int * codon_split_option
 )
 {
-
-  if (DEBUGGING) DEBUG_OUT("Starting 'FindOptimalSpliceSite'",1);
-
-
+  if (DEBUGGING1) DEBUG_OUT("Starting 'FindOptimalSpliceSite'",1);
 
   // We'll want to track whether we're approaching each new
   // position from having been in a match / deletion / insert
@@ -1556,6 +1561,7 @@ float FindOptimalSpliceSite
   int nucl_read_pos  = 1;
   int model_pos      = Overlap->amino_start;
   int display_pos    = Overlap->upstream_disp_start;
+  
   while (model_pos <= Overlap->UpstreamDisplay->hmmto) {
 
 
@@ -1571,7 +1577,6 @@ float FindOptimalSpliceSite
       USGaps[us_trans_len] = 0;
 
     } else {
-
       USGaps[us_trans_len] = 1;
 
     }
@@ -1580,7 +1585,6 @@ float FindOptimalSpliceSite
     USTrans[us_trans_len]    = amino_index;
     USModelPos[us_trans_len] = model_pos;
     USScores[us_trans_len]   = AminoScoreAtPosition(gm,amino_index,model_pos,Overlap->UpstreamDisplay,display_pos,&model_state);
-
 
     if (Overlap->UpstreamDisplay->aseq[display_pos] != '.')
       model_pos++;
@@ -1639,7 +1643,6 @@ float FindOptimalSpliceSite
     USModelPos[us_trans_len] = model_pos;
     USScores[us_trans_len]   = AminoScoreAtPosition(gm,amino_index,model_pos,NULL,0,&model_state);
 
-
     model_pos++;
     us_trans_len++;
 
@@ -1695,7 +1698,6 @@ float FindOptimalSpliceSite
   model_pos        = Overlap->amino_start;
   while (ds_trans_len < Overlap->downstream_ext_len) {
 
-
     DSNuclPos[ds_trans_len] = nucl_read_pos+2;
 
 
@@ -1714,7 +1716,6 @@ float FindOptimalSpliceSite
 
     model_pos++;
     ds_trans_len++;
-
 
     // Resize?
     // (Again, this probably means a gappy hit...)
@@ -1747,10 +1748,8 @@ float FindOptimalSpliceSite
   display_pos = 0;
   while (model_pos <= Overlap->amino_end) {
 
-
     DSNuclPos[ds_trans_len] = nucl_read_pos+2;
-
-
+    
     int amino_index = 27;
     if (Overlap->DownstreamDisplay->aseq[display_pos] != '-') {
 
@@ -1769,13 +1768,10 @@ float FindOptimalSpliceSite
     DSTrans[ds_trans_len]    = amino_index;
     DSModelPos[ds_trans_len] = model_pos;
     DSScores[ds_trans_len]   = AminoScoreAtPosition(gm,amino_index,model_pos,Overlap->DownstreamDisplay,display_pos,&model_state);
-
-
-    if (Overlap->DownstreamDisplay->aseq[display_pos] != '.')
-      model_pos++;
+    
+    if (Overlap->DownstreamDisplay->aseq[display_pos] != '-')  ds_trans_len++;
+    model_pos++;
     display_pos++;
-    ds_trans_len++;
-
 
     // Resize?
     // (Again, this probably means a gappy hit...)
@@ -1833,9 +1829,7 @@ float FindOptimalSpliceSite
   //
   float baseline_score = DSScores[Overlap->downstream_ext_len];
   baseline_score      += USScores[us_pre_ext_end_pos];
-
-
-
+  
   // NOTE: As I note down below, too, there is currently a known
   //   bug where infinite scores can occur.  Eventually, this should
   //   be investigated, but for now I'm just patching it out.
@@ -1850,7 +1844,7 @@ float FindOptimalSpliceSite
     free(DSNuclPos);
     free(DSScores);
     free(DSGaps);
-    if (DEBUGGING) DEBUG_OUT("'FindOptimalSpliceSite' Complete (BUT DUE TO INFINITE SCORE ERROR)",-1);
+    if (DEBUGGING1) DEBUG_OUT("'FindOptimalSpliceSite' Complete (BUT DUE TO INFINITE SCORE ERROR)",-1);
     return EDGE_FAIL_SCORE;
   }
 
@@ -1862,7 +1856,6 @@ float FindOptimalSpliceSite
   int   optimal_model_pos  = 0;
   int   optimal_splice_opt = 0;
   float optimal_score      = EDGE_FAIL_SCORE;
-
 
   // Arrays we'll use for splice site evaluation
   ESL_DSQ * UN = malloc(6*sizeof(ESL_DSQ));
@@ -1882,13 +1875,9 @@ float FindOptimalSpliceSite
     int ds_pos;
     while (us_pos < us_trans_len && USModelPos[us_pos] == model_pos) {
 
-
       ds_pos = ds_start;
 
-
       while (ds_pos < ds_trans_len && DSModelPos[ds_pos] == model_pos) {
-
-
 
         // Pull in the "contested" nucleotides for this position
         GetContestedUpstreamNucls(Overlap->UpstreamNucls,USNuclPos[us_pos],UN);
@@ -1934,7 +1923,6 @@ float FindOptimalSpliceSite
 
   }
 
-
   free(USTrans);
   free(USModelPos);
   free(USNuclPos);
@@ -1949,11 +1937,10 @@ float FindOptimalSpliceSite
   free(DN);
 
 
-
   if (optimal_score == EDGE_FAIL_SCORE) {
     free(USGaps);
     free(DSGaps);
-    if (DEBUGGING) DEBUG_OUT("'FindOptimalSpliceSite' Complete (but sad)",-1);
+    if (DEBUGGING1) DEBUG_OUT("'FindOptimalSpliceSite' Complete (but sad)",-1);
     return EDGE_FAIL_SCORE;
   }
   
@@ -1977,7 +1964,7 @@ float FindOptimalSpliceSite
   free(DSGaps);
 
 
-  if (DEBUGGING) DEBUG_OUT("'FindOptimalSpliceSite' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'FindOptimalSpliceSite' Complete",-1);
 
 
   return optimal_score-baseline_score;
@@ -2016,7 +2003,7 @@ void SpliceOverlappingDomains
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'SpliceOverlappingDomains'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'SpliceOverlappingDomains'",1);
 
 
   // These splice indices are the terminal nucleotides *within* the
@@ -2035,7 +2022,7 @@ void SpliceOverlappingDomains
   if (codon_split_option == -1) {
     Overlap->score         = EDGE_FAIL_SCORE;
     Overlap->score_density = EDGE_FAIL_SCORE;
-    if (DEBUGGING) DEBUG_OUT("'SpliceOverlappingDomains' Complete (BUT WITH TERRIBLE OPTIONS?!)",-1);
+    if (DEBUGGING1) DEBUG_OUT("'SpliceOverlappingDomains' Complete (BUT WITH TERRIBLE OPTIONS?!)",-1);
     return;
   }
 
@@ -2063,7 +2050,7 @@ void SpliceOverlappingDomains
   Overlap->score_density = splice_score / (1 + Overlap->amino_end - Overlap->amino_start);
 
 
-  if (DEBUGGING) DEBUG_OUT("'SpliceOverlappingDomains' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'SpliceOverlappingDomains' Complete",-1);
 
 }
 
@@ -2107,7 +2094,6 @@ void GetNuclRangesFromAminoCoords
   Edge->upstream_nucl_start = UpDisp->sqto + strand;
 
   while (Edge->upstream_disp_start >= 0 && disp_amino >= Edge->amino_start) {
-
     Edge->upstream_nucl_start -= 3 * strand;
     disp_amino--;
 
@@ -2158,7 +2144,7 @@ void GetNuclRangesFromAminoCoords
   Edge->downstream_nucl_end += 3 * strand * Edge->downstream_ext_len;
 
   // We'll have overstepped by one
-  Edge->upstream_disp_start -= 1;
+  Edge->downstream_disp_end -= 1;
 
 
 }
@@ -2190,7 +2176,7 @@ void SketchSpliceEdge
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'SketchSpliceEdge'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'SketchSpliceEdge'",1);
 
 
   P7_ALIDISPLAY *   UpDisp = Edge->UpstreamDisplay;
@@ -2199,7 +2185,6 @@ void SketchSpliceEdge
 
   Edge->amino_start = DownDisp->hmmfrom;
   Edge->amino_end   =   UpDisp->hmmto;
-
 
   // Do we need to extend beyond the bounds of these
   // hits to have the required number of overlapping
@@ -2216,7 +2201,6 @@ void SketchSpliceEdge
     Edge->amino_end   += num_ext_aminos;
 
   }
-
 
   // Now we can do the work of finding the (indel-aware)
   // upstream_start and downstream_end coordinates.
@@ -2235,13 +2219,12 @@ void SketchSpliceEdge
     Edge->DownstreamNucls = GrabNuclRange(TargetNuclSeq,Edge->downstream_nucl_start+2,Edge->downstream_nucl_end);
   }
 
-
   // Finish off by adding this friendly little pointer
   Edge->ntalpha = TargetNuclSeq->abc;
 
 
   // Big ol' DEBUGGING dump
-  if (DEBUGGING && 1) {
+  if (DEBUGGING2 && 1) {
     fprintf(stderr,"\n");
     fprintf(stderr,"  Overlap  Nucl. Range:   Upstream : %d ... %d\n",  Edge->upstream_nucl_start,  Edge->upstream_nucl_end);
     fprintf(stderr,"                                   : ");
@@ -2263,7 +2246,7 @@ void SketchSpliceEdge
   SpliceOverlappingDomains(Edge,TargetNuclSeq,gm,gcode);
 
 
-  if (DEBUGGING) DEBUG_OUT("'SketchSpliceEdge' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'SketchSpliceEdge' Complete",-1);
 
 }
 
@@ -2294,7 +2277,7 @@ int HitsAreSpliceCompatible
 {
 
    
-  if (DEBUGGING) DEBUG_OUT("Starting 'HitsAreSpliceCompatible'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'HitsAreSpliceCompatible'",1);
 
   
   // Start by checking if we either have amino acid
@@ -2315,7 +2298,7 @@ int HitsAreSpliceCompatible
   //       that fixes overextension
   //
   if (amino_start_1 > amino_start_2 || amino_end_1 > amino_end_2) {
-    if (DEBUGGING) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
+    if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
     return 0;
   }
 
@@ -2323,7 +2306,7 @@ int HitsAreSpliceCompatible
   // Do we have overlap OR sufficient proximity to consider
   // extending?
   if (amino_end_1 + MAX_AMINO_EXT < amino_start_2) {
-    if (DEBUGGING) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
+    if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
     return 0;
   }
 
@@ -2349,7 +2332,7 @@ int HitsAreSpliceCompatible
 
 
   if (revcomp1 != revcomp2) {
-    if (DEBUGGING) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
+    if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
     return 0;
   }
 
@@ -2359,21 +2342,21 @@ int HitsAreSpliceCompatible
   if (revcomp1) {
 
     if (nucl_start_2 + (3 * MAX_AMINO_EXT) >= nucl_end_1) {
-      if (DEBUGGING) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
+      if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
       return 0;
     }
 
   } else {
 
     if (nucl_start_2 - (3 * MAX_AMINO_EXT) <= nucl_end_1) {
-      if (DEBUGGING) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
+      if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
       return 0;
     }
 
   }
 
 
-  if (DEBUGGING) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
 
 
   // Looks like we've got a viable upstream / downstream pair!
@@ -2505,7 +2488,7 @@ DOMAIN_OVERLAP ** GatherViableSpliceEdges
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'GatherViableSpliceEdges'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'GatherViableSpliceEdges'",1);
 
 
   int num_hits = (int)(TopHits->N);
@@ -2588,6 +2571,7 @@ DOMAIN_OVERLAP ** GatherViableSpliceEdges
 
             // Record that splice compatibility!
             SpliceEdges[num_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
+            
             DOMAIN_OVERLAP * Edge  = SpliceEdges[num_edges];
 
             Edge->upstream_hit_id   = upstream_hit_id;
@@ -2641,7 +2625,7 @@ DOMAIN_OVERLAP ** GatherViableSpliceEdges
 
 
 
-  if (DEBUGGING) DEBUG_OUT("'GatherViableSpliceEdges' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'GatherViableSpliceEdges' Complete",-1);
 
 
   *num_splice_edges = num_edges;
@@ -2684,7 +2668,7 @@ SPLICE_NODE * InitSpliceNode
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'InitSpliceNode'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'InitSpliceNode'",1);
   
 
   SPLICE_NODE * NewNode = (SPLICE_NODE *)malloc(sizeof(SPLICE_NODE));
@@ -2740,7 +2724,7 @@ SPLICE_NODE * InitSpliceNode
   NewNode->cumulative_score = EDGE_FAIL_SCORE;
 
 
-  if (DEBUGGING) DEBUG_OUT("'InitSpliceNode' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'InitSpliceNode' Complete",-1);
 
 
   return NewNode;
@@ -2770,8 +2754,7 @@ void ConnectNodesByEdge
 (DOMAIN_OVERLAP * Edge, SPLICE_GRAPH * Graph)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'ConnectNodesByEdge'",1);
-
+  if (DEBUGGING1) DEBUG_OUT("Starting 'ConnectNodesByEdge'",1);
 
   int upstream_node_id;
   if (Edge->UpstreamTopHits == Graph->TopHits) {
@@ -2790,7 +2773,6 @@ void ConnectNodesByEdge
   }
   SPLICE_NODE * DownstreamNode = Graph->Nodes[downstream_node_id];
 
-
   UpstreamNode->OutEdges[UpstreamNode->num_out_edges] = Edge;
   UpstreamNode->DownstreamNodes[UpstreamNode->num_out_edges] = DownstreamNode;
   UpstreamNode->num_out_edges += 1;
@@ -2801,11 +2783,9 @@ void ConnectNodesByEdge
   DownstreamNode->num_in_edges += 1;
 
 
-
   // Resize?
   int edge_id;
   if (UpstreamNode->num_out_edges == UpstreamNode->out_edge_cap) {
-
     UpstreamNode->out_edge_cap *= 2;
 
     DOMAIN_OVERLAP ** NewOutEdges = (DOMAIN_OVERLAP **)malloc(UpstreamNode->out_edge_cap*sizeof(DOMAIN_OVERLAP *)); 
@@ -2841,7 +2821,6 @@ void ConnectNodesByEdge
 
     DownstreamNode->InEdges = NewInEdges;
     DownstreamNode->UpstreamNodes = NewUSNodes;
-
   }
 
 
@@ -2849,8 +2828,7 @@ void ConnectNodesByEdge
   // Node connected... by an edge!
   Graph->num_edges += 1;
 
-
-  if (DEBUGGING) DEBUG_OUT("'ConnectNodesByEdge' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'ConnectNodesByEdge' Complete",-1);
 
 }
 
@@ -2877,7 +2855,7 @@ void GatherCTermNodes
 (SPLICE_GRAPH * Graph)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'GatherCTermNodes'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'GatherCTermNodes'",1);
 
   // We'll re-count C terminal hits, just to be certain
   int num_c_term = 0;
@@ -2909,7 +2887,7 @@ void GatherCTermNodes
   free(CTermScores);
   free(CTermScoreSort);
 
-  if (DEBUGGING) DEBUG_OUT("'GatherCTermNodes' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'GatherCTermNodes' Complete",-1);
 
 }
 
@@ -2967,10 +2945,16 @@ int EdgeWouldEraseNode
     // We'll actually want to sever this connection, for
     // the purposes of being able to cleanly determine
     // connected components
+    int edge_idx;
     Node3->num_in_edges -= 1;
-    if (n3_in_edge_index < Node3->num_in_edges) {
-      Node3->InEdges[n3_in_edge_index] = Node3->InEdges[Node3->num_in_edges];
-      Node3->UpstreamNodes[n3_in_edge_index] = Node3->UpstreamNodes[Node3->num_in_edges];
+      
+    if (n3_in_edge_index <= Node3->num_in_edges) {
+      /* edges are freed by InEdges pointers so n3_in_edge_index edge must be freed here */
+      DOMAIN_OVERLAP_Destroy(Node3->InEdges[n3_in_edge_index]);
+      for(edge_idx = n3_in_edge_index; edge_idx < Node3->num_in_edges; edge_idx++){
+        Node3->InEdges[edge_idx]       = Node3->InEdges[edge_idx+1];
+        Node3->UpstreamNodes[edge_idx] = Node3->UpstreamNodes[edge_idx+1];
+      }
     }
 
     Node2->num_out_edges -= 1;
@@ -2978,10 +2962,8 @@ int EdgeWouldEraseNode
     for (n2_out_edge_index = 0; n2_out_edge_index < Node2->num_out_edges; n2_out_edge_index++) {
 
       if (Node2->DownstreamNodes[n2_out_edge_index] == Node3) {
-
         Node2->OutEdges[n2_out_edge_index] = Node2->OutEdges[Node2->num_out_edges];
         Node2->DownstreamNodes[n2_out_edge_index] = Node2->DownstreamNodes[Node2->num_out_edges];
-
         break;
 
       }
@@ -3014,10 +2996,10 @@ float PullUpCumulativeScore
 (SPLICE_NODE * Node)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'PullUpCumulativeScore'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'PullUpCumulativeScore'",1);
 
   if (Node->cumulative_score != EDGE_FAIL_SCORE) {
-    if (DEBUGGING) DEBUG_OUT("'PullUpCumulativeScore' Complete",-1);
+    if (DEBUGGING1) DEBUG_OUT("'PullUpCumulativeScore' Complete",-1);
     return Node->cumulative_score;
   }
 
@@ -3049,7 +3031,7 @@ float PullUpCumulativeScore
     Node->cumulative_score += Node->hit_score;
 
 
-  if (DEBUGGING) DEBUG_OUT("'PullUpCumulativeScore' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'PullUpCumulativeScore' Complete",-1);
 
 
   return Node->cumulative_score;
@@ -3079,7 +3061,7 @@ void EvaluatePaths
 (SPLICE_GRAPH * Graph)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'EvaluatePaths'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'EvaluatePaths'",1);
 
 
   // We'll reset all of our pathfinding, in case we're
@@ -3120,7 +3102,7 @@ void EvaluatePaths
       Graph->num_n_term += 1;
 
 
-  if (DEBUGGING) DEBUG_OUT("'EvaluatePaths' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'EvaluatePaths' Complete",-1);
 
 }
 
@@ -3153,9 +3135,8 @@ void FillOutGraphStructure
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'FillOutGraphStructure'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'FillOutGraphStructure'",1);
 
-   int i;
   // We'll want to be a little careful, just because this is our flagship
   // datastructure...
   int node_id;
@@ -3213,7 +3194,6 @@ void FillOutGraphStructure
   }
   Graph->num_nodes = node_id;
 
-
   // Are your hits to the reverse complement of the query nucleotide seq?
   //
   // Even though this is redundant, there are some instances where we just
@@ -3224,16 +3204,18 @@ void FillOutGraphStructure
 
 
   int edge_id;
+  int tmp = 0;
   for (edge_id=0; edge_id<num_splice_edges; edge_id++) {
-    if (SpliceEdges[edge_id] != NULL)
+    if (SpliceEdges[edge_id] != NULL) {
       ConnectNodesByEdge(SpliceEdges[edge_id],Graph);
+      tmp++;
+    }
   }
-
 
   EvaluatePaths(Graph);
 
   
-  if (DEBUGGING) DEBUG_OUT("'FillOutGraphStructure' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'FillOutGraphStructure' Complete",-1);
 
 }
 
@@ -3259,7 +3241,7 @@ void FindBestFullPath
 (SPLICE_GRAPH * Graph)
 {
   
-  if (DEBUGGING) DEBUG_OUT("Starting 'FindBestFullPath'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'FindBestFullPath'",1);
 
 
   // NOTE: Because CTermNodeIDs is sorted by cumulative score,
@@ -3281,7 +3263,7 @@ void FindBestFullPath
       Graph->best_full_path_start = Walker->node_id;
       Graph->best_full_path_end   = Graph->CTermNodeIDs[c_term_index];
       Graph->best_full_path_score = Graph->Nodes[Graph->best_full_path_end]->cumulative_score;
-      if (DEBUGGING) DEBUG_OUT("'FindBestFullPath' Complete",-1);
+      if (DEBUGGING1) DEBUG_OUT("'FindBestFullPath' Complete",-1);
       return;
     } else {
       // RESET!
@@ -3290,7 +3272,7 @@ void FindBestFullPath
 
   }
 
-  if (DEBUGGING) DEBUG_OUT("'FindBestFullPath' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'FindBestFullPath' Complete",-1);
 
 }
 
@@ -3326,7 +3308,7 @@ SPLICE_GRAPH * BuildSpliceGraph
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'BuildSpliceGraph'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'BuildSpliceGraph'",1);
 
   // We'll just make an unordered list of our splice edges for now
   int num_splice_edges = 0;
@@ -3370,7 +3352,7 @@ SPLICE_GRAPH * BuildSpliceGraph
 
   free(SpliceEdges);
 
-  if (DEBUGGING) DEBUG_OUT("'BuildSpliceGraph' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'BuildSpliceGraph' Complete",-1);
 
   return Graph;
 
@@ -3458,10 +3440,10 @@ P7_PROFILE * ExtractSubProfile
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'ExtractSubProfile'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'ExtractSubProfile'",1);
 
 
-  int fullM = FullModel->M;
+  //int fullM = FullModel->M;
   int  subM = 1 + hmm_end_pos - hmm_start_pos;
   P7_PROFILE * SubModel = p7_profile_Create(subM,FullModel->abc);
 
@@ -3537,7 +3519,7 @@ P7_PROFILE * ExtractSubProfile
 
 
 
-  if (DEBUGGING && hmm_start_pos == 1 && hmm_end_pos == FullModel->M) {
+  if (DEBUGGING2 && hmm_start_pos == 1 && hmm_end_pos == FullModel->M) {
     fprintf(stderr,"\n  Full Model Copy Validation:  ");
     if (p7_profile_Compare(SubModel,FullModel,0.0) != eslOK) { fprintf(stderr,"Failed\n\n");   }
     else                                                     { fprintf(stderr,"Success!\n\n"); }
@@ -3545,7 +3527,7 @@ P7_PROFILE * ExtractSubProfile
   }
 
 
-  if (DEBUGGING) DEBUG_OUT("'ExtractSubProfile' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'ExtractSubProfile' Complete",-1);
 
 
   return SubModel;
@@ -3645,7 +3627,7 @@ int * IdentifyDisConnComponents
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'IdentifyDisConnComponents'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'IdentifyDisConnComponents'",1);
 
 
   int i,j,x;
@@ -3876,7 +3858,7 @@ int * IdentifyDisConnComponents
 
 
 
-  if (DEBUGGING) DEBUG_OUT("'IdentifyDisConnComponents' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'IdentifyDisConnComponents' Complete",-1);
 
 
   DCCSearchRegions[0] = final_num_dccs;
@@ -3904,42 +3886,39 @@ int * IdentifyMidSearchRegions
 (SPLICE_GRAPH * Graph)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'IdentifyMidSearchRegions'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'IdentifyMidSearchRegions'",1);
 
 
   int   max_mid_searches = Graph->num_nodes; // Just for mem tracking
   int * MidSearchRegions = malloc((1 + 4 * max_mid_searches) * sizeof(int));
   int   num_mid_searches = 0;
+  int   upstream_strong_hmmto;
+  int   downstream_strong_hmmfrom;
+  int   upstream_nucl_end; 
+  int   downstream_nucl_start;
+  int   ad_pos, contiguous_stars;
+  int   us_node_id, ds_index; //, ds_node_id, mid_index;
+  int   min_hmm_gap;
+  int * USHMMto   = NULL;
+  int * DSHMMfrom = NULL;  
 
-
-  int us_node_id, ds_index, ds_node_id, ad_pos, contiguous_stars;
   for (us_node_id=1; us_node_id<=Graph->num_nodes; us_node_id++) {
 
-
     SPLICE_NODE * USNode = Graph->Nodes[us_node_id];
-
-
+    
+    if(USHMMto   != NULL) { free(USHMMto);   USHMMto = NULL;}  
+    if(DSHMMfrom != NULL) { free(DSHMMfrom); DSHMMfrom = NULL;}
+    USHMMto   = malloc(USNode->num_out_edges * sizeof(int));    
+    DSHMMfrom = malloc(USNode->num_out_edges * sizeof(int));
+  
     for (ds_index=0; ds_index<USNode->num_out_edges; ds_index++) {
 
-      
       DOMAIN_OVERLAP * DO   = USNode->OutEdges[ds_index];
       P7_ALIDISPLAY  * USAD = DO->UpstreamDisplay;
       P7_ALIDISPLAY  * DSAD = DO->DownstreamDisplay;
 
-
-      // Before anything else, is there enough space between the hits
-      // that we'd be well-served looking at it?
-      int   upstream_nucl_end   = (int)(USAD->sqto);
-      int downstream_nucl_start = (int)(DSAD->sqfrom);
-      if (abs(downstream_nucl_start - upstream_nucl_end) < 50)
-        continue;
-
-      
-      // What are the pHMM positions at which we've observed two '*'s
-      // in the posterior probability output?
-      int   upstream_strong_hmmto    = USAD->hmmto;
-      int downstream_strong_hmmfrom  = DSAD->hmmfrom;
-
+      upstream_strong_hmmto    = USAD->hmmto;
+      downstream_strong_hmmfrom  = DSAD->hmmfrom; 
 
       ad_pos = USAD->N;
       contiguous_stars = 0;
@@ -3983,14 +3962,43 @@ int * IdentifyMidSearchRegions
 
       // Are the hits strong enough not to warrant a little peek
       // at the intermediate area?
-      if (downstream_strong_hmmfrom - upstream_strong_hmmto <= 6)
+      USHMMto[ds_index]   = upstream_strong_hmmto;       
+      DSHMMfrom[ds_index] = downstream_strong_hmmfrom;
+
+    }
+
+    if(USNode->num_out_edges > 0) {
+      min_hmm_gap = (DSHMMfrom[0] - USHMMto[0]);
+      for (ds_index=1; ds_index<USNode->num_out_edges; ds_index++) {
+        if(min_hmm_gap > (DSHMMfrom[ds_index] - USHMMto[ds_index]))
+           min_hmm_gap = (DSHMMfrom[ds_index] - USHMMto[ds_index]);  
+      }
+
+      if(min_hmm_gap <= 6) continue; 
+    }
+
+    for (ds_index=0; ds_index<USNode->num_out_edges; ds_index++) {
+  
+     if (DSHMMfrom[ds_index] - USHMMto[ds_index] <= 6)
+        continue;
+     
+      DOMAIN_OVERLAP * DO   = USNode->OutEdges[ds_index];
+      P7_ALIDISPLAY  * USAD = DO->UpstreamDisplay;
+      P7_ALIDISPLAY  * DSAD = DO->DownstreamDisplay;
+      
+
+      // Before anything else, is there enough space between the hits
+      // that we'd be well-served looking at it?
+      upstream_nucl_end   = (int)(USAD->sqto);
+      downstream_nucl_start = (int)(DSAD->sqfrom);
+      
+      if (abs(downstream_nucl_start - upstream_nucl_end) < 50)
         continue;
 
-
       // Cool!  Why *not* give it a look?
-      MidSearchRegions[4*num_mid_searches+1] =   upstream_strong_hmmto;
-      MidSearchRegions[4*num_mid_searches+2] = downstream_strong_hmmfrom;
-      MidSearchRegions[4*num_mid_searches+3] =   upstream_nucl_end;
+      MidSearchRegions[4*num_mid_searches+1] = USHMMto[ds_index];
+      MidSearchRegions[4*num_mid_searches+2] = DSHMMfrom[ds_index];
+      MidSearchRegions[4*num_mid_searches+3] = upstream_nucl_end;
       MidSearchRegions[4*num_mid_searches+4] = downstream_nucl_start;
       num_mid_searches++;
 
@@ -4008,13 +4016,16 @@ int * IdentifyMidSearchRegions
 
 
     }
-
+ 
   }
 
+ if(DSHMMfrom != NULL) free(DSHMMfrom); 
+ if(USHMMto   != NULL) free(USHMMto);   
 
 
-  if (DEBUGGING) DEBUG_OUT("'IdentifyMidSearchRegions' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'IdentifyMidSearchRegions' Complete",-1);
 
+  
 
   MidSearchRegions[0] = num_mid_searches;
 
@@ -4047,7 +4058,7 @@ int * IdentifyTermSearchRegions
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'IdentifyTermSearchRegions'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'IdentifyTermSearchRegions'",1);
 
 
   int i;
@@ -4145,7 +4156,7 @@ int * IdentifyTermSearchRegions
 
 
 
-  if (DEBUGGING) DEBUG_OUT("'IdentifyTermSearchRegions' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'IdentifyTermSearchRegions' Complete",-1);
 
 
   TermSearchRegions[0] = num_term_searches;
@@ -4177,7 +4188,7 @@ int * GetBoundedSearchRegions
 (SPLICE_GRAPH * Graph, TARGET_SEQ * TargetNuclSeq)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'GetBoundedSearchRegions'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'GetBoundedSearchRegions'",1);
 
 
   // Who all doesn't have an incoming / outgoing edge?
@@ -4186,8 +4197,15 @@ int * GetBoundedSearchRegions
   int * NoInEdgeNodes  = malloc(Graph->num_nodes * sizeof(int));
   int num_no_out_edge  = 0;
   int num_no_in_edge   = 0;
-
+  int dest_idx, src_idx;
   int node_id;
+  int mid_search1, mid_search2;
+  int hmm_gap_start1, hmm_gap_end1;
+  int seq_gap_start1, seq_gap_end1;
+  int hmm_gap_start2, hmm_gap_end2;
+  int seq_gap_start2, seq_gap_end2;
+  
+
   for (node_id = 1; node_id <= Graph->num_nodes; node_id++) {
 
     SPLICE_NODE * Node = Graph->Nodes[node_id];
@@ -4205,13 +4223,68 @@ int * GetBoundedSearchRegions
   int *  MidSearchRegions = IdentifyMidSearchRegions(Graph);
   int * TermSearchRegions = IdentifyTermSearchRegions(Graph,TargetNuclSeq,NoInEdgeNodes,num_no_in_edge,NoOutEdgeNodes,num_no_out_edge);
 
-
+  /*Look for overlaps in mid search regions and combine overlapping regions */ 
+  int curr_regions = MidSearchRegions[0];
+  int prev_regions = curr_regions + 1;
+  while(curr_regions < prev_regions) {
+    prev_regions = curr_regions; 
+    for(mid_search1 = 0; mid_search1 < MidSearchRegions[0]; mid_search1++) {
+      hmm_gap_start1 = MidSearchRegions[4*mid_search1+1];
+      hmm_gap_end1   = MidSearchRegions[4*mid_search1+2];
+      seq_gap_start1 = ESL_MIN(MidSearchRegions[4*mid_search1+3], MidSearchRegions[4*mid_search1+4]);
+      seq_gap_end1   = ESL_MAX(MidSearchRegions[4*mid_search1+3], MidSearchRegions[4*mid_search1+4]);
+      for(mid_search2 = 0; mid_search2 < MidSearchRegions[0]; mid_search2++) {
+        if(mid_search1 == mid_search2) continue;
+        hmm_gap_start2 = MidSearchRegions[4*mid_search2+1];
+        hmm_gap_end2   = MidSearchRegions[4*mid_search2+2];
+        seq_gap_start2 = ESL_MIN(MidSearchRegions[4*mid_search2+3], MidSearchRegions[4*mid_search2+4]);
+        seq_gap_end2   = ESL_MAX(MidSearchRegions[4*mid_search2+3], MidSearchRegions[4*mid_search2+4]);
+         
+        /* If there is an overlap combine the gap reions, remove old gap regions, and add new one */
+        int max_hmm_gap = ESL_MAX(hmm_gap_end1, hmm_gap_end2) - ESL_MIN(hmm_gap_start1, hmm_gap_start2);
+        int max_seq_gap = ESL_MAX(seq_gap_end1, seq_gap_end2) - ESL_MIN(seq_gap_start1, seq_gap_start2); 
+        if(((hmm_gap_end1 - hmm_gap_start1) + (hmm_gap_end2 - hmm_gap_start2) > max_hmm_gap) &&
+           ((seq_gap_end1 - seq_gap_start1) + (seq_gap_end2 - seq_gap_start2) > max_seq_gap)) {
+             hmm_gap_start2 = ESL_MIN(hmm_gap_start1, hmm_gap_start2);
+             hmm_gap_end2   = ESL_MAX(hmm_gap_end1,     hmm_gap_end2);       
+             seq_gap_start2 = ESL_MIN(seq_gap_start1, seq_gap_start2);
+             seq_gap_end2   = ESL_MAX(seq_gap_end1,     seq_gap_end2);
+  
+           int * TmpMSR = malloc((1 + 4 * MidSearchRegions[0]) * sizeof(int));
+           dest_idx = 0;
+           for (src_idx=0; src_idx<MidSearchRegions[0]; src_idx++){
+              if(src_idx == mid_search2) { //This is where we will put the new gap region
+                TmpMSR[4*dest_idx+1] = hmm_gap_start2;
+                TmpMSR[4*dest_idx+2] = hmm_gap_end2;
+                TmpMSR[4*dest_idx+3] = (TargetNuclSeq->revcomp) ? seq_gap_end2   : seq_gap_start2;
+                TmpMSR[4*dest_idx+4] = (TargetNuclSeq->revcomp) ? seq_gap_start2 : seq_gap_end2;
+              }
+              else if(src_idx == mid_search1) { //Remove old gap region
+                 dest_idx--;            
+              }
+              else {
+                TmpMSR[4*dest_idx+1] = MidSearchRegions[4*src_idx+1];
+                TmpMSR[4*dest_idx+2] = MidSearchRegions[4*src_idx+2];
+                TmpMSR[4*dest_idx+3] = MidSearchRegions[4*src_idx+3];
+                TmpMSR[4*dest_idx+4] = MidSearchRegions[4*src_idx+4];
+              }
+              dest_idx++;
+          }
+          free(MidSearchRegions);
+          TmpMSR[0] = dest_idx;
+          MidSearchRegions = TmpMSR;
+          curr_regions = dest_idx;
+        }
+      }
+    }
+  }
+ 
   // I cast thee out!
   free(NoOutEdgeNodes);
   free(NoInEdgeNodes);
-
-
+  
   int   final_num_searches    = DCCSearchRegions[0] + MidSearchRegions[0] + TermSearchRegions[0];
+
   int * SearchRegionAggregate = malloc((1 + 4*final_num_searches)*sizeof(int));
 
   int x = 0;
@@ -4242,7 +4315,7 @@ int * GetBoundedSearchRegions
   free(TermSearchRegions);
 
 
-  if (DEBUGGING) DEBUG_OUT("'GetBoundedSearchRegions' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'GetBoundedSearchRegions' Complete",-1);
 
 
   SearchRegionAggregate[0] = final_num_searches;
@@ -4291,8 +4364,7 @@ P7_DOMAIN ** SelectFinalSubHits
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'SelectFinalSubHits'",1);
-
+  if (DEBUGGING1) DEBUG_OUT("Starting 'SelectFinalSubHits'",1);
 
   // Get a sorting of the hits by their scores
   // NOTE that these are the uncorrected scores
@@ -4318,7 +4390,6 @@ P7_DOMAIN ** SelectFinalSubHits
     int sub_hit_id = ADSort[sort_id];
     P7_ALIDISPLAY * AD = SubHitADs[sub_hit_id];
 
-
     // Do we get any fresh coverage out of this hit?
     int added_coverage = 0;
     for (model_pos = AD->hmmfrom - hmm_start; model_pos <= AD->hmmto - hmm_start; model_pos++) {
@@ -4331,6 +4402,7 @@ P7_DOMAIN ** SelectFinalSubHits
 
     // No coverage?! Away with you, filth!
     if (added_coverage < MIN_AMINO_OVERLAP) {
+      if(AD->ntseq) free(AD->ntseq);
       p7_alidisplay_Destroy(AD);
       SubHitADs[sub_hit_id] = NULL;
       continue;
@@ -4365,7 +4437,7 @@ P7_DOMAIN ** SelectFinalSubHits
 
 
 
-  if (DEBUGGING) DEBUG_OUT("'SelectFinalSubHits' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'SelectFinalSubHits' Complete",-1);
 
 
   return FinalSubHits;
@@ -4519,14 +4591,13 @@ P7_DOMAIN ** FindSubHits
   int          * final_num_sub_hits
 )
 {
-  if (DEBUGGING) DEBUG_OUT("Starting 'FindSubHits'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'FindSubHits'",1);
 
 
   int hmm_start  = SearchRegion[0];
   int hmm_end    = SearchRegion[1];
   int nucl_start = SearchRegion[2];
   int nucl_end   = SearchRegion[3];
-
 
   // We'll pull in a couple extra HMM positions, since
   // we're interested in having overlaps anyways
@@ -4544,6 +4615,7 @@ P7_DOMAIN ** FindSubHits
 
 
   // Required for alidisplay generation
+  free(OSubModel->name);
   OSubModel->name = malloc(5*sizeof(char));
   strcpy(OSubModel->name,"OSM\0");
 
@@ -4682,13 +4754,12 @@ P7_DOMAIN ** FindSubHits
           // they look like solid missed exons
           int trace_dom;
           for (trace_dom = 0; trace_dom < Trace->ndom; trace_dom++) {
-
-
+          
             P7_ALIDISPLAY * AD = p7_alidisplay_Create(Trace,0,OSubModel,ORFAminoSeq,NULL);
             if (AD == NULL) {
               fprintf(stderr,"\n  ERROR (FindSubHits): Failed while generating P7_ALIDISPLAY\n\n");
             }
-
+         
 
             // If this is too short, we'll skip it
             int ali_len = AD->hmmto - AD->hmmfrom + 1;
@@ -4704,8 +4775,9 @@ P7_DOMAIN ** FindSubHits
 
 
             // Add the nucleotide sequence to the ALI_DISPLAY
-            AD->ntseq = malloc((3 * AD->N + 1) * sizeof(char));
             
+            AD->ntseq = malloc((3 * AD->N + 1) * sizeof(char));
+
             int nucl_read_pos = 3 * (AD->sqfrom - 1);
             for (i=0; i<AD->N; i++) {
               if (AD->aseq[i] == '-') {
@@ -4719,8 +4791,7 @@ P7_DOMAIN ** FindSubHits
               }
             }
             AD->ntseq[3*AD->N] = 0;
-
-
+            
             // Compute the nucleotide offsets (within the extracted sequence)
             // Obviously, some of these operations could be combined, but
             // for the sake of making this intelligible I'm going to eat
@@ -4744,10 +4815,10 @@ P7_DOMAIN ** FindSubHits
             SubHitScores[num_sub_hits] = ComputeRoughAliScore(AD,Graph->Model);
             float score_cutoff         = 2.0 * (float)ali_len / 3.0;
             if (SubHitScores[num_sub_hits] < score_cutoff || ExcessiveGapContent(AD)) {
+              if(AD->ntseq) free(AD->ntseq);
               p7_alidisplay_Destroy(AD);
               continue;            
             }
-
 
             // Welcome to the list, fella!
             SubHitADs[num_sub_hits] = AD;
@@ -4762,7 +4833,6 @@ P7_DOMAIN ** FindSubHits
 
             // Resize?
             if (num_sub_hits == max_sub_hits) {
-              
               max_sub_hits *= 2;
 
               P7_ALIDISPLAY ** NewSubHitADs = malloc(max_sub_hits*sizeof(P7_ALIDISPLAY *));
@@ -4783,7 +4853,7 @@ P7_DOMAIN ** FindSubHits
           }
 
 
-          esl_sq_Reuse(ORFAminoSeq);
+          esl_sq_Destroy(ORFAminoSeq);
           p7_trace_Reuse(Trace);
           p7_gmx_Reuse(ViterbiMatrix);
 
@@ -4823,13 +4893,11 @@ P7_DOMAIN ** FindSubHits
 
   }
 
-
   // It takes a lot of fun to need this much cleanup ;)
   free(AminoStr);
   free(NuclStr);
 
 
-  if (ORFAminoSeq) esl_sq_Destroy(ORFAminoSeq);
   p7_profile_Destroy(SubModel);
   p7_oprofile_Destroy(OSubModel);
   p7_gmx_Destroy(ViterbiMatrix);
@@ -4840,7 +4908,8 @@ P7_DOMAIN ** FindSubHits
   if (num_sub_hits == 0) {
     free(SubHitADs);
     free(SubHitScores);
-    if (DEBUGGING) DEBUG_OUT("'FindSubHits' Complete (albeit, no hits)",-1);
+    free(SubNucls);
+    if (DEBUGGING1) DEBUG_OUT("'FindSubHits' Complete (albeit, no hits)",-1);
     *final_num_sub_hits = 0;
     return NULL;
   }
@@ -4848,13 +4917,11 @@ P7_DOMAIN ** FindSubHits
 
   // Reduce down to just the hits we're really excited about
   P7_DOMAIN ** FinalSubHits = SelectFinalSubHits(SubHitADs,SubHitScores,num_sub_hits,sub_hmm_len,hmm_start,final_num_sub_hits);
-
-
   free(SubHitADs);
   free(SubHitScores);
+  free(SubNucls);
 
-
-  if (DEBUGGING) DEBUG_OUT("'FindSubHits' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'FindSubHits' Complete",-1);
 
 
   // Happy days!
@@ -4889,7 +4956,7 @@ P7_DOMAIN ** FindSubHits
 void IntegrateMissedHits
 (SPLICE_GRAPH * Graph, DOMAIN_OVERLAP ** NewSpliceEdges, int num_new_edges)
 {
-  if (DEBUGGING) DEBUG_OUT("Starting 'IntegrateMissedHits'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'IntegrateMissedHits'",1);
 
 
   // First off, we need to copy over all of the existing nodes
@@ -4923,16 +4990,19 @@ void IntegrateMissedHits
 
 
   int new_edge_id;
+  int tmp = 0;
   for (new_edge_id=0; new_edge_id<num_new_edges; new_edge_id++) {
-    if (NewSpliceEdges[new_edge_id] != NULL)
+    if (NewSpliceEdges[new_edge_id] != NULL) {
       ConnectNodesByEdge(NewSpliceEdges[new_edge_id],Graph);
+      tmp++;
+    }
   }
 
 
   EvaluatePaths(Graph);
 
 
-  if (DEBUGGING) DEBUG_OUT("'IntegrateMissedHits' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'IntegrateMissedHits' Complete",-1);
 
 }
 
@@ -4965,7 +5035,7 @@ P7_TOPHITS * SeekMissingExons
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'SeekMissingExons'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'SeekMissingExons'",1);
 
 
   // Grab the sub-regions of our conceptual DP zone that we want
@@ -4980,12 +5050,12 @@ P7_TOPHITS * SeekMissingExons
   int   num_search_regions    = SearchRegionAggregate[0];
 
   if (SearchRegionAggregate == NULL) {
-    if (DEBUGGING) DEBUG_OUT("'SeekMissingExons' Complete (none found)",-1);
+    if (DEBUGGING1) DEBUG_OUT("'SeekMissingExons' Complete (none found)",-1);
     return NULL;
   }
 
 
-  if (DEBUGGING) {
+  if (DEBUGGING2) {
     fprintf(stderr,"\n  Num Search Regions: %d\n",num_search_regions);
     int i;
     for (i=0; i<num_search_regions; i++) {
@@ -5013,6 +5083,7 @@ P7_TOPHITS * SeekMissingExons
   int sub_hits_capacity = 20;
   P7_DOMAIN ** SubHits = malloc(sub_hits_capacity*sizeof(P7_DOMAIN *));
   int search_region_id,sub_hit_id,new_sub_hit_id; // iterators
+ 
   for (search_region_id = 0; search_region_id < num_search_regions; search_region_id++) {
 
 
@@ -5025,7 +5096,7 @@ P7_TOPHITS * SeekMissingExons
 
 
     // New sub-hit(s) alert!
-    if (DEBUGGING) {
+    if (DEBUGGING2) {
       fprintf(stderr,"%d additional sub-model hits discovered\n",num_new_sub_hits);
       int i;
       for (i=0; i<num_new_sub_hits; i++) {
@@ -5052,7 +5123,7 @@ P7_TOPHITS * SeekMissingExons
     for (new_sub_hit_id = 0; new_sub_hit_id < num_new_sub_hits; new_sub_hit_id++)
       SubHits[num_sub_hits++] = NewSubHits[new_sub_hit_id];
 
-
+    
     free(NewSubHits); // clear the pointer
 
   }
@@ -5087,9 +5158,8 @@ P7_TOPHITS * SeekMissingExons
 
   }
   free(SubHits);
-
  
-  if (DEBUGGING) DEBUG_OUT("'SeekMissingExons' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'SeekMissingExons' Complete",-1);
 
 
   return MissingHits;
@@ -5126,10 +5196,9 @@ void AddMissingExonsToGraph
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'AddMissingExonsToGraph'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'AddMissingExonsToGraph'",1);
 
   
-
   // As I note in 'SeekMissingExons' (but is worth emphasizing),
   // this datastructure is basically a cheap way to pass around
   // the new hits that we find.
@@ -5142,7 +5211,7 @@ void AddMissingExonsToGraph
 
   
   if (Graph->MissedHits == NULL) {
-    if (DEBUGGING) DEBUG_OUT("'AddMissingExonsToGraph' Complete (no missed hits added)",-1);
+    if (DEBUGGING1) DEBUG_OUT("'AddMissingExonsToGraph' Complete (no missed hits added)",-1);
     return;
   }
 
@@ -5160,8 +5229,8 @@ void AddMissingExonsToGraph
   int num_missing_hits = (int)(Graph->MissedHits->N);
   int num_new_edges    = 0;
   int missed_hit_id,node_id;
+ 
   for (missed_hit_id = 0; missed_hit_id < num_missing_hits; missed_hit_id++) {
-
 
     // Lucky us!  Cheap and easy access!
     P7_ALIDISPLAY * MissedAD = Graph->MissedHits->hit[missed_hit_id]->dcl->ad;
@@ -5184,6 +5253,7 @@ void AddMissingExonsToGraph
       if (HitsAreSpliceCompatible(NodeAD,MissedAD)) {
 
         NewSpliceEdges[num_new_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
+        
         DOMAIN_OVERLAP * Edge         = NewSpliceEdges[num_new_edges];
 
         Edge->upstream_hit_id   = node_hit_id;
@@ -5199,8 +5269,8 @@ void AddMissingExonsToGraph
         num_new_edges++;
 
       } else if (HitsAreSpliceCompatible(MissedAD,NodeAD)) {
-
-        NewSpliceEdges[num_new_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
+        
+         NewSpliceEdges[num_new_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
         DOMAIN_OVERLAP * Edge         = NewSpliceEdges[num_new_edges];
 
         Edge->upstream_hit_id   = missed_hit_id;
@@ -5214,15 +5284,13 @@ void AddMissingExonsToGraph
         Edge->DownstreamDisplay = NodeAD;
 
         num_new_edges++;
-
       }
 
 
       // Time to resize?
       if (num_new_edges == new_splice_edge_cap) {
-
         new_splice_edge_cap *= 2;
-
+       
         DOMAIN_OVERLAP ** MoreNewEdges = (DOMAIN_OVERLAP **)malloc(new_splice_edge_cap*sizeof(DOMAIN_OVERLAP *));
         int i;
         for (i=0; i<num_new_edges; i++)
@@ -5234,7 +5302,6 @@ void AddMissingExonsToGraph
       }
 
     }
-
 
     // It's possible we might want to splice two missed exons together
     // (see A1BG human isoform 1)
@@ -5298,8 +5365,6 @@ void AddMissingExonsToGraph
 
   }
 
-
-
   // Back at it again!
   int splice_edge_id;
   for (splice_edge_id = 0; splice_edge_id < num_new_edges; splice_edge_id++) {
@@ -5313,16 +5378,15 @@ void AddMissingExonsToGraph
 
   }
 
-
-
   //
   //  If I'm not mistaken.... IT'S PARTY TIME!!!!
   //
   if (num_new_edges)
     IntegrateMissedHits(Graph,NewSpliceEdges,num_new_edges);
 
+  free(NewSpliceEdges);
 
-  if (DEBUGGING) DEBUG_OUT("'AddMissingExonsToGraph' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'AddMissingExonsToGraph' Complete",-1);
 
 
 }
@@ -5351,7 +5415,7 @@ int * GetExonSetFromEndNode
 (SPLICE_GRAPH * Graph, int end_node_id)
 {
   
-  if (DEBUGGING) DEBUG_OUT("Starting 'GetExonSetFromEndNode'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'GetExonSetFromEndNode'",1);
 
 
   // In case we use *every* node
@@ -5442,7 +5506,7 @@ int * GetExonSetFromEndNode
   free(BestPathCoords);
 
 
-  if (DEBUGGING) DEBUG_OUT("'GetExonSetFromEndNode' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'GetExonSetFromEndNode' Complete",-1);
 
 
   return ExonCoordSet;
@@ -5481,11 +5545,11 @@ void FindComponentBestEnd
   float * comp_best_score
 )
 {
-  if (DEBUGGING) DEBUG_OUT("Starting 'FindComponentBestEnd'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'FindComponentBestEnd'",1);
 
 
   if (ComponentIDs[Node->node_id]) {
-    if (DEBUGGING) DEBUG_OUT("'FindComponentBestEnd' Complete",-1);
+    if (DEBUGGING1) DEBUG_OUT("'FindComponentBestEnd' Complete",-1);
     return;
   }
 
@@ -5505,7 +5569,7 @@ void FindComponentBestEnd
     FindComponentBestEnd(Node->DownstreamNodes[out_edge_index],ComponentIDs,component_id,comp_best_end,comp_best_score);
 
 
-  if (DEBUGGING) DEBUG_OUT("'FindComponentBestEnd' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'FindComponentBestEnd' Complete",-1);
 
 }
 
@@ -5536,18 +5600,18 @@ ESL_DSQ * TranslateExonSetNucls
 (ESL_DSQ * ExonSetNucls, int coding_region_len, ESL_GENCODE * gcode)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'TranslateExonSetNucls'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'TranslateExonSetNucls'",1);
 
 
   int translation_len = coding_region_len/3;
-  ESL_DSQ * ExonSetTrans = malloc((1 + translation_len) * sizeof(ESL_DSQ));
+  ESL_DSQ * ExonSetTrans = malloc((2 + translation_len) * sizeof(ESL_DSQ));
 
   int trans_index;
   for (trans_index=1; trans_index<=translation_len; trans_index++) 
       ExonSetTrans[trans_index] = esl_gencode_GetTranslation(gcode,&(ExonSetNucls[3*trans_index-2]));
 
 
-  if (DEBUGGING) DEBUG_OUT("'TranslateExonSetNucls' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'TranslateExonSetNucls' Complete",-1);
 
 
   return ExonSetTrans;
@@ -5750,7 +5814,7 @@ void CheckTerminusProximity
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'CheckTerminusProximity'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'CheckTerminusProximity'",1);
 
   // The formal definition of "spitting distance"
   int max_ext_dist = 5;
@@ -5840,7 +5904,7 @@ void CheckTerminusProximity
   }
 
 
-  if (DEBUGGING) DEBUG_OUT("'CheckTerminusProximity' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'CheckTerminusProximity' Complete",-1);
 
 }
 
@@ -5860,7 +5924,7 @@ int ** ExonSetCleanup
 (SPLICE_GRAPH * Graph, int * InputCoordSet, int * num_split_sets)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'ExonSetCleanup'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'ExonSetCleanup'",1);
 
 
   int num_exons = InputCoordSet[0];
@@ -5992,7 +6056,7 @@ int ** ExonSetCleanup
       SplitCoordSets[0][i] = InputCoordSet[i];
 
 
-    if (DEBUGGING) DEBUG_OUT("'ExonSetCleanup' Complete",-1);
+    if (DEBUGGING1) DEBUG_OUT("'ExonSetCleanup' Complete",-1);
 
 
     *num_split_sets = 1;
@@ -6013,10 +6077,9 @@ int ** ExonSetCleanup
   int scanner_exon_id = 0;
   while (scanner_exon_id < num_exons) {
 
-
-    while (InputCoordSet[5*scanner_exon_id+5] == -1 && scanner_exon_id < num_exons)
+    while (scanner_exon_id < num_exons && InputCoordSet[5*scanner_exon_id+5] == -1)
       scanner_exon_id++;
-
+    
     if (scanner_exon_id == num_exons)
       break;
 
@@ -6099,7 +6162,6 @@ int ** ExonSetCleanup
   } 
 
 
-  if (DEBUGGING) DEBUG_OUT("'ExonSetCleanup' Complete",-1);
 
 
   return SplitCoordSets;
@@ -6132,7 +6194,7 @@ int ** GetSplicedExonCoordSets
 (SPLICE_GRAPH * Graph, int * num_coord_sets)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'GetSplicedExonCoordSets'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'GetSplicedExonCoordSets'",1);
 
 
   // How many connected components do we have?
@@ -6227,13 +6289,12 @@ int ** GetSplicedExonCoordSets
     free(SplitCoordSets);
     free(InitCoordSet);
 
-
   }
 
   free(EndNodes);
 
 
-  if (DEBUGGING) DEBUG_OUT("'GetSplicedExonCoordSets' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'GetSplicedExonCoordSets' Complete",-1);
 
 
   // Easy!
@@ -6371,7 +6432,7 @@ void PrintExon
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'PrintExon'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'PrintExon'",1);
 
 
   FILE          * ofp = EDI->ofp;
@@ -6700,7 +6761,7 @@ void PrintExon
   free(TNSName);
   free(FormattedTNSName);
 
-  if (DEBUGGING) DEBUG_OUT("'PrintExon' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'PrintExon' Complete",-1);
 
 
 }
@@ -6731,7 +6792,7 @@ void PrintSplicedAlignment
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'PrintSplicedAlignment'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'PrintSplicedAlignment'",1);
 
   int i;
 
@@ -6793,7 +6854,7 @@ void PrintSplicedAlignment
   free(EDI);
 
 
-  if (DEBUGGING) DEBUG_OUT("'PrintSplicedAlignment' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'PrintSplicedAlignment' Complete",-1);
 
 }
 
@@ -6900,7 +6961,7 @@ int * DetermineHitExonCoords
 (P7_ALIDISPLAY * AD, int * ExonCoords)
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'DetermineHitExonCoords'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'DetermineHitExonCoords'",1);
 
 
   // As a sanity check, we want to make sure that the pipeline
@@ -7058,7 +7119,7 @@ int * DetermineHitExonCoords
   HitExonCoords[0] = final_num_exons+1;
 
 
-  if (DEBUGGING) DEBUG_OUT("'DetermineHitExonCoords' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'DetermineHitExonCoords' Complete",-1);
 
 
   return HitExonCoords;
@@ -7120,7 +7181,7 @@ void ReportSplicedTopHits
   //fprintf(ofp,"\n\n");
   
 
-  if (DEBUGGING) p7_tophits_Domains(ofp, ExonSetTopHits, ExonSetPipeline, textw);
+  if (DEBUGGING2) p7_tophits_Domains(ofp, ExonSetTopHits, ExonSetPipeline, textw);
 
 
   int hit_id, dom_id;
@@ -7220,14 +7281,14 @@ void RunModelOnExonSets
 )
 {
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'RunModelOnExonSets'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'RunModelOnExonSets'",1);
 
-
+  int i;
   int num_coord_sets;
   int ** ExonCoordSets = GetSplicedExonCoordSets(Graph,&num_coord_sets);
 
 
-  if (DEBUGGING) DumpExonSets(ExonCoordSets,num_coord_sets,TargetNuclSeq,gcode);
+  if (DEBUGGING2) DumpExonSets(ExonCoordSets,num_coord_sets,TargetNuclSeq,gcode);
 
 
   // It's better to be re-using these than destroying
@@ -7260,7 +7321,7 @@ void RunModelOnExonSets
     //
     int coding_region_len;
     ESL_DSQ * ExonSetNucls = GrabExonCoordSetNucls(ExonCoordSets[coord_set_id],TargetNuclSeq,&coding_region_len);
-    ESL_SQ  * NuclSeq      = esl_sq_CreateDigitalFrom(TargetNuclSeq->abc,"Exon Set",ExonSetNucls,(int64_t)coding_region_len,NULL,NULL,NULL);
+    NuclSeq      = esl_sq_CreateDigitalFrom(TargetNuclSeq->abc,"Exon Set",ExonSetNucls,(int64_t)coding_region_len,NULL,NULL,NULL);
     NuclSeq->idx = coord_set_id+1;
     esl_sq_Textize(NuclSeq);
 
@@ -7270,7 +7331,7 @@ void RunModelOnExonSets
     //
     int trans_len = coding_region_len / 3;
     ESL_DSQ * ExonSetTrans = TranslateExonSetNucls(ExonSetNucls,coding_region_len,gcode);
-    ESL_SQ  * AminoSeq     = esl_sq_CreateDigitalFrom(Graph->OModel->abc,TargetNuclSeq->SeqName,ExonSetTrans,(int64_t)trans_len,NULL,NULL,NULL);
+    AminoSeq     = esl_sq_CreateDigitalFrom(Graph->OModel->abc,TargetNuclSeq->SeqName,ExonSetTrans,(int64_t)trans_len,NULL,NULL,NULL);
     AminoSeq->idx = coord_set_id+1;
     strcpy(AminoSeq->orfid,"exon");
     
@@ -7329,7 +7390,7 @@ void RunModelOnExonSets
     p7_tophits_Destroy(ExonSetTopHits);
     p7_pipeline_Destroy(ExonSetPipeline);
     free(ExonCoordSets[coord_set_id]);
-
+    ExonCoordSets[coord_set_id] = NULL;
   }
 
 
@@ -7338,8 +7399,10 @@ void RunModelOnExonSets
   if (ExonSetPipeline) p7_pipeline_Destroy(ExonSetPipeline);
   p7_oprofile_Destroy(ExonSetOModel);
   p7_bg_Destroy(ExonSetBackground);
+  for(i = 0; i < num_coord_sets; i++)
+    if(ExonCoordSets[i] != NULL) free(ExonCoordSets[i]);
   free(ExonCoordSets);
-  if (DEBUGGING) DEBUG_OUT("'RunModelOnExonSets' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'RunModelOnExonSets' Complete",-1);
 
 }
 
@@ -7389,9 +7452,9 @@ void SpliceHits
   int           textw
 )
 {
+  if (DEBUGGING1) DEBUG_OUT("Starting 'SpliceHits'",1);
 
-  if (DEBUGGING) DEBUG_OUT("Starting 'SpliceHits'",1);
-
+    INIT_SECONDS = time(NULL);
 
   // Start the timer!  You're on the clock, splash!
   //
@@ -7406,26 +7469,18 @@ void SpliceHits
   // NOTE: I still need to ensure I'm taking advantage of this sorting!
   //
   p7_tophits_SortBySeqidxAndAlipos(TopHits);
-
-
-
+  
   // We'll iterate over search regions (max-2MB ranges of chromosomes)
   TARGET_SET * TargetSet = SelectTargetRanges(TopHits);
 
-
-
   int target_set_id;
   for (target_set_id = 0; target_set_id < TargetSet->num_target_seqs; target_set_id++) {
-
-
-
+  
     // Given that our hits are organized by target sequence, we can
     // be a bit more efficient in our file reading by only pulling
     // target sequences as they change (wrt the upstream hit)
     //
     TARGET_SEQ * TargetNuclSeq = GetTargetNuclSeq(GenomicSeqFile,TargetSet,target_set_id);
-
-
 
     // This function encapsulates a *ton* of the work we do.
     // In short, take the collection of unspliced hits and build
@@ -7434,33 +7489,24 @@ void SpliceHits
     //
     SPLICE_GRAPH * Graph = BuildSpliceGraph(TopHits,TargetNuclSeq,gm,om,gcode);
 
-
-
     // Evaluate the graph for any holes (or possible holes)
     // worth plugging
     //
     AddMissingExonsToGraph(Graph,TargetNuclSeq,gcode);
 
-
-
     // If we're debugging, it might be useful to get a quick
     // picture of what our final splice graph looks like.
     //
-    if (DEBUGGING) DumpGraph(Graph);
-
+    if (DEBUGGING2) DumpGraph(Graph);
 
 
     // Re-run the model on the extracted nucleotide sequence(s)
     // for each connected component of the graph.
-    //
     RunModelOnExonSets(Graph,TargetNuclSeq,gcode,go,ofp,textw);
-
-
 
     // CLEANUP
     SPLICE_GRAPH_Destroy(Graph);
     TARGET_SEQ_Destroy(TargetNuclSeq);
-
 
   }
 
@@ -7469,8 +7515,7 @@ void SpliceHits
   TARGET_SET_Destroy(TargetSet);
 
 
-
-  if (DEBUGGING) {
+  if (DEBUGGING1) {
     DEBUG_OUT("'SpliceHits' Complete",-1);
     fprintf(stderr,"\n\n");
   }

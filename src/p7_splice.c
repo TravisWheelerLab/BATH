@@ -932,7 +932,6 @@ TARGET_SET * SelectTargetRanges
   }
   int * HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
 
-
   // Initialize our TARGET_SETS struct
   TARGET_SET * TargetSet     = malloc(sizeof(TARGET_SET));
   TargetSet->TargetSeqNames  = malloc(MAX_TARGET_REGIONS * sizeof(char *));
@@ -1192,6 +1191,7 @@ ESL_DSQ * GrabNuclRange
 
   int len = abs(end - start) + 1;
   char * Seq = malloc((len+2) * sizeof(char));
+  
   // Keep in mind that DSQs are [1..n]
   int read_index = start - (int)(TargetNuclSeq->start) + 1;
   if(read_index < 0) printf("start %d end %d read_index %d\n", start, end, read_index);
@@ -1414,6 +1414,10 @@ void GetContestedUpstreamNucls
   while (write_pos<6) {
     if (NuclSeq[read_pos] >= 0 && NuclSeq[read_pos] <= 3)
       UN[write_pos++] = NuclSeq[read_pos];
+    else if (NuclSeq[read_pos] != '\0') {
+      UN[write_pos++] = NuclSeq[read_pos];
+      break;
+    }
     read_pos++;
   }
 }

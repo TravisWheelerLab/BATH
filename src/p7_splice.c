@@ -109,7 +109,7 @@
  *
  *
  *
- *  FLAGSHIP: p7_splice_SpliceHits : Calls 'GetTargetNuclSeq' to acquire a general coding region on the nucleotide target
+ *  FLAGSHIP: SpliceHits : Calls 'GetTargetNuclSeq' to acquire a general coding region on the nucleotide target
  *                       : Calls 'BuildSpliceGraph' to build a first pass of the splice graph using the results from translated HMMER
  *                       : Calls 'AddMissingExonsToGraph' to identify and patch any potential holes in the splice graph (missing exons)
  *                       : Calls 'RunModelOnExonSets' to generate the final spliced alignments of sets of exons to the model
@@ -195,7 +195,6 @@ typedef struct _target_set {
   int num_target_seqs;
 
   char    ** TargetSeqNames; // Also (individually) borrowed pointers!
-  int64_t  * TargetSeqidx;
   int64_t  * TargetStarts;
   int64_t  * TargetEnds;
   int      * TargetIsRevcomp;
@@ -520,7 +519,6 @@ void TARGET_SET_Destroy
 (TARGET_SET * TS)
 {
   free(TS->TargetSeqNames);
-  free(TS->TargetSeqidx);
   free(TS->TargetStarts);
   free(TS->TargetEnds);
   free(TS->TargetIsRevcomp);
@@ -921,139 +919,133 @@ TARGET_SET * SelectTargetRanges
 
   if (DEBUGGING1) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
-  int           num_hits;
-  int           num_targets;
-  int           sort_id;
-  int           curr_revcomp;
-  int           prev_revcomp;
-  int64_t       min_coord, max_coord;
-  int64_t       curr_min, curr_max;
-  int64_t       curr_seqidx, prev_seqidx;
-  char          *CurrSeqName;
-  char          *PrevSeqName;
-  TARGET_SET    *TargetSet; 
-  P7_ALIDISPLAY *CurrAD;
 
-  // Very first thing we want to do is make sure that our hits are
-  // organized by the 'Seqidx' (the target genomic sequence), strand,
-  // and alignment postion. We wil take advantage of that sorting. 
-  p7_tophits_SortBySeqidxAndAlipos(TopHits);
+  int hit_id, dom_id, i;
 
-  num_hits = (int)(TopHits->N);
+
+  // Because we go through
+  int num_hits = (int)(TopHits->N);
+  float * HitScores = malloc(num_hits * sizeof(float));
+  for (hit_id = 0; hit_id < num_hits; hit_id++) {
+    dom_id = TopHits->hit[hit_id]->best_domain;
+    HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[dom_id])->envsc;
+  }
+  int * HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
 
   // Initialize our TARGET_SETS struct
-  TargetSet                  = malloc(sizeof(TARGET_SET));
-  TargetSet->TargetSeqNames  = malloc(num_hits * sizeof(char *));
-  TargetSet->TargetSeqidx    = malloc(num_hits * sizeof(int64_t));
-  TargetSet->TargetStarts    = malloc(num_hits * sizeof(int64_t));
-  TargetSet->TargetEnds      = malloc(num_hits * sizeof(int64_t));
-  TargetSet->TargetIsRevcomp = malloc(num_hits * sizeof(int));
+  TARGET_SET * TargetSet     = malloc(sizeof(TARGET_SET));
+  TargetSet->TargetSeqNames  = malloc(MAX_TARGET_REGIONS * sizeof(char *));
+  TargetSet->TargetStarts    = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
+  TargetSet->TargetEnds      = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
+  TargetSet->TargetIsRevcomp = malloc(MAX_TARGET_REGIONS * sizeof(int));
 
-  /* Begin the first target range using the first hit */
-  
-  CurrAD = (&TopHits->hit[0]->dcl[0])->ad;
-  if (CurrAD->sqfrom > CurrAD->sqto)
-    prev_revcomp = 1;
-  else prev_revcomp = 0; 
- 
-  if (prev_revcomp) {
-    min_coord = CurrAD->sqto;
-    max_coord = CurrAD->sqfrom;
-  } else {
-    min_coord = CurrAD->sqfrom;
-    max_coord = CurrAD->sqto;
-  }
+
+
+  // We'll need to check each target sequence's length to make sure we don't
+  // let our range exceed the length of the chromosome.
+
+
+
+  int num_targets = 0;
+
+  int sort_id;
+  for (sort_id = 0; sort_id < num_hits; sort_id++) {
+
+
+    int base_hit_id = HitScoreSort[sort_id];
+
+    char * CandidateSeqName     = TopHits->hit[base_hit_id]->name;
+    int candidate_best_dom      = TopHits->hit[base_hit_id]->best_domain;
+    P7_ALIDISPLAY * CandidateAD = (&TopHits->hit[base_hit_id]->dcl[candidate_best_dom])->ad;
+
+    int candidate_revcomp = 0;
+    if (CandidateAD->sqfrom > CandidateAD->sqto)
+      candidate_revcomp = 1;
+
+
+    int new_target = 1;
+    for (i=0; i<num_targets; i++) {
+      if (!strcmp(CandidateSeqName,TargetSet->TargetSeqNames[i]) && candidate_revcomp == TargetSet->TargetIsRevcomp[i]) {
+        new_target = 0;
+        break;
+      }
+    }
+
+    if (!new_target) 
+      continue;
+
+
+    // Now that we know this is a new chromosome, define a coding region!
+    // First, what we'll do is define a hard maximum search area defined
+    // by the highest-scoring hit to this sequence.
+    int64_t min_coord, max_coord;
+    if (candidate_revcomp) {
+      min_coord = CandidateAD->sqto;
+      max_coord = CandidateAD->sqfrom;
+    } else {
+      min_coord = CandidateAD->sqfrom;
+      max_coord = CandidateAD->sqto;
+    }
+
+    int64_t min_cap = min_coord - 1000000;
+    int64_t max_cap = max_coord + 1000000;
+
+
+    // The min_cap and max_cap now define the absolute furthest we're
+    // willing to go for our search region, but ideally we can shrink
+    // down to a much tighter zone
+    for (hit_id = 0; hit_id < num_hits; hit_id++) {
+
+
+      if (strcmp(CandidateSeqName,TopHits->hit[hit_id]->name))
+        continue;
+
+
+      P7_ALIDISPLAY * AD = (&TopHits->hit[hit_id]->dcl[0])->ad; 
+
+      if ( candidate_revcomp && AD->sqfrom < AD->sqto) continue;
+      if (!candidate_revcomp && AD->sqfrom > AD->sqto) continue;
+
+
+      for (dom_id = 0; dom_id < TopHits->hit[hit_id]->ndom; dom_id++) {
       
-  PrevSeqName  = TopHits->hit[0]->name;
-  prev_seqidx  = TopHits->hit[0]->seqidx;
+          
+        AD = (&TopHits->hit[hit_id]->dcl[dom_id])->ad;
 
-   /* If only one hit is present add the target range */
-  num_targets  = 0;
-  if (num_hits == 1)  {
-    TargetSet->TargetSeqNames[num_targets]  = PrevSeqName;
-    TargetSet->TargetSeqidx[num_targets]    = prev_seqidx;
+        // New minimum?
+        // We could revcomp check, but I don't know if it's any faster...
+        if (AD->sqto < min_coord && AD->sqto > min_cap)
+          min_coord = AD->sqto;
+          
+        if (AD->sqfrom < min_coord && AD->sqfrom > min_cap)
+          min_coord = AD->sqfrom;
+          
+
+        // New maximum?
+        if (AD->sqto > max_coord && AD->sqto < max_cap)
+          max_coord = AD->sqto;
+          
+        if (AD->sqfrom > max_coord && AD->sqfrom < max_cap)
+          max_coord = AD->sqfrom;
+
+      }
+
+    }
+
+
+    TargetSet->TargetSeqNames[num_targets]  = CandidateSeqName;
     TargetSet->TargetStarts[num_targets]    = min_coord;
     TargetSet->TargetEnds[num_targets]      = max_coord;
-    TargetSet->TargetIsRevcomp[num_targets] = prev_revcomp;
+    TargetSet->TargetIsRevcomp[num_targets] = candidate_revcomp;
+
     num_targets++;
-  }
-  
-  /* Loop through remaining hits */ 
-  curr_revcomp = 0;  
-  sort_id      = 1;
-  while (sort_id < num_hits) {
- 
-    curr_seqidx             = TopHits->hit[sort_id]->seqidx;
-    CurrSeqName        = TopHits->hit[sort_id]->name;
-    CurrAD = (&TopHits->hit[sort_id]->dcl[0])->ad;
-   
-    if (CurrAD->sqfrom > CurrAD->sqto)
-      curr_revcomp = 1;
-   else curr_revcomp = 0;
-       
-    /* If the current hit is on the same sequnce and strand as
-     * the last hit check if it falling in the same target range. */ 
-    if (curr_seqidx == prev_seqidx && curr_revcomp == prev_revcomp) {
 
-     // get the current hits min and max coords
-     if (curr_revcomp) {
-        curr_min = CurrAD->sqto;
-        curr_max = CurrAD->sqfrom;
-      } else {
-        curr_min = CurrAD->sqfrom;
-        curr_max = CurrAD->sqto;
-      }  
+    if (num_targets == MAX_TARGET_REGIONS)
+      break;
 
-      /* Check if current coords fall into the current target 
-       * range and expand min and max coords accordingly */
-      // New minimum
-      if (curr_min < min_coord) 
-        min_coord = curr_min;
-          
-      // New maximum
-      if (curr_max > max_coord) 
-        max_coord = curr_max;
-        
-    }
-
-    /* Start a new target range */
-    if (curr_seqidx != prev_seqidx || curr_revcomp != prev_revcomp) {
-     
-      // Save previous target range
-      TargetSet->TargetSeqNames[num_targets]  = PrevSeqName;
-      TargetSet->TargetSeqidx[num_targets]    = prev_seqidx;
-      TargetSet->TargetStarts[num_targets]    = min_coord;
-      TargetSet->TargetEnds[num_targets]      = max_coord;
-      TargetSet->TargetIsRevcomp[num_targets] = prev_revcomp;
-      num_targets++;
-
-      // We have a new target range to define
-      // First, what we'll do is define a hard maximum 
-      // search area defined by the first hit in the region
-      if (curr_revcomp) {
-        min_coord = CurrAD->sqto;
-        max_coord = CurrAD->sqfrom;
-      } else {
-        min_coord = CurrAD->sqfrom;
-        max_coord = CurrAD->sqto;
-      }
-      
-    }
-
-    PrevSeqName = CurrSeqName;
-    prev_seqidx = curr_seqidx;
-    prev_revcomp = curr_revcomp;      
-    sort_id++;
 
   }
 
-  /* Add last target range */ 
-  TargetSet->TargetSeqNames[num_targets]  = PrevSeqName;
-  TargetSet->TargetSeqidx[num_targets]    = prev_seqidx;
-  TargetSet->TargetStarts[num_targets]    = min_coord;
-  TargetSet->TargetEnds[num_targets]      = max_coord;
-  TargetSet->TargetIsRevcomp[num_targets] = prev_revcomp;
-  num_targets++;
 
   TargetSet->num_target_seqs = num_targets;
 
@@ -1118,7 +1110,6 @@ TARGET_SEQ * GetTargetNuclSeq
   esl_sqfile_OpenSSI(TmpSeqFile,NULL);
 
   ESL_SQ * SeqInfo = esl_sq_Create();
- 
   esl_sqio_FetchInfo(TmpSeqFile,TargetNuclSeq->SeqName,SeqInfo);
 
 
@@ -1134,15 +1125,15 @@ TARGET_SEQ * GetTargetNuclSeq
 
 
   TargetNuclSeq->esl_sq = esl_sq_CreateDigital(TargetNuclSeq->abc);
-
-   
   int fetch_err_code    = esl_sqio_FetchSubseq(TmpSeqFile,TargetNuclSeq->SeqName,TargetNuclSeq->start,TargetNuclSeq->end,TargetNuclSeq->esl_sq);
-   
+
+
   esl_sqfile_Close(TmpSeqFile);
   esl_sq_Destroy(SeqInfo);
 
+
   if (fetch_err_code != eslOK) {
-    fprintf(stderr,"\n  ERROR: Failed to fetch target subsequence for splice graph\n");
+    fprintf(stderr,"\n  ERROR: Failed to fetch target subsequence (is there an .ssi index for the sequence file?)\n");
     fprintf(stderr,"         Requested search area: %s:%ld..%ld\n\n",TargetNuclSeq->SeqName,TargetNuclSeq->start,TargetNuclSeq->end);
     exit(1);
   }
@@ -7433,7 +7424,7 @@ void RunModelOnExonSets
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
- *  Function: p7_splice_SpliceHits
+ *  Function: SpliceHits
  *
  *  Desc. :  This is the top-level function for spliced hmmsearcht
  *
@@ -7453,7 +7444,7 @@ void RunModelOnExonSets
  *           input hits they're written out to the ofp.
  *
  */
-void p7_splice_SpliceHits
+void SpliceHits
 (
   P7_TOPHITS  * TopHits,
   ESL_SQFILE  * GenomicSeqFile,
@@ -7522,6 +7513,7 @@ void p7_splice_SpliceHits
     TARGET_SEQ_Destroy(TargetNuclSeq);
 
   }
+
 
   // More cleanup!
   TARGET_SET_Destroy(TargetSet);

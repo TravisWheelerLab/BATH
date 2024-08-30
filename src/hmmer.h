@@ -1945,7 +1945,7 @@ extern int     p7_spensemble_GetClusterCoords(P7_SPENSEMBLE *sp, int which,
 extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 
 /* p7_splice.c */
-extern void p7_splice_SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
+extern void SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
                        ESL_GENCODE *gcode, ESL_GETOPTS *go, FILE *ofp, int textw);
 
 /* p7_tophits.c */

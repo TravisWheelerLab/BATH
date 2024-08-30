@@ -71,86 +71,87 @@ static int             assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_
 #define MPIOPTS     NULL
 
 static ESL_OPTIONS options[] = {
-  /* name             type            default    env          range      toggles reqs  incomp          help                                                                        docgroup*/
-  { "-h",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "show brief help on version and usage",                                     1 },
+  /* name             type            default    env          range      toggles reqs  incomp          help                                                                           docgroup*/
+  { "-h",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "show brief help on version and usage",                                        1 },
   /* Control of output */
-  { "-o",             eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "direct output to file <f>, not stdout",                                    2 },
-  { "--tblout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save parseable table of hits to file <f>",                                 2 },
-  { "--fstblout",     eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save table of frameshift locations to file <f>",                           2 },
-  { "--hmmout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "if input is alignment(s) or sequence(s) write produced hmms to file <f>",  2 },
-  { "--acc",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "prefer accessions over names in output",                                   2 },
-  { "--noali",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't output alignments, so output is smaller",                            2 },
-  { "--notrans",      eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't show the translated DNA sequence in  alignment",                     2 }, 
-  { "--frameline",    eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "include frame of each codon in  alignment",                                2 },
-  { "--cigar",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--tblout", NULL,        "include alignment CIGAR string in table output (with --tblout)",           2 },
-  { "--notextw",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--textw",       "unlimit ASCII text output line width",                                     2 },
-  { "--textw",        eslARG_INT,    "150",      NULL,       "n>=150",   NULL,   NULL,"--notextw",     "set max width of ASCII text output lines",                                 2 },
+  { "-o",             eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "direct output to file <f>, not stdout",                                       2 },
+  { "--tblout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save parseable table of hits to file <f>",                                    2 },
+  { "--fstblout",     eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save table of frameshift locations to file <f>",                              2 },
+  { "--hmmout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "if input is alignment(s) or sequence(s) write produced hmms to file <f>",     2 },
+  { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--nofs", NULL,          "enable spliced alignments (requires SSI index 'esl-sftech --index <seqdb>')", 2 },
+  { "--acc",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "prefer accessions over names in output",                                      2 },
+  { "--noali",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't output alignments, so output is smaller",                               2 },
+  { "--notrans",      eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't show the translated DNA sequence in  alignment",                        2 }, 
+  { "--frameline",    eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "include frame of each codon in  alignment",                                   2 },
+  { "--cigar",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--tblout", NULL,        "include alignment CIGAR string in table output (with --tblout)",              2 },
+  { "--notextw",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--textw",       "unlimit ASCII text output line width",                                        2 },
+  { "--textw",        eslARG_INT,    "150",      NULL,       "n>=150",   NULL,   NULL,"--notextw",     "set max width of ASCII text output lines",                                    2 },
   /* Control of scoring system */
-  { "--singlemx",     eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "use substitution score matrix w/ single-sequence MSA-format inputs",       3 },
-  { "--popen",        eslARG_REAL,   "0.02",     NULL,       "0<=x<0.5", NULL,   NULL, NULL,           "gap open probability",                                                     3 },
-  { "--pextend",      eslARG_REAL,   "0.4",      NULL,       "0<=x<1",   NULL,   NULL, NULL,           "gap extend probability",                                                   3 },
-  { "--mx",           eslARG_STRING, "BLOSUM62", NULL,        NULL,      NULL,   NULL,"--mxfile",      "substitution score matrix choice (of some built-in matrices)",             3 },
-  { "--mxfile",       eslARG_INFILE,  NULL,      NULL,        NULL,      NULL,   NULL,"--mx",          "read substitution score matrix from file <f>",                             3 },
+  { "--singlemx",     eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "use substitution score matrix w/ single-sequence MSA-format inputs",          3 },
+  { "--popen",        eslARG_REAL,   "0.02",     NULL,       "0<=x<0.5", NULL,   NULL, NULL,           "gap open probability",                                                        3 },
+  { "--pextend",      eslARG_REAL,   "0.4",      NULL,       "0<=x<1",   NULL,   NULL, NULL,           "gap extend probability",                                                      3 },
+  { "--mx",           eslARG_STRING, "BLOSUM62", NULL,        NULL,      NULL,   NULL,"--mxfile",      "substitution score matrix choice (of some built-in matrices)",                3 },
+  { "--mxfile",       eslARG_INFILE,  NULL,      NULL,        NULL,      NULL,   NULL,"--mx",          "read substitution score matrix from file <f>",                                3 },
   /* Control of reporting and inclusion thresholds */
-  { "-E",             eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,   NULL, REPOPTS,        "report sequences <= this E-value threshold in output",                     4 },
-  { "-T",             eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, REPOPTS,        "report sequences >= this score threshold in output",                       4 },
-  { "--incE",         eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,   NULL, INCOPTS,        "consider sequences <= this E-value threshold as significant",              4 },
-  { "--incT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, INCOPTS,        "consider sequences >= this score threshold as significant",                4 },
+  { "-E",             eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,   NULL, REPOPTS,        "report sequences <= this E-value threshold in output",                        4 },
+  { "-T",             eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, REPOPTS,        "report sequences >= this score threshold in output",                          4 },
+  { "--incE",         eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,   NULL, INCOPTS,        "consider sequences <= this E-value threshold as significant",                 4 },
+  { "--incT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, INCOPTS,        "consider sequences >= this score threshold as significant",                   4 },
   /* input formats */
-  { "--qformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert query is in format <s> (can be seq or msa format)",                 5 },
-  { "--qsingle_seqs", eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "force query to be read as individual sequences, even if in an msa format", 5 },
-  { "--tformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert target <seqfile> is in format <s>: no autodetection",               5 },
+  { "--qformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert query is in format <s> (can be seq or msa format)",                    5 },
+  { "--qsingle_seqs", eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "force query to be read as individual sequences, even if in an msa format",    5 },
+  { "--tformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert target <seqfile> is in format <s>: no autodetection",                  5 },
 
   /* Control of acceleration pipeline */
-  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3","turn all heuristic filters off (less speed, more power)",                  7 },
-  { "--F1",           eslARG_REAL,   "0.02",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                         7 },
-  { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                         7 },
-  { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         7 },
-  { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         7 },
-  { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            7 },
-  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--nofs",        "send all potential hits to the frameshift aware pipeline",                 7 },
-  { "--nofs",         eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--fsonly",      "send all potential hits to the non-frameshift aware pipeline",             7 },
+  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3","turn all heuristic filters off (less speed, more power)",                     7 },
+  { "--F1",           eslARG_REAL,   "0.02",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                            7 },
+  { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                            7 },
+  { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                            7 },
+  { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                            7 },
+  { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                               7 },
+  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--nofs",        "send all potential hits to the frameshift aware pipeline",                    7 },
+  { "--nofs",         eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--fsonly",      "send all potential hits to the non-frameshift aware pipeline",                7 },
 /* Other options */
-  { "-Z",             eslARG_REAL,    FALSE,     NULL,       "x>=0",     NULL,   NULL, NULL,           "set database size (Megabases) to <x> for E-value calculations",            12 }, 
-  { "--seed",         eslARG_INT,    "42",       NULL,       "n>=0",     NULL,   NULL, NULL,           "set RNG seed to <n> (if 0: one-time arbitrary seed)",                      12 },
-  { "--w_beta",       eslARG_REAL,    NULL,      NULL,       "0>=x<=1",  NULL,   NULL, NULL,           "tail mass at which window length is determined",                           12 },
-  { "--w_length",     eslARG_INT,     NULL,      NULL,       "x>=4",      NULL,   NULL, NULL,           "window length - essentially max expected hit length" ,                     12 },
+  { "-Z",             eslARG_REAL,    FALSE,     NULL,       "x>=0",     NULL,   NULL, NULL,           "set database size (Megabases) to <x> for E-value calculations",               12 }, 
+  { "--seed",         eslARG_INT,    "42",       NULL,       "n>=0",     NULL,   NULL, NULL,           "set RNG seed to <n> (if 0: one-time arbitrary seed)",                         12 },
+  { "--w_beta",       eslARG_REAL,    NULL,      NULL,       "0>=x<=1",  NULL,   NULL, NULL,           "tail mass at which window length is determined",                              12 },
+  { "--w_length",     eslARG_INT,     NULL,      NULL,       "x>=4",      NULL,   NULL, NULL,           "window length - essentially max expected hit length" ,                       12 },
   #ifdef HMMER_THREADS 
-  { "--block_length", eslARG_INT,     NULL,      NULL,       "n>=50000", NULL,   NULL, NULL,           "length of blocks read from target database (threaded) ",                   12 },
-  { "--cpu",          eslARG_INT,     p7_NCPU,  "HMMER_NCPU","n>=0",     NULL,   NULL, CPUOPTS,        "number of parallel CPU workers to use for multithreads",                   12 },
+  { "--block_length", eslARG_INT,     NULL,      NULL,       "n>=50000", NULL,   NULL, NULL,           "length of blocks read from target database (threaded) ",                      12 },
+  { "--cpu",          eslARG_INT,     p7_NCPU,  "HMMER_NCPU","n>=0",     NULL,   NULL, CPUOPTS,        "number of parallel CPU workers to use for multithreads",                      12 },
 #endif
   /* Translation options */ 
-  { "--ct",           eslARG_INT,    "1",        NULL,        NULL,      NULL,   NULL, NULL,           "use alt genetic code of NCBI translation table (see end of help)",         15 },
-  { "-l",             eslARG_INT,    "20",       NULL,        NULL,      NULL,   NULL, NULL,           "minimum ORF length",                                                       15 },
-  { "-m",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-M",            "ORFs must initiate with AUG only",                                         15 },
-  { "-M",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-m",            "ORFs must start with allowed initiation codon",                            15 },
-  { "--strand",       eslARG_STRING, "both",     NULL,        NULL,      NULL,   NULL, NULL,           "translate only forward strand 'plus' or reverse complement strand 'minus'",15 },
+  { "--ct",           eslARG_INT,    "1",        NULL,        NULL,      NULL,   NULL, NULL,           "use alt genetic code of NCBI translation table (see end of help)",            15 },
+  { "-l",             eslARG_INT,    "20",       NULL,        NULL,      NULL,   NULL, NULL,           "minimum ORF length",                                                          15 },
+  { "-m",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-M",            "ORFs must initiate with AUG only",                                            15 },
+  { "-M",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-m",            "ORFs must start with allowed initiation codon",                               15 },
+  { "--strand",       eslARG_STRING, "both",     NULL,        NULL,      NULL,   NULL, NULL,           "translate only forward strand 'plus' or reverse complement strand 'minus'",   15 },
   
   /* Restrict search to subset of database - hidden because these flags are
    *   (a) currently for internal use
    *   (b) probably going to change
    */
-  { "--restrictdb_stkey", eslARG_STRING,"0",     NULL,        NULL,      NULL,   NULL, NULL,           "Search starts at the sequence with name <s> ",                             99 },
-  { "--restrictdb_n",     eslARG_INT,   "-1",    NULL,        NULL,      NULL,   NULL, NULL,           "Search <j> target sequences (starting at --restrictdb_stkey)",             99 },
-  { "--ssifile",          eslARG_STRING, NULL,   NULL,        NULL,      NULL,   NULL, NULL,           "restrictdb_x values require ssi file. Override default to <s>",            99 },
+  { "--restrictdb_stkey", eslARG_STRING,"0",     NULL,        NULL,      NULL,   NULL, NULL,           "Search starts at the sequence with name <s> ",                                99 },
+  { "--restrictdb_n",     eslARG_INT,   "-1",    NULL,        NULL,      NULL,   NULL, NULL,           "Search <j> target sequences (starting at --restrictdb_stkey)",                99 },
+  { "--ssifile",          eslARG_STRING, NULL,   NULL,        NULL,      NULL,   NULL, NULL,           "restrictdb_x values require ssi file. Override default to <s>",               99 },
 
   /* stage-specific window length used for bias composition estimate,
    * hidden because they are confusing/expert options. May drag them out
    * into the daylight eventually
    */
-  { "--B1",           eslARG_INT,    "110",      NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (SSV)",                      99 },
-  { "--B2",           eslARG_INT,    "240",      NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (Vit)",                      99 },
-  { "--B3",           eslARG_INT,    "1000",     NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (Fwd)",                      99 },
+  { "--B1",           eslARG_INT,    "110",      NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (SSV)",                         99 },
+  { "--B2",           eslARG_INT,    "240",      NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (Vit)",                         99 },
+  { "--B3",           eslARG_INT,    "1000",     NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (Fwd)",                         99 },
  
   /* Not used, but retained because esl option-handling code errors if it isn't kept here.  Placed in group 99 so that it doesn't print to help*/
-  { "--domZ",         eslARG_REAL,    FALSE,     NULL,       "x>0",      NULL,  NULL, NULL,            "Not used",                                                                 99 },
-  { "--domE",         eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                 99 },
-  { "--domT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                 99 },
-  { "--incdomE",      eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                 99 },
-  { "--incdomT",      eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                 99 },
-  { "--crick",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate top strand",                                                99 },
-  { "--watson",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate bottom strand",                                             99 }, 
-  { "--fs",           eslARG_REAL,   "0.01",     NULL,       "0<=x<=1",  NULL,  NULL, NULL,            "set the frameshift probabilty",                                            99 },
+  { "--domZ",         eslARG_REAL,    FALSE,     NULL,       "x>0",      NULL,  NULL, NULL,            "Not used",                                                                    99 },
+  { "--domE",         eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                    99 },
+  { "--domT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                    99 },
+  { "--incdomE",      eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                    99 },
+  { "--incdomT",      eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                    99 },
+  { "--crick",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate top strand",                                                   99 },
+  { "--watson",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate bottom strand",                                                99 }, 
+  { "--fs",           eslARG_REAL,   "0.01",     NULL,       "0<=x<=1",  NULL,  NULL, NULL,            "set the frameshift probabilty",                                               99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -262,6 +263,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--tblout")                        && fprintf(ofp, "# per-seq hits tabular output:                   %s\n",      esl_opt_GetString(go, "--tblout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fstblout")                      && fprintf(ofp, "# frameshift tabular output:                     %s\n",      esl_opt_GetString(go, "--fstblout"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--hmmout")                        && fprintf(ofp, "# hmm output:                                    %s\n",      esl_opt_GetString(go, "--hmmout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--splice")                        && fprintf(ofp, "# enable spliced alignments:                     yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--acc")                           && fprintf(ofp, "# prefer accessions over names:                  yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--noali")                         && fprintf(ofp, "# show alignments in output:                     no\n")                                                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--notextw")                       && fprintf(ofp, "# max ASCII text line length:                    unlimited\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -342,7 +344,8 @@ main(int argc, char **argv)
     }
   }
 
-/* is the range restricted? */
+
+  /* is the range restricted? */
 
 #ifndef eslAUGMENT_SSI
   if (esl_opt_IsUsed(go, "--restrictdb_stkey") || esl_opt_IsUsed(go, "--restrictdb_n")  || esl_opt_IsUsed(go, "--ssifile")  )
@@ -505,8 +508,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_PIPELINE     *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
   ID_LENGTH_LIST  *id_length_list           = NULL;
   ESL_STOPWATCH   *watch;
-  
-  //ESL_RANDOMNESS  *rand                   = NULL; 
+ 
 
   /* multi threading */
   int              ncpus                    = 0; 
@@ -523,6 +525,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              qhstatus                 = eslOK;
   int              sstatus                  = eslOK;
   int              ssistatus                = eslOK;  
+
 
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
   else                                     textw = esl_opt_GetInteger(go, "--textw");
@@ -618,57 +621,18 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   else if (status == eslEINVAL)    p7_Fail("Can't autodetect format of a stdin or .gz seqfile");
   else if (status != eslOK)        p7_Fail("Unexpected error %d opening sequence file %s\n", status, cfg->dbfile);  
 
-  /* Check if SSI index exists for use by SPLICE algorithms */
-  if (esl_opt_IsUsed(go, "--ssifile"))
-      ssistatus = esl_sqfile_OpenSSI(dbfp, esl_opt_GetString(go, "--ssifile"));
-  else
-      ssistatus = esl_sqfile_OpenSSI(dbfp, NULL);
+  /* if splicing is enabled check for SSI index*/
+  if (esl_opt_IsUsed(go, "--splice")) {
+    ssistatus = esl_sqfile_OpenSSI(dbfp, NULL);
+    if (ssistatus != eslOK) p7_Fail("An SSI file is required for splicing. Create SSI using 'esl-sfetch --index %s' \n", cfg->dbfile);
+  }
 
-  /* If SSI index index does not exist create it */
-  if (ssistatus == eslENOTFOUND)  {
-    esl_strdup(dbfp->filename, -1, &ssifile);
-    esl_strcat(&ssifile, -1, ".ssi", 4);
 
-    ssistatus = esl_newssi_Open(ssifile, TRUE, &newssi);
-    if (ssistatus != eslOK) p7_Fail("Failed to create SSI index for sequence file %s\n",          cfg->dbfile); 
-
-    if (esl_newssi_AddFile(newssi, dbfp->filename, dbfp->format, &fh) != eslOK)
-    p7_Fail("Failed to add sequence file %s to new SSI index\n", dbfp->filename);
-
-    ssisq   = esl_sq_Create();
-    nssiseq = 0;
-    while ((ssistatus = esl_sqio_ReadInfo(dbfp, ssisq)) == eslOK)
-    {
-      nssiseq++;
-      if (ssisq->name == NULL) p7_Fail("Every sequence must have a name to be indexed. Failed to find name of seq #%d\n", nssiseq);
-
-      if (esl_newssi_AddKey(newssi, ssisq->name, fh, ssisq->roff, ssisq->doff, ssisq->L) != eslOK)
-        p7_Fail("Failed to add key %s to SSI index", ssisq->name);
-
-      if (ssisq->acc[0] != '\0') {
-        if (esl_newssi_AddAlias(newssi, ssisq->acc, ssisq->name) != eslOK)
-          p7_Fail("Failed to add secondary key %s to SSI index", ssisq->acc);
-      }
-      esl_sq_Reuse(ssisq);
-    }  
-    if      (ssistatus == eslEFORMAT) p7_Fail("Parse failed (sequence file %s):\n%s\n",
-                                           dbfp->filename, esl_sqfile_GetErrorBuf(dbfp));
-    else if (ssistatus != eslEOF)     p7_Fail("Unexpected error %d reading sequence file %s",
-                                            ssistatus,dbfp->filename);
-
-    if (dbfp->data.ascii.bpl > 0 && dbfp->data.ascii.rpl > 0) {
-      if ((ssistatus = esl_newssi_SetSubseq(newssi, fh, dbfp->data.ascii.bpl, dbfp->data.ascii.rpl)) != eslOK)
-        p7_Fail("Failed to set %s for fast subseq lookup.", dbfp->filename);
-    }
- 
-    if (esl_newssi_Write(newssi) != eslOK)
-      p7_Fail("\nFailed to write keys to ssi file %s:\n  %s", ssifile, newssi->errbuf);
-  
-    esl_sqfile_Position(dbfp, 0);
-    
-    free(ssifile);
-    esl_sq_Destroy(ssisq);
-    esl_newssi_Close(newssi);
+  if (esl_opt_IsUsed(go, "--restrictdb_stkey") || esl_opt_IsUsed(go, "--restrictdb_n")) {
+    if (esl_opt_IsUsed(go, "--ssifile"))
+      esl_sqfile_OpenSSI(dbfp, esl_opt_GetString(go, "--ssifile"));
+    else
+      esl_sqfile_OpenSSI(dbfp, NULL);
   }
 
   /* Open the results output files */
@@ -953,15 +917,18 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
-    if (tophits_accumulator->N) p7_splice_SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
+
+    if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N)
+      SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
 
 
     /* Sort and remove hits bellow threshold */
     p7_tophits_SortBySortkey(tophits_accumulator);
-       /* Set Z = 1 to prevent changing e-values. Correct Z 
-       * was calcualted by p7_tophits_ComputeBathEvalues() */
-      pipelinehits_accumulator->Z = 1;    
-      p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
+
+   /* Set Z = 1 to prevent changing e-values. Correct Z 
+    * was calcualted by p7_tophits_ComputeBathEvalues() */
+    pipelinehits_accumulator->Z = 1;    
+     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
 
       /* Print the results.  */

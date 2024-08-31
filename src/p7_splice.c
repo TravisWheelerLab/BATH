@@ -1435,7 +1435,9 @@ void GetContestedDownstreamNucls
 {
   int write_pos = 5;
   while (write_pos) {
-    if (NuclSeq[read_pos] >= 0 && NuclSeq[read_pos] <= 3)
+    if (read_pos < 0) 
+      DN[write_pos--] = 15; 
+    else if (NuclSeq[read_pos] >= 0 && NuclSeq[read_pos] <= 3)
       DN[write_pos--] = NuclSeq[read_pos];
     read_pos--;
   }
@@ -6089,8 +6091,7 @@ int ** ExonSetCleanup
 
     int start_exon_id = scanner_exon_id;
 
-
-    while (InputCoordSet[5*scanner_exon_id+5] != -1 && scanner_exon_id < num_exons)
+    while (scanner_exon_id < num_exons && InputCoordSet[5*scanner_exon_id+5] != -1) 
       scanner_exon_id++;
 
     int end_exon_id = scanner_exon_id-1;
@@ -6485,14 +6486,13 @@ void PrintExon
 
 
   // Prep for each row in the alignment.  Extra length in case of gaps.
-  int exon_ali_str_alloc = 2 * abs(EDI->nucl_end - EDI->nucl_start);
+  int exon_ali_str_alloc = 2 * (abs(EDI->nucl_end - EDI->nucl_start) + 1);
   char * ModelAli   = malloc(exon_ali_str_alloc * sizeof(char));
   char * QualityAli = malloc(exon_ali_str_alloc * sizeof(char));
   char * TransAli   = malloc(exon_ali_str_alloc * sizeof(char));
   char * NuclAli    = malloc(exon_ali_str_alloc * sizeof(char));
   char * PPAli      = malloc(exon_ali_str_alloc * sizeof(char));
-
-
+  
   // Left splicing dinucleotides
   int write_pos = 0;
   if (!EDI->Nterm) {
@@ -6514,7 +6514,6 @@ void PrintExon
   int current_nucl_pos = EDI->nucl_start;
   while ((EDI->revcomp && current_nucl_pos >= EDI->nucl_end)
          || (!EDI->revcomp && current_nucl_pos <= EDI->nucl_end)) {
-
 
     NuclAli[write_pos] = AD->ntseq[*ad_nucl_read_pos];
     if (NuclAli[write_pos] != '-') {

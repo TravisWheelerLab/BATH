@@ -920,15 +920,14 @@ TARGET_SET * SelectTargetRanges
   if (DEBUGGING1) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
 
-  int hit_id, dom_id, i;
+  int hit_id, i;
 
 
   // Because we go through
   int num_hits = (int)(TopHits->N);
   float * HitScores = malloc(num_hits * sizeof(float));
   for (hit_id = 0; hit_id < num_hits; hit_id++) {
-    dom_id = TopHits->hit[hit_id]->best_domain;
-    HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[dom_id])->envsc;
+    HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[0])->envsc;
   }
   int * HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
 
@@ -955,8 +954,7 @@ TARGET_SET * SelectTargetRanges
     int base_hit_id = HitScoreSort[sort_id];
 
     char * CandidateSeqName     = TopHits->hit[base_hit_id]->name;
-    int candidate_best_dom      = TopHits->hit[base_hit_id]->best_domain;
-    P7_ALIDISPLAY * CandidateAD = (&TopHits->hit[base_hit_id]->dcl[candidate_best_dom])->ad;
+    P7_ALIDISPLAY * CandidateAD = (&TopHits->hit[base_hit_id]->dcl[0])->ad;
 
     int candidate_revcomp = 0;
     if (CandidateAD->sqfrom > CandidateAD->sqto)
@@ -1007,28 +1005,23 @@ TARGET_SET * SelectTargetRanges
       if (!candidate_revcomp && AD->sqfrom > AD->sqto) continue;
 
 
-      for (dom_id = 0; dom_id < TopHits->hit[hit_id]->ndom; dom_id++) {
-      
-          
-        AD = (&TopHits->hit[hit_id]->dcl[dom_id])->ad;
+      AD = (&TopHits->hit[hit_id]->dcl[0])->ad;
 
-        // New minimum?
-        // We could revcomp check, but I don't know if it's any faster...
-        if (AD->sqto < min_coord && AD->sqto > min_cap)
-          min_coord = AD->sqto;
+      // New minimum?
+      // We could revcomp check, but I don't know if it's any faster...
+      if (AD->sqto < min_coord && AD->sqto > min_cap)
+        min_coord = AD->sqto;
           
-        if (AD->sqfrom < min_coord && AD->sqfrom > min_cap)
-          min_coord = AD->sqfrom;
+      if (AD->sqfrom < min_coord && AD->sqfrom > min_cap)
+        min_coord = AD->sqfrom;
           
+      // New maximum?
+      if (AD->sqto > max_coord && AD->sqto < max_cap)
+        max_coord = AD->sqto;
+          
+      if (AD->sqfrom > max_coord && AD->sqfrom < max_cap)
+        max_coord = AD->sqfrom;
 
-        // New maximum?
-        if (AD->sqto > max_coord && AD->sqto < max_cap)
-          max_coord = AD->sqto;
-          
-        if (AD->sqfrom > max_coord && AD->sqfrom < max_cap)
-          max_coord = AD->sqfrom;
-
-      }
 
     }
 

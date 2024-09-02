@@ -195,6 +195,7 @@ typedef struct _target_set {
   int num_target_seqs;
 
   char    ** TargetSeqNames; // Also (individually) borrowed pointers!
+  int64_t  * TargetSeqIdx;
   int64_t  * TargetStarts;
   int64_t  * TargetEnds;
   int      * TargetIsRevcomp;
@@ -519,6 +520,7 @@ void TARGET_SET_Destroy
 (TARGET_SET * TS)
 {
   free(TS->TargetSeqNames);
+  free(TS->TargetSeqIdx);
   free(TS->TargetStarts);
   free(TS->TargetEnds);
   free(TS->TargetIsRevcomp);
@@ -919,51 +921,58 @@ TARGET_SET * SelectTargetRanges
 
   if (DEBUGGING1) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
 
-
-  int hit_id, i;
-
+  int            hit_id, sort_id, target_id;
+  int            base_hit_id;
+  int            num_hits;
+  int            num_targets;
+  int            new_target;
+  int            candidate_revcomp;
+  int64_t        candidate_seqidx;
+  int64_t        min_coord, max_coord;
+  int64_t        min_cap, max_cap;
+  int           *HitScoreSort;
+  float         *HitScores;
+  char          *CandidateSeqName;
+  P7_ALIDISPLAY *CandidateAD;
+  P7_ALIDISPLAY *AD;
+  TARGET_SET    *TargetSet;
 
   // Because we go through
-  int num_hits = (int)(TopHits->N);
-  float * HitScores = malloc(num_hits * sizeof(float));
+  num_hits = (int)(TopHits->N);
+  HitScores = malloc(num_hits * sizeof(float));
+  
   for (hit_id = 0; hit_id < num_hits; hit_id++) {
     HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[0])->envsc;
   }
-  int * HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
+  HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
 
   // Initialize our TARGET_SETS struct
-  TARGET_SET * TargetSet     = malloc(sizeof(TARGET_SET));
+  TargetSet                  = malloc(sizeof(TARGET_SET));
   TargetSet->TargetSeqNames  = malloc(MAX_TARGET_REGIONS * sizeof(char *));
+  TargetSet->TargetSeqIdx    = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
   TargetSet->TargetStarts    = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
   TargetSet->TargetEnds      = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
   TargetSet->TargetIsRevcomp = malloc(MAX_TARGET_REGIONS * sizeof(int));
 
+  num_targets = 0;
 
-
-  // We'll need to check each target sequence's length to make sure we don't
-  // let our range exceed the length of the chromosome.
-
-
-
-  int num_targets = 0;
-
-  int sort_id;
   for (sort_id = 0; sort_id < num_hits; sort_id++) {
 
+    base_hit_id = HitScoreSort[sort_id];
+    if(TopHits->hit[base_hit_id]->flags & p7_IS_DUPLICATE)
+      continue;
 
-    int base_hit_id = HitScoreSort[sort_id];
-
-    char * CandidateSeqName     = TopHits->hit[base_hit_id]->name;
-    P7_ALIDISPLAY * CandidateAD = (&TopHits->hit[base_hit_id]->dcl[0])->ad;
-
-    int candidate_revcomp = 0;
+    CandidateSeqName     = TopHits->hit[base_hit_id]->name;
+    CandidateAD = (&TopHits->hit[base_hit_id]->dcl[0])->ad;
+    candidate_seqidx     = TopHits->hit[base_hit_id]->seqidx;
+ 
+    candidate_revcomp = 0;
     if (CandidateAD->sqfrom > CandidateAD->sqto)
       candidate_revcomp = 1;
 
-
-    int new_target = 1;
-    for (i=0; i<num_targets; i++) {
-      if (!strcmp(CandidateSeqName,TargetSet->TargetSeqNames[i]) && candidate_revcomp == TargetSet->TargetIsRevcomp[i]) {
+    new_target = 1;
+    for (target_id=0; target_id<num_targets; target_id++) {
+      if (candidate_seqidx == TargetSet->TargetSeqIdx[target_id] && candidate_revcomp == TargetSet->TargetIsRevcomp[target_id]) {
         new_target = 0;
         break;
       }
@@ -976,7 +985,6 @@ TARGET_SET * SelectTargetRanges
     // Now that we know this is a new chromosome, define a coding region!
     // First, what we'll do is define a hard maximum search area defined
     // by the highest-scoring hit to this sequence.
-    int64_t min_coord, max_coord;
     if (candidate_revcomp) {
       min_coord = CandidateAD->sqto;
       max_coord = CandidateAD->sqfrom;
@@ -985,8 +993,8 @@ TARGET_SET * SelectTargetRanges
       max_coord = CandidateAD->sqto;
     }
 
-    int64_t min_cap = min_coord - 1000000;
-    int64_t max_cap = max_coord + 1000000;
+    min_cap = min_coord - 1000000;
+    max_cap = max_coord + 1000000;
 
 
     // The min_cap and max_cap now define the absolute furthest we're
@@ -995,11 +1003,11 @@ TARGET_SET * SelectTargetRanges
     for (hit_id = 0; hit_id < num_hits; hit_id++) {
 
 
-      if (strcmp(CandidateSeqName,TopHits->hit[hit_id]->name))
+      if ((candidate_seqidx != TopHits->hit[hit_id]->seqidx) || (TopHits->hit[base_hit_id]->flags & p7_IS_DUPLICATE))
         continue;
 
 
-      P7_ALIDISPLAY * AD = (&TopHits->hit[hit_id]->dcl[0])->ad; 
+      AD = (&TopHits->hit[hit_id]->dcl[0])->ad; 
 
       if ( candidate_revcomp && AD->sqfrom < AD->sqto) continue;
       if (!candidate_revcomp && AD->sqfrom > AD->sqto) continue;
@@ -1027,6 +1035,7 @@ TARGET_SET * SelectTargetRanges
 
 
     TargetSet->TargetSeqNames[num_targets]  = CandidateSeqName;
+    TargetSet->TargetSeqIdx[num_targets]  = candidate_seqidx;
     TargetSet->TargetStarts[num_targets]    = min_coord;
     TargetSet->TargetEnds[num_targets]      = max_coord;
     TargetSet->TargetIsRevcomp[num_targets] = candidate_revcomp;

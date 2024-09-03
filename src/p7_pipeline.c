@@ -2442,6 +2442,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       hit->best_domain = 0;
 
       hit->window_length = gm_fs->max_length;
+      hit->target_len = dnasq->n;
       hit->seqidx = seqidx;
       hit->subseq_start = dnasq->start;
 
@@ -2603,6 +2604,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
        hit->ndom        = 1;
        hit->best_domain = 0;
        hit->window_length = orfsq->n;
+       hit->target_len = dnasq->n;
        hit->seqidx = seqidx;
        hit->subseq_start = orfsq->start;
 

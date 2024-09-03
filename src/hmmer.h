@@ -771,15 +771,15 @@ typedef struct p7_alidisplay_s {
 typedef struct p7_dom_s { 
   int64_t        ienv, jenv;
   int64_t        iali, jali;
-  int64_t        iorf, jorf; /*Used in translated search to capture the range in the DNA sequence of the ORF containing the match to a protein query */
-  float          envsc;    /* Forward score in envelope ienv..jenv; NATS; without null2 correction       */
+  int64_t        iorf, jorf;     /*Used in translated search to capture the range in the DNA sequence of the ORF containing the match to a protein query */
+  float          envsc;          /* Forward score in envelope ienv..jenv; NATS; without null2 correction       */
   float          domcorrection;  /* null2 score when calculating a per-domain score; NATS                      */
-  float          dombias;  /* FLogsum(0, log(bg->omega) + domcorrection): null2 score contribution; NATS */
-  float          oasc;    /* optimal accuracy score (units: expected # residues correctly aligned)      */
-  float          bitscore;  /* overall score in BITS, null corrected, if this were the only domain in seq */
-  double         lnP;          /* log(P-value) of the bitscore                                               */
-  int            is_reported;  /* TRUE if domain meets reporting thresholds                                  */
-  int            is_included;  /* TRUE if domain meets inclusion thresholds                                  */
+  float          dombias;        /* FLogsum(0, log(bg->omega) + domcorrection): null2 score contribution; NATS */
+  float          oasc;           /* optimal accuracy score (units: expected # residues correctly aligned)      */
+  float          bitscore;       /* overall score in BITS, null corrected, if this were the only domain in seq */
+  double         lnP;            /* log(P-value) of the bitscore                                               */
+  int            is_reported;    /* TRUE if domain meets reporting thresholds                                  */
+  int            is_included;    /* TRUE if domain meets inclusion thresholds                                  */
   float         *scores_per_pos; /* score in BITS that each position in the alignment contributes to an overall viterbi score */
 
   P7_ALIDISPLAY *ad; 
@@ -871,39 +871,40 @@ typedef struct p7_domaindef_s {
  * complements have sqfrom > sqto
  */
 typedef struct p7_hit_s {
-  char   *name;      /* name of the target               (mandatory)           */
-  char   *acc;      /* accession of the target          (optional; else NULL) */
-  char   *desc;      /* description of the target        (optional; else NULL) */
-  char   *orfid;    /* unique ORF identifier            (mandatory for translated search, not used otherwise)           */
-  int    window_length;         /* for later use in e-value computation, when splitting long sequences */
-  double sortkey;    /* number to sort by; big is better                       */
+  char   *name;             /* name of the target               (mandatory)           */
+  char   *acc;              /* accession of the target          (optional; else NULL) */
+  char   *desc;             /* description of the target        (optional; else NULL) */
+  char   *orfid;            /* unique ORF identifier            (mandatory for translated search, not used otherwise)           */
+  int    window_length;     /* for later use in e-value computation, when splitting long sequences */
+  double sortkey;           /* number to sort by; big is better                       */
 
-  float  score;      /* bit score of the sequence (all domains, w/ correction) */
-  float  pre_score;    /* bit score of sequence before null2 correction          */
-  float  sum_score;    /* bit score reconstructed from sum of domain envelopes   */
+  float  score;             /* bit score of the sequence (all domains, w/ correction) */
+  float  pre_score;         /* bit score of sequence before null2 correction          */
+  float  sum_score;         /* bit score reconstructed from sum of domain envelopes   */
 
-  double lnP;            /* log(P-value) of the score               */
-  double pre_lnP;    /* log(P-value) of the pre_score           */
-  double sum_lnP;    /* log(P-value) of the sum_score           */
+  double lnP;               /* log(P-value) of the score               */
+  double pre_lnP;           /* log(P-value) of the pre_score           */
+  double sum_lnP;           /* log(P-value) of the sum_score           */
 
-  float  nexpected;     /* posterior expected number of domains in the sequence (from posterior arrays) */
-  int    nregions;  /* number of regions evaluated */
-  int    nclustered;  /* number of regions evaluated by clustering ensemble of tracebacks */
-  int    noverlaps;  /* number of envelopes defined in ensemble clustering that overlap w/ prev envelope */
-  int    nenvelopes;  /* number of envelopes handed over for domain definition, null2, alignment, and scoring. */
-  int    ndom;    /* total # of domains identified in this seq   */
+  float  nexpected;         /* posterior expected number of domains in the sequence (from posterior arrays) */
+  int    nregions;          /* number of regions evaluated */
+  int    nclustered;        /* number of regions evaluated by clustering ensemble of tracebacks */
+  int    noverlaps;         /* number of envelopes defined in ensemble clustering that overlap w/ prev envelope */
+  int    nenvelopes;        /* number of envelopes handed over for domain definition, null2, alignment, and scoring. */
+  int    ndom;              /* total # of domains identified in this seq   */
 
-  uint32_t flags;        /* p7_IS_REPORTED | p7_IS_INCLUDED | p7_IS_NEW | p7_IS_DROPPED */
-  int      nreported;  /* # of domains satisfying reporting thresholding  */
-  int      nincluded;  /* # of domains satisfying inclusion thresholding */
-  int      best_domain;  /* index of best-scoring domain in dcl */
-  int      frameshift;
+  uint32_t flags;           /* p7_IS_REPORTED | p7_IS_INCLUDED | p7_IS_NEW | p7_IS_DROPPED */
+  int      nreported;       /* # of domains satisfying reporting thresholding  */
+  int      nincluded;       /* # of domains satisfying inclusion thresholding */
+  int      best_domain;     /* index of best-scoring domain in dcl */
+  int      frameshift;      /* TRUE if hit came from frameshift pipleine */
+  int      in_target_range; /* TRUE if hit has bee assigned to a target range for splicing */
   int64_t  seqidx;          /*unique identifier to track the database sequence from which this hit came*/
-  int64_t  subseq_start; /*used to track which subsequence of a full_length target this hit came from, for purposes of removing duplicates */
-  int64_t  target_len;   /* used in translated search to hold the length of the nucleotide sequence */
+  int64_t  subseq_start;    /*used to track which subsequence of a full_length target this hit came from, for purposes of removing duplicates */
+  int64_t  target_len;      /* used in translated search to hold the length of the nucleotide sequence */
 
-  P7_DOMAIN *dcl;  /* domain coordinate list and alignment display */
-  esl_pos_t  offset;  /* used in socket communications, in serialized communication: offset of P7_DOMAIN msg for this P7_HIT */
+  P7_DOMAIN *dcl;           /* domain coordinate list and alignment display */
+  esl_pos_t  offset;        /* used in socket communications, in serialized communication: offset of P7_DOMAIN msg for this P7_HIT */
 } P7_HIT;
 
 

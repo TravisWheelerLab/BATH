@@ -917,20 +917,18 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
+    /* Sort and remove hits bellow threshold */
+    p7_tophits_SortBySortkey(tophits_accumulator);
+
+    /* Set Z = 1 to prevent changing e-values. Correct Z 
+     * was calcualted by p7_tophits_ComputeBathEvalues() */
+    pipelinehits_accumulator->Z = 1;    
+    p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N)
       SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
 
-
-    /* Sort and remove hits bellow threshold */
-    p7_tophits_SortBySortkey(tophits_accumulator);
-
-   /* Set Z = 1 to prevent changing e-values. Correct Z 
-    * was calcualted by p7_tophits_ComputeBathEvalues() */
-    pipelinehits_accumulator->Z = 1;    
-     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
-
-
+    
       /* Print the results.  */
       pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
       for (i = 0; i < tophits_accumulator->N; i++) {

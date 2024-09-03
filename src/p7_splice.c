@@ -14,6 +14,31 @@
 #include "easel.h"
 #include "hmmer.h"
 
+typedef struct _target_range {
+
+  int64_t     seqidx;            /* target squence id       */
+  int64_t     start;             /* range start position    */
+  int64_t     end;               /* range end postion       */
+  int         complementarity;   /* reverse complementarity */
+  P7_TOPHITS *th;                /* hits in range           */
+
+} TARGET_RANGE;
+
+
+typedef struct _target_range_set {
+
+  int            N;              /* number of target ranges in set */
+  int            Nalloc;         /* current allocation size        */
+  TARGET_RANGE *target_range;   /* array of target ranges         */
+
+} TARGET_RANGE_SET;
+
+
+
+
+static TARGET_RANGE_SET* build_target_ranges     (const P7_TOPHITS *th);
+static void              get_target_range_coords (TARGET_RANGE_SET* targets, P7_HIT **hits, int *sort_score_idx, const int num_hits, const int complementarity);
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                                           BEGIN SPLICING STUFF
  * 
@@ -202,8 +227,135 @@ typedef struct _target_set {
 
 } TARGET_SET;
 
+void
+Target_Range_Destroy(TARGET_RANGE *tr)
+{
+
+  if (tr == NULL) return;
+  if (tr->th != NULL)
+    p7_tophits_Destroy(tr->th);
+
+  free(tr);
+
+  return;
+
+}
 
 
+TARGET_RANGE *
+Target_Range_Create(int nalloc)
+{
+  int status;
+
+  TARGET_RANGE *tr = NULL;
+  ESL_ALLOC(tr, sizeof(TARGET_RANGE));
+
+  tr->th = NULL;
+  ESL_ALLOC(tr->th, sizeof(P7_TOPHITS));
+  
+  tr->th->hit    = NULL;
+  ESL_ALLOC(tr->th->hit,  nalloc * sizeof(P7_HIT *));
+
+  tr->th->unsrt  = NULL;
+  tr->th->N      = 0;
+  tr->th->Nalloc = nalloc;
+
+  return tr;
+
+  ERROR:
+    Target_Range_Destroy(tr);
+    return NULL;   
+}
+
+void
+Target_Range_Set_Destroy(TARGET_RANGE_SET *trs)
+{
+
+  int i;
+
+  if (trs == NULL) return;
+  if (trs->target_range != NULL)
+  {
+    for(i=0; i< trs->N; i++) 
+      Target_Range_Destroy(&(trs->target_range[i]));
+    
+    free(trs->target_range);
+  }
+
+  free(trs);
+
+  return;
+
+}
+
+TARGET_RANGE_SET *
+Target_Range_Set_Create(void)
+{
+  int status;
+
+  TARGET_RANGE_SET *trs = NULL;
+  ESL_ALLOC(trs, sizeof(TARGET_RANGE_SET));
+   
+  trs->target_range = NULL;
+  ESL_ALLOC(trs->target_range, 10 * sizeof(TARGET_RANGE));
+
+  trs->N      = 0;
+  trs->Nalloc = 10;
+
+  return trs;
+
+  ERROR:
+    Target_Range_Set_Destroy(trs);
+    return NULL;
+}
+
+int
+Target_Range_Set_Grow(TARGET_RANGE_SET *trs)
+{
+  void *p;
+  int Nalloc = trs->Nalloc * 2;
+  int status;
+
+  if (trs->N < trs->Nalloc) return eslOK;
+ 
+  ESL_RALLOC(trs->target_range, p, Nalloc * sizeof(TARGET_RANGE));
+  trs->Nalloc = Nalloc;
+
+  return eslOK;
+
+  ERROR:
+    return eslEMEM;
+
+}
+
+int
+Target_Range_Set_CreateNextRange(TARGET_RANGE_SET *trs, TARGET_RANGE **ret_range, int nalloc)
+{
+  int status;
+
+  TARGET_RANGE *tr = NULL;
+  if ((status = Target_Range_Set_Grow(trs)) != eslOK) goto ERROR;  
+
+  tr = &(trs->target_range[trs->N]);
+  trs->N++;
+
+  tr->th = NULL;
+  ESL_ALLOC(tr->th, sizeof(P7_TOPHITS));
+
+  tr->th->hit    = NULL;
+  ESL_ALLOC(tr->th->hit,  nalloc * sizeof(P7_HIT *));
+
+  tr->th->unsrt  = NULL;
+  tr->th->N      = 0;
+  tr->th->Nalloc = nalloc;    
+  
+  *ret_range = tr;
+  return eslOK;
+
+  ERROR:
+    *ret_range = NULL;
+    return status;
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -607,13 +759,13 @@ void SPLICE_GRAPH_Destroy
   
   if (DEBUGGING1) DEBUG_OUT("Starting 'SPLICE_GRAPH_Destroy'",1);
 
+  int node_id, in_edge_index, out_edge_index;
 
   // Because we don't want to accidentally double-free any
   // of the DOMAIN_OVERLAP structs, we'll put each node in
   // charge of its incoming DOs.
   if (Graph->Nodes) {
     
-    int node_id, in_edge_index, out_edge_index;
     SPLICE_NODE * Node;
      int tmp = 0;
     for (node_id=1; node_id<=Graph->num_nodes; node_id++) {
@@ -641,9 +793,10 @@ void SPLICE_GRAPH_Destroy
 
   int hit_id;
   if (Graph->TH_HitDomToNodeID) {
-  
-    for (hit_id=0; hit_id<Graph->TopHits->N; hit_id++)
-      free(Graph->TH_HitDomToNodeID[hit_id]);
+    for (hit_id=0; hit_id<Graph->TopHits->N; hit_id++) {
+      if (!(Graph->TopHits->hit[hit_id]->flags & p7_IS_DUPLICATE))
+        free(Graph->TH_HitDomToNodeID[hit_id]);
+    }
     free(Graph->TH_HitDomToNodeID);
   
     if (Graph->MH_HitToNodeID) 
@@ -1062,7 +1215,279 @@ TARGET_SET * SelectTargetRanges
 
 }
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: get_taget_range_coords
+ *
+ *  Desc.:  Define the target ranges that exist on a single strand of one target quequence 
+ *         
+ *
+ */
+void
+get_target_range_coords(TARGET_RANGE_SET *targets, P7_HIT **hits, int *sort_score_idx, const int num_hits, const int complementarity)
+{
 
+  if (DEBUGGING1) DEBUG_OUT("Starting 'get_target_range_coords'",1);
+
+  int       i, j;
+  int       seed_idx;
+  int       seed_seq_from, seed_seq_to;
+  int64_t   seed_hmm_from, seed_hmm_to;
+  int64_t   curr_range_min, curr_range_max;
+  int64_t   lower_bound, upper_bound;
+  int64_t  *prev_range_min = NULL;
+  int64_t  *prev_range_max = NULL;
+  P7_HIT   *seed_hit;
+  TARGET_RANGE *tr;
+  int       status;  
+
+  ESL_ALLOC(prev_range_min, num_hits * sizeof(int64_t));
+  ESL_ALLOC(prev_range_max, num_hits * sizeof(int64_t));
+
+  int num_ranges = 0;
+  printf("num_hits %d\n", num_hits);
+  for (i = 0; i < num_hits; i++) {
+  
+    tr = NULL;
+
+    seed_idx = sort_score_idx[i];  //index of highest scoreing hit from which we will build a target range
+    seed_hit = hits[seed_idx];
+
+
+    if (seed_hit->in_target_range) continue;  // skip any hits already assigned to a target range
+    if ( !(seed_hit->flags & p7_IS_REPORTED)) continue; // skip any hits below the e-value threshold
+     
+    /* We have a seed hit for a potential target range 
+     * 1) create traget range and
+     * 2) add seed hit                                 */
+    tr = Target_Range_Create(num_hits);
+ 
+    tr->seqidx = seed_hit->seqidx;
+    tr->complementarity = complementarity;   
+    tr->th->hit[tr->th->N] = seed_hit;
+    tr->th->N++;
+    seed_hit->in_target_range = TRUE;
+
+    /* Extend the target range from the seed hit */
+    if ( !complementarity) {   // target is on forward strand
+      printf("\ni %d\n", i);
+      seed_seq_from = seed_hit->dcl[0].iali;
+      seed_seq_to   = seed_hit->dcl[0].jali;
+
+      seed_hmm_from = seed_hit->dcl[0].ad->hmmfrom;
+      seed_hmm_to   = seed_hit->dcl[0].ad->hmmto;
+      printf("seed_hmm_from %d seed_hmm_to %d seed_seq_from %d seed_seq_to %d \n", seed_hmm_from, seed_hmm_to, seed_seq_from, seed_seq_to);
+
+      /* Get bounds set by pervious ranges to prevent overlapping ranges */
+      lower_bound = 0;
+      upper_bound =  seed_hit->target_len;
+      for(j = 0; j < num_ranges; j++) {
+         if(prev_range_max[j] < seed_seq_from && prev_range_max[j] > lower_bound)
+           lower_bound = prev_range_max[j];
+
+         if(prev_range_min[j] > seed_seq_to && prev_range_min[j] < upper_bound) 
+           upper_bound = prev_range_min[j];        
+      }
+      printf("lower_bound %d upper_bound %d\n", lower_bound, upper_bound);
+      for (j = 0; j < num_hits; j++) {
+       
+        if (hits[j]->in_target_range) continue;                                                     // skip any hits already assigned to a target range
+        if ( !(hits[j]->flags & p7_IS_REPORTED)) continue;                                          // skip any hits below the e-value threshold
+        if ( hits[j]->dcl[0].iali < lower_bound || hits[j]->dcl[0].jali > upper_bound) continue;  // skip any hits outside bounds
+
+        if (seed_hmm_to < seed_hit->dcl[0].ad->M) { // room to extend to the right
+           
+          if( hits[j]->dcl[0].ad->hmmto > seed_hmm_to && hits[j]->dcl[0].jali > seed_seq_to) {
+           printf("hit_hmm_from %d hit_hmm_to %d hit_seq_from %d hit_seq_to %d \n", hits[j]->dcl[0].ad->hmmfrom, hits[j]->dcl[0].ad->hmmto,  hits[j]->dcl[0].iali,  hits[j]->dcl[0].jali); 
+
+            /* New hit is to the right of the seed_hit in both hmm and seq positions
+             * add it to target range */
+            tr->th->hit[tr->th->N] = hits[j];
+            tr->th->N++;
+            hits[j]->in_target_range = TRUE;
+
+          }
+
+        }
+        
+        if (seed_hmm_from > 1) {  // room to extend to the left
+          if( hits[j]->dcl[0].ad->hmmfrom < seed_hmm_from && hits[j]->dcl[0].iali < seed_seq_from) {
+             
+            printf("hit_hmm_from %d hit_hmm_to %d hit_seq_from %d hit_seq_to %d \n", hits[j]->dcl[0].ad->hmmfrom, hits[j]->dcl[0].ad->hmmto,  hits[j]->dcl[0].iali,  hits[j]->dcl[0].jali); 
+             /* New hit is to the left of the seed_hit in both hmm and seq positions 
+              * add it to target range */
+              tr->th->hit[tr->th->N] = hits[j];
+              tr->th->N++; 
+              hits[j]->in_target_range = TRUE;
+                  
+          }        
+
+        }
+      }  
+
+      /* if the range was not extended beyond the seed hit this is not a valid target range */
+      if(tr->th->N == 1) {
+         Target_Range_Destroy(tr);
+         tr = NULL;
+         continue;  
+      }
+
+
+      /* Get the min and max sequence coords for all his currently in target range */
+      curr_range_min = tr->th->hit[0]->dcl[0].iali;
+      curr_range_max = tr->th->hit[0]->dcl[0].jali;
+ 
+      for (j = 1; j < tr->th->N; j++) {
+        if(tr->th->hit[j]->dcl[0].iali < curr_range_min)
+           curr_range_min = tr->th->hit[j]->dcl[0].iali;
+
+         if(tr->th->hit[j]->dcl[0].jali > curr_range_max)
+           curr_range_max = tr->th->hit[j]->dcl[0].jali;
+      }
+   
+      printf("curr_range_min %d curr_range_max %d\n", curr_range_min, curr_range_max);
+     
+      /* Add any hits that overlap with current taget range */     
+      for (j = 0; j < num_hits; j++) {
+
+        if (hits[j]->in_target_range) continue;  // skip any hits already assigned to a target range
+        if ( !(hits[j]->flags & p7_IS_REPORTED)) continue; // skip any hits below the e-value threshold
+     
+        if ( (hits[j]->dcl[0].iali >= curr_range_min && hits[j]->dcl[0].iali <= curr_range_max) ||
+             (hits[j]->dcl[0].jali <= curr_range_max && hits[j]->dcl[0].jali >= curr_range_min)) {
+
+          tr->th->hit[tr->th->N] = hits[j];
+          tr->th->N++;
+          hits[j]->in_target_range = TRUE;
+             
+        }
+      }
+
+      /* Now that all hits have been added to target range get final min and max coord */
+      curr_range_min = tr->th->hit[0]->dcl[0].iali;
+      curr_range_max = tr->th->hit[0]->dcl[0].jali;
+
+      for (j = 1; j < tr->th->N; j++) {
+        if(tr->th->hit[j]->dcl[0].iali < curr_range_min)
+           curr_range_min = tr->th->hit[j]->dcl[0].iali;
+
+         if(tr->th->hit[j]->dcl[0].jali > curr_range_max)
+           curr_range_max = tr->th->hit[j]->dcl[0].jali;
+      }      
+     
+      tr->start = curr_range_min;
+      tr->end   = curr_range_max;
+      prev_range_min[num_ranges] = curr_range_min;
+      prev_range_max[num_ranges] = curr_range_max;
+      num_ranges++;
+
+      printf("curr_range_min %d curr_range_max %d\n", curr_range_min, curr_range_max);
+
+      printf("tr->th->N %d\n", tr->th->N);
+    }
+    if(tr != NULL) Target_Range_Destroy(tr);  
+  }
+
+  seed_hit = NULL;
+
+  if(prev_range_min != NULL) free(prev_range_min);
+  if(prev_range_max != NULL) free(prev_range_max);
+  if (DEBUGGING1) DEBUG_OUT("'get_target_range_coords' Complete",-1);
+
+  return;
+
+  ERROR:
+    if(prev_range_min != NULL) free(prev_range_min);
+    if(prev_range_max != NULL) free(prev_range_max);
+    return;
+
+}
+
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: build_target_ranges
+ *
+ *  Desc.: Scan P7_TOPHITS to define a set of ranges on the target(s) that 
+ *         bound possible splice regions. 
+ *
+ */
+TARGET_RANGE_SET * 
+build_target_ranges(const P7_TOPHITS * TopHits)
+{
+
+  if (DEBUGGING1) DEBUG_OUT("Starting 'build_target_ranges'",1);
+
+  
+  int               i,j;
+  int               prev_comp, curr_comp;
+  int               num_hits;               // counts number ot hits on each target
+  int               prev_target_first_hit;  // keeps tack of which hit is the first for each target
+  int              *HitScoreSort;
+  float            *HitScores;
+  TARGET_RANGE_SET *Targets;
+  int               status;
+
+  /* Create Target Range Set */
+  Targets = Target_Range_Set_Create();
+
+  /* Get score of first hit */  
+  ESL_ALLOC(HitScores, TopHits->N * sizeof(float));
+  HitScores[0] = TopHits->hit[0]->dcl[0].envsc;
+
+  /* Get complementarity of the first hit */
+  prev_comp = 0;
+  if (TopHits->hit[0]->dcl[0].iali > TopHits->hit[0]->dcl[0].jali)
+     prev_comp = 1;
+
+  num_hits    = 0;
+  prev_target_first_hit = 0;
+  for(i = 1; i < TopHits->N; i++) {
+    num_hits++;
+    
+    /* Get complementarity of current hit */
+    curr_comp = 0;
+    if (TopHits->hit[i]->dcl[0].iali > TopHits->hit[i]->dcl[0].jali) 
+      curr_comp = 1;     
+    
+    /* If the current hit is on a different sequence or strand 
+     * than the previous hit then this is a new target. Process
+     * the old target and then begin a new one */
+    if (TopHits->hit[i]->seqidx != TopHits->hit[i-1]->seqidx || curr_comp != prev_comp) {
+
+      /* Sort scores of all hits on previous target from high to low */
+      HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);   
+     
+      get_target_range_coords(Targets, &TopHits->hit[prev_target_first_hit], HitScoreSort, num_hits, prev_comp);           
+ 
+      num_hits = 0;
+      HitScores[num_hits] =  TopHits->hit[i]->dcl[0].envsc;   
+      
+      prev_target_first_hit = i;
+      free(HitScoreSort); 
+    } 
+    else {
+      /* Get scores off hits on current target */
+      HitScores[num_hits] =  TopHits->hit[i]->dcl[0].envsc;
+    }
+    prev_comp = curr_comp;
+  }
+
+  // Process last target  
+  HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
+  get_target_range_coords(Targets, &TopHits->hit[prev_target_first_hit], HitScoreSort, num_hits, prev_comp);
+  
+  if (DEBUGGING1) DEBUG_OUT("'build_target_ranges' Complete",-1);
+
+  free(HitScores);
+  free(HitScoreSort);
+
+  return Targets;
+
+  ERROR:
+     free(HitScores);
+     return NULL;    
+}
 
 
 
@@ -2296,8 +2721,6 @@ int HitsAreSpliceCompatible
   int amino_start_2 = Downstream->hmmfrom;
   int amino_end_2   = Downstream->hmmto;
 
-
-
   // If the upstream ain't upstream, then obviously we can't treat
   // these as splice-compatible!
   //
@@ -2310,14 +2733,12 @@ int HitsAreSpliceCompatible
     return 0;
   }
 
-
   // Do we have overlap OR sufficient proximity to consider
   // extending?
   if (amino_end_1 + MAX_AMINO_EXT < amino_start_2) {
     if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
     return 0;
   }
-
 
   // Fantastic!  The amino acid coordinates support splice
   // compatibility!  Now it's just time to confirm that
@@ -2511,6 +2932,8 @@ DOMAIN_OVERLAP ** GatherViableSpliceEdges
   int downstream_hit_id;
   for (upstream_hit_id = 0; upstream_hit_id < num_hits; upstream_hit_id++) {
 
+    if(TopHits->hit[upstream_hit_id]->flags & p7_IS_DUPLICATE)
+      continue;    
 
     P7_HIT * UpstreamHit  = TopHits->hit[upstream_hit_id];
     int num_upstream_doms = UpstreamHit->ndom;
@@ -2524,7 +2947,9 @@ DOMAIN_OVERLAP ** GatherViableSpliceEdges
     // For each hit, gather all of the indices of other hits that
     // could potentially be downstream exons.
     for (downstream_hit_id=0; downstream_hit_id < (int)(TopHits->N); downstream_hit_id++) {
-
+  
+      if(TopHits->hit[downstream_hit_id]->flags & p7_IS_DUPLICATE)
+        continue;    
 
       P7_HIT * DownstreamHit  = TopHits->hit[downstream_hit_id];
       int num_downstream_doms = DownstreamHit->ndom;
@@ -3159,19 +3584,19 @@ void FillOutGraphStructure
   // We'll want this lookup table to be able to go from
   // DOMAIN_OVERLAP content
   int num_hits = (int)(Graph->TopHits->N);
-  int max_doms = 0;
-  int sum_doms = 0;
+  //int max_doms = 0;
+ // int sum_doms = 0;
   int hit_id;
-  int dom_id;
-  for (hit_id=0; hit_id<num_hits; hit_id++) {
-    int hit_doms = Graph->TopHits->hit[hit_id]->ndom;
-    if (hit_doms > max_doms)
-      max_doms = hit_doms;
-    sum_doms += hit_doms;
-  }
+ // int dom_id;
+ // for (hit_id=0; hit_id<num_hits; hit_id++) {
+ //   int hit_doms = Graph->TopHits->hit[hit_id]->ndom;
+ //   if (hit_doms > max_doms)
+ //     max_doms = hit_doms;
+ //   sum_doms += hit_doms;
+ // }
 
   // Allocate space for the maximum number of domains
-  Graph->Nodes = (SPLICE_NODE **)malloc((sum_doms+1)*sizeof(SPLICE_NODE *));
+  Graph->Nodes = (SPLICE_NODE **)malloc((num_hits+1)*sizeof(SPLICE_NODE *));
 
 
   Graph->TH_HitDomToNodeID = malloc(num_hits * sizeof(int *));
@@ -3181,27 +3606,30 @@ void FillOutGraphStructure
   
   for (hit_id=0; hit_id<num_hits; hit_id++) {
 
-    Graph->TH_HitDomToNodeID[hit_id] = malloc(max_doms * sizeof(int));
+    if (Graph->TopHits->hit[hit_id]->flags & p7_IS_DUPLICATE)
+     continue;
+
+    Graph->TH_HitDomToNodeID[hit_id] = malloc(1 * sizeof(int));
 
     // 1. I don't think we ever actually use this matrix...
     // 2. We need to confirm that this hit isn't out of bounds.
     // 3. Even if it is out of bounds, we'll just have zeros
     int out_of_bounds = OutsideSearchArea(Graph->TopHits->hit[hit_id],TargetNuclSeq);
     
-    for (dom_id=0; dom_id<max_doms; dom_id++) {
+    //for (dom_id=0; dom_id<max_doms; dom_id++) {
 
-      Graph->TH_HitDomToNodeID[hit_id][dom_id] = 0;
+      Graph->TH_HitDomToNodeID[hit_id][0] = 0;
 
-      if (!out_of_bounds && dom_id < Graph->TopHits->hit[hit_id]->ndom) {
+      if (!out_of_bounds) { //&& dom_id < Graph->TopHits->hit[hit_id]->ndom) {
 
-        Graph->TH_HitDomToNodeID[hit_id][dom_id] = ++node_id;
+        Graph->TH_HitDomToNodeID[hit_id][0] = ++node_id;
         
-        Graph->Nodes[node_id] = InitSpliceNode(Graph,node_id,hit_id,dom_id,0);
+        Graph->Nodes[node_id] = InitSpliceNode(Graph,node_id,hit_id,0,0);
       }
-    }
+    //}
   }
   Graph->num_nodes = node_id;
-
+ 
   // Are your hits to the reverse complement of the query nucleotide seq?
   //
   // Even though this is redundant, there are some instances where we just
@@ -3251,15 +3679,15 @@ void FindBestFullPath
   
   if (DEBUGGING1) DEBUG_OUT("Starting 'FindBestFullPath'",1);
 
-
   // NOTE: Because CTermNodeIDs is sorted by cumulative score,
   //       we can break the first time we find a full path.
   SPLICE_NODE * Walker;
   int c_term_index;
   for (c_term_index=0; c_term_index<Graph->num_c_term; c_term_index++) {
-
+    
     Walker = Graph->Nodes[Graph->CTermNodeIDs[c_term_index]];
-
+    P7_HIT *hit = &(Graph->TopHits[Walker->hit_id]);
+  
     Graph->best_full_path_length = 1;
     while (Walker->best_in_edge != -1) {
       Walker = Walker->UpstreamNodes[Walker->best_in_edge];
@@ -3317,7 +3745,9 @@ SPLICE_GRAPH * BuildSpliceGraph
 {
 
   if (DEBUGGING1) DEBUG_OUT("Starting 'BuildSpliceGraph'",1);
-
+  int hit_id;
+  P7_HIT          *hit;
+  
   // We'll just make an unordered list of our splice edges for now
   int num_splice_edges = 0;
   DOMAIN_OVERLAP ** SpliceEdges = GatherViableSpliceEdges(TopHits,TargetNuclSeq,gm,gcode,&num_splice_edges);
@@ -3326,7 +3756,7 @@ SPLICE_GRAPH * BuildSpliceGraph
   SPLICE_GRAPH * Graph = (SPLICE_GRAPH *)malloc(sizeof(SPLICE_GRAPH));
 
 
-  Graph->TopHits    = TopHits;
+  Graph->TopHits   = TopHits;
   Graph->MissedHits = NULL;
   
   Graph->Model  = gm;
@@ -5091,9 +5521,8 @@ P7_TOPHITS * SeekMissingExons
   int sub_hits_capacity = 20;
   P7_DOMAIN ** SubHits = malloc(sub_hits_capacity*sizeof(P7_DOMAIN *));
   int search_region_id,sub_hit_id,new_sub_hit_id; // iterators
- 
+  
   for (search_region_id = 0; search_region_id < num_search_regions; search_region_id++) {
-
 
     int num_new_sub_hits = 0;
     P7_DOMAIN ** NewSubHits = FindSubHits(Graph,TargetNuclSeq,&SearchRegionAggregate[(4*search_region_id)+1],gcode,&num_new_sub_hits);
@@ -7441,7 +7870,7 @@ void RunModelOnExonSets
  *           7.            ofp : An open file pointer (specificially, the target for output).
  *           8.          textw : The desired line width for output.
  *
- *  Output:  Nothing is returned, but if we find a way to splice together some of the
+c *  Output:  Nothing is returned, but if we find a way to splice together some of the
  *           input hits they're written out to the ofp.
  *
  */
@@ -7477,7 +7906,8 @@ void SpliceHits
   
   // We'll iterate over search regions (max-2MB ranges of chromosomes)
   TARGET_SET * TargetSet = SelectTargetRanges(TopHits);
-
+  TARGET_RANGE_SET * TargetRangeSet = build_target_ranges(TopHits);
+  Target_Range_Set_Destroy(TargetRangeSet);
   int target_set_id;
   for (target_set_id = 0; target_set_id < TargetSet->num_target_seqs; target_set_id++) {
   
@@ -7493,7 +7923,7 @@ void SpliceHits
     // them.
     //
     SPLICE_GRAPH * Graph = BuildSpliceGraph(TopHits,TargetNuclSeq,gm,om,gcode);
-
+    
     // Evaluate the graph for any holes (or possible holes)
     // worth plugging
     //
@@ -7515,6 +7945,8 @@ void SpliceHits
 
   }
 
+  // return tophits to sortkey sorting 
+  p7_tophits_SortBySortkey(TopHits);
 
   // More cleanup!
   TARGET_SET_Destroy(TargetSet);

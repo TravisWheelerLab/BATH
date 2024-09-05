@@ -64,6 +64,54 @@ Target_Range_Destroy(TARGET_RANGE *tr)
 
 }
 
+typedef struct _splice_edge {
+
+  const ESL_ALPHABET * ntalpha;
+
+
+  int amino_start;
+  int amino_end;
+
+
+  int upstream_hit_id;
+  int upstream_dom_id;
+  int upstream_nucl_start;
+  int upstream_nucl_end;
+  int upstream_ext_len;
+  int upstream_disp_start;
+
+  P7_TOPHITS    * UpstreamTopHits;
+  P7_ALIDISPLAY * UpstreamDisplay;
+  P7_TRACE      * UpstreamTrace;
+  ESL_DSQ       * UpstreamNucls;
+  
+
+  int downstream_hit_id;
+  int downstream_dom_id;
+  int downstream_nucl_start;
+  int downstream_nucl_end;
+  int downstream_ext_len;
+  int downstream_disp_end;
+
+  P7_TOPHITS    * DownstreamTopHits;
+  P7_ALIDISPLAY * DownstreamDisplay;
+  P7_TRACE      * DownstreamTrace;
+  ESL_DSQ       * DownstreamNucls;
+
+
+  int   upstream_exon_terminus;
+  int downstream_exon_terminus;
+
+  int   upstream_spliced_nucl_end;
+  int downstream_spliced_nucl_start;
+
+
+  float score_density;
+  float score;
+
+} SPLICE_EDGE;
+
+
 /* Create a TARGET_RANGE object with room for nalloc P7_HIT pointers*/
 TARGET_RANGE *
 Target_Range_Create(int nalloc)
@@ -3208,7 +3256,149 @@ DOMAIN_OVERLAP ** GatherViableSpliceEdges
 
 }
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: create_splice_egdes
+ *
+ *  Desc. :
+ *
+ *  Inputs:  1.          TopHits :
+ *           2.    TargetNuclSeq : The sub-sequence of the target sequence wherein all hits reside.
+ *           3.               gm : The straightforward profile for the protein / family.
+ *           4.            gcode : An ESL_GENCODE struct (mainly used for translation).
+ *           5. num_splice_edges :
+ *
+ *  Output:
+ *
+ */
+DOMAIN_OVERLAP ** create_splice_egdes
+(
+  TARGET_RANGE *target_range,
+  ESL_SQ       *target_seq,
+  TARGET_SEQ  * TargetNuclSeq,
+  P7_PROFILE  * gm,
+  ESL_GENCODE * gcode,
+  int * num_splice_edges
+)
+{
 
+  int num_hits;
+  int edge_capacity;
+  int num_edges;
+  int   upstream_hit_id;
+  int downstream_hit_id;
+
+  DOMAIN_OVERLAP ** SpliceEdges;
+  P7_HIT * UpstreamHit;
+  P7_HIT * DownstreamHit;
+  P7_ALIDISPLAY * UpstreamDisplay;
+  P7_ALIDISPLAY * DownstreamDisplay;
+
+
+  if (DEBUGGING1) DEBUG_OUT("Starting 'create_splice_egdes'",1);
+
+
+  num_hits = target_range->th->N;
+
+  edge_capacity = 2 * num_hits;
+  SpliceEdges = (DOMAIN_OVERLAP **)malloc(edge_capacity * sizeof(DOMAIN_OVERLAP *));
+
+  num_edges = 0;
+  for (upstream_hit_id = 0; upstream_hit_id < num_hits; upstream_hit_id++) {
+
+    UpstreamHit  = target_range->th->hit[upstream_hit_id];
+    UpstreamDisplay = (&UpstreamHit->dcl[0])->ad;
+
+    if (ExcessiveGapContent(UpstreamDisplay))          continue;
+    
+    // For each hit, gather all of the indices of other hits that
+    // could potentially be downstream exons.
+    for (downstream_hit_id=0; downstream_hit_id < num_hits; downstream_hit_id++) {
+
+      if (upstream_hit_id == downstream_hit_id)  continue;
+
+      DownstreamHit  = target_range->th->hit[downstream_hit_id];
+      DownstreamDisplay = (&DownstreamHit->dcl[0])->ad;      
+
+      if (ExcessiveGapContent(DownstreamDisplay))   continue;
+
+      if (HitsAreSpliceCompatible(UpstreamDisplay,DownstreamDisplay)) {
+
+            // MUST WE RESIZE?!
+            if (num_edges == edge_capacity) {
+
+              edge_capacity *= 2;
+
+              DOMAIN_OVERLAP ** MoreSpliceEdges = (DOMAIN_OVERLAP **)malloc(edge_capacity * sizeof(DOMAIN_OVERLAP *));
+              int edge_id;
+              for (edge_id=0; edge_id<num_edges; edge_id++)
+                MoreSpliceEdges[edge_id] = SpliceEdges[edge_id];
+
+              free(SpliceEdges);
+              SpliceEdges = MoreSpliceEdges;
+
+            }
+
+
+           // Record that splice compatibility!
+            SpliceEdges[num_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
+            
+            DOMAIN_OVERLAP * Edge  = SpliceEdges[num_edges];
+
+            Edge->upstream_hit_id   = upstream_hit_id;
+            Edge->upstream_dom_id   = 0;
+            Edge->downstream_hit_id = downstream_hit_id;
+            Edge->downstream_dom_id = 0;
+
+            Edge->UpstreamTopHits   = target_range->th;
+            Edge->UpstreamDisplay   = UpstreamDisplay;
+            Edge->DownstreamTopHits = target_range->th;
+            Edge->DownstreamDisplay = DownstreamDisplay;
+
+            num_edges++;
+
+          }
+     
+    }
+
+  }
+
+
+  //
+  //  Now that we have our splice edges, we can more fully
+  //  sketch out how they connect!
+  //
+  //
+  //  This *could* be part of the above loop, but what's the
+  //  rush?
+  //
+
+
+  // We'll run through all of our paired domains and actually
+  // splice 'em up (or at least try our best to)!
+  int splice_edge_id;
+  for (splice_edge_id = 0; splice_edge_id < num_edges; splice_edge_id++) {
+
+    SketchSpliceEdge(SpliceEdges[splice_edge_id],TargetNuclSeq,gm,gcode);
+
+    // If we failed to find a reasonable splice site, then we'll
+    // just rip this edge outta consideration.
+    if (SpliceEdges[splice_edge_id]->score == EDGE_FAIL_SCORE) {
+      free(SpliceEdges[splice_edge_id]);
+      SpliceEdges[splice_edge_id] = NULL;
+    }
+
+  }
+
+
+
+  if (DEBUGGING1) DEBUG_OUT("'create_splice_egdes' Complete",-1);
+
+
+  *num_splice_edges = num_edges;
+  return SpliceEdges;
+
+}
 
 
 
@@ -3967,19 +4157,18 @@ SPLICE_GRAPH * build_splice_graph
 
   int num_splice_edges;
   DOMAIN_OVERLAP ** SpliceEdges;
-  
+  SPLICE_GRAPH * Graph;  
 
   if (DEBUGGING1) DEBUG_OUT("Starting 'build_splice_graph'",1);
   
   // We'll just make an unordered list of our splice edges for now
   num_splice_edges = 0;
-  SpliceEdges = GatherViableSpliceEdges(TopHits,TargetNuclSeq,gm,gcode,&num_splice_edges);
+  SpliceEdges = create_splice_egdes(target_range, target_seq, TargetNuclSeq,gm,gcode,&num_splice_edges);
+
+  Graph = (SPLICE_GRAPH *)malloc(sizeof(SPLICE_GRAPH));
 
 
-  SPLICE_GRAPH * Graph = (SPLICE_GRAPH *)malloc(sizeof(SPLICE_GRAPH));
-
-
-  Graph->TopHits   = TopHits;
+  Graph->TopHits   = target_range->th;
   Graph->MissedHits = NULL;
   
   Graph->Model  = gm;
@@ -6924,7 +7113,6 @@ int ** GetSplicedExonCoordSets
       // Copy the next subset into ExonCoordSets
 
       int * SubCoordSet = SplitCoordSets[sub_set_id];
-
       ExonCoordSets[*num_coord_sets] = malloc((5*SubCoordSet[0]+1) * sizeof(int));
       int x;
       for (x=0; x<=5*SubCoordSet[0]; x++)
@@ -7681,7 +7869,6 @@ int * DetermineHitExonCoords
   int exon_id = 0;
   while (model_pos < AD->hmmfrom) {
 
-
     if (revcomp) {
         
       nucl_pos -= 3;
@@ -7880,19 +8067,21 @@ void ReportSplicedTopHits
 
 
 
-      // If Alex is running this, he probably wants to
-      // make the output as cluttered as possible (and
-      // we all love that about him... right?).
-      //
-      if (ALEX_MODE) DumpSplashHeader(Graph,TargetNuclSeq,*exon_set_name_id,HitExonCoords,ofp,textw);
+      if (HitExonCoords[0] > 1 )
+      {
+        // If Alex is running this, he probably wants to
+        // make the output as cluttered as possible (and
+        // we all love that about him... right?).
+        //
+        if (ALEX_MODE) DumpSplashHeader(Graph,TargetNuclSeq,*exon_set_name_id,HitExonCoords,ofp,textw);
 
 
-      PrintSplicedAlignment(AD,TargetNuclSeq,HitExonCoords,*exon_set_name_id,ofp,textw);
+        PrintSplicedAlignment(AD,TargetNuclSeq,HitExonCoords,*exon_set_name_id,ofp,textw);
 
 
-      // You thought Alex was done making a mess of things?! HA!
-      if (ALEX_MODE) DumpSplashFooter(ofp,textw);
-
+        // You thought Alex was done making a mess of things?! HA!
+        if (ALEX_MODE) DumpSplashFooter(ofp,textw);
+      }
 
       free(HitExonCoords);
 
@@ -8038,9 +8227,9 @@ void RunModelOnExonSets
     // If we were successful in our search, report the hit(s)
     // we produced!
     //
-    if (ExonSetTopHits->N)
-      ReportSplicedTopHits(Graph,ExonSetTopHits,ExonSetPipeline,TargetNuclSeq,ExonCoordSets[coord_set_id],&exon_set_id,ofp,textw);
 
+    if (ExonSetTopHits->N) 
+      ReportSplicedTopHits(Graph,ExonSetTopHits,ExonSetPipeline,TargetNuclSeq,ExonCoordSets[coord_set_id],&exon_set_id,ofp,textw);
 
 
     // DESTRUCTION AND REBIRTH!

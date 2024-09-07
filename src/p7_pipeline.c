@@ -2413,8 +2413,10 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
     }
 
-    dom->ad->sqfrom = dom->iali;
-    dom->ad->sqto   = dom->jali;
+    dom->ad->sqfrom    = dom->iali;
+    dom->ad->sqto      = dom->jali;
+    dom->tr->sqfrom[0] = dom->iali;
+    dom->tr->sqto[0]   = dom->jali;
 
     /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)
@@ -2567,9 +2569,11 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2; 
     }
 
-    dom->ad->sqfrom = dom->iali;
-    dom->ad->sqto   = dom->jali;
-      
+    dom->ad->sqfrom    = dom->iali;
+    dom->ad->sqto      = dom->jali;
+    dom->tr->sqfrom[0] = dom->iali;
+    dom->tr->sqto[0]   = dom->jali;  
+ 
     /* Bias calculation and adjustments to Forward score */
     bitscore = dom->envsc + (orfsq->n-env_len) * log((float) orfsq->n / (float) (orfsq->n+3));
    

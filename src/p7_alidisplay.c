@@ -331,7 +331,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   return NULL;
 }
 
-/* Function:  p7_alidisplay_fs_Create()
+/* Function:  p7_alidisplay_fs_Create() - `BATH
  * Synopsis:  Create an alignment display, from trace and oprofile.
  *
  * Purpose:   Creates and returns an alignment display for domain number

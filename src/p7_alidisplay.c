@@ -460,6 +460,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
+  tr->hmmfrom[0] = tr->k[z1];
+  tr->hmmto[0]   = tr->k[z2];
   ad->M       = gm_fs->M;
   ad->frameshifts = 0; 
   ad->stops = 0;
@@ -491,9 +493,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
  
   if (ad->ppline != NULL) {
     for (z = z1; z <= z2; z++) 
-	    ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
-    
-	    ad->ppline[z-z1] = '\0';
+       ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
+    ad->ppline[z-z1] = '\0';
   }
 
   /* mandatory three alignment display lines: model, mline, aseq */
@@ -3293,9 +3294,6 @@ main(int argc, char **argv)
   P7_PIPELINE    *pli     = NULL;
   P7_TOPHITS     *hitlist = NULL;
 
-  p7_FLogsumInit();
-
-  /* Read a single HMM from a file */
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
   p7_hmmfile_Close(hfp);

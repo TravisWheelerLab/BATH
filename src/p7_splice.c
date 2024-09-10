@@ -64,14 +64,14 @@ Target_Range_Destroy(TARGET_RANGE *tr)
 
 }
 
+/* Struct used to store all information relevant to splice 
+ * graph edge between upstream and downstream hits */
 typedef struct _splice_edge {
 
   const ESL_ALPHABET * ntalpha;
 
-
   int amino_start;
   int amino_end;
-
 
   int upstream_hit_id;
   int upstream_dom_id;
@@ -84,7 +84,6 @@ typedef struct _splice_edge {
   P7_ALIDISPLAY * UpstreamDisplay;
   P7_TRACE      * UpstreamTrace;
   ESL_DSQ       * UpstreamNucls;
-  
 
   int downstream_hit_id;
   int downstream_dom_id;
@@ -98,13 +97,11 @@ typedef struct _splice_edge {
   P7_TRACE      * DownstreamTrace;
   ESL_DSQ       * DownstreamNucls;
 
-
   int   upstream_exon_terminus;
   int downstream_exon_terminus;
 
   int   upstream_spliced_nucl_end;
   int downstream_spliced_nucl_start;
-
 
   float score_density;
   float score;
@@ -223,11 +220,29 @@ Target_Range_Set_CreateNextRange(TARGET_RANGE_SET *trs, TARGET_RANGE **ret_range
     return status;
 }
 
+/* Free a SPLICE_EDGE pointer */
+void SPLICE_EDGE_Destroy
+(SPLICE_EDGE * edge)
+{
+  
+  free(edge->UpstreamNucls);
+  free(edge->DownstreamNucls);
+  free(edge);
+}
+
+
+
 /* Internal functions */
 static TARGET_RANGE_SET* build_target_ranges       (const P7_TOPHITS *th);
 static void              get_target_range_coords   (TARGET_RANGE_SET* targets, P7_HIT **hits, int *sort_score_idx, const int num_hits, const int complementarity);
 //static TARGET_SEQ*       get_target_range_sequence (ESL_SQFILE * genomic_seq_file, TARGET_RANGE *target_range);
 //static SPLICE_GRAPH* build_splice_graph ( TARGET_RANGE *target_range, ESL_SQ *target_seq, P7_TOPHITS *TopHits, TARGET_SEQ *TargetNuclSeq, P7_PROFILE *gm, P7_OPROFILE *om, ESL_GENCODE *gcode);
+
+//static SPLICE_EDGE ** create_splice_egdes ( TARGET_RANGE *target_range, ESL_SQ *target_seq, TARGET_SEQ *TargetNuclSeq, P7_PROFILE *gm, ESL_GENCODE *gcode, int *num_splice_edges);
+static int are_hits_splice_comaptible (P7_DOMAIN *Upstream, P7_DOMAIN *Downstream, int complementarity);
+//static void sketch_splice_edge (SPLICE_EDGE *Edge, ESL_SQ *target_seq, TARGET_SEQ *TargetNuclSeq, P7_PROFILE *gm, ESL_GENCODE *gcode, int complementarity);
+static void get_nuc_coords_for_amino_overlap (SPLICE_EDGE * Edge, int complementarity);
+static ESL_DSQ* grab_seq_range (ESL_SQ* target_seq, int range_start, int range_end, int complementarity);
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                                           BEGIN SPLICING STUFF
  * 
@@ -237,7 +252,7 @@ static void              get_target_range_coords   (TARGET_RANGE_SET* targets, P
  *  Fleet 0: Structs
  *
  *  + TARGET_SEQ        : The chunk of genomic sequence we're searching around in
- *  + DOMAIN_OVERLAP    : Information related to how two HMMER hits are spliced together (effectively a splice edge)
+ *  + SPLICE_EDGE    : Information related to how two HMMER hits are spliced together (effectively a splice edge)
  *  + SPLICE_NODE       : A node in the splice graph (corresponds to a HMMER hit)
  *  + SPLICE_GRAPH      : The container for all of our splice nodes and supporting data
  *  + EXON_DISPLAY_INFO : Content used for printing the final exon alignments
@@ -249,8 +264,8 @@ static void              get_target_range_coords   (TARGET_RANGE_SET* targets, P
  *  + FloatLowHighSortIndex : Generate an index that sorts an array of floats in  ascending order
  *  + GetMinAndMaxCoords    : [DEPRECATED] Get the minimum and maximum nucleotide coordinates in a P7_TOPHITS set
  *  + SetTargetSeqRange     : Given a P7_TOPHITS object, predict what the true coding region is for a protein
- *  + GetTargetNuclSeq      : Extract the nucleotides corresponding to the range chosen by 'SetTargetSeqRange'
- *  + GrabNuclRange         : Get the nucleotide sequence of a window within the range extracted by 'GetTargetNuclSeq'
+ *  + get_target_range_sequence      : Extract the nucleotides corresponding to the range chosen by 'SetTargetSeqRange'
+ *  + GrabNuclRange         : Get the nucleotide sequence of a window within the range extracted by 'get_target_range_sequence'
  *  + DetermineNuclType     : [REDUNDANT WITH EASEL] Determine if a nucleotide sequence is DNA or RNA (defaults to DNA)
  *  
  *
@@ -261,28 +276,28 @@ static void              get_target_range_coords   (TARGET_RANGE_SET* targets, P
  *  + GetContestedUpstreamNucls    : Pull a nucleotide sequence corresponding to a candidate 5' splice site
  *  + GetContestedDownstreamNucls  : Pull a nucleotide sequence corresponding to a candidate 3' splice site
  *  + AminoScoreAtPosition         : ASSUMING THAT WE'RE MOVING THROUGH THE MODEL, determine a positional score
- *  + FindOptimalSpliceSite        : Examine a DOMAIN_OVERLAP to determine an optimal splicing of two P7_HITs
+ *  + FindOptimalSpliceSite        : Examine a SPLICE_EDGE to determine an optimal splicing of two P7_HITs
  *  + SpliceOverlappingDomains     : Do a bit of bookkeeping around 'FindOptimalSpliceSite'
  *  + GetNuclRangesFromAminoCoords : Given two P7_HITs that we're considering splicing, determine their nucleotide coordinate ranges
  *  + SketchSpliceEdge             : Perform any necessary extension to make two P7_HITs splice-able and call 'SpliceOverlappingDomains'
  *  + HitsAreSpliceComaptible      : Determine whether two hits are positioned correctly in the model/target to be spliced
  *  + ExcessiveGapContent          : Determine whether a hit is too gappy to be a strong initial candidate for splicing (can be recovered in sub-model search)
  *  + OutsideSearchArea            : Determine whether a hit is outside of the area selected in 'SetTargetSeqRange'
- *  + GatherViableSpliceEdges      : Given a P7_TOPHITS, identify all pairs of hits that might be splice-able
+ *  + create_splice_egdes      : Given a P7_TOPHITS, identify all pairs of hits that might be splice-able
  *
  *
  *
  *  Fleet 3: Producing a Splice Graph According to the Spliced Hit Pairs
  *
  *  + InitSpliceNode        : Allocate and initialize a node in our splice graph
- *  + ConnectNodesByEdge    : Given two nodes implicated in a satisfactorily spliced DOMAIN_OVERLAP, draw an edge in the splice graph
+ *  + ConnectNodesByEdge    : Given two nodes implicated in a satisfactorily spliced SPLICE_EDGE, draw an edge in the splice graph
  *  + GatherCTermNodes      : Derive a list of all nodes in the graph whose corresponding hits terminate at the C-terminal end of the model
  *  + EdgeWouldEraseNode    : Check if the best path through a node would (effectively) skip that node
  *  + PullUpCumulativeScore : Recursively determine the best cumulative score leading up to each node in the graph
  *  + EvaluatePaths         : Prepare for and call 'PullUpCumulativeScore' so we can determine the best path through the graph
  *  + FillOutGraphStructure : Initialize the splice graph and call 'EvaluatePaths' to produce our complete splice graph
  *  + FindBestFullPath      : Given a complete splice graph produced by 'FillOutGraphStructure' find an optimal path from model positions 1..M
- *  + BuildSpliceGraph      : Top-level function for splice graph construction.  Calls 'GatherViableSpliceEdges', 'FillOutGraphStructure', and 'FindBestFullPath'
+ *  + build_splice_graph      : Top-level function for splice graph construction.  Calls 'create_splice_egdes', 'FillOutGraphStructure', and 'FindBestFullPath'
  *
  *
  *
@@ -323,8 +338,8 @@ static void              get_target_range_coords   (TARGET_RANGE_SET* targets, P
  *
  *
  *
- *  FLAGSHIP: SpliceHits : Calls 'GetTargetNuclSeq' to acquire a general coding region on the nucleotide target
- *                       : Calls 'BuildSpliceGraph' to build a first pass of the splice graph using the results from translated HMMER
+ *  FLAGSHIP: SpliceHits : Calls 'get_target_range_sequence' to acquire a general coding region on the nucleotide target
+ *                       : Calls 'build_splice_graph' to build a first pass of the splice graph using the results from translated HMMER
  *                       : Calls 'AddMissingExonsToGraph' to identify and patch any potential holes in the splice graph (missing exons)
  *                       : Calls 'RunModelOnExonSets' to generate the final spliced alignments of sets of exons to the model
  *
@@ -374,10 +389,6 @@ static char    DNA_CHARS[ 6] = {'A','C','G','T','-','N'};
 static char LC_DNA_CHARS[ 6] = {'a','c','g','t','-','n'};
 //static char    RNA_CHARS[ 6] = {'A','C','G','U','-','N'};
 //static char LC_RNA_CHARS[ 6] = {'a','c','g','u','-','n'};
-
-
-// How many chromosome ranges are we willing to try splicing into?
-static int MAX_TARGET_REGIONS = 5;
 
 
 // How many amino acids are we willing to extend to bridge two hits?  
@@ -448,59 +459,6 @@ typedef struct _target_seq {
 
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////
-//
-//  Struct: DOMAIN_OVERLAP
-//
-//  Desc. :
-//
-typedef struct _domain_overlap {
-
-  const ESL_ALPHABET * ntalpha;
-
-
-  int amino_start;
-  int amino_end;
-
-
-  int upstream_hit_id;
-  int upstream_dom_id;
-  int upstream_nucl_start;
-  int upstream_nucl_end;
-  int upstream_ext_len;
-  int upstream_disp_start;
-
-  P7_TOPHITS    * UpstreamTopHits;
-  P7_ALIDISPLAY * UpstreamDisplay;
-  ESL_DSQ       * UpstreamNucls;
-  
-
-  int downstream_hit_id;
-  int downstream_dom_id;
-  int downstream_nucl_start;
-  int downstream_nucl_end;
-  int downstream_ext_len;
-  int downstream_disp_end;
-
-  P7_TOPHITS    * DownstreamTopHits;
-  P7_ALIDISPLAY * DownstreamDisplay;
-  ESL_DSQ       * DownstreamNucls;
-
-
-  int   upstream_exon_terminus;
-  int downstream_exon_terminus;
-
-  int   upstream_spliced_nucl_end;
-  int downstream_spliced_nucl_start;
-
-
-  float score_density;
-  float score;
-
-} DOMAIN_OVERLAP;
-
-
-
 
 
 
@@ -525,13 +483,13 @@ typedef struct _splice_node {
   int in_edge_cap;
   int num_in_edges;
   int best_in_edge; // Relative to the following arrays
-  DOMAIN_OVERLAP ** InEdges;
+  SPLICE_EDGE ** InEdges;
   struct _splice_node ** UpstreamNodes;
 
 
   int out_edge_cap;
   int num_out_edges;
-  DOMAIN_OVERLAP ** OutEdges;
+  SPLICE_EDGE ** OutEdges;
   struct _splice_node ** DownstreamNodes;
 
 
@@ -569,7 +527,7 @@ typedef struct _splice_graph {
   int revcomp;
 
 
-  // Because we build based on the DOMAIN_OVERLAP datastructure,
+  // Because we build based on the SPLICE_EDGE datastructure,
   // it's helpful to be able to find each node ID by way of
   // these lookups.
   int ** TH_HitDomToNodeID; //    TopHits
@@ -756,20 +714,6 @@ void TARGET_SEQ_Destroy
 
 
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *
- *  Function:  DOMAIN_OVERLAP_Destroy
- *
- */
-void DOMAIN_OVERLAP_Destroy
-(DOMAIN_OVERLAP * DO)
-{
-  
-  free(DO->UpstreamNucls);
-  free(DO->DownstreamNucls);
-  free(DO);
-}
-
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -784,7 +728,7 @@ void SPLICE_NODE_Destroy
   int in_edge_id;
   for (in_edge_id = 0; in_edge_id < Node->num_in_edges; in_edge_id++) {
     if (Node->InEdges[in_edge_id]) {
-      DOMAIN_OVERLAP_Destroy(Node->InEdges[in_edge_id]);
+      SPLICE_EDGE_Destroy(Node->InEdges[in_edge_id]);
       Node->InEdges[in_edge_id] = NULL;
     }
   }
@@ -792,7 +736,7 @@ void SPLICE_NODE_Destroy
   int out_edge_id;
   for (out_edge_id = 0; out_edge_id < Node->num_out_edges; out_edge_id++) {
     if (Node->OutEdges[out_edge_id]) {
-      DOMAIN_OVERLAP_Destroy(Node->OutEdges[out_edge_id]);
+      SPLICE_EDGE_Destroy(Node->OutEdges[out_edge_id]);
       Node->OutEdges[out_edge_id] = NULL;
     }
   }
@@ -821,7 +765,7 @@ void SPLICE_GRAPH_Destroy
   int node_id, in_edge_index; //, out_edge_index;
 
   // Because we don't want to accidentally double-free any
-  // of the DOMAIN_OVERLAP structs, we'll put each node in
+  // of the SPLICE_EDGE structs, we'll put each node in
   // charge of its incoming DOs.
   if (Graph->Nodes) {
     
@@ -833,7 +777,7 @@ void SPLICE_GRAPH_Destroy
       free(Node->UpstreamNodes);
       //printf("Node->num_in_edges %d\n", Node->num_in_edges);
       for (in_edge_index = 0; in_edge_index < Node->num_in_edges; in_edge_index++) { 
-        DOMAIN_OVERLAP_Destroy(Node->InEdges[in_edge_index]);
+        SPLICE_EDGE_Destroy(Node->InEdges[in_edge_index]);
         tmp++;
        }
 
@@ -1114,166 +1058,6 @@ void GetMinAndMaxCoords
 
 
 
-
-
-
-
-
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *
- *  Function: SelectTargetRanges
- *
- *  Desc.: Scan 'TopHits' to determine a bounded search range that we're
- *         inclined to consider the coding region for the input protein.
- *
- */
-TARGET_SET * SelectTargetRanges
-(P7_TOPHITS * TopHits)
-{
-
-  if (DEBUGGING1) DEBUG_OUT("Starting 'SelectTargetRanges'",1);
-
-  int            hit_id, sort_id, target_id;
-  int            base_hit_id;
-  int            num_hits;
-  int            num_targets;
-  int            new_target;
-  int            candidate_revcomp;
-  int64_t        candidate_seqidx;
-  int64_t        min_coord, max_coord;
-  int64_t        min_cap, max_cap;
-  int           *HitScoreSort;
-  float         *HitScores;
-  char          *CandidateSeqName;
-  P7_ALIDISPLAY *CandidateAD;
-  P7_ALIDISPLAY *AD;
-  TARGET_SET    *TargetSet;
-
-  // Because we go through
-  num_hits = (int)(TopHits->N);
-  HitScores = malloc(num_hits * sizeof(float));
-  
-  for (hit_id = 0; hit_id < num_hits; hit_id++) {
-    HitScores[hit_id] = (&TopHits->hit[hit_id]->dcl[0])->envsc;
-  }
-  HitScoreSort = FloatHighLowSortIndex(HitScores,num_hits);
-
-  // Initialize our TARGET_SETS struct
-  TargetSet                  = malloc(sizeof(TARGET_SET));
-  TargetSet->TargetSeqNames  = malloc(MAX_TARGET_REGIONS * sizeof(char *));
-  TargetSet->TargetSeqIdx    = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
-  TargetSet->TargetStarts    = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
-  TargetSet->TargetEnds      = malloc(MAX_TARGET_REGIONS * sizeof(int64_t));
-  TargetSet->TargetIsRevcomp = malloc(MAX_TARGET_REGIONS * sizeof(int));
-
-  num_targets = 0;
-
-  for (sort_id = 0; sort_id < num_hits; sort_id++) {
-
-    base_hit_id = HitScoreSort[sort_id];
-    if(TopHits->hit[base_hit_id]->flags & p7_IS_DUPLICATE)
-      continue;
-
-    CandidateSeqName     = TopHits->hit[base_hit_id]->name;
-    CandidateAD = (&TopHits->hit[base_hit_id]->dcl[0])->ad;
-    candidate_seqidx     = TopHits->hit[base_hit_id]->seqidx;
- 
-    candidate_revcomp = 0;
-    if (CandidateAD->sqfrom > CandidateAD->sqto)
-      candidate_revcomp = 1;
-
-    new_target = 1;
-    for (target_id=0; target_id<num_targets; target_id++) {
-      if (candidate_seqidx == TargetSet->TargetSeqIdx[target_id] && candidate_revcomp == TargetSet->TargetIsRevcomp[target_id]) {
-        new_target = 0;
-        break;
-      }
-    }
-
-    if (!new_target) 
-      continue;
-
-
-    // Now that we know this is a new chromosome, define a coding region!
-    // First, what we'll do is define a hard maximum search area defined
-    // by the highest-scoring hit to this sequence.
-    if (candidate_revcomp) {
-      min_coord = CandidateAD->sqto;
-      max_coord = CandidateAD->sqfrom;
-    } else {
-      min_coord = CandidateAD->sqfrom;
-      max_coord = CandidateAD->sqto;
-    }
-
-    min_cap = min_coord - 1000000;
-    max_cap = max_coord + 1000000;
-
-
-    // The min_cap and max_cap now define the absolute furthest we're
-    // willing to go for our search region, but ideally we can shrink
-    // down to a much tighter zone
-    for (hit_id = 0; hit_id < num_hits; hit_id++) {
-
-
-      if ((candidate_seqidx != TopHits->hit[hit_id]->seqidx) || (TopHits->hit[base_hit_id]->flags & p7_IS_DUPLICATE))
-        continue;
-
-
-      AD = (&TopHits->hit[hit_id]->dcl[0])->ad; 
-
-      if ( candidate_revcomp && AD->sqfrom < AD->sqto) continue;
-      if (!candidate_revcomp && AD->sqfrom > AD->sqto) continue;
-
-
-      AD = (&TopHits->hit[hit_id]->dcl[0])->ad;
-
-      // New minimum?
-      // We could revcomp check, but I don't know if it's any faster...
-      if (AD->sqto < min_coord && AD->sqto > min_cap)
-        min_coord = AD->sqto;
-          
-      if (AD->sqfrom < min_coord && AD->sqfrom > min_cap)
-        min_coord = AD->sqfrom;
-          
-      // New maximum?
-      if (AD->sqto > max_coord && AD->sqto < max_cap)
-        max_coord = AD->sqto;
-          
-      if (AD->sqfrom > max_coord && AD->sqfrom < max_cap)
-        max_coord = AD->sqfrom;
-
-
-    }
-
-
-    TargetSet->TargetSeqNames[num_targets]  = CandidateSeqName;
-    TargetSet->TargetSeqIdx[num_targets]  = candidate_seqidx;
-    TargetSet->TargetStarts[num_targets]    = min_coord;
-    TargetSet->TargetEnds[num_targets]      = max_coord;
-    TargetSet->TargetIsRevcomp[num_targets] = candidate_revcomp;
-
-    num_targets++;
-
-    if (num_targets == MAX_TARGET_REGIONS)
-      break;
-
-
-  }
-
-
-  TargetSet->num_target_seqs = num_targets;
-
-
-  if (DEBUGGING1) DEBUG_OUT("'SelectTargetRanges' Complete",-1);
-
-  free(HitScores);
-  free(HitScoreSort);
-
-  return TargetSet;
-
-
-}
-
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
  *  Function: get_taget_range_coords
@@ -1381,14 +1165,6 @@ get_target_range_coords(TARGET_RANGE_SET *target_set, P7_HIT **hits, int *sort_s
         }        
       }  
 
-      /* if the range was not extended beyond the seed hit this is not a valid target range */
-//      if(target_range->th->N == 1) {
-//         Target_Range_Destroy(target_range);
-//         target_range = NULL;
-//         target_set->N--;
-//         continue;  
-//      }
-
      /* Add any hits that overlap with current taget range
       * and get new range min and max coords  */
       new_range_min = curr_range_min;
@@ -1464,14 +1240,6 @@ get_target_range_coords(TARGET_RANGE_SET *target_set, P7_HIT **hits, int *sort_s
         }        
       }
       
-      /* if the range was not extended beyond the seed hit this is not a valid target range */
-//      if(target_range->th->N == 1) {
-//         Target_Range_Destroy(target_range);
-//         target_range = NULL;
-//         target_set->N--;
-//         continue;  
-//      }
-
       /* Add any hits that overlap with current taget range 
        * and get new range min and max coords  */     
       new_range_min = curr_range_min;
@@ -1619,84 +1387,7 @@ build_target_ranges(const P7_TOPHITS * TopHits)
 
 
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *
- *  Function: GetTargetNuclSeq
- *
- *  Desc. :  Given a sequence file and a collection of translated search hits, extract a
- *           sub-region of the genome that contains the all of the nucleotides implicated in
- *           the set of hits.
- *
- *           This assumes (correctly!) that all of the hits are to the same nucleotide sequence.
- *
- *  Inputs:  1. GenomicSeqFile : An ESL_SQFILE struct representing the input genom(e/ic sequence) file.
- *           2.        TopHits : A collection of hits achieved by "standard" hmmsearcht (unspliced)
- *
- *  Output:  A TARGET_SEQ struct, containing the nucleotide subsequence within which all of the
- *           unspliced hmmsearcht hits reside.
- *
- */
-TARGET_SEQ * GetTargetNuclSeq
-(ESL_SQFILE * GenomicSeqFile, TARGET_SET * TargetSet, int target_set_id)
-{
 
-  if (DEBUGGING1) DEBUG_OUT("Starting 'GetTargetNuclSeq'",1);
-
-
-  TARGET_SEQ * TargetNuclSeq = (TARGET_SEQ *)malloc(sizeof(TARGET_SEQ));
-
-
-  TargetNuclSeq->abc     = GenomicSeqFile->abc;
-  TargetNuclSeq->SeqName = TargetSet->TargetSeqNames[target_set_id];
-  TargetNuclSeq->start   = TargetSet->TargetStarts[target_set_id];
-  TargetNuclSeq->end     = TargetSet->TargetEnds[target_set_id];
-  TargetNuclSeq->revcomp = TargetSet->TargetIsRevcomp[target_set_id];
-
-
-  ESL_SQFILE * TmpSeqFile;
-  esl_sqfile_Open(GenomicSeqFile->filename,GenomicSeqFile->format,NULL,&TmpSeqFile);
-  esl_sqfile_OpenSSI(TmpSeqFile,NULL);
-
-  ESL_SQ * SeqInfo = esl_sq_Create();
-  esl_sqio_FetchInfo(TmpSeqFile,TargetNuclSeq->SeqName,SeqInfo);
-
-
-  // In case there's a terminal search region we need to consider,
-  // pull in a bit of extra sequence
-  TargetNuclSeq->start -= MAX_SUB_NUCL_RANGE;
-  if (TargetNuclSeq->start < 1)
-    TargetNuclSeq->start = 1;
-  
-  TargetNuclSeq->end += MAX_SUB_NUCL_RANGE;
-  if (TargetNuclSeq->end > SeqInfo->L)
-    TargetNuclSeq->end = SeqInfo->L;
-
-
-  TargetNuclSeq->esl_sq = esl_sq_CreateDigital(TargetNuclSeq->abc);
-  int fetch_err_code    = esl_sqio_FetchSubseq(TmpSeqFile,TargetNuclSeq->SeqName,TargetNuclSeq->start,TargetNuclSeq->end,TargetNuclSeq->esl_sq);
-
-
-  esl_sqfile_Close(TmpSeqFile);
-  esl_sq_Destroy(SeqInfo);
-
-
-  if (fetch_err_code != eslOK) {
-    fprintf(stderr,"\n  ERROR: Failed to fetch target subsequence (is there an .ssi index for the sequence file?)\n");
-    fprintf(stderr,"         Requested search area: %s:%ld..%ld\n\n",TargetNuclSeq->SeqName,TargetNuclSeq->start,TargetNuclSeq->end);
-    exit(1);
-  }
-
-
-  TargetNuclSeq->Seq = TargetNuclSeq->esl_sq->dsq;
-
-
-  if (DEBUGGING1) DEBUG_OUT("'GetTargetNuclSeq' Complete",-1);
-
-
-  return TargetNuclSeq;
-
-
-}
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
@@ -1723,7 +1414,7 @@ TARGET_SEQ * get_target_range_sequence
   ESL_SQFILE *TmpSeqFile;
   TARGET_SEQ *TargetNuclSeq = (TARGET_SEQ *)malloc(sizeof(TARGET_SEQ));
 
-  if (DEBUGGING1) DEBUG_OUT("Starting 'get_target_range_sequnce'",1);
+  if (DEBUGGING1) DEBUG_OUT("Starting 'get_target_range_sequence'",1);
 
   TargetNuclSeq->abc     = genomic_seq_file->abc;
   TargetNuclSeq->SeqName = target_range->seqname; 
@@ -1748,8 +1439,9 @@ TARGET_SEQ * get_target_range_sequence
     TargetNuclSeq->end = SeqInfo->L;
 
   TargetNuclSeq->esl_sq = esl_sq_CreateDigital(TargetNuclSeq->abc);
+  
   fetch_err_code    = esl_sqio_FetchSubseq(TmpSeqFile,TargetNuclSeq->SeqName,TargetNuclSeq->start,TargetNuclSeq->end,TargetNuclSeq->esl_sq);
-
+  
   esl_sqfile_Close(TmpSeqFile);
   esl_sq_Destroy(SeqInfo);
 
@@ -1762,7 +1454,7 @@ TARGET_SEQ * get_target_range_sequence
 
   TargetNuclSeq->Seq = TargetNuclSeq->esl_sq->dsq;
 
-  if (DEBUGGING1) DEBUG_OUT("'GetTargetNuclSeq' Complete",-1);
+  if (DEBUGGING1) DEBUG_OUT("'get_target_range_sequence' Complete",-1);
 
   return TargetNuclSeq;
 
@@ -1806,40 +1498,118 @@ ESL_DSQ * GrabNuclRange
 (TARGET_SEQ * TargetNuclSeq, int start, int end)
 {
 
+  int i;
   int len = abs(end - start) + 1;
   char * Seq = malloc((len+2) * sizeof(char));
-  
+    
   // Keep in mind that DSQs are [1..n]
   int read_index = start - (int)(TargetNuclSeq->start) + 1;
-  if(read_index < 0) printf("start %d end %d read_index %d\n", start, end, read_index);
+  
+//  printf("start %d end %d seq_start %d seq_end %d\n", start, end, TargetNuclSeq->start, TargetNuclSeq->end); 
+//  printf("read_index %d\n", read_index);
   if (start < end) {
   
-    int i;
-    for (i=0; i<len; i++)
+    for (i=0; i<len; i++){
       Seq[i] = DNA_CHARS[TargetNuclSeq->Seq[read_index++]];
+    }
 
   } else {
 
-    int i;
     for (i=0; i<len; i++) {
       int fwd_nucl_code = TargetNuclSeq->Seq[read_index--];
       if (fwd_nucl_code < 4) Seq[i] = DNA_CHARS[3 - fwd_nucl_code];
       else                   Seq[i] ='N';
+      
+ //     printf("%d Seq[i] %c TargetNuclSeq %d\n", read_index+1, Seq[i], TargetNuclSeq->Seq[read_index+1]);
     }
 
   }
-  Seq[len] = '\0';
+  Seq[len] = eslDSQ_SENTINEL;
 
 
   ESL_DSQ * NuclSubseq;
   esl_abc_CreateDsq(TargetNuclSeq->abc,Seq,&NuclSubseq);
 
 
+  // read_index = start - (int)(TargetNuclSeq->start);  
+  //for(i = 0; i < len+2; i++) 
+  //  printf("%d %d NuclSubseq[i] %d\n", read_index++, i, NuclSubseq[i]);
+
   free(Seq);
 
 
   return NuclSubseq;
 
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: grab_seq_range
+ *
+ *  Desc. :  Extract a sub-sequence from our (already a sub-)sequence stored
+ *           in a TARGET_SEQ datastructure.
+ *
+ *           Importantly, the 'start' and 'end' coordinate values are with respect
+ *           to the full sequence of which TargetNuclSeq is a part.  This is because
+ *           we're expecting to be working with the coordinates listed in an ALIDISPLAY,
+ *           which are w.r.t. the full input sequence.
+ *
+ *  Inputs:  1. TargetNuclSeq : The nucleotide sub-sequence that we want to
+ *                              extract a (further sub-)sequence from.
+ *           2.         start : The (inclusive) start coordinate of the sub-sequence we
+ *                              want to extract.
+ *           3.           end : The (inclusive) end coordinate of the sub-sequence we
+ *                              want to extract.
+ *
+ *  Output:  An ESL_DSQ containing the numeric nucleotide codes for the requested
+ *           sub-sequence.
+ *
+ *           TODO: Add catches for out-of-bounds requests (these *shouldn't* happen)
+ *
+ */
+ESL_DSQ * grab_seq_range
+(ESL_SQ* target_seq, int range_start, int range_end, int complementarity)
+{
+
+  int i;
+  int range_len;
+  int64_t read_index;
+  ESL_DSQ *digital_subseq;
+  int status;
+
+  range_len = abs(range_end - range_start) + 1;
+  //printf("start %d end %d seq_start %d seq_end %d\n", range_start, range_end, target_seq->start, target_seq->end);
+  ESL_ALLOC(digital_subseq, sizeof(ESL_DSQ) * (range_len+2)); 
+  digital_subseq[0] = eslDSQ_SENTINEL;
+  //printf("%d %d Dig[i] %d\n", range_start, 0, digital_subseq[0]); 
+  // Keep in mind that DSQs are [1..n]
+  if (!complementarity) {
+ 
+     read_index = range_start - target_seq->start +1;
+    for (i=1; i<=range_len; i++) {
+      digital_subseq[i] = target_seq->dsq[read_index];
+
+    //  printf("%d %d Dig[i] %d\n", read_index, i, digital_subseq[i]);
+      read_index++;
+    }
+  } else {
+     
+     read_index = target_seq->start - range_start + 1;
+     for (i=1; i<=range_len; i++) {
+      digital_subseq[i] = target_seq->dsq[read_index];
+     // printf("%d %d Dig[i] %d\n", read_index, i, digital_subseq[i]);
+      read_index++;
+    }
+  }
+
+  digital_subseq[range_len+1] = eslDSQ_SENTINEL;
+ // printf("%d %d Dig[i] %d\n", read_index, range_len+1, digital_subseq[range_len+1]);
+
+  return digital_subseq;
+
+  ERROR:
+    free(digital_subseq);
+    return NULL;
 }
 
 
@@ -1892,7 +1662,7 @@ int DetermineNuclType
  */
 int SelectSpliceOpt
 (
-  DOMAIN_OVERLAP * Overlap,
+  SPLICE_EDGE * Overlap,
   ESL_DSQ * UN,
   ESL_DSQ * DN,
   int model_pos,
@@ -1932,6 +1702,8 @@ int SelectSpliceOpt
       *splice_score = opt_score;
       best_opt = 0;
     }
+    else
+      ESL_XEXCEPTION(eslFAIL, "impossible infinite opt score");
 
   }
 
@@ -1954,7 +1726,8 @@ int SelectSpliceOpt
       *splice_score = opt_score;
       best_opt = 1;
     }
-
+    else
+      ESL_XEXCEPTION(eslFAIL, "impossible infinite opt score");
   }
 
 
@@ -1976,7 +1749,8 @@ int SelectSpliceOpt
       *splice_score = opt_score;
       best_opt = 2;
     }
-
+    else
+      ESL_XEXCEPTION(eslFAIL, "impossible infinite opt score");
   }
 
 
@@ -1998,7 +1772,8 @@ int SelectSpliceOpt
       *splice_score = opt_score;
       best_opt = 3;
     }
-
+    else
+      ESL_XEXCEPTION(eslFAIL, "impossible infinite opt score");
   }
 
 
@@ -2027,16 +1802,17 @@ int SelectSpliceOpt
 void GetContestedUpstreamNucls
 (ESL_DSQ * NuclSeq, int read_pos, ESL_DSQ * UN)
 {
+  int status;
   int write_pos = 1;
   while (write_pos<6) {
-    if (NuclSeq[read_pos] >= 0 && NuclSeq[read_pos] <= 3)
+	if (NuclSeq[read_pos] == eslDSQ_SENTINEL)
+      ESL_XEXCEPTION(eslFAIL, "impossible nucleotide position reached %d in GetContestedUpstreamNucls()", read_pos);
+    else  
       UN[write_pos++] = NuclSeq[read_pos];
-    else if (NuclSeq[read_pos] != '\0') {
-      UN[write_pos++] = NuclSeq[read_pos];
-      break;
-    }
     read_pos++;
   }
+  ERROR:
+	return;
 }
 
 
@@ -2050,14 +1826,17 @@ void GetContestedUpstreamNucls
 void GetContestedDownstreamNucls
 (ESL_DSQ * NuclSeq, int read_pos, ESL_DSQ * DN)
 {
+  int status;
   int write_pos = 5;
   while (write_pos) {
-    if (read_pos < 0) 
-      DN[write_pos--] = 15; 
-    else if (NuclSeq[read_pos] >= 0 && NuclSeq[read_pos] <= 3)
+    if (NuclSeq[read_pos] == eslDSQ_SENTINEL) 
+      ESL_XEXCEPTION(eslFAIL, "impossible nucleotide position reached %d in GetContestedDownstreamNucls()", read_pos); 
+    else
       DN[write_pos--] = NuclSeq[read_pos];
     read_pos--;
   }
+  ERROR:
+	return;
 }
 
 
@@ -2108,12 +1887,72 @@ float AminoScoreAtPosition
   
   if (model_pos < gm->M) transition_score = p7P_TSC(gm,model_pos,*state);
   else                   transition_score = 0.;
-
+   
    emission_score = p7P_MSC(gm,model_pos,amino_index);
    if (emission_score == -eslINFINITY) emission_score = 0;
 
   return transition_score + emission_score;
 
+
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: ali_score_at_postion
+ *
+ */
+
+
+float ali_score_at_postion
+(
+  P7_PROFILE * gm, 
+  int amino, 
+  int model_pos,
+  int prev_state,
+  int curr_state
+)
+{
+
+  int   transition;
+  float transition_score;
+  float emission_score;
+  int   status;
+
+  /* Emission score */
+  if(curr_state == p7T_M) 
+    emission_score = p7P_MSC(gm,model_pos,amino);
+  else 
+    emission_score = 0.;
+  
+  /* Transtion Score */
+  transition = p7P_NTRANS;
+  if      (curr_state == p7T_M) {
+    if      (prev_state == p7T_M)  transition = p7P_MM;
+    else if (prev_state == p7T_I)  transition = p7P_IM;
+    else if (prev_state == p7T_D)  transition = p7P_DM;
+    else if (prev_state == p7T_B)  transition = p7P_BM;   
+  } 
+  else if (curr_state == p7T_I) {
+    if      (prev_state == p7T_M)  transition = p7P_MI;
+    else if (prev_state == p7T_I)  transition = p7P_II;
+  }
+  else if (curr_state == p7T_D) {
+    if      (prev_state == p7T_M)  transition = p7P_MD;
+    else if (prev_state == p7T_D)  transition = p7P_DD;
+  }
+
+
+  if(model_pos > gm->M) ESL_XEXCEPTION(eslFAIL, "impossible model position reached %d for model of length %d", model_pos, gm->M); 
+  if (transition != p7P_NTRANS)
+  	transition_score = p7P_TSC(gm,model_pos-1,transition);
+  else
+    transition_score = 0.; //special case for first potition in overlap
+
+
+  return transition_score + emission_score;
+
+  ERROR:
+    return -eslINFINITY;
 
 }
 
@@ -2137,7 +1976,7 @@ float AminoScoreAtPosition
  */
 float FindOptimalSpliceSite
 (
-  DOMAIN_OVERLAP * Overlap,
+  SPLICE_EDGE * Overlap,
   P7_PROFILE     * gm,
   ESL_GENCODE    * gcode,
   int *   upstream_splice_index,
@@ -2158,6 +1997,7 @@ float FindOptimalSpliceSite
   //
   //  UPSTREAM 
   //
+
 
 
   int upstream_nucl_cnt = abs(Overlap->upstream_nucl_start - Overlap->upstream_nucl_end) + 1;
@@ -2219,6 +2059,7 @@ float FindOptimalSpliceSite
     //       (*barely* within threshold not to be rejected
     //       by ExcessiveGapContent)
     if (us_trans_len == us_arr_cap) {
+
       us_arr_cap *= 2;
       int   * TmpTrans    = malloc(us_arr_cap*sizeof(int));
       int   * TmpModelPos = malloc(us_arr_cap*sizeof(int));
@@ -2319,8 +2160,7 @@ float FindOptimalSpliceSite
   int ds_trans_len = 0;
   nucl_read_pos    = 3; // Because we sneak in 2 extra nucleotides for splice signal
   model_pos        = Overlap->amino_start;
-  while (ds_trans_len < Overlap->downstream_ext_len) {
-
+  while (model_pos < Overlap->DownstreamDisplay->hmmfrom) { 
     DSNuclPos[ds_trans_len] = nucl_read_pos+2;
 
 
@@ -2335,7 +2175,6 @@ float FindOptimalSpliceSite
     DSTrans[ds_trans_len]    = amino_index;
     DSModelPos[ds_trans_len] = model_pos;
     DSScores[ds_trans_len]   = AminoScoreAtPosition(gm,amino_index,model_pos,NULL,0,&model_state);
-
 
     model_pos++;
     ds_trans_len++;
@@ -2366,8 +2205,6 @@ float FindOptimalSpliceSite
 
   }
 
-
-
   display_pos = 0;
   while (model_pos <= Overlap->amino_end) {
 
@@ -2391,7 +2228,7 @@ float FindOptimalSpliceSite
     DSTrans[ds_trans_len]    = amino_index;
     DSModelPos[ds_trans_len] = model_pos;
     DSScores[ds_trans_len]   = AminoScoreAtPosition(gm,amino_index,model_pos,Overlap->DownstreamDisplay,display_pos,&model_state);
-    
+
     if (Overlap->DownstreamDisplay->aseq[display_pos] != '-')  ds_trans_len++;
     model_pos++;
     display_pos++;
@@ -2450,9 +2287,9 @@ float FindOptimalSpliceSite
   // before the extension, and those become the baseline to
   // remove for determining the contribution of our cut.
   //
-  float baseline_score = DSScores[Overlap->downstream_ext_len];
+  int ds_pre_ext_end_pos =  Overlap->DownstreamDisplay->hmmfrom - Overlap->amino_start;
+  float baseline_score = DSScores[ds_pre_ext_end_pos];
   baseline_score      += USScores[us_pre_ext_end_pos];
-  
   // NOTE: As I note down below, too, there is currently a known
   //   bug where infinite scores can occur.  Eventually, this should
   //   be investigated, but for now I'm just patching it out.
@@ -2505,7 +2342,6 @@ float FindOptimalSpliceSite
         // Pull in the "contested" nucleotides for this position
         GetContestedUpstreamNucls(Overlap->UpstreamNucls,USNuclPos[us_pos],UN);
         GetContestedDownstreamNucls(Overlap->DownstreamNucls,DSNuclPos[ds_pos],DN);
-
   
         float splice_score;
         int splice_option = SelectSpliceOpt(Overlap,UN,DN,model_pos,gm,gcode,&splice_score);
@@ -2598,6 +2434,418 @@ float FindOptimalSpliceSite
 
 
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: find_optimal_splice_site
+ *
+ *  Desc. :
+ *
+ *  Inputs:  1.                 Overlap :
+ *           2.                      gm : The straightforward profile for the protein / family.
+ *           3.                   gcode : An ESL_GENCODE struct (mainly used for translation).
+ *           4.   upstream_splice_index :
+ *           5. downstream_splice_index :
+ *           6. split_amino_model_index :
+ *
+ *  Output:  A float representing the total score of the optimal splicing of the two hits.
+ *
+ */
+float find_optimal_splice_site
+(
+  SPLICE_EDGE * Overlap,
+  P7_PROFILE     * gm,
+  ESL_GENCODE    * gcode,
+  int *   upstream_splice_index,
+  int * downstream_splice_index,
+  int * split_amino_model_index,
+  int * codon_split_option
+)
+{
+  int z1,z2;
+  int     us_arr_cap;
+  int us_trans_len;
+  int nucl_read_pos;
+  int model_pos;
+  int display_pos;
+  int amino_index;
+  int   *USTrans;
+  int   *USModelPos;
+  int   *USNuclPos;
+  float *USScores;
+  int *USGaps;
+  int us_pre_ext_end_pos;
+  P7_TRACE *up_trace;
+  P7_TRACE *down_trace;
+  int ds_trans_len;
+  int ds_arr_cap;
+  int ds_pre_ext_end_pos;
+  float baseline_score;
+  int   optimal_us_pos;  
+  int   optimal_ds_pos;   
+  int   optimal_model_pos; 
+  int   optimal_splice_opt; 
+  float optimal_score;  
+  int   * DSTrans;    
+  int   * DSModelPos; 
+  int   * DSNuclPos;  
+  float * DSScores;   
+  int   * DSGaps;    
+  ESL_DSQ * UN;
+  ESL_DSQ * DN;
+  int us_start;
+  int ds_start;
+  int us_pos;
+  int ds_pos;
+  float splice_score;
+  int splice_option; 
+  float sum_score;
+   int prev_state;
+
+  int status;
+
+  if (DEBUGGING1) DEBUG_OUT("Starting 'find_optimal_splice_site'",1);
+
+  // We'll want to track whether we're approaching each new
+  // position from having been in a match / deletion / insert
+  // (yes, there are also other special states, but those
+  // states are for nerds)
+
+  //
+  //  UPSTREAM 
+  //
+
+  up_trace   = Overlap->UpstreamTrace;
+  down_trace = Overlap->DownstreamTrace;
+
+  /* Determine the length of the trace in the overlap region */
+  /*This can probably be figured out in get_nuc_coords_for_amino_overlap() and saved for later */ 
+  for (z2 = up_trace->N-1; z2 >= 0; z2--) if (up_trace->st[z2] == p7T_M) break;
+  model_pos      = Overlap->amino_start;
+  us_arr_cap = 1;
+  while(model_pos <= up_trace->hmmto[0]) {
+    if      (up_trace->st[z2] == p7T_M || up_trace->st[z2] == p7T_D)
+      model_pos++;    
+    else if (up_trace->st[z2] == p7T_B)
+      break;
+    us_arr_cap++;
+    z2--;
+  }
+  us_arr_cap += (Overlap->amino_end - model_pos + 1);
+ 
+  // Allocate the arrays we'll use to capture the
+  // upstream candidates for splice site splitting
+  USTrans    = malloc(us_arr_cap*sizeof(int));
+  USModelPos = malloc(us_arr_cap*sizeof(int));
+  USNuclPos  = malloc(us_arr_cap*sizeof(int));
+  USScores   = malloc(us_arr_cap*sizeof(float));
+
+  // We need to know how many gaps we've encountered for the
+  // final position calculation
+  USGaps = malloc(us_arr_cap * sizeof(int));
+
+  us_trans_len   = 0; 
+  nucl_read_pos  = 1;
+  model_pos      = Overlap->amino_start;
+  display_pos    = Overlap->upstream_disp_start;
+
+
+  for (z2 = up_trace->N-1; z2 >= 0; z2--) if (up_trace->st[z2] == p7T_M) break;
+  for ( ; z2 >= 0; z2--) if (up_trace->k[z2] == model_pos) break;
+  prev_state = p7T_X; //placeholder to signify no transtion into first overlap postion for ali_score_at_postion()
+  while(model_pos <= up_trace->hmmto[0]) {
+
+    USNuclPos[us_trans_len] = nucl_read_pos;
+  
+    if      (up_trace->st[z2] == p7T_M || up_trace->st[z2] == p7T_I) {
+      amino_index = esl_gencode_GetTranslation(gcode,&(Overlap->UpstreamNucls[nucl_read_pos]));
+      nucl_read_pos += 3;      
+      USGaps[us_trans_len] = 0;
+    }
+    else if (up_trace->st[z2] == p7T_D) {
+      amino_index = gm->abc->Kp-1;
+      USGaps[us_trans_len] = 1;
+    }
+    else
+      break;
+    
+    USTrans[us_trans_len]    = amino_index;
+    USModelPos[us_trans_len] = model_pos;
+    USScores[us_trans_len]   = ali_score_at_postion(gm, amino_index, model_pos, prev_state, up_trace->st[z2]);
+    prev_state = up_trace->st[z2];
+
+    display_pos++;  
+    us_trans_len++;
+
+    if (up_trace->st[z2] == p7T_M || up_trace->st[z2] == p7T_D) 
+      model_pos++;
+     
+    z2++;
+ 
+  }
+  us_pre_ext_end_pos = us_trans_len-1; // For scoring purposes
+
+  
+  // Incorporate the extension
+  while (model_pos <= Overlap->amino_end) {
+
+    USNuclPos[us_trans_len] = nucl_read_pos;
+
+    amino_index = esl_gencode_GetTranslation(gcode,&(Overlap->UpstreamNucls[nucl_read_pos]));
+    nucl_read_pos += 3;
+
+    // Necessarily not a gap
+    USGaps[us_trans_len] = 0;
+
+    USTrans[us_trans_len]    = amino_index;
+    USModelPos[us_trans_len] = model_pos;
+    USScores[us_trans_len]   = ali_score_at_postion(gm, amino_index, model_pos, prev_state, p7T_M);
+    prev_state = p7T_M;
+    model_pos++;
+    us_trans_len++;
+
+  }
+
+  //
+  //  DOWNSTREAM
+  //
+  
+  ds_arr_cap = down_trace->hmmfrom[0] - Overlap->amino_start + 1;
+  for (z1 = 0; z1 < down_trace->N; z1++) if (down_trace->st[z1] == p7T_M) break;
+  model_pos =  down_trace->hmmfrom[0];
+  while (model_pos <= Overlap->amino_end) {
+    if      (down_trace->st[z1] == p7T_M || down_trace->st[z1] == p7T_D)
+      model_pos++;
+    else if (down_trace->st[z1] == p7T_E)
+      break;
+    ds_arr_cap++;
+    z1++;
+  }
+  
+
+  // Time to malloc!
+  DSTrans    = malloc(ds_arr_cap*sizeof(int));
+  DSModelPos = malloc(ds_arr_cap*sizeof(int));
+  DSNuclPos  = malloc(ds_arr_cap*sizeof(int));
+  DSScores   = malloc(ds_arr_cap*sizeof(float));
+  DSGaps     = malloc(ds_arr_cap*sizeof(int));
+
+
+  ds_trans_len = 0;
+  nucl_read_pos    = 3; // Because we sneak in 2 extra nucleotides for splice signal
+  model_pos        = Overlap->amino_start;
+  
+  prev_state = p7T_X; //placeholder to signify no transtion into first overlap postion for ali_score_at_postion()
+ 
+  while (model_pos < down_trace->hmmfrom[0]) {
+
+    DSNuclPos[ds_trans_len] = nucl_read_pos+2;
+ 
+    amino_index = esl_gencode_GetTranslation(gcode,&(Overlap->DownstreamNucls[nucl_read_pos]));
+    nucl_read_pos += 3;
+
+
+    // Again, extensions cannot be gaps
+    DSGaps[ds_trans_len] = 0;
+
+
+    DSTrans[ds_trans_len]    = amino_index;
+    DSModelPos[ds_trans_len] = model_pos;
+    DSScores[ds_trans_len]   = ali_score_at_postion(gm, amino_index, model_pos, prev_state, p7T_M);
+    prev_state = p7T_M;
+
+    model_pos++;
+    ds_trans_len++;
+
+  }
+
+  for (z1 = 0; z1 < down_trace->N; z1++) if (down_trace->st[z1] == p7T_M) break;
+  display_pos = 0;
+  while (model_pos <= Overlap->amino_end) {
+
+    DSNuclPos[ds_trans_len] = nucl_read_pos+2;
+    
+     if      (down_trace->st[z1] == p7T_M || down_trace->st[z1] == p7T_I) {
+      amino_index = esl_gencode_GetTranslation(gcode,&(Overlap->DownstreamNucls[nucl_read_pos]));
+
+      nucl_read_pos += 3;
+      DSGaps[ds_trans_len] = 0;
+    }
+    else if (down_trace->st[z1] == p7T_D) {
+      amino_index = gm->abc->Kp-1;
+      DSGaps[ds_trans_len] = 1;
+    }
+    else
+      break;
+
+    DSTrans[ds_trans_len]    = amino_index;
+    DSModelPos[ds_trans_len] = model_pos;
+    DSScores[ds_trans_len]   = ali_score_at_postion(gm, amino_index, model_pos, prev_state, down_trace->st[z1]);
+    prev_state = down_trace->st[z1];   
+
+    ds_trans_len++;
+    display_pos++;
+
+    if (down_trace->st[z1] == p7T_M || down_trace->st[z1] == p7T_D)
+      model_pos++;
+
+     z1++;
+  }
+
+
+  // We're really just interested in the sum scores on each side,
+  // so let's switch over to that.
+  // Similarly, we want the sum count of gaps up to each position.
+  //
+  int i;
+  for (i=1; i<us_trans_len; i++) {
+    USScores[i] += USScores[i-1];
+    USGaps[i] += USGaps[i-1];
+  }
+
+  for (i=ds_trans_len-2; i>=0; i--)
+    DSScores[i] += DSScores[i+1];
+
+  // SO, this may seem weird, but because we count to the first position
+  // in the downstream hit from the left in 'SpliceOverlappingDomains'
+  // we're going to be counting gaps from the left.
+  // 
+  for (i=1; i<ds_trans_len; i++)
+    DSGaps[i] += DSGaps[i-1];
+
+
+  // In order to determine the score difference created by the
+  // splice, we'll find the sum score at each position right
+  // before the extension, and those become the baseline to
+  // remove for determining the contribution of our cut.
+  //
+  ds_pre_ext_end_pos =  down_trace->hmmfrom[0] - Overlap->amino_start;
+  baseline_score = DSScores[ds_pre_ext_end_pos];
+  baseline_score      += USScores[us_pre_ext_end_pos];
+  
+  // NOTE: As I note down below, too, there is currently a known
+  //   bug where infinite scores can occur.  Eventually, this should
+  //   be investigated, but for now I'm just patching it out.
+  if (isinf(baseline_score)) {
+    ESL_XEXCEPTION(eslFAIL, "impossible infinite baseline score"); 
+  }
+
+  // What position in the model are we splitting on?
+  optimal_us_pos     = 0;
+  optimal_ds_pos     = 0;
+  optimal_model_pos  = 0;
+  optimal_splice_opt = 0;
+  optimal_score      = EDGE_FAIL_SCORE;
+
+  // Arrays we'll use for splice site evaluation
+  UN = malloc(6*sizeof(ESL_DSQ));
+  DN = malloc(6*sizeof(ESL_DSQ));
+
+
+  us_start = 0;
+  ds_start = 0;
+  for (model_pos = Overlap->amino_start; model_pos <= Overlap->amino_end; model_pos++) {
+    
+
+    while (USModelPos[us_start] < model_pos) us_start++;
+    while (DSModelPos[ds_start] < model_pos) ds_start++;
+
+    us_pos = us_start;
+    while (us_pos < us_trans_len && USModelPos[us_pos] == model_pos) {
+      ds_pos = ds_start;
+       
+      while (ds_pos < ds_trans_len && DSModelPos[ds_pos] == model_pos) {
+ 
+        // Pull in the "contested" nucleotides for this position
+        GetContestedUpstreamNucls(Overlap->UpstreamNucls,USNuclPos[us_pos],UN);
+        GetContestedDownstreamNucls(Overlap->DownstreamNucls,DSNuclPos[ds_pos],DN);
+
+        splice_option = SelectSpliceOpt(Overlap,UN,DN,model_pos,gm,gcode,&splice_score);
+
+        sum_score = USScores[us_pos] + DSScores[ds_pos] + splice_score;
+
+        // NOTE: I'm not sure what causes scores of 'inf' but
+        //   this does seem to happen in rare cases, so for now
+        //   I'm just going to try to force it not to create
+        //   downstream chaos.
+        //
+        if (!isinf(sum_score) && sum_score > optimal_score) {
+          optimal_score      = sum_score;
+          optimal_us_pos     = us_pos;
+          optimal_ds_pos     = ds_pos;
+          optimal_model_pos  = model_pos;
+          optimal_splice_opt = splice_option;
+        }
+        else if (isinf(sum_score))
+           ESL_XEXCEPTION(eslFAIL, "impossible infinite sum score"); 
+
+        ds_pos++;
+
+      }
+
+      us_pos++;
+
+    }
+
+
+    if (us_pos >= us_trans_len || ds_pos >= ds_trans_len)
+      break;
+
+
+    us_start = us_pos;
+    ds_start = ds_pos;
+
+
+  }
+
+  free(USTrans);
+  free(USModelPos);
+  free(USNuclPos);
+  free(USScores);
+  
+  free(DSTrans);
+  free(DSModelPos);
+  free(DSNuclPos);
+  free(DSScores);
+
+  free(UN);
+  free(DN);
+
+
+  if (optimal_score == EDGE_FAIL_SCORE) {
+    free(USGaps);
+    free(DSGaps);
+    if (DEBUGGING1) DEBUG_OUT("'find_optimal_splice_site' Complete (but sad)",-1);
+    return EDGE_FAIL_SCORE;
+  }
+  
+
+  // Currently, the optimal positions share an amino,
+  // which we're going to want to consider methods
+  // for splitting.
+  //
+  // For that reason, what we return as the splice
+  // indices (relative to the *nucleotide* sequences)
+  // is the last / first "safe" nucelotide (inside the
+  // exon).
+  //
+  *upstream_splice_index   = 3 * (optimal_us_pos - USGaps[optimal_us_pos]);
+  *downstream_splice_index = 3 * (optimal_ds_pos - DSGaps[optimal_ds_pos]) + 4;
+  *split_amino_model_index = optimal_model_pos;
+  *codon_split_option      = optimal_splice_opt;
+
+
+  free(USGaps);
+  free(DSGaps);
+
+
+  if (DEBUGGING1) DEBUG_OUT("'find_optimal_splice_site' Complete",-1);
+
+
+  return optimal_score-baseline_score;
+
+  ERROR:
+   return EDGE_FAIL_SCORE;
+}
 
 
 
@@ -2619,13 +2867,14 @@ float FindOptimalSpliceSite
  */
 void SpliceOverlappingDomains
 (
-  DOMAIN_OVERLAP * Overlap,
+  SPLICE_EDGE * Overlap,
   TARGET_SEQ     * TargetNuclSeq,
   P7_PROFILE     * gm, 
   ESL_GENCODE    * gcode
 )
 {
 
+  float splice_score;
   if (DEBUGGING1) DEBUG_OUT("Starting 'SpliceOverlappingDomains'",1);
 
 
@@ -2636,7 +2885,8 @@ void SpliceOverlappingDomains
   int downstream_splice_index;
   int split_amino_model_index;
   int codon_split_option;
-  float splice_score = FindOptimalSpliceSite(Overlap,gm,gcode,&upstream_splice_index,&downstream_splice_index,&split_amino_model_index,&codon_split_option);
+  
+  splice_score = FindOptimalSpliceSite(Overlap,gm,gcode,&upstream_splice_index,&downstream_splice_index,&split_amino_model_index,&codon_split_option);
 
 
 
@@ -2678,6 +2928,81 @@ void SpliceOverlappingDomains
 }
 
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: splce_edge_overlap
+ *
+ *  Desc. :
+ *
+ *  Inputs:  1.       Overlap :
+ *           2. TargetNuclSeq :
+ *           3.            gm : The straightforward profile for the protein / family.
+ *           4.         gcode : An ESL_GENCODE struct (mainly used for translation).
+ *
+ *  Output:
+ *
+ */
+void splce_edge_overlap
+(
+  SPLICE_EDGE * Overlap,
+  TARGET_SEQ     * TargetNuclSeq,
+  P7_PROFILE     * gm, 
+  ESL_GENCODE    * gcode
+)
+{
+
+  float splice_score;
+  if (DEBUGGING1) DEBUG_OUT("Starting 'splce_edge_overlap'",1);
+
+
+  // These splice indices are the terminal nucleotides *within* the
+  // uncontested coding region, relative to the nucleotide sequences
+  // in Overlap
+  int   upstream_splice_index;
+  int downstream_splice_index;
+  int split_amino_model_index;
+  int codon_split_option;
+  
+  splice_score = find_optimal_splice_site(Overlap,gm,gcode,&upstream_splice_index,&downstream_splice_index,&split_amino_model_index,&codon_split_option);
+  //splice_score = FindOptimalSpliceSite(Overlap,gm,gcode,&upstream_splice_index,&downstream_splice_index,&split_amino_model_index,&codon_split_option);
+
+  // This would be really bizarre (and worth checking to see if it
+  // ever actually happens...)
+  if (codon_split_option == -1) {
+    Overlap->score         = EDGE_FAIL_SCORE;
+    Overlap->score_density = EDGE_FAIL_SCORE;
+    if (DEBUGGING1) DEBUG_OUT("'splce_edge_overlap' Complete (BUT WITH TERRIBLE OPTIONS?!)",-1);
+    return;
+  }
+
+
+
+  if (Overlap->upstream_nucl_start < Overlap->upstream_nucl_end) {
+    Overlap->upstream_spliced_nucl_end = Overlap->upstream_nucl_start + (upstream_splice_index + (3 - codon_split_option)) - 1;
+    Overlap->downstream_spliced_nucl_start = Overlap->downstream_nucl_start + (downstream_splice_index - codon_split_option) - 1;
+  } else {
+    Overlap->upstream_spliced_nucl_end = Overlap->upstream_nucl_start - (upstream_splice_index + (3 - codon_split_option)) + 1;
+    Overlap->downstream_spliced_nucl_start = Overlap->downstream_nucl_start - (downstream_splice_index - codon_split_option) + 1;
+  }
+
+
+  if (codon_split_option < 2) {
+    Overlap->upstream_exon_terminus   = split_amino_model_index;
+    Overlap->downstream_exon_terminus = split_amino_model_index + 1;
+  } else {
+    Overlap->upstream_exon_terminus   = split_amino_model_index - 1;
+    Overlap->downstream_exon_terminus = split_amino_model_index;    
+  }
+
+
+  Overlap->score = splice_score;
+  Overlap->score_density = splice_score / (1 + Overlap->amino_end - Overlap->amino_start);
+
+
+  if (DEBUGGING1) DEBUG_OUT("'splce_edge_overlap' Complete",-1);
+
+}
+
 
 
 
@@ -2694,7 +3019,7 @@ void SpliceOverlappingDomains
  *
  */
 void GetNuclRangesFromAminoCoords 
-(DOMAIN_OVERLAP * Edge)
+(SPLICE_EDGE * Edge)
 {
 
   P7_ALIDISPLAY *   UpDisp = Edge->UpstreamDisplay;
@@ -2712,22 +3037,24 @@ void GetNuclRangesFromAminoCoords
 
   Edge->upstream_disp_start = UpDisp->N - 1;
   int disp_amino = UpDisp->hmmto;
-
+  
   Edge->upstream_nucl_end   = UpDisp->sqto + (3 * strand * (Edge->amino_end - disp_amino));
   Edge->upstream_nucl_start = UpDisp->sqto + strand;
-
+  
   while (Edge->upstream_disp_start >= 0 && disp_amino >= Edge->amino_start) {
     Edge->upstream_nucl_start -= 3 * strand;
     disp_amino--;
 
     // If we were presumptuous, undo the previous work
-    if (UpDisp->model[Edge->upstream_disp_start] == '.') // Insertion relative to pHMM
+    if (UpDisp->model[Edge->upstream_disp_start] == '.') {// Insertion relative to pHMM
       disp_amino++;
-    if (UpDisp->aseq[Edge->upstream_disp_start] == '-') // Insertion relative to genome
+    }
+    if (UpDisp->aseq[Edge->upstream_disp_start] == '-') {// Insertion relative to genome
       Edge->upstream_nucl_start += 3 * strand;
-
+    }
     Edge->upstream_disp_start -= 1;
-
+ 
+    
   }
   disp_amino++;
   Edge->upstream_ext_len     = disp_amino - Edge->amino_start;
@@ -2735,7 +3062,6 @@ void GetNuclRangesFromAminoCoords
   
   // We'll have overstepped by one
   Edge->upstream_disp_start += 1;
-
 
 
   //
@@ -2765,11 +3091,115 @@ void GetNuclRangesFromAminoCoords
   disp_amino--;
   Edge->downstream_ext_len   = Edge->amino_end - disp_amino;
   Edge->downstream_nucl_end += 3 * strand * Edge->downstream_ext_len;
-
+  
   // We'll have overstepped by one
   Edge->downstream_disp_end -= 1;
 
 
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: get_nuc_coords_for_amino_overlap
+ *
+ *  Desc. :
+ *
+ *  Inputs:  1. Edge :
+ *
+ *  Output:
+ *
+ */
+void get_nuc_coords_for_amino_overlap 
+(SPLICE_EDGE * Edge, int complementarity)
+{
+
+   int z1,z2;
+   int strand;
+   int extention_nuc_count;
+   int curr_hmm_pos;
+   P7_ALIDISPLAY *   UpDisp;  //DELETE
+   P7_TRACE      * up_trace;
+   P7_TRACE      * down_trace;
+   
+  /* Need to keep for now - delete later */
+   UpDisp = Edge->UpstreamDisplay; //DELETE
+ 
+  up_trace = Edge->UpstreamTrace;
+  down_trace = Edge->DownstreamTrace; 
+  
+  strand = (complementarity? -1 : 1);
+
+/***************UPSTREAM*******************/
+
+ /* Get number of nucleotides that need to be added to the end of the 
+  * upstream edge nucleotide range if the end of the amino range 
+  * had to be extended to meet the mimimum overlap */ 
+  extention_nuc_count = (Edge->amino_end - up_trace->hmmto[0]) * strand * 3;
+  Edge->upstream_nucl_end = up_trace->sqto[0] + extention_nuc_count;  
+ 
+ /* I need to set this for FindOptimalSpliceSite() but once it is rewriento use trace I can get rid of it */ 
+    Edge->upstream_disp_start = UpDisp->N - 1; //DELETE
+
+  /* Set Edge->upstream_nucl_start to the begining of the upstream 
+   * nulceotides that correpond to overlapping aminos */ 
+  Edge->upstream_nucl_start = up_trace->sqto[0] + strand;
+
+  for (z2 = up_trace->N-1; z2 >= 0; z2--) if (up_trace->st[z2] == p7T_M) break; 
+  curr_hmm_pos = up_trace->hmmto[0];
+  while(curr_hmm_pos >= Edge->amino_start) {
+
+    if      (up_trace->st[z2] == p7T_M) {
+      Edge->upstream_nucl_start -= 3 * strand;
+      curr_hmm_pos--;
+    } 
+    else if (up_trace->st[z2] == p7T_I) 
+      Edge->upstream_nucl_start -= 3 * strand;
+    else if (up_trace->st[z2] == p7T_D)
+      curr_hmm_pos--;
+    else
+      break;
+    z2--; 
+    Edge->upstream_disp_start--; //DELETE
+ 
+  }
+  Edge->upstream_disp_start++;   //DELETE
+
+/***************DOWNSTREAM*******************/
+
+/* Get number of nucleotides that need to be added to the start of the
+  * downstream edge nucleotide range if the end of the amino range
+  * had to be extended to meet the mimimum overlap */
+  extention_nuc_count = (down_trace->hmmfrom[0] - Edge->amino_start) * strand * 3;
+  Edge->downstream_nucl_start = down_trace->sqfrom[0] - extention_nuc_count;
+  
+  
+  Edge->downstream_disp_end = 0; //DELETE
+
+ /* Set Edge->downstream_nucl_end to the end of the downstream
+   * nulceotides that correpond to overlapping aminos */
+  Edge->downstream_nucl_end   = down_trace->sqfrom[0] - strand;
+  for (z1 = 0; z1 < down_trace->N; z1++) if (down_trace->st[z1] == p7T_M) break;
+  curr_hmm_pos = down_trace->hmmfrom[0];
+ 
+  while(curr_hmm_pos <= Edge->amino_end) {
+
+    if      (down_trace->st[z1] == p7T_M) {
+      Edge->downstream_nucl_end += down_trace->c[z1] * strand;
+      curr_hmm_pos++;
+    }
+    else if (down_trace->st[z1] == p7T_I)
+      Edge->downstream_nucl_end += 3 * strand;
+    else if (down_trace->st[z1] == p7T_D)
+      curr_hmm_pos++;
+    else
+      break;
+    z1++;
+    Edge->downstream_disp_end++;   //DELETE 
+  }
+  Edge->downstream_disp_end--;      //DELETE
+
+  /* I don't know what this is for but I think its allways zero */
+  Edge->downstream_ext_len = 0; 
 }
 
 
@@ -2792,7 +3222,7 @@ void GetNuclRangesFromAminoCoords
  */
 void SketchSpliceEdge
 (
-  DOMAIN_OVERLAP * Edge,
+  SPLICE_EDGE * Edge,
   TARGET_SEQ     * TargetNuclSeq,
   P7_PROFILE     * gm,
   ESL_GENCODE    * gcode
@@ -2824,7 +3254,7 @@ void SketchSpliceEdge
     Edge->amino_end   += num_ext_aminos;
 
   }
-
+  
   // Now we can do the work of finding the (indel-aware)
   // upstream_start and downstream_end coordinates.
   GetNuclRangesFromAminoCoords(Edge);
@@ -2876,6 +3306,103 @@ void SketchSpliceEdge
 
 
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: sketch_splice_edge
+ *
+ *  Desc. :
+ *
+ *  Inputs:  1.          Edge :
+ *           2. TargetNuclSeq : The sub-sequence of the target sequence wherein all hits reside.
+ *           3.            gm : The straightforward profile for the protein / family.
+ *           4.         gcode : An ESL_GENCODE struct (mainly used for translation).
+ *
+ *  Output:
+ *
+ */
+void sketch_splice_edge
+(
+  SPLICE_EDGE * Edge,
+  ESL_SQ       *target_seq,
+  TARGET_SEQ     * TargetNuclSeq,
+  P7_PROFILE     * gm,
+  ESL_GENCODE    * gcode,
+  int              complementarity
+)
+{
+
+  int num_ext_aminos;
+  P7_ALIDISPLAY *   UpDisp;
+  P7_ALIDISPLAY * DownDisp;
+  if (DEBUGGING1) DEBUG_OUT("Starting 'sketch_splice_edge'",1);
+
+
+  UpDisp = Edge->UpstreamDisplay;
+  DownDisp = Edge->DownstreamDisplay;
+
+  Edge->amino_start = DownDisp->hmmfrom;
+  Edge->amino_end   =   UpDisp->hmmto;
+
+  /* splicing requires a minimum hmm postion overlap between upstream
+   * and downstram hits. If hits to do not meet this minimum we will
+   * extend the amino_start and amino_end postions of the Edge to 
+   * create the minimum overlap */
+  num_ext_aminos = MIN_AMINO_OVERLAP - (1 + Edge->amino_end - Edge->amino_start);
+  if (num_ext_aminos > 0) {
+    num_ext_aminos = (num_ext_aminos+1)/2;
+    Edge->amino_start -= num_ext_aminos;
+    Edge->amino_end   += num_ext_aminos;
+  }
+
+  /* Get the upstream and downstream sequence coords 
+   * to cover the hmm overlap region */
+   get_nuc_coords_for_amino_overlap(Edge, complementarity);
+
+  // Grab them nucleotides!
+  // Note that in order to ensure we can consider *every*
+  // position in the overlap, we need to grab 2 extra
+  // nucleotides to serve as splice signal candidates.
+
+  /* Create ESL_DSQs fo the overalp sequence coords found by get_nuc_coords_for_amino_overlap() */
+  if (!complementarity) {
+    Edge->UpstreamNucls   = grab_seq_range(target_seq, Edge->upstream_nucl_start, Edge->upstream_nucl_end+2, complementarity); 
+    Edge->DownstreamNucls = grab_seq_range(target_seq, Edge->downstream_nucl_start-2, Edge->downstream_nucl_end, complementarity);
+  } else {
+    Edge->UpstreamNucls   = grab_seq_range(target_seq, Edge->upstream_nucl_start, Edge->upstream_nucl_end-2, complementarity); 
+    Edge->DownstreamNucls = grab_seq_range(target_seq, Edge->downstream_nucl_start+2, Edge->downstream_nucl_end, complementarity);
+  }
+
+  // Finish off by adding this friendly little pointer
+  Edge->ntalpha = TargetNuclSeq->abc;
+
+
+  // Big ol' DEBUGGING dump
+  if (DEBUGGING2 && 1) {
+    fprintf(stderr,"\n");
+    fprintf(stderr,"  Overlap  Nucl. Range:   Upstream : %d ... %d\n",  Edge->upstream_nucl_start,  Edge->upstream_nucl_end);
+    fprintf(stderr,"                                   : ");
+    int i;
+    for (i=1; i<=abs(Edge->upstream_nucl_start-Edge->upstream_nucl_end)+1; i++)
+      fprintf(stderr,"%c",DNA_CHARS[Edge->UpstreamNucls[i]]);
+    fprintf(stderr,"\n");
+    fprintf(stderr,"                      : Downstream : %d ... %d\n",Edge->downstream_nucl_start,Edge->downstream_nucl_end);
+    fprintf(stderr,"                                   : ");
+    for (i=3; i<=abs(Edge->downstream_nucl_start-Edge->downstream_nucl_end)+3; i++)
+      fprintf(stderr,"%c",DNA_CHARS[Edge->DownstreamNucls[i]]);
+    fprintf(stderr,"\n");
+    fprintf(stderr,"                      : Model Pos.s: %d..%d\n",Edge->amino_start,Edge->amino_end);
+    fprintf(stderr,"\n\n");
+  }
+
+
+
+  splce_edge_overlap(Edge,TargetNuclSeq,gm,gcode);
+
+
+  if (DEBUGGING1) DEBUG_OUT("'sketch_splice_edge' Complete",-1);
+
+}
+
 
 
 
@@ -2899,17 +3426,19 @@ int HitsAreSpliceCompatible
 (P7_ALIDISPLAY * Upstream, P7_ALIDISPLAY * Downstream)
 {
 
-   
+  int     up_amino_start, up_amino_end;
+  int     down_amino_start, down_amino_end;
+  int64_t up_nucl_start, up_nucl_end;
+  int64_t down_nucl_start, down_nucl_end; 
   if (DEBUGGING1) DEBUG_OUT("Starting 'HitsAreSpliceCompatible'",1);
 
-  
-  // Start by checking if we either have amino acid
+    // Start by checking if we either have amino acid
   // overlap, or are close enough to consider extending
-  int amino_start_1 = Upstream->hmmfrom;
-  int amino_end_1   = Upstream->hmmto;
+  up_amino_start = Upstream->hmmfrom;
+  up_amino_end   = Upstream->hmmto;
 
-  int amino_start_2 = Downstream->hmmfrom;
-  int amino_end_2   = Downstream->hmmto;
+  down_amino_start = Downstream->hmmfrom;
+  down_amino_end   = Downstream->hmmto;
 
   // If the upstream ain't upstream, then obviously we can't treat
   // these as splice-compatible!
@@ -2918,14 +3447,14 @@ int HitsAreSpliceCompatible
   //       where there's an optimal splice junction in the middle
   //       that fixes overextension
   //
-  if (amino_start_1 > amino_start_2 || amino_end_1 > amino_end_2) {
+  if (up_amino_start > down_amino_start || up_amino_end > down_amino_end) {
     if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
     return 0;
   }
 
   // Do we have overlap OR sufficient proximity to consider
   // extending?
-  if (amino_end_1 + MAX_AMINO_EXT < amino_start_2) {
+  if (up_amino_end + MAX_AMINO_EXT < down_amino_start) {
     if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
     return 0;
   }
@@ -2934,19 +3463,19 @@ int HitsAreSpliceCompatible
   // compatibility!  Now it's just time to confirm that
   // the nucleotides also look good.
 
-  int  nucl_start_1 = Upstream->sqfrom;
-  int  nucl_end_1   = Upstream->sqto;
+  up_nucl_start = Upstream->sqfrom;
+  up_nucl_end   = Upstream->sqto;
   
   int revcomp1 = 0;
-  if (nucl_start_1 > nucl_end_1)
+  if (up_nucl_start > up_nucl_end)
     revcomp1 = 1;
 
 
-  int nucl_start_2 = Downstream->sqfrom;
-  int nucl_end_2   = Downstream->sqto;
+  down_nucl_start = Downstream->sqfrom;
+  down_nucl_end   = Downstream->sqto;
  
   int revcomp2 = 0;
-  if (nucl_start_2 > nucl_end_2)
+  if (down_nucl_start > down_nucl_end)
     revcomp2 = 1;
 
 
@@ -2960,14 +3489,14 @@ int HitsAreSpliceCompatible
   // close together on the genome...
   if (revcomp1) {
 
-    if (nucl_start_2 + (3 * MAX_AMINO_EXT) >= nucl_end_1) {
+    if (down_nucl_start + (3 * MAX_AMINO_EXT) >= up_nucl_end) {
       if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
       return 0;
     }
 
   } else {
 
-    if (nucl_start_2 - (3 * MAX_AMINO_EXT) <= nucl_end_1) {
+    if (down_nucl_start - (3 * MAX_AMINO_EXT) <= up_nucl_end) {
       if (DEBUGGING1) DEBUG_OUT("'HitsAreSpliceCompatible' Complete",-1);
       return 0;
     }
@@ -2982,6 +3511,68 @@ int HitsAreSpliceCompatible
   return 1;
 
 }
+
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *  Function: are_hits_splice_comaptible
+ *
+ *  Desc. :
+ *
+ *  Inputs:  1.   Upstream :
+ *           2. Downstream :
+ *
+ *  Output:
+ *
+ */
+int are_hits_splice_comaptible
+(P7_DOMAIN *Upstream, P7_DOMAIN *Downstream, int complementarity)
+{
+
+  int     up_amino_start, up_amino_end;
+  int     down_amino_start, down_amino_end;
+  int64_t up_nucl_end;
+  int64_t down_nucl_start; 
+  if (DEBUGGING1) DEBUG_OUT("Starting 'are_hits_splice_comaptible'",1);
+
+  up_amino_start = Upstream->tr->hmmfrom[0];
+  up_amino_end   = Upstream->tr->hmmto[0];
+
+  down_amino_start = Downstream->tr->hmmfrom[0];
+  down_amino_end   = Downstream->tr->hmmto[0];
+
+  up_nucl_end   = Upstream->jali;
+ 
+  down_nucl_start = Downstream->iali;
+  
+  /* If the upstream hit starts before or ends before the downstream 
+   * hit on hmm coords they might be splice compatible */
+  if (up_amino_start <= down_amino_start && up_amino_end <= down_amino_end) {
+     
+    /* If the end of the upstream hit hmm end is not less than 
+    * MAX_AMINO_EXT from the downstream hit hmm start then
+    * they might be splice compatible */  
+    if (up_amino_end + MAX_AMINO_EXT >= down_amino_start) { 
+      
+      /* If the gap between the upstream and downstream hit seq coords 
+       * is at lest 3*MAX_AMINO_EXT, the gap could by an intron, and 
+       * the hits might be splice compatible */
+      if (( complementarity && (down_nucl_start + (3 * MAX_AMINO_EXT) < up_nucl_end)) ||
+          (!complementarity && (down_nucl_start - (3 * MAX_AMINO_EXT) > up_nucl_end))) {
+         
+        if (DEBUGGING1) DEBUG_OUT("'are_hits_splice_comaptible' Complete",-1);
+        return 1;
+      }
+    }
+  }
+
+ 
+  if (DEBUGGING1) DEBUG_OUT("'are_hits_splice_comaptible' Complete",-1);
+  /* If you've made it here the hits are not splice compatible */
+  return 0;
+
+ }
+
 
 
 
@@ -3082,179 +3673,6 @@ int OutsideSearchArea
 
 
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *
- *  Function: GatherViableSpliceEdges
- *
- *  Desc. :
- *
- *  Inputs:  1.          TopHits :
- *           2.    TargetNuclSeq : The sub-sequence of the target sequence wherein all hits reside.
- *           3.               gm : The straightforward profile for the protein / family.
- *           4.            gcode : An ESL_GENCODE struct (mainly used for translation).
- *           5. num_splice_edges :
- *
- *  Output:
- *
- */
-DOMAIN_OVERLAP ** GatherViableSpliceEdges
-(
-  P7_TOPHITS  * TopHits,
-  TARGET_SEQ  * TargetNuclSeq,
-  P7_PROFILE  * gm,
-  ESL_GENCODE * gcode,
-  int * num_splice_edges
-)
-{
-
-  if (DEBUGGING1) DEBUG_OUT("Starting 'GatherViableSpliceEdges'",1);
-
-
-  int num_hits = (int)(TopHits->N);
-
-  int edge_capacity = 2 * num_hits;
-  DOMAIN_OVERLAP ** SpliceEdges = (DOMAIN_OVERLAP **)malloc(edge_capacity * sizeof(DOMAIN_OVERLAP *));
-
-  int num_edges = 0;
-  int   upstream_hit_id;
-  int   upstream_dom_id;
-  int downstream_dom_id;
-  int downstream_hit_id;
-  for (upstream_hit_id = 0; upstream_hit_id < num_hits; upstream_hit_id++) {
-
-    if(TopHits->hit[upstream_hit_id]->flags & p7_IS_DUPLICATE)
-      continue;    
-
-    P7_HIT * UpstreamHit  = TopHits->hit[upstream_hit_id];
-    int num_upstream_doms = UpstreamHit->ndom;
-
-
-    // Is this hit inside the valid search area?
-    if (OutsideSearchArea(UpstreamHit,TargetNuclSeq))
-      continue;
-
-
-    // For each hit, gather all of the indices of other hits that
-    // could potentially be downstream exons.
-    for (downstream_hit_id=0; downstream_hit_id < (int)(TopHits->N); downstream_hit_id++) {
-  
-      if(TopHits->hit[downstream_hit_id]->flags & p7_IS_DUPLICATE)
-        continue;    
-
-      P7_HIT * DownstreamHit  = TopHits->hit[downstream_hit_id];
-      int num_downstream_doms = DownstreamHit->ndom;
-
-
-      // Is the downstream hit chill?
-      if (OutsideSearchArea(DownstreamHit,TargetNuclSeq))
-        continue;
-
-
-      for (upstream_dom_id = 0; upstream_dom_id < num_upstream_doms; upstream_dom_id++) {
-
-
-        P7_ALIDISPLAY * UpstreamDisplay = (&UpstreamHit->dcl[upstream_dom_id])->ad;
-
-
-        if (ExcessiveGapContent(UpstreamDisplay))       
-          continue;
-
-
-        for (downstream_dom_id = 0; downstream_dom_id < num_downstream_doms; downstream_dom_id++) {
-
-          // NO SELF-SPLICING, YOU ABSOLUTE MANIAC!
-          if (upstream_hit_id == downstream_hit_id && upstream_dom_id == downstream_dom_id)
-            continue;
-
-
-          P7_ALIDISPLAY * DownstreamDisplay = (&DownstreamHit->dcl[downstream_dom_id])->ad;
-
-
-          if (ExcessiveGapContent(DownstreamDisplay))
-            continue;
-
-
-          if (HitsAreSpliceCompatible(UpstreamDisplay,DownstreamDisplay)) {
-
-            // MUST WE RESIZE?!
-            if (num_edges == edge_capacity) {
-
-              edge_capacity *= 2;
-
-              DOMAIN_OVERLAP ** MoreSpliceEdges = (DOMAIN_OVERLAP **)malloc(edge_capacity * sizeof(DOMAIN_OVERLAP *));
-              int edge_id;
-              for (edge_id=0; edge_id<num_edges; edge_id++)
-                MoreSpliceEdges[edge_id] = SpliceEdges[edge_id];
-
-              free(SpliceEdges);
-              SpliceEdges = MoreSpliceEdges;
-
-            }
-
-
-            // Record that splice compatibility!
-            SpliceEdges[num_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
-            
-            DOMAIN_OVERLAP * Edge  = SpliceEdges[num_edges];
-
-            Edge->upstream_hit_id   = upstream_hit_id;
-            Edge->upstream_dom_id   = upstream_dom_id;
-            Edge->downstream_hit_id = downstream_hit_id;
-            Edge->downstream_dom_id = downstream_dom_id;
-
-            Edge->UpstreamTopHits   = TopHits;
-            Edge->UpstreamDisplay   = UpstreamDisplay;
-            Edge->DownstreamTopHits = TopHits;
-            Edge->DownstreamDisplay = DownstreamDisplay;
-
-            num_edges++;
-
-          }
-
-        }
-
-      }
-
-    }
-
-  }
-
-
-  //
-  //  Now that we have our splice edges, we can more fully
-  //  sketch out how they connect!
-  //
-  //
-  //  This *could* be part of the above loop, but what's the
-  //  rush?
-  //
-
-
-  // We'll run through all of our paired domains and actually
-  // splice 'em up (or at least try our best to)!
-  int splice_edge_id;
-  for (splice_edge_id = 0; splice_edge_id < num_edges; splice_edge_id++) {
-
-    SketchSpliceEdge(SpliceEdges[splice_edge_id],TargetNuclSeq,gm,gcode);
-
-    // If we failed to find a reasonable splice site, then we'll
-    // just rip this edge outta consideration.
-    if (SpliceEdges[splice_edge_id]->score == EDGE_FAIL_SCORE) {
-      free(SpliceEdges[splice_edge_id]);
-      SpliceEdges[splice_edge_id] = NULL;
-    }
-
-  }
-
-
-
-  if (DEBUGGING1) DEBUG_OUT("'GatherViableSpliceEdges' Complete",-1);
-
-
-  *num_splice_edges = num_edges;
-  return SpliceEdges;
-
-}
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
@@ -3271,7 +3689,7 @@ DOMAIN_OVERLAP ** GatherViableSpliceEdges
  *  Output:
  *
  */
-DOMAIN_OVERLAP ** create_splice_egdes
+SPLICE_EDGE ** create_splice_egdes
 (
   TARGET_RANGE *target_range,
   ESL_SQ       *target_seq,
@@ -3287,8 +3705,8 @@ DOMAIN_OVERLAP ** create_splice_egdes
   int num_edges;
   int   upstream_hit_id;
   int downstream_hit_id;
-
-  DOMAIN_OVERLAP ** SpliceEdges;
+  SPLICE_EDGE * Edge;
+  SPLICE_EDGE ** SpliceEdges;
   P7_HIT * UpstreamHit;
   P7_HIT * DownstreamHit;
   P7_ALIDISPLAY * UpstreamDisplay;
@@ -3301,13 +3719,13 @@ DOMAIN_OVERLAP ** create_splice_egdes
   num_hits = target_range->th->N;
 
   edge_capacity = 2 * num_hits;
-  SpliceEdges = (DOMAIN_OVERLAP **)malloc(edge_capacity * sizeof(DOMAIN_OVERLAP *));
+  SpliceEdges = (SPLICE_EDGE **)malloc(edge_capacity * sizeof(SPLICE_EDGE *));
 
   num_edges = 0;
   for (upstream_hit_id = 0; upstream_hit_id < num_hits; upstream_hit_id++) {
 
     UpstreamHit  = target_range->th->hit[upstream_hit_id];
-    UpstreamDisplay = (&UpstreamHit->dcl[0])->ad;
+    UpstreamDisplay = UpstreamHit->dcl[0].ad;
 
     if (ExcessiveGapContent(UpstreamDisplay))          continue;
     
@@ -3318,79 +3736,54 @@ DOMAIN_OVERLAP ** create_splice_egdes
       if (upstream_hit_id == downstream_hit_id)  continue;
 
       DownstreamHit  = target_range->th->hit[downstream_hit_id];
-      DownstreamDisplay = (&DownstreamHit->dcl[0])->ad;      
+      DownstreamDisplay = DownstreamHit->dcl[0].ad;      
 
       if (ExcessiveGapContent(DownstreamDisplay))   continue;
-
-      if (HitsAreSpliceCompatible(UpstreamDisplay,DownstreamDisplay)) {
-
-            // MUST WE RESIZE?!
-            if (num_edges == edge_capacity) {
-
-              edge_capacity *= 2;
-
-              DOMAIN_OVERLAP ** MoreSpliceEdges = (DOMAIN_OVERLAP **)malloc(edge_capacity * sizeof(DOMAIN_OVERLAP *));
-              int edge_id;
-              for (edge_id=0; edge_id<num_edges; edge_id++)
-                MoreSpliceEdges[edge_id] = SpliceEdges[edge_id];
-
-              free(SpliceEdges);
-              SpliceEdges = MoreSpliceEdges;
-
-            }
-
-
-           // Record that splice compatibility!
-            SpliceEdges[num_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
-            
-            DOMAIN_OVERLAP * Edge  = SpliceEdges[num_edges];
-
-            Edge->upstream_hit_id   = upstream_hit_id;
-            Edge->upstream_dom_id   = 0;
-            Edge->downstream_hit_id = downstream_hit_id;
-            Edge->downstream_dom_id = 0;
-
-            Edge->UpstreamTopHits   = target_range->th;
-            Edge->UpstreamDisplay   = UpstreamDisplay;
-            Edge->DownstreamTopHits = target_range->th;
-            Edge->DownstreamDisplay = DownstreamDisplay;
-
-            num_edges++;
-
-          }
+      //printf("UpstreamDisplay sqfrom %d sqto %d hmmfrom %d hmmto %d \n", UpstreamDisplay->sqfrom, UpstreamDisplay->sqto, UpstreamDisplay->hmmfrom, UpstreamDisplay->hmmto);
      
+      // printf("UpstreamTrace sqfrom %d sqto %d hmmfrom %d hmmto %d \n", UpstreamHit->dcl[0].iali,UpstreamHit->dcl[0].jali, UpstreamHit->dcl[0].tr->hmmfrom[0], UpstreamHit->dcl[0].tr->hmmto[0]); 
+      if(are_hits_splice_comaptible(&UpstreamHit->dcl[0], &DownstreamHit->dcl[0], target_range->complementarity)) { 
+
+        // MUST WE RESIZE?!
+        if (num_edges == edge_capacity) {
+
+          edge_capacity *= 2;
+
+          SPLICE_EDGE ** MoreSpliceEdges = (SPLICE_EDGE **)malloc(edge_capacity * sizeof(SPLICE_EDGE *));
+          int edge_id;
+          for (edge_id=0; edge_id<num_edges; edge_id++)
+            MoreSpliceEdges[edge_id] = SpliceEdges[edge_id];
+
+          free(SpliceEdges);
+          SpliceEdges = MoreSpliceEdges;
+
+        }
+ 
+        Edge = (SPLICE_EDGE *)malloc(sizeof(SPLICE_EDGE));
+
+        Edge->upstream_hit_id   = upstream_hit_id;
+        Edge->upstream_dom_id   = 0;
+        Edge->downstream_hit_id = downstream_hit_id;
+        Edge->downstream_dom_id = 0;
+
+        Edge->UpstreamTopHits   = target_range->th;
+        Edge->UpstreamDisplay   = UpstreamDisplay;
+        Edge->UpstreamTrace     = UpstreamHit->dcl[0].tr; 
+        Edge->DownstreamTopHits = target_range->th;
+        Edge->DownstreamDisplay = DownstreamDisplay;
+        Edge->DownstreamTrace   = DownstreamHit->dcl[0].tr;
+
+        sketch_splice_edge(Edge, target_seq, TargetNuclSeq, gm, gcode, target_range->complementarity);
+        
+        if (Edge->score != EDGE_FAIL_SCORE) {
+          SpliceEdges[num_edges] = Edge;
+          num_edges++;
+        }
+        else 
+          free(Edge);
+      }
     }
-
   }
-
-
-  //
-  //  Now that we have our splice edges, we can more fully
-  //  sketch out how they connect!
-  //
-  //
-  //  This *could* be part of the above loop, but what's the
-  //  rush?
-  //
-
-
-  // We'll run through all of our paired domains and actually
-  // splice 'em up (or at least try our best to)!
-  int splice_edge_id;
-  for (splice_edge_id = 0; splice_edge_id < num_edges; splice_edge_id++) {
-
-    SketchSpliceEdge(SpliceEdges[splice_edge_id],TargetNuclSeq,gm,gcode);
-
-    // If we failed to find a reasonable splice site, then we'll
-    // just rip this edge outta consideration.
-    if (SpliceEdges[splice_edge_id]->score == EDGE_FAIL_SCORE) {
-      free(SpliceEdges[splice_edge_id]);
-      SpliceEdges[splice_edge_id] = NULL;
-    }
-
-  }
-
-
 
   if (DEBUGGING1) DEBUG_OUT("'create_splice_egdes' Complete",-1);
 
@@ -3445,13 +3838,13 @@ SPLICE_NODE * InitSpliceNode
 
   NewNode->out_edge_cap    = 10;
   NewNode->num_out_edges   =  0;
-  NewNode->OutEdges        = (DOMAIN_OVERLAP **)malloc(NewNode->out_edge_cap*sizeof(DOMAIN_OVERLAP *));
+  NewNode->OutEdges        = (SPLICE_EDGE **)malloc(NewNode->out_edge_cap*sizeof(SPLICE_EDGE *));
   NewNode->DownstreamNodes = (SPLICE_NODE    **)malloc(NewNode->out_edge_cap*sizeof(SPLICE_NODE    *));
 
   NewNode->in_edge_cap    = 10;
   NewNode->num_in_edges   =  0;
   NewNode->best_in_edge   = -1;
-  NewNode->InEdges        = (DOMAIN_OVERLAP **)malloc(NewNode->in_edge_cap*sizeof(DOMAIN_OVERLAP *));
+  NewNode->InEdges        = (SPLICE_EDGE **)malloc(NewNode->in_edge_cap*sizeof(SPLICE_EDGE *));
   NewNode->UpstreamNodes  = (SPLICE_NODE    **)malloc(NewNode->in_edge_cap*sizeof(SPLICE_NODE    *));
 
 
@@ -3516,7 +3909,7 @@ SPLICE_NODE * InitSpliceNode
  *
  */
 void ConnectNodesByEdge
-(DOMAIN_OVERLAP * Edge, SPLICE_GRAPH * Graph)
+(SPLICE_EDGE * Edge, SPLICE_GRAPH * Graph)
 {
 
   if (DEBUGGING1) DEBUG_OUT("Starting 'ConnectNodesByEdge'",1);
@@ -3553,7 +3946,7 @@ void ConnectNodesByEdge
   if (UpstreamNode->num_out_edges == UpstreamNode->out_edge_cap) {
     UpstreamNode->out_edge_cap *= 2;
 
-    DOMAIN_OVERLAP ** NewOutEdges = (DOMAIN_OVERLAP **)malloc(UpstreamNode->out_edge_cap*sizeof(DOMAIN_OVERLAP *)); 
+    SPLICE_EDGE ** NewOutEdges = (SPLICE_EDGE **)malloc(UpstreamNode->out_edge_cap*sizeof(SPLICE_EDGE *)); 
     SPLICE_NODE    ** NewDSNodes  = (SPLICE_NODE    **)malloc(UpstreamNode->out_edge_cap*sizeof(SPLICE_NODE    *));
 
     for (edge_id=0; edge_id<UpstreamNode->num_out_edges; edge_id++) {
@@ -3573,7 +3966,7 @@ void ConnectNodesByEdge
 
     DownstreamNode->in_edge_cap *= 2;
 
-    DOMAIN_OVERLAP ** NewInEdges = (DOMAIN_OVERLAP **)malloc(DownstreamNode->in_edge_cap*sizeof(DOMAIN_OVERLAP *)); 
+    SPLICE_EDGE ** NewInEdges = (SPLICE_EDGE **)malloc(DownstreamNode->in_edge_cap*sizeof(SPLICE_EDGE *)); 
     SPLICE_NODE    ** NewUSNodes = (SPLICE_NODE    **)malloc(DownstreamNode->in_edge_cap*sizeof(SPLICE_NODE    *));
 
     for (edge_id=0; edge_id<DownstreamNode->num_in_edges; edge_id++) {
@@ -3683,7 +4076,7 @@ int EdgeWouldEraseNode
 
   // Who's the candidate upstream node for Node3?
   SPLICE_NODE    * Node2  = Node3->UpstreamNodes[n3_in_edge_index];
-  DOMAIN_OVERLAP * DO_2_3 = Node3->InEdges[n3_in_edge_index];
+  SPLICE_EDGE * DO_2_3 = Node3->InEdges[n3_in_edge_index];
 
 
   // If Node2 doesn't have a best input edge, there's
@@ -3696,7 +4089,7 @@ int EdgeWouldEraseNode
   // Note that this has already been determined due to the
   // recursive nature of 'PullUpCumulativeScore'
   int n2_in_edge_index    = Node2->best_in_edge;
-  DOMAIN_OVERLAP * DO_1_2 = Node2->InEdges[n2_in_edge_index];
+  SPLICE_EDGE * DO_1_2 = Node2->InEdges[n2_in_edge_index];
 
   
   // Would the edge connecting nodes 1 and 2 place the
@@ -3715,7 +4108,7 @@ int EdgeWouldEraseNode
       
     if (n3_in_edge_index <= Node3->num_in_edges) {
       /* edges are freed by InEdges pointers so n3_in_edge_index edge must be freed here */
-      DOMAIN_OVERLAP_Destroy(Node3->InEdges[n3_in_edge_index]);
+      SPLICE_EDGE_Destroy(Node3->InEdges[n3_in_edge_index]);
       for(edge_idx = n3_in_edge_index; edge_idx < Node3->num_in_edges; edge_idx++){
         Node3->InEdges[edge_idx]       = Node3->InEdges[edge_idx+1];
         Node3->UpstreamNodes[edge_idx] = Node3->UpstreamNodes[edge_idx+1];
@@ -3895,7 +4288,7 @@ void FillOutGraphStructure
 (
   SPLICE_GRAPH    * Graph, 
   TARGET_SEQ      * TargetNuclSeq,
-  DOMAIN_OVERLAP ** SpliceEdges, 
+  SPLICE_EDGE ** SpliceEdges, 
   int num_splice_edges
 )
 {
@@ -3914,7 +4307,7 @@ void FillOutGraphStructure
 
 
   // We'll want this lookup table to be able to go from
-  // DOMAIN_OVERLAP content
+  // SPLICE_EDGE content
   int num_hits = (int)(Graph->TopHits->N);
   //int max_doms = 0;
  // int sum_doms = 0;
@@ -4050,84 +4443,6 @@ void FindBestFullPath
 
 
 
-
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *
- *  Function: BuildSpliceGraph
- *
- *  Desc. :
- *
- *  Inputs:  1.       TopHits :
- *           2. TargetNuclSeq : The sub-sequence of the target sequence wherein all hits reside.
- *           3.            gm : The straightforward profile for the protein / family.
- *           4.            om : The optimized profile (assumed to be built on 'gm').
- *           5.         gcode : An ESL_GENCODE struct (mainly used for translation).
- *
- *  Output:
- *
- */
-SPLICE_GRAPH * BuildSpliceGraph
-(
-  P7_TOPHITS  * TopHits, 
-  TARGET_SEQ  * TargetNuclSeq,
-  P7_PROFILE  * gm,
-  P7_OPROFILE * om,
-  ESL_GENCODE * gcode
-)
-{
-
-  if (DEBUGGING1) DEBUG_OUT("Starting 'BuildSpliceGraph'",1);
- // int hit_id;
- // P7_HIT          *hit;
-  
-  // We'll just make an unordered list of our splice edges for now
-  int num_splice_edges = 0;
-  DOMAIN_OVERLAP ** SpliceEdges = GatherViableSpliceEdges(TopHits,TargetNuclSeq,gm,gcode,&num_splice_edges);
-
-
-  SPLICE_GRAPH * Graph = (SPLICE_GRAPH *)malloc(sizeof(SPLICE_GRAPH));
-
-
-  Graph->TopHits   = TopHits;
-  Graph->MissedHits = NULL;
-  
-  Graph->Model  = gm;
-  Graph->OModel = om;
-
-  Graph->TH_HitDomToNodeID = NULL;
-  Graph->MH_HitToNodeID    = NULL;
-
-  Graph->Nodes        = NULL;
-  Graph->CTermNodeIDs = NULL;
-
-
-  // Initialize our basic metadata
-  Graph->num_nodes  = 0;
-  Graph->num_edges  = 0;
-  Graph->num_n_term = 0;
-  Graph->num_c_term = 0;
-
-
-  // Eventually, we'll need to know if we have a full
-  // path through this graph.
-  Graph->has_full_path        = 0;
-  Graph->best_full_path_start = 0;
-  Graph->best_full_path_end   = 0;
-  Graph->best_full_path_score = 0.0;
-
-
-  // Build that stinky graph!
-  FillOutGraphStructure(Graph,TargetNuclSeq,SpliceEdges,num_splice_edges);
-  FindBestFullPath(Graph);
-
-  free(SpliceEdges);
-
-  if (DEBUGGING1) DEBUG_OUT("'BuildSpliceGraph' Complete",-1);
-
-  return Graph;
-
-}
-
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
  *  Function: build_splice_graph
@@ -4156,7 +4471,7 @@ SPLICE_GRAPH * build_splice_graph
 {
 
   int num_splice_edges;
-  DOMAIN_OVERLAP ** SpliceEdges;
+  SPLICE_EDGE ** SpliceEdges;
   SPLICE_GRAPH * Graph;  
 
   if (DEBUGGING1) DEBUG_OUT("Starting 'build_splice_graph'",1);
@@ -4164,7 +4479,7 @@ SPLICE_GRAPH * build_splice_graph
   // We'll just make an unordered list of our splice edges for now
   num_splice_edges = 0;
   SpliceEdges = create_splice_egdes(target_range, target_seq, TargetNuclSeq,gm,gcode,&num_splice_edges);
-
+  
   Graph = (SPLICE_GRAPH *)malloc(sizeof(SPLICE_GRAPH));
 
 
@@ -4763,7 +5078,7 @@ int * IdentifyMidSearchRegions
   
     for (ds_index=0; ds_index<USNode->num_out_edges; ds_index++) {
 
-      DOMAIN_OVERLAP * DO   = USNode->OutEdges[ds_index];
+      SPLICE_EDGE * DO   = USNode->OutEdges[ds_index];
       P7_ALIDISPLAY  * USAD = DO->UpstreamDisplay;
       P7_ALIDISPLAY  * DSAD = DO->DownstreamDisplay;
 
@@ -4832,7 +5147,7 @@ int * IdentifyMidSearchRegions
      if (DSHMMfrom[ds_index] - USHMMto[ds_index] <= 6)
         continue;
      
-      DOMAIN_OVERLAP * DO   = USNode->OutEdges[ds_index];
+      SPLICE_EDGE * DO   = USNode->OutEdges[ds_index];
       P7_ALIDISPLAY  * USAD = DO->UpstreamDisplay;
       P7_ALIDISPLAY  * DSAD = DO->DownstreamDisplay;
       
@@ -5808,7 +6123,7 @@ P7_DOMAIN ** FindSubHits
  *
  */
 void IntegrateMissedHits
-(SPLICE_GRAPH * Graph, DOMAIN_OVERLAP ** NewSpliceEdges, int num_new_edges)
+(SPLICE_GRAPH * Graph, SPLICE_EDGE ** NewSpliceEdges, int num_new_edges)
 {
   if (DEBUGGING1) DEBUG_OUT("Starting 'IntegrateMissedHits'",1);
 
@@ -6069,7 +6384,7 @@ void AddMissingExonsToGraph
   }
 
 
-  // This is basically the same code from 'GatherViableSpliceEdges,'
+  // This is basically the same code from 'create_splice_egdes,'
   // but reworked to integrate new exons into the splice graph.
   //
   // It probably wouldn't be hard to convert the two to a single function,
@@ -6077,7 +6392,7 @@ void AddMissingExonsToGraph
   // to get *real* P7_DOMAINs from *actual* P7_HITs (but not my goofy ones)
   //
   int new_splice_edge_cap = 4 * Graph->MissedHits->N;
-  DOMAIN_OVERLAP ** NewSpliceEdges = (DOMAIN_OVERLAP **)malloc(new_splice_edge_cap*sizeof(DOMAIN_OVERLAP *));
+  SPLICE_EDGE ** NewSpliceEdges = (SPLICE_EDGE **)malloc(new_splice_edge_cap*sizeof(SPLICE_EDGE *));
 
   int num_missing_hits = (int)(Graph->MissedHits->N);
   int num_new_edges    = 0;
@@ -6105,9 +6420,9 @@ void AddMissingExonsToGraph
       // need to have a catch for either possibility.
       if (HitsAreSpliceCompatible(NodeAD,MissedAD)) {
 
-        NewSpliceEdges[num_new_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
+        NewSpliceEdges[num_new_edges] = (SPLICE_EDGE *)malloc(sizeof(SPLICE_EDGE));
         
-        DOMAIN_OVERLAP * Edge         = NewSpliceEdges[num_new_edges];
+        SPLICE_EDGE * Edge         = NewSpliceEdges[num_new_edges];
 
         Edge->upstream_hit_id   = node_hit_id;
         Edge->upstream_dom_id   = node_dom_id;
@@ -6123,8 +6438,8 @@ void AddMissingExonsToGraph
 
       } else if (HitsAreSpliceCompatible(MissedAD,NodeAD)) {
         
-         NewSpliceEdges[num_new_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
-        DOMAIN_OVERLAP * Edge         = NewSpliceEdges[num_new_edges];
+         NewSpliceEdges[num_new_edges] = (SPLICE_EDGE *)malloc(sizeof(SPLICE_EDGE));
+        SPLICE_EDGE * Edge         = NewSpliceEdges[num_new_edges];
 
         Edge->upstream_hit_id   = missed_hit_id;
         Edge->upstream_dom_id   = 0;
@@ -6144,7 +6459,7 @@ void AddMissingExonsToGraph
       if (num_new_edges == new_splice_edge_cap) {
         new_splice_edge_cap *= 2;
        
-        DOMAIN_OVERLAP ** MoreNewEdges = (DOMAIN_OVERLAP **)malloc(new_splice_edge_cap*sizeof(DOMAIN_OVERLAP *));
+        SPLICE_EDGE ** MoreNewEdges = (SPLICE_EDGE **)malloc(new_splice_edge_cap*sizeof(SPLICE_EDGE *));
         int i;
         for (i=0; i<num_new_edges; i++)
           MoreNewEdges[i] = NewSpliceEdges[i];
@@ -6165,8 +6480,8 @@ void AddMissingExonsToGraph
 
       if (HitsAreSpliceCompatible(MissedAD,MAD2)) {
 
-        NewSpliceEdges[num_new_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
-        DOMAIN_OVERLAP * Edge         = NewSpliceEdges[num_new_edges];
+        NewSpliceEdges[num_new_edges] = (SPLICE_EDGE *)malloc(sizeof(SPLICE_EDGE));
+        SPLICE_EDGE * Edge         = NewSpliceEdges[num_new_edges];
 
         Edge->upstream_hit_id   = missed_hit_id;
         Edge->upstream_dom_id   = 0;
@@ -6182,8 +6497,8 @@ void AddMissingExonsToGraph
 
       } else if (HitsAreSpliceCompatible(MAD2,MissedAD)) {
 
-        NewSpliceEdges[num_new_edges] = (DOMAIN_OVERLAP *)malloc(sizeof(DOMAIN_OVERLAP));
-        DOMAIN_OVERLAP * Edge         = NewSpliceEdges[num_new_edges];
+        NewSpliceEdges[num_new_edges] = (SPLICE_EDGE *)malloc(sizeof(SPLICE_EDGE));
+        SPLICE_EDGE * Edge         = NewSpliceEdges[num_new_edges];
 
         Edge->upstream_hit_id   = mhi2;
         Edge->upstream_dom_id   = 0;
@@ -6204,7 +6519,7 @@ void AddMissingExonsToGraph
 
         new_splice_edge_cap *= 2;
 
-        DOMAIN_OVERLAP ** MoreNewEdges = (DOMAIN_OVERLAP **)malloc(new_splice_edge_cap*sizeof(DOMAIN_OVERLAP *));
+        SPLICE_EDGE ** MoreNewEdges = (SPLICE_EDGE **)malloc(new_splice_edge_cap*sizeof(SPLICE_EDGE *));
         int i;
         for (i=0; i<num_new_edges; i++)
           MoreNewEdges[i] = NewSpliceEdges[i];
@@ -6243,6 +6558,7 @@ void AddMissingExonsToGraph
 
 
 }
+
 
 
 
@@ -8310,7 +8626,7 @@ void SpliceHits
   TARGET_SEQ       *TargetNuclSeq;
   ESL_SQ           *target_seq;
   SPLICE_GRAPH     *Graph;
-
+  
   if (DEBUGGING1) DEBUG_OUT("Starting 'SpliceHits'",1);
 
     INIT_SECONDS = time(NULL);
@@ -8343,8 +8659,20 @@ void SpliceHits
     // be a bit more efficient in our file reading by only pulling
     // target sequences as they change (wrt the upstream hit)  
     TargetNuclSeq = get_target_range_sequence(GenomicSeqFile, curr_target_range); 
-    target_seq = TargetNuclSeq->esl_sq;
-     
+    
+    /* Tempoarary patch to using both ESL_SQ and TARGET_SEQ during 
+     * re-write. When the taget range is on the reverse strand we 
+     * need to remake the target_seq->dsq. Eventually this will be
+     * handeled inside get_target_range_sequence() which will return 
+     * an ESL_SQ instead of a TARGET_SEQ                             */
+    target_seq = esl_sq_CreateDigital(TargetNuclSeq->abc);
+    esl_sq_Copy(TargetNuclSeq->esl_sq, target_seq);
+    if(curr_target_range->complementarity) {
+      if(target_seq->seq == NULL) target_seq->seq = malloc(target_seq->salloc * sizeof(char));
+      esl_abc_Textize(target_seq->abc, target_seq->dsq, target_seq->n, target_seq->seq);
+      esl_sq_ReverseComplement(target_seq);
+      esl_abc_Digitize(target_seq->abc, target_seq->seq, target_seq->dsq);
+    }
 
     // This function encapsulates a *ton* of the work we do.
     // In short, take the collection of unspliced hits and build
@@ -8352,10 +8680,11 @@ void SpliceHits
     // them.
     //
     Graph = build_splice_graph(curr_target_range, target_seq, TopHits,TargetNuclSeq,gm,om,gcode);
-    
+   
     // Evaluate the graph for any holes (or possible holes)
     // worth plugging
     //
+    
     AddMissingExonsToGraph(Graph,TargetNuclSeq,gcode);
 
     // If we're debugging, it might be useful to get a quick
@@ -8371,7 +8700,7 @@ void SpliceHits
     // CLEANUP
     SPLICE_GRAPH_Destroy(Graph);
     TARGET_SEQ_Destroy(TargetNuclSeq);
-
+    esl_sq_Destroy(target_seq);
   }
 
   // return tophits to sortkey sorting 

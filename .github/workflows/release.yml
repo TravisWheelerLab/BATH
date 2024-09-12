@@ -70,12 +70,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: BATH-${{ matrix.os }}-${{ matrix.arch }}
-          path: ./artifacts
-
       - name: Check if release exists
         id: check_release
         env:
@@ -98,7 +92,13 @@ jobs:
               --repo="$GITHUB_REPOSITORY" \
               --title="${GITHUB_REPOSITORY#*/} ${tag#v}" \
               --generate-notes
-        
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: BATH-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./artifacts
+
       - name: List files in artifacts directory
         run: |
           echo "Listing files in ./artifacts:"

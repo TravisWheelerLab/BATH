@@ -10,18 +10,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]  # build for ubuntu and mac
-        arch: [x64, arm] # x64 and arm
+        os: [ubuntu, macos]  # build for ubuntu and mac
+        arch: [x64, arm64] # x64 and arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set up build environment
         run: |
-          if [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
+          if [ ${{ matrix.os }} == 'ubuntu' ]; then
             sudo apt-get update
             sudo apt-get install -y autoconf gcc make
-          elif [ ${{ matrix.os }} == 'macos-latest' ]; then
+          elif [ ${{ matrix.os }} == 'macos' ]; then
             brew install autoconf gcc make
           fi
 
@@ -52,7 +52,7 @@ jobs:
         run: |
           cd installation/usr/local/bin
           tar -czvf ../../../BATH-${{ steps.extract_version.outputs.version }}.${{ matrix.os }}.${{ matrix.arch }}.tar.gz bathsearch bathbuild bathconvert bathfetch bathstat
-          
+
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -65,8 +65,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        arch: [x64, arm] # x64 and arm
+        os: [ubuntu, macos]
+        arch: [x64, arm64] # x64 and arm
     steps:
       - uses: actions/checkout@v3
 

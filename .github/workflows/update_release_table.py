@@ -32,14 +32,14 @@ def extract_os_arch_from_filename(filename):
         os = match.group(1)
         arch = match.group(2)
 
-        if os == "darwin":
+        if os == "macos":
             os = "MacOS"
-        elif os == "linux":
-            os = "Linux"
+        elif os == "ubuntu":
+            os = "Ubuntu"
         elif os == "windows":
             os = "Windows"
 
-        if arch == "amd64":
+        if arch == "x64":
             arch = "Intel/AMD 64-bit"
         elif arch == "386":
             arch = "Intel/AMD 32-bit"

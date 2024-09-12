@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu, macos]  # build for ubuntu and mac
+        os: [ubuntu-latest, macos-latest]  # build for ubuntu and mac
         arch: [x64, arm64] # x64 and arm
     steps:
       - name: Checkout code
@@ -18,10 +18,10 @@ jobs:
 
       - name: Set up build environment
         run: |
-          if [ ${{ matrix.os }} == 'ubuntu' ]; then
+          if [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
             sudo apt-get update
             sudo apt-get install -y autoconf gcc make
-          elif [ ${{ matrix.os }} == 'macos' ]; then
+          elif [ ${{ matrix.os }} == 'macos-latest' ]; then
             brew install autoconf gcc make
           fi
 
@@ -65,7 +65,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu, macos]
+        os: [ubuntu-latest, macos-latest]
         arch: [x64, arm64]
     steps:
       - uses: actions/checkout@v3

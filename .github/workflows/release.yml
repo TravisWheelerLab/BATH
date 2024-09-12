@@ -76,6 +76,7 @@ jobs:
         run: |
           echo "Listing files in ./artifacts:"
           ls -l ./artifacts
+
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         env:
@@ -85,3 +86,9 @@ jobs:
           tag_name: ${{ steps.extract_version.outputs.version }}
           name: Release ${{ steps.extract_version.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Run Python script
+        run: |
+          python .github/workflows/update_release_table.py ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}

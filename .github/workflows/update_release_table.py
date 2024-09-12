@@ -31,6 +31,9 @@ def extract_os_arch_from_filename(filename):
         os = match.group(1)
         arch = match.group(2)
 
+        print(filename)
+        print(os)
+        print(arch)
         if os == "macos-latest":
             os = "MacOS"
         elif os == "ubuntu-latest":

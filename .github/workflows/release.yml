@@ -24,12 +24,14 @@ jobs:
           elif [ ${{ matrix.os }} == 'macos-latest' ]; then
             brew install autoconf gcc make
           fi
+
       - name: Clone Easel repository
         run: |
           git clone https://github.com/TravisWheelerLab/easel
           cd easel
           git checkout BATH
           cd ..
+
       - name: Run autoconf
         run: autoconf
 
@@ -41,6 +43,7 @@ jobs:
           make
           mkdir -p installation/usr/local/bin
           cd src && make install DESTDIR=../installation
+
       - name: Extract version from github.ref
         id: extract_version
         run: echo "::set-output name=version::$(echo ${GITHUB_REF#refs/tags/})"
@@ -49,6 +52,7 @@ jobs:
         run: |
           cd installation/usr/local/bin
           tar -czvf ../../../BATH-${{ steps.extract_version.outputs.version }}.${{ matrix.os }}.${{ matrix.arch }}.tar.gz bathsearch bathbuild bathconvert bathfetch bathstat
+          
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4
         with:

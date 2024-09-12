@@ -86,9 +86,9 @@ jobs:
           tag_name: ${{ steps.extract_version.outputs.version }}
           name: Release ${{ steps.extract_version.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Run Python script
         run: |
           python .github/workflows/update_release_table.py ${{ github.ref_name }}
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -23,7 +23,7 @@ def find_release_by_version(releases, version):
     return None
 
 def extract_os_arch_from_filename(filename):
-    pattern = r'[-]([a-zA-Z]+[.-][a-zA-Z]+)[.-]([a-zA-Z0-9_]+)\.tar\.gz'
+    pattern = r'[-]([a-zA-Z]+-[a-zA-Z]+)\.([a-zA-Z0-9_]+)\.tar\.gz'
     
     match = re.search(pattern, filename)
     
@@ -31,9 +31,6 @@ def extract_os_arch_from_filename(filename):
         os = match.group(1)
         arch = match.group(2)
 
-        print(filename)
-        print(os)
-        print(arch)
         if os == "macos-latest":
             os = "MacOS"
         elif os == "ubuntu-latest":

@@ -76,7 +76,20 @@ jobs:
           pattern: BATH-${{ matrix.os }}-${{ matrix.arch }}
           path: ./artifacts
 
+      - name: Check if release exists
+        id: check_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        run: |
+          if gh release view "$tag" --repo="$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "release_exists=true" >> $GITHUB_ENV
+          else
+            echo "release_exists=false" >> $GITHUB_ENV
+          fi
+        
       - name: Create release
+        if: env.release_exists == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
@@ -85,7 +98,7 @@ jobs:
               --repo="$GITHUB_REPOSITORY" \
               --title="${GITHUB_REPOSITORY#*/} ${tag#v}" \
               --generate-notes
-
+        
       - name: List files in artifacts directory
         run: |
           echo "Listing files in ./artifacts:"

@@ -23,7 +23,7 @@ def find_release_by_version(releases, version):
     return None
 
 def extract_os_arch_from_filename(filename):
-    pattern = r'[-]([a-zA-Z]+-[a-zA-Z]+)\.([a-zA-Z0-9_]+)\.tar\.gz'
+    pattern = r'[.-]([a-zA-Z]+-[a-zA-Z]+)\.([a-zA-Z0-9_]+)\.tar\.gz'
     
     match = re.search(pattern, filename)
     

@@ -76,6 +76,16 @@ jobs:
           pattern: BATH-${{ matrix.os }}-${{ matrix.arch }}
           path: ./artifacts
 
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        run: |
+          gh release create "$tag" \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${GITHUB_REPOSITORY#*/} ${tag#v}" \
+              --generate-notes
+
       - name: List files in artifacts directory
         run: |
           echo "Listing files in ./artifacts:"

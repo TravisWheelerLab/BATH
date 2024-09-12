@@ -85,6 +85,8 @@ jobs:
           files: ./artifacts/BATH-${{ matrix.os }}-${{ matrix.arch }}/*
           tag_name: ${{ steps.extract_version.outputs.version }}
           name: Release ${{ steps.extract_version.outputs.version }}
+          prerelease: false
+          draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Python script

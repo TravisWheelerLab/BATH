@@ -33,7 +33,7 @@ static char    DNA_CHARS[ 6] = {'A','C','G','T','-','N'};
 static char LC_DNA_CHARS[ 6] = {'a','c','g','t','-','n'};
 
 
-static int MAX_TARGET_RANGE_EXT = 3000000;
+//static int MAX_TARGET_RANGE_EXT = 3000000;
 
 // How many amino acids are we willing to extend to bridge two hits?  
 // How many overlapping aminos do we require to perform bridging?
@@ -7465,9 +7465,9 @@ void SpliceHits
   TARGET_RANGE     *curr_target_range;
   ESL_SQ           *target_seq;
   SPLICE_GRAPH     *Graph;
-  P7_TOPHITS       *full_path_hits;
-  SPLICE_GRAPH     *full_path_graph;
-  SPLICE_NODE      *full_path_node;
+//  P7_TOPHITS       *full_path_hits;
+//  SPLICE_GRAPH     *full_path_graph;
+//  SPLICE_NODE      *full_path_node;
  
   if (DEBUGGING1) DEBUG_OUT("Starting 'SpliceHits'",1);
 

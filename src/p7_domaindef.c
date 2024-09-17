@@ -1722,15 +1722,17 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
     dom->jali          = dom->ad->sqto;
     dom->ienv          = i;
     dom->jenv          = j;
- }
+  }
   else
   {
     dom->iali          = dom->ad->sqto - 2;
     dom->jali          = dom->ad->sqfrom;
     dom->ienv          = j;
     dom->jenv          = i;
- }
-  
+  }
+ 
+  dom->ihmm          = dom->ad->hmmfrom;
+  dom->jhmm          = dom->ad->hmmto;  
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
@@ -1849,6 +1851,8 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 
   dom->domcorrection = domcorrection; /* in units of NATS */
 	
+  dom->ihmm          = dom->ad->hmmfrom;
+  dom->jhmm          = dom->ad->hmmto;  
   dom->iali          = dom->ad->sqfrom;
   dom->jali          = dom->ad->sqto;
   dom->ienv          = i; 

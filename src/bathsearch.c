@@ -430,14 +430,14 @@ bath_open_seq_file (struct cfg_s *cfg, ESL_SQFILE **qfp_sq, ESL_ALPHABET **abc, 
          if (q_type == eslUNKNOWN) p7_Fail("Unable to guess alphabet for the %s%s query file %s\n", (cfg->qfmt==eslUNKNOWN ? "" : esl_sqio_DecodeFormat(cfg->qfmt)), (cfg->qfmt==eslSQFILE_UNKNOWN ? "":"-formatted"), cfg->queryfile);
            *abc = esl_alphabet_Create(q_type);
       }
-      if ((*abc)->type != eslAMINO) 
+      if ((*abc)->type != eslAMINO) { 
         p7_Fail("Invalid alphabet type in the %s%squery file %s. Expect Amino Acid\n", (cfg->qfmt==eslUNKNOWN ? "" : esl_sqio_DecodeFormat(cfg->qfmt)), (cfg->qfmt==eslSQFILE_UNKNOWN ? "":"-formatted "), cfg->queryfile);
-
-        esl_sqfile_SetDigital(*qfp_sq, *abc);
-        // read first sequence
-        *qsq = esl_sq_CreateDigital(*abc);
-        status = esl_sqio_Read(*qfp_sq, *qsq);
-        if (status != eslOK) p7_Fail("reading sequence from file %s (%d): \n%s\n", cfg->queryfile, status, esl_sqfile_GetErrorBuf(*qfp_sq));
+      }
+      esl_sqfile_SetDigital(*qfp_sq, *abc);
+      // read first sequence
+      *qsq = esl_sq_CreateDigital(*abc);
+      status = esl_sqio_Read(*qfp_sq, *qsq);
+      if (status != eslOK) p7_Fail("reading sequence from file %s (%d): \n%s\n", cfg->queryfile, status, esl_sqfile_GetErrorBuf(*qfp_sq));
     }
     return status;
 }
@@ -472,13 +472,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_MSAFILE     *qfp_msa                  = NULL;              /* open query alifile                              */
   ESL_SQFILE      *qfp_sq                   = NULL;              /* open query seqfile                              */
   int              dbfmt                    = eslSQFILE_UNKNOWN; /* format code for sequence database file          */
-
-  /* SSI index */
-  ESL_NEWSSI      *newssi                   = NULL;             /* new SSI index                                    */
-  ESL_SQ          *ssisq                    = NULL;
-  char            *ssifile                  = NULL;             /* name of new SSI index file                       */
-  uint16_t         fh;
-  int              nssiseq;
 
  /* query formats and HMM construction*/
   P7_HMM          *hmm                      = NULL;              /* one HMM query                                   */
@@ -926,7 +919,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N)
-      SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
+      p7_splice_SpliceHits(tophits_accumulator, gm, dbfp);
+    //  SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
 
     
       /* Print the results.  */

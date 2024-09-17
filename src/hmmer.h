@@ -772,6 +772,8 @@ typedef struct p7_dom_s {
   int64_t        ienv, jenv;
   int64_t        iali, jali;
   int64_t        iorf, jorf;     /*Used in translated search to capture the range in the DNA sequence of the ORF containing the match to a protein query */
+  int            ihmm, jhmm;     /* query model start and end positions for alignment - used for SPLAH */ 
+
   float          envsc;          /* Forward score in envelope ienv..jenv; NATS; without null2 correction       */
   float          domcorrection;  /* null2 score when calculating a per-domain score; NATS                      */
   float          dombias;        /* FLogsum(0, log(bg->omega) + domcorrection): null2 score contribution; NATS */
@@ -898,7 +900,7 @@ typedef struct p7_hit_s {
   int      nincluded;       /* # of domains satisfying inclusion thresholding */
   int      best_domain;     /* index of best-scoring domain in dcl */
   int      frameshift;      /* TRUE if hit came from frameshift pipleine */
-  int      in_target_range; /* TRUE if hit has bee assigned to a target range for splicing */
+  int      in_target_range; 
   int64_t  seqidx;          /*unique identifier to track the database sequence from which this hit came*/
   int64_t  subseq_start;    /*used to track which subsequence of a full_length target this hit came from, for purposes of removing duplicates */
   int64_t  target_len;      /* used in translated search to hold the length of the nucleotide sequence */
@@ -1949,6 +1951,7 @@ extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 extern void SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
                        ESL_GENCODE *gcode, ESL_GETOPTS *go, FILE *ofp, int textw);
 
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_PROFILE *gm, ESL_SQFILE *seq_file);
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);
 extern int         p7_tophits_Grow(P7_TOPHITS *h);

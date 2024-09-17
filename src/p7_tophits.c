@@ -2045,7 +2045,6 @@ p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th
         seq_to   = th->hit[h]->dcl[d].jali;
         
         for (z1 = 0; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;            /* find first M state      */
-        if (z1 == tr->N) { printf("target %s query %s from %lld to %lld\n", th->hit[h]->name, qname, seq_from, seq_to); ESL_XEXCEPTION(eslFAIL, "corrupt trace - no M state"); }                                                
 
         for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;           /* find the E state  */
         for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                    /* find prev M state      */

@@ -127,6 +127,7 @@ trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posterio
   tr->st = NULL;
   tr->k  = NULL;
   tr->i  = NULL;
+  tr->c  = NULL;
   tr->pp = NULL;
   tr->M  = 0;
   tr->L  = 0;
@@ -246,12 +247,16 @@ p7_trace_fs_Clone(const P7_TRACE *tr)
   ESL_ALLOC(dup->i,  sizeof(int)  * dup->nalloc);
   memcpy(dup->i, tr->i, sizeof(int) * dup->nalloc);
 
-  ESL_ALLOC(dup->c,  sizeof(int)  * dup->nalloc);
-  memcpy(dup->c, tr->c, sizeof(int) * dup->nalloc);
+  
+  if (tr->c != NULL) {
+    ESL_ALLOC(dup->c,  sizeof(int)  * dup->nalloc);
+    memcpy(dup->c, tr->c, sizeof(int) * dup->nalloc);
+  }
 
-  if (tr->pp != NULL)
+  if (tr->pp != NULL) {
     ESL_ALLOC(dup->pp, sizeof(float) * dup->nalloc);
     memcpy(dup->pp, tr->pp, sizeof(float) * dup->nalloc);
+  }
 
    /* The trace's index: table of domain start/stop coords */
   ESL_ALLOC(dup->tfrom,   sizeof(int) * dup->ndomalloc);

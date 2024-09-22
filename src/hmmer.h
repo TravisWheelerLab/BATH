@@ -463,6 +463,7 @@ enum p7t_statetype_e {
 };
 #define p7T_NSTATETYPES 12
 
+
 enum p7t_codontype_e {
   p7T_C0 = 0,
   p7T_C1 = 1,
@@ -1683,7 +1684,7 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
 extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode);
-
+extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_SQ *orfsq, const ESL_GENCODE *gcode, int orf_pos); 
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);
@@ -1951,7 +1952,7 @@ extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 extern void SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
                        ESL_GENCODE *gcode, ESL_GETOPTS *go, FILE *ofp, int textw);
 
-extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_PROFILE *gm, ESL_SQFILE *seq_file);
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file);
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);
 extern int         p7_tophits_Grow(P7_TOPHITS *h);

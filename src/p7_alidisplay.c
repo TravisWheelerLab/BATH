@@ -1,4 +1,4 @@
-/* Formatting, transmitting, and printing single alignments to a
+ /* Formatting, transmitting, and printing single alignments to a
  * profile.
  * 
  * Contents:
@@ -101,7 +101,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3;
-  //int            j;
 
   ESL_SQ         *ntorfseqtxt = NULL;
 
@@ -180,6 +179,9 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   strcpy(ad->sqacc,   sq->acc);
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
+
+  /* Used for splice alignments only */
+  ad->exon_starts = NULL;
 
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
@@ -332,13 +334,14 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
 }
 
 /* Function:  p7_alidisplay_fs_Create() - `BATH
- * Synopsis:  Create an alignment display, from trace and oprofile.
+ * Synopsis:  Create an alignment display, from trace and fs_profile.
  *
- * Purpose:   Creates and returns an alignment display for domain number
- *            <which> in traceback <tr>, where the traceback
- *            corresponds to an alignment of optimized profile <om> to digital sequence
- *            <dsq>, and the unique name of that target
- *            sequence <dsq> is <sqname>. The <which> index starts at 0.
+ * Purpose:   Creates and returns an BATH formated alignment display 
+ *            for domain number <which> in traceback <tr> from the fs 
+ *            pipeline, where the traceback corresponds to an alignment 
+ *            of optimized profile <om> to digital sequence <dsq>, and 
+ *            the unique name of that target sequence <dsq> is <sqname>. 
+ *            The <which> index starts at 0.
  *            
  *            It will be a little faster if the trace is indexed with
  *            <p7_trace_Index()> first. The number of domains is then
@@ -350,10 +353,9 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *
  * Args:      tr       - traceback
  *            which    - domain number, 0..tr->ndom-1
- *            om       - optimized profile (query)
- *            sq       - digital sequence (target)
- *            ntsq     - text sequence (original nucleotide target in the case of translated search)
- *            ddef_app - optional posterior prob alignment line; only nhmmer sends a not-NULL value
+ *            gm_fs    - frameshift codon profile (query)
+ *            sq       - digital nucleotide sequence (target)
+ *            gcode    - genetic code for tranlsation codons 
  *
  * Returns:   <eslOK> on success.
  *
@@ -361,7 +363,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode)
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode)
 {
 
   P7_ALIDISPLAY *ad       = NULL;
@@ -456,6 +458,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
   strcpy(ad->sqacc,   sq->acc);
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
+
+  /* Used for splice alignments only */
+  ad->exon_starts = NULL;
 
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
@@ -730,8 +735,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
        	}	
 
 	    if      (aa == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
-        else if (expf(p7P_MSC(gm, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
-        else                                                  ad->mline[z-z1] = ' ';
+        /* >1 not >0; om has odds ratios, not scores */
+        else if (expf(p7P_MSC_AMINO(gm_fs, k, aa)) > 1.0)                       ad->mline[z-z1] = '+';
+        else                                                                    ad->mline[z-z1] = ' ';
 
         ad->aseq[z-z1] = toupper(alphaAmino[aa]);
         ad->ntseq [5*(z-z1)] = n1;
@@ -795,11 +801,12 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
 /* Function:  p7_alidisplay_nonfs_Create() - `BATH
  * Synopsis:  Create an alignment display, from trace and oprofile.
  *
- * Purpose:   Creates and returns an alignment display for domain number
- *            <which> in traceback <tr>, where the traceback
- *            corresponds to an alignment of optimized profile <om> to digital sequence
- *            <dsq>, and the unique name of that target
- *            sequence <dsq> is <sqname>. The <which> index starts at 0.
+ * Purpose:   Creates and returns a BATH formated  alignment display 
+ *            for domain number <which> in traceback <tr> from the std
+ *            pipeline, where the traceback corresponds to an alignment 
+ *            of optimized profile <om> to digital sequence<dsq>, and 
+ *            the unique name of that target sequence <dsq> is <sqname>. 
+ *            The <which> index starts at 0.
  *            
  *            It will be a little faster if the trace is indexed with
  *            <p7_trace_Index()> first. The number of domains is then
@@ -812,10 +819,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
  * Args:      tr       - traceback
  *            which    - domain number, 0..tr->ndom-1
  *            om       - optimized profile (query)
- *            sq       - digital sequence (target)
- *            ntsq     - text sequence (original nucleotide target in the case of translated search)
- *            orfsq    - text sequence 
- *            ddef_app - optional posterior prob alignment line; only nhmmer sends a not-NULL value
+ *            sq       - digital nucleotide sequence (target)
+ *            orfsq    - digital amino sequence (translation of target)
  *
  * Returns:   <eslOK> on success.
  *
@@ -823,11 +828,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_SQ *orfsq, const ESL_GENCODE *gcode, int orf_pos)
+p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos)
 {
 
   P7_ALIDISPLAY *ad       = NULL;
-  char          *alphaAmino = gm_fs->abc->sym;
+  char          *alphaAmino = om->abc->sym;
   char          *alphaDNA = sq->abc->sym;
   int            n, pos, z, y;
   int            z1, z2;
@@ -871,13 +876,13 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
   n = (z2-z1+2) * 3;                          /* model, mline, aseq mandatory         */
   n += 5*(z2-z1+1)+1;                     /* nucleotide sequence                  */
   n += (z2-z1+2);			   /* codon lengths       */
-  if (gm_fs->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
-  if (gm_fs->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
-  if (gm_fs->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
+  if (om->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (om->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (om->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
   if (tr->pp     != NULL) n += (z2-z1+2);   /* optional posterior prob line         */
-  hmm_namelen = strlen(gm_fs->name);                           n += hmm_namelen + 1;
-  hmm_acclen  = (gm_fs->acc  != NULL ? strlen(gm_fs->acc)  : 0);  n += hmm_acclen  + 1;
-  hmm_desclen = (gm_fs->desc != NULL ? strlen(gm_fs->desc) : 0);  n += hmm_desclen + 1;
+  hmm_namelen = strlen(om->name);                           n += hmm_namelen + 1;
+  hmm_acclen  = (om->acc  != NULL ? strlen(om->acc)  : 0);  n += hmm_acclen  + 1;
+  hmm_desclen = (om->desc != NULL ? strlen(om->desc) : 0);  n += hmm_desclen + 1;
   sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
   sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
   sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
@@ -890,9 +895,9 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
   ad->memsize = sizeof(char) * n;
   ESL_ALLOC(ad->mem, ad->memsize);
  
-  if (gm_fs->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
+  if (om->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
   ad->mmline = NULL;
-  if (gm_fs->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
+  if (om->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
   ad->model   = ad->mem + pos;  pos += z2-z1+2;
   ad->mline   = ad->mem + pos;  pos += z2-z1+2;
   ad->aseq    = ad->mem + pos;  pos += z2-z1+2;
@@ -907,21 +912,24 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
   ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
   ad->orfname = ad->mem + pos;  pos += orf_namelen +1;  
 
-  strcpy(ad->hmmname, gm_fs->name);
-  if (gm_fs->acc  != NULL) strcpy(ad->hmmacc,  gm_fs->acc);  else ad->hmmacc[0]  = 0;
-  if (gm_fs->desc != NULL) strcpy(ad->hmmdesc, gm_fs->desc); else ad->hmmdesc[0] = 0;
+  strcpy(ad->hmmname, om->name);
+  if (om->acc  != NULL) strcpy(ad->hmmacc,  om->acc);  else ad->hmmacc[0]  = 0;
+  if (om->desc != NULL) strcpy(ad->hmmdesc, om->desc); else ad->hmmdesc[0] = 0;
 
   strcpy(ad->sqname,  sq->name);
   strcpy(ad->sqacc,   sq->acc);
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
 
+  /* Used for splice alignments only */
+  ad->exon_starts = NULL;
+
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
   tr->hmmfrom[0] = tr->k[z1];
   tr->hmmto[0]   = tr->k[z2];
-  ad->M       = gm_fs->M;
+  ad->M       = om->M;
   ad->frameshifts = 0; 
   ad->stops = 0;
   if(sq->start < sq->end) {
@@ -935,18 +943,13 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
   
   /* optional rf line */
   if (ad->rfline != NULL) {
-    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->rf[tr->k[z]]);
+    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : om->rf[tr->k[z]]);
     ad->rfline[z-z1] = '\0';
-  }
-  /* optional mm line */
-  if (ad->mmline != NULL) {
-    for (z = z1; z <= z2; z++) ad->mmline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->mm[tr->k[z]]);
-    ad->mmline[z-z1] = '\0';
   }
 
   /* optional cs line */
   if (ad->csline != NULL) {
-    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->cs[tr->k[z]]);
+    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : om->cs[tr->k[z]]);
     ad->csline[z-z1] = '\0';
   }
  
@@ -967,7 +970,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
   
     switch (s) {
       case p7T_M:
-        ad->model[z-z1] = gm_fs->consensus[k];
+        ad->model[z-z1] = om->consensus[k];
 	    ad->codon[y] = c;
         ad->aseq[z-z1] = toupper(alphaAmino[orfsq->dsq[orf_pos]]);
           
@@ -977,9 +980,9 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
         ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[sq->dsq[i]]);
         ad->ntseq [5*(z-z1)+4] = ' ';
           	   	    
-        if      (orfsq->dsq[orf_pos] == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) 
+        if      (orfsq->dsq[orf_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) 
           ad->mline[z-z1] = ad->model[z-z1];
-        else if (expf(p7P_MSC(gm, k, orfsq->dsq[orf_pos])) > 1.0)               
+        else if (p7_oprofile_FGetEmission(om, k, orfsq->dsq[orf_pos]) > 1.0)               
           ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else                                                  
          ad->mline[z-z1] = ' ';
@@ -1003,7 +1006,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
 	
       case p7T_D:
         ad->codon[y] = 0;
-	    ad->model [z-z1] = gm_fs->consensus[k];
+	    ad->model [z-z1] = om->consensus[k];
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = '-';
         ad->ntseq [5*(z-z1)] = ' ';
@@ -1030,6 +1033,10 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, 
     p7_alidisplay_Destroy(ad);
     return NULL;
 }
+
+
+
+
 
 
 
@@ -1063,6 +1070,9 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->ntseq = NULL;
   new_obj->ppline = NULL;
   new_obj->N = 0;
+
+  /* Used for splice alignments only */
+  new_obj->exon_starts = NULL;
 
   new_obj->hmmname = NULL; 
   new_obj->hmmacc = NULL;
@@ -1131,6 +1141,9 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->ntseq  = (ad->ntseq  ? ad2->mem + (ad->ntseq  - ad->mem) : NULL );
       ad2->ppline = (ad->ppline ? ad2->mem + (ad->ppline - ad->mem) : NULL );
       ad2->N      = ad->N;
+
+      /* Used for splice alignments only */
+      ad2->exon_starts = ad->exon_starts;
 
       ad2->hmmname = ad2->mem + (ad->hmmname - ad->mem);
       ad2->hmmacc  = ad2->mem + (ad->hmmacc  - ad->mem);
@@ -1861,24 +1874,26 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
   if (ad->mem)
     {	/* serialized form */
       free(ad->mem);
+      if(ad->exon_starts) free(ad->exon_starts);
     }
   else
     {	/* deserialized form */
-      if (ad->rfline)  free(ad->rfline);
-      if (ad->mmline)  free(ad->mmline);
-      if (ad->csline)  free(ad->csline);
-      if (ad->model)   free(ad->model);
-      if (ad->mline)   free(ad->mline);
-      if (ad->aseq)    free(ad->aseq);
-      if (ad->ntseq)   free(ad->ntseq);
-      if (ad->ppline)  free(ad->ppline);
-      if (ad->hmmname) free(ad->hmmname);
-      if (ad->hmmacc)  free(ad->hmmacc);
-      if (ad->hmmdesc) free(ad->hmmdesc);
-      if (ad->sqname)  free(ad->sqname);
-      if (ad->sqacc)   free(ad->sqacc);
-      if (ad->sqdesc)  free(ad->sqdesc);
-      if (ad->orfname) free(ad->orfname);
+      if (ad->rfline)      free(ad->rfline);
+      if (ad->mmline)      free(ad->mmline);
+      if (ad->csline)      free(ad->csline);
+      if (ad->model)       free(ad->model);
+      if (ad->mline)       free(ad->mline);
+      if (ad->aseq)        free(ad->aseq);
+      if (ad->ntseq)       free(ad->ntseq);
+      if (ad->ppline)      free(ad->ppline);
+      if (ad->hmmname)     free(ad->hmmname);
+      if (ad->hmmacc)      free(ad->hmmacc);
+      if (ad->hmmdesc)     free(ad->hmmdesc);
+      if (ad->sqname)      free(ad->sqname);
+      if (ad->sqacc)       free(ad->sqacc);
+      if (ad->sqdesc)      free(ad->sqdesc);
+      if (ad->orfname)     free(ad->orfname);
+      if (ad->exon_starts) free(ad->exon_starts);
     }
   free(ad);
 }
@@ -1970,21 +1985,18 @@ int
 p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
 {
    int status;
-	/* if there is a target sequence then we must be calling from hmmscant to print the target sequence in the domain alignment display */
-	if( ad->ntseq == NULL)
-   {	   
-      if ((status = p7_alidisplay_nontranslated_Print(fp, ad, min_aliwidth, linewidth, pli->show_accessions)) != eslOK) return status;
-   }
-   else if(pli->frameshift)
-   {
-      if((status = p7_frameshift_alidisplay_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
-   } 
-   else
-   {   
-      if ((status = p7_alidisplay_translated_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
-   }
-
-	return status;
+  /* if there is a target sequence then we must be calling from hmmscant to print the target sequence in the domain alignment display */
+  if( ad->ntseq == NULL) {
+    if ((status = p7_alidisplay_nontranslated_Print(fp, ad, min_aliwidth, linewidth, pli->show_accessions)) != eslOK) return status;
+  }
+  else if(pli->frameshift) {
+    if((status = p7_frameshift_alidisplay_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
+  }
+  else {
+    if ((status = p7_alidisplay_translated_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
+  }
+  
+  return status;
 }
 
 
@@ -2034,213 +2046,329 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   char *show_hmmname = NULL;
   char *show_seqname = NULL;
   int  *frameline    = NULL;
-  int   namewidth, coordwidth, aliwidth;
+  int   namewidth, coordwidth;
+  int   max_aliwidth, cur_aliwidth;
   int   frame;
   int   pos;
   int   status;
   int   ni, nk;
-  int   z;
+  int   x,y,z;
   long  i1,i2;
   long  c1;
-  int   a1,a2;
   int   k1,k2;
   int   npos;
-  int   i,j,y;
+  int   i,j;
   int   show_accessions;
-  int   show_translated_sequence;
+  int   exon_cnt;
+  int   spliced_ali, is_splice_line;
+  int   splice_pos, old_splice_pos;
+  int   splice_opt, old_splice_opt;
+  char  *exon_name;
 
   show_accessions = pli->show_accessions;
-  show_translated_sequence = pli->show_translated_sequence;
 
-   /* implement the --acc option for preferring accessions over names in output  */
+
+  /* implement the --acc option for preferring accessions over names in output  */
   show_hmmname = (show_accessions && ad->hmmacc[0] != '\0') ? ad->hmmacc : ad->hmmname;
   show_seqname = (show_accessions && ad->sqacc[0]  != '\0') ? ad->sqacc  : ad->sqname;
 
   /* dynamically size the output lines */
   namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
 
-  if (show_translated_sequence) {
-      namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
-  }
+  namewidth  = ESL_MAX(namewidth, 8);
 
   coordwidth = ESL_MAX(
  	       ESL_MAX(integer_textwidth(ad->hmmfrom), integer_textwidth(ad->hmmto)),
 	       ESL_MAX(integer_textwidth(ad->sqfrom), integer_textwidth(ad->sqto)));
-  aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
 
-  aliwidth /= 5; /* divide by 5 if printing codons horizontally */
+  max_aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
 
-  ESL_ALLOC(buf, sizeof(char) * (aliwidth+1));
-  buf[aliwidth] = 0;
+  if (max_aliwidth < ad->N && max_aliwidth < min_aliwidth) max_aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
+
+  max_aliwidth -= 2; /* two extra spaces required for printing splice sites */
+  max_aliwidth /= 5; /* divide by 5 if printing codons horizontally */
+
+  ESL_ALLOC(buf, sizeof(char) * (max_aliwidth+1));
+  buf[max_aliwidth] = 0;
 	
- if(pli->show_frameline) ESL_ALLOC(frameline, sizeof(int) * (aliwidth+1));
+  if(pli->show_frameline) ESL_ALLOC(frameline, sizeof(int) * (max_aliwidth+1));
  
-   /* Break the alignment into multiple blocks of width aliwidth for printing */
+   /* Break the alignment into multiple blocks of width max_aliwidth for printing */
   i1 = ad->sqfrom;
   if(ad->sqfrom < ad->sqto) i2 = i1 - 1;
   else                      i2 = i1 + 1;
 
-  if(ad->sqfrom < ad->sqto) { a1 = (i1+2)/3;    a2 = a1-1; }
-  else                      { a1 = (i1+2)/3-1;  a2 = a1 + 1; }
   k1 = ad->hmmfrom;
 
-  for (pos = 0; pos < ad->N; pos += aliwidth)
+  ESL_ALLOC(exon_name, sizeof(char)*10);
+  if(ad->exon_starts == NULL) spliced_ali = FALSE;
+  else                        spliced_ali = TRUE; 
+
+  old_splice_opt = splice_opt = 0;
+  old_splice_pos = splice_pos = 0;
+
+  exon_cnt = 0;
+  pos = 0;
+  while(pos < ad->N)
   {   
+
     if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
+    cur_aliwidth = max_aliwidth;
+    is_splice_line = FALSE;
+    if( spliced_ali ) {
+      /*Determine if the line we are about to print conatins a splice boundry */
+      splice_opt = 0;
+      for (z = pos; z < pos + max_aliwidth + 1 && z < ad->N; z++) {
+        if (ad->ntseq[z*5] == 0) break;
+        /* '$' in the first nucleotide postion denotes a splice site */
+        if      (ad->ntseq[z*5]   == '$') {
+          is_splice_line = TRUE;
+          /* '$' in the 2nd, 3rd, or 4th nucleotide positions 
+           * denote the exact location of the splice signals */
+          if      (ad->ntseq[z*5+1] == '$') splice_opt = 1;
+          else if (ad->ntseq[z*5+2] == '$') splice_opt = 2;
+          else if (ad->ntseq[z*5+3] == '$') splice_opt = 3;
+          x = z;
+          break;
+        } 
+      }
+     
+      /* If a splice boundry was detected reset the width of the 
+      * line we are printing to stop at the splice boundry */
+      if(is_splice_line) {
+        cur_aliwidth    = x-pos;
+        splice_pos      = x*5;
+      }
+    }
+    /* Special case were type one splice happens at end of line */
+    if (spliced_ali &&  (!is_splice_line) && ad->ntseq[z*5] == '$' && ad->ntseq[z*5+1] == '$') {
+         is_splice_line = TRUE;
+         splice_opt = 4;
+    } 
     ni = nk = 0; 
-    for (z = pos; z < pos + aliwidth && z < ad->N; z++) 
+    for (z = pos; z < pos + cur_aliwidth && z < ad->N; z++) 
     {
-      if (ad->model[z] != '.') nk++; /* k advances except on insert states */
-      if (ad->aseq[z]  != '-') ni++; /* i advances except on delete states */
+      if (ad->model[z] != '.' && ad->model[z] != ' ') nk++; /* k advances except on insert states */
+      if (ad->aseq[z]  != '-' && ad->aseq[z]  != ' ') ni++; /* i advances except on delete states */
     }
     k2 = k1+nk-1;
-
+ 
+    /* Optional CS Line */
     if (ad->csline != NULL) 
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-      for (i = 0; i < aliwidth; i++)
+      /* Print space at begining of line to make room for splice signal */
+      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      for (i = 0; i < cur_aliwidth; i++)
       {
         if (ad->csline[pos+i] == 0) break; 
         if (fprintf(fp,  "  %c  ", ad->csline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
       }
-	
-      if (fprintf(fp, "CS\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
+
+    /* Optional RF Line */
     if (ad->rfline != NULL) 
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
- 
-      for (i = 0; i < aliwidth; i++)
+      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      for (i = 0; i < cur_aliwidth; i++)
       {
         if (ad->rfline[pos+i] == 0) break; 
         if (fprintf(fp, "  %c  ",  ad->rfline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-      }
-
-      if (fprintf(fp, "RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+     }
+     if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+     if (fprintf(fp, "RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
     }
 
-    if (ad->mmline != NULL) 
-    {
-      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-      for (i = 0; i < aliwidth; i++)
-      {
-        if (ad->mmline[pos+i] == 0) break; 
-        if (fprintf(fp, "  %c  ", ad->mmline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-      }
- 
-      if (fprintf(fp, "MM\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-    }
-
+    /*  Mandatory Model Line */
     if (fprintf(fp, "  %*s %*d ", namewidth,  show_hmmname, coordwidth, k1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-    for (i = 0; i < aliwidth; i++)
+    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    for (i = 0; i < cur_aliwidth; i++)
     {
       if (ad->model[pos+i] == 0) break; 
       if (fprintf(fp, "  %c  ", ad->model[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-
+    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (fprintf(fp, " %-*d\n", coordwidth, k2) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-    if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 
-    for (i = 0; i < aliwidth; i++)
+    /* Mandatory Match Line */
+    if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    for (i = 0; i < cur_aliwidth; i++)
     {
       if (ad->mline[pos+i] == 0) break; 
       if (fprintf(fp,  "  %c  ", ad->mline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
     }
-
+    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
 
-    if (show_translated_sequence)
-    {
-      if (fprintf(fp, "  %*s", namewidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-
-      if (ni > 0) { if (fprintf(fp, " %*s ", coordwidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-      else { if (fprintf(fp, " %*s ", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-	   
-      for (i = 0, y = 0; i < aliwidth; i++, y++)
-      {
-        if (ad->aseq[pos+i] == 0) break; 
-        if (fprintf(fp, "  %c  ", ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-	if(ad->codon[pos+y] != 0)
-        { 			    
-	  if(ad->sqfrom < ad->sqto) a2++;	 
-	  else                      a2--;	 
-	} 
-      }
-      if (ni > 0) { if (fprintf(fp, " %-*s\n", coordwidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-      else { if (fprintf(fp, " %*s\n", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    /* Print Mandatory Translation Line */
+    if(spliced_ali ) {
+      if (sprintf(exon_name, "%s %d", "exon", exon_cnt+1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      if (fprintf(fp, "  %*s", namewidth, exon_name)      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp, " %*s ", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-  
-    if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    if (ni > 0) { if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-   else { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    else {
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    for (i = 0, y = 0; i < cur_aliwidth; i++, y++)
+    {
+      if (ad->aseq[pos+i] == 0) break; 
+      if (fprintf(fp, "  %c  ", ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    }
+    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+ 
+    /* Print Mandatory Target Line */ 
+    if (fprintf(fp, "  %*s", namewidth, show_seqname)    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    if (ni > 0) { if (fprintf(fp, " %*ld ", coordwidth, i1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    else        { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
-   npos = pos * 5;
-   
-   
-     /*
-      * Display the DNA codon horizontally
-      */
-      for (i = 0, j = 0; j < aliwidth; i+=5, j++)
-      {
-        if (ad->ntseq[npos+i] == 0) break; 
-        if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	if(ad->sqfrom < ad->sqto)       { c1 = i2; i2 += (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); } 
-	else                            { c1 = i2 - 1; i2 -= (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]);; }
+    /* Print Acceptor Site Signal or Space */
+    if (old_splice_opt  == 1 || old_splice_opt  == 4) {
+      if (fprintf(fp, "%c", ad->ntseq[old_splice_pos+4]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      i2++;
+    }
+    else {
+      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+    }
+    /* Print ntseq */
+    npos = pos * 5;
+    for (i = 0, j = 0; j < cur_aliwidth; i+=5, j++)
+    {
+      if (ad->ntseq[npos+i] ==  0)  break;
+      if (ad->ntseq[npos+i] == '$') break; 
+      if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) 
+        ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 
-	if(frameline != NULL) 
-	{
-	  if(ad->codon[pos+j] == 0 || ad->codon[pos+j] == 6 ) frame = 0;
-	  else                      frame = p7_alidiplay_frame(c1, i2);
-	  
-          frameline[j] = frame;
-        }
+	    if(ad->sqfrom < ad->sqto)       { c1 = i2;     i2 += (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); } 
+	    else                            { c1 = i2 - 1; i2 -= (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); }
+
+      /* Get info for optional frame line */
+	    if(frameline != NULL) 
+	    {
+	      if(ad->codon[pos+j] == 0 || ad->codon[pos+j] == 6 ) frame = 0;
+	      else                      frame = p7_alidiplay_frame(c1, i2);
+        frameline[j] = frame;
       }
-    		
-	
+    }
+    if (splice_opt == 4) {
+      if (fprintf(fp, "%c", ad->ntseq[npos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    
     if (ni > 0) { if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-    else { if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    else        { if (fprintf(fp, " %*s\n",   coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
+    /* Print Optional Frame line */
     if(frameline != NULL)
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-
-      for (i = 0; i < aliwidth; i++)
+      /* Print space at begining of line to make room for splice signal */ 
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      for (i = 0; i < cur_aliwidth; i++)
       {
-	if (ad->aseq[pos+i] == 0) break;
-	if(frameline[i] > 0)            { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-	else if(frameline[i] < 0)       { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+	      if (ad->aseq[pos+i] == 0) break;
+	      if(frameline[i] > 0)            { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+	      else if(frameline[i] < 0)       { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
         else if(ad->codon[pos+i] == 6) { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } 
-	else                            { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+	      else                            { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
       }
-
+      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       if (fprintf(fp, " FRAME\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
+    /* Print Mandatory Post Prob Line */
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-
-    for (i = 0; i < aliwidth; i++)
+    /* Print space or '|' for splice signal*/
+    if (old_splice_opt  == 1 || old_splice_opt  == 4) { 
+      if (fprintf(fp, "|") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    }
+    else {
+       if (fprintf(fp, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    
+    if (old_splice_opt == 1 || old_splice_opt  == 4) {
+      if (fprintf(fp,  "| %c  ", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      i = 1;
+    }
+    else if (old_splice_opt == 2) {
+      if (fprintf(fp,  "||%c  ", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      i = 1;
+    }
+    else if (old_splice_opt == 3) {
+      if (fprintf(fp,  " ||  ")                   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      i = 1;
+    }    
+    else i = 0;
+    for (  ; i < cur_aliwidth-2; i++)
     {
-      if (ad->ppline[pos+i] == 0) break; 
+      if (ad->ppline[pos+i] == 0) break;
       if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
+    if (splice_opt == 1) {
+      if (fprintf(fp,  "  %c |", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp,  "|    ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    else if (splice_opt == 2) {
+      if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp,  "  || ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    else if (splice_opt == 3) {
+      if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp,  "  %c||", ad->ppline[pos+i+1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    else if (splice_opt == 4) {
+        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+        if (fprintf(fp,  "  %c |", ad->ppline[pos+i+1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+        if (fprintf(fp,  "|")                           < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    else {
+      for (  ; i < cur_aliwidth; i++)
+      {
+        if (ad->ppline[pos+i] == 0) break;
+        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
 
-    if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");	  
-  
-    /* print DNA sequence */
+    }
+    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+
     k1 += nk;
-    if   (ad->sqfrom < ad->sqto) { i1 = i2 + 1;  a1 = a2 + 1; }
-    else                         { i1 = i2 - 1;  a1 = a2 - 1; }// revcomp hit for DNA
+    if   (ad->sqfrom < ad->sqto)  i1 = i2 + 1;
+    else                          i1 = i2 - 1;
+ 
+    pos += cur_aliwidth; 
+    if(is_splice_line) {
+      pos++;                          // pass over splice pos with '$'
+      if (splice_opt == 4) pos++;
+      i1 = ad->exon_starts[exon_cnt]; //get the nuclueotide state coord for next exon 
+      if   (ad->sqfrom < ad->sqto)  i2 = i1 - 1;
+      else                          i2 = i1 + 1;
+      exon_cnt++;
+      if (fprintf(fp, "\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    
+    old_splice_pos = splice_pos;
+    old_splice_opt = splice_opt;
   }
+  
+
   fflush(fp);
   free(buf);
+  free(exon_name);
   return eslOK;
 
-ERROR:
-if (buf) free(buf);
-return status;
+  ERROR:
+    if (buf) free(buf);
+    if(exon_name) free(exon_name);
+    return status;
 }
+
+
+
+
 
 /* Function:  p7_alidisplay_translated_Print()
 * Synopsis:  Human readable output of <P7_ALIDISPLAY> for hmmscant
@@ -2265,248 +2393,212 @@ return status;
 int
 p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
 {
-char *buf          = NULL;
-char *show_hmmname = NULL;
-char *show_seqname = NULL;
-int   namewidth, coordwidth, aliwidth;
-int   pos;
-int   status;
-int   ni, nk;
-int   z;
-long  i1,i2;
-int   k1,k2;
-int   o1,o2; /* start/end positions in alidisplay within an orf */
-int   k;
-
-int   npos;
-int   i,j;
-int   show_accessions;
-int   show_translated_sequence;
-int   show_vertical_codon;
-
-show_accessions = pli->show_accessions;
-show_translated_sequence = pli->show_translated_sequence;
-show_vertical_codon = pli->show_vertical_codon;
-
-/* implement the --acc option for preferring accessions over names in output  */
-show_hmmname = (show_accessions && ad->hmmacc[0] != '\0') ? ad->hmmacc : ad->hmmname;
-show_seqname = (show_accessions && ad->sqacc[0]  != '\0') ? ad->sqacc  : ad->sqname;
-
-/* dynamically size the output lines */
-namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
-if (show_translated_sequence) {
-namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
-}
-
-
-coordwidth = ESL_MAX(
-	      ESL_MAX(integer_textwidth(ad->hmmfrom), integer_textwidth(ad->hmmto)),
-	      ESL_MAX(integer_textwidth(ad->sqfrom), integer_textwidth(ad->sqto)));
-				  
-aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
-
-if (aliwidth < ad->N && aliwidth < min_aliwidth) aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
-
-if (!show_vertical_codon) aliwidth /= 3;
-
-ESL_ALLOC(buf, sizeof(char) * (aliwidth+1));
-buf[aliwidth] = 0;
-
-/* Break the alignment into multiple blocks of width aliwidth for printing */
-
-i1 = ad->sqfrom;
-k1 = ad->hmmfrom;
-o1 = ad->orffrom;
-
-for (pos = 0; pos < ad->N; pos += aliwidth)
-{
-   
-if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
-
-ni = nk = 0; 
-for (z = pos; z < pos + aliwidth && z < ad->N; z++) {
-if (ad->model[z] != '.') nk++; /* k advances except on insert states */
-if (ad->aseq[z]  != '-') ni++; /* i advances except on delete states */
-}
-k2 = k1+nk-1;
-    if (ad->sqfrom < ad->sqto) i2 = i1+(ni-1)*3+2;
-else                       i2 = i1-(ni*3)+1; // revcomp hit for DNA
-o2 = o1+(ni-1);
-
-  if (ad->csline != NULL) 
-  {
-     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
- 
-     for (i = 0; i < aliwidth; i++)
-	{
-	       if (ad->csline[pos+i] == 0) break; 
-	       if (fprintf(fp, 
-		     (show_vertical_codon) ? "%c" : " %c ", 
-			 ad->csline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-	}
-if (fprintf(fp, " CS\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+  char *buf          = NULL;
+  char *show_hmmname = NULL;
+  char *show_seqname = NULL;
+  int   namewidth, coordwidth, aliwidth;
+  int   pos;
+  int   status;
+  int   ni, nk;
+  int   z;
+  long  i1,i2;
+  int   k1,k2;
+  int   o1,o2; /* start/end positions in alidisplay within an orf */
+  int   k;
+  
+  int   npos;
+  int   i,j;
+  int   show_accessions;
+  int   show_translated_sequence;
+  int   show_vertical_codon;
+  
+  show_accessions = pli->show_accessions;
+  show_translated_sequence = pli->show_translated_sequence;
+  show_vertical_codon = pli->show_vertical_codon;
+  
+  /* implement the --acc option for preferring accessions over names in output  */
+  show_hmmname = (show_accessions && ad->hmmacc[0] != '\0') ? ad->hmmacc : ad->hmmname;
+  show_seqname = (show_accessions && ad->sqacc[0]  != '\0') ? ad->sqacc  : ad->sqname;
+  
+  /* dynamically size the output lines */
+  namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+  if (show_translated_sequence) {
+    namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
   }
-
-  if (ad->rfline != NULL) 
+  
+  
+  coordwidth = ESL_MAX(
+  	           ESL_MAX(integer_textwidth(ad->hmmfrom), integer_textwidth(ad->hmmto)),
+  	           ESL_MAX(integer_textwidth(ad->sqfrom), integer_textwidth(ad->sqto)));
+  				  
+  aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
+  
+  if (aliwidth < ad->N && aliwidth < min_aliwidth) aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
+  
+  if (!show_vertical_codon) aliwidth /= 3;
+  
+  ESL_ALLOC(buf, sizeof(char) * (aliwidth+1));
+  buf[aliwidth] = 0;
+  
+  /* Break the alignment into multiple blocks of width aliwidth for printing */
+  
+  i1 = ad->sqfrom;
+  k1 = ad->hmmfrom;
+  o1 = ad->orffrom;
+  
+  for (pos = 0; pos < ad->N; pos += aliwidth)
   {
- if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
- 
- for (i = 0; i < aliwidth; i++)
-	{
-	       if (ad->rfline[pos+i] == 0) break; 
-	       if (fprintf(fp,
-		      (show_vertical_codon) ? "%c" : " %c ", 
-		      ad->rfline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-	}
-if (fprintf(fp, " RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-  }
-
-  if (ad->mmline != NULL) 
-  {
- if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
- for (i = 0; i < aliwidth; i++)
-	{
-	       if (ad->mmline[pos+i] == 0) break; 
-	       if (fprintf(fp, 
-		      (show_vertical_codon) ? "%c" : " %c ", 
-		      ad->mmline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-	}
-if (fprintf(fp, " MM\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-  }
- 
-if (fprintf(fp, "  %*s %*d ", namewidth,  show_hmmname, coordwidth, k1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-for (i = 0; i < aliwidth; i++)
-     {
-	    if (ad->model[pos+i] == 0) break; 
-	    if (fprintf(fp,
-		   (show_vertical_codon) ? "%c" : " %c ", 
-		    ad->model[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-     }
-if (fprintf(fp, " %-*d\n", coordwidth, k2) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-for (i = 0; i < aliwidth; i++)
-     {
-	   if (ad->mline[pos+i] == 0) break; 
-	    if (fprintf(fp,
-		   (show_vertical_codon) ? "%c" : " %c ", 
-       ad->mline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-     }
-if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-if (show_translated_sequence)
-    {
-		   if (fprintf(fp, "  %*s", namewidth, ad->orfname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-		   if (ni > 0) 
-		   {
-			 if (fprintf(fp, " %*d ", coordwidth, o1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-		   }
-		   else
-		   {		  
-			 if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-		   }
-		  
-		   for (i = 0; i < aliwidth; i++)
-			  {
-			    if (ad->aseq[pos+i] == 0) break; 
-			    if (fprintf(fp,
-			      (show_vertical_codon) ? "%c" : " %c ", 
-				   ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-			  } 		  
-		   if (ni > 0)
-		   {		  
-			 if (fprintf(fp, " %-*d\n", coordwidth, o2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-		   }
-		   else
-		   {		  
-			 if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-		   }
-		}
-	  
-      if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      if (ni > 0) 
-	   {
- 	      if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	   }
-	   else
-	   {		  
-		 if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-       }
-
-	  npos = pos * 3;
-      if(show_vertical_codon)
-	  {
-         /*
-          * Display the DNA codon vertically instead of horizontally
-          */	   
-         for(k = 0; k < 3; k++)
-	     {	
-		   if(k != 0)   
-		   { 
-             if (fprintf(fp, "  %*s", namewidth, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
- 	         if (fprintf(fp, " %*s ", coordwidth, " ")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");			
-		   }
-		
-	       for (i = 0, j = 0; j < aliwidth; i+=3, j++)
-	       {
-			  if (ad->ntseq[npos+i] == 0) break; 
-              if (fprintf(fp, "%c", ad->ntseq[npos+i+k])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	       }
-		   if(k < 2)  
- 	        if (fprintf(fp, "\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	     }
-	  }
-	  else
-      {
-	
-         /*
-          * Display the DNA codon horizontally
-          */	   
-	     for (i = 0, j = 0; j < aliwidth; i+=3, j++)
-	     {
-		    if (ad->ntseq[npos+i] == 0) break; 
-            if (fprintf(fp, "%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	     }
-
-	  }		
-		
-      if (ni > 0)
-        {		  
- 	        if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-        }
-      else
-        {		  
-            if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-        }
-	
-      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-
-	  for (i = 0; i < aliwidth; i++)
-	     {
-		   if (ad->ppline[pos+i] == 0) break; 
-           if (fprintf(fp, 
-			   (show_vertical_codon) ? "%c" : " %c ", 
-		       ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-		 }
-
-	 if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");	  
-	  
-     /* print DNA sequence */
-
-      k1 += nk;
-      if   (ad->sqfrom < ad->sqto)  i1 += ni*3;
-      else                          i1 -= ni*3;  // revcomp hit for DNA
-      o1 += ni;
+     
+    if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
+  
+    ni = nk = 0; 
+    for (z = pos; z < pos + aliwidth && z < ad->N; z++) {
+    if (ad->model[z] != '.') nk++; /* k advances except on insert states */
+    if (ad->aseq[z]  != '-') ni++; /* i advances except on delete states */
     }
+    k2 = k1+nk-1;
+    if (ad->sqfrom < ad->sqto) i2 = i1+(ni-1)*3+2;
+    else                       i2 = i1-(ni*3)+1; // revcomp hit for DNA
+    o2 = o1+(ni-1);
+    
+    if (ad->csline != NULL) 
+    {
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+     
+      for (i = 0; i < aliwidth; i++)
+    	{
+        if (ad->csline[pos+i] == 0) break; 
+        if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->csline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    	}
+      if (fprintf(fp, " CS\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    
+    if (ad->rfline != NULL) 
+    {
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+     
+      for (i = 0; i < aliwidth; i++)
+    	{
+        if (ad->rfline[pos+i] == 0) break; 
+    	  if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->rfline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    	}
+      if (fprintf(fp, " RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    
+    if (ad->mmline != NULL) 
+    {
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    
+      for (i = 0; i < aliwidth; i++)
+    	{
+    	  if (ad->mmline[pos+i] == 0) break; 
+    	  if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->mmline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    	}
+      if (fprintf(fp, " MM\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+     
+    if (fprintf(fp, "  %*s %*d ", namewidth,  show_hmmname, coordwidth, k1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    
+    for (i = 0; i < aliwidth; i++)
+    {
+      if (ad->model[pos+i] == 0) break; 
+    	if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->model[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    if (fprintf(fp, " %-*d\n", coordwidth, k2) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    
+    if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    for (i = 0; i < aliwidth; i++)
+    {
+      if (ad->mline[pos+i] == 0) break; 
+    	if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->mline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    }
+    if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    
+    if (show_translated_sequence)
+    {
+      if (fprintf(fp, "  %*s", namewidth, ad->orfname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (ni > 0) 
+        if (fprintf(fp, " %*d ", coordwidth, o1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      else
+    	  if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    		  
+      for (i = 0; i < aliwidth; i++)
+    	{
+    	  if (ad->aseq[pos+i] == 0) break; 
+    	  if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    	} 		  
+    	if (ni > 0)
+    	  if (fprintf(fp, " %-*d\n", coordwidth, o2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    	else
+    	  if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    	  
+    if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    if (ni > 0) 
+      if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    else
+      if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    
+    npos = pos * 3;
+    if(show_vertical_codon)
+    {
+      /* Display the DNA codon vertically instead of horizontally */	   
+      for(k = 0; k < 3; k++)
+      {	
+        if(k != 0)   
+        { 
+          if (fprintf(fp, "  %*s", namewidth, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+     	    if (fprintf(fp, " %*s ", coordwidth, " ")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");			
+    	  }
+    		
+    	  for (i = 0, j = 0; j < aliwidth; i+=3, j++)
+    	  {
+    	    if (ad->ntseq[npos+i] == 0) break; 
+          if (fprintf(fp, "%c", ad->ntseq[npos+i+k])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    	  }
+    	  if(k < 2)  
+     	    if (fprintf(fp, "\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    	}
+    }
+    else
+    {
+      /* Display the DNA codon horizontally */	   
+    	for (i = 0, j = 0; j < aliwidth; i+=3, j++)
+    	{
+    	  if (ad->ntseq[npos+i] == 0) break; 
+        if (fprintf(fp, "%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    	}
+    }		
+    		
+    if (ni > 0)
+     	if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    else
+      if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    	
+    if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    
+    for (i = 0; i < aliwidth; i++)
+    {
+      if (ad->ppline[pos+i] == 0) break; 
+      if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    
+    if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");	  
+    	  
+    /* print DNA sequence */
+    
+    k1 += nk;
+    if   (ad->sqfrom < ad->sqto)  i1 += ni*3;
+    else                          i1 -= ni*3;  // revcomp hit for DNA
+    o1 += ni;
+  }
   fflush(fp);
   free(buf);
   return eslOK;
-
- ERROR:
-  if (buf) free(buf);
-  return status;
+  
+  ERROR:
+    if (buf) free(buf);
+    return status;
 }  
 
 /* Function:  p7_alidisplay_Print()

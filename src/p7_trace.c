@@ -30,6 +30,7 @@
 
 static P7_TRACE *trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posteriors);
 static P7_TRACE *trace_fs_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posteriors);
+static P7_TRACE *trace_splice_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posteriors);
 
 /* Function:  p7_trace_Create()
  * Synopsis:  Allocates a (growable, reusable) traceback.
@@ -117,6 +118,25 @@ p7_trace_fs_CreateWithPP(void)
   return trace_fs_create_engine(initial_nalloc, initial_ndomalloc, with_posteriors);
 }
 
+/* Function:  p7_trace_splice_CreateWithPP()
+ * Synopsis:  Allocates a traceback that includes posterior probs.
+ * Incept:    SRE, Tue Aug 19 13:08:12 2008 [Janelia]
+ *
+ * Purpose:   Allocates a traceback that includes <tr->pp[z]> fields
+ *            for posterior probabilities of emitted residues; 
+ *            otherwise identical to <p7_trace_Create()>.
+ */
+P7_TRACE *
+p7_trace_splice_CreateWithPP(void)
+{
+  int       initial_nalloc    = 256;
+  int       initial_ndomalloc = 16;
+  int       with_posteriors   = TRUE;
+  return trace_splice_create_engine(initial_nalloc, initial_ndomalloc, with_posteriors);
+}
+
+
+
 static P7_TRACE *
 trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posteriors)
 {
@@ -128,6 +148,7 @@ trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posterio
   tr->k  = NULL;
   tr->i  = NULL;
   tr->c  = NULL;
+  tr->sp = NULL;
   tr->pp = NULL;
   tr->M  = 0;
   tr->L  = 0;
@@ -171,6 +192,7 @@ trace_fs_create_engine(int initial_nalloc, int initial_ndomalloc, int with_poste
   tr->k  = NULL;
   tr->i  = NULL;
   tr->c  = NULL;
+  tr->sp = NULL;
   tr->pp = NULL;
   tr->M  = 0;
   tr->L  = 0;
@@ -200,7 +222,53 @@ trace_fs_create_engine(int initial_nalloc, int initial_ndomalloc, int with_poste
   return tr;
 
  ERROR:
-  if (tr != NULL) p7_trace_Destroy(tr);
+  if (tr != NULL) p7_trace_fs_Destroy(tr);
+  return NULL;
+}
+
+static P7_TRACE *
+trace_splice_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posteriors)
+{
+  P7_TRACE *tr      = NULL;
+  int       status;
+
+  ESL_ALLOC(tr, sizeof(P7_TRACE));
+  tr->st = NULL;
+  tr->k  = NULL;
+  tr->i  = NULL;
+  tr->c  = NULL;
+  tr->sp = NULL;
+  tr->pp = NULL;
+  tr->M  = 0;
+  tr->L  = 0;
+  tr->tfrom   = tr->tto   = NULL;
+  tr->sqfrom  = tr->sqto  = NULL;
+  tr->hmmfrom = tr->hmmto = NULL;
+
+  /* The trace data itself */
+  ESL_ALLOC(tr->st, sizeof(char) * initial_nalloc);
+  ESL_ALLOC(tr->k,  sizeof(int)  * initial_nalloc);
+  ESL_ALLOC(tr->i,  sizeof(int)  * initial_nalloc);
+  ESL_ALLOC(tr->c,  sizeof(int)  * initial_nalloc);
+  ESL_ALLOC(tr->sp, sizeof(int)  * initial_nalloc);
+  if (with_posteriors)
+    ESL_ALLOC(tr->pp, sizeof(float) * initial_nalloc);
+  tr->N      = 0;
+  tr->nalloc = initial_nalloc;
+
+  /* The trace's index: table of domain start/stop coords */
+  ESL_ALLOC(tr->tfrom,   sizeof(int) * initial_ndomalloc);
+  ESL_ALLOC(tr->tto,     sizeof(int) * initial_ndomalloc);
+  ESL_ALLOC(tr->sqfrom,  sizeof(int) * initial_ndomalloc);
+  ESL_ALLOC(tr->sqto,    sizeof(int) * initial_ndomalloc);
+  ESL_ALLOC(tr->hmmfrom, sizeof(int) * initial_ndomalloc);
+  ESL_ALLOC(tr->hmmto,   sizeof(int) * initial_ndomalloc);
+  tr->ndom      = 0;
+  tr->ndomalloc = initial_ndomalloc;
+  return tr;
+
+ ERROR:
+  if (tr != NULL) p7_trace_splice_Destroy(tr);
   return NULL;
 }
 
@@ -224,6 +292,7 @@ p7_trace_fs_Clone(const P7_TRACE *tr)
   dup->k  = NULL;
   dup->i  = NULL;
   dup->c  = NULL;
+  dup->sp = NULL;
   dup->pp = NULL;
 
   dup->N         = tr->N;
@@ -256,6 +325,11 @@ p7_trace_fs_Clone(const P7_TRACE *tr)
   if (tr->pp != NULL) {
     ESL_ALLOC(dup->pp, sizeof(float) * dup->nalloc);
     memcpy(dup->pp, tr->pp, sizeof(float) * dup->nalloc);
+  }
+  
+  if (tr->sp != NULL) {
+    ESL_ALLOC(dup->sp, sizeof(float) * dup->nalloc);
+    memcpy(dup->sp, tr->sp, sizeof(float) * dup->nalloc);
   }
 
    /* The trace's index: table of domain start/stop coords */
@@ -428,6 +502,44 @@ p7_trace_fs_Grow(P7_TRACE *tr)
 }
 
 
+/* Function:  p7_trace_splice_Grow()
+ * Synopsis:  Grow the allocation for trace data.
+ *
+ * Purpose:   If <tr> can't fit another state, double its allocation for
+ *            traceback data.
+ *            
+ *            This doesn't reallocate the domain index; see
+ *            <p7_trace_GrowIndex()> or <p7_trace_GrowIndexTo()> for
+ *            that.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure; in this case, the data in
+ *            <tr> are unaffected.
+ */
+int
+p7_trace_splice_Grow(P7_TRACE *tr)
+{
+  void *tmp;
+  int   status;
+ 
+  if (tr->N < tr->nalloc) return eslOK;
+
+  ESL_RALLOC(tr->st, tmp, sizeof(char) *2*tr->nalloc);
+  ESL_RALLOC(tr->k,  tmp, sizeof(int)  *2*tr->nalloc);
+  ESL_RALLOC(tr->i,  tmp, sizeof(int)  *2*tr->nalloc);
+  ESL_RALLOC(tr->c,  tmp, sizeof(int)  *2*tr->nalloc);
+  ESL_RALLOC(tr->sp, tmp, sizeof(int)  *2*tr->nalloc);
+  if (tr->pp != NULL) ESL_RALLOC(tr->pp,  tmp, sizeof(float) *2*tr->nalloc);
+  tr->nalloc *= 2;
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
+
+
 /* Function:  p7_trace_GrowIndex()
  * Synopsis:  Grows the allocation of the trace's domain index.
  * Incept:    SRE, Fri Jan  4 10:40:02 2008 [Janelia]
@@ -584,7 +696,7 @@ p7_trace_Destroy(P7_TRACE *tr)
   return;
 }
 
-/* Function:  p7_trace_Destroy()
+/* Function:  p7_trace_fs_Destroy()
  * Synopsis:  Frees a trace.
  *
  * Purpose:   Frees a trace structure <tr>.
@@ -610,6 +722,38 @@ p7_trace_fs_Destroy(P7_TRACE *tr)
   free(tr);
   return;
 }
+
+
+/* Function:  p7_trace_splice_Destroy()
+ * Synopsis:  Frees a trace.
+ *
+ * Purpose:   Frees a trace structure <tr>.
+ *
+ * Returns:   (void)
+ */
+void
+p7_trace_splice_Destroy(P7_TRACE *tr)
+{
+
+  if (tr == NULL) return;
+  if (tr->st      != NULL) free(tr->st);
+  if (tr->k       != NULL) free(tr->k);
+  if (tr->i       != NULL) free(tr->i);
+  if (tr->c       != NULL) free(tr->c);
+  if (tr->sp      != NULL) free(tr->sp);
+  if (tr->pp      != NULL) free(tr->pp);
+  if (tr->tfrom   != NULL) free(tr->tfrom);
+  if (tr->tto     != NULL) free(tr->tto);
+  if (tr->sqfrom  != NULL) free(tr->sqfrom);
+  if (tr->sqto    != NULL) free(tr->sqto);
+  if (tr->hmmfrom != NULL) free(tr->hmmfrom);
+  if (tr->hmmto   != NULL) free(tr->hmmto);
+  free(tr);
+  return;
+}
+
+
+
 /* Function:  p7_trace_DestroyArray()
  *
  * Purpose:   Frees an array of <N> trace structures, <tr[0..N-1]>.
@@ -1129,11 +1273,11 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
       fprintf(fp, "st   k      i      c   - traceback len %d\n", tr->N);
       fprintf(fp, "--  ----   ----   ----\n");
       for (z = 0; z < tr->N; z++) {
-	fprintf(fp, "%1s  %4d %6d %1d\n", 
+	fprintf(fp, "%1s  %4d %6d %4d\n", 
 		p7_hmm_DecodeStatetype(tr->st[z]),
 		tr->k[z],
 		tr->i[z],
-                tr->c[z]);
+        tr->c[z]);
       } 
     } 
   else 
@@ -1144,7 +1288,7 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
       float tsc;
       int   xi;
 
-
+      
       fprintf(fp, "st   k     i      c      transit emission postprob - traceback len %d\n", tr->N);
       fprintf(fp, "--  ---- ------  ----   -------- -------- --------\n");
       for (z = 0; z < tr->N; z++) 
@@ -1156,7 +1300,7 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
 	    }
 	  else tsc = 0.0f;
 
-	  fprintf(fp, "%1s  %4d %6d %4d %8.4f", p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
+	  fprintf(fp, "%1s  %4d %6d %4d %8.4f %4d", p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
 	  sc += tsc;
 	  
 	  if (dsq != NULL) {
@@ -1624,7 +1768,7 @@ p7_trace_AppendWithPP(P7_TRACE *tr, char st, int k, int i, float pp)
   return eslOK;
 }
 
-/* Function:  p7_trace_AppendWithPP()
+/* Function:  p7_trace_fs_AppendWithPP()
  * Synopsis:  Add element to growing trace, with posterior probability.
  *
  * Purpose:   Same as <p7_trace_Append()>, but also records a posterior
@@ -1675,6 +1819,59 @@ p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, float pp)
   tr->N++;
   return eslOK;
 }
+
+
+/* Function:  p7_trace_splice_AppendWithPP()
+ * Synopsis:  Add element to growing trace, with posterior probability.
+ *
+ * Purpose:   Same as <p7_trace_Append()>, but also records a posterior
+ *            probability estimate for emitted residues. <pp> is assumed to be
+ *            zero for nonemitting states even if a nonzero argument is
+ *            mistakenly passed. 
+ */
+int
+p7_trace_splice_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, int sp, float pp)
+{
+  int status;
+
+  if ((status = p7_trace_splice_Grow(tr)) != eslOK) return status;
+
+  switch (st) {
+    /* Emit-on-transition states: */
+  case p7T_N: 
+  case p7T_C: 
+  case p7T_J:
+    if (tr->st[tr->N-1] == st) { tr->i[tr->N]  = i; tr->pp[tr->N] = pp;  }
+    else                       { tr->i[tr->N]  = 0; tr->pp[tr->N] = 0.0; }
+    tr->k[tr->N]  = 0; 
+    tr->c[tr->N]  = 0;
+    tr->sp[tr->N] = -1;
+    break;
+    /* Nonemitting states, outside main model: */
+  case p7T_X:
+  case p7T_S:
+  case p7T_B:
+  case p7T_E:
+  case p7T_T: tr->i[tr->N] = 0; tr->pp[tr->N] = 0.0; tr->k[tr->N] = 0; tr->c[tr->N] = 0; tr->sp[tr->N] = -1; break;
+    /* Nonemitting, but in main model (k valid) */
+  case p7T_D: tr->i[tr->N] = 0; tr->pp[tr->N] = 0.0; tr->k[tr->N] = k; tr->c[tr->N] = 0; tr->sp[tr->N] = sp; break;
+    /* Emitting states, with valid k position in model: */
+  case p7T_M: tr->i[tr->N] = i; tr->pp[tr->N] = pp;  tr->k[tr->N] = k; tr->c[tr->N] = c; tr->sp[tr->N] = sp; break;
+  case p7T_I: tr->i[tr->N] = i; tr->pp[tr->N] = pp;  tr->k[tr->N] = k; tr->c[tr->N] = 0; tr->sp[tr->N] = sp; break;
+    /* Splice states: */
+  case p7T_R:
+  case p7T_P:
+  case p7T_A: tr->i[tr->N] = i; tr->pp[tr->N] = pp; tr->k[tr->N] = k; tr->c[tr->N] = 0; tr->sp[tr->N] = sp; break;
+  default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
+  }
+
+  tr->st[tr->N] = st;
+  tr->N++;
+  return eslOK;
+}
+
+
+
 
 /* Function: p7_trace_Reverse()
  * Synopsis: Reverse the arrays in a traceback structure.
@@ -1826,28 +2023,28 @@ p7_trace_Index(P7_TRACE *tr)
 
   tr->ndom = 0;
   for (z = 0; z < tr->N; z++)
-    {
-      switch (tr->st[z]) {
+  {
+    switch (tr->st[z]) {
       case p7T_B:
-	if ((status = p7_trace_GrowIndex(tr)) != eslOK) goto ERROR;
-	tr->tfrom[tr->ndom]   = z;
-	tr->sqfrom[tr->ndom]  = 0;
-	tr->hmmfrom[tr->ndom] = 0;
-	break;
+	    if ((status = p7_trace_GrowIndex(tr)) != eslOK) goto ERROR;
+	    tr->tfrom[tr->ndom]   = z;
+	    tr->sqfrom[tr->ndom]  = 0;
+	    tr->hmmfrom[tr->ndom] = 0;
+ 	    break;
 
       case p7T_M:
-	if (tr->sqfrom[tr->ndom]  == 0) tr->sqfrom[tr->ndom]  = tr->i[z];
-	if (tr->hmmfrom[tr->ndom] == 0) tr->hmmfrom[tr->ndom] = tr->k[z];
-	tr->sqto[tr->ndom]  = tr->i[z];
-	tr->hmmto[tr->ndom] = tr->k[z];
-	break;
+	    if (tr->sqfrom[tr->ndom]  == 0) tr->sqfrom[tr->ndom]  = tr->i[z];
+	    if (tr->hmmfrom[tr->ndom] == 0) tr->hmmfrom[tr->ndom] = tr->k[z];
+	    tr->sqto[tr->ndom]  = tr->i[z];
+	    tr->hmmto[tr->ndom] = tr->k[z];
+	    break;
 
       case p7T_E:
-	tr->tto[tr->ndom]   = z;
-	tr->ndom++;
-	break;
-      }
+	    tr->tto[tr->ndom]   = z;
+	    tr->ndom++;
+	    break;
     }
+  }
   return eslOK;
   
  ERROR:

@@ -55,11 +55,11 @@ static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, co
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
 static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
            int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq,  
+static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq,  
            P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, 
            ESL_GENCODE *gcode, int do_biasfilter);
-static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
-	   const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
+static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *orfsq, 
+           const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
            P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg);
 
 
@@ -726,7 +726,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
          
          i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
 
-         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, gcode, do_biasfilter) == eslOK) last_j2 = j2;
+         if (rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, i2, j2, FALSE, bg, gcode, do_biasfilter) == eslOK) last_j2 = j2;
         }
 
         p7_spensemble_Reuse(ddef->sp);
@@ -736,7 +736,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 	
       ddef->nenvelopes++;
        
-      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, gcode, do_biasfilter);
+      rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, i, j, FALSE, bg, gcode, do_biasfilter);
     }
     i     = -1;
     triggered = FALSE;
@@ -866,7 +866,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
 		  
-                  if (rescore_isolated_domain_nonframeshift(ddef, om, gm, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
+                  if (rescore_isolated_domain_nonframeshift(ddef, om, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
                        last_j2 = j2;
 
           }
@@ -879,7 +879,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
 	    
-            rescore_isolated_domain_nonframeshift(ddef, om, gm, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE, bg);
+            rescore_isolated_domain_nonframeshift(ddef, om, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE, bg);
         }
         i     = -1;
         triggered = FALSE;
@@ -1579,7 +1579,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
  * 
  */
 static int
-rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, 
+rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, 
 		                   P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, 
 				   ESL_GENCODE *gcode, int do_biasfilter)
 {
@@ -1637,7 +1637,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   }
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm, gm_fs, windowsq, gcode);
+  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm_fs, windowsq, gcode);
   dom->scores_per_pos = NULL; 
   
    /* Compute bias correction
@@ -1790,9 +1790,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
  * 
  */
 static int
-rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
-		                      const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
-		                      P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg)
+rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *orfsq, const ESL_SQ *windowsq, 
+                                     const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, 
+                                     int i, int j, int null2_is_done, P7_BG *bg)
 {
 
   P7_DOMAIN     *dom           = NULL;
@@ -1838,7 +1838,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_nonfs_Create(ddef->tr, 0, gm, gm_fs, windowsq, orfsq, gcode, ddef->tr->sqfrom[0]);
+  dom->ad             = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, ddef->tr->sqfrom[0]);
   
   dom->scores_per_pos = NULL;  
 

@@ -709,7 +709,7 @@ p7_tophits_Destroy(P7_TOPHITS *h)
         for (j = 0; j < h->unsrt[i].ndom; j++) {
 
           if (h->unsrt[i].dcl[j].ad             != NULL) p7_alidisplay_Destroy(h->unsrt[i].dcl[j].ad);
-          if (h->unsrt[i].dcl[j].tr             != NULL) p7_trace_fs_Destroy(h->unsrt[i].dcl[j].tr);
+          if (h->unsrt[i].dcl[j].tr             != NULL) p7_trace_splice_Destroy(h->unsrt[i].dcl[j].tr);
 	  if (h->unsrt[i].dcl[j].scores_per_pos != NULL) free (h->unsrt[i].dcl->scores_per_pos);
 	}
         free(h->unsrt[i].dcl);
@@ -996,15 +996,13 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
       if ( !(th->hit[h]->flags & p7_IS_DUPLICATE) &&
           p7_pli_TargetReportable(pli, th->hit[h]->score, th->hit[h]->lnP))
       {
-          th->hit[h]->flags |= p7_IS_REPORTED;
-          if (p7_pli_TargetIncludable(pli, th->hit[h]->score, th->hit[h]->lnP))
-	   {
-              th->hit[h]->flags |= p7_IS_INCLUDED;
-          }
-          if (pli->long_targets || pli->frameshift) { // no domains in dna search, so:
-            th->hit[h]->dcl[0].is_reported = th->hit[h]->flags & p7_IS_REPORTED;
-            th->hit[h]->dcl[0].is_included = th->hit[h]->flags & p7_IS_INCLUDED;
-          }
+        th->hit[h]->flags |= p7_IS_REPORTED;
+        if (p7_pli_TargetIncludable(pli, th->hit[h]->score, th->hit[h]->lnP))
+            th->hit[h]->flags |= p7_IS_INCLUDED;
+        if (pli->long_targets || pli->frameshift) { // no domains in dna search, so:
+          th->hit[h]->dcl[0].is_reported = th->hit[h]->flags & p7_IS_REPORTED;
+          th->hit[h]->dcl[0].is_included = th->hit[h]->flags & p7_IS_INCLUDED;
+        }
       }
     }
   }

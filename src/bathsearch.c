@@ -918,25 +918,24 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     pipelinehits_accumulator->Z = 1;    
     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
-    if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N)
-      p7_splice_SpliceHits(tophits_accumulator, gm, dbfp);
-    //  SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
-
+    if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) {
+      p7_splice_SpliceHits(tophits_accumulator, om, gm, gm_fs, go, gcode, dbfp, ofp);
+      //SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
+    }
     
-      /* Print the results.  */
-      pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
-      for (i = 0; i < tophits_accumulator->N; i++) {
-        if ( (tophits_accumulator->hit[i]->flags & p7_IS_REPORTED) || tophits_accumulator->hit[i]->flags & p7_IS_INCLUDED) {
-          pipelinehits_accumulator->n_output++;
+    /* Print the results.  */
+    pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
+    for (i = 0; i < tophits_accumulator->N; i++) {
+      if ( (tophits_accumulator->hit[i]->flags & p7_IS_REPORTED) || tophits_accumulator->hit[i]->flags & p7_IS_INCLUDED) {
+        pipelinehits_accumulator->n_output++;
           
-	for(d = 0; d < tophits_accumulator->hit[i]->ndom; d++)
-            pipelinehits_accumulator->pos_output += 1 + (tophits_accumulator->hit[i]->dcl[d].jali > tophits_accumulator->hit[i]->dcl[d].iali ? tophits_accumulator->hit[i]->dcl[d].jali - tophits_accumulator->hit[i]->dcl[d].iali : tophits_accumulator->hit[i]->dcl[d].iali - tophits_accumulator->hit[i]->dcl[d].jali) ;
+	  for(d = 0; d < tophits_accumulator->hit[i]->ndom; d++)
+        pipelinehits_accumulator->pos_output += 1 + (tophits_accumulator->hit[i]->dcl[d].jali > tophits_accumulator->hit[i]->dcl[d].iali ? tophits_accumulator->hit[i]->dcl[d].jali - tophits_accumulator->hit[i]->dcl[d].iali : tophits_accumulator->hit[i]->dcl[d].iali - tophits_accumulator->hit[i]->dcl[d].jali) ;
       }
     }
 
     p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
     p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-
 
     if (tblfp)     p7_tophits_TabularTargets(tblfp,    hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
     if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,    hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));

@@ -919,7 +919,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) {
-      p7_splice_SpliceHits(tophits_accumulator, om, gm, gm_fs, go, gcode, dbfp, ofp);
+      p7_splice_SpliceHits(tophits_accumulator, om, gm, gm_fs, go, gcode, dbfp, ofp, resCnt);
       //SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
     }
     

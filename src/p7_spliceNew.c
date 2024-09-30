@@ -24,7 +24,7 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-static int TEST_MODE  = 0;
+static int TEST_MODE  = 1;
 
 
 
@@ -34,26 +34,30 @@ static SPLICE_EDGE* splice_edge_create(void);
 static SPLICE_GRAPH* splice_graph_create(void);
 static void splice_graph_destroy (SPLICE_GRAPH* graph);
 static int splice_graph_create_nodes(SPLICE_GRAPH *graph, int num_nodes);
+static SPLICE_PATH* splice_path_create(int path_len);
+static void splice_path_destroy(SPLICE_PATH *path);
 static SPLICE_PIPELINE* splice_pipeline_create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 static void splice_pipeline_destroy(SPLICE_PIPELINE *pli);
 
 static TARGET_RANGE* build_target_range (TARGET_RANGE *prev_target_range, const P7_TOPHITS *tophits, int64_t *range_bound_mins, int64_t *range_bound_maxs, int range_num,int *hits_processed, int *num_hits_processed);
 static ESL_SQ* get_target_range_sequence(TARGET_RANGE *target_range, ESL_SQFILE *seq_file);
 static int fill_graph_with_nodes(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm); 
-static int connect_nodes_with_edges(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq); 
+static SPLICE_EDGE* connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downstream_hit, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, int revcomp);
 static void get_overlap_nuc_coords (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, ESL_SQ *target_seq, int revcomp); 
 static int find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, int revcomp);
 static float ali_score_at_postion (P7_PROFILE *gm, int amino, int model_pos, int trans_pos, int prev_state, int curr_state);
 static int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, float *splice_scores, float up_score, float down_score, int model_pos, int up_nuc_pos, int down_nuc_pos, int up_state, int down_state);
-static int  evaluate_paths (SPLICE_GRAPH *graph);
+static SPLICE_PATH* evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq);
 static void push_score_upstream (SPLICE_GRAPH *graph, int node_id);
-static int splice_path (SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode, int start_node, int end_node, int path_len, int *success);
+static int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROFILE *om, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int *success);
 static int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 static P7_TRACE* splice_trace_convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt);
 static P7_ALIDISPLAY* create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, int amino_pos, int splice_cnt);
+static int fix_bad_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROFILE *om, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int* success);
 
 static void target_range_dump(FILE *fp, TARGET_RANGE *target_range, int print_hits);
-static void graph_dump(FILE *fp, SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int print_edges);
+static void graph_dump(FILE *fp, SPLICE_GRAPH *graph, ESL_SQ *target_seq, int print_edges);
+static void path_dump(FILE *fp, SPLICE_PATH *path, ESL_SQ *target_seq);
 
 /* Create a TARGET_RANGE object with room for nalloc P7_HIT pointers*/
 TARGET_RANGE *
@@ -121,6 +125,7 @@ splice_edge_create(void)
   ESL_ALLOC(edge, sizeof(SPLICE_EDGE));
 
   edge->splice_score = -eslINFINITY;
+  edge->signal_score = -eslINFINITY;
 
   return edge;
 
@@ -144,11 +149,10 @@ splice_graph_create(void)
   graph->num_n_term = 0;
   graph->num_c_term = 0;
 
-  graph->has_full_path         = 0;
-  graph->best_full_path_length = 0;
-  graph->best_full_path_start  = 0;
-  graph->best_full_path_end    = 0;
-  graph->best_full_path_score  = 0.0;
+  graph->has_full_path    = 0;
+  graph->best_path_length = 0;
+  graph->best_path_start  = 0;
+  graph->best_path_end    = 0;
 
   graph->has_out_edge    = NULL; 
   graph->has_in_edge     = NULL;
@@ -220,47 +224,157 @@ splice_graph_create_nodes(SPLICE_GRAPH *graph, int num_nodes)
 
   if(graph == NULL)  graph = splice_graph_create();
 
-  /* Allocate adjacency matrix for splice scores */ 
-  ESL_ALLOC(graph->edge_scores,       sizeof(float*)       * num_nodes);
-  ESL_ALLOC(graph->edge_scores_mem,   sizeof(float)        * (num_nodes * num_nodes));
- 
-  for (i = 0; i < num_nodes; i++)
-    graph->edge_scores[i] = graph->edge_scores_mem + (ptrdiff_t) i * (ptrdiff_t) num_nodes;
-
-  /* Allocate array of hit scores */
-  ESL_ALLOC(graph->hit_scores,        sizeof(float)        * num_nodes);
-
-  /* Allocate array of path scores */
-  ESL_ALLOC(graph->path_scores,        sizeof(float)        * num_nodes);
-
-  /* Allocate arrays for keeping track of which nodes have edges ans which edge is best*/
-  ESL_ALLOC(graph->has_out_edge,   sizeof(int)          * num_nodes);
-  ESL_ALLOC(graph->has_in_edge,    sizeof(int)          * num_nodes);
-  ESL_ALLOC(graph->best_out_edge,  sizeof(int)          * num_nodes);
-  ESL_ALLOC(graph->best_in_edge,   sizeof(int)          * num_nodes);
-
-  /* Allocate arrays of n and c terminal status of each node */
-  ESL_ALLOC(graph->is_n_terminal,     sizeof(int)          * num_nodes);
-  ESL_ALLOC(graph->is_c_terminal,     sizeof(int)          * num_nodes);
-
-  /* Allocate adjacency matrix for edge index in graph->edges */
-  ESL_ALLOC(graph->edge_id,           sizeof(int*)         * num_nodes);
-  ESL_ALLOC(graph->edge_id_mem,       sizeof(int)          * (num_nodes * num_nodes));
-
-  for (i = 0; i < num_nodes; i++)
-    graph->edge_id[i] = graph->edge_id_mem + (ptrdiff_t) i * (ptrdiff_t) num_nodes;
-
-  /* Allocate array for SPLICE_EDGE objects */
-  ESL_ALLOC(graph->edges,             sizeof(SPLICE_EDGE*) * (num_nodes * num_nodes));
-  
-  
+  graph->nalloc     = num_nodes*2;
   graph->num_nodes  = num_nodes;
 
+  /* Allocate adjacency matrix for splice scores */ 
+  ESL_ALLOC(graph->edge_scores,       sizeof(float*)       * graph->nalloc);
+  ESL_ALLOC(graph->edge_scores_mem,   sizeof(float)        * (graph->nalloc * graph->nalloc));
+ 
+  for (i = 0; i < graph->nalloc; i++)
+    graph->edge_scores[i] = graph->edge_scores_mem + (ptrdiff_t) i * (ptrdiff_t) graph->nalloc;
+
+  /* Allocate array of hit scores */
+  ESL_ALLOC(graph->hit_scores,        sizeof(float)        * graph->nalloc);
+
+  /* Allocate array of path scores */
+  ESL_ALLOC(graph->path_scores,        sizeof(float)        * graph->nalloc);
+
+  /* Allocate arrays for keeping track of which nodes have edges ans which edge is best*/
+  ESL_ALLOC(graph->has_out_edge,   sizeof(int)          * graph->nalloc);
+  ESL_ALLOC(graph->has_in_edge,    sizeof(int)          * graph->nalloc);
+  ESL_ALLOC(graph->best_out_edge,  sizeof(int)          * graph->nalloc);
+  ESL_ALLOC(graph->best_in_edge,   sizeof(int)          * graph->nalloc);
+
+  /* Allocate arrays of n and c terminal status of each node */
+  ESL_ALLOC(graph->is_n_terminal,     sizeof(int)          * graph->nalloc);
+  ESL_ALLOC(graph->is_c_terminal,     sizeof(int)          * graph->nalloc);
+
+  /* Allocate adjacency matrix for edge index in graph->edges */
+  ESL_ALLOC(graph->edge_id,           sizeof(int*)         * graph->nalloc);
+  ESL_ALLOC(graph->edge_id_mem,       sizeof(int)          * (graph->nalloc * graph->nalloc));
+
+  for (i = 0; i < graph->nalloc; i++)
+    graph->edge_id[i] = graph->edge_id_mem + (ptrdiff_t) i * (ptrdiff_t) graph->nalloc;
+
+  /* Allocate array for SPLICE_EDGE objects */
+  ESL_ALLOC(graph->edges,             sizeof(SPLICE_EDGE*) * (graph->nalloc * graph->nalloc));
+  
   return eslOK;
 
   ERROR:
 	splice_graph_destroy(graph);
     return status;
+}
+
+int
+splice_graph_grow(SPLICE_GRAPH *graph)
+{
+  int i;
+  int status;
+
+  if(graph->num_nodes == graph->nalloc) {
+    graph->nalloc *= 2;
+     ESL_REALLOC(graph->edge_scores,     sizeof(float*)  * graph->nalloc);
+     ESL_REALLOC(graph->edge_scores_mem, sizeof(float)   * (graph->nalloc * graph->nalloc));
+  
+     for (i = 0; i < graph->nalloc; i++)
+       graph->edge_scores[i] = graph->edge_scores_mem + (ptrdiff_t) i * (ptrdiff_t) graph->nalloc;
+
+     ESL_REALLOC(graph->hit_scores,      sizeof(float)   * graph->nalloc);
+     ESL_REALLOC(graph->path_scores,     sizeof(float)   * graph->nalloc); 
+      
+     ESL_REALLOC(graph->has_out_edge,    sizeof(int)          * graph->nalloc);
+     ESL_REALLOC(graph->has_in_edge,     sizeof(int)          * graph->nalloc);
+     ESL_REALLOC(graph->best_out_edge,   sizeof(int)          * graph->nalloc);
+     ESL_REALLOC(graph->best_in_edge,    sizeof(int)          * graph->nalloc);
+     ESL_REALLOC(graph->is_n_terminal,   sizeof(int)          * graph->nalloc);
+     ESL_REALLOC(graph->is_c_terminal,   sizeof(int)          * graph->nalloc);
+
+     ESL_REALLOC(graph->edge_id,         sizeof(int*)         * graph->nalloc);
+     ESL_REALLOC(graph->edge_id_mem,     sizeof(int)          * (graph->nalloc * graph->nalloc));
+
+    for (i = 0; i < graph->nalloc; i++)
+      graph->edge_id[i] = graph->edge_id_mem + (ptrdiff_t) i * (ptrdiff_t) graph->nalloc;
+
+    ESL_REALLOC(graph->edges,            sizeof(SPLICE_EDGE*) * (graph->nalloc * graph->nalloc));
+  }
+
+  return eslOK;
+
+  ERROR:
+    splice_graph_destroy(graph);
+    return status;
+
+}
+
+
+SPLICE_PATH*
+splice_path_create(int path_len)
+{
+
+  SPLICE_PATH *path;
+  int          status;
+
+  path = NULL;
+  ESL_ALLOC(path, sizeof(SPLICE_PATH));
+ 
+  path->path_len = path_len;
+  path->seq_len  = 0;
+
+  path->node_id = NULL;
+  ESL_ALLOC(path->node_id,                        sizeof(int)*(path_len));
+
+  path->upstream_spliced_amino_end     = NULL;
+  path->downstream_spliced_amino_start = NULL;
+  ESL_ALLOC(path->upstream_spliced_amino_end,     sizeof(int)*(path_len+1));
+  ESL_ALLOC(path->downstream_spliced_amino_start, sizeof(int)*(path_len+1));
+
+  path->upstream_spliced_nuc_end     = NULL;
+  path->downstream_spliced_nuc_start = NULL;
+  ESL_ALLOC(path->upstream_spliced_nuc_end,       sizeof(int)*(path_len+1));
+  ESL_ALLOC(path->downstream_spliced_nuc_start,   sizeof(int)*(path_len+1));
+
+  path->hit_scores    = NULL;
+  path->signal_scores = NULL;
+  ESL_ALLOC(path->hit_scores,    sizeof(float)*path_len);
+  ESL_ALLOC(path->signal_scores, sizeof(float)*path_len);
+
+  path->hits = NULL;
+  ESL_ALLOC(path->hits,          sizeof(P7_HIT*)*path_len);
+
+  return path;
+
+  ERROR:
+    splice_path_destroy(path);
+    return NULL;
+}
+
+
+void
+splice_path_destroy(SPLICE_PATH *path)
+{
+
+   if(path->node_id                        != NULL)
+     free(path->node_id);
+   if(path->upstream_spliced_amino_end     != NULL)
+     free(path->upstream_spliced_amino_end);
+   if(path->downstream_spliced_amino_start != NULL)
+     free(path->downstream_spliced_amino_start);
+
+   if(path->upstream_spliced_nuc_end       != NULL)
+     free(path->upstream_spliced_nuc_end);
+   if(path->downstream_spliced_nuc_start   != NULL)
+     free(path->downstream_spliced_nuc_start);
+
+   if(path->hit_scores    != NULL) free(path->hit_scores);
+   if(path->signal_scores != NULL) free(path->signal_scores);
+ 
+   if(path->hits          != NULL) free(path->hits);
+
+   if(path                != NULL) free(path);
+
+   return;
 }
 
 
@@ -273,12 +387,31 @@ splice_pipeline_create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli = NULL;
   ESL_ALLOC(pli, sizeof(SPLICE_PIPELINE));
 
+  pli->frameshift = TRUE;
+  pli->long_targets = FALSE;
 
   if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2 = FALSE;
   else                                           pli->do_null2 = TRUE;           
   
-  if (go && esl_opt_IsOn(go, "--incT")) pli->inc_by_E = FALSE;
-  else                                  pli->inc_by_E = TRUE;
+  pli->by_E            = TRUE;
+  pli->E               = (go ? esl_opt_GetReal(go, "-E") : 10.0);
+  pli->T               = 0.0;
+
+  if (go && esl_opt_IsOn(go, "-T")) {
+    pli->T    = esl_opt_GetReal(go, "-T");
+    pli->by_E = FALSE;
+  }
+
+  pli->inc_by_E           = TRUE;
+  pli->incE               = (go ? esl_opt_GetReal(go, "--incE") : 0.01);
+  pli->incT               = 0.0;
+  
+  if (go && esl_opt_IsOn(go, "--incT")) {
+    pli->incT     = esl_opt_GetReal(go, "--incT");
+    pli->inc_by_E = FALSE;
+  }
+
+  pli->Z = 0.;
 
   pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
@@ -391,11 +524,11 @@ splice_pipeline_destroy(SPLICE_PIPELINE *pli)
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp)
+p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt)
 {
 
   int              exon_set_name_id = 0;
-  int              i;
+  int              i,j;
   int              hit_cnt;
   int              range_cnt;
   int              success;
@@ -410,6 +543,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   TARGET_RANGE    *curr_target_range;
   TARGET_RANGE    *prev_target_range;
   SPLICE_GRAPH    *graph;
+  SPLICE_EDGE     *edge;
+  SPLICE_PATH     *path;
   ESL_SQ          *target_seq;
   int              status;
 
@@ -418,7 +553,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   range_bound_mins = NULL;
   range_bound_maxs = NULL;
  
-
   ESL_STOPWATCH * Timer = esl_stopwatch_Create();
    esl_stopwatch_Start(Timer);
  
@@ -441,6 +575,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   hit_cnt = 0;
   num_hits_processed = 0;
   for(i = 0; i < tophits->N; i++) {
+    tophits->hit[i]->dcl->ad->exons = 1;
     if ( !(tophits->hit[i]->flags & p7_IS_REPORTED)) {
       hit_processed[i] = 1;
       num_hits_processed++;
@@ -466,7 +601,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     /* build a target range from a set of hits */
     curr_target_range = build_target_range(prev_target_range, tophits, range_bound_mins, range_bound_maxs, range_cnt, hit_processed, &num_hits_processed);
 
-  //printf("Target %s strand %c range %d to %d\n", curr_target_range->seqname, (curr_target_range->revcomp ? '-' : '+'), curr_target_range->start, curr_target_range->end);
+   //printf("Target %s strand %c range %d to %d\n", curr_target_range->seqname, (curr_target_range->revcomp ? '-' : '+'), curr_target_range->start, curr_target_range->end);
 
     /* Record target range boundries to limit range of other 
      * target ranges on the same sequence and strand */
@@ -481,30 +616,57 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
 
     /* Fetch a sub-sequence thar corresponds to the target range */
     target_seq = get_target_range_sequence(curr_target_range, seq_file); 
- //printf("Sequence n %d L %d start %d end %d\n", target_seq->n, target_seq->L, target_seq->start, target_seq->end);
+   //printf("Sequence n %d L %d start %d end %d\n", target_seq->n, target_seq->L, target_seq->start, target_seq->end);
 
     /* Build graph from available hits */
     graph = splice_graph_create();   
     graph->revcomp = curr_target_range->revcomp;
-    
+       
     if ((status = fill_graph_with_nodes(graph, curr_target_range->th, gm)) != eslOK) goto ERROR;
+   
+    /* Connect the nodes */
+    for(i = 0; i < curr_target_range->th->N; i++) {
 
-    if ((status = connect_nodes_with_edges(graph, curr_target_range->th, gm, gcode, target_seq)) != eslOK) goto ERROR;
+      for(j = 0; j < curr_target_range->th->N; j++) {
+        if (i == j) {
+          graph->edge_scores[i][j] = -eslINFINITY;
+          continue;
+        }
 
-
+        edge = connect_nodes_with_edges(curr_target_range->th->hit[i], curr_target_range->th->hit[j], gm, gcode, target_seq, graph->revcomp);
+        if(edge == NULL) {
+          graph->edge_scores[i][j] = -eslINFINITY;
+          graph->edge_id[i][j]     = -1; 
+        }
+        else {
+          edge->upstream_node_id         = i;
+          edge->downstream_node_id       = j;
+          graph->has_out_edge[i]         = 1;
+          graph->has_in_edge[j]          = 1;
+          graph->edge_scores[i][j]       = edge->splice_score;
+          graph->edges[graph->num_edges] = edge;
+          graph->edge_id[i][j]           = graph->num_edges;
+          graph->num_edges++;
+        }
+      }
+    }
+     
     /* Score the paths in the graph.  If there are full mdoel length paths present splice them */
-    if ((status = evaluate_paths(graph)) != eslOK) goto ERROR;
-
-     //graph_dump(stdout, graph, curr_target_range->th, target_seq, TRUE); 
-    if(graph->has_full_path) {
-  
-      splice_path(graph, pli, curr_target_range->th, om, gm, target_seq, gcode, graph->best_full_path_start, graph->best_full_path_end, graph->best_full_path_length, &success);
-     /* Reset the range_bounds around the spliced hit and set all hits from 
-       * the target_range that are outside this new range to unprocessed */
+    if ((path = evaluate_paths(graph, curr_target_range->th, target_seq)) == NULL) goto ERROR;
+   //printf("path len %d\n", path->path_len); 
+    //graph_dump(stdout, graph, target_seq, TRUE); 
+    if(graph->has_full_path  ) {//|| path->path_len > 0) {
       
+      splice_path(graph, path, pli, curr_target_range->th, om, target_seq, gcode, db_nuc_cnt, &success);
+     /* Reset the range_bounds around the spliced hit and set all hits from 
+      * the target_range that are outside this new range to unprocessed */
+   
       if (success) {
+                 
+        tophits->nreported -= (path->path_len-1);
+        tophits->nincluded -= (path->path_len-1);
+        
         if (graph->revcomp) {     
-
           range_bound_mins[range_cnt-1] = pli->hit->dcl->jali;
           range_bound_maxs[range_cnt-1] = pli->hit->dcl->iali;
 
@@ -522,16 +684,16 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
           }
           /* For Rev Comp we might need to reset the splices hit to processed 
            * because the range_bound coords are on the reverse strand*/ 
-          spliced_hit_idx =  curr_target_range->orig_hit_idx[graph->best_full_path_start];
+          spliced_hit_idx =  curr_target_range->orig_hit_idx[graph->best_path_start];
           if(hit_processed[spliced_hit_idx] == 0 ) {
             hit_processed[spliced_hit_idx] = 1;
             num_hits_processed++;
           }
         } 
         else {
+
           range_bound_mins[range_cnt-1] = pli->hit->dcl->iali;
           range_bound_maxs[range_cnt-1] = pli->hit->dcl->jali;
-        
           for(i = 0; i < curr_target_range->th->N; i++) {
             if      (curr_target_range->th->hit[i]->dcl->iali > range_bound_maxs[range_cnt-1]) {
               spliced_hit_idx =  curr_target_range->orig_hit_idx[i];
@@ -549,7 +711,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
         if(TEST_MODE) {
    
           P7_PIPELINE *tmp_pli = p7_pipeline_fs_Create(go, 100, 300, p7_SEARCH_SEQS);
-          dump_splash_header(graph, target_seq, exon_set_name_id+1, graph->best_full_path_start, graph->best_full_path_length, pli->hit->dcl->ihmm, pli->hit->dcl->jhmm, pli->hit->dcl->iali, pli->hit->dcl->jali, om, curr_target_range->th, pli->hit->dcl->ad, tmp_pli, ofp, 150);    
+          dump_splash_header(path, target_seq, exon_set_name_id+1, om, pli->hit->dcl->ad, tmp_pli, ofp, 150);    
           p7_pipeline_fs_Destroy(tmp_pli); 
 
         }
@@ -557,17 +719,54 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
       
         pli->hit->dcl = NULL;
       } 
-      splice_pipeline_reuse(pli);
+	  else {
+        
+        /* If the path failed but there are other hits in the graph that were not in the path 
+         * we want to release them to be considered in another target range */
+        if (graph->revcomp) {     
+          range_bound_mins[range_cnt-1] = target_seq->n - path->upstream_spliced_nuc_end[path->path_len] + target_seq->end;
+          range_bound_maxs[range_cnt-1] = target_seq->n - path->downstream_spliced_nuc_start[0] + target_seq->end;
+          for(i = 0; i < curr_target_range->th->N; i++) {
+            if      (curr_target_range->th->hit[i]->dcl->jali > range_bound_maxs[range_cnt-1]) {
+              spliced_hit_idx =  curr_target_range->orig_hit_idx[i];
+              hit_processed[spliced_hit_idx] = 0;
+              num_hits_processed--;
+            }
+            else if (curr_target_range->th->hit[i]->dcl->iali < range_bound_mins[range_cnt-1]) {
+              spliced_hit_idx =  curr_target_range->orig_hit_idx[i];
+              hit_processed[spliced_hit_idx] = 0;
+              num_hits_processed--;
+            }
+          }
+        } 
+        else {
+          range_bound_mins[range_cnt-1] = path->downstream_spliced_nuc_start[0] + target_seq->start - 1;
+          range_bound_maxs[range_cnt-1] = path->upstream_spliced_nuc_end[path->path_len] + target_seq->start - 1;;
+        
+          for(i = 0; i < curr_target_range->th->N; i++) {
+            if      (curr_target_range->th->hit[i]->dcl->iali > range_bound_maxs[range_cnt-1]) {
+              spliced_hit_idx =  curr_target_range->orig_hit_idx[i];
+              hit_processed[spliced_hit_idx] = 0;
+              num_hits_processed--;
+            }
+            else if (curr_target_range->th->hit[i]->dcl->jali < range_bound_mins[range_cnt-1]) { 
+              spliced_hit_idx =  curr_target_range->orig_hit_idx[i];
+              hit_processed[spliced_hit_idx] = 0;
+              num_hits_processed--;
+            }
+          }
+
+        }
+            
+      }
     }
-
-
-    
     target_range_destroy(prev_target_range);
     prev_target_range = curr_target_range; 
-
+    
+    splice_pipeline_reuse(pli);
     splice_graph_destroy(graph);
+    splice_path_destroy(path);
     esl_sq_Destroy(target_seq);
-     
   }
 
   esl_stopwatch_Stop(Timer);
@@ -595,6 +794,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     splice_pipeline_destroy(pli);
     target_range_destroy(prev_target_range);
     splice_graph_destroy(graph);
+    splice_path_destroy(path);
     esl_sq_Destroy(target_seq);
     if(hit_processed    != NULL) free(hit_processed);
     if(hit_spliced      != NULL) free(hit_spliced); 
@@ -954,8 +1154,13 @@ fill_graph_with_nodes(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm)
     }
     else
       graph->is_c_terminal[i] = 0;
+
+	graph->has_out_edge[i]  = 0;
+    graph->has_in_edge[i]   = 0;
+    graph->best_out_edge[i] = -1;
+    graph->best_in_edge[i]  = -1;   
   }
- 
+
   return eslOK; 
 
 }
@@ -976,130 +1181,86 @@ fill_graph_with_nodes(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm)
  *
  *  Throws:   <eslEMEM> on allocation failure.
  */
-int
-connect_nodes_with_edges(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq)
+SPLICE_EDGE*
+connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downstream_hit, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, int revcomp)
 {
     
-  int          i,j;
   int          up_amino_start, up_amino_end;
   int          down_amino_start, down_amino_end;
   int          up_nucl_end;
   int          down_nucl_start;
   int          num_ext_aminos;  
-  P7_HIT      *upstream_hit;
-  P7_HIT      *downstream_hit;
   SPLICE_EDGE *edge;
   int          status;
 
-  for(i = 0; i < th->N; i++) {
 
-    graph->has_out_edge[i]  = 0;
-    graph->has_in_edge[i]   = 0;
-    graph->best_out_edge[i] = -1;
-    graph->best_in_edge[i]  = -1;
+  up_amino_start = upstream_hit->dcl->ihmm;
+  up_amino_end   = upstream_hit->dcl->jhmm;
 
-    for(j = 0; j < th->N; j++) {
-
-      /* No self egde */
-      if (i == j) { 
-        graph->edge_scores[i][j] = -eslINFINITY; 
-        continue; 
-      }
-
-      upstream_hit   = th->hit[i];
-      downstream_hit = th->hit[j];
-    
-      up_amino_start = upstream_hit->dcl->ihmm;
-      up_amino_end   = upstream_hit->dcl->jhmm;
-
-      down_amino_start = downstream_hit->dcl->ihmm;
-      down_amino_end   = downstream_hit->dcl->jhmm;
+  down_amino_start = downstream_hit->dcl->ihmm;
+  down_amino_end   = downstream_hit->dcl->jhmm;
       
-      /* Is the downstream node actually downstream */
-      if (up_amino_start > down_amino_start || up_amino_end > down_amino_end) {
-        graph->edge_scores[i][j] = -eslINFINITY; 
-        graph->edge_id[i][j]     = -1;
-        continue;
-      }
-  
-      /* Is the downstream node close enough to the upstream edge to be the next exon  */
-      if (up_amino_end + MAX_AMINO_EXT < down_amino_start) {
-        graph->edge_scores[i][j] = -eslINFINITY;
-        graph->edge_id[i][j]     = -1;
-        continue;
-      }
- 
-      up_nucl_end     = upstream_hit->dcl->jali;
-      down_nucl_start = downstream_hit->dcl->iali;
+  /* Is the downstream node actually downstream */
+  if (up_amino_start > down_amino_start || up_amino_end > down_amino_end)  
+    return NULL;
+    
 
-      /* Is there a gap of at least MIN_INTRON_LEN between the nucleotide positions */ 
-      if (( graph->revcomp   && (down_nucl_start + MIN_INTRON_LEN > up_nucl_end)) ||
-          ((!graph->revcomp) && (down_nucl_start - MIN_INTRON_LEN < up_nucl_end))) {
-        graph->edge_scores[i][j] = -eslINFINITY;
-        graph->edge_id[i][j]     = -1;
-        continue;      
-      }
-
-     /* Is there a gap of no more than MAX_INTRON_LEN between the nucleotide positions */ 
-     if (( graph->revcomp   && (down_nucl_start + MAX_INTRON_LEN < up_nucl_end)) ||
-         ((!graph->revcomp) && (down_nucl_start - MAX_INTRON_LEN > up_nucl_end))) {
-        graph->edge_scores[i][j] = -eslINFINITY;
-        graph->edge_id[i][j]     = -1;
-        continue;
-      }      
-
-      /* If the nodes have reached this point we will give them an edge*/
-      edge = splice_edge_create();
- 
-      edge->overlap_amino_start = down_amino_start;
-      edge->overlap_amino_end   = up_amino_end;
+  /* Is the downstream node close enough to the upstream edge to be the next exon  */
+  if (up_amino_end + MAX_AMINO_EXT < down_amino_start)  
+    return NULL;
    
-      /* If the hits do not overlap by at least MIN_AMINO_OVERLAP hmm positions, extend them */
-      num_ext_aminos = MIN_AMINO_OVERLAP - (edge->overlap_amino_end - edge->overlap_amino_start + 1);
-      if (num_ext_aminos > 0) {
-        num_ext_aminos = (num_ext_aminos+1)/2;
-        edge->overlap_amino_start -= num_ext_aminos;
-        edge->overlap_amino_end   += num_ext_aminos;
-      }
+  up_nucl_end     = upstream_hit->dcl->jali;
+  down_nucl_start = downstream_hit->dcl->iali;
 
-      get_overlap_nuc_coords(edge, upstream_hit->dcl, downstream_hit->dcl, target_seq, graph->revcomp);
-         
-      /* Addd extra nucleotides for splice sites */
-      if(graph->revcomp) {
-        edge->upstream_nuc_end     -= 2;
-        edge->downstream_nuc_start += 2;   
-      }
-      else {
-        edge->upstream_nuc_end     += 2;
-        edge->downstream_nuc_start -= 2;
-      }
-      //printf("\nup hmmfrom %d hmmto %d seqfrom %d seqto %d \n", upstream_hit->dcl->ihmm, upstream_hit->dcl->jhmm, upstream_hit->dcl->jali, upstream_hit->dcl->jali);
+  /* Is there a gap of at least MIN_INTRON_LEN between the nucleotide positions */ 
+  if (( revcomp   && (down_nucl_start + MIN_INTRON_LEN > up_nucl_end)) ||
+      ((!revcomp) && (down_nucl_start - MIN_INTRON_LEN < up_nucl_end))) 
+    return NULL; 
+  
 
-      //printf("down hmmfrom %d hmmto %d seqfrom %d seqto %d \n", downstream_hit->dcl->ihmm, downstream_hit->dcl->jhmm, downstream_hit->dcl->jali, downstream_hit->dcl->jali);
-     
-      if ((status = find_optimal_splice_site (edge, upstream_hit->dcl, downstream_hit->dcl, gm, gcode, target_seq, graph->revcomp)) != eslOK) goto ERROR;
+  /* Is there a gap of no more than MAX_INTRON_LEN between the nucleotide positions */ 
+ if (( revcomp   && (down_nucl_start + MAX_INTRON_LEN < up_nucl_end)) ||
+     ((!revcomp) && (down_nucl_start - MAX_INTRON_LEN > up_nucl_end))) 
+    return NULL; 
 
+  /* If the nodes have reached this point we will give them an edge*/
+  edge = splice_edge_create();
 
-      graph->edge_scores[i][j] = edge->splice_score;
-      if(edge->splice_score == -eslINFINITY) {
-         graph->edge_id[i][j] = -1;
-         free(edge);
-      }
-      else {
-        graph->has_out_edge[i] = 1;
-        graph->has_in_edge[j]  = 1;
-        graph->edges[graph->num_edges] = edge;
-        graph->edge_id[i][j] = graph->num_edges;     
-        graph->num_edges++;
-      }
-    }
+    edge->overlap_amino_start = down_amino_start;
+  edge->overlap_amino_end   = up_amino_end;
+   
+  /* If the hits do not overlap by at least MIN_AMINO_OVERLAP hmm positions, extend them */
+  num_ext_aminos = MIN_AMINO_OVERLAP - (edge->overlap_amino_end - edge->overlap_amino_start + 1);
+  if (num_ext_aminos > 0) {
+    num_ext_aminos = (num_ext_aminos+1)/2;
+    edge->overlap_amino_start -= num_ext_aminos;
+    edge->overlap_amino_end   += num_ext_aminos;
   }
 
-  return eslOK;
+  get_overlap_nuc_coords(edge, upstream_hit->dcl, downstream_hit->dcl, target_seq, revcomp);
+         
+  /* Addd extra nucleotides for splice sites */
+  if(revcomp) {
+    edge->upstream_nuc_end     -= 2;
+    edge->downstream_nuc_start += 2;   
+  }
+  else {
+    edge->upstream_nuc_end     += 2;
+    edge->downstream_nuc_start -= 2;
+  }
+  
+  if ((status = find_optimal_splice_site (edge, upstream_hit->dcl, downstream_hit->dcl, gm, gcode, target_seq, revcomp)) != eslOK) goto ERROR;
+
+  if(edge->splice_score == -eslINFINITY) {
+     free(edge);
+     return NULL;
+  }
+
+  return edge;
 
   ERROR:
     if(edge != NULL) free(edge);
-    return status;
+    return NULL;
 }
 
 
@@ -1492,8 +1653,10 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm,  ESL_GENCODE *gcode, ES
   int      accept_one;
   int      accept_two;
   float    opt_score;
+  float    sig_score;
   float    trans_score;
   float    splice_score;
+  float    signal_score;
   ESL_DSQ *codon;
   int      status;
 
@@ -1520,19 +1683,20 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm,  ESL_GENCODE *gcode, ES
 
     /* GT-AG */
     if      (donor_one == 2 && donor_two == 3 && accept_one == 0 && accept_two == 2) 
-      opt_score += splice_scores[p7S_GTAG];
+      sig_score = splice_scores[p7S_GTAG];
     /* GC-AG */
     else if (donor_one == 2 && donor_two == 1 && accept_one == 0 && accept_two == 2) 
-      opt_score += splice_scores[p7S_GCAG];
+      sig_score = splice_scores[p7S_GCAG];
     /* AT-AC */
     else if (donor_one == 0 && donor_two == 1 && accept_one == 0 && accept_two == 1)
-      opt_score += splice_scores[p7S_ATAC];
+      sig_score = splice_scores[p7S_ATAC];
     /* OTHER */
     else
-      opt_score += splice_scores[p7S_OTHER];  
+     sig_score = splice_scores[p7S_OTHER];  
 
     best_opt     = 0;
-    splice_score = opt_score;
+    splice_score = opt_score+sig_score;
+    signal_score = sig_score;
   }
 
   /* option 1 |ABxx.|..yyF| */
@@ -1551,20 +1715,21 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm,  ESL_GENCODE *gcode, ES
 
    /* GT-AG */
     if      (donor_one == 2 && donor_two == 3 && accept_one == 0 && accept_two == 2)
-      opt_score += splice_scores[p7S_GTAG];
+      sig_score = splice_scores[p7S_GTAG];
     /* GC-AG */
     else if (donor_one == 2 && donor_two == 1 && accept_one == 0 && accept_two == 2)
-      opt_score += splice_scores[p7S_GCAG];
+      sig_score = splice_scores[p7S_GCAG];
     /* AT-AC */
     else if (donor_one == 0 && donor_two == 1 && accept_one == 0 && accept_two == 1)
-      opt_score += splice_scores[p7S_ATAC];
+      sig_score = splice_scores[p7S_ATAC];
     /* OTHER */
     else
-      opt_score += splice_scores[p7S_OTHER];
+      sig_score = splice_scores[p7S_OTHER];
   
-    if(opt_score > splice_score) {
+    if(opt_score+sig_score > splice_score) {
       best_opt = 1;
-      splice_score = opt_score;
+      splice_score = opt_score+sig_score;
+      signal_score = sig_score;
     }   
   }
 
@@ -1584,20 +1749,21 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm,  ESL_GENCODE *gcode, ES
 
     /* GT-AG */
     if      (donor_one == 2 && donor_two == 3 && accept_one == 0 && accept_two == 2)
-      opt_score += splice_scores[p7S_GTAG];
+      sig_score = splice_scores[p7S_GTAG];
     /* GC-AG */
     else if (donor_one == 2 && donor_two == 1 && accept_one == 0 && accept_two == 2)
-      opt_score += splice_scores[p7S_GCAG];
+      sig_score = splice_scores[p7S_GCAG];
     /* AT-AC */
     else if (donor_one == 0 && donor_two == 1 && accept_one == 0 && accept_two == 1)
-      opt_score += splice_scores[p7S_ATAC];
+      sig_score = splice_scores[p7S_ATAC];
     /* OTHER */
     else
-      opt_score += splice_scores[p7S_OTHER];
+      sig_score = splice_scores[p7S_OTHER];
 
-    if(opt_score > splice_score) {
+    if(opt_score+sig_score > splice_score) {
       best_opt = 2;
-      splice_score = opt_score;
+      splice_score = opt_score+sig_score;
+      signal_score = sig_score;
     }
   }
 
@@ -1617,20 +1783,21 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm,  ESL_GENCODE *gcode, ES
 
     /* GT-AG */
     if      (donor_one == 2 && donor_two == 3 && accept_one == 0 && accept_two == 2)
-      opt_score += splice_scores[p7S_GTAG];
+      sig_score = splice_scores[p7S_GTAG];
     /* GC-AG */
     else if (donor_one == 2 && donor_two == 1 && accept_one == 0 && accept_two == 2)
-      opt_score += splice_scores[p7S_GCAG];
+      sig_score = splice_scores[p7S_GCAG];
     /* AT-AC */
     else if (donor_one == 0 && donor_two == 1 && accept_one == 0 && accept_two == 1)
-      opt_score += splice_scores[p7S_ATAC];
+      sig_score = splice_scores[p7S_ATAC];
     /* OTHER */
     else
-      opt_score += splice_scores[p7S_OTHER];
+      sig_score = splice_scores[p7S_OTHER];
 
-    if(opt_score > splice_score) {
+    if(opt_score+sig_score > splice_score) {
       best_opt = 3;
-      splice_score = opt_score;
+      splice_score = opt_score+sig_score;
+      signal_score = sig_score;
     }
   }
 
@@ -1649,6 +1816,7 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm,  ESL_GENCODE *gcode, ES
   if (splice_score > edge->splice_score) {
   
     edge->splice_score = splice_score;
+    edge->signal_score = signal_score;
     
     edge->upstream_spliced_nuc_end     = up_nuc_pos   + 2 - best_opt;
     edge->downstream_spliced_nuc_start = down_nuc_pos + 5 - best_opt;
@@ -1692,7 +1860,6 @@ ali_score_at_postion ( P7_PROFILE *gm, int amino, int model_pos, int trans_pos, 
   int   transition;
   float transition_score;
   float emission_score;
-  int   status;
 
   /* Emission score */
   if(curr_state == p7T_M)
@@ -1720,23 +1887,19 @@ ali_score_at_postion ( P7_PROFILE *gm, int amino, int model_pos, int trans_pos, 
   }
 
 
-  if(model_pos > gm->M) ESL_XEXCEPTION(eslFAIL, "impossible model position reached %d for model of length %d", model_pos, gm->M);
   if (transition != p7P_NTRANS)
     transition_score = p7P_TSC(gm,trans_pos,transition);
   else
     transition_score = 0.; //special case for first or last potition in overlap
-//  printf("transition_score %f emission_score %f\n", transition_score, emission_score);
-  return transition_score + emission_score;
 
-  ERROR:
-    return -eslINFINITY;
+  return transition_score + emission_score;
 
 }
 
 
 
-int
-evaluate_paths (SPLICE_GRAPH *graph)
+SPLICE_PATH*
+evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq)
 {
 
   int          i;
@@ -1746,15 +1909,18 @@ evaluate_paths (SPLICE_GRAPH *graph)
   int          curr_node;
   int          next_node;
   int          edge_id;
-  int          path_is_broken;
-  int          path_num;
-  int          max_sc_idx;
-  int         *full_path_starts;
-  float       *full_path_scores;
+  int          step_cnt;
+  float        best_start_score;
   SPLICE_EDGE *in_edge;
   SPLICE_EDGE *out_edge;
-  int          status;
+  SPLICE_PATH *path;
 
+  /* Make sure we clear the field before we begin */
+  for(i = 0; i < graph->num_nodes; i++) {
+    graph->path_scores[i]   = -eslINFINITY;
+    graph->best_out_edge[i] = -1;
+  }
+  graph->has_full_path = 0;
 
   /* Find best scoreing paths */ 
   for (i = 0; i < graph->num_nodes; i++) {
@@ -1763,184 +1929,123 @@ evaluate_paths (SPLICE_GRAPH *graph)
        push_score_upstream(graph, i);
     }
   }
-
   
-  /* Find best scoring full length paths */
-  full_path_starts  = NULL;
-  full_path_scores = NULL;
-
-  /* No full paths */
-  if(graph->num_n_term == 0 || graph->num_c_term == 0)  
-     return eslOK;
-
-  path_is_broken = FALSE;
-  path_len       = 0;
-  /* Only one possible full path. 
-   *   1. Count the length of the path 
-   *   2. Check for beckward nodes
-   *   3. Check if path is full lenghth */
-  if(graph->num_n_term == 1) {
-     start_node = 0;
-     while(!graph->is_n_terminal[start_node]) start_node++;
-     curr_node = start_node;
-     path_len  = 1;
-     if(graph->has_out_edge[start_node]) {
-       curr_node = graph->best_out_edge[start_node];
-       edge_id   = graph->edge_id[start_node][curr_node];
-       in_edge   = graph->edges[edge_id];
-       prev_node = start_node;
-       path_len++;
-     }
-     while(graph->has_out_edge[curr_node]) {
-       next_node = graph->best_out_edge[curr_node];
-       edge_id   = graph->edge_id[curr_node][next_node];
-       out_edge  = graph->edges[edge_id];
-       /* If this is a backward node (in edge ends after out edge begins) delete the out edge */
-      if(in_edge->downstream_spliced_amino_start > out_edge->upstream_spliced_amino_end){ 
-        
-        if(out_edge->splice_score < in_edge->splice_score) {
-
-          graph->edge_scores[curr_node][next_node] = -eslINFINITY;
-          graph->has_out_edge[curr_node] = 0;
-          for(i = 0; i < graph->num_nodes; i++) {
-            if(graph->edge_scores[curr_node][i] != -eslINFINITY)
-              graph->has_out_edge[curr_node] = 1;
-            }
-        }
-        else {
-
-          graph->edge_scores[prev_node][curr_node] = -eslINFINITY;
-          graph->has_out_edge[prev_node] = 0;
-          for(i = 0; i < graph->num_nodes; i++) {
-            if(graph->edge_scores[prev_node][i] != -eslINFINITY)
-              graph->has_out_edge[prev_node] = 1;
-          }
-        }
-        path_is_broken = TRUE;
-        break;   
-      }
-      in_edge   = out_edge;
-      prev_node = curr_node;
-      curr_node = next_node;
-      path_len++;
-    } 
-   
-    /* If we found a backward node we need to start over */ 
-    if(path_is_broken) { 
-      for(i = 0; i < graph->num_nodes; i++) {
-        graph->path_scores[i]   = -eslINFINITY;
-        graph->best_out_edge[i] = -1;
-      }
-      evaluate_paths (graph);
-      return eslOK;
+  
+  /* Find the best place to start our path */ 
+  best_start_score = -eslINFINITY;
+  start_node  = -1;
+  for (i = 0; i < graph->num_nodes; i++) {
+	if((!graph->has_in_edge[i]) && graph->path_scores[i] > best_start_score) {
+	  best_start_score = graph->path_scores[i];
+	  start_node  = i;
     }
-    /* Check if path is full length */
-    else if(path_len > 1 && graph->is_c_terminal[curr_node]) {
-        graph->has_full_path         = 1;
-        graph->best_full_path_start  = start_node;
-        graph->best_full_path_end    = curr_node;
-        graph->best_full_path_length = path_len;
-        graph->best_full_path_score  = graph->path_scores[start_node];   
-    }
-    return eslOK;
+  }
+  
+  /* Find best scoring  path */
+  /*   1. Count the length of the path 
+   *   2. Check for beckward nodes */
+  curr_node = start_node;
+  path_len  = 1;
+  if(graph->has_out_edge[start_node]) {
+    curr_node = graph->best_out_edge[start_node];
+    edge_id   = graph->edge_id[start_node][curr_node];
+    in_edge   = graph->edges[edge_id];
+    prev_node = start_node;
+    path_len++;
   }
 
-  /* Multiple possible full paths - find with highest scoring */
-  if (graph->num_n_term > 1) {
-    ESL_ALLOC(full_path_starts, sizeof(int)   * graph->num_n_term);
-    ESL_ALLOC(full_path_scores, sizeof(float) * graph->num_n_term);
- 
-    path_num = 0;
-    for (i = 0; i < graph->num_nodes; i++) {
-      if(graph->is_n_terminal[i]) {
-         full_path_scores[path_num] = graph->path_scores[i];
-         full_path_starts[path_num]  = i;
-         path_num++;
-      }
-    }
-
-    while((!graph->has_full_path) &&  path_num > 0) { 
-      max_sc_idx = esl_vec_FArgMax(full_path_scores, graph->num_n_term); 
-      path_len   = 1;
-      start_node = full_path_starts[max_sc_idx];
-      curr_node = start_node; 
-      if(graph->has_out_edge[start_node]) {
-        curr_node = graph->best_out_edge[start_node];
-        edge_id   = graph->edge_id[start_node][curr_node];
-        in_edge   = graph->edges[edge_id];
-        prev_node = start_node;
-        path_len++;
-      }
-      while(graph->has_out_edge[curr_node]) {
-        next_node = graph->best_out_edge[curr_node];
-        edge_id   = graph->edge_id[curr_node][next_node];
-        out_edge  = graph->edges[edge_id];
-
-        /* If this is a backward node (in edge ends after out edge begins) 
-         * delete the edge with the lower splice score*/
-        if(in_edge->downstream_spliced_amino_start > out_edge->upstream_spliced_amino_end){
-          if(out_edge->splice_score < in_edge->splice_score) {
-
-            graph->edge_scores[curr_node][next_node] = -eslINFINITY;
-            graph->has_out_edge[curr_node] = 0;
-            for(i = 0; i < graph->num_nodes; i++) {
-              if(graph->edge_scores[curr_node][i] != -eslINFINITY)
-                graph->has_out_edge[curr_node] = 1;
-            }
-          } 
-          else {
-
-            graph->edge_scores[prev_node][curr_node] = -eslINFINITY;
-            graph->has_out_edge[prev_node] = 0;
-            for(i = 0; i < graph->num_nodes; i++) {
-              if(graph->edge_scores[prev_node][i] != -eslINFINITY)
-                graph->has_out_edge[prev_node] = 1;         
-            }
-          }
-          path_is_broken = TRUE;
-          break;
-        } 
-        in_edge   = out_edge;
-        prev_node = curr_node;
-        curr_node = next_node;
-        path_len++;
-      }
-     
-      /* If we found a backward node we need to start over */ 
-      if(path_is_broken) {
-        if(full_path_starts != NULL) free(full_path_starts);
-        if(full_path_scores != NULL) free(full_path_scores);
-
+  while(graph->has_out_edge[curr_node]) {
+    next_node = graph->best_out_edge[curr_node];
+    edge_id   = graph->edge_id[curr_node][next_node];
+    out_edge  = graph->edges[edge_id];
+    /* If this is a backward node (in edge ends after out edge begins) 
+     * delete the edge with the lower splice score */
+    if(in_edge->downstream_spliced_amino_start >= out_edge->upstream_spliced_amino_end){ 
+      if(out_edge->splice_score < in_edge->splice_score) {
+        graph->edge_scores[curr_node][next_node] = -eslINFINITY;
+        graph->has_out_edge[curr_node] = 0;
         for(i = 0; i < graph->num_nodes; i++) {
-          graph->path_scores[i]   = -eslINFINITY;
-          graph->best_out_edge[i] = -1;
+          if(graph->edge_scores[curr_node][i] != -eslINFINITY)
+            graph->has_out_edge[curr_node] = 1;
         }
-        evaluate_paths (graph);
-        return eslOK;
       }
-      /* Check if path is full length */
-      else if(path_len > 1 && graph->is_c_terminal[curr_node]) {
-        graph->has_full_path         = 1;
-        graph->best_full_path_start  = start_node;
-        graph->best_full_path_end    = curr_node;
-        graph->best_full_path_length = path_len;
-        graph->best_full_path_score  = graph->path_scores[start_node]; 
+      else {
+
+        graph->edge_scores[prev_node][curr_node] = -eslINFINITY;
+        graph->has_out_edge[prev_node] = 0;
+        for(i = 0; i < graph->num_nodes; i++) {
+          if(graph->edge_scores[prev_node][i] != -eslINFINITY)
+            graph->has_out_edge[prev_node] = 1;
+        }
       }
-      else
-        path_num--;
-    }  
-  }     
+      /* If we found a backward node we need to start over */
+      path = evaluate_paths (graph, th, target_seq);
+      return path; 
+    }
+    in_edge   = out_edge;
+    prev_node = curr_node;
+    curr_node = next_node;
+    path_len++;
+  } 
+  
+  /* Check if path is full length */
+  if(start_node != curr_node && graph->is_n_terminal[start_node] && graph->is_c_terminal[curr_node]) 
+    graph->has_full_path         = 1;
+  
+  graph->best_path_start  = start_node;
+  graph->best_path_end    = curr_node;
+  graph->best_path_length = path_len;
+
+  path = splice_path_create(path_len);
+  path->revcomp = graph->revcomp;
+
+  path->signal_scores[0] = 0.;
+
+  path->node_id[0] = start_node;
+  path->hits[0]    = th->hit[start_node];
+
+  path->downstream_spliced_amino_start[0] = path->hits[0]->dcl->ihmm;
  
-    
-  if(full_path_starts != NULL) free(full_path_starts);
-  if(full_path_scores != NULL) free(full_path_scores);
-  return eslOK;
+  /* Nuc coords need to be on the reverse strand */
+  if(graph->revcomp) 
+    path->downstream_spliced_nuc_start[0] = target_seq->start - path->hits[0]->dcl->iali + 1;
+  else               
+    path->downstream_spliced_nuc_start[0] = path->hits[0]->dcl->iali - target_seq->start + 1; 
+  
+  curr_node = start_node;
+  step_cnt = 1;
+  while (step_cnt < path_len) {
+    next_node = graph->best_out_edge[curr_node]; 
+    edge_id   = graph->edge_id[curr_node][next_node];
+    out_edge  = graph->edges[edge_id];
+
+    path->signal_scores[step_cnt] = out_edge->signal_score;
  
-  ERROR:
-   if(full_path_starts != NULL) free(full_path_starts);
-   if(full_path_scores != NULL) free(full_path_scores);
-   return status;
+    path->node_id[step_cnt] = next_node;
+    path->hits[step_cnt]    = th->hit[next_node];
  
+    path->upstream_spliced_amino_end[step_cnt]     = out_edge->upstream_spliced_amino_end;
+    path->downstream_spliced_amino_start[step_cnt] = out_edge->downstream_spliced_amino_start;
+  
+    path->upstream_spliced_nuc_end[step_cnt]     = out_edge->upstream_spliced_nuc_end;
+    path->downstream_spliced_nuc_start[step_cnt] = out_edge->downstream_spliced_nuc_start;
+  
+    path->seq_len = path->seq_len + (path->upstream_spliced_nuc_end[step_cnt] - path->downstream_spliced_nuc_start[step_cnt-1] + 1); 
+ 
+    curr_node = next_node;
+    step_cnt++;
+  }
+
+  path->upstream_spliced_amino_end[step_cnt] = path->hits[step_cnt-1]->dcl->jhmm;  
+  if(graph->revcomp)
+    path->upstream_spliced_nuc_end[step_cnt] = target_seq->start - path->hits[step_cnt-1]->dcl->jali + 1;
+  else
+    path->upstream_spliced_nuc_end[step_cnt] = path->hits[step_cnt-1]->dcl->jali - target_seq->start + 1;  
+
+  path->seq_len = path->seq_len + (path->upstream_spliced_nuc_end[step_cnt] - path->downstream_spliced_nuc_start[step_cnt-1] + 1);
+
+  //path_dump(stdout, path, target_seq);
+  return path; 
 }
 
 
@@ -1949,7 +2054,7 @@ void
 push_score_upstream (SPLICE_GRAPH *graph, int node_id)
 {
 
-  int up_node, down_node;
+  int up_node;
   float step_score;
 
   for (up_node = 0 ; up_node < graph->num_nodes; up_node++) {
@@ -1960,7 +2065,6 @@ push_score_upstream (SPLICE_GRAPH *graph, int node_id)
       step_score  = graph->edge_scores[up_node][node_id];
       step_score += graph->path_scores[node_id];
       step_score += graph->hit_scores[up_node]; 
-            
       if (step_score > graph->path_scores[up_node]) {
         graph->path_scores[up_node] = step_score;
         graph->best_out_edge[up_node] = node_id;
@@ -1977,33 +2081,31 @@ push_score_upstream (SPLICE_GRAPH *graph, int node_id)
 
 
 int
-splice_path (SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode, int start_node, int end_node, int path_len, int* success) 
+splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROFILE *om, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int* success) 
 {
 
   int          i;
   int          pos;
+  int          shift;
   int          seq_idx;
-  int          exon_cnt;
-  int          curr_node;
-  int          next_node;
-  int          curr_edge;
-  int          seq_len;
   int          amino_len;
   int          amino;
-  int         *start_pos;
-  int         *end_pos;
-  int         *nuc_index;
-  float        sum_hit_sc;
+  int          env_len;
+  int          orf_len;
+  int          hit_len;
+  int          summed_hit_len;
   float        dom_bias;
   float        nullsc;
   float        dom_score;
-  float        dom_lnP;
+  float        summed_hitsc;
+  double       dom_lnP;
+  int         *nuc_index;
   ESL_DSQ     *nuc_dsq;
   ESL_DSQ     *amino_dsq;
   ESL_SQ      *nuc_seq;
   ESL_SQ      *amino_seq;  
-  P7_HIT      *node_hit;
-  SPLICE_EDGE *edge;
+  P7_HIT      *replace_hit;
+  P7_HIT      *remove_hit;
   int          status;
 
   char          *alphaAmino;
@@ -2011,89 +2113,32 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROF
   alphaAmino = om->abc->sym;
   alphaDNA   = target_seq->abc->sym;
   
-  start_pos = NULL;
-  end_pos   = NULL;
   nuc_index = NULL;
   nuc_dsq   = NULL;
 
-  ESL_ALLOC(start_pos, sizeof(int64_t) * path_len);
-  ESL_ALLOC(end_pos,   sizeof(int64_t) * path_len);
-
-  /* Get start and end positions of first exon in path */
-  node_hit     = th->hit[start_node];
-  start_pos[0] = node_hit->dcl->iali;
-  if(graph->revcomp) start_pos[0] = target_seq->start - start_pos[0] + 1;
-  else               start_pos[0] = start_pos[0] - target_seq->start + 1; 
-
-  /* Get summed hit score for all hits in path */
-  sum_hit_sc = graph->hit_scores[start_node];
-
-  next_node  = graph->best_out_edge[start_node];
-  curr_edge  = graph->edge_id[start_node][next_node];
-
-  sum_hit_sc += graph->hit_scores[next_node]; 
-
-  edge = graph->edges[curr_edge];
-
-  end_pos[0] = edge->upstream_spliced_nuc_end; 
+  ESL_ALLOC(nuc_index, sizeof(int64_t) * (path->seq_len+2));  
+  ESL_ALLOC(nuc_dsq,   sizeof(ESL_DSQ) * (path->seq_len+2));
   
-  curr_node = next_node;
-  exon_cnt  = 1;
-   
-  /* Get start and end positions of middle exons in path */
-  while (exon_cnt < (path_len-1)) {
-
-    start_pos[exon_cnt] = edge->downstream_spliced_nuc_start;
-     
-    next_node  = graph->best_out_edge[curr_node];
-    curr_edge = graph->edge_id[curr_node][next_node];
-
-    sum_hit_sc += graph->hit_scores[next_node];
-
-    edge = graph->edges[curr_edge];
-
-    end_pos[exon_cnt] = edge->upstream_spliced_nuc_end;
-  
-    curr_node = next_node;
-    exon_cnt++;
-  }
-
-  /* Get start and end positions of last exon in path */
-  start_pos[exon_cnt] = edge->downstream_spliced_nuc_start;
-
-  node_hit = th->hit[next_node];
-  end_pos[exon_cnt] = node_hit->dcl->jali;
-  if(graph->revcomp) end_pos[exon_cnt] = target_seq->start - end_pos[exon_cnt] + 1;
-  else               end_pos[exon_cnt] = end_pos[exon_cnt] - target_seq->start + 1;
- 
-  /* Get length of spliced nucleotide sequence */
-  seq_len = 0;
-  for (i = 0; i < path_len; i++)  
-    seq_len += (end_pos[i] - start_pos[i] + 1);
-  
-  ESL_ALLOC(nuc_index, sizeof(int64_t) * (seq_len+2));  
-  ESL_ALLOC(nuc_dsq,   sizeof(ESL_DSQ) * (seq_len+2));
-
   /* Copy spliced nucleotides into single sequence and track their original indicies */
+  hit_len     = 0;
   nuc_index[0] = -1;
   nuc_dsq[0]   = eslDSQ_SENTINEL;
   seq_idx   = 1;
-
-
-  for (i = 0; i < path_len; i++) {
-    for (pos = start_pos[i]; pos <= end_pos[i]; pos++) {
+  for (i = 0; i < path->path_len; i++) {
+    summed_hit_len += abs(path->hits[i]->dcl->iali - path->hits[i]->dcl->jali + 1);
+    for (pos = path->downstream_spliced_nuc_start[i]; pos <= path->upstream_spliced_nuc_end[i+1]; pos++) {
       nuc_index[seq_idx] = pos;
       nuc_dsq[seq_idx]   = target_seq->dsq[pos];
       seq_idx++;    
     }
   }
- 
+
   nuc_index[seq_idx] = -1;
   nuc_dsq[seq_idx]   = eslDSQ_SENTINEL;
 
 
   /* Translate spliced nucleotide sequence */
-  amino_len = seq_len/3;
+  amino_len = path->seq_len/3;
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (amino_len+2));
 
   amino_dsq[0] = eslDSQ_SENTINEL;
@@ -2106,114 +2151,206 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROF
     seq_idx+=3;
   }
   amino_dsq[amino_len+1] = eslDSQ_SENTINEL;
-  
+ 
   /* Create ESL_SQs from ESL_DSQs */
-  amino_seq   = esl_sq_CreateDigitalFrom(gcode->nt_abc, target_seq->name, amino_dsq, amino_len,NULL,NULL,NULL); 
-  nuc_seq     = esl_sq_CreateDigitalFrom(gcode->aa_abc, target_seq->name, nuc_dsq,   seq_len,  NULL,NULL,NULL);
+  amino_seq   = esl_sq_CreateDigitalFrom(gcode->nt_abc, target_seq->name, amino_dsq, amino_len,      NULL,NULL,NULL); 
+  nuc_seq     = esl_sq_CreateDigitalFrom(gcode->aa_abc, target_seq->name, nuc_dsq,   path->seq_len,  NULL,NULL,NULL);
 
   pli->nuc_sq       = nuc_seq;
   pli->amino_sq     = amino_seq;   
   pli->orig_nuc_idx = nuc_index;
 
   /* Algin the splices Amino sequence */
-  if ((status = align_spliced_path(pli, om, target_seq, gcode)) != eslOK) goto ERROR;
-  
+  status = align_spliced_path(pli, om, target_seq, gcode);
+ 
+  /* Numeric overflow can happen when p7_Decoding() is run in unihit mode 
+    * but the hit appears to have mutilple domains. This is most likley 
+    * caused by a gappy hit. We need to remove it and find a new path */
+  if(status == eslERANGE) { 
+    fix_bad_path(graph, path, pli, th, om, target_seq, gcode, db_nuc_cnt, success); 
+    return eslOK;
+  }
+
   //Alignment failed
-  if(pli->hit == NULL) {
+  if(pli->hit == NULL ) { //|| pli->hit->dcl->ad->exons <= 0) {
+    //printf("NULL fail \n");
     *success = FALSE; 
      return eslOK; 
   }
-
-  if(graph->revcomp) {
-    pli->hit->dcl->iali       += 2;
+ 
+  /* adjust all coords in hit and path */
+  if(path->revcomp) { 
     pli->hit->dcl->ad->sqfrom += 2; 
     pli->hit->dcl->ienv = target_seq->n - pli->orig_nuc_idx[1]              + target_seq->end; 
     pli->hit->dcl->jenv = target_seq->n - pli->orig_nuc_idx[pli->nuc_sq->n] + target_seq->end; 
+    env_len = (pli->hit->dcl->ienv - pli->hit->dcl->jenv + 1)/3.; 
   }  
   else {
     pli->hit->dcl->ienv = pli->orig_nuc_idx[1]              + target_seq->start -1;
     pli->hit->dcl->jenv = pli->orig_nuc_idx[pli->nuc_sq->n] + target_seq->start -1;
+    env_len = (pli->hit->dcl->jenv - pli->hit->dcl->ienv + 1)/3.;
   }
+  env_len = ESL_MAX(env_len, om->max_length);
+
+  if ( path->path_len > 1) {
+    /* Shift the path to start at the first hit that was inculded in the alignment 
+     * and end at the last hit that was included in the alignment */ 
+    for(i = 0; i < path->path_len; i++) {
+      if(path->upstream_spliced_nuc_end[i+1] > pli->hit->dcl->iali) 
+         break;
+    }
+    /* Shift path to start at frist hits that is in alignment */
+    path->path_len -= i;
+   
+    for(shift = 0; shift < path->path_len-i; shift++) {
+      path->node_id[shift]                        = path->node_id[shift+i]; 
+      path->upstream_spliced_amino_end[shift]     = path->upstream_spliced_amino_end[shift+i];
+      path->downstream_spliced_amino_start[shift] = path->downstream_spliced_amino_start[shift+i];
+      path->upstream_spliced_nuc_end[shift]       = path->upstream_spliced_nuc_end[shift+i];   
+      path->downstream_spliced_nuc_start[shift]   = path->downstream_spliced_nuc_start[shift+i];
+      path->hit_scores[shift]                     = path->hit_scores[shift+i];
+      path->signal_scores[shift]                  = path->signal_scores[shift+i];
+      path->hits[shift]                           = path->hits[shift+i];
+    }
+    path->downstream_spliced_nuc_start[0]   = pli->hit->dcl->iali;
+    path->downstream_spliced_amino_start[0] = pli->hit->dcl->ihmm; 
+    for(i = 1; i < path->path_len; i++) {
+      if (path->downstream_spliced_nuc_start[i] > pli->hit->dcl->jali)
+        break;
+    }
+   
+    path->path_len -= (path->path_len-i);
+    path->upstream_spliced_nuc_end[i-1]   = pli->hit->dcl->jali;
+    path->upstream_spliced_amino_end[i-1] = pli->hit->dcl->jhmm;   
+  }  
+
+  pli->hit->dcl->iali = pli->hit->dcl->ad->sqfrom;
+  pli->hit->dcl->jali = pli->hit->dcl->ad->sqto;
+
+  /* Adjust summed hit scores to simulate a single hit 
+   * in multihit mode with a fourth R (intron) state*/
+  /* BATH hits all scored at om->max_length */
+  summed_hitsc = 0.;
+  summed_hit_len = 0; 
+  for( i = 0; i < path->path_len; i++) {
+    /* Get scores (without bias or null correction) and convert back to ln */
+    summed_hitsc += path->hits[i]->pre_score * log(2);  
+    /* Subtract domain bias score */
+    summed_hitsc -= path->hits[i]->dcl->dombias;
+    /* Get amino acid length of alignment */
+    hit_len = abs(path->hits[i]->dcl->iali - path->hits[i]->dcl->jali + 1)/3.;
+    summed_hit_len += hit_len;
+    /* Remove old NC Loop costs */
+    summed_hitsc -= (om->max_length - hit_len) * log((float) om->max_length / (float) (om->max_length+2));
+  }
+  /* Remove old NC Move costs */
+  summed_hitsc -= path->path_len * 2 * log(2. / (om->max_length+2));
+  /* Add back new NCJ Move and Loop costs */
+  summed_hitsc += path->path_len * 2 * log(3. / (env_len+3));
+  summed_hitsc += (env_len - summed_hit_len)      * log((float) (env_len) / (float) (env_len+3));
+  /* Get and subtract new nullsc and convert back to log2 */
+  p7_bg_NullOne  (pli->bg,NULL, om->max_length, &nullsc); 
+  summed_hitsc -= (summed_hitsc - nullsc) / eslCONST_LOG2;
  
-  /* Bias calculation and adjustments to Forward score */
+
+  /* Adjust spliced hit score from seq_len to om->max_length 
+   * in mutil hit mode for comparison with summed hit score*/
+  dom_score  = pli->hit->dcl->envsc;
+  orf_len = pli->hit->dcl->ad->orfto - pli->hit->dcl->ad->orffrom + 1;
+  dom_score -= 2 * log(2. / (amino_len+2));
+  dom_score += 2 * log(3. / (om->max_length+3));
+  dom_score -= (amino_len-orf_len)      * log((float) (amino_len) / (float) (amino_len+2));
+  dom_score += (om->max_length-orf_len) * log((float) om->max_length / (float) (om->max_length+3));
+
+  
+  /* Bias calculation and adjustments */
   if(pli->do_null2)
     dom_bias = p7_FLogsum(0.0, log(pli->bg->omega) + pli->hit->dcl->domcorrection);
   else
     dom_bias = 0.;
+  p7_bg_SetLength(pli->bg, om->max_length);
+  p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, om->max_length, &nullsc);
+  dom_score = (dom_score - (nullsc + dom_bias))  / eslCONST_LOG2; 
 
-  p7_bg_SetLength(pli->bg, pli->amino_sq->n);
-  p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, pli->amino_sq->n, &nullsc);
-  dom_score = (pli->hit->dcl->envsc - (nullsc + dom_bias))  / eslCONST_LOG2;
+  /* Add splice signal penalties */
+  for(i = 0; i < path->path_len; i++) 
+     dom_score += path->signal_scores[i];
+
+  /* See if intron model is better than seperate hits on J state */
+//  if(dom_score < summed_hitsc)  {
+//   *success = FALSE;
+//    if(nuc_dsq   != NULL) free(nuc_dsq);
+//    if(amino_dsq != NULL) free(amino_dsq);
+//    return eslOK; 
+//  }
+
+  /* Set back to unihit */
+  dom_score -= 2 * log(3. / (om->max_length+3));
+  dom_score += 2 * log(2. / (om->max_length+2));
+  dom_score -= (om->max_length-orf_len) * log((float) om->max_length / (float) (om->max_length+3));
+  dom_score += (om->max_length-orf_len) * log((float) om->max_length / (float) (om->max_length+2));
+
+  dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
   
-  /* Subrtact extra B->M trasition scores from summed hit score */
-  sum_hit_sc -= gm->tsc[p7P_NTRANS+p7P_BM] * (path_len-1); 
+  /* E-value adjusment */
+  dom_lnP += log((float)db_nuc_cnt / (float)om->max_length);
   
-  /* If the spliced hit score is higher than the summed hit score, replace 
-   * the first domain from th first hit in the path with the domain from 
-   * the spliced hit and set all other hits as being bellow the inculsion 
-   * threshhold so they are not redported */ 
-  
-  if(dom_score > sum_hit_sc) {
-
-    dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
-    pli->hit->dcl->bitscore    = dom_score;
-    pli->hit->dcl->lnP         = dom_lnP;
-    pli->hit->dcl->dombias     = dom_bias;
-    pli->hit->dcl->is_reported = TRUE;
-    pli->hit->dcl->is_included = TRUE; 
-    node_hit = th->hit[start_node];
-     
-    p7_domain_Destroy(node_hit->dcl);
-    node_hit->dcl = pli->hit->dcl;
-    
-    node_hit->pre_score = node_hit->dcl->envsc  / eslCONST_LOG2;
-    node_hit->pre_lnP   = esl_exp_logsurv (node_hit->pre_score, om->evparam[p7_FTAUFS], om->evparam[p7_FLAMBDA]);
-    
-    node_hit->sum_score  = node_hit->score  = dom_score; 
-    node_hit->sum_lnP    = node_hit->lnP    = dom_lnP;
-
-    node_hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score;
-
-    node_hit->frameshift = FALSE;
-
-    next_node = graph->best_out_edge[start_node];
-    node_hit  = th->hit[next_node];
-   
-    node_hit->flags &= ~p7_IS_REPORTED;
-    node_hit->flags &= ~p7_IS_INCLUDED;
-    node_hit->dcl->is_reported = FALSE;
-    node_hit->dcl->is_included = FALSE; 
-
-    curr_node = next_node;
-    exon_cnt  = 1;
-    while (exon_cnt < (path_len-1)) {
-      next_node  = graph->best_out_edge[curr_node];
-      node_hit  = th->hit[next_node];
-
-      node_hit->flags &= ~p7_IS_REPORTED;
-      node_hit->flags &= ~p7_IS_INCLUDED;
-      node_hit->dcl->is_reported = FALSE;
-      node_hit->dcl->is_included = FALSE;
-
-      curr_node = next_node;
-      exon_cnt++;
-    }
+  if ((pli->by_E && exp(dom_lnP) <= pli->E) || ((!pli->by_E) && dom_score >= pli->T)) {
 
     *success = TRUE;
-  }
-  else *success = FALSE;
+    /* Replace the first hit in path with the spliced hit 
+     * and set all other hits in path to unreportable */ 
+    replace_hit = path->hits[0]; 
+    p7_domain_Destroy(replace_hit->dcl);
+    replace_hit->dcl = pli->hit->dcl;
+
+    replace_hit->flags =  0;
+    replace_hit->flags |= p7_IS_REPORTED; 
+    replace_hit->flags |= p7_IS_INCLUDED;
+    replace_hit->dcl->is_reported = TRUE;
+    replace_hit->dcl->is_included = TRUE;
+
+
+    replace_hit->dcl->bitscore    = dom_score;
+    replace_hit->dcl->lnP         = dom_lnP;
+    replace_hit->dcl->dombias     = dom_bias;
+    replace_hit->dcl->is_reported = TRUE;
+    replace_hit->dcl->is_included = TRUE; 
+    
+    replace_hit->pre_score = replace_hit->dcl->envsc  / eslCONST_LOG2;
+    replace_hit->pre_lnP   = esl_exp_logsurv (replace_hit->pre_score, om->evparam[p7_FTAUFS], om->evparam[p7_FLAMBDA]);
+    
+    replace_hit->sum_score  = replace_hit->score  = dom_score; 
+    replace_hit->sum_lnP    = replace_hit->lnP    = dom_lnP;
   
-  if(start_pos != NULL) free(start_pos);
-  if(end_pos   != NULL) free(end_pos);
+    replace_hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score;
+  
+    replace_hit->frameshift = FALSE;
+
+    /* Set all other hits in alignment to unreportable */ 
+    for(i = 1; i < path->path_len; i++) {
+      remove_hit = path->hits[i];
+
+      if(remove_hit->flags & p7_IS_REPORTED ) {
+        remove_hit->flags &= ~p7_IS_REPORTED;
+        remove_hit->dcl->is_reported = FALSE;
+      }
+      if((remove_hit->flags & p7_IS_INCLUDED)) {
+        remove_hit->flags &= ~p7_IS_INCLUDED;
+        remove_hit->dcl->is_included = FALSE;
+      }
+    }
+    
+  } 
+  else *success = FALSE; //printf("EVAL fail \n"); }
+
+  
   if(nuc_dsq   != NULL) free(nuc_dsq);
   if(amino_dsq != NULL) free(amino_dsq);  
-
+  
   return eslOK;
  
   ERROR:
-    if(start_pos != NULL) free(start_pos);
-    if(end_pos   != NULL) free(end_pos);
     if(nuc_index != NULL) free(nuc_index);
     if(nuc_dsq   != NULL) free(nuc_dsq);
     if(amino_dsq != NULL) free(amino_dsq);
@@ -2243,10 +2380,10 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, ESL_SQ *target_seq, E
   hit->dcl     = p7_domain_Create_empty();
   hit->dcl->tr = NULL;
   tr = p7_trace_CreateWithPP();
-
-  p7_oprofile_ReconfigUnihit(om, pli->amino_sq->L);
-  p7_omx_GrowTo(pli->fwd, om->M, pli->amino_sq->L, pli->amino_sq->L);
-  p7_omx_GrowTo(pli->bwd, om->M, pli->amino_sq->L, pli->amino_sq->L);
+ 
+  p7_oprofile_ReconfigUnihit(om, pli->amino_sq->n);
+  p7_omx_GrowTo(pli->fwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
+  p7_omx_GrowTo(pli->bwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
 
   p7_bg_SetLength(pli->bg, pli->amino_sq->n);
   if (pli->do_biasfilter)
@@ -2254,42 +2391,51 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, ESL_SQ *target_seq, E
   else
     p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, pli->amino_sq->n, &filtersc);
 
-  p7_Forward (pli->amino_sq->dsq, pli->amino_sq->L, om,           pli->fwd, &envsc);
+  p7_Forward (pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, &envsc);
 
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
-  P = esl_exp_surv(seq_score,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+  P = esl_exp_surv(seq_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
   
-  if (P > pli->F3) ESL_XEXCEPTION(eslFAIL, "align_spliced_path FAIL");
+  if (P > pli->F3) return eslOK;
 
-  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->L, om, pli->fwd, pli->bwd, NULL);  
+  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, NULL);  
 
-  status = p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd);
-  if (status == eslERANGE) return eslFAIL; 
-   
+  if((status = p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd)) == eslERANGE) goto ERROR;
+  
+
   p7_OptimalAccuracy(om, pli->bwd, pli->fwd, &oasc);
   p7_OATrace        (om, pli->bwd, pli->fwd, tr);
-
-  p7_trace_Index(tr);
-
-  //p7_trace_Dump(stdout, tr, NULL,NULL); 
-  if((hit->dcl->tr = splice_trace_convert(tr, pli->orig_nuc_idx, &splice_cnt)) == NULL) goto ERROR; 
-
-  if(splice_cnt == 0) return eslOK;
-
-  hit->dcl->ad = create_spliced_alidisplay(hit->dcl->tr, 0, om, target_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt);   
   
+  p7_trace_Index(tr);
+   
+ // p7_trace_Dump(stdout, tr, NULL,NULL); 
+  if((hit->dcl->tr = splice_trace_convert(tr, pli->orig_nuc_idx, &splice_cnt)) == NULL) goto ERROR; 
+   
+ // if(splice_cnt == 0) return eslOK;
+  if((hit->dcl->ad = create_spliced_alidisplay(hit->dcl->tr, 0, om, target_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt)) == NULL) goto ERROR; 
+
   p7_Null2_ByExpectation(om, pli->bwd, null2);
   domcorrection = 0.;
   for (i = 0; i < pli->amino_sq->n; i++)
     domcorrection += logf(null2[pli->amino_sq->dsq[i]]);
-
+ 
   hit->dcl->domcorrection = domcorrection;
-
+ 
   hit->dcl->ihmm = hit->dcl->ad->hmmfrom;
   hit->dcl->jhmm = hit->dcl->ad->hmmto;
+  /*Keep iali, jali in sub-sequence teaget_seq coords for now */
   hit->dcl->iali = hit->dcl->ad->sqfrom;
   hit->dcl->jali = hit->dcl->ad->sqto;
 
+  /* Convert sqfrom, sqto to full sequence coords */
+  if(target_seq->start < target_seq->end) {
+    hit->dcl->ad->sqfrom  = hit->dcl->ad->sqfrom + target_seq->start - 1;
+    hit->dcl->ad->sqto    = hit->dcl->ad->sqto   + target_seq->start - 1;
+  } else {
+    hit->dcl->ad->sqto    = target_seq->n - hit->dcl->ad->sqto   + target_seq->end;
+    hit->dcl->ad->sqfrom  = target_seq->n - hit->dcl->ad->sqfrom + target_seq->end;
+  }
+ 
   hit->dcl->envsc = envsc;
   hit->dcl->oasc  = oasc;
   hit->dcl->dombias       = 0.0;
@@ -2299,12 +2445,15 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, ESL_SQ *target_seq, E
   hit->dcl->is_included   = FALSE;
 
   pli->hit = hit;
+  
 
    
   p7_trace_Destroy(tr);
   return eslOK;
 
   ERROR:
+    p7_trace_Destroy(tr);
+    p7_hit_Destroy(hit);
     return status;
 }
 
@@ -2335,7 +2484,7 @@ splice_trace_convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
          * then determine the splice option and use the p7T_MS state*/  
         if (prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
           if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
-            new_tr->sp[new_tr->N-1] = p7S_xxyyABC;
+            if(orig_tr->st[z+1] != p7T_E) new_tr->sp[new_tr->N-1] = p7S_xxyyABC;
             p7_trace_splice_AppendWithPP(new_tr, p7T_R, 0,             prev_nuc_idx+2, 0, p7S_xxyyABC, 0.);
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,             curr_nuc_idx-4, 0, p7S_xxyyABC, 0.);
             p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z], curr_nuc_idx,   3, p7S_xxyyABC, orig_tr->pp[z]);
@@ -2446,7 +2595,7 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
   int            z1, z2;
   int            n, pos;
   int            x,y,z;
-  int            k,s,c,p; 
+  int            k,s,p; 
   int64_t        i;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
@@ -2529,7 +2678,10 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
   strcpy(ad->sqdesc,  target_seq->desc);
   strcpy(ad->orfname, target_seq->orfid);
 
-  ESL_ALLOC(ad->exon_starts, sizeof(int64_t) * splice_cnt);
+  if(splice_cnt)
+    ESL_ALLOC(ad->exon_starts, sizeof(int64_t) * splice_cnt);
+  else 
+    ad->exon_starts = NULL;
 
   /* Determine hit coords */
   ad->hmmfrom     = tr->k[z1];
@@ -2539,15 +2691,19 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
   ad->M           = om->M;
   ad->frameshifts = 0;
   ad->stops       = 0;
+  ad->exons       = 1; 
 
   if(target_seq->start < target_seq->end) {
-    ad->sqfrom  = tr->i[z1] + target_seq->start - 1 - (tr->c[z1] - 1);
-    ad->sqto    = tr->i[z2] + target_seq->start - 1;
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];
   } else {
-    ad->sqto    = target_seq->n - tr->i[z2] + target_seq->end;
-    ad->sqfrom  = target_seq->n - tr->i[z1] + target_seq->end;
+    ad->sqto    = tr->i[z2];
+    ad->sqfrom  = tr->i[z1];
   }
-  
+  /* Use orf coords to keep track of the sequence amino acid alignment length */ 
+  ad->orffrom = 1; 
+  ad->orfto   = 0;
+ 
   ad->L       = target_seq->n;
 
   /* optional rf line */
@@ -2601,7 +2757,7 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
   /* p7S_AxxyyBC    " NNN "    " Axx "    "$ $  "    "yyBC "                         */
   /* p7S_ABxxyyC    " NNN "    " ABxx"    "$  $ "    " yyC "                         */
 
-
+  
   /* mandatory three alignment display lines: model, mline, aseq */
   x = y = 0;
   for (z = z1; z <= z2; z++)
@@ -2613,6 +2769,7 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
 
     switch (s) {
       case p7T_M:
+        ad->orfto++;
         ad->codon[y] = 3;
         ad->model[z-z1] = om->consensus[k];
         ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
@@ -2638,6 +2795,7 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
                break;
 
       case p7T_I:
+        ad->orfto++;
         ad->codon[y] = 3;
         ad->model [z-z1] = '.';
         ad->aseq[z-z1] = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
@@ -2702,6 +2860,7 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
           ad->ntseq [5*(z-z1)+4] = ' ';
         }
         else if(p == p7S_ABxxyyC) {
+          ad->orfto++;
           ad->model[z-z1] = om->consensus[k];
           ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
           if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k]))
@@ -2757,6 +2916,7 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
         break;
       case p7T_A:
         if(p == p7S_xxyyABC) {
+          ad->orfto++;
           ad->model[z-z1] = om->consensus[k];
           ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
           if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k]))
@@ -2775,6 +2935,7 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
           ad->ntseq [5*(z-z1)+4] = ' ';
         }
         else if(p == p7S_AxxyyBC) {
+          ad->orfto++;
           ad->model[z-z1] = om->consensus[k];
           ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
           if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k]))
@@ -2804,6 +2965,11 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
           ad->ntseq [5*(z-z1)+3] =  toupper(alphaDNA[target_seq->dsq[i]]);
           ad->ntseq [5*(z-z1)+4] = ' ';
         }
+       
+        /*Special case for one condon intron */
+        if(tr->st[z+1] == p7T_R)
+          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i+1]]);
+        ad->exons++;
         break;
       default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
     } 
@@ -2823,10 +2989,105 @@ create_spliced_alidisplay(const P7_TRACE *tr, int which, const P7_OPROFILE *om, 
     return NULL;
 }
 
+int
+fix_bad_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *th, P7_OPROFILE *om, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int* success) 
+{
 
+  int i;
+  int amino_start,amino_end;
+  int nuc_start, nuc_end;
+  int amion_len, nuc_len;
+  int difference;
+  int gappiest;
 
+  /* We are here because we could ot successfully aligne our spliced path 
+   * in unihit mode, suggesting that they is a very gappy exon in our path. 
+   * We will find the gappiest exon, sever it's edges and find a new path */  
+  difference = 0;
+  gappiest   = -1;
+  for(i = 0; i < path->path_len; i++) {
 
+    amino_start = path->downstream_spliced_amino_start[i];
+    amino_end   = path->upstream_spliced_amino_end[i+1];
+    nuc_start   = path->downstream_spliced_nuc_start[i];
+    nuc_end     = path->upstream_spliced_nuc_end[i+1];
 
+    amion_len = amino_end - amino_start + 1;
+    nuc_len   = nuc_end   - nuc_start   + 1;
+
+    if(nuc_len - amion_len > difference) {
+      difference = nuc_len - amion_len;
+      gappiest = i;
+    } 
+  }
+ 
+  for(i = 0; i < graph->num_nodes; i++) {
+    graph->edge_scores[i][gappiest] = -eslINFINITY;
+    graph->edge_scores[gappiest][i] = -eslINFINITY;
+  }
+
+  splice_path_destroy(path);
+  path = evaluate_paths(graph, th, target_seq);
+  
+  if(graph->has_full_path ) //|| path->path_len > 0) 
+    splice_path(graph, path, pli, th, om, target_seq, gcode, db_nuc_cnt, success);
+  
+  return eslOK;
+}
+
+/*
+int
+fill_holes_in_graph(SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_TOPHITS *orig_th, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq)
+{
+
+  int i;
+  P7_HIT *downstream_hit;
+  P7_HIT *upstream_hit;
+  SPLICE_EDGE *edge;
+
+ // The first place to look is the original P7_TOPHITS for any hits 
+ // that made it the end of the pipleine but were too low scoring 
+ // to be reported and thus did not make it into the graph
+  if(!graph->is_n_terminal[path_start]) {
+    for(i = 0; i < orig_th->N; i++) {
+      if(!(orig_th->hit[i]->flags & p7_IS_REPORTED)) {
+        edge = connect_nodes_with_edge2(orig_th->hit[i],  path->hits[0], gm, gcode, target_seq, path->revcomp);  
+
+        if(edge != NULL) 
+          add_node_to_graph(graph, orig_th->hit[i], edge, TRUE);          
+      }
+    }
+  }
+
+  if(!graph->is_c_terminal[path_end]) {
+    for(i = 0; i < orig_th->N; i++) {
+      if(!(orig_th->hit[i]->flags & p7_IS_REPORTED)) {
+        edge = connect_nodes_with_edge2(path->hits[0], orig_th->hit[i], gm, gcode, target_seq, path->revcomp);
+
+        if(edge != NULL)
+          add_node_to_graph(graph, orig_th->hit[i], edge, FALSE);
+      }
+    }
+  }
+
+  return eslOK;
+}
+
+int
+add_node_to_graph(SPLICE_GRAPH *graph, P7_HIT *hit, SPLICE_EDGE *edge int hit_is_upstream){
+
+  splice_graph_grow(graph);
+
+  if(hit_is_upstream) {
+    
+
+  }
+ 
+  return eslOK; 
+
+}
+
+*/
 void 
 target_range_dump(FILE *fp, TARGET_RANGE *target_range, int print_hits) {
 
@@ -2859,17 +3120,13 @@ target_range_dump(FILE *fp, TARGET_RANGE *target_range, int print_hits) {
 }
 
 void
-graph_dump(FILE *fp, SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int print_edges) 
+graph_dump(FILE *fp, SPLICE_GRAPH *graph, ESL_SQ *target_seq, int print_edges) 
 {
 
 
   int          i,j;
   int          edge_id;
   int          nuc_end, nuc_start;
-  int          amino_start, amino_end;
-  int          curr_node, next_node;
-  int          curr_edge;
-  P7_HIT      *node_hit;
   SPLICE_EDGE *edge;
 
   if (graph == NULL) { fprintf(fp, " [ graph is NULL ]\n"); return; }
@@ -2932,38 +3189,6 @@ graph_dump(FILE *fp, SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, in
 
   fprintf(fp, " Graph has full length path : %s\n", (graph->has_full_path ? "YES" : "NO"));
   
-  if(graph->has_full_path) {
-    fprintf(fp, "\n Full Path  \n");
-   
-    curr_node   = graph->best_full_path_start; 
-    node_hit    = th->hit[curr_node];
-    nuc_start   = node_hit->dcl->iali;
-    amino_start = node_hit->dcl->ihmm;
-    next_node   = graph->best_out_edge[curr_node];
-    curr_edge   = graph->edge_id[curr_node][next_node];
-    edge        = graph->edges[curr_edge];
-    nuc_end     = edge->upstream_spliced_nuc_end;
-    amino_end   = edge->upstream_spliced_amino_end;
-
-    fprintf(fp, "START -> node %3d hmm coords : %5d %5d  seq coords : %10d %10d -> ", curr_node+1, amino_start, amino_end, nuc_start, nuc_end);
-
-    for(i = 1; i < graph->best_full_path_length; i++) {
-
-      nuc_start   = edge->downstream_spliced_nuc_start;
-      amino_start = edge->downstream_spliced_amino_start;
-      next_node   = graph->best_out_edge[curr_node];
-      curr_edge   = graph->edge_id[curr_node][next_node];
-      edge        = graph->edges[curr_edge];
-      nuc_end     = edge->upstream_spliced_nuc_end;
-      amino_end   = edge->upstream_spliced_amino_end;
-      curr_node   = next_node;
-
-      fprintf(fp, "\n         node %3d hmm coords : %5d %5d  seq coords : %10d %10d ->  ", curr_node+1, amino_start, amino_end, nuc_start, nuc_end);
-    } 
-    fprintf(fp, "END\n");
-  }
-
-
   if (print_edges) {
 
     fprintf(fp, "\n Edge Data  \n\n");
@@ -2981,8 +3206,8 @@ graph_dump(FILE *fp, SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, in
 
            fprintf(fp, "    Edge from Upstream Node %d to Downstream Node %d\n", i+1, j+1);
            fprintf(fp, "                                   %s   %s\n", "Amino", "Nucleotide");
-           fprintf(fp, "      Upsteam Node End Coords:     %5d  %10" PRId64 "\n", edge->upstream_spliced_amino_end, nuc_end); 
-           fprintf(fp, "      Downsteam Node Start Coords: %5d  %10" PRId64 "\n", edge->downstream_spliced_amino_start, nuc_start);
+           fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", edge->upstream_spliced_amino_end, nuc_end); 
+           fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", edge->downstream_spliced_amino_start, nuc_start);
            fprintf(fp, "\n");
         }
       }
@@ -2993,4 +3218,31 @@ graph_dump(FILE *fp, SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, in
 
   return;
 
+}
+
+void
+path_dump(FILE *fp, SPLICE_PATH *path, ESL_SQ *target_seq)
+{
+  
+  int i;
+  int nuc_start, nuc_end;
+  fprintf(fp, "  Path Length  %d\n", path->path_len);
+  
+  for(i = 0; i < path->path_len; i++) {
+    if(path->revcomp) {
+       nuc_start = target_seq->n - path->downstream_spliced_nuc_start[i] + target_seq->end;
+       nuc_end   = target_seq->n - path->upstream_spliced_nuc_end[i+1] + target_seq->end;
+
+    }
+    else {
+      nuc_start = path->downstream_spliced_nuc_start[i] + target_seq->start - 1;
+      nuc_end   =  path->upstream_spliced_nuc_end[i+1] + target_seq->start - 1;
+    }
+    fprintf(fp, "  Step %4d Node %4d hmm coords: %5d %5d  seq coords: %10d %10d \n", i+1, path->node_id[i],
+      path->downstream_spliced_amino_start[i], path->upstream_spliced_amino_end[i+1], nuc_start, nuc_end);
+  }
+  
+  fprintf(fp, "\n");
+
+  return;
 }

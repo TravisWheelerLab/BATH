@@ -182,6 +182,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
 
   /* Used for splice alignments only */
   ad->exon_starts = NULL;
+  ad->exons       = 0;
 
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
@@ -461,6 +462,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 
   /* Used for splice alignments only */
   ad->exon_starts = NULL;
+  ad->exons       = 0;
 
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
@@ -923,6 +925,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
 
   /* Used for splice alignments only */
   ad->exon_starts = NULL;
+  ad->exons       = 0;
 
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
@@ -1073,6 +1076,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
 
   /* Used for splice alignments only */
   new_obj->exon_starts = NULL;
+  new_obj->exons      = 0;
 
   new_obj->hmmname = NULL; 
   new_obj->hmmacc = NULL;
@@ -1144,6 +1148,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
 
       /* Used for splice alignments only */
       ad2->exon_starts = ad->exon_starts;
+      ad2->exons       = ad->exons;
 
       ad2->hmmname = ad2->mem + (ad->hmmname - ad->mem);
       ad2->hmmacc  = ad2->mem + (ad->hmmacc  - ad->mem);
@@ -2144,15 +2149,16 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     if (spliced_ali &&  (!is_splice_line) && ad->ntseq[z*5] == '$' && ad->ntseq[z*5+1] == '$') {
          is_splice_line = TRUE;
          splice_opt = 4;
+         splice_pos = z*5;
     } 
     ni = nk = 0; 
     for (z = pos; z < pos + cur_aliwidth && z < ad->N; z++) 
     {
-      if (ad->model[z] != '.' && ad->model[z] != ' ') nk++; /* k advances except on insert states */
-      if (ad->aseq[z]  != '-' && ad->aseq[z]  != ' ') ni++; /* i advances except on delete states */
+      if (ad->model[z] != '.' && ad->model[z] != ' ') nk++; /* k advances except on insert states and splice states*/
+      if (ad->aseq[z]  != '-')                        ni++; /* i advances except on delete states */
     }
     k2 = k1+nk-1;
- 
+
     /* Optional CS Line */
     if (ad->csline != NULL) 
     {
@@ -2222,6 +2228,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
  
     /* Print Mandatory Target Line */ 
+
     if (fprintf(fp, "  %*s", namewidth, show_seqname)    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (ni > 0) { if (fprintf(fp, " %*ld ", coordwidth, i1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     else        { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
@@ -2288,9 +2295,14 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     else {
        if (fprintf(fp, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-    
+     
     if (old_splice_opt == 1 || old_splice_opt  == 4) {
-      if (fprintf(fp,  "| %c  ", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if(cur_aliwidth > 2) {
+        if (fprintf(fp,  "| %c  ", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
+      else {
+        if (fprintf(fp,  "| %c |", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
       i = 1;
     }
     else if (old_splice_opt == 2) {
@@ -2302,21 +2314,30 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
       i = 1;
     }    
     else i = 0;
+
     for (  ; i < cur_aliwidth-2; i++)
     {
+
       if (ad->ppline[pos+i] == 0) break;
       if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
+
     if (splice_opt == 1) {
-      if (fprintf(fp,  "  %c |", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if(cur_aliwidth > 2) { 
+        if (fprintf(fp,  "  %c |", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
       if (fprintf(fp,  "|    ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
     else if (splice_opt == 2) {
-      if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if(cur_aliwidth > 2) {
+        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
       if (fprintf(fp,  "  || ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
     else if (splice_opt == 3) {
-      if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if(cur_aliwidth > 2) { 
+        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
       if (fprintf(fp,  "  %c||", ad->ppline[pos+i+1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
     else if (splice_opt == 4) {
@@ -2353,7 +2374,6 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     old_splice_pos = splice_pos;
     old_splice_opt = splice_opt;
   }
-  
 
   fflush(fp);
   free(buf);

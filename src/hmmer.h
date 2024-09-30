@@ -766,6 +766,7 @@ typedef struct p7_alidisplay_s {
   int64_t  orfto;               /* end position on sequence   (1..L)    */
   int64_t  L;                   /* length of sequence                   */
 
+  int     exons;                /* number of exons in spliced alignment */
   int64_t *exon_starts;         /* array of nucleotide start positions for exons in spliced alignment */
 
   int   memsize;                /* size of allocated block of memory    */
@@ -1356,89 +1357,90 @@ enum p7_complementarity_e { p7_NOCOMPLEMENT    = 0, p7_COMPLEMENT   = 1 };
 
 typedef struct p7_pipeline_s {
   /* Dynamic programming matrices                                           */
-  P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe       */
-  P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe      */
-  P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes     */
-  P7_OMX     *bck;    /* full Bck matrix for domain envelopes     */
-  P7_GMX     *gxf;    /* three-row generic Forward matrix for frameshift    */
-  P7_GMX     *gxb;    /* five-row generic Backward matrix for frameshifts   */
-  P7_GMX     *gfwd;   /* full Fwd generic matrix for domain envelopes     */
-  P7_GMX     *gbck;   /* full Fwd generic matrix for domain envelopes     */
+  P7_OMX     *oxf;               /* one-row Forward matrix, accel pipe       */
+  P7_OMX     *oxb;               /* one-row Backward matrix, accel pipe      */
+  P7_OMX     *fwd;               /* full Fwd matrix for domain envelopes     */
+  P7_OMX     *bck;               /* full Bck matrix for domain envelopes     */
+  P7_GMX     *gxf;               /* three-row generic Forward matrix for frameshift    */
+  P7_GMX     *gxb;               /* five-row generic Backward matrix for frameshifts   */
+  P7_GMX     *gfwd;              /* full Fwd generic matrix for domain envelopes     */
+  P7_GMX     *gbck;              /* full Fwd generic matrix for domain envelopes     */
  
   /* Domain postprocessing                                                  */
-  ESL_RANDOMNESS *r;    /* random number generator                  */
-  int             do_reseeding; /* TRUE: reseed for reproducible results    */
-  int  do_alignment_score_calc; /* used only by nhmmer --aliscoresout       */
-  P7_DOMAINDEF   *ddef;		/* domain definition workflow               */
+  ESL_RANDOMNESS *r;                       /* random number generator                  */
+  int             do_reseeding;            /* TRUE: reseed for reproducible results    */
+  int             do_alignment_score_calc; /* used only by nhmmer --aliscoresout       */
+  P7_DOMAINDEF   *ddef;		               /* domain definition workflow               */
 
   /* Reporting threshold settings                                           */
-  int     by_E;            /* TRUE to cut per-target report off by E   */
-  double  E;                  /* per-target E-value threshold             */
-  double  T;                  /* per-target bit score threshold           */
-  int     dom_by_E;             /* TRUE to cut domain reporting off by E    */
+  int     by_E;                  /* TRUE to cut per-target report off by E   */
+  double  E;                     /* per-target E-value threshold             */
+  double  T;                     /* per-target bit score threshold           */
+  int     dom_by_E;              /* TRUE to cut domain reporting off by E    */
   double  domE;                  /* domain E-value threshold                 */
   double  domT;                  /* domain bit score threshold               */
-  int     use_bit_cutoffs;      /* (FALSE | p7H_GA | p7H_TC | p7H_NC)       */
+  int     use_bit_cutoffs;       /* (FALSE | p7H_GA | p7H_TC | p7H_NC)       */
 
   /* Inclusion threshold settings                                           */
-  int     inc_by_E;    /* TRUE to threshold inclusion by E-values  */
-  double  incE;      /* per-target inclusion E-value threshold   */
-  double  incT;      /* per-target inclusion score threshold     */
-  int     incdom_by_E;    /* TRUE to threshold domain inclusion by E  */
-  double  incdomE;    /* per-domain inclusion E-value threshold   */
-  double  incdomT;    /* per-domain inclusion E-value threshold   */
+  int     inc_by_E;              /* TRUE to threshold inclusion by E-values  */
+  double  incE;                  /* per-target inclusion E-value threshold   */
+  double  incT;                  /* per-target inclusion score threshold     */
+  int     incdom_by_E;           /* TRUE to threshold domain inclusion by E  */
+  double  incdomE;               /* per-domain inclusion E-value threshold   */
+  double  incdomT;               /* per-domain inclusion E-value threshold   */
 
   /* Tracking search space sizes for E value calculations                   */
-  double  Z;      /* eff # targs searched (per-target E-val)  */
-  double  domZ;      /* eff # signific targs (per-domain E-val)  */
-  enum p7_zsetby_e Z_setby;     /* how Z was set                            */
-  enum p7_zsetby_e domZ_setby;  /* how domZ was set                         */
+  double  Z;                     /* eff # targs searched (per-target E-val)  */
+  double  domZ;                  /* eff # signific targs (per-domain E-val)  */
+  enum p7_zsetby_e Z_setby;      /* how Z was set                            */
+  enum p7_zsetby_e domZ_setby;   /* how domZ was set                         */
   
   /* Threshold settings for pipeline                                        */
-  int     do_max;          /* TRUE to run in slow/max mode             */
-  double  F1;            /* MSV filter threshold                     */
-  double  F2;            /* Viterbi filter threshold                 */
-  double  F3;            /* uncorrected Forward filter threshold     */
-  int     B1;               /* window length for biased-composition modifier - MSV*/
-  int     B2;               /* window length for biased-composition modifier - Viterbi*/
-  int     B3;               /* window length for biased-composition modifier - Forward*/
-  int     do_biasfilter;  /* TRUE to use biased comp HMM filter       */
-  int     do_null2;    /* TRUE to use null2 score corrections      */
+  int     do_max;                /* TRUE to run in slow/max mode             */
+  double  F1;                    /* MSV filter threshold                     */
+  double  F2;                    /* Viterbi filter threshold                 */
+  double  F3;                    /* uncorrected Forward filter threshold     */
+  int     B1;                    /* window length for biased-composition modifier - MSV*/
+  int     B2;                    /* window length for biased-composition modifier - Viterbi*/
+  int     B3;                    /* window length for biased-composition modifier - Forward*/
+  int     do_biasfilter;         /* TRUE to use biased comp HMM filter       */
+  int     do_null2;              /* TRUE to use null2 score corrections      */
 
   /* Accounting. (reduceable in threaded/MPI parallel version)              */
-  uint64_t      nmodels;        /* # of HMMs searched                       */
-  uint64_t      nseqs;          /* # of sequences searched                  */
-  uint64_t      nres;          /* # of residues searched                   */
+  uint64_t      nmodels;         /* # of HMMs searched                       */
+  uint64_t      nseqs;           /* # of sequences searched                  */
+  uint64_t      nres;            /* # of residues searched                   */
   uint64_t      nnodes;          /* # of model nodes searched                */
-  uint64_t      n_past_msv;  /* # comparisons that pass MSVFilter()      */
-  uint64_t      n_past_bias;  /* # comparisons that pass bias filter      */
-  uint64_t      n_past_vit;  /* # comparisons that pass ViterbiFilter()  */
-  uint64_t      n_past_fwd;  /* # comparisons that pass ForwardFilter()  */
-  uint64_t      n_output;      /* # alignments that make it to the final output (used for nhmmer) */
-  uint64_t      pos_past_msv;  /* # positions that pass MSVFilter()  (used for nhmmer) */
-  uint64_t      pos_past_bias;  /* # positions that pass bias filter  (used for nhmmer) */
-  uint64_t      pos_past_vit;  /* # positions that pass ViterbiFilter()  (used for nhmmer) */
-  uint64_t      pos_past_fwd;  /* # positions that pass ForwardFilter()  (used for nhmmer) */
+  uint64_t      n_past_msv;      /* # comparisons that pass MSVFilter()      */
+  uint64_t      n_past_bias;     /* # comparisons that pass bias filter      */
+  uint64_t      n_past_vit;      /* # comparisons that pass ViterbiFilter()  */
+  uint64_t      n_past_fwd;      /* # comparisons that pass ForwardFilter()  */
+  uint64_t      n_output;        /* # alignments that make it to the final output (used for nhmmer) */
+  uint64_t      pos_past_msv;    /* # positions that pass MSVFilter()  (used for nhmmer) */
+  uint64_t      pos_past_bias;   /* # positions that pass bias filter  (used for nhmmer) */
+  uint64_t      pos_past_vit;    /* # positions that pass ViterbiFilter()  (used for nhmmer) */
+  uint64_t      pos_past_fwd;    /* # positions that pass ForwardFilter()  (used for nhmmer) */
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
-  enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
-  int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
-  int           frameshift;     /* TRUE for searches with bathsearch */
-  int           fs_pipe;        /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (do not use --nofs flag) */
-  int           std_pipe;          /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
-  int           strands;        /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
-  int           W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
-  int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
+  enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
+  int           long_targets;    /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
+  int           frameshift;      /* TRUE for searches with bathsearch */
+  int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
+  int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (do not use --nofs flag) */
+  int           std_pipe;        /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
+  int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
+  int           W;               /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
+  int           block_length;    /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
 
-  int           show_accessions;/* TRUE to output accessions not names      */
-  int           show_alignments;/* TRUE to output alignments (default)      */
-  int           is_translated;  /* TRUE is hmmscant or hmmsearcht           */
+  int           show_accessions;          /* TRUE to output accessions not names      */
+  int           show_alignments;          /* TRUE to output alignments (default)      */
+  int           is_translated;            /* TRUE is hmmscant or hmmsearcht           */
   int           show_translated_sequence; /* TRUE to display translated DNA sequence in domain display for hmmscant */
-  int           show_vertical_codon; /* TRUE to display the DNA codon vertically in the alignment display */
-  int           show_frameline;  /* TRUE to display the frame of each codon in the alignment display */
-  int           show_cigar;      /* TRUE to display the CIGAR sring in tabular output */ 
+  int           show_vertical_codon;      /* TRUE to display the DNA codon vertically in the alignment display */
+  int           show_frameline;           /* TRUE to display the frame of each codon in the alignment display */
+  int           show_cigar;               /* TRUE to display the CIGAR sring in tabular output */ 
 
-  P7_HMMFILE   *hfp;    /* COPY of open HMM database (if scan mode) */
+  P7_HMMFILE   *hfp;             /* COPY of open HMM database (if scan mode) */
   char          errbuf[eslERRBUFSIZE];
 } P7_PIPELINE;
 
@@ -1455,54 +1457,54 @@ enum p7_effnchoice_e { p7_EFFN_NONE = 0, p7_EFFN_SET  = 1, p7_EFFN_CLUST = 2, p7
 
 typedef struct p7_builder_s {
   /* Model architecture                                                                            */
-  enum p7_archchoice_e arch_strategy;    /* choice of model architecture determination algorithm   */
-  float                symfrac;           /* residue occ thresh for fast architecture determination */
-  float                fragthresh;   /* if L <= fragthresh*alen, seq is called a fragment      */
+  enum p7_archchoice_e arch_strategy;   /* choice of model architecture determination algorithm   */
+  float                symfrac;         /* residue occ thresh for fast architecture determination */
+  float                fragthresh;      /* if L <= fragthresh*alen, seq is called a fragment      */
    
 
   /* Relative sequence weights                                                                     */
-  enum p7_wgtchoice_e  wgt_strategy;     /* choice of relative sequence weighting algorithm        */
-  double               wid;     /* %id threshold for BLOSUM relative weighting            */
+  enum p7_wgtchoice_e  wgt_strategy;    /* choice of relative sequence weighting algorithm        */
+  double               wid;             /* %id threshold for BLOSUM relative weighting            */
 
   /* Effective sequence number                                                                     */
-  enum p7_effnchoice_e effn_strategy;    /* choice of effective seq # determination algorithm      */
-  double               re_target;   /* rel entropy target for effn eweighting, if set; or -1.0*/
-  double               esigma;     /* min total rel ent parameter for effn entropy weights   */
-  double               eid;     /* %id threshold for effn clustering                      */
-  double               eset;     /* effective sequence number, if --eset; or -1.0          */
+  enum p7_effnchoice_e effn_strategy;   /* choice of effective seq # determination algorithm      */
+  double               re_target;       /* rel entropy target for effn eweighting, if set; or -1.0*/
+  double               esigma;          /* min total rel ent parameter for effn entropy weights   */
+  double               eid;             /* %id threshold for effn clustering                      */
+  double               eset;            /* effective sequence number, if --eset; or -1.0          */
 
   /* Run-to-run variation due to random number generation                                          */
-  ESL_RANDOMNESS      *r;           /* RNG for E-value calibration simulations                */
-  int                  do_reseeding;   /* TRUE to reseed, making results reproducible            */
+  ESL_RANDOMNESS      *r;               /* RNG for E-value calibration simulations                */
+  int                  do_reseeding;    /* TRUE to reseed, making results reproducible            */
 
   /* E-value parameter calibration                                                                 */
-  int                  EmL;               /* length of sequences generated for MSV fitting          */
-  int                  EmN;           /* # of sequences generated for MSV fitting               */
-  int                  EvL;               /* length of sequences generated for Viterbi fitting      */
-  int                  EvN;           /* # of sequences generated for Viterbi fitting           */
-  int                  EfL;           /* length of sequences generated for Forward fitting      */
-  int                  EfN;           /* # of sequences generated for Forward fitting           */
-  double               Eft;           /* tail mass used for Forward fitting                     */
+  int                  EmL;             /* length of sequences generated for MSV fitting          */
+  int                  EmN;             /* # of sequences generated for MSV fitting               */
+  int                  EvL;             /* length of sequences generated for Viterbi fitting      */
+  int                  EvN;             /* # of sequences generated for Viterbi fitting           */
+  int                  EfL;             /* length of sequences generated for Forward fitting      */
+  int                  EfN;             /* # of sequences generated for Forward fitting           */
+  double               Eft;             /* tail mass used for Forward fitting                     */
 
   /* Choice of prior                                                                               */
   P7_PRIOR            *prior;           /* choice of prior when parameterizing from counts        */
   int                  max_insert_len;
 
   /* Optional: information used for parameterizing single sequence queries                         */
-  ESL_SCOREMATRIX     *S;     /* residue score matrix                                   */
-  ESL_DMATRIX         *Q;           /* Q->mx[a][b] = P(b|a) residue probabilities             */
-  double               popen;            /* gap open probability                                   */
-  double               pextend;          /* gap extend probability                                 */
+  ESL_SCOREMATRIX     *S;               /* residue score matrix                                   */
+  ESL_DMATRIX         *Q;               /* Q->mx[a][b] = P(b|a) residue probabilities             */
+  double               popen;           /* gap open probability                                   */
+  double               pextend;         /* gap extend probability                                 */
 
-  double               w_beta;    /*beta value used to compute W (window length)   */
-  int                  w_len;     /*W (window length)  explicitly set */
+  double               w_beta;          /*beta value used to compute W (window length)   */
+  int                  w_len;           /*W (window length)  explicitly set */
 
-  const ESL_ALPHABET  *abc;     /* COPY of alphabet                                       */
-  char errbuf[eslERRBUFSIZE];            /* informative message on model construction failure      */
+  const ESL_ALPHABET  *abc;             /* COPY of alphabet                                       */
+  char errbuf[eslERRBUFSIZE];           /* informative message on model construction failure      */
 
   /* BATH parameters */
-  int                  ct;           /* NCBI codon translation table ID                        */
-  float                fs;           /* frameshift probability                                 */
+  int                  ct;              /* NCBI codon translation table ID                        */
+  float                fs;              /* frameshift probability                                 */
 
 } P7_BUILDER;
 
@@ -1960,7 +1962,7 @@ extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 extern void SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
                        ESL_GENCODE *gcode, ESL_GETOPTS *go, FILE *ofp, int textw);
 
-extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp);
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt);
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);
 extern int         p7_tophits_Grow(P7_TOPHITS *h);

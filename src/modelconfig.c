@@ -576,7 +576,7 @@ p7_ReconfigLength(P7_PROFILE *gm, int L)
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm->nj) / ((float) L + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  pmove = (2.0f + gm->nj) / ((float) L + 2.0f + gm->nj); /* 2/(L+2) for uni; 3/(L+3) for multi */
   ploop = 1.0f - pmove;
   gm->xsc[p7P_N][p7P_LOOP] =  gm->xsc[p7P_C][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm->xsc[p7P_N][p7P_MOVE] =  gm->xsc[p7P_C][p7P_MOVE] = gm->xsc[p7P_J][p7P_MOVE] = log(pmove);
@@ -613,7 +613,7 @@ p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L)
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm_fs->nj) / ((float) L/3.0f + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  pmove = (2.0f + gm_fs->nj) / ((float) L/3.0f + 2.0f + gm_fs->nj); /* 2/(L+2) for uni; 3/(L+3) for multi */
   ploop = 1.0f - pmove;
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);

@@ -2247,14 +2247,22 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     dom->ad->sqfrom = dom->iali;
     dom->ad->sqto   = dom->jali;
 
+    /* Adjust score from env_len to max window length. Note that the loop and move 
+     * costs are calculated based on amino lengths but paid per nucleotide*/
+    bitscore = dom->envsc;
+    bitscore -= 2 * log(2. / ((env_len/3.)+2));
+    bitscore += 2 * log(2. / (gm_fs->max_length+2));
+    bitscore -= (env_len-ali_len)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
+    bitscore += (ESL_MAX(env_len,gm_fs->max_length*3)-ali_len) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
+
     /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
     else
       dom_bias = 0.0; 
 
-    p7_bg_SetLength(bg, env_len);
-    p7_bg_NullOne  (bg, dnasq->dsq, env_len, &nullsc);
+    p7_bg_SetLength(bg, ESL_MAX(env_len,gm_fs->max_length*3));
+    p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len,gm_fs->max_length*3), &nullsc);
     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
     /* P-vaule calculation */	
@@ -2399,18 +2407,23 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 
     dom->ad->sqfrom = dom->iali;
     dom->ad->sqto   = dom->jali;
+
+    /* Adjust score from env_len to max window length */ 
+    bitscore = dom->envsc;
+    bitscore -= 2 * log(2. / (env_len+2));
+    bitscore += 2 * log(2. / (om->max_length+2));
+    bitscore -= (env_len-ali_len)          * log((float) env_len / (float) (env_len+2));  
+    bitscore += (om->max_length-ali_len) * log((float) om->max_length / (float) (om->max_length+2)); 
       
     /* Bias calculation and adjustments to Forward score */
-    bitscore = dom->envsc + (orfsq->n-env_len) * log((float) orfsq->n / (float) (orfsq->n+3));
-   
     if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
     else
       dom_bias = 0.0;
 
  
-     p7_bg_SetLength(bg, orfsq->n);
-     p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
+     p7_bg_SetLength(bg, om->max_length);
+     p7_bg_NullOne  (bg, orfsq->dsq, om->max_length, &nullsc);
      dom_score =  (bitscore - (nullsc + dom_bias)) / eslCONST_LOG2;
      
      /* p-value calculations */

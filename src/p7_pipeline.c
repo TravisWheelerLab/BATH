@@ -505,7 +505,8 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   /* Set Frameshift Mode */
   pli->frameshift = TRUE;
   pli->long_targets = FALSE;
-  pli->is_translated = FALSE; 
+  pli->is_translated = FALSE;
+  pli->spliced =  (go ? esl_opt_IsUsed(go, "--splice") : 0); 
   pli->fs_pipe  = (go ? !esl_opt_IsUsed(go, "--nofs")   : 1); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
 
@@ -2418,14 +2419,22 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     dom->tr->sqfrom[0] = dom->iali;
     dom->tr->sqto[0]   = dom->jali;
 
+    /* Adjust score from env_len to max window length. Note that the loop and move 
+     * costs are calculated based on amino lengths but paid per nucleotide*/
+    bitscore = dom->envsc;
+    bitscore -= 2 * log(2. / ((env_len/3.)+2));
+    bitscore += 2 * log(2. / (gm_fs->max_length+2));
+    bitscore -= (env_len-ali_len)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
+    bitscore += (ESL_MAX(env_len,gm_fs->max_length*3)-ali_len) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
+
     /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
     else
       dom_bias = 0.0; 
 
-    p7_bg_SetLength(bg, env_len);
-    p7_bg_NullOne  (bg, dnasq->dsq, env_len, &nullsc);
+    p7_bg_SetLength(bg, gm_fs->max_length*3);
+    p7_bg_NullOne  (bg, dnasq->dsq, gm_fs->max_length*3, &nullsc);
     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
     /* P-vaule calculation */	
@@ -2573,23 +2582,27 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
     dom->ad->sqto      = dom->jali;
     dom->tr->sqfrom[0] = dom->iali;
     dom->tr->sqto[0]   = dom->jali;  
- 
-    /* Bias calculation and adjustments to Forward score */
-    bitscore = dom->envsc + (orfsq->n-env_len) * log((float) orfsq->n / (float) (orfsq->n+3));
    
+    /* Adjust score from env_len to max window length */ 
+    bitscore = dom->envsc;
+    bitscore -= 2 * log(2. / (env_len+2));
+    bitscore += 2 * log(2. / (om->max_length+2));
+    bitscore -= (env_len-ali_len)          * log((float) env_len / (float) (env_len+2));  
+    bitscore += (om->max_length-ali_len) * log((float) om->max_length / (float) (om->max_length+2)); 
+   
+    /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
     else
       dom_bias = 0.0;
 
  
-     p7_bg_SetLength(bg, orfsq->n);
-     p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
+     p7_bg_SetLength(bg, om->max_length);
+     p7_bg_NullOne  (bg, orfsq->dsq, om->max_length, &nullsc);
      dom_score =  (bitscore - (nullsc + dom_bias)) / eslCONST_LOG2;
      
      /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
      /* To prevent the accumultion of excessive low quailty hits when 
       * filters are turned off we need to begin weeding out those hits 
       * now. To do this we estimate Z based on crruent target residue 
@@ -2763,7 +2776,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
    *  Foward on every ORF that is within the current window */ 
   if(pli->std_pipe) {
     tot_orf_sc = -eslINFINITY;
-
+    
     ESL_ALLOC(P_orf, sizeof(double) * orf_block->count);
     ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
 
@@ -2802,6 +2815,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
         * (with bias) of all ORFs in the window to test it at 
         * least one ORF passed the Forward filter */ 
        seqscore_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
+
        P_orf[f] = esl_exp_surv(seqscore_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]); 
        min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);  
         
@@ -2864,7 +2878,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
          orf_start = dnasq->start + curr_orf->start - 1;
          orf_end   = dnasq->start + curr_orf->end   - 1;
        } 
-
+       
       /* Ensure current ORF is within the current window and that it passed  the Forward filter */
       if(orf_start >= window_start && orf_end <= window_end && P_orf[f] <= pli->F3) { 
         pli->pos_past_fwd += curr_orf->n * 3;

@@ -58,7 +58,7 @@ static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ES
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq,  
            P7_GMX *gx1, P7_GMX *gx2, int i, int j, int null2_is_done, P7_BG *bg, 
            ESL_GENCODE *gcode, int do_biasfilter);
-static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *orfsq, 
+static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, 
            const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
            P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg);
 
@@ -866,7 +866,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
 		  
-                  if (rescore_isolated_domain_nonframeshift(ddef, om, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
+                  if (rescore_isolated_domain_nonframeshift(ddef, om, gm, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
                        last_j2 = j2;
 
           }
@@ -879,7 +879,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
 	    
-            rescore_isolated_domain_nonframeshift(ddef, om, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE, bg);
+            rescore_isolated_domain_nonframeshift(ddef, om, gm, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE, bg);
         }
         i     = -1;
         triggered = FALSE;
@@ -1790,20 +1790,23 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
  * 
  */
 static int
-rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *orfsq, const ESL_SQ *windowsq, 
+rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, const ESL_SQ *windowsq, 
                                      const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, 
                                      int i, int j, int null2_is_done, P7_BG *bg)
 {
 
   P7_DOMAIN     *dom           = NULL;
   int            Ld            = j-i+1;
+  int            seq_len, hmm_len;
   float          domcorrection = 0.0;
   float          envsc, oasc, bcksc;
   int            z;
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
- 
+  P7_GMX         *gx1;
+  P7_GMX         *gx2; 
+
   p7_oprofile_ReconfigLength(om, orfsq->n);
   p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
   p7_omx_GrowTo(ox2, om->M, orfsq->n, orfsq->n); 
@@ -1813,18 +1816,12 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const
    
   status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
- 
+   
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
 
   p7_OATrace        (om, ox2, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
   
-   
-  /* get ptr to next empty domain structure in domaindef's results */
-  if (ddef->ndom == ddef->nalloc) {
-    ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
-    ddef->nalloc *= 2;
-  }
     
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)
@@ -1832,14 +1829,51 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const
 
   p7_trace_Index(ddef->tr);
 
+  seq_len = ddef->tr->sqto[0] - ddef->tr->sqfrom[0] + 1;
+  hmm_len = ddef->tr->hmmto[0] - ddef->tr->hmmfrom[0] + 1;
+
+  /* In rare cases the optimized agorithms produce alignments with unreasonably large deletions.  
+   * In those cases we need to realign with the generic algorithms */
+  if(hmm_len > seq_len*3) {
+
+    p7_trace_Reuse(ddef->tr);
+    p7_ReconfigUnihit(gm, orfsq->n);
+    gx1 = p7_gmx_Create(gm->M, orfsq->n);
+    gx2 = p7_gmx_Create(gm->M, orfsq->n);
+
+    p7_GForward (orfsq->dsq + i-1, Ld, gm, gx1, &envsc);
+    p7_GBackward(orfsq->dsq + i-1, Ld, gm, gx2, NULL);
+
+    p7_GDecoding(gm, gx1, gx2, gx2); 
+
+    p7_GOptimalAccuracy(gm, gx2, gx1,  &oasc);
+    p7_GOATrace(gm, gx2, gx1, ddef->tr);
+
+    for (z = 0; z < ddef->tr->N; z++)
+      if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
+
+    p7_trace_Index(ddef->tr);
+
+    p7_gmx_Destroy(gx1);
+    p7_gmx_Destroy(gx2); 
+    seq_len = ddef->tr->sqto[0] - ddef->tr->sqfrom[0] + 1;
+    hmm_len = ddef->tr->hmmto[0] - ddef->tr->hmmfrom[0] + 1;
+
+  }
+
   if(orfsq->start < orfsq->end)
     p7_trace_fs_Convert(ddef->tr, orfsq->start, windowsq->start);
   else
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
+  /* get ptr to next empty domain structure in domaindef's results */
+  if (ddef->ndom == ddef->nalloc) {
+    ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
+    ddef->nalloc *= 2;
+  }
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, ddef->tr->sqfrom[0]);
-  
+
+  dom->ad  = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, ddef->tr->sqfrom[0]);
   dom->scores_per_pos = NULL;  
 
   if (!null2_is_done) {   

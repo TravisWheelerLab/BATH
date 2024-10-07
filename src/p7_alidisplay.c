@@ -2295,7 +2295,8 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     else {
        if (fprintf(fp, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-     
+
+    /* n-terminal splice */
     if (old_splice_opt == 1 || old_splice_opt  == 4) {
       if(cur_aliwidth > 2) {
         if (fprintf(fp,  "| %c  ", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
@@ -2315,6 +2316,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     }    
     else i = 0;
 
+
     for (  ; i < cur_aliwidth-2; i++)
     {
 
@@ -2322,6 +2324,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
       if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
+    /* c-treminal splice */
     if (splice_opt == 1) {
       if(cur_aliwidth > 2) { 
         if (fprintf(fp,  "  %c |", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
@@ -2329,13 +2332,13 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
       if (fprintf(fp,  "|    ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
     else if (splice_opt == 2) {
-      if(cur_aliwidth > 2) {
+      if(cur_aliwidth > 1) {
         if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       }
       if (fprintf(fp,  "  || ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
     else if (splice_opt == 3) {
-      if(cur_aliwidth > 2) { 
+      if(cur_aliwidth > 1) { 
         if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       }
       if (fprintf(fp,  "  %c||", ad->ppline[pos+i+1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");

@@ -1962,7 +1962,7 @@ extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 extern void SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
                        ESL_GENCODE *gcode, ESL_GETOPTS *go, FILE *ofp, int textw);
 
-extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt);
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt);
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);
 extern int         p7_tophits_Grow(P7_TOPHITS *h);

@@ -64,6 +64,7 @@ typedef struct _splice_graph {
 
   int num_nodes;
   int num_edges;
+  int orig_num_nodes;
  
   int   has_full_path;
   int   best_path_length;
@@ -155,8 +156,8 @@ typedef struct _splice_pipeline
 
 #define MAX_TARGET_RANGE_EXT      3000000    //3x10^6 
 #define TERM_RANGE_EXT            100000     //1x10^5
-#define MAX_INTRON_LEN            100000     //1x10^5
-#define MIN_INTRON_LEN            18
+#define MAX_INTRON_LEN            10000     //1x10^4 
+#define MIN_INTRON_LEN            10
 #define MAX_AMINO_EXT             6
 #define MIN_AMINO_OVERLAP         6
 
@@ -188,6 +189,22 @@ enum p7s_splice_options_e {
   p7S_ABxxyyC = 2
 };
 
+
+static ESL_OPTIONS Translation_Options[] = {
+  /* name     type         default env_var  range toggles req  incompat help                  docgroup */
+ { "--crick", eslARG_NONE, FALSE,  NULL,    NULL, NULL,   NULL, NULL,   "only translate top strand",        99 },
+ { "--watson",eslARG_NONE, FALSE,  NULL,    NULL, NULL,   NULL, NULL,   "only translate bottom strand",     99 },
+ { "-l",      eslARG_INT,  "5",    NULL,    NULL, NULL,   NULL, NULL,   "minimum ORF length",               99 },
+ { "-m",      eslARG_NONE, FALSE,  NULL,    NULL, NULL,   NULL,"-M",    "ORFs must initiate with AUG only", 99 },
+ { "-M",      eslARG_NONE, FALSE,  NULL,    NULL, NULL,   NULL,"-m",    "ORFs must start with allowed initiation codon", 99 },
+
+ {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+
+
+
+
+/* BELLOW THIS LINE ARE FUNCTIONS FOR TESTING*/
 static int
 integer_textwidth(long n)
 {

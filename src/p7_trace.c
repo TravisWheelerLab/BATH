@@ -432,6 +432,116 @@ ERROR:
   return status;
 }
 
+/* Function:  p7_trace_splice_Convert()
+ * Synopsis:  Convert a non-framshift protien to protien trace to a 
+ *            to a spliced DNA to protien trace.
+ *
+ * Purpose:   Detect splice boundries in a protien to protien trace
+ *            produced by p7_splice.c and convert to a BATH compatable
+ *            DNA to protien trace with approriate splice states.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    (no abnormal error conditions)
+ *
+ * Xref:      STL11/124
+ */
+P7_TRACE *
+p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
+{
+
+  int       z;
+  int       curr_nuc_idx;
+  int       prev_nuc_idx;
+  int       sp_cnt;
+  P7_TRACE *new_tr;
+
+  if ((new_tr = p7_trace_splice_CreateWithPP()) == NULL) goto ERROR;
+  sp_cnt = 0;
+
+  z = 0;
+  prev_nuc_idx = orig_nuc_idx[(orig_tr->i[z]*3)];
+  while (z < orig_tr->N) {
+    curr_nuc_idx = orig_nuc_idx[(orig_tr->i[z]*3)];
+    switch(orig_tr->st[z]) {
+      case p7T_N: p7_trace_splice_AppendWithPP(new_tr, p7T_N, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
+      case p7T_C: p7_trace_splice_AppendWithPP(new_tr, p7T_C, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
+      case p7T_J: p7_trace_splice_AppendWithPP(new_tr, p7T_J, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
+      case p7T_M:
+        /* Check if the sequence was spliced at this M position. If so,
+         * then determine the splice option and use the p7T_MS state*/
+        if (prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
+          if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
+            if(orig_tr->st[z+1] != p7T_E) new_tr->sp[new_tr->N-1] = p7S_xxyyABC;
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx+2, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx-4, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx,   3, p7S_xxyyABC, orig_tr->pp[z]);
+            sp_cnt++;
+          }
+          else if(orig_nuc_idx[(orig_tr->i[z]*3)-1] - orig_nuc_idx[(orig_tr->i[z]*3)-2] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx+3, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx-3, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx,   3, p7S_AxxyyBC, orig_tr->pp[z]);
+            sp_cnt++;
+          }
+          else if(orig_nuc_idx[(orig_tr->i[z]*3)]   - orig_nuc_idx[(orig_tr->i[z]*3)-1] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z],   prev_nuc_idx+4, 3, p7S_ABxxyyC, orig_tr->pp[z]);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx-2, 0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z]+1, curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
+            sp_cnt++;
+          }
+        }
+        else {
+          p7_trace_splice_AppendWithPP(new_tr, p7T_M, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]);
+         }
+        break;
+      case p7T_I:
+        /* Check if the sequence was spliced at this I position. If so,
+         * then determine the splice option and use the p7T_IS state */
+        if(prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
+          if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
+            new_tr->sp[new_tr->N-1] = p7S_xxyyABC;
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, 0,             prev_nuc_idx+2, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,             curr_nuc_idx-4, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z], curr_nuc_idx,   3, p7S_xxyyABC, orig_tr->pp[z]);
+            sp_cnt++;
+          }
+          else if(orig_nuc_idx[(orig_tr->i[z]*3)-1] - orig_nuc_idx[(orig_tr->i[z]*3)-2] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, 0,             prev_nuc_idx+3, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,             curr_nuc_idx-3, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z], curr_nuc_idx,   3, p7S_AxxyyBC, orig_tr->pp[z]);
+            sp_cnt++;
+          }
+          else if(orig_nuc_idx[(orig_tr->i[z]*3)]   - orig_nuc_idx[(orig_tr->i[z]*3)-1] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z], prev_nuc_idx+4, 3, p7S_ABxxyyC, orig_tr->pp[z]);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,             curr_nuc_idx-2, 0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, 0,             curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
+            sp_cnt++;
+          }
+        }
+        else
+          p7_trace_splice_AppendWithPP(new_tr, p7T_I, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]);
+        break;
+      case p7T_D: p7_trace_splice_AppendWithPP(new_tr, p7T_D, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
+      case p7T_X: p7_trace_splice_AppendWithPP(new_tr, p7T_X, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
+      case p7T_S: p7_trace_splice_AppendWithPP(new_tr, p7T_S, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
+      case p7T_B: p7_trace_splice_AppendWithPP(new_tr, p7T_B, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
+      case p7T_E: p7_trace_splice_AppendWithPP(new_tr, p7T_E, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
+      case p7T_T: p7_trace_splice_AppendWithPP(new_tr, p7T_T, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
+      default:    return NULL;
+    }
+    prev_nuc_idx = curr_nuc_idx;
+    z++;
+  }
+  *splice_cnt = sp_cnt;
+  return new_tr;
+
+  ERROR:
+    return NULL;
+
+}
+
+
 /* Function:  p7_trace_Grow()
  * Synopsis:  Grow the allocation for trace data.
  *
@@ -680,7 +790,7 @@ p7_trace_GrowIndexTo(P7_TRACE *tr, int ndom)
 void 
 p7_trace_Destroy(P7_TRACE *tr)
 {
-
+ 
   if (tr == NULL) return;
   if (tr->st      != NULL) free(tr->st);
   if (tr->k       != NULL) free(tr->k);
@@ -706,7 +816,7 @@ p7_trace_Destroy(P7_TRACE *tr)
 void
 p7_trace_fs_Destroy(P7_TRACE *tr)
 {
-
+  
   if (tr == NULL) return;
   if (tr->st      != NULL) free(tr->st);
   if (tr->k       != NULL) free(tr->k);
@@ -734,7 +844,7 @@ p7_trace_fs_Destroy(P7_TRACE *tr)
 void
 p7_trace_splice_Destroy(P7_TRACE *tr)
 {
-
+   
   if (tr == NULL) return;
   if (tr->st      != NULL) free(tr->st);
   if (tr->k       != NULL) free(tr->k);

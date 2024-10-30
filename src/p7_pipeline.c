@@ -500,7 +500,8 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
 
   ESL_ALLOC(pli, sizeof(P7_PIPELINE));
 
-  pli->do_alignment_score_calc = 0;
+  /* Alignment score data is used in splicing */
+  pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
 
   /* Set Frameshift Mode */
   pli->frameshift = TRUE;
@@ -1243,8 +1244,8 @@ p7_pipeline_Merge(P7_PIPELINE *p1, P7_PIPELINE *p2)
  *
  * Throws:    <eslEMEM> on allocation failure.
  */
-static int
-p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, int K)
+int
+p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, int K, int BATH)
 {
   int status;
   int i, j, k;
@@ -1253,7 +1254,7 @@ p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, 
   //Compute score contribution of each position in the alignment to the overall Viterbi score
   ESL_ALLOC( dom->scores_per_pos, sizeof(float) * dom->ad->N );
   for (i=0; i<dom->ad->N; i++)  dom->scores_per_pos[i] = 0.0;
-  i = dom->iali - 1;        //sequence position
+  i = (BATH ? dom->tr->sqfrom[0] - 1 : dom->iali - 1);        //sequence position
   j = dom->ad->hmmfrom - 1; //model position
   k = 0;
   while ( k<dom->ad->N) {
@@ -1268,12 +1269,15 @@ p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, 
       k++;
     } else if (dom->ad->model[k] == '.' ) { // insert
       //spin through the insert, accumulating cost;  only assign to final column in gap
-      dom->scores_per_pos[k] = -eslINFINITY;
+      if(!BATH) dom->scores_per_pos[k] = -eslINFINITY;
+      else      dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_MI][j]);
 
       sc = log(data->fwd_transitions[p7O_MI][j]);
+      
       i++; k++;
       while (k<dom->ad->N && dom->ad->model[k] == '.') { //extend insert
-        dom->scores_per_pos[k] = -eslINFINITY;
+        if(!BATH) dom->scores_per_pos[k] = -eslINFINITY;
+        else      dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_II][j]);
         sc += log(data->fwd_transitions[p7O_II][j]);
         i++; k++;
       }
@@ -1281,11 +1285,13 @@ p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, 
       dom->scores_per_pos[k-1] = sc;
 
     } else if (dom->ad->aseq[k] == '-' ) { // delete
-      dom->scores_per_pos[k] = -eslINFINITY;
+      if(!BATH) dom->scores_per_pos[k] = -eslINFINITY;
+      else      dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_MD][j]);
       sc = log(data->fwd_transitions[p7O_MD][j]);
       j++; k++;
       while (k<dom->ad->N && dom->ad->aseq[k] == '-')  { //extend delete
-        dom->scores_per_pos[k] = -eslINFINITY;
+        if(!BATH) dom->scores_per_pos[k] = -eslINFINITY;
+        else      dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_DD][j]);
         sc += log(data->fwd_transitions[p7O_DD][j]);
         j++; k++;
       }
@@ -1434,7 +1440,7 @@ p7_Pipeline(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, const ESL_SQ *sq, cons
 
   if (pli->do_alignment_score_calc) {
     for (d = 0; d < pli->ddef->ndom; d++)
-      p7_pli_computeAliScores(pli->ddef->dcl + d, sq->dsq, data, om->abc->Kp);
+      p7_pli_computeAliScores(pli->ddef->dcl + d, sq->dsq, data, om->abc->Kp, FALSE);
      
   }
 
@@ -1832,7 +1838,7 @@ p7_pli_postViterbi_LongTarget(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_T
       dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
       if (pli->do_alignment_score_calc)
-        p7_pli_computeAliScores(dom, subseq, data, om->abc->Kp);
+        p7_pli_computeAliScores(dom, subseq, data, om->abc->Kp, FALSE);
 
       p7_tophits_CreateNextHit(hitlist, &hit);
 
@@ -2416,8 +2422,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
 
     dom->ad->sqfrom    = dom->iali;
     dom->ad->sqto      = dom->jali;
-    dom->tr->sqfrom[0] = dom->iali;
-    dom->tr->sqto[0]   = dom->jali;
+    //dom->tr->sqfrom[0] = dom->iali;
+   // dom->tr->sqto[0]   = dom->jali;
 
     /* Adjust score from env_len to max window length. Note that the loop and move 
      * costs are calculated based on amino lengths but paid per nucleotide*/
@@ -2531,7 +2537,7 @@ ERROR:
  */
 
 static int 
-p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, 
+p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, 
                                    int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, 
                                    int complementarity, float nullsc 
 )
@@ -2550,7 +2556,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
   for (d = 0; d < pli->ddef->ndom; d++)
   {      
     dom = pli->ddef->dcl + d;
-
+    
     env_len = dom->jenv - dom->ienv + 1;	
     ali_len = dom->jali - dom->iali + 1;   
     if (ali_len < 8) 
@@ -2560,6 +2566,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
       continue; 
     }
 
+    
     /* map alignment and envelope coodinates to orignal DNA target sequence */ 
     if (!complementarity)
     { 
@@ -2580,8 +2587,6 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
 
     dom->ad->sqfrom    = dom->iali;
     dom->ad->sqto      = dom->jali;
-    dom->tr->sqfrom[0] = dom->iali;
-    dom->tr->sqto[0]   = dom->jali;  
    
     /* Adjust score from env_len to max window length */ 
     bitscore = dom->envsc;
@@ -2644,7 +2649,9 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg,
        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
 
-     
+      if (pli->do_alignment_score_calc) 
+        p7_pli_computeAliScores(hit->dcl, orfsq->dsq, data, om->abc->Kp, TRUE);
+
     } 
     else { //delete unused P7_ALIDSPLAY
         p7_alidisplay_Destroy(dom->ad);
@@ -2705,7 +2712,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist,  
                               int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode,
                              P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity, int32_t *k_coords_list, int32_t *m_coords_list
 )
@@ -2893,7 +2900,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
         
         /* Send any hits from the standard pipeline to be further processed */   
-        p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
+        p7_pli_postDomainDef_nonFrameshift(pli, om, data, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
       }
     }  
   } 
@@ -3128,7 +3135,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   {
     window_len   = post_vit_windowlist.windows[i].length; 
     if (window_len < 15) continue;
-    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, k_coords_list, m_coords_list);
+    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, data, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, k_coords_list, m_coords_list);
   }
 
 

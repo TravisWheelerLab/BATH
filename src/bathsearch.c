@@ -76,6 +76,7 @@ static ESL_OPTIONS options[] = {
   /* Control of output */
   { "-o",             eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "direct output to file <f>, not stdout",                                       2 },
   { "--tblout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save parseable table of hits to file <f>",                                    2 },
+  { "--exontblout",   eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,"--splice",NULL,         "save parseable table of exons to file <f>",                                   2 },
   { "--fstblout",     eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save table of frameshift locations to file <f>",                              2 },
   { "--hmmout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "if input is alignment(s) or sequence(s) write produced hmms to file <f>",     2 },
   { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--nofs", NULL,          "enable spliced alignments (requires SSI index 'esl-sftech --index <seqdb>')", 2 },
@@ -149,8 +150,8 @@ static ESL_OPTIONS options[] = {
   { "--domT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                    99 },
   { "--incdomE",      eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                    99 },
   { "--incdomT",      eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                    99 },
-  { "--crick",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate top strand",                                                   99 },
-  { "--watson",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate bottom strand",                                                99 }, 
+  { "--watson",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate top strand",                                                   99 }, 
+  { "--crick",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate bottom strand",                                                99 },
   { "--fs",           eslARG_REAL,   "0.01",     NULL,       "0<=x<=1",  NULL,  NULL, NULL,            "set the frameshift probabilty",                                               99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
@@ -261,6 +262,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (                                                         fprintf(ofp, "# codon translation table:                       %d\n", esl_opt_GetInteger(go, "--ct"))                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")                              && fprintf(ofp, "# output directed to file:                       %s\n",      esl_opt_GetString(go, "-o"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--tblout")                        && fprintf(ofp, "# per-seq hits tabular output:                   %s\n",      esl_opt_GetString(go, "--tblout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--exontblout")                    && fprintf(ofp, "# per-seq exon tabular output:                   %s\n",      esl_opt_GetString(go, "--exontblout"))       < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fstblout")                      && fprintf(ofp, "# frameshift tabular output:                     %s\n",      esl_opt_GetString(go, "--fstblout"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--hmmout")                        && fprintf(ofp, "# hmm output:                                    %s\n",      esl_opt_GetString(go, "--hmmout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--splice")                        && fprintf(ofp, "# enable spliced alignments:                     yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -460,6 +462,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* output files */
   FILE            *ofp                      = stdout;            /* results output file (-o)                        */
   FILE            *tblfp                    = NULL;              /* output stream for tabular per-seq (--tblout)    */
+  FILE            *exontblfp                = NULL;               /* output stream for tabular per-seq (--exontblout)    */
   FILE            *fstblfp                  = NULL;              /* output stream for tabular per-ali (--fstblout)  */
   FILE            *hmmoutfp                 = NULL;              /* output stream for hmms (--hmmout),  only if input is an alignment file    */  
   char            *hmmfile                  = NULL;              /* file to write HMM to                            */
@@ -629,9 +632,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   }
 
   /* Open the results output files */
-  if (esl_opt_IsOn(go, "-o"))          { if ((ofp      = fopen(esl_opt_GetString(go, "-o"), "w")) == NULL) p7_Fail("Failed to open output file %s for writing\n",    esl_opt_GetString(go, "-o")); }
-  if (esl_opt_IsOn(go, "--tblout"))    { if ((tblfp    = fopen(esl_opt_GetString(go, "--tblout"),    "w")) == NULL)  esl_fatal("Failed to open tabular per-seq output file %s for writing\n", esl_opt_GetString(go, "--tblout")); }
-  if (esl_opt_IsOn(go, "--fstblout"))    { if ((fstblfp    = fopen(esl_opt_GetString(go, "--fstblout"),    "w")) == NULL)  esl_fatal("Failed to open tabular per-ali frameshift file %s for writing\n", esl_opt_GetString(go, "--fstblout")); }
+  if (esl_opt_IsOn(go, "-o"))           { if ((ofp       = fopen(esl_opt_GetString(go, "-o"),           "w")) == NULL)  p7_Fail("Failed to open output file %s for writing\n",    esl_opt_GetString(go, "-o")); }
+  if (esl_opt_IsOn(go, "--tblout"))     { if ((tblfp     = fopen(esl_opt_GetString(go, "--tblout"),     "w")) == NULL)  esl_fatal("Failed to open tabular per-seq output file %s for writing\n", esl_opt_GetString(go, "--tblout")); }
+  if (esl_opt_IsOn(go, "--exontblout")) { if ((exontblfp = fopen(esl_opt_GetString(go, "--exontblout"), "w")) == NULL)  esl_fatal("Failed to open tabular per-seq exon output file %s for writing\n", esl_opt_GetString(go, "--exontblout")); }
+  if (esl_opt_IsOn(go, "--fstblout"))   { if ((fstblfp   = fopen(esl_opt_GetString(go, "--fstblout"),   "w")) == NULL)  esl_fatal("Failed to open tabular per-ali frameshift file %s for writing\n", esl_opt_GetString(go, "--fstblout")); }
   if (qfp_msa != NULL || qfp_sq != NULL) {
     if (esl_opt_IsOn(go, "--hmmout")) {
       hmmfile = esl_opt_GetString(go, "--hmmout");
@@ -918,11 +922,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     pipelinehits_accumulator->Z = 1;    
     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
-    if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) {
+    /* Splice hits */
+    if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) 
       p7_splice_SpliceHits(tophits_accumulator, hmm, om, gm, gm_fs, go, gcode, dbfp, ofp, resCnt);
-      //SpliceHits(tophits_accumulator,dbfp,gm,om,gcode,go,ofp,textw);
-    }
     
+ 
     /* Print the results.  */
     pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
     for (i = 0; i < tophits_accumulator->N; i++) {
@@ -937,8 +941,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
     p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
-    if (tblfp)     p7_tophits_TabularTargets(tblfp,    hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
-    if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,    hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
+    if (tblfp)     p7_tophits_TabularTargets    (tblfp,     hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
+    if (exontblfp) p7_tophits_TabularExons      (exontblfp, hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
+    if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,   hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
 
     esl_stopwatch_Stop(watch);
     p7_pli_Statistics(ofp, pipelinehits_accumulator, watch);

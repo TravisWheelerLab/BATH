@@ -490,6 +490,12 @@ enum p7t_cigartype_e {
   p7T_2B = 6,
 };
 
+/* splice options */
+enum p7s_splice_options_e {
+  p7S_xxyyABC = 0,
+  p7S_AxxyyBC = 1,
+  p7S_ABxxyyC = 2
+};
 
 typedef struct p7_trace_s {
   int      N;              /* length of traceback                       */
@@ -766,8 +772,11 @@ typedef struct p7_alidisplay_s {
   int64_t  orfto;               /* end position on sequence   (1..L)    */
   int64_t  L;                   /* length of sequence                   */
 
-  int     exons;                /* number of exons in spliced alignment */
-  int64_t *exon_starts;         /* array of nucleotide start positions for exons in spliced alignment */
+  int     exon_cnt;             /* number of exons in spliced alignment */
+  int64_t *exon_seq_starts;     /* array of nucleotide start positions for exons in spliced alignment */
+  int64_t *exon_seq_ends;       /* array of nucleotide end positions for exons in spliced alignment   */
+  int     *exon_hmm_starts;     /* array of amino start positions for exons in spliced alignment      */
+  int     *exon_hmm_ends;       /* array of amino end positions for exons in spliced alignment        */
 
   int   memsize;                /* size of allocated block of memory    */
   char *mem;      /* memory used for the char data above  */
@@ -1695,6 +1704,7 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
 extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode);
 extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos); 
+extern P7_ALIDISPLAY *p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, int amino_pos, int splice_cnt);
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);
@@ -1889,7 +1899,7 @@ extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
 //SPLASH
 extern P7_PIPELINE * p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode);
 
-
+extern int p7_pli_computeAliScores (P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, int K, int BATH);
 extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
 extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);
 extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, float score,     double lnP);
@@ -2003,6 +2013,7 @@ extern int p7_tophits_Alignment(const P7_TOPHITS *th, const ESL_ALPHABET *abc,
         ESL_MSA **ret_msa);
 extern int p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header);
 extern int p7_tophits_TabularDomains(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header);
+extern int p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header);
 extern int p7_tophits_TabularXfam(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli);
 extern int p7_tophits_TabularTail(FILE *ofp, const char *progname, enum p7_pipemodes_e pipemode, 
           const char *qfile, const char *tfile, const ESL_GETOPTS *go);
@@ -2016,6 +2027,7 @@ extern P7_TRACE *p7_trace_fs_Create(void);
 extern P7_TRACE *p7_trace_fs_CreateWithPP(void);
 extern P7_TRACE *p7_trace_splice_CreateWithPP(void);
 extern P7_TRACE *p7_trace_fs_Clone(const P7_TRACE *tr);
+extern P7_TRACE *p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt);
 extern int  p7_trace_fs_Convert(P7_TRACE *tr, int64_t orf_start, int64_t sq_start);
 extern int  p7_trace_Reuse(P7_TRACE *tr);
 extern int  p7_trace_Grow(P7_TRACE *tr);

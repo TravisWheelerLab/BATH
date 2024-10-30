@@ -588,8 +588,8 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
  */
 int
 p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
-           P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg, 
-	  ESL_GENCODE *gcode, int64_t window_start, int do_biasfilter
+                                              P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg, 
+	                                          ESL_GENCODE *gcode, int64_t window_start, int do_biasfilter
 )
 {
 
@@ -1834,7 +1834,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 
   /* In rare cases the optimized agorithms produce alignments with unreasonably large deletions.  
    * In those cases we need to realign with the generic algorithms */
-  if(hmm_len > seq_len*3) {
+  if(hmm_len > seq_len*2) {
 
     p7_trace_Reuse(ddef->tr);
     p7_ReconfigUnihit(gm, orfsq->n);
@@ -1856,9 +1856,6 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 
     p7_gmx_Destroy(gx1);
     p7_gmx_Destroy(gx2); 
-    seq_len = ddef->tr->sqto[0] - ddef->tr->sqfrom[0] + 1;
-    hmm_len = ddef->tr->hmmto[0] - ddef->tr->hmmfrom[0] + 1;
-
   }
 
   if(orfsq->start < orfsq->end)

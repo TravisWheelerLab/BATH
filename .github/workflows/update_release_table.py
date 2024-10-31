@@ -65,6 +65,12 @@ def generate_markdown_table(release):
             os, arch = extract_os_arch_from_filename(asset["name"])
             download_url = asset["browser_download_url"]
             table += f"| {os}  | {arch}  | [Download]({download_url}) |\n"
+
+    # Add note about Mac binary signing restriction
+    table += (
+        "\nTo address the Mac binary signing restriction, use the following command: "
+        "`sudo xattr -dr com.apple.quarantine <path to file>/my-binary-amd64`\n"
+    )
     
     return table
 

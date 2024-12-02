@@ -1282,7 +1282,7 @@ p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, 
         i++; k++;
       }
       sc += log(data->fwd_transitions[p7O_IM][j+1]) - log(data->fwd_transitions[p7O_MM][j+1]);
-      dom->scores_per_pos[k-1] = sc;
+      if(!BATH) dom->scores_per_pos[k-1] = sc;
 
     } else if (dom->ad->aseq[k] == '-' ) { // delete
       if(!BATH) dom->scores_per_pos[k] = -eslINFINITY;
@@ -1296,7 +1296,7 @@ p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, 
         j++; k++;
       }
       sc += log(data->fwd_transitions[p7O_DM][j+1]) - log(data->fwd_transitions[p7O_MM][j+1]);
-      dom->scores_per_pos[k-1] = sc;
+      if(!BATH) dom->scores_per_pos[k-1] = sc;
     }
   }
 

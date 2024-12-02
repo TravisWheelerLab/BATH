@@ -13,6 +13,7 @@
 #include <string.h>
 #include <limits.h>
 
+#include "esl_vectorops.h"
 #include "easel.h"
 #include "hmmer.h"
 
@@ -1926,8 +1927,8 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
   int       z; 
   int       z1, z2;   
   int       s, c;
-  int       prev_s;
   int       s_count;
+  int       i_start, i_end;
   int       cur_cigar_length;
   int       max_cigar_length;
   int       status;
@@ -1945,97 +1946,81 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
   ESL_ALLOC(cigar, sizeof(char) * max_cigar_length); 
   cur_cigar_length = sprintf (cigar, "%c", '\0'); 
  
-  prev_s = p7T_1M;
   s_count = 0;
-  for(z = z1; z <= z2; z++)
+  z = z1;
+  while(z <= z2)
   {
     s = tr->st[z];
     c = tr->c[z];
     switch (s) {
       case p7T_M:
-        if      (prev_s == p7T_1M && c != 3) 
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'M');
-        else if (prev_s == p7T_1I)
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'I');
-        else if (prev_s == p7T_1D)
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'D');
-        else if (prev_s == p7T_2B)
+        while(s == p7T_M && c == 3) {
+          s_count++;
+          z++;
+          s = tr->st[z];
+          c = tr->c[z];
+        }
+       
+        if (s == p7T_M && c != 3) {
+          s_count++;
+          z++;
+        }
+
+        if (s == p7T_R && c == 3) 
+          s_count++;
+ 
+        cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'M');
+
+        if      (s == p7T_M && c == 1) 
           cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'B');
-        else if (prev_s == p7T_1B)
+        else if (s == p7T_M && c == 2)
           cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'B');
-        else if (prev_s == p7T_1F)
+        else if (s == p7T_M && c == 4)
           cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'F');
-        else if (prev_s == p7T_2F)
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'F'); 
-        
-        if (prev_s != p7T_1M) s_count=0;
-         
-        if      (c == 3) { prev_s = p7T_1M; s_count++; }
-        else if (c == 1) { prev_s = p7T_2B; s_count=0; }
-        else if (c == 2) { prev_s = p7T_1B; s_count=0; } 
-        else if (c == 4) { prev_s = p7T_1F; s_count=0; }
-        else if (c == 5) { prev_s = p7T_2F; s_count=0; }
+        else if (s == p7T_M && c == 5)
+          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'F');
+
+        s_count = 0;
         break;
       case p7T_I:
-          if      (prev_s == p7T_1M)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'M');
-          else if (prev_s == p7T_2B)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'B');
-          else if (prev_s == p7T_1B)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'B');
-          else if (prev_s == p7T_1F)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'F');
-          else if (prev_s == p7T_2F)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'F');
+        while(s == p7T_I) {
+          s_count++;
+          z++;
+          s = tr->st[z];
+        }
 
-          if (prev_s == p7T_1I) s_count++;
-          else                  s_count=1;
-          prev_s = p7T_1I;
+        cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'I');
+
+        s_count = 0;
         break;
       case p7T_D:
-        if (prev_s == p7T_1D)
+        while(s == p7T_D) {
           s_count++;
-        else {
-          if      (prev_s == p7T_1M)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'M');
-          else if (prev_s == p7T_2B)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'B');
-          else if (prev_s == p7T_1B)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'B');
-          else if (prev_s == p7T_1F)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'F');
-          else if (prev_s == p7T_2F)
-            cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'F');
+          z++;
+          s = tr->st[z];
+        }
+        
+        cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'D');
 
-          if (prev_s == p7T_1D) s_count++;
-          else                  s_count=1;
-          prev_s = p7T_1D;
-        } 
+        s_count = 0;
+        break;
+      case p7T_R:
+        i_start = tr->i[z];
+        z+=2;
+        i_end   = tr->i[z];
+        cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, (i_end-i_start), 'N');
+
+        s_count = 0;
+        
+        if(c == 0)
+          s_count++;
+        z++;           
         break;
       default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I"); 
     }
     if (cur_cigar_length                    < 0)  return eslEWRITE;
     if (cur_cigar_length > max_cigar_length - 10) return eslEWRITE; 
   }
- 
-  if      (prev_s == p7T_1M)
-    cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'M'); 
-  else if (prev_s == p7T_1I)
-    cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'I');
-  else if (prev_s == p7T_1D)
-    cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'D');
-  else if (prev_s == p7T_2B)
-    cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'B');
-  else if (prev_s == p7T_1B)
-    cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'B');
-  else if (prev_s == p7T_1F)
-    cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'F');
-  else if (prev_s == p7T_2F)
-    cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'F');
- 
-
-  if (cur_cigar_length                    < 0)  return eslEWRITE;
-  if (cur_cigar_length > max_cigar_length - 10) return eslEWRITE; 
 
   esl_strdup(cigar, cur_cigar_length, ret_cigar);
   free(cigar); 
@@ -2654,26 +2639,29 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
   int qaccw  = (qacc ? ESL_MAX(10, strlen(qacc)) : 10);
   int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
   int posw   = ESL_MAX(9, p7_tophits_GetMaxPositionLength(th)); 
-  int h,x;
+  int h,x,id;
 
   if (show_header)
   {
-    if (fprintf(ofp, "#%*s %37s %47s \n", tnamew+qnamew-1+23+taccw+qaccw, "",                                                                      "------------- full hit ------------- ", "------------------ this exon ------------------") < 0)
+    if (fprintf(ofp, "#%*s %37s %47s \n", tnamew+qnamew+31+taccw+qaccw, "",                                                                      "------------- full hit ------------- ", "----------------------------- this exon -----------------------------") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
-    if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %7s %6s %3s %3s %9s %9s %9s %9s\n",
-            tnamew-1, " target name",        taccw, " accession", qnamew, " query name",          qaccw, " accession", "  hmm len", "  seq len", "  E-value", " score", " bias", " shifts", " stops", "  #", " of", " hmm from", "   hmm to", " ali from", "   ali to") < 0)    
+    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %7s %6s %3s %3s %9s %9s %9s %9s %10s %10s\n",
+            " hit ID", tnamew, " target name",        taccw, " accession", qnamew, " query name",          qaccw, " accession", "  hmm len", "  seq len", "  E-value", " score", " bias", " shifts", " stops", "  #", " of", " hmm from", "   hmm to", " ali from", "   ali to", " Vit score", " score/len") < 0)    
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
-    if (fprintf(ofp, "#%-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %7s %6s %3s %3s %9s %9s %9s %9s\n",
-            tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "------", "-----", "-------", "------", "---", "---", "---------", "---------", "---------", "---------") < 0)
+    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %7s %6s %3s %3s %9s %9s %9s %9s %10s %10s\n",
+            "-------", tnamew, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "------", "-----", "-------", "------", "---", "---", "---------", "---------", "---------", "---------", "----------", "----------") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
   }
 
+  id = 0;
   for (h = 0; h < th->N; h++)
     if (th->hit[h]->flags & p7_IS_REPORTED) {
+      id++;
       for(x = 0; x < th->hit[h]->dcl->ad->exon_cnt; x++) {
-        if (fprintf(ofp, "%-*s %-*s %-*s %-*s %9d %*" PRId64 " %9.2g %6.1f %5.1f %7d %6d %3d %3d %9d %9d %*" PRId64 " %*" PRId64 "\n",
+        if (fprintf(ofp, "%8d %-*s %-*s %-*s %-*s %9d %*" PRId64 " %9.2g %6.1f %5.1f %7d %6d %3d %3d %9d %9d %*" PRId64 " %*" PRId64 " %10.2f %10.2f\n",
+                id,
                 tnamew, th->hit[h]->name,
                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
                 qnamew, qname,
@@ -2690,7 +2678,11 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
 			    (th->hit[h]->dcl->ad->exon_cnt > 1 ? th->hit[h]->dcl->ad->exon_hmm_starts[x] : th->hit[h]->dcl->ad->hmmfrom),
                 (th->hit[h]->dcl->ad->exon_cnt > 1 ? th->hit[h]->dcl->ad->exon_hmm_ends[x]   : th->hit[h]->dcl->ad->hmmto),
                 posw, (th->hit[h]->dcl->ad->exon_cnt > 1 ? th->hit[h]->dcl->ad->exon_seq_starts[x] : th->hit[h]->dcl->ad->sqfrom),
-                posw, (th->hit[h]->dcl->ad->exon_cnt > 1 ? th->hit[h]->dcl->ad->exon_seq_ends[x] : th->hit[h]->dcl->ad->sqto)) < 0)
+                posw, (th->hit[h]->dcl->ad->exon_cnt > 1 ? th->hit[h]->dcl->ad->exon_seq_ends[x] : th->hit[h]->dcl->ad->sqto),
+                (th->hit[h]->dcl->ad->exon_cnt > 1 ? th->hit[h]->dcl->ad->exon_sum_score[x] : esl_vec_FSum(th->hit[h]->dcl->scores_per_pos, th->hit[h]->dcl->ad->N)),
+                (th->hit[h]->dcl->ad->exon_cnt > 1 ? 
+                (th->hit[h]->dcl->ad->exon_sum_score[x] / (1.0 + (float) (th->hit[h]->dcl->ad->exon_hmm_ends[x] - th->hit[h]->dcl->ad->exon_hmm_starts[x]))) : 
+                (esl_vec_FSum(th->hit[h]->dcl->scores_per_pos, th->hit[h]->dcl->ad->N) /(1.0 + (float) (th->hit[h]->dcl->jhmm - th->hit[h]->dcl->ihmm))))) < 0)               
                 ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
       }

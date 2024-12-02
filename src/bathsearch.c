@@ -924,9 +924,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) 
-      p7_splice_SpliceHits(tophits_accumulator, hmm, om, gm, gm_fs, go, gcode, dbfp, ofp, resCnt);
-    
- 
+      p7_splice_SpliceHits(tophits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, ofp, resCnt);
+   
     /* Print the results.  */
     pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
     for (i = 0; i < tophits_accumulator->N; i++) {
@@ -1304,7 +1303,7 @@ init_id_length( int size )
   list->count = 0;
   list->size  = size;
   list->id_lengths = NULL;
-
+  
   ESL_ALLOC (list->id_lengths, size * sizeof(ID_LENGTH));
 
   return list;

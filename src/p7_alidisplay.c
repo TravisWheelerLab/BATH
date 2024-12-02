@@ -185,6 +185,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL; 
+  ad->exon_sum_score  = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -468,6 +469,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
+  ad->exon_sum_score  = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -934,6 +936,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
+  ad->exon_sum_score  = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -1079,13 +1082,12 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, int amino_pos, int splice_cnt)
+p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt)
 {
-
 
   int            z1, z2;
   int            n, pos;
-  int            x,y,z;
+  int            w,x,y,z;
   int            k,s,p;
   int64_t        i;
   int            sq_namelen,  sq_acclen,  sq_desclen;
@@ -1174,6 +1176,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_starts, sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int64_t) * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_sum_score,  sizeof(float)   * (splice_cnt+1));
 
   /* Determine hit coords */
   ad->hmmfrom     = tr->k[z1];
@@ -1201,6 +1204,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   
   ad->exon_hmm_starts[0]        = ad->hmmfrom;
   ad->exon_hmm_ends[splice_cnt] = ad->hmmto;
+ 
+  ad->exon_sum_score[0] = 0.;
 
   /* Use orf coords to keep track of the sequence amino acid alignment length */
   ad->orffrom = 1;
@@ -1260,7 +1265,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   /* p7S_ABxxyyC    " NNN "    " ABxx"    "$  $ "    " yyC "                         */
 
   /* mandatory three alignment display lines: model, mline, aseq */
-  x = y = 0;
+  w = x = y = 0;
   for (z = z1; z <= z2; z++)
   {
     k = tr->k[z];
@@ -1270,6 +1275,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
 
     switch (s) {
       case p7T_M:
+        ad->exon_sum_score[x] += scores_per_pos[w];
+        w++; 
         ad->orfto++;
         ad->codon[y] = 3;
         ad->model[z-z1] = om->consensus[k];
@@ -1296,6 +1303,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
                break;
 
       case p7T_I:
+        ad->exon_sum_score[x] += scores_per_pos[w];
+        w++;
         ad->orfto++;
         ad->codon[y] = 3;
         ad->model [z-z1] = '.';
@@ -1317,6 +1326,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         break;
 
       case p7T_D:
+        ad->exon_sum_score[x] += scores_per_pos[w];
+        w++;
         ad->codon[y] = 0;
         ad->model [z-z1] = om->consensus[k];
         ad->mline [z-z1] = ' ';
@@ -1337,11 +1348,10 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
       case p7T_R:
 
         if(revcomp)
-          ad->exon_seq_ends[x] = target_seq->n-(i-2)+target_seq->end + 2;
+          ad->exon_seq_ends[x] = target_seq->n - i + target_seq->end + 2;
         else
-          ad->exon_seq_ends[x] = (i-2) + target_seq->start - 3;
+          ad->exon_seq_ends[x] = i + target_seq->start - 3;
         ad->exon_hmm_ends[x] = k;
-        x++;
 
         if(p == p7S_xxyyABC) {
           ad->model [z-z1] = ' ';
@@ -1386,7 +1396,11 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-2]]);
           ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-1]]);
           ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i]]);
+          ad->exon_sum_score[x] += scores_per_pos[w];
+          w++;
         }
+        x++;
+        ad->exon_sum_score[x] = 0.0;
         break;
       case p7T_P:
         if(revcomp)
@@ -1443,6 +1457,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
           ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
           ad->ntseq [5*(z-z1)+4] = ' ';
+          ad->exon_sum_score[x] += scores_per_pos[w];
+          w++;
         }
         else if(p == p7S_AxxyyBC) {
           ad->orfto++;
@@ -1462,6 +1478,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
           ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
           ad->ntseq [5*(z-z1)+4] = ' ';
+          ad->exon_sum_score[x] += scores_per_pos[w];
+          w++;
         }
         else if(p == p7S_ABxxyyC) {
           ad->model [z-z1] = ' ';
@@ -1537,6 +1555,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->exon_seq_ends   = NULL;
   new_obj->exon_hmm_starts = NULL;
   new_obj->exon_hmm_ends   = NULL;
+  new_obj->exon_sum_score  = NULL;
   new_obj->exon_cnt        = 0;
 
   new_obj->hmmname = NULL; 
@@ -1612,6 +1631,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->exon_seq_ends   = ad->exon_seq_ends;
       ad2->exon_hmm_starts = ad->exon_hmm_starts;
       ad2->exon_hmm_ends   = ad->exon_hmm_ends;
+      ad2->exon_sum_score  = ad->exon_sum_score;
       ad2->exon_cnt        = ad->exon_cnt;
 
       ad2->hmmname = ad2->mem + (ad->hmmname - ad->mem);
@@ -2347,6 +2367,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if(ad->exon_seq_ends)   free(ad->exon_seq_ends);
       if(ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if(ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
+      if(ad->exon_sum_score)  free(ad->exon_sum_score);
     }
   else
     {	/* deserialized form */
@@ -2369,6 +2390,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if (ad->exon_seq_ends)   free(ad->exon_seq_ends);
       if (ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if (ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
+      if (ad->exon_sum_score)  free(ad->exon_sum_score);
     }
   free(ad);
 }

@@ -180,12 +180,15 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
 
+  ad->pid = 0.0;
+
   /* Used for splice alignments only */
   ad->exon_seq_starts = NULL;
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL; 
   ad->exon_sum_score  = NULL;
+  ad->exon_pid        = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -382,6 +385,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            orf_namelen; /* used for translated search only */
+  int            exact; 
   int            status;
   char           n1,n2,n3,n4,n5;
 
@@ -464,12 +468,15 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
 
+  ad->pid = 0.0;
+
   /* Used for splice alignments only */
   ad->exon_seq_starts = NULL;
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
   ad->exon_sum_score  = NULL;
+  ad->exon_pid        = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -513,6 +520,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   }
 
   /* mandatory three alignment display lines: model, mline, aseq */
+  exact = 0;
   y = 0;
   for (z = z1; z <= z2; z++) 
   {
@@ -744,7 +752,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           }
        	}	
 
-	    if      (aa == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
+	    if      (aa == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) { ad->mline[z-z1] = ad->model[z-z1]; exact++; }
         /* >1 not >0; om has odds ratios, not scores */
         else if (expf(p7P_MSC_AMINO(gm_fs, k, aa)) > 1.0)                       ad->mline[z-z1] = '+';
         else                                                                    ad->mline[z-z1] = ' ';
@@ -800,7 +808,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->aseq  [z2-z1+1] = '\0';
   ad->ntseq  [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
-
+  ad->pid = ((float) exact / ad->N) * 100;
+ 
   return ad;
 
   ERROR:
@@ -850,6 +859,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            orf_namelen; /* used for translated search only */
+  int            exact;
   int            status;
 
   /* First figure out which piece of the trace (from first match to last match) 
@@ -931,12 +941,15 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
 
+  ad->pid = 0.0;
+
   /* Used for splice alignments only */
   ad->exon_seq_starts = NULL;
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
   ad->exon_sum_score  = NULL;
+  ad->exon_pid        = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -976,6 +989,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
 
   /* mandatory three alignment display lines: model, mline, aseq */
   y = 0;
+  exact = 0;
   for (z = z1; z <= z2; z++) 
   {
     k = tr->k[z];
@@ -995,8 +1009,10 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
         ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[sq->dsq[i]]);
         ad->ntseq [5*(z-z1)+4] = ' ';
           	   	    
-        if      (orfsq->dsq[orf_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) 
+        if      (orfsq->dsq[orf_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
           ad->mline[z-z1] = ad->model[z-z1];
+          exact++;
+        }
         else if (p7_oprofile_FGetEmission(om, k, orfsq->dsq[orf_pos]) > 1.0)               
           ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else                                                  
@@ -1041,7 +1057,8 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->aseq  [z2-z1+1] = '\0';
   ad->ntseq  [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
-
+  ad->pid = ((float)exact/ad->N) * 100;
+ 
   return ad;
 
   ERROR:
@@ -1094,6 +1111,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            orf_namelen;
   int            revcomp;
+  int            exact;
+  int            exonN;
   char          *alphaAmino;
   char          *alphaDNA;
   P7_ALIDISPLAY *ad;
@@ -1177,7 +1196,9 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   ESL_ALLOC(ad->exon_hmm_starts, sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_sum_score,  sizeof(float)   * (splice_cnt+1));
-
+  ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
+  
+ 
   /* Determine hit coords */
   ad->hmmfrom     = tr->k[z1];
   ad->hmmto       = tr->k[z2];
@@ -1194,25 +1215,22 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     ad->sqfrom  = tr->i[z1];
     ad->sqto    = tr->i[z2];
     ad->exon_seq_starts[0]        = target_seq->n - ad->sqfrom + target_seq->end;
-    ad->exon_seq_ends[splice_cnt] = target_seq->n - ad->sqto   + target_seq->end; 
   } else {
     ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
     ad->sqto    = tr->i[z2];
     ad->exon_seq_starts[0] =        ad->sqfrom + target_seq->start - 1;
-    ad->exon_seq_ends[splice_cnt] = ad->sqto   + target_seq->start - 1;
   }
   
-  ad->exon_hmm_starts[0]        = ad->hmmfrom;
-  ad->exon_hmm_ends[splice_cnt] = ad->hmmto;
- 
-  ad->exon_sum_score[0] = 0.;
+  ad->exon_hmm_starts[0] = ad->hmmfrom;
+  ad->exon_sum_score[0]  = 0.;
+  ad->exon_pid[0]        = 0.;
 
   /* Use orf coords to keep track of the sequence amino acid alignment length */
   ad->orffrom = 1;
   ad->orfto   = 0;
 
   ad->L       = target_seq->n;
-
+  
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) {
@@ -1265,6 +1283,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   /* p7S_ABxxyyC    " NNN "    " ABxx"    "$  $ "    " yyC "                         */
 
   /* mandatory three alignment display lines: model, mline, aseq */
+  exact = 0;
+  exonN = 0;
   w = x = y = 0;
   for (z = z1; z <= z2; z++)
   {
@@ -1272,17 +1292,20 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     i = tr->i[z];
     s = tr->st[z];
     p = tr->sp[z];
-
     switch (s) {
       case p7T_M:
+        exonN++;
         ad->exon_sum_score[x] += scores_per_pos[w];
         w++; 
         ad->orfto++;
         ad->codon[y] = 3;
         ad->model[z-z1] = om->consensus[k];
         ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
-        if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k]))
+        if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
           ad->mline[z-z1] = ad->model[z-z1];
+          ad->exon_pid[x] += 1.;
+          exact++;
+        }
         else if (p7_oprofile_FGetEmission(om, k, amino_sq->dsq[amino_pos]) > 1.0)
           ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else
@@ -1303,6 +1326,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
                break;
 
       case p7T_I:
+        exonN++;
         ad->exon_sum_score[x] += scores_per_pos[w];
         w++;
         ad->orfto++;
@@ -1326,6 +1350,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         break;
 
       case p7T_D:
+        exonN++;
         ad->exon_sum_score[x] += scores_per_pos[w];
         w++;
         ad->codon[y] = 0;
@@ -1352,6 +1377,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         else
           ad->exon_seq_ends[x] = i + target_seq->start - 3;
         ad->exon_hmm_ends[x] = k;
+        ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100;
 
         if(p == p7S_xxyyABC) {
           ad->model [z-z1] = ' ';
@@ -1364,7 +1390,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+2] = ' ';
           ad->ntseq [5*(z-z1)+3] = ' ';
           ad->ntseq [5*(z-z1)+4] = ' ';
-
+          exonN = 0;
         }
         else if(p == p7S_AxxyyBC) {
           ad->model [z-z1] = ' ';
@@ -1377,13 +1403,17 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+2] = tolower(alphaDNA[target_seq->dsq[i-1]]);
           ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i]]);
           ad->ntseq [5*(z-z1)+4] = ' ';
+          exonN = 0;
         }
         else if(p == p7S_ABxxyyC) {
           ad->orfto++;
           ad->model[z-z1] = om->consensus[k];
           ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
-          if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k]))
+          if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
             ad->mline[z-z1] = ad->model[z-z1];
+            ad->exon_pid[x+1] += 1.;
+            exact++;
+          }
           else if (p7_oprofile_FGetEmission(om, k, amino_sq->dsq[amino_pos]) > 1.0)
             ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
           else
@@ -1398,6 +1428,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i]]);
           ad->exon_sum_score[x] += scores_per_pos[w];
           w++;
+          exonN = 1;
         }
         x++;
         ad->exon_sum_score[x] = 0.0;
@@ -1439,12 +1470,16 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         break;
       case p7T_A:
         ad->exon_hmm_starts[x] = k;
+        ad->exon_pid[x]        = 0.;
         if(p == p7S_xxyyABC) {
           ad->orfto++;
           ad->model[z-z1] = om->consensus[k];
           ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
-          if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k]))
+          if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
             ad->mline[z-z1] = ad->model[z-z1];
+            ad->exon_pid[x] += 1.;
+            exact++;
+          }
           else if (p7_oprofile_FGetEmission(om, k, amino_sq->dsq[amino_pos]) > 1.0)
             ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
           else
@@ -1459,13 +1494,17 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+4] = ' ';
           ad->exon_sum_score[x] += scores_per_pos[w];
           w++;
+          exonN++;
         }
         else if(p == p7S_AxxyyBC) {
           ad->orfto++;
           ad->model[z-z1] = om->consensus[k];
           ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
-          if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k]))
+          if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
             ad->mline[z-z1] = ad->model[z-z1];
+            ad->exon_pid[x] += 1.;
+            exact++;
+          }
           else if (p7_oprofile_FGetEmission(om, k, amino_sq->dsq[amino_pos]) > 1.0)
             ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
           else
@@ -1480,6 +1519,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->ntseq [5*(z-z1)+4] = ' ';
           ad->exon_sum_score[x] += scores_per_pos[w];
           w++;
+          exonN++;
         }
         else if(p == p7S_ABxxyyC) {
           ad->model [z-z1] = ' ';
@@ -1504,11 +1544,19 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     y++;
   }
 
+  ad->exon_hmm_ends[x] = k;
+  if(revcomp)
+    ad->exon_seq_ends[x] = target_seq->n - i + target_seq->end + 2;
+  else
+    ad->exon_seq_ends[x] = i + target_seq->start - 3;
+  ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100; 
+ 
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';
   ad->ntseq  [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
+  ad->pid = ((float)exact/ad->N) * 100;  
 
   return ad;
 
@@ -1549,6 +1597,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->ntseq = NULL;
   new_obj->ppline = NULL;
   new_obj->N = 0;
+  new_obj->pid = 0.0;
 
   /* Used for splice alignments only */
   new_obj->exon_seq_starts = NULL;
@@ -1556,6 +1605,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->exon_hmm_starts = NULL;
   new_obj->exon_hmm_ends   = NULL;
   new_obj->exon_sum_score  = NULL;
+  new_obj->exon_pid        = NULL;
   new_obj->exon_cnt        = 0;
 
   new_obj->hmmname = NULL; 
@@ -1625,14 +1675,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->ntseq  = (ad->ntseq  ? ad2->mem + (ad->ntseq  - ad->mem) : NULL );
       ad2->ppline = (ad->ppline ? ad2->mem + (ad->ppline - ad->mem) : NULL );
       ad2->N      = ad->N;
-
-      /* Used for splice alignments only */
-      ad2->exon_seq_starts = ad->exon_seq_starts;
-      ad2->exon_seq_ends   = ad->exon_seq_ends;
-      ad2->exon_hmm_starts = ad->exon_hmm_starts;
-      ad2->exon_hmm_ends   = ad->exon_hmm_ends;
-      ad2->exon_sum_score  = ad->exon_sum_score;
-      ad2->exon_cnt        = ad->exon_cnt;
+      ad2->pid    = ad->pid;
 
       ad2->hmmname = ad2->mem + (ad->hmmname - ad->mem);
       ad2->hmmacc  = ad2->mem + (ad->hmmacc  - ad->mem);
@@ -1652,7 +1695,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->orffrom = ad->orffrom;
       ad2->orfto   = ad->orfto;
     }
-  else				/* deserialized */
+    else				/* deserialized */
     {
       if ( esl_strdup(ad->rfline, -1, &(ad2->rfline)) != eslOK) goto ERROR;
       if ( esl_strdup(ad->mmline, -1, &(ad2->mmline)) != eslOK) goto ERROR;
@@ -1678,12 +1721,34 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->sqto    = ad->sqto;
       ad2->L       = ad->L;      
 
+      ad2->pid     = ad->pid;
+
       if ( esl_strdup(ad->orfname,  -1, &(ad2->orfname)) != eslOK) goto ERROR;
       ad2->orffrom = ad->orffrom;
       ad2->orfto   = ad->orfto;
 
     }
 
+
+    /* Used for splice alignments only */
+	if(ad->exon_cnt) {
+	
+      ESL_ALLOC(ad2->exon_seq_starts, sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_seq_ends,   sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_hmm_starts, sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_hmm_ends,   sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_sum_score,  sizeof(float)   * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_pid,        sizeof(float)   * ad->exon_cnt);
+ 
+      memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt);
+      memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt); 
+      memcpy(ad2->exon_hmm_starts, ad->exon_hmm_starts, ad->exon_cnt);
+      memcpy(ad2->exon_hmm_ends,   ad->exon_hmm_ends,   ad->exon_cnt);
+      memcpy(ad2->exon_sum_score,  ad->exon_sum_score,  ad->exon_cnt);
+      memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt);
+      ad2->exon_cnt        = ad->exon_cnt;
+   }
+  
   return ad2;
 
  ERROR:
@@ -2368,6 +2433,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if(ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if(ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
       if(ad->exon_sum_score)  free(ad->exon_sum_score);
+      if(ad->exon_pid)        free(ad->exon_pid);
     }
   else
     {	/* deserialized form */
@@ -2391,6 +2457,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if (ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if (ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
       if (ad->exon_sum_score)  free(ad->exon_sum_score);
+      if (ad->exon_pid)        free(ad->exon_pid);
     }
   free(ad);
 }

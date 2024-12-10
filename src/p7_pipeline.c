@@ -122,6 +122,7 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   pli->long_targets = long_targets;
   pli->frameshift = FALSE;
   pli->is_translated = FALSE; /* translated tools will need to override this */
+  pli->pid = FALSE;
 
   if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->bck = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
@@ -285,6 +286,7 @@ p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int lon
   pli->long_targets = long_targets;
   pli->frameshift = FALSE;
   pli->is_translated = FALSE; /* translated tools will need to override this */
+  pli->pid = FALSE;
 
   if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->bck = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
@@ -510,6 +512,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   pli->spliced =  (go ? esl_opt_IsUsed(go, "--splice") : 0); 
   pli->fs_pipe  = (go ? !esl_opt_IsUsed(go, "--nofs")   : 1); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
+  pli->pid =      (go ? esl_opt_IsUsed(go, "--pid") : 0);
 
   /* Create forward and backward optimized matricies for use in the 
    * non-frameshift pipeline branch

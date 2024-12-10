@@ -501,21 +501,21 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
         if(prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
           if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
             new_tr->sp[new_tr->N-1] = p7S_xxyyABC;
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, 0,             prev_nuc_idx+2, 0, p7S_xxyyABC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,             curr_nuc_idx-4, 0, p7S_xxyyABC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z], curr_nuc_idx,   3, p7S_xxyyABC, orig_tr->pp[z]);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx+2, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx-4, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx,   3, p7S_xxyyABC, orig_tr->pp[z]);
             sp_cnt++;
           }
           else if(orig_nuc_idx[(orig_tr->i[z]*3)-1] - orig_nuc_idx[(orig_tr->i[z]*3)-2] > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, 0,             prev_nuc_idx+3, 0, p7S_AxxyyBC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,             curr_nuc_idx-3, 0, p7S_AxxyyBC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z], curr_nuc_idx,   3, p7S_AxxyyBC, orig_tr->pp[z]);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx+3, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx-3, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx,   3, p7S_AxxyyBC, orig_tr->pp[z]);
             sp_cnt++;
           }
           else if(orig_nuc_idx[(orig_tr->i[z]*3)]   - orig_nuc_idx[(orig_tr->i[z]*3)-1] > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z], prev_nuc_idx+4, 3, p7S_ABxxyyC, orig_tr->pp[z]);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,             curr_nuc_idx-2, 0, p7S_ABxxyyC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, 0,             curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z],   prev_nuc_idx+4, 3, p7S_ABxxyyC, orig_tr->pp[z]);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx-2, 0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z]+1, curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
             sp_cnt++;
           }
         }
@@ -530,9 +530,12 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
       case p7T_T: p7_trace_splice_AppendWithPP(new_tr, p7T_T, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
       default:    return NULL;
     }
+	
+    
     prev_nuc_idx = curr_nuc_idx;
     z++;
   }
+  
   *splice_cnt = sp_cnt;
   return new_tr;
 

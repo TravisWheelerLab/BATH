@@ -771,6 +771,7 @@ typedef struct p7_alidisplay_s {
   int64_t  orffrom;             /* start position on sequence (1..L)    */
   int64_t  orfto;               /* end position on sequence   (1..L)    */
   int64_t  L;                   /* length of sequence                   */
+  float    pid;                 /* full alignment percent identity      */
 
   int     exon_cnt;             /* number of exons in spliced alignment */
   int64_t *exon_seq_starts;     /* array of nucleotide start positions for exons in spliced alignment */
@@ -778,6 +779,7 @@ typedef struct p7_alidisplay_s {
   int     *exon_hmm_starts;     /* array of amino start positions for exons in spliced alignment      */
   int     *exon_hmm_ends;       /* array of amino end positions for exons in spliced alignment        */
   float   *exon_sum_score;      /* array of summed per pos ali scores for exons in spliced alignment  */ 
+  float   *exon_pid;            /* array of percent identities for exons in spliced alignment         */
 
   int   memsize;                /* size of allocated block of memory    */
   char *mem;      /* memory used for the char data above  */
@@ -1438,6 +1440,7 @@ typedef struct p7_pipeline_s {
   int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
   int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (do not use --nofs flag) */
   int           std_pipe;        /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
+  int           pid;             /* TRUE if user uses --pid flag to print percent identiy column to --tblout and --exontblout */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;               /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;    /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */

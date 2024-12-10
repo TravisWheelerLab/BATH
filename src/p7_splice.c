@@ -695,7 +695,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
       target_range_destroy(curr_target_range); 
       continue;
     }
-  printf("Target %s strand %c range %d to %d\n", curr_target_range->seqname, (curr_target_range->revcomp ? '-' : '+'), curr_target_range->start, curr_target_range->end);
+  //printf("Target %s strand %c range %d to %d\n", curr_target_range->seqname, (curr_target_range->revcomp ? '-' : '+'), curr_target_range->start, curr_target_range->end);
 
     range_cnt++;
     // target_range_dump(stdout, curr_target_range, TRUE);
@@ -2184,11 +2184,10 @@ evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int ori
       out_edge  = graph->edges[edge_id];
       /* If this is a backward node (in edge ends after out edge begins) 
        * delete the edge with the lower splice score */
-      
+     
       if((in_edge->downstream_spliced_amino_start >= out_edge->upstream_spliced_amino_end) || 
-         (graph->revcomp && in_edge->downstream_spliced_nuc_start > out_edge->upstream_spliced_nuc_end) ||
-         ((!graph->revcomp) && in_edge->downstream_spliced_nuc_start < out_edge->upstream_spliced_nuc_end) ) { 
-      
+         (in_edge->downstream_spliced_nuc_start   >= out_edge->upstream_spliced_nuc_end)) { 
+        
         if(out_edge->splice_score < in_edge->splice_score) {
       
           graph->edge_scores[curr_node][next_node] = -eslINFINITY;
@@ -2591,9 +2590,8 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OP
     replace_hit->flags =  0;
     replace_hit->flags |= p7_IS_REPORTED; 
     replace_hit->flags |= p7_IS_INCLUDED;
-    replace_hit->dcl->is_reported = TRUE;
-    replace_hit->dcl->is_included = TRUE;
-
+    replace_hit->nreported = 1;
+    replace_hit->nincluded = 1;
 
     replace_hit->dcl->bitscore    = dom_score;
     replace_hit->dcl->lnP         = dom_lnP;

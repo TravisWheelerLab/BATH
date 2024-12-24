@@ -698,7 +698,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
   //printf("Target %s strand %c range %d to %d\n", curr_target_range->seqname, (curr_target_range->revcomp ? '-' : '+'), curr_target_range->start, curr_target_range->end);
 
     range_cnt++;
-    // target_range_dump(stdout, curr_target_range, TRUE);
+     //target_range_dump(stdout, curr_target_range, TRUE);
     /* Fetch a sub-sequence thar corresponds to the target range */
     target_seq = get_target_range_sequence(curr_target_range, seq_file); 
    //printf("Sequence n %d L %d start %d end %d\n", target_seq->n, target_seq->L, target_seq->start, target_seq->end);
@@ -718,7 +718,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
           graph->edge_id[i][j]     = -1;
           continue;
         }
-	    
+	 
         edge = connect_nodes_with_edges(curr_target_range->th->hit[i], curr_target_range->th->hit[j], gm, gcode, target_seq, graph->revcomp);
         if(edge == NULL) {
           graph->edge_scores[i][j] = -eslINFINITY;
@@ -743,19 +743,21 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
     
    //graph_dump(stdout, graph, target_seq, TRUE); 
+
     fill_holes_in_graph(graph,  curr_target_range, gm, hmm, pli->bg, target_seq, gcode); 
+
    //graph_dump(stdout, graph, target_seq, TRUE);
     check_for_loops(graph, curr_target_range->th);
     path = evaluate_paths(graph, curr_target_range->th, target_seq, curr_target_range->orig_N);
-
+    
     if(!graph->has_full_path) {
       extend_path(graph, path, curr_target_range, hmm, gm, pli->bg, gcode, target_seq);
       check_for_loops(graph, curr_target_range->th);
       splice_path_destroy(path);
       path = evaluate_paths(graph, curr_target_range->th, target_seq, curr_target_range->orig_N);
-       //graph_dump(stdout, graph, target_seq, TRUE);
+      //graph_dump(stdout, graph, target_seq, TRUE);
     }
-    
+    //target_range_dump(stdout, curr_target_range, TRUE);
 
     splice_path(graph, path, pli, om, scoredata, target_seq, gcode, db_nuc_cnt, curr_target_range->orig_N, &success);
     
@@ -797,6 +799,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
     splice_pipeline_reuse(pli);
     splice_graph_destroy(graph);
     esl_sq_Destroy(target_seq);
+
   }
 
   /* Leave only footprints */
@@ -1403,8 +1406,9 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downs
   curr_hmm_pos = upstream->jhmm;
   edge->upstream_trace_end = z2+1;
   while(curr_hmm_pos >= edge->overlap_amino_start) {
+	
     if      (up_trace->st[z2] == p7T_M) {
-      edge->upstream_nuc_start -= 3 * strand;
+      edge->upstream_nuc_start -= up_trace->c[z2] * strand;
       curr_hmm_pos--;
     }
     else if (up_trace->st[z2] == p7T_I)
@@ -1445,14 +1449,16 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downs
   curr_hmm_pos = downstream->ihmm;
   edge->downstream_trace_start = z1;
   while(curr_hmm_pos <= edge->overlap_amino_end) {
-
-    if (down_trace->st[z1] != p7T_I) 
+    if (down_trace->st[z1] == p7T_M) {
+      edge->downstream_nuc_end += down_trace->c[z1] * strand;
       curr_hmm_pos++;
-
-    if (down_trace->st[z1] != p7T_D)
+    }
+    else if (down_trace->st[z1] == p7T_I)
       edge->downstream_nuc_end += 3 * strand;
-
-    if (down_trace->st[z1] > p7T_I) break;
+    else if (down_trace->st[z1] == p7T_D) 
+      curr_hmm_pos++;
+	else
+      break;
     z1++;
   }
   edge->downstream_trace_end = z1;
@@ -1548,12 +1554,16 @@ find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *dow
     up_model_pos[us_idx] = curr_model_pos;
     up_nuc_pos[us_idx]   = curr_nuc_pos;
     up_states[us_idx]    = up_trace->st[z2];
-     
+  
     up_scores[us_idx] = up_scores[us_idx-1] + upstream->scores_per_pos[ali_pos];
-   
-    if(up_states[us_idx] != p7T_D) 
+  
+    if(up_states[us_idx] == p7T_M) {
+      curr_nuc_pos += up_trace->c[z2];
+      curr_model_pos++;
+    } 
+    else if(up_states[us_idx] == p7T_I) 
       curr_nuc_pos += 3;
-    if(up_states[us_idx] != p7T_I)
+    else if(up_states[us_idx] == p7T_D)
       curr_model_pos++;
 
     prev_state = up_states[us_idx];
@@ -1621,12 +1631,15 @@ find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *dow
     down_nuc_pos[ds_idx]   = curr_nuc_pos-2;
     down_model_pos[ds_idx] = curr_model_pos;
     down_states[ds_idx]    = down_trace->st[z1];
-
     down_scores[ds_idx] = down_scores[ds_idx+1] + downstream->scores_per_pos[ali_pos];
     
-    if(down_states[ds_idx] != p7T_D)
+    if(down_states[ds_idx] == p7T_M) {
+      curr_nuc_pos -= down_trace->c[z1];
+      curr_model_pos--;
+    }
+    else if(down_states[ds_idx] == p7T_I)
       curr_nuc_pos -= 3;
-    if(down_states[ds_idx] != p7T_I)
+    else if(down_states[ds_idx] == p7T_D)
       curr_model_pos--;
 
     prev_state = down_states[ds_idx];
@@ -1674,7 +1687,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *dow
     while(us_idx < us_alloc && up_model_pos[us_idx] == curr_model_pos) { 
       ds_idx = ds_start;
       while(ds_idx < ds_alloc && down_model_pos[ds_idx] == curr_model_pos) {
-        if(down_nuc_pos[ds_idx] - up_nuc_pos[us_idx] > 10) 
+        if(down_nuc_pos[ds_idx] - up_nuc_pos[us_idx] > MIN_INTRON_LEN) 
           if ((status = select_splice_option(edge, gm, gcode, target_seq, splice_scores, up_scores[us_idx-1], down_scores[ds_idx+1], curr_model_pos, up_nuc_pos[us_idx], down_nuc_pos[ds_idx], up_states[us_idx-1], down_states[ds_idx+1])) != eslOK) goto ERROR; 
 
         ds_idx++;
@@ -2053,8 +2066,8 @@ fill_holes_in_graph(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, P7_PROFILE 
           add_missed_hit_to_target_range(target_range, top_ten[hit]);
           add_missing_node_to_graph(graph, th, top_ten[hit], gm->M);
         }
-
-        if(num_hits)
+		
+        if(num_hits) 
           new_edge = bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N);         
        
         if(gap     != NULL) free(gap);
@@ -2786,6 +2799,7 @@ extend_path(SPLICE_GRAPH *graph, SPLICE_PATH *path, TARGET_RANGE *target_range, 
         add_missed_hit_to_target_range(target_range, top_ten[i]);
         add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
       }     
+	
       if(num_hits)
         new_edge += bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N); 
 
@@ -2809,7 +2823,7 @@ extend_path(SPLICE_GRAPH *graph, SPLICE_PATH *path, TARGET_RANGE *target_range, 
         add_missed_hit_to_target_range(target_range, top_ten[i]);
         add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
       }     
-    
+   
       if(num_hits)
         new_edge += bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N); 
 
@@ -2932,7 +2946,7 @@ P7_HIT**
 align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, SPLICE_GAP *gap, int *num_hits)
 {
  
-  int         i, j;
+  int         i, j, z;
   int         z1,z2;
   int         orf_min;
   int         seq_sq_len;
@@ -3011,25 +3025,32 @@ align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, 
     orf_hit          = p7_hit_Create_empty();
     orf_hit->dcl     = p7_domain_Create_empty();
     orf_hit->dcl->tr = p7_trace_Create();
-    
+     
     p7_GTrace(orf_sq->dsq, orf_sq->n, sub_model, vit_mx, orf_hit->dcl->tr);
     p7_trace_Index(orf_hit->dcl->tr);
 
     for (z1 = orf_hit->dcl->tr->tfrom[0]; z1 < orf_hit->dcl->tr->N; z1++) if (orf_hit->dcl->tr->st[z1] == p7T_M) break;
     for (z2 = orf_hit->dcl->tr->tto[0]; z2 >= 0 ; z2--)                   if (orf_hit->dcl->tr->st[z2] == p7T_M) break;
 
+    ESL_ALLOC(orf_hit->dcl->tr->c,  sizeof(int)  * orf_hit->dcl->tr->nalloc); 
+	for (z = z1; z <= z2; z++) {
+      if (orf_hit->dcl->tr->st[z] == p7T_M)
+        orf_hit->dcl->tr->c[z] = 3;
+      else
+        orf_hit->dcl->tr->c[z] = 0;
+    }
+
     orf_hit->dcl->ihmm =  orf_hit->dcl->tr->k[z1] + gap->hmm_start - 1;
     orf_hit->dcl->jhmm =  orf_hit->dcl->tr->k[z2] + gap->hmm_start - 1;
 
     if(graph->revcomp) {
-         orf_hit->dcl->iali = sub_sq->start - sub_sq->n + orf_sq->start - 3*(orf_hit->dcl->tr->i[z1]-1);
-         orf_hit->dcl->jali = sub_sq->start - sub_sq->n + orf_sq->start - 3*(orf_hit->dcl->tr->i[z2])+1;
+      orf_hit->dcl->iali = sub_sq->start - sub_sq->n + orf_sq->start - 3*(orf_hit->dcl->tr->i[z1]-1);
+      orf_hit->dcl->jali = sub_sq->start - sub_sq->n + orf_sq->start - 3*(orf_hit->dcl->tr->i[z2])+1;
     }
     else {
       orf_hit->dcl->iali = sub_sq->start + orf_sq->start + (orf_hit->dcl->tr->i[z1]*3-2) - 2;
       orf_hit->dcl->jali = sub_sq->start + orf_sq->start + (orf_hit->dcl->tr->i[z2]*3)   - 2;
     }
-    
     
     orf_hit->dcl->ad = p7_alidisplay_Create(orf_hit->dcl->tr, 0, sub_omodel, orf_sq, NULL);
   
@@ -3055,6 +3076,7 @@ align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, 
           }
         }
         p7_alidisplay_Destroy(top_ten[low_idx]->dcl->ad);
+        free(top_ten[low_idx]->dcl->tr->c);
         p7_trace_Destroy(top_ten[low_idx]->dcl->tr);
         free(top_ten[low_idx]->dcl->scores_per_pos);
         p7_hit_Destroy(top_ten[low_idx]); 
@@ -3065,6 +3087,7 @@ align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, 
     } 
     else {
       p7_alidisplay_Destroy(orf_hit->dcl->ad);
+      free(orf_hit->dcl->tr->c);
       p7_trace_Destroy(orf_hit->dcl->tr);
       free(orf_hit->dcl->scores_per_pos);
       p7_hit_Destroy(orf_hit);
@@ -3408,6 +3431,7 @@ bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE 
     for(down = 0; down < orig_N; down++) {
 
       if(graph->is_upstream[up][down]) {
+	
         edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, gcode, target_seq, graph->revcomp);
         if(edge != NULL) {
           if(ESL_MIN(graph->hit_scores[up], graph->hit_scores[down]) + edge->splice_score > 0) {
@@ -3429,6 +3453,7 @@ bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE 
   for(up = orig_N; up < th->N; up++) {
     for(down = prev_N; down < th->N; down++) {
       if(curr_connected_hits[down-prev_N] && graph->is_upstream[up][down] && graph->edge_id[up][down] == -1) {
+
         edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, gcode, target_seq, graph->revcomp);
 
         if(edge != NULL) {
@@ -3460,7 +3485,7 @@ bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE 
     for(up = orig_N; up < th->N; up++) {
       for(down = orig_N; down < th->N; down++) {
         if(curr_connected_hits[down-orig_N] && graph->is_upstream[up][down] && graph->edge_id[up][down] == -1) {
-      
+    
           edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, gcode, target_seq, graph->revcomp);
           if(edge != NULL) {
             if(ESL_MIN(graph->hit_scores[up], graph->hit_scores[down])  + edge->splice_score > 0) {
@@ -3495,6 +3520,7 @@ bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE 
     for(down = prev_N; down < th->N; down++) { 
       if(graph->is_upstream[up][down]) {
         //printf("up %d down %d\n", up+1, down+1);        
+        
         edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, gcode, target_seq, graph->revcomp);
         if(edge != NULL) {
           // printf("graph->hit_scores[up] %f graph->hit_scores[down] %f edge->splice_score %f\n", graph->hit_scores[up], graph->hit_scores[down], edge->splice_score);
@@ -3520,6 +3546,7 @@ bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE 
   for(up = prev_N; up < th->N; up++) {
     for(down = orig_N; down < th->N; down++) {
       if(curr_connected_hits[up-prev_N] && graph->is_upstream[up][down] && graph->edge_id[up][down] == -1) {
+	
         edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, gcode, target_seq, graph->revcomp);
 
         if(edge != NULL) {
@@ -3551,7 +3578,7 @@ bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE 
     for(up = orig_N; up < th->N; up++) {
       for(down = orig_N; down < th->N; down++) {
         if(curr_connected_hits[up-orig_N] && graph->is_upstream[up][down] && graph->edge_id[up][down] == -1) {
-
+			
           edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, gcode, target_seq, graph->revcomp);
           if(edge != NULL) {
             if(ESL_MIN(graph->hit_scores[up], graph->hit_scores[down]) + edge->splice_score > 0) {

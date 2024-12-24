@@ -2721,7 +2721,7 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
 
         if(pli->pid) {
           if (fprintf(ofp, "%6.2f ",
-                th->hit[h]->dcl->ad->exon_pid[x]) < 0)               
+                (th->hit[h]->dcl->ad->exon_cnt > 1 ? th->hit[h]->dcl->ad->exon_pid[x] : th->hit[h]->dcl->ad->pid)) < 0)               
                 ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
         }
            

@@ -1716,21 +1716,21 @@ p7_alidisplay_DecodePostProb(char pc)
  * Throws:    <eslEWRITE> on write error, such as filling the disk.
  */
 int
-p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
+p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
 {
    int status;
 	/* if there is a target sequence then we must be calling from hmmscant to print the target sequence in the domain alignment display */
 	if( ad->ntseq == NULL)
    {	   
-      if ((status = p7_alidisplay_nontranslated_Print(fp, ad, min_aliwidth, linewidth, pli->show_accessions)) != eslOK) return status;
+      if ((status = p7_alidisplay_nontranslated_Print(fp, ad, max_namewidth, min_aliwidth, linewidth, pli->show_accessions)) != eslOK) return status;
    }
    else if(pli->frameshift)
    {
-      if((status = p7_frameshift_alidisplay_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
+      if((status = p7_frameshift_alidisplay_Print(fp, ad, max_namewidth, min_aliwidth, linewidth, pli)) != eslOK) return status;
    } 
    else
    {   
-      if ((status = p7_alidisplay_translated_Print(fp, ad, min_aliwidth, linewidth, pli)) != eslOK) return status;
+      if ((status = p7_alidisplay_translated_Print(fp, ad, max_namewidth, min_aliwidth, linewidth, pli)) != eslOK) return status;
    }
 
 	return status;
@@ -1777,7 +1777,7 @@ p7_alidiplay_frame(int nuc_from, int nuc_to)
 * Throws:    <eslEWRITE> on write error, such as filling the disk.
 */
 int
-p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
+p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
 {
   char *buf          = NULL;
   char *show_hmmname = NULL;
@@ -1807,6 +1807,25 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 
   /* dynamically size the output lines */
   namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+
+  while(namewidth > max_namewidth+3) {
+	if(strlen(show_hmmname) > strlen(show_seqname)) {
+      show_hmmname[max_namewidth]   = '.';
+      show_hmmname[max_namewidth+1] = '.';
+	  show_hmmname[max_namewidth+2] = '.';
+	  show_hmmname[max_namewidth+3] = '\0';
+    }
+	else {
+      show_seqname[max_namewidth]   = '.';
+      show_seqname[max_namewidth+1] = '.';
+	  show_seqname[max_namewidth+2] = '.';
+      show_seqname[max_namewidth+2] = '.';
+      show_seqname[max_namewidth+3] = '\0';
+	}
+	
+    namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+  }
+
 
   if (show_translated_sequence) {
       namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
@@ -2013,7 +2032,7 @@ return status;
 * Throws:    <eslEWRITE> on write error, such as filling the disk.
 */
 int
-p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
+p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
   {
   char *buf          = NULL;
   char *show_hmmname = NULL;
@@ -2048,6 +2067,25 @@ p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
   }
   
+  while(namewidth > max_namewidth+3) {
+	if(strlen(show_hmmname) > strlen(show_seqname)) {
+      show_hmmname[max_namewidth]   = '.';
+      show_hmmname[max_namewidth+1] = '.';
+	  show_hmmname[max_namewidth+2] = '.';
+	  show_hmmname[max_namewidth+3] = '\0';
+    }
+	else {
+      show_seqname[max_namewidth]   = '.';
+      show_seqname[max_namewidth+1] = '.';
+	  show_seqname[max_namewidth+2] = '.';
+      show_seqname[max_namewidth+2] = '.';
+      show_seqname[max_namewidth+3] = '\0';
+	}
+	
+    namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+  }
+
+
   
   coordwidth = ESL_MAX(
   	      ESL_MAX(integer_textwidth(ad->hmmfrom), integer_textwidth(ad->hmmto)),
@@ -2280,7 +2318,7 @@ p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
  * Throws:    <eslEWRITE> on write error, such as filling the disk.
  */
 int
-p7_alidisplay_nontranslated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, int show_accessions)
+p7_alidisplay_nontranslated_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, int show_accessions)
 {
   char *buf          = NULL;
   char *show_hmmname = NULL;
@@ -2299,6 +2337,25 @@ p7_alidisplay_nontranslated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth,
       
   /* dynamically size the output lines */
   namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+
+  while(namewidth > max_namewidth+3) {
+	if(strlen(show_hmmname) > strlen(show_seqname)) {
+      show_hmmname[max_namewidth]   = '.';
+      show_hmmname[max_namewidth+1] = '.';
+	  show_hmmname[max_namewidth+2] = '.';
+	  show_hmmname[max_namewidth+3] = '\0';
+    }
+	else {
+      show_seqname[max_namewidth]   = '.';
+      show_seqname[max_namewidth+1] = '.';
+	  show_seqname[max_namewidth+2] = '.';
+      show_seqname[max_namewidth+2] = '.';
+      show_seqname[max_namewidth+3] = '\0';
+	}
+	
+    namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
+  }
+
   coordwidth = ESL_MAX(ESL_MAX(integer_textwidth(ad->hmmfrom),
                               integer_textwidth(ad->hmmto)),
                       ESL_MAX(integer_textwidth(ad->sqfrom),
@@ -2847,7 +2904,7 @@ main(int argc, char **argv)
 	      if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
 	  ad = p7_alidisplay_Create(tr, 0, om, sq, NULL);
-	  p7_alidisplay_Print(stdout, ad, 40, 80, FALSE);
+	  p7_alidisplay_Print(stdout, ad, 40, 40, 80, FALSE);
 	  p7_alidisplay_Destroy(ad);
 	}
       p7_trace_Reuse(tr);

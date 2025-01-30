@@ -1804,8 +1804,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
-  P7_GMX         *gx1;
-  P7_GMX         *gx2; 
+  P7_GMX         *gxv;
 
   p7_oprofile_ReconfigLength(om, orfsq->n);
   p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
@@ -1831,31 +1830,24 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 
   seq_len = ddef->tr->sqto[0] - ddef->tr->sqfrom[0] + 1;
   hmm_len = ddef->tr->hmmto[0] - ddef->tr->hmmfrom[0] + 1;
-
-  /* In rare cases the optimized agorithms produce alignments with unreasonably large deletions.  
-   * In those cases we need to realign with the generic algorithms */
+  
+  /* In rare cases the optimized agorithms produce alignments with unreasonably 
+   * large deletions. In those cases we need to realign with Viterbi */
   if(hmm_len > seq_len*2) {
-
+   
     p7_trace_Reuse(ddef->tr);
     p7_ReconfigUnihit(gm, orfsq->n);
-    gx1 = p7_gmx_Create(gm->M, orfsq->n);
-    gx2 = p7_gmx_Create(gm->M, orfsq->n);
+    gxv = p7_gmx_Create(gm->M, orfsq->n);
 
-    p7_GForward (orfsq->dsq + i-1, Ld, gm, gx1, &envsc);
-    p7_GBackward(orfsq->dsq + i-1, Ld, gm, gx2, NULL);
-
-    p7_GDecoding(gm, gx1, gx2, gx2); 
-
-    p7_GOptimalAccuracy(gm, gx2, gx1,  &oasc);
-    p7_GOATrace(gm, gx2, gx1, ddef->tr);
+    p7_GViterbi(orfsq->dsq + i-1, Ld, gm, gxv, NULL);
+    p7_GTrace(orfsq->dsq + i-1, Ld, gm, gxv, ddef->tr); 
 
     for (z = 0; z < ddef->tr->N; z++)
       if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
 
     p7_trace_Index(ddef->tr);
 
-    p7_gmx_Destroy(gx1);
-    p7_gmx_Destroy(gx2); 
+    p7_gmx_Destroy(gxv);
   }
 
   if(orfsq->start < orfsq->end)

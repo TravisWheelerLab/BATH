@@ -212,10 +212,12 @@ static ESL_OPTIONS Translation_Options[] = {
 
 /* Allocation and Destruction */
 extern TARGET_RANGE* target_range_create(int nalloc);
+extern int target_range_grow(TARGET_RANGE *target_range);
 extern void target_range_destroy(TARGET_RANGE *target_range);
 extern SPLICE_EDGE* splice_edge_create(void);
 extern SPLICE_GRAPH* splice_graph_create(void);
 extern void splice_graph_destroy (SPLICE_GRAPH* graph);
+extern int splice_graph_grow(SPLICE_GRAPH *graph);
 extern int splice_graph_create_nodes(SPLICE_GRAPH *graph, int num_nodes);
 extern SPLICE_PATH* splice_path_create(int path_len);
 extern void splice_path_destroy(SPLICE_PATH *path);
@@ -231,11 +233,12 @@ extern int release_hits_from_target_range(const TARGET_RANGE *target_range, int 
 
 /* Initial Splice Graph */
 extern int fill_graph_with_nodes(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm);
-extern SPLICE_EDGE* connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downstream_hit, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, int revcomp);
+extern SPLICE_EDGE* connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downstream_hit, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int revcomp);
+
 extern void get_overlap_nuc_coords (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, ESL_SQ *target_seq, int revcomp);
-extern int find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, int revcomp);
+extern int find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq);
 extern float ali_score_at_postion (P7_PROFILE *gm, int amino, int model_pos, int trans_pos, int prev_state, int curr_state);
-extern int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, float *splice_scores, float up_score, float down_score, int model_pos, int up_nuc_pos, int down_nuc_pos, int up_state, int down_state);
+extern int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm, P7_PROFILE *sub_model, ESL_GENCODE *gcode, ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
 extern int add_edge_to_graph(SPLICE_GRAPH *graph, SPLICE_EDGE *edge);
 
 
@@ -248,7 +251,7 @@ extern P7_HMM* extract_sub_hmm (P7_HMM *hmm, int start, int end);
 extern ESL_DSQ* extract_sub_seq(ESL_SQ *target_seq, int start, int end, int revcomp);
 extern int add_missing_node_to_graph(SPLICE_GRAPH *graph, P7_TOPHITS * th, P7_HIT *hit, int M);
 extern int add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit, int *duplicate);
-extern int bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, int prev_N, int orig_N);
+extern int bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int prev_N, int orig_N);
 
 
 /* Splice Path */

@@ -104,6 +104,7 @@ typedef struct _splice_path {
 
   int path_len;
   int seq_len;
+  int split_hits;
 
   int *node_id;
 
@@ -220,6 +221,7 @@ extern void splice_graph_destroy (SPLICE_GRAPH* graph);
 extern int splice_graph_grow(SPLICE_GRAPH *graph);
 extern int splice_graph_create_nodes(SPLICE_GRAPH *graph, int num_nodes);
 extern SPLICE_PATH* splice_path_create(int path_len);
+extern int splice_path_split_hit(SPLICE_PATH *path, SPLICE_EDGE *edge, int split_id);
 extern void splice_path_destroy(SPLICE_PATH *path);
 extern SPLICE_PIPELINE* splice_pipeline_create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 extern void splice_pipeline_destroy(SPLICE_PIPELINE *pli);
@@ -259,7 +261,7 @@ extern int check_for_loops (SPLICE_GRAPH *graph, P7_TOPHITS *th);
 extern SPLICE_PATH* evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int orig_N);
 extern int longest_path_upstream (SPLICE_GRAPH *graph);
 extern int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
-
+extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int orig_N);
 
 /* Spliced Hit Processing */
 extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int *success);

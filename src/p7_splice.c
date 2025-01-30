@@ -1294,6 +1294,7 @@ connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downstream_hit, P7_PROFIL
     
   int          up_amino_start, up_amino_end;
   int          down_amino_start, down_amino_end;
+  int          overlap;
   int          num_ext_aminos;  
   SPLICE_EDGE *edge;
   int          status;
@@ -1308,7 +1309,9 @@ connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downstream_hit, P7_PROFIL
   if (up_amino_end + MAX_AMINO_EXT < down_amino_start)  
     return NULL;
 
-  num_ext_aminos = MAX_AMINO_EXT - (up_amino_end - down_amino_start+ 1);
+  /* Find the number of aminos needed to extend the hits to reach an overlap of at least the MIN_AMINO_OVERLAP */
+  overlap = ESL_MAX(MIN_AMINO_OVERLAP, down_amino_start - up_amino_end + 2);
+  num_ext_aminos = overlap - (up_amino_end - down_amino_start+ 1);
  
   if (num_ext_aminos > 0) {
      if(( revcomp  && (upstream_hit->dcl->jali - downstream_hit->dcl->iali) < num_ext_aminos*3) ||

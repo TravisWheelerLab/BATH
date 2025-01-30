@@ -146,10 +146,7 @@ splice_graph_create(void)
   graph->num_nodes      = 0;
   graph->orig_num_nodes = 0;
   graph->num_edges      = 0;
-  graph->num_n_term     = 0;
-  graph->num_c_term     = 0;
 
-  graph->has_full_path    = 0;
   graph->best_path_length = 0;
   graph->best_path_start  = 0;
   graph->best_path_end    = 0;
@@ -160,8 +157,6 @@ splice_graph_create(void)
   graph->orig_in_edge    = NULL;
   graph->best_out_edge   = NULL;
   graph->best_in_edge    = NULL;
-  graph->is_n_terminal   = NULL;
-  graph->is_c_terminal   = NULL; 
 
   graph->is_upstream     = NULL;
   graph->is_upstream_mem = NULL;
@@ -208,8 +203,6 @@ void splice_graph_destroy
   if(graph->orig_in_edge    != NULL) free(graph->orig_in_edge);
   if(graph->best_out_edge   != NULL) free(graph->best_out_edge);
   if(graph->best_in_edge    != NULL) free(graph->best_in_edge);
-  if(graph->is_n_terminal   != NULL) free(graph->is_n_terminal);
-  if(graph->is_c_terminal   != NULL) free(graph->is_c_terminal);
  
   for(i = 0; i < graph->num_edges; i++)
     free(graph->edges[i]);  
@@ -257,10 +250,6 @@ splice_graph_create_nodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->orig_in_edge,   sizeof(int)          * graph->nalloc);
   ESL_ALLOC(graph->best_out_edge,  sizeof(int)          * graph->nalloc);
   ESL_ALLOC(graph->best_in_edge,   sizeof(int)          * graph->nalloc);
-
-  /* Allocate arrays of n and c terminal status of each node */
-  ESL_ALLOC(graph->is_n_terminal,     sizeof(int)          * graph->nalloc);
-  ESL_ALLOC(graph->is_c_terminal,     sizeof(int)          * graph->nalloc);
 
   /* Allocate adjacency matrix to streo the relative upstream or downstream postions of any two nodes */
   ESL_ALLOC(graph->is_upstream,       sizeof(int*)         * graph->nalloc);
@@ -351,8 +340,6 @@ splice_graph_grow(SPLICE_GRAPH *graph)
     ESL_REALLOC(graph->orig_in_edge,    sizeof(int)          * graph->nalloc);
     ESL_REALLOC(graph->best_out_edge,   sizeof(int)          * graph->nalloc);
     ESL_REALLOC(graph->best_in_edge,    sizeof(int)          * graph->nalloc);
-    ESL_REALLOC(graph->is_n_terminal,   sizeof(int)          * graph->nalloc);
-    ESL_REALLOC(graph->is_c_terminal,   sizeof(int)          * graph->nalloc);
 
     ESL_REALLOC(graph->edges,            sizeof(SPLICE_EDGE*) * (graph->nalloc * graph->nalloc));
   }
@@ -750,15 +737,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
     check_for_loops(graph, curr_target_range->th);
     path = evaluate_paths(graph, curr_target_range->th, target_seq, curr_target_range->orig_N);
     
-    if(!graph->has_full_path) {
-      extend_path(graph, path, curr_target_range, hmm, gm, pli->bg, gcode, target_seq);
-      check_for_loops(graph, curr_target_range->th);
-      splice_path_destroy(path);
-      path = evaluate_paths(graph, curr_target_range->th, target_seq, curr_target_range->orig_N);
-      //graph_dump(stdout, graph, target_seq, TRUE);
-    }
     //target_range_dump(stdout, curr_target_range, TRUE);
-
     splice_path(graph, path, pli, om, scoredata, target_seq, gcode, db_nuc_cnt, curr_target_range->orig_N, &success);
     
     /* Reset the range_bounds around the spliced hit and set all hits from 
@@ -1245,20 +1224,6 @@ fill_graph_with_nodes(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm)
 
     graph->hit_scores[i]  = sum_ali_sc;
     graph->path_scores[i] = -eslINFINITY;
-
-    if(th->hit[i]->dcl->ihmm == 1) {
-      graph->is_n_terminal[i] = 1;
-      graph->num_n_term++;
-    }
-    else
-      graph->is_n_terminal[i] = 0;
-
-    if(th->hit[i]->dcl->jhmm == gm->M) {
-      graph->is_c_terminal[i] = 1;
-      graph->num_c_term++;
-    }
-    else
-      graph->is_c_terminal[i] = 0;
 
 	graph->out_edge_cnt[i]  = 0;
     graph->in_edge_cnt[i]   = 0;
@@ -2158,7 +2123,6 @@ evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int ori
     graph->path_scores[i]   = -eslINFINITY;
     graph->best_out_edge[i] = -1;
   }
-  graph->has_full_path = 0;
 
   /* Find best scoreing paths */ 
   longest_path_upstream(graph);
@@ -2255,10 +2219,6 @@ evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int ori
     if(!contains_orig) 
       graph->path_scores[start_node] = -eslINFINITY; 
   }    
-
-  /* Check if path is full length */
-  if(start_node != curr_node && graph->is_n_terminal[start_node] && graph->is_c_terminal[curr_node]) 
-    graph->has_full_path         = 1;
 
   graph->best_path_start  = start_node;
   graph->best_path_end    = curr_node;
@@ -2767,100 +2727,6 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoreda
     return status;
 }
 
-
-
-
-
-int
-extend_path(SPLICE_GRAPH *graph, SPLICE_PATH *path, TARGET_RANGE *target_range, P7_HMM *hmm, P7_PROFILE *gm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq)
-{
-
-  int         i;
-  int         prev_N;
-  int         path_start, path_end;
-  int         new_edge;
-  int         num_hits;
-  int         most_upstream, most_downstream;
-  int         duplicate;
-  int         dup_hits;
-  P7_HIT     **top_ten; 
-  P7_TOPHITS  *th; 
-  SPLICE_GAP  *gap;
-
-  if(graph->has_full_path) return FALSE;  
-
-  th = target_range->th;
-  
-  path_start      = graph->best_path_start;
-  path_end        = graph->best_path_end;
-  new_edge        = FALSE; 
-
-  gap     = NULL;
-  top_ten = NULL;
-  num_hits = 0;
-
-  most_upstream   = path_start;
-  most_downstream = path_end;
-  
-  /* Extend upstream of path */
-  if(!graph->is_n_terminal[path_start]) {
-      
-      gap = terminal_gap(graph, th, gm, target_seq, target_range->orig_N, most_upstream, path_start, TRUE);
-      //printf("revcomp %d hmm_start %d hmm_end %d seq_start %d seq_end %d\n", graph->revcomp, gap->hmm_start, gap->hmm_end, gap->seq_start, gap->seq_end);
-      
-      top_ten = align_the_gap(graph, th, gm, hmm, bg, target_seq, gcode, gap, &num_hits);
-      prev_N = th->N;
-      dup_hits = 0;
-      for(i = 0; i < num_hits; i++) {
-        add_missed_hit_to_target_range(target_range, top_ten[i], &duplicate);
-        if(!duplicate)
-          add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
-        dup_hits += duplicate;
-      }     
-      num_hits -= dup_hits;	
- 
-      if(num_hits)
-        new_edge += bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N); 
-
-  }
-
-  if(gap     != NULL) free(gap);
-  if(top_ten != NULL) free(top_ten);
-  gap     = NULL;
-  top_ten = NULL;
-  num_hits = 0;
-
-  /* Extend downstream of path */
-  if(!graph->is_c_terminal[path_end]) {
-     
-      gap = terminal_gap(graph, th, gm, target_seq, target_range->orig_N, most_downstream, path_end, FALSE);
- //printf("revcomp %d hmm_start %d hmm_end %d seq_start %d seq_end %d\n", graph->revcomp, gap->hmm_start, gap->hmm_end, gap->seq_start, gap->seq_end);
-   
-      top_ten = align_the_gap(graph, th, gm, hmm, bg, target_seq, gcode, gap, &num_hits);
-      prev_N = th->N;
-      dup_hits = 0;
-      for(i = 0; i < num_hits; i++) {
-        add_missed_hit_to_target_range(target_range, top_ten[i], &duplicate);
-        if(!duplicate)
-          add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
-        dup_hits += duplicate;
-      }     
-      num_hits -= dup_hits;
-   
-      if(num_hits)
-        new_edge += bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N); 
-
-  }
-  
-  if(gap     != NULL) free(gap);
-  if(top_ten != NULL) free(top_ten);
- 
-  return new_edge; 
-   
-}
-
-
-
 SPLICE_GAP*
 find_the_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int upstream_node, int downstream_node) 
 {
@@ -3323,20 +3189,6 @@ add_missing_node_to_graph(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_HIT *hit, int 
   graph->hit_scores[graph->num_nodes]     = hit->score; //This contiains the summed alisc
   graph->path_scores[graph->num_nodes] = -eslINFINITY;
  
-  if(hit->dcl->ihmm == 1) {
-    graph->is_n_terminal[graph->num_nodes] = 1;
-    graph->num_n_term++;
-  }
-  else
-    graph->is_n_terminal[graph->num_nodes] = 0;
-
-  if(hit->dcl->jhmm == M) {
-    graph->is_c_terminal[graph->num_nodes] = 1;
-    graph->num_c_term++;
-  }
-  else
-    graph->is_c_terminal[graph->num_nodes] = 0; 
-
   graph->out_edge_cnt[graph->num_nodes]  = 0;
   graph->in_edge_cnt[graph->num_nodes]   = 0;
   graph->orig_out_edge[graph->num_nodes] = 0;
@@ -3756,9 +3608,6 @@ graph_dump(FILE *fp, SPLICE_GRAPH *graph, ESL_SQ *target_seq, int print_edges)
   fprintf(fp, "\n");
 
  
-
-  fprintf(fp, " Graph has full length path : %s\n", (graph->has_full_path ? "YES" : "NO"));
-  
   if (print_edges) {
 
     fprintf(fp, "\n Edge Data  \n\n");

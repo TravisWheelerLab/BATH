@@ -70,7 +70,6 @@ typedef struct _splice_graph {
   int num_edges;
   int orig_num_nodes;
  
-  int   has_full_path;
   int   best_path_length;
   int   best_path_start;
   int   best_path_end;
@@ -82,11 +81,6 @@ typedef struct _splice_graph {
   int   *best_out_edge;
   int   *best_in_edge;
 
-  int   num_n_term;
-  int   num_c_term;
-  int   *is_n_terminal;
-  int   *is_c_terminal;
- 
   int **is_upstream;     //[upstream][downstream]
   int  *is_upstream_mem;
 
@@ -250,7 +244,6 @@ extern int add_edge_to_graph(SPLICE_GRAPH *graph, SPLICE_EDGE *edge);
 
 /* Missing Exons */
 extern int fill_holes_in_graph(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode);
-extern int extend_path(SPLICE_GRAPH *graph, SPLICE_PATH *path, TARGET_RANGE *target_range, P7_HMM *hmm, P7_PROFILE *gm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq);
 extern SPLICE_GAP* find_the_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int upstream_node, int downstream_node);
 extern SPLICE_GAP* terminal_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int final_node, int path_node, int look_upstream);
 extern P7_HIT** align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, SPLICE_GAP *gap, int *num_hits);

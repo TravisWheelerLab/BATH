@@ -2298,7 +2298,7 @@ split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_PROFILE *gm, P7_H
           }
 
 
-          if ((status = find_optimal_splice_site2 (edge, curr_hit->dcl, curr_hit->dcl, gm, hmm, bg, gcode, target_seq)) != eslOK) goto ERROR;
+          if ((status = find_optimal_splice_site (edge, curr_hit->dcl, curr_hit->dcl, gm, hmm, bg, gcode, target_seq)) != eslOK) goto ERROR;
 
           /* Make sure we are not attempting to replice the same insertion */
           if(edge->upstream_spliced_nuc_end <= path->downstream_spliced_nuc_start[i]) {

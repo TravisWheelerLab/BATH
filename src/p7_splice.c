@@ -2035,6 +2035,8 @@ fill_holes_in_graph(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, P7_PROFILE 
   int seq_gap_len;
   int new_edge;
   int num_hits;
+  int duplicate;
+  int dup_hits;
   P7_TOPHITS *th;
   P7_HIT     **top_ten;
   SPLICE_GAP *gap;
@@ -2061,12 +2063,16 @@ fill_holes_in_graph(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, P7_PROFILE 
         top_ten = align_the_gap(graph, th, gm, hmm, bg, target_seq, gcode, gap, &num_hits);
  
         prev_N = th->N;
+        dup_hits = 0;
         for(hit = 0; hit < num_hits; hit++) {
           /* Add all new hits to target range and graph */
-          add_missed_hit_to_target_range(target_range, top_ten[hit]);
-          add_missing_node_to_graph(graph, th, top_ten[hit], gm->M);
+          add_missed_hit_to_target_range(target_range, top_ten[hit], &duplicate);
+          if(!duplicate)
+            add_missing_node_to_graph(graph, th, top_ten[hit], gm->M);
+          dup_hits += duplicate;
         }
-		
+        num_hits -= dup_hits; 		
+
         if(num_hits) 
           new_edge = bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N);         
        
@@ -2768,6 +2774,8 @@ extend_path(SPLICE_GRAPH *graph, SPLICE_PATH *path, TARGET_RANGE *target_range, 
   int         new_edge;
   int         num_hits;
   int         most_upstream, most_downstream;
+  int         duplicate;
+  int         dup_hits;
   P7_HIT     **top_ten; 
   P7_TOPHITS  *th; 
   SPLICE_GAP  *gap;
@@ -2795,11 +2803,15 @@ extend_path(SPLICE_GRAPH *graph, SPLICE_PATH *path, TARGET_RANGE *target_range, 
       
       top_ten = align_the_gap(graph, th, gm, hmm, bg, target_seq, gcode, gap, &num_hits);
       prev_N = th->N;
+      dup_hits = 0;
       for(i = 0; i < num_hits; i++) {
-        add_missed_hit_to_target_range(target_range, top_ten[i]);
-        add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
+        add_missed_hit_to_target_range(target_range, top_ten[i], &duplicate);
+        if(!duplicate)
+          add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
+        dup_hits += duplicate;
       }     
-	
+      num_hits -= dup_hits;	
+ 
       if(num_hits)
         new_edge += bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N); 
 
@@ -2819,10 +2831,14 @@ extend_path(SPLICE_GRAPH *graph, SPLICE_PATH *path, TARGET_RANGE *target_range, 
    
       top_ten = align_the_gap(graph, th, gm, hmm, bg, target_seq, gcode, gap, &num_hits);
       prev_N = th->N;
+      dup_hits = 0;
       for(i = 0; i < num_hits; i++) {
-        add_missed_hit_to_target_range(target_range, top_ten[i]);
-        add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
+        add_missed_hit_to_target_range(target_range, top_ten[i], &duplicate);
+        if(!duplicate)
+          add_missing_node_to_graph(graph, th, top_ten[i], gm->M);
+        dup_hits += duplicate;
       }     
+      num_hits -= dup_hits;
    
       if(num_hits)
         new_edge += bridge_the_gap(graph, th, gm, gcode, target_seq, prev_N, target_range->orig_N); 
@@ -3368,22 +3384,35 @@ add_missing_node_to_graph(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_HIT *hit, int 
 }
 
 int
-add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit)
+add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit, int *duplicate)
 {
 
+  int        h;
   int        start, end;
   P7_TOPHITS *th;
   int        status;
+
+  th = target_range->th;
+
+  *duplicate = FALSE;
+  for(h = 0; h < target_range->th->N; h++) {
+    if(hit->dcl->ihmm >= th->hit[h]->dcl->ihmm && hit->dcl->jhmm <= th->hit[h]->dcl->jhmm) {
+      if ((target_range->revcomp   && (hit->dcl->iali <= th->hit[h]->dcl->iali && hit->dcl->jali >= th->hit[h]->dcl->jali)) ||
+         ((!target_range->revcomp) && (hit->dcl->iali >= th->hit[h]->dcl->iali && hit->dcl->jali <= th->hit[h]->dcl->jali)))   {
+        *duplicate = TRUE;        
+        return eslOK;
+      }
+    }
+  }
   
   if((status = target_range_grow(target_range)) != eslOK) goto ERROR;
   
-  th = target_range->th;
   th->hit[th->N] = hit;
   th->N++;
 
   start = ESL_MIN(hit->dcl->iali, hit->dcl->jali);
   end   = ESL_MAX(hit->dcl->iali, hit->dcl->jali);
-//printf("hit %d iali %d jali %d score %f\n", th->N, hit->dcl->iali, hit->dcl->jali, hit->score);
+
   target_range->start = ESL_MIN(start, target_range->start);
   target_range->end   = ESL_MAX(end, target_range->end);
 

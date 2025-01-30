@@ -255,7 +255,7 @@ extern P7_HIT** align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *g
 extern P7_HMM* extract_sub_hmm (P7_HMM *hmm, int start, int end);
 extern ESL_DSQ* extract_sub_seq(ESL_SQ *target_seq, int start, int end, int revcomp);
 extern int add_missing_node_to_graph(SPLICE_GRAPH *graph, P7_TOPHITS * th, P7_HIT *hit, int M);
-extern int add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit);
+extern int add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit, int *duplicate);
 extern int bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *target_seq, int prev_N, int orig_N);
 
 

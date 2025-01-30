@@ -79,7 +79,7 @@ static ESL_OPTIONS options[] = {
   { "--exontblout",   eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,"--splice",NULL,         "save parseable table of exons to file <f>",                                   2 },
   { "--fstblout",     eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save table of frameshift locations to file <f>",                              2 },
   { "--hmmout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "if input is alignment(s) or sequence(s) write produced hmms to file <f>",     2 },
-  { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--nofs", NULL,          "enable spliced alignments (requires SSI index 'esl-sftech --index <seqdb>')", 2 },
+  { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "enable spliced alignments (requires SSI index 'esl-sftech --index <seqdb>')", 2 },
   { "--pid",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "include percent identity column in --tblout and/or --exontblout files",       2 },
   { "--acc",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "prefer accessions over names in output",                                      2 },
   { "--noali",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't output alignments, so output is smaller",                               2 },

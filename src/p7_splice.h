@@ -115,9 +115,6 @@ typedef struct _splice_path {
   int *upstream_spliced_nuc_end;
   int *downstream_spliced_nuc_start;
  
-  int *checked_upstream;
-  int *checked_downstream;
- 
   float *hit_scores;
   float *signal_scores;
   

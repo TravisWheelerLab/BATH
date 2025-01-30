@@ -382,12 +382,6 @@ splice_path_create(int path_len)
   ESL_ALLOC(path->upstream_spliced_nuc_end,       sizeof(int)*(path_len+1));
   ESL_ALLOC(path->downstream_spliced_nuc_start,   sizeof(int)*(path_len+1));
 
-
-  path->checked_upstream   = NULL;
-  path->checked_downstream = NULL;
-  ESL_ALLOC(path->checked_upstream,   sizeof(int)*(path_len));
-  ESL_ALLOC(path->checked_downstream, sizeof(int)*(path_len));
-
   path->hit_scores    = NULL;
   path->signal_scores = NULL;
   ESL_ALLOC(path->hit_scores,    sizeof(float)*path_len);
@@ -425,11 +419,6 @@ splice_path_destroy(SPLICE_PATH *path)
      free(path->upstream_spliced_nuc_end);
    if(path->downstream_spliced_nuc_start   != NULL)
      free(path->downstream_spliced_nuc_start);
-
-   if(path->checked_upstream   != NULL)
-     free(path->checked_upstream);
-   if(path->checked_downstream != NULL)
-     free(path->checked_downstream);
 
    if(path->hit_scores    != NULL) free(path->hit_scores);
    if(path->signal_scores != NULL) free(path->signal_scores);
@@ -2227,9 +2216,6 @@ evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int ori
   path = splice_path_create(path_len);
   path->revcomp = graph->revcomp;
 
-  path->checked_upstream[0]   = FALSE;
-  path->checked_downstream[0] = FALSE;
-
   path->signal_scores[0] = 0.;
 
   path->node_id[0] = start_node;
@@ -2254,9 +2240,6 @@ evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int ori
     next_node = graph->best_out_edge[curr_node]; 
     edge_id   = graph->edge_id[curr_node][next_node];
     out_edge  = graph->edges[edge_id];
-
-    path->checked_upstream[step_cnt]   = FALSE;
-    path->checked_downstream[step_cnt] = FALSE;
 
     path->signal_scores[step_cnt] = out_edge->signal_score;
  

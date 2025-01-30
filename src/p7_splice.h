@@ -183,6 +183,7 @@ typedef struct _splice_gap
 #define MIN_INTRON_LEN            10
 #define MAX_AMINO_EXT             10
 #define MIN_AMINO_OVERLAP         6
+#define MAX_AMINO_OVERLAP         12
 
 /* Splice singal probabilities taken from 
  * "Comprehensive splice-site analysis using comparative genomics", 

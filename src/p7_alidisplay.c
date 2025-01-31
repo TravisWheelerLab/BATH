@@ -189,6 +189,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->exon_hmm_ends   = NULL; 
   ad->exon_sum_score  = NULL;
   ad->exon_pid        = NULL;
+  ad->exon_orig       = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -477,6 +478,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->exon_hmm_ends   = NULL;
   ad->exon_sum_score  = NULL;
   ad->exon_pid        = NULL;
+  ad->exon_orig       = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -950,6 +952,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->exon_hmm_ends   = NULL;
   ad->exon_sum_score  = NULL;
   ad->exon_pid        = NULL;
+  ad->exon_orig       = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -1193,10 +1196,11 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
 
   ESL_ALLOC(ad->exon_seq_starts, sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_hmm_starts, sizeof(int64_t) * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int64_t) * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_hmm_starts, sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_sum_score,  sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_orig,       sizeof(int)     * (splice_cnt+1)); 
   
  
   /* Determine hit coords */
@@ -1606,6 +1610,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->exon_hmm_ends   = NULL;
   new_obj->exon_sum_score  = NULL;
   new_obj->exon_pid        = NULL;
+  new_obj->exon_orig       = NULL;
   new_obj->exon_cnt        = 0;
 
   new_obj->hmmname = NULL; 
@@ -1739,6 +1744,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ESL_ALLOC(ad2->exon_hmm_ends,   sizeof(int64_t) * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_sum_score,  sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_pid,        sizeof(float)   * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_orig,       sizeof(int)     * ad->exon_cnt);
  
       memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt);
       memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt); 
@@ -1746,6 +1752,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       memcpy(ad2->exon_hmm_ends,   ad->exon_hmm_ends,   ad->exon_cnt);
       memcpy(ad2->exon_sum_score,  ad->exon_sum_score,  ad->exon_cnt);
       memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt);
+      memcpy(ad2->exon_orig,       ad->exon_orig,       ad->exon_cnt);
       ad2->exon_cnt        = ad->exon_cnt;
    }
   
@@ -2434,6 +2441,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if(ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
       if(ad->exon_sum_score)  free(ad->exon_sum_score);
       if(ad->exon_pid)        free(ad->exon_pid);
+      if(ad->exon_orig)       free(ad->exon_orig);
     }
   else
     {	/* deserialized form */
@@ -2458,6 +2466,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if (ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
       if (ad->exon_sum_score)  free(ad->exon_sum_score);
       if (ad->exon_pid)        free(ad->exon_pid);
+      if (ad->exon_orig)       free(ad->exon_orig);
     }
   free(ad);
 }
@@ -3109,9 +3118,9 @@ p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     {
       if (fprintf(fp, "  %*s", namewidth, ad->orfname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       if (ni > 0) 
-        if (fprintf(fp, " %*d ", coordwidth, o1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      {  if (fprintf(fp, " %*d ", coordwidth, o1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
       else
-    	  if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      {  if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     		  
       for (i = 0; i < aliwidth; i++)
     	{
@@ -3119,16 +3128,16 @@ p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     	  if (fprintf(fp, (show_vertical_codon) ? "%c" : " %c ", ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
     	} 		  
     	if (ni > 0)
-    	  if (fprintf(fp, " %-*d\n", coordwidth, o2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    	{  if (fprintf(fp, " %-*d\n", coordwidth, o2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     	else
-    	  if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    	{  if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  }
     }
     	  
     if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (ni > 0) 
-      if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    {  if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     else
-      if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    {  if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     
     npos = pos * 3;
     if(show_vertical_codon)
@@ -3162,9 +3171,9 @@ p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     }		
     		
     if (ni > 0)
-     	if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    {  if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     else
-      if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    {  if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     	
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     

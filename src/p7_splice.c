@@ -2345,6 +2345,8 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OP
   int          amino;
   int          env_len;
   int          orf_len;
+  int          replace_node;
+  int          remove_node;
   int64_t      ali_L;
   float        dom_bias;
   float        nullsc;
@@ -2504,10 +2506,14 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OP
     /* Replace the first hit in path with the spliced hit 
      * and set all other hits in path to unreportable */ 
     i = 0;
-    while( path->node_id[i] >= orig_N)
+    while( path->node_id[i] >= orig_N) {
+      pli->hit->dcl->ad->exon_orig[i] = FALSE; 
       i++; 
-   
+    }
+
+    pli->hit->dcl->ad->exon_orig[i] = TRUE;
     replace_hit = path->hits[i]; 
+    replace_node = path->node_id[i];
 	ali_L = replace_hit->dcl->ad->L;
     p7_domain_Destroy(replace_hit->dcl);
 
@@ -2539,6 +2545,17 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OP
     /* Set all other hits in alignment to unreportable */ 
     i++;
     for(  ; i < path->path_len; i++) {
+      if(path->node_id[i] >= orig_N)
+        pli->hit->dcl->ad->exon_orig[i] = FALSE;
+      else
+        pli->hit->dcl->ad->exon_orig[i] = TRUE;
+     
+      /* If the replace node hes bee split we neeed to 
+       * make sure we don't set is as unreportable */
+      remove_node = path->node_id[i];
+      if(remove_node == replace_node)
+         continue;
+
       remove_hit = path->hits[i];
 
       if(remove_hit->flags & p7_IS_REPORTED ) {

@@ -382,9 +382,7 @@ splice_path_create(int path_len)
   ESL_ALLOC(path->upstream_spliced_nuc_end,       sizeof(int)*(path_len+1));
   ESL_ALLOC(path->downstream_spliced_nuc_start,   sizeof(int)*(path_len+1));
 
-  path->hit_scores    = NULL;
   path->signal_scores = NULL;
-  ESL_ALLOC(path->hit_scores,    sizeof(float)*path_len);
   ESL_ALLOC(path->signal_scores, sizeof(float)*path_len);
 
   path->hits = NULL;
@@ -472,7 +470,6 @@ splice_path_destroy(SPLICE_PATH *path)
    if(path->downstream_spliced_nuc_start   != NULL)
      free(path->downstream_spliced_nuc_start);
 
-   if(path->hit_scores    != NULL) free(path->hit_scores);
    if(path->signal_scores != NULL) free(path->signal_scores);
    if(path->hits          != NULL) free(path->hits);
    if(path                != NULL) free(path);
@@ -784,26 +781,22 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
     split_hits_in_path(graph, path, gm, hmm, pli->bg, gcode, target_seq, curr_target_range->orig_N); 
    // target_range_dump(stdout, curr_target_range, TRUE);
     if(path->path_len > 1)
-      splice_path(graph, path, pli, om, scoredata, target_seq, gcode, db_nuc_cnt, curr_target_range->orig_N, &success);
+      splice_path(graph, path, pli, tophits, om, scoredata, target_seq, gcode, db_nuc_cnt, curr_target_range->orig_N, &success);
     else
       success = FALSE;    
 
     /* Reset the range_bounds around the spliced hit and set all hits from 
      * the target_range that are outside this new range to unprocessed */
     if (success) {
-       
-      tophits->nreported -= path->path_len-(path->split_hits+1);
-      tophits->nreported -= path->path_len-(path->split_hits+1);
- 
+     
       range_bound_mins[range_cnt-1] = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali);
       range_bound_maxs[range_cnt-1] = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali);
-
       
       release_hits_from_target_range(curr_target_range, hits_processed, &num_hits_processed, range_bound_mins[range_cnt-1], range_bound_maxs[range_cnt-1]);           
 
       pli->hit->dcl = NULL;
     } 
-	  else {
+	else {
       
       /* If the path failed but there are other hits in the graph that were not in the path 
        * we want to release them to be considered in another target range */
@@ -826,7 +819,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
     splice_pipeline_reuse(pli);
     splice_graph_destroy(graph);
     esl_sq_Destroy(target_seq);
-
+//TODO
+break;
   }
 
   /* Leave only footprints */
@@ -2336,7 +2330,7 @@ split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_PROFILE *gm, P7_H
 
 
 int
-splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int* success) 
+splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int* success) 
 {
 
   int          i;
@@ -2439,23 +2433,22 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OP
   if ( path->path_len > 1) {
     /* Shift the path to start at the first hit that was inculded in the alignment 
      * and end at the last hit that was included in the alignment */ 
-    for(exon = 0; exon < path->path_len; exon++) {
-      if(path->upstream_spliced_nuc_end[exon+1] > pli->hit->dcl->iali)  
+    for(shift = 0; shift < path->path_len; shift++) {
+      if(path->upstream_spliced_nuc_end[shift+1] >= pli->hit->dcl->iali)  
         break;
     }
     /* Shift path to start at frist hits that is in alignment */
-    path->path_len -= exon;
+    path->path_len = pli->hit->dcl->ad->exon_cnt;
     
-    for(shift = 0; shift < exon; shift++) {
-      path->node_id[shift]                        = path->node_id[shift+exon]; 
-      path->upstream_spliced_amino_end[shift]     = path->upstream_spliced_amino_end[shift+exon];
-      path->downstream_spliced_amino_start[shift] = path->downstream_spliced_amino_start[shift+exon];
-      path->upstream_spliced_nuc_end[shift]       = path->upstream_spliced_nuc_end[shift+exon];   
-      path->downstream_spliced_nuc_start[shift]   = path->downstream_spliced_nuc_start[shift+exon];
-      path->hit_scores[shift]                     = path->hit_scores[shift+exon];
-      path->signal_scores[shift]                  = path->signal_scores[shift+exon];
-      path->hits[shift]                           = path->hits[shift+exon];
-      path->missing[shift]                        = path->missing[shift+exon];
+    for(exon = 0; exon < path->path_len; exon++) {
+      path->node_id[exon]                        = path->node_id[shift+exon]; 
+      path->upstream_spliced_amino_end[exon]     = path->upstream_spliced_amino_end[shift+exon];
+      path->downstream_spliced_amino_start[exon] = path->downstream_spliced_amino_start[shift+exon];
+      path->upstream_spliced_nuc_end[exon]       = path->upstream_spliced_nuc_end[shift+exon];   
+      path->downstream_spliced_nuc_start[exon]   = path->downstream_spliced_nuc_start[shift+exon];
+      path->signal_scores[exon]                  = path->signal_scores[shift+exon];
+      path->hits[exon]                           = path->hits[shift+exon];
+      path->missing[exon]                        = path->missing[shift+exon];
     }
     path->downstream_spliced_nuc_start[0]   = pli->hit->dcl->iali;
     path->downstream_spliced_amino_start[0] = pli->hit->dcl->ihmm; 
@@ -2562,10 +2555,12 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OP
       remove_hit = path->hits[i];
 
       if(remove_hit->flags & p7_IS_REPORTED ) {
+        orig_tophits->nreported--;
         remove_hit->flags &= ~p7_IS_REPORTED;
         remove_hit->dcl->is_reported = FALSE;
       }
       if((remove_hit->flags & p7_IS_INCLUDED)) {
+        orig_tophits->nincluded--;     
         remove_hit->flags &= ~p7_IS_INCLUDED;
         remove_hit->dcl->is_included = FALSE;
       }
@@ -2855,6 +2850,9 @@ align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, 
     if(seqsc > low_savesc) {
 
       orf_hit->score = seqsc;
+
+      for (z = z1; z <= z2; z++)
+        orf_hit->dcl->tr->k[z] += gap->hmm_start - 1;
 
       if(num_saved < 10) 
         top_ten[num_saved] = orf_hit;
@@ -3162,7 +3160,13 @@ add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit, int *dup
       if ((target_range->revcomp   && (hit->dcl->iali <= th->hit[h]->dcl->iali && hit->dcl->jali >= th->hit[h]->dcl->jali)) ||
          ((!target_range->revcomp) && (hit->dcl->iali >= th->hit[h]->dcl->iali && hit->dcl->jali <= th->hit[h]->dcl->jali)))   {
         *duplicate = TRUE;        
-        return eslOK;
+         p7_alidisplay_Destroy(hit->dcl->ad);
+         free(hit->dcl->tr->c);
+         p7_trace_Destroy(hit->dcl->tr);
+         free(hit->dcl->scores_per_pos);
+         p7_hit_Destroy(hit);
+         hit = NULL;
+         return eslOK;
       }
     }
   }

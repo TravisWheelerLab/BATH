@@ -116,7 +116,6 @@ typedef struct _splice_path {
   int *upstream_spliced_nuc_end;
   int *downstream_spliced_nuc_start;
  
-  float *hit_scores;
   float *signal_scores;
   
   P7_HIT **hits;
@@ -169,8 +168,8 @@ typedef struct _splice_gap
 
 } SPLICE_GAP;
 
-#define MAX_TARGET_RANGE_EXT      3000000    //3x10^6 
-#define MAX_INTRON_LEN            10000     //1x10^4 
+#define MAX_TARGET_RANGE_EXT      1000000    //1x10^6 
+#define MAX_INTRON_LEN            50000      //5x10^4 
 #define MIN_INTRON_LEN            10
 #define MAX_AMINO_EXT             10
 #define MIN_AMINO_OVERLAP         6
@@ -263,7 +262,7 @@ extern int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *sta
 extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int orig_N);
 
 /* Spliced Hit Processing */
-extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int *success);
+extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int *success);
 extern int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 extern int compute_ali_scores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_SCOREDATA *data, int K);
 

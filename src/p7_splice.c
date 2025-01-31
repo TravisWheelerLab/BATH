@@ -635,6 +635,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
   int              range_cnt;
   int              success;
   int              num_hits_processed; 
+  int              prev_num_hits_processed;
   int              is_sorted_by_sortkey;
   int              revcomp;
   int64_t          seqidx;
@@ -694,12 +695,15 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
   ESL_ALLOC(range_bound_maxs, hit_cnt * sizeof(int64_t));
   
   prev_target_range = NULL;
-
+  prev_num_hits_processed = -1;
   /* loop through until all hits have been processed */
   range_cnt = 0;
   while(num_hits_processed < tophits->N) {
   
- 
+    if(prev_num_hits_processed == num_hits_processed)
+      ESL_XEXCEPTION(eslFAIL, "p7_splice_SpliceHits : loop failed to process hits");
+    prev_num_hits_processed = num_hits_processed;
+
     /* Find the first unprocessed hit (sorting will ensure that hits 
      * will be on same sequence and strand untill all are processed) */
     i = 0;

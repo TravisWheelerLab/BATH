@@ -699,7 +699,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
   /* loop through until all hits have been processed */
   range_cnt = 0;
   while(num_hits_processed < tophits->N) {
-  
+   
     if(prev_num_hits_processed == num_hits_processed)
       ESL_XEXCEPTION(eslFAIL, "p7_splice_SpliceHits : loop failed to process hits");
     prev_num_hits_processed = num_hits_processed;
@@ -727,7 +727,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
       target_range_destroy(curr_target_range); 
       continue;
     }
-  //printf("Target %s strand %c range %d to %d\n", curr_target_range->seqname, (curr_target_range->revcomp ? '-' : '+'), curr_target_range->start, curr_target_range->end);
+  //printf("Query %s Target %s strand %c range %d to %d\n", gm->name, curr_target_range->seqname, (curr_target_range->revcomp ? '-' : '+'), curr_target_range->start, curr_target_range->end);
 
     range_cnt++;
      //target_range_dump(stdout, curr_target_range, TRUE);
@@ -782,7 +782,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
     check_for_loops(graph, curr_target_range->th);
     path = evaluate_paths(graph, curr_target_range->th, target_seq, curr_target_range->orig_N);
     split_hits_in_path(graph, path, gm, hmm, pli->bg, gcode, target_seq, curr_target_range->orig_N); 
-    //target_range_dump(stdout, curr_target_range, TRUE);
+   // target_range_dump(stdout, curr_target_range, TRUE);
     if(path->path_len > 1)
       splice_path(graph, path, pli, om, scoredata, target_seq, gcode, db_nuc_cnt, curr_target_range->orig_N, &success);
     else
@@ -1084,9 +1084,8 @@ build_target_range (const P7_TOPHITS *tophits, int *hits_processed, int *num_hit
   range_bound_mins[range_num] = new_range_min;
   range_bound_maxs[range_num] = new_range_max;
   
-  /* Extend the target range to make room for possible missing terminal exons */  
-  target_range->start = ESL_MAX(new_range_min-TERM_RANGE_EXT, lower_bound);
-  target_range->end   = ESL_MIN(new_range_max+TERM_RANGE_EXT, upper_bound); 
+  target_range->start = new_range_min; 
+  target_range->end   = new_range_max; 
 
   *num_hits_processed = hits_processed_cnt;
 
@@ -2734,64 +2733,6 @@ find_the_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_SQ *targe
 	return NULL;
 
 }
-
-SPLICE_GAP*
-terminal_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int final_node, int path_node, int look_upstream) 
-{
-
-  P7_HIT *path_hit;
-  P7_HIT *final_hit;
-  SPLICE_GAP *gap;
-  int     status; 
-
-  gap = NULL;
-  ESL_ALLOC(gap, sizeof(SPLICE_GAP));
-
-  path_hit  = th->hit[path_node];
-  final_hit = th->hit[final_node];
-
-  if(look_upstream) {
-  
-    gap->hmm_start = 1; 
-    gap->hmm_end   = ESL_MIN(path_hit->dcl->ihmm+2, gm->M);
-  
-    if(graph->revcomp) {
-      gap->seq_start = ESL_MIN(final_hit->dcl->iali+TERM_RANGE_EXT, target_seq->start);
-      gap->seq_end   = ESL_MAX(final_hit->dcl->iali-6,   target_seq->end);
-    }
-    else {
-      gap->seq_start = ESL_MAX(final_hit->dcl->iali-TERM_RANGE_EXT, target_seq->start);
-      gap->seq_end   = ESL_MIN(final_hit->dcl->iali+6, target_seq->end);
-    }
-  }
-  else {
-    gap->hmm_start = ESL_MAX(path_hit->dcl->jhmm-2, 1);
-    gap->hmm_end   = gm->M; 
- 
-    if(graph->revcomp) {
-      gap->seq_start = ESL_MIN(final_hit->dcl->iali+6, target_seq->start);
-      gap->seq_end   = ESL_MAX(final_hit->dcl->iali-TERM_RANGE_EXT,   target_seq->end);
-    }
-    else {
-      gap->seq_start = ESL_MAX(final_hit->dcl->jali-6, target_seq->start);
-      gap->seq_end   = ESL_MIN(final_hit->dcl->jali+TERM_RANGE_EXT, target_seq->end);
-    }
-  }
-  gap->upstream_node   = path_node;
-  gap->downstream_node = path_node;
-  
-  return gap;
-
-  ERROR:
-    if(gap != NULL) free(gap);
-	return NULL;
-
-}
-
-
-
-
-
 
 P7_HIT**
 align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, SPLICE_GAP *gap, int *num_hits)

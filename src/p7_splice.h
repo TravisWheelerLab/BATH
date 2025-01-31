@@ -170,7 +170,6 @@ typedef struct _splice_gap
 } SPLICE_GAP;
 
 #define MAX_TARGET_RANGE_EXT      3000000    //3x10^6 
-#define TERM_RANGE_EXT            100000     //1x10^5
 #define MAX_INTRON_LEN            10000     //1x10^4 
 #define MIN_INTRON_LEN            10
 #define MAX_AMINO_EXT             10

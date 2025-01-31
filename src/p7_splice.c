@@ -819,8 +819,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
     splice_pipeline_reuse(pli);
     splice_graph_destroy(graph);
     esl_sq_Destroy(target_seq);
-//TODO
-break;
   }
 
   /* Leave only footprints */

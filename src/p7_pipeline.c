@@ -2399,7 +2399,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     ali_len = dom->jali - dom->iali + 1;
     bitscore = dom->envsc;
     
-    if (ali_len < 8)   
+    if (ali_len < 12)   
     {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
@@ -2561,8 +2561,8 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDA
     dom = pli->ddef->dcl + d;
     
     env_len = dom->jenv - dom->ienv + 1;	
-    ali_len = dom->jali - dom->iali + 1;   
-    if (ali_len < 8) 
+    ali_len = (dom->jali - dom->iali + 1)/3;   
+    if (ali_len < 4) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);

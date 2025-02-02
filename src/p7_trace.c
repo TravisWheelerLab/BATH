@@ -462,7 +462,8 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
   z = 0;
   prev_nuc_idx = orig_nuc_idx[(orig_tr->i[z]*3)];
   while (z < orig_tr->N) {
-    curr_nuc_idx = orig_nuc_idx[(orig_tr->i[z]*3)];
+    if(orig_tr->st[z] == p7T_M || orig_tr->st[z] == p7T_I)
+      curr_nuc_idx = orig_nuc_idx[(orig_tr->i[z]*3)];
     switch(orig_tr->st[z]) {
       case p7T_N: p7_trace_splice_AppendWithPP(new_tr, p7T_N, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
       case p7T_C: p7_trace_splice_AppendWithPP(new_tr, p7T_C, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
@@ -470,6 +471,7 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
       case p7T_M:
         /* Check if the sequence was spliced at this M position. If so,
          * then determine the splice option and use the p7T_MS state*/
+        
         if (prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
           if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
             if(orig_tr->st[z+1] != p7T_E) new_tr->sp[new_tr->N-1] = p7S_xxyyABC;
@@ -532,7 +534,7 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
     }
 	
     
-    prev_nuc_idx = curr_nuc_idx;
+    if(orig_tr->st[z] == p7T_M || orig_tr->st[z] == p7T_I) prev_nuc_idx = curr_nuc_idx;
     z++;
   }
   

@@ -2778,7 +2778,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
 
     /* Print Mandatory Translation Line */
-    if(spliced_ali ) {
+    if(pli->spliced ) {
       if (sprintf(exon_name, "%s %d", "exon", exon_cnt) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
       if (fprintf(fp, "  %*s", namewidth, exon_name)      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       if (fprintf(fp, " %*s ", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");

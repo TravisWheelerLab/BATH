@@ -1109,7 +1109,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   int            n, pos;
   int            w,x,y,z;
   int            k,s,p;
-  int64_t        i;
+  int64_t        i, prev_i;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            orf_namelen;
@@ -1158,7 +1158,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   sq_namelen  = strlen(target_seq->name);                   n += sq_namelen  + 1;
   sq_acclen   = strlen(target_seq->acc);                    n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
   sq_desclen  = strlen(target_seq->desc);                   n += sq_desclen  + 1; /* same for desc              */
-  orf_namelen = strlen(target_seq->orfid);                  n += orf_namelen + 1; /* same for orfname          */
+  orf_namelen = strlen(target_seq->orfid);                  n += orf_namelen + 1; /* same for orfid             */
 
   ad = NULL;
   ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
@@ -1280,11 +1280,11 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   /* xx is the doner splice signal and yy is the acceptor splice signal              */
   /* A,B, and C are the nucleotides of the codon surrounding the splice signals      */
   /* N represents the nucleotides present in the last state beofre the splice signal */
-  /* $ is used to let p7_alidisplay_Print() know hoew to display the splice signals  */
-  /*                 p7T_M      p7T_R      p7T_P      p7T_A                          */
-  /* p7S_xxyyABC    " NNNx"    "x    "    "$$  y"    "yABC"                          */
-  /* p7S_AxxyyBC    " NNN "    " Axx "    "$ $  "    "yyBC "                         */
-  /* p7S_ABxxyyC    " NNN "    " ABxx"    "$  $ "    " yyC "                         */
+  /* $ is used to let p7_alidisplay_Print() know how to display the splice signals  */
+  /*                 p7T_M      p7T_R       p7T_P      p7T_A                  */
+  /* p7S_xxyyABC    " NNN "    "$    "    "xx$yy"    " ABC "                  */
+  /* p7S_AxxyyBC    " NNN "    " A   "    "xx$yy"    "  BC "                  */
+  /* p7S_ABxxyyC    " NNN "    " AB  "    "xx$yy"    "   C "                  */
 
   /* mandatory three alignment display lines: model, mline, aseq */
   exact = 0;
@@ -1320,14 +1320,10 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[i-2]]);
         ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
         ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
-        if (p == p7S_xxyyABC ) {
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i+1]]);
-          ad->codon[y]++;
-        }
-        else
-          ad->ntseq [5*(z-z1)+4] = ' ';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        prev_i = i;
 
-               break;
+        break;
 
       case p7T_I:
         exonN++;
@@ -1344,12 +1340,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[i-2]]);
         ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
         ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
-        if (p == p7S_xxyyABC ) {
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i+1]]);
-          ad->codon[y]++;
-        }
-        else
-          ad->ntseq [5*(z-z1)+4] = ' ';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        prev_i = i;
 
         break;
 
@@ -1366,12 +1358,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->ntseq [5*(z-z1)+1] = '-';
         ad->ntseq [5*(z-z1)+2] = '-';
         ad->ntseq [5*(z-z1)+3] = '-';
-        if (p == p7S_xxyyABC ) {
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i+1]]);
-          ad->codon[y]++;
-        }
-        else
-          ad->ntseq [5*(z-z1)+4] = ' ';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+
         break;
 
       case p7T_R:
@@ -1383,13 +1371,14 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->exon_hmm_ends[x] = k;
         ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100;
 
+        ad->codon[y] = 3;
+
         if(p == p7S_xxyyABC) {
           ad->model [z-z1] = ' ';
           ad->mline [z-z1] = ' ';
           ad->aseq  [z-z1] = ' ';
-          ad->codon[y] = 1;
 
-          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[i]]);
+          ad->ntseq [5*(z-z1)]   = '$'; 
           ad->ntseq [5*(z-z1)+1] = ' ';
           ad->ntseq [5*(z-z1)+2] = ' ';
           ad->ntseq [5*(z-z1)+3] = ' ';
@@ -1400,12 +1389,11 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           ad->model [z-z1] = ' ';
           ad->mline [z-z1] = ' ';
           ad->aseq  [z-z1] = ' ';
-          ad->codon[y] = 3;
 
           ad->ntseq [5*(z-z1)]   = ' ';
-          ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[i-2]]);
-          ad->ntseq [5*(z-z1)+2] = tolower(alphaDNA[target_seq->dsq[i-1]]);
-          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i]]);
+          ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[prev_i+1]]);
+          ad->ntseq [5*(z-z1)+2] = ' ';  
+          ad->ntseq [5*(z-z1)+3] = ' ';
           ad->ntseq [5*(z-z1)+4] = ' ';
           exonN = 0;
         }
@@ -1423,60 +1411,70 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           else
            ad->mline[z-z1] = ' ';
           amino_pos++;
-          ad->codon[y] = 4;
 
           ad->ntseq [5*(z-z1)]   = ' ';
-          ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[i-3]]);
-          ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-2]]);
-          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-1]]);
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i]]);
+          ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[prev_i+1]]);
+          ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[prev_i+2]]);
+          ad->ntseq [5*(z-z1)+3] = ' '; 
+          ad->ntseq [5*(z-z1)+4] = ' ';
+
           ad->exon_sum_score[x] += scores_per_pos[w];
           w++;
           exonN = 1;
         }
         x++;
         ad->exon_sum_score[x] = 0.0;
+
         break;
       case p7T_P:
-        if(revcomp)
-          ad->exon_seq_starts[x] = target_seq->n-i+target_seq->end - 2;
-        else
-          ad->exon_seq_starts[x] = i + target_seq->start + 1;
-
-        ad->model [z-z1] = ' ';
+                ad->model [z-z1] = ' ';
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = ' ';
 
+        ad->codon[y] = 0;
         if(p == p7S_xxyyABC) {
-          ad->codon[y] = 1;
-          ad->ntseq [5*(z-z1)]   = '$';
-          ad->ntseq [5*(z-z1)+1] = '$';
-          ad->ntseq [5*(z-z1)+2] = ' ';
-          ad->ntseq [5*(z-z1)+3] = ' ';
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i]]);;
-        }
-        else if(p == p7S_AxxyyBC) {
-          ad->codon[y] = 0;
-          ad->ntseq [5*(z-z1)]   = '$';
-          ad->ntseq [5*(z-z1)+1] = ' ';
+          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+1]]);
+          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+2]]);
           ad->ntseq [5*(z-z1)+2] = '$';
-          ad->ntseq [5*(z-z1)+3] = ' ';
-          ad->ntseq [5*(z-z1)+4] = ' ';
+          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-4]]);
+          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-3]]);
+
+        if(revcomp)
+          ad->exon_seq_starts[x] = target_seq->n-(i-2)+target_seq->end - 2;
+        else
+          ad->exon_seq_starts[x] = (i-2) + target_seq->start + 1;
+
         }
-        else if(p == p7S_ABxxyyC) {
-          ad->codon[y] = 0;
-          ad->ntseq [5*(z-z1)]   = '$';
-          ad->ntseq [5*(z-z1)+1] = ' ';
-          ad->ntseq [5*(z-z1)+2] = ' ';
-          ad->ntseq [5*(z-z1)+3] = '$';
-          ad->ntseq [5*(z-z1)+4] = ' ';
+        else if (p == p7S_AxxyyBC) {
+          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+2]]);
+          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+3]]);
+          ad->ntseq [5*(z-z1)+2] = '$';
+          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-3]]);
+          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-2]]);
+
+          if(revcomp)
+            ad->exon_seq_starts[x] = target_seq->n-(i-1)+target_seq->end - 2;
+          else
+            ad->exon_seq_starts[x] = (i-1) + target_seq->start + 1;
+        }
+        else if (p == p7S_ABxxyyC) {
+          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+3]]);
+          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+4]]);
+          ad->ntseq [5*(z-z1)+2] = '$';
+          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-2]]);
+          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-1]]);
+      
+          if(revcomp)
+            ad->exon_seq_starts[x] = target_seq->n-i+target_seq->end - 2;
+          else
+            ad->exon_seq_starts[x] = i + target_seq->start + 1; 
         }
         break;
       case p7T_A:
         ad->exon_hmm_starts[x] = k;
         ad->exon_pid[x]        = 0.;
         if(p == p7S_xxyyABC) {
-          ad->orfto++;
+            ad->orfto++;
           ad->model[z-z1] = om->consensus[k];
           ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
           if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
@@ -1491,7 +1489,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           amino_pos++;
 
           ad->codon[y] = 4;
-          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[i-3]]);
+          ad->ntseq [5*(z-z1)]   = ' '; 
           ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[i-2]]);
           ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
           ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
@@ -1516,8 +1514,8 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           amino_pos++;
 
           ad->codon[y] = 4;
-          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[i-3]]);
-          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[i-2]]);
+          ad->ntseq [5*(z-z1)]   = ' '; 
+          ad->ntseq [5*(z-z1)+1] = ' ';
           ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
           ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
           ad->ntseq [5*(z-z1)+4] = ' ';
@@ -1532,18 +1530,16 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
 
           ad->codon[y] = 3;
           ad->ntseq [5*(z-z1)]   = ' ';
-          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[i-2]]);
-          ad->ntseq [5*(z-z1)+2] = tolower(alphaDNA[target_seq->dsq[i-1]]);
-          ad->ntseq [5*(z-z1)+3] =  toupper(alphaDNA[target_seq->dsq[i]]);
+          ad->ntseq [5*(z-z1)+1] = ' '; 
+          ad->ntseq [5*(z-z1)+2] = ' ';
+          ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
           ad->ntseq [5*(z-z1)+4] = ' ';
         }
 
-        /*Special case for one condon intron */
-        if(tr->st[z+1] == p7T_R)
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i+1]]);
         ad->exon_cnt++;
         break;
-      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
+
+        default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
     }
     y++;
   }
@@ -1568,8 +1564,6 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     p7_alidisplay_Destroy(ad);
     return NULL;
 }
-  
-
 
 
 /* Function: p7_alidisplay_Create_empty()
@@ -2633,13 +2627,14 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   int   i,j;
   int   show_accessions;
   int   exon_cnt;
-  int   spliced_ali, is_splice_line;
+  int   spliced_ali;
+  int   is_splice_line, was_splice_line;
+  int   empty_R;
   int   splice_pos, old_splice_pos;
   int   splice_opt, old_splice_opt;
   char  *exon_name;
 
   show_accessions = pli->show_accessions;
-
 
   /* implement the --acc option for preferring accessions over names in output  */
   show_hmmname = (show_accessions && ad->hmmacc[0] != '\0') ? ad->hmmacc : ad->hmmname;
@@ -2658,7 +2653,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 
   if (max_aliwidth < ad->N && max_aliwidth < min_aliwidth) max_aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
 
-  max_aliwidth -= 2; /* two extra spaces required for printing splice sites */
+  max_aliwidth -= 4; /* four extra spaces required for printing splice sites */
   max_aliwidth /= 5; /* divide by 5 if printing codons horizontally */
 
   ESL_ALLOC(buf, sizeof(char) * (max_aliwidth+1));
@@ -2682,43 +2677,49 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
 
   exon_cnt = 1;
   pos = 0;
+  was_splice_line = FALSE;
   while(pos < ad->N)
   {   
 
     if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
     cur_aliwidth = max_aliwidth;
     is_splice_line = FALSE;
+    empty_R = FALSE;
+    
     if( spliced_ali ) {
       /*Determine if the line we are about to print conatins a splice boundry */
       splice_opt = 0;
       for (z = pos; z < pos + max_aliwidth + 1 && z < ad->N; z++) {
         if (ad->ntseq[z*5] == 0) break;
-        /* '$' in the first nucleotide postion denotes a splice site */
-        if      (ad->ntseq[z*5]   == '$') {
+
+      /* Catch case where last z position is empty p7T_R state */
+        if(ad->ntseq[z*5]  == '$')  {
           is_splice_line = TRUE;
-          /* '$' in the 2nd, 3rd, or 4th nucleotide positions 
-           * denote the exact location of the splice signals */
-          if      (ad->ntseq[z*5+1] == '$') splice_opt = 1;
-          else if (ad->ntseq[z*5+2] == '$') splice_opt = 2;
-          else if (ad->ntseq[z*5+3] == '$') splice_opt = 3;
+           empty_R = TRUE;
           x = z;
+        }
+
+        /* '$' in the third nucleotide postion denotes a splice site */
+        if (ad->ntseq[z*5+2]  == '$') {
+          is_splice_line = TRUE;
+          x = z;
+          if(ad->ntseq[(z-1)*5]  == '$') { empty_R = TRUE; x--; }
           break;
         } 
+
       }
-     
+
       /* If a splice boundry was detected reset the width of the 
       * line we are printing to stop at the splice boundry */
       if(is_splice_line) {
         cur_aliwidth    = x-pos;
         splice_pos      = x*5;
       }
+
+      
+     // if(was_splice_line) cur_aliwidth--;
     }
-    /* Special case were type one splice happens at end of line */
-    if (spliced_ali &&  (!is_splice_line) && ad->ntseq[z*5] == '$' && ad->ntseq[z*5+1] == '$') {
-         is_splice_line = TRUE;
-         splice_opt = 4;
-         splice_pos = z*5;
-    } 
+    
     ni = nk = 0; 
     for (z = pos; z < pos + cur_aliwidth && z < ad->N; z++) 
     {
@@ -2731,51 +2732,61 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     if (ad->csline != NULL) 
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-      /* Print space at begining of line to make room for splice signal */
-      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+     
+      /* Print spaces at begining of line to make room for splice signal */
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       for (i = 0; i < cur_aliwidth; i++)
       {
         if (ad->csline[pos+i] == 0) break; 
         if (fprintf(fp,  "  %c  ", ad->csline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
       }
-      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      /* Print spaces at end of line to make room for splice signal */
+      if (fprintf(fp,  "  \n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
     /* Optional RF Line */
     if (ad->rfline != NULL) 
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+
+      /* Print spaces at begining of line to make room for splice signal */
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
       for (i = 0; i < cur_aliwidth; i++)
       {
         if (ad->rfline[pos+i] == 0) break; 
         if (fprintf(fp, "  %c  ",  ad->rfline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-     }
-     if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-     if (fprintf(fp, "RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      }
+      /* Print spaces at end of line to make room for splice signal */
+      if (fprintf(fp,  "   RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
     /*  Mandatory Model Line */
     if (fprintf(fp, "  %*s %*d ", namewidth,  show_hmmname, coordwidth, k1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+   
+     /* Print spaces at begining of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+    
     for (i = 0; i < cur_aliwidth; i++)
     {
       if (ad->model[pos+i] == 0) break; 
       if (fprintf(fp, "  %c  ", ad->model[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    /* Print spaces at end of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (fprintf(fp, " %-*d\n", coordwidth, k2) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
+   
     /* Mandatory Match Line */
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+
+    /* Print spaces at begining of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
     for (i = 0; i < cur_aliwidth; i++)
     {
       if (ad->mline[pos+i] == 0) break; 
       if (fprintf(fp,  "  %c  ", ad->mline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
     }
-    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    /* Print spaces at end of line to make room for splice signal */
+    if (fprintf(fp,  "  \n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 
     /* Print Mandatory Translation Line */
     if(pli->spliced ) {
@@ -2786,39 +2797,43 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     else {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+
+    /* Print spaces at begining of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
     for (i = 0, y = 0; i < cur_aliwidth; i++, y++)
     {
       if (ad->aseq[pos+i] == 0) break; 
       if (fprintf(fp, "  %c  ", ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
     }
-    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    /* Print spaces at end of line to make room for splice signal */
+    if (fprintf(fp,  "  \n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
  
     /* Print Mandatory Target Line */ 
-
+    if (was_splice_line) {
+     if (ad->sqfrom < ad->sqto) i1 -= 2;
+     else                       i1 += 2;
+    }
     if (fprintf(fp, "  %*s", namewidth, show_seqname)    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (ni > 0) { if (fprintf(fp, " %*ld ", coordwidth, i1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     else        { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
-    /* Print Acceptor Site Signal or Space */
-    if (old_splice_opt  == 1 || old_splice_opt  == 4) {
-      if (fprintf(fp, "%c", ad->ntseq[old_splice_pos+4]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      if (ad->sqfrom < ad->sqto) i2++;
-      else                       i2--;
+    npos = pos * 5;
+   
+    /* Print Acceptor Site Signal */
+    if (was_splice_line) {
+      if (fprintf(fp, "%c%c", ad->ntseq[npos-2],ad->ntseq[npos-1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
     else {
-      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+       if (fprintf(fp, "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
     /* Print ntseq */
-    npos = pos * 5;
     for (i = 0, j = 0; j < cur_aliwidth; i+=5, j++)
     {
       if (ad->ntseq[npos+i] ==  0)  break;
       if (ad->ntseq[npos+i] == '$') break; 
       if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) 
         ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-
+        /* codon length of 6 denotes stop codon */
 	    if(ad->sqfrom < ad->sqto)       { c1 = i2;     i2 += (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); } 
 	    else                            { c1 = i2 - 1; i2 -= (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); }
 
@@ -2830,10 +2845,19 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
         frameline[j] = frame;
       }
     }
-    if (splice_opt == 4) {
-      if (fprintf(fp, "%c", ad->ntseq[npos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    /* Print Donor Site Signal */
+    if(is_splice_line) {
+      /* skip empty p7T_R state */ 
+      if (ad->ntseq[npos+i] == '$') i+=5;  
+      if (fprintf(fp, "%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1]) < 0)
+        ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (ad->sqfrom < ad->sqto) i2 += 2;
+      else                       i2 -= 2; 
+    } 
+    else {
+      if (fprintf(fp, "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-    
+   
     if (ni > 0) { if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
     else        { if (fprintf(fp, " %*s\n",   coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
@@ -2842,51 +2866,28 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       /* Print space at begining of line to make room for splice signal */ 
-      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
       for (i = 0; i < cur_aliwidth; i++)
       {
 	      if (ad->aseq[pos+i] == 0) break;
 	      if(frameline[i] > 0)            { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 	      else if(frameline[i] < 0)       { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-        else if(ad->codon[pos+i] == 6) { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } 
+          else if(ad->codon[pos+i] == 6) { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } 
 	      else                            { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
       }
-      if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       if (fprintf(fp, " FRAME\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
     /* Print Mandatory Post Prob Line */
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    /* Print space or '|' for splice signal*/
-    if (old_splice_opt  == 1 || old_splice_opt  == 4) { 
-      if (fprintf(fp, "|") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    
+    if (was_splice_line) { 
+      if (fprintf(fp, "||") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
     }
-    else {
-       if (fprintf(fp, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    }
+    else { if (fprintf(fp, "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
-    /* n-terminal splice */
-    if (old_splice_opt == 1 || old_splice_opt  == 4) {
-      if(cur_aliwidth > 2) {
-        if (fprintf(fp,  "| %c  ", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      }
-      else {
-        if (fprintf(fp,  "| %c |", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      }
-      i = 1;
-    }
-    else if (old_splice_opt == 2) {
-      if (fprintf(fp,  "||%c  ", ad->ppline[pos]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      i = 1;
-    }
-    else if (old_splice_opt == 3) {
-      if (fprintf(fp,  " ||  ")                   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      i = 1;
-    }    
-    else i = 0;
-
-
-    for (  ; i < cur_aliwidth-2; i++)
+    for (i = 0; i < cur_aliwidth; i++)
     {
 
       if (ad->ppline[pos+i] == 0) break;
@@ -2894,48 +2895,20 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
     }
 
     /* c-treminal splice */
-    if (splice_opt == 1) {
-      if(cur_aliwidth > 1) { 
-        if (fprintf(fp,  "  %c |", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      }
-      if (fprintf(fp,  "|    ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    if(is_splice_line) {
+      if (fprintf(fp, "||") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-    else if (splice_opt == 2) {
-      if(cur_aliwidth > 1) {
-        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      }
-      if (fprintf(fp,  "  || ")                       < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    }
-    else if (splice_opt == 3) {
-      if(cur_aliwidth > 1) { 
-        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      }
-      if (fprintf(fp,  "  %c||", ad->ppline[pos+i+1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    }
-    else if (splice_opt == 4) {
-        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-        if (fprintf(fp,  "  %c |", ad->ppline[pos+i+1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-        if (fprintf(fp,  "|")                           < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    }
-    else {
-      for (  ; i < cur_aliwidth; i++)
-      {
-        if (ad->ppline[pos+i] == 0) break;
-        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-      }
+    else { if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
-    }
-    if (fprintf(fp,  " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
 
     k1 += nk;
     if   (ad->sqfrom < ad->sqto)  i1 = i2 + 1;
     else                          i1 = i2 - 1;
  
-    pos += cur_aliwidth; 
+    pos += (cur_aliwidth + empty_R); 
     if(is_splice_line) {
       pos++;                          // pass over splice pos with '$'
-      if (splice_opt == 4) pos++;
 
       /* Get the nucleotide state coord for next exon */
 	  if(ad->sqfrom < ad->sqto) {
@@ -2950,11 +2923,14 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
       exon_cnt++;
       if (fprintf(fp, "\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-    
+     
     old_splice_pos = splice_pos;
     old_splice_opt = splice_opt;
-  }
 
+    was_splice_line = is_splice_line;
+  if(cur_aliwidth == -1) break;
+  }
+  
   fflush(fp);
   free(buf);
   free(exon_name);

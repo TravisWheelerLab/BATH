@@ -779,7 +779,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
     check_for_loops(graph, curr_target_range->th);
     path = evaluate_paths(graph, curr_target_range->th, target_seq, curr_target_range->orig_N);
     split_hits_in_path(graph, path, gm, hmm, pli->bg, gcode, target_seq, curr_target_range->orig_N); 
-   // target_range_dump(stdout, curr_target_range, TRUE);
+    //target_range_dump(stdout, curr_target_range, TRUE);
+    //path_dump(stdout, path, target_seq);
     if(path->path_len > 1)
       splice_path(graph, path, pli, tophits, om, scoredata, target_seq, gcode, db_nuc_cnt, curr_target_range->orig_N, &success);
     else
@@ -2413,7 +2414,7 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TO
     *success = FALSE; 
      return eslOK; 
   }
- 
+  
   /* adjust all coords in hit and path */
   if(path->revcomp) { 
     pli->hit->dcl->ad->sqfrom += 2; 
@@ -2428,7 +2429,7 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TO
   }
   env_len = ESL_MAX(env_len, om->max_length);
   //printf(" pli->hit->dcl->iali %d  pli->hit->dcl->jali %d \n", pli->hit->dcl->iali,  pli->hit->dcl->jali);
-  if ( path->path_len > 1) {
+  if ( path->path_len !=  pli->hit->dcl->ad->exon_cnt) {
     /* Shift the path to start at the first hit that was inculded in the alignment 
      * and end at the last hit that was included in the alignment */ 
     for(shift = 0; shift < path->path_len; shift++) {
@@ -2456,7 +2457,7 @@ splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TO
         break;
     }
    
-    path->path_len -= (path->path_len-exon);
+    path->path_len =  pli->hit->dcl->ad->exon_cnt;
     
     path->upstream_spliced_nuc_end[exon]   = pli->hit->dcl->jali;
     path->upstream_spliced_amino_end[exon] = pli->hit->dcl->jhmm;   
@@ -2633,9 +2634,9 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoreda
     p7_hmm_ScoreDataComputeRest(om, scoredata);
  
   compute_ali_scores(hit->dcl, tr, pli->amino_sq->dsq, scoredata, om->abc->Kp);
- 
+ //p7_trace_Dump(stdout, tr, NULL, NULL); 
   if((hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt)) == NULL) goto ERROR; 
-  
+  //p7_trace_Dump(stdout, hit->dcl->tr, NULL, NULL);
   if((hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, target_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt)) == NULL) goto ERROR; 
   
   p7_Null2_ByExpectation(om, pli->bwd, null2);

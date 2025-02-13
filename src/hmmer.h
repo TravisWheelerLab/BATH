@@ -465,8 +465,9 @@ enum p7t_statetype_e {
 
 enum p7t_splicestates_e {
   p7T_R    = 12,
-  p7T_P    = 13,
-  p7T_A    = 14
+  p7T_RI   = 13,
+  p7T_P    = 14,
+  p7T_A    = 15
 };
 
 enum p7t_codontype_e {
@@ -492,9 +493,12 @@ enum p7t_cigartype_e {
 
 /* splice options */
 enum p7s_splice_options_e {
-  p7S_xxyyABC = 0,
-  p7S_AxxyyBC = 1,
-  p7S_ABxxyyC = 2
+  p7S_xxyyABC   = 0,
+  p7S_AxxyyBC   = 1,
+  p7S_ABxxyyC   = 2,
+  p7S_ABCxxyyD  = 3,
+  p7S_ABCDxxyyE = 4
+
 };
 
 typedef struct p7_trace_s {

@@ -451,9 +451,11 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
 {
 
   int       z;
+  int       st, i, k;
   int       curr_nuc_idx;
   int       prev_nuc_idx;
   int       sp_cnt;
+  float     pp;
   P7_TRACE *new_tr;
 
   if ((new_tr = p7_trace_splice_CreateWithPP()) == NULL) goto ERROR;
@@ -462,77 +464,75 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
   z = 0;
   prev_nuc_idx = orig_nuc_idx[(orig_tr->i[z]*3)];
   while (z < orig_tr->N) {
-    if(orig_tr->st[z] == p7T_M || orig_tr->st[z] == p7T_I)
-      curr_nuc_idx = orig_nuc_idx[(orig_tr->i[z]*3)];
-    switch(orig_tr->st[z]) {
-      case p7T_N: p7_trace_splice_AppendWithPP(new_tr, p7T_N, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
-      case p7T_C: p7_trace_splice_AppendWithPP(new_tr, p7T_C, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
-      case p7T_J: p7_trace_splice_AppendWithPP(new_tr, p7T_J, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]); break;
+    st = orig_tr->st[z];
+    i  = orig_tr->i[z];
+    k  = orig_tr->k[z];
+    pp = orig_tr->pp[z];   
+   if(st == p7T_M || st == p7T_I)
+      curr_nuc_idx = orig_nuc_idx[i*3];
+    
+    switch(st) {
+      case p7T_N: p7_trace_splice_AppendWithPP(new_tr, p7T_N, k, curr_nuc_idx, 3, -1, pp); break;
+      case p7T_C: p7_trace_splice_AppendWithPP(new_tr, p7T_C, k, curr_nuc_idx, 3, -1, pp); break;
+      case p7T_J: p7_trace_splice_AppendWithPP(new_tr, p7T_J, k, curr_nuc_idx, 3, -1, pp); break;
       case p7T_M:
         /* Check if the sequence was spliced at this M position. If so,
-         * then determine the splice option and use the p7T_MS state*/
-        
+         * then determine the splice option and use */
         if (prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
           if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx,   0, p7S_xxyyABC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx,   0, p7S_xxyyABC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx,   3, p7S_xxyyABC, orig_tr->pp[z]);
-            sp_cnt++;
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k-1, curr_nuc_idx,   0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_M, k  , curr_nuc_idx,   3, -1,          pp);
           }
-          else if(orig_nuc_idx[(orig_tr->i[z]*3)-1] - orig_nuc_idx[(orig_tr->i[z]*3)-2] > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx,   0, p7S_AxxyyBC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx,   0, p7S_AxxyyBC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx,   3, p7S_AxxyyBC, orig_tr->pp[z]);
-            sp_cnt++;
+          else if(orig_nuc_idx[i*3-1] - orig_nuc_idx[i*3-2] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, k  , prev_nuc_idx, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k  , curr_nuc_idx, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx,   3, p7S_AxxyyBC, pp);
           }
-          else if(orig_nuc_idx[(orig_tr->i[z]*3)]   - orig_nuc_idx[(orig_tr->i[z]*3)-1] > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z],   prev_nuc_idx,   3, p7S_ABxxyyC, orig_tr->pp[z]);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z]+1, curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
-            sp_cnt++;
+          else if(orig_nuc_idx[i*3]   - orig_nuc_idx[i*3-1] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, k  , prev_nuc_idx, 3, p7S_ABxxyyC, pp);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k  , curr_nuc_idx, 0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
           }
+          sp_cnt++;
         }
         else {
-          p7_trace_splice_AppendWithPP(new_tr, p7T_M, orig_tr->k[z], curr_nuc_idx, 3, -1, orig_tr->pp[z]);
+          p7_trace_splice_AppendWithPP(new_tr, p7T_M, k, curr_nuc_idx, 3, -1, pp);
          }
         break;
       case p7T_I:
         /* Check if the sequence was spliced at this I position. If so,
-         * then determine the splice option and use the p7T_IS state */
+         * then determine the splice option and use */
         if(prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
-          if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx, 0, p7S_xxyyABC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx, 0, p7S_xxyyABC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx, 3, p7S_xxyyABC, orig_tr->pp[z]);
-            sp_cnt++;
+          if     (orig_nuc_idx[i*3-2] - prev_nuc_idx > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k-1, curr_nuc_idx, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_I, k  , curr_nuc_idx, 3, -1,          pp);
           }
-          else if(orig_nuc_idx[(orig_tr->i[z]*3)-1] - orig_nuc_idx[(orig_tr->i[z]*3)-2] > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z]-1, prev_nuc_idx, 0, p7S_AxxyyBC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx, 0, p7S_AxxyyBC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z],   curr_nuc_idx, 3, p7S_AxxyyBC, orig_tr->pp[z]);
-            sp_cnt++;
+          else if(orig_nuc_idx[i*3-1] - orig_nuc_idx[i*3-2] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_RI, k  , prev_nuc_idx, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P,  k  , curr_nuc_idx, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A,  k+1, curr_nuc_idx,   3, p7S_AxxyyBC, pp);
           }
-          else if(orig_nuc_idx[(orig_tr->i[z]*3)]   - orig_nuc_idx[(orig_tr->i[z]*3)-1] > 1) {
-            p7_trace_splice_AppendWithPP(new_tr, p7T_R, orig_tr->k[z],   prev_nuc_idx, 3, p7S_ABxxyyC, orig_tr->pp[z]);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_P, 0,               curr_nuc_idx, 0, p7S_ABxxyyC, 0.);
-            p7_trace_splice_AppendWithPP(new_tr, p7T_A, orig_tr->k[z]+1, curr_nuc_idx, 0, p7S_ABxxyyC, 0.);
-            sp_cnt++;
+          else if(orig_nuc_idx[i*3]   - orig_nuc_idx[i*3-1] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_RI, k  , prev_nuc_idx, 3, p7S_ABxxyyC, pp);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P,  k  , curr_nuc_idx, 0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A,  k+1, curr_nuc_idx,   0, p7S_ABxxyyC, 0.);
           }
+          sp_cnt++;
         }
         else
-          p7_trace_splice_AppendWithPP(new_tr, p7T_I, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]);
+          p7_trace_splice_AppendWithPP(new_tr, p7T_I, k, curr_nuc_idx, 0, -1, pp);
         break;
-      case p7T_D: p7_trace_splice_AppendWithPP(new_tr, p7T_D, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
-      case p7T_X: p7_trace_splice_AppendWithPP(new_tr, p7T_X, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
-      case p7T_S: p7_trace_splice_AppendWithPP(new_tr, p7T_S, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
-      case p7T_B: p7_trace_splice_AppendWithPP(new_tr, p7T_B, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
-      case p7T_E: p7_trace_splice_AppendWithPP(new_tr, p7T_E, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
-      case p7T_T: p7_trace_splice_AppendWithPP(new_tr, p7T_T, orig_tr->k[z], curr_nuc_idx, 0, -1, orig_tr->pp[z]); break;
+      case p7T_D: p7_trace_splice_AppendWithPP(new_tr, p7T_D, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_X: p7_trace_splice_AppendWithPP(new_tr, p7T_X, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_S: p7_trace_splice_AppendWithPP(new_tr, p7T_S, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_B: p7_trace_splice_AppendWithPP(new_tr, p7T_B, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_E: p7_trace_splice_AppendWithPP(new_tr, p7T_E, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_T: p7_trace_splice_AppendWithPP(new_tr, p7T_T, k, curr_nuc_idx, 0, -1, pp); break;
       default:    return NULL;
     }
 	
     
-    if(orig_tr->st[z] == p7T_M || orig_tr->st[z] == p7T_I) prev_nuc_idx = curr_nuc_idx;
+    if(st == p7T_M || st == p7T_I) prev_nuc_idx = curr_nuc_idx;
     z++;
   }
   
@@ -544,6 +544,139 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
 
 }
 
+/* Function:  p7_trace_splice_fs_Convert()
+ * Synopsis:  Convert a frameshift DNA to protien trace to a 
+ *            to a spliced DNA to protien trace.
+ *
+ * Purpose:   Detect splice boundries in a protien to protien trace
+ *            produced by p7_splice.c and convert to a BATH compatable
+ *            DNA to protien trace with approriate splice states.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    (no abnormal error conditions)
+ *
+ * Xref:      STL11/124
+ */
+P7_TRACE *
+p7_trace_splice_fs_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
+{
+
+  int       z;
+  int       st, i, k, c;
+  int       curr_nuc_idx;
+  int       prev_nuc_idx;
+  int       sp_cnt;
+  float     pp;
+  P7_TRACE *new_tr;
+
+  if ((new_tr = p7_trace_splice_CreateWithPP()) == NULL) goto ERROR;
+  sp_cnt = 0;
+
+  z = 0;
+  prev_nuc_idx = orig_nuc_idx[(orig_tr->i[z])];
+  while (z < orig_tr->N) {
+    st = orig_tr->st[z];
+    i  = orig_tr->i[z];
+    k  = orig_tr->k[z];
+    pp = orig_tr->pp[z];   
+    c  = orig_tr->c[z];
+   if(st == p7T_M || st == p7T_I)
+      curr_nuc_idx = orig_nuc_idx[i];
+    
+    switch(st) {
+      case p7T_N: p7_trace_splice_AppendWithPP(new_tr, p7T_N, k, curr_nuc_idx, 3, -1, pp); break;
+      case p7T_C: p7_trace_splice_AppendWithPP(new_tr, p7T_C, k, curr_nuc_idx, 3, -1, pp); break;
+      case p7T_J: p7_trace_splice_AppendWithPP(new_tr, p7T_J, k, curr_nuc_idx, 3, -1, pp); break;
+      case p7T_M:
+        /* Check if the sequence was spliced at this M position. If so,
+         * then determine the splice option and use the p7T_MS state*/
+        
+        if (prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+c) {
+          /* If the first nuc of the codon is more that one nucleotide from the last 
+           * nuc in the previous exon then the splice site occures between exons */
+          if     (orig_nuc_idx[i-(c-1)] - prev_nuc_idx > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k-1, prev_nuc_idx,   0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_M, k  , curr_nuc_idx,   c, -1,          pp);
+          }
+          /*If the second nucleotide of the codon is more that one nucleotide from the 
+           * first nuc in the codon the splice site occures between those two nucs */
+          else if(orig_nuc_idx[i-(c-2)] - orig_nuc_idx[i-(c-1)] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, k  , prev_nuc_idx, c, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k  , prev_nuc_idx, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx, c, p7S_AxxyyBC, pp);
+          }
+          /*If the third nucleotide of the codon is more that one nucleotide from the
+           * second nuc in the codon the splice site occures between those two nucs */
+          else if(orig_nuc_idx[i-(c-3)]   - orig_nuc_idx[i-(c-2)] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, k,   prev_nuc_idx, c, p7S_ABxxyyC, pp);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k,   prev_nuc_idx, 0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx, c, p7S_ABxxyyC, 0.);
+          }
+          /*If the fourth nucleotide of the codon is more that one nucleotide from the
+           * third nuc in the codon the splice site occures between those two nucs */
+          else if(orig_nuc_idx[i-(c-4)]   - orig_nuc_idx[i-(c-3)] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, k,   prev_nuc_idx, c, p7S_ABCxxyyD, pp);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k,   prev_nuc_idx, 0, p7S_ABCxxyyD, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx, c, p7S_ABCxxyyD, 0.);
+          }
+          /*If the fourth nucleotide of the codon is more that one nucleotide from the
+           * third nuc in the codon the splice site occures between those two nucs */
+          else if(orig_nuc_idx[i-(c-5)]   - orig_nuc_idx[i-(c-4)] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_R, k,   prev_nuc_idx, c, p7S_ABCDxxyyE, pp);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P, k,   prev_nuc_idx, 0, p7S_ABCDxxyyE, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx, c, p7S_ABCDxxyyE, 0.);
+          }
+          sp_cnt++;
+        }
+        else {
+          p7_trace_splice_AppendWithPP(new_tr, p7T_M, k, curr_nuc_idx, c, -1, pp);
+        }
+        break;
+      case p7T_I:
+        /* Check if the sequence was spliced at this I position. If so,
+         * then determine the splice option and use the p7T_IS state */
+        if(prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
+          if     (orig_nuc_idx[i-2] - prev_nuc_idx > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P,  k-1, prev_nuc_idx, 0, p7S_xxyyABC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_I,  k  , curr_nuc_idx, 0, -1,          pp);
+          }
+          else if(orig_nuc_idx[i-1] - orig_nuc_idx[i-2] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_RI, k,   prev_nuc_idx, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P,  k,   prev_nuc_idx, 0, p7S_AxxyyBC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A,  k+1, curr_nuc_idx, 3, p7S_AxxyyBC, pp);
+          }
+          else if(orig_nuc_idx[i]   - orig_nuc_idx[i-1] > 1) {
+            p7_trace_splice_AppendWithPP(new_tr, p7T_RI, k  , prev_nuc_idx, 0, p7S_ABxxyyC, pp);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_P,  k  , prev_nuc_idx, 0, p7S_ABxxyyC, 0.);
+            p7_trace_splice_AppendWithPP(new_tr, p7T_A,  k+1, curr_nuc_idx, 3, p7S_ABxxyyC, 0.);
+          }
+          sp_cnt++;
+        }
+        else
+          p7_trace_splice_AppendWithPP(new_tr, p7T_I, k, curr_nuc_idx, 0, -1, pp);
+        break;
+      case p7T_D: p7_trace_splice_AppendWithPP(new_tr, p7T_D, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_X: p7_trace_splice_AppendWithPP(new_tr, p7T_X, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_S: p7_trace_splice_AppendWithPP(new_tr, p7T_S, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_B: p7_trace_splice_AppendWithPP(new_tr, p7T_B, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_E: p7_trace_splice_AppendWithPP(new_tr, p7T_E, k, curr_nuc_idx, 0, -1, pp); break;
+      case p7T_T: p7_trace_splice_AppendWithPP(new_tr, p7T_T, k, curr_nuc_idx, 0, -1, pp); break;
+      default:    return NULL;
+    }
+	
+    
+    if(st == p7T_M || st == p7T_I) prev_nuc_idx = curr_nuc_idx;
+    z++;
+  }
+  
+  *splice_cnt = sp_cnt;
+  return new_tr;
+
+  ERROR:
+    return NULL;
+
+}
 
 /* Function:  p7_trace_Grow()
  * Synopsis:  Grow the allocation for trace data.

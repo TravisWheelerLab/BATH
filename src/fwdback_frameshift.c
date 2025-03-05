@@ -137,7 +137,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
                                        p7_FLogsum(MMX_FS(i,k,p7G_C3), MMX_FS(i,k,p7G_C4)));
 
       /* insert state */
-      if ( i > 2 && k < M)
+      if ( i > 2)
         IMX_FS(i,k) = p7_FLogsum(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
                                  IMX_FS(i-3,k)        + TSC(p7P_II,k));
       else

@@ -1029,7 +1029,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   if (ofp != stdout) fclose(ofp);
   if (tblfp)         fclose(tblfp);
-  if (fstblfp)         fclose(fstblfp);
+  if (exontblfp)     fclose(exontblfp);
+  if (fstblfp)       fclose(fstblfp);
 
   return eslOK;
 
@@ -1044,6 +1045,7 @@ ERROR:
 
   if (ofp != stdout) fclose(ofp);
   if (tblfp)         fclose(tblfp);
+  if (exontblfp)     fclose(exontblfp);
   if (fstblfp)       fclose(fstblfp);
 
   if (hmmfile != NULL) free (hmmfile);

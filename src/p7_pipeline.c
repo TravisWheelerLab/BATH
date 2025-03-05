@@ -502,7 +502,6 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
 
   ESL_ALLOC(pli, sizeof(P7_PIPELINE));
 
-  /* Alignment score data is used in splicing */
   pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
 
   /* Set Frameshift Mode */
@@ -1309,6 +1308,122 @@ ERROR:
   return eslEMEM;
 
 }
+
+
+/* Function:  p7_pli_fs_computeAliScores()
+ * Synopsis:  Compute per-position scores for the alignment for a domain
+ *
+ * Purpose:   Compute per-position (Viterbi) scores for the alignment for a domain,
+ *            for the purpose of optionally printing these scores out in association
+ *            with each alignment. Such scores can, for example, be used to detangle
+ *            overlapping alignments (from different models)
+ *
+ * Args:      dom             - domain with the alignment for which we wish to compute scores
+ *            seq             - sequence in which domain resides
+ *            abc             - sequence alphabet
+ *            data            - contains model's emission and transition values in unstriped form
+ *            gm_fs           - frameshift model
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_pli_fs_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const ESL_ALPHABET *abc, const P7_SCOREDATA *data, P7_FS_PROFILE *gm_fs)
+{
+  int status;
+  int i, j, k, c, z;
+  int codon_idx;
+  float sc;
+
+  //Compute score contribution of each position in the alignment to the overall Viterbi score
+  ESL_ALLOC( dom->scores_per_pos, sizeof(float) * dom->ad->N );
+  for (i=0; i<dom->ad->N; i++)  dom->scores_per_pos[i] = 0.0;
+  j = dom->ad->hmmfrom - 1; //model position
+  k = 0;
+  z = dom->tr->tfrom[0]+1;
+  c = dom->tr->c[z];
+  i = dom->tr->sqfrom[0] - c; //sequence position
+  while ( k<dom->ad->N) {
+    if (dom->ad->model[k] != '.' && dom->ad->aseq[k] != '-') { //match
+      c = dom->tr->c[z];
+      i+=c;  j++;
+      if(c == 1) {
+        if(esl_abc_XIsCanonical(abc, seq[i]))
+          codon_idx = p7P_CODON1(seq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC2;
+      }
+      else if(c == 2) {
+        if(esl_abc_XIsCanonical(abc, seq[i-1]) &&
+         esl_abc_XIsCanonical(abc, seq[i]))
+          codon_idx = p7P_CODON2(seq[i-1], seq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC1;
+      }
+      else if(c == 3) {
+        if(esl_abc_XIsCanonical(abc, seq[i-2]) &&
+         esl_abc_XIsCanonical(abc, seq[i-1]) &&
+         esl_abc_XIsCanonical(abc, seq[i]))
+          codon_idx = p7P_CODON3(seq[i-2], seq[i-1], seq[i]);
+        else
+          codon_idx    = p7P_DEGEN_C;
+      }
+      else if(c == 4) {
+        if(esl_abc_XIsCanonical(abc, seq[i-3]) &&
+         esl_abc_XIsCanonical(abc, seq[i-2]) &&
+         esl_abc_XIsCanonical(abc, seq[i-1]) &&
+         esl_abc_XIsCanonical(abc, seq[i]))
+          codon_idx = p7P_CODON4(seq[i-3], seq[i-2], seq[i-1], seq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC1;
+      }
+      else if(c == 5) {
+        if(esl_abc_XIsCanonical(abc, seq[i-4]) &&
+         esl_abc_XIsCanonical(abc, seq[i-3]) &&
+         esl_abc_XIsCanonical(abc, seq[i-2]) &&
+         esl_abc_XIsCanonical(abc, seq[i-1]) &&
+         esl_abc_XIsCanonical(abc, seq[i]))
+          codon_idx = p7P_CODON5(seq[i-4], seq[i-3], seq[i-2], seq[i-1], seq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC2;
+      }
+    
+      dom->scores_per_pos[k] = p7P_MSC_CODON(gm_fs, j, codon_idx)
+                             +  (j==1 ? 0 : log(data->fwd_transitions[p7O_MM][j]) );
+      k++; z++;
+    } else if (dom->ad->model[k] == '.' ) { // insert
+      //spin through the insert, accumulating cost;  only assign to final column in gap
+      dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_MI][j]);
+
+      sc = log(data->fwd_transitions[p7O_MI][j]);
+      
+      i+=3; k++; z++;
+      while (k<dom->ad->N && dom->ad->model[k] == '.') { //extend insert
+        dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_II][j]);
+        sc += log(data->fwd_transitions[p7O_II][j]);
+        i+=3; k++; z++;
+      }
+    } else if (dom->ad->aseq[k] == '-' ) { // delete
+      dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_MD][j]);
+      sc = log(data->fwd_transitions[p7O_MD][j]);
+      j++; k++; z++;
+      while (k<dom->ad->N && dom->ad->aseq[k] == '-')  { //extend delete
+        dom->scores_per_pos[k] = log(data->fwd_transitions[p7O_DD][j]);
+        sc += log(data->fwd_transitions[p7O_DD][j]);
+        j++; k++; z++;
+      }
+    }
+  }
+
+  return eslOK;
+
+ERROR:
+  return eslEMEM;
+
+}
+
+
 
 /* Function:  p7_Pipeline()
  * Synopsis:  HMMER3's accelerated seq/profile comparison pipeline.
@@ -2374,16 +2489,16 @@ ERROR:
  *
  */
 static int 
-p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, 
-                              int64_t seqidx, int window_start, ESL_SQ *dnasq, int complementarity 
+p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, 
+                              int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_DSQ *window_dsq, int complementarity 
 )
 {
 
-  int              d;
+  int              d, n;
   int              ali_len;
   int              env_len;
   int              status;
-  
+  float            sum_ali_sc;
   float            bitscore;
   float            dom_bias; 
   float            dom_score;
@@ -2425,8 +2540,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
 
     dom->ad->sqfrom    = dom->iali;
     dom->ad->sqto      = dom->jali;
-    //dom->tr->sqfrom[0] = dom->iali;
-   // dom->tr->sqto[0]   = dom->jali;
 
     /* Adjust score from env_len to max window length. Note that the loop and move 
      * costs are calculated based on amino lengths but paid per nucleotide*/
@@ -2448,16 +2561,28 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
      
     /* P-vaule calculation */	
     dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
-     
+ 
+    if (pli->do_alignment_score_calc)
+        p7_pli_fs_computeAliScores(dom, window_dsq, dnasq->abc, data, gm_fs);
+   
+    if(pli->spliced) {
+       sum_ali_sc = 0.;
+       for(n = 0; n < dom->ad->N; n++) {
+         sum_ali_sc += dom->scores_per_pos[n];
+        }
+    } 
+    
     /* Check if hit passes the e-value cutoff based on the current
      * residue count. This prevents hits from accumulating and using
      * excessive memmory. */
     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-    if ( exp(dom_lnP) * pli->Z <= pli->E ) 
+    //printf("sum_ali_sc %f\n", sum_ali_sc);
+    if ( (pli->spliced   && sum_ali_sc > 0) ||
+          (pli->inc_by_E  && exp(dom_lnP) * pli->Z <= pli->E) ||
+          (!pli->inc_by_E && dom_score >= pli->T) ) 
     { 
    
       p7_tophits_CreateNextHit(hitlist, &hit);
-
       hit->ndom        = 1;
       hit->best_domain = 0;
 
@@ -2493,6 +2618,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
         if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
         if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
       }
+
     }
     else  //delete unused P7_ALIDSPLAY and P7_TRACE
     {
@@ -2546,13 +2672,14 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDA
 )
 {
 
-  int              d;
+  int              d, n;
   int              ali_len, env_len;
   int              status;
   float            bitscore;
   float            dom_score;
   float            dom_bias;
   float            dom_lnP;
+  float            sum_ali_sc;
   P7_DOMAIN       *dom        = NULL;      /* convenience variable, ptr to current domain  */
   P7_HIT          *hit        = NULL;      /* ptr to the current hit output data           */
  
@@ -2611,6 +2738,17 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDA
      
      /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+   
+     if (pli->do_alignment_score_calc)
+        p7_pli_computeAliScores(dom, orfsq->dsq, data, om->abc->Kp, TRUE);  
+
+     if(pli->spliced) {
+       sum_ali_sc = 0.;
+       for(n = 0; n < dom->ad->N; n++) {
+         sum_ali_sc += dom->scores_per_pos[n];
+        }
+    }
+
      /* To prevent the accumultion of excessive low quailty hits when 
       * filters are turned off we need to begin weeding out those hits 
       * now. To do this we estimate Z based on crruent target residue 
@@ -2621,7 +2759,9 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDA
      /* Check if hit passes the e-value cutoff based on the current
       * residue count. This prevents hits from accumulating and using
       * excessive memmory. */
-     if ( exp(dom_lnP) * pli->Z <= pli->E ) 
+     if ( (pli->spliced   && sum_ali_sc > 0) || 
+          (pli->inc_by_E  && exp(dom_lnP) * pli->Z <= pli->E) || 
+          (!pli->inc_by_E && dom_score >= pli->T) ) 
      { 
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
@@ -2652,8 +2792,8 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDA
        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
 
-      if (pli->do_alignment_score_calc) 
-        p7_pli_computeAliScores(hit->dcl, orfsq->dsq, data, om->abc->Kp, TRUE);
+      //if (pli->do_alignment_score_calc) 
+      //  p7_pli_computeAliScores(hit->dcl, orfsq->dsq, data, om->abc->Kp, TRUE);
 
     } 
     else { //delete unused P7_ALIDSPLAY
@@ -2868,7 +3008,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
    
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
-    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dnasq, complementarity);
+    p7_pli_postDomainDef_Frameshift(pli, gm_fs, data, bg, hitlist, seqidx, dna_window->n, dnasq, subseq, complementarity);
 
   } 
 
@@ -3016,7 +3156,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
-  
+  //printf("hmm %s seq %s\n", gm->name, dnasq->name); 
+  //fflush(stdout);
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_windowlist.windows = NULL;

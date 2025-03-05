@@ -1579,6 +1579,10 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   }
 
+  /* move nuc_pos to begining of first codon */ 
+  c = tr->c[z1];
+  nuc_pos -= (c-1);
+
   /* Now we know that z1..z2 in the trace will be represented in the
    * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
    * our display lines, so allocate z2-z1+2. We know each position is
@@ -1655,20 +1659,20 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   ad->M           = gm_fs->M;
   ad->frameshifts = 0; 
   ad->stops       = 0;
-  ad->exon_cnt    = 0;
+  ad->exon_cnt    = 1;
 
   revcomp = 1;
   if(sq->start < sq->end)
     revcomp = 0;
 
-  if(!revcomp) {
-    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
-    ad->sqto    = tr->i[z2];		 
-	ad->exon_seq_starts[0] = ad->sqfrom + sq->start - 1;
-  } else {
-    ad->sqto    = tr->i[z1];
-    ad->sqfrom  = tr->i[z2];	
+  if(revcomp) {
+    ad->sqfrom  = tr->i[z1];
+    ad->sqto    = tr->i[z2];
     ad->exon_seq_starts[0] = sq->n - ad->sqfrom + sq->end;
+  } else {
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];
+    ad->exon_seq_starts[0]  = ad->sqfrom + sq->start - 1;
   }
 
   ad->exon_hmm_starts[0] = ad->hmmfrom;
@@ -1801,7 +1805,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
           n4 = sq->dsq[nuc_index[nuc_pos+3]];
           n5 = sq->dsq[nuc_index[nuc_pos+4]];
         }
-
+       
         get_codon_index(sq->abc, c, n1, n2, n3, n4, n5, &codon_idx); 
         aa = p7P_AMINO(gm_fs, k, codon_idx);
         indel = p7P_INDEL(gm_fs, k, codon_idx);
@@ -1877,7 +1881,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         n3 = sq->dsq[nuc_index[nuc_pos+2]];
         n4 = sq->dsq[nuc_index[nuc_pos+3]];
         n5 = sq->dsq[nuc_index[nuc_pos+4]];
-
+        
         get_codon_index(sq->abc, c, n1, n2, n3, n4, n5, &codon_idx); 
         aa        = p7P_AMINO(gm_fs, k, codon_idx);
         indel     = p7P_INDEL(gm_fs, k, codon_idx);

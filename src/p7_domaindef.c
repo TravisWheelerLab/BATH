@@ -1629,7 +1629,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
-  
+
+  p7_trace_Index(ddef->tr);  
+
   /* get ptr to next empty domain structure in domaindef's results */
   if (ddef->ndom == ddef->nalloc) {
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));

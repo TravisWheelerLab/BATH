@@ -27,6 +27,8 @@ typedef struct _target_range {
 
 typedef struct _splice_edge {
 
+  int frameshift;
+
   int upstream_node_id;
   int downstream_node_id;
 
@@ -150,6 +152,9 @@ typedef struct _splice_pipeline
   P7_OMX  *fwd;
   P7_OMX  *bwd;  
 
+  P7_GMX  *gfwd;
+  P7_GMX  *gbwd;
+
   P7_BG   *bg;
 
   P7_HIT  *hit;
@@ -263,8 +268,11 @@ extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_PROFIL
 
 /* Spliced Hit Processing */
 extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int *success);
+extern int splice_path_frameshift (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int* success);
 extern int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode);
+extern int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 extern int compute_ali_scores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_SCOREDATA *data, int K);
+extern int compute_ali_scores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, const P7_SCOREDATA *data, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
 
 /* Debug Dumps */
 extern void target_range_dump(FILE *fp, TARGET_RANGE *target_range, int print_hits);

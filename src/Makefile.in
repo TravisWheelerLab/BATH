@@ -96,6 +96,8 @@ OBJS =  build.o\
 	generic_stotrace.o\
 	generic_viterbi.o\
 	generic_vtrace.o\
+    global_viterbi.o\
+    global_vtrace.o\
 	h2_io.o\
 	heatmap.o\
 	hmmdmstr.o\

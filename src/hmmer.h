@@ -806,6 +806,7 @@ typedef struct p7_dom_s {
   float          dombias;        /* FLogsum(0, log(bg->omega) + domcorrection): null2 score contribution; NATS */
   float          oasc;           /* optimal accuracy score (units: expected # residues correctly aligned)      */
   float          bitscore;       /* overall score in BITS, null corrected, if this were the only domain in seq */
+  float          aliscore;       /* score of alignment only - used for splicing                                */
   double         lnP;            /* log(P-value) of the bitscore                                               */
   int            is_reported;    /* TRUE if domain meets reporting thresholds                                  */
   int            is_included;    /* TRUE if domain meets inclusion thresholds                                  */
@@ -1612,10 +1613,12 @@ extern int p7_GViterbi_longtarget(const ESL_DSQ *dsq, int L, const P7_PROFILE *g
 
 /* global_viterbi.c */
 extern int p7_global_Viterbi(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_sc);
-extern int p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
+extern int p7_fs_global_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
 
 /* global_vtrace.c */
 extern int p7_global_Trace(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
+
 
 /* heatmap.c (evolving now, intend to move this to Easel in the future) */
 extern double dmx_upper_max(ESL_DMATRIX *D);
@@ -1915,7 +1918,6 @@ extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
 //SPLASH
 extern P7_PIPELINE * p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode);
 
-extern int p7_pli_computeAliScores (P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, int K, int BATH);
 extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
 extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);
 extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, float score,     double lnP);

@@ -180,19 +180,6 @@ typedef struct _splice_gap
 #define MIN_AMINO_OVERLAP         6
 #define MAX_AMINO_OVERLAP         12
 
-/* Splice singal probabilities taken from 
- * "Comprehensive splice-site analysis using comparative genomics", 
- * Nihar Sheth et al., 2006 */
-extern void
-p7_splice_SignalScores(float *f)
-{
-  f[0] = log(0.9919);     /* GT-AG */
-  f[1] = log(0.0073);     /* GC-AG */
-  f[2] = log(0.0006);     /* AT-AC */
-  f[3] = log(0.0002);     /* OTHER */
-  return;
-}
-
 /* Indices of p7_splice_SignalScores */
 enum p7s_splice_signals_e {
   p7S_GTAG  = 0,
@@ -243,9 +230,9 @@ extern SPLICE_EDGE* connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downs
 extern void get_overlap_nuc_coords (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, ESL_SQ *target_seq, int revcomp);
 extern int find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq);
 extern float ali_score_at_postion (P7_PROFILE *gm, int amino, int model_pos, int trans_pos, int prev_state, int curr_state);
-extern int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm, P7_PROFILE *sub_model, ESL_GENCODE *gcode, ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
+extern int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm, P7_PROFILE *sub_model, P7_FS_PROFILE *sub_fs_model, ESL_GENCODE *gcode, ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
 extern int add_edge_to_graph(SPLICE_GRAPH *graph, SPLICE_EDGE *edge);
-
+extern void p7_splice_SignalScores(float *f);
 
 /* Missing Exons */
 extern int fill_holes_in_graph(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode);
@@ -267,12 +254,12 @@ extern int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *sta
 extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int orig_N);
 
 /* Spliced Hit Processing */
-extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int *success);
+extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int *success);
 extern int splice_path_frameshift (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int* success);
-extern int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode);
+extern int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 extern int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode);
-extern int compute_ali_scores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_SCOREDATA *data, int K);
-extern int compute_ali_scores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, const P7_SCOREDATA *data, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
+extern int p7_splice_compute_ali_scores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm, int K);
+extern int p7_splice_compute_ali_scores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
 
 /* Debug Dumps */
 extern void target_range_dump(FILE *fp, TARGET_RANGE *target_range, int print_hits);

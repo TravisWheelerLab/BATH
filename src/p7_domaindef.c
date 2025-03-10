@@ -1532,6 +1532,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
   dom->bitscore      = 0.0; /* gets set later by caller, using envsc, null score, and dombias */
+  dom->aliscore      = 0.0;
   dom->lnP           = 0.0; /* gets set later by caller, using bitscore */
   dom->is_reported   = FALSE; /* gets set later by caller */
   dom->is_included   = FALSE; /* gets set later by caller */
@@ -1602,15 +1603,15 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   
   p7_fs_ReconfigLength(gm_fs, Ld);
   
-  dsq_holder = windowsq->dsq;
-  windowsq->dsq = windowsq->dsq+i-1;
-  n_holder = windowsq->n;
-  windowsq->n = Ld;
-  windowsq->L = Ld;
+ // dsq_holder = windowsq->dsq;
+ // windowsq->dsq = windowsq->dsq+i-1;
+ // n_holder = windowsq->n;
+ // windowsq->n = Ld;
+ // windowsq->L = Ld;
   
-  windowsq->dsq = dsq_holder;
-  windowsq->n = n_holder; 
-  windowsq->L = n_holder;  
+ // windowsq->dsq = dsq_holder;
+ // windowsq->n = n_holder; 
+ // windowsq->L = n_holder;  
    
   /* Forward */ 
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
@@ -1629,7 +1630,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
-
+  
   p7_trace_Index(ddef->tr);  
 
   /* get ptr to next empty domain structure in domaindef's results */
@@ -1739,6 +1740,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
   dom->bitscore      = 0.0; /* gets set later by caller, using envsc, null score, and dombias */
+  dom->aliscore      = 0.0;
   dom->lnP           = 0.0; /* gets set later by caller, using bitscore */
   dom->is_reported   = FALSE; /* gets set later by caller */
   dom->is_included   = FALSE; /* gets set later by caller */
@@ -1889,6 +1891,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   dom->oasc          = oasc;          /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0;           /* gets set later, using bg->omega and dombias */
   dom->bitscore      = 0.0;           /* gets set later by caller, using envsc, null score, and dombias */
+  dom->aliscore      = 0.0;
   dom->lnP           = 0.0;           /* gets set later by caller, using bitscore */
   dom->is_reported   = FALSE;         /* gets set later by caller */
   dom->is_included   = FALSE;         /* gets set later by caller */

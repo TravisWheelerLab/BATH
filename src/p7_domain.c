@@ -44,6 +44,7 @@ extern P7_DOMAIN *p7_domain_Create_empty()
   the_domain->dombias = 0.0;
   the_domain->oasc = 0.0;
   the_domain->bitscore = 0.0;
+  the_domain->aliscore = 0.0;
   the_domain->lnP = 0.0;
   the_domain->is_reported = 0;
   the_domain->is_included = 0;

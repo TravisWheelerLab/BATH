@@ -1975,10 +1975,12 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         ad->ntseq [5*(z-z1)]   = ' ';
         ad->ntseq [5*(z-z1)+1] = alphaDNA[n1];
         if (p == p7S_AxxyyBC) {
+          ad->codon [z-z1] = 1;
           ad->ntseq [5*(z-z1)+2] = ' '; 
           nuc_pos += 1;
         }
         else { //p7S_ABxxyyC 
+          ad->codon [z-z1] = 2;
           ad->ntseq [5*(z-z1)+2] = alphaDNA[n2];
            nuc_pos += 2;
         }     
@@ -3341,6 +3343,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
       if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) 
         ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
         /* codon length of 6 denotes stop codon */
+        
 	    if(ad->sqfrom < ad->sqto)       { c1 = i2;     i2 += (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); } 
 	    else                            { c1 = i2 - 1; i2 -= (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); }
 

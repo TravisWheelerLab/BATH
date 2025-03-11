@@ -2377,7 +2377,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
 )
 {
 
-  int              d, n;
+  int              d;
   int              ali_len;
   int              env_len;
   int              status;
@@ -2547,7 +2547,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
 )
 {
 
-  int              d, n;
+  int              d;
   int              ali_len, env_len;
   int              status;
   float            bitscore;

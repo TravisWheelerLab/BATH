@@ -928,7 +928,6 @@ typedef struct p7_hit_s {
   int      nincluded;       /* # of domains satisfying inclusion thresholding */
   int      best_domain;     /* index of best-scoring domain in dcl */
   int      frameshift;      /* TRUE if hit came from frameshift pipleine */
-  int      in_target_range; 
   int64_t  seqidx;          /*unique identifier to track the database sequence from which this hit came*/
   int64_t  subseq_start;    /*used to track which subsequence of a full_length target this hit came from, for purposes of removing duplicates */
   int64_t  target_len;      /* used in translated search to hold the length of the nucleotide sequence */

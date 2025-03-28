@@ -2444,10 +2444,10 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     /* P-vaule calculation */	
     dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
  
- 
+    dom->scores_per_pos = NULL;
     if(pli->spliced) 
       p7_splice_compute_ali_scores_fs(dom, dom->tr, window_dsq, gm_fs, dnasq->abc);
-    
+
     /* Check if hit passes the e-value cutoff based on the current
      * residue count. This prevents hits from accumulating and using
      * excessive memmory. */
@@ -2497,6 +2497,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     }
     else  //delete unused P7_ALIDSPLAY and P7_TRACE
     {
+      if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
       p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
     }
@@ -2613,9 +2614,10 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
      /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
    
+     dom->scores_per_pos = NULL;
      if(pli->spliced) 
        p7_splice_compute_ali_scores(dom, dom->tr, orfsq->dsq, gm, gm->abc->Kp);
-
+    
      /* To prevent the accumultion of excessive low quailty hits when 
       * filters are turned off we need to begin weeding out those hits 
       * now. To do this we estimate Z based on crruent target residue 
@@ -2661,8 +2663,9 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
 
     } 
     else { //delete unused P7_ALIDSPLAY
-        p7_alidisplay_Destroy(dom->ad);
-        p7_trace_fs_Destroy(dom->tr);
+      if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+      p7_alidisplay_Destroy(dom->ad);
+      p7_trace_fs_Destroy(dom->tr);
     }
   }
 

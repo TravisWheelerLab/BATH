@@ -154,7 +154,6 @@ p7_tophits_CreateNextHit(P7_TOPHITS *h, P7_HIT **ret_hit)
   hit->best_domain     = -1;
   hit->target_len      = 0;
   hit->frameshift      = FALSE;
-  hit->in_target_range = FALSE;
   hit->dcl             = NULL;
   hit->offset          = 0;
 
@@ -246,7 +245,6 @@ p7_tophits_Add(P7_TOPHITS *h,
   h->unsrt[h->N].nincluded       = 0;
   h->unsrt[h->N].best_domain     = 0;
   h->unsrt[h->N].frameshift      = FALSE;
-  h->unsrt[h->N].in_target_range = FALSE;
   h->unsrt[h->N].dcl             = NULL;
   h->unsrt[h->N].orfid           = NULL;
   h->N++;

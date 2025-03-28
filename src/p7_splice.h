@@ -18,9 +18,13 @@ typedef struct _target_range {
   int64_t      seqidx;       /* target squence id                     */
   char        *seqname;      /* target sequnce name                   */
 
-  int          orig_N;       /* the number of original hits in the th */ 
-  int         *orig_hit_idx; /* index of hits in original P7_TOPHITS  */
-  P7_TOPHITS  *th;           /* hits in range                         */
+  int          seed_hit_idx;    /* <th> index of the seed hit            */
+  int         *in_target_range; /* Is the hit part of the current target range */
+  int         *reportable;      /* For orignal hits, do they pass the repoting threshold */
+  int          orig_N;          /* the number of original hits in the th */ 
+  int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
+
+  P7_TOPHITS  *th;             /* all hits on current sequence and strand */                        
 
 } TARGET_RANGE;
 
@@ -56,8 +60,13 @@ typedef struct _splice_edge {
   int upstream_spliced_nuc_end;
   int downstream_spliced_nuc_start;
 
+  int target_seq_start;
+  int target_seq_end;
+  int target_seq_n;
+
   float splice_score;
   float signal_score;
+
 
 } SPLICE_EDGE;
 
@@ -78,8 +87,6 @@ typedef struct _splice_graph {
 
   int   *out_edge_cnt;
   int   *in_edge_cnt;
-  int   *orig_out_edge;
-  int   *orig_in_edge;
   int   *best_out_edge;
   int   *best_in_edge;
 
@@ -98,7 +105,6 @@ typedef struct _splice_graph {
   SPLICE_EDGE **edges;
 
 } SPLICE_GRAPH;
-
 
 typedef struct _splice_path {
 
@@ -173,7 +179,7 @@ typedef struct _splice_gap
 
 } SPLICE_GAP;
 
-#define MAX_TARGET_RANGE_EXT      1000000    //1x10^6 
+#define MAX_GAP_RANGE             500000    //5X10^5 
 #define MAX_INTRON_LEN            50000      //5x10^4 
 #define MIN_INTRON_LEN            10
 #define MAX_AMINO_EXT             10
@@ -218,44 +224,50 @@ extern void splice_pipeline_destroy(SPLICE_PIPELINE *pli);
 
 
 /* Target Range  */
-extern TARGET_RANGE* build_target_range(const P7_TOPHITS *tophits, int *hits_processed, int *num_hits_processed, int64_t *range_bound_mins, int64_t *range_bound_maxs, int range_num, int64_t seqidx, int revcomp);
+extern int* build_target_range (TARGET_RANGE *target_range, const P7_TOPHITS *tophits, int *hits_processed, int64_t seqidx, int revcomp, int *reportable); 
+extern int reset_target_range(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, int *hits_processed, int64_t *range_bound_mins, int64_t *range_bound_maxs, int range_num, int new_seed_hit);
 extern ESL_SQ* get_target_range_sequence(const TARGET_RANGE *target_range, const ESL_SQFILE *seq_file);
+extern ESL_SQ* get_sub_sequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp);
 extern int release_hits_from_target_range(const TARGET_RANGE *target_range, int *hit_processed, int *num_hits_proccesed, int range_bound_min, int range_bound_max);
 
 
 /* Initial Splice Graph */
-extern int fill_graph_with_nodes(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm);
-extern SPLICE_EDGE* connect_nodes_with_edges(P7_HIT *upstream_hit, P7_HIT *downstream_hit, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int revcomp);
+extern int fill_graph_with_nodes(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, P7_PROFILE *gm);
+extern int fill_graph_with_edges(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq);
+extern SPLICE_EDGE* connect_nodes_with_edges(const P7_HIT *upstream_hit, const P7_HIT *downstream_hit, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, int revcomp);
 
-extern void get_overlap_nuc_coords (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, ESL_SQ *target_seq, int revcomp);
-extern int find_optimal_splice_site (SPLICE_EDGE *edge, P7_DOMAIN *upstream, P7_DOMAIN *downstream, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq);
+extern void get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *target_seq, int revcomp);
+extern int find_optimal_splice_site (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQ *target_seq);
 extern float ali_score_at_postion (P7_PROFILE *gm, int amino, int model_pos, int trans_pos, int prev_state, int curr_state);
-extern int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *gm, P7_PROFILE *sub_model, P7_FS_PROFILE *sub_fs_model, ESL_GENCODE *gcode, ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
+extern int select_splice_option (SPLICE_EDGE *edge, const P7_PROFILE *gm, P7_PROFILE *sub_model, P7_FS_PROFILE *sub_fs_model, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
 extern int add_edge_to_graph(SPLICE_GRAPH *graph, SPLICE_EDGE *edge);
 extern void p7_splice_SignalScores(float *f);
 
 /* Missing Exons */
-extern int fill_holes_in_graph(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode);
-extern SPLICE_GAP* find_the_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int upstream_node, int downstream_node);
-extern SPLICE_GAP* terminal_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int final_node, int path_node, int look_upstream);
-extern P7_HIT** align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, SPLICE_GAP *gap, int *num_hits);
-extern P7_HMM* extract_sub_hmm (P7_HMM *hmm, int start, int end);
+extern int fill_holes_in_graph (TARGET_RANGE *target_range, SPLICE_GRAPH *graph, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, int** gap_checked); 
+extern int path_exists (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *visited);
+extern SPLICE_GAP* find_the_gap (SPLICE_GRAPH *graph, P7_TOPHITS *th, const P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int upstream_node, int downstream_node);
+extern P7_HIT** align_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, SPLICE_GAP *gap, int *num_hits);
+extern P7_HMM* extract_sub_hmm (const P7_HMM *hmm, int start, int end);
 extern ESL_DSQ* extract_sub_seq(ESL_SQ *target_seq, int start, int end, int revcomp);
 extern int add_missing_node_to_graph(SPLICE_GRAPH *graph, P7_TOPHITS * th, P7_HIT *hit, int M);
-extern int add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit, int *duplicate);
-extern int bridge_the_gap(SPLICE_GRAPH *graph, P7_TOPHITS *th, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int prev_N, int orig_N);
+extern int add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit);
+extern int bridge_the_gap(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, P7_HIT **top_ten, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, int up_gap, int down_gap, int num_hits);  
+extern int remove_unused_nodes(SPLICE_GRAPH *graph, P7_TOPHITS *th, int prev_N);
 
 
 /* Splice Path */
+extern int reset_edge_counts(TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
 extern int check_for_loops (SPLICE_GRAPH *graph, P7_TOPHITS *th);
-extern SPLICE_PATH* evaluate_paths (SPLICE_GRAPH *graph, P7_TOPHITS *th, ESL_SQ *target_seq, int orig_N);
-extern int longest_path_upstream (SPLICE_GRAPH *graph);
-extern int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
-extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode, ESL_SQ *target_seq, int orig_N);
+extern int enforce_range_bounds(SPLICE_GRAPH *graph, P7_TOPHITS *th, int64_t* range_bound_mins, int64_t* range_bound_maxs, int range_cnt);
+extern SPLICE_PATH* evaluate_paths (TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
+extern int longest_path_upstream (TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
+extern int topological_sort_upstream(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
+extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_SQFILE *seq_file, const ESL_GENCODE *gcode, char *seqname, int orig_N);
 
 /* Spliced Hit Processing */
-extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int *success);
-extern int splice_path_frameshift (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode, int64_t db_nuc_cnt, int orig_N, int* success);
+extern int splice_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQFILE *seq_file, ESL_GENCODE *gcode, int64_t db_nuc_cnt, char *seqname, int orig_N, int* success); 
+extern int splice_path_frameshift (SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, const ESL_SQFILE *seq_file, ESL_GENCODE *gcode, int64_t db_nuc_cnt, char* seqname, int orig_N, int* success); 
 extern int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 extern int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 extern int p7_splice_compute_ali_scores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm, int K);
@@ -263,7 +275,7 @@ extern int p7_splice_compute_ali_scores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ
 
 /* Debug Dumps */
 extern void target_range_dump(FILE *fp, TARGET_RANGE *target_range, int print_hits);
-extern void graph_dump(FILE *fp, SPLICE_GRAPH *graph, ESL_SQ *target_seq, int print_edges);
-extern void path_dump(FILE *fp, SPLICE_PATH *path, ESL_SQ *target_seq);
+extern void graph_dump(FILE *fp, SPLICE_GRAPH *graph, int print_edges);
+extern void path_dump(FILE *fp, SPLICE_PATH *path);
 
 

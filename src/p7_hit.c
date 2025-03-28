@@ -64,7 +64,6 @@ extern P7_HIT *p7_hit_Create_empty()
   the_hit->nincluded = 0;
   the_hit->best_domain = 0;
   the_hit->frameshift = FALSE;
-  the_hit->in_target_range = FALSE;
   the_hit->seqidx = 0;
   the_hit->subseq_start = 0;
   the_hit->dcl = NULL;

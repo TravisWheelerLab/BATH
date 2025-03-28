@@ -1588,7 +1588,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   P7_DOMAIN     *dom           = NULL;
   P7_GMX        *gxppfs;
   int            Ld            = j-i+1;
-  int            n_holder;
   float          domcorrection = 0.0;
   float          envsc, oasc;
   int            codon_idx;  
@@ -1597,22 +1596,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   float          null2[p7_MAXCODE];
   int            status;
   ESL_DSQ        t, u, v, w, x;
-  ESL_DSQ       *dsq_holder;
 
   if (Ld < 15) return eslOK;
   
   p7_fs_ReconfigLength(gm_fs, Ld);
   
- // dsq_holder = windowsq->dsq;
- // windowsq->dsq = windowsq->dsq+i-1;
- // n_holder = windowsq->n;
- // windowsq->n = Ld;
- // windowsq->L = Ld;
-  
- // windowsq->dsq = dsq_holder;
- // windowsq->n = n_holder; 
- // windowsq->L = n_holder;  
-   
   /* Forward */ 
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
   

@@ -170,24 +170,28 @@ p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const 
     switch (sprv) {
     case p7T_E:		/* E connects from any M, I or D state. k set here */
       if (XMX(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
-
+      
       if      (esl_FCompare_old(XMX(i, p7G_E), MMX_FS(i,M,p7G_C0), tol) == eslOK)  scur = p7T_M; 
       else if (esl_FCompare_old(XMX(i, p7G_E), DMX_FS(i,M),        tol) == eslOK)  scur = p7T_D; 
       else if (esl_FCompare_old(XMX(i, p7G_E), IMX_FS(i,M),        tol) == eslOK)  scur = p7T_I; 
-
-      k = M; c = 0;
+     
+      if(scur == p7T_M) {
+        match_codon[0] = MMX_FS(i,M,p7G_C1);
+        match_codon[1] = MMX_FS(i,M,p7G_C2);
+        match_codon[2] = MMX_FS(i,M,p7G_C3);
+        match_codon[3] = MMX_FS(i,M,p7G_C4);
+        match_codon[4] = MMX_FS(i,M,p7G_C5);
+  
+       c = esl_vec_FArgMax(match_codon, 5) + 1;
+      }
+      else if (scur == p7T_I) c = 3;
+      else                   c = 0;
+      k = M; 
       break;      
 
     case p7T_M:			/* M connects from i-1,k-1, or B */
       if (MMX_FS(i,k,p7G_C0) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
 
-      match_codon[0] = MMX_FS(i,k,p7G_C1);
-      match_codon[1] = MMX_FS(i,k,p7G_C2);
-      match_codon[2] = MMX_FS(i,k,p7G_C3);
-      match_codon[3] = MMX_FS(i,k,p7G_C4);
-      match_codon[4] = MMX_FS(i,k,p7G_C5);
-  
-      c = esl_vec_FArgMax(match_codon, 5) + 1;    
       if(i == c && k == 1) scur = p7T_B;
       else {
         match_trans[0] = MMX_FS(i-c,k-1,p7G_C0) + TSC(p7P_MM, k-1); 
@@ -200,6 +204,19 @@ p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const 
         else if ( t==2 ) scur = p7T_D;
       }
       k--; i-=c;
+
+      if(scur == p7T_M) {
+        match_codon[0] = MMX_FS(i,k,p7G_C1);
+        match_codon[1] = MMX_FS(i,k,p7G_C2);
+        match_codon[2] = MMX_FS(i,k,p7G_C3);
+        match_codon[3] = MMX_FS(i,k,p7G_C4);
+        match_codon[4] = MMX_FS(i,k,p7G_C5);
+
+       c = esl_vec_FArgMax(match_codon, 5) + 1;
+      }
+      else if (scur == p7T_I) c = 3;
+      else                    c = 0;
+
       break;
 
     case p7T_D:			/* D connects from M,D at i,k-1 , or B*/
@@ -209,7 +226,19 @@ p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const 
       else if (esl_FCompare_old(DMX_FS(i,k), MMX_FS(i, k-1, p7G_C0) + TSC(p7P_MD, k-1), tol) == eslOK) scur = p7T_M;
       else if (esl_FCompare_old(DMX_FS(i,k), DMX_FS(i, k-1)         + TSC(p7P_DD, k-1), tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
-      k--; c = 0;
+      k--; 
+      
+      if(scur == p7T_M) {
+        match_codon[0] = MMX_FS(i,k,p7G_C1);
+        match_codon[1] = MMX_FS(i,k,p7G_C2);
+        match_codon[2] = MMX_FS(i,k,p7G_C3);
+        match_codon[3] = MMX_FS(i,k,p7G_C4);
+        match_codon[4] = MMX_FS(i,k,p7G_C5);
+
+       c = esl_vec_FArgMax(match_codon, 5) + 1;
+      }
+      else                    c = 0;
+
       break;
 
     case p7T_I:			/* I connects from M,I at i-1,k, or B*/
@@ -219,7 +248,20 @@ p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const 
       else if (esl_FCompare_old(IMX_FS(i,k), MMX_FS(i-3,k,p7G_C0)  + TSC(p7P_MI, k), tol) == eslOK) scur = p7T_M;
       else if (esl_FCompare_old(IMX_FS(i,k), IMX_FS(i-3,k)         + TSC(p7P_II, k), tol) == eslOK) scur = p7T_I;
       else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k,i);
-      i-=3; c = 3;
+      i-=3; 
+
+      if(scur == p7T_M) {
+        match_codon[0] = MMX_FS(i,k,p7G_C1);
+        match_codon[1] = MMX_FS(i,k,p7G_C2);
+        match_codon[2] = MMX_FS(i,k,p7G_C3);
+        match_codon[3] = MMX_FS(i,k,p7G_C4);
+        match_codon[4] = MMX_FS(i,k,p7G_C5);
+
+       c = esl_vec_FArgMax(match_codon, 5) + 1;
+      }
+      else if (scur == p7T_I) c = 3;
+      else                    c = 0;
+
       break;
 
     case p7T_N:			/* N connects from S, N */
@@ -239,7 +281,7 @@ p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const 
 
     /* Append this state and the current i,k to be explained to the growing trace */
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
-
+  
     /* For NCJ, we had to defer i decrement. */
     if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i-=3;
 
@@ -248,7 +290,7 @@ p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const 
 
   tr->M = gm_fs->M;
   tr->L = L;
-  return p7_trace_Reverse(tr);
+  return p7_trace_fs_Reverse(tr);
 }
 
 

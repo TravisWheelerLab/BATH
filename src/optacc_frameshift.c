@@ -464,12 +464,14 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
 #endif
+
   if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
   if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) return status;
 
   sprv = p7T_C;
   while (sprv != p7T_S) 
     { 
+     
      switch (sprv) {
       case p7T_M: scur = select_m(gm_fs,     gx, c, i,  k);          k--;  break;
       case p7T_D: scur = select_d(gm_fs,     gx,    i,  k);          k--;  break;
@@ -536,6 +538,7 @@ select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int c, int i, int k)
   path[1] = TSCDELTA(p7P_IM, k-1) * expf(IMX(i,k-1));
   path[2] = TSCDELTA(p7P_DM, k-1) * expf(DMX(i,k-1));
   path[3] = TSCDELTA(p7P_BM, k-1) * expf(XMX(i,p7G_B));
+
   return state[esl_vec_FArgMax(path, 4)];
 
 }
@@ -594,6 +597,7 @@ select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
   else
     path[2] = FLT_MIN;
   path[3] = t2 *  expf(XMX(i,p7G_E));
+
   return state[esl_vec_FArgMax(path, 4)];
 }
 
@@ -634,6 +638,7 @@ select_e(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int *ret_k)
       if (expf(DMX(i,k)) >  max) { max = expf(DMX(i,k)); smax = p7T_D; kmax = k; }
     }
   *ret_k = kmax;
+
   return smax;
 }
 
@@ -641,13 +646,12 @@ select_e(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int *ret_k)
 static inline int
 select_b(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i)
 {
-  float t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float path[2];
+
+  path[0] = expf(XMX(i, p7G_N));
+  path[1] = gm_fs->nj * expf(XMX(i, p7G_J));
   
-  path[0] = t1 * expf(XMX(i, p7G_N));
-  path[1] = t2 * expf(XMX(i, p7G_J));
   return  ((path[0] > path[1]) ? p7T_N : p7T_J);
 
 }

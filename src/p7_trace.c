@@ -1413,10 +1413,11 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
 
   if (gm == NULL) 
     {		/* Yes, this does get used: during model construction. */ 
-      fprintf(fp, "st   k      i   - traceback len %d\n", tr->N);
-      fprintf(fp, "--  ----   ----\n");
+      fprintf(fp, " z    st   k      i   - traceback len %d\n", tr->N);
+      fprintf(fp, "----- --  ----   ----\n");
       for (z = 0; z < tr->N; z++) {
-	fprintf(fp, "%1s  %4d %6d\n", 
+	fprintf(fp, "%5d %1s  %4d %6d\n", 
+        z,
 		p7_hmm_DecodeStatetype(tr->st[z]),
 		tr->k[z],
 		tr->i[z]);
@@ -1431,8 +1432,8 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
       int   xi;
 
 
-      fprintf(fp, "st   k     i      transit emission postprob - traceback len %d\n", tr->N);
-      fprintf(fp, "--  ---- ------  -------- -------- --------\n");
+      fprintf(fp, " z    st   k     i      transit emission postprob - traceback len %d\n", tr->N);
+      fprintf(fp, "----- --  ---- ------  -------- -------- --------\n");
       for (z = 0; z < tr->N; z++) 
 	{
 	  if (z < tr->N-1) 
@@ -1442,7 +1443,7 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
 	    }
 	  else tsc = 0.0f;
 
-	  fprintf(fp, "%1s  %4d %6d  %8.4f", p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tsc);
+	  fprintf(fp, "%5d %1s  %4d %6d  %8.4f", z, p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tsc);
 	  sc += tsc;
 	  
 	  if (dsq != NULL) {
@@ -1515,10 +1516,12 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
 
   if (gm == NULL) 
     {		/* Yes, this does get used: during model construction. */ 
-      fprintf(fp, "st   k      i      c   - traceback len %d\n", tr->N);
-      fprintf(fp, "--  ----   ----   ----\n");
+      fprintf(fp, " z    st   k      i      c   - traceback len %d\n", tr->N);
+      fprintf(fp, "----- --  ----   ----   ----\n");
       for (z = 0; z < tr->N; z++) {
-	fprintf(fp, "%1s  %4d %6d %4d\n", 
+      
+	fprintf(fp, "%5d %1s  %4d %6d %4d\n", 
+        z+1,
 		p7_hmm_DecodeStatetype(tr->st[z]),
 		tr->k[z],
 		tr->i[z],
@@ -1534,8 +1537,8 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
       int   xi;
 
       
-      fprintf(fp, "st   k     i      c      transit emission postprob - traceback len %d\n", tr->N);
-      fprintf(fp, "--  ---- ------  ----   -------- -------- --------\n");
+      fprintf(fp, " z    st   k     i      c      transit emission postprob - traceback len %d\n", tr->N);
+      fprintf(fp, "----- --  ---- ------  ----   -------- -------- --------\n");
       for (z = 0; z < tr->N; z++) 
 	{
 	  if (z < tr->N-1) 
@@ -1545,7 +1548,7 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
 	    }
 	  else tsc = 0.0f;
 
-	  fprintf(fp, "%1s  %4d %6d %4d %8.4f %4d", p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
+	  fprintf(fp, "%5d %1s  %4d %6d %4d %8.4f %4d", z, p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
 	  sc += tsc;
 	  
 	  if (dsq != NULL) {
@@ -1935,7 +1938,7 @@ p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i, int c)
 {
   int status;
   if ((status = p7_trace_fs_Grow(tr)) != eslOK) return status;
- 
+  
   switch (st) {
     /* Emit-on-transition states: */
   case p7T_N: 

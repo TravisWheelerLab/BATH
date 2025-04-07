@@ -562,6 +562,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
     
     for (z1 = 0; which >= 0 && z1 < tr->N; z1++) 
       if (tr->st[z1] == p7T_B) which--; 					   /* find the right B state */
+    
     if (z1 == tr->N) return NULL;                                                  /* no such domain <which> */
     for (; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;            /* find next M state      */
     if (z1 == tr->N) return NULL;                                                 /* no M? corrupt trace    */
@@ -657,7 +658,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
     ad->sqfrom  = tr->i[z2];	
   }	 
   ad->L       = sq->n;
-  
+
+
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->rf[tr->k[z]]);
@@ -735,6 +737,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         get_codon_index(sq->abc, c, n1, n2, n3, n4, n5, &codon_idx);
         aa = p7P_AMINO(gm_fs, k, codon_idx);
         indel = p7P_INDEL(gm_fs, k, codon_idx);
+        
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) ad->codon[y] = 6;
 
         ad->ntseq [5*(z-z1)]   = nuc_one(c, indel, n1, alphaDNA);
         ad->ntseq [5*(z-z1)+1] = nuc_two(c, indel, n1, n2, alphaDNA);
@@ -756,6 +760,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         ad->codon[y] = 3;
       	ad->model [z-z1] = '.';
         ad->mline [z-z1] = ' ';
+
+        get_codon_index(sq->abc, 3, sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i], -1, -1, &codon_idx);
+        indel = p7P_INDEL(gm_fs, k, codon_idx);
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) ad->codon[y] = 6;
 
         aa = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
         

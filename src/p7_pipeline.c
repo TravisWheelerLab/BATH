@@ -2855,7 +2855,6 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
    */
 
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
- printf("P_fs %f P_fs_nobias %f tot_orf_P %f \n", P_fs, P_fs_nobias, tot_orf_P);
   
     pli->pos_past_fwd += dna_window->length; 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 6, dna_window->length, 0);

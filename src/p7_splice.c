@@ -727,14 +727,15 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
       if ((status = fill_holes_in_graph(target_range, graph, gm, hmm, pli->bg, gcode, seq_file)) != eslOK) goto ERROR;
       //graph_dump(stdout, target_range, graph, FALSE);
-      target_range_dump(stdout, target_range, TRUE);
+     // target_range_dump(stdout, target_range, TRUE);
      
       //check_for_bypasses(target_range, graph);
 
       
     }
-    //target_range_dump(stdout, target_range, TRUE); 
-    //graph_dump(stdout, target_range, graph, FALSE);    
+printf("START\n");
+    target_range_dump(stdout, target_range, TRUE); 
+    graph_dump(stdout, target_range, graph, FALSE);    
  
     enforce_range_bounds(graph, target_range->th, range_bound_mins, range_bound_maxs, range_cnt);
 
@@ -788,6 +789,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
       release_hits_from_target_range(target_range, hits_processed, &num_hits_processed, range_bound_mins[range_cnt], range_bound_maxs[range_cnt]);  
  
     }
+    
    //graph_dump(stdout, target_range, graph, FALSE);
     range_cnt++; 
     prev_seqidx = seqidx;
@@ -1142,8 +1144,8 @@ fill_graph_with_nodes(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, const P7_
 
       /*If there is not at least a MIN_INTRON_LEN gap in the seq coords between 
        * the end up and the start of down then down is not downtream of up*/
-      if (( graph->revcomp  && th->hit[down]->dcl->iali + MIN_INTRON_LEN > th->hit[up]->dcl->jali) ||
-         ((!graph->revcomp) && th->hit[up]->dcl->jali + MIN_INTRON_LEN > th->hit[down]->dcl->iali))
+      if (( graph->revcomp  && th->hit[down]->dcl->iali > th->hit[up]->dcl->jali) ||
+         ((!graph->revcomp) && th->hit[up]->dcl->jali > th->hit[down]->dcl->iali))
          continue;
 
       ESL_ALLOC(new_node, sizeof(SPLICE_NODE));
@@ -1205,7 +1207,7 @@ fill_graph_with_nodes(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, const P7_
       seq_max = ESL_MAX(up_max, down_max);
 
       target_seq = get_sub_sequence(seq_file, target_range->seqname, seq_min, seq_max, graph->revcomp);
-
+       printf("conecting up %d down %d\n", up+1, down+1);
       /* Find edge */
       edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, hmm, bg, gcode, target_seq, graph->revcomp);
       if(edge != NULL) {

@@ -186,7 +186,7 @@ typedef struct _splice_gap
 
 #define MAX_GAP_RANGE             50000       
 #define MAX_INTRON_LEN            25000      
-#define MIN_INTRON_LEN            20
+#define MIN_INTRON_LEN            1
 #define MAX_AMINO_EXT             20
 #define MIN_AMINO_OVERLAP         10
 #define MAX_AMINO_OVERLAP         12

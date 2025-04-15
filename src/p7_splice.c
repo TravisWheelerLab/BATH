@@ -680,7 +680,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
    fflush(stdout);
   /* loop through until all hits have been processed */
   while(num_hits_processed < tophits->N) {
-    
+    printf("num_hits_processed %d prev_num_hits_processed %d tophits->N %d\n", num_hits_processed, prev_num_hits_processed, tophits->N);  
     if(prev_num_hits_processed == num_hits_processed)
       ESL_XEXCEPTION(eslFAIL, "p7_splice_SpliceHits : loop failed to process hits");
     prev_num_hits_processed = num_hits_processed;
@@ -710,13 +710,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
       if ((target_range = target_range_create(tophits->N)) == NULL) goto ERROR;
       build_target_range(target_range, tophits, hits_processed, seqidx, revcomp);
-
-      if(target_range->orig_N == 1) {
-        orig_idx = target_range->orig_hit_idx[0];
-        hits_processed[orig_idx] = 1;
-        num_hits_processed++;
-        continue;
-      }
 
       printf("\nQuery %s Target %s strand %c\n", gm->name, target_range->seqname, (target_range->revcomp ? '-' : '+'));
       fflush(stdout);

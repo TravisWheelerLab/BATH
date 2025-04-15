@@ -734,13 +734,13 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
       if ((status = fill_holes_in_graph(target_range, graph, gm, hmm, pli->bg, gcode, seq_file)) != eslOK) goto ERROR;
       //graph_dump(stdout, target_range, graph, FALSE);
-      //target_range_dump(stdout, target_range, TRUE);
+      target_range_dump(stdout, target_range, TRUE);
      
       //check_for_bypasses(target_range, graph);
 
       
     }
-    ///target_range_dump(stdout, target_range, TRUE); 
+    //target_range_dump(stdout, target_range, TRUE); 
     //graph_dump(stdout, target_range, graph, FALSE);    
  
     enforce_range_bounds(graph, target_range->th, range_bound_mins, range_bound_maxs, range_cnt);
@@ -757,7 +757,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
    
    
     split_hits_in_path(graph, path, gm, hmm, pli->bg, seq_file, gcode, target_range->seqname, target_range->orig_N);
-//  path_dump(stdout, path);
+    path_dump(stdout, path);
 
     if(path->path_len > 1) {
       frameshift = FALSE;
@@ -3067,7 +3067,7 @@ splice_path (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, 
       /* Ensure path will still contains an original hit after shifting */
       contains_orig = FALSE;
       for(exon = shift; exon < pli->hit->dcl->ad->exon_cnt ; exon ++ ) {
-        if(path->node_id[i] < orig_N) contains_orig = TRUE;  
+        if(path->node_id[exon] < orig_N) contains_orig = TRUE;  
       } 
 
       if(!contains_orig) {

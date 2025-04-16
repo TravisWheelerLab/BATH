@@ -680,7 +680,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
    fflush(stdout);
   /* loop through until all hits have been processed */
   while(num_hits_processed < tophits->N) {
-    printf("num_hits_processed %d prev_num_hits_processed %d tophits->N %d\n", num_hits_processed, prev_num_hits_processed, tophits->N);  
+    
     if(prev_num_hits_processed == num_hits_processed)
       ESL_XEXCEPTION(eslFAIL, "p7_splice_SpliceHits : loop failed to process hits");
     prev_num_hits_processed = num_hits_processed;
@@ -733,9 +733,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
       
     }
-printf("START\n");
+
     target_range_dump(stdout, target_range, TRUE); 
-    graph_dump(stdout, target_range, graph, FALSE);    
+//    graph_dump(stdout, target_range, graph, FALSE);    
  
     enforce_range_bounds(graph, target_range->th, range_bound_mins, range_bound_maxs, range_cnt);
 
@@ -1207,7 +1207,7 @@ fill_graph_with_nodes(SPLICE_GRAPH *graph, TARGET_RANGE *target_range, const P7_
       seq_max = ESL_MAX(up_max, down_max);
 
       target_seq = get_sub_sequence(seq_file, target_range->seqname, seq_min, seq_max, graph->revcomp);
-       printf("conecting up %d down %d\n", up+1, down+1);
+       
       /* Find edge */
       edge = connect_nodes_with_edges(th->hit[up], th->hit[down], gm, hmm, bg, gcode, target_seq, graph->revcomp);
       if(edge != NULL) {
@@ -2084,21 +2084,23 @@ fill_holes_in_graph(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, const P7_PR
           }
 
           if( !tmp_node->gap_checked && !tmp_node->path_exists ) {
-    
             tmp_node->gap_checked = TRUE;
             down_hit = th->hit[h2];
 
             num_hits = 0;
             hmm_gap_len = down_hit->dcl->ihmm - up_hit->dcl->jhmm - 1;
+            
             if(graph->revcomp)
               seq_gap_len = up_hit->dcl->jali - down_hit->dcl->iali - 1;
             else
               seq_gap_len = down_hit->dcl->iali - up_hit->dcl->jali - 1;
+        
+            if(hmm_gap_len > 0 && seq_gap_len >= hmm_gap_len*3) { 
 
-            if(seq_gap_len >= hmm_gap_len*3) {
+            //printf("checking up %d down %d\n", h1+1 , h2+1);   
               if ((gap = find_the_gap(th, gm, target_seq, target_range->orig_N, h1, h2, graph->revcomp)) == NULL) goto ERROR;
               if((top_ten = align_the_gap(target_range, gm, hmm, bg, target_seq, gcode, gap, &num_hits, graph->revcomp)) == NULL) goto ERROR;
-                 
+             // printf("num_hits %d\n", num_hits);     
               if(num_hits)
                 if ((status = bridge_the_gap(target_range, graph, top_ten, gm, hmm, bg, gcode, target_seq, h1, h2, num_hits)) != eslOK) goto ERROR;
 
@@ -4541,7 +4543,7 @@ bridge_the_gap(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, P7_HIT **top_ten
    
   /* Connect new hits upstream of original gap downstream hit */
   for(up = 0; up < num_hits; up++) {
-    
+    //printf("new hit %d  iali %d jali %d ihmm %d jhmm %d\n", up+1, top_ten[up]->dcl->iali, top_ten[up]->dcl->jali, top_ten[up]->dcl->ihmm, top_ten[up]->dcl->jhmm);    
     edge = connect_nodes_with_edges(top_ten[up], th->hit[down_gap], gm, hmm, bg, gcode, target_seq, graph->revcomp);
     if(edge != NULL) {
       

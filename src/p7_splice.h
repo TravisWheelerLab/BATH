@@ -128,7 +128,9 @@ typedef struct _splice_path {
 
   int *upstream_spliced_nuc_end;
   int *downstream_spliced_nuc_start;
- 
+
+  float *hit_scores;
+  float *edge_scores;   // edge_scores[i] is score for incoming edge to hits[i]
   float *signal_scores;
   
   P7_HIT **hits;
@@ -220,7 +222,7 @@ extern SPLICE_EDGE* splice_edge_create(void);
 extern SPLICE_GRAPH* splice_graph_create(void);
 extern void splice_graph_destroy (SPLICE_GRAPH* graph);
 extern SPLICE_PATH* splice_path_create(int path_len);
-extern int splice_path_split_hit(SPLICE_PATH *path, SPLICE_EDGE *edge, int split_id);
+extern int splice_path_split_hit(SPLICE_PATH *path, SPLICE_EDGE *edge, float up_ali_score, float down_ali_score, int split_id);
 extern void splice_path_destroy(SPLICE_PATH *path);
 extern SPLICE_PIPELINE* splice_pipeline_create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 extern void splice_pipeline_destroy(SPLICE_PIPELINE *pli);
@@ -238,7 +240,7 @@ extern int fill_graph_with_nodes(SPLICE_GRAPH *graph, TARGET_RANGE *target_range
 extern SPLICE_EDGE* connect_nodes_with_edges(const P7_HIT *upstream_hit, const P7_HIT *downstream_hit, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, int revcomp);
 
 extern void get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *target_seq, int revcomp);
-extern int find_optimal_splice_site (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQ *target_seq);
+extern int find_optimal_splice_site (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, int split);
 extern float ali_score_at_postion (P7_PROFILE *gm, int amino, int model_pos, int trans_pos, int prev_state, int curr_state);
 extern int select_splice_option (SPLICE_EDGE *edge, const P7_PROFILE *gm, P7_PROFILE *sub_model, P7_FS_PROFILE *sub_fs_model, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
 extern int add_edge_to_graph(SPLICE_GRAPH *graph, SPLICE_EDGE *edge);
@@ -264,13 +266,14 @@ extern int enforce_range_bounds(SPLICE_GRAPH *graph, P7_TOPHITS *th, int64_t* ra
 extern SPLICE_PATH* evaluate_paths (TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
 extern int longest_path_upstream (TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
 extern int topological_sort_upstream (TARGET_RANGE *target_range, SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
-extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_SQFILE *seq_file, const ESL_GENCODE *gcode, char *seqname, int orig_N);
+extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, ESL_SQ *path_seq, int orig_N);
+extern float get_partial_ali_score (P7_HIT *hit, int start_i, int end_i, int start_k, int end_k);
 
 /* Spliced Hit Processing */
-extern int splice_path (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQFILE *seq_file, ESL_GENCODE *gcode, int64_t db_nuc_cnt, char *seqname, int orig_N, int* success); 
-extern int splice_path_frameshift (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, const ESL_SQFILE *seq_file, ESL_GENCODE *gcode, int64_t db_nuc_cnt, char* seqname, int orig_N, int* success); 
+extern int splice_path (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int orig_N, int* success); 
+extern int splice_path_frameshift (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int orig_N, int* success); 
 extern int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode);
-extern int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, P7_SCOREDATA *scoredata, ESL_SQ *target_seq, ESL_GENCODE *gcode);
+extern int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 extern int p7_splice_compute_ali_scores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm, int K);
 extern int p7_splice_compute_ali_scores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
 

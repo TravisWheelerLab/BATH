@@ -330,9 +330,8 @@ splice_path_create(int path_len)
 
   path->node_id = NULL;
   ESL_ALLOC(path->node_id,                        sizeof(int)*(path_len));
-
-  path->missing = NULL;
-  ESL_ALLOC(path->missing,                        sizeof(int)*(path_len));
+  path->split = NULL;
+  ESL_ALLOC(path->split,                          sizeof(int)*(path_len));
 
   path->upstream_spliced_amino_end     = NULL;
   path->downstream_spliced_amino_start = NULL;
@@ -371,11 +370,10 @@ splice_path_split_hit(SPLICE_PATH *path, SPLICE_EDGE *edge, float up_ali_score, 
   int status;
 
   path->path_len++;
-  path->split_hits++;
-
+  path->split[split_id] = TRUE;
   /* grow path to insert split hit */
   ESL_REALLOC(path->node_id,                        sizeof(int)     * path->path_len);
-  ESL_REALLOC(path->missing,                        sizeof(int)     * path->path_len);
+  ESL_REALLOC(path->split,                          sizeof(int)     * path->path_len);
   ESL_REALLOC(path->upstream_spliced_amino_end,     sizeof(int)     * (path->path_len+1));
   ESL_REALLOC(path->downstream_spliced_amino_start, sizeof(int)     * (path->path_len+1));
   ESL_REALLOC(path->upstream_spliced_nuc_end,       sizeof(int)     * (path->path_len+1));
@@ -394,16 +392,16 @@ splice_path_split_hit(SPLICE_PATH *path, SPLICE_EDGE *edge, float up_ali_score, 
 
     if(i < path->path_len) {
       path->node_id[i]                      = path->node_id[i-1];
-      path->missing[i]                      = path->missing[i-1];
+      path->split[i]                        = path->split[i-1];
       path->hit_scores[i]                   = path->hit_scores[i-1];
       path->edge_scores[i]                  = path->edge_scores[i-1];
       path->signal_scores[i]                = path->signal_scores[i-1];
       path->hits[i]                         = path->hits[i-1];
     }
   }
-
-  path->hit_scores[split_id] = up_ali_score;  
   
+  path->hit_scores[split_id] = up_ali_score;  
+  path->split[split_id]      = TRUE;
   /* Set new splice boudries */
   path->upstream_spliced_amino_end[split_id+1]     = edge->upstream_spliced_amino_end;
   path->downstream_spliced_amino_start[split_id+1] = edge->downstream_spliced_amino_start;
@@ -432,11 +430,8 @@ splice_path_destroy(SPLICE_PATH *path)
 
    if(path == NULL) return;
 
-   if(path->node_id                        != NULL)
-     free(path->node_id);
-
-   if(path->missing                        != NULL)
-     free(path->missing);
+   if(path->node_id != NULL) free(path->node_id);
+   if(path->split != NULL)   free(path->split);
 
    if(path->upstream_spliced_amino_end     != NULL)
      free(path->upstream_spliced_amino_end);
@@ -672,8 +667,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
   num_hits_processed = 0;
   for(i = 0; i < tophits->N; i++) {
     tophits->hit[i]->dcl->ad->exon_cnt = 1;
-    if ((tophits->hit[i]->flags & p7_IS_DUPLICATE)   ||
-         tophits->hit[i]->dcl->aliscore < 0 ) {
+    if ((tophits->hit[i]->flags & p7_IS_DUPLICATE)) {
       hits_processed[i] = 1;
       num_hits_processed++;
     }
@@ -2533,13 +2527,9 @@ evaluate_paths (TARGET_RANGE *target_range, SPLICE_GRAPH *graph)
   path->signal_scores[0] = 0.;
 
   path->node_id[0] = start_node;
+  path->split[0]   = FALSE;
   path->hits[0]    = th->hit[start_node];
   
-  if(start_node < target_range->orig_N)
-    path->missing[0] = FALSE;
-  else
-    path->missing[0] = TRUE;
-
   path->downstream_spliced_amino_start[0] = path->hits[0]->dcl->ihmm;
   path->downstream_spliced_nuc_start[0]   = path->hits[0]->dcl->iali;
   
@@ -2558,12 +2548,8 @@ evaluate_paths (TARGET_RANGE *target_range, SPLICE_GRAPH *graph)
     path->signal_scores[step_cnt] = out_edge->signal_score;
  
     path->node_id[step_cnt] = next_node;
+    path->split[step_cnt]   = FALSE;
     path->hits[step_cnt]    = th->hit[next_node];
- 
-    if(next_node < target_range->orig_N)
-      path->missing[step_cnt] = FALSE;
-    else
-      path->missing[step_cnt] = TRUE;
  
     path->upstream_spliced_amino_end[step_cnt]     = out_edge->upstream_spliced_amino_end;
     path->downstream_spliced_amino_start[step_cnt] = out_edge->downstream_spliced_amino_start;
@@ -3191,7 +3177,7 @@ splice_path (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, 
         path->edge_scores[exon]                    = path->edge_scores[shift+exon];
         path->signal_scores[exon]                  = path->signal_scores[shift+exon];
         path->hits[exon]                           = path->hits[shift+exon];
-        path->missing[exon]                        = path->missing[shift+exon];
+        path->split[exon]                          = path->split[shift+exon];
       }
       path->downstream_spliced_nuc_start[0]   = pli->hit->dcl->iali;
       path->downstream_spliced_amino_start[0] = pli->hit->dcl->ihmm; 
@@ -3212,10 +3198,12 @@ splice_path (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, 
     i = 0;
     while( path->node_id[i] >= orig_N) {
       pli->hit->dcl->ad->exon_orig[i] = FALSE; 
+      pli->hit->dcl->ad->exon_split[i] = path->split[i];
       i++; 
     }
 
-    pli->hit->dcl->ad->exon_orig[i] = TRUE;
+    pli->hit->dcl->ad->exon_orig[i] = TRUE; 
+    pli->hit->dcl->ad->exon_split[i] = path->split[i];
     replace_hit = path->hits[i]; 
     replace_node = path->node_id[i];
 	ali_L = replace_hit->dcl->ad->L;
@@ -3254,7 +3242,8 @@ splice_path (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, 
         pli->hit->dcl->ad->exon_orig[i] = FALSE;
       else
         pli->hit->dcl->ad->exon_orig[i] = TRUE;
-     
+
+      pli->hit->dcl->ad->exon_split[i] = path->split[i]; 
       /* If the replace node hes bee split we neeed to 
        * make sure we don't set is as unreportable */
       remove_node = path->node_id[i];
@@ -3461,7 +3450,7 @@ splice_path_frameshift (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *
         path->edge_scores[exon]                    = path->edge_scores[shift+exon];
         path->signal_scores[exon]                  = path->signal_scores[shift+exon];
         path->hits[exon]                           = path->hits[shift+exon];
-        path->missing[exon]                        = path->missing[shift+exon];
+        path->split[exon]                          = path->split[shift+exon];
       }
       path->downstream_spliced_nuc_start[0]   = pli->hit->dcl->iali;
       path->downstream_spliced_amino_start[0] = pli->hit->dcl->ihmm;
@@ -3481,11 +3470,12 @@ splice_path_frameshift (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *
     while( path->node_id[i] >= orig_N) {
 
       pli->hit->dcl->ad->exon_orig[i] = FALSE;
+      pli->hit->dcl->ad->exon_split[i] = path->split[i];
       i++;
     }
 
     pli->hit->dcl->ad->exon_orig[i] = TRUE;
-
+    pli->hit->dcl->ad->exon_split[i] = path->split[i];
     replace_hit  = path->hits[i];
     replace_node = path->node_id[i];
     ali_L = replace_hit->dcl->ad->L;
@@ -3527,7 +3517,7 @@ splice_path_frameshift (SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_FS_PROFILE *
         else
           pli->hit->dcl->ad->exon_orig[i] = TRUE;
       }
-
+      pli->hit->dcl->ad->exon_split[i] = path->split[i];
       remove_node = path->node_id[i];
       if(remove_node == replace_node)
         continue;

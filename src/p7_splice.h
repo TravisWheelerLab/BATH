@@ -117,11 +117,9 @@ typedef struct _splice_path {
 
   int path_len;
   int seq_len;
-  int split_hits;
 
   int *node_id;
-
-  int *missing;
+  int *split;
 
   int *upstream_spliced_amino_end;
   int *downstream_spliced_amino_start;

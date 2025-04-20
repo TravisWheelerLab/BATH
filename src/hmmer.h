@@ -63,9 +63,11 @@
 #define p7_GLOCAL    2    /* multihit glocal: "ls" mode   */
 #define p7_UNILOCAL  3    /* unihit local: "sw" mode      */
 #define p7_UNIGLOCAL 4    /* unihit glocal: "s" mode      */
+#define p7_GLOBAL    5    
+#define p7_UNIGLOBAL 6
 
-#define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL)
-#define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL)
+#define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL ||  mode == p7_UNIGLOBAL)
+#define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL || mode == p7_GLOBAL)
 
 #define p7_NEVPARAM 7  /* number of statistical parameters stored in models                      */
 #define p7_NCUTOFFS 6  /* number of Pfam score cutoffs stored in models                          */
@@ -1578,6 +1580,9 @@ extern int p7_ForwardParser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCOD
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 
+/* viterbi_frameshift.c */
+extern int p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
+extern int p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, const P7_GMX *pp, P7_TRACE *tr); 
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);

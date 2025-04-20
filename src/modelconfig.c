@@ -98,6 +98,10 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 
       free(occ);
     }
+    else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL) {
+      for (k = 0; k < hmm->M; k++)
+        p7P_TSC(gm, k, p7P_BM) = log(1.0);
+  }
   else  /* glocal modes: left wing retraction; must be in log space for precision */
     {
       Z = log(hmm->t[0][p7H_MD]);
@@ -271,15 +275,19 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
       free(occ);
     }
+  else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL) {
+    for (k = 0; k < hmm->M; k++)
+      p7P_TSC(gm_fs, k, p7P_BM) = log(1.0);
+  }
   else  /* glocal modes: left wing retraction; must be in log space for precision */
     {
       Z = log(hmm->t[0][p7H_MD]);
       p7P_TSC(gm_fs, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
       for (k = 1; k < hmm->M; k++)
-    {
-       p7P_TSC(gm_fs, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
-       Z += log(hmm->t[k][p7H_DD]);
-    }
+      {
+         p7P_TSC(gm_fs, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
+         Z += log(hmm->t[k][p7H_DD]);
+       }
     }
   
   /* E state loop/move probabilities: nonzero for MOVE allows loops/multihits

@@ -44,16 +44,16 @@
  * Returns:   <eslOK> on success.
  */
 int
-p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr)
+p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr)
 {
   int     status;
   int     i;      /* position in seq (1..L) */
   int     k;      /* position in model (1..M) */ 
   int     c;
-  int     M   = gm->M;
+  int     M   = gm_fs->M;
   float **dp  = gx->dp;
   float  *xmx = gx->xmx;
-  float const *tsc  = gm->tsc;
+  float const *tsc  = gm_fs->tsc;
   float  *sc;      /* scores of possible choices: up to 2M-1, in the case of exits to E  */
   //int d;
   int     scur, sprv;
@@ -76,24 +76,19 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
         if   (XMX_FS(i,p7G_C) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
         if   (i < 4) { scur = p7T_E; break; }
         
-        sc[0] = XMX_FS(i-3, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
-        sc[1] = XMX_FS(i-2, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
-        sc[2] = XMX_FS(i-1, p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
-        sc[3] = XMX_FS(i,   p7G_E) + gm->xsc[p7P_E][p7P_MOVE];
+        sc[0] = XMX_FS(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
+        sc[1] = XMX_FS(i-2, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
+        sc[2] = XMX_FS(i-1, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
+        sc[3] = XMX_FS(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
        
         esl_vec_FLogNorm(sc, 4);
-        switch (esl_rnd_FChoose(r, sc, 4)) {
-          case 0: scur = p7T_C;  break;
-          case 1: scur = p7T_C;  break;
-          case 2: scur = p7T_C;  break;
-          case 3: scur = p7T_E;  break;
-        }
-      break;
+        scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_C : p7T_E;
+        break;
   
       /* E connects from any M or D state. k set here */
       case p7T_E:  
         if (XMX_FS(i, p7G_E) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
-      if (p7_fs_profile_IsLocal(gm)) 
+      if (p7_fs_profile_IsLocal(gm_fs)) 
       { /* local models come from any M, D */
         sc[0] = sc[M+1] = -eslINFINITY;
         for (k = 1; k <= M; k++) sc[k]   = MMX_FS(i,k,p7G_C0);
@@ -163,8 +158,8 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       case p7T_B:    
         if (XMX_FS(i,p7G_B) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
 
-        sc[0] = XMX_FS(i, p7G_N) + gm->xsc[p7P_N][p7P_MOVE];
-        sc[1] = XMX_FS(i, p7G_J) + gm->xsc[p7P_J][p7P_MOVE];
+        sc[0] = XMX_FS(i, p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE];
+        sc[1] = XMX_FS(i, p7G_J) + gm_fs->xsc[p7P_J][p7P_MOVE];
         esl_vec_FLogNorm(sc, 2); 
         scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_N : p7T_J;
         break;
@@ -172,14 +167,21 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       /* J connects from E(i) or J(i-1) */
       case p7T_J:  
         if (XMX_FS(i,p7G_J) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
-        if   (i < 4) { scur = p7T_E; break; }
- 
-        sc[0] = XMX_FS(i-3,p7G_J) + gm->xsc[p7P_J][p7P_LOOP];
-        sc[1] = XMX_FS(i-2,p7G_J) + gm->xsc[p7P_J][p7P_LOOP];
-        sc[2] = XMX_FS(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP]; 
-        sc[3] = XMX_FS(i,  p7G_E) + gm->xsc[p7P_E][p7P_LOOP];
-        esl_vec_FLogNorm(sc, 4); 
-        scur = (esl_rnd_FChoose(r, sc, 4) == 0) ? p7T_J : p7T_E;  
+        if(gm_fs->spliced) {
+          sc[0] = XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
+          sc[1] = XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+          esl_vec_FLogNorm(sc, 2);
+          scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_J : p7T_E;
+        }
+        else { 
+          if   (i < 4) { scur = p7T_E; break; }
+          sc[0] = XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
+          sc[1] = XMX_FS(i-2,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
+          sc[2] = XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP]; 
+          sc[3] = XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+          esl_vec_FLogNorm(sc, 4); 
+          scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_J : p7T_E;  
+        }
         break;
       default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
       } /* end switch over statetype[tpos-1] */
@@ -207,7 +209,7 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
     } /* end traceback, at S state */
 
   if ((status = p7_trace_fs_Reverse(tr)) != eslOK) goto ERROR;
-  tr->M = gm->M;
+  tr->M = gm_fs->M;
   tr->L = L;
   free(sc);
   return eslOK;

@@ -625,6 +625,13 @@ p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L)
   ploop = 1.0f - pmove;
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
+
+  if(gm_fs->spliced) {
+    pmove = (2.0f + gm_fs->nj) / ((float) L + 2.0f + gm_fs->nj);
+    ploop = 1.0f - pmove;
+    gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
+    gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
+  }
   gm_fs->L = L;
   return eslOK;
 }

@@ -349,6 +349,7 @@ typedef struct p7_fs_profile_s {
   int     allocM;                         /* max # of nodes allocated in this structure                       */
   int     M;                              /* number of nodes in the model                                     */
   int     max_length;                     /* calculated upper bound on emitted seq length                     */
+  int     spliced;                        /* controlls loop distance of J state to allow non-mod 3 introns    */
   float   nj;                             /* expected # of uses of J; precalculated from loop config          */
 
   /* Info, most of which is a copy from parent HMM:                                                           */

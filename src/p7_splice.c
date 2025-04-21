@@ -740,7 +740,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
       if ((status = fill_holes_in_graph(target_range, graph, gm, hmm, pli->bg, gcode, seq_file)) != eslOK) goto ERROR;
       //graph_dump(stdout, target_range, graph, FALSE);
-      target_range_dump(stdout, target_range, TRUE);
+      //target_range_dump(stdout, target_range, TRUE);
      
       //check_for_bypasses(target_range, graph);
 
@@ -768,7 +768,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
     split_hits_in_path(graph, path, gm, hmm, pli->bg, gcode, path_seq, target_range->orig_N);
 
-    path_dump(stdout, path);
+    //path_dump(stdout, path);
 
     if(path->path_len > 1) {
       frameshift = FALSE;
@@ -2115,6 +2115,7 @@ fill_holes_in_graph(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, const P7_PR
 
               if ((gap = find_the_gap(th, gm, target_seq, target_range->orig_N, h1, h2, graph->revcomp)) == NULL) goto ERROR;
               //if((top_ten = align_the_gap(target_range, gm, hmm, bg, target_seq, gcode, gap, &num_hits, graph->revcomp)) == NULL) goto ERROR;
+              
               if((top_ten = align_the_gap2(gap, hmm, bg, target_seq, gcode, graph->revcomp, &num_hits)) == NULL) goto ERROR; 
               if(num_hits)
                 if ((status = bridge_the_gap(target_range, graph, top_ten, gm, hmm, bg, gcode, target_seq, h1, h2, num_hits)) != eslOK) goto ERROR;
@@ -4142,16 +4143,16 @@ align_the_gap2(SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *targ
 
     new_hit->dcl->ihmm =  tr->hmmfrom[i] + gap->hmm_start - 1;
     new_hit->dcl->jhmm =  tr->hmmto[i]   + gap->hmm_start - 1;
- 
+
     if(revcomp) {
-      new_hit->dcl->iali = sub_sq->start - sub_sq->n + tr->sqfrom[i];
-      new_hit->dcl->jali = sub_sq->start - sub_sq->n + tr->sqto[i];
+      new_hit->dcl->iali = sub_sq->n - tr->sqfrom[i] + sub_sq->end + tr->c[tr->tfrom[i]+1] - 1;
+      new_hit->dcl->jali = sub_sq->n - tr->sqto[i]   + sub_sq->end;
     }
     else {
-      new_hit->dcl->iali = sub_sq->start + tr->sqfrom[i] - 1;
+      new_hit->dcl->iali = sub_sq->start + tr->sqfrom[i] - tr->c[tr->tfrom[i]+1];
       new_hit->dcl->jali = sub_sq->start + tr->sqto[i]   - 1;
     } 
-
+    
     p7_trace_fs_Append(new_hit->dcl->tr, p7T_S , 0, 0, 0);
     p7_trace_fs_Append(new_hit->dcl->tr, p7T_N , 0, tr->sqfrom[i], 0);
 
@@ -4162,7 +4163,6 @@ align_the_gap2(SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *targ
     p7_trace_fs_Append(new_hit->dcl->tr, p7T_T , 0, 0, 0);
 
     new_hit->dcl->ad = p7_alidisplay_fs_Create(new_hit->dcl->tr, 0, sub_fs_model, sub_sq, gcode); 
-
     new_hit->dcl->scores_per_pos = NULL;
     p7_splice_compute_ali_scores_fs(new_hit->dcl, new_hit->dcl->tr, sub_dsq, sub_fs_model, sub_sq->abc);
 

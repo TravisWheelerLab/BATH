@@ -216,7 +216,6 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   gm_fs->allocM           = allocM;
   gm_fs->M                = 0;
   gm_fs->max_length       = -1;
-  gm_fs->spliced          = 0;
   gm_fs->nj               = 0.0f;
 
   gm_fs->roff             = -1;
@@ -329,7 +328,6 @@ p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
   dst->allocM      = src->allocM;
   dst->M           = src->M;
   dst->max_length  = src->max_length;
-  dst->spliced     = src->spliced;  
   dst->nj          = src->nj;
 
   dst->roff        = src->roff;

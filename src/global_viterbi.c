@@ -380,7 +380,7 @@ p7_fs_global_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const 
     }
 
     XMX_FS(i,p7G_E) = -eslINFINITY;
-    XMX_FS(i,p7G_J) = -eslINFINITY;
+    XMX_FS(i,p7G_J) = -eslINFINITY; 
     XMX_FS(i,p7G_C) = -eslINFINITY;
     XMX_FS(i,p7G_N) = -eslINFINITY;
     XMX_FS(i,p7G_B) = -eslINFINITY;

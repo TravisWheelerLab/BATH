@@ -287,6 +287,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
         {
 	  //if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0)  hmm->fs = fs; 
 	  hmm->fs = fs;
+      hmm->stop = fs;
           if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)    hmm->ct = ct; 
 
           r = esl_randomness_CreateFast(42);
@@ -369,6 +370,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       { 
 	//if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0) hmm->fs = fs;
 	hmm->fs = fs;
+    hmm->stop = fs;
         if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)   hmm->ct = ct;
  
         r = esl_randomness_CreateFast(42);

@@ -167,7 +167,8 @@ typedef struct p7_hmm_s {
   float **mat;                  /* match emissions.  mat[1..M][0..K-1]                     */ 
   float **ins;                  /* insert emissions. ins[1..M][0..K-1]                     */
   float   fs;                   /* frameshift probability.                                 */
-  int     ct;                   /* codon translationa table                                */
+  float   stop;                   /* stop codon probability.                                 */
+  int     ct;                   /* codon translation table                                */
   /*::cexcerpt::plan7_core::end::*/
 
   /* Annotation. Everything but <name> is optional. Flags are set when
@@ -349,7 +350,6 @@ typedef struct p7_fs_profile_s {
   int     allocM;                         /* max # of nodes allocated in this structure                       */
   int     M;                              /* number of nodes in the model                                     */
   int     max_length;                     /* calculated upper bound on emitted seq length                     */
-  int     spliced;                        /* controlls loop distance of J state to allow non-mod 3 introns    */
   float   nj;                             /* expected # of uses of J; precalculated from loop config          */
 
   /* Info, most of which is a copy from parent HMM:                                                           */
@@ -655,11 +655,6 @@ typedef struct p7_gmx_s {
 #define IMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_I])
 #define DMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
 #define XMX(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
-
-#define MMX_FS_FWD(i,k,c) (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
-#define IMX_FS_FWD(i,k)   (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_I])
-#define DMX_FS_FWD(i,k)   (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_D])
-#define XMX_FS_FWD(i,s)   (xmx[(i+5)     * p7G_NXCELLS    + (s)])
 
 #define MMX_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
 #define IMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_I])
@@ -1584,6 +1579,10 @@ extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCOD
 /* viterbi_frameshift.c */
 extern int p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
 extern int p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, const P7_GMX *pp, P7_TRACE *tr); 
+
+/* viterbi_translated.c */
+extern int p7_trans_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
+extern int p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);

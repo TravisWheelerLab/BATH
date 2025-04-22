@@ -739,9 +739,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
       if((status = longest_path_upstream(target_range, graph)) != eslOK) goto ERROR;
 
       if ((status = fill_holes_in_graph(target_range, graph, gm, hmm, pli->bg, gcode, seq_file)) != eslOK) goto ERROR;
-      //graph_dump(stdout, target_range, graph, FALSE);
-      //target_range_dump(stdout, target_range, TRUE);
+      target_range_dump(stdout, target_range, TRUE);
      
+     // graph_dump(stdout, target_range, graph, FALSE);
       //check_for_bypasses(target_range, graph);
 
       
@@ -768,7 +768,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
 
     split_hits_in_path(graph, path, gm, hmm, pli->bg, gcode, path_seq, target_range->orig_N);
 
-    //path_dump(stdout, path);
+    path_dump(stdout, path);
 
     if(path->path_len > 1) {
       frameshift = FALSE;
@@ -2054,8 +2054,10 @@ fill_holes_in_graph(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, const P7_PR
 
           if(seq_gap_len < MAX_GAP_RANGE) {
             /* make sure connecting to down is worth losing any current downstream path of up */
-            if(graph->path_scores[down] > downstream_loss) {    
             
+            //printf("up %d down %d graph->path_scores[down] %f downstream_loss %f\n", up+1, down +1, graph->path_scores[down], downstream_loss);
+            if(graph->path_scores[down] > downstream_loss) {    
+                      
               in_gap[down] = TRUE;
               num_in_gap++;
 
@@ -2112,7 +2114,7 @@ fill_holes_in_graph(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, const P7_PR
               seq_gap_len = down_hit->dcl->iali - up_hit->dcl->jali - 1;
         
             if(hmm_gap_len > 0 && seq_gap_len >= hmm_gap_len*3) { 
-
+              printf("h1 %d h2 %d\n", h1+1, h2+1);
               if ((gap = find_the_gap(th, gm, target_seq, target_range->orig_N, h1, h2, graph->revcomp)) == NULL) goto ERROR;
               //if((top_ten = align_the_gap(target_range, gm, hmm, bg, target_seq, gcode, gap, &num_hits, graph->revcomp)) == NULL) goto ERROR;
               
@@ -4114,24 +4116,36 @@ align_the_gap2(SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *targ
  
   /* Build sub model */ 
   sub_hmm    = extract_sub_hmm(hmm, gap->hmm_start, gap->hmm_end);  
+  /* Turn off framshifts */
+  sub_hmm->fs   = 0.;
+  sub_hmm->stop = 0.01;
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, gap_len, p7_LOCAL);
+  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, 100, p7_GLOBAL);
+  p7_fs_ReconfigLength(sub_fs_model, gap_len*3);  // x3 enforces single nucleotide loop 
+
+  sub_fs_model->L = gap_len;
+  sub_fs_model->mode = p7_LOCAL;
 
   /* Get sub sequence */
   sub_dsq = extract_sub_seq(target_seq, gap->seq_start, gap->seq_end, revcomp);
   sub_sq = esl_sq_CreateDigitalFrom(target_seq->abc, target_seq->name, sub_dsq, gap_len, NULL, NULL, NULL); 
   sub_sq->start = gap->seq_start;
   sub_sq->end   = gap->seq_end; 
-  
-  vit_mx = p7_gmx_fs_Create(sub_fs_model->M, gap_len, gap_len, p7P_CODONS);
+  printf("sub_sq->start %d sub_sq->end %d\n", sub_sq->start, sub_sq->end);
+  //vit_mx = p7_gmx_fs_Create(sub_fs_model->M, gap_len, gap_len, p7P_CODONS);
+  vit_mx = p7_gmx_Create(sub_fs_model->M, gap_len);
 
-  p7_fs_Viterbi(sub_dsq, gcode, gap_len, sub_fs_model, vit_mx, NULL);
-  
+//  p7_fs_Viterbi(sub_dsq, gcode, gap_len, sub_fs_model, vit_mx, NULL);
+  p7_trans_Viterbi(sub_dsq, gcode, gap_len, sub_fs_model, vit_mx, NULL); 
+
+  if(sub_sq->start == 5994987 && sub_sq->end == 5996305)
+    p7_gmx_Dump(stdout, vit_mx, p7_DEFAULT);
   tr = p7_trace_fs_Create();
-  p7_fs_VTrace(sub_dsq, gap_len, sub_fs_model, vit_mx, NULL, tr);
- 
+  //p7_fs_VTrace(sub_dsq, gap_len, sub_fs_model, vit_mx, NULL, tr);
+  p7_trans_VTrace(sub_dsq, gap_len, gcode, sub_fs_model, vit_mx, tr);
+
   p7_trace_Index(tr);  
-  
+// p7_trace_fs_Dump (stdout, tr, NULL, NULL); 
   ret_hits = NULL;
   ESL_ALLOC(ret_hits, sizeof(P7_HIT*) * tr->ndom);
  
@@ -4152,13 +4166,13 @@ align_the_gap2(SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *targ
       new_hit->dcl->iali = sub_sq->start + tr->sqfrom[i] - tr->c[tr->tfrom[i]+1];
       new_hit->dcl->jali = sub_sq->start + tr->sqto[i]   - 1;
     } 
-    
+//  printf("ihmm %d jhmm %d iali %d jali %d\n", new_hit->dcl->ihmm, new_hit->dcl->jhmm, new_hit->dcl->iali, new_hit->dcl->jali);  
     p7_trace_fs_Append(new_hit->dcl->tr, p7T_S , 0, 0, 0);
     p7_trace_fs_Append(new_hit->dcl->tr, p7T_N , 0, tr->sqfrom[i], 0);
-
+    
     for(z = tr->tfrom[i]; z <= tr->tto[i]; z++) 
       p7_trace_fs_Append(new_hit->dcl->tr, tr->st[z], tr->k[z], tr->i[z], tr->c[z]);
-
+    
     p7_trace_fs_Append(new_hit->dcl->tr, p7T_C , 0, tr->sqto[i], 0);
     p7_trace_fs_Append(new_hit->dcl->tr, p7T_T , 0, 0, 0);
 

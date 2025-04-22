@@ -230,6 +230,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    one_indel  = log(hmm->fs);
   float    two_indel  = log(hmm->fs/2);
   float    no_indel   = log(1. - hmm->fs*4);
+  float    stop_codon = log(hmm->stop);
+
+  if(hmm->fs == 0. && hmm->stop != 0.)
+    no_indel   = log(1. - hmm->stop);
 
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
@@ -511,7 +515,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
           codon = 16 * v + 4 * u + t;
           a = gcode->basic[codon];
           if(a == hmm->abc->Kp-2) // stop codon
-            p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
+            p7P_MSC_CODON(gm_fs, k, codon_idx) += stop_codon;
           else
             p7P_MSC_CODON(gm_fs, k, codon_idx) += no_indel;
           for (w = 0; w < 4; w++) {
@@ -626,12 +630,6 @@ p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L)
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
 
-  if(gm_fs->spliced) {
-    pmove = (2.0f + gm_fs->nj) / ((float) L + 2.0f + gm_fs->nj);
-    ploop = 1.0f - pmove;
-    gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
-    gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
-  }
   gm_fs->L = L;
   return eslOK;
 }

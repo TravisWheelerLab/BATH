@@ -141,6 +141,7 @@ main(int argc, char **argv)
       if(fs != hmm->fs || ct != hmm->ct)
         {
           hmm->fs = fs;
+          hmm->stop = fs;
           hmm->ct = ct;
           r = esl_randomness_CreateFast(42);
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);

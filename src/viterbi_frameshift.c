@@ -186,23 +186,14 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
 
     if(i > 2)
     {
-      if(gm_fs->spliced)
-        XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
-                                  XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
-      else
-        XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
-                                  XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
+      XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
+                                XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
 
       XMX_FS(i,p7G_C) = ESL_MAX(XMX_FS(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
                                 XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
       XMX_FS(i,p7G_N) =         XMX_FS(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
     } else {
-      if(gm_fs->spliced)
-        XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
-                                  XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
-      else
-        XMX_FS(i,p7G_J) =         XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP];
-
+      XMX_FS(i,p7G_J) =         XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP];
       XMX_FS(i,p7G_C) =         XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE];
       XMX_FS(i,p7G_N) =         0.;
     }
@@ -314,12 +305,8 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
                                       XMX_FS(i,p7G_E));
 
     /* J, C and N states */
-    if(gm_fs->spliced)
-      XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
-                                XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
-    else
-      XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
-                                XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
+    XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
+                              XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
 
     XMX_FS(i,p7G_C) = ESL_MAX(XMX_FS(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
                               XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
@@ -357,7 +344,6 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
   int          M   = gm_fs->M;
   int          c   = 0;
   int          prev_c;
-  int          j_loop;
   float      **dp  = gx->dp;    /* so {MDI}MX() macros work       */
   float       *xmx = gx->xmx;   /* so XMX() macro works           */
   float        tol = 1e-5;  /* floating point "equality" test */
@@ -372,8 +358,6 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
 #endif
-
-  j_loop = (gm_fs->spliced ? 1 : 3);
 
   if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
   if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) return status;
@@ -457,7 +441,7 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
     case p7T_J:         /* J connects from E(i) or J(i-1) */
       if (XMX_FS(i,p7G_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
     
-      if      (esl_FCompare_old(XMX_FS(i,p7G_J), XMX_FS(i-j_loop,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP], tol) == eslOK) scur = p7T_J;
+      if      (esl_FCompare_old(XMX_FS(i,p7G_J), XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP], tol) == eslOK) scur = p7T_J;
       else if (esl_FCompare_old(XMX_FS(i,p7G_J), XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP], tol) == eslOK) scur = p7T_E;
       else  ESL_EXCEPTION(eslFAIL, "J at i=%d couldn't be traced", i);
       

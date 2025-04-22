@@ -799,7 +799,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Convert to an optimized model */
     gm_fs = p7_profile_fs_Create (hmm->M, abcAA);
-    gm_fs->spliced = esl_opt_IsUsed(go, "--splice");
     gm = p7_profile_Create (hmm->M, abcAA);
     om = p7_oprofile_Create(hmm->M, abcAA);
     p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */

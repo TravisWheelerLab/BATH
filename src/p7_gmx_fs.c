@@ -541,6 +541,102 @@ p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int ken
   return eslOK;
 }
 
+/* Function:  p7_gmx_sp_Dump()
+ * Synopsis:  Dump a spliced DP matrix to a stream, for diagnostics.
+ *
+ * Purpose:   Dump matrix <gx> to stream <fp> for diagnostics.
+ *
+ *            <flags> control some optional output behaviors, as follows:
+ *              | <p7_HIDE_SPECIALS> | don't show scores for <ENJBC> states  |
+ *              | <p7_SHOW_LOG>      | <gx> is in probs; show as log probs   |
+ *
+ *            int sci_note = TRUE to print values in scientific notation
+ */
+int
+p7_gmx_sp_Dump(FILE *ofp, P7_GMX *gx, int flags)
+{
+  return p7_gmx_sp_DumpWindow(ofp, gx, 0, gx->L, 0, gx->M, flags);
+}
+
+
+int
+p7_gmx_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int flags)
+{
+  int   width     = 9;
+  int   precision = 5;
+  int   i, k, x;
+  float val;
+
+  /* Header */
+  fprintf(ofp, "     ");
+  for (k = kstart; k <= kend;  k++) fprintf(ofp, "%*d ", width, k);
+  if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
+  fprintf(ofp, "      ");
+  for (k = kstart; k <= kend; k++)  fprintf(ofp, "%*.*s ", width, width, "----------");
+  if (! (flags & p7_HIDE_SPECIALS))
+    for (x = 0; x < 5; x++) fprintf(ofp, "%*.*s ", width, width, "----------");
+  fprintf(ofp, "\n");
+
+  /* DP matrix data */
+  for (i = istart; i <= iend; i++)
+  {
+      fprintf(ofp, "%3d M ", i);
+      for (k = kstart; k <= kend;        k++)
+    {
+      val = gx->dp[i][k * p7G_NSCELLS_SP + p7G_M];
+      if (flags & p7_SHOW_LOG) val = log(val);
+      fprintf(ofp, "%*.*f ", width, precision, val);
+    }
+      if (! (flags & p7_HIDE_SPECIALS))
+    {
+          for (x = 0;  x <  p7G_NXCELLS; x++)
+        {
+          val = gx->xmx[  i * p7G_NXCELLS + x];
+          if (flags & p7_SHOW_LOG) val = log(val);
+          fprintf(ofp, "%*.*f ", width, precision, val);
+        }
+    }
+      fprintf(ofp, "\n");
+
+      fprintf(ofp, "%3d I ", i);
+      for (k = kstart; k <= kend;        k++)
+    {
+      val = gx->dp[i][k * p7G_NSCELLS_SP + p7G_I];
+      if (flags & p7_SHOW_LOG) val = log(val);
+      fprintf(ofp, "%*.*f ", width, precision, val);
+    }
+      fprintf(ofp, "\n");
+
+      fprintf(ofp, "%3d D ", i);
+      for (k = kstart; k <= kend;        k++)
+    {
+      val =  gx->dp[i][k * p7G_NSCELLS_SP + p7G_D];
+      if (flags & p7_SHOW_LOG) val = log(val);
+      fprintf(ofp, "%*.*f ", width, precision, val);
+    }
+    fprintf(ofp, "\n");
+    fprintf(ofp, "%3d R ", i);
+    for (k = kstart; k <= kend;        k++)
+    {
+      val =  gx->dp[i][k * p7G_NSCELLS_SP + p7G_R];
+      if (flags & p7_SHOW_LOG) val = log(val);
+      fprintf(ofp, "%*.*f ", width, precision, val);
+    }
+     fprintf(ofp, "\n");
+    fprintf(ofp, "%3d P ", i);
+    for (k = kstart; k <= kend;        k++)
+    {
+      val =  gx->dp[i][k * p7G_NSCELLS_SP + p7G_P];
+      if (flags & p7_SHOW_LOG) val = log(val);
+      fprintf(ofp, "%*.*f ", width, precision, val);
+    }
+
+    fprintf(ofp, "\n\n");
+  }
+  return eslOK;
+}
+
+
 
 
 /*****************************************************************

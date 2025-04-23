@@ -250,7 +250,7 @@ extern int path_exists (SPLICE_GRAPH *graph, int upstream_node, int downstream_n
 extern int path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *visited);
 extern SPLICE_GAP* find_the_gap (P7_TOPHITS *th, const P7_PROFILE *gm, ESL_SQ *target_seq, int orig_N, int upstream_node, int downstream_node, int revcomp);
 extern P7_HIT** align_the_gap(TARGET_RANGE *target_range, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, SPLICE_GAP *gap, int *num_hits, int revcomp);
-extern P7_HIT** align_the_gap2(SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, int revcomp, int *num_hits);
+extern P7_HIT** align_the_gap2(TARGET_RANGE *target_range, SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, int revcomp, int *num_hits);
 extern P7_HMM* extract_sub_hmm (const P7_HMM *hmm, int start, int end);
 extern ESL_DSQ* extract_sub_seq(ESL_SQ *target_seq, int start, int end, int revcomp);
 extern int add_missed_hit_to_target_range(TARGET_RANGE *target_range, P7_HIT *hit);

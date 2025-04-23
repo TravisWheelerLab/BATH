@@ -741,7 +741,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFI
       if ((status = fill_holes_in_graph(target_range, graph, gm, hmm, pli->bg, gcode, seq_file)) != eslOK) goto ERROR;
       target_range_dump(stdout, target_range, TRUE);
      
-     // graph_dump(stdout, target_range, graph, FALSE);
+     graph_dump(stdout, target_range, graph, FALSE);
       //check_for_bypasses(target_range, graph);
 
       
@@ -2118,7 +2118,7 @@ fill_holes_in_graph(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, const P7_PR
               if ((gap = find_the_gap(th, gm, target_seq, target_range->orig_N, h1, h2, graph->revcomp)) == NULL) goto ERROR;
               //if((top_ten = align_the_gap(target_range, gm, hmm, bg, target_seq, gcode, gap, &num_hits, graph->revcomp)) == NULL) goto ERROR;
               
-              if((top_ten = align_the_gap2(gap, hmm, bg, target_seq, gcode, graph->revcomp, &num_hits)) == NULL) goto ERROR; 
+              if((top_ten = align_the_gap2(target_range, gap, hmm, bg, target_seq, gcode, graph->revcomp, &num_hits)) == NULL) goto ERROR; 
               if(num_hits)
                 if ((status = bridge_the_gap(target_range, graph, top_ten, gm, hmm, bg, gcode, target_seq, h1, h2, num_hits)) != eslOK) goto ERROR;
 
@@ -4095,17 +4095,28 @@ align_the_gap(TARGET_RANGE *target_range, const P7_PROFILE *gm, const P7_HMM *hm
 }
 
 P7_HIT**
-align_the_gap2(SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, int revcomp, int *num_hits)
+align_the_gap2(TARGET_RANGE *target_range, SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *target_seq, ESL_GENCODE *gcode, int revcomp, int *num_hits)
 {
  
-  int         i, z;
+  int         i, h, y, z;
+  int         z1, z2;
+  int         c;
   int         gap_len;
+  int         intron_cnt;
+  int         hit_cnt;
+  int         start_new;
+  int         ihmm, jhmm;
+  int         iali, jali;
+  int         duplicate;
+  int         exon_min, exon_max;
+  int         hit_min, hit_max;
   P7_HMM       *sub_hmm;
   P7_FS_PROFILE *sub_fs_model;
   P7_GMX       *vit_mx;
   P7_HIT       *new_hit;
   P7_HIT      **ret_hits; 
   P7_TRACE     *tr; 
+  P7_TOPHITS   *th;
   ESL_DSQ      *sub_dsq;
   ESL_SQ       *sub_sq; 
   int status;
@@ -4113,78 +4124,134 @@ align_the_gap2(SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, ESL_SQ *targ
   gap_len =  abs(gap->seq_end - gap->seq_start) + 1;
   if(gap_len < 3) return NULL; 
 
- 
+  th = target_range->th;
+
   /* Build sub model */ 
   sub_hmm    = extract_sub_hmm(hmm, gap->hmm_start, gap->hmm_end);  
   /* Turn off framshifts */
   sub_hmm->fs   = 0.;
-  sub_hmm->stop = 0.01;
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, 100, p7_GLOBAL);
-  p7_fs_ReconfigLength(sub_fs_model, gap_len*3);  // x3 enforces single nucleotide loop 
-
-  sub_fs_model->L = gap_len;
-  sub_fs_model->mode = p7_LOCAL;
+  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, gap_len*3, p7_LOCAL); //len*3 to get single nucleotide loops
 
   /* Get sub sequence */
   sub_dsq = extract_sub_seq(target_seq, gap->seq_start, gap->seq_end, revcomp);
   sub_sq = esl_sq_CreateDigitalFrom(target_seq->abc, target_seq->name, sub_dsq, gap_len, NULL, NULL, NULL); 
   sub_sq->start = gap->seq_start;
   sub_sq->end   = gap->seq_end; 
-  printf("sub_sq->start %d sub_sq->end %d\n", sub_sq->start, sub_sq->end);
-  //vit_mx = p7_gmx_fs_Create(sub_fs_model->M, gap_len, gap_len, p7P_CODONS);
-  vit_mx = p7_gmx_Create(sub_fs_model->M, gap_len);
+  vit_mx = p7_gmx_fs_Create(sub_fs_model->M, gap_len, gap_len, 2);
 
-//  p7_fs_Viterbi(sub_dsq, gcode, gap_len, sub_fs_model, vit_mx, NULL);
-  p7_trans_Viterbi(sub_dsq, gcode, gap_len, sub_fs_model, vit_mx, NULL); 
+  p7_sp_trans_semiglobal_Viterbi(sub_dsq, gcode, gap_len, sub_fs_model, vit_mx);
 
-  if(sub_sq->start == 5994987 && sub_sq->end == 5996305)
-    p7_gmx_Dump(stdout, vit_mx, p7_DEFAULT);
   tr = p7_trace_fs_Create();
-  //p7_fs_VTrace(sub_dsq, gap_len, sub_fs_model, vit_mx, NULL, tr);
-  p7_trans_VTrace(sub_dsq, gap_len, gcode, sub_fs_model, vit_mx, tr);
-
-  p7_trace_Index(tr);  
-// p7_trace_fs_Dump (stdout, tr, NULL, NULL); 
-  ret_hits = NULL;
-  ESL_ALLOC(ret_hits, sizeof(P7_HIT*) * tr->ndom);
  
-  for(i = 0; i < tr->ndom; i++) {
+  p7_sp_trans_semiglobal_VTrace(sub_dsq, gap_len, gcode, sub_fs_model, vit_mx, tr); 
 
-    new_hit          = p7_hit_Create_empty();
-    new_hit->dcl     = p7_domain_Create_empty();
-    new_hit->dcl->tr = p7_trace_fs_Create();
+  /* Find number of introns in trace */
+  intron_cnt = 0; 
+  for(z = 0; z < tr->N; z++)
+    if(tr->st[z] == p7T_R) intron_cnt++;
 
-    new_hit->dcl->ihmm =  tr->hmmfrom[i] + gap->hmm_start - 1;
-    new_hit->dcl->jhmm =  tr->hmmto[i]   + gap->hmm_start - 1;
+  ret_hits = NULL;
+  ESL_ALLOC(ret_hits, sizeof(P7_HIT*) * (intron_cnt+1));
+ 
+  /* Find first M state - start of first hit */
+  for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
+  
+  /* Find last M state - end of last hit */
+  for(z2 = tr->N-1; z1 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
 
-    if(revcomp) {
-      new_hit->dcl->iali = sub_sq->n - tr->sqfrom[i] + sub_sq->end + tr->c[tr->tfrom[i]+1] - 1;
-      new_hit->dcl->jali = sub_sq->n - tr->sqto[i]   + sub_sq->end;
+  hit_cnt = 0;
+  start_new = TRUE;
+  z = z1;
+  while(z < z2) {
+
+    if(start_new) {
+ 
+      /* Save z value - currently set to fist M state in exon */
+      y = z;
+
+      /*Find end of exon */
+      while(tr->st[z] != p7T_R && tr->st[z] != p7T_E) z++;
+
+      /*Trace back to last M state of exon*/
+      while(tr->st[z] != p7T_M) z--;
+
+      /* Get exon coords */
+      ihmm = tr->k[y] + gap->hmm_start - 1;  
+      jhmm = tr->k[z] + gap->hmm_start - 1;
+  
+      if(revcomp) {
+        iali = sub_sq->n - tr->i[y] + sub_sq->end + 2;
+        jali = sub_sq->n - tr->i[z] + sub_sq->end;
+      }
+      else {
+        iali = sub_sq->start + tr->i[y] - 3;
+        jali = sub_sq->start + tr->i[z] - 1;
+      }
+
+      /* check if this exon is a duplicate of an original hit */
+      duplicate = FALSE;
+
+      exon_min = ESL_MIN(iali, jali);
+      exon_max = ESL_MAX(iali, jali);
+
+      for (h = 0 ; h < target_range->orig_N; h++) {
+        /* If hit is not in gap skip it */
+        if(th->hit[h]->dcl->jhmm < gap->hmm_start || th->hit[h]->dcl->ihmm > gap->hmm_end) continue;
+
+        hit_min = ESL_MIN(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);
+        hit_max = ESL_MAX(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);       
+        /* Is exon entirley overlaped by hit on the sequence */ 
+        if( hit_min <= exon_min && hit_max >= exon_max) {
+          duplicate = TRUE;
+          break;
+        }
+      }  
+
+     if(duplicate) { z++; start_new = FALSE; continue; }
+ 
+      /* Create new hit and  set ihmm and iali coords*/
+      new_hit          = p7_hit_Create_empty();
+      new_hit->dcl     = p7_domain_Create_empty();
+      new_hit->dcl->tr = p7_trace_fs_Create();
+    
+      new_hit->dcl->ihmm = ihmm;
+      new_hit->dcl->jhmm = jhmm;
+      new_hit->dcl->iali = iali;
+      new_hit->dcl->jali = jali;
+   
+      /* Append starting special states */
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_S , 0, 0, 0);
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_N , 0, tr->i[y]-3, 0);
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_B , 0, tr->i[y]-3, 0);
+      
+      /* Append all states between first and last M state */
+      for(i = y; i <= z; i++) {
+        c = (tr->st[i] == p7T_M ? 3 : 0);
+        p7_trace_fs_Append(new_hit->dcl->tr, tr->st[i] , tr->k[i], tr->i[i], c);
+      }
+
+      /* Append ending special states */
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_E, tr->k[z], tr->i[z], 0);
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_C, 0, tr->i[z], 0);
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_T , 0, 0, 0);
+      
+      new_hit->dcl->ad = p7_alidisplay_fs_Create(new_hit->dcl->tr, 0, sub_fs_model, sub_sq, gcode);
+      new_hit->dcl->scores_per_pos = NULL;
+      p7_splice_compute_ali_scores_fs(new_hit->dcl, new_hit->dcl->tr, sub_dsq, sub_fs_model, sub_sq->abc);
+
+      ret_hits[hit_cnt] = new_hit;
+      hit_cnt++;
+ 
+      start_new = FALSE;
     }
-    else {
-      new_hit->dcl->iali = sub_sq->start + tr->sqfrom[i] - tr->c[tr->tfrom[i]+1];
-      new_hit->dcl->jali = sub_sq->start + tr->sqto[i]   - 1;
-    } 
-//  printf("ihmm %d jhmm %d iali %d jali %d\n", new_hit->dcl->ihmm, new_hit->dcl->jhmm, new_hit->dcl->iali, new_hit->dcl->jali);  
-    p7_trace_fs_Append(new_hit->dcl->tr, p7T_S , 0, 0, 0);
-    p7_trace_fs_Append(new_hit->dcl->tr, p7T_N , 0, tr->sqfrom[i], 0);
-    
-    for(z = tr->tfrom[i]; z <= tr->tto[i]; z++) 
-      p7_trace_fs_Append(new_hit->dcl->tr, tr->st[z], tr->k[z], tr->i[z], tr->c[z]);
-    
-    p7_trace_fs_Append(new_hit->dcl->tr, p7T_C , 0, tr->sqto[i], 0);
-    p7_trace_fs_Append(new_hit->dcl->tr, p7T_T , 0, 0, 0);
-
-    new_hit->dcl->ad = p7_alidisplay_fs_Create(new_hit->dcl->tr, 0, sub_fs_model, sub_sq, gcode); 
-    new_hit->dcl->scores_per_pos = NULL;
-    p7_splice_compute_ali_scores_fs(new_hit->dcl, new_hit->dcl->tr, sub_dsq, sub_fs_model, sub_sq->abc);
-
-    ret_hits[i] = new_hit;
-    
-  } 
-
-  *num_hits = tr->ndom;
+ 
+    z++;
+    if(tr->st[z] == p7T_M) start_new = TRUE;     
+     
+  }
+ 
+  *num_hits = hit_cnt;
  
   p7_hmm_Destroy(sub_hmm);
   p7_profile_fs_Destroy(sub_fs_model);

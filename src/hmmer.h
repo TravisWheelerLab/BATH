@@ -586,6 +586,13 @@ typedef struct p7_hmmfile_s {
 /*****************************************************************
  * 6. P7_GMX: a "generic" dynamic programming matrix
  *****************************************************************/
+enum p7g_scells_e {
+  p7G_M = 0,
+  p7G_I = 1,
+  p7G_D = 2,
+};
+#define p7G_NSCELLS 3
+
 enum p7g_codons_e {
   p7G_C0 = 0,
   p7G_C1 = 3,
@@ -594,13 +601,14 @@ enum p7g_codons_e {
   p7G_C4 = 6,
   p7G_C5 = 7,
 };
-enum p7g_scells_e {
-  p7G_M = 0,
-  p7G_I = 1,
-  p7G_D = 2,
-};
-#define p7G_NSCELLS 3
 #define p7G_NSCELLS_FS 8
+
+enum p7g_splicecells_e {
+  p7G_R = 3,
+  p7G_P = 4,
+};
+#define p7G_NSCELLS_SP 5
+
 enum p7g_xcells_e {
   p7G_E  = 0,
   p7G_N  = 1,
@@ -610,21 +618,6 @@ enum p7g_xcells_e {
 };
 #define p7G_NXCELLS 5
 
-enum p7g_xcodons_b {
-  p7G_B1  = 0,
-  p7G_B2  = 1,
-  p7G_B3  = 2,
-  p7G_B4  = 3,
-  p7G_B5  = 4
-};
-
-enum p7g_xcodons_n {
-  p7G_N1  = 0,
-  p7G_N2  = 1,
-  p7G_N3  = 2,
-  p7G_N4  = 3,
-  p7G_N5  = 4
-};
 
 typedef struct p7_gmx_s {
   int  M;    /* actual model dimension (model 1..M)    */
@@ -661,6 +654,12 @@ typedef struct p7_gmx_s {
 #define DMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
 #define XMX_FS(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
 
+/* splice matrix */
+#define MMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_M])
+#define IMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_I])
+#define DMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_D])
+#define RMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_R])
+#define PMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_P])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
@@ -1584,6 +1583,10 @@ extern int p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, c
 extern int p7_trans_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
 extern int p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
 
+/* viterbi_spliced.c */
+extern int p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *sub_gm, P7_GMX *gx);
+extern int p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr);
+
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);
 extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX *gx, float nu,  P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist);
@@ -1827,6 +1830,8 @@ extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags, int scientific);
 extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 extern int     p7_gmx_fs_DumpWindow_Scientific(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 extern int     p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int kend, int flags);
+extern int     p7_gmx_sp_Dump(FILE *ofp, P7_GMX *gx, int flags);
+extern int     p7_gmx_sp_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
 /* p7_hit.c */
 extern P7_HIT *p7_hit_Create_empty();

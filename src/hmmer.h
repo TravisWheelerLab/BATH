@@ -167,7 +167,6 @@ typedef struct p7_hmm_s {
   float **mat;                  /* match emissions.  mat[1..M][0..K-1]                     */ 
   float **ins;                  /* insert emissions. ins[1..M][0..K-1]                     */
   float   fs;                   /* frameshift probability.                                 */
-  float   stop;                   /* stop codon probability.                                 */
   int     ct;                   /* codon translation table                                */
   /*::cexcerpt::plan7_core::end::*/
 

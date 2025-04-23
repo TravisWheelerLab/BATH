@@ -438,7 +438,6 @@ p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg,
       hmm->t[i][p7H_II] = ESL_MIN(hmm->t[i][p7H_II], bld->max_insert_len*hmm->t[i][p7H_MI]);
 
   hmm->fs = bld->fs;
-  hmm->stop = bld->fs;
   hmm->ct = bld->ct;
 
   if ((status =  effective_seqnumber  (bld, msa, hmm, bg))              != eslOK) goto ERROR;

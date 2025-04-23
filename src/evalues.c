@@ -544,7 +544,6 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   p7_FLogsumInit(); 
 
   hmm->fs = indel_cost;
-  hmm->stop = indel_cost; 
   abcDNA = esl_alphabet_Create(eslDNA);
   ESL_ALLOC(n1,   sizeof(char)   * abcDNA->K);
   ESL_ALLOC(n2,   sizeof(char)   * abcDNA->K);

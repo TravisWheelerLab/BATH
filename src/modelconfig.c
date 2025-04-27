@@ -84,34 +84,34 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 
   /* Entry scores. */
   if (p7_profile_IsLocal(gm))
-    {
-      /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
-       * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
-      Z = 0.;
-      ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
-
-      if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
-      for (k = 1; k <= hmm->M; k++) 
-  Z += occ[k] * (float) (hmm->M-k+1);
-      for (k = 1; k <= hmm->M; k++) 
-  p7P_TSC(gm, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
-
-      free(occ);
-    }
-    else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL) {
-      for (k = 0; k < hmm->M; k++)
-        p7P_TSC(gm, k, p7P_BM) = log(1.0);
-  }
-  else  /* glocal modes: left wing retraction; must be in log space for precision */
-    {
-      Z = log(hmm->t[0][p7H_MD]);
-      p7P_TSC(gm, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
-      for (k = 1; k < hmm->M; k++) 
   {
-     p7P_TSC(gm, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
-     Z += log(hmm->t[k][p7H_DD]);
-  }
-    }
+    /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
+     * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
+     Z = 0.;
+     ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
+
+     if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
+     for (k = 1; k <= hmm->M; k++) 
+       Z += occ[k] * (float) (hmm->M-k+1);
+     for (k = 1; k <= hmm->M; k++) 
+       p7P_TSC(gm, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
+     
+     free(occ);
+   }
+   else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL) {
+     for (k = 0; k < hmm->M; k++)
+       p7P_TSC(gm, k, p7P_BM) = log(2.0 / (float) (hmm->M*(hmm->M+1)));
+   }
+   else  /* glocal modes: left wing retraction; must be in log space for precision */
+   {
+     Z = log(hmm->t[0][p7H_MD]);
+     p7P_TSC(gm, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
+     for (k = 1; k < hmm->M; k++) 
+     {
+       p7P_TSC(gm, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
+       Z += log(hmm->t[k][p7H_DD]);
+     }
+   }
 
   /* E state loop/move probabilities: nonzero for MOVE allows loops/multihits
    * N,C,J transitions are set later by length config 
@@ -261,34 +261,34 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
   /* Entry scores. */
   if (p7_fs_profile_IsLocal(gm_fs))
-    {
-      /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
-       * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
-      Z = 0.;
-      ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
+  {
+    /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
+     * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
+    Z = 0.;
+    ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
 
-      if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
-      for (k = 1; k <= hmm->M; k++)
-    Z += occ[k] * (float) (hmm->M-k+1);
-      for (k = 1; k <= hmm->M; k++)
-    p7P_TSC(gm_fs, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
+    if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
+    for (k = 1; k <= hmm->M; k++)
+      Z += occ[k] * (float) (hmm->M-k+1);
+    for (k = 1; k <= hmm->M; k++)
+      p7P_TSC(gm_fs, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
 
-      free(occ);
-    }
+    free(occ);
+  }
   else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL) {
     for (k = 0; k < hmm->M; k++)
-      p7P_TSC(gm_fs, k, p7P_BM) = log(1.0);
+      p7P_TSC(gm_fs, k, p7P_BM) = log(2.0 / (float) (hmm->M*(hmm->M+1)));
   }
   else  /* glocal modes: left wing retraction; must be in log space for precision */
+  {
+    Z = log(hmm->t[0][p7H_MD]);
+    p7P_TSC(gm_fs, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
+    for (k = 1; k < hmm->M; k++)
     {
-      Z = log(hmm->t[0][p7H_MD]);
-      p7P_TSC(gm_fs, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
-      for (k = 1; k < hmm->M; k++)
-      {
-         p7P_TSC(gm_fs, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
-         Z += log(hmm->t[k][p7H_DD]);
-       }
-    }
+       p7P_TSC(gm_fs, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
+       Z += log(hmm->t[k][p7H_DD]);
+     }
+  }
   
   /* E state loop/move probabilities: nonzero for MOVE allows loops/multihits
    * N,C,J transitions are set later by length config

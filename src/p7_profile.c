@@ -611,7 +611,7 @@ p7_fs_profile_IsLocal(const P7_FS_PROFILE *gm)
 int
 p7_profile_IsMultihit(const P7_PROFILE *gm)
 {
-  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL) return TRUE;
+  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL || gm->mode == p7_GLOBAL) return TRUE;
   return FALSE;
 }
 
@@ -623,7 +623,7 @@ p7_profile_IsMultihit(const P7_PROFILE *gm)
 int
 p7_fs_profile_IsMultihit(const P7_FS_PROFILE *gm)
 {
-  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL) return TRUE;
+  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL  || gm->mode == p7_GLOBAL) return TRUE;
    return FALSE;
 }
 

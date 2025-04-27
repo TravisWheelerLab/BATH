@@ -115,7 +115,9 @@ typedef struct _splice_path {
 
   int revcomp;
 
+  int alloc_len;
   int path_len;
+  int seq_len;
 
   int *node_id;
   int *split;
@@ -219,7 +221,7 @@ extern SPLICE_EDGE* splice_edge_create(void);
 extern SPLICE_GRAPH* splice_graph_create(void);
 extern void splice_graph_destroy (SPLICE_GRAPH* graph);
 extern SPLICE_PATH* splice_path_create(int path_len);
-extern int splice_path_split_hit(SPLICE_PATH *path, SPLICE_EDGE *edge, P7_HIT *up_hit, P7_HIT *down_hit, int split_id);
+extern int splice_path_grow(SPLICE_PATH *path);
 extern void splice_path_destroy(SPLICE_PATH *path);
 extern SPLICE_PIPELINE* splice_pipeline_create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 extern void splice_pipeline_destroy(SPLICE_PIPELINE *pli);
@@ -266,10 +268,11 @@ extern int longest_path_upstream (TARGET_RANGE *target_range, SPLICE_GRAPH *grap
 extern int topological_sort_upstream (TARGET_RANGE *target_range, SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
 extern int split_hits_in_path (SPLICE_GRAPH *graph, SPLICE_PATH *path, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, ESL_SQ *path_seq, int orig_N);
 extern int split_hits_in_path2 (TARGET_RANGE *target_range, SPLICE_GRAPH *graph, SPLICE_PATH *path, const P7_PROFILE *gm, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, ESL_SQ *path_seq);
+extern int splice_path_add_hit(SPLICE_PATH *path, SPLICE_EDGE *edge, P7_HIT *up_hit, P7_HIT *down_hit, int path_step);
 extern float get_partial_ali_score (P7_HIT *hit, int start_k, int end_k);
 
 /* Spliced Hit Processing */
-extern int splice_the_path (TARGET_RANGE *target_range, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int* success); 
+extern int splice_the_path (TARGET_RANGE *target_range, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *stop, int* success); 
 extern int splice_the_path_frameshift (TARGET_RANGE *target_range, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *orig_tophits, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int* success);
 extern int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 extern int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_OPROFILE *om, ESL_SQ *target_seq, ESL_GENCODE *gcode);
@@ -282,4 +285,6 @@ extern void graph_dump(FILE *fp, TARGET_RANGE *target_range, SPLICE_GRAPH *graph
 extern void path_dump(FILE *fp, SPLICE_PATH *path);
 
 
-
+/*helpers */
+extern int is_upstream(SPLICE_GRAPH* graph, int up_node, int down_node);
+extern int edge_exists(SPLICE_GRAPH* graph, int up_node, int down_node);

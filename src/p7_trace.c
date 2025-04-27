@@ -152,6 +152,7 @@ trace_create_engine(int initial_nalloc, int initial_ndomalloc, int with_posterio
   tr->pp = NULL;
   tr->M  = 0;
   tr->L  = 0;
+  tr->fs = 0;
   tr->tfrom   = tr->tto   = NULL;
   tr->sqfrom  = tr->sqto  = NULL;
   tr->hmmfrom = tr->hmmto = NULL;
@@ -196,6 +197,7 @@ trace_fs_create_engine(int initial_nalloc, int initial_ndomalloc, int with_poste
   tr->pp = NULL;
   tr->M  = 0;
   tr->L  = 0;
+  tr->fs = 0;
   tr->tfrom   = tr->tto   = NULL;
   tr->sqfrom  = tr->sqto  = NULL;
   tr->hmmfrom = tr->hmmto = NULL;
@@ -241,6 +243,7 @@ trace_splice_create_engine(int initial_nalloc, int initial_ndomalloc, int with_p
   tr->pp = NULL;
   tr->M  = 0;
   tr->L  = 0;
+  tr->fs = 0;
   tr->tfrom   = tr->tto   = NULL;
   tr->sqfrom  = tr->sqto  = NULL;
   tr->hmmfrom = tr->hmmto = NULL;
@@ -301,6 +304,7 @@ p7_trace_fs_Clone(const P7_TRACE *tr)
   dup->ndom      = tr->ndom;
   dup->M         = tr->M;
   dup->L         = tr->L;
+  dup->fs        = tr->fs;
 
   dup->tfrom     = dup->tto      = NULL;
   dup->sqfrom    = dup->sqto     = NULL;
@@ -378,6 +382,7 @@ p7_trace_Reuse(P7_TRACE *tr)
   tr->N    = 0;
   tr->M    = 0;
   tr->L    = 0;
+  tr->fs   = 0;
   tr->ndom = 0;
   return eslOK;
 }
@@ -1962,6 +1967,7 @@ p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i, int c)
   default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
   }
 
+  if (c != 3) tr->fs++;
   tr->st[tr->N] = st;
   tr->N++;
   return eslOK;
@@ -2065,6 +2071,7 @@ p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, float pp)
   default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
   }
 
+  if (c != 3) tr->fs++;
   tr->st[tr->N] = st;
   tr->N++;
   return eslOK;
@@ -2116,6 +2123,7 @@ p7_trace_splice_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, int sp,
   default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
   }
 
+  if (c != 3) tr->fs++;
   tr->st[tr->N] = st;
   tr->N++;
   return eslOK;

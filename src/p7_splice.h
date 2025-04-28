@@ -12,13 +12,10 @@ typedef struct _target_range {
 
   int          revcomp;      /* reverse complementarity               */
 
-  int64_t      start;        /* range start position                  */
-  int64_t      end;          /* range end postion                     */
-
   int64_t      seqidx;       /* target squence id                     */
   char        *seqname;      /* target sequnce name                   */
 
-  int          seed_hit_idx;    /* <th> index of the seed hit            */
+//  int          seed_hit_idx;    /* <th> index of the seed hit            */
   int         *in_target_range; /* Is the hit part of the current target range */
   int         *reportable;      /* For orignal hits, do they pass the repoting threshold */
   int          orig_N;          /* the number of original hits in the th */ 
@@ -79,6 +76,7 @@ typedef struct _splice_edge {
   float splice_score;
   float signal_score;
 
+  struct _splice_edge *prev;
   struct _splice_edge *next;
 
 } SPLICE_EDGE;
@@ -86,26 +84,37 @@ typedef struct _splice_edge {
 
 typedef struct _splice_graph {
 
-  int nalloc;  
-
-  int revcomp;
-
+  /* Graph size intfo */
+  int nalloc;
   int num_nodes;
   int num_edges;
-  int orig_num_nodes;
- 
+  int orig_N;
+  int split_N;
+   
+  /* Target sequence info */
+  int          revcomp;
+  int64_t      seqidx;      
+  char        *seqname;    
+
+  /* Hits and hit info */
+  int         *in_graph;        /* Is the hit part of the current graph */
+  int         *reportable;      /* For orignal hits, do they pass the repoting threshold */
+  int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
+
+  /*Edge info */  
   int   *out_edge_cnt;
   int   *in_edge_cnt;
   int   *best_out_edge;
   int   *best_in_edge;
-  int   *path_length;
 
+  /* Scores */
   float *path_scores;  //Path score pulled upstream
   float *hit_scores;
 
-  
+  P7_TOPHITS  *th;  
   SPLICE_NODE **ds_nodes;
-  SPLICE_EDGE    **edges;
+  SPLICE_EDGE **edges;
+
 
 } SPLICE_GRAPH;
 
@@ -229,7 +238,6 @@ extern void splice_pipeline_destroy(SPLICE_PIPELINE *pli);
 
 /* Target Range  */
 extern int* build_target_range (TARGET_RANGE *target_range, const P7_TOPHITS *tophits, int *hits_processed, int64_t seqidx, int revcomp); 
-extern ESL_SQ* get_target_range_sequence(const TARGET_RANGE *target_range, const ESL_SQFILE *seq_file);
 extern ESL_SQ* get_sub_sequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp);
 extern int release_hits_from_target_range(const TARGET_RANGE *target_range, int *hit_processed, int *num_hits_proccesed, int range_bound_min, int range_bound_max);
 
@@ -260,8 +268,6 @@ extern int bridge_the_gap(TARGET_RANGE *target_range, SPLICE_GRAPH *graph, P7_HI
 
 /* Splice Path */
 extern int reset_edge_counts(TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
-extern int check_for_loops (SPLICE_GRAPH *graph, P7_TOPHITS *th);
-extern int check_for_bypasses(TARGET_RANGE *traget_range, SPLICE_GRAPH *graph);
 extern int enforce_range_bounds(SPLICE_GRAPH *graph, P7_TOPHITS *th, int64_t* range_bound_mins, int64_t* range_bound_maxs, int range_cnt);
 extern SPLICE_PATH* evaluate_paths (TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
 extern int longest_path_upstream (TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
@@ -282,6 +288,7 @@ extern int p7_splice_compute_ali_scores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ
 /* Debug Dumps */
 extern void target_range_dump(FILE *fp, TARGET_RANGE *target_range, int print_hits);
 extern void graph_dump(FILE *fp, TARGET_RANGE *target_range, SPLICE_GRAPH *graph, int print_edges);
+extern void ds_graph_dump(FILE *fp, TARGET_RANGE *target_range, SPLICE_GRAPH *graph);
 extern void path_dump(FILE *fp, SPLICE_PATH *path);
 
 

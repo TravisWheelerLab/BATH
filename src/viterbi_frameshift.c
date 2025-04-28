@@ -10,8 +10,6 @@
 
 #define IVX(i,k,c) (iv[((k)*p7P_CODONS)+L+3-(i)+(c)])
 
-static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
-
 /* Function:  p7_fs_Viterbi()
  * Synopsis:  The Viterbi algorithm, with frameshift awareness.
  * Incept:    SRE, Tue Jan 30 10:50:53 2007 [Einstein's, St. Louis]
@@ -337,7 +335,7 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
 
 
 int
-p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, const P7_GMX *pp, P7_TRACE *tr)
+p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr)
 {
   int          i   = L;     /* position in seq (1..L)         */
   int          k   = 0;     /* position in model (1..M)       */
@@ -348,7 +346,6 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
   float       *xmx = gx->xmx;   /* so XMX() macro works           */
   float        tol = 1e-5;  /* floating point "equality" test */
   float const *tsc = gm_fs->tsc;
-  float   postprob;
   int     sprv, scur;       /* previous, current state in trace */
   float  path[4];
   int    state[4] = {p7T_M, p7T_I, p7T_D, p7T_B};
@@ -460,12 +457,7 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
        c = esl_vec_FArgMax(match_codon, 5) + 1;
     }
    
-    if(pp != NULL) {
-      postprob = get_postprob(pp, scur, sprv, k, i);
-      if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
-    }
-    else 
-      if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
+    if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
     if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--; 
@@ -483,17 +475,4 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
 
 
 
-static inline float
-get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
-{
-  float **dp  = pp->dp;
-  float  *xmx = pp->xmx;
-  switch (scur) {
-  case p7T_M: return expf(MMX_FS(i,k,p7G_C0));
-  case p7T_I: return expf(IMX_FS(i,k));
-  case p7T_N: if (sprv == scur) return expf(XMX_FS(i,p7G_N));
-  case p7T_C: if (sprv == scur) return expf(XMX_FS(i,p7G_C));
-  case p7T_J: if (sprv == scur) return expf(XMX_FS(i,p7G_J));
-  default:    return 0.0;
-  }
-}
+

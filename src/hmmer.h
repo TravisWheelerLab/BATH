@@ -1577,7 +1577,7 @@ extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCOD
 
 /* viterbi_frameshift.c */
 extern int p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
-extern int p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, const P7_GMX *pp, P7_TRACE *tr); 
+extern int p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr); 
 
 /* viterbi_translated.c */
 extern int p7_trans_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);

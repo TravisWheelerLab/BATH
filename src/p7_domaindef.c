@@ -1587,7 +1587,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
 
   P7_DOMAIN     *dom           = NULL;
   P7_GMX        *gxppfs;
+  P7_GMX        *gxv;
   int            Ld            = j-i+1;
+  int            seq_len, hmm_len;
   float          domcorrection = 0.0;
   float          envsc, oasc;
   int            codon_idx;  
@@ -1620,6 +1622,28 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
   
   p7_trace_Index(ddef->tr);  
+
+  seq_len = ddef->tr->sqto[0] - ddef->tr->sqfrom[0] + 1;
+  hmm_len = ddef->tr->hmmto[0] - ddef->tr->hmmfrom[0] + 1;
+  
+  /* In rare cases the fwd/bwd agorithms produce alignments with unreasonably
+   * large deletions. In those cases we need to realign with Viterbi */
+  if(hmm_len*3 > seq_len*2) {
+
+    p7_trace_Reuse(ddef->tr);
+    gxv = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS);
+
+    p7_fs_Viterbi(windowsq->dsq+i-1, gcode, Ld, gm_fs, gxv, NULL);
+    p7_fs_VTrace(windowsq->dsq+i-1, Ld, gm_fs, gxv, ddef->tr); 
+    p7_trace_fs_SetPP(ddef->tr, gx1);
+
+    for (z = 0; z < ddef->tr->N; z++)
+      if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
+
+    p7_trace_Index(ddef->tr);
+
+    p7_gmx_Destroy(gxv);
+  }
 
   /* get ptr to next empty domain structure in domaindef's results */
   if (ddef->ndom == ddef->nalloc) {
@@ -1743,6 +1767,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
  ERROR:
   p7_trace_Reuse(ddef->tr);
   p7_gmx_Destroy(gxppfs);
+  p7_gmx_Destroy(gxv);
   return eslEMEM;
 }
 
@@ -1823,16 +1848,18 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   seq_len = ddef->tr->sqto[0] - ddef->tr->sqfrom[0] + 1;
   hmm_len = ddef->tr->hmmto[0] - ddef->tr->hmmfrom[0] + 1;
   
-  /* In rare cases the optimized agorithms produce alignments with unreasonably 
+  /* In rare cases the fwd/bwd agorithms produce alignments with unreasonably 
    * large deletions. In those cases we need to realign with Viterbi */
   if(hmm_len > seq_len*2) {
-   
+  
     p7_trace_Reuse(ddef->tr);
     p7_ReconfigUnihit(gm, orfsq->n);
     gxv = p7_gmx_Create(gm->M, orfsq->n);
 
     p7_GViterbi(orfsq->dsq + i-1, Ld, gm, gxv, NULL);
     p7_GTrace(orfsq->dsq + i-1, Ld, gm, gxv, ddef->tr); 
+    p7_omx_FDeconvert(ox2, gxv);  
+    p7_trace_SetPP(ddef->tr, gxv);
 
     for (z = 0; z < ddef->tr->N; z++)
       if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;

@@ -178,31 +178,29 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
       MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,k-1),
                     ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,k-1),
                     ESL_MAX(DMX_SP(i-3,k-1) + TSC(p7P_DM,k-1),
-                            PMX_SP(i-3,k-1) + TSC(p7P_BM,k-1)))) 
-                            + p7P_MSC_CODON(sub_gm, k, c3);
+                            PMX_SP(i-3,k-1)))) + p7P_MSC_CODON(sub_gm, k, c3);
 
       IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,k),
                             IMX_SP(i-3,k) + TSC(p7P_II,k));
 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
                     ESL_MAX(DMX_SP(i,k-1) + TSC(p7P_DD,k-1),
-                            PMX_SP(i,k-1) + TSC(p7P_BM,k-1)));
+                            PMX_SP(i,k-1)));
 
-      RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + sub_gm->xsc[p7P_E][p7P_LOOP];
+      RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + log(1.0/160000.0);
       PMX_SP(i,k) = ESL_MAX(RMX_SP(i-1,k),  PMX_SP(i-1,k));
     }
 
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,M-1),
                   ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,M-1),
                   ESL_MAX(DMX_SP(i-3,M-1) + TSC(p7P_DM,M-1),
-                          PMX_SP(i-3,M-1) + TSC(p7P_BM,M-1)))) 
-                          + p7P_MSC_CODON(sub_gm, M, c3);
+                          PMX_SP(i-3,M-1)))) + p7P_MSC_CODON(sub_gm, M, c3);
 
     IMX_SP(i,M) = -eslINFINITY;
 
     DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,M-1),
                   ESL_MAX(DMX_SP(i,M-1) + TSC(p7P_DD,M-1),
-                          PMX_SP(i,M-1) + TSC(p7P_BM,M-1)));
+                          PMX_SP(i,M-1)));
 
     RMX_SP(i,M) =  PMX_SP(i,M) = -eslINFINITY;
 
@@ -425,7 +423,7 @@ p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *
       if      (esl_FCompare_old(MMX_SP(i,k), MMX_SP(i-3, k-1) + TSC(p7P_MM, k-1) + emit, tol) == eslOK) scur = p7T_M;
       else if (esl_FCompare_old(MMX_SP(i,k), IMX_SP(i-3, k-1) + TSC(p7P_IM, k-1) + emit, tol) == eslOK) scur = p7T_I;
       else if (esl_FCompare_old(MMX_SP(i,k), DMX_SP(i-3, k-1) + TSC(p7P_DM, k-1) + emit, tol) == eslOK) scur = p7T_D;      
-      else if (esl_FCompare_old(MMX_SP(i,k), PMX_SP(i-3, k-1) + TSC(p7P_BM, k-1) + emit, tol) == eslOK) scur = p7T_P;
+      else if (esl_FCompare_old(MMX_SP(i,k), PMX_SP(i-3, k-1)                    + emit, tol) == eslOK) scur = p7T_P;
       else if (esl_FCompare_old(MMX_SP(i,k), XMX(i-3, p7G_B)  + TSC(p7P_BM, k-1) + emit, tol) == eslOK) scur = p7T_B;      
       else ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
       
@@ -437,7 +435,7 @@ p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *
       
       if      (esl_FCompare_old(DMX_SP(i,k), MMX_SP(i, k-1) + TSC(p7P_MD, k-1), tol) == eslOK) scur = p7T_M;
       else if (esl_FCompare_old(DMX_SP(i,k), DMX_SP(i, k-1) + TSC(p7P_DD, k-1), tol) == eslOK) scur = p7T_D;
-      else if (esl_FCompare_old(DMX_SP(i,k), PMX_SP(i, k-1) + TSC(p7P_BM, k-1), tol) == eslOK) scur = p7T_P;
+      else if (esl_FCompare_old(DMX_SP(i,k), PMX_SP(i, k-1),                    tol) == eslOK) scur = p7T_P;
       else if (esl_FCompare_old(DMX_SP(i,k), XMX(i, p7G_B)  + TSC(p7P_BM, k-1), tol) == eslOK) scur = p7T_B;
       else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
       k--;
@@ -465,8 +463,8 @@ p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *
     case p7T_R:
       if (RMX_SP(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible R reached at k=%d,i=%d", k,i); 
 
-      if      (esl_FCompare_old(RMX_SP(i,k), MMX_SP(i-12, k) + sub_gm->xsc[p7P_E][p7P_LOOP], tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare_old(RMX_SP(i,k), DMX_SP(i-12, k) + sub_gm->xsc[p7P_E][p7P_LOOP], tol) == eslOK) scur = p7T_D;
+      if      (esl_FCompare_old(RMX_SP(i,k), MMX_SP(i-12, k) + log(1.0/160000.0), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(RMX_SP(i,k), DMX_SP(i-12, k) + log(1.0/160000.0), tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "R at k=%d,i=%d couldn't be traced", k,i);
 
       i-=12;

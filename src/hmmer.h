@@ -54,7 +54,7 @@
 #include "esl_sq.h"		/* ESL_SQ                */
 #include "esl_scorematrix.h"    /* ESL_SCOREMATRIX       */
 #include "esl_stopwatch.h"      /* ESL_STOPWATCH         */
-
+#include "p7_splicehits.h"
 
 
 /* Search modes. */
@@ -1948,7 +1948,7 @@ extern int p7_Pipeline_LongTarget   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_SCORE
                                      );
 extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data,
              P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, 
-             ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity);
+             ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity, SPLICE_SAVED_HITS *saved_hits);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 
@@ -1999,10 +1999,11 @@ extern int     p7_spensemble_GetClusterCoords(P7_SPENSEMBLE *sp, int which,
 extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 
 /* p7_splice.c */
-extern void SpliceHits(P7_TOPHITS *TopHits, ESL_SQFILE *GenomicSeqFile, P7_PROFILE *gm, P7_OPROFILE *om, 
-                       ESL_GENCODE *gcode, ESL_GETOPTS *go, FILE *ofp, int textw);
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt);
+extern int p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm);
+extern int p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
 
-extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt);
+
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);
 extern int         p7_tophits_Grow(P7_TOPHITS *h);

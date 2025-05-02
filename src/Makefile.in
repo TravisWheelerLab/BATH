@@ -75,7 +75,8 @@ HDRS =  hmmer.h \
 	p7_gmxb.h \
 	p7_gmxchk.h \
 	p7_hmmcache.h \
-    p7_splice.h
+    p7_splice.h \
+    p7_splicehits.h
 
 OBJS =  build.o\
 	cachedb.o\
@@ -140,6 +141,10 @@ OBJS =  build.o\
 	p7_profile.o\
 	p7_spensemble.o\
 	p7_splice.o\
+    p7_splicegraph.o\
+    p7_splicehits.o\
+    p7_splicepath.o\
+    p7_splicepipeline.o\
 	p7_tophits.o\
 	p7_trace.o\
 	p7_scoredata.o\

@@ -21,6 +21,7 @@
 #endif /*HMMER_THREADS*/
 
 #include "hmmer.h"
+#include "p7_splice.h"
 
 /* set the max residue count to 1/4 meg when reading a block */
 #define BATH_MAX_RESIDUE_COUNT (1024 * 256)  /* 1/4 Mb */
@@ -30,17 +31,18 @@ typedef struct {
 #ifdef HMMER_THREADS
   ESL_WORK_QUEUE   *queue;
 #endif /*HMMER_THREADS*/
-  P7_BG            *bg;	         /* null model                                                        */
-  ESL_SQ           *ntsq;        /* DNA target sequence                                               */
-  P7_PIPELINE      *pli;         /* work pipeline                                                     */
-  P7_TOPHITS       *th;          /* top hit results                                                   */
-  P7_OPROFILE      *om;          /* optimized query profile                                           */
-  P7_PROFILE       *gm;		 /* non-optimized query profile                                       */
-  P7_FS_PROFILE    *gm_fs;       /* non optimized frameshift query profile                            */
-  P7_SCOREDATA     *scoredata;   /* used to create DNA windows from ORFs                              */
-  ESL_GENCODE      *gcode;       /* used for translating ORFs                                         */
-  ESL_GENCODE_WORKSTATE *wrk1;   /* used for intitial translation of taget DNA to ORFs                */ 
-  ESL_GENCODE_WORKSTATE *wrk2;   /* used for secondary translation of DNA window for bias calcultaion */
+  P7_BG            *bg;	       /* null model                                                        */
+  ESL_SQ           *ntsq;      /* DNA target sequence                                               */
+  P7_PIPELINE      *pli;       /* work pipeline                                                     */
+  P7_TOPHITS       *th;        /* top hit results                                                   */
+  P7_OPROFILE      *om;        /* optimized query profile                                           */
+  P7_PROFILE       *gm;		   /* non-optimized query profile                                       */
+  P7_FS_PROFILE    *gm_fs;     /* non optimized frameshift query profile                            */
+  P7_SCOREDATA     *scoredata; /* used to create DNA windows from ORFs                              */
+  ESL_GENCODE      *gcode;     /* used for translating ORFs                                         */
+  ESL_GENCODE_WORKSTATE *wrk1; /* used for intitial translation of taget DNA to ORFs                */ 
+  ESL_GENCODE_WORKSTATE *wrk2; /* used for secondary translation of DNA window for bias calcultaion */
+  SPLICE_SAVED_HITS     *sh;   /* basic hit info for all hits that pass the viterbi fiter           */
 } WORKER_INFO;
 
 
@@ -503,6 +505,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int64_t          resCnt                   = 0;
   P7_TOPHITS      *tophits_accumulator      = NULL; /* to hold the top hits information from all 6 frame translations     */
   P7_PIPELINE     *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
+  SPLICE_SAVED_HITS *saved_hits_accumulator = NULL; /* to hold hit info for spliced alignments */
   ID_LENGTH_LIST  *id_length_list           = NULL;
   ESL_STOPWATCH   *watch;
  
@@ -811,12 +814,18 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     pipelinehits_accumulator = p7_pipeline_fs_Create(go, 100, 300, p7_SEARCH_SEQS);
     pipelinehits_accumulator->nmodels = 1;
     pipelinehits_accumulator->nnodes = hmm->M;
+    if (esl_opt_IsUsed(go, "--splice"))
+      saved_hits_accumulator = p7_splicehits_CreateSavedHits();
 
     scoredata = p7_hmm_ScoreDataCreate(om, NULL);
 
     for (i = 0; i < infocnt; ++i)
     {
       /* Create processing pipeline and hit list */
+      if (esl_opt_IsUsed(go, "--splice"))
+        info[i].sh = p7_splicehits_CreateSavedHits();
+      else  
+        info[i].sh = NULL; 
       info[i].gcode = gcode;
       info[i].wrk1 = esl_gencode_WorkstateCreate(go, gcode);
       info[i].wrk1->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);
@@ -889,12 +898,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     {
       p7_tophits_Merge(tophits_accumulator, info[i].th);
       p7_pipeline_Merge(pipelinehits_accumulator, info[i].pli);
+      if (esl_opt_IsUsed(go, "--splice")) 
+        p7_splicehits_MergeSavedHits(saved_hits_accumulator, info[i].sh);
       p7_pipeline_fs_Destroy(info[i].pli);
       p7_tophits_Destroy(info[i].th);
       p7_oprofile_Destroy(info[i].om);
       p7_profile_Destroy(info[i].gm);
       p7_profile_fs_Destroy(info[i].gm_fs);
-      p7_hmm_ScoreDataDestroy(info[i].scoredata);
+      p7_hmm_ScoreDataDestroy(info[i].scoredata); 
+      p7_splicehits_DestroySavedHits(info[i].sh);
 
       if(info[i].wrk1->orf_block != NULL)
       {
@@ -925,7 +937,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) 
-      p7_splice_SpliceHits(tophits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, ofp, resCnt);
+      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, ofp, resCnt);
    
     /* Print the results.  */
     pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
@@ -951,6 +963,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     p7_pipeline_fs_Destroy(pipelinehits_accumulator);
     p7_tophits_Destroy(tophits_accumulator);
+    p7_splicehits_DestroySavedHits(saved_hits_accumulator);
     p7_oprofile_Destroy(om);
     p7_profile_Destroy(gm);
     p7_profile_fs_Destroy(gm_fs);
@@ -1020,13 +1033,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   
   if (builder) p7_builder_Destroy(builder);
   if (qsq)     esl_sq_Destroy(qsq);
-  
+   
   esl_sqfile_Close(dbfp);
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);
   esl_gencode_Destroy(gcode);
   esl_stopwatch_Destroy(watch);
-
+  
   if (ofp != stdout) fclose(ofp);
   if (tblfp)         fclose(tblfp);
   if (exontblfp)     fclose(exontblfp);
@@ -1076,7 +1089,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
        /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 
-      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
+      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT, info->sh);
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
       esl_sq_ReuseBlock(info->wrk1->orf_block);    
@@ -1090,7 +1103,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       esl_sq_ReverseComplement(dbsq_dna);
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 	
-      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT); 
+      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT, info->sh); 
       p7_pipeline_fs_Reuse(info->pli); // prepare for next search
       
       esl_sq_ReuseBlock(info->wrk1->orf_block);
@@ -1261,7 +1274,7 @@ pipeline_thread(void *arg)
         info->pli->nres += dnaSeq->n;
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
        
-        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT, info->sh);
 
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 
@@ -1273,7 +1286,7 @@ pipeline_thread(void *arg)
         esl_sq_ReverseComplement(dnaSeq);
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
 	
-        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT, info->sh);
 
         p7_pipeline_fs_Reuse(info->pli); // prepare for next search
 

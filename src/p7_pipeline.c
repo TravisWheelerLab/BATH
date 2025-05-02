@@ -19,8 +19,8 @@
 #include "esl_getopts.h"
 #include "esl_gumbel.h"
 #include "esl_vectorops.h"
-#include "hmmer.h"
 #include "esl_gencode.h"
+#include "hmmer.h"
 #include "p7_splice.h"
 
 /* Struct used to pass a collection of useful temporary objects around
@@ -823,7 +823,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity) {
+p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, SPLICE_SAVED_HITS *saved_hits, int64_t seqidx) {
 
   int            i;
   int            new_hit_cnt;
@@ -845,6 +845,9 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
   P7_GMX        *vgx           = NULL;
   P7_TRACE      *vtr           = NULL;
 
+  SPLICE_HIT_INFO *hit_info;
+  P7_DOMAIN       *tmp_dom = NULL; 
+
   if (orf_block->count == 0)
     return eslOK;
   vgx = p7_gmx_Create(gm->M, 100);
@@ -861,14 +864,39 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, NULL);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
-    
+   
+    /* For spliced alignments we save the hit info of every query-target pair that passes the viterbi filter */
+    if(saved_hits != NULL) {
+
+      p7_splicehits_CreateNext(saved_hits, &hit_info);
+ 
+      hit_info->seqidx = seqidx;
+      hit_info->strand = complementarity;
+      
+      hit_info->hmm_start = k_coords;
+      hit_info->hmm_end   = m_coords;
+      if(complementarity) {
+        hit_info->seq_start = dna_sq->end + curr_orf->start - (i_coords*3) + 2;
+        hit_info->seq_end   = dna_sq->end + curr_orf->start - (j_coords*3);
+      }
+      else {
+        hit_info->seq_start = dna_sq->start + curr_orf->start + (i_coords*3) - 4;
+        hit_info->seq_end   = dna_sq->start + curr_orf->start + (j_coords*3) - 2; 
+      }
+      tmp_dom = p7_domain_Create_empty();
+      p7_splice_ComputeAliScores(tmp_dom, vtr, curr_orf->dsq, gm);
+      hit_info->aliscore = tmp_dom->aliscore;
+      free(tmp_dom->scores_per_pos);
+      free(tmp_dom); 
+    } 
+
     ext_i_coords = ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
     ext_j_coords = ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
      
     if(complementarity == p7_NOCOMPLEMENT)
     {
-      window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3));
-      window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3));
+      window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3)-3);
+      window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3)-1);
      
     }
     else
@@ -2443,7 +2471,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
  
     dom->scores_per_pos = NULL;
     if(pli->spliced) 
-      p7_splice_compute_ali_scores_fs(dom, dom->tr, window_dsq, gm_fs, dnasq->abc);
+      p7_splice_ComputeAliScores_fs(dom, dom->tr, window_dsq, gm_fs, dnasq->abc);
 
     /* Check if hit passes the e-value cutoff based on the current
      * residue count. This prevents hits from accumulating and using
@@ -2613,7 +2641,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
    
      dom->scores_per_pos = NULL;
      if(pli->spliced) 
-       p7_splice_compute_ali_scores(dom, dom->tr, orfsq->dsq, gm, gm->abc->Kp);
+       p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm);
     
      /* To prevent the accumultion of excessive low quailty hits when 
       * filters are turned off we need to begin weeding out those hits 
@@ -2997,7 +3025,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity, SPLICE_SAVED_HITS *saved_hits)
 {
 
   int                i;
@@ -3122,7 +3150,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
   p7_hmmwindow_init(&post_vit_windowlist);  
   
-  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity);
+  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity, saved_hits, seqidx);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object

@@ -170,10 +170,10 @@ typedef struct _splice_gap
   int upstream_node;
   int downstream_node;
 
-  int hmm_start;
-  int hmm_end;
-  int seq_start;
-  int seq_end;
+  int hmm_min;
+  int hmm_max;
+  int seq_min;
+  int seq_max;
 
 } SPLICE_GAP;
 
@@ -221,6 +221,8 @@ extern void p7_splicehits_DestroySavedHits(SPLICE_SAVED_HITS *saved_hits);
 extern int p7_splicehits_CreateNext(SPLICE_SAVED_HITS *saved_hits, SPLICE_HIT_INFO **ret_info);
 extern int p7_splicehits_SortSavedHits(SPLICE_SAVED_HITS *sh);
 extern int p7_splicehits_MergeSavedHits(SPLICE_SAVED_HITS *sh1, SPLICE_SAVED_HITS *sh2);
+extern int p7_splicehits_FindNodes(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, int first, int last);
+extern int p7_splice_RemoveDuplicates(SPLICE_SAVED_HITS *sh);
 extern void p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh);
  
 /* p7_splicepath.c */
@@ -240,5 +242,5 @@ extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli);
 extern int p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits, int *hits_processed, int64_t seqidx);
 extern int p7_splice_SplitHits(SPLICE_GRAPH *graph, const P7_HMM *hmm, const P7_BG *bg, ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
-
+extern int p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 

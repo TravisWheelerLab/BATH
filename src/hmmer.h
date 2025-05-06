@@ -608,6 +608,7 @@ enum p7g_splicecells_e {
   p7G_P = 4,
 };
 #define p7G_NSCELLS_SP 5
+#define p7P_SPLICE 2
 
 enum p7g_xcells_e {
   p7G_E  = 0,

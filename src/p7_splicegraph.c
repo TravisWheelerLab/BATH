@@ -347,7 +347,9 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
   th->hit[graph->num_nodes] = hit;
   th->N++;
 
-  graph->ali_scores[graph->num_nodes]     = hit->dcl->aliscore; //This contiains the summed alisc
+  graph->in_graph[graph->num_nodes]  = TRUE;
+
+  graph->ali_scores[graph->num_nodes]  = hit->dcl->aliscore; //This contiains the summed alisc
   graph->path_scores[graph->num_nodes] = -eslINFINITY;
  
   graph->out_edge_cnt[graph->num_nodes]  = 0;

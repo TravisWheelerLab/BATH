@@ -1553,7 +1553,7 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
 	    }
 	  else tsc = 0.0f;
 
-	  fprintf(fp, "%5d %1s  %4d %6d %4d %8.4f %4d", z, p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
+	  fprintf(fp, "%5d %1s  %4d %6d %4d %8.4f", z, p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
 	  sc += tsc;
 	  
 	  if (dsq != NULL) {

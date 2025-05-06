@@ -869,10 +869,12 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     if(saved_hits != NULL) {
 
       p7_splicehits_CreateNext(saved_hits, &hit_info);
+
+      hit_info->node_id   = -1; 
+      hit_info->seqidx    = seqidx;
+      hit_info->strand    = complementarity;
+      hit_info->duplicate = FALSE;     
  
-      hit_info->seqidx = seqidx;
-      hit_info->strand = complementarity;
-      
       hit_info->hmm_start = k_coords;
       hit_info->hmm_end   = m_coords;
       if(complementarity) {

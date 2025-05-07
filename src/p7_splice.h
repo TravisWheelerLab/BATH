@@ -166,8 +166,6 @@ typedef struct _splice_pipeline
 
 typedef struct _splice_gap
 {
-  int upstream_node;
-  int downstream_node;
 
   int hmm_min;
   int hmm_max;
@@ -197,6 +195,10 @@ enum p7s_splice_signals_e {
 /* p7_spliceedge.c */
 extern SPLICE_EDGE* p7_spliceedge_Create(void);
 extern SPLICE_EDGE* p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp);
+
+/* p7_splicegap.c */
+extern SPLICE_GAP* p7_splicegap_Create(void);
+extern P7_HIT** p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, int *num_hits);
 
 /* p7_splicegraph.c */
 extern SPLICE_GRAPH* p7_splicegraph_Create(void);
@@ -245,4 +247,5 @@ extern int p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *saved_h
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_RemoveDisconnected(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed);
+extern ESL_SQ* p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp);
 extern P7_HMM* p7_splice_GetSubHMM (const P7_HMM *hmm, int start, int end);

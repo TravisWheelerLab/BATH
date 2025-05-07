@@ -70,7 +70,6 @@ p7_splicegraph_Create()
   graph->ali_scores    = NULL;
 
   graph->th->hit       = NULL;
-  graph->ds_nodes      = NULL;
   graph->edges         = NULL;
 
   return graph;
@@ -116,13 +115,8 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->ali_scores,    sizeof(float) * graph->nalloc);
   ESL_ALLOC(graph->path_scores,   sizeof(float) * graph->nalloc);
 
-
   ESL_ALLOC(graph->th->hit,  sizeof(P7_HIT*)      * graph->nalloc);  
-  ESL_ALLOC(graph->ds_nodes, sizeof(SPLICE_NODE*) * graph->nalloc);
   ESL_ALLOC(graph->edges,    sizeof(SPLICE_EDGE*) * graph->nalloc);
-
-  for(i = 0; i < graph->num_nodes; i++)
-    graph->ds_nodes[i] = NULL;
 
   for(i = 0; i < graph->num_nodes; i++)
     graph->edges[i] = NULL;
@@ -166,7 +160,6 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
     ESL_REALLOC(graph->path_scores,   sizeof(float) * graph->nalloc); 
 
     ESL_REALLOC(graph->th->hit,  sizeof(P7_HIT*)      * graph->nalloc);
-    ESL_REALLOC(graph->ds_nodes, sizeof(SPLICE_NODE*) * graph->nalloc);
     ESL_REALLOC(graph->edges,    sizeof(SPLICE_EDGE*) * graph->nalloc);
   }
 
@@ -188,7 +181,6 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
 {
 
   int i;
-  SPLICE_NODE    *tmp_node;
   SPLICE_EDGE    *tmp_edge;
 
   if (graph == NULL) return;
@@ -215,20 +207,13 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if (graph->th      != NULL) free(graph->th);
 
   for(i = 0; i < graph->num_nodes; i++) {
-    while(graph->ds_nodes[i] != NULL) {
-      tmp_node = graph->ds_nodes[i];
-      graph->ds_nodes[i] = tmp_node->next;
-      free(tmp_node);
-    }
     while(graph->edges[i] != NULL) {
       tmp_edge = graph->edges[i];
       graph->edges[i] = tmp_edge->next;
-      
       free(tmp_edge);
     }
   }
 
-  if(graph->ds_nodes != NULL) free(graph->ds_nodes);
   if(graph->edges    != NULL) free(graph->edges);
 
   graph->seqname = NULL;
@@ -237,39 +222,6 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   graph = NULL;
 
   return;
-}
-
-
-/* Function:  p7_splicegraph_CreateNode()
- * Synopsis:  Allocates a splice node.
- *
- * Purpose:   Allocates a new <SPLICE_NODE>. 
- *
- * Returns:   a pointer to the new <SPLICE_NODE> structure
- *            on success.
- *
- * Throws:    <NULL> on allocation error.
- */
-SPLICE_NODE*
-p7_splicegraph_CreateNode(void)
-{
-  SPLICE_NODE *node;
-  int status;
-
-  node = NULL;
-  ESL_ALLOC(node, sizeof(SPLICE_NODE));
-
-  node->gap_checked  = FALSE;
-  node->path_exists  = FALSE;
-  node->path_checked = FALSE;
-
-  node->next = NULL;
-
-  return node;
-
-  ERROR:
-    if(node != NULL) free(node);
-	return NULL;
 }
 
 
@@ -290,10 +242,7 @@ int
 p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 {
 
-  int         up,down;
   P7_TOPHITS  *th;
-  SPLICE_NODE *new_node;
-  SPLICE_NODE *tmp_node;
   int          status;
 
   th = graph->th;
@@ -312,59 +261,8 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
   graph->best_out_edge[graph->num_nodes] = -1;
   graph->best_in_edge[graph->num_nodes]  = -1;
 
-  graph->ds_nodes[graph->num_nodes] = NULL;
   graph->edges[graph->num_nodes]    = NULL;  
-
-  /*Set new node as downstream of all existing upstream nodes */
-  for(up  = 0; up < graph->num_nodes; up++) {
-     
-    if(th->hit[up]->dcl->ihmm >= th->hit[graph->num_nodes]->dcl->ihmm &&
-       th->hit[up]->dcl->jhmm >= th->hit[graph->num_nodes]->dcl->jhmm)
-        continue; 
-
-    if (( graph->revcomp  && th->hit[graph->num_nodes]->dcl->jali > th->hit[up]->dcl->iali) ||
-         ((!graph->revcomp) && th->hit[graph->num_nodes]->dcl->jali < th->hit[up]->dcl->iali))
-         continue;
-
-    new_node = p7_splicegraph_CreateNode();
-    new_node->node_id = graph->num_nodes;
- 
-    tmp_node = graph->ds_nodes[up];
-    if(tmp_node == NULL)
-      graph->ds_nodes[up] = new_node;
-    else {
-      while(tmp_node->next != NULL)
-        tmp_node = tmp_node->next;
-
-      tmp_node->next = new_node;
-    }
-  }
-  
-  /* Set existing nodes that are downstream of new node as downstream */
-  for(down  = 0; down < graph->num_nodes; down++) {
-   
-    if(th->hit[graph->num_nodes]->dcl->ihmm >= th->hit[down]->dcl->ihmm &&
-       th->hit[graph->num_nodes]->dcl->jhmm >= th->hit[down]->dcl->jhmm)
-      continue;
-
-    if (( graph->revcomp  && th->hit[down]->dcl->jali > th->hit[graph->num_nodes]->dcl->iali) ||
-       ((!graph->revcomp) && th->hit[down]->dcl->jali < th->hit[graph->num_nodes]->dcl->iali))
-       continue;
-
-    new_node = p7_splicegraph_CreateNode();
-    new_node->node_id = down;
-
-    tmp_node = graph->ds_nodes[up];
-    if(tmp_node == NULL)
-      graph->ds_nodes[up] = new_node;
-    else {
-      while(tmp_node->next != NULL)
-        tmp_node = tmp_node->next;
-
-      tmp_node->next = new_node;
-    }
-  }
-  
+    
   graph->num_nodes++;
 
   return eslOK; 
@@ -396,7 +294,6 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge)
   int down_node;
   int status;
 
-  SPLICE_NODE *tmp_node;
   SPLICE_EDGE *tmp_edge;
 
   up_node   = edge->upstream_node_id;
@@ -416,12 +313,6 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge)
     edge->prev = tmp_edge;
   }
 
-  /* Set the path exists and path checked valuse to TRUE */
-  if((tmp_node = p7_splicegraph_GetNode(graph, up_node, down_node)) == NULL) goto ERROR;
-  
-  tmp_node->path_exists  = TRUE;
-  tmp_node->path_checked = TRUE;
-
   graph->num_edges++;
   
   return eslOK;
@@ -435,56 +326,6 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge)
 /*****************************************************************
  * 2. Access routines
  *****************************************************************/
-
-/* Function:  p7_splicegraph_IsUpstream()
- *
- * Purpose:   Determine if <up_node> is upstream of <down_node>
- *
- * Returns:   TRUE if <up_node> is upstream of <down_node>, 
- *            FALSE if <up_node> is not upstream of <down_node> 
- *            or if either <up_node> or <down_node> does not exist
- */
-int
-p7_splicegraph_IsUpstream(SPLICE_GRAPH* graph, int up_node, int down_node) 
-{
-
-  SPLICE_NODE *tmp_node;
-
-  if(up_node >= graph->num_nodes || down_node >= graph->num_nodes) return FALSE;
-  tmp_node = graph->ds_nodes[up_node];
-
-  while(tmp_node != NULL && tmp_node->node_id != down_node)
-    tmp_node = tmp_node->next;
-
-  if(tmp_node == NULL) return FALSE;
-  else                 return TRUE;
-
-}
-
-/* Function:  p7_splicegraph_GetNode()
- *
- * Purpose:   Fetch SPLICE_NODE with upstream/downstream info 
- *            for <up_node>/<down_node>
- *
- * Returns:   SPLICE_NODE* if found, NULL otherwise.  
- * 
- */
-SPLICE_NODE*
-p7_splicegraph_GetNode(SPLICE_GRAPH* graph, int up_node, int down_node) 
-{
-
-  SPLICE_NODE *node;
-
-  if(up_node >= graph->num_nodes || down_node >= graph->num_nodes) return NULL;
-
-  node = graph->ds_nodes[up_node];
-
-  while(node != NULL && node->node_id != down_node)
-    node = node->next;
-
-  return node;
-  
-}
 
 
 /* Function:  p7_splicegraph_EdgeExists()
@@ -811,79 +652,5 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph, int print_edges)
   return;
 
 }
-
-
-/* Function:  p7_splicegraph_DumpNodes()
- *
- * Purpose:   Dumps matrix of upstream/downstream status. 
- *            Also prints ali scores.  
- */
-void
-p7_splicegraph_DumpNodes(FILE *fp, SPLICE_GRAPH *graph) 
-{
-
-
-  int          i,j;
-  int          num_nodes;
-  int          in_range_cnt;
-
-  if (graph == NULL) { fprintf(fp, " [ graph is NULL ]\n"); return; }
-  num_nodes = esl_vec_ISum(graph->in_graph, graph->num_nodes);  
-
-  fprintf(fp, " DOWNSTREAM_GRAPH\n");
-  fprintf(fp, " Number of Nodes  : %d\n", num_nodes); 
-
-  fprintf(fp, "     ");
-  for(i = 0; i < num_nodes/2; i++ )
-    fprintf(fp, "%8c", ' ');
-  fprintf(fp, "  DOWN  \n");
-
-  fprintf(fp, "     ");
-  for(i = 0; i < graph->num_nodes; i++ ) {
-    if(graph->in_graph[i])
-      fprintf(fp, "%8d", i+1);
-  }
-  fprintf(fp, "\n");
-
-  in_range_cnt = 0;
-  for(i = 0; i < graph->num_nodes; i++ ) {
-
-    if(!graph->in_graph[i]) continue;
-    if (in_range_cnt == num_nodes/2)
-      fprintf(fp, "UP");
-    else
-      fprintf(fp, "  ");
-    in_range_cnt++;
-
-    fprintf(fp, "%7d", i+1);
-      
-    for(j = 0; j < graph->num_nodes; j++ ) { 
-      if(!graph->in_graph[j]) continue;
-
-      if(p7_splicegraph_IsUpstream(graph, i, j)) fprintf(fp, "%8s", "YES");
-      else                         fprintf(fp, "%8s", "NO");
-        
-    }
-    fprintf(fp, "\n");
-  }    
- 
-
-  fprintf(fp, "\n Alignment Scores  \n");
-  for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
-    fprintf(fp, "%8d", i+1);
-  }
-  fprintf(fp, "\n");
-
-  for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue; 
-    fprintf(fp, "%8.2f", graph->ali_scores[i]);
-  }
-  fprintf(fp, "\n");
-  
-  return;
-
-}
-
 
 

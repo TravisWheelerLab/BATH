@@ -7,18 +7,6 @@
 #include "easel.h"
 #include "hmmer.h"
 
-typedef struct _splice_nodes {
-
-  int node_id;
-  int gap_checked;  
-  int path_exists;
-  int path_checked;
-
-  struct _splice_nodes *next;
-
-} SPLICE_NODE;
-
-
 typedef struct _splice_edge {
 
   int frameshift;
@@ -92,7 +80,6 @@ typedef struct _splice_graph {
   float *ali_scores;
 
   P7_TOPHITS  *th;  
-  SPLICE_NODE **ds_nodes;
   SPLICE_EDGE **edges;
 
 
@@ -207,14 +194,11 @@ extern int p7_splicegraph_Grow(SPLICE_GRAPH *graph);
 extern void p7_splicegraph_Destroy(SPLICE_GRAPH *graph);
 extern int p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit);
 extern int p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge);
-extern int p7_splicegraph_IsUpstream(SPLICE_GRAPH* graph, int up_node, int down_node);
-extern SPLICE_NODE* p7_splicegraph_GetNode(SPLICE_GRAPH* graph, int up_node, int down_node);
 extern int p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_node);
 extern SPLICE_EDGE* p7_splicegraph_GetEdge(SPLICE_GRAPH* graph, int up_node, int down_node);
 extern int p7_splicegraph_PathExists (SPLICE_GRAPH *graph, int upstream_node, int downstream_node);
 extern void p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph);
 extern void p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph, int print_edges);
-extern void p7_splicegraph_DumpNodes(FILE *fp, SPLICE_GRAPH *graph);
 
 /* p7_splicehits.c */
 extern SPLICE_SAVED_HITS* p7_splicehits_CreateSavedHits(void);

@@ -56,14 +56,13 @@ p7_splicegraph_Create()
   graph->num_edges      = 0;
   graph->orig_N         = 0;
   graph->split_N        = 0;
+  graph->recover_N      = 0;
   graph->th->N          = 0; 
 
   graph->reportable     = NULL;
   graph->orig_hit_idx   = NULL;
   graph->in_graph       = NULL;
   
-  graph->out_edge_cnt  = NULL;
-  graph->in_edge_cnt   = NULL;
   graph->best_out_edge = NULL;
   graph->best_in_edge  = NULL;
 
@@ -111,8 +110,6 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->orig_hit_idx,  sizeof(int*)  * graph->nalloc);
   ESL_ALLOC(graph->in_graph,      sizeof(int*)  * graph->nalloc);
   
-  ESL_ALLOC(graph->out_edge_cnt,  sizeof(int)   * graph->nalloc);
-  ESL_ALLOC(graph->in_edge_cnt,   sizeof(int)   * graph->nalloc);
   ESL_ALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
   ESL_ALLOC(graph->best_in_edge,  sizeof(int)   * graph->nalloc);
 
@@ -162,8 +159,6 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
     ESL_REALLOC(graph->reportable,    sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->orig_hit_idx,  sizeof(int)   * graph->nalloc);    
 
-    ESL_REALLOC(graph->out_edge_cnt,  sizeof(int)   * graph->nalloc);
-    ESL_REALLOC(graph->in_edge_cnt,   sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->best_in_edge,  sizeof(int)   * graph->nalloc);
 
@@ -205,8 +200,6 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if(graph->path_scores     != NULL) free(graph->path_scores);
   if(graph->ali_scores      != NULL) free(graph->ali_scores);
 
-  if(graph->out_edge_cnt    != NULL) free(graph->out_edge_cnt);
-  if(graph->in_edge_cnt     != NULL) free(graph->in_edge_cnt);
   if(graph->best_out_edge   != NULL) free(graph->best_out_edge);
   if(graph->best_in_edge    != NULL) free(graph->best_in_edge);
 
@@ -280,42 +273,6 @@ p7_splicegraph_CreateNode(void)
 }
 
 
-/* Function:  p7_splicegraph_CreateEdge)
- * Synopsis:  Allocates a splice edge.
- *
- * Purpose:   Allocates a new <SPLICE_EDGE>.
- *
- * Returns:   a pointer to the new <SPLICE_EDGE> structure
- *            on success.
- *
- * Throws:    <NULL> on allocation error.
- */
-SPLICE_EDGE*
-p7_splicegraph_CreateEdge(void)
-{
-
-  int status;
-  SPLICE_EDGE *edge;
-
-  edge = NULL;
-  ESL_ALLOC(edge, sizeof(SPLICE_EDGE));
-
-  edge->frameshift   = FALSE;
-
-  edge->splice_score = -eslINFINITY;
-  edge->signal_score = -eslINFINITY;
-
-  edge->prev = NULL;
-  edge->next = NULL;
-
-  return edge;
-
-  ERROR:
-    if (edge != NULL) free(edge);
-    return NULL;
-}
-
-
 /* Function:  p7_splicegraph_AddNode()
  * Synopsis:  create new node and append to splice graph
  *
@@ -352,8 +309,6 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
   graph->ali_scores[graph->num_nodes]  = hit->dcl->aliscore; //This contiains the summed alisc
   graph->path_scores[graph->num_nodes] = -eslINFINITY;
  
-  graph->out_edge_cnt[graph->num_nodes]  = 0;
-  graph->in_edge_cnt[graph->num_nodes]   = 0;
   graph->best_out_edge[graph->num_nodes] = -1;
   graph->best_in_edge[graph->num_nodes]  = -1;
 
@@ -448,9 +403,6 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge)
   down_node = edge->downstream_node_id;
 
   if(up_node >= graph->num_nodes || down_node >= graph->num_nodes) goto ERROR; 
-
-  graph->out_edge_cnt[up_node]++;
-  graph->in_edge_cnt[down_node]++;
 
   /* Find the end of the up nodes list of edges and append the new edge */
   tmp_edge = graph->edges[up_node];

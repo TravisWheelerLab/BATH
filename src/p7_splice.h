@@ -71,7 +71,8 @@ typedef struct _splice_graph {
   int num_edges;
   int orig_N;
   int split_N;
-   
+  int recover_N; 
+ 
   /* Target sequence info */
   int          revcomp;
   int64_t      seqidx;      
@@ -83,8 +84,6 @@ typedef struct _splice_graph {
   int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
 
   /*Edge info */  
-  int   *out_edge_cnt;
-  int   *in_edge_cnt;
   int   *best_out_edge;
   int   *best_in_edge;
 
@@ -195,14 +194,15 @@ enum p7s_splice_signals_e {
 };
 #define p7S_SPLICE_SIGNALS 4
 
-
+/* p7_spliceedge.c */
+extern SPLICE_EDGE* p7_spliceedge_Create(void);
+extern SPLICE_EDGE* p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp);
 
 /* p7_splicegraph.c */
 extern SPLICE_GRAPH* p7_splicegraph_Create(void);
 extern int p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes);
 extern int p7_splicegraph_Grow(SPLICE_GRAPH *graph);
 extern void p7_splicegraph_Destroy(SPLICE_GRAPH *graph);
-extern SPLICE_EDGE* p7_splicegraph_CreateEdge(void);
 extern int p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit);
 extern int p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge);
 extern int p7_splicegraph_IsUpstream(SPLICE_GRAPH* graph, int up_node, int down_node);
@@ -241,6 +241,8 @@ extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli);
 /* p7_splice.c */
 extern int p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits, int *hits_processed, int64_t seqidx);
 extern int p7_splice_SplitHits(SPLICE_GRAPH *graph, const P7_HMM *hmm, const P7_BG *bg, ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
+extern int p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *saved_hits, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int first, int last);
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
-
+extern int p7_splice_RemoveDisconnected(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed);
+extern P7_HMM* p7_splice_GetSubHMM (const P7_HMM *hmm, int start, int end);

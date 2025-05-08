@@ -262,7 +262,7 @@ p7_splicehits_FindNodes(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, int first, i
   P7_TOPHITS *th;
 
   th = graph->th;
-  printf("first %d last %d\n", first, last);
+  
   for(i = 0; i < sh->N; i++)
     sh->srt[i]->node_id = -1;
 

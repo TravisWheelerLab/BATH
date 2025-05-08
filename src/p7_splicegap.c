@@ -196,16 +196,21 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
       /* Append all states between first and last M state */
       for(i = y; i <= z; i++) {
         codon = (tr->st[i] == p7T_M ? 3 : 0);
-        p7_trace_fs_Append(new_hit->dcl->tr, tr->st[i] , tr->k[i], tr->i[i], codon);
+        p7_trace_fs_Append(new_hit->dcl->tr, tr->st[i], tr->k[i], tr->i[i], codon);
       }
 
       /* Append ending special states */
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_E, tr->k[z], tr->i[z], 0);
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_C, 0, tr->i[z], 0);
-      p7_trace_fs_Append(new_hit->dcl->tr, p7T_T , 0, 0, 0);
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_T, 0, 0, 0);
 
       p7_splice_ComputeAliScores_fs(new_hit->dcl, new_hit->dcl->tr, gap_seq->dsq, sub_fs_model, gap_seq->abc);
 
+      /* Adjust k postions to full HMM */
+      for(i = 0; i < new_hit->dcl->tr->N; i++) {
+        if(new_hit->dcl->tr->k[i] != 0)
+          new_hit->dcl->tr->k[i] += gap->hmm_min - 1;
+      }
       gap_hits[hit_cnt] = new_hit;
       hit_cnt++;
 

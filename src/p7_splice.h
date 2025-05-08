@@ -215,6 +215,7 @@ extern void p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh);
 extern SPLICE_PATH* p7_splicepath_Create(int path_len);
 extern int p7_splicepath_Grow(SPLICE_PATH *path);
 extern void p7_splicepath_Destroy(SPLICE_PATH *path);
+extern SPLICE_PATH* p7_splicepath_GetBestPath(SPLICE_GRAPH *graph);
 extern void p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path);
 
 
@@ -231,5 +232,8 @@ extern int p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *saved_h
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_RemoveDisconnected(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed);
+extern int p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *frameshift, int *success);
+extern int p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *success);
+extern int p7_splice_ReleaseHits(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed, int range_bound_min, int range_bound_maxs);
 extern ESL_SQ* p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp);
 extern P7_HMM* p7_splice_GetSubHMM (const P7_HMM *hmm, int start, int end);

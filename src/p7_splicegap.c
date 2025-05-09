@@ -94,7 +94,7 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
 
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
   p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, gap_seq->n*3, p7_GLOBAL); //len*3 to get single nucleotide loops
-
+  
   vit_mx = p7_gmx_fs_Create(sub_fs_model->M, gap_seq->n, gap_seq->n, p7P_SPLICE);
   tr = p7_trace_fs_Create();
 
@@ -149,7 +149,7 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
       new_hit_min = ESL_MIN(iali, jali);
       new_hit_max = ESL_MAX(iali, jali);
       new_hit_len = new_hit_max - new_hit_min + 1;
-
+      
       for (h = 0 ; h < th->N; h++) {
         /* If hit is not in gap skip it */
         if(th->hit[h]->dcl->jhmm < gap->hmm_min || th->hit[h]->dcl->ihmm > gap->hmm_max) continue;
@@ -168,8 +168,9 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
         seq_overlap_max = ESL_MIN(new_hit_max, old_hit_max);
         seq_overlap_len = seq_overlap_max - seq_overlap_min + 1;
 
+        /* If overlap is 95% of new hit of 95% of an original or split hit count as duplicate */
         if(seq_overlap_len >= new_hit_len * 0.95 ||
-           seq_overlap_len >= old_hit_len * 0.95) {
+          (seq_overlap_len >= old_hit_len * 0.95 && h < graph->split_N)) {
           duplicate = TRUE;
           break;
         }

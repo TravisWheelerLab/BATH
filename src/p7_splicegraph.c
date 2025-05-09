@@ -105,9 +105,9 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   graph->nalloc         = num_nodes*2;
   graph->num_nodes      = 0;
 
-  ESL_ALLOC(graph->reportable,    sizeof(int*)  * graph->nalloc);
-  ESL_ALLOC(graph->orig_hit_idx,  sizeof(int*)  * graph->nalloc);
-  ESL_ALLOC(graph->in_graph,      sizeof(int*)  * graph->nalloc);
+  ESL_ALLOC(graph->reportable,    sizeof(int)  * graph->nalloc);
+  ESL_ALLOC(graph->orig_hit_idx,  sizeof(int)  * graph->nalloc);
+  ESL_ALLOC(graph->in_graph,      sizeof(int)  * graph->nalloc);
   
   ESL_ALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
   ESL_ALLOC(graph->best_in_edge,  sizeof(int)   * graph->nalloc);
@@ -118,9 +118,9 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->th->hit,  sizeof(P7_HIT*)      * graph->nalloc);  
   ESL_ALLOC(graph->edges,    sizeof(SPLICE_EDGE*) * graph->nalloc);
 
-  for(i = 0; i < graph->num_nodes; i++)
-    graph->edges[i] = NULL;
-
+  for(i = 0; i < graph->num_nodes; i++) 
+    graph->edges[i]   = NULL;
+  
   return eslOK;
 
   ERROR:
@@ -214,7 +214,7 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
     }
   }
 
-  if(graph->edges    != NULL) free(graph->edges);
+  if(graph->edges   != NULL) free(graph->edges);
 
   graph->seqname = NULL;
 
@@ -261,8 +261,8 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
   graph->best_out_edge[graph->num_nodes] = -1;
   graph->best_in_edge[graph->num_nodes]  = -1;
 
-  graph->edges[graph->num_nodes]    = NULL;  
-    
+  graph->edges[graph->num_nodes]   = NULL;  
+ 
   graph->num_nodes++;
 
   return eslOK; 
@@ -321,6 +321,7 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge)
     ESL_XEXCEPTION(eslFAIL, "Edge appended with impossible node assignment.");
 
 }
+
 
 
 /*****************************************************************
@@ -403,6 +404,8 @@ p7_splicegraph_PathExists (SPLICE_GRAPH *graph, int up_node, int down_node)
   esl_vec_ISet(visited,   graph->num_nodes, 0);
 
   current = up_node;
+  visited[current] = 1;
+  
   for (i = 0; i < graph->num_nodes; i++) {
     if(!visited[i]) {
       if(p7_splicegraph_EdgeExists(graph, current, i)) {
@@ -440,6 +443,7 @@ path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *v
   for (i = 0; i < graph->num_nodes; i++) {
     if(!visited[i]) {
       if(p7_splicegraph_EdgeExists(graph, current, i)) {
+        visited[i] = 1;
         if(path_finder(graph, i, downstream_node, visited)) return TRUE;
       }
     }

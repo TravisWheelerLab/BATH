@@ -10,6 +10,7 @@
 typedef struct _splice_edge {
 
   int frameshift;
+  int bypass_checked;
 
   int upstream_node_id;
   int downstream_node_id;
@@ -167,7 +168,7 @@ typedef struct _splice_gap
 #define MAX_INTRON_LEN            25000      
 #define MIN_INTRON_LEN            13
 #define MAX_AMINO_EXT             30
-#define MIN_AMINO_OVERLAP         12
+#define MIN_AMINO_OVERLAP         14
 #define MAX_AMINO_OVERLAP         30
 
 /* Indices of p7_splice_SignalScores */
@@ -198,7 +199,8 @@ extern int p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_
 extern SPLICE_EDGE* p7_splicegraph_GetEdge(SPLICE_GRAPH* graph, int up_node, int down_node);
 extern int p7_splicegraph_PathExists (SPLICE_GRAPH *graph, int upstream_node, int downstream_node);
 extern void p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph);
-extern void p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph, int print_edges);
+extern void p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph);
+extern void p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j);
 
 /* p7_splicehits.c */
 extern SPLICE_SAVED_HITS* p7_splicehits_CreateSavedHits(void);
@@ -232,6 +234,7 @@ extern int p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *saved_h
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_RemoveDisconnected(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed);
+extern int p7_splice_AddJStateEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);
 extern int p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *frameshift, int *success);
 extern int p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *success);
 extern int p7_splice_ReleaseHits(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed, int range_bound_min, int range_bound_maxs);

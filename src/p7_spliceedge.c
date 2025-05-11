@@ -47,7 +47,8 @@ p7_spliceedge_Create(void)
   edge = NULL;
   ESL_ALLOC(edge, sizeof(SPLICE_EDGE));
 
-  edge->frameshift   = FALSE;
+  edge->frameshift = FALSE;
+  edge->bypass_checked = FALSE;
 
   edge->splice_score = -eslINFINITY;
   edge->signal_score = -eslINFINITY;
@@ -108,7 +109,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
   /* Add extra nucleotides for splice sites */
   edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2, splice_seq->n);
   edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
-
+  
   if ((status = find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq)) != eslOK) goto ERROR;
 
   if(edge->splice_score == -eslINFINITY) {

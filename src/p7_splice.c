@@ -29,6 +29,7 @@ static int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
 static int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 static int hit_upstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp);
 static int hits_spliceable(P7_DOMAIN *upstream, P7_DOMAIN *downstream);
+static int hits_j_compatible(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp);
 
 /*  Function: p7_splice_SpliceHits
  *  Synopsis: SPLASH's splcing pipeline
@@ -171,10 +172,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 
       p7_splice_RemoveDisconnected(graph, hits_processed, &num_hits_processed);  
       printf("REMOVE\n");
-      p7_splicegraph_DumpHits(stdout, graph);
+     p7_splicegraph_DumpHits(stdout, graph);
 
-    //  p7_splicegraph_DumpEdges(stdout, graph, FALSE);
-      
+      p7_splicegraph_DumpGraph(stdout, graph, FALSE);
       if(esl_vec_ISum(graph->in_graph, graph->num_nodes) == 0) {
         prev_seqidx = seqidx;
         prev_revcomp = revcomp;
@@ -183,8 +183,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     }
 
     path = p7_splicepath_GetBestPath(graph);   
-    p7_splicepath_Dump(stdout, path);
-//p7_splicegraph_DumpEdges(stdout, graph, FALSE);
+   p7_splicepath_Dump(stdout, path);
+    p7_splicegraph_DumpGraph(stdout, graph, FALSE);
+
     seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]);
     seq_max = ESL_MAX(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]);
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, path->revcomp);
@@ -202,7 +203,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
         p7_splice_AlignFrameshiftPath (graph, path, pli, tophits, gm_fs, gcode, path_seq, db_nuc_cnt, &success);
     }
     else success = FALSE; 
-    
 
     if (success) {
       bound_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali);
@@ -386,6 +386,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
         edge = p7_spliceedge_ConnectHits(pli, split_hits[s-1]->dcl, split_hits[s]->dcl, hmm, gcode, hit_seq, graph->revcomp);        
  
         if(edge == NULL) {
+           
           /* Create new trace and add all starting and core model trace states from upstream hit */          
           new_trace = p7_trace_fs_Create();
           tr = split_hits[s-1]->dcl->tr;
@@ -770,6 +771,7 @@ hit_upstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp) {
   
 }
 
+
 int
 hits_spliceable(P7_DOMAIN *upstream, P7_DOMAIN *downstream) {
   
@@ -783,6 +785,7 @@ hits_spliceable(P7_DOMAIN *upstream, P7_DOMAIN *downstream) {
   return TRUE;
   
 }
+
 
 int
 p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int first, int last) {
@@ -1010,7 +1013,7 @@ p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm,
 int
 p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *frameshift, int *success)
 {
-  
+
   int          i;
   int          pos, seq_pos;
   int          exon;
@@ -1518,7 +1521,6 @@ p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIP
     pli->hit->dcl->jenv = pli->orig_nuc_idx[pli->nuc_sq->n] + path_seq->start -1;
   }
 
-
   ali_len = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali) - ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali) + 1;
   /* Adjust spliced hit score from nuc_len to gm_fs->max_length*3 */
   dom_score  = pli->hit->dcl->envsc;
@@ -1543,12 +1545,13 @@ p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIP
     dom_score += path->signal_scores[i];
 
   dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
-
+    
   /* E-value adjusment */
   dom_lnP += log((float)db_nuc_cnt / (float)gm_fs->max_length);
 
   /* If any of the original hits in the path have a lower eval (or higher score)
    * than the spliced alignment then do not report the spliced alignment */
+/*
   for(i = 0; i < path->path_len; i++) {
     if(path->node_id[i] < graph->split_N) {
       if(pli->by_E && tophits->hit[graph->orig_hit_idx[path->node_id[i]]]->dcl->lnP < dom_lnP)
@@ -1557,7 +1560,7 @@ p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIP
         dom_score = -eslINFINITY;
     }
   }
-   
+*/  
    if ((pli->by_E && exp(dom_lnP) <= pli->E) || ((!pli->by_E) && dom_score >= pli->T)) {
 
     *success = TRUE;
@@ -1686,7 +1689,7 @@ p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIP
     }
   }
   else *success = FALSE;
- 
+  
   if(nuc_dsq   != NULL) free(nuc_dsq);
 
   return eslOK;

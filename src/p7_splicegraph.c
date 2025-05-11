@@ -516,20 +516,59 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
   return;
 }
 
+
 /* Function:  p7_splicegraph_DumpEdges()
+ *
+ * Purpose: Dumps splice cooridnates of esch edge.
+ */
+void
+p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph) 
+{
+
+
+  int          i;
+  int          nuc_end, nuc_start;
+  SPLICE_EDGE *tmp_edge;
+
+  if (graph == NULL) { fprintf(fp, " [ graph is NULL ]\n"); return; }
+
+  fprintf(fp, "\n Edge Data  \n\n");
+  for(i = 0; i < graph->num_nodes; i++ ) {
+    if(!graph->in_graph[i]) continue;
+    tmp_edge = graph->edges[i];
+    while(tmp_edge != NULL) {
+      nuc_end =   tmp_edge->upstream_spliced_nuc_end;
+      nuc_start = tmp_edge->downstream_spliced_nuc_start;
+      fprintf(fp, "    Edge from Upstream Node %d to Downstream Node %d\n", tmp_edge->upstream_node_id+1, tmp_edge->downstream_node_id+1);
+      fprintf(fp, "                                   %s   %s\n", "Amino", "Nucleotide");
+      fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", tmp_edge->upstream_spliced_amino_end, nuc_end);
+      fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", tmp_edge->downstream_spliced_amino_start, nuc_start);
+      fprintf(fp, "\n");
+      tmp_edge = tmp_edge->next;
+    }
+  }
+  fprintf(fp, "\n");
+ 
+
+  return;
+
+}
+
+
+
+/* Function:  p7_splicegraph_DumpGraph()
  *
  * Purpose: Dumps matrix of graph scores. If no edge exits 
  *          prints "-inf". Also Dumps ali and path scores 
- *          and best outgoing edge data. If <print_edges> 
- *          is TRUE prints splice cooridnates of esch edge.
+ *          and best outgoing edge data. If <show_j> 
+ *          is TRUE includes j state edges
  */
 void
-p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph, int print_edges) 
+p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j) 
 {
 
 
   int          i,j;
-  int          nuc_end, nuc_start;
   int          num_nodes;
   int          in_range_cnt;
   float        edge_scores[graph->num_nodes];
@@ -630,28 +669,6 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph, int print_edges)
     fprintf(fp, "%8d", graph->best_out_edge[i]+1);
   }
   fprintf(fp, "\n");
-
- 
-  if (print_edges) {
-
-    fprintf(fp, "\n Edge Data  \n\n");
-    for(i = 0; i < graph->num_nodes; i++ ) {
-      if(!graph->in_graph[i]) continue;
-      tmp_edge = graph->edges[i];
-      while(tmp_edge != NULL) {
-        nuc_end =   tmp_edge->upstream_spliced_nuc_end;
-        nuc_start = tmp_edge->downstream_spliced_nuc_start;
-        fprintf(fp, "    Edge from Upstream Node %d to Downstream Node %d\n", tmp_edge->upstream_node_id+1, tmp_edge->downstream_node_id+1);
-        fprintf(fp, "                                   %s   %s\n", "Amino", "Nucleotide");
-        fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", tmp_edge->upstream_spliced_amino_end, nuc_end);
-        fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", tmp_edge->downstream_spliced_amino_start, nuc_start);
-        fprintf(fp, "\n");
-        tmp_edge = tmp_edge->next;
-      }
-    }
-  }
-  fprintf(fp, "\n");
- 
 
   return;
 

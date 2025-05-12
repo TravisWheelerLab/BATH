@@ -72,8 +72,8 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
     else                                            x = p7P_MAXCODONS;
 
-    XMX(i,p7G_N) =  XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
-    XMX(i,p7G_B) =  XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE]; 
+    XMX(i,p7G_N) =  0; 
+    XMX(i,p7G_B) =  sub_gm->xsc[p7P_N][p7P_MOVE]; 
 
     for (k = 0; k <= M; k++) 
       MMX_SP(i,k) = IMX_SP(i,k) = RMX_SP(i,k) = PMX_SP(i,k) = -eslINFINITY;
@@ -100,7 +100,7 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
     c3 = p7P_CODON3(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    XMX(i,p7G_N) = XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
 
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = RMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
@@ -141,8 +141,8 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
     RMX_SP(i,M) = PMX_SP(i,M) = -eslINFINITY; 
  
     XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
-                           XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+                           XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]); 
     
     XMX(i,p7G_J) = -eslINFINITY;    
 
@@ -160,7 +160,7 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
     c3 = p7P_CODON3(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    XMX(i,p7G_N) = XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
 
     
@@ -207,7 +207,7 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
     RMX_SP(i,M) =  PMX_SP(i,M) = -eslINFINITY;
 
     XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
                            XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
 
     XMX(i,p7G_J) = -eslINFINITY;    
@@ -261,8 +261,11 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
     u = v;
     v = w;
     w = x;
- 
-    XMX(i,p7G_N) =  XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+
+    if( i < 3 ) 
+      XMX(i,p7G_N) = 0.;
+    else 
+      XMX(i,p7G_N) =  XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) =  XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE]; 
  
     /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
@@ -338,8 +341,12 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
     RMX_SP(i,M) = PMX_SP(i,M) = -eslINFINITY;
 
     XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
-                           XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
+    
+    if (i < 3)
+       XMX(i,p7G_C) = XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE];
+    else
+      XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+                             XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
 
     XMX(i,p7G_J) = -eslINFINITY;
 
@@ -373,7 +380,7 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
     c5 = p7P_CODON5(t, u, v, w, x);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
 
-    XMX(i,p7G_N) = XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
 
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = RMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
@@ -431,7 +438,7 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
     RMX_SP(i,M) = PMX_SP(i,M) = -eslINFINITY; 
  
     XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
                            XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
     
     XMX(i,p7G_J) = -eslINFINITY;    
@@ -465,7 +472,7 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
     c5 = p7P_CODON5(t, u, v, w, x);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
 
-    XMX(i,p7G_N) = XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
     
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = RMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
@@ -502,7 +509,8 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
                             IMX_SP(i-3,k) + TSC(p7P_II,k));
 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
-                            DMX_SP(i,k-1) + TSC(p7P_DD,k-1));
+                    ESL_MAX(DMX_SP(i,k-1) + TSC(p7P_DD,k-1),
+                            PMX_SP(i,k-1)));
    
       RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + log(1.0/160000.0);
       PMX_SP(i,k) = ESL_MAX(RMX_SP(i-1,k),  PMX_SP(i-1,k));
@@ -513,6 +521,7 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
                       ESL_MAX(DMX_SP(i-1,M-1) + TSC(p7P_DM,M-1),
                               PMX_SP(i-i,M-1))));
 
+    
     MMX_SP(i,M) = IVX(i,M,p7P_C1) + p7P_MSC_CODON(sub_gm, M, c1);
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C2) + p7P_MSC_CODON(sub_gm, M, c2));
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C3) + p7P_MSC_CODON(sub_gm, M, c3));
@@ -528,7 +537,7 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
     RMX_SP(i,M) =  PMX_SP(i,M) = -eslINFINITY;
 
     XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
                            XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
 
     XMX(i,p7G_J) = -eslINFINITY;    
@@ -539,7 +548,7 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
   gx->L = L;
 
   if (iv != NULL) free(iv);
-
+  //p7_gmx_sp_Dump(stdout, gx, p7_DEFAULT);
   return eslOK;
 
   ERROR:
@@ -578,8 +587,8 @@ p7_sp_trans_local_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int 
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
     else                                            x = p7P_MAXCODONS;
 
-    XMX(i,p7G_N) =  XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
-    XMX(i,p7G_B) =  XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
+    XMX(i,p7G_N) = 0.; 
+    XMX(i,p7G_B) = sub_gm->xsc[p7P_N][p7P_MOVE];
 
     for (k = 0; k <= M; k++)
       MMX_SP(i,k) = IMX_SP(i,k) = DMX_SP(i,k) = RMX_SP(i,k) = PMX_SP(i,k) = -eslINFINITY;
@@ -601,7 +610,7 @@ p7_sp_trans_local_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int 
     c3 = p7P_CODON3(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    XMX(i,p7G_N) = XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
 
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = RMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
@@ -626,7 +635,7 @@ p7_sp_trans_local_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int 
     }
 
 
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
                            XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
 
     XMX(i,p7G_J) = -eslINFINITY;
@@ -645,7 +654,7 @@ p7_sp_trans_local_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int 
     c3 = p7P_CODON3(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    XMX(i,p7G_N) = XMX(i-1,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
 
 
@@ -673,7 +682,7 @@ p7_sp_trans_local_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int 
     
     }
 
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
                            XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
 
     XMX(i,p7G_J) = -eslINFINITY;
@@ -718,7 +727,7 @@ p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
    
-      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-1, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
+      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
       else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  
@@ -860,7 +869,7 @@ p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gco
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
    
-      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-1, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
+      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
       else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  
@@ -1053,7 +1062,7 @@ p7_sp_trans_local_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
    
-      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-1, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
+      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
       else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  

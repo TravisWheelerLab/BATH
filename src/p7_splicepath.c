@@ -23,6 +23,7 @@ static int longest_path_upstream (SPLICE_GRAPH *graph);
 static int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
 static SPLICE_PATH* check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path);
 static float get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node);
+static int hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp);
 
 /*****************************************************************
  * 1. The SPLICE_PATH structure.

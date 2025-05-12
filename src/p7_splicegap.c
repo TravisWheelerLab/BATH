@@ -93,7 +93,7 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
   sub_hmm->fs = 0.; //set frameshift probability to 0 to align standard codons only
 
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, gap_seq->n*3, p7_GLOBAL); //len*3 to get single nucleotide loops
+  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, gap_seq->n, p7_GLOBAL); 
   
   vit_mx = p7_gmx_fs_Create(sub_fs_model->M, gap_seq->n, gap_seq->n, p7P_SPLICE);
   tr = p7_trace_fs_Create();

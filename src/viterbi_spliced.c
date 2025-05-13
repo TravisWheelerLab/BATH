@@ -186,8 +186,7 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
                             IMX_SP(i-3,k) + TSC(p7P_II,k));
 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
-                    ESL_MAX(DMX_SP(i,k-1) + TSC(p7P_DD,k-1),
-                            PMX_SP(i,k-1)));
+                            DMX_SP(i,k-1) + TSC(p7P_DD,k-1));
 
       RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + log(1.0/160000.0);
       PMX_SP(i,k) = ESL_MAX(RMX_SP(i-1,k),  PMX_SP(i-1,k));
@@ -201,8 +200,7 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
     IMX_SP(i,M) = -eslINFINITY;
 
     DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,M-1),
-                  ESL_MAX(DMX_SP(i,M-1) + TSC(p7P_DD,M-1),
-                          PMX_SP(i,M-1)));
+                          DMX_SP(i,M-1) + TSC(p7P_DD,M-1));
 
     RMX_SP(i,M) =  PMX_SP(i,M) = -eslINFINITY;
 

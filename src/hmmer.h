@@ -251,7 +251,8 @@ enum p7p_rsc_codon {
   p7P_C4 = 3,
   p7P_C5 = 4,
 };
-#define p7P_CODONS         5
+#define p7P_CODONS 5
+#define p7P_SPLICE 2
 
 enum p7p_rsc_indels {
   p7P___X   = 0,
@@ -608,7 +609,13 @@ enum p7g_splicecells_e {
   p7G_P = 4,
 };
 #define p7G_NSCELLS_SP 5
-#define p7P_SPLICE 2
+
+enum p7g_fssplicecells_e {
+  p7G_R2 = 8,
+  p7G_P2 = 9,
+};
+#define p7G_NSCELLS_SP_FS 10
+
 
 enum p7g_xcells_e {
   p7G_E  = 0,
@@ -650,6 +657,7 @@ typedef struct p7_gmx_s {
 #define DMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
 #define XMX(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
 
+/* frameshift matrix */
 #define MMX_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
 #define IMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_I])
 #define DMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
@@ -661,6 +669,13 @@ typedef struct p7_gmx_s {
 #define DMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_D])
 #define RMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_R])
 #define PMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_P])
+
+/* frameshift and spliced matrix */
+#define MMX_SP_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_M   + (c)]) 
+#define IMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_I])
+#define DMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_D])
+#define RMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_R2])
+#define PMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_P2])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
@@ -874,6 +889,7 @@ typedef struct p7_domaindef_s {
 
   /* flags */
   int fstbl;     /* True if --fstblout flag in on for bathsearch */
+  int splice;    /* True if --splice flag in on for bathsearch */
 
 } P7_DOMAINDEF;
 
@@ -1571,10 +1587,11 @@ extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* fwdback_frameshift.c */
-extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_ForwardParser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_Forward_Frameshift        (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_Forward_Frameshift_Spliced(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_ForwardParser_Frameshift  (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_Backward_Frameshift       (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_BackwardParser_Frameshift (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 
 /* viterbi_frameshift.c */
 extern int p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
@@ -1614,10 +1631,12 @@ extern int p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GM
 extern int p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr);
 
 /* generic_stotrace.c */
-extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
+
+extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
 
 /*stotrace_frameshift.c */
-extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_StochasticTrace_Frameshift_Spliced(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_viterbi.c */
 extern int p7_GViterbi     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
@@ -1837,6 +1856,8 @@ extern size_t  p7_gmx_fs_Sizeof (P7_GMX *gx);
 extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags, int scientific);
 extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 extern int     p7_gmx_fs_DumpWindow_Scientific(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
+extern int     p7_gmx_fs_sp_Dump(FILE *ofp, P7_GMX *gx, int flags);
+extern int     p7_gmx_fs_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int flags);
 extern int     p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int kend, int flags);
 extern int     p7_gmx_sp_Dump(FILE *ofp, P7_GMX *gx, int flags);
 extern int     p7_gmx_sp_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
@@ -2005,7 +2026,7 @@ extern int     p7_spensemble_GetClusterCoords(P7_SPENSEMBLE *sp, int which,
 extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 
 /* p7_splice.c */
-extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt);
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt, int fs_pipe, int std_pipe);
 extern int p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm);
 extern int p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
 
@@ -2103,6 +2124,7 @@ extern int  p7_trace_Reverse(P7_TRACE *tr);
 extern int  p7_trace_fs_Reverse(P7_TRACE *tr);
 extern int  p7_trace_Index(P7_TRACE *tr);
 extern int  p7_trace_fs_Index(P7_TRACE *tr);
+extern int  p7_trace_sp_Index(P7_TRACE *tr);
 
 extern int  p7_trace_FauxFromMSA(ESL_MSA *msa, int *matassign, int optflags, P7_TRACE **tr);
 extern int  p7_trace_Doctor(P7_TRACE *tr, int *opt_ndi, int *opt_nid);

@@ -937,7 +937,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) 
-      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, ofp, resCnt);
+      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, ofp, resCnt, pipelinehits_accumulator->fs_pipe, pipelinehits_accumulator->std_pipe);
    
     /* Print the results.  */
     pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 

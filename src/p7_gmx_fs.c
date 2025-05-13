@@ -111,7 +111,7 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
   uint64_t ncells;
   int      do_reset = FALSE;
 
- if (M < gx->allocW && L < gx->validR && Lx < gx->allocR) return eslOK;
+ if (M < gx->allocW && L < gx->validR && Lx < gx->allocR && C <= gx->allocC) return eslOK;
 
   /* must we realloc the 2D matrices? (or can we get away with just
    * jiggering the row pointers, if we are growing in one dimension
@@ -119,36 +119,35 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
    */
   ncells = (uint64_t) (M+1) * (uint64_t) (L+1);
   if (ncells > gx->ncells || C > gx->allocC) 
-    {
-      ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * (p7G_NSCELLS + C));
-      gx->ncells = ncells;
-      gx->allocC = C;
-      do_reset   = TRUE;
-    }
+  {
+    ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * (p7G_NSCELLS + C));
+    gx->ncells = ncells;
+    gx->allocC = C;
+    do_reset   = TRUE;
+  }
   /* must we reallocate the row pointers? */
   if (Lx >= gx->allocR)
-    {
-      ESL_RALLOC(gx->xmx, p, sizeof(float)   * (Lx+1) * p7G_NXCELLS);
-      gx->allocR = Lx+1;		/* allocW will also get set, in the do_reset block */
-    }
-
-   if(L >= gx->validR)
-   {
-     ESL_RALLOC(gx->dp,  p, sizeof(float *) * (L+1));
-     gx->validR= L+1;
-     do_reset   = TRUE;
-   } 
+  {
+    ESL_RALLOC(gx->xmx, p, sizeof(float)   * (Lx+1) * p7G_NXCELLS);
+    gx->allocR = Lx+1;		/* allocW will also get set, in the do_reset block */
+  }
+  
+  if(L >= gx->validR)
+  {
+    ESL_RALLOC(gx->dp,  p, sizeof(float *) * (L+1));
+    gx->validR= L+1;
+    do_reset   = TRUE;
+  } 
 
   /* must we widen the rows? */
   if (M >= gx->allocW) do_reset = TRUE;
-
   /* resize the rows and reset all the valid row pointers.*/
   if (do_reset)
-    {
-      gx->allocW = M+1;
-      for (i = 0; i < gx->validR; i++) 
-	gx->dp[i] = gx->dp_mem + i * (gx->allocW) * (p7G_NSCELLS + C);
-    }
+  {
+    gx->allocW = M+1;
+    for (i = 0; i < gx->validR; i++) 
+	  gx->dp[i] = gx->dp_mem + i * (gx->allocW) * (p7G_NSCELLS + C);
+  }
 
   gx->M      = 0;
   gx->L      = 0;
@@ -424,6 +423,169 @@ p7_gmx_fs_DumpWindow_Scientific(FILE *ofp, P7_GMX *gx, int istart, int iend, int
   }
   return eslOK;
 }
+
+
+/* Function:  p7_gmx_fs_sp_Dump()
+ * Synopsis:  Dump a frameshift DP matrix to a stream, for diagnostics.
+ *
+ * Purpose:   Dump matrix <gx> to stream <fp> for diagnostics.
+ *
+ *            <flags> control some optional output behaviors, as follows:
+ *              | <p7_HIDE_SPECIALS> | don't show scores for <ENJBC> states  |
+ *              | <p7_SHOW_LOG>      | <gx> is in probs; show as log probs   |
+ *
+ *            int sci_note = TRUE to print values in scientific notation
+ */
+int
+p7_gmx_fs_sp_Dump(FILE *ofp, P7_GMX *gx, int flags)
+{
+  return p7_gmx_fs_sp_DumpWindow(ofp, gx, 0, gx->L, 0, gx->M, flags);
+}
+
+
+/* Function:  p7_gmx_fs_sp_DumpWindow()
+ * Synopsis:  Dump a window of a frameshift DP matrix to a stream for diagnostics.
+ *
+ * Purpose:   Dump a window of matrix <gx> to stream <fp> for diagnostics,
+ *            from row <istart> to <iend>, from column <kstart> to <kend>.
+ *            
+ *            Asking for <0..L,0..M> with <flags=p7_SHOW_SPECIALS> is the
+ *            same as <p7_gmx_Dump()>.
+ *            
+ *            <flags> control some optional output behaviors, as follows:
+ *              | <p7_HIDE_SPECIALS> | don't show scores for <ENJBC> states  |
+ *              | <p7_SHOW_LOG>      | <gx> is in probs; show as log probs   |
+ *  
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_gmx_fs_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int flags)
+{
+  int   width     = 9;
+  int   precision = 4;
+  int   i, k, c, x;
+  float val;
+  
+  /* Header */
+  fprintf(ofp, "     ");
+  for (k = kstart; k <= kend;  k++) {
+    fprintf(ofp, "%*d_0", width, k);
+    for(c = 1; c <= gx->allocC; c++) 
+      fprintf(ofp, "%*d_%d", width, k, c);
+  }
+
+  if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
+  fprintf(ofp, "      ");
+  for (k = kstart; k <= kend; k++) { 
+    fprintf(ofp, "%*.*s ", width, width, "----------");
+    for (c = 1; c <= gx->allocC; c++)  	
+      fprintf(ofp, "%*.*s ", width, width, "----------");
+  }
+
+  if (! (flags & p7_HIDE_SPECIALS)) 
+    for (x = 0; x < 5; x++) fprintf(ofp, "%*.*s ", width, width, "----------");
+  fprintf(ofp, "\n");
+  
+  /* DP matrix data */
+  for (i = istart; i <= iend; i++)
+  {
+      fprintf(ofp, "%3d M ", i);
+      for (k = kstart; k <= kend;        k++)  
+	{
+	  val = gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC) + p7G_M + p7G_C0];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+         
+	  val = gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC)  + p7G_M + p7G_C1];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+
+	  val = gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC) + p7G_M + p7G_C2];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+
+       	  val = gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC)  + p7G_M + p7G_C3];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+
+	  val = gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC)  + p7G_M + p7G_C4];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+
+	  val = gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC) + p7G_M + p7G_C5];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+	}
+      if (! (flags & p7_HIDE_SPECIALS))
+	{
+    	  for (x = 0;  x <  p7G_NXCELLS; x++) 
+	    {
+	      val = gx->xmx[i * p7G_NXCELLS + x];
+	      if (flags & p7_SHOW_LOG) val = log(val);
+	      fprintf(ofp, "%*.*f ", width, precision, val);
+	    }
+	}
+      fprintf(ofp, "\n");
+
+      fprintf(ofp, "%3d I ", i);
+      for (k = kstart; k <= kend;        k++) 
+	{
+	  val = gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC) + p7G_I];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+    	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	}
+      fprintf(ofp, "\n");
+
+      fprintf(ofp, "%3d D ", i);
+      for (k = kstart; k <= kend;        k++) 
+	{
+	  val =  gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC)  + p7G_D];
+	  if (flags & p7_SHOW_LOG) val = log(val);
+	  fprintf(ofp, "%*.*f ", width, precision, val);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+	  fprintf(ofp, "%*.*f ", width, precision, 0.0);
+        }
+     fprintf(ofp, "\n");
+
+    fprintf(ofp, "%3d R ", i);
+    for (k = kstart; k <= kend;        k++)
+    {
+      val =  gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC) + p7G_R2];
+      if (flags & p7_SHOW_LOG) val = log(val);
+      fprintf(ofp, "%*.*f ", width, precision, val);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+    }
+     fprintf(ofp, "\n");
+    fprintf(ofp, "%3d P ", i);
+    for (k = kstart; k <= kend;        k++)
+    {
+      val =  gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC) + p7G_P2];
+      if (flags & p7_SHOW_LOG) val = log(val);
+      fprintf(ofp, "%*.*f ", width, precision, val);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+      fprintf(ofp, "%*.*f ", width, precision, 0.0);
+    }
+      fprintf(ofp, "\n\n");
+  }
+  
+  return eslOK;
+}
+
 
 
 /* Function:  p7_gmx_fs_ParserDumpw()

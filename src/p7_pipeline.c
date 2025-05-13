@@ -529,7 +529,8 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   /* Create full memeory forward and backward generic frameshift aware matricies
    * for use in the frameshift pipeline alignment
    */ 
-   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS)) == NULL) goto ERROR;
+   if(pli->spliced) { if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, (p7P_CODONS+p7P_SPLICE))) == NULL) goto ERROR; }
+   else             { if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS)) == NULL) goto ERROR; }
    if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))         == NULL) goto ERROR;
 
   /* Normally, we reinitialize the RNG to the original seed every time we're

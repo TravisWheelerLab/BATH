@@ -1968,7 +1968,6 @@ p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i, int c)
   default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
   }
 
-  if (c != 3) tr->fs++;
   tr->st[tr->N] = st;
   tr->N++;
   return eslOK;
@@ -2072,7 +2071,6 @@ p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, float pp)
   default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
   }
 
-  if (c != 3) tr->fs++;
   tr->st[tr->N] = st;
   tr->N++;
   return eslOK;
@@ -2124,7 +2122,6 @@ p7_trace_splice_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, int sp,
   default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
   }
 
-  if (c != 3) tr->fs++;
   tr->st[tr->N] = st;
   tr->N++;
   return eslOK;
@@ -2363,6 +2360,77 @@ p7_trace_fs_Index(P7_TRACE *tr)
  ERROR:
   return status;
 }
+
+/* Function:  p7_trace_sp_Index()
+ * Synopsis:  Internally index the domains in a trace.
+ * Incept:    SRE, Fri Jan  4 11:12:24 2008 [Janelia]
+ *
+ * Purpose:   Create an internal index of the domains in <tr>.
+ *            This makes calls to <GetDomainCount()> and
+ *            <GetDomainCoords()> more efficient, and it is
+ *            a necessary prerequisite for creating alignments
+ *            of any individual domains in a multidomain trace with
+ *            <p7_alidisplay_Create()>.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure, in which case the
+ *            data in the trace is still fine, but the domain index
+ *            table isn't constructed.
+ */
+int
+p7_trace_sp_Index(P7_TRACE *tr)
+{
+  int z;
+  int prev;
+  int status;
+
+  tr->ndom = 0;
+  for (z = 0; z < tr->N; z++)
+    {
+      switch (tr->st[z]) {
+      case p7T_B:
+        if ((status = p7_trace_GrowIndex(tr)) != eslOK) goto ERROR;
+        tr->tfrom[tr->ndom]   = z;
+        tr->sqfrom[tr->ndom]  = 0;
+        tr->hmmfrom[tr->ndom] = 0;
+        break;
+
+      case p7T_M:
+        if(prev == p7T_P) tr->tfrom[tr->ndom]   = z-1;
+        if (tr->sqfrom[tr->ndom]  == 0) tr->sqfrom[tr->ndom]  = tr->i[z] - tr->c[z];
+        if (tr->hmmfrom[tr->ndom] == 0) tr->hmmfrom[tr->ndom] = tr->k[z];
+        tr->sqto[tr->ndom]  = tr->i[z];
+        tr->hmmto[tr->ndom] = tr->k[z];
+        break;
+
+      case p7T_D:
+        if(prev == p7T_P) tr->tfrom[tr->ndom]   = z-1;
+        break;
+
+      case p7T_R: 
+        tr->tto[tr->ndom]   = z;
+        tr->ndom++;
+        if ((status = p7_trace_GrowIndex(tr)) != eslOK) goto ERROR;
+        tr->sqfrom[tr->ndom]  = 0;
+        tr->hmmfrom[tr->ndom] = 0;
+        break;
+
+      case p7T_E:
+        tr->tto[tr->ndom]   = z;
+        tr->ndom++;
+        break;
+      }
+      prev = tr->st[z];
+    }
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
+
+
 
 /*----------- end, creating traces by DP traceback ---------------*/
 

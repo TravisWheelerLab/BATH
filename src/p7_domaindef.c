@@ -209,7 +209,8 @@ p7_domaindef_fs_Create(ESL_RANDOMNESS *r, ESL_GETOPTS *go)
   ddef->r            = r;  
   ddef->do_reseeding = TRUE;
 
-  ddef->fstbl = esl_opt_IsUsed(go, "--fstblout"); /* TRUE to produce tabular frameshift location output */
+  ddef->fstbl  = esl_opt_IsUsed(go, "--fstblout"); /* TRUE to produce tabular frameshift location output */
+  ddef->splice = esl_opt_IsUsed(go, "--splice");   /* TRUE to use spliced version of domain spliting */
 
   return ddef;
   
@@ -670,13 +671,13 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
       j = d;
  
       /* We have a region i..j to evaluate. */
-      p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);
+      if(ddef->splice) p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, (p7P_CODONS+p7P_SPLICE));
+      else             p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);             
       p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);
       ddef->nregions++;
-
       if (is_multidomain_region_fs(ddef, i, j))
       {
-	
+
         /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
@@ -691,7 +692,11 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         */
     
         p7_fs_ReconfigMultihit(gm_fs, saveL);
-        p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
+
+        if(ddef->splice)
+          p7_Forward_Frameshift_Spliced(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
+        else
+          p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
 
         region_trace_ensemble_frameshift(ddef, gm_fs, windowsq->dsq, windowsq->abc, i, j, fwd, bck, &nc);
 
@@ -1198,12 +1203,17 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
     esl_randomness_Init(ddef->r, esl_randomness_GetSeed(ddef->r));
   /* Collect an ensemble of sampled traces; calculate null2 odds ratios from these */
   for (t = 0; t < ddef->nsamples; t++)
-    {
-
+  {
+       
+    if(ddef->splice) {
+      p7_StochasticTrace_Frameshift_Spliced(ddef->r, dsq+ireg-1, Lr, gm_fs, fwd, ddef->tr);
+      p7_trace_sp_Index(ddef->tr);
+    }
+    else {
       p7_StochasticTrace_Frameshift(ddef->r, dsq+ireg-1, Lr, gm_fs, fwd, ddef->tr);
-
       p7_trace_fs_Index(ddef->tr);
- 
+    }
+    
     for (d = 0; d < ddef->tr->ndom; d++)
       p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
      

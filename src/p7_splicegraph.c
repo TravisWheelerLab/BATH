@@ -61,6 +61,7 @@ p7_splicegraph_Create()
 
   graph->reportable     = NULL;
   graph->orig_hit_idx   = NULL;
+  graph->split_orig_id  = NULL;
   graph->in_graph       = NULL;
   
   graph->best_out_edge = NULL;
@@ -107,6 +108,7 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
 
   ESL_ALLOC(graph->reportable,    sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->orig_hit_idx,  sizeof(int)  * graph->nalloc);
+  ESL_ALLOC(graph->split_orig_id, sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->in_graph,      sizeof(int)  * graph->nalloc);
   
   ESL_ALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
@@ -152,6 +154,7 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
     ESL_REALLOC(graph->in_graph,      sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->reportable,    sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->orig_hit_idx,  sizeof(int)   * graph->nalloc);    
+    ESL_REALLOC(graph->split_orig_id, sizeof(int)   * graph->nalloc);
 
     ESL_REALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->best_in_edge,  sizeof(int)   * graph->nalloc);
@@ -185,15 +188,16 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
 
   if (graph == NULL) return;
 
-  if(graph->reportable      != NULL) free(graph->reportable);
-  if(graph->orig_hit_idx    != NULL) free(graph->orig_hit_idx);
-  if(graph->in_graph        != NULL) free(graph->in_graph);
+  if(graph->reportable    != NULL) free(graph->reportable);
+  if(graph->orig_hit_idx  != NULL) free(graph->orig_hit_idx);
+  if(graph->split_orig_id != NULL) free(graph->split_orig_id);
+  if(graph->in_graph      != NULL) free(graph->in_graph);
 
-  if(graph->path_scores     != NULL) free(graph->path_scores);
-  if(graph->ali_scores      != NULL) free(graph->ali_scores);
+  if(graph->path_scores   != NULL) free(graph->path_scores);
+  if(graph->ali_scores    != NULL) free(graph->ali_scores);
 
-  if(graph->best_out_edge   != NULL) free(graph->best_out_edge);
-  if(graph->best_in_edge    != NULL) free(graph->best_in_edge);
+  if(graph->best_out_edge != NULL) free(graph->best_out_edge);
+  if(graph->best_in_edge  != NULL) free(graph->best_in_edge);
 
  
   for (i = graph->orig_N; i < graph->th->N; i++) {
@@ -262,6 +266,8 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
   graph->best_in_edge[graph->num_nodes]  = -1;
 
   graph->edges[graph->num_nodes]   = NULL;  
+
+  graph->split_orig_id[graph->num_nodes]   = -1;
  
   graph->num_nodes++;
 
@@ -493,8 +499,8 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
   fprintf(fp, " Graph Split Hit Count    : %d\n", split_cnt);
   fprintf(fp, "\n");
 
-  fprintf(fp, "   %4s %6s %9s %12s %12s %10s %10s\n",
-          "Hit", "hmm_from", "hmm_to", "seq_from", "seq_to", "score", "reportable");
+  fprintf(fp, "   %4s %6s %9s %12s %12s %10s %10s %10s\n",
+          "Hit", "hmm_from", "hmm_to", "seq_from", "seq_to", "score", "reportable", "split_orig");
 
   for(i = 0; i < graph->th->N; i++) {
 
@@ -506,6 +512,9 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
     if ( i < graph->orig_N)
       fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10s\n",
               i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, (graph->reportable[i] ? "YES" : "NO"));
+    else if ( i < graph->split_N)
+      fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10s %10d\n",
+              i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, (graph->reportable[graph->split_orig_id[i]] ? "YES" : "NO"), graph->split_orig_id[i]+1);
     else
       fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f\n",
               i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore);

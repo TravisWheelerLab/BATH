@@ -152,16 +152,16 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 
       printf("\nQuery %s Target %s strand %c\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'));
       fflush(stdout);
-     printf("ORIGINAL\n");
-     p7_splicegraph_DumpHits(stdout, graph);
+     //printf("ORIGINAL\n");
+     //p7_splicegraph_DumpHits(stdout, graph);
 
      if((p7_splice_SplitHits(graph, pli, hmm, gm_fs, gcode, seq_file, &hit_to_process, fs_pipe)) != eslOK) goto ERROR;
-      printf("SPLIT\n");
-     p7_splicegraph_DumpHits(stdout, graph);        
+     // printf("SPLIT\n");
+     //p7_splicegraph_DumpHits(stdout, graph);        
 
       p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);     
-     printf("RECOVER\n");
-     p7_splicegraph_DumpHits(stdout, graph);
+     //printf("RECOVER\n");
+     //p7_splicegraph_DumpHits(stdout, graph);
       
       p7_splice_FillGaps(graph, pli, hmm, gcode, seq_file);
      //printf("GAPS\n");
@@ -182,7 +182,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     }
 
     path = p7_splicepath_GetBestPath(graph);   
-    p7_splicepath_Dump(stdout, path);
+    //p7_splicepath_Dump(stdout, path);
     //p7_splicegraph_DumpGraph(stdout, graph, FALSE);
 
     seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]);
@@ -787,7 +787,7 @@ hits_spliceable(P7_DOMAIN *upstream, P7_DOMAIN *downstream) {
 
 
 int
-p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int first, int last) 
+p7_splice_RecoverHits2(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int first, int last) 
 {
 
   int i, j;
@@ -944,7 +944,7 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
 }
 
 int
-p7_splice_RecoverHits2(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int first, int last) 
+p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int first, int last) 
 {
 
   int i, j;

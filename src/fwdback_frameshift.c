@@ -623,8 +623,9 @@ p7_Forward_Frameshift_Spliced(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int 
       DMX_SP_FS(i,k) = p7_FLogsum(MMX_SP_FS(i,k-1,p7G_C0) + TSC(p7P_MD,k-1),
                                   DMX_SP_FS(i,k-1)        + TSC(p7P_DD,k-1));
 
-      if(i > 11) {
-        RMX_SP_FS(i,k) = p7_FLogsum(MMX_SP_FS(i-12,k,p7G_C0), DMX_SP_FS(i-12,k)) + log(1.0/160000.0);
+      if(i > 11 && k > 1) {
+        RMX_SP_FS(i,k) = p7_FLogsum(MMX_SP_FS(i-12,k,p7G_C0) + log(1.0/160000.0),
+                                    DMX_SP_FS(i-12,k)        + log(1.0/160000.0));
         PMX_SP_FS(i,k) = p7_FLogsum(RMX_SP_FS(i-1,k),  PMX_SP_FS(i-1,k));
       }
       else
@@ -667,8 +668,9 @@ p7_Forward_Frameshift_Spliced(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int 
     DMX_SP_FS(i,M) = p7_FLogsum(MMX_SP_FS(i,M-1,p7G_C0) + TSC(p7P_MD,M-1),
                                 DMX_SP_FS(i,M-1)        + TSC(p7P_DD,M-1));
 
-    if(i > 11) {
-      RMX_SP_FS(i,M) = p7_FLogsum(MMX_SP_FS(i-12,M,p7G_C0), DMX_SP_FS(i-12,M)) + log(1.0/160000.0);
+    if(i > 11 && k > 1) {
+      RMX_SP_FS(i,M) = p7_FLogsum(MMX_SP_FS(i-12,M,p7G_C0) + log(1.0/160000.0), 
+                                  DMX_SP_FS(i-12,M)        + log(1.0/160000.0));
       PMX_SP_FS(i,M) = p7_FLogsum(RMX_SP_FS(i-1,M),  PMX_SP_FS(i-1,M));
     }
     else

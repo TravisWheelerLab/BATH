@@ -143,7 +143,7 @@ p7_trans_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_F
 
   gx->M = gm_fs->M;
   gx->L = L;
-
+//  p7_gmx_Dump(stdout, gx, p7_DEFAULT);
   return eslOK;
 
 }
@@ -183,9 +183,9 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
      
-      if      (XMX(i-3, p7G_C) < XMX(i-2, p7G_C) || XMX(i-3, p7G_C) < XMX(i-1, p7G_C))                        scur = p7T_C;
-      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
-      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
+      if      (XMX(i, p7G_C) < XMX(i-2, p7G_C) || XMX(i, p7G_C) < XMX(i-1, p7G_C))                           scur = p7T_C;
+      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  
       break;

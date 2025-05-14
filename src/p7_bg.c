@@ -710,7 +710,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
   //first codons in the three frames end at i = 3, i = 4 and i = 5 	
   for (i = 3; i < 6; i++)
   {
-//	printf("i %d\n", i);
+
     max = 0.0;
     v = w;
     w = x;
@@ -734,7 +734,7 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
 
   for (i = 6; i <= L; i++)
     { 
-//	printf("i %d or %d\n", i, L);
+
       max = 0.0;
       v = w;
       w = x;
@@ -747,12 +747,12 @@ p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_
 
       for (k = 0; k < M; k++)
         {
-//		printf("k %d of %d\n", k, M);
+
           fwd->dp[i][k] = 0.0;
-  //              printf("k %d of %d\n", k, M);
+
           for (m = 0; m < M; m++)
             fwd->dp[i][k] += fwd->dp[i-3][m] * hmm->t[m][k];
-//	printf("i %d or %d\n", i, L);
+
           a = gcode->basic[v*16+w*4+x];
           fwd->dp[i][k] *= hmm->eo[a][k]; 
 

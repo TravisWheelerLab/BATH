@@ -723,9 +723,10 @@ p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *
     switch (sprv) {
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-   
-      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
-      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
+  
+      if      (XMX(i-3, p7G_C) + XMX(i-2, p7G_C) || XMX(i-3, p7G_C) < XMX(i-1, p7G_C))                        scur = p7T_C; 
+      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  
       break;
@@ -823,7 +824,7 @@ p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
-    if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--; 
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
    
     sprv = scur;
   } /* end traceback, at S state */
@@ -864,7 +865,8 @@ p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gco
     switch (sprv) {
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-   
+  
+      if      (XMX(i-3, p7G_C) + XMX(i-2, p7G_C) || XMX(i-3, p7G_C) < XMX(i-1, p7G_C))                         scur = p7T_C; 
       if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
       else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
@@ -1013,7 +1015,7 @@ p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gco
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
-    if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--; 
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
    
     sprv = scur;
   } /* end traceback, at S state */
@@ -1056,9 +1058,10 @@ p7_sp_trans_local_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode
     switch (sprv) {
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-   
-      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
-      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
+  
+      if      (XMX(i-3, p7G_C) < XMX(i-2, p7G_C) || XMX(i-3, p7G_C) < XMX(i-1, p7G_C))                        scur = p7T_C; 
+      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  
       break;
@@ -1154,7 +1157,7 @@ p7_sp_trans_local_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
-    if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--; 
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
 
     sprv = scur;
   } /* end traceback, at S state */

@@ -366,8 +366,9 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
     switch (sprv) {
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX_FS(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-   
-      if      (esl_FCompare_old(XMX_FS(i, p7G_C), XMX_FS(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
+
+      if      (XMX_FS(i-3, p7G_C) < XMX_FS(i-2, p7G_C) || XMX_FS(i-3, p7G_C) < XMX_FS(i-1, p7G_C))                  scur = p7T_C;
+      else if (esl_FCompare_old(XMX_FS(i, p7G_C), XMX_FS(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
       else if (esl_FCompare_old(XMX_FS(i, p7G_C), XMX_FS(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  
@@ -437,11 +438,10 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
 
     case p7T_J:         /* J connects from E(i) or J(i-1) */
       if (XMX_FS(i,p7G_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
-    
+   
       if      (esl_FCompare_old(XMX_FS(i,p7G_J), XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP], tol) == eslOK) scur = p7T_J;
       else if (esl_FCompare_old(XMX_FS(i,p7G_J), XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP], tol) == eslOK) scur = p7T_E;
       else  ESL_EXCEPTION(eslFAIL, "J at i=%d couldn't be traced", i);
-      
       break;
 
     default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
@@ -460,7 +460,8 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
-    if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--; 
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
+    if (  scur == p7T_J && scur == sprv) i-=3;
     prev_c = c;
     c = 0;
     sprv = scur;

@@ -99,9 +99,9 @@ p7_trans_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_F
 
 
       MMX(i,k) = ESL_MAX(MMX(i-3,k-1)   + TSC(p7P_MM,k-1),
-                        ESL_MAX(IMX(i-3,k-1)   + TSC(p7P_IM,k-1),
-                        ESL_MAX(DMX(i-3,k-1)   + TSC(p7P_DM,k-1),
-                                XMX(i-3,p7G_B) + TSC(p7P_BM,k-1)))) + p7P_MSC_CODON(gm_fs, k, c3);
+                 ESL_MAX(IMX(i-3,k-1)   + TSC(p7P_IM,k-1),
+                 ESL_MAX(DMX(i-3,k-1)   + TSC(p7P_DM,k-1),
+                         XMX(i-3,p7G_B) + TSC(p7P_BM,k-1)))) + p7P_MSC_CODON(gm_fs, k, c3);
 
       IMX(i,k) = ESL_MAX(MMX(i-3,k) + TSC(p7P_MI,k),
                          IMX(i-3,k)  + TSC(p7P_II,k));
@@ -124,20 +124,22 @@ p7_trans_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_F
 
     XMX(i,p7G_E) = ESL_MAX(MMX(i,M), XMX(i,p7G_E));
 
-    XMX(i,p7G_J) = ESL_MAX(XMX(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
+    XMX(i,p7G_J) = ESL_MAX(XMX(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
                            XMX(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
 
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-1,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
                            XMX(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
-    XMX(i,p7G_N) =         XMX(i-1,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_N) =         XMX(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
 
     XMX(i,p7G_B) = ESL_MAX(XMX(i,p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE],
                            XMX(i,p7G_J) + gm_fs->xsc[p7P_J][p7P_MOVE]);
   }
   
   /* T state (not stored) */
-  if (opt_sc != NULL) *opt_sc = XMX(L,p7G_C) + gm_fs->xsc[p7P_C][p7P_MOVE];
+  if (opt_sc != NULL) *opt_sc = ESL_MAX(XMX(L,p7G_C),
+                                ESL_MAX(XMX(L-1,p7G_C), 
+                                        XMX(L-2,p7G_C))) + gm_fs->xsc[p7P_C][p7P_MOVE];
 
   gx->M = gm_fs->M;
   gx->L = L;
@@ -180,8 +182,9 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
     switch (sprv) {
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
       if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-   
-      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-1, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
+     
+      if      (XMX(i-3, p7G_C) < XMX(i-2, p7G_C) || XMX(i-3, p7G_C) < XMX(i-1, p7G_C))                        scur = p7T_C;
+      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP], tol) == eslOK)  scur = p7T_C;
       else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE], tol) == eslOK)  scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
  
@@ -252,7 +255,7 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
     case p7T_J:         /* J connects from E(i) or J(i-1) */
       if (XMX(i,p7G_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
     
-      if      (esl_FCompare_old(XMX(i,p7G_J), XMX(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP], tol) == eslOK) scur = p7T_J;
+           if (esl_FCompare_old(XMX(i,p7G_J), XMX(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP], tol) == eslOK) scur = p7T_J;
       else if (esl_FCompare_old(XMX(i,p7G_J), XMX(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP], tol) == eslOK) scur = p7T_E;
       else  ESL_EXCEPTION(eslFAIL, "J at i=%d couldn't be traced", i);
       
@@ -265,8 +268,8 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
-    if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--; 
-    
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
+    if (  scur == p7T_J && scur == sprv) i-=3;
     sprv = scur;
   } /* end traceback, at S state */
 

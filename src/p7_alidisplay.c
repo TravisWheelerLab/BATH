@@ -3999,6 +3999,14 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->orfname = NULL;
   ad->mem     = NULL;
   ad->memsize = 0;
+  ad->exon_seq_starts = NULL;
+  ad->exon_seq_ends   = NULL;
+  ad->exon_hmm_starts = NULL;
+  ad->exon_hmm_ends   = NULL;
+  ad->exon_sum_score  = NULL;
+  ad->exon_pid        = NULL;
+  ad->exon_orig       = NULL;
+  ad->exon_split      = NULL;
 
   /* Optional lines are added w/ 50% chance */
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->rfline, sizeof(char) * (N+1));
@@ -4390,6 +4398,14 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->orfname = NULL;
   ad->mem     = NULL;
   ad->memsize = 0;
+  ad->exon_seq_starts = NULL;
+  ad->exon_seq_ends   = NULL;
+  ad->exon_hmm_starts = NULL;
+  ad->exon_hmm_ends   = NULL;
+  ad->exon_sum_score  = NULL;
+  ad->exon_pid        = NULL;
+  ad->exon_orig       = NULL;
+  ad->exon_split      = NULL;
 
   /* Optional lines are added w/ 50% chance */
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->rfline, sizeof(char) * (N+1));

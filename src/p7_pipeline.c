@@ -2401,7 +2401,7 @@ ERROR:
  */
 static int 
 p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, 
-                              int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_DSQ *window_dsq, int complementarity 
+                              int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_SQ *windowsq, ESL_GENCODE *gcode, int complementarity 
 )
 {
 
@@ -2426,7 +2426,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
   
     if (ali_len < 12)   
     {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
-      p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
       continue;
     }
@@ -2448,9 +2447,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
     }
 
-    dom->ad->sqfrom    = dom->iali;
-    dom->ad->sqto      = dom->jali;
- 
     /* Adjust score from env_len to max window length. Note that the loop and move 
      * costs are calculated based on amino lengths but paid per nucleotide*/
     bitscore = dom->envsc;
@@ -2474,7 +2470,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
  
     dom->scores_per_pos = NULL;
     if(pli->spliced) 
-      p7_splice_ComputeAliScores_fs(dom, dom->tr, window_dsq, gm_fs, dnasq->abc);
+      p7_splice_ComputeAliScores_fs(dom, dom->tr, windowsq->dsq, gm_fs, dnasq->abc);
 
     /* Check if hit passes the e-value cutoff based on the current
      * residue count. This prevents hits from accumulating and using
@@ -2484,7 +2480,14 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
           (pli->inc_by_E  && exp(dom_lnP) * pli->Z <= pli->E) ||
           (!pli->inc_by_E && dom_score >= pli->T) ) 
     { 
-   
+
+      if(!pli->spliced) {
+        dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs, windowsq, gcode);
+        dom->ad->sqfrom = dom->iali;
+        dom->ad->sqto   = dom->jali;
+        dom->ad->L      = 0;   
+      }
+    
       p7_tophits_CreateNextHit(hitlist, &hit);
       hit->ndom        = 1;
       hit->best_domain = 0;
@@ -2497,8 +2500,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
       ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
       hit->dcl[0] = pli->ddef->dcl[d];
 
-      hit->dcl[0].ad->L = 0;     
-	
       hit->pre_score = bitscore  / eslCONST_LOG2;
       hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
 
@@ -2526,7 +2527,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     else  //delete unused P7_ALIDSPLAY and P7_TRACE
     {
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
-      p7_alidisplay_Destroy(dom->ad);
+      //p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
     }
   }
@@ -2571,7 +2572,7 @@ ERROR:
 
 static int 
 p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, 
-                                   int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, 
+                                   int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, ESL_SQ *windowsq, ESL_GENCODE *gcode, 
                                    int complementarity, float nullsc 
 )
 {
@@ -2594,7 +2595,6 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     ali_len = (dom->jali - dom->iali + 1)/3;   
     if (ali_len < 4) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
-      p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
       continue; 
     }
@@ -2618,9 +2618,6 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2; 
     }
 
-    dom->ad->sqfrom    = dom->iali;
-    dom->ad->sqto      = dom->jali;
-   
     /* Adjust score from env_len to max window length */ 
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / (env_len+2));
@@ -2660,6 +2657,14 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
           (pli->inc_by_E  && exp(dom_lnP) * pli->Z <= pli->E) || 
           (!pli->inc_by_E && dom_score >= pli->T) ) 
      { 
+
+       if(!pli->spliced) {
+         dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0]);
+         dom->ad->sqfrom = dom->iali;
+         dom->ad->sqto   = dom->jali;
+         dom->ad->L      = 0;
+       }      
+     
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
     
@@ -2672,8 +2677,6 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
 
        ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
        hit->dcl[0] = pli->ddef->dcl[d];
-
-       hit->dcl[0].ad->L = 0;
 
        hit->pre_score = bitscore  / eslCONST_LOG2;
        hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
@@ -2901,7 +2904,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
     
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
-    p7_pli_postDomainDef_Frameshift(pli, gm_fs, data, bg, hitlist, seqidx, dna_window->n, dnasq, subseq, complementarity);
+    p7_pli_postDomainDef_Frameshift(pli, gm_fs, data, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
 
   } 
 
@@ -2937,7 +2940,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
         
         /* Send any hits from the standard pipeline to be further processed */   
-        p7_pli_postDomainDef_nonFrameshift(pli, om, gm, data, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
+        p7_pli_postDomainDef_nonFrameshift(pli, om, gm, data, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, pli_tmp->tmpseq, gcode, complementarity, nullsc_orf);
       }
     }  
   } 

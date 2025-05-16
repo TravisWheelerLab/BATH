@@ -924,7 +924,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Sort and remove duplicates */
     p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
-    assign_Lengths(tophits_accumulator, id_length_list);
+    //assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
     /* Sort and remove hits bellow threshold */
@@ -939,6 +939,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) 
       p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, ofp, resCnt, pipelinehits_accumulator->fs_pipe, pipelinehits_accumulator->std_pipe);
    
+    assign_Lengths(tophits_accumulator, id_length_list);
     /* Print the results.  */
     pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
     for (i = 0; i < tophits_accumulator->N; i++) {
@@ -1374,7 +1375,7 @@ assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list)
 
   for (i=0; i<th->N; i++) {
     while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++; } 
-    th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length;
+     if(th->hit[i]->flags & p7_IS_REPORTED )  th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length;
   }
 
   return eslOK;

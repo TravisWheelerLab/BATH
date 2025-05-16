@@ -913,8 +913,8 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
       intersect_aliend    = e_i<e_j ? e_i : e_j;
       intersect_alilen    = intersect_aliend - intersect_alistart + 1;
 
-      intersect_hmmstart = (th->hit[i]->dcl[0].ad->hmmfrom > th->hit[j]->dcl[0].ad->hmmfrom) ? th->hit[i]->dcl[0].ad->hmmfrom : th->hit[j]->dcl[0].ad->hmmfrom;
-      intersect_hmmend   = (th->hit[i]->dcl[0].ad->hmmto   < th->hit[j]->dcl[0].ad->hmmto)   ? th->hit[i]->dcl[0].ad->hmmto : th->hit[j]->dcl[0].ad->hmmto;
+      intersect_hmmstart = (th->hit[i]->dcl[0].ihmm > th->hit[j]->dcl[0].ihmm) ? th->hit[i]->dcl[0].ihmm : th->hit[j]->dcl[0].ihmm;
+      intersect_hmmend   = (th->hit[i]->dcl[0].jhmm < th->hit[j]->dcl[0].jhmm) ? th->hit[i]->dcl[0].jhmm : th->hit[j]->dcl[0].jhmm;
       intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
 
       if ( esl_strcmp(th->hit[i]->name, th->hit[i-1]->name) == 0  && // same model

@@ -1600,6 +1600,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   P7_GMX        *gxv;
   int            Ld            = j-i+1;
   int            seq_len, hmm_len;
+  int            z1, z2;
   float          domcorrection = 0.0;
   float          envsc, oasc;
   int            codon_idx;  
@@ -1662,7 +1663,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   }
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm_fs, windowsq, gcode);
+  dom->ad             = NULL; 
   dom->scores_per_pos = NULL; 
   
    /* Compute bias correction
@@ -1740,24 +1741,27 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
   
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
-   
+  
+  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break; 
+  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+  
   if(windowsq->start < windowsq->end)
   {
-    dom->iali          = dom->ad->sqfrom;
-    dom->jali          = dom->ad->sqto;
+    dom->iali          = ddef->tr->i[z1] - (ddef->tr->c[z1] - 1);
+    dom->jali          = ddef->tr->i[z2];
     dom->ienv          = i;
     dom->jenv          = j;
   }
   else
   {
-    dom->iali          = dom->ad->sqto - 2;
-    dom->jali          = dom->ad->sqfrom;
+    dom->iali          = ddef->tr->i[z2] - (ddef->tr->c[z1] - 1);
+    dom->jali          = ddef->tr->i[z1];
     dom->ienv          = j;
     dom->jenv          = i;
   }
  
-  dom->ihmm          = dom->ad->hmmfrom;
-  dom->jhmm          = dom->ad->hmmto;  
+  dom->ihmm          = ddef->tr->k[z1]; 
+  dom->jhmm          = ddef->tr->k[z2]; 
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
@@ -1825,6 +1829,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   P7_DOMAIN     *dom           = NULL;
   int            Ld            = j-i+1;
   int            seq_len, hmm_len;
+  int            z1, z2;
   float          domcorrection = 0.0;
   float          envsc, oasc, bcksc;
   int            z;
@@ -1891,7 +1896,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   }
   dom = &(ddef->dcl[ddef->ndom]);
 
-  dom->ad  = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, ddef->tr->sqfrom[0]);
+  dom->ad             = NULL; 
   dom->scores_per_pos = NULL;  
 
   if (!null2_is_done) {   
@@ -1904,11 +1909,20 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
     domcorrection   += ddef->n2sc[pos];
 
   dom->domcorrection = domcorrection; /* in units of NATS */
+
+  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
 	
-  dom->ihmm          = dom->ad->hmmfrom;
-  dom->jhmm          = dom->ad->hmmto;  
-  dom->iali          = dom->ad->sqfrom;
-  dom->jali          = dom->ad->sqto;
+  dom->ihmm          = ddef->tr->k[z1];
+  dom->jhmm          = ddef->tr->k[z2];
+  if(windowsq->start < windowsq->end) {  
+    dom->iali        = ddef->tr->i[z1] - (ddef->tr->c[z1] - 1);
+    dom->jali        = ddef->tr->i[z2];
+  }
+  else {
+    dom->iali        = ddef->tr->i[z2] - (ddef->tr->c[z1] - 1);
+    dom->jali        = ddef->tr->i[z1];
+  }
   dom->ienv          = i; 
   dom->jenv          = j; 
 

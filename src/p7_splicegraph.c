@@ -202,7 +202,6 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
  
   for (i = graph->orig_N; i < graph->th->N; i++) {
     p7_trace_splice_Destroy(graph->th->hit[i]->dcl->tr);
-    p7_alidisplay_Destroy(graph->th->hit[i]->dcl->ad);
     free(graph->th->hit[i]->dcl->scores_per_pos);
     p7_hit_Destroy(graph->th->hit[i]);
   }

@@ -181,7 +181,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       }
     }
     path = p7_splicepath_GetBestPath(graph);   
-   // p7_splicepath_Dump(stdout, path);
+    p7_splicepath_Dump(stdout, path);
+    fflush(stdout);
     //p7_splicegraph_DumpGraph(stdout, graph, FALSE);
 
     seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]);
@@ -397,7 +398,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
         edge = p7_spliceedge_ConnectHits(pli, split_hits[s-1]->dcl, split_hits[s]->dcl, hmm, gcode, hit_seq, graph->revcomp);        
  
         if(edge == NULL) {
-           
+          
           /* Create new trace and add all starting and core model trace states from upstream hit */          
           new_trace = p7_trace_fs_Create();
           tr = split_hits[s-1]->dcl->tr;
@@ -492,10 +493,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
       esl_sq_Destroy(hit_seq);
       
     }
-    
-    
   }
-  
 
   return eslOK;
 
@@ -1594,8 +1592,7 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_S
   }
   p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, NULL);
 
-  if((p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd)) == eslERANGE)
-    ESL_XEXCEPTION(eslFAIL, "p7_Decoding failed with eslERANGE");
+  if((status = p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd)) == eslERANGE) goto ERROR;
 
   p7_OptimalAccuracy(om, pli->bwd, pli->fwd, &oasc);
   p7_OATrace        (om, pli->bwd, pli->fwd, tr);
@@ -1604,9 +1601,9 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_S
 
   p7_splice_ComputeAliScores(hit->dcl, tr, pli->amino_sq->dsq, gm);
 
-  if((hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt)) == NULL) goto ERROR;
+  hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt);
 
-  if((hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, target_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt)) == NULL) goto ERROR;
+  hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, target_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt);
 
   p7_Null2_ByExpectation(om, pli->bwd, null2);
   domcorrection = 0.;

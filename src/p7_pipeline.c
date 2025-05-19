@@ -2409,6 +2409,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
   int              ali_len;
   int              env_len;
   int              status;
+  int              tmp_i;
   float            bitscore;
   float            dom_bias; 
   float            dom_score;
@@ -2429,7 +2430,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
       p7_trace_fs_Destroy(dom->tr);
       continue;
     }
- 	
+    tmp_i = dom->ienv;
+    
     env_len = dom->jenv - dom->ienv + 1;
     /* map alignment and envelope coodinates to orignal DNA target sequence */
     if (!complementarity)
@@ -2446,7 +2448,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2;
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
     }
-
+    
     /* Adjust score from env_len to max window length. Note that the loop and move 
      * costs are calculated based on amino lengths but paid per nucleotide*/
     bitscore = dom->envsc;
@@ -2495,7 +2497,10 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
       hit->window_length = gm_fs->max_length;
       hit->target_len = dnasq->n;
       hit->seqidx = seqidx;
-      hit->subseq_start = dnasq->start;
+      if(!complementarity)
+        hit->subseq_start = dom->ienv - tmp_i + 1;
+      else
+        hit->subseq_start = dom->ienv + tmp_i - 1;
 
       ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
       hit->dcl[0] = pli->ddef->dcl[d];
@@ -2580,6 +2585,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
   int              d;
   int              ali_len, env_len;
   int              status;
+  int              tmp_i;
   float            bitscore;
   float            dom_score;
   float            dom_bias;
@@ -2598,7 +2604,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
       p7_trace_fs_Destroy(dom->tr);
       continue; 
     }
-
+    tmp_i = dom->ienv;
     
     /* map alignment and envelope coodinates to orignal DNA target sequence */ 
     if (!complementarity)
@@ -2617,7 +2623,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2; 
     }
-
+    
     /* Adjust score from env_len to max window length */ 
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / (env_len+2));
@@ -2673,7 +2679,10 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
        hit->window_length = orfsq->n;
        hit->target_len = dnasq->n;
        hit->seqidx = seqidx;
-       hit->subseq_start = orfsq->start;
+       if(!complementarity)
+         hit->subseq_start = dom->ienv - (orfsq->start - windowsq->start + (tmp_i*3)) + 3;
+       else
+          hit->subseq_start = dom->ienv + (dnasq->n - orfsq->start + 1) - windowsq->start + (tmp_i*3) - 3;
 
        ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
        hit->dcl[0] = pli->ddef->dcl[d];

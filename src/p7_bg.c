@@ -607,73 +607,51 @@ int
 p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
 {
 
-  ESL_HMX *hmx = esl_hmx_Create(100, bg->fhmm->M); /* optimization target: this can be a 2-row matrix, and it can be stored in <bg>. Use 100 length as place holder*/
+  int     i,j;
+  int     L;
+  float   nullsc;
+  ESL_DSQ amino;
+  ESL_DSQ *orf_dsq;
+  ESL_HMX *hmx;
+  int     status;
 
-  int     i;
-  float   filtersc;
-  float   bias_sum1, bias_sum2, bias_sum3, bias_sum4;
-  int64_t   leng_sum1, leng_sum2, leng_sum3;
-  float   len_dist;
-  ESL_SQ *orfsq;
+  orf_dsq = NULL;
+  hmx     = NULL;
 
-  /*translate the DNA sequence into the set of ORFs from all three frames*/
-  esl_gencode_ProcessStart(gcode, wrk, dnasq);
-  esl_gencode_ProcessPiece(gcode, wrk, dnasq);
-  esl_gencode_ProcessEnd(wrk, dnasq);
-  
-   bias_sum1 = bias_sum2 = bias_sum3 = 0;
-   leng_sum1 = leng_sum2 = leng_sum3 = 0;
- 
-  /*Get a bias score for each orf in the DNA sequence and sum them in probabbilioty space*/
-  for (i = 0; i < wrk->orf_block->count; ++i)
-  {
-    orfsq = &(wrk->orf_block->list[i]); 
-    p7_bg_SetLength(bg, orfsq->n);
- 
-    filtersc = 0; 
-    if(do_biasfilter) {
-      esl_hmx_GrowTo(hmx, orfsq->n, bg->fhmm->M);
-      esl_hmm_Forward(orfsq->dsq, orfsq->n, bg->fhmm, hmx, &filtersc);
+  nullsc = 0.;
+  if( do_biasfilter) {
+
+    ESL_ALLOC(orf_dsq, sizeof(ESL_DSQ) * dnasq->n);
+    orf_dsq[0] = eslDSQ_SENTINEL;
+
+    L = 0;
+    j = 1;
+    for (i = 1; i < dnasq->n-2; i++) {
+      amino = esl_gencode_GetTranslation(gcode,&dnasq->dsq[i]);
+      if(esl_abc_XIsCanonical(gcode->aa_abc, amino)) {
+        orf_dsq[j] = amino;
+        j++;
+        L++;
+      }
     }
-    switch (orfsq->start%3) {
-      case 0: bias_sum1 += filtersc; leng_sum1 += orfsq->n; break;
-      case 1: bias_sum2 += filtersc; leng_sum2 += orfsq->n; break;
-      case 2: bias_sum3 += filtersc; leng_sum3 += orfsq->n; break;
-      default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
-    }
-  }
-    
-  bias_sum4 = p7_FLogsum(bias_sum1, p7_FLogsum(bias_sum2, bias_sum3));
- 
-  /* impose the length distribution */
-  if(leng_sum1 > 0) 
-  {
-    p7_bg_SetLength(bg, leng_sum1);
-    len_dist = (float) leng_sum1 * logf(bg->p1) + logf(1.-bg->p1);
-  }
-  else
-    len_dist = -eslINFINITY;
-   
-  if(leng_sum2 > 0)
-  { 
-    p7_bg_SetLength(bg, leng_sum2);
-    len_dist = p7_FLogsum(len_dist, (float) leng_sum2 * logf(bg->p1) + logf(1.-bg->p1));
-  }
- 
-  if(leng_sum3 > 0)
-  { 
-    p7_bg_SetLength(bg, leng_sum3);
-    len_dist = p7_FLogsum(len_dist, (float) leng_sum3 * logf(bg->p1) + logf(1.-bg->p1));
-  }
-  
-  if(len_dist == -eslINFINITY)
-    len_dist = 0.;
+    orf_dsq[j] = eslDSQ_SENTINEL;
 
-  *ret_sc = bias_sum4 + len_dist; 
+    hmx = esl_hmx_Create(L, bg->fhmm->M);
+    esl_hmm_Forward(orf_dsq, L, bg->fhmm, hmx, &nullsc);
+  }
 
+  *ret_sc = nullsc + (float) dnasq->n * logf(bg->p1) + logf(1.-bg->p1);
+
+  if(orf_dsq != NULL) free(orf_dsq);
   esl_hmx_Destroy(hmx);
-  esl_sq_ReuseBlock(wrk->orf_block);
+
   return eslOK;
+
+  ERROR:
+    if(orf_dsq != NULL) free(orf_dsq);
+    esl_hmx_Destroy(hmx);
+    return status;
+
 }
 
 int

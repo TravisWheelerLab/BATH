@@ -2811,6 +2811,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
    * (user did not specify --nofs) than run Frameshift 
    * Forward on full Window and save score and P value.*/
   if(pli->fs_pipe) {
+    p7_bg_SetLength(bg, pli_tmp->tmpseq->n); 
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
     p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, 4, dna_window->length, 0);

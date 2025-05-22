@@ -824,7 +824,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, SPLICE_SAVED_HITS *saved_hits, int64_t seqidx) {
+p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, SPLICE_SAVED_HITS *saved_hits, int64_t seqidx) {
 
   int            i;
   int            new_hit_cnt;
@@ -838,7 +838,12 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
   int64_t        max_window_start, min_window_end;
   int64_t        min_window_start, max_window_end;
   
-  
+  float          vsc;
+  float          filtersc;
+  float          nullsc;  
+  float          seq_score; 
+  double         P;
+
   ESL_SQ        *curr_orf      = NULL;
   P7_HMM_WINDOW *prev_window   = NULL;
   P7_HMM_WINDOW *curr_window   = NULL;
@@ -862,10 +867,31 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     p7_gmx_GrowTo(vgx, gm->M, curr_orf->n); 
     p7_ReconfigLength(gm, curr_orf->n);
     
-    p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, NULL);
+    p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, &vsc);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
-   
+  
+    /* Rescore bias based on viterbi alignment */
+    if (pli->do_biasfilter)
+    {
+        p7_bg_SetLength(bg, curr_orf->n);
+        p7_bg_FilterScore(bg, curr_orf->dsq+i_coords-1, (j_coords-i_coords+1), &filtersc);
+  
+        /* Subtract out alignment length nullsc and add orf length null score back in */
+        nullsc = (float) (j_coords-i_coords+1) * logf(bg->p1) + logf(1.-bg->p1); 
+        filtersc -= nullsc;
+        nullsc = (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
+        filtersc += nullsc;
+
+        seq_score = (vsc - filtersc) / eslCONST_LOG2;
+        P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]); 
+        if (P > pli->F2) {
+          p7_gmx_Reuse(vgx);
+          p7_trace_Reuse(vtr);
+          continue;
+        } 
+    }    
+
     /* For spliced alignments we save the hit info of every query-target pair that passes the viterbi filter */
     if(saved_hits != NULL) {
 
@@ -900,7 +926,6 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     {
       window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3)-3);
       window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3)-1);
-     
     }
     else
     {
@@ -2470,7 +2495,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     /* P-vaule calculation */	
     dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
  
-    dom->scores_per_pos = NULL;
     if(pli->spliced) 
       p7_splice_ComputeAliScores_fs(dom, dom->tr, windowsq->dsq, gm_fs, dnasq->abc);
 
@@ -2478,9 +2502,9 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
      * residue count. This prevents hits from accumulating and using
      * excessive memmory. */
     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-    if ( (pli->spliced   && dom->aliscore > 0) ||
-          (pli->inc_by_E  && exp(dom_lnP) * pli->Z <= pli->E) ||
-          (!pli->inc_by_E && dom_score >= pli->T) ) 
+    
+    if ( ( pli->inc_by_E && ((!pli->spliced && exp(dom_lnP) * pli->Z <= pli->E) || (pli->spliced && exp(dom_lnP) < 1.0))) ||
+          (!pli->inc_by_E && ((!pli->spliced && dom_score >= pli->T)            || (pli->spliced && dom_score >= ESL_MIN(pli->T, 0.0) ))) )
     { 
 
       if(!pli->spliced) {
@@ -2529,10 +2553,9 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
       }
 
     }
-    else  //delete unused P7_ALIDSPLAY and P7_TRACE
+    else  
     {
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
-      //p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
     }
   }
@@ -2659,9 +2682,9 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
      /* Check if hit passes the e-value cutoff based on the current
       * residue count. This prevents hits from accumulating and using
       * excessive memmory. */
-     if ( (pli->spliced   && dom->aliscore > 0) || 
-          (pli->inc_by_E  && exp(dom_lnP) * pli->Z <= pli->E) || 
-          (!pli->inc_by_E && dom_score >= pli->T) ) 
+      
+     if ( ( pli->inc_by_E && ((!pli->spliced && exp(dom_lnP) * pli->Z <= pli->E) || (pli->spliced && exp(dom_lnP) < 1.0))) ||
+          (!pli->inc_by_E && ((!pli->spliced && dom_score >= pli->T)             || (pli->spliced && dom_score >= ESL_MIN(pli->T, 0.0)))) )
      { 
 
        if(!pli->spliced) {
@@ -3166,12 +3189,12 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
   p7_hmmwindow_init(&post_vit_windowlist);  
   
-  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity, saved_hits, seqidx);
+  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, saved_hits, seqidx);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object
-
-  /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
+   printf("post_vit_windowlist.count %d\n", post_vit_windowlist.count);
+  /* Send ORFs and protien models along with DNA windows and fs-aware codon models to Forward filters */
   for(i = 0; i < post_vit_windowlist.count; i++)
   {
     window_len   = post_vit_windowlist.windows[i].length; 

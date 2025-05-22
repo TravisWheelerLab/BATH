@@ -1807,13 +1807,13 @@ p7_trace_fs_SetPP(P7_TRACE *tr, const P7_GMX *pp)
       if (tr->i[z] > 0)		/* an emitting state? */
 	{
 	  switch (tr->st[z]) {
-	  case p7T_M:  tr->pp[z] = expf(MMX_FS(tr->i[z], tr->k[z], p7G_C0)); break;
-      case p7T_I:  tr->pp[z] = expf(IMX_FS(tr->i[z], tr->k[z])); break;
+	  case p7T_M:  tr->pp[z] = MMX_FS(tr->i[z], tr->k[z], p7G_C0); break;
+      case p7T_I:  tr->pp[z] = IMX_FS(tr->i[z], tr->k[z]); break;
 	  case p7T_D:  tr->pp[z] = 0.0; break;
-	  case p7T_N:  tr->pp[z] = expf(XMX_FS(tr->i[z], p7G_N));    break;
+	  case p7T_N:  tr->pp[z] = XMX_FS(tr->i[z], p7G_N);    break;
 	  case p7T_B:  tr->pp[z] = 0.0; break;
-	  case p7T_C:  tr->pp[z] = expf(XMX_FS(tr->i[z], p7G_C));    break;
-	  case p7T_J:  tr->pp[z] = expf(XMX_FS(tr->i[z], p7G_J));    break;
+	  case p7T_C:  tr->pp[z] = XMX_FS(tr->i[z], p7G_C);    break;
+	  case p7T_J:  tr->pp[z] = XMX_FS(tr->i[z], p7G_J);    break;
 	  default:     ESL_EXCEPTION(eslEINVAL, "no such emitting state");
 	  }
 	}

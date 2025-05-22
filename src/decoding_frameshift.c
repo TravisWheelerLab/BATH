@@ -238,13 +238,13 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
     denom = -1*denom;
  
     for (k = 1; k < M; k++) {  
-      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] = MMX_FS(i,k,p7G_C0) + bias_denom;    
-      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] = MMX_FS(i,k,p7G_C1) + bias_denom;
-      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] = MMX_FS(i,k,p7G_C2) + bias_denom;
-      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] = MMX_FS(i,k,p7G_C3) + bias_denom;
-      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] = MMX_FS(i,k,p7G_C4) + bias_denom;
-      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] = MMX_FS(i,k,p7G_C5) + bias_denom;
-      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I]          = IMX_FS(i,k)        + bias_denom;
+      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] = expf(MMX_FS(i,k,p7G_C0) + bias_denom);    
+      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] = expf(MMX_FS(i,k,p7G_C1) + bias_denom);
+      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] = expf(MMX_FS(i,k,p7G_C2) + bias_denom);
+      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] = expf(MMX_FS(i,k,p7G_C3) + bias_denom);
+      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] = expf(MMX_FS(i,k,p7G_C4) + bias_denom);
+      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] = expf(MMX_FS(i,k,p7G_C5) + bias_denom);
+      fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I]          = expf(IMX_FS(i,k)        + bias_denom);
       MMX_FS(i,k,p7G_C1) = MMX_FS(i,k,p7G_C1) + denom; 
       MMX_FS(i,k,p7G_C2) = MMX_FS(i,k,p7G_C2) + denom; 
       MMX_FS(i,k,p7G_C3) = MMX_FS(i,k,p7G_C3) + denom; 
@@ -254,15 +254,15 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
       IMX_FS(i,k)        = IMX_FS(i,k)        + denom;
     }
 
-    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] = MMX_FS(i,M,p7G_C0) + bias_denom; 
-    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] = MMX_FS(i,M,p7G_C1) + bias_denom;
-    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] = MMX_FS(i,M,p7G_C2) + bias_denom;
-    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] = MMX_FS(i,M,p7G_C3) + bias_denom;
-    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] = MMX_FS(i,M,p7G_C4) + bias_denom;
-    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] = MMX_FS(i,M,p7G_C5) + bias_denom;
-    fwd->xmx[p7G_NXCELLS*i + p7G_N]               = XMX_FS(i,p7G_N)    + bias_denom;
-    fwd->xmx[p7G_NXCELLS*i + p7G_J]               = XMX_FS(i,p7G_J)    + bias_denom;
-    fwd->xmx[p7G_NXCELLS*i + p7G_C]               = XMX_FS(i,p7G_C)    + bias_denom;
+    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] = expf(MMX_FS(i,M,p7G_C0) + bias_denom); 
+    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] = expf(MMX_FS(i,M,p7G_C1) + bias_denom);
+    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] = expf(MMX_FS(i,M,p7G_C2) + bias_denom);
+    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] = expf(MMX_FS(i,M,p7G_C3) + bias_denom);
+    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] = expf(MMX_FS(i,M,p7G_C4) + bias_denom);
+    fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] = expf(MMX_FS(i,M,p7G_C5) + bias_denom);
+    fwd->xmx[p7G_NXCELLS*i + p7G_N]               = expf(XMX_FS(i,p7G_N)    + bias_denom);
+    fwd->xmx[p7G_NXCELLS*i + p7G_J]               = expf(XMX_FS(i,p7G_J)    + bias_denom);
+    fwd->xmx[p7G_NXCELLS*i + p7G_C]               = expf(XMX_FS(i,p7G_C)    + bias_denom);
 
     MMX_FS(i,M,p7G_C1) =  MMX_FS(i,M,p7G_C1) + denom; 
     MMX_FS(i,M,p7G_C2) =  MMX_FS(i,M,p7G_C2) + denom; 

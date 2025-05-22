@@ -874,22 +874,22 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
     /* Rescore bias based on viterbi alignment */
     if (pli->do_biasfilter)
     {
-        p7_bg_SetLength(bg, curr_orf->n);
-        p7_bg_FilterScore(bg, curr_orf->dsq+i_coords-1, (j_coords-i_coords+1), &filtersc);
+       p7_bg_SetLength(bg, curr_orf->n);
+       p7_bg_FilterScore(bg, curr_orf->dsq+i_coords-1, (j_coords-i_coords+1), &filtersc);
   
-        /* Subtract out alignment length nullsc and add orf length null score back in */
-        nullsc = (float) (j_coords-i_coords+1) * logf(bg->p1) + logf(1.-bg->p1); 
-        filtersc -= nullsc;
-        nullsc = (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
-        filtersc += nullsc;
+       /* Subtract out alignment length nullsc and add orf length null score back in */
+       nullsc = (float) (j_coords-i_coords+1) * logf(bg->p1) + logf(1.-bg->p1); 
+       filtersc -= nullsc;
+       nullsc = (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
+       filtersc += nullsc;
 
-        seq_score = (vsc - filtersc) / eslCONST_LOG2;
-        P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]); 
-        if (P > pli->F2) {
-          p7_gmx_Reuse(vgx);
-          p7_trace_Reuse(vtr);
-          continue;
-        } 
+       seq_score = (vsc - filtersc) / eslCONST_LOG2;
+       P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]); 
+       if (P > pli->F2) {
+         p7_gmx_Reuse(vgx);
+         p7_trace_Reuse(vtr);
+         continue;
+       } 
     }    
 
     /* For spliced alignments we save the hit info of every query-target pair that passes the viterbi filter */
@@ -3193,7 +3193,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object
-   printf("post_vit_windowlist.count %d\n", post_vit_windowlist.count);
+  
   /* Send ORFs and protien models along with DNA windows and fs-aware codon models to Forward filters */
   for(i = 0; i < post_vit_windowlist.count; i++)
   {

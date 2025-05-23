@@ -860,7 +860,6 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
   vtr = p7_trace_Create();
 
   /* extend each ORF's DNA coordinates based on the model's max length*/
-  
   for(i = 0; i < orf_block->count; i++)
   {
     curr_orf = &(orf_block->list[i]);
@@ -932,16 +931,21 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
       window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
       window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords * 3)); 
     }
-    
+
     p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
     p7_gmx_Reuse(vgx);
     p7_trace_Reuse(vtr);
   }
 
+  if(windowlist->count == 0) {
+    p7_gmx_Destroy(vgx);
+    p7_trace_Destroy(vtr);
+    return eslOK; 
+  }
+
   p7_hmmwindow_SortByStart(windowlist); 
   new_hit_cnt = 0;
-   
-   /* merge overlapping windows, compressing list in place. */
+
    
    for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;

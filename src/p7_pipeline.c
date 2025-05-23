@@ -2499,9 +2499,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     /* P-vaule calculation */	
     dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
  
-    if(pli->spliced) 
-      p7_splice_ComputeAliScores_fs(dom, dom->tr, windowsq->dsq, gm_fs, dnasq->abc);
-
     /* Check if hit passes the e-value cutoff based on the current
      * residue count. This prevents hits from accumulating and using
      * excessive memmory. */
@@ -2517,6 +2514,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
         dom->ad->sqto   = dom->jali;
         dom->ad->L      = 0;   
       }
+      else
+        p7_splice_ComputeAliScores_fs(dom, dom->tr, windowsq->dsq, gm_fs, dnasq->abc);
     
       p7_tophits_CreateNextHit(hitlist, &hit);
       hit->ndom        = 1;
@@ -2672,9 +2671,6 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
      /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
    
-     dom->scores_per_pos = NULL;
-     if(pli->spliced) 
-       p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm);
     
      /* To prevent the accumultion of excessive low quailty hits when 
       * filters are turned off we need to begin weeding out those hits 
@@ -2697,6 +2693,8 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
          dom->ad->sqto   = dom->jali;
          dom->ad->L      = 0;
        }      
+       else
+         p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm);
      
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);

@@ -926,7 +926,8 @@ p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gco
       emit3 = p7P_MSC_CODON(sub_gm, k, c3);
       emit4 = p7P_MSC_CODON(sub_gm, k, c4);
       emit5 = p7P_MSC_CODON(sub_gm, k, c5);
-
+  
+      
       if      (esl_FCompare_old(MMX_SP(i,k), MMX_SP(i-3, k-1) + TSC(p7P_MM, k-1) + emit3, tol) == eslOK) { scur = p7T_M; c = 3; }
       else if (esl_FCompare_old(MMX_SP(i,k), IMX_SP(i-3, k-1) + TSC(p7P_IM, k-1) + emit3, tol) == eslOK) { scur = p7T_I; c = 3; }
       else if (esl_FCompare_old(MMX_SP(i,k), DMX_SP(i-3, k-1) + TSC(p7P_DM, k-1) + emit3, tol) == eslOK) { scur = p7T_D; c = 3; }     
@@ -953,7 +954,10 @@ p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gco
       else if (esl_FCompare_old(MMX_SP(i,k), PMX_SP(i-5, k-1)                    + emit5, tol) == eslOK) { scur = p7T_P; c = 5; }
       else if (esl_FCompare_old(MMX_SP(i,k), XMX(i-5, p7G_B)  + TSC(p7P_BM, k-1) + emit5, tol) == eslOK) { scur = p7T_B; c = 5; }
       else ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
-      
+     
+      /* pervious M state has to be appended here so we can know the codon length */
+      if ((status = p7_trace_fs_Append(tr, sprv, k, i, c)) != eslOK) return status;
+ 
       k--; i-=c;
       break;
 
@@ -1011,8 +1015,7 @@ p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gco
     default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
     } /* end switch over statetype[tpos-1] */
 
-    if(scur != p7T_M) c = 0;
-    if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
+    if(scur != p7T_M) { if ((status = p7_trace_fs_Append(tr, scur, k, i, 0)) != eslOK) return status; }
   
     /* For NCJ, we had to defer i decrement. */
     if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 

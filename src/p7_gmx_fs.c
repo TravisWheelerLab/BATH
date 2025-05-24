@@ -55,13 +55,30 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
   for (i = 0; i <= allocL; i++) 
     { 
       gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C0] = -eslINFINITY; /* M_0 Codon 0*/
-      if(allocC) {// allocC should equal either 0 or 5
+      if(allocC == p7P_CODONS) { // room for 5 codon lengths
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C1] = -eslINFINITY; /* M_0 Codon 1*/
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C2] = -eslINFINITY; /* M_0 Codon 2*/
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C3] = -eslINFINITY; /* M_0 Codon 3*/
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C4] = -eslINFINITY; /* M_0 Codon 4*/
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C5] = -eslINFINITY; /* M_0 Codon 5*/
       }
+      else if(allocC == p7P_SPLICE) { // room for splice states 
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_R] = -eslINFINITY;
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_P] = -eslINFINITY;
+      }
+      else if(allocC == (p7P_CODONS+p7P_SPLICE)) { // room for 5 codon lengths and splice states
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C1] = -eslINFINITY; /* M_0 Codon 1*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C2] = -eslINFINITY; /* M_0 Codon 2*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C3] = -eslINFINITY; /* M_0 Codon 3*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C4] = -eslINFINITY; /* M_0 Codon 4*/
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C5] = -eslINFINITY; /* M_0 Codon 5*/
+        
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_R2] = -eslINFINITY;
+        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_P2] = -eslINFINITY;
+
+      } 
+      else if (allocC != 0) goto ERROR; // invalid allocC
+                 
       gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_I] = -eslINFINITY; /* I_0 */      
       gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_D] = -eslINFINITY; /* D_0 */
       gx->dp[i][1      * (p7G_NSCELLS + allocC) + p7G_D] = -eslINFINITY; /* D_1 */

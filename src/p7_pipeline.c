@@ -2499,13 +2499,12 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     /* P-vaule calculation */	
     dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
  
-    /* Check if hit passes the e-value cutoff based on the current
-     * residue count. This prevents hits from accumulating and using
-     * excessive memmory. */
+    /* Check if hit passes the e-value cutoff based on the current residue count. 
+     * This prevents unreportable hits from accumulating and using excessive memmory. 
+     * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-    
-    if ( ( pli->inc_by_E && ((!pli->spliced && exp(dom_lnP) * pli->Z <= pli->E) || (pli->spliced && exp(dom_lnP) < 1.0))) ||
-          (!pli->inc_by_E && ((!pli->spliced && dom_score >= pli->T)            || (pli->spliced && dom_score >= ESL_MIN(pli->T, 0.0) ))) )
+    if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) <= pli->F1)) ||  
+       (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T))) 
     { 
 
       if(!pli->spliced) {
@@ -2671,21 +2670,13 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
      /* p-value calculations */
      dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
    
-    
-     /* To prevent the accumultion of excessive low quailty hits when 
-      * filters are turned off we need to begin weeding out those hits 
-      * now. To do this we estimate Z based on crruent target residue 
-      * count. This will allways be an understimation so we don't risk 
-      * thowing away good hits.  The ture Z is calcualted at the end 
-      * by p7_tophits_ComputeBathEvalues() */
+     /* Check if hit passes the e-value cutoff based on the current residue count.
+     * This prevents unreportable hits from accumulating and using excessive memmory.
+     * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
      pli->Z = (float)pli->nres / (float)om->max_length;
-     /* Check if hit passes the e-value cutoff based on the current
-      * residue count. This prevents hits from accumulating and using
-      * excessive memmory. */
-      
-     if ( ( pli->inc_by_E && ((!pli->spliced && exp(dom_lnP) * pli->Z <= pli->E) || (pli->spliced && exp(dom_lnP) < 1.0))) ||
-          (!pli->inc_by_E && ((!pli->spliced && dom_score >= pli->T)             || (pli->spliced && dom_score >= ESL_MIN(pli->T, 0.0)))) )
-     { 
+     if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) <= pli->F1)) ||
+        (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T)))
+     {
 
        if(!pli->spliced) {
          dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0]);

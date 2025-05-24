@@ -649,7 +649,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int32_t *k_coords_list, int32_t *m_coords_list) {
+p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int64_t seqidx, int32_t *k_coords_list, int32_t *m_coords_list) { 
 
   int            i;
   int            new_hit_cnt;
@@ -662,7 +662,12 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
   int64_t        overlap_len;
   int64_t        max_window_start, min_window_end;
   int64_t        min_window_start, max_window_end;
-  
+ 
+  float          vsc;
+  float          filtersc;
+  float          nullsc;
+  float          seq_score;
+  double         P; 
   
   ESL_SQ        *curr_orf      = NULL;
   P7_HMM_WINDOW *prev_window   = NULL;
@@ -687,9 +692,30 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, NULL);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
-    
-    k_coords_list[i] = k_coords;
+
+	k_coords_list[i] = k_coords;
     m_coords_list[i] = m_coords;
+
+	/* Rescore bias based on viterbi alignment */
+    if (pli->do_biasfilter)
+    {
+       p7_bg_SetLength(bg, curr_orf->n);
+       p7_bg_FilterScore(bg, curr_orf->dsq+i_coords-1, (j_coords-i_coords+1), &filtersc);
+
+       /* Subtract out alignment length nullsc and add orf length null score back in */
+       nullsc = (float) (j_coords-i_coords+1) * logf(bg->p1) + logf(1.-bg->p1);
+       filtersc -= nullsc;
+       nullsc = (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
+       filtersc += nullsc;
+
+       seq_score = (vsc - filtersc) / eslCONST_LOG2;
+       P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]);
+       if (P > pli->F2) {
+         p7_gmx_Reuse(vgx);
+         p7_trace_Reuse(vtr);
+         continue;
+       }
+    }
 
     ext_i_coords = ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
     ext_j_coords = ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
@@ -709,6 +735,13 @@ p7_pli_ExtendAndMergeORFs (ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *
     p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
     p7_gmx_Reuse(vgx);
     p7_trace_Reuse(vtr);
+  }
+
+
+  if(windowlist->count == 0) {
+    p7_gmx_Destroy(vgx);
+    p7_trace_Destroy(vtr);
+    return eslOK;
   }
 
   p7_hmmwindow_SortByStart(windowlist); 
@@ -2942,7 +2975,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
   }
 
-  p7_pli_ExtendAndMergeORFs (post_vit_orf_block, dnasq, gm, data, &post_vit_windowlist, 0., complementarity, k_coords_list, m_coords_list);
+  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx, k_coords_list, m_coords_list); 
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object

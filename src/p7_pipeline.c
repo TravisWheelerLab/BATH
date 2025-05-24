@@ -689,7 +689,7 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
     p7_gmx_GrowTo(vgx, gm->M, curr_orf->n); 
     p7_ReconfigLength(gm, curr_orf->n);
     
-    p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, NULL);
+    p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, &vsc);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
 

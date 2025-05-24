@@ -156,15 +156,21 @@ typedef struct _splice_pipeline
 typedef struct _splice_gap
 {
 
+  int up_node;
+  int down_node;  
+
   int hmm_min;
   int hmm_max;
+  int hmm_len;
   int seq_min;
   int seq_max;
+  int seq_len;
 
 } SPLICE_GAP;
 
 
 
+#define SPLASH_MAX_RESIDUE_COUNT  (1024 * 256)  /* 1/4 Mb */
 #define MAX_GAP_RANGE             50000       
 #define MAX_INTRON_LEN            25000      
 #define MIN_INTRON_LEN            13

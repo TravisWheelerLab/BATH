@@ -98,6 +98,10 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       hits_processed[i] = 1;
       num_hits_processed++;
     }
+    else if(!(tophits->hit[i]->flags & p7_IS_REPORTED) && exp(tophits->hit[i]->sum_lnP) > pli->F1) {
+      hits_processed[i] = 1;
+      num_hits_processed++;
+    }
     else { 
       hits_processed[i] = 0;
       hit_cnt++;
@@ -153,13 +157,13 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 
       printf("\nQuery %s Target %s strand %c\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'));
       fflush(stdout);
-   //    printf("ORIGINAL\n");
-   //    p7_splicegraph_DumpHits(stdout, graph);
-   //    fflush(stdout);
+      // printf("ORIGINAL\n");
+      // p7_splicegraph_DumpHits(stdout, graph);
+      // fflush(stdout);
      if((p7_splice_SplitHits(graph, pli, hmm, gm_fs, gcode, seq_file, &hit_to_process)) != eslOK) goto ERROR;
-   //   printf("SPLIT\n");
-   //  p7_splicegraph_DumpHits(stdout, graph);        
-   //  fflush(stdout);
+     // printf("SPLIT\n");
+     //p7_splicegraph_DumpHits(stdout, graph);        
+     //fflush(stdout);
       p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);     
    // printf("RECOVER\n");
    // p7_splicegraph_DumpHits(stdout, graph);
@@ -182,7 +186,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       }
     }
     path = p7_splicepath_GetBestPath(graph);   
-   //p7_splicepath_Dump(stdout, path);
+  // p7_splicepath_Dump(stdout, path);
     //p7_splicegraph_DumpGraph(stdout, graph, FALSE);
 
     seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]);
@@ -345,7 +349,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
  
   graph->split_N = graph->orig_N;
   for (h = 0; h < graph->orig_N; h++) {
-
+  
     curr_hit = th->hit[h]; 
 
     /*Check if hit looks like it cointins and intron */
@@ -536,7 +540,7 @@ split_hit(P7_HIT *hit, P7_HMM *sub_hmm, const P7_BG *bg, ESL_SQ *hit_seq, const 
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
   p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, hit_seq->n, p7_GLOBAL); 
   
-  vit_mx = p7_gmx_fs_Create(sub_fs_model->M, hit_seq->n, hit_seq->n, 2);
+  vit_mx = p7_gmx_fs_Create(sub_fs_model->M, hit_seq->n, hit_seq->n, p7P_SPLICE);
   tr = p7_trace_fs_Create();
   
   p7_sp_fs_semiglobal_Viterbi(hit_seq->dsq, gcode, hit_seq->n, sub_fs_model, vit_mx);
@@ -1193,6 +1197,10 @@ p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm,
   int hmm_overlap_len;
   int seq_overlap_min, seq_overlap_max;
   int seq_overlap_len; 
+  int new_seq_min, new_seq_max;
+  int new_seq_len;
+  int new_hmm_min, new_hmm_max;
+  int new_hmm_len;
   int hit_cnt;
   int num_gaps;
   int gap_alloc; 
@@ -1236,10 +1244,15 @@ p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm,
       }
 
       new_gap = p7_splicegap_Create();
+      new_gap->up_node   = up;
+      new_gap->down_node = down;
+      
       new_gap->hmm_min = th->hit[up]->dcl->jhmm   + 1; 
       new_gap->hmm_max = th->hit[down]->dcl->ihmm - 1;  
+      new_gap->hmm_len = new_gap->hmm_max - new_gap->hmm_min + 1;
       new_gap->seq_min = (graph->revcomp? th->hit[down]->dcl->iali + 1 : th->hit[up]->dcl->jali   + 1);
       new_gap->seq_max = (graph->revcomp? th->hit[up]->dcl->jali   - 1 : th->hit[down]->dcl->iali - 1);
+      new_gap->seq_len = new_gap->seq_max - new_gap->seq_min + 1;
       num_gaps++;
       
       gaps[num_gaps-1] = new_gap;
@@ -1259,6 +1272,8 @@ p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm,
   /* Merge overlapping gaps */
   for(i = 0; i < num_gaps; i++) {
     if(gap_merged[i]) continue;
+    /* Ensure seq gap is long engough to accomidate hmm gap */
+    if(gaps[i]->seq_len < gaps[i]->hmm_len * 3) continue; 
 
     new_gap->hmm_min = gaps[i]->hmm_min;
     new_gap->hmm_max = gaps[i]->hmm_max; 
@@ -1267,8 +1282,20 @@ p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm,
 
     gap_merged[i] = TRUE;
     for(j = 0; j < num_gaps; j++) {
-      if(gap_merged[j]) continue;
-      
+      if(i == j || gap_merged[j]) continue;
+      /* Ensure seq gap is long engough to accomidate hmm gap */
+      if(gaps[j]->seq_len < gaps[j]->hmm_len * 3) continue;      
+
+      /* Ensure gaps are upstream/downstream compatible */
+      if(gaps[i]->up_node != gaps[j]->up_node) {
+        if(!(hit_upstream(th->hit[gaps[i]->up_node]->dcl, th->hit[gaps[j]->up_node]->dcl, graph->revcomp)) &&
+           !(hit_upstream(th->hit[gaps[j]->up_node]->dcl, th->hit[gaps[i]->up_node]->dcl, graph->revcomp))) continue;
+      } 
+      if(gaps[i]->down_node != gaps[j]->down_node) {
+        if(!(hit_upstream(th->hit[gaps[i]->down_node]->dcl, th->hit[gaps[j]->down_node]->dcl, graph->revcomp)) &&
+           !(hit_upstream(th->hit[gaps[j]->down_node]->dcl, th->hit[gaps[i]->down_node]->dcl, graph->revcomp))) continue;
+      }
+
       hmm_overlap_min = ESL_MAX(new_gap->hmm_min, gaps[j]->hmm_min);
       hmm_overlap_max = ESL_MIN(new_gap->hmm_max, gaps[j]->hmm_max);
       
@@ -1279,18 +1306,26 @@ p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm,
       seq_overlap_max = ESL_MIN(new_gap->seq_max, gaps[j]->seq_max);
  
       seq_overlap_len = seq_overlap_max - seq_overlap_min + 1;
-      if(seq_overlap_len < 1 || seq_overlap_len > MAX_GAP_RANGE) continue;
+      if(seq_overlap_len < 1) continue;
       
-      new_gap->hmm_min = ESL_MIN(new_gap->hmm_min, gaps[j]->hmm_min);
-      new_gap->hmm_max = ESL_MAX(new_gap->hmm_max, gaps[j]->hmm_max);      
-      new_gap->seq_min = ESL_MIN(new_gap->seq_min, gaps[j]->seq_min);      
-      new_gap->seq_max = ESL_MAX(new_gap->seq_max, gaps[j]->seq_max); 
-
+      new_seq_min = ESL_MIN(new_gap->seq_min, gaps[j]->seq_min);
+      new_seq_max = ESL_MAX(new_gap->seq_max, gaps[j]->seq_max);
+      new_seq_len = new_seq_max - new_seq_min + 1;
+      if(new_seq_len > MAX_GAP_RANGE) continue;
+      
+      new_hmm_min = ESL_MIN(new_gap->hmm_min, gaps[j]->hmm_min);
+      new_hmm_max = ESL_MAX(new_gap->hmm_max, gaps[j]->hmm_max);
+      new_hmm_len = new_hmm_max -new_hmm_min + 1;
+      if(new_seq_len < new_hmm_len * 3) continue;
+   
+      new_gap->hmm_min = new_hmm_min; 
+      new_gap->hmm_max = new_hmm_max;
+      new_gap->hmm_len = new_hmm_len; 
+      new_gap->seq_min = new_seq_min; 
+      new_gap->seq_max = new_seq_max;
+      new_gap->seq_len = new_seq_len;
       gap_merged[j] = TRUE;
     }
-    /*Ensure gap sequence is long enough to algin to gap hmm */
-    if(new_gap->seq_max - new_gap->seq_min + 1 < (new_gap->hmm_max - new_gap->hmm_min + 1) * 3)
-      continue;  
     
     /* align merged gap */
     gap_hits = p7_splicegap_AlignGap(graph, new_gap, hmm, pli->bg, gcode, seq_file, &hit_cnt);

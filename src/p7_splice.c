@@ -25,7 +25,7 @@
 #include "p7_splice.h"
 
 static P7_HIT** split_hit(P7_HIT *hit, P7_HMM *sub_hmm, const P7_BG *bg, ESL_SQ *hit_seq, const ESL_GENCODE *gcode, int revcomp, int *num_hits);
-static SPLICE_EDGE** connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *hit_seq, int revcomp, int *num_hits);
+static SPLICE_EDGE** connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *hit_seq, int revcomp, int frameshift, int *num_hits);
 static int align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 static int align_spliced_path_frameshift (SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, ESL_SQ *target_seq, ESL_GENCODE *gcode);
 static int hit_upstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp);
@@ -98,7 +98,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       hits_processed[i] = 1;
       num_hits_processed++;
     }
-    else if(!(tophits->hit[i]->flags & p7_IS_REPORTED) && exp(tophits->hit[i]->sum_lnP) > pli->F1) {
+    else if(!(tophits->hit[i]->flags & p7_IS_REPORTED) && exp(tophits->hit[i]->sum_lnP) >= 1.0) {
       hits_processed[i] = 1;
       num_hits_processed++;
     }
@@ -157,26 +157,26 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 
       printf("\nQuery %s Target %s strand %c\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'));
       fflush(stdout);
-      // printf("ORIGINAL\n");
-      // p7_splicegraph_DumpHits(stdout, graph);
-      // fflush(stdout);
+      //printf("ORIGINAL\n");
+      //p7_splicegraph_DumpHits(stdout, graph);
+      //fflush(stdout);
      if((p7_splice_SplitHits(graph, pli, hmm, gm_fs, gcode, seq_file, &hit_to_process)) != eslOK) goto ERROR;
-     // printf("SPLIT\n");
+      //printf("SPLIT\n");
      //p7_splicegraph_DumpHits(stdout, graph);        
      //fflush(stdout);
       p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);     
-   // printf("RECOVER\n");
-   // p7_splicegraph_DumpHits(stdout, graph);
-   // fflush(stdout);  
+    //printf("RECOVER\n");
+    //p7_splicegraph_DumpHits(stdout, graph);
+    //fflush(stdout);  
       p7_splice_FillGaps(graph, pli, hmm, gcode, seq_file);
-   // printf("GAPS\n");
-   //  p7_splicegraph_DumpHits(stdout, graph);
-   // fflush(stdout);
+    //printf("GAPS\n");
+     //p7_splicegraph_DumpHits(stdout, graph);
+    //fflush(stdout);
       p7_splice_ConnectGraph(graph, pli, hmm, gcode, seq_file);
-   //  printf("CONNECTED\n");
+    // printf("CONNECTED\n");
       p7_splice_RemoveDisconnected(graph, hits_processed, &num_hits_processed);  
-   //  printf("REMOVE\n");
-   // p7_splicegraph_DumpHits(stdout, graph);
+    //printf("REMOVE\n");
+    //p7_splicegraph_DumpHits(stdout, graph);
    // fflush(stdout);
       //p7_splicegraph_DumpGraph(stdout, graph, FALSE);
       if(esl_vec_ISum(graph->in_graph, graph->num_nodes) == 0) {
@@ -382,7 +382,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
     }
 
     if(splitable) {
-
+      
       split_hits = NULL;
       split_edges = NULL;
     
@@ -397,26 +397,14 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
  
       split_hits = split_hit(curr_hit, sub_hmm, pli->bg, hit_seq, gcode, graph->revcomp, &num_hits);      
        
-      if(num_hits == 1) { 
-        
-        p7_trace_fs_Destroy(split_hits[0]->dcl->tr);
-        free(split_hits[0]->dcl->scores_per_pos);
-        p7_hit_Destroy(split_hits[0]);
-        if(split_hits != NULL) free(split_hits);
-        split_hits = NULL;
-        num_hits--;
-      }
       if(num_hits > 1)
-        split_edges = connect_split(pli, split_hits, hmm, gm_fs, gcode, hit_seq, graph->revcomp, &num_hits); 
+        split_edges = connect_split(pli, split_hits, hmm, gm_fs, gcode, hit_seq, graph->revcomp, curr_hit->dcl->tr->fs, &num_hits); 
 
-      if(num_hits == 1) {
-        p7_trace_fs_Destroy(split_hits[0]->dcl->tr);
-        free(split_hits[0]->dcl->scores_per_pos);
-        p7_hit_Destroy(split_hits[0]);
-        if(split_hits != NULL)  free(split_hits);
-        if(split_edges != NULL) free(split_edges);
+      if(num_hits == 0) { 
+        if(split_hits != NULL)  free(split_hits);    
       }
       else if (num_hits > 1) {
+         
         /* If the hit was split, set the original hit as not in graph and add new split hits to graph */ 
         graph->in_graph[h] = FALSE;
         *hits_to_process += num_hits-1;   
@@ -466,16 +454,13 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
           num_hits--;
         }
         if(num_hits > 1)
-          split_edges = connect_split(pli, split_hits, hmm, gm_fs, gcode, hit_seq, graph->revcomp, &num_hits); 
+          split_edges = connect_split(pli, split_hits, hmm, gm_fs, gcode, hit_seq, graph->revcomp, curr_hit->dcl->tr->fs, &num_hits); 
   
-        if(num_hits == 1) {
-          p7_trace_fs_Destroy(split_hits[0]->dcl->tr);
-          free(split_hits[0]->dcl->scores_per_pos);
-          p7_hit_Destroy(split_hits[0]);
+        if(num_hits == 0) {
           if(split_hits != NULL)  free(split_hits);
-          if(split_edges != NULL) free(split_edges);
         }
         else if (num_hits > 1) {
+          
           /* If the hit was split, set the original hit as not in graph and add new split hits to graph */ 
           graph->in_graph[h] = FALSE;
           *hits_to_process += num_hits-1;   
@@ -550,10 +535,10 @@ split_hit(P7_HIT *hit, P7_HMM *sub_hmm, const P7_BG *bg, ESL_SQ *hit_seq, const 
   intron_cnt = 0; 
   for(z = 0; z < tr->N; z++)
     if(tr->st[z] == p7T_R) intron_cnt++;
-
+   
   ret_hits = NULL;
   ESL_ALLOC(ret_hits, sizeof(P7_HIT*) * (intron_cnt+1));
- 
+  
   /* Find first M state - start of first hit */
   for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
   
@@ -599,7 +584,7 @@ split_hit(P7_HIT *hit, P7_HMM *sub_hmm, const P7_BG *bg, ESL_SQ *hit_seq, const 
       new_hit->dcl->jhmm = jhmm;
       new_hit->dcl->iali = iali;
       new_hit->dcl->jali = jali;
-   
+      
       /* Append starting special states */
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_S , 0, 0, 0);
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_N , 0, tr->i[y]-3, 0);
@@ -613,7 +598,7 @@ split_hit(P7_HIT *hit, P7_HMM *sub_hmm, const P7_BG *bg, ESL_SQ *hit_seq, const 
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_E, tr->k[z], tr->i[z], 0);
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_C, 0, tr->i[z], 0);
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_T, 0, 0, 0);
-
+      
       new_hit->dcl->ad             = NULL; 
       new_hit->dcl->scores_per_pos = NULL;
       p7_splice_ComputeAliScores_fs(new_hit->dcl, new_hit->dcl->tr, hit_seq->dsq, sub_fs_model, hit_seq->abc);
@@ -652,86 +637,148 @@ split_hit(P7_HIT *hit, P7_HMM *sub_hmm, const P7_BG *bg, ESL_SQ *hit_seq, const 
 }
 
 SPLICE_EDGE**
-connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *hit_seq, int revcomp, int *num_hits) 
+connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *hit_seq, int revcomp, int frameshift, int *num_hits) 
 {
 
-  int i, s, z, x;
+  int s, x;
   int hit_cnt;
-  int first_i, last_i;
-  P7_TRACE    *new_trace;
-  P7_TRACE    *tr;
-  SPLICE_EDGE *edge;
-  SPLICE_EDGE **split_edges;
+  int edge_found;
+  int seq_i, seq_j;
+  int seq_len;
+  int hmm_i, hmm_j;
+  int tmp_ihmm, tmp_iali;
+  float *tp_0;
+  float *tp_M;
+  P7_HMM        *sub_hmm; 
+  P7_FS_PROFILE *sub_fs_model;
+  P7_GMX        *vit_mx; 
+  P7_TRACE      *tr;
+  SPLICE_EDGE   *edge;
+  SPLICE_EDGE   **split_edges;
   int status;
 
   hit_cnt = *num_hits;
 
   split_edges = NULL;
   ESL_ALLOC(split_edges, sizeof(SPLICE_EDGE*) * (hit_cnt-1));
-
-  /* Splice all split hits. If hits cannot be splice merge them */
-  s = 1;
-  while(s < hit_cnt) {
-    edge = p7_spliceedge_ConnectHits(pli, split_hits[s-1]->dcl, split_hits[s]->dcl, hmm, gcode, hit_seq, revcomp);        
- 
-    if(edge == NULL) {
-      
-      /* Create new trace and add all starting and core model trace states from upstream hit */          
-      new_trace = p7_trace_fs_Create();
-      tr = split_hits[s-1]->dcl->tr;
-      z = 0;
-      while(tr->st[z] != p7T_E) {
-        p7_trace_fs_Append(new_trace, tr->st[z] , tr->k[z], tr->i[z], tr->c[z]);
-        z++;
-      }
   
-      /* For each intron nucltotide add J state to new trace */
-      last_i = tr->i[z-1];
-      tr = split_hits[s]->dcl->tr;
-      for(z = 0; z < tr->N; z++) if(tr->st[z] == p7T_M) break;
-      first_i = tr->i[z] - tr->c[z] + 1;
-      for(i = last_i + 1; i < first_i; i++) 
-        p7_trace_fs_Append(new_trace, p7T_J, 0, i, 0);
-
-      /* Append all core and ending state from downstream hit to new trace */
-      for( ; z < tr->N; z++) 
-        p7_trace_fs_Append(new_trace, tr->st[z] , tr->k[z], tr->i[z], tr->c[z]);
+  /* Splice all split hits */
+  for(s = 1; s < hit_cnt; s++) {
+    edge = p7_spliceedge_ConnectHits(pli, split_hits[s-1]->dcl, split_hits[s]->dcl, hmm, gcode, hit_seq, revcomp);        
+    split_edges[s-1] = edge;
+  }
+   
+  /* Check if any edges were found */
+  edge_found = FALSE;
+  for(s = 0; s < hit_cnt-1; s++) 
+    if(split_edges[s] != NULL) edge_found = TRUE;
       
-      /*replace upstream hits trace with new trace */
-      p7_trace_fs_Destroy(split_hits[s-1]->dcl->tr);
-      split_hits[s-1]->dcl->tr = new_trace;
- 
-      /* Set new hmm and ali coords */
-      split_hits[s-1]->dcl->jhmm = split_hits[s]->dcl->jhmm;
-      split_hits[s-1]->dcl->jali = split_hits[s]->dcl->jali;
-
-      /* Calculate new ali score */
-      free(split_hits[s-1]->dcl->scores_per_pos);
-      split_hits[s-1]->dcl->scores_per_pos = NULL;
-      p7_fs_ReconfigLength(gm_fs, hit_seq->n*3);
-      p7_splice_ComputeAliScores_fs(split_hits[s-1]->dcl, new_trace, hit_seq->dsq, gm_fs, hit_seq->abc); 
-      
-      /*Destroy downstream hit */
+  /* If no edges found return null */
+  if(!edge_found) {
+    for(s = 0; s < hit_cnt; s++) {
       p7_trace_fs_Destroy(split_hits[s]->dcl->tr);
       free(split_hits[s]->dcl->scores_per_pos);
-      p7_hit_Destroy(split_hits[s]);   
-
-      /* shift remaining split hits */
-      for(x = s+1; x < hit_cnt; x++)
-        split_hits[x-1] = split_hits[x];
-      hit_cnt--;
+      p7_hit_Destroy(split_hits[s]);
     }
-    else {
-      split_edges[s-1] = edge;
-      s++;
-    }
+    *num_hits = 0;
+    free(split_edges);
+    return NULL;
   }
- 
-  *num_hits = hit_cnt;
+  
+  
+  /* If we have at least one edge, check if any edge are missing. 
+   * If so realign the split hits */
+  s = 0;
+  while(s < hit_cnt-1) {
+    if(split_edges[s] == NULL) {
+    
+      sub_hmm = p7_splice_GetSubHMM(hmm, split_hits[s]->dcl->ihmm, split_hits[s+1]->dcl->jhmm);  
+      seq_i = split_hits[s]->dcl->tr->sqfrom[0];
+      seq_j = split_hits[s+1]->dcl->tr->sqto[0]; 
+      seq_len = seq_j - seq_i + 1;
 
+      sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
+      ESL_REALLOC(sub_fs_model->tsc,  sizeof(float)   * (sub_hmm->M+1) * p7P_NTRANS);
+      p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, seq_len, p7_UNIGLOBAL);
+      tp_0 = sub_fs_model->tsc;
+      tp_M = sub_fs_model->tsc + sub_fs_model->M * p7P_NTRANS;
+     
+      
+      hmm_i = ESL_MAX(split_hits[s]->dcl->ihmm-1, 1);
+      hmm_j = ESL_MIN(split_hits[s+1]->dcl->jhmm, hmm->M-1);
+      /* Add extra transtion position for insetions at begining and end of alignments*/
+      tp_0[p7P_MM] = log(hmm->t[hmm_i][p7H_MM]);
+      tp_0[p7P_MI] = log(hmm->t[hmm_i][p7H_MI]);
+      tp_0[p7P_MD] = log(hmm->t[hmm_i][p7H_MD]);
+      tp_0[p7P_IM] = log(hmm->t[hmm_i][p7H_IM]);
+      tp_0[p7P_II] = log(hmm->t[hmm_i][p7H_II]);
+      tp_0[p7P_DM] = log(hmm->t[hmm_i][p7H_DM]);
+      tp_0[p7P_DD] = log(hmm->t[hmm_i][p7H_DD]);
+  
+      tp_M[p7P_MM] = log(hmm->t[hmm_j][p7H_MM]);
+      tp_M[p7P_MI] = log(hmm->t[hmm_j][p7H_MI]);
+      tp_M[p7P_MD] = log(hmm->t[hmm_j][p7H_MD]);
+      tp_M[p7P_IM] = log(hmm->t[hmm_j][p7H_IM]);
+      tp_M[p7P_II] = log(hmm->t[hmm_j][p7H_II]);
+      tp_M[p7P_DM] = log(hmm->t[hmm_j][p7H_DM]);
+      tp_M[p7P_DD] = log(hmm->t[hmm_j][p7H_DD]);
+
+      vit_mx = p7_gmx_fs_Create(sub_fs_model->M, seq_len, seq_len, p7P_CODONS); 
+      p7_fs_global_Viterbi(hit_seq->dsq+seq_i-1, gcode, seq_len, sub_fs_model, vit_mx, NULL);     
+      tr = p7_trace_fs_Create();
+      p7_fs_global_Trace(hit_seq->dsq+seq_i-1, seq_len, sub_fs_model, vit_mx, tr);
+      p7_trace_fs_Index(tr);
+     
+      /*replace upstream hits trace with new trace */
+      p7_trace_fs_Destroy(split_hits[s]->dcl->tr);
+      split_hits[s]->dcl->tr = tr;
+ 
+      /* Set new hmm and ali coords */   
+      tmp_ihmm = split_hits[s]->dcl->ihmm;
+      split_hits[s]->dcl->ihmm = tmp_ihmm + tr->hmmfrom[0] - 1;
+      split_hits[s]->dcl->jhmm = tmp_ihmm + tr->hmmto[0]   - 1;
+      
+      tmp_iali = split_hits[s]->dcl->iali;
+      if(revcomp) {
+        split_hits[s]->dcl->iali = tmp_iali - tr->sqfrom[0]  + 1;
+        split_hits[s]->dcl->jali = tmp_iali - tr->sqto[0]    + 1;
+      }
+      else {
+        split_hits[s]->dcl->iali = tmp_iali + tr->sqfrom[0]  - 1;
+        split_hits[s]->dcl->jali = tmp_iali + tr->sqto[0]    - 1; 
+      }
+
+      /* Calculate new ali score */
+      free(split_hits[s]->dcl->scores_per_pos);
+      split_hits[s]->dcl->scores_per_pos = NULL;
+      p7_splice_ComputeAliScores_fs(split_hits[s]->dcl, tr, hit_seq->dsq+seq_i-1, sub_fs_model, hit_seq->abc); 
+      
+      /*Destroy downstream hit */
+      p7_trace_fs_Destroy(split_hits[s+1]->dcl->tr);
+      free(split_hits[s+1]->dcl->scores_per_pos);
+      p7_hit_Destroy(split_hits[s+1]);
+
+      for(x = s+1; x < hit_cnt-1; x++)
+        split_hits[x] = split_hits[x+1];
+
+      for(x = s; x < hit_cnt-2; x++)
+        split_edges[x] = split_edges[x+1];
+      hit_cnt--;    
+  
+      p7_hmm_Destroy(sub_hmm);
+      p7_profile_fs_Destroy(sub_fs_model);
+      p7_gmx_Destroy(vit_mx);       
+    } 
+    else s++;
+  }   
+
+  *num_hits = hit_cnt;
   return split_edges;
 
   ERROR:
+    p7_hmm_Destroy(sub_hmm);
+    p7_profile_fs_Destroy(sub_fs_model);
+    p7_gmx_Destroy(vit_mx);
     if(split_edges != NULL) free(split_edges);
     return NULL;
 
@@ -754,14 +801,14 @@ p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *
     if(!graph->in_graph[up]) continue;
     for(down = 0; down < graph->num_nodes; down++) {
       if(!graph->in_graph[down]) continue;
-
+      
       if(!hit_upstream(th->hit[up]->dcl, th->hit[down]->dcl, graph->revcomp)) continue;
    
       if(p7_splicegraph_EdgeExists(graph,up,down)) continue;
     
       /* check that hmm and ali coords are spliceable */
       if(!hits_spliceable(th->hit[up]->dcl, th->hit[down]->dcl)) continue;
-     
+      
       /* get min and max coords and fetch sub sequence of the potential splice region*/
       up_min   = ESL_MIN(th->hit[up]->dcl->iali, th->hit[up]->dcl->jali);
       up_max   = ESL_MAX(th->hit[up]->dcl->iali, th->hit[up]->dcl->jali);
@@ -1040,7 +1087,6 @@ p7_splice_RecoverHits2(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELI
   }
 
     
-  //p7_splicehits_Dump(stdout, sh);
   free(tmp_dom);
   return eslOK;
 }
@@ -2626,14 +2672,6 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7
       while (z1 < z2 && tr->st[z1] == p7T_D)  {
         dom->scores_per_pos[n] = p7P_TSC(gm_fs, k-1, p7P_DD);
         k++; z1++; n++;
-      }
-    }
-    else if (tr->st[z1] == p7T_J) { // special case for merged split hits 
-      dom->scores_per_pos[n] = -eslCONST_LOG2 + gm_fs->xsc[p7P_J][p7P_LOOP];
-      z1++; n++;
-      while (z1 < z2 && tr->st[z1] == p7T_J) {
-        dom->scores_per_pos[n] = gm_fs->xsc[p7P_J][p7P_LOOP];
-        z1++; n++;
       }
     }
     else ESL_XEXCEPTION(eslFAIL, "Impossible state from compute_ali_scores()");

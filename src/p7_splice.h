@@ -170,13 +170,12 @@ typedef struct _splice_gap
 
 
 
-#define SPLASH_MAX_RESIDUE_COUNT  (1024 * 256)  /* 1/4 Mb */
 #define MAX_GAP_RANGE             50000       
-#define MAX_INTRON_LEN            25000      
+#define MAX_INTRON_LEN            25000
 #define MIN_INTRON_LEN            13
 #define MAX_AMINO_EXT             30
 #define MIN_AMINO_OVERLAP         14
-#define MAX_AMINO_OVERLAP         30
+#define MAX_AMINO_OVERLAP         60
 
 /* Indices of p7_splice_SignalScores */
 enum p7s_splice_signals_e {

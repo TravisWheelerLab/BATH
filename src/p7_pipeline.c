@@ -610,8 +610,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
     pli->do_max        = TRUE;
     pli->do_biasfilter = FALSE;
 
-    pli->F2 = pli->F3 = 1.0;
-    pli->F1 = 1.0; // need to set some threshold for F1 even on long targets. Should this be tighter?
+    pli->F1 = pli->F2 = pli->F3 = 1.0;
    }
    if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
    if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
@@ -2503,7 +2502,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
      * This prevents unreportable hits from accumulating and using excessive memmory. 
      * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-    if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) <= pli->F1)) ||  
+    if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < 1.0)) ||  
        (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T))) 
     { 
 
@@ -2674,7 +2673,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
      * This prevents unreportable hits from accumulating and using excessive memmory.
      * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
      pli->Z = (float)pli->nres / (float)om->max_length;
-     if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) <= pli->F1)) ||
+     if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < 1.0)) ||
         (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T)))
      {
 
@@ -2787,7 +2786,6 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   int              status;
   int64_t          window_start, window_end;
   int64_t          orf_start, orf_end; 
-//  int32_t          prev_k, prev_m;
   ESL_DSQ         *subseq;                     /* current DNA window holder                    */ 
   ESL_SQ          *curr_orf;                   /* current ORF holder                           */
   float            fwdsc_fs, fwdsc_orf;        /* forward scores                               */
@@ -2852,9 +2850,6 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     
     ESL_ALLOC(P_orf, sizeof(double) * orf_block->count);
     ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
-
-    //prev_k = 0;
-    //prev_m = 0;
 
    for(f = 0; f < orf_block->count; f++) {
      curr_orf = &(orf_block->list[f]);

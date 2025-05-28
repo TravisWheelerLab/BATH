@@ -825,13 +825,11 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
 int
 p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, SPLICE_SAVED_HITS *saved_hits, int64_t seqidx) {
 
-  int            i;
+  int            i, d;
   int            new_hit_cnt;
 
-  int32_t        i_coords, j_coords;          /* original ORF hit coords */
-  int32_t        ext_i_coords, ext_j_coords;  /* extended ORF hit coords */
-  int32_t        k_coords, m_coords;          /* original HMM hit coords */
-  
+  int32_t        ext_i_coords, ext_j_coords;  
+  int64_t        domain_start, domain_end;
   int64_t        window_start, window_end;
   int64_t        overlap_len;
   int64_t        max_window_start, min_window_end;
@@ -867,71 +865,86 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
     
     p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, &vsc);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
-    p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
-  
-    /* Rescore bias based on viterbi alignment */
+    p7_trace_Index(vtr);
+
+    
     if (pli->do_biasfilter)
     {
-       p7_bg_SetLength(bg, curr_orf->n);
-       p7_bg_FilterScore(bg, curr_orf->dsq+i_coords-1, (j_coords-i_coords+1), &filtersc);
-  
-       /* Subtract out alignment length nullsc and add orf length null score back in */
-       nullsc = (float) (j_coords-i_coords+1) * logf(bg->p1) + logf(1.-bg->p1); 
-       filtersc -= nullsc;
-       nullsc = (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
-       filtersc += nullsc;
 
-       seq_score = (vsc - filtersc) / eslCONST_LOG2;
-       P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]); 
-       if (P > pli->F2) {
-         p7_gmx_Reuse(vgx);
-         p7_trace_Reuse(vtr);
-         continue;
-       } 
+      p7_bg_SetLength(bg, curr_orf->n);
+      filtersc = 1.0;
+      for(d = 0; d < vtr->ndom; d++) {
+ 
+        p7_bg_FilterScore(bg, curr_orf->dsq+vtr->sqfrom[d]-1, (vtr->sqto[d]-vtr->sqfrom[d]+1), &nullsc);
+  
+        /* Subtract out alignment length nullsc */
+        nullsc -= (float) (vtr->sqto[d]-vtr->sqfrom[d]+1) * logf(bg->p1) + logf(1.-bg->p1); 
+        filtersc = p7_FLogsum(filtersc, nullsc);
+      } 
+
+      filtersc += (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
+    
+      seq_score = (vsc - filtersc) / eslCONST_LOG2;
+      P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]); 
+      if (P > pli->F2) {
+        p7_gmx_Reuse(vgx);
+        p7_trace_Reuse(vtr);
+        continue;
+      } 
     }    
 
-    /* For spliced alignments we save the hit info of every query-target pair that passes the viterbi filter */
-    if(saved_hits != NULL) {
+    window_start = dna_sq->n;
+    window_end   = 1;
+    for(d = 0; d < vtr->ndom; d++) { 
 
-      p7_splicehits_CreateNext(saved_hits, &hit_info);
+      /* For spliced alignments we save the hit info of every query-target pair that passes the viterbi filter */
+      if(saved_hits != NULL) {
+  
+        p7_splicehits_CreateNext(saved_hits, &hit_info);
+  
+        hit_info->node_id   = -1; 
+        hit_info->seqidx    = seqidx;
+        hit_info->strand    = complementarity;
+        hit_info->duplicate = FALSE;     
+   
+        hit_info->hmm_start = vtr->hmmfrom[d];
+        hit_info->hmm_end   = vtr->hmmto[d];
+        if(complementarity) {
+          hit_info->seq_start = dna_sq->end + curr_orf->start - (vtr->sqfrom[d]*3) + 2;
+          hit_info->seq_end   = dna_sq->end + curr_orf->start - (vtr->sqto[d]*3);
+        }
+        else {
+          hit_info->seq_start = dna_sq->start + curr_orf->start + (vtr->sqfrom[d]*3) - 4;
+          hit_info->seq_end   = dna_sq->start + curr_orf->start + (vtr->sqto[d]*3) - 2; 
+        }
+        tmp_dom = p7_domain_Create_empty();
+        p7_splice_ComputeAliScores(tmp_dom, vtr, curr_orf->dsq, gm);
+        hit_info->aliscore = tmp_dom->aliscore;
+        free(tmp_dom->scores_per_pos);
+        free(tmp_dom); 
+      } 
 
-      hit_info->node_id   = -1; 
-      hit_info->seqidx    = seqidx;
-      hit_info->strand    = complementarity;
-      hit_info->duplicate = FALSE;     
- 
-      hit_info->hmm_start = k_coords;
-      hit_info->hmm_end   = m_coords;
-      if(complementarity) {
-        hit_info->seq_start = dna_sq->end + curr_orf->start - (i_coords*3) + 2;
-        hit_info->seq_end   = dna_sq->end + curr_orf->start - (j_coords*3);
-      }
-      else {
-        hit_info->seq_start = dna_sq->start + curr_orf->start + (i_coords*3) - 4;
-        hit_info->seq_end   = dna_sq->start + curr_orf->start + (j_coords*3) - 2; 
-      }
-      tmp_dom = p7_domain_Create_empty();
-      p7_splice_ComputeAliScores(tmp_dom, vtr, curr_orf->dsq, gm);
-      hit_info->aliscore = tmp_dom->aliscore;
-      free(tmp_dom->scores_per_pos);
-      free(tmp_dom); 
-    } 
-
-    ext_i_coords = ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
-    ext_j_coords = ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
+      ext_i_coords = ESL_MIN(0,           (vtr->sqfrom[d] - (gm->max_length * (0.1 + data->prefix_lengths[vtr->hmmfrom[d]]))-1)); //negeative numbers
+      ext_j_coords = ESL_MAX(curr_orf->n, (vtr->sqto[d] + (gm->max_length * (0.1 + data->suffix_lengths[vtr->hmmto[d]]))+1)); //positive numbers
      
-    if(complementarity == p7_NOCOMPLEMENT)
-    {
-      window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3)-3);
-      window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3)-1);
-    }
-    else
-    {
-      window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
-      window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords * 3)); 
-    }
+      if(complementarity == p7_NOCOMPLEMENT)
+      {
+        domain_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3)-3);
+        domain_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3)-1);
+      }
+      else
+      {
+        domain_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
+        domain_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords * 3)); 
+      }
+    
+      window_start = ESL_MIN(domain_start, window_start);
+      window_end   = ESL_MAX(domain_end,   window_end);  
+    } 
+ 
+    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, vtr->hmmfrom[0], window_end-window_start+1, 0.0, complementarity, dna_sq->n);
+    
 
-    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
     p7_gmx_Reuse(vgx);
     p7_trace_Reuse(vtr);
   }
@@ -982,6 +995,7 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
   p7_gmx_Destroy(vgx);
   p7_trace_Destroy(vtr);
   return eslOK;
+
 }
 
 /* Function:  p7_pli_fs_GetPosPast
@@ -3074,7 +3088,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
   //printf("hmm %s seq %s\n", gm->name, dnasq->name); 
- // fflush(stdout);
+  //fflush(stdout);
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_windowlist.windows = NULL;
@@ -3181,7 +3195,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object
-  
   /* Send ORFs and protien models along with DNA windows and fs-aware codon models to Forward filters */
   for(i = 0; i < post_vit_windowlist.count; i++)
   {

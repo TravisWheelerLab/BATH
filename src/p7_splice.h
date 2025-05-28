@@ -68,15 +68,17 @@ typedef struct _splice_graph {
   char        *seqname;    
 
   /* Hits and hit info */
-  int         *in_graph;        /* Is the hit part of the current graph */
+  int         *node_in_graph;        /* Is the hit part of the current graph */
   int         *reportable;      /* For orignal hits, do they pass the repoting threshold */
   int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
   int         *split_orig_id;
+  
 
   /*Edge info */  
+  int   *edge_in_graph;
   int   *best_out_edge;
   int   *best_in_edge;
-
+  
   /* Scores */
   float *path_scores;  //Path score pulled upstream
   float *ali_scores;
@@ -98,7 +100,6 @@ typedef struct _splice_path {
 
   int *node_id;
   int *split;
-  int *is_j_edge;
 
   int *upstream_spliced_amino_end;
   int *downstream_spliced_amino_start;
@@ -172,6 +173,8 @@ typedef struct _splice_gap
 
 #define MAX_GAP_RANGE             50000       
 #define MAX_INTRON_LEN            25000
+#define MAX_INTRON_SHORT          10000 
+#define MAX_INTRON_LONG           100000
 #define MIN_INTRON_LEN            13
 #define MAX_AMINO_EXT             30
 #define MIN_AMINO_OVERLAP         14
@@ -239,8 +242,7 @@ extern int p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const 
 extern int p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *saved_hits, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int first, int last);
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
 extern int p7_splice_FillGaps(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file);
-extern int p7_splice_RemoveDisconnected(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed);
-extern int p7_splice_AddJStateEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);
+extern int p7_splice_MergePaths(SPLICE_GRAPH *graph, SPLICE_PATH **path_accumulator, SPLICE_PIPELINE *pli, P7_HMM *hmm, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int *num_paths);
 extern int p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *frameshift, int *success);
 extern int p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, int *success);
 extern int p7_splice_ReleaseHits(SPLICE_GRAPH *graph, int *hits_processed, int *num_hits_processed, int range_bound_min, int range_bound_maxs);

@@ -62,8 +62,9 @@ p7_splicegraph_Create()
   graph->reportable     = NULL;
   graph->orig_hit_idx   = NULL;
   graph->split_orig_id  = NULL;
-  graph->in_graph       = NULL;
+  graph->node_in_graph   = NULL;
   
+  graph->edge_in_graph = NULL;
   graph->best_out_edge = NULL;
   graph->best_in_edge  = NULL;
 
@@ -109,8 +110,9 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->reportable,    sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->orig_hit_idx,  sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->split_orig_id, sizeof(int)  * graph->nalloc);
-  ESL_ALLOC(graph->in_graph,      sizeof(int)  * graph->nalloc);
-  
+  ESL_ALLOC(graph->node_in_graph,  sizeof(int)  * graph->nalloc);
+ 
+  ESL_ALLOC(graph->edge_in_graph, sizeof(int)  * graph->nalloc); 
   ESL_ALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
   ESL_ALLOC(graph->best_in_edge,  sizeof(int)   * graph->nalloc);
 
@@ -151,11 +153,12 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
 
     graph->nalloc *= 2;
 
-    ESL_REALLOC(graph->in_graph,      sizeof(int)   * graph->nalloc);
+    ESL_REALLOC(graph->node_in_graph,  sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->reportable,    sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->orig_hit_idx,  sizeof(int)   * graph->nalloc);    
     ESL_REALLOC(graph->split_orig_id, sizeof(int)   * graph->nalloc);
 
+    ESL_REALLOC(graph->edge_in_graph, sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->best_in_edge,  sizeof(int)   * graph->nalloc);
 
@@ -191,11 +194,12 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if(graph->reportable    != NULL) free(graph->reportable);
   if(graph->orig_hit_idx  != NULL) free(graph->orig_hit_idx);
   if(graph->split_orig_id != NULL) free(graph->split_orig_id);
-  if(graph->in_graph      != NULL) free(graph->in_graph);
+  if(graph->node_in_graph  != NULL) free(graph->node_in_graph);
 
   if(graph->path_scores   != NULL) free(graph->path_scores);
   if(graph->ali_scores    != NULL) free(graph->ali_scores);
 
+  if(graph->edge_in_graph != NULL) free(graph->edge_in_graph);
   if(graph->best_out_edge != NULL) free(graph->best_out_edge);
   if(graph->best_in_edge  != NULL) free(graph->best_in_edge);
 
@@ -256,7 +260,7 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
   th->hit[graph->num_nodes] = hit;
   th->N++;
 
-  graph->in_graph[graph->num_nodes]  = TRUE;
+  graph->node_in_graph[graph->num_nodes]  = TRUE;
 
   graph->ali_scores[graph->num_nodes]  = hit->dcl->aliscore; //This contiains the summed alisc
   graph->path_scores[graph->num_nodes] = -eslINFINITY;
@@ -356,8 +360,9 @@ p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_node)
   while(tmp_edge != NULL && tmp_edge->downstream_node_id != down_node)
     tmp_edge = tmp_edge->next;
 
-  if(tmp_edge == NULL) return FALSE;
-  else                 return TRUE;
+  if     (tmp_edge == NULL)                       return FALSE;
+  else if(tmp_edge->splice_score == -eslINFINITY) return FALSE;
+  else                                            return TRUE;
 
 }
 
@@ -484,7 +489,7 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
   orig_cnt = 0;
   split_cnt = 0;
   for (i = 0; i < graph->th->N; i++) {
-    if(graph->in_graph[i]) {
+    if(graph->node_in_graph[i]) {
       hit_cnt++;
       if      (i < graph->orig_N)  orig_cnt++;
       else if (i < graph->split_N) split_cnt++;
@@ -503,7 +508,7 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
 
   for(i = 0; i < graph->th->N; i++) {
 
-    if(!graph->in_graph[i])
+    if(!graph->node_in_graph[i])
       continue;
 
     hit = graph->th->hit[i];
@@ -542,7 +547,7 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
 
   fprintf(fp, "\n Edge Data  \n\n");
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
+    if(!graph->node_in_graph[i]) continue;
     tmp_edge = graph->edges[i];
     while(tmp_edge != NULL) {
       nuc_end =   tmp_edge->upstream_spliced_nuc_end;
@@ -583,7 +588,7 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j)
   SPLICE_EDGE *tmp_edge;
 
   if (graph == NULL) { fprintf(fp, " [ graph is NULL ]\n"); return; }
-  num_nodes = esl_vec_ISum(graph->in_graph, graph->num_nodes);  
+  num_nodes = esl_vec_ISum(graph->node_in_graph, graph->num_nodes);  
 
   fprintf(fp, " SPLICE_GRAPH\n");
   fprintf(fp, " Number of Nodes  : %d\n", num_nodes); 
@@ -598,7 +603,7 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j)
 
     fprintf(fp, "     ");
     for(i = 0; i < graph->num_nodes; i++ ) {
-      if(graph->in_graph[i])
+      if(graph->node_in_graph[i])
         fprintf(fp, "%8d", i+1);
     }
     fprintf(fp, "\n");
@@ -606,7 +611,7 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j)
     in_range_cnt = 0;
     for(i = 0; i < graph->num_nodes; i++ ) {
 
-      if(!graph->in_graph[i]) continue;
+      if(!graph->node_in_graph[i]) continue;
       if (in_range_cnt == num_nodes/2)
         fprintf(fp, "UP");
       else
@@ -625,7 +630,7 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j)
       }
 
       for(j = 0; j < graph->num_nodes; j++ ) { 
-        if(graph->in_graph[j])
+        if(graph->node_in_graph[j])
           fprintf(fp, "%8.2f", edge_scores[j]);
       }
       fprintf(fp, "\n");
@@ -634,46 +639,46 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j)
 
   fprintf(fp, "\n Alignment Scores  \n");
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
+    if(!graph->node_in_graph[i]) continue;
     fprintf(fp, "%8d", i+1);
   }
   fprintf(fp, "\n");
 
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue; 
+    if(!graph->node_in_graph[i]) continue; 
     fprintf(fp, "%8.2f", graph->ali_scores[i]);
   }
   fprintf(fp, "\n");
 
   fprintf(fp, "\n Upstream Path Scores  \n");
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
+    if(!graph->node_in_graph[i]) continue;
     fprintf(fp, "%8d", i+1);
   }
   fprintf(fp, "\n");
 
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
+    if(!graph->node_in_graph[i]) continue;
     fprintf(fp, "%8.2f", graph->path_scores[i]);
   }
   fprintf(fp, "\n");
 
   fprintf(fp, "\n Downstream Path Scores  \n");
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
+    if(!graph->node_in_graph[i]) continue;
     fprintf(fp, "%8d", i+1);
   }
   fprintf(fp, "\n");
 
    fprintf(fp, "\n Best Edge  \n");
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
+    if(!graph->node_in_graph[i]) continue;
     fprintf(fp, "%8d", i+1);
   }
   fprintf(fp, "\n");
 
   for(i = 0; i < graph->num_nodes; i++ ) {
-    if(!graph->in_graph[i]) continue;
+    if(!graph->node_in_graph[i]) continue;
     fprintf(fp, "%8d", graph->best_out_edge[i]+1);
   }
   fprintf(fp, "\n");

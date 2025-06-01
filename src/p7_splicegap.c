@@ -93,7 +93,7 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
   sub_hmm->fs = 0.; //set frameshift probability to 0 to align standard codons only
 
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, gap_seq->n, p7_GLOBAL); 
+  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, gap_seq->n, p7_UNIGLOBAL); 
   
   vit_mx = p7_gmx_fs_Create(sub_fs_model->M, gap_seq->n, gap_seq->n, p7P_SPLICE);
   tr = p7_trace_fs_Create();
@@ -206,7 +206,8 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_T, 0, 0, 0);
 
       p7_splice_ComputeAliScores_fs(new_hit->dcl, new_hit->dcl->tr, gap_seq->dsq, sub_fs_model, gap_seq->abc);
-
+      //printf("ihmm %d jhm %d iali %d jali %d\n", ihmm, jhmm, iali, jali);
+      //p7_trace_fs_Dump(stdout, new_hit->dcl->tr, sub_fs_model, gap_seq->dsq, gap_seq->abc);
       /* Adjust k postions to full HMM */
       for(i = 0; i < new_hit->dcl->tr->N; i++) {
         if(new_hit->dcl->tr->k[i] != 0)

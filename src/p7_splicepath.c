@@ -184,7 +184,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
 
   /* Find best scoreing paths */
   if((status = longest_path_upstream(graph)) != eslOK) goto ERROR;
-
+//p7_splicegraph_DumpGraph(stdout, graph, FALSE);
   contains_orig = FALSE;
   /* Find the best scoring path in graph that contains and original or split hit */
   while(!contains_orig) {
@@ -311,8 +311,10 @@ SPLICE_PATH*
 check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path) 
 {
 
-  int p, h;
-  int up_path, down_path;
+  int   p, h;
+  int   next, step;
+  int   up_path, down_path;
+  int   reconnects;
   float max_bypass_score;
   float sub_path_score;
   P7_TOPHITS  *th;
@@ -320,6 +322,8 @@ check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path)
 
   th = graph->th; 
 
+  /* Check each edge in a path to see if it baypasses a node with downstream edges will be severed by this path.  
+   * If these edges lead to nodes not in the path, we need to account for this potential loss to future paths  */
   for(p = 0; p < path->path_len-1; p ++) {
     up_path   = path->node_id[p];
     down_path = path->node_id[p+1];
@@ -331,9 +335,27 @@ check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path)
     for(h = 0; h < graph->split_N; h++) {
       if(!graph->node_in_graph[h]) continue;
       if(h == up_path || h == down_path) continue;
+      /* Is hit h bypassed by the edge between up_path and down_path */
       if(!hit_between(th->hit[up_path]->dcl, th->hit[h]->dcl, th->hit[down_path]->dcl, graph->revcomp)) continue;
+ 
+      /* If hit h has no downstream edges than we assume the bypass is correct */
+      if(graph->best_out_edge[h] == -1) continue;
+
+      /* If best path downstrem of hit h eventually reconnects with the current path we assume the bypass is correct */
+     reconnects = FALSE;
+      next = h;
+      while(graph->best_out_edge[next] != -1) {
+        for(step = p+1; step < path->path_len; step++) 
+          if(graph->best_out_edge[next] == path->node_id[step]) reconnects = TRUE;
+        next = graph->best_out_edge[next];
+      }
+      if (reconnects) continue;
+
+      /* If hit h is conected to both up_path and down_path then the bypass is correct */
       if(p7_splicegraph_PathExists(graph, up_path, h) && p7_splicegraph_PathExists(graph, h, down_path))  continue; 
+
       sub_path_score = get_sub_path_score(graph, h, down_path);
+      
       max_bypass_score = ESL_MAX(max_bypass_score, sub_path_score);
     }
    
@@ -416,7 +438,7 @@ longest_path_upstream (SPLICE_GRAPH *graph)
     /* Find nodes with ougoing edge to down*/
     for(up = 0; up < graph->num_nodes-1; up++) {
       if (!graph->node_in_graph[up]) continue;
-
+      
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
       if(tmp_edge != NULL && tmp_edge->splice_score != -eslINFINITY) {
         step_score = graph->ali_scores[up] + tmp_edge->splice_score + graph->path_scores[down];
@@ -512,13 +534,12 @@ get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node)
   source_hit = graph->th->hit[source_node]; 
   term_hit   = graph->th->hit[termination_node];
   sub_path_score = graph->path_scores[source_node];
-    
   prev_node = source_node;
   curr_node = graph->best_out_edge[source_node];
   while(curr_node >= 0) {
     curr_hit = graph->th->hit[curr_node];
     if(!hit_between(source_hit->dcl, curr_hit->dcl, term_hit->dcl, graph->revcomp)) {
-        
+              
       sub_path_score -= graph->path_scores[curr_node];
       tmp_edge = p7_splicegraph_GetEdge(graph, prev_node, curr_node);
       sub_path_score -= tmp_edge->splice_score; 

@@ -351,6 +351,7 @@ typedef struct p7_fs_profile_s {
   int     M;                              /* number of nodes in the model                                     */
   int     max_length;                     /* calculated upper bound on emitted seq length                     */
   float   nj;                             /* expected # of uses of J; precalculated from loop config          */
+  float   fs;
 
   /* Info, most of which is a copy from parent HMM:                                                           */
   char  *name;                            /* unique name of model                                             */
@@ -2005,8 +2006,8 @@ extern int         p7_profile_IsLocal(const P7_PROFILE *gm);
 extern int         p7_fs_profile_IsLocal(const P7_FS_PROFILE *gm_fs);
 extern int         p7_profile_IsMultihit(const P7_PROFILE *gm);
 extern int         p7_fs_profile_IsMultihit(const P7_FS_PROFILE *gm_fs);
-extern int         p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, 
-           char st2, int k2, float *ret_tsc);
+extern int         p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, char st2, int k2, float *ret_tsc); 
+extern int         p7_profile_fs_GetT(const P7_FS_PROFILE *gm_fs, char st1, int k1, char st2, int k2, float *ret_tsc);
 extern int         p7_profile_Validate(const P7_PROFILE *gm, char *errbuf, float tol);
 extern int         p7_profile_Compare(P7_PROFILE *gm1, P7_PROFILE *gm2, float tol);
 
@@ -2027,7 +2028,7 @@ extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt, int fs_pipe, int std_pipe);
-extern int p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm);
+extern int p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm, float fs_prob);
 extern int p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
 
 
@@ -2108,7 +2109,7 @@ extern int  p7_trace_GetDomainCoords  (const P7_TRACE *tr, int which, int *ret_i
 
 extern int   p7_trace_Validate(const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *dsq, char *errbuf);
 extern int   p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ *dsq);
-extern int   p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ *dsq);
+extern int   p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc);
 extern int   p7_trace_Compare(P7_TRACE *tr1, P7_TRACE *tr2, float pptol);
 extern int   p7_trace_Score(P7_TRACE *tr, ESL_DSQ *dsq, P7_PROFILE *gm, float *ret_sc);
 extern int   p7_trace_SetPP(P7_TRACE *tr, const P7_GMX *pp);

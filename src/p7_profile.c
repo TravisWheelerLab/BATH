@@ -168,7 +168,7 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   gm_fs->mm        = NULL;
   gm_fs->cs        = NULL;
   gm_fs->consensus = NULL;
-  
+    
 
   /* level 1 */
   ESL_ALLOC(gm_fs->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
@@ -217,6 +217,7 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   gm_fs->M                = 0;
   gm_fs->max_length       = -1;
   gm_fs->nj               = 0.0f;
+  gm_fs->fs               = 0.0f;
 
   gm_fs->roff             = -1;
   gm_fs->eoff             = -1;
@@ -329,6 +330,7 @@ p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
   dst->M           = src->M;
   dst->max_length  = src->max_length;
   dst->nj          = src->nj;
+  dst->fs          = src->fs;
 
   dst->roff        = src->roff;
   dst->eoff        = src->eoff;
@@ -587,7 +589,7 @@ p7_profile_fs_Destroy(P7_FS_PROFILE *gm)
 int
 p7_profile_IsLocal(const P7_PROFILE *gm)
 {
-  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL) return TRUE;
+  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_UNIGLOBAL) return TRUE;
   return FALSE;
 }
 
@@ -599,7 +601,7 @@ p7_profile_IsLocal(const P7_PROFILE *gm)
 int
 p7_fs_profile_IsLocal(const P7_FS_PROFILE *gm)
 {
-  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL) return TRUE;
+  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_UNIGLOBAL) return TRUE;
   return FALSE;
 }
 
@@ -758,6 +760,109 @@ p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, char st2, int k2, float 
   *ret_tsc = -eslINFINITY;
   return status;
 }
+
+int
+p7_profile_fs_GetT(const P7_FS_PROFILE *gm_fs, char st1, int k1, char st2, int k2, float *ret_tsc)
+{
+  float tsc = 0.0f;
+  int   status;
+
+  /* Detect transitions that can only come from core traces;
+   * return 0.0 as a special case (this is only done for displaying
+   * "scores" in trace dumps, during debugging.)
+   */
+  if (st1 == p7T_X || st2 == p7T_X) return eslOK;
+  if (st1 == p7T_B && st2 == p7T_I) return eslOK;
+  if (st1 == p7T_B && st2 == p7T_D) return eslOK;
+  if (st1 == p7T_I && st2 == p7T_E) return eslOK;
+
+  /* Now we're sure this is a profile trace, as it should usually be. */
+  switch (st1) {
+  case p7T_S:  break;
+  case p7T_T:  break;
+  case p7T_N:
+    switch (st2) {
+    case p7T_B: tsc =  gm_fs->xsc[p7P_N][p7P_MOVE]; break;
+    case p7T_N: tsc =  gm_fs->xsc[p7P_N][p7P_LOOP]; break;
+    default:    ESL_XEXCEPTION(eslEINVAL, "bad transition %s->%s", p7_hmm_DecodeStatetype(st1), p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  case p7T_B:
+    switch (st2) {
+    case p7T_M: tsc = p7P_TSC(gm_fs, k2-1, p7P_BM); break; /* remember, B->Mk is stored in [k-1][p7P_BM] */
+    default:    ESL_XEXCEPTION(eslEINVAL, "bad transition %s->%s", p7_hmm_DecodeStatetype(st1), p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  case p7T_M:
+    switch (st2) {
+    case p7T_M: tsc = p7P_TSC(gm_fs, k1, p7P_MM); break;
+    case p7T_I: tsc = p7P_TSC(gm_fs, k1, p7P_MI); break;
+    case p7T_D: tsc = p7P_TSC(gm_fs, k1, p7P_MD); break;
+    case p7T_E: 
+      if (k1 != gm_fs->M && ! p7_fs_profile_IsLocal(gm_fs)) ESL_EXCEPTION(eslEINVAL, "local end transition (M%d of %d) in non-local model", k1, gm_fs->M);
+      tsc = 0.0f;    /* by def'n in H3 local alignment */
+      break;
+    default:    ESL_XEXCEPTION(eslEINVAL, "bad transition %s_%d->%s", p7_hmm_DecodeStatetype(st1), k1, p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  case p7T_D:
+    switch (st2) {
+    case p7T_M: tsc = p7P_TSC(gm_fs, k1, p7P_DM); break;
+    case p7T_D: tsc = p7P_TSC(gm_fs, k1, p7P_DD); break;
+    case p7T_E: 
+      if (k1 != gm_fs->M && ! p7_fs_profile_IsLocal(gm_fs)) ESL_EXCEPTION(eslEINVAL, "local end transition (D%d of %d) in non-local model", k1, gm_fs->M);
+      tsc = 0.0f;    /* by def'n in H3 local alignment */
+      break;
+    default:    ESL_XEXCEPTION(eslEINVAL, "bad transition %s_%d->%s", p7_hmm_DecodeStatetype(st1), k1, p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  case p7T_I:
+    switch (st2) {
+    case p7T_M: tsc = p7P_TSC(gm_fs, k1, p7P_IM); break;
+    case p7T_I: tsc = p7P_TSC(gm_fs, k1, p7P_II); break;
+    default:    ESL_XEXCEPTION(eslEINVAL, "bad transition %s_%d->%s", p7_hmm_DecodeStatetype(st1), k1, p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  case p7T_E:
+    switch (st2) {
+    case p7T_C: tsc = gm_fs->xsc[p7P_E][p7P_MOVE]; break;
+    case p7T_J: tsc = gm_fs->xsc[p7P_E][p7P_LOOP]; break;
+    default:     ESL_XEXCEPTION(eslEINVAL, "bad transition %s->%s", p7_hmm_DecodeStatetype(st1), p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  case p7T_J:
+    switch (st2) {
+    case p7T_B: tsc = gm_fs->xsc[p7P_J][p7P_MOVE]; break;
+    case p7T_J: tsc = gm_fs->xsc[p7P_J][p7P_LOOP]; break;
+    default:     ESL_XEXCEPTION(eslEINVAL, "bad transition %s->%s", p7_hmm_DecodeStatetype(st1), p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  case p7T_C:
+    switch (st2) {
+    case p7T_T:  tsc = gm_fs->xsc[p7P_C][p7P_MOVE]; break;
+    case p7T_C:  tsc = gm_fs->xsc[p7P_C][p7P_LOOP]; break;
+    default:     ESL_XEXCEPTION(eslEINVAL, "bad transition %s->%s", p7_hmm_DecodeStatetype(st1), p7_hmm_DecodeStatetype(st2));
+    }
+    break;
+
+  default: ESL_XEXCEPTION(eslEINVAL, "bad state type %d in traceback", st1);
+  }
+
+  *ret_tsc = tsc;
+  return eslOK;
+
+ ERROR:
+  *ret_tsc = -eslINFINITY;
+  return status;
+}
+
 
 
 /*****************************************************************

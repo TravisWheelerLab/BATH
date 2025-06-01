@@ -1741,7 +1741,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
   
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
-  
+   //p7_trace_fs_Dump(stdout, ddef->tr, gm_fs, windowsq->dsq, windowsq->abc); 
   for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break; 
   for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
   
@@ -1883,7 +1883,8 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
 
     p7_gmx_Destroy(gxv);
   }
-
+  
+  //p7_trace_Dump(stdout, ddef->tr, gm, orfsq->dsq);
   if(orfsq->start < orfsq->end)
     p7_trace_fs_Convert(ddef->tr, orfsq->start, windowsq->start);
   else

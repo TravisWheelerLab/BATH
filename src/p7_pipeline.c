@@ -823,7 +823,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, SPLICE_SAVED_HITS *saved_hits, int64_t seqidx) {
+p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, SPLICE_SAVED_HITS *saved_hits, int64_t seqidx) {
 
   int            i, d;
   int            new_hit_cnt;
@@ -918,7 +918,8 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
           hit_info->seq_end   = dna_sq->start + curr_orf->start + (vtr->sqto[d]*3) - 2; 
         }
         tmp_dom = p7_domain_Create_empty();
-        p7_splice_ComputeAliScores(tmp_dom, vtr, curr_orf->dsq, gm);
+        
+        p7_splice_ComputeAliScores(tmp_dom, vtr, curr_orf->dsq, gm, gm_fs->fs);
         hit_info->aliscore = tmp_dom->aliscore;
         free(tmp_dom->scores_per_pos);
         free(tmp_dom); 
@@ -2616,7 +2617,7 @@ ERROR:
 static int 
 p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, 
                                    int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, ESL_SQ *windowsq, ESL_GENCODE *gcode, 
-                                   int complementarity, float nullsc 
+                                   int complementarity, float nullsc, float fs_prob 
 )
 {
 
@@ -2698,7 +2699,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
          dom->ad->L      = 0;
        }      
        else
-         p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm);
+         p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm, fs_prob);
      
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
@@ -2975,7 +2976,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
         
         /* Send any hits from the standard pipeline to be further processed */   
-        p7_pli_postDomainDef_nonFrameshift(pli, om, gm, data, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, pli_tmp->tmpseq, gcode, complementarity, nullsc_orf);
+        p7_pli_postDomainDef_nonFrameshift(pli, om, gm, data, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, pli_tmp->tmpseq, gcode, complementarity, nullsc_orf, gm_fs->fs);
       }
     }  
   } 
@@ -3191,7 +3192,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
   p7_hmmwindow_init(&post_vit_windowlist);  
   
-  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, saved_hits, seqidx);
+  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, gm_fs, bg, data, &post_vit_windowlist, 0., complementarity, saved_hits, seqidx);
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object

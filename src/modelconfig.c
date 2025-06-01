@@ -230,11 +230,13 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float    one_indel  = log(hmm->fs);
   float    two_indel  = log(hmm->fs/2);
   float    no_indel   = log(1. - hmm->fs*4);
-
+  
+  gm_fs->fs = hmm->fs; 
+  
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
   if (hmm->M > gm_fs->allocM)             ESL_XEXCEPTION(eslEINVAL, "profile too small to hold HMM");
-  if (! (hmm->flags & p7H_CONS))       ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
+  if (! (hmm->flags & p7H_CONS))          ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
 
   /* Copy some pointer references and other info across from HMM  */
   gm_fs->M                = hmm->M;
@@ -545,6 +547,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     p7P_INDEL(gm_fs,k, codon_idx) = p7P_xxx;
   }
 
+  
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
   if ((status = p7_fs_ReconfigLength(gm_fs, L*3)) != eslOK) goto ERROR;

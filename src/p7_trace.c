@@ -1514,12 +1514,12 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
  *            output.
  */
 int
-p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ *dsq) /* replace void w/ P7_PROFILE */
+p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc) /* replace void w/ P7_PROFILE */
 {
   int z;		/* counter for trace position */
   if (tr == NULL) { fprintf(fp, " [ trace is NULL ]\n"); return eslOK; }
 
-  if (gm == NULL) 
+  if (gm_fs == NULL) 
     {		/* Yes, this does get used: during model construction. */ 
       fprintf(fp, " z    st   k      i      c   - traceback len %d\n", tr->N);
       fprintf(fp, "----- --  ----   ----   ----\n");
@@ -1539,8 +1539,8 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
       float accuracy = 0.0f;
       float sc       = 0.0f;
       float tsc;
-      int   xi;
-
+      int   c1, c2, c3, c4, c5;
+      int   codon_idx;
       
       fprintf(fp, " z    st   k     i      c      transit emission postprob - traceback len %d\n", tr->N);
       fprintf(fp, "----- --  ---- ------  ----   -------- -------- --------\n");
@@ -1548,7 +1548,7 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
 	{
 	  if (z < tr->N-1) 
 	    {
-	      status = p7_profile_GetT(gm, tr->st[z], tr->k[z], tr->st[z+1], tr->k[z+1], &tsc);
+	      status = p7_profile_fs_GetT(gm_fs, tr->st[z], tr->k[z], tr->st[z+1], tr->k[z+1], &tsc);
 	      if (status != eslOK) return status;
 	    }
 	  else tsc = 0.0f;
@@ -1557,35 +1557,95 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_D
 	  sc += tsc;
 	  
 	  if (dsq != NULL) {
-	    xi = dsq[tr->i[z]];
-
+         
 	    if (tr->st[z] == p7T_M) {
-	      fprintf(fp, " %8.4f", p7P_MSC(gm, tr->k[z], xi));
-	      sc += p7P_MSC(gm, tr->k[z], xi);
+          c1 = dsq[tr->i[z]];
+          if(tr->c[z] > 1) c2 = dsq[tr->i[z]-1];
+          else             c2 = abc->K;
+          if(tr->c[z] > 2) c3 = dsq[tr->i[z]-2];
+          else             c3 = abc->K;
+          if(tr->c[z] > 3) c4 = dsq[tr->i[z]-3];
+          else             c4 = abc->K;
+          if(tr->c[z] > 4) c5 = dsq[tr->i[z]-4];        
+          else             c5 = abc->K;
+
+          switch (tr->c[z]) {
+            case 1:
+              if(esl_abc_XIsCanonical(abc, c1))
+                codon_idx = p7P_CODON1(c1);
+              else
+                codon_idx = p7P_DEGEN_QC2;
+              break;
+            case 2:
+              if(esl_abc_XIsCanonical(abc, c1) &&
+                 esl_abc_XIsCanonical(abc, c2))
+                codon_idx = p7P_CODON2(c2, c1);
+              else
+                codon_idx = p7P_DEGEN_QC1;
+              break;
+            case 3:
+              if(esl_abc_XIsCanonical(abc, c1) &&
+                 esl_abc_XIsCanonical(abc, c2) &&
+                 esl_abc_XIsCanonical(abc, c3))
+                codon_idx = p7P_CODON3(c3, c2, c1);
+              else
+                codon_idx    = p7P_DEGEN_C;
+               break;
+            case 4:
+              if(esl_abc_XIsCanonical(abc, c1) &&
+                 esl_abc_XIsCanonical(abc, c2) &&
+                 esl_abc_XIsCanonical(abc, c3) &&
+                 esl_abc_XIsCanonical(abc, c4))
+                codon_idx = p7P_CODON4(c4, c3, c2, c1);
+              else
+                codon_idx = p7P_DEGEN_QC1;
+              break;
+            case 5:
+              if(esl_abc_XIsCanonical(abc, c1) &&
+                 esl_abc_XIsCanonical(abc, c2) &&
+                 esl_abc_XIsCanonical(abc, c3) &&
+                 esl_abc_XIsCanonical(abc, c4) &&
+                 esl_abc_XIsCanonical(abc, c5))
+                codon_idx = p7P_CODON5(c5, c4, c3, c2, c1);
+              else
+                codon_idx = p7P_DEGEN_QC2;
+              break;
+            default: break; 
+          }          
+ 
+	      fprintf(fp, " %8.4f", p7P_MSC_CODON(gm_fs, tr->k[z], codon_idx));
+	      sc += p7P_MSC_CODON(gm_fs, tr->k[z], codon_idx);
 	      if (tr->pp != NULL) {
-		fprintf(fp, " %8.4f", tr->pp[z]);
-		accuracy += tr->pp[z];
+		    fprintf(fp, " %8.4f", tr->pp[z]);
+		    accuracy += tr->pp[z];
 	      }
-	      fprintf(fp, " %c", gm->abc->sym[xi]);
+	      fprintf(fp, " %c%c%c%c%c  %c", abc->sym[c5],abc->sym[c4], abc->sym[c3], abc->sym[c2], abc->sym[c1] , gm_fs->abc->sym[p7P_AMINO(gm_fs, tr->k[z], codon_idx)]);
 	    } 
 	    else if (tr->st[z] == p7T_I) {
-	      fprintf(fp, " %8.4f", p7P_ISC(gm, tr->k[z], xi));
-	      sc += p7P_ISC(gm, tr->k[z], xi);
+          c1 = dsq[tr->i[z]];
+          c2 = dsq[tr->i[z]-1];
+          c3 = dsq[tr->i[z]-2]; 
+ 
+	      fprintf(fp, " %8d", 0); 
 	      if (tr->pp != NULL) {
-		fprintf(fp, " %8.4f", tr->pp[z]);
-		accuracy += tr->pp[z];
+		    fprintf(fp, " %8.4f", tr->pp[z]);
+		     accuracy += tr->pp[z];
 	      }
-	      fprintf(fp, " %c", (char) tolower((int) gm->abc->sym[xi]));
+	      fprintf(fp, " %c%c%c", abc->sym[c1], abc->sym[c2], abc->sym[c3]);
 	    }
 	    else if ((tr->st[z] == p7T_N && tr->st[z-1] == p7T_N) ||
 		     (tr->st[z] == p7T_C && tr->st[z-1] == p7T_C) ||
 		     (tr->st[z] == p7T_J && tr->st[z-1] == p7T_J))  {
+          c1 = dsq[tr->i[z]];
+          c2 = dsq[tr->i[z]-1];
+          c3 = dsq[tr->i[z]-2];
+
 	      fprintf(fp, " %8d", 0);
 	      if (tr->pp != NULL) {
-		fprintf(fp, " %8.4f", tr->pp[z]);
-		accuracy += tr->pp[z];
+		    fprintf(fp, " %8.4f", tr->pp[z]);
+		     accuracy += tr->pp[z];
 	      }
-	      fprintf(fp, " %c", (char) tolower((int) gm->abc->sym[xi]));
+	      fprintf(fp, " %c%c%c", abc->sym[c1], abc->sym[c2], abc->sym[c3]);  
 	    }
 	  } 
 	  else fprintf(fp, " %8s %8s %c", "-", "-", '-');

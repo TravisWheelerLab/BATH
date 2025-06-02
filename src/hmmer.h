@@ -63,8 +63,9 @@
 #define p7_GLOCAL    2    /* multihit glocal: "ls" mode   */
 #define p7_UNILOCAL  3    /* unihit local: "sw" mode      */
 #define p7_UNIGLOCAL 4    /* unihit glocal: "s" mode      */
-#define p7_GLOBAL    5    
+#define p7_GLOBAL    5      
 #define p7_UNIGLOBAL 6
+#define p7_LGLOBAL   7   
 
 #define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL ||  mode == p7_UNIGLOBAL)
 #define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL || mode == p7_GLOBAL)

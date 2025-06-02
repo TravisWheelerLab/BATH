@@ -589,7 +589,7 @@ p7_profile_fs_Destroy(P7_FS_PROFILE *gm)
 int
 p7_profile_IsLocal(const P7_PROFILE *gm)
 {
-  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_UNIGLOBAL) return TRUE;
+  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_LGLOBAL) return TRUE;
   return FALSE;
 }
 
@@ -601,7 +601,7 @@ p7_profile_IsLocal(const P7_PROFILE *gm)
 int
 p7_fs_profile_IsLocal(const P7_FS_PROFILE *gm)
 {
-  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_UNIGLOBAL) return TRUE;
+  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_LGLOBAL) return TRUE;
   return FALSE;
 }
 

@@ -98,9 +98,10 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
      
      free(occ);
    }
-   else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL) {
-     for (k = 0; k < hmm->M; k++)
-       p7P_TSC(gm, k, p7P_BM) = log(2.0 / (float) (hmm->M*(hmm->M+1)));
+   else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL || mode == p7_LGLOBAL) {
+     p7P_TSC(gm, 0, p7P_BM) = 0.0f;
+     for (k = 1; k < hmm->M; k++)
+       p7P_TSC(gm, k, p7P_BM) = -eslINFINITY;
    }
    else  /* glocal modes: left wing retraction; must be in log space for precision */
    {
@@ -277,9 +278,11 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
     free(occ);
   }
-  else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL) {
-    for (k = 0; k < hmm->M; k++)
-      p7P_TSC(gm_fs, k, p7P_BM) = log(2.0 / (float) (hmm->M*(hmm->M+1)));
+  else if(mode == p7_GLOBAL || mode == p7_UNIGLOBAL|| mode == p7_LGLOBAL ) {
+    p7P_TSC(gm_fs, 0, p7P_BM) = 0.0f;
+    for (k = 1; k < hmm->M; k++)
+      p7P_TSC(gm_fs, k, p7P_BM) = -eslINFINITY;  
+   
   }
   else  /* glocal modes: left wing retraction; must be in log space for precision */
   {

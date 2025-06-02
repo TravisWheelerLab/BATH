@@ -124,7 +124,7 @@ p7_trans_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_F
 
     XMX(i,p7G_E) = ESL_MAX(MMX(i,M), XMX(i,p7G_E));
 
-    XMX(i,p7G_J) = ESL_MAX(XMX(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
+    XMX(i,p7G_J) = ESL_MAX(XMX(i-1,p7G_J) + (gm_fs->xsc[p7P_J][p7P_LOOP]/3.0),
                            XMX(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
 
     XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
@@ -181,7 +181,8 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
 
     switch (sprv) {
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
-      if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      /* -eslINFINITY is allowed for p7G_C because of stop codons */
+      if(i == 0) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
      
       if      (XMX(i, p7G_C) < XMX(i-2, p7G_C) || XMX(i, p7G_C) < XMX(i-1, p7G_C))                           scur = p7T_C;
       else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
@@ -255,8 +256,8 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
     case p7T_J:         /* J connects from E(i) or J(i-1) */
       if (XMX(i,p7G_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
     
-           if (esl_FCompare_old(XMX(i,p7G_J), XMX(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP], tol) == eslOK) scur = p7T_J;
-      else if (esl_FCompare_old(XMX(i,p7G_J), XMX(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP], tol) == eslOK) scur = p7T_E;
+           if (esl_FCompare_old(XMX(i,p7G_J), XMX(i-1,p7G_J) + (gm_fs->xsc[p7P_J][p7P_LOOP]/3.0), tol) == eslOK) scur = p7T_J;
+      else if (esl_FCompare_old(XMX(i,p7G_J), XMX(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP],       tol) == eslOK) scur = p7T_E;
       else  ESL_EXCEPTION(eslFAIL, "J at i=%d couldn't be traced", i);
       
       break;
@@ -268,8 +269,7 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
-    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
-    if (  scur == p7T_J && scur == sprv) i-=3;
+    if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--; 
     sprv = scur;
   } /* end traceback, at S state */
 

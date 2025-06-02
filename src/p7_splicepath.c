@@ -49,6 +49,8 @@ p7_splicepath_Create(int path_len)
   path = NULL;
   ESL_ALLOC(path, sizeof(SPLICE_PATH));
 
+  path->frameshift = FALSE;
+
   path->alloc_len = path_len*2;
   path->path_len  = path_len;
 
@@ -269,6 +271,8 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
   path->downstream_spliced_amino_start[0] = path->hits[0]->dcl->ihmm;
   path->downstream_spliced_nuc_start[0]   = path->hits[0]->dcl->iali;
 
+  if(th->hit[start_node]->dcl->tr->fs) path->frameshift = TRUE;
+
   curr_node = start_node;
   step_cnt = 1;
   while (step_cnt < path_len) {
@@ -287,6 +291,8 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
     path->downstream_spliced_amino_start[step_cnt] = out_edge->downstream_spliced_amino_start;
     path->upstream_spliced_nuc_end[step_cnt]       = out_edge->upstream_spliced_nuc_end;
     path->downstream_spliced_nuc_start[step_cnt]   = out_edge->downstream_spliced_nuc_start;
+
+    if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE;     
 
     curr_node = next_node;
     step_cnt++;

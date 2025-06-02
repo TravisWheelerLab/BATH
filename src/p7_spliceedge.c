@@ -127,7 +127,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
     sub_hmm->fs = 0.;
 
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, splice_len, p7_GLOBAL);
+  p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, splice_len, p7_UNIGLOBAL);
   vit_mx = p7_gmx_fs_Create(sub_fs_model->M, splice_len, splice_len, p7P_SPLICE); 
   tr = p7_trace_fs_Create();
 
@@ -226,7 +226,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
   if ((status = find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq)) != eslOK) goto ERROR;
 
   /* If no splice was found or the splice score plus the minimum hit score is less than zero, try again with a larger overlap */
-  if(edge->splice_score == -eslINFINITY ) {
+  if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) {
     /* If the edge failed using the MIN_AMINO_OVERLAP extntion tray again with the MAX_AMINO_OVERLAP */
     edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   (upstream_domain->ihmm + tr->k[intron_start] - 1) - MAX_AMINO_OVERLAP/2);
     edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, (upstream_domain->ihmm + tr->k[intron_end])     + MAX_AMINO_OVERLAP/2);
@@ -299,7 +299,7 @@ p7_spliceedge_ConnectSplits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_doma
 
   find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
 
-  if(edge->splice_score == -eslINFINITY) { 
+  if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) { 
 
     edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   upstream_domain->jhmm   - MAX_AMINO_OVERLAP/2);
     edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, downstream_domain->ihmm + MAX_AMINO_OVERLAP/2);

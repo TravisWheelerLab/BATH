@@ -155,14 +155,14 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       printf("\nQuery %s Target %s strand %c\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'));
       fflush(stdout);
 
-printf("ORIGINAL\n");
-p7_splicegraph_DumpHits(stdout, graph);
+//printf("ORIGINAL\n");
+//p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 
      if((p7_splice_SplitHits(graph, pli, hmm, gm_fs, gcode, seq_file, &hit_to_process)) != eslOK) goto ERROR;
 
-printf("SPLIT\n");
-p7_splicegraph_DumpHits(stdout, graph);        
+//printf("SPLIT\n");
+//p7_splicegraph_DumpHits(stdout, graph);        
 //fflush(stdout);
 
       p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);     
@@ -236,7 +236,7 @@ p7_splicegraph_DumpHits(stdout, graph);
       for(p = 0; p < num_paths; p++) {
  
         path = path_accumulator[p];
-       p7_splicepath_Dump(stdout, path);  
+       //p7_splicepath_Dump(stdout, path);  
         if(path->path_len > 1) {
           seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) - MAX_AMINO_EXT*3;
           seq_max = ESL_MAX(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) + MAX_AMINO_EXT*3;
@@ -379,7 +379,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
  
   graph->split_N = graph->orig_N;
   for (h = 0; h < graph->orig_N; h++) {
-  
+    
     curr_hit = th->hit[h]; 
 
     /*Check if hit looks like it cointins and intron */
@@ -412,7 +412,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
     }
 
     if(splitable) {
-      
+   
       split_hits = NULL;
       split_edges = NULL;
     
@@ -427,9 +427,13 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
  
       split_hits = split_hit(curr_hit, sub_hmm, pli->bg, hit_seq, gcode, graph->revcomp, &num_hits);      
       
+      for(s = 0; s < num_hits; s++) 
+        p7_splice_ComputeAliScores_fs(split_hits[s]->dcl, split_hits[s]->dcl->tr, hit_seq->dsq, gm_fs, hit_seq->abc);
+      
+
       if(num_hits > 1)
         split_edges = connect_split(pli, split_hits, hmm, gm_fs, gcode, hit_seq, graph->revcomp, FALSE, &num_hits); 
-      
+     
       if( num_hits == 1) {
         p7_trace_fs_Destroy(split_hits[0]->dcl->tr);
         free(split_hits[0]->dcl->scores_per_pos);
@@ -464,6 +468,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
           split_edges[s-1]->downstream_node_id = graph->th->N; 
           p7_splicegraph_AddNode(graph, split_hits[s]);
           p7_splicegraph_AddEdge(graph, split_edges[s-1]); 
+          
           graph->split_orig_id[graph->split_N] = h; 
           graph->split_N++; 
         } 
@@ -473,17 +478,19 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
         split_hits = NULL;
         split_edges = NULL;
       }
-
+    
       /*If the hit has frameshifts we will split again with framshifts enabled */
       if(curr_hit->dcl->tr->fs) {
         sub_hmm->fs = tmp_fs;
         num_hits = 0;
  
         split_hits = split_hit(curr_hit, sub_hmm, pli->bg, hit_seq, gcode, graph->revcomp, &num_hits);      
-         
+        
+        for(s = 0; s < num_hits; s++)
+          p7_splice_ComputeAliScores_fs(split_hits[s]->dcl, split_hits[s]->dcl->tr, hit_seq->dsq, gm_fs, hit_seq->abc);  
+ 
         if(num_hits > 1)
           split_edges = connect_split(pli, split_hits, hmm, gm_fs, gcode, hit_seq, graph->revcomp, TRUE, &num_hits); 
-  
 
         if(num_hits == 1) { 
           
@@ -520,6 +527,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
             split_edges[s-1]->downstream_node_id = graph->th->N; 
             p7_splicegraph_AddNode(graph, split_hits[s]);
             p7_splicegraph_AddEdge(graph, split_edges[s-1]); 
+            
             graph->split_orig_id[graph->split_N] = h; 
             graph->split_N++; 
           } 
@@ -638,7 +646,7 @@ split_hit(P7_HIT *hit, P7_HMM *sub_hmm, const P7_BG *bg, ESL_SQ *hit_seq, const 
       
       new_hit->dcl->ad             = NULL; 
       new_hit->dcl->scores_per_pos = NULL;
-      p7_splice_ComputeAliScores_fs(new_hit->dcl, new_hit->dcl->tr, hit_seq->dsq, sub_fs_model, hit_seq->abc);
+      //p7_splice_ComputeAliScores_fs(new_hit->dcl, new_hit->dcl->tr, hit_seq->dsq, sub_fs_model, hit_seq->abc);
 
       /* Adjust k postions to full HMM */
       for(i = 0; i < new_hit->dcl->tr->N; i++) {
@@ -2942,7 +2950,7 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7
   int N;
  
   if(tr->ndom == 0) p7_trace_Index(tr);
-
+  
   N = tr->tto[0] - tr->tfrom[0] - 1;
   if(dom->scores_per_pos == NULL)
     ESL_ALLOC( dom->scores_per_pos, sizeof(float) * N);
@@ -3018,12 +3026,13 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7
       while(z1 < z2 && tr->st[z1] == p7T_M) {
         c = tr->c[z1];
         i = tr->i[z1];       
-    
+           
         if(c == 1) {
           if(esl_abc_XIsCanonical(abc, nuc_dsq[i]))
             codon_idx = p7P_CODON1(nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN_QC2;
+          tr->fs++;
         }
         else if(c == 2) {
           if(esl_abc_XIsCanonical(abc, nuc_dsq[i-1]) &&
@@ -3031,6 +3040,7 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7
             codon_idx = p7P_CODON2(nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN_QC1;
+          tr->fs++;
         }
         else if(c == 3) {
           if(esl_abc_XIsCanonical(abc, nuc_dsq[i-2]) &&
@@ -3039,6 +3049,8 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7
             codon_idx = p7P_CODON3(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN_C;
+          indel = p7P_INDEL(gm_fs, k, codon_idx);
+          if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) tr->fs++;
         }
         else if(c == 4) {
           if(esl_abc_XIsCanonical(abc, nuc_dsq[i-3]) &&
@@ -3048,6 +3060,7 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7
             codon_idx = p7P_CODON4(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN_QC1;
+          tr->fs++;
         }
         else if(c == 5) {
           if(esl_abc_XIsCanonical(abc, nuc_dsq[i-4]) &&
@@ -3058,6 +3071,7 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7
             codon_idx = p7P_CODON5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN_QC2;
+          tr->fs++;
         }
         
         dom->scores_per_pos[n] = p7P_MSC_CODON(gm_fs, k, codon_idx);

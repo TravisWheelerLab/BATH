@@ -416,6 +416,7 @@ main(int argc, char **argv)
   cfg.ofp         = NULL;	           
   cfg.fmt         = eslMSAFILE_UNKNOWN;    /* autodetect alignment format by default. */ 
   cfg.afp         = NULL;	           
+  cfg.sfp         = NULL; 
   cfg.abc         = NULL;	           
   cfg.hmmfp       = NULL;	           
   cfg.postmsafile = esl_opt_GetString(go, "-O"); /* NULL by default */

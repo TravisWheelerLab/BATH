@@ -174,7 +174,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       p7_splice_FillGaps(graph, pli, hmm, gcode, seq_file);
 
 //    printf("GAPS\n");
-//    p7_splicegraph_DumpHits(stdout, graph);
+ //   p7_splicegraph_DumpHits(stdout, graph);
 //    fflush(stdout);
 
       p7_splice_ConnectGraph(graph, pli, hmm, gcode, seq_file);
@@ -404,7 +404,7 @@ p7_splice_SplitHits(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm
         splitable = TRUE;
         break;
       }
-      else {
+      else if(tr->st[z] == p7T_M) {
         I_cnt = 0;
         low_pp_cnt = 0;
       }

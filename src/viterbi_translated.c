@@ -210,9 +210,10 @@ p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const P7_FS
       else                                              x = p7P_MAXCODONS; 
 
       c3 = p7P_CODON3(v, w, x);
-
+      c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+      
       emit = p7P_MSC_CODON(gm_fs, k, c3);
-
+     
       if      (esl_FCompare_old(MMX(i,k), MMX(i-3, k-1)   + TSC(p7P_MM, k-1) + emit, tol) == eslOK) scur = p7T_M;
       else if (esl_FCompare_old(MMX(i,k), IMX(i-3, k-1)   + TSC(p7P_IM, k-1) + emit, tol) == eslOK) scur = p7T_I;
       else if (esl_FCompare_old(MMX(i,k), DMX(i-3, k-1)   + TSC(p7P_DM, k-1) + emit, tol) == eslOK) scur = p7T_D;      

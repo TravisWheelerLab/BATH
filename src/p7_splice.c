@@ -174,7 +174,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       p7_splice_FillGaps(graph, pli, hmm, gcode, seq_file);
 
 //    printf("GAPS\n");
- //   p7_splicegraph_DumpHits(stdout, graph);
+ //  p7_splicegraph_DumpHits(stdout, graph);
 //    fflush(stdout);
 
       p7_splice_ConnectGraph(graph, pli, hmm, gcode, seq_file);
@@ -236,7 +236,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       for(p = 0; p < num_paths; p++) {
  
         path = path_accumulator[p];
-       //p7_splicepath_Dump(stdout, path);  
+    //   p7_splicepath_Dump(stdout, path);  
         if(path->path_len > 1) {
           seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) - MAX_AMINO_EXT*3;
           seq_max = ESL_MAX(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) + MAX_AMINO_EXT*3;
@@ -1383,9 +1383,9 @@ p7_splice_FindTerminals(SPLICE_GRAPH *graph, SPLICE_PATH **path_accumulator, SPL
 
   start_num_nodes = graph->num_nodes;
   for(p = 0; p < path_cnt; p++) {
-    
+   
     path = path_accumulator[p]; 
-    //p7_splicepath_Dump(stdout, path);
+  //  p7_splicepath_Dump(stdout, path);
     /* If there are >= MIN_TERMINAL_LEN unaligned hmm positions upstream of the path, 
      * look for missed exon in the TERMINAL_EXT upstream region */
     if(path->downstream_spliced_amino_start[0] >= MIN_TERMINAL_LEN) {
@@ -1762,7 +1762,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   ext_start_pos = 1;
   if (path->revcomp) {
     path_start_pos = path_seq->n - path->downstream_spliced_nuc_start[0] + path_seq->end;
-    for(pos = path->downstream_spliced_nuc_start[0]+3; pos <= path->downstream_spliced_nuc_start[0] + MAX_AMINO_EXT*3; pos+=3) {
+    for(pos = path->downstream_spliced_nuc_start[0]+3; pos <= path->downstream_spliced_nuc_start[0] + ALIGNMENT_EXT*3; pos+=3) {
       seq_pos = path_seq->n - pos + path_seq->end;   
       if(seq_pos < 1) {
         ext_start_pos = seq_pos+3;
@@ -1778,7 +1778,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   }
   else {
     path_start_pos = path->downstream_spliced_nuc_start[0] - path_seq->start + 1;
-    for(pos = path->downstream_spliced_nuc_start[0]-3; pos >= path->downstream_spliced_nuc_start[0] - MAX_AMINO_EXT*3; pos-=3) {
+    for(pos = path->downstream_spliced_nuc_start[0]-3; pos >= path->downstream_spliced_nuc_start[0] - ALIGNMENT_EXT*3; pos-=3) {
       
       seq_pos = pos - path_seq->start + 1;
       
@@ -1802,7 +1802,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   if (path->revcomp) {
     path_end_pos =  path_seq->n - path->upstream_spliced_nuc_end[path->path_len] + path_seq->end;
     
-    for(pos = path->upstream_spliced_nuc_end[path->path_len]-1; pos >= path->upstream_spliced_nuc_end[path->path_len] - MAX_AMINO_EXT*3; pos-=3) {
+    for(pos = path->upstream_spliced_nuc_end[path->path_len]-1; pos >= path->upstream_spliced_nuc_end[path->path_len] - ALIGNMENT_EXT*3; pos-=3) {
       seq_pos = path_seq->n - pos + path_seq->end;
       if(seq_pos > path_seq->n) {
         ext_end_pos = seq_pos-1;
@@ -1819,7 +1819,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   else {
     path_end_pos = path->upstream_spliced_nuc_end[path->path_len] - path_seq->start + 1;
 
-    for(pos = path->upstream_spliced_nuc_end[path->path_len]+1; pos <= path->upstream_spliced_nuc_end[path->path_len] +  MAX_AMINO_EXT*3; pos+=3) {
+    for(pos = path->upstream_spliced_nuc_end[path->path_len]+1; pos <= path->upstream_spliced_nuc_end[path->path_len] +  ALIGNMENT_EXT*3; pos+=3) {
 
       seq_pos = pos - path_seq->start + 1;
       if(seq_pos > path_seq->n) {
@@ -1894,7 +1894,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   for(i = 1; i <= amino_len; i++) {
 
     amino = esl_gencode_GetTranslation(gcode,&nuc_dsq[seq_idx]);
-
+    
     if(esl_abc_XIsNonresidue(gm->abc, amino)) {
       path->frameshift = TRUE;
       free(nuc_index);
@@ -1917,6 +1917,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   pli->amino_sq     = amino_seq;
   pli->orig_nuc_idx = nuc_index;
 
+  //p7_omx_SetDumpMode(stdout, pli->bwd, TRUE);
   /* Algin the splices Amino sequence */
   status = align_spliced_path(pli, om, gm, path_seq, gcode, fs_prob);
 
@@ -1947,7 +1948,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   dom_score += 2 * log(2. / (om->max_length+2));
   dom_score -= (amino_len-orf_len)      * log((float) (amino_len) / (float) (amino_len+2));
   dom_score += (om->max_length-orf_len) * log((float) om->max_length / (float) (om->max_length+2));
-
+  
    /* Bias calculation and adjustments */
   if(pli->do_null2)
     dom_bias = p7_FLogsum(0.0, log(pli->bg->omega) + pli->hit->dcl->domcorrection);
@@ -2131,6 +2132,7 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_S
   tr = p7_trace_CreateWithPP();
 
   p7_oprofile_ReconfigUnihit(om, pli->amino_sq->n);
+
   p7_omx_GrowTo(pli->fwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
   p7_omx_GrowTo(pli->bwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
 
@@ -2150,7 +2152,8 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_S
     p7_trace_Destroy(tr);
     return eslOK;
   }
-  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, NULL);
+  float bwdsc;
+  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, &bwdsc);
 
   if((status = p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd)) == eslERANGE) goto ERROR;
 
@@ -2166,10 +2169,23 @@ align_spliced_path (SPLICE_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, ESL_S
   hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, target_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt);
 
   p7_Null2_ByExpectation(om, pli->bwd, null2);
-  domcorrection = 0.;
-  for (i = 1; i <= pli->amino_sq->n; i++)
-    domcorrection += logf(null2[pli->amino_sq->dsq[i]]);
   
+  domcorrection = 0.;
+  for (i = 1; i <= pli->amino_sq->n; i++) {
+    domcorrection += logf(null2[pli->amino_sq->dsq[i]]);
+  }
+
+  /* Work around for underflow in the backward matrix */
+  if( isnan(domcorrection) ) {
+     
+    p7_Null2_ByTrace(om, tr, tr->tfrom[0], tr->tto[0], pli->bwd , null2);
+
+	domcorrection = 0.;
+    for (i = 1; i <= pli->amino_sq->n; i++) {
+      domcorrection += logf(null2[pli->amino_sq->dsq[i]]);
+    }
+
+  }
   hit->dcl->domcorrection = domcorrection;
 
   hit->dcl->ihmm = hit->dcl->ad->hmmfrom;

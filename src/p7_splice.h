@@ -180,6 +180,7 @@ typedef struct _splice_gap
 #define MAX_AMINO_EXT             50
 #define MIN_AMINO_OVERLAP         10
 #define MAX_AMINO_OVERLAP         20
+#define ALIGNMENT_EXT             10
 #define MIN_TERMINAL_LEN          5
 
 

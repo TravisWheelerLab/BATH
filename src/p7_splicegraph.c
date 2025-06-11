@@ -503,8 +503,8 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
   fprintf(fp, " Graph Split Hit Count    : %d\n", split_cnt);
   fprintf(fp, "\n");
 
-  fprintf(fp, "   %4s %6s %9s %12s %12s %10s %10s %10s\n",
-          "Hit", "hmm_from", "hmm_to", "seq_from", "seq_to", "score", "reportable", "split_orig");
+  fprintf(fp, "   %4s %6s %9s %12s %12s %10s %10s %10s %10s\n",
+          "Hit", "hmm_from", "hmm_to", "seq_from", "seq_to", "score", "p-value", "reportable", "split_orig");
 
   for(i = 0; i < graph->th->N; i++) {
 
@@ -514,11 +514,11 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
     hit = graph->th->hit[i];
 
     if ( i < graph->orig_N)
-      fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10s\n",
-              i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, (graph->reportable[i] ? "YES" : "NO"));
+      fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10f %10s\n",
+              i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, exp(hit->sum_lnP), (graph->reportable[i] ? "YES" : "NO"));
     else if ( i < graph->split_N)
-      fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10s %10d\n",
-              i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, (graph->reportable[graph->split_orig_id[i]] ? "YES" : "NO"), graph->split_orig_id[i]+1);
+      fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10f %10s %10d\n",
+              i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, exp(hit->sum_lnP), (graph->reportable[graph->split_orig_id[i]] ? "YES" : "NO"), graph->split_orig_id[i]+1);
     else
       fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f\n",
               i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore);

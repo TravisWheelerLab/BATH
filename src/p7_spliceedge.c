@@ -64,7 +64,7 @@ p7_spliceedge_Create(void)
 }
 
 SPLICE_EDGE*
-p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp) 
+p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp, int full_intron) 
 {
 
   int      i, j, z;
@@ -73,6 +73,8 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
   int      downstream_len;
   int      intron_len;
   int      intron_chars;
+  int      amino_gap;
+  int      nuc_extention;
   int      splice_len;
   int      intron_cnt;
   int      introns_in_gap;
@@ -96,39 +98,41 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
   upstream_len   = abs(upstream_domain->jali - upstream_domain->iali) + 1;
   downstream_len = abs(downstream_domain->jali - downstream_domain->iali) + 1;
   intron_len     = splice_seq->n - (upstream_len + downstream_len);
-  intron_chars   = ESL_MIN(intron_len, 300);
+
+  amino_gap = (downstream_domain->ihmm - upstream_domain->jhmm - 1) / 2;
+  nuc_extention = ESL_MAX(amino_gap * 3, MAX_AMINO_EXT_SHORT * 3);
+
+  /*Should we align through the full intron length or only enought nucleotides to cove the amino gap */
+  if(full_intron) intron_chars = intron_len;
+  else            intron_chars   = ESL_MIN(intron_len, nuc_extention*2);
  
-  /* Create a dsq containing all nucleotides from the upstream hit, 
-   * plus <= 150 downstream nucleotides - and all nucleotides from the 
-   * downstream hit - plus <= 150 upstream nucleotides */ 
   splice_len = upstream_len + downstream_len + intron_chars;
   splice_dsq = NULL;
-  ESL_ALLOC(splice_dsq, sizeof(ESL_DSQ) * (splice_len+2));
-  splice_dsq[0] = eslDSQ_SENTINEL;
 
-  /* if the gap between the two hits is <= 300 copy the entire splice_seq dsq otherwise 
-   * copy both hit sequences plus 150 nucleotids on either end of the gap */
   if(intron_chars == intron_len) {
-    for(i = 1; i <= splice_seq->n; i++) 
-      splice_dsq[i] = splice_seq->dsq[i];
+    splice_dsq = splice_seq->dsq;
   }
   else {
-    for(i = 1; i <= upstream_len+150; i++) 
+    ESL_ALLOC(splice_dsq, sizeof(ESL_DSQ) * (splice_len+2));
+    splice_dsq[0] = eslDSQ_SENTINEL;
+    for(i = 1; i <= upstream_len + nuc_extention; i++) 
       splice_dsq[i] = splice_seq->dsq[i];
-    j = downstream_len+150-1;
+    j = downstream_len + nuc_extention - 1;
     for(; i <= splice_len; i++) {
       splice_dsq[i] = splice_seq->dsq[splice_seq->n-j];
       j--;
     }
+    splice_dsq[i] = eslDSQ_SENTINEL;
   }
   
   sub_hmm     = p7_splice_GetSubHMM(hmm, upstream_domain->ihmm, downstream_domain->jhmm);
   if(!upstream_domain->tr->fs && !downstream_domain->tr->fs)
     sub_hmm->fs = 0.;
-
+ 
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
   p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, splice_len, p7_UNIGLOBAL);
   vit_mx = p7_gmx_fs_Create(sub_fs_model->M, splice_len, splice_len, p7P_SPLICE); 
+
   tr = p7_trace_fs_Create();
 
   if(!upstream_domain->tr->fs && !downstream_domain->tr->fs) {
@@ -140,6 +144,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
     p7_sp_fs_semiglobal_VTrace(splice_dsq, splice_len, gcode, sub_fs_model, vit_mx, tr);
   }
 
+
   p7_trace_fs_Index(tr);
   /* If the traces starts after the end of the upstream hit or ends 
    * before the start of the downstream hit this is a failed splice */
@@ -148,7 +153,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
     p7_profile_fs_Destroy(sub_fs_model);
     p7_gmx_Destroy(vit_mx);
     p7_trace_fs_Destroy(tr);
-    free(splice_dsq);
+    if(intron_chars != intron_len) free(splice_dsq);
     return NULL;
   }
 
@@ -156,14 +161,14 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
   intron_cnt = 0;
   for(z = 0; z < tr->N; z++)
     if(tr->st[z] == p7T_R) intron_cnt++;
-
+  // printf("intron_cnt %d\n", intron_cnt);
   /* If no intron states were used this is a failed splice */
   if(intron_cnt == 0) {
     p7_hmm_Destroy(sub_hmm);
     p7_profile_fs_Destroy(sub_fs_model);
     p7_gmx_Destroy(vit_mx);
     p7_trace_fs_Destroy(tr);
-    free(splice_dsq);
+    if(intron_chars != intron_len) free(splice_dsq);
     return NULL;
   }
   /* If multiple introns overlap the gap between hits this suggests 
@@ -178,6 +183,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
       overlap_min = ESL_MAX(tr->i[z1-1], upstream_len+1);
       overlap_max = ESL_MIN(tr->i[z2],   upstream_len+intron_chars);
       overlap_len = overlap_max - overlap_min + 1;
+    //  printf("overlap_len %d\n", overlap_len);
       if(overlap_len > 1) 
         introns_in_gap++;
     }
@@ -186,7 +192,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
       p7_profile_fs_Destroy(sub_fs_model);
       p7_gmx_Destroy(vit_mx);
       p7_trace_fs_Destroy(tr);
-      free(splice_dsq);
+      if(intron_chars != intron_len) free(splice_dsq);
       return NULL;
     }
   }
@@ -202,7 +208,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
     if(i == 0)
     distance_from_upstream   = abs(tr->i[z1] - upstream_len);
     distance_from_downstream = abs(tr->i[z2] - (upstream_len+intron_chars));
- 
+
     if(distance_from_upstream+distance_from_downstream < total_distance) {
        total_distance = distance_from_upstream+distance_from_downstream;
        intron_start = z1; 
@@ -227,10 +233,11 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
 
   /* If no splice was found or the splice score plus the minimum hit score is less than zero, try again with a larger overlap */
   if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) {
+	
     /* If the edge failed using the MIN_AMINO_OVERLAP extntion tray again with the MAX_AMINO_OVERLAP */
     edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   (upstream_domain->ihmm + tr->k[intron_start] - 1) - MAX_AMINO_OVERLAP/2);
     edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, (upstream_domain->ihmm + tr->k[intron_end])     + MAX_AMINO_OVERLAP/2);
-    //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
+  
     get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
 
     edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
@@ -243,7 +250,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
       p7_profile_fs_Destroy(sub_fs_model);
       p7_gmx_Destroy(vit_mx);
       p7_trace_fs_Destroy(tr);
-      free(splice_dsq);
+      if(intron_chars != intron_len) free(splice_dsq);
       free(edge);
       return NULL;
     }
@@ -262,7 +269,7 @@ p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain
   p7_profile_fs_Destroy(sub_fs_model);
   p7_gmx_Destroy(vit_mx);
   p7_trace_fs_Destroy(tr);
-  free(splice_dsq);
+  if(intron_chars != intron_len) free(splice_dsq);
 
   return edge;
    

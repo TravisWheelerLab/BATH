@@ -2517,7 +2517,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
      * This prevents unreportable hits from accumulating and using excessive memmory. 
      * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
-    if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < 1.0)) ||  
+    if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < 0.1)) ||  
        (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T))) 
     { 
 
@@ -2688,7 +2688,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
      * This prevents unreportable hits from accumulating and using excessive memmory.
      * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
      pli->Z = (float)pli->nres / (float)om->max_length;
-     if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < 1.0)) ||
+     if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < 0.1)) ||
         (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T)))
      {
 

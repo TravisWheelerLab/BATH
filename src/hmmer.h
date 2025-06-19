@@ -1711,8 +1711,7 @@ extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigUnihit (P7_FS_PROFILE *gm_fs, int L);
-extern int p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp);
-extern int p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, const ESL_GENCODE *gcode, float *fwd_emissions, float *sc_tmp);
+extern int p7_fs_UpdateEmissionScores(P7_FS_PROFILE *gm_fs, P7_BG *bg, const P7_HMM *hmm);
 
 
 /* modelstats.c */
@@ -1838,7 +1837,7 @@ extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *nt
                                           P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
 extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, 
 		P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
-                P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start, int do_biasfilter);
+                P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start);
 extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 
 /* p7_gmx.c */
@@ -2029,8 +2028,8 @@ extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt, int fs_pipe, int std_pipe);
-extern int p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm, float fs_prob);
-extern int p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *nuc_dsq, P7_FS_PROFILE *gm_fs, const ESL_ALPHABET *abc);
+extern int p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm, P7_BG *bg, float fs_prob, int do_bias);
+extern int p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_SQ *nuc_sq, const P7_FS_PROFILE *gm_fs, P7_BG *bg, int do_bias);
 
 
 /* p7_tophits.c */
@@ -2111,6 +2110,7 @@ extern int  p7_trace_GetDomainCoords  (const P7_TRACE *tr, int which, int *ret_i
 extern int   p7_trace_Validate(const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *dsq, char *errbuf);
 extern int   p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ *dsq);
 extern int   p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc);
+extern int   p7_trace_fs_scores_Dump(FILE *fp, const P7_TRACE *tr, const float *scores_per_pos);
 extern int   p7_trace_Compare(P7_TRACE *tr1, P7_TRACE *tr2, float pptol);
 extern int   p7_trace_Score(P7_TRACE *tr, ESL_DSQ *dsq, P7_PROFILE *gm, float *ret_sc);
 extern int   p7_trace_SetPP(P7_TRACE *tr, const P7_GMX *pp);

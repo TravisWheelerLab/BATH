@@ -1591,10 +1591,6 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
     if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
   }
 
-  /* move nuc_pos to begining of first codon */ 
-  c = tr->c[z1];
-  nuc_pos -= (c-1);
-
   /* Now we know that z1..z2 in the trace will be represented in the
    * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
    * our display lines, so allocate z2-z1+2. We know each position is

@@ -529,6 +529,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   /* Create full memeory forward and backward generic frameshift aware matricies
    * for use in the frameshift pipeline alignment
    */ 
+   
    if(pli->spliced) { if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, (p7P_CODONS+p7P_SPLICE))) == NULL) goto ERROR; }
    else             { if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS)) == NULL) goto ERROR; }
    if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))         == NULL) goto ERROR;
@@ -881,7 +882,7 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
         nullsc -= (float) (vtr->sqto[d]-vtr->sqfrom[d]+1) * logf(bg->p1) + logf(1.-bg->p1); 
         filtersc = p7_FLogsum(filtersc, nullsc);
       } 
-
+      /* Add in orf length nullsc */
       filtersc += (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
     
       seq_score = (vsc - filtersc) / eslCONST_LOG2;
@@ -919,8 +920,6 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
         }
         tmp_dom = p7_domain_Create_empty();
         
-        p7_splice_ComputeAliScores(tmp_dom, vtr, curr_orf->dsq, gm, gm_fs->fs);
-        hit_info->aliscore = tmp_dom->aliscore;
         free(tmp_dom->scores_per_pos);
         free(tmp_dom); 
       } 
@@ -2527,8 +2526,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
         dom->ad->sqto   = dom->jali;
         dom->ad->L      = 0;   
       }
-      else
-        p7_splice_ComputeAliScores_fs(dom, dom->tr, windowsq->dsq, gm_fs, dnasq->abc);
+      //else
+      //  p7_splice_ComputeAliScores_fs(dom, dom->tr, windowsq->dsq, gm_fs, dnasq->abc, NULL);
     
       p7_tophits_CreateNextHit(hitlist, &hit);
       hit->ndom        = 1;
@@ -2544,7 +2543,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
 
       ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
       hit->dcl[0] = pli->ddef->dcl[d];
-
+      
       hit->pre_score = bitscore  / eslCONST_LOG2;
       hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
 
@@ -2698,9 +2697,9 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
          dom->ad->sqto   = dom->jali;
          dom->ad->L      = 0;
        }      
-       else
-         p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm, fs_prob);
-     
+       //else
+       //  p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm, fs_prob, NULL);
+        
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
     
@@ -2716,7 +2715,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
 
        ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
        hit->dcl[0] = pli->ddef->dcl[d];
-
+       
        hit->pre_score = bitscore  / eslCONST_LOG2;
        hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
        
@@ -2933,7 +2932,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, gcode,
-           dna_window->n, pli->do_biasfilter);
+           dna_window->n);
     
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
@@ -3089,6 +3088,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
   //printf("hmm %s seq %s\n", gm->name, dnasq->name); 
+  //printf("dnasq->start %d dnasq->end %d\n", dnasq->start, dnasq->end);
   //fflush(stdout);
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);

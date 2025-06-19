@@ -20,12 +20,6 @@
 
 #include "hmmer.h"
 
-#define MMX(i,k)      (dp[(i)][(k) * p7G_NSCELLS + p7G_M])
-#define IMX(i,k)      (dp[(i)][(k) * p7G_NSCELLS + p7G_I])
-#define DMX(i,k)      (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
-#define XMX(i,s)      (xmx[(i) * p7G_NXCELLS + (s)])
-
-
 /*****************************************************************
  * 1. Null2 estimation algorithms.
  *****************************************************************/
@@ -75,8 +69,7 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
 
   /* Calculate expected # of times that each emitting state was used
    * in generating the Ld residues in this domain.
-   * The 0 row in <wrk> is used to hold these numbers.
-   */
+   * The 0 row in <wrk> is used to hold these numbers. */
     
   esl_vec_FCopy(pp->dp[1],            (M+1)*p7G_NSCELLS_FS, pp->dp[0]); 
   esl_vec_FCopy(pp->xmx+p7G_NXCELLS,        p7G_NXCELLS,    pp->xmx);  
@@ -89,6 +82,7 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
   /* Convert those expected #'s to log frequencies; these we'll use as
    * the log posterior weights.
    */
+  
   esl_vec_FLog(pp->dp[0], (M+1)*p7G_NSCELLS_FS);
   esl_vec_FLog(pp->xmx,   p7G_NXCELLS);  
 
@@ -173,7 +167,7 @@ p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, 
   float    xfactor;
 
   /* We'll use the i=0 row in wrk for working space: dp[0][] and xmx[0..4]. */
-  esl_vec_FSet(wrk->dp[0], (M+1)*p7G_NSCELLS_FS, 0.0);
+  esl_vec_FSet(wrk->dp[0], (M+1)*(p7G_NSCELLS+wrk->allocC), 0.0);
   esl_vec_FSet(wrk->xmx,   p7G_NXCELLS,       0.0);
 
   /* Calculate emitting state usage in this particular trace segment: */
@@ -188,7 +182,7 @@ p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, 
       }
     }
 
-  esl_vec_FScale(wrk->dp[0], (M+1)*p7G_NSCELLS_FS, (1.0 / (float) Ld));
+  esl_vec_FScale(wrk->dp[0], (M+1)*(p7G_NSCELLS+wrk->allocC), (1.0 / (float) Ld));
   esl_vec_FScale(wrk->xmx,   p7G_NXCELLS,          (1.0 / (float) Ld));
 
   /* Calculate null2's odds ratio emission probabilities, by taking

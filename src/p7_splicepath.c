@@ -165,6 +165,128 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
  *****************************************************************/
 
 SPLICE_PATH*
+p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
+{
+
+  int          i;
+  int          path_len;
+  int          start_node;
+  int          curr_node;
+  int          next_node;
+  int          step_cnt;
+  int          contains_orig;
+  float        best_start_score;
+  SPLICE_EDGE *out_edge;
+  SPLICE_PATH *path;
+  P7_TOPHITS  *th;
+  int         status;
+
+  th = graph->th;
+  contains_orig = FALSE;
+
+  /* Find best scoreing paths */
+  if((status = longest_path_upstream(graph)) != eslOK) goto ERROR;
+
+  while(!contains_orig) {
+    /* Find the best place to start our path */
+    best_start_score = -eslINFINITY;
+    start_node  = -1;
+    for (i = 0; i < graph->num_nodes; i++) {
+  
+      if(graph->path_scores[i] > best_start_score) {
+        best_start_score = graph->path_scores[i];
+        start_node  = i;
+      }
+    }
+  
+    /* We have run out of paths */ 
+    if(start_node < 0) return NULL; 
+ 
+    curr_node = start_node;
+  
+    path_len  = 1;
+  
+    out_edge = NULL;
+    
+    /* Check each set of niehgbring edges to ensure they are not "backwards" 
+       (upstream splice is not downstream of downstream splice) */
+    while(graph->best_out_edge[curr_node] >= 0) {
+
+      if(curr_node < graph->orig_N) contains_orig = TRUE;
+
+      next_node = graph->best_out_edge[curr_node];
+  
+      out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
+      if(out_edge == NULL || out_edge->splice_score == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "Edge does not exist");
+  
+      curr_node = next_node;
+      path_len++;
+    } 
+  
+    if(curr_node < graph->orig_N) contains_orig = TRUE;  
+
+    if(!contains_orig) graph->path_scores[start_node] = -eslINFINITY;
+  }
+
+  /* Once a viable path has been found build the path */
+  if ((path = p7_splicepath_Create(path_len)) == NULL) goto ERROR;
+    
+  path->revcomp = graph->revcomp;
+  
+  path->hit_scores[0]    = th->hit[start_node]->dcl->aliscore;
+  path->edge_scores[0]   = 0.;
+  path->signal_scores[0] = 0.;
+
+  path->node_id[0] = start_node;
+  
+  path->split[0]   = FALSE;
+  path->hits[0]    = th->hit[start_node];
+
+  path->downstream_spliced_amino_start[0] = path->hits[0]->dcl->ihmm;
+  path->downstream_spliced_nuc_start[0]   = path->hits[0]->dcl->iali;
+
+  if(th->hit[start_node]->dcl->tr->fs) path->frameshift = TRUE;
+
+  curr_node = start_node;
+  step_cnt = 1;
+  while (step_cnt < path_len) {
+    next_node = graph->best_out_edge[curr_node];
+    out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
+
+    path->hit_scores[step_cnt]    = th->hit[next_node]->dcl->aliscore;
+    path->edge_scores[step_cnt]   = out_edge->splice_score;
+    path->signal_scores[step_cnt] = out_edge->signal_score;
+
+    path->node_id[step_cnt] = next_node;
+    
+    path->split[step_cnt]   = FALSE; 
+    path->hits[step_cnt]    = th->hit[next_node];
+
+    path->upstream_spliced_amino_end[step_cnt]     = out_edge->upstream_spliced_amino_end;
+    path->downstream_spliced_amino_start[step_cnt] = out_edge->downstream_spliced_amino_start;
+    path->upstream_spliced_nuc_end[step_cnt]       = out_edge->upstream_spliced_nuc_end;
+    path->downstream_spliced_nuc_start[step_cnt]   = out_edge->downstream_spliced_nuc_start;
+
+    if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE;     
+
+    curr_node = next_node;
+    step_cnt++;
+  }
+
+  path->upstream_spliced_amino_end[step_cnt] = path->hits[step_cnt-1]->dcl->jhmm;
+  path->upstream_spliced_nuc_end[step_cnt]   = path->hits[step_cnt-1]->dcl->jali;
+
+  return path;
+
+  ERROR:
+    if(path != NULL) p7_splicepath_Destroy(path);
+    return NULL; 
+
+}
+
+
+
+SPLICE_PATH*
 p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
 {
 
@@ -183,11 +305,11 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
   int         status;
 
   th = graph->th;
+  contains_orig = FALSE;
 
   /* Find best scoreing paths */
   if((status = longest_path_upstream(graph)) != eslOK) goto ERROR;
-//p7_splicegraph_DumpGraph(stdout, graph, FALSE);
-  contains_orig = FALSE;
+
   /* Find the best scoring path in graph that contains and original or split hit */
   while(!contains_orig) {
     /* Find the best place to start our path */
@@ -201,10 +323,8 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
       }
     }
 
-    if(start_node < 0)  ESL_XEXCEPTION(eslFAIL, "Failed to find path in splice graph");
-   
-    if(start_node < graph->split_N)
-      contains_orig = TRUE;  
+    /* We have run out of paths */ 
+    if(start_node < 0) return NULL; 
 
     curr_node = start_node;
 
@@ -216,8 +336,8 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
     /* Check each set of niehgbring edges to ensure they are not "backwards" 
        (upstream splice is not downstream of downstream splice) */
     while(graph->best_out_edge[curr_node] >= 0) {
-      if(curr_node < graph->split_N)
-        contains_orig = TRUE;
+
+      if(graph->split_orig_id[curr_node] >= 0) contains_orig = TRUE;
 
       next_node = graph->best_out_edge[curr_node];
 
@@ -247,11 +367,9 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
       path_len++;
     } 
   
-    if(curr_node < graph->split_N)
-      contains_orig = TRUE;
+    if(graph->split_orig_id[curr_node] >= 0) contains_orig = TRUE;
 
-    if(!contains_orig)
-      graph->path_scores[start_node] = -eslINFINITY;
+    if(!contains_orig) graph->path_scores[start_node] = -eslINFINITY;
 
   }
 
@@ -265,7 +383,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
   path->signal_scores[0] = 0.;
 
   path->node_id[0] = start_node;
-  path->split[0]   = ((start_node >= graph->orig_N && start_node < graph->split_N) ? TRUE : FALSE);
+  path->split[0]   = ((graph->split_orig_id[start_node] >= 0) ? TRUE : FALSE);
   path->hits[0]    = th->hit[start_node];
 
   path->downstream_spliced_amino_start[0] = path->hits[0]->dcl->ihmm;
@@ -284,7 +402,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
     path->signal_scores[step_cnt] = out_edge->signal_score;
 
     path->node_id[step_cnt] = next_node;
-    path->split[step_cnt]   = ((next_node >= graph->orig_N && next_node < graph->split_N) ? TRUE : FALSE);
+    path->split[step_cnt]   = ((graph->split_orig_id[next_node] >= 0) ? TRUE : FALSE);
     path->hits[step_cnt]    = th->hit[next_node];
 
     path->upstream_spliced_amino_end[step_cnt]     = out_edge->upstream_spliced_amino_end;
@@ -313,6 +431,9 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
 }
 
 
+
+
+
 SPLICE_PATH*
 check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path) 
 {
@@ -335,15 +456,17 @@ check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path)
     down_path = path->node_id[p+1];
              
     tmp_edge = p7_splicegraph_GetEdge(graph, up_path, down_path);
+    
     if(tmp_edge->bypass_checked) continue;
     max_bypass_score = 0.;
 
-    for(h = 0; h < graph->split_N; h++) {
+    for(h = 0; h < graph->num_nodes; h++) {
       if(!graph->node_in_graph[h]) continue;
+      if(graph->split_orig_id[h] == -1) continue;
       if(h == up_path || h == down_path) continue;
       /* Is hit h bypassed by the edge between up_path and down_path */
       if(!hit_between(th->hit[up_path]->dcl, th->hit[h]->dcl, th->hit[down_path]->dcl, graph->revcomp)) continue;
- 
+      
       /* If hit h has no downstream edges than we assume the bypass is correct */
       if(graph->best_out_edge[h] == -1) continue;
 
@@ -574,6 +697,8 @@ p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path)
 {
 
   int i;
+
+  if(path == NULL) return;
 
   fprintf(fp, "  Path Length  %d\n", path->path_len);
   fprintf(fp, "  %4s %4s %9s %9s %10s %10s %9s %10s \n", "Step", "Node", "hmm_start", "hmm_end", "seq_start", "seq_end", "hit_score", "edge_score");

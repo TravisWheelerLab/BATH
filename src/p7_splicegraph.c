@@ -249,8 +249,9 @@ int
 p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 {
 
+  int h;
   P7_TOPHITS  *th;
-  int          status;
+  int status;
 
   th = graph->th;
 
@@ -479,28 +480,20 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
 
   int i;
   int hit_cnt;
-  int orig_cnt;
-  int split_cnt;
   P7_HIT *hit = NULL;
 
   if (graph == NULL) { fprintf(fp, " [ target range is NULL ]\n"); return; }
 
   hit_cnt = 0;
-  orig_cnt = 0;
-  split_cnt = 0;
   for (i = 0; i < graph->th->N; i++) {
     if(graph->node_in_graph[i]) {
       hit_cnt++;
-      if      (i < graph->orig_N)  orig_cnt++;
-      else if (i < graph->split_N) split_cnt++;
     }
   }
 
   fprintf(fp, " Graph Sequence Name      : %s\n", graph->seqname);
   fprintf(fp, " Graph Reverse Complement : %s\n", (graph->revcomp ? "YES" : "NO") );
   fprintf(fp, " Graph Total Hit Count    : %d\n", hit_cnt);
-  fprintf(fp, " Graph Original Hit Count : %d\n", orig_cnt);
-  fprintf(fp, " Graph Split Hit Count    : %d\n", split_cnt);
   fprintf(fp, "\n");
 
   fprintf(fp, "   %4s %6s %9s %12s %12s %10s %10s %10s %10s\n",
@@ -516,9 +509,9 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
     if ( i < graph->orig_N)
       fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10f %10s\n",
               i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, exp(hit->sum_lnP), (graph->reportable[i] ? "YES" : "NO"));
-    else if ( i < graph->split_N)
-      fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10f %10s %10d\n",
-              i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, exp(hit->sum_lnP), (graph->reportable[graph->split_orig_id[i]] ? "YES" : "NO"), graph->split_orig_id[i]+1);
+    else if (graph->split_orig_id[i] >= 0)
+      fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10s %10s %10d\n",
+              i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, " ", (graph->reportable[graph->split_orig_id[i]] ? "YES" : "NO"), graph->split_orig_id[i]+1);
     else
       fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f\n",
               i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore);
@@ -573,11 +566,10 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
  *
  * Purpose: Dumps matrix of graph scores. If no edge exits 
  *          prints "-inf". Also Dumps ali and path scores 
- *          and best outgoing edge data. If <show_j> 
- *          is TRUE includes j state edges
+ *          and best outgoing edge data. 
  */
 void
-p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph, int show_j) 
+p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph) 
 {
 
 

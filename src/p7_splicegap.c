@@ -51,7 +51,7 @@ p7_splicegap_Create(void)
 }
 
 P7_HIT**
-p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, int *num_hits) 
+p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, P7_BG *bg, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, int *num_hits) 
 {
 
   int           i, h, y, z;
@@ -170,7 +170,7 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
 
         /* If overlap is 95% of new hit of 95% of an original or split hit count as duplicate */
         if(seq_overlap_len >= new_hit_len * 0.95 ||
-          (seq_overlap_len >= old_hit_len * 0.95 && h < graph->split_N)) {
+          (seq_overlap_len >= old_hit_len * 0.95 && graph->split_orig_id[h] >= 0)) {
           duplicate = TRUE;
           break;
         }
@@ -197,15 +197,15 @@ p7_splicegap_AlignGap(SPLICE_GRAPH *graph, SPLICE_GAP *gap, const P7_HMM *hmm, c
       /* Append all states between first and last M state */
       for(i = y; i <= z; i++) {
         codon = (tr->st[i] == p7T_M ? 3 : 0);
-        p7_trace_fs_Append(new_hit->dcl->tr, tr->st[i], tr->k[i], tr->i[i], codon);
+        p7_trace_fs_Append(new_hit->dcl->tr, tr->st[i], tr->k[i]+gap->hmm_min-1, tr->i[i], codon);
       }
 
       /* Append ending special states */
-      p7_trace_fs_Append(new_hit->dcl->tr, p7T_E, tr->k[z], tr->i[z], 0);
+      p7_trace_fs_Append(new_hit->dcl->tr, p7T_E, tr->k[z]+gap->hmm_min-1, tr->i[z], 0);
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_C, 0, tr->i[z], 0);
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_T, 0, 0, 0);
 
-      p7_splice_ComputeAliScores_fs(new_hit->dcl, new_hit->dcl->tr, gap_seq->dsq, sub_fs_model, gap_seq->abc);
+      p7_splice_ComputeAliScores_fs(new_hit->dcl, new_hit->dcl->tr, gap_seq, gm_fs, bg, FALSE);
       //printf("ihmm %d jhm %d iali %d jali %d\n", ihmm, jhmm, iali, jali);
       //p7_trace_fs_Dump(stdout, new_hit->dcl->tr, sub_fs_model, gap_seq->dsq, gap_seq->abc);
       /* Adjust k postions to full HMM */

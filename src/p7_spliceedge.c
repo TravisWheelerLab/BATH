@@ -294,16 +294,14 @@ p7_spliceedge_ConnectSplits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_doma
   edge = p7_spliceedge_Create();
   edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   upstream_domain->jhmm   - MIN_AMINO_OVERLAP/2);
   edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, downstream_domain->ihmm + MIN_AMINO_OVERLAP/2);
-   //printf("up ihmm %d jhmm %d down ihmm %d jhmm %d\n", upstream_domain->ihmm, upstream_domain->jhmm,  downstream_domain->ihmm, downstream_domain->jhmm);
-   //printf("up iali %d jali %d down iali %d jali %d\n", upstream_domain->iali, upstream_domain->jali,  downstream_domain->iali, downstream_domain->jali);
-   //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d \n", edge->overlap_amino_start, edge->overlap_amino_end);
+ 
   get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
   
   edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
   edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
 
   edge->frameshift = frameshift;
-
+   //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
   find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
 
   if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) { 
@@ -337,6 +335,188 @@ p7_spliceedge_ConnectSplits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_doma
   return edge;
 
 }
+
+
+SPLICE_EDGE*
+p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp) 
+{
+
+  SPLICE_EDGE   *edge;
+
+  edge = p7_spliceedge_Create();
+  p7_spliceedge_AliScoreEdge(edge, upstream_domain, downstream_domain);
+
+//printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);  
+  get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
+  
+  edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
+  edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
+
+  if(upstream_domain->tr->fs || downstream_domain->tr->fs) edge->frameshift = TRUE;
+
+  find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
+
+  if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) { 
+
+    edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   edge->overlap_amino_start - MIN_AMINO_OVERLAP/2);
+    edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, edge->overlap_amino_end   + MIN_AMINO_OVERLAP/2);
+
+    get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
+
+    edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
+    edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
+
+    find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
+
+    if(edge->splice_score == -eslINFINITY) {
+      free(edge);
+      return NULL;
+    }
+  }
+
+  if(revcomp) {
+    edge->upstream_spliced_nuc_end     = splice_seq->n - edge->upstream_spliced_nuc_end     + splice_seq->end;
+    edge->downstream_spliced_nuc_start = splice_seq->n - edge->downstream_spliced_nuc_start + splice_seq->end;
+  }
+  else {
+    edge->upstream_spliced_nuc_end     = edge->upstream_spliced_nuc_end     + splice_seq->start - 1;
+    edge->downstream_spliced_nuc_start = edge->downstream_spliced_nuc_start + splice_seq->start - 1;
+  }
+
+  return edge;
+
+}
+
+
+int
+p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom)
+{
+
+  int k, p, s, z;
+  int us, ds;
+  int k_start, k_end;
+  int up_N, down_N;
+  float lost_sc;
+  float min_lost_sc;
+  float *spp;
+  float *upstream_suffix_sum;
+  float *downstream_prefix_sum;
+  P7_TRACE    *tr;
+  int status;
+
+  upstream_suffix_sum   = NULL;
+  downstream_prefix_sum = NULL;
+
+  edge->overlap_amino_start = ESL_MAX(upstream_dom->ihmm,   upstream_dom->jhmm   - MIN_AMINO_OVERLAP/2);
+  edge->overlap_amino_end   = ESL_MIN(downstream_dom->jhmm, downstream_dom->ihmm + MIN_AMINO_OVERLAP/2);
+
+  if(downstream_dom->ihmm <= upstream_dom->jhmm) {
+
+    up_N = upstream_dom->jhmm - upstream_dom->ihmm + 1;
+    ESL_ALLOC(upstream_suffix_sum, sizeof(float) * up_N);
+    esl_vec_FSet(upstream_suffix_sum, up_N, 0.0);
+
+    tr  = upstream_dom->tr;
+    spp = upstream_dom->scores_per_pos;
+
+    z = tr->tfrom[0]+1;
+    while(tr->st[z] != p7T_M) z++;
+    k = tr->k[z];
+    s = 0;
+    p = 0;
+    while (z < tr->tto[0]) {
+      if(tr->k[z] == k) {
+        upstream_suffix_sum[s] += spp[p];
+        z++; p++;
+      }
+      else {
+        k++; s++;
+      }
+    }
+
+    for(s = up_N-2; s >= 0; s--)
+      upstream_suffix_sum[s] += upstream_suffix_sum[s+1];
+
+    down_N  = downstream_dom->jhmm - downstream_dom->ihmm + 1;
+    ESL_ALLOC(downstream_prefix_sum, sizeof(float) * down_N);
+    
+    esl_vec_FSet(downstream_prefix_sum, down_N, 0.0);
+
+    tr  = downstream_dom->tr;
+    spp = downstream_dom->scores_per_pos;
+
+    z = tr->tfrom[0]+1;
+    while(tr->st[z] != p7T_M) z++;
+    k = tr->k[z];
+    s = 0;
+    p = 0;
+    while (z < tr->tto[0]) {
+       if(tr->k[z] == k) {
+        downstream_prefix_sum[s] += spp[p];
+        z++; p++;
+      }
+      else {
+        k++; s++;
+      }
+    }
+
+    for(s = 1; s < down_N; s++)
+      downstream_prefix_sum[s] += downstream_prefix_sum[s-1];
+
+    k_start = ESL_MAX(downstream_dom->ihmm, upstream_dom->ihmm+1);
+    k_end   = ESL_MIN(upstream_dom->jhmm,   downstream_dom->jhmm-1);
+
+    /* Find the minimum lost_sc be checking each k from k_start to e_end */
+    us = k_start - upstream_dom->ihmm;
+    ds = k_start - downstream_dom->ihmm - 1;
+    min_lost_sc = upstream_suffix_sum[us];  // lost_sc if all k belong to downstream
+    if(ds >= 0)
+      min_lost_sc += downstream_prefix_sum[ds];  // include any lost_sc from downstream overextention
+    edge->overlap_amino_start = k_start;
+    edge->overlap_amino_end   = k_start + 1;
+
+    us++;
+    ds++;
+    for(k = k_start; k < k_end; k++) {
+      /* lost_sc if k_start to k belong to upstream and k+1 to k_end belong to downstream */
+      lost_sc = upstream_suffix_sum[us] +  downstream_prefix_sum[ds];
+      if(lost_sc < min_lost_sc) {
+        min_lost_sc = lost_sc;
+        edge->overlap_amino_start = k;
+        edge->overlap_amino_end   = k+1;
+      }
+      us++;
+      ds++;
+    }
+
+    lost_sc = downstream_prefix_sum[ds]; // lost_sc if all k belong to upstream
+    if(k_end < upstream_dom->jhmm)
+      lost_sc += upstream_suffix_sum[us]; // include any lost_sc from upstream overextention
+    if(lost_sc < min_lost_sc) {
+      min_lost_sc = lost_sc;
+      edge->overlap_amino_start = k_end;
+      edge->overlap_amino_end   = k_end+1;
+    }
+
+    edge->splice_score -= min_lost_sc;
+
+    edge->overlap_amino_start = ESL_MAX(upstream_dom->ihmm,   edge->overlap_amino_start - MIN_AMINO_OVERLAP/2);
+    edge->overlap_amino_end   = ESL_MIN(downstream_dom->jhmm, edge->overlap_amino_end   + MIN_AMINO_OVERLAP/2);
+    
+    if(upstream_suffix_sum   != NULL) free(upstream_suffix_sum);
+    if(downstream_prefix_sum != NULL) free(downstream_prefix_sum);
+
+  }
+
+  return eslOK;
+
+  ERROR:
+    if(upstream_suffix_sum   != NULL) free(upstream_suffix_sum);
+    if(downstream_prefix_sum != NULL) free(downstream_prefix_sum);
+    return status;
+
+}
+
 
 int
 get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *splice_seq, int revcomp)

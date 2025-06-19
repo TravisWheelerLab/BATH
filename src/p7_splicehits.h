@@ -15,8 +15,6 @@ typedef struct _splice_hit_info
   int64_t seq_start;
   int64_t seq_end;
 
-  float aliscore;
-
   int node_id;  /* node in splice graph that corresponds to the hit */
 
 } SPLICE_HIT_INFO;

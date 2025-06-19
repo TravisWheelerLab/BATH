@@ -1659,6 +1659,32 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const
   return eslOK;
 }
 
+int
+p7_trace_fs_scores_Dump(FILE *fp, const P7_TRACE *tr, const float *scores_per_pos) 
+{
+  int s, z;		/* counter for trace position */
+  if (tr == NULL) { fprintf(fp, " [ trace is NULL ]\n"); return eslOK; }
+
+
+  fprintf(fp, " z    st   k      i      c    score - traceback len %d\n", tr->N);
+  fprintf(fp, "----- --  ----   ----   ---- ------ \n");
+  s = 0;
+  for (z = 0; z < tr->N; z++) {
+	fprintf(fp, "%5d %2s %4d  %4d  %4d ", 
+        z+1,
+		p7_hmm_DecodeStatetype(tr->st[z]),
+		tr->k[z],
+		tr->i[z],
+        tr->c[z]);
+
+     if(tr->k[z] != 0) { fprintf(fp, "%5.2f\n", scores_per_pos[s]); s++; }
+     else               fprintf(fp, "\n");
+  } 
+  
+  return eslOK;
+}
+
+
 /* Function:  p7_trace_Compare()
  * Synopsis:  Compare two traces for identity
  * Incept:    SRE, Wed Aug 20 09:05:24 2008 [Janelia]
@@ -2403,7 +2429,7 @@ p7_trace_fs_Index(P7_TRACE *tr)
         break;
 
       case p7T_M:
-        if (tr->sqfrom[tr->ndom]  == 0) tr->sqfrom[tr->ndom]  = tr->i[z] - tr->c[z];
+        if (tr->sqfrom[tr->ndom]  == 0) tr->sqfrom[tr->ndom]  = tr->i[z] - tr->c[z] + 1;
         if (tr->hmmfrom[tr->ndom] == 0) tr->hmmfrom[tr->ndom] = tr->k[z];
         tr->sqto[tr->ndom]  = tr->i[z];
         tr->hmmto[tr->ndom] = tr->k[z];

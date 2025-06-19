@@ -736,34 +736,34 @@ p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L)
   return p7_fs_ReconfigLength(gm_fs, L);
 }
 
-/* Function:  p7_UpdateFwdEmissionScores()
- * Synopsis:  Update om match emissions to account for new bg, using
- *            preallocated sc_tmp[].
+/* Function:  p7_fs_UpdateEmissionScores()
+ * Synopsis:  Update om match emissions to account for new bg
  *
  * Purpose:   Change scores based on updated background model
  *
  */
 int
-p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp)
+p7_fs_UpdateEmissionScores(P7_FS_PROFILE *gm_fs, P7_BG *bg, const P7_HMM *hmm)
 {
-  int     i, j;
-  int     K   = gm->abc->K;
-  int     Kp  = gm->abc->Kp;
+  int     k, x;
+  int     K, Kp;
+  float   sc[p7_MAXCODE];
 
-  for (i = 1; i <= gm->M; i++) {
-    for (j=0; j<K; j++) {
-      if (gm->mm && gm->mm[i] == 'm')
-        sc_tmp[j] = 0;
-      else
-        sc_tmp[j] = log(fwd_emissions[i*gm->abc->Kp + j] / bg->f[j]);
-    }
+  K  = gm_fs->abc->K;
+  Kp = gm_fs->abc->Kp;
 
+  sc[K]    = -eslINFINITY;
+  sc[Kp-1] = -eslINFINITY;
+  sc[Kp-2] = -eslINFINITY;
 
-    esl_abc_FExpectScVec(bg->abc, sc_tmp, bg->f);
+  for (k = 1; k <= gm_fs->M; k++) {
+    for (x = 0; x < hmm->abc->K; x++) 
+     sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
+    
+    esl_abc_FExpectScVec(gm_fs->abc, sc, bg->f);
 
-    for (j=0; j<Kp; j++)
-      gm->rsc[j][(i) * p7P_NR  + p7P_MSC] =  sc_tmp[j];
-
+    for (x = 0; x < gm_fs->abc->Kp; x++)
+      p7P_MSC_AMINO(gm_fs, k, x) = sc[x];
   }
 
   return eslOK;

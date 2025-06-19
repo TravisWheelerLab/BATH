@@ -283,7 +283,7 @@ p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const 
     if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
   
     /* For NCJ, we had to defer i decrement. */
-    if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i-=3;
+    if ( (scur == p7T_N || scur == p7T_J || scur == p7T_C) && scur == sprv) i--;
 
     sprv = scur;
   } /* end traceback, at S state */

@@ -1651,11 +1651,13 @@ extern int p7_GViterbi_longtarget(const ESL_DSQ *dsq, int L, const P7_PROFILE *g
 /* global_viterbi.c */
 extern int p7_global_Viterbi(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_sc);
 extern int p7_fs_global_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
+extern int p7_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *sub_gm, P7_GMX *gx);
+
 
 /* global_vtrace.c */
 extern int p7_global_Trace(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
 extern int p7_fs_global_Trace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
-
+extern int p7_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr);
 
 /* heatmap.c (evolving now, intend to move this to Easel in the future) */
 extern double dmx_upper_max(ESL_DMATRIX *D);

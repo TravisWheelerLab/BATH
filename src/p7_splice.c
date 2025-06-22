@@ -474,7 +474,7 @@ p7_splice_FindExons(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
 
   /*If there are multiple hits in the path, realign the upstream hit, the intron or gap, and the downstream hit to find all the exons */ 
   for(s = 0; s < path->path_len-1; s++) {
-
+    //printf("up %d down %d\n", path->node_id[s]+1, path->node_id[s+1]+1);
     seq_min = ESL_MIN(path->hits[s]->dcl->iali, path->hits[s+1]->dcl->jali);
     seq_max = ESL_MAX(path->hits[s]->dcl->iali, path->hits[s+1]->dcl->jali);
 
@@ -784,10 +784,7 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
   int edge_found;
   int seq_i, seq_j;
   int seq_len;
-  int hmm_i, hmm_j;
   int tmp_iali;
-  float *tp_0;
-  float *tp_M;
   P7_HMM        *sub_hmm; 
   P7_FS_PROFILE *sub_fs_model;
   P7_GMX        *vit_mx; 
@@ -830,45 +827,24 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
  
 	/* If the edge does not exist or the sum of the split hits and edge score is less than the orignal hit score, merge the split hits */
     if(split_edges[s] == NULL || split_hits[s]->dcl->aliscore + split_hits[s+1]->dcl->aliscore + split_edges[s]->splice_score < orig_aliscore) {
-
+      
       sub_hmm = p7_splice_GetSubHMM(hmm, split_hits[s]->dcl->ihmm, split_hits[s+1]->dcl->jhmm);  
-     // if(!frameshift) sub_hmm->fs = 0.;
-      // TODO  to make it possible to so this wihtout frameshift we need a non-spliced semi-global viterbi 
+      if(!frameshift) sub_hmm->fs = 0.;
+     
       seq_i = split_hits[s]->dcl->tr->sqfrom[0];
       seq_j = split_hits[s+1]->dcl->tr->sqto[0]; 
       seq_len = seq_j - seq_i + 1;
-
+      
       sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
       ESL_REALLOC(sub_fs_model->tsc,  sizeof(float)   * (sub_hmm->M+1) * p7P_NTRANS);
       p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, seq_len, p7_UNIGLOBAL);
-      tp_0 = sub_fs_model->tsc;
-      tp_M = sub_fs_model->tsc + sub_fs_model->M * p7P_NTRANS;
-     
-      
-      hmm_i = ESL_MAX(split_hits[s]->dcl->ihmm-1, 1);
-      hmm_j = ESL_MIN(split_hits[s+1]->dcl->jhmm, hmm->M-1);
-      /* Add extra transtion position for insetions at begining and end of alignments*/
-      tp_0[p7P_MM] = log(hmm->t[hmm_i][p7H_MM]);
-      tp_0[p7P_MI] = log(hmm->t[hmm_i][p7H_MI]);
-      tp_0[p7P_MD] = log(hmm->t[hmm_i][p7H_MD]);
-      tp_0[p7P_IM] = log(hmm->t[hmm_i][p7H_IM]);
-      tp_0[p7P_II] = log(hmm->t[hmm_i][p7H_II]);
-      tp_0[p7P_DM] = log(hmm->t[hmm_i][p7H_DM]);
-      tp_0[p7P_DD] = log(hmm->t[hmm_i][p7H_DD]);
-  
-      tp_M[p7P_MM] = log(hmm->t[hmm_j][p7H_MM]);
-      tp_M[p7P_MI] = log(hmm->t[hmm_j][p7H_MI]);
-      tp_M[p7P_MD] = log(hmm->t[hmm_j][p7H_MD]);
-      tp_M[p7P_IM] = log(hmm->t[hmm_j][p7H_IM]);
-      tp_M[p7P_II] = log(hmm->t[hmm_j][p7H_II]);
-      tp_M[p7P_DM] = log(hmm->t[hmm_j][p7H_DM]);
-      tp_M[p7P_DD] = log(hmm->t[hmm_j][p7H_DD]);
 
-      vit_mx = p7_gmx_fs_Create(sub_fs_model->M, seq_len, seq_len, p7P_CODONS); 
-      p7_fs_global_Viterbi(ali_seq->dsq+seq_i-1, gcode, seq_len, sub_fs_model, vit_mx, NULL);     
-      tr = p7_trace_fs_Create();
-      p7_fs_global_Trace(ali_seq->dsq+seq_i-1, seq_len, sub_fs_model, vit_mx, tr);
-  
+      vit_mx = p7_gmx_fs_Create(sub_fs_model->M, seq_len, seq_len, p7P_CODONS);
+      tr     = p7_trace_fs_Create();
+
+      p7_fs_semiglobal_Viterbi(ali_seq->dsq+seq_i-1, gcode, seq_len, sub_fs_model, vit_mx);  
+      p7_fs_semiglobal_VTrace(ali_seq->dsq+seq_i-1, seq_len, gcode, sub_fs_model, vit_mx, tr);
+
       /* shift tr->i to full seq coords */ 
       for (z = 0; z < tr->N; z++)
         if(tr->i[z] >= 0 ) tr->i[z] += seq_i-1;
@@ -881,7 +857,6 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
       merged_dom->scores_per_pos = NULL;
 
       p7_splice_ComputeAliScores_fs(merged_dom, tr, ali_seq, gm_fs, pli->bg, TRUE);
-
       /* If the edge does not exist or the sum of the split hits and edge score is less than the merged hit score, replace the split hit with the merged hit */   
 	  if(split_edges[s] == NULL || split_hits[s]->dcl->aliscore + split_hits[s+1]->dcl->aliscore + split_edges[s]->splice_score < merged_dom->aliscore) {
         p7_trace_fs_Destroy(split_hits[s]->dcl->tr);
@@ -2779,6 +2754,7 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_SQ *nuc_sq, cons
     amino_dsq[a] = eslDSQ_SENTINEL;   
     p7_bg_SetLength(bg, a-1); 
     p7_bg_FilterScore(bg, amino_dsq, a-1, &bias); 
+    //printf("dom->aliscore %f bias %f dom->aliscore - bias %f\n", dom->aliscore, bias, dom->aliscore - bias);
     dom->aliscore -= bias;
     free(amino_dsq);
   }

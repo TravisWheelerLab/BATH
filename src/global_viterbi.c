@@ -479,6 +479,229 @@ p7_fs_global_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const 
 }
 
 
+int
+p7_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *sub_gm, P7_GMX *gx)
+{
+  float const *tsc  = sub_gm->tsc;
+  float      **dp   = gx->dp;
+  float       *xmx  = gx->xmx;
+  int          M    = sub_gm->M;
+  int          i,k,c;
+  int          c1, c2, c3, c4, c5;
+  int          t, u, v, w, x;
+  float       *iv   = NULL;
+  int          status;
+
+  /* Allocation and initalization of intermediate value array */
+  ESL_ALLOC(iv,  sizeof(float)   * p7P_CODONS * (M+1 + L+1) );
+  for (c = 0; c < p7P_CODONS; c++) {
+    for(k = 0; k <= M; k++)
+      IVX(5,k,c) = -eslINFINITY;
+  }
+
+  /* Initialization of the zero row.  */
+  XMX(0,p7G_N) = 0.;                                  /* S->N, p=1            */
+  XMX(0,p7G_B) = sub_gm->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */ 
+  XMX(0,p7G_E) = XMX(0,p7G_J) = XMX(0,p7G_C) = -eslINFINITY;
+  for (k = 0; k <= M; k++)
+    MMX_SP(0,k) = IMX_SP(0,k) = -eslINFINITY;
+
+  DMX_SP(0,0) = -eslINFINITY;
+  DMX_SP(0,1) = XMX(0,p7G_B) + TSC(p7P_BM,0); 
+  for (k = 2; k <= M; k++)
+    DMX_SP(0,k) = DMX_SP(0,k-1) + TSC(p7P_DD,k-1);
+
+  /*Special cases for the first 4 rows */
+  t = u = v = w = x = -1;
+  for(i = 1; i <= 4; i++)
+  {
+    u = v;
+    v = w;
+    w = x;
+
+    if( i < 3 ) 
+      XMX(i,p7G_N) = 0.;
+    else 
+      XMX(i,p7G_N) =  XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_B) =  XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE]; 
+ 
+    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+    if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
+    else                                            x = p7P_MAXCODONS;
+
+    /* find correct index for looking up scores of codons and quasicodons */
+    c1 = p7P_CODON1(x);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+
+    c2 = p7P_CODON2(w, x);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+
+    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+
+    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = -eslINFINITY;
+ 
+    IVX(i,1,p7P_C1) = XMX(i-1,p7G_B) + TSC(p7P_BM,0);
+  
+    MMX_SP(i,1) = IVX(i,1,p7P_C1) + p7P_MSC_CODON(sub_gm, 1, c1);
+    if( i > 1 ) MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C2) + p7P_MSC_CODON(sub_gm, 1, c2));
+    if( i > 2 ) MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C3) + p7P_MSC_CODON(sub_gm, 1, c3));
+    if( i > 3 ) MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C4) + p7P_MSC_CODON(sub_gm, 1, c4));                    
+    
+    if ( i > 2) IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
+                                      IMX_SP(i-3,1) + TSC(p7P_II,1));
+    else        IMX_SP(i,1) = -eslINFINITY;                  
+
+    DMX_SP(i,1) = XMX(i,p7G_B) + TSC(p7P_BM,0);
+   
+    /* Initialization of the states reacheable at row i */
+    for (k = 2; k < M; k++)
+    {
+      IVX(i,k,p7P_C1) = ESL_MAX(MMX_SP(i-1,k-1) + TSC(p7P_MM,k-1),
+                        ESL_MAX(IMX_SP(i-1,k-1) + TSC(p7P_IM,k-1),
+                                DMX_SP(i-1,k-1) + TSC(p7P_DM,k-1)));
+
+      MMX_SP(i,k) = IVX(i,k,p7P_C1) + p7P_MSC_CODON(sub_gm, k, c1);   
+      if( i > 1 ) MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C2) + p7P_MSC_CODON(sub_gm, k, c2));
+      if( i > 2 ) MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C3) + p7P_MSC_CODON(sub_gm, k, c3));
+      if( i > 3 ) MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C4) + p7P_MSC_CODON(sub_gm, k, c4));
+
+      if ( i > 2) IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,k),
+                                        IMX_SP(i-3,k) + TSC(p7P_II,k));
+      else        IMX_SP(i,k) = -eslINFINITY;
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,k-1));         
+    } 
+  
+    IVX(i,M,p7P_C1) = ESL_MAX(MMX_SP(i-1,M-1) + TSC(p7P_MM,M-1),
+                      ESL_MAX(IMX_SP(i-1,M-1) + TSC(p7P_IM,M-1),
+                              DMX_SP(i-1,M-1) + TSC(p7P_DM,k=M-1))); 
+
+    MMX_SP(i,M) = IVX(i,M,p7P_C1) + p7P_MSC_CODON(sub_gm, M, c1);
+    if( i > 1 ) MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C2) + p7P_MSC_CODON(sub_gm, M, c2));
+    if( i > 2 ) MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C3) + p7P_MSC_CODON(sub_gm, M, c3));
+    if( i > 3 ) MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C4) + p7P_MSC_CODON(sub_gm, M, c4));
+
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,M-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,M-1));
+
+    XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
+    
+    if (i < 3)
+       XMX(i,p7G_C) = XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE];
+    else
+      XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+                             XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
+
+    XMX(i,p7G_J) = -eslINFINITY;
+
+  }
+
+    /* Main DP recursion */
+  for (i = 5; i <= L; i++) 
+  {
+    t = u;
+    u = v;
+    v = w;
+    w = x;
+
+    if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
+    else                                            x = p7P_MAXCODONS;
+
+    /* find correct index for looking up scores of codons and quasicodons */
+    c1 = p7P_CODON1(x);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+
+    c2 = p7P_CODON2(w, x);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+
+    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+
+    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+
+    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
+
+    XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
+    XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
+    
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = -eslINFINITY;
+
+    IVX(i,1,p7P_C1) = XMX(i-1,p7G_B) + TSC(p7P_BM,0);
+
+    MMX_SP(i,1) = IVX(i,1,p7P_C1) + p7P_MSC_CODON(sub_gm, 1, c1);
+    MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C2) + p7P_MSC_CODON(sub_gm, 1, c2));
+    MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C3) + p7P_MSC_CODON(sub_gm, 1, c3));
+    MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C4) + p7P_MSC_CODON(sub_gm, 1, c4));
+    MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C5) + p7P_MSC_CODON(sub_gm, 1, c5));
+
+    IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
+                          IMX_SP(i-3,1) + TSC(p7P_II,1));
+
+    DMX_SP(i,1) = XMX(i,p7G_B) + TSC(p7P_BM,0); 
+    
+    for (k = 2; k < M; k++) {
+
+      IVX(i,k,p7P_C1) = ESL_MAX(MMX_SP(i-1,k-1) + TSC(p7P_MM,k-1),
+                        ESL_MAX(IMX_SP(i-1,k-1) + TSC(p7P_IM,k-1),
+                                DMX_SP(i-1,k-1) + TSC(p7P_DM,k-1)));
+
+      MMX_SP(i,k) = IVX(i,k,p7P_C1) + p7P_MSC_CODON(sub_gm, k, c1);
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C2) + p7P_MSC_CODON(sub_gm, k, c2));
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C3) + p7P_MSC_CODON(sub_gm, k, c3));
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C4) + p7P_MSC_CODON(sub_gm, k, c4));
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C5) + p7P_MSC_CODON(sub_gm, k, c5));
+
+      IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,k),
+                            IMX_SP(i-3,k) + TSC(p7P_II,k));
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,k-1));
+   
+    }
+
+    IVX(i,M,p7P_C1) = ESL_MAX(MMX_SP(i-1,M-1) + TSC(p7P_MM,M-1),
+                      ESL_MAX(IMX_SP(i-1,M-1) + TSC(p7P_IM,M-1),
+                              DMX_SP(i-1,M-1) + TSC(p7P_DM,M-1)));
+
+    MMX_SP(i,M) = IVX(i,M,p7P_C1) + p7P_MSC_CODON(sub_gm, M, c1);
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C2) + p7P_MSC_CODON(sub_gm, M, c2));
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C3) + p7P_MSC_CODON(sub_gm, M, c3));
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C4) + p7P_MSC_CODON(sub_gm, M, c4));
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i,M), IVX(i,M,p7P_C5) + p7P_MSC_CODON(sub_gm, M, c5));
+
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,M-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,M-1));
+
+    XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
+    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP],
+                           XMX(i,p7G_E)   + sub_gm->xsc[p7P_E][p7P_MOVE]);
+
+    XMX(i,p7G_J) = -eslINFINITY;    
+
+  }
+  
+  gx->M = sub_gm->M;
+  gx->L = L;
+
+  if (iv != NULL) free(iv);
+  return eslOK;
+
+  ERROR:
+    if (iv != NULL) free(iv);
+    return status;    
+}
+
 /*-------------------- end, viterbi -----------------------------*/
 
 

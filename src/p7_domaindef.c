@@ -1602,6 +1602,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   int            codon_idx;  
   int            z;
   int            pos;
+  float          null1;
   float          null2[p7_MAXCODE];
   int            status;
   ESL_DSQ        t, u, v, w, x;
@@ -1729,9 +1730,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   for (pos = i; pos <= j; pos++) 
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
-
-  if(ddef->splice) dom->aliscore -= dom->domcorrection; 
-  else if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+  
 
   for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break; 
   for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
@@ -1762,7 +1761,13 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   dom->is_included   = FALSE; /* gets set later by caller */
   dom->tr            = p7_trace_fs_Clone(ddef->tr); 
 
-  
+  if(ddef->splice) {
+    p7_bg_SetLength(bg, dom->jali-dom->iali+1);
+    p7_bg_fs_NullOne(bg, windowsq->dsq, dom->jali-dom->iali+1, &null1);
+    dom->aliscore -= (dom->domcorrection + null1);      
+  }
+  else if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);
   p7_gmx_Destroy(gxppfs);
@@ -1820,6 +1825,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   P7_DOMAIN     *dom           = NULL;
   int            Ld            = j-i+1;
   int            z1, z2;
+  float          null1;
   float          domcorrection = 0.0;
   float          envsc, oasc, bcksc;
   int            z;
@@ -1902,14 +1908,10 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
       ddef->n2sc[pos]  = logf(null2[orfsq->dsq[pos]]);
     }
   }
-  else if(ddef->splice) p7_Null2_ByExpectation(om, ox2, null2);
   
   for (pos = i; pos <= j; pos++)
     domcorrection   += ddef->n2sc[pos];
   dom->domcorrection = ESL_MAX(0.0, domcorrection); /* in units of NATS */
-
-  if(ddef->splice) dom->aliscore -= dom->domcorrection;  
-  else if(dom->scores_per_pos != NULL) free(dom->scores_per_pos); 
 
   for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
   for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
@@ -1935,6 +1937,13 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   dom->is_reported   = FALSE;         /* gets set later by caller */
   dom->is_included   = FALSE;         /* gets set later by caller */
   dom->tr            = p7_trace_fs_Clone(ddef->tr); 
+
+  if(ddef->splice) {
+    p7_bg_SetLength(bg, dom->jali-dom->iali+1);
+    p7_bg_fs_NullOne(bg, windowsq->dsq, dom->jali-dom->iali+1, &null1);
+    dom->aliscore -= (dom->domcorrection + null1);   
+  }
+  else if(dom->scores_per_pos != NULL) free(dom->scores_per_pos); 
 
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);

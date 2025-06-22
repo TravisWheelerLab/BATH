@@ -424,7 +424,7 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, con
     k = tr->k[z];
     s = 0;
     p = 0;
-    while (z < tr->tto[0]) {
+    while (k <= upstream_dom->jhmm) {
       if(tr->k[z] == k) {
         upstream_suffix_sum[s] += spp[p];
         z++; p++;
@@ -450,7 +450,7 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, con
     k = tr->k[z];
     s = 0;
     p = 0;
-    while (z < tr->tto[0]) {
+    while (k <= downstream_dom->jhmm) {
        if(tr->k[z] == k) {
         downstream_prefix_sum[s] += spp[p];
         z++; p++;

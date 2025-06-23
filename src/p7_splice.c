@@ -164,8 +164,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     
       p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);
 
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
+printf("RECOVER\n");
+p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
  
       /* Create edges between original and recovered nodes */
@@ -209,21 +209,21 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     
     /* Align paths with spliced Viterbi to find missing exon and internal introns */
     for(p = 0; p < num_paths; p++) {
-//p7_splicepath_Dump(stdout, path_accumulator[p]);
+p7_splicepath_Dump(stdout, path_accumulator[p]);
       p7_splice_FindExons(graph, path_accumulator[p], pli, gm_fs, gm, hmm, gcode, seq_file);   
       p7_splicepath_Destroy(path_accumulator[p]);
     }
 
-//printf("ALIGNED\n");  
-//p7_splicegraph_DumpHits(stdout, graph);
+printf("ALIGNED\n");  
+p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 
     /* Create splice edges */    
     p7_splice_ConnectGraph(graph, pli, hmm, gcode, seq_file);
-//p7_splicegraph_DumpGraph(stdout, graph);
     /* Create spliced paths */
     num_paths = 0; 
     path = p7_splicepath_GetBestPath(graph); 
+p7_splicegraph_DumpGraph(stdout, graph);
     while(path != NULL) {
       
       path_accumulator[num_paths] = path;
@@ -252,7 +252,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
  
       path = path_accumulator[p];
 
-//p7_splicepath_Dump(stdout, path);
+p7_splicepath_Dump(stdout, path);
       if(path->path_len > 1) {
         seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) - MAX_AMINO_EXT_SHORT*3;
         seq_max = ESL_MAX(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) + MAX_AMINO_EXT_SHORT*3;
@@ -427,8 +427,11 @@ int
 p7_splice_FindExons(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, const P7_FS_PROFILE *gm_fs, const P7_PROFILE *gm, const P7_HMM *hmm, const ESL_GENCODE *gcode, ESL_SQFILE *seq_file)
 {
 
-  int s;
+  int e, s;
+  int s1, s2;
   int num_hits;
+  int path_min, path_max;
+  int path_len;
   int seq_min, seq_max;
   int first_split, last_split;
   int split_exons;
@@ -472,130 +475,118 @@ p7_splice_FindExons(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     return eslOK;
   }
 
-  /*If there are multiple hits in the path, realign the upstream hit, the intron or gap, and the downstream hit to find all the exons */ 
-  for(s = 0; s < path->path_len-1; s++) {
-    //printf("up %d down %d\n", path->node_id[s]+1, path->node_id[s+1]+1);
-    seq_min = ESL_MIN(path->hits[s]->dcl->iali, path->hits[s+1]->dcl->jali);
-    seq_max = ESL_MAX(path->hits[s]->dcl->iali, path->hits[s+1]->dcl->jali);
+  path_len = 0; 
+  s1 = 0;
+  s2 = 0;
+  while(s1 < path->path_len) {
+    while(path_len <  MAX_INTRON_LONG) {
+      s2++;
+      if(s2 == path->path_len) break;
+      
+      path_min = ESL_MIN(path->hits[s1]->dcl->iali, path->hits[s2]->dcl->jali);
+      path_max = ESL_MAX(path->hits[s1]->dcl->iali, path->hits[s2]->dcl->jali);
+      path_len = path_max - path_min + 1;
+    }
 
-    ali_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, graph->revcomp);
-    
-    sub_hmm     = p7_splice_GetSubHMM(hmm, path->hits[s]->dcl->ihmm, path->hits[s+1]->dcl->jhmm);
+    path_min = ESL_MIN(path->hits[s1]->dcl->iali, path->hits[s2-1]->dcl->jali);
+    path_max = ESL_MAX(path->hits[s1]->dcl->iali, path->hits[s2-1]->dcl->jali);
+    path_len = path_max - path_min + 1;
+
+    ali_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, path_min, path_max, graph->revcomp);
+    sub_hmm     = p7_splice_GetSubHMM(hmm, path->hits[s1]->dcl->ihmm, path->hits[s2-1]->dcl->jhmm);
     sub_hmm->fs = 0.;
-    
-    exons = align_exons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[s]->dcl->ihmm, &num_hits);
+    exons = align_exons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[s1]->dcl->ihmm, &num_hits);
 
-    /* Find all the exons overlap with the upstream original hit */ 
     first_split = 0;
     last_split  = 0;
-    us_hmm_overlap = hmm_overlap(exons[first_split]->dcl, path->hits[s]->dcl);
-    us_seq_overlap = seq_overlap(exons[first_split]->dcl, path->hits[s]->dcl, graph->revcomp);
-    ds_hmm_overlap = hmm_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl);
-    ds_seq_overlap = seq_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl, graph->revcomp);
-    
-    if(us_hmm_overlap > 0.5 && us_seq_overlap > 0.5) { // && (ds_hmm_overlap <= 0.0 || us_seq_overlap > ds_seq_overlap)) {        
+    e = 0;
+    while ( e < num_hits) {
+      split_exons = -1;
 
-      last_split++;
+      /* Check if the current exon overlap suffcenitly with any of the original hits */
+      s = s1;
+      while( s < s2) {
+        if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
+           seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
+          first_split = e;
+
+          /*Find any additional hits that ovelap with the same orignal hit */
+          while(e+1 < num_hits && hmm_overlap(exons[e+1]->dcl, path->hits[s]->dcl) > 0.5 &&
+                seq_overlap(exons[e+1]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
+            e++;
+          }
+          last_split = e;
+     
+          /* Check that ant splits of original hits are better scoring than the 
+           * unsplit alternaitve and add them to the graph */
+          split_exons = last_split - first_split + 1;      
+          add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
       
-      while (last_split < num_hits) {
-
-        us_hmm_overlap = hmm_overlap(exons[last_split]->dcl, path->hits[s]->dcl);
-        us_seq_overlap = seq_overlap(exons[last_split]->dcl, path->hits[s]->dcl, graph->revcomp);
-        ds_hmm_overlap = hmm_overlap(exons[last_split]->dcl, path->hits[s+1]->dcl);
-        ds_seq_overlap = seq_overlap(exons[last_split]->dcl, path->hits[s+1]->dcl, graph->revcomp);
-        
-        if(us_hmm_overlap > 0.5 && us_seq_overlap > 0.5) { // && (ds_hmm_overlap <= 0.0 || us_seq_overlap > ds_seq_overlap)) {
-          last_split++;
+          s = s2;
         }
-        else break;
- 
+        s++;    
       }
-
-      split_exons = last_split - first_split;
-      add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
+    
+      /* If the current exon does not overlap with any orignal hits add it to graph */
+      if(split_exons == -1) 
+        p7_splicegraph_AddNode(graph, exons[e]);    
      
-    }
-  
-     
-    /* From the first exon that does not overlap with the upstream hit to the last that does not overlap with the downstream hit - add the exons */
-    first_split = last_split; 
-    while(first_split < num_hits) {
-      if(hmm_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl) <= 0.5 && 
-         seq_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl, graph->revcomp) <= 0.5) {
-         
-        p7_splicegraph_AddNode(graph, exons[first_split]);       
-      }   
-      else break;
-      first_split++;
-    }    
-
-    /* All remaining exons must overlap the downstream hit */
-    split_exons = num_hits - first_split;
-   
-    if(split_exons > 0) {
-      add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s+1]->dcl->aliscore, path->node_id[s+1], split_exons, FALSE);
+      e++;
     }
 
     free(exons);
 
-    if(path->hits[s]->dcl->tr->fs || path->hits[s+1]->dcl->tr->fs) {
+    if(path->frameshift) {
       sub_hmm->fs = hmm->fs;
-   
-     exons = align_exons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[s]->dcl->ihmm, &num_hits);
-     
-      /* Find all the exons overlap with the upstream original hit */
+
+      exons = align_exons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[s1]->dcl->ihmm, &num_hits);
+
       first_split = 0;
       last_split  = 0;
-      us_hmm_overlap = hmm_overlap(exons[first_split]->dcl, path->hits[s]->dcl);
-      us_seq_overlap = seq_overlap(exons[first_split]->dcl, path->hits[s]->dcl, graph->revcomp);
-      ds_hmm_overlap = hmm_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl);
-      ds_seq_overlap = seq_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl, graph->revcomp);
-
-      if(us_hmm_overlap > 0.5 && us_seq_overlap > 0.5) { // && (ds_hmm_overlap <= 0.0 || us_seq_overlap > ds_seq_overlap)) {
-        last_split++;
-        while (last_split < num_hits) {
-          us_hmm_overlap = hmm_overlap(exons[last_split]->dcl, path->hits[s]->dcl);
-          us_seq_overlap = seq_overlap(exons[last_split]->dcl, path->hits[s]->dcl, graph->revcomp);
-          ds_hmm_overlap = hmm_overlap(exons[last_split]->dcl, path->hits[s+1]->dcl);
-          ds_seq_overlap = seq_overlap(exons[last_split]->dcl, path->hits[s+1]->dcl, graph->revcomp);
-
-          if(us_hmm_overlap > 0.5 && us_seq_overlap > 0.5) { // && (ds_hmm_overlap <= 0.0 || us_seq_overlap > ds_seq_overlap)) {
-            last_split++;
+      e = 0;
+      while ( e < num_hits) {
+  
+        split_exons = -1;
+  
+        /* Check if the current exon overlap suffcenitly with any of the original hits */
+        s = s1;
+        while( s < s2) {
+          if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
+             seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
+            first_split = e;
+  
+            /*Find any additional hits that ovelap with the same orignal hit */
+            while(e+1 < num_hits && hmm_overlap(exons[e+1]->dcl, path->hits[s]->dcl) > 0.5 &&
+                  seq_overlap(exons[e+1]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
+              e++;
+            }
+            last_split = e;
+  
+            /* Check that ant splits of original hits are better scoring than the unsplit alternaitve and add them to the graph */
+            split_exons = last_split - first_split + 1;
+            add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
+  
+            s = s2;
           }
-          else break;
-
+          s++;
         }
   
-        split_exons = last_split - first_split;
-        add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
-      }
-      else last_split = 0;
+        /* If the current exon does not overlap with any orignal hits add it to graph */
+        if(split_exons == -1)
+          p7_splicegraph_AddNode(graph, exons[e]);
   
-      /* From the first exon that does not overlap with the upstream hit to the last that does not overlap with the downstream hit - add the exons */
-      first_split = last_split;
-      while(first_split < num_hits) {
-        if(hmm_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl) <= 0.5 &&
-         seq_overlap(exons[first_split]->dcl, path->hits[s+1]->dcl, graph->revcomp) <= 0.5) {
-          p7_splicegraph_AddNode(graph, exons[first_split]);
-        }
-        else break;
-        first_split++;
+        e++;
       }
   
-      /* All remaining exons must overlap the downstream hit */
-      split_exons = num_hits - first_split;
-      if(split_exons > 0) {
-     
-        add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s+1]->dcl->aliscore, path->node_id[s+1], split_exons, FALSE);
-  
-     }
-     free(exons); 
-   }
+      free(exons);
 
-   esl_sq_Destroy(ali_seq);
-   p7_hmm_Destroy(sub_hmm);  
+    }
+
+    s1 = s2;
+    esl_sq_Destroy(ali_seq);
+    p7_hmm_Destroy(sub_hmm);
   }
-
+ 
   return eslOK;
 
 }

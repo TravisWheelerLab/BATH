@@ -9,6 +9,7 @@
 #include "hmmer.h"
 
 #define IVX(i,k,c) (iv[((k)*p7P_CODONS)+L+3-(i)+(c)])
+#define TSC_R -12
 
 /* Function:  p7_sp_trans_semiglobal_Viterbi
  * Synopsis:  The Viterbi algorithm for aligning codons to aminos, 
@@ -188,7 +189,7 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
                             DMX_SP(i,k-1) + TSC(p7P_DD,k-1));
 
-      RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + log(1.0/160000.0);
+      RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + TSC_R;
       PMX_SP(i,k) = ESL_MAX(RMX_SP(i-1,k),  PMX_SP(i-1,k));
     }
 
@@ -510,7 +511,7 @@ p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, in
                             DMX_SP(i,k-1) + TSC(p7P_DD,k-1));
                             
    
-      RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + log(1.0/160000.0);
+      RMX_SP(i,k) = ESL_MAX(MMX_SP(i-12,k), DMX_SP(i-12,k)) + TSC_R;
       PMX_SP(i,k) = ESL_MAX(RMX_SP(i-1,k),  PMX_SP(i-1,k));
     }
 
@@ -798,8 +799,8 @@ p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *
     case p7T_R:
       if (RMX_SP(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible R reached at k=%d,i=%d", k,i); 
 
-      if      (esl_FCompare_old(RMX_SP(i,k), MMX_SP(i-12, k) + log(1.0/160000.0), tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare_old(RMX_SP(i,k), DMX_SP(i-12, k) + log(1.0/160000.0), tol) == eslOK) scur = p7T_D;
+      if      (esl_FCompare_old(RMX_SP(i,k), MMX_SP(i-12, k) + TSC_R, tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(RMX_SP(i,k), DMX_SP(i-12, k) + TSC_R, tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "R at k=%d,i=%d couldn't be traced", k,i);
 
       i-=12;
@@ -993,8 +994,8 @@ p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gco
     case p7T_R:
       if (RMX_SP(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible R reached at k=%d,i=%d", k,i); 
 
-      if      (esl_FCompare_old(RMX_SP(i,k), MMX_SP(i-12, k) + log(1.0/160000.0), tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare_old(RMX_SP(i,k), DMX_SP(i-12, k) + log(1.0/160000.0), tol) == eslOK) scur = p7T_D;
+      if      (esl_FCompare_old(RMX_SP(i,k), MMX_SP(i-12, k) + TSC_R, tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(RMX_SP(i,k), DMX_SP(i-12, k) + TSC_R, tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "R at k=%d,i=%d couldn't be traced", k,i);
 
       i-=12;

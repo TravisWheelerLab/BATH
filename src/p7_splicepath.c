@@ -24,6 +24,8 @@ static int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *sta
 static SPLICE_PATH* check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path);
 static float get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node);
 static int hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp);
+static int has_in_edge(SPLICE_GRAPH *graph, int node_id);
+static int has_out_edge(SPLICE_GRAPH *graph, int node_id);
 
 /*****************************************************************
  * 1. The SPLICE_PATH structure.
@@ -192,7 +194,7 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
     best_start_score = -eslINFINITY;
     start_node  = -1;
     for (i = 0; i < graph->num_nodes; i++) {
-  
+      //if(has_in_edge(graph, i)) continue; 
       if(graph->path_scores[i] > best_start_score) {
         best_start_score = graph->path_scores[i];
         start_node  = i;
@@ -215,7 +217,7 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
       if(curr_node < graph->orig_N) contains_orig = TRUE;
 
       next_node = graph->best_out_edge[curr_node];
-  
+      
       out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
       if(out_edge == NULL || out_edge->splice_score == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "Edge does not exist");
   
@@ -290,7 +292,7 @@ SPLICE_PATH*
 p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
 {
 
-  int          i;
+  int          i, s;
   int          path_len;
   int          start_node;
   int          curr_node;
@@ -316,13 +318,13 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
     best_start_score = -eslINFINITY;
     start_node  = -1;
     for (i = 0; i < graph->num_nodes; i++) {
-
+      //if(has_in_edge(graph, i)) continue; 
       if(graph->path_scores[i] > best_start_score) {
         best_start_score = graph->path_scores[i];
         start_node  = i;
       }
     }
-
+    
     /* We have run out of paths */ 
     if(start_node < 0) return NULL; 
 
@@ -383,7 +385,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
   path->signal_scores[0] = 0.;
 
   path->node_id[0] = start_node;
-  path->split[0]   = ((graph->split_orig_id[start_node] >= 0) ? TRUE : FALSE);
+  path->split[0]   = FALSE;
   path->hits[0]    = th->hit[start_node];
 
   path->downstream_spliced_amino_start[0] = path->hits[0]->dcl->ihmm;
@@ -402,7 +404,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
     path->signal_scores[step_cnt] = out_edge->signal_score;
 
     path->node_id[step_cnt] = next_node;
-    path->split[step_cnt]   = ((graph->split_orig_id[next_node] >= 0) ? TRUE : FALSE);
+    path->split[step_cnt]   = FALSE;
     path->hits[step_cnt]    = th->hit[next_node];
 
     path->upstream_spliced_amino_end[step_cnt]     = out_edge->upstream_spliced_amino_end;
@@ -419,6 +421,21 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
   path->upstream_spliced_amino_end[step_cnt] = path->hits[step_cnt-1]->dcl->jhmm;
   path->upstream_spliced_nuc_end[step_cnt]   = path->hits[step_cnt-1]->dcl->jali;
 
+  /* Find and set splits */
+  if(path_len > 1 && graph->split_orig_id[path->node_id[0]] >= 0 &&
+     graph->split_orig_id[path->node_id[0]] == graph->split_orig_id[path->node_id[1]])
+    path->split[0]   = TRUE;
+
+  for(s = 1; s < path_len-1; s++) {
+    if(graph->split_orig_id[path->node_id[s]] < 0) continue;
+    if(graph->split_orig_id[path->node_id[s]] == graph->split_orig_id[path->node_id[s-1]])
+      path->split[s]   = TRUE;
+    if(graph->split_orig_id[path->node_id[s]] == graph->split_orig_id[path->node_id[s+1]])
+      path->split[s]   = TRUE;
+  }
+  if(path_len > 1 && graph->split_orig_id[path->node_id[path_len-1]] >= 0 &&
+     graph->split_orig_id[path->node_id[path_len-1]] == graph->split_orig_id[path->node_id[path_len-2]])
+    path->split[path_len-1]   = TRUE;
 
   path = check_bypass(graph, path);
 
@@ -531,7 +548,7 @@ longest_path_upstream (SPLICE_GRAPH *graph)
   for(up = 0; up < graph->num_nodes; up++) {
 
     if(!graph->node_in_graph[up])     continue;
-    if(graph->edges[up] != NULL) continue;
+    if(has_out_edge(graph, up)) continue;
 
     edge = p7_spliceedge_Create();
     edge->upstream_node_id = up;
@@ -567,13 +584,14 @@ longest_path_upstream (SPLICE_GRAPH *graph)
     /* Find nodes with ougoing edge to down*/
     for(up = 0; up < graph->num_nodes-1; up++) {
       if (!graph->node_in_graph[up]) continue;
-      
+         
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
       if(tmp_edge != NULL && tmp_edge->splice_score != -eslINFINITY) {
         step_score = graph->ali_scores[up] + tmp_edge->splice_score + graph->path_scores[down];
         if(graph->path_scores[up] <= step_score) {
           graph->path_scores[up]   = step_score;
-          graph->best_out_edge[up] = down;
+          if(down != graph->num_nodes-1)
+            graph->best_out_edge[up] = down;
         }
       }
     }
@@ -647,6 +665,37 @@ hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int r
 
 }
 
+int
+has_in_edge(SPLICE_GRAPH *graph, int node_id) 
+{
+  int h;
+  SPLICE_EDGE *tmp_edge;
+ 
+  for(h = 0; h < graph->num_nodes; h++) {
+    tmp_edge = graph->edges[h];
+    while(tmp_edge != NULL) {
+      if(tmp_edge->splice_score != -eslINFINITY && tmp_edge->downstream_node_id == node_id) return TRUE;
+      tmp_edge = tmp_edge->next;
+    }
+  }
+
+  return FALSE;
+
+}
+
+int
+has_out_edge(SPLICE_GRAPH *graph, int node_id)
+{
+  SPLICE_EDGE *tmp_edge;
+
+  tmp_edge = graph->edges[node_id];
+  while(tmp_edge != NULL) {
+    if(tmp_edge->splice_score != -eslINFINITY) return TRUE;
+    tmp_edge = tmp_edge->next;
+  }
+
+  return FALSE;
+}
 
 float 
 get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node) 

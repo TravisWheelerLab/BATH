@@ -18,7 +18,7 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-static int get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *splice_seq, int revcomp);
+static int get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *splice_seq, const ESL_GENCODE *gcode, int revcomp);
 static int find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq);
 static int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *sub_model, P7_FS_PROFILE *sub_fs_model, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
 
@@ -73,22 +73,26 @@ p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domai
   edge = p7_spliceedge_Create();
   p7_spliceedge_AliScoreEdge(edge, upstream_domain, downstream_domain);
 
+  if(upstream_domain->tr->fs || downstream_domain->tr->fs) edge->frameshift = TRUE;
+
 //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);  
-  get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
+  get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, gcode, revcomp);
   
   edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
   edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
 
-  if(upstream_domain->tr->fs || downstream_domain->tr->fs) edge->frameshift = TRUE;
-  //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
+ 
   find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
 
   if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) { 
-
+    //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
+// printf("edge->upstream_nuc_start %d edge->upstream_nuc_end %d\n", edge->upstream_nuc_start + splice_seq->start - 1, edge->upstream_nuc_end + splice_seq->start - 1);
+// printf("edge->downstream_nuc_start %d edge->downstream_nuc_end %d\n", edge->downstream_nuc_start + splice_seq->start - 1, edge->downstream_nuc_end + splice_seq->start - 1);
+//    printf("edge->splice_score %f \n", edge->splice_score);
     edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   edge->overlap_amino_start - MIN_AMINO_OVERLAP/2);
     edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, edge->overlap_amino_end   + MIN_AMINO_OVERLAP/2);
 
-    get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
+    get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, gcode, revcomp);
 
     edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
     edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
@@ -101,6 +105,11 @@ p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domai
     }
   }
 
+// printf("edge->splice_score %f \n", edge->splice_score); 
+// printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
+// printf("edge->upstream_nuc_start %d edge->upstream_nuc_end %d\n", edge->upstream_nuc_start + splice_seq->start - 1, edge->upstream_nuc_end + splice_seq->start - 1);
+// printf("edge->downstream_nuc_start %d edge->downstream_nuc_end %d\n", edge->downstream_nuc_start + splice_seq->start - 1, edge->downstream_nuc_end + splice_seq->start - 1);
+  /* Convert splice coords to full sequence */
   if(revcomp) {
     edge->upstream_spliced_nuc_end     = splice_seq->n - edge->upstream_spliced_nuc_end     + splice_seq->end;
     edge->downstream_spliced_nuc_start = splice_seq->n - edge->downstream_spliced_nuc_start + splice_seq->end;
@@ -246,10 +255,12 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, con
 
 
 int
-get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *splice_seq, int revcomp)
+get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *splice_seq, const ESL_GENCODE *gcode, int revcomp)
 {
 
+  int       i, x;
   int       z1,z2;
+  int       codon;
   int       strand;
   int       curr_hmm_pos;
   P7_TRACE *up_trace;
@@ -271,6 +282,34 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
    * overlap end by adding the appropriate number of nucs to the hit jali coords */
   if(edge->overlap_amino_end > upstream->jhmm) { 
     edge->upstream_nuc_end += (edge->overlap_amino_end - upstream->jhmm) * strand * 3;
+    /* If this is a non-frameshift edge - make sure we don't add stop codons */
+    if(!edge->frameshift) {
+      if(revcomp) {
+        for(i = upstream->jali; i >= edge->upstream_nuc_end; i-=3) {
+          /* get sub-seq coords */
+          x = splice_seq->start - i + 1;
+          codon = 16 * splice_seq->dsq[x-2] + 4 * splice_seq->dsq[x-1] + splice_seq->dsq[x]; 
+          /*If we have found a stop codon end the upstream sequence at the previous codon */
+		  if(gcode->basic[codon] == gcode->aa_abc->Kp-2) {
+            edge->upstream_nuc_end = i+3;
+            break;     
+          }
+        }
+      }
+      else {
+
+        for(i = upstream->jali; i <= edge->upstream_nuc_end; i+=3) {
+          /* get sub-seq coords */
+          x = i - splice_seq->start + 1;
+          codon = 16 * splice_seq->dsq[x-2] + 4 * splice_seq->dsq[x-1] + splice_seq->dsq[x]; 
+          /*If we have found a stop codon end the upstream sequence at the previous codon */
+		  if(gcode->basic[codon] == gcode->aa_abc->Kp-2) {
+            edge->upstream_nuc_end = i-3;
+            break;     
+          }
+        }
+      }
+    }
   }
   /* If the amino overlap end is inside the upstream hit 
    * use the trace to find the upstream seq overlap end */
@@ -291,38 +330,30 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
     }    
   }
    
-  /* If the amino overlap start is outside the upstream hit find the upstream seq
-   * overlap start by adding the appropriate number of nucs to the hit jali coords */
-  if(edge->overlap_amino_start > upstream->jhmm) {
-    edge->upstream_nuc_start += (edge->overlap_amino_start - upstream->jhmm) * strand * 3 - 2; 
-    edge->upstream_trace_start = edge->upstream_trace_end+1;
-  }
-  /* If the amino overlap start is inside the upstream hit
-   * use the trace to find the upstream seq overlap start */
-  else {
-    edge->upstream_nuc_start = (revcomp ? 
-                               ESL_MAX(edge->upstream_nuc_end, edge->upstream_nuc_start) : 
-                               ESL_MIN(edge->upstream_nuc_end, edge->upstream_nuc_start));
-    
-    while(curr_hmm_pos > edge->overlap_amino_start) {
+ 
+  /* Use the trace to find the upstream seq overlap start */
+  edge->upstream_nuc_start = (revcomp ? 
+                             ESL_MAX(edge->upstream_nuc_end, edge->upstream_nuc_start) : 
+                             ESL_MIN(edge->upstream_nuc_end, edge->upstream_nuc_start));
   
-      if      (up_trace->st[z2] == p7T_M) {
-        edge->upstream_nuc_start -= up_trace->c[z2] * strand;
-        //if(up_trace->c[z2] != 3) edge->frameshift = TRUE;
-        curr_hmm_pos--;
-      }
-      else if (up_trace->st[z2] == p7T_I)
-        edge->upstream_nuc_start -= 3 * strand;
-      else if (up_trace->st[z2] == p7T_D)
-        curr_hmm_pos--;
-      else
-        ESL_EXCEPTION(eslFAIL, "splice boundry not found in trace");
-  
-      z2--;
+  while(curr_hmm_pos > edge->overlap_amino_start) {
+
+    if      (up_trace->st[z2] == p7T_M) {
+      edge->upstream_nuc_start -= up_trace->c[z2] * strand;
+      curr_hmm_pos--;
     }
-    edge->upstream_nuc_start -= (up_trace->c[z2]-1) * strand;
-    edge->upstream_trace_start = z2;
+    else if (up_trace->st[z2] == p7T_I)
+      edge->upstream_nuc_start -= 3 * strand;
+    else if (up_trace->st[z2] == p7T_D)
+      curr_hmm_pos--;
+    else
+      ESL_EXCEPTION(eslFAIL, "splice boundry not found in trace");
+
+    z2--;
   }
+  edge->upstream_nuc_start -= (up_trace->c[z2]-1) * strand;
+  edge->upstream_trace_start = z2;
+  
 //printf("edge->upstream_nuc_start %d edge->upstream_nuc_end %d\n", edge->upstream_nuc_start, edge->upstream_nuc_end); 
   /* Adjust upstream nuc overlap coordrs to be on the splice_seq */
   if(revcomp) {
@@ -333,7 +364,6 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
     edge->upstream_nuc_start = edge->upstream_nuc_start - splice_seq->start + 1;
     edge->upstream_nuc_end   = edge->upstream_nuc_end   - splice_seq->start + 1;
   }
-
 
   /***************DOWNSTREAM*******************/
 
@@ -347,6 +377,36 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
    * overlap end by subtracting the appropriate number of nucs from the hit iali coords */
   if(edge->overlap_amino_start < downstream->ihmm) {
     edge->downstream_nuc_start -= (downstream->ihmm - edge->overlap_amino_start) * strand * 3; 
+    /* If this is a non-frameshift edge - make sure we don't add stop codons */
+    if(!edge->frameshift) {
+      if(revcomp) {
+        for(i = downstream->iali; i <= edge->downstream_nuc_start; i+=3) {
+          /* get sub-seq coords */
+          x = splice_seq->start - i + 1;
+          codon = 16 * splice_seq->dsq[x] + 4 * splice_seq->dsq[x+1] + splice_seq->dsq[x+2]; 
+          /*If we have found a stop codon end the upstream sequence at the previous codon */
+		  if(gcode->basic[codon] == gcode->aa_abc->Kp-2) {
+            edge->downstream_nuc_start = i-3;
+            break;     
+          }
+        }
+      }
+      else {
+
+        for(i = downstream->iali; i >= edge->downstream_nuc_start; i-=3) {
+          /* get sub-seq coords */
+          x = i - splice_seq->start + 1;
+          codon = 16 * splice_seq->dsq[x] + 4 * splice_seq->dsq[x+1] + splice_seq->dsq[x+2]; 
+          //printf("i %d codon %d%d%d amino %d\n", i, splice_seq->dsq[x], splice_seq->dsq[x+1], splice_seq->dsq[x+2], gcode->basic[codon]);
+          /*If we have found a stop codon start the downstream sequence at the next codon */
+		  if(gcode->basic[codon] == gcode->aa_abc->Kp-2) {
+            edge->downstream_nuc_start = i+3;
+            break;     
+          }
+        }
+      }
+    }
+
   }
   /* If the amino overlap start is inside the downstream hit
    * use the trace to find the downstream seq overlap start */
@@ -366,39 +426,31 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
       z1++; 
     }
   }  
-  
-  /* If the amino overlap end is outside the downstream hit find the downstream seq
-   * overlap end by subreacting the appropriate number of nucs to the hit iali coords */
-  if(edge->overlap_amino_end < downstream->ihmm) { 
-    edge->downstream_nuc_end -= (downstream->ihmm - edge->overlap_amino_end) * strand * 3; 
-    edge->downstream_trace_end = edge->downstream_trace_start-1;   
-  
-  }
-  else { 
-    edge->downstream_nuc_end = (revcomp ?
-                               ESL_MIN(edge->downstream_nuc_start, downstream->iali) :
-                               ESL_MAX(edge->downstream_nuc_start, downstream->iali));
-   
-    while(curr_hmm_pos <= edge->overlap_amino_end) {
-      if (down_trace->st[z1] == p7T_M) {
-        edge->downstream_nuc_end += down_trace->c[z1] * strand;
-        
-        //if(down_trace->c[z1] != 3) edge->frameshift = TRUE;
-        curr_hmm_pos++;
-      }
-      else if (down_trace->st[z1] == p7T_I)
-        edge->downstream_nuc_end += 3 * strand;
-      else if (down_trace->st[z1] == p7T_D)
-        curr_hmm_pos++;
-      else
-        ESL_EXCEPTION(eslFAIL, "splice boundry not found in trace");
+ 
+  /* Use the trace to find the downstream seq overlap end */ 
+  edge->downstream_nuc_end = (revcomp ?
+                             ESL_MIN(edge->downstream_nuc_start, downstream->iali) :
+                             ESL_MAX(edge->downstream_nuc_start, downstream->iali));
+ 
+  while(curr_hmm_pos <= edge->overlap_amino_end) {
+    if (down_trace->st[z1] == p7T_M) {
+      edge->downstream_nuc_end += down_trace->c[z1] * strand;
       
-      z1++;
+      curr_hmm_pos++;
     }
-    edge->downstream_nuc_end += (down_trace->c[z1]-1) * strand; 
-   
-    edge->downstream_trace_end = z1-1;
+    else if (down_trace->st[z1] == p7T_I)
+      edge->downstream_nuc_end += 3 * strand;
+    else if (down_trace->st[z1] == p7T_D)
+      curr_hmm_pos++;
+    else
+      ESL_EXCEPTION(eslFAIL, "splice boundry not found in trace");
+    
+    z1++;
   }
+  edge->downstream_nuc_end += (down_trace->c[z1]-1) * strand; 
+ 
+  edge->downstream_trace_end = z1-1;
+  
   //printf("edge->downstream_nuc_start %d edge->downstream_nuc_end %d\n", edge->downstream_nuc_start, edge->downstream_nuc_end);
   /* Adjust downstream nuc overlap coordrs to be on the splice_seq */ 
   if(revcomp) {

@@ -1593,8 +1593,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
 {
 
   P7_DOMAIN     *dom           = NULL;
-  P7_GMX        *gxppfs;
-  P7_GMX        *gxv;
+  P7_GMX        *gxppfs        = NULL;
+  P7_GMX        *gxv           = NULL;
   int            Ld            = j-i+1;
   int            z1, z2;
   float          domcorrection = 0.0;

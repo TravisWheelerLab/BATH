@@ -63,279 +63,6 @@ p7_spliceedge_Create(void)
     return NULL;
 }
 
-SPLICE_EDGE*
-p7_spliceedge_ConnectHits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp, int full_intron) 
-{
-
-  int      i, j, z;
-  int      z1, z2;
-  int      upstream_len;
-  int      downstream_len;
-  int      intron_len;
-  int      intron_chars;
-  int      amino_gap;
-  int      nuc_extention;
-  int      splice_len;
-  int      intron_cnt;
-  int      introns_in_gap;
-  int      overlap_min, overlap_max;
-  int      overlap_len;
-  int      total_distance;
-  int      distance_from_upstream;
-  int      distance_from_downstream;
-  int      intron_start, intron_end;
-  P7_HMM        *sub_hmm;
-  P7_FS_PROFILE *sub_fs_model;
-  P7_GMX        *vit_mx;
-  P7_TRACE      *tr;
-  ESL_DSQ       *splice_dsq;
-  SPLICE_EDGE   *edge;
-  int           status;
-
-  splice_dsq = NULL;
-  edge       = NULL; 
-
-  upstream_len   = abs(upstream_domain->jali - upstream_domain->iali) + 1;
-  downstream_len = abs(downstream_domain->jali - downstream_domain->iali) + 1;
-  intron_len     = splice_seq->n - (upstream_len + downstream_len);
-
-  amino_gap = (downstream_domain->ihmm - upstream_domain->jhmm - 1) / 2;
-  nuc_extention = ESL_MAX(amino_gap * 3, MAX_AMINO_EXT_SHORT * 3);
-
-  /*Should we align through the full intron length or only enought nucleotides to cove the amino gap */
-  if(full_intron) intron_chars = intron_len;
-  else            intron_chars   = ESL_MIN(intron_len, nuc_extention*2);
- 
-  splice_len = upstream_len + downstream_len + intron_chars;
-  splice_dsq = NULL;
-
-  if(intron_chars == intron_len) {
-    splice_dsq = splice_seq->dsq;
-  }
-  else {
-    ESL_ALLOC(splice_dsq, sizeof(ESL_DSQ) * (splice_len+2));
-    splice_dsq[0] = eslDSQ_SENTINEL;
-    for(i = 1; i <= upstream_len + nuc_extention; i++) 
-      splice_dsq[i] = splice_seq->dsq[i];
-    j = downstream_len + nuc_extention - 1;
-    for(; i <= splice_len; i++) {
-      splice_dsq[i] = splice_seq->dsq[splice_seq->n-j];
-      j--;
-    }
-    splice_dsq[i] = eslDSQ_SENTINEL;
-  }
-  
-  sub_hmm     = p7_splice_GetSubHMM(hmm, upstream_domain->ihmm, downstream_domain->jhmm);
-  if(!upstream_domain->tr->fs && !downstream_domain->tr->fs)
-    sub_hmm->fs = 0.;
- 
-  sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, splice_len, p7_UNIGLOBAL);
-  vit_mx = p7_gmx_fs_Create(sub_fs_model->M, splice_len, splice_len, p7P_SPLICE); 
-
-  tr = p7_trace_fs_Create();
-
-  if(!upstream_domain->tr->fs && !downstream_domain->tr->fs) {
-    p7_sp_trans_semiglobal_Viterbi(splice_dsq, gcode, splice_len, sub_fs_model, vit_mx);
-    p7_sp_trans_semiglobal_VTrace(splice_dsq, splice_len, gcode, sub_fs_model, vit_mx, tr);
-  }
-  else {
-    p7_sp_fs_semiglobal_Viterbi(splice_dsq, gcode, splice_len, sub_fs_model, vit_mx);
-    p7_sp_fs_semiglobal_VTrace(splice_dsq, splice_len, gcode, sub_fs_model, vit_mx, tr);
-  }
-
-
-  p7_trace_fs_Index(tr);
-  /* If the traces starts after the end of the upstream hit or ends 
-   * before the start of the downstream hit this is a failed splice */
-  if(tr->sqfrom[0] > upstream_len || tr->sqto[0] < upstream_len+intron_chars+1) {
-    p7_hmm_Destroy(sub_hmm);
-    p7_profile_fs_Destroy(sub_fs_model);
-    p7_gmx_Destroy(vit_mx);
-    p7_trace_fs_Destroy(tr);
-    if(intron_chars != intron_len) free(splice_dsq);
-    return NULL;
-  }
-
-  /* Find number of introns in trace */
-  intron_cnt = 0;
-  for(z = 0; z < tr->N; z++)
-    if(tr->st[z] == p7T_R) intron_cnt++;
-  // printf("intron_cnt %d\n", intron_cnt);
-  /* If no intron states were used this is a failed splice */
-  if(intron_cnt == 0) {
-    p7_hmm_Destroy(sub_hmm);
-    p7_profile_fs_Destroy(sub_fs_model);
-    p7_gmx_Destroy(vit_mx);
-    p7_trace_fs_Destroy(tr);
-    if(intron_chars != intron_len) free(splice_dsq);
-    return NULL;
-  }
-  /* If multiple introns overlap the gap between hits this suggests 
-   * there is an intervening exon and no edge should be created */
-  if(intron_cnt > 1) 
-  {  
-    introns_in_gap = 0;
-    z2 = 0;
-    for(i = 0 ; i < intron_cnt; i++) {
-      for(z1 = z2;   z1 < tr->N; z1++) if(tr->st[z1] == p7T_R) break;
-      for(z2 = z1+1; z2 < tr->N; z2++) if(tr->st[z2] != p7T_P) break;
-      overlap_min = ESL_MAX(tr->i[z1-1], upstream_len+1);
-      overlap_max = ESL_MIN(tr->i[z2],   upstream_len+intron_chars);
-      overlap_len = overlap_max - overlap_min + 1;
-    //  printf("overlap_len %d\n", overlap_len);
-      if(overlap_len > 1) 
-        introns_in_gap++;
-    }
-    if(introns_in_gap > 1) {
-      p7_hmm_Destroy(sub_hmm);
-      p7_profile_fs_Destroy(sub_fs_model);
-      p7_gmx_Destroy(vit_mx);
-      p7_trace_fs_Destroy(tr);
-      if(intron_chars != intron_len) free(splice_dsq);
-      return NULL;
-    }
-  }
-  
-  /* If more than on set of splice states were used then we need 
-   * to find which one is closest to the existing hit bounds */
-  total_distance = splice_len*2;
-  z2 = 0;
-  for(i = 0; i < intron_cnt; i++) {
-    for(z1 = z2;   z1 < tr->N; z1++) if(tr->st[z1] == p7T_R) break;
-    for(z2 = z1+1; z2 < tr->N; z2++) if(tr->st[z2] == p7T_M) break;
-    for(         ; z1 > 0    ; z1--) if(tr->st[z1] == p7T_M) break;
-    if(i == 0)
-    distance_from_upstream   = abs(tr->i[z1] - upstream_len);
-    distance_from_downstream = abs(tr->i[z2] - (upstream_len+intron_chars));
-
-    if(distance_from_upstream+distance_from_downstream < total_distance) {
-       total_distance = distance_from_upstream+distance_from_downstream;
-       intron_start = z1; 
-       intron_end   = z2;
-    } 
-  }
-  
-  edge = p7_spliceedge_Create();
-  edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   (upstream_domain->ihmm + tr->k[intron_start] - 1) - MIN_AMINO_OVERLAP/2);
-
-  edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, (upstream_domain->ihmm + tr->k[intron_end])     + MIN_AMINO_OVERLAP/2);
-   //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end); 
-  get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
-  
-  if(upstream_domain->tr->fs || downstream_domain->tr->fs)
-    edge->frameshift = TRUE;
-
-  edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
-  edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
-
-  if ((status = find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq)) != eslOK) goto ERROR;
-
-  /* If no splice was found or the splice score plus the minimum hit score is less than zero, try again with a larger overlap */
-  if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) {
-	
-    /* If the edge failed using the MIN_AMINO_OVERLAP extntion tray again with the MAX_AMINO_OVERLAP */
-    edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   (upstream_domain->ihmm + tr->k[intron_start] - 1) - MAX_AMINO_OVERLAP/2);
-    edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, (upstream_domain->ihmm + tr->k[intron_end])     + MAX_AMINO_OVERLAP/2);
-  
-    get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
-
-    edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
-    edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
-  
-    if ((status = find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq)) != eslOK) goto ERROR;
-
-    if(edge->splice_score == -eslINFINITY) {    
-      p7_hmm_Destroy(sub_hmm);
-      p7_profile_fs_Destroy(sub_fs_model);
-      p7_gmx_Destroy(vit_mx);
-      p7_trace_fs_Destroy(tr);
-      if(intron_chars != intron_len) free(splice_dsq);
-      free(edge);
-      return NULL;
-    }
-  }
-
-  if(revcomp) {
-    edge->upstream_spliced_nuc_end     = splice_seq->n - edge->upstream_spliced_nuc_end     + splice_seq->end;
-    edge->downstream_spliced_nuc_start = splice_seq->n - edge->downstream_spliced_nuc_start + splice_seq->end;
-  }
-  else {
-    edge->upstream_spliced_nuc_end     = edge->upstream_spliced_nuc_end     + splice_seq->start - 1;
-    edge->downstream_spliced_nuc_start = edge->downstream_spliced_nuc_start + splice_seq->start - 1;
-  }
-
-  p7_hmm_Destroy(sub_hmm);
-  p7_profile_fs_Destroy(sub_fs_model);
-  p7_gmx_Destroy(vit_mx);
-  p7_trace_fs_Destroy(tr);
-  if(intron_chars != intron_len) free(splice_dsq);
-
-  return edge;
-   
-  
-  ERROR:
-    p7_hmm_Destroy(sub_hmm);
-    p7_profile_fs_Destroy(sub_fs_model);
-    p7_gmx_Destroy(vit_mx);
-    p7_trace_fs_Destroy(tr);
-    if(splice_dsq != NULL) free(splice_dsq);
-    if(edge != NULL) free(edge);
-    return NULL;
-
-}
-
-SPLICE_EDGE*
-p7_spliceedge_ConnectSplits(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int frameshift, int revcomp) 
-{
-
-  SPLICE_EDGE   *edge;
-
-  edge = p7_spliceedge_Create();
-  edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   upstream_domain->jhmm   - MIN_AMINO_OVERLAP/2);
-  edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, downstream_domain->ihmm + MIN_AMINO_OVERLAP/2);
- 
-  get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
-  
-  edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
-  edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
-
-  edge->frameshift = frameshift;
-   //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
-  find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
-
-  if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) { 
-
-    edge->overlap_amino_start = ESL_MAX(upstream_domain->ihmm,   upstream_domain->jhmm   - MAX_AMINO_OVERLAP/2);
-    edge->overlap_amino_end   = ESL_MIN(downstream_domain->jhmm, downstream_domain->ihmm + MAX_AMINO_OVERLAP/2);
-
-    get_overlap_nuc_coords(edge, upstream_domain, downstream_domain, splice_seq, revcomp);
-
-    edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
-    edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
-
-    find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
-
-    if(edge->splice_score == -eslINFINITY) {
-      free(edge);
-      return NULL;
-    }
-  }
-
-  if(revcomp) {
-    edge->upstream_spliced_nuc_end     = splice_seq->n - edge->upstream_spliced_nuc_end     + splice_seq->end;
-    edge->downstream_spliced_nuc_start = splice_seq->n - edge->downstream_spliced_nuc_start + splice_seq->end;
-  }
-  else {
-    edge->upstream_spliced_nuc_end     = edge->upstream_spliced_nuc_end     + splice_seq->start - 1;
-    edge->downstream_spliced_nuc_start = edge->downstream_spliced_nuc_start + splice_seq->start - 1;
-  }
-
-  
-  return edge;
-
-}
-
 
 SPLICE_EDGE*
 p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp) 
@@ -353,7 +80,7 @@ p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domai
   edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
 
   if(upstream_domain->tr->fs || downstream_domain->tr->fs) edge->frameshift = TRUE;
-
+  //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
   find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
 
   if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) { 
@@ -782,7 +509,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
       for(dnp = edge->downstream_nuc_end; dnp > edge->downstream_nuc_start; dnp--) {
         if(splice_seq->dsq[dnp-1] == 0 && splice_seq->dsq[dnp] == 2) {
           //printf("unp-1 %d dnp+1 %d\n", unp-1+splice_seq->start-1, dnp+1+splice_seq->start-1);
-          if (dnp - unp > MIN_INTRON_LEN)
+          if (dnp - unp > MIN_INTRON_LENG)
             select_splice_option(edge, sub_model, sub_fs_model, gcode, splice_seq, pli->signal_scores[p7S_GTAG], unp-1, dnp+1);
         }
       }
@@ -791,7 +518,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
     if(splice_seq->dsq[unp] == 2 && splice_seq->dsq[unp+1] == 1) {
       for(dnp = edge->downstream_nuc_end; dnp > edge->downstream_nuc_start; dnp--) {
         if(splice_seq->dsq[dnp-1] == 0 && splice_seq->dsq[dnp] == 2) {
-          if (dnp - unp > MIN_INTRON_LEN)
+          if (dnp - unp > MIN_INTRON_LENG)
             select_splice_option(edge, sub_model, sub_fs_model, gcode, splice_seq, pli->signal_scores[p7S_GCAG], unp-1, dnp+1);
         }
       }
@@ -800,7 +527,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
     if(splice_seq->dsq[unp] == 0 && splice_seq->dsq[unp+1] == 3) {
       for(dnp = edge->downstream_nuc_end; dnp > edge->downstream_nuc_start; dnp--) {
         if(splice_seq->dsq[dnp-1] == 0 && splice_seq->dsq[dnp] == 1) {
-          if (dnp - unp > MIN_INTRON_LEN)
+          if (dnp - unp > MIN_INTRON_LENG)
             select_splice_option(edge, sub_model, sub_fs_model, gcode, splice_seq, pli->signal_scores[p7S_ATAC], unp-1, dnp+1);
         }
       }

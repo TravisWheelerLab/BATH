@@ -142,7 +142,6 @@ OBJS =  build.o\
 	p7_spensemble.o\
 	p7_splice.o\
     p7_spliceedge.o\
-    p7_splicegap.o\
     p7_splicegraph.o\
     p7_splicehits.o\
     p7_splicepath.o\

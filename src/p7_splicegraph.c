@@ -249,7 +249,6 @@ int
 p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 {
 
-  int h;
   P7_TOPHITS  *th;
   int status;
 

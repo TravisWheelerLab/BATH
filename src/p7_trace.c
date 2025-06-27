@@ -1552,7 +1552,7 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const
 	      if (status != eslOK) return status;
 	    }
 	  else tsc = 0.0f;
-
+       
 	  fprintf(fp, "%5d %1s  %4d %6d %4d %8.4f", z, p7_hmm_DecodeStatetype(tr->st[z]),  tr->k[z], tr->i[z], tr->c[z], tsc);
 	  sc += tsc;
 	  
@@ -1647,6 +1647,12 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const
 	      }
 	      fprintf(fp, " %c%c%c", abc->sym[c1], abc->sym[c2], abc->sym[c3]);  
 	    }
+        else if (tr->st[z] == p7T_P) {
+          /*only print the first P state */      
+          while (tr->st[z] != p7T_M) z++;
+          z--;
+    
+        }
 	  } 
 	  else fprintf(fp, " %8s %8s %c", "-", "-", '-');
 	  fputs("\n", fp);

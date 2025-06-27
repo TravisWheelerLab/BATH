@@ -775,7 +775,12 @@ p7_profile_fs_GetT(const P7_FS_PROFILE *gm_fs, char st1, int k1, char st2, int k
   if (st1 == p7T_B && st2 == p7T_I) return eslOK;
   if (st1 == p7T_B && st2 == p7T_D) return eslOK;
   if (st1 == p7T_I && st2 == p7T_E) return eslOK;
-
+  if (st1 == p7T_M && st2 == p7T_R) return eslOK;
+  if (st1 == p7T_D && st2 == p7T_R) return eslOK;
+  if (st1 == p7T_R && st2 == p7T_P) return eslOK;
+  if (st1 == p7T_P && st2 == p7T_P) return eslOK;
+  if (st1 == p7T_P && st2 == p7T_M) return eslOK;
+  
   /* Now we're sure this is a profile trace, as it should usually be. */
   switch (st1) {
   case p7T_S:  break;

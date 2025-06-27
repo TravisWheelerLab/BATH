@@ -1467,6 +1467,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->exon_sum_score[x] = 0.0;  
         ad->exon_pid[x]        = 0.;
         ad->exon_cnt++;
+        prev_i = i;
         break;
       case p7T_A:
         P_A_cnt++;

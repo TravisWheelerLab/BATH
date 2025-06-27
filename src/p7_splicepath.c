@@ -347,9 +347,10 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
       if(out_edge == NULL || out_edge->splice_score == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "Edge does not exist");
 
       if( in_edge != NULL) {
+        /* Prevent exons with less than one codon */
         if((in_edge->downstream_spliced_amino_start >= out_edge->upstream_spliced_amino_end) ||
-           ((graph->revcomp && out_edge->upstream_spliced_nuc_end >= in_edge->downstream_spliced_nuc_start) ||
-           (!graph->revcomp && in_edge->downstream_spliced_nuc_start >= out_edge->upstream_spliced_nuc_end))) {
+           ((graph->revcomp && out_edge->upstream_spliced_nuc_end >= in_edge->downstream_spliced_nuc_start-1) ||
+           (!graph->revcomp && in_edge->downstream_spliced_nuc_start >= out_edge->upstream_spliced_nuc_end-1))) {
 
           /* Remove whichever edge has the lowest score */
           if(out_edge->splice_score < in_edge->splice_score) {

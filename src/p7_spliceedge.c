@@ -686,7 +686,7 @@ select_splice_option (SPLICE_EDGE *edge, P7_FS_PROFILE *sub_fs_model, const P7_F
     z = 0;
     while(z < tr->N) {
       if(tr->i[z] >= upstream_nuc_cnt) {
-        upstream_amino_end = tr->k[z] + edge->overlap_amino_start - 1;
+        upstream_amino_end = tr->k[z];
         z = tr->N;
       }
       z++;

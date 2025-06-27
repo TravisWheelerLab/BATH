@@ -3453,11 +3453,13 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, in
   fflush(fp);
   free(buf);
   free(exon_name);
+  if(frameline != NULL) free(frameline);
   return eslOK;
 
   ERROR:
     if (buf) free(buf);
     if(exon_name) free(exon_name);
+    if(frameline != NULL) free(frameline);
     return status;
 }
 

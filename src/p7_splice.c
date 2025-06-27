@@ -215,6 +215,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     num_paths = 0; 
     path = p7_splicepath_GetBestPath(graph); 
 //p7_splicegraph_DumpGraph(stdout, graph);
+//p7_splicegraph_DumpEdges(stdout, graph);
     while(path != NULL) {
       
       path_accumulator[num_paths] = path;
@@ -998,7 +999,7 @@ p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PR
       seq_max  = ESL_MAX(up_max, down_max);
       splice_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, graph->revcomp);
   
-      //printf("up %d down %d \n", up+1, down+1);
+     // printf("up %d down %d \n", up+1, down+1);
       edge = p7_spliceedge_ConnectNodes(pli, th->hit[up]->dcl, th->hit[down]->dcl, gm_fs, hmm, gcode, splice_seq, graph->revcomp);
        
       if(edge != NULL) {
@@ -1088,7 +1089,7 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
     tmp_dom->jhmm = sh->srt[i]->hmm_end;    
     tmp_dom->iali = sh->srt[i]->seq_start;    
     tmp_dom->jali = sh->srt[i]->seq_end;
-
+    
     /* Check if hit info is for a hit that is spliceable upstream or downstream of any hits int the graph*/
     for(j = 0; j < graph->orig_N; j++) {
       if(!graph->node_in_graph[j]) continue;
@@ -1100,10 +1101,11 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
       else if(hit_upstream(th->hit[j]->dcl, tmp_dom, graph->revcomp)) {
         if(graph->revcomp) gap_len = th->hit[j]->dcl->jali - tmp_dom->iali - 1;
         else               gap_len = tmp_dom->iali - th->hit[j]->dcl->jali - 1;
+
         if(gap_len > MAX_INTRON_LENG) continue;
       }
       else continue;
-      
+            
       new_hit          = p7_hit_Create_empty();
       new_hit->dcl     = p7_domain_Create_empty();
       new_hit->dcl->tr = p7_trace_fs_Create();
@@ -1138,7 +1140,7 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
       p7_splice_ComputeAliScores(new_hit->dcl, new_hit->dcl->tr, hit_aa_dsq, sub_model, pli->bg, hmm->fs, TRUE);      
       
       if(graph->revcomp)
-        p7_trace_fs_Convert(new_hit->dcl->tr, hit_nuc_seq->L - hit_nuc_seq->start + 1, 1);
+        p7_trace_fs_Convert(new_hit->dcl->tr, hit_nuc_seq->start, 1);
       else
         p7_trace_fs_Convert(new_hit->dcl->tr, hit_nuc_seq->start, 1);
 
@@ -1148,14 +1150,13 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
       new_hit->dcl->ihmm = tmp_dom->ihmm + new_hit->dcl->tr->k[z1] - 1;
       new_hit->dcl->jhmm = tmp_dom->ihmm + new_hit->dcl->tr->k[z2] - 1; 
       if(graph->revcomp) {
-        new_hit->dcl->iali = new_hit->dcl->tr->i[z2]-2;
-        new_hit->dcl->jali = new_hit->dcl->tr->i[z1];
+        new_hit->dcl->iali = new_hit->dcl->tr->i[z1]-2;
+        new_hit->dcl->jali = new_hit->dcl->iali - (new_hit->dcl->tr->i[z2] - new_hit->dcl->iali);
       }
       else {
         new_hit->dcl->iali = new_hit->dcl->tr->i[z1] - 2;
         new_hit->dcl->jali = new_hit->dcl->tr->i[z2];
       }
-      
       p7_splicegraph_AddNode(graph, new_hit);
       
       sh->srt[i]->node_id = graph->num_nodes-1;
@@ -1169,7 +1170,7 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
     } 
   
   }     
- 
+  //p7_splicehits_Dump(stdout, sh); 
   free(tmp_dom);
   return eslOK;
 
@@ -1223,16 +1224,17 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   amino_dsq = NULL;
 
   path_seq_len = 0;
-  for (i = 0; i < path->path_len; i++)
+  for (i = 0; i < path->path_len; i++) {
     path_seq_len += abs(path->upstream_spliced_nuc_end[i+1] - path->downstream_spliced_nuc_start[i]) + 1;
-
-//  printf("1 path_seq_len %d\n", path_seq_len);
+    //printf("i %d path->end[i+1] %d path->start[i] %d abs(end-start) +1 %d\n", i+1, path->upstream_spliced_nuc_end[i+1], path->downstream_spliced_nuc_start[i], abs(path->upstream_spliced_nuc_end[i+1] - path->downstream_spliced_nuc_start[i]) + 1);
+  }
+  //printf("1 path_seq_len %d\n", path_seq_len);
   /* If the spliced seqeunce length is non-mod 3 send to farmshift alignment */
   if(path_seq_len % 3 != 0) {
     path->frameshift = TRUE;
     return eslOK;
   }
-// printf("2 path_seq_len %d\n", path_seq_len);
+ //printf("2 path_seq_len %d\n", path_seq_len);
   
   /* Working backward from the start of the path find the first instance of a stop codon in the extended upstream region of path_seq */
   ext_start_pos = 1;
@@ -1383,7 +1385,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     amino_dsq[i] = amino;
     seq_idx+=3;
   }
- //  printf("3 path_seq_len %d\n", path_seq_len); 
+   //printf("3 path_seq_len %d\n", path_seq_len); 
   amino_dsq[amino_len+1] = eslDSQ_SENTINEL;
 
   /* Create ESL_SQs from ESL_DSQs */

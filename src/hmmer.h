@@ -256,22 +256,22 @@ enum p7p_rsc_codon {
 #define p7P_SPLICE 2
 
 enum p7p_rsc_indels {
-  p7P___X   = 0,
-  p7P_X__   = 1,
-  p7P_XX_   = 2,
-  p7P_X_X   = 3,
-  p7P__XX   = 4,
-  p7P_XXX   = 5,
-  p7P_XXx   = 6,
-  p7P_XxX   = 7,
-  p7P_xXX   = 8,
-  p7P_xxx   = 9,  
-  p7P_XXxX  = 10,
-  p7P_XxXX  = 11,
-  p7P_xXXX  = 12,
-  p7P_XXxxX = 13,
-  p7P_XxxXX = 14,
-  p7P_xxXXX = 15,
+  p7P___X   = 0,  // two deletes then one nucleotide
+  p7P_X__   = 1,  // one nucleotide then two deletes
+  p7P_XX_   = 2,  // two nucleotides then one delete
+  p7P_X_X   = 3,  // one nucleotides, one delete, one nucleotide
+  p7P__XX   = 4,  // one delete then one nucleotide
+  p7P_XXX   = 5,  // standard codon
+  p7P_XXx   = 6,  // stop codon with subsitition at last nucleotide
+  p7P_XxX   = 7,  // stop codon with subsitition at middle nucleotide
+  p7P_xXX   = 8,  // stop codon with subsitition at first nucleotide
+  p7P_xxx   = 9,  // degenerate codon 
+  p7P_XXxX  = 10, // two nucleotides, one insert, one nucleotide
+  p7P_XxXX  = 11, // one nucleotide, one insert, two nucleotides
+  p7P_xXXX  = 12, // one insert then three nucleotides
+  p7P_XXxxX = 13, // two nucleotides, two inserts, one nucleotide
+  p7P_XxxXX = 14, // one nucleotide, two inserts, two nucleotides
+  p7P_xxXXX = 15, // two inserts then three nucleotides
 };
 
 /* Indexing variables for codons and quasicodons */
@@ -1606,10 +1606,8 @@ extern int p7_trans_VTrace(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, 
 /* viterbi_spliced.c */
 extern int p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *sub_gm, P7_GMX *gx);
 extern int p7_sp_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *sub_gm, P7_GMX *gx);
-extern int p7_sp_trans_local_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *sub_gm, P7_GMX *gx);
 extern int p7_sp_trans_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr);
 extern int p7_sp_fs_semiglobal_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr);
-extern int p7_sp_trans_local_VTrace(const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr);
 
 
 

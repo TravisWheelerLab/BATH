@@ -551,8 +551,11 @@ p7_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L
     if( i > 2 ) MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C3) + p7P_MSC_CODON(sub_gm, 1, c3));
     if( i > 3 ) MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C4) + p7P_MSC_CODON(sub_gm, 1, c4));                    
     
-    if ( i > 2) IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
-                                      IMX_SP(i-3,1) + TSC(p7P_II,1));
+    if ( i > 2) {
+     if(p7P_MSC_CODON(sub_gm, 1, c3) == -eslINFINITY) IMX_SP(i,1) = -eslINFINITY;
+     else                                             IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
+                                                                            IMX_SP(i-3,1) + TSC(p7P_II,1));
+    }
     else        IMX_SP(i,1) = -eslINFINITY;                  
 
     DMX_SP(i,1) = XMX(i,p7G_B) + TSC(p7P_BM,0);
@@ -569,8 +572,11 @@ p7_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L
       if( i > 2 ) MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C3) + p7P_MSC_CODON(sub_gm, k, c3));
       if( i > 3 ) MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C4) + p7P_MSC_CODON(sub_gm, k, c4));
 
-      if ( i > 2) IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,k),
-                                        IMX_SP(i-3,k) + TSC(p7P_II,k));
+      if ( i > 2) { 
+       if(p7P_MSC_CODON(sub_gm, k, c3) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+       else                                             IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,k),
+                                                                              IMX_SP(i-3,k) + TSC(p7P_II,k));
+      }
       else        IMX_SP(i,k) = -eslINFINITY;
 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
@@ -643,8 +649,9 @@ p7_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L
     MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C4) + p7P_MSC_CODON(sub_gm, 1, c4));
     MMX_SP(i,1) = ESL_MAX(MMX_SP(i,1), IVX(i,1,p7P_C5) + p7P_MSC_CODON(sub_gm, 1, c5));
 
-    IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
-                          IMX_SP(i-3,1) + TSC(p7P_II,1));
+    if(p7P_MSC_CODON(sub_gm, 1, c3) == -eslINFINITY) IMX_SP(i,1) = -eslINFINITY;
+    else                                             IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
+                                                                           IMX_SP(i-3,1) + TSC(p7P_II,1));
 
     DMX_SP(i,1) = XMX(i,p7G_B) + TSC(p7P_BM,0); 
     
@@ -660,8 +667,9 @@ p7_fs_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L
       MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C4) + p7P_MSC_CODON(sub_gm, k, c4));
       MMX_SP(i,k) = ESL_MAX(MMX_SP(i,k), IVX(i,k,p7P_C5) + p7P_MSC_CODON(sub_gm, k, c5));
 
-      IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,k),
-                            IMX_SP(i-3,k) + TSC(p7P_II,k));
+      if(p7P_MSC_CODON(sub_gm, k, c3) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+      else                                             IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,k),
+                                                       IMX_SP(i-3,k) + TSC(p7P_II,k));
 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,k-1),
                             DMX_SP(i,k-1) + TSC(p7P_DD,k-1));

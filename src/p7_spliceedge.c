@@ -683,15 +683,20 @@ select_splice_option (SPLICE_EDGE *edge, P7_FS_PROFILE *sub_fs_model, const P7_F
   if (overlap_sc > edge->splice_score) {
     /*use trace to find splice point*/
 
-    z = 0;
-    while(z < tr->N) {
-      if(tr->i[z] >= upstream_nuc_cnt) {
-        upstream_amino_end = tr->k[z];
-        z = tr->N;
-      }
-      z++;
+    if(upstream_nuc_cnt == 0) {
+      upstream_amino_end = tr->hmmfrom[0]-1;
     }
-   
+    else {
+      z = 0;
+      while(z < tr->N) {
+        if(tr->i[z] >= upstream_nuc_cnt) {
+          upstream_amino_end = tr->k[z];
+          z = tr->N;
+        }
+        z++;
+      }
+    }
+    
     edge->signal_score = signal_score;
     edge->splice_score = overlap_sc;
     edge->upstream_spliced_nuc_end = up_nuc_pos;

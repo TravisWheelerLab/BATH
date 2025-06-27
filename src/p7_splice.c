@@ -159,8 +159,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     
       p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);
 
-printf("RECOVER\n");
-p7_splicegraph_DumpHits(stdout, graph);
+//printf("RECOVER\n");
+//p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
  
       /* Create edges between original and recovered nodes */
@@ -204,17 +204,17 @@ p7_splicegraph_DumpHits(stdout, graph);
     
     /* Align paths with spliced Viterbi to find missing exon and internal introns */
     for(p = 0; p < num_paths; p++) {
-p7_splicepath_Dump(stdout, path_accumulator[p]);
+//p7_splicepath_Dump(stdout, path_accumulator[p]);
       p7_splice_FindExons(graph, path_accumulator[p], pli, gm_fs, gm, hmm, gcode, seq_file);   
       p7_splicepath_Destroy(path_accumulator[p]);
     }
 
-printf("ALIGNED\n");  
-p7_splicegraph_DumpHits(stdout, graph);
+//printf("ALIGNED\n");  
+//p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 
     /* Create splice edges */    
-    p7_splice_ConnectGraph(graph, pli, hmm, gcode, seq_file);
+    p7_splice_ConnectGraph(graph, pli, gm_fs, hmm, gcode, seq_file);
     /* Create spliced paths */
     num_paths = 0; 
     path = p7_splicepath_GetBestPath(graph); 
@@ -247,7 +247,7 @@ p7_splicegraph_DumpHits(stdout, graph);
  
       path = path_accumulator[p];
 
-p7_splicepath_Dump(stdout, path);
+//p7_splicepath_Dump(stdout, path);
       if(path->path_len > 1) {
         seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) - ALIGNMENT_EXT*3;
         seq_max = ESL_MAX(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) + ALIGNMENT_EXT*3;
@@ -784,7 +784,7 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
 
   /* Splice all split hits */
   for(s = 1; s < hit_cnt; s++) 
-    split_edges[s-1] = p7_spliceedge_ConnectNodes(pli, split_hits[s-1]->dcl, split_hits[s]->dcl, hmm, gcode, ali_seq, revcomp);        
+    split_edges[s-1] = p7_spliceedge_ConnectNodes(pli, split_hits[s-1]->dcl, split_hits[s]->dcl, gm_fs, hmm, gcode, ali_seq, revcomp);        
   
   /* Check if any edges were found */
   edge_found = FALSE;
@@ -959,7 +959,7 @@ seq_overlap(P7_DOMAIN *dom_1, P7_DOMAIN *dom_2, int revcomp)
 
 
 int
-p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file) 
+p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file) 
 {
   
   int up, down;
@@ -997,8 +997,9 @@ p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_HMM *
       seq_min  = ESL_MIN(up_min, down_min);
       seq_max  = ESL_MAX(up_max, down_max);
       splice_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, graph->revcomp);
-   //printf("up %d down %d\n", up+1, down+1);      
-      edge = p7_spliceedge_ConnectNodes(pli, th->hit[up]->dcl, th->hit[down]->dcl, hmm, gcode, splice_seq, graph->revcomp);
+  
+//      printf("up %d down %d \n", up+1, down+1);
+      edge = p7_spliceedge_ConnectNodes(pli, th->hit[up]->dcl, th->hit[down]->dcl, gm_fs, hmm, gcode, splice_seq, graph->revcomp);
        
       if(edge != NULL) {
         //printf("edge->splice_score %f\n", edge->splice_score);     
@@ -1225,12 +1226,13 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   for (i = 0; i < path->path_len; i++)
     path_seq_len += abs(path->upstream_spliced_nuc_end[i+1] - path->downstream_spliced_nuc_start[i]) + 1;
 
+//  printf("1 path_seq_len %d\n", path_seq_len);
   /* If the spliced seqeunce length is non-mod 3 send to farmshift alignment */
   if(path_seq_len % 3 != 0) {
     path->frameshift = TRUE;
     return eslOK;
   }
-
+// printf("2 path_seq_len %d\n", path_seq_len);
   
   /* Working backward from the start of the path find the first instance of a stop codon in the extended upstream region of path_seq */
   ext_start_pos = 1;
@@ -1337,8 +1339,8 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     }
     else {
       for (pos = path->downstream_spliced_nuc_start[i]; pos <= path->upstream_spliced_nuc_end[i+1]; pos++) {
+//        if (seq_idx == 580) printf("step %d pos %d seq_idx %d\n", i+1, pos, seq_idx);
         seq_pos = pos - path_seq->start + 1;
-        
         nuc_index[seq_idx] = seq_pos;
         nuc_dsq[seq_idx]   = path_seq->dsq[seq_pos];
         seq_idx++;
@@ -1368,7 +1370,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   for(i = 1; i <= amino_len; i++) {
 
     amino = esl_gencode_GetTranslation(gcode,&nuc_dsq[seq_idx]);
-    
+    //printf("seq_idx %d\n", seq_idx);  
     if(esl_abc_XIsNonresidue(gm->abc, amino)) {
       path->frameshift = TRUE;
       free(nuc_index);
@@ -1381,6 +1383,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     amino_dsq[i] = amino;
     seq_idx+=3;
   }
+//   printf("3 path_seq_len %d\n", path_seq_len); 
   amino_dsq[amino_len+1] = eslDSQ_SENTINEL;
 
   /* Create ESL_SQs from ESL_DSQs */

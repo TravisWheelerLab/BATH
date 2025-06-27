@@ -19,8 +19,8 @@
 #include "p7_splice.h"
 
 static int get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const ESL_SQ *splice_seq, const ESL_GENCODE *gcode, int revcomp);
-static int find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq);
-static int select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *sub_model, P7_FS_PROFILE *sub_fs_model, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
+static int find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream,  const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq);
+static int select_splice_option (SPLICE_EDGE *edge, P7_FS_PROFILE *sub_fs_model, const P7_FS_PROFILE *gm_fs, const ESL_GENCODE *gcode, const ESL_SQ *target_seq, float signal_score, int up_nuc_pos, int down_nuc_pos);
 
 /*****************************************************************
  * 1. The SPLICE_EDGE structure.
@@ -65,7 +65,7 @@ p7_spliceedge_Create(void)
 
 
 SPLICE_EDGE*
-p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp) 
+p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp) 
 {
 
   SPLICE_EDGE   *edge;
@@ -82,7 +82,7 @@ p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domai
   edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
 
  
-  find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
+  find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, gm_fs, hmm, gcode, splice_seq);
 
   if(ESL_MIN(upstream_domain->aliscore, downstream_domain->aliscore) + edge->splice_score < 0) { 
     //printf("edge->overlap_amino_start %d edge->overlap_amino_end %d\n", edge->overlap_amino_start, edge->overlap_amino_end);
@@ -97,7 +97,7 @@ p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domai
     edge->upstream_nuc_end     = ESL_MIN(edge->upstream_nuc_end + 2,     splice_seq->n);
     edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start - 2, 1);
 
-    find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, hmm, gcode, splice_seq);
+    find_optimal_splice_site (edge, pli, upstream_domain, downstream_domain, gm_fs, hmm, gcode, splice_seq);
 
     if(edge->splice_score == -eslINFINITY) {
       free(edge);
@@ -118,7 +118,7 @@ p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domai
     edge->upstream_spliced_nuc_end     = edge->upstream_spliced_nuc_end     + splice_seq->start - 1;
     edge->downstream_spliced_nuc_start = edge->downstream_spliced_nuc_start + splice_seq->start - 1;
   }
-
+//  printf("edge->upstream_spliced_nuc_end %d edge->downstream_spliced_nuc_start %d\n", edge->upstream_spliced_nuc_end, edge->downstream_spliced_nuc_start);
   return edge;
 
 }
@@ -467,7 +467,7 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
 
 
 int
-find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq)
+find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream, const P7_DOMAIN *downstream, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq)
 {
 
   int            n, z;
@@ -476,7 +476,6 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
   float         *tp_0;
   float         *tp_M;
   P7_HMM        *sub_hmm;
-  P7_PROFILE    *sub_model;
   P7_FS_PROFILE *sub_fs_model;
   int            status;
 
@@ -501,40 +500,14 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
    
   /*Get a submodel that covers the overlap region */
   sub_hmm    = p7_splice_GetSubHMM(hmm, edge->overlap_amino_start, edge->overlap_amino_end);
-  sub_model = NULL;
+  if(!edge->frameshift) sub_hmm->fs = 0.;
+
   sub_fs_model = NULL;
-
-  if(edge->frameshift) {
-    sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-    ESL_REALLOC(sub_fs_model->tsc,  sizeof(float)   * (sub_hmm->M+1) * p7P_NTRANS);
-    p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, 100, p7_UNIGLOBAL);
-    tp_0 = sub_fs_model->tsc;
-    tp_M = sub_fs_model->tsc + sub_fs_model->M * p7P_NTRANS;
-
-    /* Add extra transtion position for insetions at begining and end of alignments*/
-    tp_0[p7P_MM] = log(hmm->t[edge->overlap_amino_start-1][p7H_MM]);
-    tp_0[p7P_MI] = log(hmm->t[edge->overlap_amino_start-1][p7H_MI]);
-    tp_0[p7P_MD] = log(hmm->t[edge->overlap_amino_start-1][p7H_MD]);
-    tp_0[p7P_IM] = log(hmm->t[edge->overlap_amino_start-1][p7H_IM]);
-    tp_0[p7P_II] = log(hmm->t[edge->overlap_amino_start-1][p7H_II]);
-    tp_0[p7P_DM] = log(hmm->t[edge->overlap_amino_start-1][p7H_DM]);
-    tp_0[p7P_DD] = log(hmm->t[edge->overlap_amino_start-1][p7H_DD]);
-
-
-    tp_M[p7P_MM] = log(hmm->t[edge->overlap_amino_end][p7H_MM]);
-    tp_M[p7P_MI] = log(hmm->t[edge->overlap_amino_end][p7H_MI]);
-    tp_M[p7P_MD] = log(hmm->t[edge->overlap_amino_end][p7H_MD]);
-    tp_M[p7P_IM] = log(hmm->t[edge->overlap_amino_end][p7H_IM]);
-    tp_M[p7P_II] = log(hmm->t[edge->overlap_amino_end][p7H_II]);
-    tp_M[p7P_DM] = log(hmm->t[edge->overlap_amino_end][p7H_DM]);
-    tp_M[p7P_DD] = log(hmm->t[edge->overlap_amino_end][p7H_DD]);
-  }
-
-  sub_model  = p7_profile_Create (sub_hmm->M, sub_hmm->abc);
-  ESL_REALLOC(sub_model->tsc,  sizeof(float)   * (sub_hmm->M+1) * p7P_NTRANS);
-  p7_ProfileConfig(sub_hmm, pli->bg, sub_model, 100, p7_UNIGLOBAL);
-  tp_0 = sub_model->tsc;
-  tp_M = sub_model->tsc + sub_model->M * p7P_NTRANS;
+  sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
+  ESL_REALLOC(sub_fs_model->tsc,  sizeof(float)   * (sub_hmm->M+1) * p7P_NTRANS);
+  p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, 100, p7_UNIGLOBAL);
+  tp_0 = sub_fs_model->tsc;
+  tp_M = sub_fs_model->tsc + sub_fs_model->M * p7P_NTRANS;
 
   /* Add extra transtion position for insetions at begining and end of alignments*/
   tp_0[p7P_MM] = log(hmm->t[edge->overlap_amino_start-1][p7H_MM]);
@@ -554,6 +527,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
   tp_M[p7P_DM] = log(hmm->t[edge->overlap_amino_end][p7H_DM]);
   tp_M[p7P_DD] = log(hmm->t[edge->overlap_amino_end][p7H_DD]);
 
+
   /* Scan the overlap nucleotides for splice signals */
   for(unp = edge->upstream_nuc_start; unp < edge->upstream_nuc_end; unp++) {
     /*GT-AG*/
@@ -562,7 +536,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
         if(splice_seq->dsq[dnp-1] == 0 && splice_seq->dsq[dnp] == 2) {
           //printf("unp-1 %d dnp+1 %d\n", unp-1+splice_seq->start-1, dnp+1+splice_seq->start-1);
           if (dnp - unp > MIN_INTRON_LENG)
-            select_splice_option(edge, sub_model, sub_fs_model, gcode, splice_seq, pli->signal_scores[p7S_GTAG], unp-1, dnp+1);
+            select_splice_option(edge, sub_fs_model, gm_fs, gcode, splice_seq, pli->signal_scores[p7S_GTAG], unp-1, dnp+1);
         }
       }
     }
@@ -571,7 +545,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
       for(dnp = edge->downstream_nuc_end; dnp > edge->downstream_nuc_start; dnp--) {
         if(splice_seq->dsq[dnp-1] == 0 && splice_seq->dsq[dnp] == 2) {
           if (dnp - unp > MIN_INTRON_LENG)
-            select_splice_option(edge, sub_model, sub_fs_model, gcode, splice_seq, pli->signal_scores[p7S_GCAG], unp-1, dnp+1);
+            select_splice_option(edge, sub_fs_model, gm_fs, gcode, splice_seq, pli->signal_scores[p7S_GCAG], unp-1, dnp+1);
         }
       }
     }
@@ -580,7 +554,7 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
       for(dnp = edge->downstream_nuc_end; dnp > edge->downstream_nuc_start; dnp--) {
         if(splice_seq->dsq[dnp-1] == 0 && splice_seq->dsq[dnp] == 1) {
           if (dnp - unp > MIN_INTRON_LENG)
-            select_splice_option(edge, sub_model, sub_fs_model, gcode, splice_seq, pli->signal_scores[p7S_ATAC], unp-1, dnp+1);
+            select_splice_option(edge, sub_fs_model, gm_fs, gcode, splice_seq, pli->signal_scores[p7S_ATAC], unp-1, dnp+1);
         }
       }
     }
@@ -590,27 +564,24 @@ find_optimal_splice_site (SPLICE_EDGE *edge, SPLICE_PIPELINE *pli, const P7_DOMA
     edge->splice_score -= lost_sc;
    
   if(sub_hmm       != NULL) p7_hmm_Destroy(sub_hmm);
-  if(sub_model     != NULL) p7_profile_Destroy(sub_model);
   if(sub_fs_model  != NULL) p7_profile_fs_Destroy(sub_fs_model);
 
   return eslOK;
 
   ERROR:
     if(sub_hmm       != NULL) p7_hmm_Destroy(sub_hmm);
-    if(sub_model     != NULL) p7_profile_Destroy(sub_model);
     if(sub_fs_model  != NULL) p7_profile_fs_Destroy(sub_fs_model);
     return status;
 
 }
 
 int
-select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *sub_model, P7_FS_PROFILE *sub_fs_model, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, float signal_score, int up_nuc_pos, int down_nuc_pos)
+select_splice_option (SPLICE_EDGE *edge, P7_FS_PROFILE *sub_fs_model, const P7_FS_PROFILE *gm_fs, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, float signal_score, int up_nuc_pos, int down_nuc_pos)
 {
 
   int         i,k,z;
   int         nuc_seq_idx;
   int         nuc_seq_len;
-  int         amino_len;
   int         amino;
   int         upstream_nuc_cnt;
   int         upstream_amino_cnt;
@@ -619,15 +590,17 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *sub_model, P7_FS_PROFILE *s
   float       vitsc;
   float       overlap_sc;
   ESL_DSQ    *nuc_dsq;
-  ESL_DSQ    *amino_dsq;
+  ESL_SQ     *nuc_sq;
   P7_GMX     *vit_mx;
   P7_TRACE   *tr;
+  P7_DOMAIN  *tmp_dom;
   int         status;
 
   nuc_dsq   = NULL;
-  amino_dsq = NULL;
+  nuc_sq    = NULL;
   vit_mx    = NULL;
   tr        = NULL;
+  tmp_dom   = NULL;
 
   /*Get the overlap nucleotides that correspond to the current splice signal*/
   nuc_seq_len  = up_nuc_pos - edge->upstream_nuc_start + 1;
@@ -638,8 +611,8 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *sub_model, P7_FS_PROFILE *s
   /* If the splice signal is right at the overlap boundries all amino acid positions are deletions */
   if(nuc_seq_len == 0) {
     sum_ali_sc = 0;
-    for(k = 0; k < sub_model->M; k++)
-      sum_ali_sc += sub_model->tsc[k * p7P_NTRANS + p7H_DD];
+    for(k = 0; k < sub_fs_model->M; k++)
+      sum_ali_sc += sub_fs_model->tsc[k * p7P_NTRANS + p7H_DD];
 
     overlap_sc = sum_ali_sc + signal_score;
     
@@ -678,105 +651,70 @@ select_splice_option (SPLICE_EDGE *edge, P7_PROFILE *sub_model, P7_FS_PROFILE *s
   }
   nuc_dsq[nuc_seq_idx] = eslDSQ_SENTINEL;
 
-  if(nuc_seq_len % 3) {
-     vit_mx = p7_gmx_fs_Create(sub_fs_model->M, nuc_seq_len, nuc_seq_len, p7P_CODONS);
-     p7_fs_ReconfigLength(sub_fs_model, nuc_seq_len);
-     p7_fs_global_Viterbi(nuc_dsq, gcode, nuc_seq_len, sub_fs_model, vit_mx, &vitsc);
-  }
-  else {
-    /* Translate overalp nucleotides to amino sequence */
-    amino_len = nuc_seq_len / 3;
-    ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (amino_len+2));
-
-    amino_dsq[0] = eslDSQ_SENTINEL;
-    nuc_seq_idx = 1;
-    for(i = 1; i <= amino_len; i++) {
-      amino = esl_gencode_GetTranslation(gcode,&nuc_dsq[nuc_seq_idx]);
-      amino_dsq[i] = amino;
-      nuc_seq_idx+=3;
-    }
-    amino_dsq[amino_len+1] = eslDSQ_SENTINEL;
-
-    /* Align translated overlap amino acids to submodel */
-    vit_mx = p7_gmx_Create(sub_model->M, amino_len);
-    p7_ReconfigLength(sub_model, amino_len);
-    p7_global_Viterbi(amino_dsq, amino_len, sub_model, vit_mx, &vitsc);
-  }
-
-    /* vitsc from global alignment is the same as ali_score */
-  if (vitsc != -eslINFINITY) {
-    overlap_sc = vitsc + signal_score;
-
-    if (overlap_sc > edge->splice_score) {
-      /*use trace to find splice point*/
-
-      if(nuc_seq_len % 3) {
-        tr = p7_trace_fs_Create();
-        p7_fs_global_Trace(nuc_dsq, nuc_seq_len, sub_fs_model, vit_mx, tr);
-
-        z = 0;
-        while(z < tr->N) {
-          if(tr->i[z] >= upstream_nuc_cnt) {
-            upstream_amino_end = tr->k[z] + edge->overlap_amino_start - 1;
-            z = tr->N;
-          }
-          z++;
-        }
+  if(!edge->frameshift) {
+     /* Check for stop codons */
+    for(i = 1; i <= nuc_seq_len; i+=3) {
+      amino = esl_gencode_GetTranslation(gcode,&nuc_dsq[i]);
+      if(amino ==  gcode->aa_abc->Kp-2) {
+        if(nuc_dsq   != NULL) free(nuc_dsq);
+        return eslOK;
       }
-      else {
-        tr = p7_trace_Create();
-        p7_global_Trace(amino_dsq, amino_len, sub_model, vit_mx, tr);
+    }
+  }
 
-        z = 0;
-        while(z < tr->N) {
-          if(tr->i[z] == upstream_amino_cnt) {
-            upstream_amino_end = tr->k[z] + edge->overlap_amino_start - 1;
-            z = tr->N;
-          }
-          z++;
-        }
+  nuc_sq = esl_sq_CreateDigitalFrom(gcode->nt_abc, NULL, nuc_dsq, nuc_seq_len, NULL,NULL,NULL);
+
+  vit_mx = p7_gmx_fs_Create(sub_fs_model->M, nuc_seq_len, nuc_seq_len, p7P_CODONS);
+  p7_fs_ReconfigLength(sub_fs_model, nuc_seq_len);
+  p7_fs_global_Viterbi(nuc_dsq, gcode, nuc_seq_len, sub_fs_model, vit_mx, &vitsc);
+
+  tr = p7_trace_fs_Create();
+  p7_fs_global_Trace(nuc_dsq, nuc_seq_len, sub_fs_model, vit_mx, tr);
+
+  for(k = 0; k < tr->N; k++)
+    if(tr->k[k] > 0) tr->k[k] += edge->overlap_amino_start-1;
+
+  tmp_dom = p7_domain_Create_empty();
+  tmp_dom->scores_per_pos = NULL;
+  p7_splice_ComputeAliScores_fs(tmp_dom, tr, nuc_sq, gm_fs, NULL, FALSE);
+
+  overlap_sc = tmp_dom->aliscore + signal_score;
+
+  if (overlap_sc > edge->splice_score) {
+    /*use trace to find splice point*/
+
+    z = 0;
+    while(z < tr->N) {
+      if(tr->i[z] >= upstream_nuc_cnt) {
+        upstream_amino_end = tr->k[z] + edge->overlap_amino_start - 1;
+        z = tr->N;
       }
-      edge->signal_score = signal_score;
-      edge->splice_score = overlap_sc;
-      edge->upstream_spliced_nuc_end = up_nuc_pos;
-      edge->downstream_spliced_nuc_start = down_nuc_pos;
-      edge->upstream_spliced_amino_end = upstream_amino_end;
-      edge->downstream_spliced_amino_start = upstream_amino_end + 1;
-      
+      z++;
     }
+   
+    edge->signal_score = signal_score;
+    edge->splice_score = overlap_sc;
+    edge->upstream_spliced_nuc_end = up_nuc_pos;
+    edge->downstream_spliced_nuc_start = down_nuc_pos;
+    edge->upstream_spliced_amino_end = upstream_amino_end;
+    edge->downstream_spliced_amino_start = upstream_amino_end + 1;
+    
   }
-  /* Case where all translated aminos are stop codons - treat them as insertions and all hmm positions as deletions */
-  else {
-    for(i = 0; i < amino_len; i++)
-      sum_ali_sc += sub_model->tsc[p7H_II];
-    for(k = 0; k < sub_model->M; k++)
-      sum_ali_sc += sub_model->tsc[k * p7P_NTRANS + p7H_DD];
-
-    overlap_sc = sum_ali_sc + signal_score;
-
-    if (overlap_sc > edge->splice_score) {
-      edge->signal_score = signal_score;
-      edge->splice_score = overlap_sc;
-      edge->upstream_spliced_nuc_end = up_nuc_pos;
-      edge->downstream_spliced_nuc_start = down_nuc_pos;
-      edge->upstream_spliced_amino_end = edge->overlap_amino_start - 1;
-      edge->downstream_spliced_amino_start = edge->overlap_amino_start;
-    }
-  }
-
-  if(nuc_dsq   != NULL) free(nuc_dsq);
-  if(amino_dsq != NULL) free(amino_dsq);
-  if(vit_mx    != NULL) p7_gmx_Destroy(vit_mx);
-  if(nuc_seq_len % 3) { if(tr != NULL) p7_trace_fs_Destroy(tr); }
-  else                 { if(tr != NULL) p7_trace_Destroy(tr); }
+  
+  if(nuc_sq  != NULL) esl_sq_Destroy(nuc_sq);
+  if(nuc_dsq != NULL) free(nuc_dsq);
+  if(vit_mx  != NULL) p7_gmx_Destroy(vit_mx);
+  if(tr      != NULL) p7_trace_fs_Destroy(tr); 
+  if(tmp_dom != NULL) p7_domain_Destroy(tmp_dom);
   return eslOK;
 
   ERROR:
-    if(nuc_dsq   != NULL) free(nuc_dsq);
-    if(amino_dsq != NULL) free(amino_dsq);
-    if(vit_mx    != NULL) p7_gmx_Destroy(vit_mx);
-    if(nuc_seq_len % 3) { if(tr != NULL) p7_trace_fs_Destroy(tr); }
-    else                 { if(tr != NULL) p7_trace_Destroy(tr); }
+    if(nuc_sq  != NULL) esl_sq_Destroy(nuc_sq);
+    if(nuc_dsq != NULL) free(nuc_dsq);
+    if(nuc_dsq != NULL) free(nuc_dsq);
+    if(vit_mx  != NULL) p7_gmx_Destroy(vit_mx);
+    if(tr      != NULL) p7_trace_fs_Destroy(tr); 
+    if(tmp_dom != NULL) p7_domain_Destroy(tmp_dom);
     return status;
 }
 

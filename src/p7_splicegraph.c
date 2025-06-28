@@ -319,9 +319,8 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge)
       tmp_edge = tmp_edge->next;
 
     tmp_edge->next = edge;
-    edge->prev = tmp_edge;
   }
-
+  
   graph->num_edges++;
   
   return eslOK;

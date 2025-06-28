@@ -50,7 +50,6 @@ typedef struct _splice_edge {
   float frame2_score;
   float frame3_score;
 
-  struct _splice_edge *prev;
   struct _splice_edge *next;
 
 } SPLICE_EDGE;

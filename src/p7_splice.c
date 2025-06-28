@@ -729,7 +729,7 @@ add_split_exons(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, P7_HIT **exons, const
   else if(num_hits > 1) {
     
     edges = connect_split(pli, exons, hmm, gm_fs, gm, gcode, ali_seq, orig_aliscore, graph->revcomp, frameshift, &num_hits);
-    
+ 
     if(num_hits == 1) {
       
       p7_splicegraph_AddNode(graph, exons[0]);
@@ -782,14 +782,14 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
   int status;
 
   hit_cnt = *num_hits;
-
+  
   split_edges = NULL;
   ESL_ALLOC(split_edges, sizeof(SPLICE_EDGE*) * (hit_cnt-1));
 
   /* Splice all split hits */
-  for(s = 1; s < hit_cnt; s++) 
+  for(s = 1; s < hit_cnt; s++) { 
     split_edges[s-1] = p7_spliceedge_ConnectNodes(pli, split_hits[s-1]->dcl, split_hits[s]->dcl, gm_fs, hmm, gcode, ali_seq, revcomp);        
-    
+  }
    
   /* Check if any edges were found */
   edge_found = FALSE;
@@ -880,14 +880,16 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
         hit_cnt--;
 
         /*If there were pervious edges, they can no longer be trusted and we need to start over */
-        if(s > 0) { 
-          for(x = 0; x <= s; x++ ) free(split_edges[x]);
-          if(split_edges[s] != NULL) free(split_edges[s]);
+        if(hit_cnt > 1) { 
+          for(x = 0; x < hit_cnt; x++ ) {
+            if(split_edges[x] != NULL) free(split_edges[x]);
+          }
           free(split_edges);
           split_edges = connect_split(pli, split_hits, hmm, gm_fs, gm, gcode, ali_seq, orig_aliscore, revcomp, frameshift, &hit_cnt); 
           s = 0;
         }        
         else {
+          if(split_edges[s] != NULL) free(split_edges[s]);
           for(x = s; x < hit_cnt-1; x++)
             split_edges[x] = split_edges[x+1];
         }

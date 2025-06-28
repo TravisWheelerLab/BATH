@@ -556,6 +556,12 @@ longest_path_upstream (SPLICE_GRAPH *graph)
     edge->downstream_node_id = graph->num_nodes;
     edge->splice_score = 0.;
 
+    /* free any -inf edges */
+    while(graph->edges[up] != NULL) {
+      tmp_edge = graph->edges[up];
+      graph->edges[up] = tmp_edge->next;
+      free(tmp_edge);  
+    }
     graph->edges[up] = edge;
     edge = NULL;
   }
@@ -603,10 +609,10 @@ longest_path_upstream (SPLICE_GRAPH *graph)
 
   for(up = 0; up < graph->num_nodes; up++) {
     if(!graph->node_in_graph[up]) continue;
-    edge = graph->edges[up];
-    if(edge->downstream_node_id == graph->num_nodes)
+    
+    if(graph->edges[up]->downstream_node_id == graph->num_nodes)
     {
-      free(edge);
+      free(graph->edges[up]);
       graph->edges[up] = NULL;
     }
   }

@@ -1208,7 +1208,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     revcomp = 0;
 
   if(revcomp) {
-    ad->sqfrom  = tr->i[z1];
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
     ad->sqto    = tr->i[z2];
     ad->exon_seq_starts[0]        = target_seq->n - ad->sqfrom + target_seq->end;
   } else {
@@ -1676,7 +1676,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
     revcomp = 0;
 
   if(revcomp) {
-    ad->sqfrom  = tr->i[z1];
+    ad->sqfrom  = tr->i[z1]- (tr->c[z1] - 1);
     ad->sqto    = tr->i[z2];
     ad->exon_seq_starts[0] = sq->n - ad->sqfrom + sq->end;
   } else {

@@ -2516,6 +2516,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
      * This prevents unreportable hits from accumulating and using excessive memmory. 
      * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
     pli->Z = (float)pli->nres / (float)gm_fs->max_length;
+
+    
     if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < 0.1)) ||  
        (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T))) 
     { 
@@ -2526,8 +2528,6 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
         dom->ad->sqto   = dom->jali;
         dom->ad->L      = 0;   
       }
-      //else
-      //  p7_splice_ComputeAliScores_fs(dom, dom->tr, windowsq->dsq, gm_fs, dnasq->abc, NULL);
     
       p7_tophits_CreateNextHit(hitlist, &hit);
       hit->ndom        = 1;
@@ -2697,8 +2697,6 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
          dom->ad->sqto   = dom->jali;
          dom->ad->L      = 0;
        }      
-       //else
-       //  p7_splice_ComputeAliScores(dom, dom->tr, orfsq->dsq, gm, fs_prob, NULL);
         
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
@@ -2816,10 +2814,10 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   pli_tmp->oxf_holder = NULL;
 
   subseq = dnasq->dsq + dna_window->n - 1;
-
+  
   window_start = complementarity ? dnasq->start - (dna_window->n + dna_window->length) : dnasq->start + dna_window->n - 1; 
   window_end   = complementarity ? dnasq->start - dna_window->n + 1 : window_start + dna_window->length - 1;
-  
+
   /*set up seq object for domaindef function*/
   if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
   if ((status = esl_sq_SetSource   (pli_tmp->tmpseq, dnasq->source)) != eslOK) goto ERROR;
@@ -2864,11 +2862,11 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     
     ESL_ALLOC(P_orf, sizeof(double) * orf_block->count);
     ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
-
+   
    for(f = 0; f < orf_block->count; f++) {
      curr_orf = &(orf_block->list[f]);
      pli_tmp->oxf_holder[f] = NULL;
-
+     
      if(complementarity) {
        orf_start =  dnasq->start - (dnasq->n - curr_orf->end   + 1) + 1;
        orf_end   =  dnasq->start - (dnasq->n - curr_orf->start + 1) + 1;
@@ -2876,9 +2874,10 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
        orf_start = dnasq->start + curr_orf->start - 1;
        orf_end   = dnasq->start + curr_orf->end   - 1;
      } 
-
+  
      /* Only process ORF if it belongs to the current window */ 
      if(orf_start >= window_start && orf_end <= window_end) { 
+ 
        p7_bg_SetLength(bg, curr_orf->n);
        p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);
          
@@ -2897,7 +2896,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
         * (with bias) of all ORFs in the window to test it at 
         * least one ORF passed the Forward filter */ 
        seqscore_orf = (fwdsc_orf-filtersc_orf) / eslCONST_LOG2;
-
+       
        P_orf[f] = esl_exp_surv(seqscore_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]); 
        min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);  
         
@@ -2922,7 +2921,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
-
+  
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
   
     pli->pos_past_fwd += dna_window->length; 
@@ -2933,7 +2932,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->ddef, bg, gcode,
            dna_window->n);
-    
+     
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
@@ -3088,7 +3087,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
   //printf("hmm %s seq %s\n", gm->name, dnasq->name); 
-  //printf("dnasq->start %d dnasq->end %d\n", dnasq->start, dnasq->end);
+  //printf("\n\ndnasq->start %d dnasq->end %d\n", dnasq->start, dnasq->end);
   //fflush(stdout);
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);

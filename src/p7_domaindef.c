@@ -674,9 +674,10 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
       else             p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);             
       p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);
       ddef->nregions++;
+      
       if (is_multidomain_region_fs(ddef, i, j))
       {
-
+	 	
         /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
@@ -703,7 +704,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
        
         /* ddef->n2sc is now set on i..j by the traceback-dependent method */
         last_j2 = 0;
-	
+        
         for (d = 0; d < nc; d++) {
          
           p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
@@ -731,6 +732,12 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
          i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
 
          if (rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
+        }
+
+        
+        if(nc == 0) {
+          ddef->nenvelopes++;
+          rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, i, j, bg, gcode);
         }
 
         p7_spensemble_Reuse(ddef->sp);
@@ -1606,7 +1613,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   float          null2[p7_MAXCODE];
   int            status;
   ESL_DSQ        t, u, v, w, x;
-
+  
   if (Ld < 15) return eslOK;
   
   p7_fs_ReconfigLength(gm_fs, Ld);

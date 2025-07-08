@@ -49,7 +49,7 @@ static float seq_overlap(P7_DOMAIN *dom_1, P7_DOMAIN *dom_2, int revcomp);
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, FILE *ofp, int64_t db_nuc_cnt, int fs_pipe, int std_pipe)
+p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *scoredata, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt)
 {
 
   int              i, h, p, s;
@@ -57,12 +57,12 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   int              hit_to_process;
   int              num_hits_processed; 
   int              prev_num_hits_processed;
-  int              revcomp, prev_revcomp;
+  int              revcomp;
   int              first, last;
   int              seq_min, seq_max;
   int              num_paths;
   int              orig_idx;
-  int64_t          seqidx, prev_seqidx;
+  int64_t          seqidx;
   int64_t          path_min, path_max;
   int             *hits_processed;
   SPLICE_PIPELINE *pli;
@@ -109,16 +109,18 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   
   prev_num_hits_processed = -1;
 
-  prev_revcomp = -1;
-  prev_seqidx  = -1;
   printf("\nQuery %s LENG %d \n",  gm->name, gm->M);
    fflush(stdout);
 
   /* loop through until all hits have been processed */
   hit_to_process = tophits->N; 
   
-  /*find the firt unprocessed hit */
-  if(num_hits_processed != hit_to_process) {
+  while(num_hits_processed < hit_to_process) {
+         
+    if(prev_num_hits_processed == num_hits_processed)
+      ESL_XEXCEPTION(eslFAIL, "p7_splice_SpliceHits : loop failed to process hits");
+    prev_num_hits_processed = num_hits_processed;
+
     i = 0;
     while (i < tophits->N && hits_processed[i]) i++;
 
@@ -127,55 +129,46 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     revcomp = 1;
     if (seed_hit->dcl->iali < seed_hit->dcl->jali)
       revcomp = 0;
-  }
- 
-  while(num_hits_processed < hit_to_process) {
-         
-    if(prev_num_hits_processed == num_hits_processed)
-      ESL_XEXCEPTION(eslFAIL, "p7_splice_SpliceHits : loop failed to process hits");
-    prev_num_hits_processed = num_hits_processed;
 
-    /* If we have a new sequence and strand we build a new graph */
-    if(seqidx != prev_seqidx || revcomp != prev_revcomp) {   
-      /* Find the first and last index of the current seqidx and strand in the saved hits list */
-      first = 0;
-      while(first < saved_hits->N && (saved_hits->srt[first]->seqidx != seqidx || saved_hits->srt[first]->strand != revcomp)) first++;
-      last = first;
-      while(last < saved_hits->N && saved_hits->srt[last]->seqidx == seqidx && saved_hits->srt[last]->strand == revcomp) last++;
-      last--;
+    /* Find the first and last index of the current seqidx and strand in the saved hits list */
+    first = 0;
+    while(first < saved_hits->N && (saved_hits->srt[first]->seqidx != seqidx || saved_hits->srt[first]->strand != revcomp)) first++;
+    last = first;
+    while(last < saved_hits->N && saved_hits->srt[last]->seqidx == seqidx && saved_hits->srt[last]->strand == revcomp) last++;
+    last--;
 
-      if ((graph = p7_splicegraph_Create()) == NULL) goto ERROR;
-      graph->revcomp = revcomp;
+    if ((graph = p7_splicegraph_Create()) == NULL) goto ERROR;
+    graph->revcomp = revcomp;
 
-      /* Add all BATH hits as nodes to graph */
-      if((p7_splice_AddOriginals(graph, tophits, hits_processed, seqidx)) != eslOK) goto ERROR;      
+    /* Add all BATH hits as nodes to graph */
+    if((p7_splice_AddOriginals(graph, tophits, hits_processed, seqidx)) != eslOK) goto ERROR;      
 
-      printf("\nQuery %s Target %s strand %c\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'));
-      fflush(stdout);
+    printf("\nQuery %s Target %s strand %c\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'));
+    fflush(stdout);
 
-      p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);
+    p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last);
 
 //printf("RECOVER\n");
 //p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
  
-      /* Create edges between original and recovered nodes */
+    /* Create edges between original and recovered nodes */
 	  p7_splice_CreateEdges(graph);
 
-      /* Mark all orignal hits as processed */
-      for(h = 0; h < graph->orig_N; h++) {
-        orig_idx = graph->orig_hit_idx[h];
-        if(!hits_processed[orig_idx]) {
-          hits_processed[orig_idx] = TRUE;
-          num_hits_processed++;
-        }
+    /* Mark all orignal hits as processed */
+    for(h = 0; h < graph->orig_N; h++) {
+      orig_idx = graph->orig_hit_idx[h];
+      if(!hits_processed[orig_idx]) {
+        hits_processed[orig_idx] = TRUE;
+        num_hits_processed++;
       }
- 
-      /* Allocate sapce for paths */
-      ESL_ALLOC(path_accumulator, sizeof(SPLICE_PATH*) * graph->num_nodes);
-      num_paths = 0;
-   
     }
+ 
+    /* Allocate sapce for paths */
+    ESL_ALLOC(path_accumulator, sizeof(SPLICE_PATH*) * graph->num_nodes);
+    num_paths = 0;
+ 
+ 
 
     /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
     num_paths = 0;
@@ -272,16 +265,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
     p7_splicegraph_Destroy(graph);
     graph = NULL; 
 
-    if(num_hits_processed < hit_to_process) {
-      i = 0;
-      while (i < tophits->N && hits_processed[i]) i++;
-
-      seed_hit = tophits->hit[i];
-      seqidx = seed_hit->seqidx;
-      revcomp = 1;
-      if (seed_hit->dcl->iali < seed_hit->dcl->jali)
-        revcomp = 0; 
-    } 
+    
   }
  
   /* Build any missing alignments */

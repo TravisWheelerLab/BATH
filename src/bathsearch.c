@@ -938,7 +938,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) { 
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
-      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, ofp, resCnt, pipelinehits_accumulator->fs_pipe, pipelinehits_accumulator->std_pipe);
+
+      
+      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, resCnt);
 	  assign_Lengths(tophits_accumulator, id_length_list);
       p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 	  p7_tophits_SortBySortkey(tophits_accumulator);

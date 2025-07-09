@@ -102,8 +102,6 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   int i;
   int status;
 
-  if(graph == NULL)  graph = p7_splicegraph_Create();
-
   graph->nalloc         = num_nodes*2;
   graph->num_nodes      = 0;
 

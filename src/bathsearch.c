@@ -940,7 +940,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
 
       
-      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, scoredata, go, gcode, dbfp, resCnt);
+      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, go, gcode, dbfp, resCnt);
 	  assign_Lengths(tophits_accumulator, id_length_list);
       p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 	  p7_tophits_SortBySortkey(tophits_accumulator);

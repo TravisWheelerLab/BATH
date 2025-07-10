@@ -9,7 +9,7 @@
 #include "hmmer.h"
 
 #define IVX(i,k,c) (iv[((k)*p7P_CODONS)+L+3-(i)+(c)])
-#define TSC_R -12
+#define TSC_R -14
 
 /* Function:  p7_sp_trans_semiglobal_Viterbi
  * Synopsis:  The Viterbi algorithm for aligning codons to aminos, 

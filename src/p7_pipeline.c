@@ -926,7 +926,7 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
 
       ext_i_coords = ESL_MIN(0,           (vtr->sqfrom[d] - (gm->max_length * (0.1 + data->prefix_lengths[vtr->hmmfrom[d]]))-1)); //negeative numbers
       ext_j_coords = ESL_MAX(curr_orf->n, (vtr->sqto[d] + (gm->max_length * (0.1 + data->suffix_lengths[vtr->hmmto[d]]))+1)); //positive numbers
-     
+
       if(complementarity == p7_NOCOMPLEMENT)
       {
         domain_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3)-3);
@@ -2469,6 +2469,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
   
     if (ali_len < 12)   
     {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
+      if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
       p7_trace_fs_Destroy(dom->tr);
       continue;
     }
@@ -2639,6 +2640,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     ali_len = (dom->jali - dom->iali + 1)/3;   
     if (ali_len < 4) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
+      if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
       p7_trace_fs_Destroy(dom->tr);
       continue; 
     }

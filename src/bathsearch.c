@@ -851,7 +851,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       default:
         esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
     }
-      
+     
+     resCnt = 0;	
     //need to re-compute e-values before merging (when list will be sorted)
     if (esl_opt_IsUsed(go, "-Z")) {
       resCnt = 1000000*esl_opt_GetReal(go, "-Z");
@@ -1050,7 +1051,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
     
     if (info->pli->strands != p7_STRAND_BOTTOMONLY) 
     {
-      info->pli->nres += dbsq_dna->n;
+      info->pli->nres += dbsq_dna->W;
    
        /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
@@ -1063,7 +1064,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
 
     if (info->pli->strands != p7_STRAND_TOPONLY) 
     {   
-      info->pli->nres += dbsq_dna->n;
+      info->pli->nres += dbsq_dna->W;
   
       /* Reverse complement and translate DNA sequence to 3 frame ORFs */
       esl_sq_ReverseComplement(dbsq_dna);
@@ -1237,7 +1238,7 @@ pipeline_thread(void *arg)
 
       if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
 
-        info->pli->nres += dnaSeq->n;
+        info->pli->nres += dnaSeq->W;
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
        
         p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT);
@@ -1248,7 +1249,7 @@ pipeline_thread(void *arg)
       } 
 
       if (info->pli->strands != p7_STRAND_TOPONLY) {
-        info->pli->nres += dnaSeq->n;
+        info->pli->nres += dnaSeq->W;
         esl_sq_ReverseComplement(dnaSeq);
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
 	

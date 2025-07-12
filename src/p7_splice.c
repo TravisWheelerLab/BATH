@@ -100,8 +100,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 	info[i].pli->bg        = p7_bg_Create(om->abc);
 	if (info[i].pli->do_biasfilter)
 	  p7_bg_SetFilter(info[i].pli->bg, om->M, om->compo);
-	info[i].tophits        = tophits;
     info[i].sh             = saved_hits;
+	info[i].tophits        = tophits;
     info[i].gcode          = gcode;
 	info[i].seq_file       = seq_file;
 	info[i].db_nuc_cnt     = db_nuc_cnt;
@@ -228,9 +228,10 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, SPLICE_SAVED_HITS *s
 	graph = graphs[g];
     /* Add all BATH hits from the correct seqidx and strand as nodes to graph */
     p7_splice_AddOriginals(graph, tophits);
-printf("ORIGINAL\n");
-p7_splicegraph_DumpHits(stdout, graph); 
-fflush(stdout);
+
+//printf("ORIGINAL first %d last %d\n", first, last);
+//p7_splicegraph_DumpHits(stdout, graph); 
+//fflush(stdout);
 	info->graph     = graph;
 	info->thread_id = -1;
 	splice_graph(info);
@@ -326,9 +327,9 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, SPLICE_SAVED_HITS *s
     /* Add all BATH hits from the correct seqidx and strand as nodes to graph */
     p7_splice_AddOriginals(graph, tophits);
 
-printf("ORIGINAL\n");
-p7_splicegraph_DumpHits(stdout, graph);
-fflush(stdout);
+//printf("ORIGINAL first %d last %d\n", first, last);
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
   }
   
   /* Initialize mutex */
@@ -436,9 +437,6 @@ splice_graph(SPLICE_WORKER_INFO *info)
   gcode      = info->gcode;
   seq_file   = info->seq_file;
 
-  printf("\nQuery %s Target %s strand %c \n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'));
-  fflush(stdout);
-
   /* Find the first and last index of the current seqidx and strand in the saved hits list */
   first = 0;
   while(first < saved_hits->N && (saved_hits->srt[first]->seqidx != graph->seqidx || saved_hits->srt[first]->strand != graph->revcomp)) first++;
@@ -446,7 +444,15 @@ splice_graph(SPLICE_WORKER_INFO *info)
   while(last < saved_hits->N && saved_hits->srt[last]->seqidx == graph->seqidx && saved_hits->srt[last]->strand == graph->revcomp) last++;
   last--; 
  
+  printf("\nQuery %s Target %s strand %c first %d last %d seqidx %d\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), first, last, graph->seqidx);
+  fflush(stdout);
+
+  
   p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last, info);
+
+//printf("RECOVER\n");
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateEdges(graph);
@@ -524,7 +530,7 @@ splice_graph(SPLICE_WORKER_INFO *info)
     if(path->path_len > 1) {
       seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) - ALIGNMENT_EXT*3;
       seq_max = ESL_MAX(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) + ALIGNMENT_EXT*3;
-      
+
       path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, path->revcomp, info);
 
       if(!path->frameshift)
@@ -1322,9 +1328,9 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
   int  status;
 
   th = graph->th;
-   
-  p7_splicehits_AssignNodes(graph, sh, first, last);
 
+  p7_splicehits_AssignNodes(graph, sh, first, last);
+   
   tmp_dom = p7_domain_Create_empty();
 
   for(i = first; i <= last; i++) {
@@ -1336,7 +1342,7 @@ p7_splice_RecoverHits(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, SPLICE_PIPELIN
     tmp_dom->jhmm = sh->srt[i]->hmm_end;    
     tmp_dom->iali = sh->srt[i]->seq_start;    
     tmp_dom->jali = sh->srt[i]->seq_end;
-    
+
     /* Check if hit info is for a hit that is spliceable upstream or downstream of any hits int the graph*/
     for(j = 0; j < graph->orig_N; j++) {
       if(!graph->node_in_graph[j]) continue;
@@ -1529,9 +1535,11 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     
     for(pos = path->upstream_spliced_nuc_end[path->path_len]-1; pos >= path->upstream_spliced_nuc_end[path->path_len] - ALIGNMENT_EXT*3; pos-=3) {
       seq_pos = path_seq->n - pos + path_seq->end;
-      if(seq_pos > path_seq->n) {
+      if(seq_pos > path_seq->n-2) {
         ext_end_pos = seq_pos-1;
+        break;
       }
+      
       amino = esl_gencode_GetTranslation(gcode,&path_seq->dsq[seq_pos]);
  
       if(esl_abc_XIsNonresidue(gm->abc, amino)) {
@@ -1547,9 +1555,11 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     for(pos = path->upstream_spliced_nuc_end[path->path_len]+1; pos <= path->upstream_spliced_nuc_end[path->path_len] +  ALIGNMENT_EXT*3; pos+=3) {
 
       seq_pos = pos - path_seq->start + 1;
-      if(seq_pos > path_seq->n) {
+      if(seq_pos > path_seq->n-2 ) {
         ext_end_pos = seq_pos-1;
+        break;
       }
+
       amino = esl_gencode_GetTranslation(gcode,&path_seq->dsq[seq_pos]);
 
       if(esl_abc_XIsNonresidue(gm->abc, amino)) {
@@ -1558,7 +1568,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
       }
     }
   }
-  
+
   path_seq_len += (path_start_pos - ext_start_pos) + (ext_end_pos - path_end_pos);
  
   ESL_ALLOC(nuc_index, sizeof(int64_t) * (path_seq_len+2));
@@ -1632,7 +1642,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     amino_dsq[i] = amino;
     seq_idx+=3;
   }
-  // printf("3 path_seq_len %d\n", path_seq_len); 
+
   amino_dsq[amino_len+1] = eslDSQ_SENTINEL;
 
   /* Create ESL_SQs from ESL_DSQs */

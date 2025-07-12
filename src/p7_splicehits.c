@@ -263,9 +263,6 @@ p7_splicehits_AssignNodes(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, int first,
 
   th = graph->th;
   
-  for(i = 0; i < sh->N; i++)
-    sh->srt[i]->node_id = -1;
-
   for(i = first; i <= last; i++) {
     info_hmm_min = sh->srt[i]->hmm_start;
     info_hmm_max = sh->srt[i]->hmm_end;

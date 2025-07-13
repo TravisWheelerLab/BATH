@@ -1773,7 +1773,10 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
     p7_bg_fs_NullOne(bg, windowsq->dsq, dom->jali-dom->iali+1, &null1);
     dom->aliscore -= (dom->domcorrection + null1);      
   }
-  else if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+  else if(dom->scores_per_pos != NULL) {
+    free(dom->scores_per_pos);
+    dom->scores_per_pos = NULL;
+  }
 
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);

@@ -291,6 +291,7 @@ p7_hmm_Clone(const P7_HMM *hmm)
   for (z = 0; z < p7_NCUTOFFS; z++) new->cutoff[z]  = hmm->cutoff[z];
   for (z = 0; z < p7_MAXABET;  z++) new->compo[z]   = hmm->compo[z];
 
+  new->fs       = hmm->fs;
   new->offset   = hmm->offset;
   new->flags    = hmm->flags;
   new->abc      = hmm->abc;

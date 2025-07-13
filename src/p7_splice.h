@@ -173,7 +173,7 @@ typedef struct {
   P7_TOPHITS         *tophits;    /* original tophits                         */
   ESL_GENCODE        *gcode;      /* used for translation                     */
   ESL_SQFILE         *seq_file;   /* target sequence file                     */
-  int                 db_nuc_cnt; /* sequence database size for e-values      */
+  int64_t             db_nuc_cnt; /* sequence database size for e-values      */
   int                 num_graphs; /* total number of graphs                   */
   int                 thread_id;  /* ID of this thread                        */
   int                *graph_idx;  /* current graph index                      */

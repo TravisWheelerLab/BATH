@@ -78,7 +78,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   
   p7_splicehits_RemoveDuplicates(saved_hits);
 
-  printf("\nQuery %s LENG %d \n",  gm->name, gm->M);
+  printf("\nQuery %s LENG %d\n",  gm->name, gm->M);
   fflush(stdout);
 
   ncpus = 0;
@@ -86,8 +86,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   /* initialize thread data */
   ncpus = ESL_MIN(esl_opt_GetInteger(go, "--cpu"), esl_threads_GetCPUCount());
 #endif
-
-  printf("ncpus %d\n", ncpus);
+  
+//  printf("ncpus %d\n", ncpus);
   infocnt = (ncpus == 0) ? 1 : ncpus;
   ESL_ALLOC(info, sizeof(*info) * infocnt);
   for (i = 0; i < infocnt; ++i)
@@ -229,7 +229,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, SPLICE_SAVED_HITS *s
     /* Add all BATH hits from the correct seqidx and strand as nodes to graph */
     p7_splice_AddOriginals(graph, tophits);
 
-//printf("ORIGINAL first %d last %d\n", first, last);
+//printf("ORIGINAL\n");
 //p7_splicegraph_DumpHits(stdout, graph); 
 //fflush(stdout);
 	info->graph     = graph;
@@ -327,7 +327,7 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, SPLICE_SAVED_HITS *s
     /* Add all BATH hits from the correct seqidx and strand as nodes to graph */
     p7_splice_AddOriginals(graph, tophits);
 
-//printf("ORIGINAL first %d last %d\n", first, last);
+//printf("ORIGINAL\n");
 //p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
   }
@@ -450,9 +450,11 @@ splice_graph(SPLICE_WORKER_INFO *info)
   
   p7_splice_RecoverHits(graph, saved_hits, pli, hmm, gcode, seq_file, first, last, info);
 
+// if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
 //printf("RECOVER\n");
 //p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
+// if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateEdges(graph);
@@ -467,6 +469,9 @@ splice_graph(SPLICE_WORKER_INFO *info)
   path = p7_splicepath_GetBestPath_Unspliced(graph);
  
   while(path != NULL) {
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicepath_Dump(stdout,path);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
     path_accumulator[num_paths] = path;
     num_paths++;
 
@@ -493,6 +498,11 @@ splice_graph(SPLICE_WORKER_INFO *info)
     p7_splicepath_Destroy(path_accumulator[p]);
   }
 
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+
   /* Create splice edges */    
   p7_splice_ConnectGraph(graph, pli, gm_fs, hmm, gcode, seq_file, info);
   /* Create spliced paths */
@@ -500,7 +510,9 @@ splice_graph(SPLICE_WORKER_INFO *info)
   path = p7_splicepath_GetBestPath(graph); 
 
   while(path != NULL) {
-    
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicepath_Dump(stdout,path);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);  
     path_accumulator[num_paths] = path;
     num_paths++;
 
@@ -530,7 +542,7 @@ splice_graph(SPLICE_WORKER_INFO *info)
     if(path->path_len > 1) {
       seq_min = ESL_MIN(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) - ALIGNMENT_EXT*3;
       seq_max = ESL_MAX(path->downstream_spliced_nuc_start[0], path->upstream_spliced_nuc_end[path->path_len]) + ALIGNMENT_EXT*3;
-
+      
       path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, path->revcomp, info);
 
       if(!path->frameshift)
@@ -1598,7 +1610,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     }
     else {
       for (pos = path->downstream_spliced_nuc_start[i]; pos <= path->upstream_spliced_nuc_end[i+1]; pos++) {
-//        if (seq_idx == 772) printf("step %d pos %d seq_idx %d\n", i+1, pos, seq_idx);
+
         seq_pos = pos - path_seq->start + 1;
         nuc_index[seq_idx] = seq_pos;
         nuc_dsq[seq_idx]   = path_seq->dsq[seq_pos];
@@ -2903,7 +2915,7 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_SQ *nuc_sq, cons
     amino_dsq[a] = eslDSQ_SENTINEL;   
     p7_bg_SetLength(bg, a-1); 
     p7_bg_FilterScore(bg, amino_dsq, a-1, &bias); 
-    //printf("dom->aliscore %f bias %f dom->aliscore - bias %f\n", dom->aliscore, bias, dom->aliscore - bias);
+    
     dom->aliscore -= bias;
     free(amino_dsq);
   }

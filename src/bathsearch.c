@@ -397,23 +397,37 @@ bath_open_hmm_file(struct cfg_s *cfg,  P7_HMMFILE **hfp, char *errbuf, ESL_ALPHA
 static int
 bath_open_msa_file(struct cfg_s *cfg,  ESL_MSAFILE **qfp_msa, ESL_ALPHABET **abc) {
 
+  
   ESL_MSA *msa = NULL;
 
   int status = esl_msafile_Open(abc, cfg->queryfile, NULL, cfg->qfmt, NULL, qfp_msa);
-
   if (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open query file %s.\n", cfg->queryfile);
+
   if (status == eslOK) {
     status = esl_msafile_Read(*qfp_msa, &msa);
-    esl_msafile_Close(*qfp_msa);
-    qfp_msa = NULL;
-    esl_msa_Destroy(msa);
   }
+
+  if (status == eslOK && (*qfp_msa)->format == eslMSAFILE_AFA) {
+    /* this could just be a sequence file with o single sequence (in which case, fall through
+     * to the "sequence" case), or with several same-sized sequences (in which case ask for guidance) */
+    if (msa != NULL && msa->nseq > 1)
+      p7_Fail("Query file type could be either aligned or unaligned; please specify (--qformat [afa|fasta])");
+  } else if (status == eslOK) {
+    /* if ok, and not fasta, then it's an MSA ... proceed */
+    cfg->qfmt = (*qfp_msa)->format;
+  }
+  else {
+    esl_msafile_Close(*qfp_msa);
+    *qfp_msa = NULL;
+  }
+
+  esl_msa_Destroy(msa);
   return status;
 }
 
 static int
 bath_open_seq_file (struct cfg_s *cfg, ESL_SQFILE **qfp_sq, ESL_ALPHABET **abc) {
-
+ 
   ESL_SQ *qsq = NULL;
   int status = esl_sqfile_Open(cfg->queryfile, cfg->qfmt, NULL, qfp_sq);
 
@@ -522,9 +536,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     /* First check that the user has provided an output file for the converted HMMs */
     if (esl_opt_IsOn(go, "--hmmout")) {
       hmmfile = esl_opt_GetString(go, "--hmmout");
+      
     }
     else {
-      p7_Fail("must use the --hmmout flag and provide an hmm output file when using sequence queries\n");      
+      hmmfile = "/tmp/temp.bhmm";
     }
 
     status = bath_open_msa_file(cfg, &qfp_msa, &abcAA);
@@ -535,7 +550,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         hmmfile = esl_opt_GetString(go, "--hmmout");
       }
       else {
-        p7_Fail("must use the --hmmout flag and provide an hmm output file when using sequence queries\n");
+        hmmfile = "/tmp/temp.bhmm"; 
       }
  
       status = bath_open_seq_file(cfg, &qfp_sq, &abcAA);
@@ -577,22 +592,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
           hmmfile = esl_opt_GetString(go, "--hmmout");
         }
         else {
-          p7_Fail("must use the --hmmout flag and provide an hmm output file when using sequence queries\n");
+          hmmfile = "/tmp/temp.bhmm"; 
         }           
 
         status = bath_open_msa_file(cfg, &qfp_msa, &abcAA);
-        if (status == eslOK) {
-          if (qfp_msa->format == eslMSAFILE_AFA) {
-            /* this could just be a sequence file with o single sequence (in which case, fall through
-             * to the "sequence" case), or with several same-sized sequences (in which case ask for guidance) */
-            if (msa->nseq > 1)
-              p7_Fail("Query file type could be either aligned or unaligned; please specify (--qformat [afa|fasta])");
-          } else {
-            /* if ok, and not fasta, then it's an MSA ... proceed */
-            cfg->qfmt = qfp_msa->format;
-          }
-        }
-     
+
         if (cfg->qfmt == eslSQFILE_UNKNOWN) { /* it's not an MSA, try seq */
           status = bath_open_seq_file(cfg, &qfp_sq, &abcAA);
           if (status != eslOK) p7_Fail("Error reading query file %s (%d)\n", cfg->queryfile, status);
@@ -682,14 +686,16 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   if      (esl_opt_GetBoolean(go, "-m"))   esl_gencode_SetInitiatorOnlyAUG(gcode);
   else if (! esl_opt_GetBoolean(go, "-M")) esl_gencode_SetInitiatorAny(gcode);      // note this is the default, if neither -m nor -M are set
-
+  
   /* If query is alignment or sequence build the HMMs */
   if ( qfp_msa != NULL || qfp_sq != NULL ) {
 
+    if (qfp_msa) esl_msafile_Close(qfp_msa);
     if (qfp_sq)  esl_sqfile_Close(qfp_sq);
 
     p7_search_builder(go, abcAA, cfg->queryfile, hmmfile, cfg->qfmt);
     cfg->queryfile = hmmfile;
+    
     status = bath_open_hmm_file(cfg, &hfp, errbuf, &abcAA, &hmm);   
     if (status != eslOK) p7_Fail("Error reading hmms from %s (%d)\n", cfg->queryfile, status);
   }

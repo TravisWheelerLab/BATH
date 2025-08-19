@@ -321,6 +321,8 @@ thread_loop(ESL_THREADS *obj, ESL_WORK_QUEUE *queue, struct cfg_s *cfg, const ES
 
   char        errmsg[eslERRBUFSIZE];
 
+   cfg->nali = 0;
+
   esl_workqueue_Reset(queue);
   esl_threads_WaitForStart(obj);
 
@@ -329,7 +331,9 @@ thread_loop(ESL_THREADS *obj, ESL_WORK_QUEUE *queue, struct cfg_s *cfg, const ES
       
   /* Main loop: */
   item = (WORK_ITEM *) newItem;
+  
   while (sstatus == eslOK) {
+ 
     if (cfg->fmt > 100) {
       item->sq = NULL;
       sstatus = esl_msafile_Read(cfg->afp, &item->msa);
@@ -424,9 +428,8 @@ thread_loop(ESL_THREADS *obj, ESL_WORK_QUEUE *queue, struct cfg_s *cfg, const ES
       esl_sqfile_SetDigital(cfg->sfp, cfg->abc);
       item->sq = esl_sq_CreateDigital(cfg->abc); 
       sstatus = esl_sqio_Read(cfg->sfp, item->sq);
-      
+
       if (sstatus == eslOK) item->nali = ++cfg->nali;
-      
       else if (sstatus == eslEOF) {
           if (processed < cfg->nali) sstatus = eslOK;
           if (item->sq != NULL) { 
@@ -537,6 +540,7 @@ thread_loop(ESL_THREADS *obj, ESL_WORK_QUEUE *queue, struct cfg_s *cfg, const ES
 static void 
 pipeline_thread(void *arg)
 {
+  
   int           workeridx;
   int           status;
 
@@ -590,6 +594,7 @@ pipeline_thread(void *arg)
     }
     while (item->sq != NULL)
     {
+        
         status = p7_SingleBuilder(info->bld, item->sq, info->bg, &item->hmm, NULL, NULL, NULL);
         if (status != eslOK) p7_Fail("build failed: %s", info->bld->errbuf);
 
@@ -601,11 +606,12 @@ pipeline_thread(void *arg)
 
       item = (WORK_ITEM *) newItem;
     }
-    
+   
   status = esl_workqueue_WorkerUpdate(info->queue, item, NULL);
   if (status != eslOK) esl_fatal("Work queue worker failed");
 
   esl_threads_Finished(obj, workeridx);
+  
   return;
 }
 #endif   /* HMMER_THREADS */

@@ -87,7 +87,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 #endif
   
   /* Intialize data for threads */
-  infocnt = (ncpus == 0) ? 1 : ncpus-1;
+  infocnt = (ncpus == 0) ? 1 : ncpus;
   ESL_ALLOC(info, sizeof(*info) * infocnt);
   for (i = 0; i < infocnt; ++i)
   {

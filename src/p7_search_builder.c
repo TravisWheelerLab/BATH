@@ -122,6 +122,9 @@ p7_search_builder(const ESL_GETOPTS *go, ESL_ALPHABET *abc, char *infile, char *
   cfg.sfp     = NULL;
   cfg.hmmfp   = NULL; 
 
+  cfg.nali       = 0;
+  cfg.nnamed     = 0;
+
   if(fmt > 100) {
     status = esl_msafile_Open(&(cfg.abc), cfg.infile, NULL, cfg.fmt, NULL, &(cfg.afp));
     if (status != eslOK) esl_msafile_OpenFailure(cfg.afp, status);

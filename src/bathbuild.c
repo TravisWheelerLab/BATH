@@ -395,6 +395,7 @@ apply_fixed_gap_params(P7_HMM *hmm, double popen, double pextend){
 int
 main(int argc, char **argv)
 {
+
   ESL_GETOPTS     *go = NULL;	/* command line processing                 */
   ESL_STOPWATCH   *w  = esl_stopwatch_Create();
   struct cfg_s     cfg;
@@ -416,6 +417,7 @@ main(int argc, char **argv)
   cfg.ofp         = NULL;	           
   cfg.fmt         = eslMSAFILE_UNKNOWN;    /* autodetect alignment format by default. */ 
   cfg.afp         = NULL;	           
+  cfg.sfp         = NULL;
   cfg.abc         = NULL;	           
   cfg.hmmfp       = NULL;	           
   cfg.postmsafile = esl_opt_GetString(go, "-O"); /* NULL by default */
@@ -483,8 +485,10 @@ main(int argc, char **argv)
     if (cfg.abc)   esl_alphabet_Destroy(cfg.abc);
     if (cfg.hmmfp) fclose(cfg.hmmfp);
   }
+  
   esl_getopts_Destroy(go);
   esl_stopwatch_Destroy(w);
+  
   return 0;
 }
 
@@ -499,6 +503,7 @@ main(int argc, char **argv)
 static int
 usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 {
+  
   int              ncpus    = 0;
   int              infocnt  = 0;
   WORKER_INFO     *info     = NULL;
@@ -677,7 +682,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       esl_threads_Destroy(threadObj);
   }
 #endif
-
+  
   free(info);
   return eslOK;
 

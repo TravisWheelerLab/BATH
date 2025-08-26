@@ -1925,6 +1925,9 @@ extern int         p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1,
 extern int         p7_profile_Validate(const P7_PROFILE *gm, char *errbuf, float tol);
 extern int         p7_profile_Compare(P7_PROFILE *gm1, P7_PROFILE *gm2, float tol);
 
+/* p7_search_builder.c */
+extern int p7_search_builder(const ESL_GETOPTS *go, ESL_ALPHABET *abc, char *infile, char *hmmfile, int fmt);
+
 /* p7_spensemble.c */
 P7_SPENSEMBLE *p7_spensemble_Create(int init_n, int init_epc, int init_sigc);
 extern int     p7_spensemble_Reuse(P7_SPENSEMBLE *sp);

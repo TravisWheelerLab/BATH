@@ -407,7 +407,7 @@ bath_open_msa_file(struct cfg_s *cfg,  ESL_MSAFILE **qfp_msa, ESL_ALPHABET **abc
     status = esl_msafile_Read(*qfp_msa, &msa);
   }
 
-  if (status == eslOK && (*qfp_msa)->format == eslMSAFILE_AFA) {
+  if (status == eslOK && (*qfp_msa)->format == eslMSAFILE_AFA && cfg->qfmt != eslMSAFILE_AFA) {
     /* this could just be a sequence file with o single sequence (in which case, fall through
      * to the "sequence" case), or with several same-sized sequences (in which case ask for guidance) */
     if (msa != NULL && msa->nseq > 1)
@@ -533,6 +533,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* (1) If we were told a specific query file type, just do what we're told */
 
   if (esl_sqio_IsAlignment(cfg->qfmt) /* msa file */) {
+
     /* First check that the user has provided an output file for the converted HMMs */
     if (esl_opt_IsOn(go, "--hmmout")) {
       hmmfile = esl_opt_GetString(go, "--hmmout");
@@ -578,6 +579,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
  *            - if it's anything, it must be a sequence file, proceed accordingly *
  */
 
+    
  if ( cfg->qfmt == eslSQFILE_UNKNOWN ) {
     status = bath_open_hmm_file(cfg, &hfp, errbuf, &abcAA, &hmm);
     if (status != eslOK) { /* if it is eslOK, then it's an HMM, so we're done guessing */

@@ -32,15 +32,15 @@ sub ParseTbl {
     {
 	if (/^\#/) { next; }
 	chop;
-	@fields = split(' ', $_, 19);
+	@fields = split(' ', $_, 20);
 
-	$tname[$ntbl]     = $fields[0];
-	$tacc[$ntbl]      = $fields[1];
-	$qname[$ntbl]     = $fields[2];
-	$qacc[$ntbl]      = $fields[3];
-	$fullE[$ntbl]     = $fields[12];
-	$fullsc[$ntbl]    = $fields[13];
-	$fullbias[$ntbl]  = $fields[14];
+	$tname[$ntbl]     = $fields[1];
+	$tacc[$ntbl]      = $fields[2];
+	$qname[$ntbl]     = $fields[3];
+	$qacc[$ntbl]      = $fields[4];
+	$fullE[$ntbl]     = $fields[13];
+	$fullsc[$ntbl]    = $fields[14];
+	$fullbias[$ntbl]  = $fields[15];
 	#$best1E[$ntbl]    = $fields[7];
 	#$best1sc[$ntbl]   = $fields[8];
 	#$best1bias[$ntbl] = $fields[9];
@@ -52,7 +52,7 @@ sub ParseTbl {
 	#$ndom[$ntbl]      = $fields[15];
 	#$nrep[$ntbl]      = $fields[16];
 	#$ninc[$ntbl]      = $fields[17];
-	$tdesc[$ntbl]     = $fields[18];
+	$tdesc[$ntbl]     = $fields[19];
 	$ntbl++;
     }
     close TBLFILE;

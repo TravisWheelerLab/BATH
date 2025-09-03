@@ -1020,7 +1020,7 @@ typedef struct p7_hmm_window_s {
   int64_t       target_len;  //length of the target sequence
   int8_t        complementarity;
   int8_t        used_to_extend;
-  ESL_SQ_BLOCK *orf_block;   // all orfs used to create the window - FarHMMER
+  ESL_SQ_BLOCK *orf_block;   // all orfs used to create the window - BATH
 } P7_HMM_WINDOW;
 
 typedef struct p7_hmm_window_list_s {
@@ -1434,6 +1434,7 @@ typedef struct p7_pipeline_s {
   double  F1;                    /* MSV filter threshold                     */
   double  F2;                    /* Viterbi filter threshold                 */
   double  F3;                    /* uncorrected Forward filter threshold     */
+  double  F4;                    /* min ORF Forward filter before fs Forward */
   int     B1;                    /* window length for biased-composition modifier - MSV*/
   int     B2;                    /* window length for biased-composition modifier - Viterbi*/
   int     B3;                    /* window length for biased-composition modifier - Forward*/

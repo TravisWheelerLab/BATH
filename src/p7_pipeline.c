@@ -224,6 +224,7 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
   pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
+
   if (long_targets) {
     pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
     pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
@@ -392,6 +393,8 @@ p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int lon
   pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
+  pli->F4     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F4")) : 5e-4);
+
   if (long_targets) {
     pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
     pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
@@ -405,7 +408,7 @@ p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int lon
       pli->do_max        = TRUE;
       pli->do_biasfilter = FALSE;
 
-      pli->F2 = pli->F3 = 1.0;
+      pli->F2 = pli->F3 = pli->F4 = 1.0;
       pli->F1 = (pli->long_targets ? 0.3 : 1.0); // need to set some threshold for F1 even on long targets. Should this be tighter?
     }
   if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
@@ -481,6 +484,7 @@ p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int lon
  *            | --F1         |  Stage 1 (MSV) thresh: promote hits P <= F1 |    0.02   |
  *            | --F2         |  Stage 2 (Vit) thresh: promote hits P <= F2 |    1e-3   |
  *            | --F3         |  Stage 2 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
+ *            | --F4         |  Min ORF thresh for windows to go to fs Fwd |    5e-4   |
  *            | --nobias     |  turn OFF composition bias filter HMM       |   FALSE   |
  *            | --nonull2    |  turn OFF biased comp score correction      |   FALSE   |
  *            | --seed       |  RNG seed (0=use arbitrary seed)            |      42   |
@@ -602,6 +606,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
    pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
    pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
+   pli->F4     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F4")) : 5e-4);
    pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
    pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
    pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
@@ -611,7 +616,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
     pli->do_max        = TRUE;
     pli->do_biasfilter = FALSE;
 
-    pli->F1 = pli->F2 = pli->F3 = 1.0;
+    pli->F1 = pli->F2 = pli->F3 = pli->F4 = 1.0;
    }
    if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
    if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
@@ -2905,7 +2910,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   /*If this search is using the frameshift aware pipeline 
    * (user did not specify --nofs) than run Frameshift 
    * Forward on full Window and save score and P value.*/
-  if(pli->fs_pipe && (!pli->std_pipe || min_P_orf <= 0.0005)) {
+  if(pli->fs_pipe && (!pli->std_pipe || min_P_orf <= pli->F4)) {
     p7_bg_SetLength(bg, pli_tmp->tmpseq->n); 
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
@@ -3081,17 +3086,24 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   double             P;                   /* p-value holder                          */
   int                window_len;          /* length of DNA window                    */
   int                min_length;          /* minimum number of nucs passing a filter */
+  int                old_count; 
   ESL_SQ            *orfsq;               /* ORF sequence                            */
   ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */
+  P7_HMM_WINDOWLIST  ssv_windowlist;      /* list of ORF windows from SSV for splicing */
   P7_HMM_WINDOWLIST  post_vit_windowlist; /* list of windows from ORFs that pass viterbi */
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;  /* number of nucleotieds passing filters */
   P7_PIPELINE_BATH_OBJS *pli_tmp;   
+
+
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
   //printf("hmm %s seq %s\n", gm->name, dnasq->name); 
   //printf("\n\ndnasq->start %d dnasq->end %d\n", dnasq->start, dnasq->end);
   //fflush(stdout);
+  ssv_windowlist.windows = NULL;
+  if(pli->spliced) p7_hmmwindow_init(&ssv_windowlist); 
+
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_windowlist.windows = NULL;
@@ -3141,11 +3153,17 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
       p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
 	
       /* MSV Filter on ORF */
-      p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
-      seq_score = (usc - nullsc) / eslCONST_LOG2;
-      P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-      if (P > pli->F1 ) continue;    
-    
+      if(pli->spliced) {
+        old_count = ssv_windowlist.count;   
+        p7_SSVFilter_BATH(orfsq->dsq, orfsq->n, dnasq->idx, complementarity, om, pli->oxf, data, bg, pli->F1, &ssv_windowlist);
+        if ( ssv_windowlist.count == old_count ) continue;
+      }
+      else {
+        p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
+        seq_score = (usc - nullsc) / eslCONST_LOG2;
+        P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+        if (P > pli->F1 ) continue;    
+      }
       msv_coords->orf_starts[msv_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
       msv_coords->orf_ends[msv_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       msv_coords->orf_cnt++;
@@ -3233,6 +3251,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     if (pli_tmp->tmpseq != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
     free(pli_tmp);
   }
+  if (ssv_windowlist.windows != NULL)      free (ssv_windowlist.windows);
   if (post_vit_windowlist.windows != NULL) free (post_vit_windowlist.windows); 
 
   return eslOK;
@@ -3266,6 +3285,7 @@ ERROR:
   }
 
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
+  if (ssv_windowlist.windows != NULL)      free (ssv_windowlist.windows);
   if (post_vit_windowlist.windows != NULL) free (post_vit_windowlist.windows);
   return status;
 }

@@ -105,10 +105,11 @@ static ESL_OPTIONS options[] = {
   { "--tformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert target <seqfile> is in format <s>: no autodetection",               5 },
 
   /* Control of acceleration pipeline */
-  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3","turn all heuristic filters off (less speed, more power)",                  7 },
+  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3,--F4","turn all heuristic filters off (less speed, more power)",                  7 },
   { "--F1",           eslARG_REAL,   "0.02",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                         7 },
   { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                         7 },
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         7 },
+  { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                         7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            7 },
   { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--nofs",        "send all potential hits to the frameshift aware pipeline",                 7 },
@@ -283,6 +284,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--F1")                            && fprintf(ofp, "# MSV filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F1"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F2")                            && fprintf(ofp, "# Vit filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F2"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F3")                            && fprintf(ofp, "# Fwd filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F3"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--F4")                            && fprintf(ofp, "# ORF Fwd filter P threshold:                 <= %g\n",      esl_opt_GetReal(go, "--F4"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nobias")                        && fprintf(ofp, "# biased composition HMM filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nonull2")                       && fprintf(ofp, "# null2 bias corrections:                        off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fsonly")                        && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 

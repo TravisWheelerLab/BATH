@@ -308,7 +308,8 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
  *            | --max        |  turn all heuristic filters off             |   FALSE   |
  *            | --F1         |  Stage 1 (MSV) thresh: promote hits P <= F1 |    0.02   |
  *            | --F2         |  Stage 2 (Vit) thresh: promote hits P <= F2 |    1e-3   |
- *            | --F3         |  Stage 2 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
+ *            | --F3         |  Stage 3 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
+ *            | --F4         |  Stage 3 (FS-Fwd) thresh: promote hits P <= F4 |    5e-4   |
  *            | --nobias     |  turn OFF composition bias filter HMM       |   FALSE   |
  *            | --nonull2    |  turn OFF biased comp score correction      |   FALSE   |
  *            | --seed       |  RNG seed (0=use arbitrary seed)            |      42   |
@@ -426,6 +427,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
    pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
    pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
+   pli->F4     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F4")) : 5e-4);
    pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
    pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
    pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
@@ -435,7 +437,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
     pli->do_max        = TRUE;
     pli->do_biasfilter = FALSE;
 
-    pli->F2 = pli->F3 = 1.0;
+    pli->F2 = pli->F3 = pli->F4 = .0;
     pli->F1 = 1.0; // need to set some threshold for F1 even on long targets. Should this be tighter?
    }
    if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
@@ -2606,25 +2608,6 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   pli_tmp->tmpseq->end = dna_window->n + dna_window->length - 1; 
   pli_tmp->tmpseq->dsq = subseq;
  
-  P_fs        = eslINFINITY;
-  P_fs_nobias = eslINFINITY;
-
-  /*If this search is using the frameshift aware pipeline 
-   * (user did not specify --nofs) than run Frameshift 
-   * Forward on full Window and save score and P value.*/
-  if(pli->fs_pipe) {
-    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
-
-    p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, 4, dna_window->length, 0);
-    p7_fs_ReconfigLength(gm_fs, dna_window->length);
-	
-    p7_ForwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxf, &fwdsc_fs);
-    
-    seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
-    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]); 
-  }
-
   tot_orf_sc = eslINFINITY;
   tot_orf_P  = eslINFINITY;
   min_P_orf  = eslINFINITY;
@@ -2694,7 +2677,27 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
   } 
 
-  /* Compare Pvalues to select either the standard or the frameshift pipeline
+
+  P_fs        = eslINFINITY;
+  P_fs_nobias = eslINFINITY;
+
+  /*If this search is using the frameshift aware pipeline 
+   * (user did not specify --nofs) than run Frameshift 
+   * Forward on full Window and save score and P value.*/
+  if(pli->fs_pipe && (!pli->std_pipe || min_P_orf <= pli->F4)) {
+    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
+
+    p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, 4, dna_window->length, 0);
+    p7_fs_ReconfigLength(gm_fs, dna_window->length);
+	
+    p7_ForwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxf, &fwdsc_fs);
+    
+    seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
+    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
+    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]); 
+  }
+
+    /* Compare Pvalues to select either the standard or the frameshift pipeline
    * If the DNA window passed frameshift forward AND produced a lower P-value 
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline

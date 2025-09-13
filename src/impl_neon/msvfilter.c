@@ -438,18 +438,17 @@ p7_SSVFilter_longtarget(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, 
 /*------------------ end, p7_SSVFilter_longtarget() ------------------------*/
 
 /* Function:  p7_SSVFilter_BATH()
- * Synopsis:  Identical to p7_SSVFilter_longtarget(), except for additional
- *            arguments to track seq id and complementarity of the DNA sequence
+ * Synopsis:  Identical to p7_SSVFilter_longtarget(), except for nullsc is 
+ *            percomputed based on ORF seq length
  *
  * Args:      dsq             - digital ORF sequence, 1..L
  *            L               - length of dsq in residues
- *            seq_id          - DNA sequence id
- *            complementarity - complementarity of DNA sequence
  *            om              - optimized profile
  *            ox              - DP matrix
  *            msvdata         - compact representation of substitution scores, for backtracking diagonals
  *            bg              - the background model, required for translating a P-value threshold into a score threshold
  *            P               - p-value below which a region is captured as being above threshold
+ *            nullsc          - null score for ORF sequence
  *            windowlist      - preallocated container for all hits (resized if necessary)
  *
  * Returns:   <eslOK> on success.
@@ -457,9 +456,8 @@ p7_SSVFilter_longtarget(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, 
  * Throws:    <eslEINVAL> if <ox> allocation is too small.
  */
 int
-p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, uint32_t seq_id, uint8_t complementarity, 
-                        P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata,
-                        P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist)
+p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata,
+                        P7_BG *bg, double P, float nullsc, P7_HMM_WINDOWLIST *windowlist)
 {
 
   register uint8x16_t mpv;       /* previous row values                                       */
@@ -510,24 +508,14 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, uint32_t seq_id, uint8_t complement
    *  usc *= om->scale_b
    *  S = usc + om->tec_b + om->tjb_b + om->base_b
    *
-   *  Here, I compute threshold with length model based on max_length.  Doesn't
-   *  matter much - in any case, both the bg and om models will change with roughly
-   *  1 bit for each doubling of the length model, so they offset.
    */
-  float nullsc;
   uint8x16_t sc_threshv;
   uint8_t sc_thresh;
   float invP = esl_gumbel_invsurv(P, om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
 
-
   /* Check that the DP matrix is ok for us. */
   if (Q > ox->allocQ16)  ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small");
   ox->M   = om->M;
-
-
-  p7_bg_SetLength(bg, om->max_length);
-  p7_oprofile_ReconfigMSVLength(om, om->max_length);
-  p7_bg_NullOne  (bg, dsq, om->max_length, &nullsc);
 
   sc_thresh = (int) ceil( ( ( nullsc  + (invP * eslCONST_LOG2) + 3.0 )  * om->scale_b ) + om->base_b +  om->tec_b  + om->tjb_b );
   sc_threshv = vmovq_n_u8(255 - sc_thresh);
@@ -630,13 +618,13 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, uint32_t seq_id, uint8_t complement
         ret_sc -= 3.0; // that's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ
 
         p7_hmmwindow_new(  windowlist,
-                           seq_id,             // DNA sequence id 
+                           0,             
                            target_start,       // position in the target at which the diagonal starts
                            0,                  // position in the target fm_index at which diagonal starts;  not used here, just in FM-based filter
                            end,                // position in the model at which the diagonal ends
                            end-start+1 ,       // length of diagonal
                            ret_sc,             // score of diagonal
-                           complementarity,    // complementarity of DNA sequence 
+                           p7_NOCOMPLEMENT,    
                            L
                            );
 

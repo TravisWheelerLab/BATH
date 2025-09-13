@@ -74,12 +74,13 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   ali_seq = NULL;
   info    = NULL;
   
-  /* Remove Duplicates from saved hits list */
+  /* Sort saved hits and removed duplicates */
   p7_splicehits_RemoveDuplicates(saved_hits);
-
+  
   printf("\nQuery %s LENG %d\n",  gm->name, gm->M);
   fflush(stdout);
 
+//p7_splicehits_Dump(stdout, saved_hits); 
   /* Get the number of threads */
   ncpus = 0;
 #ifdef HMMER_THREADS
@@ -163,7 +164,6 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, SPLICE_SAVED_HITS *s
   int              g, h;
   int              num_graphs;
   int              revcomp, curr_revcomp;
-  int              first, last;
   int64_t          seqidx, curr_seqidx;
   SPLICE_GRAPH    **graphs;
   SPLICE_GRAPH    *graph;
@@ -259,7 +259,6 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, SPLICE_SAVED_HITS *s
   int              i, g, h;
   int              num_graphs;
   int              revcomp, curr_revcomp;
-  int              first, last;
   int              graph_idx;
   int64_t          seqidx, curr_seqidx;
   SPLICE_GRAPH    **graphs;
@@ -331,9 +330,9 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, SPLICE_SAVED_HITS *s
 
     p7_splice_AddOriginals(graph, tophits);
 
-//printf("ORIGINAL\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
+printf("ORIGINAL\n");
+p7_splicegraph_DumpHits(stdout, graph);
+fflush(stdout);
   }
   
   /* Initialize mutex */
@@ -531,13 +530,13 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   printf("\nQuery %s Target %s strand %c first %d last %d seqidx %d\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), first, last, graph->seqidx);
   fflush(stdout);
   
-  p7_splice_RecoverHits(info, first, last);
+  p7_splice_RecoverViterbiHits(info, first, last);
 
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
-// if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+printf("RECOVER\n");
+p7_splicegraph_DumpHits(stdout, graph);
+fflush(stdout);
+ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateEdges(graph);
@@ -551,9 +550,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
   path = p7_splicepath_GetBestPath_Unspliced(graph);
   while(path != NULL) {
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//p7_splicepath_Dump(stdout,path);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
     for(s = 0; s < path->path_len; s++) {
       graph->node_in_graph[path->node_id[s]] = FALSE;
@@ -581,7 +577,10 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
   /* Align paths with spliced Viterbi to find missing exon and internal introns */
   for(p = 0; p < orig_paths; p++) {
-
+    p7_splice_RecoverSSVHits(info, path_accumulator[p], first, last);    
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+p7_splicepath_Dump(stdout,path_accumulator[p]);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
     p7_splicepath_Destroy(path_accumulator[p]);
   }
@@ -692,8 +691,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
 }
 
-/*  Function: p7_splice_RecoverHits
- *  Synopsis: Add revcoverd hits to graph
+/*  Function: p7_splice_RecoverViterbiHits
+ *  Synopsis: Add revcoverd viterbi hits to graph
  *
  *  Purpose : Recover potential exons that were discarded by 
  *            the BATH forward filter but saved in <ifo->sh> 
@@ -704,7 +703,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_RecoverHits(SPLICE_WORKER_INFO *info, int first, int last) 
+p7_splice_RecoverViterbiHits(SPLICE_WORKER_INFO *info, int first, int last) 
 {
 
   int i, j, s;
@@ -736,7 +735,8 @@ p7_splice_RecoverHits(SPLICE_WORKER_INFO *info, int first, int last)
   tmp_dom = p7_domain_Create_empty();
 
   for(i = first; i <= last; i++) {
-    
+   
+    if(!sh->srt[i]->viterbi) continue; 
     if(sh->srt[i]->duplicate) continue;
     if(sh->srt[i]->node_id >= 0) continue;
     
@@ -836,6 +836,68 @@ p7_splice_RecoverHits(SPLICE_WORKER_INFO *info, int first, int last)
 }
 
 
+/*  Function: p7_splice_RecoverSSVHits
+ *  Synopsis: Add revcoverd SSV hits to path
+ *
+ *  Purpose : Recover potential exons that were discarded by 
+ *            the BATH Viterbi filter but saved in <ifo->sh> 
+ *            and add them to splice path
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_splice_RecoverSSVHits(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, int first, int last) 
+{
+
+  int i, s;
+  P7_HIT            *tmp_hit;
+  P7_DOMAIN         *tmp_dom; 
+  SPLICE_SAVED_HITS *sh;
+
+  sh = info->sh;
+
+  tmp_dom = p7_domain_Create_empty();
+
+  s = 1;
+  while(s < path->path_len) {
+    
+    for(i = first; i <= last; i++) {
+
+      if(sh->srt[i]->viterbi) continue;
+      if(sh->srt[i]->duplicate) continue;
+      if(sh->srt[i]->node_id >= 0) continue;
+
+      tmp_dom->ihmm = sh->srt[i]->hmm_start;
+      tmp_dom->jhmm = sh->srt[i]->hmm_end;
+      tmp_dom->iali = sh->srt[i]->seq_start;
+      tmp_dom->jali = sh->srt[i]->seq_end;    
+
+      if(hit_upstream(path->hits[s-1]->dcl, tmp_dom, path->revcomp) &&
+         hit_upstream(tmp_dom, path->hits[s]->dcl, path->revcomp)) {
+
+        tmp_hit      = p7_hit_Create_empty();          
+        tmp_hit->dcl = p7_domain_Create_empty();
+
+        tmp_hit->dcl->ihmm = tmp_dom->ihmm;
+        tmp_hit->dcl->jhmm = tmp_dom->jhmm;
+        tmp_hit->dcl->iali = tmp_dom->iali;
+        tmp_hit->dcl->jali = tmp_dom->jali;
+        
+        p7_splicepath_Insert(path, tmp_hit, s-1);
+      
+        sh->srt[i]->duplicate = TRUE;
+        s--;
+        break;      
+      }
+    }
+    s++;
+  }
+ 
+  p7_domain_Destroy(tmp_dom); 
+  return eslOK;
+}
 
 /*  Function: p7_splice_CreateEdges
  *  Synopsis: Add unspliced edges
@@ -910,23 +972,28 @@ int
 p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq)
 {
 
-  int e, s;
-  int s1, s2;
+  int e, s, x;
   int num_hits;
-  int sub_path_min, sub_path_max;
   int sub_path_len;
   int first_split, last_split;
   int split_exons;
+  int seq_idx;
+  int seq_pos;
+  int true_idx;
+  int intron_len;
+  int64_t         *nuc_index;
   P7_HMM          *sub_hmm;  
   P7_HMM          *hmm;
   P7_PROFILE      *gm;
   P7_FS_PROFILE   *gm_fs;
   ESL_GENCODE     *gcode;
+  ESL_DSQ         *sub_dsq;
   ESL_DSQ         *ali_dsq;
   ESL_SQ          *ali_seq;
   SPLICE_GRAPH    *graph;
   SPLICE_PIPELINE *pli;
   P7_HIT          **exons;
+  int status;
 
   graph = info->graph;
   pli   = info->pli;
@@ -942,23 +1009,28 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 
     sub_path_len = abs(path->hits[0]->dcl->jali - path->hits[0]->dcl->iali)+1;
 
-    ali_dsq   = path_seq->dsq+(ALIGNMENT_EXT*3)-1;
-    ali_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, ali_dsq, sub_path_len, NULL,NULL,NULL); 
+    ali_dsq = path_seq->dsq + abs(path->hits[0]->dcl->iali - path_seq->start);
+    ali_seq = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, ali_dsq, sub_path_len, NULL,NULL,NULL); 
 
-    if(graph->revcomp) {
-      ali_seq->start = path_seq->start - (ALIGNMENT_EXT*3);
-      ali_seq->end   = path_seq->end + (ALIGNMENT_EXT*3);
-    }
-    else {
-      ali_seq->start = path_seq->start + (ALIGNMENT_EXT*3);
-      ali_seq->end   = path_seq->end - (ALIGNMENT_EXT*3); 
-    }
-    //printf("path_seq->start %d path_seq->end %d ali_seq->start %d ali_seq->end %d\n", path_seq->start, path_seq->end, ali_seq->start, ali_seq->end);
+    ali_seq->start = path->hits[0]->dcl->iali;
+    ali_seq->end   = path->hits[0]->dcl->jali;
+    
     sub_hmm     = p7_splice_GetSubHMM(hmm, path->hits[0]->dcl->ihmm, path->hits[0]->dcl->jhmm);
     sub_hmm->fs = 0.;
 
     /* Get all hits (exons) in path */    
     exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[0]->dcl->ihmm, &num_hits); 
+
+    for(e = 0; e < num_hits; e++) {
+      if(graph->revcomp) {
+        exons[e]->dcl->iali = ali_seq->n - exons[e]->dcl->iali + ali_seq->end;
+        exons[e]->dcl->jali = ali_seq->n - exons[e]->dcl->jali + ali_seq->end;
+      }
+      else {
+        exons[e]->dcl->iali = ali_seq->start + exons[e]->dcl->iali - 1;
+        exons[e]->dcl->jali = ali_seq->start + exons[e]->dcl->jali - 1;
+      }
+    }
 
     add_split_exons(graph, pli, exons, hmm, gm_fs, gm, gcode, ali_seq, path->hits[0]->dcl->aliscore, path->node_id[0], num_hits, FALSE);
 
@@ -968,6 +1040,18 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       sub_hmm->fs = hmm->fs;
       
       exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[0]->dcl->ihmm, &num_hits);
+
+      for(e = 0; e < num_hits; e++) {
+        if(graph->revcomp) {
+          exons[e]->dcl->iali = ali_seq->n - exons[e]->dcl->iali + ali_seq->end;
+          exons[e]->dcl->jali = ali_seq->n - exons[e]->dcl->jali + ali_seq->end;
+        }
+        else {
+          exons[e]->dcl->iali = ali_seq->start + exons[e]->dcl->iali - 1;
+          exons[e]->dcl->jali = ali_seq->start + exons[e]->dcl->jali - 1;
+        }
+      }
+
 
       add_split_exons(graph, pli, exons, hmm, gm_fs, gm, gcode, ali_seq, path->hits[0]->dcl->aliscore, path->node_id[0], num_hits, TRUE);
       
@@ -980,55 +1064,211 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     return eslOK;
   }
 
-  sub_path_len = 0; 
+  /* Get the length of the sub path which includes the length of all 
+   * hits plus either the first and last 150 nucleotides of the each intron 
+   * or the whole intron (whichever is shorter) */
+  sub_path_len = 0;
+  sub_path_len += abs(path->upstream_spliced_nuc_end[1] - path->downstream_spliced_nuc_start[0]) + 1;
+  for (s = 1; s < path->path_len; s++) {
+    sub_path_len += ESL_MIN(300, abs(path->downstream_spliced_nuc_start[s] - path->upstream_spliced_nuc_end[s]) - 1); 
+    sub_path_len += abs(path->upstream_spliced_nuc_end[s+1] - path->downstream_spliced_nuc_start[s]) + 1;
+  }
 
-  s1 = 0;
-  s2 = 0;
-  while(s1 < path->path_len) {    
-     
-    while(sub_path_len <  MAX_INTRON_LENG) {
-     
-      s2++;
-      if(s2 == path->path_len) break;
-      
-      sub_path_min = ESL_MIN(path->hits[s1]->dcl->iali, path->hits[s2]->dcl->jali);
-      sub_path_max = ESL_MAX(path->hits[s1]->dcl->iali, path->hits[s2]->dcl->jali);
-      sub_path_len = sub_path_max - sub_path_min + 1;
+  ESL_ALLOC(nuc_index, sizeof(int64_t) * (sub_path_len+2));
+  ESL_ALLOC(sub_dsq,   sizeof(ESL_DSQ) * (sub_path_len+2));
+
+  nuc_index[0] = -1;
+  sub_dsq[0]   = eslDSQ_SENTINEL;
+  seq_idx   = 1;
+
+  /* Add seqeuence for first hit */
+  seq_pos  = abs(path->hits[0]->dcl->iali - path_seq->start) + 1;
+  true_idx = path->hits[0]->dcl->iali;
+  if(graph->revcomp) {
+    while(true_idx >= path->hits[0]->dcl->jali) { 
+      nuc_index[seq_idx] = true_idx;
+      sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+      seq_idx++;
+      seq_pos++;
+      true_idx--;  
     }
-
-    sub_path_min = ESL_MIN(path->hits[s1]->dcl->iali, path->hits[s2-1]->dcl->jali);
-    sub_path_max = ESL_MAX(path->hits[s1]->dcl->iali, path->hits[s2-1]->dcl->jali);
-    sub_path_len = sub_path_max - sub_path_min + 1;
-  
-   
-    if(graph->revcomp) {
-      ali_dsq   = path_seq->dsq+(path_seq->start-sub_path_max)-1;
-      ali_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, ali_dsq, sub_path_len, NULL,NULL,NULL);
-
-      ali_seq->start = path_seq->start - (path_seq->start-sub_path_max);
-      ali_seq->end =   path_seq->end + (sub_path_min-path_seq->end);
+  }
+  else {
+    while(true_idx <= path->hits[0]->dcl->jali) {
+      nuc_index[seq_idx] = true_idx;
+      sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+      seq_idx++;
+      seq_pos++;
+      true_idx++;
+    }
+  } 
+ 
+  for (s = 1; s < path->path_len; s++) {
+    intron_len = abs(path->downstream_spliced_nuc_start[s] - path->upstream_spliced_nuc_end[s]) - 1;
+    /* If the intron is <= 300bp add the full intron seqeunce, 
+     * otherwise add only first and last 150 nucleutides */
+    if(intron_len <= 300) {
+      if(graph->revcomp) {    
+        while(true_idx >= path->hits[s]->dcl->iali) { 
+          nuc_index[seq_idx] = true_idx;
+          sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+          seq_idx++;
+          seq_pos++;
+          true_idx--; 
+        }
+      }
+      else {
+        while(true_idx <= path->hits[0]->dcl->jali) {
+        nuc_index[seq_idx] = true_idx;
+          sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+          seq_idx++;
+          seq_pos++;
+          true_idx++;
+        }
+      }
     }
     else {
-      ali_dsq   = path_seq->dsq+(sub_path_min-path_seq->start)-1;
-      ali_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, ali_dsq, sub_path_len, NULL,NULL,NULL);    
+      /* Add first 150 nucleotides on intron */
+      for(x = 0; x < 150; x++) {
+        if(graph->revcomp) {
+          nuc_index[seq_idx] = true_idx;
+          sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+          seq_idx++;
+          seq_pos++;
+          true_idx--;
+        }
+        else {
+          nuc_index[seq_idx] = true_idx;
+          sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+          seq_idx++;
+          seq_pos++;
+          true_idx++;
+        }
+      }
+      
+      /* Skip middle part of intron */
+      if(graph->revcomp) {
+        while(true_idx > path->hits[s]->dcl->iali+150) {
+          seq_pos++;
+          true_idx--;
+        }
+      }
+      else {
+        while(true_idx < path->hits[s]->dcl->iali-150) {  
+          seq_pos++;
+          true_idx++;
+        }   
+      }
+      
+      /* Add last 150 nucleotide of intron and full exon */
+      if(graph->revcomp) {
+        while(true_idx >= path->hits[s]->dcl->jali) {
+          nuc_index[seq_idx] = true_idx;
+          sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+          seq_idx++;
+          seq_pos++;
+          true_idx--;
+        }
+      }
+      else {
+        while(true_idx <= path->hits[s]->dcl->jali) {
+          nuc_index[seq_idx] = true_idx;
+          sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
+          seq_idx++;
+          seq_pos++;
+          true_idx++;
+        }
+      }   
+    }
+  } 
 
-      ali_seq->start = path_seq->start + (sub_path_min-path_seq->start);
-      ali_seq->end   = path_seq->end - (path_seq->end-sub_path_max);
+  nuc_index[seq_idx] = -1;
+  sub_dsq[seq_idx]   = eslDSQ_SENTINEL;
+  ali_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, sub_dsq, sub_path_len, NULL,NULL,NULL);
+  ali_seq->start = path->hits[0]->dcl->iali;
+  ali_seq->end   = path->hits[path->path_len-1]->dcl->jali;
+  
+  sub_hmm     = p7_splice_GetSubHMM(hmm, path->hits[0]->dcl->ihmm, path->hits[path->path_len-1]->dcl->jhmm);
+  sub_hmm->fs = 0.;
+  exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[0]->dcl->ihmm, &num_hits);
+
+  for(e = 0; e < num_hits; e++) {
+    if(graph->revcomp) {
+      exons[e]->dcl->iali = ali_seq->n - exons[e]->dcl->iali + ali_seq->end;
+      exons[e]->dcl->jali = ali_seq->n - exons[e]->dcl->jali + ali_seq->end;
+    }
+    else {
+      exons[e]->dcl->iali = ali_seq->start + exons[e]->dcl->iali - 1;
+      exons[e]->dcl->jali = ali_seq->start + exons[e]->dcl->jali - 1;
+    }
+  }
+
+  first_split = 0;
+  last_split  = 0;
+  e = 0;
+  while ( e < num_hits) {
+    split_exons = -1;
+
+    /* Check if the current exon overlap suffcenitly with any of the original hits */
+    s = 0;
+    while( s < path->path_len) {
+      if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
+         seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
+        first_split = e;
+
+        /*Find any additional hits that ovelap with the same orignal hit */
+        while(e+1 < num_hits && hmm_overlap(exons[e+1]->dcl, path->hits[s]->dcl) > 0.5 &&
+              seq_overlap(exons[e+1]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
+          e++;
+        }
+        last_split = e;
+     
+        /* Check that any splits of original hits are better scoring than the 
+         * unsplit alternaitve and add them to the graph */
+        split_exons = last_split - first_split + 1;      
+          
+        add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
+      
+        s = path->path_len;
+      }
+      s++;    
     }
     
-    sub_hmm     = p7_splice_GetSubHMM(hmm, path->hits[s1]->dcl->ihmm, path->hits[s2-1]->dcl->jhmm);
-    sub_hmm->fs = 0.;
-    exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[s1]->dcl->ihmm, &num_hits);
+    /* If the current exon does not overlap with any orignal hits add it to graph */
+    if(split_exons == -1) 
+      p7_splicegraph_AddNode(graph, exons[e]);    
+
+    e++;
+  }
+
+  free(exons);
+
+  if(path->frameshift) {
+    sub_hmm->fs = hmm->fs;
+
+    exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[0]->dcl->ihmm, &num_hits);
+
+    for(e = 0; e < num_hits; e++) {
+      if(graph->revcomp) {
+        exons[e]->dcl->iali = ali_seq->n - exons[e]->dcl->iali + ali_seq->end;
+        exons[e]->dcl->jali = ali_seq->n - exons[e]->dcl->jali + ali_seq->end;
+      }
+      else {
+        exons[e]->dcl->iali = ali_seq->start + exons[e]->dcl->iali - 1;
+        exons[e]->dcl->jali = ali_seq->start + exons[e]->dcl->jali - 1;
+      }
+    }
 
     first_split = 0;
     last_split  = 0;
     e = 0;
     while ( e < num_hits) {
+
       split_exons = -1;
 
       /* Check if the current exon overlap suffcenitly with any of the original hits */
-      s = s1;
-      while( s < s2) {
+      s = 0;
+      while( s < path->path_len) {
         if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
            seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
           first_split = e;
@@ -1039,80 +1279,38 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
             e++;
           }
           last_split = e;
-     
-          /* Check that ant splits of original hits are better scoring than the 
-           * unsplit alternaitve and add them to the graph */
-          split_exons = last_split - first_split + 1;      
-          
+
+          /* Check that ant splits of original hits are better scoring than the unsplit alternaitve and add them to the graph */
+          split_exons = last_split - first_split + 1;
           add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
-      
-          s = s2;
+
+          s = path->path_len;
         }
-        s++;    
+        s++;
       }
-    
+
       /* If the current exon does not overlap with any orignal hits add it to graph */
-      if(split_exons == -1) 
-        p7_splicegraph_AddNode(graph, exons[e]);    
-     
+      if(split_exons == -1)
+        p7_splicegraph_AddNode(graph, exons[e]);
+
       e++;
     }
 
     free(exons);
 
-    if(path->frameshift) {
-      sub_hmm->fs = hmm->fs;
-
-      exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, graph->revcomp, path->hits[s1]->dcl->ihmm, &num_hits);
-
-      first_split = 0;
-      last_split  = 0;
-      e = 0;
-      while ( e < num_hits) {
-  
-        split_exons = -1;
-  
-        /* Check if the current exon overlap suffcenitly with any of the original hits */
-        s = s1;
-        while( s < s2) {
-          if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
-             seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
-            first_split = e;
-  
-            /*Find any additional hits that ovelap with the same orignal hit */
-            while(e+1 < num_hits && hmm_overlap(exons[e+1]->dcl, path->hits[s]->dcl) > 0.5 &&
-                  seq_overlap(exons[e+1]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
-              e++;
-            }
-            last_split = e;
-  
-            /* Check that ant splits of original hits are better scoring than the unsplit alternaitve and add them to the graph */
-            split_exons = last_split - first_split + 1;
-            add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
-  
-            s = s2;
-          }
-          s++;
-        }
-  
-        /* If the current exon does not overlap with any orignal hits add it to graph */
-        if(split_exons == -1)
-          p7_splicegraph_AddNode(graph, exons[e]);
-  
-        e++;
-      }
-  
-      free(exons);
-
-    }
-
-    s1 = s2;
-    esl_sq_Destroy(ali_seq);
-    p7_hmm_Destroy(sub_hmm);
   }
  
+  esl_sq_Destroy(ali_seq);
+  p7_hmm_Destroy(sub_hmm);
+  free(nuc_index);
+  free(sub_dsq);
+
   return eslOK;
 
+  ERROR:
+    free(nuc_index);
+    free(sub_dsq);
+    return status;
 }
 
 
@@ -1124,8 +1322,6 @@ p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL
   int         intron_cnt;
   int         exon_cnt;
   int         start_new;
-  int         ihmm, jhmm;
-  int         iali, jali;
   P7_FS_PROFILE *sub_fs_model;
   P7_GMX       *vit_mx;
   P7_HIT       *new_hit;
@@ -1179,29 +1375,16 @@ p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL
      /*Trace back to last M state of exon*/
       while(tr->st[z] != p7T_M) z--;
 
-      /* Get exon coords */
-      ihmm = tr->k[y] + hmm_start - 1;
-      jhmm = tr->k[z] + hmm_start - 1;
-      
-      if(revcomp) {
-        iali = ali_seq->n - tr->i[y] + ali_seq->end + tr->c[y] - 1;
-        jali = ali_seq->n - tr->i[z] + ali_seq->end;
-      }
-      else {
-        iali = ali_seq->start + tr->i[y] - tr->c[y];
-        jali = ali_seq->start + tr->i[z] - 1;
-      }
-      
       /* Create new hit and  set ihmm and iali coords*/
       new_hit          = p7_hit_Create_empty();
       new_hit->dcl     = p7_domain_Create_empty();
       new_hit->dcl->tr = p7_trace_fs_Create();
 
-      new_hit->dcl->ihmm = ihmm;
-      new_hit->dcl->jhmm = jhmm;
-      new_hit->dcl->iali = iali;
-      new_hit->dcl->jali = jali;
-       //printf("ihmm %d jhmm %d iali %d jali %d\n", ihmm, jhmm, iali, jali); 
+      new_hit->dcl->ihmm = tr->k[y] + hmm_start - 1;
+      new_hit->dcl->jhmm = tr->k[z] + hmm_start - 1;
+      new_hit->dcl->iali = tr->i[y] - tr->c[y] + 1;
+      new_hit->dcl->jali = tr->i[z];
+ 
       /* Append starting special states */
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_S , 0, 0, 0);
       p7_trace_fs_Append(new_hit->dcl->tr, p7T_N , 0, tr->i[y]-3, 0);
@@ -1671,7 +1854,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
   float        nullsc;
   float        dom_score;
   double       dom_lnP;
-  int         *nuc_index;
+  int64_t     *nuc_index;
   ESL_DSQ     *nuc_dsq;
   ESL_DSQ     *amino_dsq;
   ESL_SQ      *nuc_seq;
@@ -1798,7 +1981,6 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli
     if (path->revcomp) {
       for (pos = path->downstream_spliced_nuc_start[i]; pos >= path->upstream_spliced_nuc_end[i+1]; pos--) {
         seq_pos = path_seq->n - pos + path_seq->end;
-  //      if (seq_idx == 772) printf("step %d pos %d seq_idx %d\n", i+1, pos, seq_idx);
         nuc_index[seq_idx] = seq_pos;
         nuc_dsq[seq_idx]   = path_seq->dsq[seq_pos];
         seq_idx++;
@@ -2194,7 +2376,7 @@ p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIP
   float        nullsc;
   float        dom_score;
   double       dom_lnP;
-  int         *nuc_index;
+  int64_t     *nuc_index;
   ESL_DSQ     *nuc_dsq;
   ESL_SQ      *nuc_seq;
   P7_HIT      *replace_hit;

@@ -130,6 +130,59 @@ p7_splicepath_Grow(SPLICE_PATH *path)
 
 }
 
+/* Function:  p7_splicepath_Insert()
+ * Synopsis:  Insert a new path hit between two existing hits. 
+ *
+ * Purpose:   Add new <P7_HIT> to existing <SPLICE_PATH> one 
+ *            step downstream of the provided upstream idx
+ *
+ * Returns:   <eslOK>.
+ *
+ */
+int
+p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int upstream)
+{
+
+  int s;
+  
+  p7_splicepath_Grow(path); 
+
+  for(s = path->path_len; s > upstream; s--) {
+
+    path->hits[s]       = path->hits[s-1];
+    path->hit_scores[s] = path->hit_scores[s-1];
+    path->node_id[s]    = path->node_id[s-1];
+
+    path->downstream_spliced_amino_start[s] = path->downstream_spliced_amino_start[s-1];
+    path->upstream_spliced_amino_end[s+1]     = path->upstream_spliced_amino_end[s];
+    path->downstream_spliced_nuc_start[s]   = path->downstream_spliced_nuc_start[s-1];
+    path->upstream_spliced_nuc_end[s+1]       = path->upstream_spliced_nuc_end[s];
+
+  }
+
+  path->path_len++;
+ 
+  path->hits[upstream+1] = new_hit;
+
+  path->hit_scores[upstream+1]    = -eslINFINITY;
+  path->edge_scores[upstream+1]   = 0.;
+  path->signal_scores[upstream+1] = 0.; 
+
+  path->node_id[upstream+1] = -1;
+  path->split[upstream+1]   = FALSE;
+  
+  path->downstream_spliced_amino_start[upstream+1] = new_hit->dcl->ihmm;
+  path->downstream_spliced_nuc_start[upstream+1]   = new_hit->dcl->iali;
+
+  if(upstream+2 < path->path_len) {  
+    path->upstream_spliced_amino_end[upstream+2]     = new_hit->dcl->jhmm; 
+    path->upstream_spliced_nuc_end[upstream+2]       = new_hit->dcl->jali;
+  }
+
+  return eslOK;
+ 
+}
+
 /* Function: p7_splicepath_Destroy()
  *
  * Purpose:  Frees a <SPLICE_PATH>
@@ -137,6 +190,8 @@ p7_splicepath_Grow(SPLICE_PATH *path)
 void
 p7_splicepath_Destroy(SPLICE_PATH *path)
 {
+
+   int s;
 
    if(path == NULL) return;
 
@@ -152,6 +207,12 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
      free(path->upstream_spliced_nuc_end);
    if(path->downstream_spliced_nuc_start   != NULL)
      free(path->downstream_spliced_nuc_start);
+
+   for(s = 0; s < path->path_len; s++) {
+     if(path->hit_scores[s] == -eslINFINITY) {
+       p7_hit_Destroy(path->hits[s]);
+     } 
+   }
 
    if(path->hit_scores    != NULL) free(path->hit_scores);
    if(path->edge_scores   != NULL) free(path->edge_scores);

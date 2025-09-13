@@ -452,7 +452,7 @@ ERROR:
  * Xref:      STL11/124
  */
 P7_TRACE *
-p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
+p7_trace_splice_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice_cnt)
 {
 
   int       z;
@@ -564,7 +564,7 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
  * Xref:      STL11/124
  */
 P7_TRACE *
-p7_trace_splice_fs_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt)
+p7_trace_splice_fs_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice_cnt)
 {
 
   int       z;

@@ -1760,7 +1760,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const 
 extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode);
 extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos); 
 extern P7_ALIDISPLAY *p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt);
-extern P7_ALIDISPLAY *p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int *nuc_index, int nuc_pos, int splice_cnt);
+extern P7_ALIDISPLAY *p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt);
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);
@@ -2087,8 +2087,8 @@ extern P7_TRACE *p7_trace_fs_Create(void);
 extern P7_TRACE *p7_trace_fs_CreateWithPP(void);
 extern P7_TRACE *p7_trace_splice_CreateWithPP(void);
 extern P7_TRACE *p7_trace_fs_Clone(const P7_TRACE *tr);
-extern P7_TRACE *p7_trace_splice_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt);
-extern P7_TRACE *p7_trace_splice_fs_Convert(P7_TRACE *orig_tr, int *orig_nuc_idx, int *splice_cnt);
+extern P7_TRACE *p7_trace_splice_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice_cnt);
+extern P7_TRACE *p7_trace_splice_fs_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice_cnt);
 extern int  p7_trace_fs_Convert(P7_TRACE *tr, int64_t orf_start, int64_t sq_start);
 extern int  p7_trace_Reuse(P7_TRACE *tr);
 extern int  p7_trace_Grow(P7_TRACE *tr);

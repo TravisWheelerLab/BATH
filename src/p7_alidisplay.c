@@ -1549,7 +1549,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int *nuc_index, int nuc_pos, int splice_cnt)
+p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt)
 {
 
   P7_ALIDISPLAY *ad       = NULL;

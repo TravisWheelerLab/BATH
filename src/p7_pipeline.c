@@ -912,7 +912,8 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
         hit_info->seqidx    = seqidx;
         hit_info->strand    = complementarity;
         hit_info->duplicate = FALSE;     
-   
+        hit_info->viterbi   = TRUE;  
+ 
         hit_info->hmm_start = vtr->hmmfrom[d];
         hit_info->hmm_end   = vtr->hmmto[d];
         if(complementarity) {
@@ -3076,7 +3077,7 @@ int
 p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity, SPLICE_SAVED_HITS *saved_hits)
 {
 
-  int                i;
+  int                i, h, w;
   int                status, wstatus;
   float              nullsc;              /* null model score                        */
   float              usc;                 /* msv score                               */
@@ -3086,14 +3087,15 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   double             P;                   /* p-value holder                          */
   int                window_len;          /* length of DNA window                    */
   int                min_length;          /* minimum number of nucs passing a filter */
-  int                old_count; 
+  int                old_window_cnt; 
   ESL_SQ            *orfsq;               /* ORF sequence                            */
   ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */
   P7_HMM_WINDOWLIST  ssv_windowlist;      /* list of ORF windows from SSV for splicing */
   P7_HMM_WINDOWLIST  post_vit_windowlist; /* list of windows from ORFs that pass viterbi */
+  P7_HMM_WINDOW     *window;
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;  /* number of nucleotieds passing filters */
+  SPLICE_HIT_INFO *hit_info;
   P7_PIPELINE_BATH_OBJS *pli_tmp;   
-
 
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
@@ -3153,17 +3155,42 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
       p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
 	
       /* MSV Filter on ORF */
+      p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
+      seq_score = (usc - nullsc) / eslCONST_LOG2;
+      P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+      if (P > pli->F1 ) continue;    
+
+      /* For spliced alignment run SSV with window extraction to use as 
+       * seeds for finding any exons that don't pass subsequent filters */
       if(pli->spliced) {
-        old_count = ssv_windowlist.count;   
-        p7_SSVFilter_BATH(orfsq->dsq, orfsq->n, dnasq->idx, complementarity, om, pli->oxf, data, bg, pli->F1, &ssv_windowlist);
-        if ( ssv_windowlist.count == old_count ) continue;
+        old_window_cnt = ssv_windowlist.count; 
+        p7_SSVFilter_BATH(orfsq->dsq, orfsq->n, om, pli->oxf, data, bg, pli->F1, nullsc, &ssv_windowlist);
+
+        for(w = old_window_cnt; w < ssv_windowlist.count; w++) {
+          window = &(ssv_windowlist.windows[w]);
+
+          p7_splicehits_CreateNext(saved_hits, &hit_info);       
+ 
+          hit_info->node_id   = -1;
+          hit_info->seqidx    = seqidx;
+          hit_info->strand    = complementarity;
+          hit_info->duplicate = FALSE;
+          hit_info->viterbi   = FALSE;
+
+          hit_info->hmm_start = window->k - window->length + 1;
+          hit_info->hmm_end   = window->k;
+
+          if(complementarity) {
+            hit_info->seq_start = dnasq->end + orfsq->start - (window->n*3) + 2;
+            hit_info->seq_end   = dnasq->end + orfsq->start - ((window->n+window->length-1)*3);
+          }
+          else {
+            hit_info->seq_start = dnasq->start + orfsq->start + (window->n*3) - 4;
+            hit_info->seq_end   = dnasq->start + orfsq->start + ((window->n+window->length-1)*3) - 2;
+          }
+        }
       }
-      else {
-        p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
-        seq_score = (usc - nullsc) / eslCONST_LOG2;
-        P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-        if (P > pli->F1 ) continue;    
-      }
+
       msv_coords->orf_starts[msv_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
       msv_coords->orf_ends[msv_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       msv_coords->orf_cnt++;

@@ -306,7 +306,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh)
   int     s_i, s_j, e_i, e_j, len_i, len_j;
   int     intersect_alistart, intersect_aliend, intersect_alilen;
   int     intersect_hmmstart, intersect_hmmend, intersect_hmmlen;
-  int     remove;
+  int     remove, not_remove;
 
   if(sh->N < 2) return eslOK;
 
@@ -348,7 +348,11 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh)
        ( intersect_alilen >= len_i * 0.95) || // or one of the hits covers >90% of the other
        ( intersect_alilen >= len_j * 0.95))) {
 
-      remove = len_i > len_j ? j : i;
+      remove     = len_i > len_j ? j : i;
+      not_remove = len_i > len_j ? i : j;
+ 
+      if(sh->srt[remove]->viterbi && !sh->srt[not_remove]->viterbi)
+        remove = not_remove;
 
       sh->srt[remove]->duplicate = TRUE; 
     }
@@ -376,13 +380,13 @@ p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh)
   SPLICE_HIT_INFO *hi;
 
   fprintf(fp, "  Saved Hit Info\n");
-  fprintf(fp, "  %9s %5s %9s %9s %10s %10s %4s %5s\n", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "node", "dup");
+  fprintf(fp, "  %9s %5s %9s %9s %10s %10s %4s %7s %5s\n", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "node", "viterbi", "dup");
   for(i = 0; i < sh->N ; i++) {
     if(sh->is_sorted) hi = sh->srt[i];
     else              hi = &sh->unsrt[i];
  
-    fprintf(fp, "  %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %4d %5s\n", 
-    hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, hi->node_id+1, (hi->duplicate? "TRUE" : "FALSE"));
+    fprintf(fp, "  %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %4d %7s %5s\n", 
+    hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, hi->node_id+1, (hi->viterbi? "TRUE" : "FALSE"), (hi->duplicate? "TRUE" : "FALSE"));
   
   }
 

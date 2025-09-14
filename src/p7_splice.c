@@ -638,7 +638,7 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
       for(op = 0; op < orig_paths; op++) { 
         if(graph->revcomp) {
            if(seq_min >= path_seq_accumulator[op]->end && seq_max <= path_seq_accumulator[op]->start) {
-             path_dsq = path_seq_accumulator[op]->dsq+(path_seq_accumulator[op]->start-seq_max)-1;
+             path_dsq = path_seq_accumulator[op]->dsq+(path_seq_accumulator[op]->start-seq_max);
              path_seq = esl_sq_CreateDigitalFrom(path_seq_accumulator[op]->abc, path_seq_accumulator[op]->name, path_dsq, seq_len, NULL,NULL,NULL);
 
              path_seq->start = path_seq_accumulator[op]->start - (path_seq_accumulator[op]->start-seq_max);
@@ -650,7 +650,7 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
         else {
            if(seq_min >= path_seq_accumulator[op]->start && seq_max <= path_seq_accumulator[op]->end) {
 
-             path_dsq = path_seq_accumulator[op]->dsq+(seq_min-path_seq_accumulator[op]->start)-1;
+             path_dsq = path_seq_accumulator[op]->dsq+(seq_min-path_seq_accumulator[op]->start);
              path_seq = esl_sq_CreateDigitalFrom(path_seq_accumulator[op]->abc, path_seq_accumulator[op]->name, path_dsq, seq_len, NULL,NULL,NULL);
 
              path_seq->start = path_seq_accumulator[op]->start + (seq_min-path_seq_accumulator[op]->start);
@@ -1738,7 +1738,7 @@ p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PR
  
         if(graph->revcomp) {
           if(seq_min >= path_seq_accumulator[p]->end && seq_max <= path_seq_accumulator[p]->start) {
-            splice_dsq = path_seq_accumulator[p]->dsq+(path_seq_accumulator[p]->start-seq_max)-1;
+            splice_dsq = path_seq_accumulator[p]->dsq+(path_seq_accumulator[p]->start-seq_max);
             splice_seq = esl_sq_CreateDigitalFrom(path_seq_accumulator[p]->abc, NULL, splice_dsq, seq_len, NULL,NULL,NULL);
 
             splice_seq->start = path_seq_accumulator[p]->start - (path_seq_accumulator[p]->start-seq_max);
@@ -1750,7 +1750,7 @@ p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PR
         }
         else { 
           if(seq_min >= path_seq_accumulator[p]->start && seq_max <= path_seq_accumulator[p]->end) {
-            splice_dsq = path_seq_accumulator[p]->dsq+(seq_min-path_seq_accumulator[p]->start)-1;
+            splice_dsq = path_seq_accumulator[p]->dsq+(seq_min-path_seq_accumulator[p]->start);
             splice_seq = esl_sq_CreateDigitalFrom(path_seq_accumulator[p]->abc, NULL, splice_dsq, seq_len, NULL,NULL,NULL);        
 
             splice_seq->start = path_seq_accumulator[p]->start + (seq_min-path_seq_accumulator[p]->start);

@@ -280,9 +280,11 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
    * overlap end by adding the appropriate number of nucs to the hit jali coords */
   if(edge->overlap_amino_end > upstream->jhmm) { 
     edge->upstream_nuc_end += (edge->overlap_amino_end - upstream->jhmm) * strand * 3;
+
     /* If this is a non-frameshift edge - make sure we don't add stop codons */
     if(!edge->frameshift) {
       if(revcomp) {
+        edge->upstream_nuc_end = ESL_MAX(edge->upstream_nuc_end, splice_seq->end);
         for(i = upstream->jali; i >= edge->upstream_nuc_end; i-=3) {
           /* get sub-seq coords */
           x = splice_seq->start - i + 1;
@@ -295,10 +297,11 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
         }
       }
       else {
-
+        edge->upstream_nuc_end = ESL_MIN(edge->upstream_nuc_end, splice_seq->end);
         for(i = upstream->jali; i <= edge->upstream_nuc_end; i+=3) {
           /* get sub-seq coords */
           x = i - splice_seq->start + 1;
+          
           codon = 16 * splice_seq->dsq[x-2] + 4 * splice_seq->dsq[x-1] + splice_seq->dsq[x]; 
           /*If we have found a stop codon end the upstream sequence at the previous codon */
 		  if(gcode->basic[codon] == gcode->aa_abc->Kp-2) {
@@ -377,6 +380,7 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
     /* If this is a non-frameshift edge - make sure we don't add stop codons */
     if(!edge->frameshift) {
       if(revcomp) {
+        edge->downstream_nuc_start = ESL_MIN(edge->downstream_nuc_start, splice_seq->start-2);
         for(i = downstream->iali; i <= edge->downstream_nuc_start; i+=3) {
           /* get sub-seq coords */
           x = splice_seq->start - i + 1;
@@ -389,7 +393,7 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
         }
       }
       else {
-
+        edge->downstream_nuc_start = ESL_MAX(edge->downstream_nuc_start, splice_seq->start-2);
         for(i = downstream->iali; i >= edge->downstream_nuc_start; i-=3) {
           /* get sub-seq coords */
           x = i - splice_seq->start + 1;

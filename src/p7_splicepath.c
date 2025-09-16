@@ -149,9 +149,10 @@ p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int upstream)
 
   for(s = path->path_len; s > upstream; s--) {
 
-    path->hits[s]       = path->hits[s-1];
-    path->hit_scores[s] = path->hit_scores[s-1];
-    path->node_id[s]    = path->node_id[s-1];
+    path->hits[s]        = path->hits[s-1];
+    path->hit_scores[s]  = path->hit_scores[s-1];
+    path->edge_scores[s] = path->edge_scores[s-1];
+    path->node_id[s]     = path->node_id[s-1];
 
     path->downstream_spliced_amino_start[s] = path->downstream_spliced_amino_start[s-1];
     path->upstream_spliced_amino_end[s+1]     = path->upstream_spliced_amino_end[s];

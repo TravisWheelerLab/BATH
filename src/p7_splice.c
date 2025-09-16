@@ -532,11 +532,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   
   p7_splice_RecoverViterbiHits(info, first, last);
 
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+printf("RECOVER\n");
+p7_splicegraph_DumpHits(stdout, graph);
+fflush(stdout);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateEdges(graph);
@@ -579,18 +579,18 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   for(p = 0; p < orig_paths; p++) {
 
     p7_splice_RecoverSSVHits(info, path_accumulator[p], first, last);    
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//p7_splicepath_Dump(stdout,path_accumulator[p]);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+p7_splicepath_Dump(stdout,path_accumulator[p]);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
     p7_splicepath_Destroy(path_accumulator[p]);
   }
 
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("NEW HITS\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+printf("NEW HITS\n");
+p7_splicegraph_DumpHits(stdout, graph);
+fflush(stdout);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create splice edges */    
   p7_splice_ConnectGraph(graph, pli, gm_fs, hmm, gcode, seq_file, info, path_seq_accumulator, orig_paths);
@@ -668,9 +668,14 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       if(!path->frameshift)
         p7_splice_AlignPath(graph, path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info);
 
-      if(path->frameshift)
+      if(path->frameshift) {
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+p7_splicepath_Dump(stdout,path);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+
+
         p7_splice_AlignFrameshiftPath (graph, path, pli, tophits, gm_fs, gcode, path_seq, info->db_nuc_cnt, info);
-         
+     }
       esl_sq_Destroy(path_seq);
     }
    
@@ -1409,17 +1414,9 @@ p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL
        /* If an exon crosses the bounrdy of a removed intron it is 
         * almost certainly a false positive and can be discarded */
       for(s = 0; s < removed_n; s++) {
-        if(revcomp) {
-          if(tr->i[y] - tr->c[y] + 1 >= removed_idx[s][0] &&
-             tr->i[z]                <= removed_idx[s][1]) {
-             start_new = FALSE;
-          }
-        }
-        else {
-          if(tr->i[y] - tr->c[y] + 1 <= removed_idx[s][0] &&
-             tr->i[z]                >= removed_idx[s][1]) {
-             start_new = FALSE;
-          }
+        if(tr->i[y] - tr->c[y] + 1 <= removed_idx[s][0] &&
+           tr->i[z]                >= removed_idx[s][1]) {
+           start_new = FALSE;
         }
       } 
       if(!start_new) continue;

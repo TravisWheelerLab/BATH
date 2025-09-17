@@ -340,6 +340,8 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
   path->upstream_spliced_amino_end[step_cnt] = path->hits[step_cnt-1]->dcl->jhmm;
   path->upstream_spliced_nuc_end[step_cnt]   = path->hits[step_cnt-1]->dcl->jali;
 
+  path = check_bypass(graph, path);
+
   return path;
 
   ERROR:
@@ -541,12 +543,14 @@ check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path)
     max_bypass_score = 0.;
 
     for(h = 0; h < graph->num_nodes; h++) {
+      
       if(!graph->node_in_graph[h]) continue;
       if(graph->split_orig_id[h] == -1) continue;
       if(h == up_path || h == down_path) continue;
+      
       /* Is hit h bypassed by the edge between up_path and down_path */
       if(!hit_between(th->hit[up_path]->dcl, th->hit[h]->dcl, th->hit[down_path]->dcl, graph->revcomp)) continue;
-      
+     
       /* If hit h has no downstream edges than we assume the bypass is correct */
       if(graph->best_out_edge[h] == -1) continue;
 

@@ -449,10 +449,12 @@ p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits)
     if(curr_hit->flags & p7_IS_REPORTED) graph->reportable[graph->th->N] = TRUE;
     else                                 graph->reportable[graph->th->N] = FALSE;
 
-    graph->node_in_graph[graph->th->N]     = TRUE;
-    graph->orig_hit_idx[graph->th->N] = i;
-    
+    graph->node_in_graph[graph->th->N] = TRUE;
+    graph->orig_hit_idx[graph->th->N]  = i;
+ 
     p7_splicegraph_AddNode(graph, curr_hit); 
+
+    graph->split_orig_id[graph->th->N-1] = graph->th->N-1;
   }
 
   graph->orig_N  = graph->th->N;
@@ -532,11 +534,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   
   p7_splice_RecoverViterbiHits(info, first, last);
 
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("RECOVER\n");
-p7_splicegraph_DumpHits(stdout, graph);
-fflush(stdout);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//printf("RECOVER\n");
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateEdges(graph);
@@ -579,18 +581,18 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
   for(p = 0; p < orig_paths; p++) {
 
     p7_splice_RecoverSSVHits(info, path_accumulator[p], first, last);    
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump(stdout,path_accumulator[p]);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicepath_Dump(stdout,path_accumulator[p]);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
     p7_splicepath_Destroy(path_accumulator[p]);
   }
 
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("NEW HITS\n");
-p7_splicegraph_DumpHits(stdout, graph);
-fflush(stdout);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//printf("NEW HITS\n");
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create splice edges */    
   p7_splice_ConnectGraph(graph, pli, gm_fs, hmm, gcode, seq_file, info, path_seq_accumulator, orig_paths);
@@ -668,14 +670,9 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
       if(!path->frameshift)
         p7_splice_AlignPath(graph, path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info);
 
-      if(path->frameshift) {
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump(stdout,path);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
-
-
+      if(path->frameshift) 
         p7_splice_AlignFrameshiftPath (graph, path, pli, tophits, gm_fs, gcode, path_seq, info->db_nuc_cnt, info);
-     }
+     
       esl_sq_Destroy(path_seq);
     }
    
@@ -1074,17 +1071,6 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     return eslOK;
   }
 
-  /* Get the length of the sub path which includes the length of all
-   * hits plus either the first and last 150 nucleotides of the each intron
-   * or the whole intron (whichever is shorter) */
-  sub_path_len = 0;
-  sub_path_len += abs(path->upstream_spliced_nuc_end[1] - path->downstream_spliced_nuc_start[0]) + 1;
-  for (s = 1; s < path->path_len; s++) {
-    sub_path_len += ESL_MIN(300, abs(path->downstream_spliced_nuc_start[s] - path->upstream_spliced_nuc_end[s]) - 1);
-    sub_path_len += abs(path->upstream_spliced_nuc_end[s+1] - path->downstream_spliced_nuc_start[s]) + 1;
-  }
-
-
   sub_path_len = abs(path->hits[path->path_len-1]->dcl->jali - path->hits[0]->dcl->iali)+1;
 
   ESL_ALLOC(removed_mem, sizeof(int64_t) * ((path->path_len-1)*2));
@@ -1127,8 +1113,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     intron_len = abs(path->downstream_spliced_nuc_start[s] - path->upstream_spliced_nuc_end[s]) - 1;
     amino_gap = path->downstream_spliced_amino_start[s] - path->upstream_spliced_amino_end[s] - 1;
 
-    /* If the intron is <= 300bp or there are more than 5 missing aminos add the full intron seqeunce */
-    if(intron_len <= 300 || amino_gap > 5) {
+    /* If the intron is <= MIN_INTRON_INCL bp or there are more than 5 missing aminos add the full intron seqeunce */
+    if(intron_len <= MIN_INTRON_INCL || amino_gap > 5) {
       removed_idx[s-1][0] = -1;
       removed_idx[s-1][1] = -1;
 
@@ -1152,8 +1138,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       }
     }
     else {
-      /* Add first 150 nucleotides on intron */
-      for(x = 0; x < 150; x++) {
+      /* Add first MIN_INTRON_INCL/2  nucleotides on intron */
+      for(x = 0; x < MIN_INTRON_INCL/2; x++) {
         if(graph->revcomp) {
           nuc_index[seq_idx] = true_idx;
           sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
@@ -1173,19 +1159,19 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       removed_idx[s-1][0] = seq_idx-1;
       /* Skip middle part of intron */
       if(graph->revcomp) {
-        while(true_idx > path->hits[s]->dcl->iali+150) {
+        while(true_idx > path->hits[s]->dcl->iali+MIN_INTRON_INCL/2) {
           seq_pos++;
           true_idx--;
         }
       }
       else {
-        while(true_idx < path->hits[s]->dcl->iali-150) {
+        while(true_idx < path->hits[s]->dcl->iali-MIN_INTRON_INCL/2) {
           seq_pos++;
           true_idx++;
         }
       }
       removed_idx[s-1][1] = seq_idx;
-      /* Add last 150 nucleotide of intron and full exon */
+      /* Add last MIN_INTRON_INCL/2 nucleotide of intron and full exon */
       if(graph->revcomp) {
         while(true_idx >= path->hits[s]->dcl->jali) {
           nuc_index[seq_idx] = true_idx;
@@ -1416,7 +1402,8 @@ p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL
       for(s = 0; s < removed_n; s++) {
         if(tr->i[y] - tr->c[y] + 1 <= removed_idx[s][0] &&
            tr->i[z]                >= removed_idx[s][1]) {
-           start_new = FALSE;
+           printf("s %d removed_idx[s][0] %d removed_idx[s][1] %d\n", s, removed_idx[s][0], removed_idx[s][1]);
+           //start_new = FALSE;
         }
       } 
       if(!start_new) continue;

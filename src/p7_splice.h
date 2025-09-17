@@ -185,6 +185,7 @@ typedef struct {
 
 #define MAX_INTRON_LENG           100000
 #define MIN_INTRON_LENG           13
+#define MIN_INTRON_INCL           1500
 #define MAX_AMINO_EXT             10
 #define MIN_AMINO_OVERLAP         10
 #define ALIGNMENT_EXT             10

@@ -415,9 +415,13 @@ P7_TOPHITS*
 p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_BG *bg, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode) 
 {
 
-  int i, h, y, z;
-  int i_start;
+  int i, y, z;
+  int h_start, h_end;
+  int i_start, i_end;
+  int h1, h2;
+  int curr_seqidx, curr_strand;
   int strand;
+  int gap_len;
   int hit_min, hit_max;
   int seed_min, seed_max;
   int seq_max;
@@ -449,64 +453,130 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   dbsq_dna    = esl_sq_CreateDigital(abcDNA);
 
   esl_sqfile_SetDigital(dbfp, abcDNA);
- 
-    /* Find all saved hits that are upstream or downstream and within MAX_INTRON_LENG of a top hit*/
+  curr_seqidx = th->hit[0]->seqidx;
+  curr_strand = (th->hit[0]->dcl[0].iali < th->hit[0]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
+  /* Find all saved hits that are upstream or downstream and within MAX_INTRON_LENG of a top hit*/
   i_start = 0;
-  for(h = 0; h < th->N; h++) {
-
-    if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
-    if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= 0.1) continue;
+  h_start = 0;
+  h_end = 0;
+  while(h_start < th->N) {
  
-    strand = (th->hit[h]->dcl[0].iali < th->hit[h]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
-    hit_min  = ESL_MIN(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
-    hit_max  = ESL_MAX(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
+    /* Find last top hit on current sequence and strand */ 
+    strand = (th->hit[h_end]->dcl[0].iali < th->hit[h_end]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
+    while(h_end < th->N && th->hit[h_end]->seqidx == curr_seqidx && strand == curr_strand) h_end++;
+
+    while(sh->srt[i_start]->seqidx != curr_seqidx ||
+          sh->srt[i_start]->strand != curr_strand) i_start++;
+    i_end = i_start;
+    while(i_end < sh->N && 
+         (sh->srt[i_end]->seqidx != curr_seqidx ||
+          sh->srt[i_end]->strand != curr_strand)) i_end++;
+    
+    for(i = i_start; i < i_end; i++) {
+      if(sh->srt[i]->duplicate) continue;
+      
+      seed_max = ESL_MAX(sh->srt[i_start]->seq_start, sh->srt[i_start]->seq_end);         
+      for(h1 = h_start; h1 < h_end; h1++) {
+        if ((th->hit[h1]->flags & p7_IS_DUPLICATE)) continue;
+        if(!(th->hit[h1]->flags & p7_IS_REPORTED) && exp(th->hit[h1]->sum_lnP) >= 0.1) continue;
+        
+        hit_min  = ESL_MIN(th->hit[h1]->dcl[0].iali, th->hit[h1]->dcl[0].jali);
+        
+        /* Is seed upstream of the a top hit */
+        if(curr_strand) gap_len = sh->srt[i]->seq_end - th->hit[h1]->dcl->iali - 1;
+        else            gap_len = th->hit[h1]->dcl->iali - sh->srt[i]->seq_end - 1;
+
+        if(gap_len > MAX_INTRON_LENG || gap_len < 1) continue;
+
+        if(sh->srt[i]->hmm_start > th->hit[h1]->dcl[0].ihmm &&
+           sh->srt[i]->hmm_end   > th->hit[h1]->dcl[0].jhmm) continue;
+
+        //if (  curr_strand  && sh->srt[i]->seq_end <= th->hit[h1]->dcl[0].iali) continue;
+        //if ((!curr_strand) && sh->srt[i]->seq_end >= th->hit[h1]->dcl[0].iali) continue;
+
+        /* Is seed downstream of the a top hit */  
+        for(h2 = h_start; h2 < h_end; h2++) {
+       
+          if(curr_strand) gap_len = th->hit[h2]->dcl->jali - sh->srt[i]->seq_start  - 1;
+          else            gap_len = sh->srt[i]->seq_start  - th->hit[h2]->dcl->jali - 1;
+
+          if(gap_len > MAX_INTRON_LENG || gap_len < 1) continue; 
+
+          if(th->hit[h2]->dcl[0].ihmm > sh->srt[i]->hmm_start &&
+             th->hit[h2]->dcl[0].jhmm > sh->srt[i]->hmm_end) continue;               
+
+          //if (  curr_strand  && th->hit[h2]->dcl[0].iali <= sh->srt[i]->seq_end) continue;
+          //if ((!curr_strand) && th->hit[h2]->dcl[0].iali >= sh->srt[i]->seq_end) continue;
+
+          sh->srt[i]->is_seed = TRUE;                  
+        }  
+      }
+    }
+
+    if(h_end < th->N) {
+      curr_seqidx =  th->hit[h_end]->seqidx;
+      curr_strand = (th->hit[h_end]->dcl[0].iali < th->hit[h_end]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT); 
+    }
+    
+    h_start = h_end;
+    i_start = i_end;
+  }
+/*
+  for(h1 = 0; h1 < th->N; h1++) {
+
+    if ((th->hit[h1]->flags & p7_IS_DUPLICATE)) continue;
+    if(!(th->hit[h1]->flags & p7_IS_REPORTED) && exp(th->hit[h1]->sum_lnP) >= 0.1) continue;
+     
+    strand = (th->hit[h1]->dcl[0].iali < th->hit[h1]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
+    hit_min  = ESL_MIN(th->hit[h1]->dcl[0].iali, th->hit[h1]->dcl[0].jali);
+    hit_max  = ESL_MAX(th->hit[h1]->dcl[0].iali, th->hit[h1]->dcl[0].jali);
 
     
-    /* Find first saved hit that is on same seq and strand as top hit */
-    while(sh->srt[i_start]->seqidx != th->hit[h]->seqidx ||
+    // Find first saved hit that is on same seq and strand as top hit 
+    while(sh->srt[i_start]->seqidx != th->hit[h1]->seqidx ||
           sh->srt[i_start]->strand != strand) i_start++;    
 
     seed_max = ESL_MAX(sh->srt[i_start]->seq_start, sh->srt[i_start]->seq_end);
 
-    /* Find first saved hit that is within MAX_INTRON_LENG of top hit */
+    // Find first saved hit that is within MAX_INTRON_LENG of top hit 
     i = i_start;
     while(hit_min - seed_max > MAX_INTRON_LENG) {
       i++;
       seed_max = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
     }
 
-    /* If saved hit is upstream or downstram of top hit, is_seed = TRUE */
+    // If saved hit is upstream or downstram of top hit, is_seed = TRUE 
     for( ; i < sh->N; i++) {
        if(sh->srt[i]->duplicate) continue;     
        if(sh->srt[i]->is_seed) continue;
 
-      /* Stop when we reach a new sequence or stand or the saved hit is >MAX_INTRON_LENG from the top hit*/ 
+      // Stop when we reach a new sequence or stand or the saved hit is >MAX_INTRON_LENG from the top hit 
       seed_min = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
-      if(sh->srt[i]->seqidx != th->hit[h]->seqidx ||
+      if(sh->srt[i]->seqidx != th->hit[h1]->seqidx ||
          sh->srt[i]->strand != strand             ||
          seed_min - hit_max > MAX_INTRON_LENG) break;
 
-      /* Is saved hit upstearm and within of top hit */ 
-      if(sh->srt[i]->hmm_start <= th->hit[h]->dcl[0].ihmm ||
-         sh->srt[i]->hmm_end   <= th->hit[h]->dcl[0].jhmm) {
+      // Is saved hit upstearm and within of top hit  
+      if(sh->srt[i]->hmm_start <= th->hit[h1]->dcl[0].ihmm ||
+         sh->srt[i]->hmm_end   <= th->hit[h1]->dcl[0].jhmm) {
 
-        if (( strand  && sh->srt[i]->seq_end > th->hit[h]->dcl[0].iali) ||
-           ((!strand) && sh->srt[i]->seq_end < th->hit[h]->dcl[0].iali)) 
+        if (( strand  && sh->srt[i]->seq_end > th->hit[h1]->dcl[0].iali) ||
+           ((!strand) && sh->srt[i]->seq_end < th->hit[h1]->dcl[0].iali)) 
           sh->srt[i]->is_seed = TRUE;
        
       }
-      /* Is saved hit downstearm and within of top hit */
-	  if(th->hit[h]->dcl[0].ihmm <= sh->srt[i]->hmm_start ||
-         th->hit[h]->dcl[0].jhmm <= sh->srt[i]->hmm_end) {
+      // Is saved hit downstearm and within of top hit 
+	  if(th->hit[h1]->dcl[0].ihmm <= sh->srt[i]->hmm_start ||
+         th->hit[h1]->dcl[0].jhmm <= sh->srt[i]->hmm_end) {
 
-        if (( strand  && th->hit[h]->dcl[0].iali > sh->srt[i]->seq_end ) ||
-           ((!strand) && th->hit[h]->dcl[0].iali < sh->srt[i]->seq_end)) 
+        if (( strand  && th->hit[h1]->dcl[0].iali > sh->srt[i]->seq_end ) ||
+           ((!strand) && th->hit[h1]->dcl[0].iali < sh->srt[i]->seq_end)) 
           sh->srt[i]->is_seed = TRUE;
         
       }    
     }  
   }
-
+*/
   /* Add all saved hits where is_seed = TRUE to seed_hits */
   last_seqidx = -1;
   last_strand = -1;

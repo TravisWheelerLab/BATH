@@ -299,10 +299,12 @@ p7_splicehits_AssignNodes(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, int first,
 }
 
 int 
-p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh) 
+p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th) 
 {
 
   int     i, j;
+  int     j_start;
+  int     strand;
   int     s_i, s_j, e_i, e_j, len_i, len_j;
   int     intersect_alistart, intersect_aliend, intersect_alilen;
   int     intersect_hmmstart, intersect_hmmend, intersect_hmmlen;
@@ -312,6 +314,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh)
 
   if(!sh->is_sorted) p7_splicehits_SortSavedHits(sh);
   
+  /* If two saved hits overlap set the shorter lone as duplicate */ 
   j = 0;
   for (i = 1; i < sh->N; i++)  
   {
@@ -359,9 +362,218 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh)
     else j = i;
   }
 
+  j_start = 0;
+  /* If a saved hit overlaps with the tophit set the saved hit as huplicate */
+  for (i = 0; i < th->N; i++)  
+  {
+
+    s_i   = th->hit[i]->dcl[0].iali;
+    e_i   = th->hit[i]->dcl[0].jali;
+    strand = (s_i < e_i ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
+
+    while(sh->srt[j_start]->seqidx != th->hit[i]->seqidx || 
+          sh->srt[j_start]->strand != strand) j_start++; 
+  
+    j = j_start;
+    while(sh->srt[j]->seqidx == th->hit[i]->seqidx ||
+          sh->srt[j]->strand == strand) {
+      s_j   = sh->srt[j]->seq_start;
+      e_j   = sh->srt[j]->seq_end;      
+   
+      if(sh->srt[j]->strand) ESL_SWAP(s_j, e_j, int);
+      len_j = e_j - s_j + 1;
+
+      if (strand) ESL_SWAP(s_i, e_i, int);
+      len_i = e_i - s_i + 1 ; 
+
+      intersect_alistart  = ESL_MAX(s_i, s_j);
+      intersect_aliend    = ESL_MIN(e_i, e_j);
+      intersect_alilen    = intersect_aliend - intersect_alistart + 1;
+
+      intersect_hmmstart = ESL_MAX(th->hit[i]->dcl[0].ihmm, sh->srt[j]->hmm_start);   
+      intersect_hmmend   = ESL_MIN(th->hit[i]->dcl[0].jhmm, sh->srt[j]->hmm_end);
+      intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
+ 
+      if(  intersect_hmmlen > 0              && // hmm corrds overlap and  
+        (( s_i >= s_j-3 && s_i <= s_j+3)     || // at least one side is essentially flush
+         ( e_i >= e_j-3 && e_i <= e_j+3)     ||
+         ( intersect_alilen >= len_i * 0.95) || // or one of the hits covers >90% of the other
+         ( intersect_alilen >= len_j * 0.95))) {
+
+        sh->srt[j]->duplicate = TRUE; 
+      }
+      j++;
+      if(j == sh->N) break;
+    }
+  }
+ 
 
   return eslOK;
 }
+
+P7_TOPHITS*
+p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_BG *bg, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode) 
+{
+
+  int i, h, y, z;
+  int i_start;
+  int strand;
+  int hit_min, hit_max;
+  int seed_min, seed_max;
+  int seq_max;
+  int last_seqidx, last_strand;
+  int window_len;
+  P7_HIT       *hit;
+  P7_TOPHITS   *seed_hits;
+  ESL_ALPHABET *abcDNA;
+  ESL_SQFILE   *dbfp;
+  ESL_SQ       *dbsq_dna;
+  int status;
+
+  window_len = (1024 * 256);
+
+  seed_hits = p7_tophits_Create();
+  hit = NULL;
+
+  dbfp  = NULL;
+
+  /* Open sequence file */
+  status = esl_sqfile_Open(seq_file->filename,seq_file->format,NULL,&dbfp); 
+  if      (status == eslENOTFOUND) p7_Fail("Failed to open sequence file %s for reading\n",          seq_file);
+  else if (status == eslEFORMAT)   p7_Fail("Sequence file %s is empty or misformatted\n",            seq_file);
+  else if (status == eslEINVAL)    p7_Fail("Can't autodetect format of a stdin or .gz seqfile");
+  else if (status != eslOK)        p7_Fail("Unexpected error %d opening sequence file %s\n", status, seq_file);
+  esl_sqfile_OpenSSI(dbfp,NULL);
+  
+  abcDNA = esl_alphabet_Create(eslDNA);
+  dbsq_dna    = esl_sq_CreateDigital(abcDNA);
+
+  esl_sqfile_SetDigital(dbfp, abcDNA);
+ 
+    /* Find all saved hits that are upstream or downstream and within MAX_INTRON_LENG of a top hit*/
+  i_start = 0;
+  for(h = 0; h < th->N; h++) {
+
+    if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
+    if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= 0.1) continue;
+ 
+    strand = (th->hit[h]->dcl[0].iali < th->hit[h]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
+    hit_min  = ESL_MIN(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
+    hit_max  = ESL_MAX(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
+
+    
+    /* Find first saved hit that is on same seq and strand as top hit */
+    while(sh->srt[i_start]->seqidx != th->hit[h]->seqidx ||
+          sh->srt[i_start]->strand != strand) i_start++;    
+
+    seed_max = ESL_MAX(sh->srt[i_start]->seq_start, sh->srt[i_start]->seq_end);
+
+    /* Find first saved hit that is within MAX_INTRON_LENG of top hit */
+    i = i_start;
+    while(hit_min - seed_max > MAX_INTRON_LENG) {
+      i++;
+      seed_max = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
+    }
+
+    /* If saved hit is upstream or downstram of top hit, is_seed = TRUE */
+    for( ; i < sh->N; i++) {
+       if(sh->srt[i]->duplicate) continue;     
+       if(sh->srt[i]->is_seed) continue;
+
+      /* Stop when we reach a new sequence or stand or the saved hit is >MAX_INTRON_LENG from the top hit*/ 
+      seed_min = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
+      if(sh->srt[i]->seqidx != th->hit[h]->seqidx ||
+         sh->srt[i]->strand != strand             ||
+         seed_min - hit_max > MAX_INTRON_LENG) break;
+
+      /* Is saved hit upstearm and within of top hit */ 
+      if(sh->srt[i]->hmm_start <= th->hit[h]->dcl[0].ihmm ||
+         sh->srt[i]->hmm_end   <= th->hit[h]->dcl[0].jhmm) {
+
+        if (( strand  && sh->srt[i]->seq_end > th->hit[h]->dcl[0].iali) ||
+           ((!strand) && sh->srt[i]->seq_end < th->hit[h]->dcl[0].iali)) 
+          sh->srt[i]->is_seed = TRUE;
+       
+      }
+      /* Is saved hit downstearm and within of top hit */
+	  if(th->hit[h]->dcl[0].ihmm <= sh->srt[i]->hmm_start ||
+         th->hit[h]->dcl[0].jhmm <= sh->srt[i]->hmm_end) {
+
+        if (( strand  && th->hit[h]->dcl[0].iali > sh->srt[i]->seq_end ) ||
+           ((!strand) && th->hit[h]->dcl[0].iali < sh->srt[i]->seq_end)) 
+          sh->srt[i]->is_seed = TRUE;
+        
+      }    
+    }  
+  }
+
+  /* Add all saved hits where is_seed = TRUE to seed_hits */
+  last_seqidx = -1;
+  last_strand = -1;
+  for(i = 0 ; i < sh->N; i++) {
+    if(!sh->srt[i]->is_seed) continue;
+
+    /* If the saved hit is on a new sequence or strand sove to beginging of current sequence */
+    if(sh->srt[i]->seqidx != last_seqidx ||
+       sh->srt[i]->strand != last_strand) {
+ 
+      esl_sqfile_PositionByNumber(dbfp, sh->srt[i]->seqidx);
+      status = esl_sqio_ReadWindow(dbfp, 0, window_len, dbsq_dna);
+      if(sh->srt[i]->strand == p7_COMPLEMENT) 
+        esl_sq_ReverseComplement(dbsq_dna);
+      seq_max = ESL_MAX(dbsq_dna->start, dbsq_dna->end);
+    }
+
+    seed_min = ESL_MIN(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
+    seed_max = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
+    
+    while(seed_max > seq_max) {
+      status = esl_sqio_ReadWindow(dbfp, gm_fs->max_length, window_len, dbsq_dna);
+      seq_max = ESL_MAX(dbsq_dna->start, dbsq_dna->end);
+      if(sh->srt[i]->strand == p7_COMPLEMENT)    
+        esl_sq_ReverseComplement(dbsq_dna);
+    } 
+    //printf("dbsq_dna->start %d dbsq_dna->end %d sh->srt[i]->seq_start %d sh->srt[i]->seq_end %d\n", dbsq_dna->start, dbsq_dna->end, sh->srt[i]->seq_start, sh->srt[i]->seq_end);
+    p7_tophits_CreateNextHit(seed_hits, &hit);
+    hit->seqidx  = sh->srt[i]->seqidx;
+    hit->dcl     = p7_domain_Create_empty();
+    hit->dcl->tr = p7_trace_fs_Create();
+    
+    hit->dcl->ihmm = sh->srt[i]->hmm_start;
+    hit->dcl->jhmm = sh->srt[i]->hmm_end;
+    hit->dcl->iali = sh->srt[i]->seq_start;
+    hit->dcl->jali = sh->srt[i]->seq_end;
+  
+    /* Create trace for seed hit */
+    p7_trace_fs_Append(hit->dcl->tr, p7T_S , 0, 0, 0);
+    p7_trace_fs_Append(hit->dcl->tr, p7T_N , 0, 0, 0);
+    p7_trace_fs_Append(hit->dcl->tr, p7T_B , 0, 0, 0);
+
+    y = abs(hit->dcl->iali - dbsq_dna->start) + 3;
+    for(z = hit->dcl->ihmm; z <= hit->dcl->jhmm; z++) {
+      p7_trace_fs_Append(hit->dcl->tr, p7T_M, z, y, 3);
+      y+=3;
+    }
+    
+    p7_trace_fs_Append(hit->dcl->tr, p7T_E, z-1, y-=3, 0);
+    p7_trace_fs_Append(hit->dcl->tr, p7T_C, 0, y-=3, 0);
+    p7_trace_fs_Append(hit->dcl->tr, p7T_T, 0, 0, 0);
+    
+    hit->dcl->scores_per_pos = NULL;
+    p7_splice_ComputeAliScores_fs(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, bg, TRUE);
+
+    
+    last_seqidx = sh->srt[i]->seqidx;
+    last_strand  = sh->srt[i]->strand;     
+  }
+
+  esl_alphabet_Destroy(abcDNA);
+  esl_sq_Destroy(dbsq_dna); 
+  esl_sqfile_Close(dbfp);
+  
+  return seed_hits;
+}
+
 
 /*****************************************************************
  * 2. Debugging tools.

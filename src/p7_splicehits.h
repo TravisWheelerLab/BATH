@@ -9,6 +9,7 @@ typedef struct _splice_hit_info
   int64_t  seqidx;
   int      strand; /* 0 = forward strand, 1 = reverse strand */
   int      duplicate;
+  int      is_seed;
 
   int hmm_start;
   int hmm_end;

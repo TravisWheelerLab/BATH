@@ -108,7 +108,7 @@ static ESL_OPTIONS options[] = {
 
   /* Control of acceleration pipeline */
   { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3,--F4","turn all heuristic filters off (less speed, more power)",                     7 },
-  { "--F1",           eslARG_REAL,   "0.025",    NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                            7 },
+  { "--F1",           eslARG_REAL,   "0.02",    NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                            7 },
   { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                            7 },
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                            7 },
   { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,   NULL,"--max",         "promote windows to FS Fwd if a coresponding ORF has P <= F4",                            7 },

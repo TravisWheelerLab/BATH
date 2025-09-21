@@ -53,8 +53,6 @@ p7_spliceedge_Create(void)
   edge->splice_score = -eslINFINITY;
   edge->signal_score = -eslINFINITY;
 
-  edge->next = NULL;
-
   return edge;
 
   ERROR:

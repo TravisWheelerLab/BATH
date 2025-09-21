@@ -53,7 +53,7 @@ p7_splicegraph_Create()
 
   graph->nalloc         = 0;
   graph->num_nodes      = 0;
-  graph->num_edges      = 0;
+  graph->tot_edges      = 0;
   graph->orig_N         = 0;
   graph->split_N        = 0;
   graph->recover_N      = 0;
@@ -73,7 +73,7 @@ p7_splicegraph_Create()
 
   graph->th->hit       = NULL;
   graph->edges         = NULL;
-
+  graph->num_edges     = NULL;
   return graph;
 
 ERROR:
@@ -117,11 +117,16 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->ali_scores,    sizeof(float) * graph->nalloc);
   ESL_ALLOC(graph->path_scores,   sizeof(float) * graph->nalloc);
 
-  ESL_ALLOC(graph->th->hit,  sizeof(P7_HIT*)      * graph->nalloc);  
-  ESL_ALLOC(graph->edges,    sizeof(SPLICE_EDGE*) * graph->nalloc);
+  ESL_ALLOC(graph->th->hit,   sizeof(P7_HIT*)      * graph->nalloc);  
+  ESL_ALLOC(graph->edges,     sizeof(SPLICE_EDGE*) * graph->nalloc);
+  ESL_ALLOC(graph->edge_mem,  sizeof(int)          * graph->nalloc);
+  ESL_ALLOC(graph->num_edges, sizeof(int)          * graph->nalloc);
 
-  for(i = 0; i < graph->num_nodes; i++) 
-    graph->edges[i]   = NULL;
+  for(i = 0; i < graph->num_nodes; i++) {
+    ESL_ALLOC(graph->edges[i], sizeof(SPLICE_EDGE) * EDGE_ALLOC);
+    graph->edge_mem[i]  = EDGE_ALLOC;
+    graph->num_edges[i] = 0;
+  }
   
   return eslOK;
 
@@ -165,8 +170,10 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
 
     ESL_REALLOC(graph->th->hit,  sizeof(P7_HIT*)      * graph->nalloc);
     ESL_REALLOC(graph->edges,    sizeof(SPLICE_EDGE*) * graph->nalloc);
+    ESL_REALLOC(graph->edge_mem,  sizeof(int)          * graph->nalloc);
+    ESL_REALLOC(graph->num_edges, sizeof(int)          * graph->nalloc);   
   }
-
+     
   return eslOK;
 
   ERROR:
@@ -185,7 +192,6 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
 {
 
   int i;
-  SPLICE_EDGE    *tmp_edge;
 
   if (graph == NULL) return;
 
@@ -201,8 +207,7 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if(graph->best_out_edge != NULL) free(graph->best_out_edge);
   if(graph->best_in_edge  != NULL) free(graph->best_in_edge);
 
- 
-  for (i = graph->orig_N; i < graph->th->N; i++) {
+  for (i = graph->recover_N; i < graph->th->N; i++) {  
     p7_trace_splice_Destroy(graph->th->hit[i]->dcl->tr);
     free(graph->th->hit[i]->dcl->scores_per_pos);
     p7_hit_Destroy(graph->th->hit[i]);
@@ -211,15 +216,12 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if (graph->th->hit != NULL) free(graph->th->hit);
   if (graph->th      != NULL) free(graph->th);
 
-  for(i = 0; i < graph->num_nodes; i++) {
-    while(graph->edges[i] != NULL) {
-      tmp_edge = graph->edges[i];
-      graph->edges[i] = tmp_edge->next;
-      free(tmp_edge);
-    }
-  }
+  for(i = 0; i < graph->num_nodes; i++) 
+   if(graph->edges[i] != NULL) free(graph->edges[i]);
 
-  if(graph->edges   != NULL) free(graph->edges);
+  if(graph->edges     != NULL) free(graph->edges);
+  if(graph->edge_mem  != NULL) free(graph->edge_mem);
+  if(graph->num_edges != NULL) free(graph->num_edges);
 
   graph->seqname = NULL;
 
@@ -265,10 +267,12 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
  
   graph->best_out_edge[graph->num_nodes] = -1;
   graph->best_in_edge[graph->num_nodes]  = -1;
-
-  graph->edges[graph->num_nodes]   = NULL;  
-
   graph->split_orig_id[graph->num_nodes]   = -1;
+
+  ESL_ALLOC(graph->edges[graph->num_nodes], sizeof(SPLICE_EDGE) * EDGE_ALLOC);
+  graph->edge_mem[graph->num_nodes]  = EDGE_ALLOC;
+  graph->num_edges[graph->num_nodes] = 0;
+
  
   graph->num_nodes++;
 
@@ -280,51 +284,39 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 
 
 /* Function:  p7_splicegraph_AddEdge()
- * Synopsis:  append an edge to a splice graph
+ * Synopsis:  get the next edge from up_node
  *
- * Purpose:   Takes a splice edge <edge> that has been 
- *            allocated and aissigned an unpstream and 
- *            downstream node, and adds it to a splice 
- *            graph <graph> 
+ * Purpose:   Retrieve a potiner to the next available 
+ *            SPLICE_EDGE from up_node and points it 
+ *            to down_node. Allocate more room for 
+ *            edges from up_node, if needed. 
  *
- * Returns:   <eslOK> on success.
+ * Returns:   <SPLICE_EDGE*> on success.
  *
- * Throws:    <eslFAIL> if assigned nodes either do not 
- *            exist or do not have correct upstream/
- *            downstream orientation.
  */
-int
-p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, SPLICE_EDGE *edge)
+SPLICE_EDGE*
+p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int down_node)
 {
 
-  int up_node;
-  int down_node;
+  SPLICE_EDGE *ret_edge;
   int status;
 
-  SPLICE_EDGE *tmp_edge;
-
-  up_node   = edge->upstream_node_id;
-  down_node = edge->downstream_node_id;
-
-  if(up_node >= graph->num_nodes || down_node >= graph->num_nodes) goto ERROR; 
-
-  /* Find the end of the up nodes list of edges and append the new edge */
-  tmp_edge = graph->edges[up_node];
-  if(tmp_edge == NULL)
-    graph->edges[up_node] = edge;
-  else {
-    while(tmp_edge->next != NULL)
-      tmp_edge = tmp_edge->next;
-
-    tmp_edge->next = edge;
+  if(graph->num_edges[up_node] == graph->edge_mem[up_node]) {
+    graph->edge_mem[up_node] *= 2;
+    ESL_REALLOC(graph->edges[up_node], sizeof(SPLICE_EDGE) * graph->edge_mem[up_node]);
   }
-  
-  graph->num_edges++;
-  
-  return eslOK;
+   
+  ret_edge = &(graph->edges[up_node][graph->num_edges[up_node]]);
+  graph->num_edges[up_node]++; 
+  graph->tot_edges++;
+ 
+  ret_edge->upstream_node_id   = up_node;
+  ret_edge->downstream_node_id = down_node; 
+
+  return ret_edge;
 
   ERROR:
-    ESL_XEXCEPTION(eslFAIL, "Edge appended with impossible node assignment.");
+    return NULL;
 
 }
 
@@ -348,18 +340,13 @@ int
 p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_node) 
 {
 
-  SPLICE_EDGE *tmp_edge;
+  int i;
+  
+  for(i = 0; i < graph->num_edges[up_node]; i++) {
+    if(graph->edges[up_node][i].downstream_node_id == down_node) return TRUE;
+  }
 
-  if(up_node >= graph->num_nodes || down_node >= graph->num_nodes) return FALSE;
- 
-  tmp_edge = graph->edges[up_node];
-
-  while(tmp_edge != NULL && tmp_edge->downstream_node_id != down_node)
-    tmp_edge = tmp_edge->next;
-
-  if     (tmp_edge == NULL)                       return FALSE;
-  else if(tmp_edge->splice_score == -eslINFINITY) return FALSE;
-  else                                            return TRUE;
+  return FALSE;
 
 }
 
@@ -374,14 +361,17 @@ SPLICE_EDGE*
 p7_splicegraph_GetEdge(SPLICE_GRAPH* graph, int up_node, int down_node) 
 {
 
-  SPLICE_EDGE *edge;
+  int i;
+  SPLICE_EDGE *ret_edge;
 
-  edge = graph->edges[up_node];
-
-  while(edge != NULL && edge->downstream_node_id != down_node)
-    edge = edge->next;
-
-  return edge;
+  for(i = 0; i < graph->num_edges[up_node]; i++) {
+    if(graph->edges[up_node][i].downstream_node_id == down_node) {
+      ret_edge = &(graph->edges[up_node][i]);
+      return ret_edge;
+    } 
+  }
+  
+  return NULL;
 
 }
 
@@ -528,7 +518,7 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
 {
 
 
-  int          i;
+  int          i,j;
   int          nuc_end, nuc_start;
   SPLICE_EDGE *tmp_edge;
 
@@ -537,8 +527,9 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
   fprintf(fp, "\n Edge Data  \n\n");
   for(i = 0; i < graph->num_nodes; i++ ) {
     if(!graph->node_in_graph[i]) continue;
-    tmp_edge = graph->edges[i];
-    while(tmp_edge != NULL) {
+    for(j = 0; j < graph->num_edges[i]; j++) {
+      tmp_edge = &(graph->edges[i][j]);
+    
       nuc_end =   tmp_edge->upstream_spliced_nuc_end;
       nuc_start = tmp_edge->downstream_spliced_nuc_start;
       fprintf(fp, "    Edge from Upstream Node %d to Downstream Node %d\n", tmp_edge->upstream_node_id+1, tmp_edge->downstream_node_id+1);
@@ -546,7 +537,7 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
       fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", tmp_edge->upstream_spliced_amino_end, nuc_end);
       fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", tmp_edge->downstream_spliced_amino_start, nuc_start);
       fprintf(fp, "\n");
-      tmp_edge = tmp_edge->next;
+   
     }
   }
   fprintf(fp, "\n");
@@ -580,9 +571,9 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph)
 
   fprintf(fp, " SPLICE_GRAPH\n");
   fprintf(fp, " Number of Nodes  : %d\n", num_nodes); 
-  fprintf(fp, " Number of Edges  : %d\n", graph->num_edges); 
+  fprintf(fp, " Number of Edges  : %d\n", graph->tot_edges); 
 
-  if(graph->num_edges > 0) {
+  if(graph->tot_edges > 0) {
     fprintf(fp, "\n Splice Score matrix \n");
     fprintf(fp, "     ");
     for(i = 0; i < num_nodes/2; i++ )
@@ -610,11 +601,9 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph)
 
       fprintf(fp, "%7d", i+1);
 
-
-      tmp_edge = graph->edges[i];
-      while(tmp_edge != NULL) {
+      for(j = 0; j < graph->num_edges[i]; j++) {
+        tmp_edge = &(graph->edges[i][j]);
         edge_scores[tmp_edge->downstream_node_id] = tmp_edge->splice_score;
-        tmp_edge = tmp_edge->next;
       }
 
       for(j = 0; j < graph->num_nodes; j++ ) { 

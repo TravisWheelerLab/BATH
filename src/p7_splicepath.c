@@ -24,7 +24,6 @@ static int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *sta
 static SPLICE_PATH* check_bypass(SPLICE_GRAPH *graph, SPLICE_PATH *path);
 static float get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node);
 static int hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp);
-static int has_in_edge(SPLICE_GRAPH *graph, int node_id);
 static int has_out_edge(SPLICE_GRAPH *graph, int node_id);
 
 /*****************************************************************
@@ -256,7 +255,6 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
     best_start_score = -eslINFINITY;
     start_node  = -1;
     for (i = 0; i < graph->num_nodes; i++) {
-      //if(has_in_edge(graph, i)) continue; 
       if(graph->path_scores[i] > best_start_score) {
         best_start_score = graph->path_scores[i];
         start_node  = i;
@@ -309,8 +307,8 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
   path->downstream_spliced_amino_start[0] = path->hits[0]->dcl->ihmm;
   path->downstream_spliced_nuc_start[0]   = path->hits[0]->dcl->iali;
 
-  if(th->hit[start_node]->dcl->tr->fs) path->frameshift = TRUE;
-
+  if(th->hit[start_node]->dcl->tr->fs) path->frameshift = TRUE; //{ printf("start_node %d\n" ,start_node); fflush(stdout); path->frameshift = TRUE; }
+  
   curr_node = start_node;
   step_cnt = 1;
   while (step_cnt < path_len) {
@@ -331,7 +329,7 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
     path->upstream_spliced_nuc_end[step_cnt]       = out_edge->upstream_spliced_nuc_end;
     path->downstream_spliced_nuc_start[step_cnt]   = out_edge->downstream_spliced_nuc_start;
 
-    if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE;     
+    if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE; //{ printf("next_node %d\n" ,next_node); fflush(stdout); path->frameshift = TRUE; }    
 
     curr_node = next_node;
     step_cnt++;
@@ -382,7 +380,6 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
     best_start_score = -eslINFINITY;
     start_node  = -1;
     for (i = 0; i < graph->num_nodes; i++) {
-      //if(has_in_edge(graph, i)) continue; 
       if(graph->path_scores[i] > best_start_score) {
         best_start_score = graph->path_scores[i];
         start_node  = i;
@@ -419,11 +416,13 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
           /* Remove whichever edge has the lowest score */
           if(out_edge->splice_score < in_edge->splice_score) {
             out_edge->splice_score = -eslINFINITY;
-            graph->num_edges--;
+            out_edge->downstream_node_id = -1;
+            graph->tot_edges--;
           }
           else {
             in_edge->splice_score = -eslINFINITY;
-            graph->num_edges--;
+            in_edge->downstream_node_id = -1;
+            graph->tot_edges--;
           }
           path = p7_splicepath_GetBestPath(graph);
           return path;
@@ -616,20 +615,11 @@ longest_path_upstream (SPLICE_GRAPH *graph)
 
     if(!graph->node_in_graph[up])     continue;
     if(has_out_edge(graph, up)) continue;
+    edge = p7_splicegraph_AddEdge(graph, up, graph->num_nodes);
 
-    edge = p7_spliceedge_Create();
-    edge->upstream_node_id = up;
-    edge->downstream_node_id = graph->num_nodes;
     edge->splice_score = 0.;
+    graph->num_edges[graph->num_nodes] = 0;
 
-    /* free any -inf edges */
-    while(graph->edges[up] != NULL) {
-      tmp_edge = graph->edges[up];
-      graph->edges[up] = tmp_edge->next;
-      free(tmp_edge);  
-    }
-    graph->edges[up] = edge;
-    edge = NULL;
   }
   graph->path_scores[graph->num_nodes] = 0.;
   graph->num_nodes++;
@@ -675,11 +665,11 @@ longest_path_upstream (SPLICE_GRAPH *graph)
 
   for(up = 0; up < graph->num_nodes; up++) {
     if(!graph->node_in_graph[up]) continue;
-    
-    if(graph->edges[up]->downstream_node_id == graph->num_nodes)
-    {
-      free(graph->edges[up]);
-      graph->edges[up] = NULL;
+    for(i = 0; i < graph->num_edges[up]; i++) { 
+      if(graph->edges[up][i].downstream_node_id == graph->num_nodes) {
+        graph->edges[up][i].downstream_node_id = -1;
+        i = graph->num_edges[up];
+      }
     }
   }
 
@@ -738,35 +728,17 @@ hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int r
 
 }
 
-int
-has_in_edge(SPLICE_GRAPH *graph, int node_id) 
-{
-  int h;
-  SPLICE_EDGE *tmp_edge;
- 
-  for(h = 0; h < graph->num_nodes; h++) {
-    tmp_edge = graph->edges[h];
-    while(tmp_edge != NULL) {
-      if(tmp_edge->splice_score != -eslINFINITY && tmp_edge->downstream_node_id == node_id) return TRUE;
-      tmp_edge = tmp_edge->next;
-    }
-  }
-
-  return FALSE;
-
-}
 
 int
 has_out_edge(SPLICE_GRAPH *graph, int node_id)
 {
-  SPLICE_EDGE *tmp_edge;
 
-  tmp_edge = graph->edges[node_id];
-  while(tmp_edge != NULL) {
-    if(tmp_edge->splice_score != -eslINFINITY) return TRUE;
-    tmp_edge = tmp_edge->next;
+  int i;
+  
+  for(i = 0; i < graph->num_edges[node_id]; i++) {
+    if(graph->edges[node_id][i].downstream_node_id >= 0)
+      return TRUE;
   }
-
   return FALSE;
 }
 

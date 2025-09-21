@@ -139,14 +139,14 @@ p7_splicepath_Grow(SPLICE_PATH *path)
  *
  */
 int
-p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int upstream)
+p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int step)
 {
 
   int s;
   
   p7_splicepath_Grow(path); 
 
-  for(s = path->path_len; s > upstream; s--) {
+  for(s = path->path_len; s > step; s--) {
 
     path->hits[s]        = path->hits[s-1];
     path->hit_scores[s]  = path->hit_scores[s-1];
@@ -162,22 +162,25 @@ p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int upstream)
 
   path->path_len++;
  
-  path->hits[upstream+1] = new_hit;
+  path->hits[step] = new_hit;
 
-  path->hit_scores[upstream+1]    = -eslINFINITY;
-  path->edge_scores[upstream+1]   = 0.;
-  path->signal_scores[upstream+1] = 0.; 
+  path->hit_scores[step]    = -eslINFINITY;
+  path->edge_scores[step]   = 0.;
+  path->signal_scores[step] = 0.; 
 
-  path->node_id[upstream+1] = -1;
-  path->split[upstream+1]   = FALSE;
+  path->node_id[step] = -1;
+  path->split[step]   = FALSE;
   
-  path->downstream_spliced_amino_start[upstream+1] = new_hit->dcl->ihmm;
-  path->downstream_spliced_nuc_start[upstream+1]   = new_hit->dcl->iali;
+  path->downstream_spliced_amino_start[step] = new_hit->dcl->ihmm;
+  path->downstream_spliced_nuc_start[step]   = new_hit->dcl->iali;
 
-  if(upstream+2 < path->path_len) {  
-    path->upstream_spliced_amino_end[upstream+2]     = new_hit->dcl->jhmm; 
-    path->upstream_spliced_nuc_end[upstream+2]       = new_hit->dcl->jali;
-  }
+  path->upstream_spliced_amino_end[step+1]     = new_hit->dcl->jhmm;
+  path->upstream_spliced_nuc_end[step+1]       = new_hit->dcl->jali;
+
+//  if(step < path->path_len) {  
+//    path->upstream_spliced_amino_end[step+1]     = new_hit->dcl->jhmm; 
+//    path->upstream_spliced_nuc_end[step+1]       = new_hit->dcl->jali;
+//  }
 
   return eslOK;
  
@@ -778,6 +781,44 @@ get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node)
 /*****************************************************************
  * 2. Debugging tools.
  *****************************************************************/
+
+
+/* Function:  p7_splicepath_Check()
+ *
+ * Purpose: Checks that path sequence coordinates 
+ *          are all in uptream to downstream order 
+ *
+ */
+int
+p7_splicepath_Check(SPLICE_PATH *path) 
+{
+  int s1, s2;
+
+  if(path->revcomp) {
+    for(s1 = 0; s1 < path->path_len; s1++)
+    {
+      for(s2 = s1+1; s2 < path->path_len; s2++)
+      {
+        if(path->hits[s2]->dcl->iali > path->hits[s1]->dcl->iali)
+          return FALSE;
+      }
+    }
+  }
+  else {
+
+    for(s1 = 0; s1 < path->path_len; s1++) 
+    {
+      for(s2 = s1+1; s2 < path->path_len; s2++)
+      {
+        if(path->hits[s2]->dcl->iali < path->hits[s1]->dcl->iali)
+          return FALSE;
+      }
+    } 
+  }
+ 
+  return TRUE;
+  
+}
 
 
 /* Function:  p7_splicepath_Dump()

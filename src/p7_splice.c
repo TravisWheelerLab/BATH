@@ -351,7 +351,8 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 //p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
   }
-  
+ 
+//printf("saved %d seeds %d graph %d\n", info->sh->N, seed_hits->N, graph->num_nodes); 
   /* Initialize mutex */
   if (pthread_mutex_init(&mutex, NULL)) { status = eslFAIL; goto ERROR; }
 
@@ -474,29 +475,64 @@ p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits)
     graph->split_orig_id[graph->th->N-1] = graph->th->N-1;
   }
 
-  graph->orig_N  = graph->th->N;
+  graph->orig_N = graph->recover_N = graph->th->N;
   graph->seqname = graph->th->hit[0]->name;
 
   return eslOK;
  
 }
 
+/* Only add seed that are upstream of one orignal hit and downstream fo another */
 int 
 p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
 {
 
   int     i;
+  int     h1, h2;
+  int     gap_len;
   P7_HIT *curr_hit;
+  P7_TOPHITS *th;
 
-  /* Get a count of the hits that will be added to the graph */
+  th = graph->th;
+
+  if(graph->orig_N < 2) return eslOK;
+
   for (i = 0; i < seed_hits->N; i++) {
+
     curr_hit = &(seed_hits->unsrt[i]);
+
+    /* Is the seed hit on the same sequence and strand as the graph */
     if (curr_hit->seqidx != graph->seqidx) continue;
     if (graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
     if ((!graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
-    
-    p7_splicegraph_AddNode(graph, curr_hit);
- 
+
+    for(h1 = 0; h1 < graph->orig_N; h1++) {
+      /* Is the seed hit upstream of an original hit */
+      if(p7_splice_HitUpstream(curr_hit->dcl, th->hit[h1]->dcl, graph->revcomp)) {
+       //printf("seed %d upstream of hit %d\n", i+1, h1+1); 
+        if(graph->revcomp) gap_len = curr_hit->dcl->jali - th->hit[h1]->dcl->iali - 1;
+        else               gap_len = th->hit[h1]->dcl->iali - curr_hit->dcl->jali - 1;
+        if(gap_len > MAX_INTRON_LENG) continue;
+       // printf("seed %d in range of of hit %d\n", i+1, h1+1);
+        for(h2 = 0; h2 < graph->orig_N; h2++) {
+          if(h2 == h1) continue;
+
+          /* Is the seed hit downstream of an original hit */
+          if(p7_splice_HitUpstream(th->hit[h2]->dcl, curr_hit->dcl, graph->revcomp)) {
+              
+             if(graph->revcomp) gap_len = th->hit[h2]->dcl->jali - curr_hit->dcl->iali - 1;
+             else               gap_len = curr_hit->dcl->iali - th->hit[h2]->dcl->jali - 1;
+             if(gap_len > MAX_INTRON_LENG) continue;
+
+             /* Repurpose domain "is_included" for seed hits added to graph */
+             curr_hit->dcl->is_included = TRUE;
+             p7_splicegraph_AddNode(graph, curr_hit);
+             h1 = graph->orig_N;
+             h2 = graph->orig_N;
+          }
+        }
+      }
+    }
   }
   graph->recover_N = graph->num_nodes; 
   return eslOK;
@@ -567,7 +603,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
-  p7_splice_CreateEdges(graph);
+  p7_splice_CreateUnsplicedEdges(graph);
 
   /* Allocate space for paths */
   ESL_ALLOC(path_accumulator, sizeof(SPLICE_PATH*) * graph->num_nodes);
@@ -603,7 +639,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
   /* Align paths with spliced Viterbi to find missing exon and internal introns */
   for(p = 0; p < orig_paths; p++) {
-    p7_splice_ExtendPath(info, path_accumulator[p]);
+    p7_splice_ExtendPath(info->seeds, path_accumulator[p], graph);
     
     seq_min = ESL_MIN(path_accumulator[p]->downstream_spliced_nuc_start[0], path_accumulator[p]->upstream_spliced_nuc_end[path_accumulator[p]->path_len]) - ALIGNMENT_EXT*3;
     seq_max = ESL_MAX(path_accumulator[p]->downstream_spliced_nuc_start[0], path_accumulator[p]->upstream_spliced_nuc_end[path_accumulator[p]->path_len]) + ALIGNMENT_EXT*3;
@@ -613,7 +649,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
 //p7_splicepath_Dump(stdout,path_accumulator[p]);
+//fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(!p7_splicepath_Check(path_accumulator[p])) ESL_XEXCEPTION(eslFAIL, "Impossible Path"); 
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
     p7_splicepath_Destroy(path_accumulator[p]);
   }
@@ -948,7 +986,7 @@ p7_splice_RecoverSSVHits(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, int first,
       tmp_hit      = p7_hit_Create_empty();
       tmp_hit->dcl = dom_holder[i];
         
-      p7_splicepath_Insert(path, tmp_hit, step[i]);
+      //p7_splicepath_Insert(path, tmp_hit, step[i]);
     }   
   }
  
@@ -977,103 +1015,143 @@ p7_splice_RecoverSSVHits(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, int first,
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_ExtendPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *path)
+p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *graph)
 {
-  int i;
-  int i_start;
-  int gap_len;
+  int i,s;
   int insert;
+  int gap_len;
   P7_HIT *first_hit;
   P7_HIT *last_hit; 
-  P7_HIT *new_hit;
-  SPLICE_SAVED_HITS *sh;
-
-  sh = info->sh;
+  P7_HIT *curr_hit;
+  SPLICE_GRAPH *tmp_graph;
+  SPLICE_PATH  *tmp_path;
   
   first_hit = path->hits[0];
   last_hit  = path->hits[path->path_len-1];
 
-  path->hmm_start = first_hit->dcl->ihmm;
-  path->hmm_end   = last_hit->dcl->jhmm;
-
-  i_start = 0;
-  while(i_start < sh->N && sh->srt[i_start]->seqidx != first_hit->seqidx) i_start++; 
-  while(i_start < sh->N && sh->srt[i_start]->strand != path->revcomp) i_start++;
-
-  insert = 0;  
-  i = i_start;
-  while(i < sh->N) {
- 
-    if(sh->srt[i]->duplicate) { i++; continue; }
-    if(sh->srt[i]->is_seed)   { i++; continue; }  
- 
-    /* Is seed within MAX_INTRON_LENG upstream of the a first path hit */
-    if(path->revcomp) gap_len = sh->srt[i]->seq_end  - first_hit->dcl->iali - 1;
-    else              gap_len = first_hit->dcl->iali - sh->srt[i]->seq_end - 1;   
-
-    if(gap_len > MAX_INTRON_LENG || gap_len < 1) { i++; continue; }
-
-    /* Does the seed hit have at least one upstream amino not in the first_hit */
-    if(sh->srt[i]->hmm_start >= path->hmm_start) { i++; continue; }
-
-    new_hit          = p7_hit_Create_empty();
-    new_hit->dcl     = p7_domain_Create_empty(); 
-
-    new_hit->dcl->iali = sh->srt[i]->seq_start;
-    new_hit->dcl->jali = sh->srt[i]->seq_end;
-    new_hit->dcl->ihmm = sh->srt[i]->hmm_start;
-    new_hit->dcl->jhmm = sh->srt[i]->hmm_end;
-
-    p7_splicepath_Insert(path, new_hit, insert);
-    if(!path->revcomp) insert++;   
+  /* Only extend from begining if first hit is an original hit */
+  if(path->node_id[0] < graph->orig_N) {
+    tmp_graph = p7_splicegraph_Create();
+    tmp_graph->seqidx  = graph->seqidx;
+    tmp_graph->revcomp = graph->revcomp;
+    tmp_graph->seqname = graph->seqname; 
    
-    path->hmm_start = ESL_MIN(path->hmm_start, new_hit->dcl->ihmm); 
-    i++;
-    if(sh->srt[i]->strand != path->revcomp)     break;
-    if(sh->srt[i]->seqidx != first_hit->seqidx) break;
-           
- } 
+    p7_splicegraph_CreateNodes(tmp_graph, 1);  
+    p7_splicegraph_AddNode(tmp_graph, first_hit);
+  
+    tmp_graph->reportable[0]    = TRUE;
+    tmp_graph->orig_hit_idx[0]  = 0;
+    tmp_graph->split_orig_id[0] = 0;
+  
+    tmp_graph->orig_N = 1;
+    
+    for(i = 0; i < seed_hits->N; i++) {
+      
+      curr_hit = &(seed_hits->unsrt[i]);
+  
+      /* skip seeds already added to a graph */
+      if(curr_hit->dcl->is_included) continue;
+  
+      /* Is the seed hit on the same sequence and strand as the tmp_graph */
+      if (curr_hit->seqidx != tmp_graph->seqidx) continue;
+      if (tmp_graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
+      if ((!tmp_graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
+  
+      /*If the seed is upstream of the first hit, add it to the tmp graph */
+      if(p7_splice_HitUpstream(curr_hit->dcl, first_hit->dcl, tmp_graph->revcomp)) { 
+        if(graph->revcomp) gap_len = curr_hit->dcl->jali  - first_hit->dcl->iali - 1;
+        else               gap_len = first_hit->dcl->iali - curr_hit->dcl->jali - 1;
+        if(gap_len > MAX_INTRON_LENG) continue;
 
- insert = path->path_len;
- i = i_start;
- while(i < sh->N) {
+        p7_splicegraph_AddNode(tmp_graph, curr_hit);
+        tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
+        tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = -1;
+        tmp_graph->split_orig_id[tmp_graph->num_nodes-1] = -1;  
+      }
+          
+    }
+    tmp_graph->recover_N = tmp_graph->num_nodes;
+ 
+    p7_splice_CreateUnsplicedEdges(tmp_graph);
+    tmp_path = p7_splicepath_GetBestPath_Unspliced(tmp_graph); 
+//printf("tmp graph %d\n", tmp_graph->num_nodes);
+//p7_splicegraph_DumpHits(stdout, tmp_graph);    
+//p7_splicepath_Dump(stdout,tmp_path);
+//fflush(stdout);
 
-    if(sh->srt[i]->duplicate) { i++; continue; }
-    if(sh->srt[i]->is_seed)   { i++; continue; }
+    /* Add any seed hits from tmp_path to real path */
+    insert = 0;
+    for(s = 0; s < tmp_path->path_len-1; s++) {
+      tmp_path->hits[s]->dcl->is_included = TRUE;
+      p7_splicepath_Insert(path, tmp_path->hits[s], tmp_path->edge_scores[s], insert); 
+      insert++;
+    }
+    p7_splicepath_Destroy(tmp_path);
+    p7_splicegraph_Destroy(tmp_graph);
+  }
 
-    /* Is seed within MAX_INTRON_LENG downstream of the last path hit */
-    if(path->revcomp) gap_len = last_hit->dcl->jali    - sh->srt[i]->seq_start  - 1; 
-    else              gap_len = sh->srt[i]->seq_start  - last_hit->dcl->jali    - 1;
+  /* Only extend from end if last hit is an original hit */
+  if(path->node_id[path->path_len-1] < graph->orig_N) {
+    tmp_graph = p7_splicegraph_Create();
+    tmp_graph->seqidx  = graph->seqidx;
+    tmp_graph->revcomp = graph->revcomp;
+    tmp_graph->seqname = graph->seqname;
 
-    if(gap_len > MAX_INTRON_LENG || gap_len < 1) { i++; continue; }
+    p7_splicegraph_CreateNodes(tmp_graph, 1);
+    p7_splicegraph_AddNode(tmp_graph, last_hit);
+ 
+    tmp_graph->reportable[0]    = TRUE;
+    tmp_graph->orig_hit_idx[0]  = 0;
+    tmp_graph->split_orig_id[0] = 0;
 
-    /* Does the seed hit have at least one downstream amino not in the last hit */
-    if(sh->srt[i]->hmm_end <= path->hmm_end) { i++; continue; }
+    tmp_graph->orig_N = 1;
 
-    new_hit          = p7_hit_Create_empty();
-    new_hit->dcl     = p7_domain_Create_empty();
+    for(i = 0; i < seed_hits->N; i++) {
 
-    new_hit->dcl->iali = sh->srt[i]->seq_start;
-    new_hit->dcl->jali = sh->srt[i]->seq_end;
-    new_hit->dcl->ihmm = sh->srt[i]->hmm_start;
-    new_hit->dcl->jhmm = sh->srt[i]->hmm_end;
+      curr_hit = &(seed_hits->unsrt[i]);
 
-    p7_splicepath_Insert(path, new_hit, insert);
-    if(!path->revcomp) insert++;
+      /* skip seeds already added to a graph */
+      if(curr_hit->dcl->is_included) continue;
 
-    path->hmm_end = ESL_MAX(path->hmm_end, new_hit->dcl->jhmm);
-    i++;
-    if(sh->srt[i]->strand != path->revcomp)     break;
-    if(sh->srt[i]->seqidx != first_hit->seqidx) break;
+      /* Is the seed hit on the same sequence and strand as the tmp_graph */
+      if (curr_hit->seqidx != tmp_graph->seqidx) continue;
+      if (tmp_graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
+      if ((!tmp_graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
 
- }
+      /*If the seed is upstream of the first hit, add it to the tmp graph */
+      if(p7_splice_HitUpstream(last_hit->dcl, curr_hit->dcl, tmp_graph->revcomp)) {
+        if(graph->revcomp) gap_len = last_hit->dcl->jali - curr_hit->dcl->iali - 1;
+        else               gap_len = curr_hit->dcl->iali - last_hit->dcl->jali - 1;
+        if(gap_len > MAX_INTRON_LENG) continue;
+//printf("tmp graph %d\n", tmp_graph->num_nodes);
+        p7_splicegraph_AddNode(tmp_graph, curr_hit);
+        tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
+        tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = -1;
+        tmp_graph->split_orig_id[tmp_graph->num_nodes-1] = -1;
+      }
+    }   
+    tmp_graph->recover_N = tmp_graph->num_nodes;
 
- return eslOK; 
+    p7_splice_CreateUnsplicedEdges(tmp_graph);
+    tmp_path = p7_splicepath_GetBestPath_Unspliced(tmp_graph);
+
+    /* Add any seed hits from tmp_path to real path */
+    insert = path->path_len;
+    for(s = 1; s < tmp_path->path_len; s++) {
+      tmp_path->hits[s]->dcl->is_included = TRUE;
+      p7_splicepath_Insert(path, tmp_path->hits[s], tmp_path->edge_scores[s], insert);
+      insert++;
+
+    }
+    p7_splicepath_Destroy(tmp_path);
+    p7_splicegraph_Destroy(tmp_graph);
+  }
+  return eslOK; 
 
 }
 
 
-/*  Function: p7_splice_CreateEdges
+/*  Function: p7_splice_CreateUnsplicedEdges
  *  Synopsis: Add unspliced edges
  *
  *  Purpose : Given a splice graph with nodes, add unspliced
@@ -1086,7 +1164,7 @@ p7_splice_ExtendPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *path)
  *
  */
 int
-p7_splice_CreateEdges(SPLICE_GRAPH *graph) 
+p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph) 
 {
   int up, down;
   int seq_gap_len;
@@ -1109,6 +1187,62 @@ p7_splice_CreateEdges(SPLICE_GRAPH *graph)
         seq_gap_len = th->hit[down]->dcl->iali - th->hit[up]->dcl->jali - 1;        
 
       if(seq_gap_len > MAX_INTRON_LENG) continue;
+
+      edge = p7_splicegraph_AddEdge(graph, up, down);
+      edge->splice_score       = 0.;
+
+      /* If hits overlap, find the minimum lost socre to remove the overlap */
+      p7_spliceedge_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
+
+      edge->upstream_spliced_amino_end     = th->hit[up]->dcl->jhmm;
+      edge->downstream_spliced_amino_start = th->hit[down]->dcl->ihmm; 
+      edge->upstream_spliced_nuc_end       = th->hit[up]->dcl->jali;
+      edge->downstream_spliced_nuc_start   = th->hit[down]->dcl->iali;
+ 
+    }
+  } 
+  
+  return eslOK;
+
+}
+
+/*  Function: p7_splice_CreateExtentionEdges
+ *  Synopsis: Add unspliced edges
+ *
+ *  Purpose : Given a splice graph with nodes, add unspliced
+ *            edges between any hits that are up/down stream of
+ *            each other. Edge scores are zero unless the hits 
+ *            overlap in amino positions, when the edge score 
+ *            the minimum lost score to eleimate the overlap. 
+ *
+ * Returns:   <eslOK>.
+ *
+ */
+int
+p7_splice_CreateExtentionEdges(SPLICE_GRAPH *graph) 
+{
+  int up, down;
+  int seq_gap_len;
+  P7_TOPHITS  *th;
+  SPLICE_EDGE *edge;
+
+  th = graph->th;
+
+  for(up = 0; up < graph->num_nodes; up++) {
+    
+    for(down = 0; down < graph->num_nodes; down++) {
+      if(up == down) continue;
+
+      /* Are hits upstream/downstream */
+      if(!p7_splice_HitUpstream(th->hit[up]->dcl, th->hit[down]->dcl, graph->revcomp)) continue;
+      if(!hits_spliceable(th->hit[up]->dcl, th->hit[down]->dcl)) continue; 
+
+//      if(graph->revcomp)
+//        seq_gap_len = th->hit[up]->dcl->jali - th->hit[down]->dcl->iali - 1;
+//      else
+//        seq_gap_len = th->hit[down]->dcl->iali - th->hit[up]->dcl->jali - 1;        
+
+//      if(seq_gap_len > MAX_INTRON_LENG) continue;
 
       edge = p7_splicegraph_AddEdge(graph, up, down);
       edge->splice_score       = 0.;
@@ -1190,7 +1324,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     ali_seq->start = path->hits[0]->dcl->iali;
     ali_seq->end   = path->hits[0]->dcl->jali;
 
-    sub_hmm     = p7_splice_GetSubHMM(hmm, path->hmm_start, path->hmm_end);
+    sub_hmm     = p7_splice_GetSubHMM(hmm, path->hits[0]->dcl->ihmm, path->hits[0]->dcl->jhmm);
     sub_hmm->fs = 0.;
 
     /* Get all hits (exons) in path */
@@ -1238,6 +1372,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 
     return eslOK;
   }
+
+  /* Find the number of sub_path in path */
 
   ESL_ALLOC(removed_mem, sizeof(int64_t) * ((path->path_len-1)*2));
   ESL_ALLOC(removed_idx, sizeof(int64_t*) * (path->path_len-1));
@@ -1400,7 +1536,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     /* Check if the current exon overlaps with any of the original hits */
     s = 0;
     while( s < path->path_len) {
-      if(path->hit_scores[s] == -eslINFINITY) { s++; continue; }
+      if(path->node_id[s] < 0) { s++; continue; }
 
       if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
          seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
@@ -1650,6 +1786,7 @@ add_split_exons(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, P7_HIT **exons, const
   if(num_hits == 1) { 
    
     p7_splicegraph_AddNode(graph, exons[0]);
+    
     graph->orig_hit_idx[graph->num_nodes-1] = graph->orig_hit_idx[orig_node];
     if(orig_node < graph->orig_N) graph->split_orig_id[graph->num_nodes-1] = orig_node;
   }

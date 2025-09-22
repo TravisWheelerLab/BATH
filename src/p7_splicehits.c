@@ -455,73 +455,8 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   esl_sqfile_SetDigital(dbfp, abcDNA);
   curr_seqidx = th->hit[0]->seqidx;
   curr_strand = (th->hit[0]->dcl[0].iali < th->hit[0]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
-  /* Find all saved hits that are upstream or downstream and within MAX_INTRON_LENG of a top hit*/
-  i_start = 0;
-  h_start = 0;
-  h_end = 0;
-  while(h_start < th->N) {
- 
-    /* Find last top hit on current sequence and strand */ 
-    strand = (th->hit[h_end]->dcl[0].iali < th->hit[h_end]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
-    while(h_end < th->N && th->hit[h_end]->seqidx == curr_seqidx && strand == curr_strand) h_end++;
 
-    while(sh->srt[i_start]->seqidx != curr_seqidx ||
-          sh->srt[i_start]->strand != curr_strand) i_start++;
-    i_end = i_start;
-    while(i_end < sh->N && 
-         (sh->srt[i_end]->seqidx != curr_seqidx ||
-          sh->srt[i_end]->strand != curr_strand)) i_end++;
-    
-    for(i = i_start; i < i_end; i++) {
-      if(sh->srt[i]->duplicate) continue;
-      
-      seed_max = ESL_MAX(sh->srt[i_start]->seq_start, sh->srt[i_start]->seq_end);         
-      for(h1 = h_start; h1 < h_end; h1++) {
-        if ((th->hit[h1]->flags & p7_IS_DUPLICATE)) continue;
-        if(!(th->hit[h1]->flags & p7_IS_REPORTED) && exp(th->hit[h1]->sum_lnP) >= 0.1) continue;
-        
-        hit_min  = ESL_MIN(th->hit[h1]->dcl[0].iali, th->hit[h1]->dcl[0].jali);
-        
-        /* Is seed upstream of the a top hit */
-        if(curr_strand) gap_len = sh->srt[i]->seq_end - th->hit[h1]->dcl->iali - 1;
-        else            gap_len = th->hit[h1]->dcl->iali - sh->srt[i]->seq_end - 1;
 
-        if(gap_len > MAX_INTRON_LENG || gap_len < 1) continue;
-
-        if(sh->srt[i]->hmm_start > th->hit[h1]->dcl[0].ihmm &&
-           sh->srt[i]->hmm_end   > th->hit[h1]->dcl[0].jhmm) continue;
-
-        //if (  curr_strand  && sh->srt[i]->seq_end <= th->hit[h1]->dcl[0].iali) continue;
-        //if ((!curr_strand) && sh->srt[i]->seq_end >= th->hit[h1]->dcl[0].iali) continue;
-
-        /* Is seed downstream of the a top hit */  
-        for(h2 = h_start; h2 < h_end; h2++) {
-       
-          if(curr_strand) gap_len = th->hit[h2]->dcl->jali - sh->srt[i]->seq_start  - 1;
-          else            gap_len = sh->srt[i]->seq_start  - th->hit[h2]->dcl->jali - 1;
-
-          if(gap_len > MAX_INTRON_LENG || gap_len < 1) continue; 
-
-          if(th->hit[h2]->dcl[0].ihmm > sh->srt[i]->hmm_start &&
-             th->hit[h2]->dcl[0].jhmm > sh->srt[i]->hmm_end) continue;               
-
-          //if (  curr_strand  && th->hit[h2]->dcl[0].iali <= sh->srt[i]->seq_end) continue;
-          //if ((!curr_strand) && th->hit[h2]->dcl[0].iali >= sh->srt[i]->seq_end) continue;
-
-          sh->srt[i]->is_seed = TRUE;                  
-        }  
-      }
-    }
-
-    if(h_end < th->N) {
-      curr_seqidx =  th->hit[h_end]->seqidx;
-      curr_strand = (th->hit[h_end]->dcl[0].iali < th->hit[h_end]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT); 
-    }
-    
-    h_start = h_end;
-    i_start = i_end;
-  }
-/*
   for(h1 = 0; h1 < th->N; h1++) {
 
     if ((th->hit[h1]->flags & p7_IS_DUPLICATE)) continue;
@@ -576,7 +511,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
       }    
     }  
   }
-*/
+
   /* Add all saved hits where is_seed = TRUE to seed_hits */
   last_seqidx = -1;
   last_strand = -1;
@@ -613,7 +548,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
     hit->dcl->jhmm = sh->srt[i]->hmm_end;
     hit->dcl->iali = sh->srt[i]->seq_start;
     hit->dcl->jali = sh->srt[i]->seq_end;
-  
+   // printf("ihmm %d jhmm %d iali %d jali %d\n", hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali); 
     /* Create trace for seed hit */
     p7_trace_fs_Append(hit->dcl->tr, p7T_S , 0, 0, 0);
     p7_trace_fs_Append(hit->dcl->tr, p7T_N , 0, 0, 0);
@@ -636,7 +571,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
     last_seqidx = sh->srt[i]->seqidx;
     last_strand  = sh->srt[i]->strand;     
   }
-
+  
   esl_alphabet_Destroy(abcDNA);
   esl_sq_Destroy(dbsq_dna); 
   esl_sqfile_Close(dbfp);

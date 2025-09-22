@@ -139,7 +139,7 @@ p7_splicepath_Grow(SPLICE_PATH *path)
  *
  */
 int
-p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int step)
+p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, float edge_score, int step)
 {
 
   int s;
@@ -163,9 +163,9 @@ p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int step)
   path->path_len++;
  
   path->hits[step] = new_hit;
-
-  path->hit_scores[step]    = -eslINFINITY;
-  path->edge_scores[step]   = 0.;
+  
+  path->hit_scores[step]    = new_hit->dcl->aliscore;
+  path->edge_scores[step]   = edge_score;
   path->signal_scores[step] = 0.; 
 
   path->node_id[step] = -1;
@@ -176,11 +176,6 @@ p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int step)
 
   path->upstream_spliced_amino_end[step+1]     = new_hit->dcl->jhmm;
   path->upstream_spliced_nuc_end[step+1]       = new_hit->dcl->jali;
-
-//  if(step < path->path_len) {  
-//    path->upstream_spliced_amino_end[step+1]     = new_hit->dcl->jhmm; 
-//    path->upstream_spliced_nuc_end[step+1]       = new_hit->dcl->jali;
-//  }
 
   return eslOK;
  
@@ -193,8 +188,6 @@ p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int step)
 void
 p7_splicepath_Destroy(SPLICE_PATH *path)
 {
-
-   int s;
 
    if(path == NULL) return;
 
@@ -210,12 +203,6 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
      free(path->upstream_spliced_nuc_end);
    if(path->downstream_spliced_nuc_start   != NULL)
      free(path->downstream_spliced_nuc_start);
-
-   for(s = 0; s < path->path_len; s++) {
-     if(path->hit_scores[s] == -eslINFINITY) {
-       p7_hit_Destroy(path->hits[s]);
-     } 
-   }
 
    if(path->hit_scores    != NULL) free(path->hit_scores);
    if(path->edge_scores   != NULL) free(path->edge_scores);

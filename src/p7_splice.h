@@ -96,8 +96,6 @@ typedef struct _splice_path {
   int alloc_len;
   int path_len;
   int seq_len;
-  int hmm_start;
-  int hmm_end;
 
   int *node_id;
   int *split;
@@ -232,7 +230,7 @@ extern void p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh);
 /* p7_splicepath.c */
 extern SPLICE_PATH* p7_splicepath_Create(int path_len);
 extern int p7_splicepath_Grow(SPLICE_PATH *path);
-extern int p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, int step);
+extern int p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, float edge_score, int step);
 extern void p7_splicepath_Destroy(SPLICE_PATH *path);
 extern SPLICE_PATH* p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph);
 extern SPLICE_PATH* p7_splicepath_GetBestPath(SPLICE_GRAPH *graph);
@@ -252,8 +250,9 @@ extern int p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits
 extern int p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
 extern int p7_splice_RecoverViterbiHits(SPLICE_WORKER_INFO *info, int first, int last);
 extern int p7_splice_RecoverSSVHits(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, int first, int last);
-extern int p7_splice_ExtendPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *path);
-extern int p7_splice_CreateEdges(SPLICE_GRAPH *graph);
+extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *graph);
+extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph);
+extern int p7_splice_CreateExtentionEdges(SPLICE_GRAPH *graph);
 extern int p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq); 
 extern P7_HIT** p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int64_t **remove_idx, int removed_n, int revcomp, int hmm_start, int *num_exons);
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, SPLICE_WORKER_INFO *info, ESL_SQ **path_seq_accumulator, int num_paths);

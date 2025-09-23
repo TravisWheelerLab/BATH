@@ -85,13 +85,17 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
-  
+  pli->S1     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S1")) : 0.05);
+  pli->S2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S2")) : 0.1); 
+ 
   if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
   else                                            pli->do_biasfilter = TRUE;
   
   if (go && esl_opt_GetBoolean(go, "--max")) {
     pli->do_biasfilter = FALSE;
     pli->F1 = pli->F2 = pli->F3 = 1.0;
+    pli->S1 = 0.3; // Must set some threshold for SSV windows
+    pli->S2 = 1.0;
   }
   
   pli->signal_scores = NULL; 

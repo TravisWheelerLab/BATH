@@ -1435,6 +1435,8 @@ typedef struct p7_pipeline_s {
   double  F2;                    /* Viterbi filter threshold                 */
   double  F3;                    /* uncorrected Forward filter threshold     */
   double  F4;                    /* min ORF Forward filter before fs Forward */
+  double  S1;                    /* SSV threshold for splicing seed hits     */
+  double  S2;                    /* Threshold for adding Forward hits to splicing graph */
   int     B1;                    /* window length for biased-composition modifier - MSV*/
   int     B2;                    /* window length for biased-composition modifier - Viterbi*/
   int     B3;                    /* window length for biased-composition modifier - Forward*/
@@ -1955,9 +1957,6 @@ extern int          p7_pipeline_Merge  (P7_PIPELINE *p1, P7_PIPELINE *p2);
 extern P7_PIPELINE* p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode);
 extern int          p7_pipeline_fs_Reuse  (P7_PIPELINE *pli);
 extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
-
-//SPLASH
-extern P7_PIPELINE * p7_pipeline_splash_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode);
 
 extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
 extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);

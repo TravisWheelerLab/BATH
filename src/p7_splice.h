@@ -131,6 +131,8 @@ typedef struct _splice_pipeline
   double   F1;  
   double   F2;
   double   F3;
+  double   S1;
+  double   S2;
   double   incE;
   double   incT;
 
@@ -223,8 +225,8 @@ extern int p7_splicehits_CreateNext(SPLICE_SAVED_HITS *saved_hits, SPLICE_HIT_IN
 extern int p7_splicehits_SortSavedHits(SPLICE_SAVED_HITS *sh);
 extern int p7_splicehits_MergeSavedHits(SPLICE_SAVED_HITS *sh1, SPLICE_SAVED_HITS *sh2);
 extern int p7_splicehits_AssignNodes(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, int first, int last);
-extern int p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th);
-extern P7_TOPHITS* p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_BG *bg, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode); 
+extern int p7_splicehits_RemoveDuplicates(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, P7_TOPHITS *th);
+extern P7_TOPHITS* p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode); 
 extern void p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh);
  
 /* p7_splicepath.c */
@@ -246,7 +248,7 @@ extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);
-extern int p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
+extern int p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
 extern int p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
 extern int p7_splice_RecoverViterbiHits(SPLICE_WORKER_INFO *info, int first, int last);
 extern int p7_splice_RecoverSSVHits(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, int first, int last);

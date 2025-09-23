@@ -106,8 +106,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   }
 
   /* Sort saved hits and removed duplicates */
-  p7_splicehits_RemoveDuplicates(saved_hits, tophits);
-  seed_hits = p7_splicehits_GetSeedHits(saved_hits, tophits, hmm, info[0].pli->bg, gm_fs, seq_file, gcode);
+  p7_splicehits_RemoveDuplicates(info, saved_hits, tophits);
+  seed_hits = p7_splicehits_GetSeedHits(info, saved_hits, tophits, hmm, gm_fs, seq_file, gcode);
 
   for (i = 0; i < infocnt; ++i)
     info[i].seeds = seed_hits;
@@ -200,7 +200,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < 0.1) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
 
 	      num_graphs++;
 	      seqidx  = curr_seqidx; 
@@ -226,7 +226,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < 0.1) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
           graphs[g] = p7_splicegraph_Create();
 		  graphs[g]->seqidx  = curr_seqidx;
 		  graphs[g]->revcomp = curr_revcomp;
@@ -244,7 +244,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 	graph = graphs[g];
 
     /* Add all BATH hits from the correct seqidx and strand as nodes to graph */
-    p7_splice_AddOriginals(graph, tophits);
+    p7_splice_AddOriginals(info, graph, tophits);
     p7_splice_AddSeeds(graph, seed_hits);
 
     info->graph     = graph;
@@ -302,7 +302,7 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < 0.1) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
 
 	      num_graphs++;
 	      seqidx  = curr_seqidx; 
@@ -328,7 +328,7 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < 0.1) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
           graphs[g] = p7_splicegraph_Create();
 		  graphs[g]->seqidx  = curr_seqidx;
 		  graphs[g]->revcomp = curr_revcomp;
@@ -345,14 +345,14 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
 	graph = graphs[g];
 
-    p7_splice_AddOriginals(graph, tophits);
+    p7_splice_AddOriginals(info, graph, tophits);
     p7_splice_AddSeeds(graph, seed_hits);
 //printf("ORIGINAL\n");
 //p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
   }
  
-//printf("saved %d seeds %d graph %d\n", info->sh->N, seed_hits->N, graph->num_nodes); 
+printf("saved %d seeds %d graph %d\n", info->sh->N, seed_hits->N, graph->num_nodes); 
   /* Initialize mutex */
   if (pthread_mutex_init(&mutex, NULL)) { status = eslFAIL; goto ERROR; }
 
@@ -428,7 +428,7 @@ splice_thread(void *arg)
  *
  */
 int 
-p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits)
+p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits)
 {
 
   int     i;
@@ -444,7 +444,7 @@ p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits)
     if ((!graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
     
     if ((tophits->hit[i]->flags & p7_IS_DUPLICATE)) continue;
-    if(!(tophits->hit[i]->flags & p7_IS_REPORTED) && exp(tophits->hit[i]->sum_lnP) >= 0.1) continue;
+    if(!(tophits->hit[i]->flags & p7_IS_REPORTED) && exp(tophits->hit[i]->sum_lnP) >= info->pli->S2) continue;
 
     hit_cnt++;
   }
@@ -462,7 +462,7 @@ p7_splice_AddOriginals(SPLICE_GRAPH *graph, const P7_TOPHITS *tophits)
     if ((!graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
 
     if ((curr_hit->flags & p7_IS_DUPLICATE)) continue;
-	if(!(curr_hit->flags & p7_IS_REPORTED) && exp(curr_hit->sum_lnP) >= 0.1) continue;
+	if(!(curr_hit->flags & p7_IS_REPORTED) && exp(curr_hit->sum_lnP) >= info->pli->S2) continue;
 
     if(curr_hit->flags & p7_IS_REPORTED) graph->reportable[graph->th->N] = TRUE;
     else                                 graph->reportable[graph->th->N] = FALSE;
@@ -596,11 +596,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   printf("\nQuery %s Target %s strand %c seqidx %d\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);
 
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+printf("RECOVER\n");
+p7_splicegraph_DumpHits(stdout, graph);
+fflush(stdout);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(graph);
@@ -632,7 +632,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
     path = p7_splicepath_GetBestPath_Unspliced(graph);
   }
-
+printf("orig_paths %d\n", orig_paths);
   /* Mark any remaining revocered hits as no in graph */
   for(h = graph->orig_N; h < graph->num_nodes; h++)    
     graph->node_in_graph[h] = FALSE;
@@ -1222,7 +1222,6 @@ int
 p7_splice_CreateExtentionEdges(SPLICE_GRAPH *graph) 
 {
   int up, down;
-  int seq_gap_len;
   P7_TOPHITS  *th;
   SPLICE_EDGE *edge;
 
@@ -1236,13 +1235,6 @@ p7_splice_CreateExtentionEdges(SPLICE_GRAPH *graph)
       /* Are hits upstream/downstream */
       if(!p7_splice_HitUpstream(th->hit[up]->dcl, th->hit[down]->dcl, graph->revcomp)) continue;
       if(!hits_spliceable(th->hit[up]->dcl, th->hit[down]->dcl)) continue; 
-
-//      if(graph->revcomp)
-//        seq_gap_len = th->hit[up]->dcl->jali - th->hit[down]->dcl->iali - 1;
-//      else
-//        seq_gap_len = th->hit[down]->dcl->iali - th->hit[up]->dcl->jali - 1;        
-
-//      if(seq_gap_len > MAX_INTRON_LENG) continue;
 
       edge = p7_splicegraph_AddEdge(graph, up, down);
       edge->splice_score       = 0.;

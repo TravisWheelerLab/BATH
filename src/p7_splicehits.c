@@ -299,7 +299,7 @@ p7_splicehits_AssignNodes(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, int first,
 }
 
 int 
-p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th) 
+p7_splicehits_RemoveDuplicates(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, P7_TOPHITS *th) 
 {
 
   int     i, j;
@@ -363,10 +363,13 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th)
   }
 
   j_start = 0;
-  /* If a saved hit overlaps with the tophit set the saved hit as huplicate */
+  /* If a saved hit overlaps with a top hit, set the saved hit as duplicate */
   for (i = 0; i < th->N; i++)  
   {
 
+   if ((th->hit[i]->flags & p7_IS_DUPLICATE)) continue;
+   if(!(th->hit[i]->flags & p7_IS_REPORTED) && exp(th->hit[i]->sum_lnP) >= info->pli->S2) continue;
+    
     s_i   = th->hit[i]->dcl[0].iali;
     e_i   = th->hit[i]->dcl[0].jali;
     strand = (s_i < e_i ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
@@ -412,16 +415,12 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th)
 }
 
 P7_TOPHITS*
-p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_BG *bg, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode) 
+p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode) 
 {
 
-  int i, y, z;
-  int h_start, h_end;
-  int i_start, i_end;
-  int h1, h2;
-  int curr_seqidx, curr_strand;
+  int i, h, y, z;
+  int i_start;
   int strand;
-  int gap_len;
   int hit_min, hit_max;
   int seed_min, seed_max;
   int seq_max;
@@ -441,6 +440,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
 
   dbfp  = NULL;
 
+   
   /* Open sequence file */
   status = esl_sqfile_Open(seq_file->filename,seq_file->format,NULL,&dbfp); 
   if      (status == eslENOTFOUND) p7_Fail("Failed to open sequence file %s for reading\n",          seq_file);
@@ -453,22 +453,19 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   dbsq_dna    = esl_sq_CreateDigital(abcDNA);
 
   esl_sqfile_SetDigital(dbfp, abcDNA);
-  curr_seqidx = th->hit[0]->seqidx;
-  curr_strand = (th->hit[0]->dcl[0].iali < th->hit[0]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
-
-
-  for(h1 = 0; h1 < th->N; h1++) {
-
-    if ((th->hit[h1]->flags & p7_IS_DUPLICATE)) continue;
-    if(!(th->hit[h1]->flags & p7_IS_REPORTED) && exp(th->hit[h1]->sum_lnP) >= 0.1) continue;
+  i_start = 0;
+  for(h = 0; h < th->N; h++) {
+    
+    if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
+    if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= info->pli->S2) continue;
      
-    strand = (th->hit[h1]->dcl[0].iali < th->hit[h1]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
-    hit_min  = ESL_MIN(th->hit[h1]->dcl[0].iali, th->hit[h1]->dcl[0].jali);
-    hit_max  = ESL_MAX(th->hit[h1]->dcl[0].iali, th->hit[h1]->dcl[0].jali);
-
+    strand = (th->hit[h]->dcl[0].iali < th->hit[h]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
+    hit_min  = ESL_MIN(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
+    hit_max  = ESL_MAX(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
+    
     
     // Find first saved hit that is on same seq and strand as top hit 
-    while(sh->srt[i_start]->seqidx != th->hit[h1]->seqidx ||
+    while(sh->srt[i_start]->seqidx != th->hit[h]->seqidx ||
           sh->srt[i_start]->strand != strand) i_start++;    
 
     seed_max = ESL_MAX(sh->srt[i_start]->seq_start, sh->srt[i_start]->seq_end);
@@ -487,25 +484,25 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
 
       // Stop when we reach a new sequence or stand or the saved hit is >MAX_INTRON_LENG from the top hit 
       seed_min = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
-      if(sh->srt[i]->seqidx != th->hit[h1]->seqidx ||
+      if(sh->srt[i]->seqidx != th->hit[h]->seqidx ||
          sh->srt[i]->strand != strand             ||
          seed_min - hit_max > MAX_INTRON_LENG) break;
 
       // Is saved hit upstearm and within of top hit  
-      if(sh->srt[i]->hmm_start <= th->hit[h1]->dcl[0].ihmm ||
-         sh->srt[i]->hmm_end   <= th->hit[h1]->dcl[0].jhmm) {
+      if(sh->srt[i]->hmm_start <= th->hit[h]->dcl[0].ihmm ||
+         sh->srt[i]->hmm_end   <= th->hit[h]->dcl[0].jhmm) {
 
-        if (( strand  && sh->srt[i]->seq_end > th->hit[h1]->dcl[0].iali) ||
-           ((!strand) && sh->srt[i]->seq_end < th->hit[h1]->dcl[0].iali)) 
+        if (( strand  && sh->srt[i]->seq_end > th->hit[h]->dcl[0].iali) ||
+           ((!strand) && sh->srt[i]->seq_end < th->hit[h]->dcl[0].iali)) 
           sh->srt[i]->is_seed = TRUE;
        
       }
       // Is saved hit downstearm and within of top hit 
-	  if(th->hit[h1]->dcl[0].ihmm <= sh->srt[i]->hmm_start ||
-         th->hit[h1]->dcl[0].jhmm <= sh->srt[i]->hmm_end) {
+	  if(th->hit[h]->dcl[0].ihmm <= sh->srt[i]->hmm_start ||
+         th->hit[h]->dcl[0].jhmm <= sh->srt[i]->hmm_end) {
 
-        if (( strand  && th->hit[h1]->dcl[0].iali > sh->srt[i]->seq_end ) ||
-           ((!strand) && th->hit[h1]->dcl[0].iali < sh->srt[i]->seq_end)) 
+        if (( strand  && th->hit[h]->dcl[0].iali > sh->srt[i]->seq_end ) ||
+           ((!strand) && th->hit[h]->dcl[0].iali < sh->srt[i]->seq_end)) 
           sh->srt[i]->is_seed = TRUE;
         
       }    
@@ -516,6 +513,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   last_seqidx = -1;
   last_strand = -1;
   for(i = 0 ; i < sh->N; i++) {
+  
     if(!sh->srt[i]->is_seed) continue;
 
     /* If the saved hit is on a new sequence or strand sove to beginging of current sequence */
@@ -565,7 +563,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
     p7_trace_fs_Append(hit->dcl->tr, p7T_T, 0, 0, 0);
     
     hit->dcl->scores_per_pos = NULL;
-    p7_splice_ComputeAliScores_fs(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, bg, TRUE);
+    p7_splice_ComputeAliScores_fs(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, info->pli->bg, TRUE);
 
     
     last_seqidx = sh->srt[i]->seqidx;

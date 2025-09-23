@@ -113,7 +113,7 @@ static ESL_OPTIONS options[] = {
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                            7 },
   { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,   NULL,"--max",         "promote windows to FS Fwd if a coresponding ORF has P <= F4",                            7 },
   { "--S1",           eslARG_REAL,   "0.05",    NULL,        NULL,      NULL,   "--splice","--max",    "splicing seed threshold, keep SSV hits w/ P <= S1",                           7 },
-  { "--S2",           eslARG_REAL,   "0.1",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                         7 },
+  { "--S2",           eslARG_REAL,   "1e-4",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                         7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                            7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                               7 },
   { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--nofs",        "send all potential hits to the frameshift aware pipeline",                    7 },
@@ -291,6 +291,10 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--F2")                            && fprintf(ofp, "# Vit filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F2"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F3")                            && fprintf(ofp, "# Fwd filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F3"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F4")                            && fprintf(ofp, "# ORF P threshold for FS FWD:                 <= %g\n",      esl_opt_GetReal(go, "--F4"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--splice") && 
+      esl_opt_IsUsed(go, "--S1")                            && fprintf(ofp, "# Splice seed threshold:                      <= %g\n",      esl_opt_GetReal(go, "--S1"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--splice") && 
+      esl_opt_IsUsed(go, "--S2")                            && fprintf(ofp, "# Splice anchor threshold:                    <= %g\n",      esl_opt_GetReal(go, "--S2"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nobias")                        && fprintf(ofp, "# biased composition HMM filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nonull2")                       && fprintf(ofp, "# null2 bias corrections:                        off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fsonly")                        && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 

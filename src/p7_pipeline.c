@@ -437,7 +437,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
    pli->F4     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F4")) : 5e-4);
    pli->S1     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S1")) : 0.05);
-   pli->S2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S2")) : 0.1);
+   pli->S2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S2")) : 0.0001);
    pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
    pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
    pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);

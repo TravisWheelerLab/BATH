@@ -1122,7 +1122,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       esl_sq_ReverseComplement(dbsq_dna);
     } 
 
-    sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length, info->pli->block_length, dbsq_dna);
+    sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length*3, info->pli->block_length, dbsq_dna);
     
     if (sstatus == eslEOD) 
     { 
@@ -1221,13 +1221,13 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
          * in preparation for ReadWindow  (double copy ... slower than necessary) */
         esl_sq_Copy(tmpsq, ((ESL_SQ_BLOCK *)newBlock)->list);
 
-        if (  ((ESL_SQ_BLOCK *)newBlock)->list->n < info->om->max_length ) {
+        if (  ((ESL_SQ_BLOCK *)newBlock)->list->n < info->om->max_length*3 ) {
           /*no reason to search the final partial sequence on the block, as 
            * the next block will search this whole chunk */
           ((ESL_SQ_BLOCK *)newBlock)->list->C = ((ESL_SQ_BLOCK *)newBlock)->list->n;
           (((ESL_SQ_BLOCK *)newBlock)->count)--;
         } else {
-          ((ESL_SQ_BLOCK *)newBlock)->list->C = info->om->max_length;
+          ((ESL_SQ_BLOCK *)newBlock)->list->C = info->om->max_length*3;
         }
       }
     }

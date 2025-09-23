@@ -531,7 +531,7 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
     seed_max = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
     
     while(seed_max > seq_max) {
-      status = esl_sqio_ReadWindow(dbfp, gm_fs->max_length, window_len, dbsq_dna);
+      status = esl_sqio_ReadWindow(dbfp, gm_fs->max_length*3, window_len, dbsq_dna);
       seq_max = ESL_MAX(dbsq_dna->start, dbsq_dna->end);
       if(sh->srt[i]->strand == p7_COMPLEMENT)    
         esl_sq_ReverseComplement(dbsq_dna);

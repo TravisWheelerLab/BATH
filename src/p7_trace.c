@@ -1637,15 +1637,17 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const
 		     (tr->st[z] == p7T_C && tr->st[z-1] == p7T_C) ||
 		     (tr->st[z] == p7T_J && tr->st[z-1] == p7T_J))  {
           c1 = dsq[tr->i[z]];
-          c2 = dsq[tr->i[z]-1];
-          c3 = dsq[tr->i[z]-2];
+          if(tr->i[z] > 1) c2 = dsq[tr->i[z]-1];
+          if(tr->i[z] > 2) c3 = dsq[tr->i[z]-2];
 
 	      fprintf(fp, " %8d", 0);
 	      if (tr->pp != NULL) {
 		    fprintf(fp, " %8.4f", tr->pp[z]);
 		     accuracy += tr->pp[z];
 	      }
-	      fprintf(fp, " %c%c%c", abc->sym[c1], abc->sym[c2], abc->sym[c3]);  
+	      if     (tr->i[z] > 2) fprintf(fp, " %c%c%c", abc->sym[c3], abc->sym[c2], abc->sym[c1]);  
+          else if(tr->i[z] > 1) fprintf(fp, " %c%c", abc->sym[c2], abc->sym[c1]);
+          else                  fprintf(fp, " %c", abc->sym[c1]);
 	    }
         else if (tr->st[z] == p7T_P) {
           /*only print the first P state */      

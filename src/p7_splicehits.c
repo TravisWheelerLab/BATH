@@ -368,6 +368,7 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
   int seq_max;
   int last_seqidx, last_strand;
   int window_len;
+  char         *seqname;
   P7_HIT       *hit;
   P7_TOPHITS   *seed_hits;
   ESL_ALPHABET *abcDNA;
@@ -436,6 +437,7 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
         if (( strand  && sh->srt[i]->seq_end > th->hit[h]->dcl[0].iali) ||
            ((!strand) && sh->srt[i]->seq_end < th->hit[h]->dcl[0].iali))  {
           sh->srt[i]->is_seed = TRUE;
+          sh->srt[i]->hit_id = h;
         }
        
       }
@@ -446,6 +448,7 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
         if (( strand  && th->hit[h]->dcl[0].iali > sh->srt[i]->seq_end ) ||
            ((!strand) && th->hit[h]->dcl[0].iali < sh->srt[i]->seq_end)) { 
           sh->srt[i]->is_seed = TRUE;
+          sh->srt[i]->hit_id = h;
         }
         
       }    
@@ -465,8 +468,9 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
 
       if(last_strand != -1 ) esl_sq_Reuse(dbsq_dna);
 
-//      esl_sqfile_PositionByKey(dbfp, seqname);
-      esl_sqfile_PositionByNumber(dbfp,sh->srt[i]->seqidx+1);
+      seqname = th->hit[sh->srt[i]->hit_id]->name;
+      esl_sqfile_PositionByKey(dbfp, seqname);
+//      esl_sqfile_PositionByNumber(dbfp,sh->srt[i]->seqidx+1);
       status = esl_sqio_ReadWindow(dbfp, 0, window_len, dbsq_dna);
       if(sh->srt[i]->strand == p7_COMPLEMENT) 
         esl_sq_ReverseComplement(dbsq_dna);
@@ -516,7 +520,7 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
     p7_trace_fs_Append(hit->dcl->tr, p7T_N , 0, 0, 0);
     p7_trace_fs_Append(hit->dcl->tr, p7T_B , 0, 0, 0);
 
-    y = abs(hit->dcl->iali - dbsq_dna->start) + 3;
+    y = llabs(hit->dcl->iali - dbsq_dna->start) + 3;
     for(z = hit->dcl->ihmm; z <= hit->dcl->jhmm; z++) {
       p7_trace_fs_Append(hit->dcl->tr, p7T_M, z, y, 3);
       y+=3;

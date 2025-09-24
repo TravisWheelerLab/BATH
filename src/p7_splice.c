@@ -109,6 +109,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   p7_splicehits_RemoveDuplicates(info, saved_hits, tophits);
   seed_hits = p7_splicehits_GetSeedHits(info, saved_hits, tophits, hmm, gm_fs, seq_file, gcode);
 
+  p7_splicehits_DestroySavedHits(saved_hits);
+  saved_hits = NULL;
+  
   for (i = 0; i < infocnt; ++i)
     info[i].seeds = seed_hits;
 
@@ -352,7 +355,6 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 //fflush(stdout);
   }
  
-//printf("saved %d seeds %d graph %d\n", info->sh->N, seed_hits->N, graph->num_nodes); 
   /* Initialize mutex */
   if (pthread_mutex_init(&mutex, NULL)) { status = eslFAIL; goto ERROR; }
 
@@ -832,7 +834,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
       if(p7_splice_HitUpstream(curr_hit->dcl, first_hit->dcl, tmp_graph->revcomp)) { 
         if(graph->revcomp) gap_len = curr_hit->dcl->jali  - first_hit->dcl->iali - 1;
         else               gap_len = first_hit->dcl->iali - curr_hit->dcl->jali - 1;
-        if(gap_len > MAX_INTRON_LENG) continue;
+        if(gap_len > MAX_INTRON_EXT || gap_len < ( first_hit->dcl->ihmm - curr_hit->dcl->jhmm - 1) * 3) continue;
 
         p7_splicegraph_AddNode(tmp_graph, curr_hit);
         tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
@@ -893,7 +895,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
       if(p7_splice_HitUpstream(last_hit->dcl, curr_hit->dcl, tmp_graph->revcomp)) {
         if(graph->revcomp) gap_len = last_hit->dcl->jali - curr_hit->dcl->iali - 1;
         else               gap_len = curr_hit->dcl->iali - last_hit->dcl->jali - 1;
-        if(gap_len > MAX_INTRON_LENG) continue;
+        if(gap_len > MAX_INTRON_EXT || gap_len < ( first_hit->dcl->ihmm - curr_hit->dcl->jhmm - 1) * 3) continue;
 //printf("tmp graph %d\n", tmp_graph->num_nodes);
         p7_splicegraph_AddNode(tmp_graph, curr_hit);
         tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
@@ -1079,9 +1081,9 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
    * hit has frameshifts realign a second time with frameshift spliced viterbi */
   if(path->path_len == 1) {
 
-    sub_path_len = abs(path->hits[0]->dcl->jali - path->hits[0]->dcl->iali)+1;
+    sub_path_len = llabs(path->hits[0]->dcl->jali - path->hits[0]->dcl->iali)+1;
 
-    ali_dsq = path_seq->dsq + abs(path->hits[0]->dcl->iali - path_seq->start);
+    ali_dsq = path_seq->dsq + llabs(path->hits[0]->dcl->iali - path_seq->start);
     ali_seq = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, ali_dsq, sub_path_len, NULL,NULL,NULL);
 
     ali_seq->start = path->hits[0]->dcl->iali;
@@ -1144,7 +1146,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     removed_idx[s] =  removed_mem + (s*2);
 
   
-  sub_path_len = abs(path->hits[path->path_len-1]->dcl->jali - path->hits[0]->dcl->iali)+1;
+  sub_path_len = llabs(path->hits[path->path_len-1]->dcl->jali - path->hits[0]->dcl->iali)+1;
   
   ESL_ALLOC(nuc_index, sizeof(int64_t) * (sub_path_len+2));
   ESL_ALLOC(sub_dsq,   sizeof(ESL_DSQ) * (sub_path_len+2));
@@ -1154,7 +1156,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   seq_idx   = 1;
 
   /* Add seqeuence for first hit */
-  seq_pos  = abs(path->hits[0]->dcl->iali - path_seq->start) + 1;
+  seq_pos  = llabs(path->hits[0]->dcl->iali - path_seq->start) + 1;
   
   true_idx = path->hits[0]->dcl->iali;
   if(graph->revcomp) {
@@ -1282,7 +1284,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   sub_seq->start = path->hits[0]->dcl->iali;
   sub_seq->end   = path->hits[path->path_len-1]->dcl->jali;
 
-  ali_dsq = path_seq->dsq + abs(path->hits[0]->dcl->iali - path_seq->start);
+  ali_dsq = path_seq->dsq + llabs(path->hits[0]->dcl->iali - path_seq->start);
   ali_seq = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, ali_dsq, sub_path_len, NULL,NULL,NULL);
 
   ali_seq->start = path->hits[0]->dcl->iali;

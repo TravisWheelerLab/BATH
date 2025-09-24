@@ -182,6 +182,7 @@ typedef struct {
 #define EDGE_ALLOC                100
 #define MAX_SEQ_LENG              1000000
 #define MAX_INTRON_LENG           100000
+#define MAX_INTRON_EXT            10000
 #define MIN_INTRON_LENG           13
 #define MAX_INTRON_INCL           1500
 #define MAX_AMINO_EXT             10

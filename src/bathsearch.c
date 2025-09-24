@@ -977,7 +977,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     p7_pipeline_fs_Destroy(pipelinehits_accumulator);
     p7_tophits_Destroy(tophits_accumulator);
-    p7_splicehits_DestroySavedHits(saved_hits_accumulator);
+    //p7_splicehits_DestroySavedHits(saved_hits_accumulator);
     p7_oprofile_Destroy(om);
     p7_profile_Destroy(gm);
     p7_profile_fs_Destroy(gm_fs);

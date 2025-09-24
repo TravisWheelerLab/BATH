@@ -2986,12 +2986,10 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
 
           p7_splicehits_CreateNext(saved_hits, &hit_info);       
          
-          hit_info->node_id   = -1;
           hit_info->seqidx    = seqidx;
           hit_info->strand    = complementarity;
           hit_info->duplicate = FALSE;
           hit_info->is_seed   = FALSE;
-          hit_info->viterbi   = FALSE;
 
           hit_info->hmm_start = window->k - window->length + 1;
           hit_info->hmm_end   = window->k;

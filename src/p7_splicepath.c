@@ -701,9 +701,7 @@ check_bypass_unspliced(SPLICE_GRAPH *graph, SPLICE_PATH *path)
 {
 
   int   p, h;
-  int   next, step;
   int   up_path, down_path;
-  int   reconnects;
   float max_bypass_score;
   float sub_path_score;
   P7_TOPHITS  *th;
@@ -758,18 +756,13 @@ check_bypass_extend(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extend_graph, SPLICE
 {
 
   int   p, h;
-  int   next, step;
   int   up, down;
   int   up_path, down_path;
-  int   reconnects;
   float max_bypass_score;
-  float sub_path_score;
   P7_TOPHITS  *orig_th;
-  P7_TOPHITS  *extend_th;
   SPLICE_EDGE *tmp_edge;
 
   orig_th = orig_graph->th; 
-  extend_th = extend_graph->th;
 
   /* Check each edge in a path to see if it baypasses a node with downstream edges will be severed by this path. */ 
   for(p = 0; p < path->path_len-1; p ++) {

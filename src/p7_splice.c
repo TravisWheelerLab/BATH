@@ -84,7 +84,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 #ifdef HMMER_THREADS
   ncpus = ESL_MIN(esl_opt_GetInteger(go, "--cpu"), esl_threads_GetCPUCount());
 #endif
- 
+
   /* Intialize data for threads */
   infocnt = (ncpus == 0) ? 1 : ncpus;
   ESL_ALLOC(info, sizeof(*info) * infocnt);
@@ -647,6 +647,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, path_accumulator[p]->revcomp, info); 
 
     path_seq_accumulator[p] = path_seq;
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicepath_Dump(stdout,path_accumulator[p]);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
 //if(!p7_splicepath_Check(path_accumulator[p])) ESL_XEXCEPTION(eslFAIL, "Impossible Path"); 
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
@@ -768,246 +771,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
 }
 
-/*  Function: p7_splice_RecoverViterbiHits
- *  Synopsis: Add revcoverd viterbi hits to graph
- *
- *  Purpose : Recover potential exons that were discarded by 
- *            the BATH forward filter but saved in <ifo->sh> 
- *            and add them to splice graph 
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEMEM> on allocation failure.
- */
-int
-p7_splice_RecoverViterbiHits(SPLICE_WORKER_INFO *info, int first, int last) 
-{
-
-  int i, j, s;
-  int z1, z2;
-  int gap_len;
-  int seq_min, seq_max;
-  int amino_len;
-  int nuc_seq_idx;
-  int amino;
-  P7_DOMAIN         *tmp_dom;
-  P7_HIT            *new_hit;
-  P7_TOPHITS        *th;
-  P7_HMM            *sub_hmm;
-  P7_PROFILE        *sub_model;
-  P7_GMX            *vit_mx;
-  ESL_SQ            *hit_nuc_seq; 
-  ESL_DSQ           *hit_aa_dsq;
-  SPLICE_GRAPH      *graph;
-  SPLICE_SAVED_HITS *sh;
-  int  status;
-
-  graph    = info->graph;
-  sh       = info->sh;
 
 
-  th = graph->th;
-
-  p7_splicehits_AssignNodes(info->graph, sh, first, last);
-   
-  tmp_dom = p7_domain_Create_empty();
-
-  for(i = first; i <= last; i++) {
-   
-    if(!sh->srt[i]->viterbi) continue; 
-    if(sh->srt[i]->duplicate) continue;
-    if(sh->srt[i]->node_id >= 0) continue;
-    
-    tmp_dom->ihmm = sh->srt[i]->hmm_start;
-    tmp_dom->jhmm = sh->srt[i]->hmm_end;    
-    tmp_dom->iali = sh->srt[i]->seq_start;    
-    tmp_dom->jali = sh->srt[i]->seq_end;
-
-    /* Check if hit info is for a hit that is spliceable upstream or downstream of any hits int the graph*/
-    for(j = 0; j < graph->orig_N; j++) {
-      if(!graph->node_in_graph[j]) continue;
-      if(p7_splice_HitUpstream(tmp_dom, th->hit[j]->dcl, graph->revcomp)) {
-        if(graph->revcomp) gap_len = tmp_dom->jali - th->hit[j]->dcl->iali - 1;
-        else               gap_len = th->hit[j]->dcl->iali - tmp_dom->jali - 1;
-        if(gap_len > MAX_INTRON_LENG) continue;
-      }
-      else if(p7_splice_HitUpstream(th->hit[j]->dcl, tmp_dom, graph->revcomp)) {
-        if(graph->revcomp) gap_len = th->hit[j]->dcl->jali - tmp_dom->iali - 1;
-        else               gap_len = tmp_dom->iali - th->hit[j]->dcl->jali - 1;
-
-        if(gap_len > MAX_INTRON_LENG) continue;
-      }
-      else continue;
-            
-      new_hit          = p7_hit_Create_empty();
-      new_hit->dcl     = p7_domain_Create_empty();
-      new_hit->dcl->tr = p7_trace_fs_Create();
-
-      seq_min = ESL_MIN(tmp_dom->iali, tmp_dom->jali);
-      seq_max = ESL_MAX(tmp_dom->iali, tmp_dom->jali); 
-      hit_nuc_seq = p7_splice_GetSubSequence(info->seq_file, graph->seqname, seq_min, seq_max, graph->revcomp, info);
-
-      amino_len = hit_nuc_seq->n/3;
-      ESL_ALLOC(hit_aa_dsq, sizeof(ESL_DSQ) * (amino_len+2));
-      hit_aa_dsq[0] = eslDSQ_SENTINEL;
-
-      nuc_seq_idx = 1;
-
-      for(s = 1; s <= amino_len; s++) {
-        amino = esl_gencode_GetTranslation(info->gcode, &hit_nuc_seq->dsq[nuc_seq_idx]);
-        hit_aa_dsq[s] = amino;
-        nuc_seq_idx+=3;
-      }
-      hit_aa_dsq[amino_len+1] = eslDSQ_SENTINEL;    
-      
-      sub_hmm = p7_splice_GetSubHMM(info->hmm, tmp_dom->ihmm, tmp_dom->jhmm);
-      sub_hmm->fs = 0.;
-      
-      sub_model = p7_profile_Create(sub_hmm->M, sub_hmm->abc);
-      p7_ProfileConfig(sub_hmm, info->pli->bg, sub_model, amino_len, p7_UNILOCAL);
-   
-      vit_mx = p7_gmx_Create(sub_model->M, amino_len);
-    
-      p7_GViterbi(hit_aa_dsq, amino_len, sub_model, vit_mx, NULL);
-      p7_GTrace(hit_aa_dsq, amino_len, sub_model, vit_mx, new_hit->dcl->tr);
-      p7_splice_ComputeAliScores(new_hit->dcl, new_hit->dcl->tr, hit_aa_dsq, sub_model, info->pli->bg, info->hmm->fs, TRUE);      
-      
-      if(graph->revcomp)
-        p7_trace_fs_Convert(new_hit->dcl->tr, hit_nuc_seq->start, 1);
-      else
-        p7_trace_fs_Convert(new_hit->dcl->tr, hit_nuc_seq->start, 1);
-
-      for(z1 = 0; z1 < new_hit->dcl->tr->N; z1++)    if(new_hit->dcl->tr->st[z1] == p7T_M) break;
-      for(z2 = new_hit->dcl->tr->N-1; z2 >= 0; z2--) if(new_hit->dcl->tr->st[z2] == p7T_M) break;
-       
-      new_hit->dcl->ihmm = tmp_dom->ihmm + new_hit->dcl->tr->k[z1] - 1;
-      new_hit->dcl->jhmm = tmp_dom->ihmm + new_hit->dcl->tr->k[z2] - 1; 
-      if(graph->revcomp) {
-        new_hit->dcl->iali = new_hit->dcl->tr->i[z1]-2;
-        new_hit->dcl->jali = new_hit->dcl->iali - (new_hit->dcl->tr->i[z2] - new_hit->dcl->iali);
-      }
-      else {
-        new_hit->dcl->iali = new_hit->dcl->tr->i[z1] - 2;
-        new_hit->dcl->jali = new_hit->dcl->tr->i[z2];
-      }
-      p7_splicegraph_AddNode(graph, new_hit);
-      
-      sh->srt[i]->node_id = graph->num_nodes-1;
-
-      p7_hmm_Destroy(sub_hmm);
-      p7_profile_Destroy(sub_model);
-      p7_gmx_Destroy(vit_mx);
-      esl_sq_Destroy(hit_nuc_seq);
-      free(hit_aa_dsq);
-      break;
-    } 
-  
-  }     
-
-  free(tmp_dom);
-  return eslOK;
-
-  ERROR:
-	free(tmp_dom);
-	free(hit_aa_dsq);
-	return status;
-}
-
-
-/*  Function: p7_splice_RecoverSSVHits
- *  Synopsis: Add revcoverd SSV hits to path
- *
- *  Purpose : Recover potential exons that were discarded by 
- *            the BATH Viterbi filter but saved in <ifo->sh> 
- *            and add them to splice path
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEMEM> on allocation failure.
- */
-int
-p7_splice_RecoverSSVHits(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, int first, int last) 
-{
-
-  int i, s;
-  int dom_cnt;
-  int holder_size;
-  int               *step;
-  P7_HIT            *tmp_hit;
-  P7_DOMAIN         *tmp_dom; 
-  P7_DOMAIN        **dom_holder;
-  SPLICE_SAVED_HITS *sh;
-  int status;
-
-  if(path->path_len == 1) return eslOK; 
-
-  sh = info->sh;
-
-  holder_size = path->path_len;
-
-  dom_holder = NULL;
-  ESL_ALLOC(dom_holder, sizeof(P7_DOMAIN*) * holder_size);
-
-  step = NULL;
-  ESL_ALLOC(step, sizeof(int) * holder_size);
-
-  tmp_dom = p7_domain_Create_empty();
-  
-  dom_cnt = 0;
-  for(s = 1; s < path->path_len; s++) {
-
-    for(i = first; i <= last; i++) {
-      if(sh->srt[i]->viterbi) continue;
-      if(sh->srt[i]->duplicate) continue;
-      if(sh->srt[i]->node_id >= 0) continue;
-
-      tmp_dom->ihmm = sh->srt[i]->hmm_start;
-      tmp_dom->jhmm = sh->srt[i]->hmm_end;
-      tmp_dom->iali = sh->srt[i]->seq_start;
-      tmp_dom->jali = sh->srt[i]->seq_end;
-
-      if(p7_splice_HitUpstream(path->hits[s-1]->dcl, tmp_dom, path->revcomp) &&
-         p7_splice_HitUpstream(tmp_dom, path->hits[s]->dcl, path->revcomp)) {
-
-        if(dom_cnt == holder_size) {
-          holder_size *= 2;
-          ESL_REALLOC(dom_holder, sizeof(P7_DOMAIN*) * holder_size);
-          ESL_REALLOC(step, sizeof(int) * holder_size);
-        }       
-
-        dom_holder[dom_cnt] = tmp_dom;
-        step[dom_cnt] = s-1;     
-        dom_cnt++;
-
-        sh->srt[i]->duplicate = TRUE;
-
-        tmp_dom = p7_domain_Create_empty();     
-      }
-    }
-  }
-
-  /* Add from last to first to preserve coordinate order */
-  if(dom_cnt) {
-    for(i = dom_cnt-1; i >= 0; i--) {
-      tmp_hit      = p7_hit_Create_empty();
-      tmp_hit->dcl = dom_holder[i];
-        
-      //p7_splicepath_Insert(path, tmp_hit, step[i]);
-    }   
-  }
- 
-  if(dom_holder != NULL) free(dom_holder);
-  if(step != NULL) free(step);
-  p7_domain_Destroy(tmp_dom); 
-  
-  return eslOK;
-
-  ERROR:
-	if(dom_holder != NULL) free(dom_holder);
-	if(step != NULL) free(step);
-	p7_domain_Destroy(tmp_dom);
-	return status;
-}
 
 /*  Function: p7_splice_ExtendPath
  *  Synopsis: Add seed hits to beginning or end of path 
@@ -1544,20 +1309,20 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     /* Check if the current exon overlaps with any of the original hits */
     s = 0;
     while( s < path->path_len) {
-      if(path->node_id[s] >= graph->orig_N) { s++; continue; }
-//      printf("s %d \n", s+1);
+      if(path->node_id[s] >= graph->orig_N  || path->node_id[s] == -1) { s++; continue; }
+
       if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
          seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
         first_split = e;
-//        printf("frist split %d\n", e);
+
         /*Find any additional hits that ovelap with the same orignal hit */
         while(e+1 < num_hits && hmm_overlap(exons[e+1]->dcl, path->hits[s]->dcl) > 0.5 &&
               seq_overlap(exons[e+1]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {
           e++;
-//          printf("e %d ali %d jali %d ihmm %d jmm %d\n", e, exons[e]->dcl->iali, exons[e]->dcl->jali, exons[e]->dcl->ihmm, exons[e]->dcl->jhmm);
+
         }
         last_split = e;
-//         printf("last split %d\n", e);
+
         /* Check that any splits of original hits are better scoring than the
          * unsplit alternaitve and add them to the graph */
         split_exons = last_split - first_split + 1;
@@ -1598,7 +1363,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       /* Check if the current exon overlap suffcenitly with any of the original hits */
       s = 0;
       while( s < path->path_len) {
-        if(path->node_id[s] >= graph->orig_N) { s++; continue; }
+        if(path->node_id[s] >= graph->orig_N || path->node_id[s] == -1) { s++; continue; }
 
         if(hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) > 0.5 &&
            seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) > 0.5) {

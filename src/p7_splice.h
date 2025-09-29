@@ -179,15 +179,15 @@ typedef struct {
 } SPLICE_WORKER_INFO;
 
 
-#define EDGE_ALLOC                100
-#define MAX_SEQ_LENG              1000000
-#define MAX_INTRON_LENG           100000
-#define MAX_INTRON_EXT            10000
-#define MIN_INTRON_LENG           13
-#define MAX_INTRON_INCL           1500
-#define MAX_AMINO_EXT             10
-#define MIN_AMINO_OVERLAP         10
-#define ALIGNMENT_EXT             10
+#define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node */
+#define MAX_INTRON_LENG           100000   /*maximum intron length */
+#define MAX_INTRON_EXT            10000    /*maximum extension distance */
+#define MIN_INTRON_LENG           13       /*minimum intor length */
+#define MAX_INTRON_INCL           1500     /*maximum length on intron to be included in spliced Viterbi search */
+#define MAX_SP_AMINO_GAP          10       /*maximum amino gap for spliced edges */
+#define MAX_USP_AMINO_GAP         25       /*maximum amino gap fpr unspliced edges */ 
+#define MIN_AMINO_OVERLAP         10       /*amino acid splice site window */   
+#define ALIGNMENT_EXT             10       /*amino extetion at start and end of path seq for final alignment */
 
 
 /* Indices of p7_splice_SignalScores */
@@ -258,7 +258,7 @@ extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph);
 extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph);
 extern int p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq); 
-extern P7_HIT** p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int64_t **remove_idx, int removed_n, int revcomp, int hmm_start, int *num_exons);
+extern P7_HIT** p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int64_t **remove_idx, int removed_n, int revcomp, int hmm_start, int *num_exons, int64_t *nuc_index);
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, SPLICE_WORKER_INFO *info, ESL_SQ **path_seq_accumulator, int num_paths);
 extern int p7_splice_RemoveHits(SPLICE_GRAPH *graph, int range_bound_min, int range_bound_max);
 extern int p7_splice_EnforceRangeBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_max);

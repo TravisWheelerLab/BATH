@@ -396,63 +396,69 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
   esl_sqfile_SetDigital(dbfp, abcDNA);
   esl_sqfile_OpenSSI(dbfp,NULL);
  
+  last_seqidx = -1;
+  last_strand = -1; 
   i_start = 0;
   for(h = 0; h < th->N; h++) {
-    
+  
     if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
     if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= info->pli->S2) continue;
-     
-    strand = (th->hit[h]->dcl[0].iali < th->hit[h]->dcl[0].jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
-    hit_min  = ESL_MIN(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
-    hit_max  = ESL_MAX(th->hit[h]->dcl[0].iali, th->hit[h]->dcl[0].jali);
     
-    // Find first saved hit that is on same seq and strand as top hit 
-    while(sh->srt[i_start]->seqidx != th->hit[h]->seqidx ||
-          sh->srt[i_start]->strand != strand) i_start++;    
-
-    seed_max = ESL_MAX(sh->srt[i_start]->seq_start, sh->srt[i_start]->seq_end);
-
-    // Find first saved hit that is within MAX_INTRON_LENG of top hit 
+    strand = (th->hit[h]->dcl->iali < th->hit[h]->dcl->jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
+    hit_min  = ESL_MIN(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);
+    hit_max  = ESL_MAX(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);
+   
     i = i_start;
-    while(hit_min - seed_max > MAX_INTRON_LENG) {
-      i++;
+    while(i < sh->N) {
+      if(sh->srt[i]->seqidx < th->hit[h]->seqidx) { i++; continue; }
+      if(sh->srt[i]->strand < strand)       { i++; continue; }
+
+      /*If this is the first hit on a new sequence or strand, save 
+       * the first postion in the saved hits that coresponds to 
+       * that sequence and strand for future use */     
+      if(last_seqidx != th->hit[h]->seqidx || last_strand == strand) i_start = i;
+
+      if(sh->srt[i]->seqidx > th->hit[h]->seqidx) break;
+      if(sh->srt[i]->strand > strand)       break;
+ 
+      if(sh->srt[i]->duplicate) { i++; continue; }
+      if(sh->srt[i]->is_seed)   { i++; continue; }
+     
       seed_max = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
-    }
-
-    // If saved hit is upstream or downstram of top hit, is_seed = TRUE 
-    for( ; i < sh->N; i++) {
-       if(sh->srt[i]->duplicate) continue;     
-       if(sh->srt[i]->is_seed) continue;
-
-      // Stop when we reach a new sequence or stand or the saved hit is >MAX_INTRON_LENG from the top hit 
-      seed_min = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
-      if(sh->srt[i]->seqidx != th->hit[h]->seqidx ||
-         sh->srt[i]->strand != strand             ||
-         seed_min - hit_max > MAX_INTRON_LENG) break;
+      if(hit_min - seed_max > MAX_INTRON_LENG) { i++; continue; }
+  
+      seed_min = ESL_MIN(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
+      if(seed_min - hit_max > MAX_INTRON_LENG) break;
 
       // Is saved hit upstearm and within of top hit  
-      if(sh->srt[i]->hmm_start <= th->hit[h]->dcl[0].ihmm ||
-         sh->srt[i]->hmm_end   <= th->hit[h]->dcl[0].jhmm) {
+      if(sh->srt[i]->hmm_start <= th->hit[h]->dcl->ihmm ||
+         sh->srt[i]->hmm_end   <= th->hit[h]->dcl->jhmm) {
 
-        if (( strand  && sh->srt[i]->seq_end > th->hit[h]->dcl[0].iali) ||
-           ((!strand) && sh->srt[i]->seq_end < th->hit[h]->dcl[0].iali))  {
+        if (( strand  && sh->srt[i]->seq_end > th->hit[h]->dcl->iali) ||
+           ((!strand) && sh->srt[i]->seq_end < th->hit[h]->dcl->iali))  {
           sh->srt[i]->is_seed = TRUE;
           sh->srt[i]->hit_id = h;
+          i++; 
+          continue;
         }
        
       }
       // Is saved hit downstearm and within of top hit 
-	  if(th->hit[h]->dcl[0].ihmm <= sh->srt[i]->hmm_start ||
-         th->hit[h]->dcl[0].jhmm <= sh->srt[i]->hmm_end) {
+	  if(th->hit[h]->dcl->ihmm <= sh->srt[i]->hmm_start ||
+         th->hit[h]->dcl->jhmm <= sh->srt[i]->hmm_end) {
 
-        if (( strand  && th->hit[h]->dcl[0].iali > sh->srt[i]->seq_end ) ||
-           ((!strand) && th->hit[h]->dcl[0].iali < sh->srt[i]->seq_end)) { 
+        if (( strand  && th->hit[h]->dcl->iali > sh->srt[i]->seq_end ) ||
+           ((!strand) && th->hit[h]->dcl->iali < sh->srt[i]->seq_end)) { 
           sh->srt[i]->is_seed = TRUE;
           sh->srt[i]->hit_id = h;
+          i++;
+          continue;
         }
-        
-      }    
-    }  
+      }
+      i++;  
+    } 
+    last_seqidx = th->hit[h]->seqidx;
+    last_strand = strand;  
   }
 
   /* Add all saved hits where is_seed = TRUE to seed_hits */
@@ -461,7 +467,8 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
   for(i = 0 ; i < sh->N; i++) {
    
     if(!sh->srt[i]->is_seed) continue;
-    
+    //printf("sh->srt[i]->seq_start %d sh->srt[i]->seq_end %d\n", sh->srt[i]->seq_start, sh->srt[i]->seq_end); 
+    fflush(stdout);
     /* If the saved hit is on a new sequence or strand sove to beginging of current sequence */
     if(sh->srt[i]->seqidx != last_seqidx ||
        sh->srt[i]->strand != last_strand) {
@@ -469,8 +476,9 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
       if(last_strand != -1 ) esl_sq_Reuse(dbsq_dna);
 
       seqname = th->hit[sh->srt[i]->hit_id]->name;
+      
       esl_sqfile_PositionByKey(dbfp, seqname);
-//      esl_sqfile_PositionByNumber(dbfp,sh->srt[i]->seqidx+1);
+      
       status = esl_sqio_ReadWindow(dbfp, 0, window_len, dbsq_dna);
       if(sh->srt[i]->strand == p7_COMPLEMENT) 
         esl_sq_ReverseComplement(dbsq_dna);
@@ -487,6 +495,7 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
       if(seed_max <= seq_max && sh->srt[i]->strand == p7_COMPLEMENT)    
         esl_sq_ReverseComplement(dbsq_dna);
     }
+    //printf("seqname %s seqidx %d dbsq_dna->start %d dbsq_dna->end %d\n", seqname, sh->srt[i]->seqidx, dbsq_dna->start, dbsq_dna->end);
     switch(status) {
       case eslEFORMAT:
         esl_fatal("Parse failed (sequence file %s):\n%s\n",
@@ -563,13 +572,13 @@ p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh)
   SPLICE_HIT_INFO *hi;
 
   fprintf(fp, "  Saved Hit Info\n");
-  fprintf(fp, "  %9s %5s %9s %9s %10s %10s %5s\n", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "dup");
+  fprintf(fp, "  %10s %9s %5s %9s %9s %10s %10s %5s %5s\n", "hit", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "dup", "seed");
   for(i = 0; i < sh->N ; i++) {
     if(sh->is_sorted) hi = sh->srt[i];
     else              hi = &sh->unsrt[i];
  
-    fprintf(fp, "  %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %5s\n", 
-    hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->duplicate? "TRUE" : "FALSE"));
+    fprintf(fp, "  %10d %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %5s %5s\n", 
+    i+1, hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->duplicate? "TRUE" : "FALSE"), (hi->is_seed? "TRUE" : "FALSE"));
   
   }
 

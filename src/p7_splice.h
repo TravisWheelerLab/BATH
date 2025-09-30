@@ -183,9 +183,10 @@ typedef struct {
 #define MAX_INTRON_LENG           100000   /*maximum intron length */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
 #define MIN_INTRON_LENG           13       /*minimum intor length */
-#define MAX_INTRON_INCL           1500     /*maximum length on intron to be included in spliced Viterbi search */
+#define MAX_INTRON_INCL           1500      /*maximum length on intron to be included in spliced Viterbi search */
 #define MAX_SP_AMINO_GAP          10       /*maximum amino gap for spliced edges */
 #define MAX_USP_AMINO_GAP         25       /*maximum amino gap fpr unspliced edges */ 
+#define MAX_EXT_AMINO_GAP         25       /*maximum amino gap fpr extention edges */
 #define MIN_AMINO_OVERLAP         10       /*amino acid splice site window */   
 #define ALIGNMENT_EXT             10       /*amino extetion at start and end of path seq for final alignment */
 

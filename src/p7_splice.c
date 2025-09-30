@@ -1027,7 +1027,7 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph)
       if(seq_gap_len > MAX_INTRON_EXT) continue; 
        
       amino_gap_len = th->hit[down]->dcl->ihmm - th->hit[up]->dcl->jhmm - 1;     
-      if(amino_gap_len > MAX_USP_AMINO_GAP) continue;
+      if(amino_gap_len > MAX_EXT_AMINO_GAP) continue;
       if(seq_gap_len < amino_gap_len * 3) continue;
 
       edge = p7_splicegraph_AddEdge(graph, up, down);
@@ -1116,7 +1116,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 
     /* Get all hits (exons) in path */
     exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, ali_seq, gcode, NULL, -1, graph->revcomp, path->hits[0]->dcl->ihmm, &num_hits, NULL);
-
+    //printf("  %4s %10s %10s %5s %5s\n", "exon", "iali", "jali", "ihmm", "jhmm");
     for(e = 0; e < num_hits; e++) {
       if(graph->revcomp) {
         exons[e]->dcl->iali = ali_seq->n - exons[e]->dcl->iali + ali_seq->end;
@@ -1126,6 +1126,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
         exons[e]->dcl->iali = ali_seq->start + exons[e]->dcl->iali - 1;
         exons[e]->dcl->jali = ali_seq->start + exons[e]->dcl->jali - 1;
       }
+      //printf("  %4d %10d %10d %5d %5d\n", e+1, exons[e]->dcl->iali, exons[e]->dcl->jali, exons[e]->dcl->ihmm, exons[e]->dcl->jhmm);
     }
 
     add_split_exons(graph, pli, exons, hmm, gm_fs, gm, gcode, ali_seq, path->hits[0]->dcl->aliscore, path->node_id[0], num_hits, FALSE);
@@ -1171,11 +1172,9 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   /*Add first exon length */
   sub_path_len = llabs(path->hits[0]->dcl->jali - path->hits[0]->dcl->iali)+1;
   for(s = 1; s < path->path_len; s++) {
-    /* add current exon length */
-    sub_path_len += llabs(path->hits[s]->dcl->jali - path->hits[s]->dcl->iali)+1;
 
-    intron_len = abs(path->downstream_spliced_nuc_start[s] - path->upstream_spliced_nuc_end[s]) - 1;
-    amino_gap = path->downstream_spliced_amino_start[s] - path->upstream_spliced_amino_end[s] - 1;
+    intron_len = llabs(path->hits[s]->dcl->jali - path->hits[s-1]->dcl->iali) - 1; 
+    amino_gap =  path->hits[s]->dcl->jhmm - path->hits[s-1]->dcl->ihmm - 1; 
     
     if(intron_len <= MAX_INTRON_INCL) //short intron - add full length
       sub_path_len += intron_len;
@@ -1185,6 +1184,10 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       sub_path_len += intron_len;
     else
       sub_path_len += MAX_INTRON_INCL + (amino_gap*3); 
+
+    /* add current exon length */
+    sub_path_len += llabs(path->hits[s]->dcl->jali - path->hits[s]->dcl->iali)+1;
+
   }
   printf("sub_path_len %d\n", sub_path_len); 
   fflush(stdout);
@@ -1222,8 +1225,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   }
 
   for (s = 1; s < path->path_len; s++) {
-    intron_len = abs(path->downstream_spliced_nuc_start[s] - path->upstream_spliced_nuc_end[s]) - 1;
-    amino_gap = path->downstream_spliced_amino_start[s] - path->upstream_spliced_amino_end[s] - 1;
+    intron_len = llabs(path->hits[s]->dcl->jali - path->hits[s-1]->dcl->iali) - 1;
+    amino_gap =  path->hits[s]->dcl->jhmm - path->hits[s-1]->dcl->ihmm - 1;
     
     /* If the intron is <= MAX_INTRON_INCL bp */ 
     if(intron_len <= MAX_INTRON_INCL || 
@@ -1347,11 +1350,12 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   sub_hmm->fs = 0.;
   exons = p7_splice_AlignExons(sub_hmm, gm_fs, pli->bg, sub_seq, gcode, removed_idx, path->path_len-1, graph->revcomp, path->hits[0]->dcl->ihmm, &num_hits, nuc_index);
 
-  
+  //printf("  %4s %10s %10s %5s %5s\n", "exon", "iali", "jali", "ihmm", "jhmm");
   for(e = 0; e < num_hits; e++) {
     //printf("e %d ali %d jali %d ihmm %d jmm %d\n", e, exons[e]->dcl->iali, exons[e]->dcl->jali, exons[e]->dcl->ihmm, exons[e]->dcl->jhmm);
     exons[e]->dcl->iali = nuc_index[exons[e]->dcl->iali];
     exons[e]->dcl->jali = nuc_index[exons[e]->dcl->jali];
+    //printf("  %4d %10d %10d %5d %5d\n", e+1, exons[e]->dcl->iali, exons[e]->dcl->jali, exons[e]->dcl->ihmm, exons[e]->dcl->jhmm);
   }
 
   first_split = 0;
@@ -1381,7 +1385,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
         /* Check that any splits of original hits are better scoring than the
          * unsplit alternaitve and add them to the graph */
         split_exons = last_split - first_split + 1;
-
+       
         add_split_exons(graph, pli, exons+first_split, hmm, gm_fs, gm, gcode, ali_seq, path->hits[s]->dcl->aliscore, path->node_id[s], split_exons, FALSE);
 
         s = path->path_len;
@@ -1719,7 +1723,7 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
   }
  
   
-  /* If we have at least one edge, check if any edge are missing. 
+  /* If we have at least one edge, check if any edges are missing. 
    * If so realign the split hits */
   s = 0;
   while(s < hit_cnt-1) {
@@ -1731,18 +1735,18 @@ connect_split(SPLICE_PIPELINE *pli, P7_HIT **split_hits, const P7_HMM *hmm, cons
       
       sub_hmm = p7_splice_GetSubHMM(hmm, split_hits[s]->dcl->ihmm, split_hits[s+1]->dcl->jhmm);  
       if(!frameshift) sub_hmm->fs = 0.;
-      
-      seq_i = split_hits[s]->dcl->tr->sqfrom[0];
-      seq_j = split_hits[s+1]->dcl->tr->sqto[0]; 
+     
+      seq_i = llabs(split_hits[s]->dcl->iali   - ali_seq->start) + 1;
+      seq_j = llabs(split_hits[s+1]->dcl->jali - ali_seq->start) + 1;
       seq_len = seq_j - seq_i + 1;  
-
+      
       sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
       ESL_REALLOC(sub_fs_model->tsc,  sizeof(float)   * (sub_hmm->M+1) * p7P_NTRANS);
       p7_ProfileConfig_fs(sub_hmm, pli->bg, gcode, sub_fs_model, seq_len, p7_UNIGLOBAL);
  
       vit_mx = p7_gmx_fs_Create(sub_fs_model->M, seq_len, seq_len, p7P_CODONS);
       tr     = p7_trace_fs_Create();
-
+   
       p7_fs_semiglobal_Viterbi(ali_seq->dsq+seq_i-1, gcode, seq_len, sub_fs_model, vit_mx);  
       p7_fs_semiglobal_VTrace(ali_seq->dsq+seq_i-1, seq_len, gcode, sub_fs_model, vit_mx, tr);
 

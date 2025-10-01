@@ -156,11 +156,11 @@ typedef struct _splice_pipeline
 } SPLICE_PIPELINE;
 
 
-typedef struct {
+typedef struct _splice_info
+{
   SPLICE_GRAPH      **graphs;     /* array of graphs to process               */
   SPLICE_GRAPH       *graph;      /* graph to splice                          */
   SPLICE_PIPELINE    *pli;        /* work pipeline                            */
-  SPLICE_SAVED_HITS     *sh;
   P7_HMM             *hmm;        /* query hmm                                */
   P7_OPROFILE        *om;         /* optimized query profile                  */
   P7_PROFILE         *gm;         /* non-optimized query profile              */
@@ -179,6 +179,14 @@ typedef struct {
 } SPLICE_WORKER_INFO;
 
 
+typedef struct _splice_site_idx
+{
+  int **index;
+  int *N;
+  int *allocN;
+
+} SPLICE_SITE_IDX;
+
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node */
 #define MAX_INTRON_LENG           100000   /*maximum intron length */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
@@ -196,9 +204,8 @@ enum p7s_splice_signals_e {
   p7S_GTAG  = 0,
   p7S_GCAG  = 1,
   p7S_ATAC  = 2,
-  p7S_OTHER = 3
 };
-#define p7S_SPLICE_SIGNALS 4
+#define p7S_SPLICE_SIGNALS 3
 
 /* p7_spliceedge.c */
 extern SPLICE_EDGE* p7_spliceedge_Create(void);
@@ -227,8 +234,8 @@ extern int p7_splicehits_CreateNext(SPLICE_SAVED_HITS *saved_hits, SPLICE_HIT_IN
 extern int p7_splicehits_SortSavedHits(SPLICE_SAVED_HITS *sh);
 extern int p7_splicehits_MergeSavedHits(SPLICE_SAVED_HITS *sh1, SPLICE_SAVED_HITS *sh2);
 extern int p7_splicehits_AssignNodes(SPLICE_GRAPH *graph, SPLICE_SAVED_HITS *sh, int first, int last);
-extern int p7_splicehits_RemoveDuplicates(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, P7_TOPHITS *th);
-extern P7_TOPHITS* p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode); 
+extern int p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double S2);
+extern P7_TOPHITS* p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double S2); 
 extern void p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh);
  
 /* p7_splicepath.c */
@@ -248,6 +255,10 @@ extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hi
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
 
+/* p7_splicesiteidx.c */
+extern SPLICE_SITE_IDX* p7_splicesiteidx_Create(int L);
+extern int p7_splicesiteidx_Grow(SPLICE_SITE_IDX *signal_sites, int L, int signal);
+extern void p7_splicesiteidx_Destroy(SPLICE_SITE_IDX *signal_sites);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

@@ -511,6 +511,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   /* post processing */
   int64_t          resCnt                   = 0;
+  P7_TOPHITS      *seed_hits                = NULL;
   P7_TOPHITS      *tophits_accumulator      = NULL; /* to hold the top hits information from all 6 frame translations     */
   P7_PIPELINE     *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
   SPLICE_SAVED_HITS *saved_hits_accumulator = NULL; /* to hold hit info for spliced alignments */
@@ -947,7 +948,25 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) { 
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
-      p7_splice_SpliceHits(tophits_accumulator, saved_hits_accumulator, hmm, om, gm, gm_fs, go, gcode, dbfp, resCnt);
+      printf("gm_fs->name %s\n", gm_fs->name);
+     fflush(stdout);
+      p7_splicehits_RemoveDuplicates(saved_hits_accumulator, tophits_accumulator, pipelinehits_accumulator->S2);
+      printf("saved_hits_accumulator->N %d\n", saved_hits_accumulator->N);
+    fflush(stdout);
+      seed_hits = p7_splicehits_GetSeedHits(saved_hits_accumulator, tophits_accumulator, hmm, gm_fs, dbfp, gcode, pipelinehits_accumulator->S2);
+      printf("seed_hits->N %d\n", seed_hits->N);
+      fflush(stdout);
+      p7_splicehits_DestroySavedHits(saved_hits_accumulator);
+      saved_hits_accumulator = NULL;
+
+      p7_splice_SpliceHits(tophits_accumulator, seed_hits, hmm, om, gm, gm_fs, go, gcode, dbfp, resCnt);
+
+      for(i = 0; i < seed_hits->N; i++) {
+        p7_trace_fs_Destroy(seed_hits->unsrt[i].dcl->tr);
+        free(seed_hits->unsrt[i].dcl->scores_per_pos);
+      }
+      p7_tophits_Destroy(seed_hits);
+
 	  assign_Lengths(tophits_accumulator, id_length_list);
       p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 	  p7_tophits_SortBySortkey(tophits_accumulator);
@@ -977,7 +996,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     p7_pipeline_fs_Destroy(pipelinehits_accumulator);
     p7_tophits_Destroy(tophits_accumulator);
-    //p7_splicehits_DestroySavedHits(saved_hits_accumulator);
+    p7_splicehits_DestroySavedHits(saved_hits_accumulator);
     p7_oprofile_Destroy(om);
     p7_profile_Destroy(gm);
     p7_profile_fs_Destroy(gm_fs);

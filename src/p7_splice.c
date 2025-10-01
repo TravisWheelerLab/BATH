@@ -58,7 +58,7 @@ static float seq_overlap(P7_DOMAIN *dom_1, P7_DOMAIN *dom_2, int revcomp);
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt)
+p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt)
 {
 
   int                i;
@@ -66,7 +66,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   int                infocnt;
   int                revcomp;
   int                seq_min, seq_max;
-  P7_TOPHITS         *seed_hits;
   ESL_SQ             *ali_seq;
   SPLICE_WORKER_INFO *info;
   int                 status;
@@ -77,7 +76,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
   printf("\nQuery %s LENG %d\n",  gm->name, gm->M);
   fflush(stdout);
 
-//p7_splicehits_Dump(stdout, saved_hits); 
 
   /* Get the number of threads */
   ncpus = 0;
@@ -99,25 +97,17 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
 	if (info[i].pli->do_biasfilter)
 	  p7_bg_SetFilter(info[i].pli->bg, om->M, om->compo);
 	info[i].tophits        = tophits;
-    info[i].sh             = saved_hits;
     info[i].gcode          = gcode;
 	info[i].seq_file       = seq_file;
 	info[i].db_nuc_cnt     = db_nuc_cnt;
   }
 
-  /* Sort saved hits and removed duplicates */
-  p7_splicehits_RemoveDuplicates(info, saved_hits, tophits);
-  seed_hits = p7_splicehits_GetSeedHits(info, saved_hits, tophits, hmm, gm_fs, seq_file, gcode);
-  //p7_splicehits_Dump(stdout, saved_hits); 
-  p7_splicehits_DestroySavedHits(saved_hits);
-  saved_hits = NULL;
-   
   for (i = 0; i < infocnt; ++i)
     info[i].seeds = seed_hits;
 
   /* Begin splicing */
 #ifdef HMMER_THREADS
-  if (ncpus > 0)  thread_loop(info, tophits, seed_hits, infocnt); 
+  if (ncpus > 0)  serial_loop (info, tophits, seed_hits); //thread_loop(info, tophits, seed_hits, infocnt); 
   else
 #endif  /*HMMER_THREADS*/
     serial_loop (info, tophits, seed_hits); 
@@ -155,15 +145,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, SPLICE_SAVED_HITS *saved_hits, P7_HMM 
       esl_sq_Destroy(ali_seq);
     }
   }
-
- 
-  for(i = 0; i < seed_hits->N; i++) {
-    p7_trace_fs_Destroy(seed_hits->unsrt[i].dcl->tr);
-    free(seed_hits->unsrt[i].dcl->scores_per_pos);
-    //p7_hit_Destroy(&(seed_hits->unsrt[i]));
-  } 
-  
-  p7_tophits_Destroy(seed_hits);
 
   return eslOK;
 
@@ -515,7 +496,7 @@ p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
         if(graph->revcomp) gap_len = curr_hit->dcl->jali - th->hit[h1]->dcl->iali - 1;
         else               gap_len = th->hit[h1]->dcl->iali - curr_hit->dcl->jali - 1;
         if(gap_len > MAX_INTRON_LENG) continue;
-       // printf("seed %d in range of of hit %d\n", i+1, h1+1);
+       
         for(h2 = 0; h2 < graph->orig_N; h2++) {
           if(h2 == h1) continue;
 
@@ -598,11 +579,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   printf("\nQuery %s Target %s strand %c seqidx %d\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);
 
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+printf("RECOVER\n");
+p7_splicegraph_DumpHits(stdout, graph);
+fflush(stdout);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(graph);
@@ -649,9 +630,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, path_accumulator[p]->revcomp, info); 
 
     path_seq_accumulator[p] = path_seq;
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//p7_splicepath_Dump(stdout,path_accumulator[p]);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+p7_splicepath_Dump(stdout,path_accumulator[p]);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
 //if(!p7_splicepath_Check(path_accumulator[p])) ESL_XEXCEPTION(eslFAIL, "Impossible Path"); 
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
@@ -672,11 +653,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       }
     }
   }
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("NEW HITS\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+printf("NEW HITS\n");
+p7_splicegraph_DumpHits(stdout, graph);
+fflush(stdout);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create splice edges */    
   p7_splice_ConnectGraph(graph, pli, gm_fs, hmm, gcode, seq_file, info, path_seq_accumulator, orig_paths);
@@ -687,9 +668,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   path = p7_splicepath_GetBestPath(graph); 
 
   while(path != NULL) {
-//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//p7_splicepath_Dump(stdout,path);
-//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);  
+if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+p7_splicepath_Dump(stdout,path);
+if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);  
     path_accumulator[num_paths] = path;
     num_paths++;
 
@@ -1173,8 +1154,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   sub_path_len = llabs(path->hits[0]->dcl->jali - path->hits[0]->dcl->iali)+1;
   for(s = 1; s < path->path_len; s++) {
 
-    intron_len = llabs(path->hits[s]->dcl->jali - path->hits[s-1]->dcl->iali) - 1; 
-    amino_gap =  path->hits[s]->dcl->jhmm - path->hits[s-1]->dcl->ihmm - 1; 
+    intron_len = llabs(path->hits[s]->dcl->iali - path->hits[s-1]->dcl->jali) - 1; 
+    amino_gap =  path->hits[s]->dcl->ihmm - path->hits[s-1]->dcl->jhmm - 1; 
     
     if(intron_len <= MAX_INTRON_INCL) //short intron - add full length
       sub_path_len += intron_len;
@@ -1225,8 +1206,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   }
 
   for (s = 1; s < path->path_len; s++) {
-    intron_len = llabs(path->hits[s]->dcl->jali - path->hits[s-1]->dcl->iali) - 1;
-    amino_gap =  path->hits[s]->dcl->jhmm - path->hits[s-1]->dcl->ihmm - 1;
+    intron_len = llabs(path->hits[s]->dcl->iali - path->hits[s-1]->dcl->jali) - 1;
+    amino_gap =  path->hits[s]->dcl->ihmm - path->hits[s-1]->dcl->jhmm - 1;
     
     /* If the intron is <= MAX_INTRON_INCL bp */ 
     if(intron_len <= MAX_INTRON_INCL || 

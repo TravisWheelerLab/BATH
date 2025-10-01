@@ -245,7 +245,7 @@ p7_splicehits_MergeSavedHits(SPLICE_SAVED_HITS *sh1, SPLICE_SAVED_HITS *sh2)
 
 
 int 
-p7_splicehits_RemoveDuplicates(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, P7_TOPHITS *th) 
+p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double S2) 
 {
 
   int     i, j;
@@ -310,7 +310,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, 
   {
 
    if ((th->hit[i]->flags & p7_IS_DUPLICATE)) continue;
-   if(!(th->hit[i]->flags & p7_IS_REPORTED) && exp(th->hit[i]->sum_lnP) >= info->pli->S2) continue;
+   if(!(th->hit[i]->flags & p7_IS_REPORTED) && exp(th->hit[i]->sum_lnP) >= S2) continue;
     
     s_i   = th->hit[i]->dcl[0].iali;
     e_i   = th->hit[i]->dcl[0].jali;
@@ -357,7 +357,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, 
 }
 
 P7_TOPHITS*
-p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode) 
+p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double S2) 
 {
 
   int i, h, y, z;
@@ -371,12 +371,15 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
   char         *seqname;
   P7_HIT       *hit;
   P7_TOPHITS   *seed_hits;
+  P7_BG        *bg;
   ESL_ALPHABET *abcDNA;
   ESL_SQFILE   *dbfp;
   ESL_SQ       *dbsq_dna;
   int status;
 
   window_len = (1024 * 256);
+ 
+  bg = p7_bg_Create(gm_fs->abc);
 
   seed_hits = p7_tophits_Create();
   hit = NULL;
@@ -402,7 +405,7 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
   for(h = 0; h < th->N; h++) {
   
     if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
-    if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= info->pli->S2) continue;
+    if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= S2) continue;
     
     strand = (th->hit[h]->dcl->iali < th->hit[h]->dcl->jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
     hit_min  = ESL_MIN(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);
@@ -540,13 +543,13 @@ p7_splicehits_GetSeedHits(SPLICE_WORKER_INFO *info, SPLICE_SAVED_HITS *sh, const
     p7_trace_fs_Append(hit->dcl->tr, p7T_T, 0, 0, 0);
    
     hit->dcl->scores_per_pos = NULL;
-    p7_splice_ComputeAliScores_fs(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, info->pli->bg, TRUE);
+    p7_splice_ComputeAliScores_fs(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, bg, TRUE);
 
-    
     last_seqidx = sh->srt[i]->seqidx;
     last_strand  = sh->srt[i]->strand;     
   }
-  
+ 
+  p7_bg_Destroy(bg); 
   esl_alphabet_Destroy(abcDNA);
   esl_sq_Destroy(dbsq_dna); 
   esl_sqfile_Close(dbfp);

@@ -35,7 +35,7 @@
  * Throws:    <NULL> on allocation error.
  */
 SPLICE_SITE_IDX*
-p7_splicesiteidx_Create(int L);
+p7_splicesiteidx_Create(int L)
 {
   int i;
   int status;
@@ -56,7 +56,7 @@ p7_splicesiteidx_Create(int L);
 
   return signal_sites;
 
-ERROR:
+  ERROR:
     p7_splicesiteidx_Destroy(signal_sites);
     return NULL;
 
@@ -78,15 +78,12 @@ ERROR:
 int
 p7_splicesiteidx_Grow(SPLICE_SITE_IDX *signal_sites, int L, int signal)
 {
-  int i,n;
-  int new_alloc;
   int status;
 
-  if(signal_sites->N[signal] == signal_sites->allocN) {
+  if(signal_sites->N[signal] == signal_sites->allocN[signal]) {
 
     signal_sites->allocN[signal] += (L-1) / 16;
     ESL_REALLOC(signal_sites->index[signal], sizeof(int) * signal_sites->allocN[signal]); 
-
   }
 
   return eslOK;

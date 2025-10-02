@@ -107,7 +107,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
 
   /* Begin splicing */
 #ifdef HMMER_THREADS
-  if (ncpus > 0)  serial_loop (info, tophits, seed_hits); //thread_loop(info, tophits, seed_hits, infocnt); 
+  if (ncpus > 0) thread_loop(info, tophits, seed_hits, infocnt); 
   else
 #endif  /*HMMER_THREADS*/
     serial_loop (info, tophits, seed_hits); 
@@ -579,11 +579,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   printf("\nQuery %s Target %s strand %c seqidx %d\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);
 
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("RECOVER\n");
-p7_splicegraph_DumpHits(stdout, graph);
-fflush(stdout);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//printf("RECOVER\n");
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(graph);
@@ -630,9 +630,9 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, path_accumulator[p]->revcomp, info); 
 
     path_seq_accumulator[p] = path_seq;
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump(stdout,path_accumulator[p]);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicepath_Dump(stdout,path_accumulator[p]);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
 //if(!p7_splicepath_Check(path_accumulator[p])) ESL_XEXCEPTION(eslFAIL, "Impossible Path"); 
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
@@ -653,11 +653,11 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
       }
     }
   }
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("NEW HITS\n");
-p7_splicegraph_DumpHits(stdout, graph);
-fflush(stdout);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//printf("NEW HITS\n");
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create splice edges */    
   p7_splice_ConnectGraph(graph, pli, gm_fs, hmm, gcode, seq_file, info, path_seq_accumulator, orig_paths);
@@ -668,9 +668,9 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
   path = p7_splicepath_GetBestPath(graph); 
 
   while(path != NULL) {
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump(stdout,path);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);  
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicepath_Dump(stdout,path);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);  
     path_accumulator[num_paths] = path;
     num_paths++;
 
@@ -1159,16 +1159,16 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     
     if(intron_len <= MAX_INTRON_INCL) //short intron - add full length
       sub_path_len += intron_len;
-    else if(amino_gap < 1)            //long intron with no amino gap - add parital length
+    else if(amino_gap < 1)           //long intron with no amino gap - add parital length
       sub_path_len += MAX_INTRON_INCL; 
-    else if(intron_len <= MAX_INTRON_INCL + (amino_gap*3)) //long intron with amino gap - includable
+    else if(intron_len <= MAX_INTRON_INCL + (amino_gap*3))   //long intron with amino gap - includable
       sub_path_len += intron_len;
-    else
+    else 
       sub_path_len += MAX_INTRON_INCL + (amino_gap*3); 
-
+    
     /* add current exon length */
     sub_path_len += llabs(path->hits[s]->dcl->jali - path->hits[s]->dcl->iali)+1;
-
+  
   }
   printf("sub_path_len %d\n", sub_path_len); 
   fflush(stdout);
@@ -1204,14 +1204,14 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       true_idx++;
     }
   }
-
+  
   for (s = 1; s < path->path_len; s++) {
     intron_len = llabs(path->hits[s]->dcl->iali - path->hits[s-1]->dcl->jali) - 1;
     amino_gap =  path->hits[s]->dcl->ihmm - path->hits[s-1]->dcl->jhmm - 1;
     
     /* If the intron is <= MAX_INTRON_INCL bp */ 
     if(intron_len <= MAX_INTRON_INCL || 
-      (amino_gap > 1 && intron_len <= MAX_INTRON_INCL + (amino_gap*3))) {
+      (intron_len <= MAX_INTRON_INCL + (amino_gap*3))) {
       removed_idx[s-1][0] = -1;
       removed_idx[s-1][1] = -1;
 
@@ -1301,7 +1301,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       else {
         while(true_idx <= path->hits[s]->dcl->jali) {
 
-     //   printf("seq_idx %d path_seq->dsq[seq_pos] %d true_idx %d\n", seq_idx, path_seq->dsq[seq_pos], true_idx);
+   //  printf("seq_idx %d path_seq->dsq[seq_pos] %d true_idx %d\n", seq_idx, path_seq->dsq[seq_pos], true_idx);
           nuc_index[seq_idx] = true_idx;
           sub_dsq[seq_idx]   = path_seq->dsq[seq_pos];
           seq_idx++;
@@ -3481,7 +3481,7 @@ p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_SQ *nuc_sq, cons
     amino_dsq[a] = eslDSQ_SENTINEL;   
     p7_bg_SetLength(bg, a-1); 
     p7_bg_FilterScore(bg, amino_dsq, a-1, &bias); 
-    
+
     dom->aliscore -= bias;
     free(amino_dsq);
   }

@@ -379,7 +379,9 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
 
   window_len = (1024 * 256);
  
+  
   bg = p7_bg_Create(gm_fs->abc);
+  p7_bg_SetFilter(bg, gm_fs->M, gm_fs->compo);
 
   seed_hits = p7_tophits_Create();
   hit = NULL;

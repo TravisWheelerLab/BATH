@@ -948,14 +948,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) { 
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
-      printf("gm_fs->name %s\n", gm_fs->name);
-     fflush(stdout);
+      
       p7_splicehits_RemoveDuplicates(saved_hits_accumulator, tophits_accumulator, pipelinehits_accumulator->S2);
-      printf("saved_hits_accumulator->N %d\n", saved_hits_accumulator->N);
-    fflush(stdout);
       seed_hits = p7_splicehits_GetSeedHits(saved_hits_accumulator, tophits_accumulator, hmm, gm_fs, dbfp, gcode, pipelinehits_accumulator->S2);
-      printf("seed_hits->N %d\n", seed_hits->N);
-      fflush(stdout);
+      
       p7_splicehits_DestroySavedHits(saved_hits_accumulator);
       saved_hits_accumulator = NULL;
 

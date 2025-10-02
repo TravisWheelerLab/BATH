@@ -207,6 +207,13 @@ enum p7s_splice_signals_e {
 };
 #define p7S_SPLICE_SIGNALS 3
 
+enum p7s_splice_codons_e {
+  xxxxXXX  = 0,
+  XxxxxXX  = 1,
+  XXxxxxX  = 2,
+};
+#define p7S_SPLICE_CODONS 3
+
 /* p7_spliceedge.c */
 extern SPLICE_EDGE* p7_spliceedge_Create(void);
 extern SPLICE_EDGE* p7_spliceedge_ConnectNodes(SPLICE_PIPELINE *pli, const P7_DOMAIN *upstream_domain, const P7_DOMAIN *downstream_domain, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQ *splice_seq, int revcomp);

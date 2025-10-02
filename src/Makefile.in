@@ -139,6 +139,7 @@ OBJS =  build.o\
 	p7_pipeline.o\
 	p7_prior.o\
 	p7_profile.o\
+    p7_search_builder.o\
 	p7_spensemble.o\
 	p7_splice.o\
     p7_spliceedge.o\

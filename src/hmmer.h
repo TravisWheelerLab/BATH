@@ -1776,10 +1776,10 @@ extern char           p7_alidisplay_EncodePostProb(float p);
 extern float          p7_alidisplay_DecodePostProb(char pc);
 extern char           p7_alidisplay_EncodeAliPostProb(float p, float hi, float med, float lo);
 
-extern int            p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
-extern int            p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
-extern int            p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
-extern int            p7_alidisplay_nontranslated_Print(FILE *fp, P7_ALIDISPLAY *ad, int min_aliwidth, int linewidth, int show_accessions);
+extern int            p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
+extern int            p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
+extern int            p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
+extern int            p7_alidisplay_nontranslated_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, int show_accessions);
 
 extern int            p7_alidisplay_Backconvert(const P7_ALIDISPLAY *ad, const ESL_ALPHABET *abc, ESL_SQ **ret_sq, P7_TRACE **ret_tr);
 extern int            p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad);
@@ -2010,6 +2010,9 @@ extern int         p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, char 
 extern int         p7_profile_fs_GetT(const P7_FS_PROFILE *gm_fs, char st1, int k1, char st2, int k2, float *ret_tsc);
 extern int         p7_profile_Validate(const P7_PROFILE *gm, char *errbuf, float tol);
 extern int         p7_profile_Compare(P7_PROFILE *gm1, P7_PROFILE *gm2, float tol);
+
+/* p7_search_builder.c */
+extern int p7_search_builder(const ESL_GETOPTS *go, ESL_ALPHABET *abc, char *infile, char *hmmfile, int fmt);
 
 /* p7_spensemble.c */
 P7_SPENSEMBLE *p7_spensemble_Create(int init_n, int init_epc, int init_sigc);

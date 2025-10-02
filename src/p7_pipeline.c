@@ -312,8 +312,8 @@ p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targe
  *            | --max        |  turn all heuristic filters off             |   FALSE   |
  *            | --F1         |  Stage 1 (MSV) thresh: promote hits P <= F1 |    0.02   |
  *            | --F2         |  Stage 2 (Vit) thresh: promote hits P <= F2 |    1e-3   |
- *            | --F3         |  Stage 2 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
- *            | --F4         |  Min ORF thresh for windows to go to fs Fwd |    5e-4   |
+ *            | --F3         |  Stage 3 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
+ *            | --F4         |  Stage 3 (FS-Fwd) thresh: promote hits P <= F4 |    5e-4   |
  *            | --nobias     |  turn OFF composition bias filter HMM       |   FALSE   |
  *            | --nonull2    |  turn OFF biased comp score correction      |   FALSE   |
  *            | --seed       |  RNG seed (0=use arbitrary seed)            |      42   |
@@ -436,8 +436,10 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
    pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
    pli->F4     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F4")) : 5e-4);
+
    pli->S1     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S1")) : 0.05);
    pli->S2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S2")) : 0.0001);
+
    pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
    pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
    pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
@@ -450,6 +452,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
     pli->F1 = pli->F2 = pli->F3 = pli->F4 = 1.0;
     pli->S1 = 0.3; // Must set some threshold for SSV windows 
     pli->S2 = 1.0;
+
    }
    if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
    if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
@@ -662,24 +665,26 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, SPLICE_SAVED_HITS *saved_hits, int64_t seqidx) {
+p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int64_t seqidx, int32_t *k_coords_list, int32_t *m_coords_list) { 
 
-  int            i, d;
+  int            i;
   int            new_hit_cnt;
 
-  int32_t        ext_i_coords, ext_j_coords;  
-  int64_t        domain_start, domain_end;
+  int32_t        i_coords, j_coords;          /* original ORF hit coords */
+  int32_t        ext_i_coords, ext_j_coords;  /* extended ORF hit coords */
+  int32_t        k_coords, m_coords;          /* original HMM hit coords */
+  
   int64_t        window_start, window_end;
   int64_t        overlap_len;
   int64_t        max_window_start, min_window_end;
   int64_t        min_window_start, max_window_end;
-  
+ 
   float          vsc;
   float          filtersc;
-  float          nullsc;  
-  float          seq_score; 
-  double         P;
-
+  float          nullsc;
+  float          seq_score;
+  double         P; 
+  
   ESL_SQ        *curr_orf      = NULL;
   P7_HMM_WINDOW *prev_window   = NULL;
   P7_HMM_WINDOW *curr_window   = NULL;
@@ -693,6 +698,7 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
   vtr = p7_trace_Create();
 
   /* extend each ORF's DNA coordinates based on the model's max length*/
+  
   for(i = 0; i < orf_block->count; i++)
   {
     curr_orf = &(orf_block->list[i]);
@@ -701,75 +707,63 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
     
     p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, &vsc);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
-    p7_trace_Index(vtr);
+    p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
 
-    
+	k_coords_list[i] = k_coords;
+    m_coords_list[i] = m_coords;
+
+	/* Rescore bias based on viterbi alignment */
     if (pli->do_biasfilter)
     {
+       p7_bg_SetLength(bg, curr_orf->n);
+       p7_bg_FilterScore(bg, curr_orf->dsq+i_coords-1, (j_coords-i_coords+1), &filtersc);
 
-      p7_bg_SetLength(bg, curr_orf->n);
-      filtersc = 1.0;
-      for(d = 0; d < vtr->ndom; d++) {
- 
-        p7_bg_FilterScore(bg, curr_orf->dsq+vtr->sqfrom[d]-1, (vtr->sqto[d]-vtr->sqfrom[d]+1), &nullsc);
-  
-        /* Subtract out alignment length nullsc */
-        nullsc -= (float) (vtr->sqto[d]-vtr->sqfrom[d]+1) * logf(bg->p1) + logf(1.-bg->p1); 
-        filtersc = p7_FLogsum(filtersc, nullsc);
-      } 
-      /* Add in orf length nullsc */
-      filtersc += (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
+       /* Subtract out alignment length nullsc and add orf length null score back in */
+       nullsc = (float) (j_coords-i_coords+1) * logf(bg->p1) + logf(1.-bg->p1);
+       filtersc -= nullsc;
+       nullsc = (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
+       filtersc += nullsc;
+
+       seq_score = (vsc - filtersc) / eslCONST_LOG2;
+       P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]);
+       if (P > pli->F2) {
+         p7_gmx_Reuse(vgx);
+         p7_trace_Reuse(vtr);
+         continue;
+       }
+    }
+
+    ext_i_coords = ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
+    ext_j_coords = ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
+     
+    if(complementarity == p7_NOCOMPLEMENT)
+    {
+      window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3));
+      window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3));
+     
+    }
+    else
+    {
+      window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
+      window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords * 3)); 
+    }
     
-      seq_score = (vsc - filtersc) / eslCONST_LOG2;
-      P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]); 
-      if (P > pli->F2) {
-        p7_gmx_Reuse(vgx);
-        p7_trace_Reuse(vtr);
-        continue;
-      } 
-    }    
-
-    window_start = dna_sq->n;
-    window_end   = 1;
-
-    
-    for(d = 0; d < vtr->ndom; d++) { 
-
-      ext_i_coords = ESL_MIN(0,           (vtr->sqfrom[d] - (gm->max_length * (0.1 + data->prefix_lengths[vtr->hmmfrom[d]]))-1)); //negeative numbers
-      ext_j_coords = ESL_MAX(curr_orf->n, (vtr->sqto[d] + (gm->max_length * (0.1 + data->suffix_lengths[vtr->hmmto[d]]))+1)); //positive numbers
-
-      if(complementarity == p7_NOCOMPLEMENT)
-      {
-        domain_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3)-3);
-        domain_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3)-1);
-      }
-      else
-      {
-        domain_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
-        domain_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords * 3)); 
-      }
-    
-      window_start = ESL_MIN(domain_start, window_start);
-      window_end   = ESL_MAX(domain_end,   window_end);  
-    } 
-
- 
-    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, vtr->hmmfrom[0], window_end-window_start+1, 0.0, complementarity, dna_sq->n);
-    
-
+    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
     p7_gmx_Reuse(vgx);
     p7_trace_Reuse(vtr);
   }
 
+
   if(windowlist->count == 0) {
     p7_gmx_Destroy(vgx);
     p7_trace_Destroy(vtr);
-    return eslOK; 
+    return eslOK;
   }
 
   p7_hmmwindow_SortByStart(windowlist); 
   new_hit_cnt = 0;
-
+   
+   /* merge overlapping windows, compressing list in place. */
    
    for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
@@ -807,8 +801,10 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
   p7_gmx_Destroy(vgx);
   p7_trace_Destroy(vtr);
   return eslOK;
-
 }
+
+
+
 
 /* Function:  p7_pli_fs_GetPosPast
  * Synopsis:  Counts DNA positions passing MSV, Viterbi or Forward filter as ORFs 
@@ -2278,7 +2274,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     
     ali_len = dom->jali - dom->iali + 1;
     bitscore = dom->envsc;
-  
+
     if (ali_len < 12)   
     {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
@@ -2312,14 +2308,23 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
     bitscore -= (env_len-ali_len)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
     bitscore += (ESL_MAX(env_len,gm_fs->max_length*3)-ali_len) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
 
+    /* Adjust score from env_len to max window length. Note that the loop and move 
+     * costs are calculated based on amino lengths but paid per nucleotide*/
+    bitscore = dom->envsc;
+    bitscore -= 2 * log(2. / ((env_len/3.)+2));
+    bitscore += 2 * log(2. / (gm_fs->max_length+2));
+    bitscore -= (env_len-ali_len)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
+    bitscore += (ESL_MAX(env_len,gm_fs->max_length*3)-ali_len) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
+
     /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
     else
       dom_bias = 0.0; 
 
-    p7_bg_SetLength(bg, gm_fs->max_length*3);
-    p7_bg_NullOne  (bg, dnasq->dsq, gm_fs->max_length*3, &nullsc);
+    p7_bg_SetLength(bg, ESL_MAX(env_len,gm_fs->max_length*3));
+    p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len,gm_fs->max_length*3), &nullsc);
+
     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
     /* P-vaule calculation */	
@@ -2449,7 +2454,8 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     dom = pli->ddef->dcl + d;
     
     env_len = dom->jenv - dom->ienv + 1;	
-    ali_len = (dom->jali - dom->iali + 1)/3;   
+    ali_len = (dom->jali - dom->iali + 1) / 3;   
+
     if (ali_len < 4) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
@@ -2475,7 +2481,7 @@ p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2; 
     }
-    
+
     /* Adjust score from env_len to max window length */ 
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / (env_len+2));
@@ -3057,7 +3063,13 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
   p7_hmmwindow_init(&post_vit_windowlist);  
   
-  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, gm_fs, bg, data, &post_vit_windowlist, 0., complementarity, saved_hits, seqidx);
+  if(post_vit_orf_block->count > 0) 
+  {
+    ESL_ALLOC(k_coords_list, sizeof(int32_t) * post_vit_orf_block->count); 
+    ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
+  }
+
+  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx, k_coords_list, m_coords_list); 
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object

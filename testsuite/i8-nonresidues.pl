@@ -17,7 +17,6 @@ BEGIN {
     $srcdir   = shift;
     $tmppfx   = shift;
 }
-
 use lib "$srcdir/testsuite";
 use h3;
 

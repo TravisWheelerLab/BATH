@@ -165,7 +165,6 @@ p7_sp_trans_semiglobal_Viterbi(const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode,
     XMX(i,p7G_N) = XMX(i-3,p7G_N) + sub_gm->xsc[p7P_N][p7P_LOOP];
     XMX(i,p7G_B) = XMX(i,p7G_N)   + sub_gm->xsc[p7P_N][p7P_MOVE];
 
-    
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = RMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
 
     MMX_SP(i,1) = XMX(i-3,p7G_B) + TSC(p7P_BM,0) + p7P_MSC_CODON(sub_gm, 1, c3); //B->M

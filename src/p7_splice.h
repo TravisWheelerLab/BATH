@@ -149,6 +149,8 @@ typedef struct _splice_pipeline
   P7_GMX  *gfwd;
   P7_GMX  *gbwd;
 
+  P7_GMX  *vit;
+
   P7_BG   *bg;
 
   P7_HIT  *hit;
@@ -182,6 +184,8 @@ typedef struct _splice_info
 typedef struct _splice_site_idx
 {
   int **index;
+  int *index_mem;
+  
   int *N;
   int *allocN;
 
@@ -229,6 +233,7 @@ extern SPLICE_EDGE* p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int
 extern int p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_node);
 extern SPLICE_EDGE* p7_splicegraph_GetEdge(SPLICE_GRAPH* graph, int up_node, int down_node);
 extern int p7_splicegraph_PathExists (SPLICE_GRAPH *graph, int upstream_node, int downstream_node);
+extern int p7_splicegraph_RemoveDuplicates(SPLICE_GRAPH *graph);
 extern void p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph);
 extern void p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph);
 extern void p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph);
@@ -277,7 +282,7 @@ extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph);
 extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph);
 extern int p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq); 
-extern P7_HIT** p7_splice_AlignExons(P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int64_t **remove_idx, int removed_n, int revcomp, int hmm_start, int *num_exons, int64_t *nuc_index);
+extern P7_HIT** p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int revcomp, int hmm_start, int removed_start, int removed_end, int *num_exons); 
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, SPLICE_WORKER_INFO *info, ESL_SQ **path_seq_accumulator, int num_paths);
 extern int p7_splice_RemoveHits(SPLICE_GRAPH *graph, int range_bound_min, int range_bound_max);
 extern int p7_splice_EnforceRangeBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_max);

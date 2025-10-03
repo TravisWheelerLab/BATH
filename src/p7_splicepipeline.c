@@ -116,6 +116,10 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS)) == NULL) goto ERROR;
   if ((pli->gbwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, 0         )) == NULL) goto ERROR;
 
+  pli->vit = NULL;
+  if ((pli->vit = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_SPLICE)) == NULL) goto ERROR;
+   
+
   pli->bg = NULL;
 
   pli->hit = NULL;
@@ -147,6 +151,8 @@ p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli)
 
   p7_gmx_Reuse(pli->gfwd);
   p7_gmx_Reuse(pli->gbwd);
+
+  p7_gmx_Reuse(pli->vit);
 
   if(pli->orig_nuc_idx != NULL) free(pli->orig_nuc_idx);
   pli->orig_nuc_idx = NULL;  
@@ -188,6 +194,8 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 
   p7_gmx_Destroy(pli->gfwd);
   p7_gmx_Destroy(pli->gbwd);
+
+  p7_gmx_Destroy(pli->vit);
 
   p7_bg_Destroy(pli->bg);
 

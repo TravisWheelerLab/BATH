@@ -450,6 +450,67 @@ path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *v
 }
 
 
+int
+p7_splicegraph_RemoveDuplicates(SPLICE_GRAPH *graph)
+{
+
+  int     i;    /* counter over hits */
+  int     j;    /* previous un-duplicated hit */
+  int     s_i, s_j, e_i, e_j, h_i, h_j, len_i, len_j;
+  int     intersect_alistart, intersect_aliend, intersect_alilen;
+  int     intersect_hmmstart, intersect_hmmend, intersect_hmmlen;
+  int remove;
+  P7_TOPHITS *th;
+
+  th = graph->th;
+
+  if(graph->num_nodes - graph->recover_N < 2 ) return eslOK;
+
+  
+  for (i = graph->recover_N; i < th->N; i++)
+  {
+    if(!graph->node_in_graph[i]) continue;
+    for(j = graph->recover_N; j < th->N; j++) {
+      if(!graph->node_in_graph[j]) continue;
+      if(i == j || graph->split_orig_id[i] == -1) continue;
+      if(graph->split_orig_id[i] != graph->split_orig_id[j]) continue;
+  
+      s_j   = th->hit[j]->dcl[0].iali;
+      e_j   = th->hit[j]->dcl[0].jali;
+
+      if (graph->revcomp) ESL_SWAP(s_j, e_j, int);
+      len_j = e_j - s_j + 1 ;
+
+      s_i   = th->hit[i]->dcl[0].iali;
+      e_i   = th->hit[i]->dcl[0].jali;
+
+      if (graph->revcomp) ESL_SWAP(s_i, e_i, int);
+      len_i = e_i - s_i + 1 ;
+
+      intersect_alistart  = s_i>s_j ? s_i : s_j;
+      intersect_aliend    = e_i<e_j ? e_i : e_j;
+      intersect_alilen    = intersect_aliend - intersect_alistart + 1;
+
+      h_i = th->hit[i]->dcl[0].ihmm;
+      h_j = th->hit[j]->dcl[0].ihmm;
+      intersect_hmmstart = (th->hit[i]->dcl[0].ihmm > th->hit[j]->dcl[0].ihmm) ? th->hit[i]->dcl[0].ihmm : th->hit[j]->dcl[0].ihmm;
+      intersect_hmmend   = (th->hit[i]->dcl[0].jhmm < th->hit[j]->dcl[0].jhmm) ? th->hit[i]->dcl[0].jhmm : th->hit[j]->dcl[0].jhmm;
+      intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
+
+      if ( intersect_hmmlen > 0 &&                // only if they're both hitting similar parts of the model
+           ( h_i >= h_j-3 && h_i <= h_j+3)     && // the ihmms are essentially flush
+           ( intersect_alilen >= len_i * 0.90  || // the overlap covers > 90% of one
+             intersect_alilen >= len_j * 0.90)) 
+      {
+
+        remove = len_i < len_j ? j : i;
+        graph->node_in_graph[remove] = FALSE;
+      }
+    }
+  } 
+  return eslOK;
+}
+
 /*****************************************************************
  * 3. Debugging tools.
  *****************************************************************/

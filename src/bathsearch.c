@@ -678,8 +678,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
 
   infocnt = (ncpus == 0) ? 1 : ncpus;
-  ESL_ALLOC(info, sizeof(*info) * infocnt);
-  
+  ESL_ALLOC(info, (ptrdiff_t) sizeof(*info) * infocnt);
 
    /*the query sequence will be DNA but will be translated to amino acids */
    abcDNA = esl_alphabet_Create(eslDNA); 
@@ -1111,7 +1110,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
   ESL_SQ_BLOCK *block;
   ESL_SQ       *tmpsq;
   void         *newBlock;
-  
+
   tmpsq = esl_sq_CreateDigital(dbfp->abc);
 
   esl_workqueue_Reset(queue);

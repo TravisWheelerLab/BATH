@@ -665,7 +665,7 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int64_t seqidx, int32_t *k_coords_list, int32_t *m_coords_list) { 
+p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int64_t seqidx) { 
 
   int            i;
   int            new_hit_cnt;
@@ -708,9 +708,6 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
     p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, &vsc);
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
-
-	k_coords_list[i] = k_coords;
-    m_coords_list[i] = m_coords;
 
 	/* Rescore bias based on viterbi alignment */
     if (pli->do_biasfilter)
@@ -3063,13 +3060,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
   p7_hmmwindow_init(&post_vit_windowlist);  
   
-  if(post_vit_orf_block->count > 0) 
-  {
-    ESL_ALLOC(k_coords_list, sizeof(int32_t) * post_vit_orf_block->count); 
-    ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
-  }
-
-  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx, k_coords_list, m_coords_list); 
+  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx); 
 
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object

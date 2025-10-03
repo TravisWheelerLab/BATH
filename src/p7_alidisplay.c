@@ -3144,7 +3144,7 @@ p7_alidiplay_frame(int nuc_from, int nuc_to)
 }
 
 /* Function:  p7_frameshift_alidisplay_Print()
-* Synopsis:  Human readable output of <P7_ALIDISPLAY> for nhmmscant
+* Synopsis:  Human readable output of <P7_ALIDISPLAY> for BATH
 *
 * Purpose:   Prints alignment <ad> to stream <fp>.
 *            
@@ -3196,7 +3196,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, i
 
   /* dynamically size the output lines */
   namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
-
+  
   while(namewidth > max_namewidth+3) {
 	if(strlen(show_hmmname) > strlen(show_seqname)) {
       show_hmmname[max_namewidth]   = '.';
@@ -3215,17 +3215,13 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, i
     namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
   }
 
+  namewidth  = ESL_MAX(namewidth, 8);
 
-  if (show_translated_sequence) {
-      namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
-  }
- 
   coordwidth = ESL_MAX(
  	       ESL_MAX(integer_textwidth(ad->hmmfrom), integer_textwidth(ad->hmmto)),
 	       ESL_MAX(integer_textwidth(ad->sqfrom), integer_textwidth(ad->sqto)));
 
-  if (aliwidth < ad->N && aliwidth < min_aliwidth) aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
-  aliwidth /= 5; /* divide by 5 if printing codons horizontally */
+  max_aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
 
   if (max_aliwidth < ad->N && max_aliwidth < min_aliwidth) max_aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
 
@@ -3488,8 +3484,6 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, i
     if(frameline != NULL) free(frameline);
     return status;
 }
-
-
 
 
 

@@ -128,6 +128,11 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
   uint64_t ncells;
   int      do_reset = FALSE;
 
+  M  = ESL_MAX(M,  gx->allocW-1);
+  L  = ESL_MAX(L,  gx->validR-1);
+  Lx = ESL_MAX(Lx, gx->allocR-1);
+  C  = ESL_MAX(C,  gx->allocC);
+
  if (M < gx->allocW && L < gx->validR && Lx < gx->allocR && C <= gx->allocC) return eslOK;
 
   /* must we realloc the 2D matrices? (or can we get away with just
@@ -157,7 +162,7 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
   } 
 
   /* must we widen the rows? */
-  if (M >= gx->allocW) do_reset = TRUE;
+  if (M >= gx->allocW) do_reset = TRUE; 
   /* resize the rows and reset all the valid row pointers.*/
   if (do_reset)
   {
@@ -188,6 +193,7 @@ p7_gmx_fs_Sizeof(P7_GMX *gx)
   n += gx->allocR * p7G_NXCELLS * sizeof(float); /* specials:      gx->xmx    */
   return n;
 }
+
 /*****************************************************************
  * 2. Debugging aids
  *****************************************************************/

@@ -25,9 +25,7 @@
 /* Function:  p7_splicesiteidx_Create()
  * Synopsis:  Allocates a splice site idx.
  *
- * Purpose:   Allocates a new <SPLICE_SITE_IDX> with memory for 
- *            the expected occurance of 2-mers in a nucleotide 
- *            sequence of length <L>
+ * Purpose:   Allocates a new <SPLICE_SITE_IDX>  
  *
  * Returns:   a pointer to the new <SPLICE_SITE_IDX> structure 
  *            on success.
@@ -35,23 +33,19 @@
  * Throws:    <NULL> on allocation error.
  */
 SPLICE_SITE_IDX*
-p7_splicesiteidx_Create(int L)
+p7_splicesiteidx_Create()
 {
   int i;
   int status;
 
-
   SPLICE_SITE_IDX *signal_sites = NULL;
   ESL_ALLOC(signal_sites, sizeof(SPLICE_SITE_IDX));
  
-  ESL_ALLOC(signal_sites->index,  sizeof(int*) * p7S_SPLICE_SIGNALS);
-  ESL_ALLOC(signal_sites->N,      sizeof(int)  * p7S_SPLICE_SIGNALS);
-  ESL_ALLOC(signal_sites->allocN, sizeof(int)  * p7S_SPLICE_SIGNALS);
+  ESL_ALLOC(signal_sites->index_mem, sizeof(int) * p7S_SPLICE_SIGNALS * SIGNAL_MEM_SIZE);
+  ESL_ALLOC(signal_sites->index,     sizeof(int*) * p7S_SPLICE_SIGNALS);
   
   for(i = 0; i < p7S_SPLICE_SIGNALS; i++) {
-    signal_sites->N[i]       = 0;
-    signal_sites->allocN[i]  = (L-1) / 16;
-    ESL_ALLOC(signal_sites->index[i], sizeof(int) * signal_sites->allocN[i]);
+    signal_sites->index[i] = signal_sites->index_mem + (p7S_SPLICE_SIGNALS * SIGNAL_MEM_SIZE); 
   }
 
   return signal_sites;
@@ -59,38 +53,6 @@ p7_splicesiteidx_Create(int L)
   ERROR:
     p7_splicesiteidx_Destroy(signal_sites);
     return NULL;
-
-}
-
-
-/* Function:  p7_splicesiteidx_Grow() 
- * Synopsis:  Reallocates a larger SPLICE_SITE_IDX, if needed.
- *
- * Purpose:   If <signal_sites> cannot hold another index for signal 
- *            <signal> increase the allocation by the expected 
- *            occurance of 2-mers in a nucleotide seq of length <L>
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEMEM> on allocation failure.
- *   
- */
-int
-p7_splicesiteidx_Grow(SPLICE_SITE_IDX *signal_sites, int L, int signal)
-{
-  int status;
-
-  if(signal_sites->N[signal] == signal_sites->allocN[signal]) {
-
-    signal_sites->allocN[signal] += (L-1) / 16;
-    ESL_REALLOC(signal_sites->index[signal], sizeof(int) * signal_sites->allocN[signal]); 
-  }
-
-  return eslOK;
-  
-  ERROR:
-    p7_splicesiteidx_Destroy(signal_sites);  
-    return status;
 
 }
 
@@ -107,14 +69,8 @@ p7_splicesiteidx_Destroy(SPLICE_SITE_IDX *signal_sites)
 
   if(signal_sites == NULL) return;
 
-  free(signal_sites->N);
-  free(signal_sites->allocN);
-    
-  for(i = 0; i < p7S_SPLICE_SIGNALS; i++) {
-    free(signal_sites->index[i]);
-  }
-  free(signal_sites->index);
-  free(signal_sites); 
+  if(signal_sites->index     != NULL) free(signal_sites->index);
+  if(signal_sites->index_mem != NULL) free(signal_sites->index_mem);
 
   signal_sites = NULL;
 

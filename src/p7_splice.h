@@ -115,6 +115,24 @@ typedef struct _splice_path {
 } SPLICE_PATH;
 
 
+typedef struct _splice_site_idx
+{
+  int **index;
+  int *index_mem;
+
+  float **score;
+  float *score_mem; 
+
+  int **lookback;
+  int *lookback_mem;
+
+  int alloc_M;
+  int alloc_L;
+
+} SPLICE_SITE_IDX;
+
+
+
 typedef struct _splice_pipeline 
 {
   
@@ -154,7 +172,10 @@ typedef struct _splice_pipeline
   P7_BG   *bg;
 
   P7_HIT  *hit;
- 
+
+  SPLICE_SITE_IDX *sig_idx;  
+  
+
 } SPLICE_PIPELINE;
 
 
@@ -181,21 +202,36 @@ typedef struct _splice_info
 } SPLICE_WORKER_INFO;
 
 
-typedef struct _splice_site_idx
-{
-  int **index;
-  int *index_mem;
-  
-  int *N;
-  int *allocN;
 
-} SPLICE_SITE_IDX;
+/* MACROS for the SPLICE_SITE_IDX */
+
+
+#define SIX0(k, signal)             (index[(k)][(signal)])                                                       //xxxxXXX
+#define SIX1(k, signal, nuc1)       (index[(k)][SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + signal])           //XxxxxXX
+#define SIX2(k, signal, nuc1, nuc2) (index[(k)][SPLICE_OFFSET_2 + (4*nuc1+nuc2) * p7S_SPLICE_SIGNALS + signal]) //XXxxxxX
+
+#define SSX0(k, signal)             (score[(k)][signal])                                                        //xxxxXXX
+#define SSX1(k, signal, nuc1)       (score[(k)][SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + signal])          //XxxxxXX
+#define SSX2(k, signal, nuc1, nuc2) (score[(k)][SPLICE_OFFSET_2 + (4*nuc1+nuc2) * p7S_SPLICE_SIGNALS + signal]) //XXxxxxX
+
+#define SIGNAL(nuc1, nuc2)           (4*nuc1+nuc2)
+
+
+#define DONOR_GT                  11
+#define DONOR_GC                  9
+#define DONOR_AT                  3
+#define ACCEPT_AG                 2
+#define ACCEPT_AC                 1
+
+#define SIGNAL_MEM_SIZE           63       /* total storage = M * SIGNAL_MEM_SIZE */ 
+#define SPLICE_OFFSET_1           3        /* start of XxxxxXX codons  */
+#define SPLICE_OFFSET_2           15       /* start of XXxxxxX codons  */
 
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node */
 #define MAX_INTRON_LENG           100000   /*maximum intron length */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
 #define MIN_INTRON_LENG           13       /*minimum intor length */
-#define MAX_INTRON_INCL           1500      /*maximum length on intron to be included in spliced Viterbi search */
+#define MAX_INTRON_INCL           1500     /*maximum length on intron to be included in spliced Viterbi search */
 #define MAX_SP_AMINO_GAP          10       /*maximum amino gap for spliced edges */
 #define MAX_USP_AMINO_GAP         25       /*maximum amino gap fpr unspliced edges */ 
 #define MAX_EXT_AMINO_GAP         25       /*maximum amino gap fpr extention edges */
@@ -266,11 +302,14 @@ extern void p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path);
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
+extern SPLICE_SITE_IDX* p7_splicepipline_CreateIndex(int M_hint, int L_hint);
+extern int p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L);
+extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 
-/* p7_splicesiteidx.c */
-extern SPLICE_SITE_IDX* p7_splicesiteidx_Create(int L);
-extern int p7_splicesiteidx_Grow(SPLICE_SITE_IDX *signal_sites, int L, int signal);
-extern void p7_splicesiteidx_Destroy(SPLICE_SITE_IDX *signal_sites);
+
+/* p7_spliceviterbi.c */
+extern int p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
+extern int p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr); 
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

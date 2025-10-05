@@ -2,6 +2,7 @@
  *
  * Contents:
  *    1. The SPLICE_PIPELINE object.
+ *    2. The SPLICE_SITE_IDX object.
  *
  */
 
@@ -119,6 +120,7 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->vit = NULL;
   if ((pli->vit = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_SPLICE)) == NULL) goto ERROR;
    
+  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint);
 
   pli->bg = NULL;
 
@@ -197,6 +199,8 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 
   p7_gmx_Destroy(pli->vit);
 
+  p7_splicepipeline_DestroyIndex(pli->sig_idx);
+
   p7_bg_Destroy(pli->bg);
 
   if(pli->hit != NULL && pli->hit->dcl != NULL) {
@@ -214,4 +218,142 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 
 
 
+/*****************************************************************
+ * 2. The SPLICE_SITE_IDX structure.
+ *****************************************************************/
 
+/* Function:  p7_splicepipline_CreateIndex() 
+ * Synopsis:  Allocates a splice site idx.
+ *
+ * Purpose:   Allocates a new <SPLICE_SITE_IDX> 
+ *
+ * Returns:   <SPLICE_SITE_IDX>  on success.
+ *
+ * Throws:    <NULL> on allocation error. 
+ */
+SPLICE_SITE_IDX*
+p7_splicepipline_CreateIndex(int M_hint, int L_hint)
+{
+  int i,k;
+  SPLICE_SITE_IDX *signal_sites;
+  int status;
+
+  signal_sites = NULL;
+  ESL_ALLOC(signal_sites, sizeof(SPLICE_SITE_IDX));
+
+  ESL_ALLOC(signal_sites->index_mem, sizeof(int)  * M_hint * SIGNAL_MEM_SIZE);
+  ESL_ALLOC(signal_sites->index,     sizeof(int*) * M_hint);
+
+  ESL_ALLOC(signal_sites->score_mem, sizeof(float)  * M_hint * SIGNAL_MEM_SIZE);
+  ESL_ALLOC(signal_sites->score,     sizeof(float*) * M_hint);
+
+  for(k = 0; k < M_hint; k++) {
+    signal_sites->index[k] = signal_sites->index_mem + (k * SIGNAL_MEM_SIZE);
+    signal_sites->score[k] = signal_sites->score_mem + (k * SIGNAL_MEM_SIZE);  
+  }
+
+  ESL_ALLOC(signal_sites->lookback_mem, sizeof(int)  * L_hint * M_hint);
+  ESL_ALLOC(signal_sites->lookback,     sizeof(int*) * L_hint);
+
+  for(i = 0; i < L_hint; i++) 
+    signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M_hint);
+  
+  signal_sites->alloc_M = M_hint;
+  signal_sites->alloc_L = L_hint;
+
+  return signal_sites;
+
+  ERROR:
+    p7_splicepipeline_DestroyIndex(signal_sites);
+    return NULL;
+
+}
+
+/* Function:  p7_splicepipline_GrowIndex() 
+ * Synopsis:  Grow a splice site idx.
+ *
+ * Purpose:   Allocates a larger <SPLICE_SITE_IDX>
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation error.
+ */
+int
+p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L)
+{
+
+  int i, k;
+  int status;
+  
+  if(M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_L) return eslOK;
+
+  if( M > signal_sites->alloc_M) {
+    ESL_REALLOC(signal_sites->index_mem, sizeof(int)  * M * SIGNAL_MEM_SIZE);
+    ESL_REALLOC(signal_sites->index,     sizeof(int*) * M);
+
+    ESL_REALLOC(signal_sites->score_mem, sizeof(float)  * M * SIGNAL_MEM_SIZE);
+    ESL_REALLOC(signal_sites->score,     sizeof(float*) * M);  
+
+    for(k = 0; k < M; k++) {
+      signal_sites->index[k] = signal_sites->index_mem + (k * SIGNAL_MEM_SIZE);
+      signal_sites->score[k] = signal_sites->score_mem + (k * SIGNAL_MEM_SIZE);
+    }
+  }
+
+  if( (L+1) > signal_sites->alloc_L && M > signal_sites->alloc_M )  {
+    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * M);
+    ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
+ 
+    for(i = 0; i < L+1; i++)
+      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
+  }
+  else if( (L+1) > signal_sites->alloc_L) {
+    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * signal_sites->alloc_M);    
+    ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
+
+    for(i = 0; i < L+1; i++)
+      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * signal_sites->alloc_M);
+  }
+  else if( M > signal_sites->alloc_M )  {
+    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * signal_sites->alloc_L * M);
+
+    for(i = 0; i < signal_sites->alloc_L; i++)
+      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
+  }
+
+
+  signal_sites->alloc_M = ESL_MAX(M, signal_sites->alloc_M);
+  signal_sites->alloc_L = ESL_MAX((L+1), signal_sites->alloc_L);
+
+  return eslOK;
+
+  ERROR:
+    p7_splicepipeline_DestroyIndex(signal_sites);
+    return status;
+}
+
+
+/* Function:  p7_splicesiteidx_Destroy()
+ *
+ * Purpose:  Frees a <SPLICE_SITE_IDX>
+ */
+void
+p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites)
+{
+
+  if(signal_sites == NULL) return;
+
+  if(signal_sites->index     != NULL) free(signal_sites->index);
+  if(signal_sites->index_mem != NULL) free(signal_sites->index_mem);
+
+  if(signal_sites->score     != NULL) free(signal_sites->score);
+  if(signal_sites->score_mem != NULL) free(signal_sites->score_mem);
+
+  if(signal_sites->lookback     != NULL) free(signal_sites->lookback);
+  if(signal_sites->lookback_mem != NULL) free(signal_sites->lookback_mem);
+
+  free(signal_sites);
+  signal_sites = NULL;
+
+  return;
+}

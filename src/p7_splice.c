@@ -576,7 +576,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   gcode      = info->gcode;
   seq_file   = info->seq_file;
 
-  printf("\nQuery %s Target %s strand %c seqidx %d\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
+  printf("\nQuery %s Target %s strand %c seqidx %ld\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
@@ -630,9 +630,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, path_accumulator[p]->revcomp, info); 
 
     path_seq_accumulator[p] = path_seq;
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump(stdout,path_accumulator[p]);
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+//if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+//p7_splicepath_Dump(stdout,path_accumulator[p]);
+//if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
 //if(!p7_splicepath_Check(path_accumulator[p])) ESL_XEXCEPTION(eslFAIL, "Impossible Path"); 
     p7_splice_FindExons(info, path_accumulator[p], path_seq_accumulator[p]); 
@@ -1314,7 +1314,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     /* Crete sub hmm */
     sub_hmm     = p7_splice_GetSubHMM(hmm, hmm_start, path->hits[s]->dcl->jhmm);
     sub_hmm->fs = 0.;
-
+     
     /* Align sub seq to sub hmm and get exons */
     exons = p7_splice_AlignExons(pli, sub_hmm, gm_fs, pli->bg, sub_seq, gcode, graph->revcomp, hmm_start, removed_start, removed_end, &num_hits);  
     
@@ -1479,18 +1479,27 @@ p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE 
   int         intron_cnt;
   int         exon_cnt;
   int         start_new;
-  int         M, L, Lx, C;
-  P7_FS_PROFILE *sub_fs_model;
   P7_HIT       *new_hit;
   P7_HIT      **ret_hits;
   P7_TRACE     *tr;
+  P7_FS_PROFILE *sub_fs_model;
   int status;
 
+  
   sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
   p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, ali_seq->n, p7_UNIGLOBAL);
    
   p7_gmx_fs_GrowTo(pli->vit, sub_fs_model->M, ali_seq->n, ali_seq->n, p7P_SPLICE);
   tr = p7_trace_fs_Create();
+
+//  p7_splicepipline_GrowIndex(pli->sig_idx, sub_fs_model->M, ali_seq->n);
+//  p7_spliceviterbi_translated_semiglobal(pli, ali_seq->dsq, gcode, ali_seq->n, sub_fs_model, pli->vit);
+//  p7_splicevitebi_translated_semiglobal_trace(pli, ali_seq->dsq, ali_seq->n, gcode, sub_fs_model, pli->vit, tr);
+
+  //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
+  //p7_trace_fs_Destroy(tr);
+  
+ // tr = p7_trace_fs_Create();
 
   if(sub_hmm->fs > 0.0) {
     p7_sp_fs_semiglobal_Viterbi(ali_seq->dsq, gcode, ali_seq->n, sub_fs_model, pli->vit);
@@ -1529,7 +1538,7 @@ p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE 
 
       /*Find end of exon */
       while(tr->st[z] != p7T_R && tr->st[z] != p7T_E) z++;
-
+      
      /*Trace back to last M state of exon*/
       while(tr->st[z] != p7T_M) z--;
 
@@ -1603,7 +1612,7 @@ int
 add_split_exons(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, P7_HIT **exons, const P7_HMM *hmm, const P7_FS_PROFILE *gm_fs, const P7_PROFILE *gm, const ESL_GENCODE *gcode, ESL_SQ *ali_seq, float orig_aliscore, int orig_node, int *num_hits, int frameshift)
 {
 
-  int h, i;
+  int h;
   int split_hits;
   SPLICE_EDGE **edges;
   SPLICE_EDGE *tmp_edge;

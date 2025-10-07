@@ -580,8 +580,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   fflush(stdout);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
+printf("RECOVER\n");
+p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
@@ -612,7 +612,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
     p7_splice_ExtendPath(info->seeds, path, graph);
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//p7_splicepath_Dump(stdout,path);
+p7_splicepath_Dump(stdout,path);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
     path = p7_splicepath_GetBestPath_Unspliced(graph);
@@ -642,8 +642,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //  p7_splicegraph_RemoveDuplicates(graph);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("NEW HITS\n");
-//p7_splicegraph_DumpHits(stdout, graph);
+printf("NEW HITS\n");
+p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
@@ -657,7 +657,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
   while(path != NULL) {
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//p7_splicepath_Dump(stdout,path);
+p7_splicepath_Dump(stdout,path);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);  
     path_accumulator[num_paths] = path;
     num_paths++;
@@ -828,12 +828,12 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
 
     /* Set the most upstream hit in the tmp_path to start at the minimum 
      * hmm for all hits in tmp_path and add it to the orginal path  */
-    for(s = 1; s < tmp_path->path_len-1; s++) 
-      tmp_path->hits[0]->dcl->ihmm = ESL_MIN(tmp_path->hits[0]->dcl->ihmm, tmp_path->hits[s]->dcl->ihmm);
-    
-    tmp_path->hits[0]->dcl->is_included = TRUE;
-    p7_splicepath_Insert(path, tmp_path->hits[0], tmp_path->edge_scores[s], 0); 
-    
+    for(s = tmp_path->path_len-2; s >= 0; s--) {
+        
+      tmp_path->hits[s]->dcl->is_included = TRUE;
+      p7_splicepath_Insert(path, tmp_path->hits[s], tmp_path->edge_scores[s], 0); 
+    }
+
     p7_splicepath_Destroy(tmp_path);
     p7_splicegraph_Destroy(tmp_graph);
   }
@@ -887,12 +887,10 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
     /* Set the most downstream hit in the tmp_path to end at the maximum  
      * hmm for all hits in tmp_path and add it to the orginal path  */
     /* Add any seed hits from tmp_path to real path */
-    for(s = 1; s < tmp_path->path_len-1; s++) 
-      tmp_path->hits[tmp_path->path_len-1]->dcl->jhmm = ESL_MAX(tmp_path->hits[tmp_path->path_len-1]->dcl->jhmm, tmp_path->hits[s]->dcl->jhmm);     
-
-    tmp_path->hits[tmp_path->path_len-1]->dcl->is_included = TRUE;
-    p7_splicepath_Insert(path, tmp_path->hits[tmp_path->path_len-1], tmp_path->edge_scores[tmp_path->path_len-1], path->path_len);
-
+    for(s = 1; s < tmp_path->path_len-1; s++) { 
+      tmp_path->hits[s]->dcl->is_included = TRUE;
+      p7_splicepath_Insert(path, tmp_path->hits[s], tmp_path->edge_scores[s], path->path_len);
+    }
     
     p7_splicepath_Destroy(tmp_path);
     p7_splicegraph_Destroy(tmp_graph);

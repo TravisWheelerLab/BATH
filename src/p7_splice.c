@@ -794,7 +794,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
     for(i = 0; i < seed_hits->N; i++) {
       
       curr_hit = &(seed_hits->unsrt[i]);
-  
+      
       /* skip seeds already added to a graph */
       if(curr_hit->dcl->is_included) continue;
   
@@ -887,7 +887,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
     /* Set the most downstream hit in the tmp_path to end at the maximum  
      * hmm for all hits in tmp_path and add it to the orginal path  */
     /* Add any seed hits from tmp_path to real path */
-    for(s = 1; s < tmp_path->path_len-1; s++) { 
+    for(s = 1; s < tmp_path->path_len; s++) { 
       tmp_path->hits[s]->dcl->is_included = TRUE;
       p7_splicepath_Insert(path, tmp_path->hits[s], tmp_path->edge_scores[s], path->path_len);
     }

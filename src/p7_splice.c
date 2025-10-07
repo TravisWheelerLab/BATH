@@ -580,8 +580,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   fflush(stdout);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("RECOVER\n");
-p7_splicegraph_DumpHits(stdout, graph);
+//printf("RECOVER\n");
+//p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
@@ -612,7 +612,7 @@ p7_splicegraph_DumpHits(stdout, graph);
 
     p7_splice_ExtendPath(info->seeds, path, graph);
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump(stdout,path);
+//p7_splicepath_Dump(stdout,path);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
     path = p7_splicepath_GetBestPath_Unspliced(graph);
@@ -642,8 +642,8 @@ p7_splicepath_Dump(stdout,path);
 //  p7_splicegraph_RemoveDuplicates(graph);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("NEW HITS\n");
-p7_splicegraph_DumpHits(stdout, graph);
+//printf("NEW HITS\n");
+//p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
@@ -657,7 +657,7 @@ p7_splicegraph_DumpHits(stdout, graph);
 
   while(path != NULL) {
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump(stdout,path);
+//p7_splicepath_Dump(stdout,path);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);  
     path_accumulator[num_paths] = path;
     num_paths++;
@@ -1533,24 +1533,44 @@ p7_splice_FindExons2(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_s
      
     /* Align sub seq to sub hmm and get exons */
     exons = p7_splice_AlignExons2(pli, sub_hmm, gm_fs, pli->bg, sub_seq, gcode, graph->revcomp, path->hits[s-1]->dcl->ihmm, 1, remove_idx, &num_hits);  
-  
-   
+      
+    
     for(e = 0; e < num_hits; e++) {
       exons[e]->dcl->iali = nuc_index[exons[e]->dcl->iali];
       exons[e]->dcl->jali = nuc_index[exons[e]->dcl->jali];
+//       printf("s %d e %d iali %d jali %d ihmm %d jhm %d\n", s, e, exons[e]->dcl->iali, exons[e]->dcl->jali, exons[e]->dcl->ihmm, exons[e]->dcl->jhmm); 
     }
-
+/*
+    for(e = 0; e < num_hits; e++) {
+        p7_splicegraph_AddNode(graph, exons[e]);
+        if(path->node_id[s-1] < graph->orig_N  && path->node_id[s-1] != -1) {
+          if(seq_overlap(exons[e]->dcl, path->hits[s-1]->dcl, graph->revcomp) >= 0.0 &&
+             hmm_overlap(exons[e]->dcl, path->hits[s-1]->dcl) >= 0.0) {
+            graph->orig_hit_idx[graph->num_nodes-1] = graph->orig_hit_idx[path->node_id[s-1]];
+            graph->split_orig_id[graph->num_nodes-1] = path->node_id[s-1];
+          }
+        }
+        if(path->node_id[s] < graph->orig_N  && path->node_id[s] != -1) {
+          if(seq_overlap(exons[e]->dcl, path->hits[s]->dcl, graph->revcomp) >= 0.0 &&
+             hmm_overlap(exons[e]->dcl, path->hits[s]->dcl) >= 0.0) {
+            graph->orig_hit_idx[graph->num_nodes-1] = graph->orig_hit_idx[path->node_id[s]];
+            graph->split_orig_id[graph->num_nodes-1] = path->node_id[s];
+          }
+        }
+      }
+*/
     /* If there is only one exon it is likely that one of the nodes is a false posiitive and the 
      * resulting exon will be skewd by having to cover the hmm postions of both nodes. If the 
      * exon covers both hits we keep it. If the Exon covers only the first hit we remove the 
      * second node from the path, discard the exon and start the next search at s-1 again. If 
      * the Exon only covers the seecond hit we discard the exon and start the next seach at s */ 
-    if(num_hits == 1) {
-      /* Does first exon overlap first hit */
+ 
+   if(num_hits == 1) {
+      
       if(seq_overlap(exons[0]->dcl, path->hits[s-1]->dcl, graph->revcomp) >= 0.0 &&
           hmm_overlap(exons[0]->dcl, path->hits[s-1]->dcl) >= 0.0) {
   
-        /* Does last exon overlap with second hit */
+     
         if(seq_overlap(exons[0]->dcl, path->hits[s]->dcl, graph->revcomp) >= 0.0 &&
            hmm_overlap(exons[0]->dcl, path->hits[s]->dcl) >= 0.0) {
           
@@ -1565,10 +1585,10 @@ p7_splice_FindExons2(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_s
             graph->split_orig_id[graph->num_nodes-1] = path->node_id[s];
           }
   
-          /* Replace downstream hit in path with last hit in exons */
+    
           path->hits[s] = exons[0]; 
         }
-        /* If the last hit did not overlap, shift the nodes so that the next search is from s-1 to s+1 node */
+   
         else {
           
           p7_splicepath_Remove(path, s);
@@ -1579,7 +1599,7 @@ p7_splice_FindExons2(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_s
           p7_hit_Destroy(exons[0]);
         }
       } 
-      /* If the first hit did not overlap, start new search at the s node */
+  
       else {
         p7_trace_splice_Destroy(exons[0]->dcl->tr);
         free(exons[0]->dcl->scores_per_pos);
@@ -1785,7 +1805,7 @@ p7_splice_AlignExons2(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE
     p7_spliceviterbi_translated_semiglobal(pli, ali_seq->dsq, gcode, ali_seq->n, sub_fs_model, pli->vit);
     p7_splicevitebi_translated_semiglobal_trace(pli, ali_seq->dsq, ali_seq->n, gcode, sub_fs_model, pli->vit, tr);
   }
-  //p7_trace_fs_Dump(stdout, tr, sub_fs_model, ali_seq->dsq, ali_seq->abc);
+  //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -1814,14 +1834,15 @@ p7_splice_AlignExons2(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE
 
       /*Find end of exon */
       while(tr->st[z] != p7T_P && tr->st[z] != p7T_E) z++;
-      
+      z--;
      /*Trace back to last M state of exon*/
-      while(tr->st[z] != p7T_M) z--;
+      //while(tr->st[z] != p7T_M) z--;
 
 
       /* If an exon crosses the bounrdy of a removed intron it is 
        * almost certainly a false positive and can be discarded */
       for(r = 0; r < num_introns; r++) {
+       
         if(removed_idx[r*2] >= 0 ) {
           if      (tr->i[y] - tr->c[y] + 1 <= removed_idx[r*2]   && tr->i[z] >= removed_idx[r*2])   { start_new = FALSE; break; }
           else if (tr->i[y] - tr->c[y] + 1 <= removed_idx[r*2+1] && tr->i[z] >= removed_idx[r*2+1]) { start_new = FALSE; break; }
@@ -3489,7 +3510,7 @@ p7_splice_GetSplicedSequence(SPLICE_PATH *path, ESL_SQ *path_seq, int up_node, i
 
     intron_len = llabs(path->hits[s+1]->dcl->iali - path->hits[s]->dcl->jali) - 1;
     amino_gap =  ESL_MAX(0, path->hits[s+1]->dcl->ihmm - path->hits[s]->dcl->jhmm - 1); 
-   
+    
     /* Add full seqeunce gap if short */
     if(intron_len <= MAX_INTRON_INCL + (amino_gap*3)) {
       r_idx[r*2]   = -1;

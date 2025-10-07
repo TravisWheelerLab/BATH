@@ -378,7 +378,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   int status;
 
   window_len = (1024 * 256);
- 
+
   
   bg = p7_bg_Create(gm_fs->abc);
   p7_bg_SetFilter(bg, gm_fs->M, gm_fs->compo);
@@ -405,33 +405,35 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   last_strand = -1; 
   i_start = 0;
   for(h = 0; h < th->N; h++) {
-  
+
     if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
     if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= S2) continue;
-    
+
     strand = (th->hit[h]->dcl->iali < th->hit[h]->dcl->jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
     hit_min  = ESL_MIN(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);
     hit_max  = ESL_MAX(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);
    
     i = i_start;
     while(i < sh->N) {
+
       if(sh->srt[i]->seqidx < th->hit[h]->seqidx) { i++; continue; }
       if(sh->srt[i]->strand < strand)       { i++; continue; }
-
+        
       /*If this is the first hit on a new sequence or strand, save 
        * the first postion in the saved hits that coresponds to 
        * that sequence and strand for future use */     
-      if(last_seqidx != th->hit[h]->seqidx || last_strand == strand) i_start = i;
+
+      if(last_seqidx != th->hit[h]->seqidx || last_strand != strand) i_start = i;
 
       if(sh->srt[i]->seqidx > th->hit[h]->seqidx) break;
       if(sh->srt[i]->strand > strand)       break;
- 
+
       if(sh->srt[i]->duplicate) { i++; continue; }
       if(sh->srt[i]->is_seed)   { i++; continue; }
-     
+
       seed_max = ESL_MAX(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
       if(hit_min - seed_max > MAX_INTRON_LENG) { i++; continue; }
-  
+
       seed_min = ESL_MIN(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
       if(seed_min - hit_max > MAX_INTRON_LENG) break;
 
@@ -448,6 +450,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
         }
        
       }
+
       // Is saved hit downstearm and within of top hit 
 	  if(th->hit[h]->dcl->ihmm <= sh->srt[i]->hmm_start ||
          th->hit[h]->dcl->jhmm <= sh->srt[i]->hmm_end) {
@@ -473,7 +476,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
    
     if(!sh->srt[i]->is_seed) continue;
     //printf("sh->srt[i]->seq_start %d sh->srt[i]->seq_end %d\n", sh->srt[i]->seq_start, sh->srt[i]->seq_end); 
-    fflush(stdout);
+    //fflush(stdout);
     /* If the saved hit is on a new sequence or strand sove to beginging of current sequence */
     if(sh->srt[i]->seqidx != last_seqidx ||
        sh->srt[i]->strand != last_strand) {
@@ -556,6 +559,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   esl_sq_Destroy(dbsq_dna); 
   esl_sqfile_Close(dbfp);
   
+  //p7_splicehits_Dump(stdout, sh); 
   return seed_hits;
 }
 

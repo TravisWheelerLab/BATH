@@ -118,9 +118,9 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   if ((pli->gbwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, 0         )) == NULL) goto ERROR;
 
   pli->vit = NULL;
-  if ((pli->vit = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_SPLICE)) == NULL) goto ERROR;
+  if ((pli->vit = p7_gmx_fs_Create(M_hint/3, L_hint/3, L_hint/3, p7P_SPLICE)) == NULL) goto ERROR;
    
-  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint);
+  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint/3, L_hint/3);
 
   pli->bg = NULL;
 

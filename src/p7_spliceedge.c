@@ -269,7 +269,7 @@ get_overlap_nuc_coords (SPLICE_EDGE *edge, const P7_DOMAIN *upstream, const P7_D
 
  /***************UPSTREAM*******************/
 
-  for (z2 = up_trace->N-1 ; z2 >= 0; z2--) if (up_trace->st[z2] == p7T_M) break;
+  for (z2 = up_trace->N-1 ; z2 >= 0; z2--) if (up_trace->st[z2] == p7T_M || up_trace->st[z2] == p7T_D) break;
   edge->upstream_trace_end = z2;
   curr_hmm_pos = upstream->jhmm;
   edge->upstream_nuc_end   = upstream->jali;

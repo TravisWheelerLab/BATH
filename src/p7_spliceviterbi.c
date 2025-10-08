@@ -148,7 +148,6 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 
   }
 
-
   AGXXX = ACXXX = AGXX = ACXX = AGX = ACX  = FALSE;  
   GT = GC = AT = FALSE; 
   /* Main DP recursion */
@@ -176,15 +175,17 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
     else                          ACX = FALSE;
 
     /* get donor site */
-    if(SIGNAL(w, x) == DONOR_GT) GT = TRUE;
-    else                         GT = FALSE;
+    if(i > MIN_INTRON_LENG+4) {
+      if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_GT) GT = TRUE;
+      else                         GT = FALSE;
    
-    if(SIGNAL(w, x) == DONOR_GC) GC = TRUE;
-    else                         GC = FALSE;
+      if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_GC) GC = TRUE;
+      else                         GC = FALSE;
  
-    if(SIGNAL(w, x) == DONOR_AT) AT = TRUE;
-    else                         AT = FALSE;
- 
+      if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_AT) AT = TRUE;
+      else                         AT = FALSE;
+    }
+
     XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
 
     XMX(i,p7G_B) = XMX(i,p7G_N)   + gm_fs->xsc[p7P_N][p7P_MOVE];
@@ -312,65 +313,65 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
       /* Record best scoring donor sites*/
       if(GT) {
         
-        TMP_SC = ESL_MAX(MMX_SP(i-4,k-1), DMX_SP(i-4,k-1)); 
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-4,k-1), DMX_SP(i-MIN_INTRON_LENG-4,k-1)); 
         if(u < 4 && v < 4 && TMP_SC > SSX2(k, p7S_GTAG, u, v)) {
           SSX2(k, p7S_GTAG, u, v) = TMP_SC;
-          SIX2(k, p7S_GTAG, u, v) = i;
+          SIX2(k, p7S_GTAG, u, v) = i-MIN_INTRON_LENG;
         }
  
-        TMP_SC = ESL_MAX(MMX_SP(i-3,k-1), DMX_SP(i-3,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-3,k-1), DMX_SP(i-MIN_INTRON_LENG-3,k-1));
         if(v < 4 && TMP_SC > SSX1(k, p7S_GTAG, v)) {
           SSX1(k, p7S_GTAG, v) = TMP_SC;
-          SIX1(k, p7S_GTAG, v) = i;
+          SIX1(k, p7S_GTAG, v) = i-MIN_INTRON_LENG;
         } 
 
-        TMP_SC = ESL_MAX(MMX_SP(i-2,k-1), DMX_SP(i-2,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-2,k-1), DMX_SP(i-MIN_INTRON_LENG-2,k-1));
         if(TMP_SC > SSX0(k, p7S_GTAG)) {
           SSX0(k, p7S_GTAG) = TMP_SC;
-          SIX0(k, p7S_GTAG) = i;
+          SIX0(k, p7S_GTAG) = i-MIN_INTRON_LENG;
         }
          
       }
       else if(GC) {
         
-        TMP_SC = ESL_MAX(MMX_SP(i-4,k-1), DMX_SP(i-4,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-4,k-1), DMX_SP(i-MIN_INTRON_LENG-4,k-1));
         if(u < 4 && v < 4 && TMP_SC > SSX2(k, p7S_GCAG, u, v)) {
           SSX2(k, p7S_GCAG, u, v) = TMP_SC;
-          SIX2(k, p7S_GCAG, u, v) = i;
+          SIX2(k, p7S_GCAG, u, v) = i-MIN_INTRON_LENG;
         }
 
-        TMP_SC = ESL_MAX(MMX_SP(i-3,k-1), DMX_SP(i-3,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-3,k-1), DMX_SP(i-MIN_INTRON_LENG-3,k-1));
         if(v < 4 && TMP_SC > SSX1(k, p7S_GCAG, v)) {
           SSX1(k, p7S_GCAG, v) = TMP_SC;
-          SIX1(k, p7S_GCAG, v) = i;
+          SIX1(k, p7S_GCAG, v) = i-MIN_INTRON_LENG;
         }
 
-        TMP_SC = ESL_MAX(MMX_SP(i-2,k-1), DMX_SP(i-2,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-2,k-1), DMX_SP(i-MIN_INTRON_LENG-2,k-1));
         if(TMP_SC > SSX0(k, p7S_GCAG)) {
           SSX0(k, p7S_GCAG) = TMP_SC;
-          SIX0(k, p7S_GCAG) = i;
+          SIX0(k, p7S_GCAG) = i-MIN_INTRON_LENG;
         }
         
 
       }
       else if(AT) {
 
-        TMP_SC = ESL_MAX(MMX_SP(i-4,k-1), DMX_SP(i-4,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-4,k-1), DMX_SP(i-MIN_INTRON_LENG-4,k-1));
         if(u < 4 && v < 4 && TMP_SC > SSX2(k, p7S_ATAC, u, v)) {
           SSX2(k, p7S_ATAC, u, v) = TMP_SC;
-          SIX2(k, p7S_ATAC, u, v) = i;
+          SIX2(k, p7S_ATAC, u, v) = i-MIN_INTRON_LENG;
         }
 
-        TMP_SC = ESL_MAX(MMX_SP(i-3,k-1), DMX_SP(i-3,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-3,k-1), DMX_SP(i-MIN_INTRON_LENG-3,k-1));
         if(v < 4 && TMP_SC > SSX1(k, p7S_ATAC, v)) {
           SSX1(k, p7S_ATAC, v) = TMP_SC;
-          SIX1(k, p7S_ATAC, v) = i;
+          SIX1(k, p7S_ATAC, v) = i-MIN_INTRON_LENG;
         }
 
-        TMP_SC = ESL_MAX(MMX_SP(i-2,k-1), DMX_SP(i-2,k-1));
+        TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-2,k-1), DMX_SP(i-MIN_INTRON_LENG-2,k-1));
         if(TMP_SC > SSX0(k, p7S_ATAC)) {
           SSX0(k, p7S_ATAC) = TMP_SC;
-          SIX0(k, p7S_ATAC) = i;
+          SIX0(k, p7S_ATAC) = i-MIN_INTRON_LENG;
         }
       }
     } //end loop over M 

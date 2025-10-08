@@ -25,7 +25,7 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
   int          M    = gm_fs->M;
   int          i,k,s;
   int          c3, c2, c1;
-  int          u, v, w, x;
+  int          t, u, v, w, x;
   int          AGXXX, ACXXX;
   int          AGXX, ACXX;
   int          AGX,  ACX;
@@ -60,7 +60,7 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
     DMX_SP(0,k) = DMX_SP(0,k-1) + TSC(p7P_DD,k-1);
 
   /*Special cases for the first 2 rows */
-  u = v = w = x = -1;
+  t = u = v = w = x = -1;
   for(i = 1; i <= 2; i++)
   {
     w = x;
@@ -87,7 +87,6 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
   /*Special cases for the rows 3-6*/
   for (i = 3; i <= 6; i++) 
   {
-    u = v;
     v = w;
     w = x;
 
@@ -154,7 +153,6 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
   for (i = 7; i <= L; i++) 
   {
     /* get nucleotides and codon */
-    u = v;
     v = w;
     w = x;
 
@@ -176,6 +174,8 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 
     /* get donor site */
     if(i > MIN_INTRON_LENG+4) {
+      t = sub_dsq[i-MIN_INTRON_LENG-3];
+      u = sub_dsq[i-MIN_INTRON_LENG-2]; 
       if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_GT) GT = TRUE;
       else                         GT = FALSE;
    
@@ -314,15 +314,15 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
       if(GT) {
         
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-4,k-1), DMX_SP(i-MIN_INTRON_LENG-4,k-1)); 
-        if(u < 4 && v < 4 && TMP_SC > SSX2(k, p7S_GTAG, u, v)) {
-          SSX2(k, p7S_GTAG, u, v) = TMP_SC;
-          SIX2(k, p7S_GTAG, u, v) = i-MIN_INTRON_LENG;
+        if(t < 4 && u < 4 && TMP_SC > SSX2(k, p7S_GTAG, t, u)) {
+          SSX2(k, p7S_GTAG, t, u) = TMP_SC;
+          SIX2(k, p7S_GTAG, t, u) = i-MIN_INTRON_LENG;
         }
  
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-3,k-1), DMX_SP(i-MIN_INTRON_LENG-3,k-1));
-        if(v < 4 && TMP_SC > SSX1(k, p7S_GTAG, v)) {
-          SSX1(k, p7S_GTAG, v) = TMP_SC;
-          SIX1(k, p7S_GTAG, v) = i-MIN_INTRON_LENG;
+        if(u < 4 && TMP_SC > SSX1(k, p7S_GTAG, u)) {
+          SSX1(k, p7S_GTAG, u) = TMP_SC;
+          SIX1(k, p7S_GTAG, u) = i-MIN_INTRON_LENG;
         } 
 
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-2,k-1), DMX_SP(i-MIN_INTRON_LENG-2,k-1));
@@ -335,15 +335,15 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
       else if(GC) {
         
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-4,k-1), DMX_SP(i-MIN_INTRON_LENG-4,k-1));
-        if(u < 4 && v < 4 && TMP_SC > SSX2(k, p7S_GCAG, u, v)) {
-          SSX2(k, p7S_GCAG, u, v) = TMP_SC;
-          SIX2(k, p7S_GCAG, u, v) = i-MIN_INTRON_LENG;
+        if(t < 4 && u < 4 && TMP_SC > SSX2(k, p7S_GCAG, t, u)) {
+          SSX2(k, p7S_GCAG, t, u) = TMP_SC;
+          SIX2(k, p7S_GCAG, t, u) = i-MIN_INTRON_LENG;
         }
 
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-3,k-1), DMX_SP(i-MIN_INTRON_LENG-3,k-1));
-        if(v < 4 && TMP_SC > SSX1(k, p7S_GCAG, v)) {
-          SSX1(k, p7S_GCAG, v) = TMP_SC;
-          SIX1(k, p7S_GCAG, v) = i-MIN_INTRON_LENG;
+        if(u < 4 && TMP_SC > SSX1(k, p7S_GCAG, u)) {
+          SSX1(k, p7S_GCAG, u) = TMP_SC;
+          SIX1(k, p7S_GCAG, u) = i-MIN_INTRON_LENG;
         }
 
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-2,k-1), DMX_SP(i-MIN_INTRON_LENG-2,k-1));
@@ -357,15 +357,15 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
       else if(AT) {
 
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-4,k-1), DMX_SP(i-MIN_INTRON_LENG-4,k-1));
-        if(u < 4 && v < 4 && TMP_SC > SSX2(k, p7S_ATAC, u, v)) {
-          SSX2(k, p7S_ATAC, u, v) = TMP_SC;
-          SIX2(k, p7S_ATAC, u, v) = i-MIN_INTRON_LENG;
+        if(t < 4 && u < 4 && TMP_SC > SSX2(k, p7S_ATAC, t, u)) {
+          SSX2(k, p7S_ATAC, t, u) = TMP_SC;
+          SIX2(k, p7S_ATAC, t, u) = i-MIN_INTRON_LENG;
         }
 
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-3,k-1), DMX_SP(i-MIN_INTRON_LENG-3,k-1));
-        if(v < 4 && TMP_SC > SSX1(k, p7S_ATAC, v)) {
-          SSX1(k, p7S_ATAC, v) = TMP_SC;
-          SIX1(k, p7S_ATAC, v) = i-MIN_INTRON_LENG;
+        if(u < 4 && TMP_SC > SSX1(k, p7S_ATAC, u)) {
+          SSX1(k, p7S_ATAC, u) = TMP_SC;
+          SIX1(k, p7S_ATAC, u) = i-MIN_INTRON_LENG;
         }
 
         TMP_SC = ESL_MAX(MMX_SP(i-MIN_INTRON_LENG-2,k-1), DMX_SP(i-MIN_INTRON_LENG-2,k-1));

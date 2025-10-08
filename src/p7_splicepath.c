@@ -91,6 +91,43 @@ p7_splicepath_Create(int path_len)
     return NULL;
 }
 
+SPLICE_PATH2*
+p7_splicepath_Create2(int path_len)
+{
+
+  SPLICE_PATH2 *path;
+  int          status;
+
+  path = NULL;
+  ESL_ALLOC(path, sizeof(SPLICE_PATH));
+
+  path->frameshift = FALSE;
+
+  path->alloc_len = path_len*2;
+  path->path_len  = path_len;
+
+  path->node_id = NULL;
+  ESL_ALLOC(path->node_id, sizeof(int)*path->alloc_len);
+
+  path->ihmm = NULL;
+  path->jhmm = NULL;
+  ESL_ALLOC(path->ihmm,    sizeof(int)*path->alloc_len);
+  ESL_ALLOC(path->jhmm,    sizeof(int)*path->alloc_len);
+
+  path->iali = NULL;
+  path->jali = NULL;
+  ESL_ALLOC(path->iali,    sizeof(int64_t)*path->alloc_len);
+  ESL_ALLOC(path->jali,    sizeof(int64_t)*path->alloc_len);
+
+  return path;
+
+  ERROR:
+    p7_splicepath_Destroy2(path);
+    return NULL;
+}
+
+
+
 /* Function:  p7_splicepath_Grow()
  * Synopsis:  Reallocates a larger splice path, if needed.
  *
@@ -130,6 +167,31 @@ p7_splicepath_Grow(SPLICE_PATH *path)
     return status;
 
 }
+
+int
+p7_splicepath_Grow2(SPLICE_PATH2 *path)
+{
+
+  int status;
+
+  if(path->path_len < path->alloc_len) return eslOK;
+
+  path->alloc_len *= 2;
+
+  ESL_REALLOC(path->node_id, sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->ihmm,    sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->jhmm,    sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->iali,    sizeof(int64_t) * path->alloc_len);
+  ESL_REALLOC(path->jali,    sizeof(int64_t) * path->alloc_len);
+
+  return eslOK;
+
+  ERROR:
+    p7_splicepath_Destroy2(path);
+    return status;
+
+}
+
 
 /* Function:  p7_splicepath_Insert()
  * Synopsis:  Insert a new path hit between two existing hits. 
@@ -186,6 +248,38 @@ p7_splicepath_Insert(SPLICE_PATH *path, P7_HIT *new_hit, float edge_score, int s
 }
 
 int
+p7_splicepath_Insert2(SPLICE_PATH2 *path, int step)
+{
+
+  int s;
+  
+  p7_splicepath_Grow2(path); 
+
+  for(s = path->path_len; s > step; s--) {
+
+    path->node_id[s] = path->node_id[s-1];
+    path->ihmm[s]    = path->ihmm[s-1];
+    path->jhmm[s]    = path->jhmm[s-1];
+    path->iali[s]    = path->iali[s-1];
+    path->jali[s]    = path->jali[s-1];
+
+  }
+
+  path->path_len++;
+ 
+  path->node_id[step] = -1;
+  path->ihmm[step]    = -1;
+  path->jhmm[step]    = -1;
+  path->iali[step]    = -1;
+  path->jali[step]    = -1; 
+
+  return eslOK;
+ 
+}
+
+
+
+int
 p7_splicepath_Remove(SPLICE_PATH *path, int step)
 {
 
@@ -207,6 +301,27 @@ p7_splicepath_Remove(SPLICE_PATH *path, int step)
     path->downstream_spliced_nuc_start[s]   = path->downstream_spliced_nuc_start[s+1];
     path->upstream_spliced_nuc_end[s+1]       = path->upstream_spliced_nuc_end[s+2];
 
+  }
+
+  path->path_len--;
+  
+  return eslOK;
+
+}
+
+int
+p7_splicepath_Remove2(SPLICE_PATH2 *path, int step)
+{
+
+  int s;
+
+  for(s = step; s < path->path_len-1; s++) {
+
+    path->node_id[s] = path->node_id[s+1];
+    path->ihmm[s]    = path->ihmm[s+1];
+    path->jhmm[s]    = path->jhmm[s+1];
+    path->iali[s]    = path->iali[s+1];
+    path->jali[s]    = path->jali[s+1];   
   }
 
   path->path_len--;
@@ -248,6 +363,25 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
 
    return;
 }
+
+
+void
+p7_splicepath_Destroy2(SPLICE_PATH2 *path)
+{
+
+   if(path == NULL) return;
+
+   if(path->node_id != NULL) free(path->node_id);
+   if(path->ihmm    != NULL) free(path->ihmm);
+   if(path->jhmm    != NULL) free(path->jhmm);
+   if(path->iali    != NULL) free(path->iali);
+   if(path->jali    != NULL) free(path->jali); 
+   if(path          != NULL) free(path);
+
+   return;
+}
+
+
 
 /*****************************************************************
  * 3. Path Finding Algorithms

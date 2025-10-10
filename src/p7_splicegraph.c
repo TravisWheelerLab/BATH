@@ -207,12 +207,6 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if(graph->best_out_edge != NULL) free(graph->best_out_edge);
   if(graph->best_in_edge  != NULL) free(graph->best_in_edge);
 
-  for (i = graph->recover_N; i < graph->th->N; i++) {  
-    p7_trace_splice_Destroy(graph->th->hit[i]->dcl->tr);
-    free(graph->th->hit[i]->dcl->scores_per_pos);
-    p7_hit_Destroy(graph->th->hit[i]);
-  }
-
   if (graph->th->hit != NULL) free(graph->th->hit);
   if (graph->th      != NULL) free(graph->th);
 

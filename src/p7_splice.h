@@ -123,6 +123,7 @@ typedef struct _splice_path2 {
   int path_len;
 
   int *node_id;
+  int *path_id;
 
   int *ihmm;
   int *jhmm;
@@ -258,6 +259,12 @@ typedef struct _splice_info
 #define ALIGNMENT_EXT             10       /*amino extetion at start and end of path seq for final alignment */
 
 
+enum p7_confirm_e {
+  p7_CONFIRM_START = 0,
+  p7_CONFIRM_END   = 1,
+  p7_CONFIRM_NONE  = 2
+};
+
 /* Indices of p7_splice_SignalScores */
 enum p7s_splice_signals_e {
   p7S_GTAG  = 0,
@@ -321,10 +328,11 @@ extern void p7_splicepath_Destroy2(SPLICE_PATH2 *path);
 
 extern SPLICE_PATH* p7_splicepath_GetBestPath(SPLICE_GRAPH *graph);
 extern SPLICE_PATH* p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph);
+extern SPLICE_PATH2* p7_splicepath_GetBestPath_Unspliced2(SPLICE_GRAPH *graph);
 extern SPLICE_PATH* p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extend_graph);
 extern int p7_splicepath_Check(SPLICE_PATH *path);
 extern void p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path);
-
+extern void p7_splicepath_Dump2(FILE *fp, SPLICE_PATH2 *path);
 
 /* p7_splicepipeline.c */
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
@@ -344,17 +352,22 @@ extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);
 extern int p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
 extern int p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
 extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *graph);
+extern int p7_splice_ExtendPath2(P7_TOPHITS *seed_hits, SPLICE_PATH2 *path, SPLICE_GRAPH *graph);
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph);
 extern int p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
+extern SPLICE_PATH2* p7_splice_FindExons2(SPLICE_WORKER_INFO *info, SPLICE_PATH2 *path, ESL_SQ *path_seq);
 extern P7_HIT** p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int revcomp, int hmm_start, int num_introns, int *removed_idx, int *num_exons);
+extern SPLICE_PATH2* p7_splice_AlignExons2(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int removed_start, int removed_end);
 extern int p7_splice_ConnectGraph(SPLICE_GRAPH *graph, SPLICE_PIPELINE *pli, const P7_FS_PROFILE *gm_fs, const P7_HMM *hmm, const ESL_GENCODE *gcode, const ESL_SQFILE *seq_file, SPLICE_WORKER_INFO *info, ESL_SQ **path_seq_accumulator, int num_paths);
 extern int p7_splice_RemoveHits(SPLICE_GRAPH *graph, int range_bound_min, int range_bound_max);
 extern int p7_splice_EnforceRangeBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_max);
 extern int p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp);
 extern int p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, float fs_prob, SPLICE_WORKER_INFO *info);
+extern int p7_splice_AlignPath2(SPLICE_GRAPH *graph, SPLICE_PATH2 *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, float fs_prob, SPLICE_WORKER_INFO *info);
 extern int p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, SPLICE_WORKER_INFO *info);
 extern ESL_SQ* p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp, SPLICE_WORKER_INFO *info);
 extern ESL_SQ* p7_splice_GetSplicedSequence(SPLICE_PATH *path, ESL_SQ *path_seq, int up_node, int down_node, int intron_include, int **remove_idx, int64_t **nuc_index);
+extern ESL_SQ* p7_splice_GetSplicedSequence2(SPLICE_PATH2 *path, ESL_SQ *path_seq, int up_node, int down_node, int intron_include, int **remove_idx, int64_t **nuc_index);
 extern P7_HMM* p7_splice_GetSubHMM (const P7_HMM *hmm, int start, int end);
 
 

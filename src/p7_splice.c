@@ -143,6 +143,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
         seq_max = tophits->hit[i]->subseq_start;
         revcomp = 1;
       }
+      
       ali_seq = p7_splice_GetSubSequence(seq_file, tophits->hit[i]->name, seq_min, seq_max, revcomp, NULL);
       tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs, ali_seq, gcode);
       tophits->hit[i]->dcl->ad->exon_cnt = 1;
@@ -599,11 +600,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
     
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-p7_splicepath_Dump2(stdout,orig_path);
+//p7_splicepath_Dump2(stdout,orig_path);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
     final_path = p7_splice_FindExons2(info, orig_path, path_seq);
-p7_splicepath_Dump2(stdout,final_path);
+//p7_splicepath_Dump2(stdout,final_path);
        //if(!path->frameshift)
       if(final_path->path_len > 1)
         p7_splice_AlignPath2(graph, final_path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info);
@@ -1377,16 +1378,13 @@ p7_splice_FindExons2(SPLICE_WORKER_INFO *info, SPLICE_PATH2 *path, ESL_SQ *path_
   s++;
   while(s <= s_end) {
     
-printf("RET PATH\n");
-p7_splicepath_Dump2(stdout, ret_path);
-printf("s-1 %d s %d\n", s, s+1);
-printf("ORIG PATH\n");   
+//printf("RET PATH\n");
+//p7_splicepath_Dump2(stdout, ret_path);
+//printf("s-1 %d s %d\n", s, s+1);
+//printf("ORIG PATH\n");   
 //p7_splicepath_Dump2(stdout, path);
 
-    s_end = path->path_len-1;
-    while(path->node_id[s_end] >= graph->orig_N) s_end--;   
     
-
     //TODO If the amino gap is sufficently large start by searching the whole intron
     sub_seq = p7_splice_GetSplicedSequence2(path, path_seq, s-1, s, TRUE, &remove_idx, &nuc_index);
 
@@ -1412,8 +1410,6 @@ printf("ORIG PATH\n");
       tmp_path->iali[i] = nuc_index[tmp_path->iali[i]];
       tmp_path->jali[i] = nuc_index[tmp_path->jali[i]];
     }
-//printf("TMP PATH\n");
-//p7_splicepath_Dump2(stdout, tmp_path);    
     assess_paths(info, tmp_path, ret_path, path, sub_hmm, path_seq, full_intron, &s);  
     
     p7_splicepath_Destroy2(tmp_path);
@@ -1423,6 +1419,11 @@ printf("ORIG PATH\n");
     if(nuc_index  != NULL) free(nuc_index);
     remove_idx = NULL;
     nuc_index  = NULL; 
+  
+    s_end = path->path_len-1;
+    while(path->node_id[s_end] >= graph->orig_N) s_end--;   
+   
+
   }       
 
   ret_path->revcomp = path->revcomp;
@@ -1472,9 +1473,22 @@ assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH2 *path1, SPLICE_PATH2 *path2,
 
   upstream_confirmed  = confirm_overlap(path1, 0, path3, s-1, p7_CONFIRM_START);
   downstream_confirmed = confirm_overlap(path1, path1->path_len-1, path3, s, p7_CONFIRM_END); 
-  
-
+//printf("upstream_confirmed %d downstream_confirmed %d\n", upstream_confirmed, downstream_confirmed);  
+  if(upstream_confirmed && path2->path_len > 0) {
+    if(path1->jhmm[0] < path2->ihmm[path2->path_len-1])  
+      upstream_confirmed = FALSE;
+    else if(path3->revcomp) {
+      if(path1->jali[0] > path2->iali[path2->path_len-1]) 
+         upstream_confirmed = FALSE;
+    }
+    else {
+      if(path1->jali[0] < path2->iali[path2->path_len-1])
+        upstream_confirmed = FALSE;
+    }
+  }
 //printf("upstream_confirmed %d downstream_confirmed %d\n", upstream_confirmed, downstream_confirmed);
+//printf("TMP PATH\n");
+//p7_splicepath_Dump2(stdout, path1);    
 
   /* Remove any unconfirmed nodes */
   if(!downstream_confirmed) 
@@ -1483,40 +1497,24 @@ assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH2 *path1, SPLICE_PATH2 *path2,
     remove_upstream(path2, path3, &s);
 
   if(upstream_confirmed && downstream_confirmed) {
-/*    
-    split_confirmed = confirm_split(path1, path2);
-    printf("split_confirmed %d\n", split_confirmed);
-    if(!split_confirmed) {
-      if(path2->node_id[path2->path_len-1] >= info->graph->orig_N) {
-         remove_upstream(path2, path3, &s);        
-      }
-      else {
-         i = path2->path_len-1;
-         while (i >= 0 && path2->node_id[i] == path2->node_id[path2->path_len-1]) i--;
-         if(i == 0 && path2->node_id[i] == path2->node_id[path2->path_len-1]) {
-            path2->path_len = 1;
-            split_confirmed = TRUE;
-         }
-          else if(ath2->node_id[1] >= info->graph->orig_N
-         else if(
-          
-         }
-      }
-    }
-  }
 
-
-  if(upstream_confirmed && downstream_confirmed && split_confirmed) {
-*/
     if(path1->path_len == 1) {
-
+      if(path2->path_len == 0) {
+        path2->path_len++;
+        path2->iali[path2->path_len-1] = path1->iali[0];
+        path2->ihmm[path2->path_len-1] = path1->ihmm[0]; 
+      } 
       path2->jali[path2->path_len-1] = path1->jali[0];
       path2->jhmm[path2->path_len-1] = path1->jhmm[0];
 
       s++; 
     }
     else if(path1->path_len == 2) {
-
+      if(path2->path_len == 0) {
+        path2->path_len++;
+        path2->iali[path2->path_len-1] = path1->iali[0];
+        path2->ihmm[path2->path_len-1] = path1->ihmm[0];
+      }
       path2->jali[path2->path_len-1] = path1->jali[0];
       path2->jhmm[path2->path_len-1] = path1->jhmm[0];       
 
@@ -1535,7 +1533,11 @@ assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH2 *path1, SPLICE_PATH2 *path2,
     else if(full_intron) {
 //printf("TMP PATH\n");
 //p7_splicepath_Dump2(stdout, path1);
-
+      if(path2->path_len == 0) {
+        path2->path_len++;
+        path2->iali[path2->path_len-1] = path1->iali[0];
+        path2->ihmm[path2->path_len-1] = path1->ihmm[0];
+      }
       path2->jali[path2->path_len-1] = path1->jali[0];
       path2->jhmm[path2->path_len-1] = path1->jhmm[0];  
 
@@ -1971,7 +1973,7 @@ confirm_overlap(SPLICE_PATH2 *path1, int step1, SPLICE_PATH2 *path2, int step2, 
     
   }
   else if(confirm_side == p7_CONFIRM_END) {
-    if(path1->jali[step1] % 3 != path2->jali[step2] % 3); // end on differnent frames
+    if(path1->jali[step1] % 3 != path2->jali[step2] % 3) return FALSE; // end on differnent frames
   
     hmm_dist = abs(path1->jhmm[step1] - path2->jhmm[step2]);    
     seq_dist = llabs(path1->jali[step1] - path2->jali[step2]); 
@@ -2003,7 +2005,7 @@ confirm_split(SPLICE_PATH2 *path1, SPLICE_PATH2 *path2)
   s++;
  
   split_cnt = path2->path_len - s;
-  printf("split_cnt %d\n", split_cnt);
+//  printf("split_cnt %d\n", split_cnt);
   if(path1->path_len < split_cnt) return FALSE; // not enough hits to cover split
   if(!confirm_overlap(path1, 0, path2, s, p7_CONFIRM_END)) return FALSE;
   s++;
@@ -2048,26 +2050,30 @@ remove_upstream(SPLICE_PATH2 *path1, SPLICE_PATH2 *path2, int *step2)
   }
   /* Move path end to the first hit from the previous upstream node */
   else {
-    /* Move end of path1 to before removed node */
-//printf("removed_node %d\n", removed_node+1);
-    while(path1->node_id[path1->path_len-1] == removed_node) path1->path_len--;
-//p7_splicepath_Dump2(stdout, path1);
-    /* Move end of path1 to befoer any -1 nodes */
-    while(path1->node_id[path1->path_len-1] == -1) path1->path_len--;
-    /* Move end of path1 to begining of split nodes */
-    split_node = path1->node_id[path1->path_len-1];
-    while(path1->node_id[path1->path_len-1] == split_node) {
-      path1->path_len--;
-      if(path1->path_len == 0) break;
-    }
-    path1->path_len++;
 
-    /*Move s to after node in path 2 with same node id as last node in path 1*/
-    for(i = 0; i < path2->path_len; i++) 
-      if(path2->node_id[i] == path1->node_id[path1->path_len-1]) break;
-    s = i+1;
+//printf("removed_node %d\n", removed_node+1);
+    /* Move end of path1 to before removed node */
+    while(path1->path_len > 0 && path1->node_id[path1->path_len-1] == removed_node) path1->path_len--;
+    
+    /* Move end of path1 to befoer any -1 nodes */
+    while(path1->path_len > 0 && path1->node_id[path1->path_len-1] == -1) path1->path_len--;
+    
+    if(path1->path_len > 0) { 
+      /* Move end of path1 to begining of split nodes */
+      split_node = path1->node_id[path1->path_len-1];
+    
+      while(path1->path_len > 0 && path1->node_id[path1->path_len-1] == split_node) {
+        path1->path_len--;
+        if(path1->path_len == 0) break;
+      }
+      path1->path_len++;
+
+      /*Move s to after node in path 2 with same node id as last node in path 1*/
+      for(i = 0; i < path2->path_len; i++) 
+        if(path2->node_id[i] == path1->node_id[path1->path_len-1]) break;
+      s = i+1;
+    }
   }
-  
   *step2 = s;
 
   return eslOK;

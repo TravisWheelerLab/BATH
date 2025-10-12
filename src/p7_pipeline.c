@@ -2993,6 +2993,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
           hit_info->strand    = complementarity;
           hit_info->duplicate = FALSE;
           hit_info->is_seed   = FALSE;
+          hit_info->viterbi   = FALSE;
 
           hit_info->hmm_start = window->k - window->length + 1;
           hit_info->hmm_end   = window->k;
@@ -3038,7 +3039,12 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
         P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
         if (P > pli->F2) continue;
       }
-      
+
+      if(pli->spliced) {
+         for(w = 1; w <= ssv_windowlist.count - old_window_cnt ; w++) 
+           saved_hits->unsrt[saved_hits->N - w].viterbi = TRUE;       
+      } 
+
       vit_coords->orf_starts[vit_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
       vit_coords->orf_ends[vit_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       vit_coords->orf_cnt++;

@@ -580,13 +580,13 @@ p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh)
   SPLICE_HIT_INFO *hi;
 
   fprintf(fp, "  Saved Hit Info\n");
-  fprintf(fp, "  %10s %9s %5s %9s %9s %10s %10s %5s %5s\n", "hit", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "dup", "seed");
+  fprintf(fp, "  %10s %9s %5s %9s %9s %10s %10s %5s %5s %5s\n", "hit", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "vit", "dup", "seed");
   for(i = 0; i < sh->N ; i++) {
     if(sh->is_sorted) hi = sh->srt[i];
     else              hi = &sh->unsrt[i];
  
     fprintf(fp, "  %10d %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %5s %5s\n", 
-    i+1, hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->duplicate? "TRUE" : "FALSE"), (hi->is_seed? "TRUE" : "FALSE"));
+    i+1, hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->viterbi? "TRUE" : "FALSE"), hi->seq_end, (hi->duplicate? "TRUE" : "FALSE"), (hi->is_seed? "TRUE" : "FALSE"));
   
   }
 

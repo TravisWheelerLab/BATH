@@ -525,6 +525,8 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
     hit->seqidx  = sh->srt[i]->seqidx;
     hit->dcl     = p7_domain_Create_empty();
     hit->dcl->tr = p7_trace_fs_Create();
+
+	if(sh->srt[i]->viterbi) hit->dcl->is_reproted = TRUE;
     
     hit->dcl->ihmm = sh->srt[i]->hmm_start;
     hit->dcl->jhmm = sh->srt[i]->hmm_end;

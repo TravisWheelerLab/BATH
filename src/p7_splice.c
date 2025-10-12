@@ -818,7 +818,9 @@ p7_splice_ExtendPath2(P7_TOPHITS *seed_hits, SPLICE_PATH2 *path, SPLICE_GRAPH *g
       
       /* skip seeds already added to a graph */
       if(curr_hit->dcl->is_included) continue;
-  
+      /* skip seeds that did not pass the viterbi filter */       
+      if(curr_hit->dcl->is_reported) continue;
+
       /* Is the seed hit on the same sequence and strand as the tmp_graph */
       if (curr_hit->seqidx != tmp_graph->seqidx) continue;
       if (tmp_graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
@@ -882,6 +884,9 @@ p7_splice_ExtendPath2(P7_TOPHITS *seed_hits, SPLICE_PATH2 *path, SPLICE_GRAPH *g
 
       /* skip seeds already added to a graph */
       if(curr_hit->dcl->is_included) continue;
+      /* skip seeds that did not pass the viterbi filter */
+      if(curr_hit->dcl->is_reported) continue;
+
 
       /* Is the seed hit on the same sequence and strand as the tmp_graph */
       if (curr_hit->seqidx != tmp_graph->seqidx) continue;

@@ -658,6 +658,7 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph)
 
       for(j = 0; j < graph->num_edges[i]; j++) {
         tmp_edge = &(graph->edges[i][j]);
+        if(tmp_edge->downstream_node_id >= 0)
         edge_scores[tmp_edge->downstream_node_id] = tmp_edge->splice_score;
       }
 

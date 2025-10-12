@@ -315,21 +315,20 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double S2)
     s_i   = th->hit[i]->dcl[0].iali;
     e_i   = th->hit[i]->dcl[0].jali;
     strand = (s_i < e_i ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
+    if (strand) ESL_SWAP(s_i, e_i, int);
+    len_i = e_i - s_i + 1 ; 
 
     while(sh->srt[j_start]->seqidx != th->hit[i]->seqidx || 
           sh->srt[j_start]->strand != strand) j_start++; 
-  
+
     j = j_start;
-    while(sh->srt[j]->seqidx == th->hit[i]->seqidx ||
+    while(sh->srt[j]->seqidx == th->hit[i]->seqidx &&
           sh->srt[j]->strand == strand) {
       s_j   = sh->srt[j]->seq_start;
       e_j   = sh->srt[j]->seq_end;      
-   
+
       if(sh->srt[j]->strand) ESL_SWAP(s_j, e_j, int);
       len_j = e_j - s_j + 1;
-
-      if (strand) ESL_SWAP(s_i, e_i, int);
-      len_i = e_i - s_i + 1 ; 
 
       intersect_alistart  = ESL_MAX(s_i, s_j);
       intersect_aliend    = ESL_MIN(e_i, e_j);

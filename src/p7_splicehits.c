@@ -245,7 +245,7 @@ p7_splicehits_MergeSavedHits(SPLICE_SAVED_HITS *sh1, SPLICE_SAVED_HITS *sh2)
 
 
 int 
-p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double S2) 
+p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3) 
 {
 
   int     i, j;
@@ -310,7 +310,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double S2)
   {
 
    if ((th->hit[i]->flags & p7_IS_DUPLICATE)) continue;
-   if(!(th->hit[i]->flags & p7_IS_REPORTED) && exp(th->hit[i]->sum_lnP) >= S2) continue;
+   if(!(th->hit[i]->flags & p7_IS_REPORTED) && exp(th->hit[i]->sum_lnP) >= F3) continue;
     
     s_i   = th->hit[i]->dcl[0].iali;
     e_i   = th->hit[i]->dcl[0].jali;
@@ -356,7 +356,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double S2)
 }
 
 P7_TOPHITS*
-p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double S2) 
+p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3) 
 {
 
   int i, h, y, z;
@@ -406,7 +406,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
   for(h = 0; h < th->N; h++) {
 
     if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
-    if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= S2) continue;
+    if(!(th->hit[h]->flags & p7_IS_REPORTED) && exp(th->hit[h]->sum_lnP) >= F3) continue;
 
     strand = (th->hit[h]->dcl->iali < th->hit[h]->dcl->jali ? p7_NOCOMPLEMENT : p7_COMPLEMENT);   
     hit_min  = ESL_MIN(th->hit[h]->dcl->iali, th->hit[h]->dcl->jali);

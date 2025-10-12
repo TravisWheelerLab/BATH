@@ -191,7 +191,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->F3) {
 
 	      num_graphs++;
 	      seqidx  = curr_seqidx; 
@@ -217,7 +217,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->F3) {
           graphs[g] = p7_splicegraph_Create();
 		  graphs[g]->seqidx  = curr_seqidx;
 		  graphs[g]->revcomp = curr_revcomp;
@@ -289,7 +289,7 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->F3) {
 
 	      num_graphs++;
 	      seqidx  = curr_seqidx; 
@@ -315,7 +315,7 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     if(curr_seqidx != seqidx || curr_revcomp != revcomp) {
       if(!(tophits->hit[h]->flags & p7_IS_DUPLICATE)) {
-        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->S2) {
+        if((tophits->hit[h]->flags & p7_IS_REPORTED) || exp(tophits->hit[h]->sum_lnP) < info->pli->F3) {
           graphs[g] = p7_splicegraph_Create();
 		  graphs[g]->seqidx  = curr_seqidx;
 		  graphs[g]->revcomp = curr_revcomp;
@@ -428,7 +428,7 @@ p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_T
     if ((!graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
     
     if ((tophits->hit[i]->flags & p7_IS_DUPLICATE)) continue;
-    if(!(tophits->hit[i]->flags & p7_IS_REPORTED) && exp(tophits->hit[i]->sum_lnP) >= info->pli->S2) continue;
+    if(!(tophits->hit[i]->flags & p7_IS_REPORTED) && exp(tophits->hit[i]->sum_lnP) >= info->pli->F3) continue;
 
     hit_cnt++;
   }
@@ -446,7 +446,7 @@ p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_T
     if ((!graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
 
     if ((curr_hit->flags & p7_IS_DUPLICATE)) continue;
-	if(!(curr_hit->flags & p7_IS_REPORTED) && exp(curr_hit->sum_lnP) >= info->pli->S2) continue;
+	if(!(curr_hit->flags & p7_IS_REPORTED) && exp(curr_hit->sum_lnP) >= info->pli->F3) continue;
 
     if(curr_hit->flags & p7_IS_REPORTED) graph->reportable[graph->th->N] = TRUE;
     else                                 graph->reportable[graph->th->N] = FALSE;

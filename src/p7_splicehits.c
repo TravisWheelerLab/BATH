@@ -526,7 +526,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
     hit->dcl     = p7_domain_Create_empty();
     hit->dcl->tr = p7_trace_fs_Create();
 
-	if(sh->srt[i]->viterbi) hit->dcl->is_reproted = TRUE;
+	if(sh->srt[i]->viterbi) hit->dcl->is_reported = TRUE;
     
     hit->dcl->ihmm = sh->srt[i]->hmm_start;
     hit->dcl->jhmm = sh->srt[i]->hmm_end;
@@ -587,8 +587,8 @@ p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh)
     if(sh->is_sorted) hi = sh->srt[i];
     else              hi = &sh->unsrt[i];
  
-    fprintf(fp, "  %10d %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %5s %5s\n", 
-    i+1, hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->viterbi? "TRUE" : "FALSE"), hi->seq_end, (hi->duplicate? "TRUE" : "FALSE"), (hi->is_seed? "TRUE" : "FALSE"));
+    fprintf(fp, "  %10d %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %5s %5s %5s\n", 
+    i+1, hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->viterbi? "TRUE" : "FALSE"), (hi->duplicate? "TRUE" : "FALSE"), (hi->is_seed? "TRUE" : "FALSE"));
   
   }
 

@@ -114,6 +114,28 @@ p7_splicepath_Grow(SPLICE_PATH *path)
 }
 
 
+SPLICE_PATH*
+p7_splicepath_Clone(SPLICE_PATH *path)
+{
+  int s;
+  SPLICE_PATH *ret_path;
+
+  ret_path = p7_splicepath_Create(path->path_len);
+
+  ret_path->revcomp    = path->revcomp;
+  ret_path->frameshift = path->frameshift;
+
+  for(s = 0; s < path->path_len; s++) {
+    ret_path->node_id[s] = path->node_id[s];
+    
+    ret_path->ihmm[s] = path->ihmm[s];
+    ret_path->jhmm[s] = path->jhmm[s];
+    ret_path->iali[s] = path->iali[s];
+    ret_path->jali[s] = path->jali[s];
+  }
+
+  return ret_path;
+}
 /* Function:  p7_splicepath_Insert()
  * Synopsis:  Insert a new step to a  path
  *

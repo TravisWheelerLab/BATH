@@ -289,6 +289,7 @@ extern void p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh);
 /* p7_splicepath.c */
 extern SPLICE_PATH* p7_splicepath_Create(int path_len);
 extern int p7_splicepath_Grow(SPLICE_PATH *path);
+extern SPLICE_PATH* p7_splicepath_Clone(SPLICE_PATH *path);
 extern int p7_splicepath_Insert(SPLICE_PATH *path, int step);
 extern int p7_splicepath_Remove(SPLICE_PATH *path, int step);
 extern void p7_splicepath_Destroy(SPLICE_PATH *path);

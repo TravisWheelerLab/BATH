@@ -583,18 +583,20 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
   while(orig_path != NULL) {
     success = FALSE;
-   
+
     p7_splice_ExtendPath(info->seeds, orig_path, graph);
 
     seq_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) - ALIGNMENT_EXT*3;
     seq_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT*3;
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
     
+
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
 //printf("FIRST PATH \n");
 //p7_splicepath_Dump(stdout,orig_path);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
+    
     final_path = p7_splice_FindExons(info, orig_path, path_seq);
 //printf("FINAL PATH\n");
 //p7_splicepath_Dump(stdout,final_path);
@@ -812,6 +814,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
 }
 
 
+
 /*  Function: p7_splice_CreateUnsplicedEdges
  *  Synopsis: Add unspliced edges
  *
@@ -965,14 +968,15 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 //p7_splicepath_Dump(stdout, path);
 //fflush(stdout);
 
+    /* Crete sub hmm */
+    sub_hmm     = p7_splice_GetSubHMM(hmm, path->ihmm[s-1], path->jhmm[s]);
+    sub_hmm->fs = 0.;
 
     intron_len = llabs(path->iali[s] - path->jali[s-1]) - 1;
     amino_gap =  ESL_MAX(0, path->ihmm[s] - path->jhmm[s-1] - 1);
     
-    if( amino_gap > 100 || intron_len <= MAX_INTRON_INCL + (amino_gap*3)) full_intron = TRUE;
-    else                                                                  full_intron = FALSE;
-
-    if(full_intron) {
+    if( intron_len <= MAX_INTRON_INCL + (amino_gap*3)) full_intron = TRUE;
+    else                                               full_intron = FALSE;
 
       /* Temp memory upper limit */
       if(intron_len * amino_gap > 400000000) {
@@ -980,35 +984,21 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
         break;
       }
 
-      sub_hmm     = p7_splice_GetSubHMM(hmm, path->ihmm[s-1], path->jhmm[s]);
-      sub_hmm->fs = 0.;     
 
-      seq_start = llabs(path->iali[s-1] - path_seq->start);
-      seq_len   = llabs(path->jali[s]   - path->iali[s-1]) + 1;
+    if(full_intron) { 
+      seq_start =  llabs(path->iali[s-1] - path_seq->start);
+      seq_len   = llabs(path->jali[s] - path->iali[s-1]) + 1;
 
-      sub_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
+      sub_seq =  esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
       sub_seq->start = path->iali[s-1];
       sub_seq->end   = path->jali[s];
-      tmp_path = p7_splice_AlignExons(pli, sub_hmm, gm_fs, pli->bg, sub_seq, gcode, 0, 0); 
-      
-    }
-    else { // if the amino gap is small (< 100) and the intron is long, cut out the center of the intron from the seqeucne 
-      sub_seq = p7_splice_GetSplicedSequence(path, path_seq, s-1, s, TRUE, &remove_idx, &nuc_index);
 
-      /* Crete sub hmm */
-      sub_hmm     = p7_splice_GetSubHMM(hmm, path->ihmm[s-1], path->jhmm[s]);
-      sub_hmm->fs = 0.;
+      tmp_path = p7_splice_AlignExons(pli, sub_hmm, gm_fs, pli->bg, sub_seq, gcode, 0, 0);
 
-      /* Align sub seq to sub hmm and get exons */
-      tmp_path = p7_splice_AlignExons(pli, sub_hmm, gm_fs, pli->bg, sub_seq, gcode, remove_idx[0], remove_idx[1]);
-    }
-    /* Adjust coords */ 
-    for(i = 0; i < tmp_path->path_len; i++) {
-      if(tmp_path->iali[i] == -1) continue; 
+      for(i = 0; i < tmp_path->path_len; i++) {
+        tmp_path->ihmm[i] = tmp_path->ihmm[i] + path->ihmm[s-1] - 1;
+        tmp_path->jhmm[i] = tmp_path->jhmm[i] + path->ihmm[s-1] - 1;
 
-      tmp_path->ihmm[i] = tmp_path->ihmm[i] + path->ihmm[s-1] - 1;
-      tmp_path->jhmm[i] = tmp_path->jhmm[i] + path->ihmm[s-1] - 1;
-      if(nuc_index == NULL) {
         if(path->revcomp) {
           tmp_path->iali[i] = sub_seq->n - tmp_path->iali[i] + sub_seq->end;
           tmp_path->jali[i] = sub_seq->n - tmp_path->jali[i] + sub_seq->end;
@@ -1018,7 +1008,16 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
           tmp_path->jali[i] = sub_seq->start + tmp_path->jali[i] - 1;
         }
       }
-      else {
+    }
+    else {
+      sub_seq = p7_splice_GetSplicedSequence(path, path_seq, s-1, s, TRUE, &remove_idx, &nuc_index);
+
+      tmp_path = p7_splice_AlignExons(pli, sub_hmm, gm_fs, pli->bg, sub_seq, gcode, remove_idx[0], remove_idx[1]);
+    
+      for(i = 0; i < tmp_path->path_len; i++) {
+        if(tmp_path->iali[i] == -1) continue; 
+        tmp_path->ihmm[i] = tmp_path->ihmm[i] + path->ihmm[s-1] - 1;
+        tmp_path->jhmm[i] = tmp_path->jhmm[i] + path->ihmm[s-1] - 1;
         tmp_path->iali[i] = nuc_index[tmp_path->iali[i]];
         tmp_path->jali[i] = nuc_index[tmp_path->jali[i]];
       }
@@ -1181,7 +1180,7 @@ assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH *path1, SPLICE_PATH *path2, S
 
       seq_start = llabs(path3->iali[s-1] - path_seq->start);
       seq_len   = llabs(path3->jali[s]   - path3->iali[s-1]) + 1;
-
+printf("seq_len %d\n", seq_len);
       sub_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
       sub_seq->start = path3->iali[s-1];
       sub_seq->end   = path3->jali[s];

@@ -25,6 +25,7 @@ static SPLICE_PATH* check_bypass_unspliced(SPLICE_GRAPH *graph, SPLICE_PATH *pat
 static SPLICE_PATH* check_bypass_extend(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extend_graph, SPLICE_PATH *path);
 static float get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node);
 static int hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp);
+static int hit_bypassed(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp);
 static int has_out_edge(SPLICE_GRAPH *graph, int node_id);
 
 /*****************************************************************
@@ -329,7 +330,7 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
   path->jhmm[step_cnt-1] = th->hit[curr_node]->dcl->jhmm;
   path->jali[step_cnt-1] = th->hit[curr_node]->dcl->jali;
  
-  path = check_bypass_unspliced(graph, path);
+  //path = check_bypass_unspliced(graph, path);
 
   return path;
 
@@ -437,7 +438,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
   path->jhmm[step_cnt-1] =  th->hit[curr_node]->dcl->jhmm; 
   path->jali[step_cnt-1] =  th->hit[curr_node]->dcl->jali;
 
-  path = check_bypass_extend(orig_graph, extend_graph, path);
+  //path = check_bypass_extend(orig_graph, extend_graph, path);
 
   return path;
 
@@ -457,7 +458,7 @@ check_bypass_unspliced(SPLICE_GRAPH *graph, SPLICE_PATH *path)
   int   p, h;
   int   up_path, down_path;
   float max_bypass_score;
-  float sub_path_score;
+  //float sub_path_score;
   P7_TOPHITS  *th;
   SPLICE_EDGE *tmp_edge;
 
@@ -473,24 +474,15 @@ check_bypass_unspliced(SPLICE_GRAPH *graph, SPLICE_PATH *path)
     if(tmp_edge->bypass_checked) continue;
     max_bypass_score = 0.;
 
-    for(h = 0; h < graph->num_nodes; h++) {
+    for(h = 0; h < graph->orig_N; h++) {
       
       if(!graph->node_in_graph[h]) continue;
-      if(graph->split_orig_id[h] == -1) continue;
       if(h == up_path || h == down_path) continue;
       
       /* Is hit h bypassed by the edge between up_path and down_path */
-      if(!hit_between(th->hit[up_path]->dcl, th->hit[h]->dcl, th->hit[down_path]->dcl, graph->revcomp)) continue;
-     
-      /* If hit h has no downstream edges than we assume the bypass is correct */
-      if(graph->best_out_edge[h] == -1) continue;
+      if(hit_bypassed(th->hit[up_path]->dcl, th->hit[h]->dcl, th->hit[down_path]->dcl, graph->revcomp)) continue;
 
-      /* If hit h is conected to both up_path and down_path then the bypass is correct */
-      if(p7_splicegraph_PathExists(graph, up_path, h) && p7_splicegraph_PathExists(graph, h, down_path))  continue; 
-
-      sub_path_score = get_sub_path_score(graph, h, down_path);
-      
-      max_bypass_score = ESL_MAX(max_bypass_score, sub_path_score);
+      max_bypass_score = ESL_MAX(max_bypass_score, graph->path_scores[h]);
     }
    
     if(max_bypass_score > 0) {
@@ -700,6 +692,28 @@ hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int r
 
   if (( revcomp  && middle->jali <= downstream->iali) ||
      ((!revcomp) && middle->jali >= downstream->iali))
+    return FALSE;
+
+  return TRUE;
+
+}
+
+int
+hit_bypassed(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp)
+{
+
+  if (( revcomp  && upstream->jali <= middle->iali) ||
+     ((!revcomp) && upstream->jali >= middle->iali))
+    return FALSE;
+
+  if (( revcomp  && middle->jali <= downstream->iali) ||
+     ((!revcomp) && middle->jali >= downstream->iali))
+    return FALSE;
+
+  if(upstream->ihmm > middle->ihmm || upstream->jhmm > middle->jhmm)
+    return FALSE;
+
+  if(middle->ihmm <= downstream->ihmm && middle->jhmm <= downstream->jhmm)
     return FALSE;
 
   return TRUE;

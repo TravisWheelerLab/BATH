@@ -10,7 +10,7 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-#define TSC_P -14
+#define TSC_P -13
 
 int
 p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx)

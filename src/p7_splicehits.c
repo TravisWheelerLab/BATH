@@ -314,6 +314,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
     
     s_i   = th->hit[i]->dcl[0].iali;
     e_i   = th->hit[i]->dcl[0].jali;
+    
     strand = (s_i < e_i ? p7_NOCOMPLEMENT : p7_COMPLEMENT);
     if (strand) ESL_SWAP(s_i, e_i, int);
     len_i = e_i - s_i + 1 ; 
@@ -324,9 +325,12 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
     j = j_start;
     while(sh->srt[j]->seqidx == th->hit[i]->seqidx &&
           sh->srt[j]->strand == strand) {
+
+      if(sh->srt[j]->duplicate) { j++; continue; }
+
       s_j   = sh->srt[j]->seq_start;
       e_j   = sh->srt[j]->seq_end;      
-
+        
       if(sh->srt[j]->strand) ESL_SWAP(s_j, e_j, int);
       len_j = e_j - s_j + 1;
 
@@ -337,12 +341,12 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
       intersect_hmmstart = ESL_MAX(th->hit[i]->dcl[0].ihmm, sh->srt[j]->hmm_start);   
       intersect_hmmend   = ESL_MIN(th->hit[i]->dcl[0].jhmm, sh->srt[j]->hmm_end);
       intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
- 
+      
       if(  intersect_hmmlen > 0              && // hmm corrds overlap and  
         (( s_i >= s_j-3 && s_i <= s_j+3)     || // at least one side is essentially flush
          ( e_i >= e_j-3 && e_i <= e_j+3)     ||
-         ( intersect_alilen >= len_i * 0.95) || // or one of the hits covers >90% of the other
-         ( intersect_alilen >= len_j * 0.95))) {
+         ( intersect_alilen >= len_i * 0.9) || // or one of the hits covers >90% of the other
+         ( intersect_alilen >= len_j * 0.9))) {
 
         sh->srt[j]->duplicate = TRUE; 
       }

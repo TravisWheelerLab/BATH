@@ -46,6 +46,7 @@ p7_spliceedge_Create(void)
 
   edge->frameshift = FALSE;
   edge->bypass_checked = FALSE;
+  edge->jump_edge = FALSE;
 
   edge->splice_score = -eslINFINITY;
   edge->signal_score = -eslINFINITY;

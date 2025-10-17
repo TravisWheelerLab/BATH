@@ -276,8 +276,7 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
   
     out_edge = NULL;
     
-    /* Check each set of niehgbring edges to ensure they are not "backwards" 
-       (upstream splice is not downstream of downstream splice) */
+    /* Get path length and check that path contains a anchor node */ 
     while(graph->best_out_edge[curr_node] >= 0) {
 
       if(curr_node < graph->orig_N) contains_orig = TRUE;
@@ -286,7 +285,8 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
       
       out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
       if(out_edge == NULL || out_edge->splice_score == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "Edge does not exist");
-  
+      if(out_edge->jump_edge) break;  
+
       curr_node = next_node;
       path_len++;
     } 
@@ -316,10 +316,10 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
 
     path->node_id[step_cnt] = next_node;
     
-    path->jhmm[step_cnt-1] = out_edge->upstream_spliced_amino_end;
-    path->ihmm[step_cnt]   = out_edge->downstream_spliced_amino_start;
-    path->jali[step_cnt-1] = out_edge->upstream_spliced_nuc_end;
-    path->iali[step_cnt]   = out_edge->downstream_spliced_nuc_start;
+    path->jhmm[step_cnt-1] = out_edge->upstream_amino_end;
+    path->ihmm[step_cnt]   = out_edge->downstream_amino_start;
+    path->jali[step_cnt-1] = out_edge->upstream_nuc_end;
+    path->iali[step_cnt]   = out_edge->downstream_nuc_start;
 
     if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE; 
 
@@ -424,10 +424,10 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
 
     path->node_id[step_cnt] = next_node;
     
-    path->jhmm[step_cnt-1] = out_edge->upstream_spliced_amino_end;
-    path->ihmm[step_cnt]   = out_edge->downstream_spliced_amino_start;
-    path->jali[step_cnt-1] = out_edge->upstream_spliced_nuc_end;
-    path->iali[step_cnt]   = out_edge->downstream_spliced_nuc_start;
+    path->jhmm[step_cnt-1] = out_edge->upstream_amino_end;
+    path->ihmm[step_cnt]   = out_edge->downstream_amino_start;
+    path->jali[step_cnt-1] = out_edge->upstream_nuc_end;
+    path->iali[step_cnt]   = out_edge->downstream_nuc_start;
 
     if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE; 
 

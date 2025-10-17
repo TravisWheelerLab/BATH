@@ -576,14 +576,13 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(graph);
-
+ 
   /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
   orig_path = p7_splicepath_GetBestPath_Unspliced(graph);
 //p7_splicegraph_DumpGraph(stdout, graph);
 
   while(orig_path != NULL) {
     success = FALSE;
-
     p7_splice_ExtendPath(info->seeds, orig_path, graph);
 
     seq_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) - ALIGNMENT_EXT*3;
@@ -718,8 +717,8 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
           
     }
     tmp_graph->recover_N = tmp_graph->num_nodes;
- 
-    p7_splice_CreateUnsplicedEdges(tmp_graph);
+
+    p7_splice_CreateExtensionEdges(tmp_graph); 
     tmp_path = p7_splicepath_GetBestPath_Extension(graph,tmp_graph); 
 
     /* Set the most upstream hit in the tmp_path to start at the minimum 
@@ -786,7 +785,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *gra
     }   
     tmp_graph->recover_N = tmp_graph->num_nodes;
 
-    p7_splice_CreateUnsplicedEdges(tmp_graph);
+    p7_splice_CreateExtensionEdges(tmp_graph); 
     tmp_path = p7_splicepath_GetBestPath_Extension(graph, tmp_graph);
 
     /* Set the most downstream hit in the tmp_path to end at the maximum  
@@ -844,6 +843,70 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph)
       if(up == down) continue;
        
       /* Are hits upstream/downstream */
+//      if(!p7_splice_HitUpstream(th->hit[up]->dcl, th->hit[down]->dcl, graph->revcomp)) continue;
+      if (( graph->revcomp  && th->hit[up]->dcl->jali <= th->hit[down]->dcl->iali) ||
+         ((!graph->revcomp) && th->hit[up]->dcl->jali >= th->hit[down]->dcl->iali)) continue;
+
+      if(graph->revcomp)
+        seq_gap_len = th->hit[up]->dcl->jali - th->hit[down]->dcl->iali - 1;
+      else
+        seq_gap_len = th->hit[down]->dcl->iali - th->hit[up]->dcl->jali - 1;        
+
+      if(seq_gap_len > MAX_INTRON_LENG) continue;
+     
+      amino_gap_len = th->hit[down]->dcl->ihmm - th->hit[up]->dcl->jhmm - 1;
+      if(seq_gap_len < amino_gap_len) continue;
+
+      if(th->hit[up]->dcl->ihmm > th->hit[down]->dcl->ihmm || th->hit[up]->dcl->jhmm >  th->hit[down]->dcl->jhmm) {
+        if( up < graph->orig_N && down < graph->orig_N) {
+          edge = p7_splicegraph_AddEdge(graph, up, down);
+          edge->splice_score   = (th->hit[up]->dcl->aliscore + th->hit[down]->dcl->aliscore) * -1; 
+          edge->jump_edge      = TRUE;
+          edge->bypass_checked = FALSE;
+          edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
+          edge->downstream_amino_start = th->hit[down]->dcl->ihmm;
+          edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
+          edge->downstream_nuc_start   = th->hit[down]->dcl->iali;
+        }
+      }
+      else{
+        edge = p7_splicegraph_AddEdge(graph, up, down);
+        edge->splice_score   = 0.;
+        edge->bypass_checked = FALSE;
+        edge->jump_edge      = FALSE; 
+        /* If hits overlap, find the minimum lost socre to remove the overlap */
+        p7_spliceedge_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
+  
+        edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
+        edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
+        edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
+        edge->downstream_nuc_start   = th->hit[down]->dcl->iali;
+      }   
+    }
+  } 
+
+  
+  return eslOK;
+
+}
+
+int
+p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph) 
+{
+  int up, down;
+  int seq_gap_len;
+  int amino_gap_len;
+  P7_TOPHITS  *th;
+  SPLICE_EDGE *edge;
+
+  th = graph->th;
+
+  for(up = 0; up < graph->num_nodes; up++) {
+    
+    for(down = 0; down < graph->num_nodes; down++) {
+      if(up == down) continue;
+       
+      /* Are hits upstream/downstream */
       if(!p7_splice_HitUpstream(th->hit[up]->dcl, th->hit[down]->dcl, graph->revcomp)) continue;
     
       if(graph->revcomp)
@@ -862,17 +925,20 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph)
       /* If hits overlap, find the minimum lost socre to remove the overlap */
       p7_spliceedge_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
 
-      edge->upstream_spliced_amino_end     = th->hit[up]->dcl->jhmm;
-      edge->downstream_spliced_amino_start = th->hit[down]->dcl->ihmm; 
-      edge->upstream_spliced_nuc_end       = th->hit[up]->dcl->jali;
-      edge->downstream_spliced_nuc_start   = th->hit[down]->dcl->iali;
- 
+      edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
+      edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
+      edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
+      edge->downstream_nuc_start   = th->hit[down]->dcl->iali;
     }
   } 
+
   
   return eslOK;
 
 }
+
+
+
 
 /*  Function: p7_splice_FindExons
  *  Synopsis: Add unspliced edges
@@ -895,7 +961,6 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   int full_intron;
   int seq_start;
   int seq_len;
-  int nuc_len, degen_len;
   int contains_anchor;
   int             *remove_idx;
   int64_t         *nuc_index;
@@ -1512,8 +1577,6 @@ remove_upstream(SPLICE_PATH *path1, SPLICE_PATH *path2, int *step2)
 
   return eslOK;
 }
-
-
 
 int
 p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp) {

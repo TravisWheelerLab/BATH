@@ -585,12 +585,12 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
     for(j = 0; j < graph->num_edges[i]; j++) {
       tmp_edge = &(graph->edges[i][j]);
     
-      nuc_end =   tmp_edge->upstream_spliced_nuc_end;
-      nuc_start = tmp_edge->downstream_spliced_nuc_start;
+      nuc_end =   tmp_edge->upstream_nuc_end;
+      nuc_start = tmp_edge->downstream_nuc_start;
       fprintf(fp, "    Edge from Upstream Node %d to Downstream Node %d\n", tmp_edge->upstream_node_id+1, tmp_edge->downstream_node_id+1);
       fprintf(fp, "                                   %s   %s\n", "Amino", "Nucleotide");
-      fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", tmp_edge->upstream_spliced_amino_end, nuc_end);
-      fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", tmp_edge->downstream_spliced_amino_start, nuc_start);
+      fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", tmp_edge->upstream_amino_end, nuc_end);
+      fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", tmp_edge->downstream_amino_start, nuc_start);
       fprintf(fp, "\n");
    
     }

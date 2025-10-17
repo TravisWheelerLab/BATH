@@ -14,6 +14,7 @@ typedef struct _splice_edge {
 
   int frameshift;
   int bypass_checked;
+  int jump_edge;
 
   int upstream_node_id;
   int downstream_node_id;
@@ -21,26 +22,11 @@ typedef struct _splice_edge {
   int overlap_amino_start;
   int overlap_amino_end;
 
-  int upstream_trace_start;
-  int upstream_trace_end;
+  int upstream_amino_end;      
+  int downstream_amino_start; 
 
-  int upstream_nuc_start;    //sub-seq coords
-  int upstream_nuc_end;      //sub-seq coords
-
-  int downstream_trace_start;
-  int downstream_trace_end;
-
-  int downstream_nuc_start;  //sub-seq coords
-  int downstream_nuc_end;    //sub-seq coords
-  
-  int upstream_ext_len;
-  int downstream_ext_len;
-
-  int upstream_spliced_amino_end;      
-  int downstream_spliced_amino_start; 
-
-  int upstream_spliced_nuc_end;      //true seq coords
-  int downstream_spliced_nuc_start;  //true seq coords
+  int upstream_nuc_end;    
+  int downstream_nuc_start; 
 
   float splice_score;
   float signal_score;
@@ -227,7 +213,7 @@ typedef struct _splice_info
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
 #define MIN_INTRON_LENG           13       /*minimum intor length */
 #define MAX_INTRON_INCL           1500     /*maximum length on intron to be included in spliced Viterbi search */
-#define MAX_AMINO_GAP             100      /*max amino gap the spliced viterbi algoritm will try to bridge without searching the full intron
+#define MAX_AMINO_GAP             100      /*max amino gap the spliced viterbi algoritm will try to bridge without searching the full intron */
 #define MAX_SP_AMINO_GAP          10       /*maximum amino gap for spliced edges */
 #define MAX_USP_AMINO_GAP         25       /*maximum amino gap fpr unspliced edges */ 
 #define MAX_EXT_AMINO_GAP         25       /*maximum amino gap fpr extention edges */
@@ -317,6 +303,7 @@ extern int p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph,
 extern int p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
 extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *graph);
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph);
+extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph);
 extern SPLICE_PATH* p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int removed_start, int removed_end);
 extern int p7_splice_RemoveHits(SPLICE_GRAPH *graph, int range_bound_min, int range_bound_max);
 extern int p7_splice_EnforceRangeBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_max);

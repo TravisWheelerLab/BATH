@@ -19,9 +19,6 @@ typedef struct _splice_edge {
   int upstream_node_id;
   int downstream_node_id;
 
-  int overlap_amino_start;
-  int overlap_amino_end;
-
   int upstream_amino_end;      
   int downstream_amino_start; 
 
@@ -244,7 +241,7 @@ enum p7s_splice_codons_e {
 
 /* p7_spliceedge.c */
 extern SPLICE_EDGE* p7_spliceedge_Create(void);
-extern int p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom);
+extern int p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom);
 
 /* p7_splicegraph.c */
 extern SPLICE_GRAPH* p7_splicegraph_Create(void);
@@ -283,6 +280,7 @@ extern void p7_splicepath_Destroy(SPLICE_PATH *path);
 extern SPLICE_PATH* p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph);
 extern SPLICE_PATH* p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extend_graph);
 extern void p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path);
+extern void p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph);
 
 /* p7_splicepipeline.c */
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
@@ -301,9 +299,9 @@ extern int p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, con
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);
 extern int p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
 extern int p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
-extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_GRAPH *graph);
-extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph);
-extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph);
+extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, SPLICE_GRAPH *graph);
+extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);
+extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);
 extern SPLICE_PATH* p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int removed_start, int removed_end);
 extern int p7_splice_RemoveHits(SPLICE_GRAPH *graph, int range_bound_min, int range_bound_max);
 extern int p7_splice_EnforceRangeBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_max);

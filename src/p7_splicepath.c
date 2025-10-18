@@ -21,11 +21,6 @@
 
 static int longest_path_upstream (SPLICE_GRAPH *graph);
 static int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
-static SPLICE_PATH* check_bypass_unspliced(SPLICE_GRAPH *graph, SPLICE_PATH *path);
-static SPLICE_PATH* check_bypass_extend(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extend_graph, SPLICE_PATH *path);
-static float get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node);
-static int hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp);
-static int hit_bypassed(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp);
 static int has_out_edge(SPLICE_GRAPH *graph, int node_id);
 
 /*****************************************************************
@@ -330,8 +325,6 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
   path->jhmm[step_cnt-1] = th->hit[curr_node]->dcl->jhmm;
   path->jali[step_cnt-1] = th->hit[curr_node]->dcl->jali;
  
-  //path = check_bypass_unspliced(graph, path);
-
   return path;
 
   ERROR:
@@ -438,8 +431,6 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
   path->jhmm[step_cnt-1] =  th->hit[curr_node]->dcl->jhmm; 
   path->jali[step_cnt-1] =  th->hit[curr_node]->dcl->jali;
 
-  //path = check_bypass_extend(orig_graph, extend_graph, path);
-
   return path;
 
   ERROR:
@@ -450,106 +441,6 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
 
 
 
-
-SPLICE_PATH*
-check_bypass_unspliced(SPLICE_GRAPH *graph, SPLICE_PATH *path) 
-{
-
-  int   p, h;
-  int   up_path, down_path;
-  float max_bypass_score;
-  //float sub_path_score;
-  P7_TOPHITS  *th;
-  SPLICE_EDGE *tmp_edge;
-
-  th = graph->th; 
-
-  /* Check each edge in a path to see if it baypasses a node with downstream edges will be severed by this path. */ 
-  for(p = 0; p < path->path_len-1; p ++) {
-    up_path   = path->node_id[p];
-    down_path = path->node_id[p+1];
-             
-    tmp_edge = p7_splicegraph_GetEdge(graph, up_path, down_path);
-    
-    if(tmp_edge->bypass_checked) continue;
-    max_bypass_score = 0.;
-
-    for(h = 0; h < graph->orig_N; h++) {
-      
-      if(!graph->node_in_graph[h]) continue;
-      if(h == up_path || h == down_path) continue;
-      
-      /* Is hit h bypassed by the edge between up_path and down_path */
-      if(hit_bypassed(th->hit[up_path]->dcl, th->hit[h]->dcl, th->hit[down_path]->dcl, graph->revcomp)) continue;
-
-      max_bypass_score = ESL_MAX(max_bypass_score, graph->path_scores[h]);
-    }
-   
-    if(max_bypass_score > 0) {
-      tmp_edge->splice_score -= max_bypass_score;
-      tmp_edge->bypass_checked = TRUE;
-      p7_splicepath_Destroy(path);
-      path =  p7_splicepath_GetBestPath_Unspliced(graph);    
-      return path;
-    }
-  }
-
-  return path;
-}
-
-
-
-
-SPLICE_PATH*
-check_bypass_extend(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extend_graph, SPLICE_PATH *path) 
-{
-
-  int   p, h;
-  int   up, down;
-  int   up_path, down_path;
-  float max_bypass_score;
-  P7_TOPHITS  *orig_th;
-  SPLICE_EDGE *tmp_edge;
-
-  orig_th = orig_graph->th; 
-
-  /* Check each edge in a path to see if it baypasses a node with downstream edges will be severed by this path. */ 
-  for(p = 0; p < path->path_len-1; p ++) {
-    up_path   = path->node_id[p];
-    down_path = path->node_id[p+1];
-    up        = extend_graph->orig_hit_idx[up_path];
-    down      = extend_graph->orig_hit_idx[down_path];  
- 
-    /* We are only concerned with the edges that connect to the original node */
-    if(up == -1 && down == -1) continue;
-    tmp_edge = p7_splicegraph_GetEdge(extend_graph, up_path, down_path);
-    
-    max_bypass_score = 0.;
-    
-    for(h = 0; h < orig_graph->orig_N; h++) {
-      
-      if(h == up || h == down) continue;
-      
-      /* Is hit h bypassed by the edge between up_path and down_path */
-      if(!hit_between(extend_graph->th->hit[path->node_id[p]]->dcl, orig_th->hit[h]->dcl, extend_graph->th->hit[path->node_id[p+1]]->dcl, orig_graph->revcomp)) continue;
-      
-      if     (up == -1   && p7_splice_HitUpstream(orig_th->hit[h]->dcl, extend_graph->th->hit[path->node_id[p+1]]->dcl, path->revcomp)) 
-        max_bypass_score += ESL_MAX(0.0, orig_th->hit[h]->dcl->aliscore);
-      else if(down == -1 && p7_splice_HitUpstream(extend_graph->th->hit[path->node_id[p]]->dcl, orig_th->hit[h]->dcl, path->revcomp)) 
-        max_bypass_score += ESL_MAX(0.0, orig_th->hit[h]->dcl->aliscore);
-    }
-   
-    if(max_bypass_score > 0) {
-      tmp_edge->splice_score -= max_bypass_score;
-      tmp_edge->bypass_checked = TRUE;
-      p7_splicepath_Destroy(path);
-      path =  p7_splicepath_GetBestPath_Extension(orig_graph, extend_graph);    
-      return path;
-    }
-  }
-
-  return path;
-}
 
 
 
@@ -678,48 +569,6 @@ topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *st
 
 }
 
-int
-hit_between(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp)
-{
-
-  if (( revcomp  && upstream->jali <= downstream->iali) ||
-     ((!revcomp) && upstream->jali >= downstream->iali))
-    return FALSE;
-
-  if (( revcomp  && upstream->jali <= middle->iali) ||
-     ((!revcomp) && upstream->jali >= middle->iali))
-    return FALSE;
-
-  if (( revcomp  && middle->jali <= downstream->iali) ||
-     ((!revcomp) && middle->jali >= downstream->iali))
-    return FALSE;
-
-  return TRUE;
-
-}
-
-int
-hit_bypassed(P7_DOMAIN *upstream, P7_DOMAIN *middle, P7_DOMAIN *downstream, int revcomp)
-{
-
-  if (( revcomp  && upstream->jali <= middle->iali) ||
-     ((!revcomp) && upstream->jali >= middle->iali))
-    return FALSE;
-
-  if (( revcomp  && middle->jali <= downstream->iali) ||
-     ((!revcomp) && middle->jali >= downstream->iali))
-    return FALSE;
-
-  if(upstream->ihmm > middle->ihmm || upstream->jhmm > middle->jhmm)
-    return FALSE;
-
-  if(middle->ihmm <= downstream->ihmm && middle->jhmm <= downstream->jhmm)
-    return FALSE;
-
-  return TRUE;
-
-}
-
 
 int
 has_out_edge(SPLICE_GRAPH *graph, int node_id)
@@ -734,39 +583,6 @@ has_out_edge(SPLICE_GRAPH *graph, int node_id)
   return FALSE;
 }
 
-float 
-get_sub_path_score(SPLICE_GRAPH *graph, int source_node, int termination_node) 
-{
-
-  int    curr_node;
-  int    prev_node;
-  float  sub_path_score;
-  P7_HIT *source_hit;
-  P7_HIT *term_hit;
-  P7_HIT *curr_hit;
-  SPLICE_EDGE *tmp_edge;  
-
-  source_hit = graph->th->hit[source_node]; 
-  term_hit   = graph->th->hit[termination_node];
-  sub_path_score = graph->path_scores[source_node];
-  prev_node = source_node;
-  curr_node = graph->best_out_edge[source_node];
-  while(curr_node >= 0) {
-    curr_hit = graph->th->hit[curr_node];
-    if(!hit_between(source_hit->dcl, curr_hit->dcl, term_hit->dcl, graph->revcomp)) {
-              
-      sub_path_score -= graph->path_scores[curr_node];
-      tmp_edge = p7_splicegraph_GetEdge(graph, prev_node, curr_node);
-      sub_path_score -= tmp_edge->splice_score; 
-      break;
-    }
-    prev_node = curr_node;
-    curr_node = graph->best_out_edge[curr_node];
-  }
-  
-  return sub_path_score;
-
-}
 /*****************************************************************
  * 2. Debugging tools.
  *****************************************************************/
@@ -787,6 +603,40 @@ p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path)
   for(i = 0; i < path->path_len; i++) {
     fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld \n", i+1, path->node_id[i]+1,
       path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i]);
+  }
+
+  fprintf(fp, "\n");
+
+  return;
+}
+
+void
+p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph)
+{
+
+  int i;
+  float hit_score;
+  float edge_score;
+  P7_TOPHITS *th;
+  SPLICE_EDGE *tmp_edge;  
+
+  th = graph->th; 
+
+  if(path == NULL) return;
+
+  fprintf(fp, "  Path Length  %d\n", path->path_len);
+  fprintf(fp, "  %4s %4s %9s %9s %10s %10s %10s %10s\n", "Step", "Node", "hmm_start", "hmm_end", "seq_start", "seq_end", "hit_score", "edge_score");
+
+  hit_score = th->hit[path->node_id[0]]->dcl->aliscore;
+  fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld %10f %10f\n", 1, path->node_id[0]+1,
+      path->ihmm[0], path->jhmm[0], path->iali[0], path->jali[0], hit_score, -eslINFINITY);
+  for(i = 1; i < path->path_len; i++) {
+    hit_score = th->hit[path->node_id[i]]->dcl->aliscore;
+    tmp_edge = p7_splicegraph_GetEdge(graph, path->node_id[i-1], path->node_id[i]);
+    if(tmp_edge == NULL) edge_score = 0.0;
+    else                 edge_score =  tmp_edge->splice_score;
+    fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld %10f %10f\n", i+1, path->node_id[i]+1,
+      path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i], hit_score, edge_score);
   }
 
   fprintf(fp, "\n");

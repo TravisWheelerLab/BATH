@@ -63,7 +63,6 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C5] = -eslINFINITY; /* M_0 Codon 5*/
       }
       else if(allocC == p7P_SPLICE) { // room for splice states 
-        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_R] = -eslINFINITY;
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_P] = -eslINFINITY;
       }
       else if(allocC == (p7P_CODONS+p7P_SPLICE)) { // room for 5 codon lengths and splice states
@@ -73,7 +72,6 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C4] = -eslINFINITY; /* M_0 Codon 4*/
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_M + p7G_C5] = -eslINFINITY; /* M_0 Codon 5*/
         
-        gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_R2] = -eslINFINITY;
         gx->dp[i][0      * (p7G_NSCELLS + allocC) + p7G_P2] = -eslINFINITY;
 
       } 
@@ -124,7 +122,7 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
 {
   int      status;
   void    *p;
-  int      i;
+  uint64_t  i;
   uint64_t ncells;
   int      do_reset = FALSE;
 
@@ -140,6 +138,7 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
    * while shrinking in another?)
    */
   ncells = (uint64_t) (M+1) * (uint64_t) (L+1);
+  
   if (ncells > gx->ncells || C > gx->allocC) 
   {
     ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * (p7G_NSCELLS + C));
@@ -578,19 +577,6 @@ p7_gmx_fs_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart,
         }
      fprintf(ofp, "\n");
 
-    fprintf(ofp, "%3d R ", i);
-    for (k = kstart; k <= kend;        k++)
-    {
-      val =  gx->dp[i][k * (p7G_NSCELLS_SP + gx->allocC) + p7G_R2];
-      if (flags & p7_SHOW_LOG) val = log(val);
-      fprintf(ofp, "%*.*f ", width, precision, val);
-      fprintf(ofp, "%*.*f ", width, precision, 0.0);
-      fprintf(ofp, "%*.*f ", width, precision, 0.0);
-      fprintf(ofp, "%*.*f ", width, precision, 0.0);
-      fprintf(ofp, "%*.*f ", width, precision, 0.0);
-      fprintf(ofp, "%*.*f ", width, precision, 0.0);
-    }
-     fprintf(ofp, "\n");
     fprintf(ofp, "%3d P ", i);
     for (k = kstart; k <= kend;        k++)
     {
@@ -800,14 +786,7 @@ p7_gmx_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, in
       fprintf(ofp, "%*.*f ", width, precision, val);
     }
     fprintf(ofp, "\n");
-    fprintf(ofp, "%3d R ", i);
-    for (k = kstart; k <= kend;        k++)
-    {
-      val =  gx->dp[i][k * p7G_NSCELLS_SP + p7G_R];
-      if (flags & p7_SHOW_LOG) val = log(val);
-      fprintf(ofp, "%*.*f ", width, precision, val);
-    }
-     fprintf(ofp, "\n");
+
     fprintf(ofp, "%3d P ", i);
     for (k = kstart; k <= kend;        k++)
     {

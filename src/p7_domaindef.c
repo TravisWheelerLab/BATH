@@ -693,10 +693,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
     
         p7_fs_ReconfigMultihit(gm_fs, saveL);
 
-        if(ddef->splice)
-          p7_Forward_Frameshift_Spliced(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
-        else
-          p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
+        p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
 
         region_trace_ensemble_frameshift(ddef, gm_fs, windowsq->dsq, windowsq->abc, i, j, fwd, bck, &nc);
 
@@ -876,7 +873,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
 
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
-		  
+		 
                   if (rescore_isolated_domain_nonframeshift(ddef, om, gm, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg, gm_fs->fs) == eslOK)
                        last_j2 = j2;
 
@@ -1211,14 +1208,8 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
   for (t = 0; t < ddef->nsamples; t++)
   {
        
-    if(ddef->splice) {
-      p7_StochasticTrace_Frameshift_Spliced(ddef->r, dsq+ireg-1, Lr, gm_fs, fwd, ddef->tr);
-      p7_trace_sp_Index(ddef->tr);
-    }
-    else {
-      p7_StochasticTrace_Frameshift(ddef->r, dsq+ireg-1, Lr, gm_fs, fwd, ddef->tr);
-      p7_trace_fs_Index(ddef->tr);
-    }
+    p7_StochasticTrace_Frameshift(ddef->r, dsq+ireg-1, Lr, gm_fs, fwd, ddef->tr);
+    p7_trace_fs_Index(ddef->tr);
     
     for (d = 0; d < ddef->tr->ndom; d++)
       p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);

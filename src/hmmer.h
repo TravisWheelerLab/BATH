@@ -253,7 +253,7 @@ enum p7p_rsc_codon {
   p7P_C5 = 4,
 };
 #define p7P_CODONS 5
-#define p7P_SPLICE 2
+#define p7P_SPLICE 1
 
 enum p7p_rsc_indels {
   p7P___X   = 0,  // two deletes then one nucleotide
@@ -607,16 +607,14 @@ enum p7g_codons_e {
 #define p7G_NSCELLS_FS 8
 
 enum p7g_splicecells_e {
-  p7G_R = 3,
-  p7G_P = 4,
+  p7G_P = 3,
 };
-#define p7G_NSCELLS_SP 5
+#define p7G_NSCELLS_SP 4
 
 enum p7g_fssplicecells_e {
-  p7G_R2 = 8,
-  p7G_P2 = 9,
+  p7G_P2 = 8,
 };
-#define p7G_NSCELLS_SP_FS 10
+#define p7G_NSCELLS_SP_FS 9
 
 
 enum p7g_xcells_e {
@@ -642,6 +640,7 @@ typedef struct p7_gmx_s {
 
   float **dp;           /* logically [0.1..L][0.1..M][0..p7G_NSCELLS-1]; indexed [i][k*p7G_NSCELLS+s] */
   float  *xmx;          /* logically [0.1..L][0..p7G_NXCELLS-1]; indexed [i*p7G_NXCELLS+s]            */
+  float  *spx;          /* logically [0.1..L][0..p7G_SPCELLS-1]; indexed [i*p7G_SPCELLS+s]            */
 
   float  *dp_mem;
 } P7_GMX;
@@ -669,14 +668,12 @@ typedef struct p7_gmx_s {
 #define MMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_M])
 #define IMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_I])
 #define DMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_D])
-#define RMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_R])
 #define PMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_P])
 
 /* frameshift and spliced matrix */
 #define MMX_SP_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_M   + (c)]) 
 #define IMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_I])
 #define DMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_D])
-#define RMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_R2])
 #define PMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_P2])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
@@ -1593,7 +1590,6 @@ extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 
 /* fwdback_frameshift.c */
 extern int p7_Forward_Frameshift        (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_Forward_Frameshift_Spliced(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 extern int p7_ForwardParser_Frameshift  (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 extern int p7_Backward_Frameshift       (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 extern int p7_BackwardParser_Frameshift (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
@@ -1639,7 +1635,6 @@ extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, con
 
 /*stotrace_frameshift.c */
 extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
-extern int p7_StochasticTrace_Frameshift_Spliced(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_viterbi.c */
 extern int p7_GViterbi     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
@@ -2129,7 +2124,6 @@ extern int  p7_trace_Reverse(P7_TRACE *tr);
 extern int  p7_trace_fs_Reverse(P7_TRACE *tr);
 extern int  p7_trace_Index(P7_TRACE *tr);
 extern int  p7_trace_fs_Index(P7_TRACE *tr);
-extern int  p7_trace_sp_Index(P7_TRACE *tr);
 
 extern int  p7_trace_FauxFromMSA(ESL_MSA *msa, int *matassign, int optflags, P7_TRACE **tr);
 extern int  p7_trace_Doctor(P7_TRACE *tr, int *opt_ndi, int *opt_nid);

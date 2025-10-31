@@ -428,7 +428,7 @@ p7_SSVFilter_longtarget(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, 
 /*------------------ end, p7_SSVFilter_longtarget() ------------------------*/
 /* Function:  p7_SSVFilter_BATH()
  * Synopsis:  Identical to p7_SSVFilter_longtarget(), except for nullsc is
- *            percomputed based on ORF seq length
+ *            computed based on ORF seq length
  *
  * Args:      dsq             - digital ORF sequence, 1..L
  *            L               - length of dsq in residues
@@ -437,7 +437,6 @@ p7_SSVFilter_longtarget(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, 
  *            msvdata         - compact representation of substitution scores, for backtracking diagonals
  *            bg              - the background model, required for translating a P-value threshold into a score threshold
  *            P               - p-value below which a region is captured as being above threshold
- *            nullsc          - null score for ORF sequence
  *            windowlist      - preallocated container for all hits (resized if necessary)
  *
  * Returns:   <eslOK> on success.
@@ -474,6 +473,7 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const 
   int max_sc;
   int sc;
   int pos_since_max;
+  float nullsc;
   float ret_sc;
 
 
@@ -498,6 +498,10 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const 
   /* Check that the DP matrix is ok for us. */
   if (Q > ox->allocQ16)  ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small");
   ox->M   = om->M;
+
+  p7_bg_SetLength(bg, L);
+  p7_oprofile_ReconfigMSVLength(om, L);
+  p7_bg_NullOne  (bg, dsq, L, &nullsc);
 
   sc_thresh = (int) ceil( ( ( nullsc  + (invP * eslCONST_LOG2) + 3.0 )  * om->scale_b ) + om->base_b +  om->tec_b  + om->tjb_b  );
   sc_threshv = esl_vmx_set_u8( (int8_t)sc_thresh - 1);

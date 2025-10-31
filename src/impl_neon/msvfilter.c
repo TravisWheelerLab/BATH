@@ -457,7 +457,7 @@ p7_SSVFilter_longtarget(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, 
  */
 int
 p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata,
-                        P7_BG *bg, double P, float nullsc, P7_HMM_WINDOWLIST *windowlist)
+                        P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist)
 {
 
   register uint8x16_t mpv;       /* previous row values                                       */
@@ -487,6 +487,7 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const 
   int max_sc;
   int sc;
   int pos_since_max;
+  float nullsc;
   float ret_sc;
 
   union { uint8x16_t v; uint8_t b[16]; } u;
@@ -516,6 +517,10 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const 
   /* Check that the DP matrix is ok for us. */
   if (Q > ox->allocQ16)  ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small");
   ox->M   = om->M;
+
+  p7_bg_SetLength(bg, L);
+  p7_oprofile_ReconfigMSVLength(om, L);
+  p7_bg_NullOne  (bg, dsq, L, &nullsc);
 
   sc_thresh = (int) ceil( ( ( nullsc  + (invP * eslCONST_LOG2) + 3.0 )  * om->scale_b ) + om->base_b +  om->tec_b  + om->tjb_b );
   sc_threshv = vmovq_n_u8(255 - sc_thresh);

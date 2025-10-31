@@ -10,7 +10,7 @@ typedef struct _splice_hit_info
   int      strand; /* 0 = forward strand, 1 = reverse strand */
   int      duplicate;
   int      is_seed;
-  int      viterbi;
+  int      fwd;
 
   int hmm_start;
   int hmm_end;

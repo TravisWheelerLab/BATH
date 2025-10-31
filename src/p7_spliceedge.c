@@ -88,7 +88,7 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOM
     up_N = upstream_dom->jhmm - upstream_dom->ihmm + 1;
     ESL_ALLOC(upstream_suffix_sum, sizeof(float) * up_N);
     esl_vec_FSet(upstream_suffix_sum, up_N, 0.0);
-
+    
     tr  = upstream_dom->tr;
     spp = upstream_dom->scores_per_pos;
 
@@ -142,8 +142,9 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOM
     k_start = ESL_MAX(downstream_dom->ihmm, upstream_dom->ihmm+1);
     k_end   = ESL_MIN(upstream_dom->jhmm,   downstream_dom->jhmm-1);
     
-    us = k_start - upstream_dom->ihmm;
+    us = k_start - upstream_dom->ihmm - 1;
     ds = k_start - downstream_dom->ihmm - 1;
+
     min_lost_sc = upstream_suffix_sum[us];  // lost_sc if all k belong to downstream
     if(ds >= 0)
       min_lost_sc += downstream_prefix_sum[ds];  // include any lost_sc from downstream overextention
@@ -162,6 +163,8 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOM
       ds++;
     }
     if(us == up_N) us--;
+    if(ds == down_N) ds--;
+    
     lost_sc = downstream_prefix_sum[ds]; // lost_sc if all k belong to upstream
     if(k_end < upstream_dom->jhmm) {
  
@@ -172,18 +175,12 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOM
       k_trans = k_end;
     }
 
-    /* edge score equals lost score plus M->M trastion for the postion where we transtion from up to down*/
-    edge->splice_score -= min_lost_sc + gm->tsc[k_trans * p7P_NTRANS + p7P_MM];
+    edge->splice_score -= min_lost_sc;
     
     if(upstream_suffix_sum   != NULL) free(upstream_suffix_sum);
     if(downstream_prefix_sum != NULL) free(downstream_prefix_sum);
+    
 
-  }
-  else {
-
-    /* Edge score is sum of M->M trasntions for all missing positions */
-    for(k = upstream_dom->jhmm; k < downstream_dom->ihmm; k++)
-      edge->splice_score +=  gm->tsc[k * p7P_NTRANS + p7P_MM];
   }
 
   return eslOK;

@@ -146,6 +146,7 @@ typedef struct _splice_pipeline
   P7_GMX  *gbwd;
 
   P7_GMX  *vit;
+  P7_GMX  *spx;
 
   P7_BG   *bg;
 
@@ -206,7 +207,7 @@ typedef struct _splice_info
 #define SPLICE_OFFSET_2           15       /* start of XXxxxxX codons  */
 
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node */
-#define MAX_INTRON_LENG           100000   /*maximum intron length */
+#define MAX_INTRON_LENG           200000   /*maximum intron length */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
 #define MIN_INTRON_LENG           13       /*minimum intor length */
 #define MAX_INTRON_INCL           1500     /*maximum length on intron to be included in spliced Viterbi search */
@@ -292,6 +293,8 @@ extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 
 
 /* p7_spliceviterbi.c */
+extern int p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
+extern int p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx);
 extern int p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
 extern int p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr); 
 

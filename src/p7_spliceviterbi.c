@@ -10,7 +10,7 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-#define TSC_P -13
+#define TSC_P -10
 
 int
 p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx)
@@ -48,14 +48,14 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
   }
 
   /* Initialization of the zero row.  */
-  XMX(0,p7G_N) = 0.;                                     /* S->N, p=1            */
-  XMX(0,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */ 
-  XMX(0,p7G_E) = XMX(0,p7G_J) = XMX(0,p7G_C) = -eslINFINITY;
+  XMX_SP(0,p7G_N) = 0.;                                     /* S->N, p=1            */
+  XMX_SP(0,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */ 
+  XMX_SP(0,p7G_E) = XMX_SP(0,p7G_C) = XMX_SP(0,p7G_Y) = XMX_SP(0,p7G_Z) = -eslINFINITY;
   for (k = 0; k <= M; k++)
     MMX_SP(0,k) = IMX_SP(0,k) = PMX_SP(0,k) = -eslINFINITY;
 
   DMX_SP(0,0) = -eslINFINITY;
-  DMX_SP(0,1) = XMX(0,p7G_B) + TSC(p7P_BM,0); 
+  DMX_SP(0,1) = XMX_SP(0,p7G_B) + TSC(p7P_BM,0); 
   for (k = 2; k <= M; k++)
     DMX_SP(0,k) = DMX_SP(0,k-1) + TSC(p7P_DD,k-1);
 
@@ -69,18 +69,19 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
     else                                                x = p7P_MAXCODONS;
 
-    XMX(i,p7G_N) =  0; 
-    XMX(i,p7G_B) =  gm_fs->xsc[p7P_N][p7P_MOVE]; 
-
+    XMX_SP(i,p7G_N) =  0; 
+    XMX_SP(i,p7G_B) =  gm_fs->xsc[p7P_N][p7P_MOVE]; 
+    XMX_SP(i,p7G_Y) = XMX_SP(i,p7G_Z) = -eslINFINITY;
+ 
     for (k = 0; k <= M; k++) 
       MMX_SP(i,k) = IMX_SP(i,k) = PMX_SP(i,k) = -eslINFINITY;
 
     DMX_SP(i,0) = -eslINFINITY;
-    DMX_SP(i,1) = XMX(i,p7G_B) + TSC(p7P_BM,0);
+    DMX_SP(i,1) = XMX_SP(i,p7G_B) + TSC(p7P_BM,0);
     for (k = 2; k <= M; k++)
       DMX_SP(i,k) = DMX_SP(i,k-1) + TSC(p7P_DD,k-1);        
 
-    XMX(i,p7G_E) = XMX(i,p7G_J) = XMX(i,p7G_C) = -eslINFINITY;
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = -eslINFINITY;
 
   } 
 
@@ -96,19 +97,19 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
     c3 = p7P_CODON3(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
 
-    XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
-    XMX(i,p7G_B) = XMX(i,p7G_N)   + gm_fs->xsc[p7P_N][p7P_MOVE];
-
+    XMX_SP(i,p7G_N) = XMX_SP(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
+    XMX_SP(i,p7G_B) = XMX_SP(i,p7G_N)   + gm_fs->xsc[p7P_N][p7P_MOVE];
+    XMX_SP(i,p7G_Y) = XMX_SP(i,p7G_Z) = -eslINFINITY;
 
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
 
-    MMX_SP(i,1) = XMX(i-3,p7G_B) + TSC(p7P_BM,0) + p7P_MSC_CODON(gm_fs, 1, c3); //B->M
+    MMX_SP(i,1) = XMX_SP(i-3,p7G_B) + TSC(p7P_BM,0) + p7P_MSC_CODON(gm_fs, 1, c3); //B->M
 
     if(p7P_MSC_CODON(gm_fs, 1, c3) == -eslINFINITY)  IMX_SP(i,1) = -eslINFINITY;
     else                                             IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
                                                      IMX_SP(i-3,1) + TSC(p7P_II,1));
 
-    DMX_SP(i,1) = XMX(i,p7G_B) + TSC(p7P_BM,0);
+    DMX_SP(i,1) = XMX_SP(i,p7G_B) + TSC(p7P_BM,0);
 
     PMX_SP(i,1) = -eslINFINITY;
 
@@ -139,11 +140,9 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 
     PMX_SP(i,M) = -eslINFINITY;
 
-    XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
-                           XMX(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
-
-    XMX(i,p7G_J) = -eslINFINITY;
+    XMX_SP(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
+    XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                           XMX_SP(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
   }
 
@@ -186,18 +185,18 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
       else                         AT = FALSE;
     }
 
-    XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
-
-    XMX(i,p7G_B) = XMX(i,p7G_N)   + gm_fs->xsc[p7P_N][p7P_MOVE];
-    
+    XMX_SP(i,p7G_N) = XMX_SP(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
+    XMX_SP(i,p7G_B) = XMX_SP(i,p7G_N)   + gm_fs->xsc[p7P_N][p7P_MOVE];
+    XMX_SP(i,p7G_Y) = XMX_SP(i,p7G_Z) = -eslINFINITY;   
+ 
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
 
-    MMX_SP(i,1) = XMX(i-3,p7G_B) + TSC(p7P_BM,0) + p7P_MSC_CODON(gm_fs, 1, c3); //B->M
+    MMX_SP(i,1) = XMX_SP(i-3,p7G_B) + TSC(p7P_BM,0) + p7P_MSC_CODON(gm_fs, 1, c3); //B->M
 
     if(p7P_MSC_CODON(gm_fs, 1, c3) == -eslINFINITY) IMX_SP(i,1) = -eslINFINITY;
     else                                             IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,1),
                                                      IMX_SP(i-3,1) + TSC(p7P_II,1));
-    DMX_SP(i,1) = XMX(i,p7G_B) + TSC(p7P_BM,0);
+    DMX_SP(i,1) = XMX_SP(i,p7G_B) + TSC(p7P_BM,0);
     
     PMX_SP(i,1) = -eslINFINITY;
 
@@ -221,6 +220,7 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
        * (total of 63, but max 34 per sequence position) find the 
        * maximum score of the P state */
       PMX_SP(i,k) = -eslINFINITY;
+     // if(i == 114 && k ==2) printf("AGXXX %d ACXXX %d AGXX %d ACXX %d AGX %d ACX %d\n", AGXXX, ACXXX, AGXX, ACXX, AGX, ACX);
       if(AGXXX) {
       
         TMP_SC = SSX0(k, p7S_GTAG) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, k, c3);
@@ -249,12 +249,14 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
           c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
        
           TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, k, c2); 
+         
           if(TMP_SC > PMX_SP(i,k)) {
             PMX_SP(i,k) = TMP_SC;
             lookback[i][k] = SIX1(k, p7S_GTAG, nuc1);
           }
 
           TMP_SC = SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG] + p7P_MSC_CODON(gm_fs, k, c2);
+          // if(i == 114 && k ==2) printf("nuc1 %d TMP_SC %f SSX1(k, p7S_GCAG, nuc1) %f signal_scores[p7S_GCAG] %f p7P_MSC_CODON(gm_fs, k, c2) %f\n", nuc1, TMP_SC, SSX1(k, p7S_GCAG, nuc1), signal_scores[p7S_GCAG], p7P_MSC_CODON(gm_fs, k, c2));
           if(TMP_SC > PMX_SP(i,k)) {
             PMX_SP(i,k) = TMP_SC;
             lookback[i][k] = SIX1(k, p7S_GCAG, nuc1);
@@ -388,11 +390,9 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 
     PMX_SP(i,M) = -eslINFINITY;
 
-    XMX(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
-                           XMX(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
-
-    XMX(i,p7G_J) = -eslINFINITY;    
+    XMX_SP(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
+    XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                           XMX_SP(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
   } // end loop over L
   
@@ -404,6 +404,466 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 
 }
 
+
+/* MAX lookback is i-MIN_INTRON_LENG-4 */
+int
+p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx)
+{
+  float const *tsc  = gm_fs->tsc;
+  float      **dp   = gx->dp;
+  float       *xmx  = gx->xmx;
+  float      **score = pli->sig_idx->score;
+  float       *signal_scores = pli->signal_scores;
+  int        **index = pli->sig_idx->index;
+  int        **lookback = pli->sig_idx->lookback;
+  int          M    = gm_fs->M;
+  int          i,k,s;
+  int          c3, c2, c1;
+  int          t, u, v, w, x;
+  int          AGXXX, ACXXX;
+  int          AGXX, ACXX;
+  int          AGX,  ACX;
+  int          GT, GC, AT;
+  int          nuc1, nuc2;
+  int          curr_i, prev_i;
+  int          donor_i;
+  float        TMP_SC; 
+ 
+  /*Initialize the signal index */
+  for(i = 0; i <= L; i++) {
+    for(k = 0; k < M; k++) {
+      lookback[i][k] = -1;
+    }
+  }
+
+  for(k = 0; k <  M; k++) {
+    for(s = 0; s < SIGNAL_MEM_SIZE; s++) {
+      index[k][s] = -1;
+      score[k][s] = -eslINFINITY;
+    }
+  }
+
+  /* Initialization of the zero row.  */
+  XMX_SP(0,p7G_N) = 0.;                                     /* S->N, p=1            */
+  XMX_SP(0,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */ 
+  XMX_SP(0,p7G_E) = XMX_SP(0,p7G_C) = XMX_SP(0,p7G_Y) = XMX_SP(0,p7G_Z) = -eslINFINITY;
+  for (k = 0; k <= M; k++)
+    MMX_SP(0,k) = IMX_SP(0,k) = PMX_SP(0,k) = -eslINFINITY;
+
+  DMX_SP(0,0) = -eslINFINITY;
+  DMX_SP(0,1) = XMX_SP(0,p7G_B) + TSC(p7P_BM,0); 
+  for (k = 2; k <= M; k++) {
+    DMX_SP(0,k) = DMX_SP(0,k-1) + TSC(p7P_DD,k-1);
+  }
+
+  //p7_gmx_sp_DumpHeader(stdout, gx, 0, gm_fs->M, p7_DEFAULT);
+  //p7_gmx_sp_DumpRow(stdout, gx, 0, 0, 0, gm_fs->M, p7_DEFAULT);
+  /*Special cases for the first 2 rows */
+  t = u = v = w = x = -1;
+  for(i = 1; i <= 2; i++)
+  {
+    w = x;
+  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+    if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
+    else                                                x = p7P_MAXCODONS;
+
+    XMX_SP(i,p7G_N) =  0; 
+    XMX_SP(i,p7G_B) =  gm_fs->xsc[p7P_N][p7P_MOVE]; 
+    XMX_SP(i,p7G_Y) = XMX_SP(i,p7G_Z) = -eslINFINITY;
+
+    curr_i = i % (MIN_INTRON_LENG+5);
+    for (k = 0; k <= M; k++) 
+      MMX_SP(curr_i,k) = IMX_SP(curr_i,k) = PMX_SP(curr_i,k) = -eslINFINITY;
+
+    DMX_SP(curr_i,0) = -eslINFINITY;
+    DMX_SP(curr_i,1) = XMX_SP(i,p7G_B) + TSC(p7P_BM,0);
+    for (k = 2; k <= M; k++) {
+      DMX_SP(curr_i,k) = DMX_SP(curr_i,k-1) + TSC(p7P_DD,k-1);        
+    }
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_Z) = -eslINFINITY;
+    
+   //p7_gmx_sp_DumpRow(stdout, gx, i, curr_i, 0, gm_fs->M, p7_DEFAULT);
+  } 
+
+  /*Special cases for the rows 3-6*/
+  for (i = 3; i <= 6; i++) 
+  {
+    v = w;
+    w = x;
+
+    if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
+    else                                                x = p7P_MAXCODONS;
+
+    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+
+    XMX_SP(i,p7G_N) = XMX_SP(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
+    XMX_SP(i,p7G_B) = XMX_SP(i,p7G_N)   + gm_fs->xsc[p7P_N][p7P_MOVE];
+    XMX_SP(i,p7G_Y) = XMX_SP(i,p7G_Z) = -eslINFINITY; 
+
+    curr_i = i % (MIN_INTRON_LENG+5);
+    prev_i = (i-3) % (MIN_INTRON_LENG+5);
+    MMX_SP(curr_i,0) = IMX_SP(curr_i,0) = DMX_SP(curr_i,0) = PMX_SP(curr_i,0) = -eslINFINITY;
+
+    MMX_SP(curr_i,1) = XMX_SP(i-3,p7G_B) + TSC(p7P_BM,0) + p7P_MSC_CODON(gm_fs, 1, c3); //B->M
+    XMX_SP(i,p7G_Y) = ESL_MAX(XMX_SP(i,p7G_Y), MMX_SP(curr_i,1)); 
+
+    if(p7P_MSC_CODON(gm_fs, 1, c3) == -eslINFINITY)  
+      IMX_SP(curr_i,1) = -eslINFINITY;
+    else                                             
+      IMX_SP(curr_i,1) = ESL_MAX(MMX_SP(prev_i,1) + TSC(p7P_MI,1),
+                                 IMX_SP(prev_i,1) + TSC(p7P_II,1));
+
+    DMX_SP(curr_i,1) = XMX_SP(i,p7G_B) + TSC(p7P_BM,0);
+
+    PMX_SP(curr_i,1) = -eslINFINITY;
+
+    for (k = 2; k < M; k++) {
+      
+      MMX_SP(curr_i,k) = ESL_MAX(MMX_SP(prev_i,k-1) + TSC(p7P_MM,k-1),
+                         ESL_MAX(IMX_SP(prev_i,k-1) + TSC(p7P_IM,k-1),
+                                 DMX_SP(prev_i,k-1) + TSC(p7P_DM,k-1))) + p7P_MSC_CODON(gm_fs, k, c3);
+    
+      XMX_SP(i,p7G_Y) = ESL_MAX(XMX_SP(i,p7G_Y), MMX_SP(curr_i,k));    
+
+      if(p7P_MSC_CODON(gm_fs, k, c3) == -eslINFINITY) 
+        IMX_SP(curr_i,k) = -eslINFINITY;
+      else                                            
+        IMX_SP(curr_i,k) = ESL_MAX(MMX_SP(prev_i,k) + TSC(p7P_MI,k),
+                                   IMX_SP(prev_i,k) + TSC(p7P_II,k));
+
+      DMX_SP(curr_i,k) = ESL_MAX(MMX_SP(curr_i,k-1) + TSC(p7P_MD,k-1),
+                            DMX_SP(curr_i,k-1) + TSC(p7P_DD,k-1));
+
+      PMX_SP(curr_i,k) = -eslINFINITY;
+    } 
+
+    MMX_SP(curr_i,M) = ESL_MAX(MMX_SP(prev_i,M-1) + TSC(p7P_MM,M-1),
+                       ESL_MAX(IMX_SP(prev_i,M-1) + TSC(p7P_IM,M-1),
+                               DMX_SP(prev_i,M-1) + TSC(p7P_DM,M-1)))+ p7P_MSC_CODON(gm_fs, M, c3);
+
+    XMX_SP(i,p7G_Y) = ESL_MAX(XMX_SP(i,p7G_Y), MMX_SP(curr_i,M));
+
+    IMX_SP(curr_i,M) = -eslINFINITY;
+
+    DMX_SP(curr_i,M) = ESL_MAX(MMX_SP(curr_i,M-1) + TSC(p7P_MD,M-1),
+                               DMX_SP(curr_i,M-1) + TSC(p7P_DD,M-1));
+
+    PMX_SP(curr_i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = ESL_MAX(MMX_SP(curr_i,M), DMX_SP(curr_i,M));
+    XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                              XMX_SP(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
+
+//    p7_gmx_sp_DumpRow(stdout, gx, i, curr_i, 0, gm_fs->M, p7_DEFAULT);
+  }
+
+  AGXXX = ACXXX = AGXX = ACXX = AGX = ACX  = FALSE;  
+  GT = GC = AT = FALSE; 
+  /* Main DP recursion */
+  for (i = 7; i <= L; i++) 
+  {
+    /* get nucleotides and codon */
+    v = w;
+    w = x;
+
+    if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[i])) x = sub_dsq[i];
+    else                                            x = p7P_MAXCODONS;
+    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+ 
+    /* get acceptor site */
+    AGXXX = AGXX;
+    ACXXX = ACXX;
+    AGXX  = AGX;
+    ACXX  = ACX;
+    if(SIGNAL(v, w) == ACCEPT_AG) AGX = TRUE;
+    else                          AGX = FALSE;
+    
+    if(SIGNAL(v, w) == ACCEPT_AC) ACX = TRUE;
+    else                          ACX = FALSE;
+
+    /* get donor site */
+    if(i > MIN_INTRON_LENG+4) {
+      t = sub_dsq[i-MIN_INTRON_LENG-3];
+      u = sub_dsq[i-MIN_INTRON_LENG-2]; 
+      if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_GT) GT = TRUE;
+      else                         GT = FALSE;
+   
+      if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_GC) GC = TRUE;
+      else                         GC = FALSE;
+ 
+      if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_AT) AT = TRUE;
+      else                         AT = FALSE;
+    }
+
+    XMX_SP(i,p7G_N) = XMX_SP(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
+    XMX_SP(i,p7G_B) = XMX_SP(i,p7G_N)   + gm_fs->xsc[p7P_N][p7P_MOVE];
+    XMX_SP(i,p7G_Y) = XMX_SP(i,p7G_Z) = -eslINFINITY;  
+ 
+    curr_i = i % (MIN_INTRON_LENG+5);
+    prev_i = (i-3) % (MIN_INTRON_LENG+5);
+   
+    MMX_SP(curr_i,0) = IMX_SP(curr_i,0) = DMX_SP(curr_i,0) = PMX_SP(curr_i,0) = -eslINFINITY;
+
+    MMX_SP(curr_i,1) = XMX_SP(i-3,p7G_B) + TSC(p7P_BM,0) + p7P_MSC_CODON(gm_fs, 1, c3); //B->M
+    XMX_SP(i,p7G_Y) = ESL_MAX(XMX_SP(i,p7G_Y), MMX_SP(curr_i,1)); 
+
+    if(p7P_MSC_CODON(gm_fs, 1, c3) == -eslINFINITY) 
+      IMX_SP(curr_i,1) = -eslINFINITY;
+    else                                             
+      IMX_SP(curr_i,1) = ESL_MAX(MMX_SP(prev_i,1) + TSC(p7P_MI,1),
+                                 IMX_SP(prev_i,1) + TSC(p7P_II,1));
+
+    DMX_SP(curr_i,1) = XMX_SP(i,p7G_B) + TSC(p7P_BM,0);
+    
+    PMX_SP(curr_i,1) = -eslINFINITY;
+
+    for (k = 2; k < M; k++) {
+
+      MMX_SP(curr_i,k) = ESL_MAX(MMX_SP(prev_i,k-1) + TSC(p7P_MM,k-1),
+                         ESL_MAX(IMX_SP(prev_i,k-1) + TSC(p7P_IM,k-1),
+                         ESL_MAX(DMX_SP(prev_i,k-1) + TSC(p7P_DM,k-1),
+                                 PMX_SP(prev_i,k-1) + TSC_P)))         + p7P_MSC_CODON(gm_fs, k, c3);
+
+      XMX_SP(i,p7G_Y) = ESL_MAX(XMX_SP(i,p7G_Y), MMX_SP(curr_i,k));
+
+      if(p7P_MSC_CODON(gm_fs, k, c3) == -eslINFINITY) 
+        IMX_SP(curr_i,k) = -eslINFINITY;
+      else                                            
+        IMX_SP(curr_i,k) = ESL_MAX(MMX_SP(prev_i,k) + TSC(p7P_MI,k),
+                                   IMX_SP(prev_i,k) + TSC(p7P_II,k));
+
+      DMX_SP(curr_i,k) = ESL_MAX(MMX_SP(curr_i,k-1) + TSC(p7P_MD,k-1),
+                                 DMX_SP(curr_i,k-1) + TSC(p7P_DD,k-1));
+
+      /* For each valid splice signal pair, codon type, and emissions 
+       * (total of 63, but max 34 per sequence position) find the 
+       * maximum score of the P state */
+      PMX_SP(curr_i,k) = -eslINFINITY;
+      //if(i == 114 && k ==2) printf("AGXXX %d ACXXX %d AGXX %d ACXX %d AGX %d ACX %d\n", AGXXX, ACXXX, AGXX, ACXX, AGX, ACX);
+      if(AGXXX) {
+      
+        TMP_SC = SSX0(k, p7S_GTAG) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, k, c3);
+        if(TMP_SC > PMX_SP(curr_i,k)) {
+            PMX_SP(curr_i,k) = TMP_SC;
+            lookback[i][k] = SIX0(k, p7S_GTAG);
+        }
+
+        TMP_SC = SSX0(k, p7S_GCAG) + signal_scores[p7S_GCAG] + p7P_MSC_CODON(gm_fs, k, c3);
+        if(TMP_SC > PMX_SP(curr_i,k)) {
+            PMX_SP(curr_i,k) = TMP_SC;
+            lookback[i][k] = SIX0(k, p7S_GCAG);
+        }
+      }
+      else if(ACXXX) {
+        TMP_SC = SSX0(k, p7S_ATAC) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, k, c3);
+        if(TMP_SC > PMX_SP(curr_i,k)) {
+            PMX_SP(curr_i,k) = TMP_SC;
+            lookback[i][k] = SIX0(k, p7S_ATAC);
+        }
+      }
+
+      if(AGXX) {
+        for(nuc1 = 0; nuc1 < 4; nuc1++) {
+          c2 = p7P_CODON3(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+       
+          TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, k, c2); 
+          if(TMP_SC > PMX_SP(curr_i,k)) {
+            PMX_SP(curr_i,k) = TMP_SC;
+            lookback[i][k] = SIX1(k, p7S_GTAG, nuc1);
+          }
+
+          TMP_SC = SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG] + p7P_MSC_CODON(gm_fs, k, c2);
+         // if(i == 114 && k ==2) printf("nuc1 %d TMP_SC %f SSX1(k, p7S_GCAG, nuc1) %f signal_scores[p7S_GCAG] %f p7P_MSC_CODON(gm_fs, k, c2) %f\n", nuc1, TMP_SC, SSX1(k, p7S_GCAG, nuc1), signal_scores[p7S_GCAG], p7P_MSC_CODON(gm_fs, k, c2)); 
+          if(TMP_SC > PMX_SP(curr_i,k)) {
+            PMX_SP(curr_i,k) = TMP_SC;
+            lookback[i][k] = SIX1(k, p7S_GCAG, nuc1);
+          }
+        }
+      }
+      else if(ACXX) {
+        for(nuc1 = 0; nuc1 < 4; nuc1++) {
+          c2 = p7P_CODON3(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+
+          TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, k, c2);
+          if(TMP_SC > PMX_SP(curr_i,k)) {
+            PMX_SP(curr_i,k) = TMP_SC;
+            lookback[i][k] = SIX1(k, p7S_ATAC, nuc1);
+          }
+        }
+      }
+    
+      if(AGX) {
+        for(nuc1 = 0; nuc1 < 4; nuc1++) {
+          for(nuc2 = 0; nuc2 < 4; nuc2++) {
+            c1 = p7P_CODON3(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+
+            TMP_SC = SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, k, c1);
+            if(TMP_SC > PMX_SP(curr_i,k)) {
+              PMX_SP(curr_i,k) = TMP_SC;
+              lookback[i][k] = SIX2(k, p7S_GTAG, nuc1, nuc2);
+            }
+
+            TMP_SC = SSX2(k, p7S_GCAG, nuc1, nuc2) + signal_scores[p7S_GCAG] + p7P_MSC_CODON(gm_fs, k, c1);
+            if(TMP_SC > PMX_SP(curr_i,k)) {
+              PMX_SP(curr_i,k) = TMP_SC;
+              lookback[i][k] = SIX2(k, p7S_GCAG, nuc1, nuc2);
+            }
+          }
+        }
+      }
+      else if(ACX) {
+        for(nuc1 = 0; nuc1 < 4; nuc1++) {
+          for(nuc2 = 0; nuc2 < 4; nuc2++) {
+            c1 = p7P_CODON3(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+
+            TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, k, c1);
+            if(TMP_SC > PMX_SP(curr_i,k)) {
+              PMX_SP(curr_i,k) = TMP_SC;
+              lookback[i][k] = SIX2(k, p7S_ATAC, nuc1, nuc2);
+            }
+          }
+        }
+      }
+     
+      if(PMX_SP(curr_i,k) > XMX_SP(i,p7G_Z)) {
+        XMX_SP(i,p7G_Z) = PMX_SP(curr_i,k);
+        lookback[i][0] = k;
+      }
+
+      /* Record best scoring donor sites*/
+      if(GT) {
+        donor_i = (i-MIN_INTRON_LENG-4) % (MIN_INTRON_LENG+5); 
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1)); 
+        if(t < 4 && u < 4 && TMP_SC > SSX2(k, p7S_GTAG, t, u)) {
+          SSX2(k, p7S_GTAG, t, u) = TMP_SC;
+          SIX2(k, p7S_GTAG, t, u) = i-MIN_INTRON_LENG;
+        }
+ 
+        donor_i = (i-MIN_INTRON_LENG-3) % (MIN_INTRON_LENG+5);
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(u < 4 && TMP_SC > SSX1(k, p7S_GTAG, u)) {
+          SSX1(k, p7S_GTAG, u) = TMP_SC;
+          SIX1(k, p7S_GTAG, u) = i-MIN_INTRON_LENG; 
+        } 
+
+        donor_i = (i-MIN_INTRON_LENG-2) % (MIN_INTRON_LENG+5);
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(TMP_SC > SSX0(k, p7S_GTAG)) {
+          SSX0(k, p7S_GTAG) = TMP_SC;
+          SIX0(k, p7S_GTAG) = i-MIN_INTRON_LENG;
+        }
+         
+      }
+      else if(GC) {
+        donor_i = (i-MIN_INTRON_LENG-4) % (MIN_INTRON_LENG+5); 
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(t < 4 && u < 4 && TMP_SC > SSX2(k, p7S_GCAG, t, u)) {
+          SSX2(k, p7S_GCAG, t, u) = TMP_SC;
+          SIX2(k, p7S_GCAG, t, u) = i-MIN_INTRON_LENG;
+        }
+
+        donor_i = (i-MIN_INTRON_LENG-3) % (MIN_INTRON_LENG+5);
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(u < 4 && TMP_SC > SSX1(k, p7S_GCAG, u)) {
+          SSX1(k, p7S_GCAG, u) = TMP_SC;
+          SIX1(k, p7S_GCAG, u) = i-MIN_INTRON_LENG; 
+        }
+
+        donor_i = (i-MIN_INTRON_LENG-2) % (MIN_INTRON_LENG+5);
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(TMP_SC > SSX0(k, p7S_GCAG)) {
+          SSX0(k, p7S_GCAG) = TMP_SC;
+          SIX0(k, p7S_GCAG) = i-MIN_INTRON_LENG;
+        }
+
+      }
+      else if(AT) {
+        donor_i = (i-MIN_INTRON_LENG-4) % (MIN_INTRON_LENG+5);
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(t < 4 && u < 4 && TMP_SC > SSX2(k, p7S_ATAC, t, u)) {
+          SSX2(k, p7S_ATAC, t, u) = TMP_SC;
+          SIX2(k, p7S_ATAC, t, u) = i-MIN_INTRON_LENG;
+        }
+
+        donor_i = (i-MIN_INTRON_LENG-3) % (MIN_INTRON_LENG+5);
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(u < 4 && TMP_SC > SSX1(k, p7S_ATAC, u)) {
+          SSX1(k, p7S_ATAC, u) = TMP_SC;
+          SIX1(k, p7S_ATAC, u) = i-MIN_INTRON_LENG;  
+        }
+
+        donor_i = (i-MIN_INTRON_LENG-2) % (MIN_INTRON_LENG+5);
+        TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
+        if(TMP_SC > SSX0(k, p7S_ATAC)) {
+          SSX0(k, p7S_ATAC) = TMP_SC;
+          SIX0(k, p7S_ATAC) = i-MIN_INTRON_LENG;
+        }
+      }
+    } //end loop over M 
+
+    MMX_SP(curr_i,M) = ESL_MAX(MMX_SP(prev_i,M-1) + TSC(p7P_MM,M-1),
+                       ESL_MAX(IMX_SP(prev_i,M-1) + TSC(p7P_IM,M-1),
+                       ESL_MAX(DMX_SP(prev_i,M-1) + TSC(p7P_DM,M-1),
+                               PMX_SP(prev_i,M-1) + TSC_P)))         + p7P_MSC_CODON(gm_fs, M, c3);
+
+    XMX_SP(i,p7G_Y) = ESL_MAX(XMX_SP(i,p7G_Y), MMX_SP(curr_i,M));
+
+    IMX_SP(curr_i,M) = -eslINFINITY;
+
+    DMX_SP(curr_i,M) = ESL_MAX(MMX_SP(curr_i,M-1) + TSC(p7P_MD,M-1),
+                               DMX_SP(curr_i,M-1) + TSC(p7P_DD,M-1));
+
+    PMX_SP(curr_i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = ESL_MAX(MMX_SP(curr_i,M), DMX_SP(curr_i,M));
+
+    XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                           XMX_SP(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
+
+ //    p7_gmx_sp_DumpRow(stdout, gx, i, curr_i, 0, gm_fs->M, p7_DEFAULT);
+  } // end loop over L
+  //printf("curr_i %d\n", curr_i);
+  gx->M = gm_fs->M;
+  gx->L = L;
+
+  return eslOK;
+
+}
+
+int
+p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx) 
+{
+
+  int i,j,k;
+  int donor;
+  float       *xmx  = gx->xmx;
+  int        **lookback = pli->sig_idx->lookback; 
+
+
+  for(i = gx->L; i > MIN_INTRON_LENG; i--) {
+
+    if(XMX_SP(i,p7G_Z) > XMX_SP(i,p7G_Y)) {
+      k = lookback[i][0];
+      donor = lookback[i][k];
+      if(i - donor > MAX_INTRON_INCL) {
+        j = i;
+        while(j > donor && XMX_SP(i,p7G_Z) > XMX_SP(j,p7G_Y)) j--;
+        if(j-donor == 0) {
+          printf("i %d j %d donor %d k %d j-donor %d\n", i, j, donor, k, j-donor);
+        }
+      }
+    }
+  } 
+
+} 
 
 int
 p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr)
@@ -436,20 +896,20 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
   while (sprv != p7T_S) {
     switch (sprv) {
     case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
-      if   (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      if   (XMX_SP(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
   
-      if      (XMX(i, p7G_C) < XMX(i-2, p7G_C) || XMX(i, p7G_C) < XMX(i-1, p7G_C))                        scur = p7T_C; 
-      if      (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
-      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
+      if      (XMX_SP(i, p7G_C) < XMX_SP(i-2, p7G_C) || XMX_SP(i, p7G_C) < XMX_SP(i-1, p7G_C))                        scur = p7T_C; 
+      if      (esl_FCompare_old(XMX_SP(i, p7G_C), XMX_SP(i-3, p7G_C) + sub_gm->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare_old(XMX_SP(i, p7G_C), XMX_SP(i,   p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
 
       break;
 
     case p7T_E:     /* E connects from any M state. k set here */
-      if (XMX(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+      if (XMX_SP(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
 
-      if      (esl_FCompare_old(XMX(i, p7G_E), MMX_SP(i,M), tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare_old(XMX(i, p7G_E), DMX_SP(i,M), tol) == eslOK) scur = p7T_D;
+      if      (esl_FCompare_old(XMX_SP(i, p7G_E), MMX_SP(i,M), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(XMX_SP(i, p7G_E), DMX_SP(i,M), tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
  
       k = M;
@@ -473,7 +933,7 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
       else if (esl_FCompare_old(MMX_SP(i,k), IMX_SP(i-3, k-1) + TSC(p7P_IM, k-1) + emit, tol) == eslOK) scur = p7T_I;
       else if (esl_FCompare_old(MMX_SP(i,k), DMX_SP(i-3, k-1) + TSC(p7P_DM, k-1) + emit, tol) == eslOK) scur = p7T_D;      
       else if (esl_FCompare_old(MMX_SP(i,k), PMX_SP(i-3, k-1) + TSC_P            + emit, tol) == eslOK) scur = p7T_P;
-      else if (esl_FCompare_old(MMX_SP(i,k), XMX(i-3, p7G_B)  + TSC(p7P_BM, k-1) + emit, tol) == eslOK) scur = p7T_B;      
+      else if (esl_FCompare_old(MMX_SP(i,k), XMX_SP(i-3, p7G_B)  + TSC(p7P_BM, k-1) + emit, tol) == eslOK) scur = p7T_B;      
       else ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
 
       k--; i-=3;
@@ -484,7 +944,7 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
       
       if      (esl_FCompare_old(DMX_SP(i,k), MMX_SP(i, k-1) + TSC(p7P_MD, k-1), tol) == eslOK) scur = p7T_M;
       else if (esl_FCompare_old(DMX_SP(i,k), DMX_SP(i, k-1) + TSC(p7P_DD, k-1), tol) == eslOK) scur = p7T_D;
-      else if (esl_FCompare_old(DMX_SP(i,k), XMX(i, p7G_B)  + TSC(p7P_BM, k-1), tol) == eslOK) scur = p7T_B;
+      else if (esl_FCompare_old(DMX_SP(i,k), XMX_SP(i, p7G_B)  + TSC(p7P_BM, k-1), tol) == eslOK) scur = p7T_B;
       else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
       k--;
       break;
@@ -505,14 +965,14 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
       break;
 
     case p7T_N:         /* N connects from S, N */
-      if (XMX(i, p7G_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
+      if (XMX_SP(i, p7G_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
       scur = ( (i == 0) ? p7T_S : p7T_N);
       break;
 
     case p7T_B:         /* B connects from N, J */
-      if (XMX(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+      if (XMX_SP(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
 
-      if      (esl_FCompare_old(XMX(i,p7G_B), XMX(i, p7G_N) + sub_gm->xsc[p7P_N][p7P_MOVE], tol) == eslOK) scur = p7T_N;
+      if      (esl_FCompare_old(XMX_SP(i,p7G_B), XMX_SP(i, p7G_N) + sub_gm->xsc[p7P_N][p7P_MOVE], tol) == eslOK) scur = p7T_N;
       else  ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
       break;
 
@@ -526,7 +986,7 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
 
       donor_idx = pli->sig_idx->lookback[i][k];
       if(donor_idx == -1) ESL_EXCEPTION(eslFAIL, "P at k=%d,i=%d not in lookback", k,i);     
-
+       printf("i %d, k %d donor_idx %d\n", i, k, donor_idx);
       /* nucleotides upstream of donor */
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[donor_idx-3])) t = sub_dsq[donor_idx-3];
       else                                                          t = p7P_MAXCODONS;

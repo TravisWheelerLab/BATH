@@ -319,11 +319,14 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
     if (strand) ESL_SWAP(s_i, e_i, int);
     len_i = e_i - s_i + 1 ; 
 
-    while(sh->srt[j_start]->seqidx != th->hit[i]->seqidx || 
-          sh->srt[j_start]->strand != strand) j_start++; 
+    while(j_start < sh->N && 
+          (sh->srt[j_start]->seqidx != th->hit[i]->seqidx || 
+          sh->srt[j_start]->strand != strand)) j_start++; 
 
     j = j_start;
-    while(sh->srt[j]->seqidx == th->hit[i]->seqidx &&
+    
+    while(j < sh->N &&
+          sh->srt[j]->seqidx == th->hit[i]->seqidx &&
           sh->srt[j]->strand == strand) {
 
       if(sh->srt[j]->duplicate) { j++; continue; }
@@ -351,7 +354,6 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
         sh->srt[j]->duplicate = TRUE; 
       }
       j++;
-      if(j == sh->N) break;
     }
   }
  
@@ -530,7 +532,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
     hit->dcl     = p7_domain_Create_empty();
     hit->dcl->tr = p7_trace_fs_Create();
 
-	if(sh->srt[i]->viterbi) hit->dcl->is_reported = TRUE;
+	if(sh->srt[i]->fwd) hit->dcl->is_reported = TRUE;
     
     hit->dcl->ihmm = sh->srt[i]->hmm_start;
     hit->dcl->jhmm = sh->srt[i]->hmm_end;
@@ -586,13 +588,13 @@ p7_splicehits_Dump(FILE *fp, SPLICE_SAVED_HITS *sh)
   SPLICE_HIT_INFO *hi;
 
   fprintf(fp, "  Saved Hit Info\n");
-  fprintf(fp, "  %10s %9s %5s %9s %9s %10s %10s %5s %5s %5s\n", "hit", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "vit", "dup", "seed");
+  fprintf(fp, "  %10s %9s %5s %9s %9s %10s %10s %5s %5s %5s\n", "hit", "SeqIdx", "Strand", "hmm_start", "hmm_end", "seq_start", "seq_end", "fwd", "dup", "seed");
   for(i = 0; i < sh->N ; i++) {
     if(sh->is_sorted) hi = sh->srt[i];
     else              hi = &sh->unsrt[i];
  
     fprintf(fp, "  %10d %9" PRId64 " %5s %9d %9d %10" PRId64 " %10" PRId64 " %5s %5s %5s\n", 
-    i+1, hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->viterbi? "TRUE" : "FALSE"), (hi->duplicate? "TRUE" : "FALSE"), (hi->is_seed? "TRUE" : "FALSE"));
+    i+1, hi->seqidx, (hi->strand ? "-" : "+"), hi->hmm_start, hi->hmm_end, hi->seq_start, hi->seq_end, (hi->fwd? "TRUE" : "FALSE"), (hi->duplicate? "TRUE" : "FALSE"), (hi->is_seed? "TRUE" : "FALSE"));
   
   }
 

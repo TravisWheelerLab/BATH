@@ -118,7 +118,7 @@ static ESL_OPTIONS options[] = {
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                            7 },
   { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,   NULL,"--max",         "promote windows to FS Fwd if a coresponding ORF has P <= F4",                            7 },
   { "--S1",           eslARG_REAL,   "0.05",    NULL,        NULL,      NULL,   "--splice","--max",    "splicing seed threshold, keep SSV hits w/ P <= S1",                           7 },
-  { "--S2",           eslARG_REAL,   "1e-4",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                         7 },
+  { "--S2",           eslARG_REAL,   "1e-3",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                         7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                            7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                               7 },
   { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--nofs",        "send all potential hits to the frameshift aware pipeline",                    7 },

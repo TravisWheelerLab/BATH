@@ -86,7 +86,7 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
   pli->S1     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S1")) : 0.05);
-  pli->S2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S2")) : 0.1); 
+  pli->S2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--S2")) : 0.001); 
  
   if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
   else                                            pli->do_biasfilter = TRUE;
@@ -118,8 +118,8 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   if ((pli->gbwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, 0         )) == NULL) goto ERROR;
 
   pli->vit = NULL;
-  if ((pli->vit = p7_gmx_fs_Create(M_hint/3, L_hint/3, L_hint/3, p7P_SPLICE)) == NULL) goto ERROR;
-   
+  if ((pli->vit = p7_gmx_sp_Create(M_hint/3, L_hint/3, L_hint/3)) == NULL) goto ERROR;
+  
   pli->sig_idx = p7_splicepipline_CreateIndex(M_hint/3, L_hint/3);
 
   pli->bg = NULL;

@@ -670,8 +670,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
       j = d;
  
       /* We have a region i..j to evaluate. */
-      if(ddef->splice) p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, (p7P_CODONS+p7P_SPLICE));
-      else             p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);             
+      p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);             
       p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);
       ddef->nregions++;
       

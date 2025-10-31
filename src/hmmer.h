@@ -253,7 +253,6 @@ enum p7p_rsc_codon {
   p7P_C5 = 4,
 };
 #define p7P_CODONS 5
-#define p7P_SPLICE 1
 
 enum p7p_rsc_indels {
   p7P___X   = 0,  // two deletes then one nucleotide
@@ -606,17 +605,6 @@ enum p7g_codons_e {
 };
 #define p7G_NSCELLS_FS 8
 
-enum p7g_splicecells_e {
-  p7G_P = 3,
-};
-#define p7G_NSCELLS_SP 4
-
-enum p7g_fssplicecells_e {
-  p7G_P2 = 8,
-};
-#define p7G_NSCELLS_SP_FS 9
-
-
 enum p7g_xcells_e {
   p7G_E  = 0,
   p7G_N  = 1,
@@ -625,6 +613,14 @@ enum p7g_xcells_e {
   p7G_C  = 4
 };
 #define p7G_NXCELLS 5
+
+enum p7g_splicecells_e {
+  p7G_P = 3,
+  p7G_Y = 2, // Maximum M and D for a given row - repurpose unsued J
+  p7G_Z = 5  // Maximum P for a given row
+};
+#define p7G_NSCELLS_SP 4
+#define p7G_NXCELLS_SP 6
 
 
 typedef struct p7_gmx_s {
@@ -669,12 +665,7 @@ typedef struct p7_gmx_s {
 #define IMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_I])
 #define DMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_D])
 #define PMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_P])
-
-/* frameshift and spliced matrix */
-#define MMX_SP_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_M   + (c)]) 
-#define IMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_I])
-#define DMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_D])
-#define PMX_SP_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_SP_FS + p7G_P2])
+#define XMX_SP(i,s) (xmx[(i)     * p7G_NXCELLS_SP + (s)])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
@@ -1850,16 +1841,18 @@ extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int
 
 /* p7_gmx_fs.c */
 extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int allocC);
+extern P7_GMX *p7_gmx_sp_Create (int allocM, int allocL, int allocLx);
 extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int M, int L, int Lx, int C);
+extern int     p7_gmx_sp_GrowTo (P7_GMX *gx, int M, int L, int Lx);
 extern size_t  p7_gmx_fs_Sizeof (P7_GMX *gx);
 extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags, int scientific);
 extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 extern int     p7_gmx_fs_DumpWindow_Scientific(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
-extern int     p7_gmx_fs_sp_Dump(FILE *ofp, P7_GMX *gx, int flags);
-extern int     p7_gmx_fs_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int flags);
 extern int     p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int kend, int flags);
 extern int     p7_gmx_sp_Dump(FILE *ofp, P7_GMX *gx, int flags);
 extern int     p7_gmx_sp_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
+extern int     p7_gmx_sp_DumpHeader(FILE *ofp, P7_GMX *gx, int kstart, int kend, int flags);
+extern int     p7_gmx_sp_DumpRow(FILE *ofp, P7_GMX *gx, int itrue, int imx, int kstart, int kend, int flags);
 
 /* p7_hit.c */
 extern P7_HIT *p7_hit_Create_empty();

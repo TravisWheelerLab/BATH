@@ -114,7 +114,7 @@ p7_gmx_sp_Create(int allocM, int allocL, int allocLx)
 
   /* level 2: row pointers, 0.1..L; and dp cell memory  */
   ESL_ALLOC(gx->dp,      sizeof(float *) * (allocL+1));
-  ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocLx+1) * p7G_NXCELLS_SP);
+  ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocLx+1) * p7G_NXCELLS);
   ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+1) * (allocM+1) *  p7G_NSCELLS_SP);
   
   /* Set the row pointers. */
@@ -280,7 +280,7 @@ p7_gmx_sp_GrowTo(P7_GMX *gx, int M, int L, int Lx)
   /* must we reallocate the row pointers? */
   if (Lx >= gx->allocR)
   {
-    ESL_RALLOC(gx->xmx, p, sizeof(float)   * (Lx+1) * p7G_NXCELLS_SP);
+    ESL_RALLOC(gx->xmx, p, sizeof(float)   * (Lx+1) * p7G_NXCELLS);
     gx->allocR = Lx+1;		/* allocW will also get set, in the do_reset block */
   }
   
@@ -730,7 +730,7 @@ p7_gmx_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, in
   fprintf(ofp, "      ");
   for (k = kstart; k <= kend; k++)  fprintf(ofp, "%*.*s ", width, width, "----------");
   if (! (flags & p7_HIDE_SPECIALS))
-    for (x = 0; x < p7G_NXCELLS_SP; x++) fprintf(ofp, "%*.*s ", width, width, "----------");
+    for (x = 0; x < p7G_NXCELLS; x++) fprintf(ofp, "%*.*s ", width, width, "----------");
   fprintf(ofp, "\n");
 
   /* DP matrix data */
@@ -746,9 +746,9 @@ p7_gmx_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, in
 
     if (! (flags & p7_HIDE_SPECIALS))
     {
-      for (x = 0;  x < p7G_NXCELLS_SP; x++)
+      for (x = 0;  x < p7G_NXCELLS; x++)
       {
-        val = gx->xmx[  i * p7G_NXCELLS_SP + x];
+        val = gx->xmx[  i * p7G_NXCELLS + x];
         if (flags & p7_SHOW_LOG) val = log(val);
         fprintf(ofp, "%*.*f ", width, precision, val);
       }
@@ -799,7 +799,7 @@ p7_gmx_sp_DumpHeader(FILE *ofp, P7_GMX *gx, int kstart, int kend, int flags)
   fprintf(ofp, "      ");
   for (k = kstart; k <= kend; k++)  fprintf(ofp, "%*.*s ", width, width, "----------");
   if (! (flags & p7_HIDE_SPECIALS))
-    for (x = 0; x < p7G_NXCELLS_SP; x++) fprintf(ofp, "%*.*s ", width, width, "----------");
+    for (x = 0; x < p7G_NXCELLS; x++) fprintf(ofp, "%*.*s ", width, width, "----------");
   fprintf(ofp, "\n");
 
   return eslOK;
@@ -824,9 +824,9 @@ p7_gmx_sp_DumpRow(FILE *ofp, P7_GMX *gx, int itrue, int imx, int kstart, int ken
 
   if (! (flags & p7_HIDE_SPECIALS))
   {
-    for (x = 0; x < p7G_NXCELLS_SP; x++)
+    for (x = 0; x < p7G_NXCELLS; x++)
     {
-      val = gx->xmx[  itrue * p7G_NXCELLS_SP + x];
+      val = gx->xmx[  itrue * p7G_NXCELLS + x];
       if (flags & p7_SHOW_LOG) val = log(val);
         fprintf(ofp, "%*.*f ", width, precision, val);
     }

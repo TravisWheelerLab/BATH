@@ -615,12 +615,9 @@ enum p7g_xcells_e {
 #define p7G_NXCELLS 5
 
 enum p7g_splicecells_e {
-  p7G_P = 3,
-  p7G_Y = 2, // Maximum M and D for a given row - repurpose unsued J
-  p7G_Z = 5  // Maximum P for a given row
+  p7G_P = 3
 };
 #define p7G_NSCELLS_SP 4
-#define p7G_NXCELLS_SP 6
 
 
 typedef struct p7_gmx_s {
@@ -665,7 +662,7 @@ typedef struct p7_gmx_s {
 #define IMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_I])
 #define DMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_D])
 #define PMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_P])
-#define XMX_SP(i,s) (xmx[(i)     * p7G_NXCELLS_SP + (s)])
+#define XMX_SP(i,s) (xmx[(i)     * p7G_NXCELLS    + (s)])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])

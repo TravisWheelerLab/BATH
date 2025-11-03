@@ -188,7 +188,7 @@ typedef struct _splice_info
 #define SIX0(k, signal)             (index[(k)][(signal)])                                                       //xxxxXXX
 #define SIX1(k, signal, nuc1)       (index[(k)][SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + signal])           //XxxxxXX
 #define SIX2(k, signal, nuc1, nuc2) (index[(k)][SPLICE_OFFSET_2 + (4*nuc1+nuc2) * p7S_SPLICE_SIGNALS + signal]) //XXxxxxX
-
+ 
 #define SSX0(k, signal)             (score[(k)][signal])                                                        //xxxxXXX
 #define SSX1(k, signal, nuc1)       (score[(k)][SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + signal])          //XxxxxXX
 #define SSX2(k, signal, nuc1, nuc2) (score[(k)][SPLICE_OFFSET_2 + (4*nuc1+nuc2) * p7S_SPLICE_SIGNALS + signal]) //XXxxxxX
@@ -294,7 +294,7 @@ extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 
 /* p7_spliceviterbi.c */
 extern int p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
-extern int p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx);
+extern int p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, int **remove_idx, int *idx_size);
 extern int p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
 extern int p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr); 
 

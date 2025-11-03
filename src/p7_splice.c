@@ -573,8 +573,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   fflush(stdout);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
+printf("RECOVER\n");
+p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
@@ -598,8 +598,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-//printf("FIRST PATH \n");
-//p7_splicepath_Dump(stdout,orig_path);
+printf("FIRST PATH \n");
+p7_splicepath_Dump(stdout,orig_path);
 //p7_splicepath_DumpScores(stdout,orig_path,graph);
 //fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
@@ -609,8 +609,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     
  
 
-//printf("FINAL PATH\n");
-//p7_splicepath_Dump(stdout,final_path);
+printf("FINAL PATH\n");
+p7_splicepath_Dump(stdout,final_path);
        //if(!path->frameshift)
       if(final_path->path_len > 1)
         p7_splice_AlignPath(graph, final_path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info, &success);
@@ -1010,6 +1010,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   P7_HMM          *sub_hmm;
   P7_HMM          *hmm;
   P7_FS_PROFILE   *gm_fs;
+  P7_FS_PROFILE   *sub_fs_model;
   ESL_GENCODE     *gcode;
   ESL_SQ          *sub_seq;
   SPLICE_PIPELINE *pli;
@@ -1177,15 +1178,20 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 int 
 assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH *path1, SPLICE_PATH *path2, SPLICE_PATH *path3, P7_HMM *sub_hmm, ESL_SQ *path_seq, int full_intron, int *step)
 {
-  int i, s; 
-  int seq_start;
-  int seq_len;
-  int upstream_confirmed;
-  int downstream_confirmed;
-  int split_confirmed;
+  int  i, s; 
+  int  seq_start;
+  int  seq_len;
+  int  upstream_confirmed;
+  int  downstream_confirmed;
+  int  split_confirmed;
+  int  idx_size;
+  int *remove_idx;
+  P7_FS_PROFILE *sub_fs_model;
   ESL_SQ *sub_seq;
   SPLICE_PATH *tmp_path;
-    
+  
+  remove_idx = NULL;
+ 
   s = *step;
 
   upstream_confirmed  = confirm_overlap(path1, 0, path3, s-1, p7_CONFIRM_START);
@@ -1285,9 +1291,6 @@ assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH *path1, SPLICE_PATH *path2, S
       s++;
     } 
     else {
-      //TODO Figure a way to cut very long introns up in to smalled parts 
-
-
 
       seq_start = llabs(path3->iali[s-1] - path_seq->start);
       seq_len   = llabs(path3->jali[s]   - path3->iali[s-1]) + 1;
@@ -1304,6 +1307,15 @@ printf("seq_len %d M %d\n", seq_len, sub_hmm->M);
       sub_seq->start = path3->iali[s-1];
       sub_seq->end   = path3->jali[s];
 
+      sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
+      p7_ProfileConfig_fs(sub_hmm, info->pli->bg, info->gcode, sub_fs_model, sub_seq->n, p7_UNIGLOBAL);
+
+      p7_gmx_sp_GrowTo(info->pli->vit, sub_fs_model->M, MIN_INTRON_LENG+5, sub_seq->n);      
+      p7_splicepipline_GrowIndex(info->pli->sig_idx, sub_fs_model->M, sub_seq->n);
+            
+      p7_spliceviterbi_parser_semiglobal(info->pli, sub_seq->dsq, info->gcode, sub_seq->n, sub_fs_model, info->pli->vit);
+      p7_splicevitebi_exon_definition(info->pli, info->pli->vit, &remove_idx, &idx_size);
+       
       tmp_path = p7_splice_AlignExons(info->pli, sub_hmm, info->gm_fs, info->pli->bg, sub_seq, info->gcode, 0, 0);
       
       for(i = 0; i < tmp_path->path_len; i++) {
@@ -1326,7 +1338,8 @@ printf("seq_len %d M %d\n", seq_len, sub_hmm->M);
   }
  
   *step = s;
-
+  
+  if(remove_idx != NULL) free(remove_idx);
   return eslOK;
 }
 

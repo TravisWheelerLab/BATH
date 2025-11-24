@@ -11,8 +11,7 @@ Select the correct binaries from the [releases section of the BATH GitHub page](
    % git clone https://github.com/TravisWheelerLab/BATH
    % cd BATH
    % git clone https://github.com/TravisWheelerLab/easel
-   % cd easel
-   % cd ..
+   % cd easel; git checkout BATH; cd ..
    % autoconf
 ```
 

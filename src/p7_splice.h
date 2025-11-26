@@ -104,8 +104,12 @@ typedef struct _splice_site_idx
   int **lookback;
   int *lookback_mem;
 
+  int   *parser_index;
+  float *parser_scores;
+
   int alloc_M;
   int alloc_L;
+  int alloc_Lx;
 
 } SPLICE_SITE_IDX;
 
@@ -218,6 +222,9 @@ typedef struct _splice_info
 #define MIN_AMINO_OVERLAP         10       /*amino acid splice site window */   
 #define ALIGNMENT_EXT             10       /*amino extetion at start and end of path seq for final alignment */
 
+/* SPLICE_SITE_IDX modes */
+#define PARSER_MODE    0
+#define ALIGNMENT_MODE 1
 
 enum p7_confirm_e {
   p7_CONFIRM_START = 0,
@@ -287,16 +294,20 @@ extern void p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
-extern SPLICE_SITE_IDX* p7_splicepipline_CreateIndex(int M_hint, int L_hint);
-extern int p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L);
+extern SPLICE_SITE_IDX* p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint);
+extern int p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int Lx);
 extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 
 
 /* p7_spliceviterbi.c */
-extern int p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
-extern int p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, int **remove_idx, int *idx_size);
+extern int p7_spliceviterbi_rightparser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
+extern int p7_spliceviterbi_leftparser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
+extern int p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, P7_FS_PROFILE *sub_gm, int **remove_idx, int *idx_size);
 extern int p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
 extern int p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr); 
+
+extern int p7_spliceviterbi_lefttranslated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx);
+extern int p7_splicevitebi_lefttranslated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

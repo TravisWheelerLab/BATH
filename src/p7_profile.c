@@ -131,7 +131,7 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
 }
 
 /* Function:  p7_profile_fs_Create()
- * Synopsis:  Allocates a profile.
+ * Synopsis:  Allocates a frameshift aware profile.
  *
  * Purpose:   Allocates for a profile of up to <M> nodes, for digital
  *            alphabet <abc>.
@@ -245,6 +245,103 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
   p7_profile_fs_Destroy(gm_fs);
   return NULL;
 }
+
+
+/* Function:  p7_profile_sp_Create()
+ * Synopsis:  Allocates a minimal frameshist aware alignment profile.
+ *
+ * Purpose:   Allocates for a minimal memory profile of up to <M> nodes, 
+ *            for digital alphabet <abc> to be used only for spliced viterbi.
+ *
+ *            Because this function might be in the critical path (in
+ *            hmmscan, for example), we leave much of the model
+ *            unintialized, including scores and length model
+ *            probabilities. The <p7_ProfileConfig()> call is what
+ *            sets these.
+ *
+ *            The alignment mode is set to <p7_NO_MODE>.  The
+ *            reference pointer <gm->abc> is set to <abc>.
+ *
+ * Returns:   a pointer to the new profile.
+ *
+ * Throws:    <NULL> on allocation error.
+ *
+ * Xref:      STL11/125.
+ */
+P7_FS_PROFILE *
+p7_profile_sp_Create(int allocM, const ESL_ALPHABET *abc)
+{
+  P7_FS_PROFILE *gm_fs = NULL;
+  int         x;// y, z;
+  int         status;
+
+  /* level 0 */
+  ESL_ALLOC(gm_fs, sizeof(P7_FS_PROFILE));
+  gm_fs->tsc       = NULL;
+  gm_fs->rsc       = NULL;
+  gm_fs->codons    = NULL;
+  gm_fs->indel_pos = NULL;
+  gm_fs->rf        = NULL;
+  gm_fs->mm        = NULL;
+  gm_fs->cs        = NULL;
+  gm_fs->consensus = NULL;
+    
+
+  /* level 1 */
+  ESL_ALLOC(gm_fs->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
+  ESL_ALLOC(gm_fs->rsc,       sizeof(float *)   * (allocM+1));
+  gm_fs->rsc[0]       = NULL;
+
+  /* level 2 */
+  ESL_ALLOC(gm_fs->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS + abc->Kp));
+
+  for (x = 1; x <= allocM; x++)   
+    gm_fs->rsc[x] = gm_fs->rsc[0] + x * (p7P_MAXCODONS + abc->Kp);
+
+  /* Initialize some edge pieces of memory that are never used,
+   * and are only present for indexing convenience. */
+  esl_vec_FSet(gm_fs->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
+  if (allocM > 1) {
+    p7P_TSC(gm_fs, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
+    p7P_TSC(gm_fs, 1, p7P_DD) = -eslINFINITY;
+  }
+
+  for (x = 0; x < (p7P_MAXCODONS + abc->Kp); x++) 
+    p7P_MSC_CODON(gm_fs, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
+  
+  /* Set remaining info  */
+  gm_fs->mode             = p7_NO_MODE;
+  gm_fs->L                = 0;
+  gm_fs->allocM           = allocM;
+  gm_fs->M                = 0;
+  gm_fs->max_length       = -1;
+  gm_fs->nj               = 0.0f;
+  gm_fs->fs               = 0.0f;
+
+  gm_fs->roff             = -1;
+  gm_fs->eoff             = -1;
+  gm_fs->offs[p7_MOFFSET] = -1;
+  gm_fs->offs[p7_FOFFSET] = -1;
+  gm_fs->offs[p7_POFFSET] = -1;
+
+  gm_fs->name             = NULL;
+  gm_fs->acc              = NULL;
+  gm_fs->desc             = NULL;
+
+  for (x = 0; x < p7_NEVPARAM; x++) gm_fs->evparam[x] = p7_EVPARAM_UNSET;
+  for (x = 0; x < p7_NCUTOFFS; x++) gm_fs->cutoff[x]  = p7_CUTOFF_UNSET;
+  for (x = 0; x < p7_MAXABET;  x++) gm_fs->compo[x]   = p7_COMPO_UNSET;
+
+  gm_fs->abc         = abc;
+
+  return gm_fs;
+
+ ERROR:
+  p7_profile_fs_Destroy(gm_fs);
+  return NULL;
+}
+
+
 
 /* Function:  p7_profile_Copy()
  * Synopsis:  Copy a profile.
@@ -589,7 +686,7 @@ p7_profile_fs_Destroy(P7_FS_PROFILE *gm)
 int
 p7_profile_IsLocal(const P7_PROFILE *gm)
 {
-  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_LGLOBAL) return TRUE;
+  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL) return TRUE;
   return FALSE;
 }
 
@@ -601,7 +698,7 @@ p7_profile_IsLocal(const P7_PROFILE *gm)
 int
 p7_fs_profile_IsLocal(const P7_FS_PROFILE *gm)
 {
-  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL || gm->mode == p7_LGLOBAL) return TRUE;
+  if (gm->mode == p7_UNILOCAL || gm->mode == p7_LOCAL) return TRUE;
   return FALSE;
 }
 
@@ -613,7 +710,7 @@ p7_fs_profile_IsLocal(const P7_FS_PROFILE *gm)
 int
 p7_profile_IsMultihit(const P7_PROFILE *gm)
 {
-  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL || gm->mode == p7_GLOBAL) return TRUE;
+  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL) return TRUE;
   return FALSE;
 }
 
@@ -625,7 +722,7 @@ p7_profile_IsMultihit(const P7_PROFILE *gm)
 int
 p7_fs_profile_IsMultihit(const P7_FS_PROFILE *gm)
 {
-  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL  || gm->mode == p7_GLOBAL) return TRUE;
+  if (gm->mode == p7_LOCAL || gm->mode == p7_GLOCAL ) return TRUE;
    return FALSE;
 }
 

@@ -63,12 +63,10 @@
 #define p7_GLOCAL    2    /* multihit glocal: "ls" mode   */
 #define p7_UNILOCAL  3    /* unihit local: "sw" mode      */
 #define p7_UNIGLOCAL 4    /* unihit glocal: "s" mode      */
-#define p7_GLOBAL    5      
-#define p7_UNIGLOBAL 6
-#define p7_LGLOBAL   7   
+#define p7_UNIGLOBAL 5
 
 #define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL ||  mode == p7_UNIGLOBAL)
-#define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL || mode == p7_GLOBAL)
+#define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL)
 
 #define p7_NEVPARAM 7  /* number of statistical parameters stored in models                      */
 #define p7_NCUTOFFS 6  /* number of Pfam score cutoffs stored in models                          */
@@ -615,6 +613,8 @@ enum p7g_xcells_e {
 #define p7G_NXCELLS 5
 
 enum p7g_splicecells_e {
+  p7G_maxM = 0,
+  p7G_maxP = 1,
   p7G_P = 3
 };
 #define p7G_NSCELLS_SP 4
@@ -1691,6 +1691,7 @@ extern int   p7_ILogsum(int s1, int s2);
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
 extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode);
+extern int p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int global_start, int gloabl_start);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
@@ -1977,6 +1978,7 @@ extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
 /* p7_profile.c */
 extern P7_PROFILE *p7_profile_Create(int M, const ESL_ALPHABET *abc);
 extern P7_FS_PROFILE *p7_profile_fs_Create(int M, const ESL_ALPHABET *abc);
+extern P7_FS_PROFILE *p7_profile_sp_Create(int M, const ESL_ALPHABET *abc);
 extern P7_PROFILE *p7_profile_Clone(const P7_PROFILE *gm);
 extern P7_FS_PROFILE *p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);

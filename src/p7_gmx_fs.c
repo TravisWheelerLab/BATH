@@ -726,7 +726,7 @@ p7_gmx_sp_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, in
   /* Header */
   fprintf(ofp, "     ");
   for (k = kstart; k <= kend;  k++) fprintf(ofp, "%*d ", width, k);
-  if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s %*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "Y", width, "B", width, "C", width, "Z");
+  if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
   fprintf(ofp, "      ");
   for (k = kstart; k <= kend; k++)  fprintf(ofp, "%*.*s ", width, width, "----------");
   if (! (flags & p7_HIDE_SPECIALS))
@@ -795,7 +795,7 @@ p7_gmx_sp_DumpHeader(FILE *ofp, P7_GMX *gx, int kstart, int kend, int flags)
   /* Header */
   fprintf(ofp, "     ");
   for (k = kstart; k <= kend;  k++) fprintf(ofp, "%*d ", width, k);
-  if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s %*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "Y", width, "B", width, "C", width, "Z");
+  if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
   fprintf(ofp, "      ");
   for (k = kstart; k <= kend; k++)  fprintf(ofp, "%*.*s ", width, width, "----------");
   if (! (flags & p7_HIDE_SPECIALS))

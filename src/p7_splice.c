@@ -915,8 +915,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
         edge->splice_score   = 0.;
         edge->bypass_checked = FALSE;
         edge->jump_edge      = FALSE; 
-        /* If hits overlap, find the minimum lost socre to remove the overlap */
-        
+        /* If hits overlap, find the minimum lost score to remove the overlap */
         p7_spliceedge_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
   
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
@@ -1467,6 +1466,117 @@ p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE 
         }
       }
 
+      /* If this is the first step in path the i coords are set my the first M state at
+       * trace postion y, otherwise they are set by the P state at trace postion y-1 */
+      ret_path->node_id[step_cnt] = -1;
+      if(step_cnt == 0) {
+        ret_path->iali[step_cnt] = tr->i[y] - tr->c[y] + 1; 
+        ret_path->ihmm[step_cnt] = tr->k[y];        
+      }
+      else {
+        /* Determine which splice codon type we have */
+        ret_path->ihmm[step_cnt] = tr->k[y-1];
+        if( tr->c[y-1] == 0)
+          ret_path->iali[step_cnt] = tr->i[y-1] - 2; 
+        else if( tr->c[y-1] == 1)
+          ret_path->iali[step_cnt] = tr->i[y-1] - 1;
+        else
+          ret_path->iali[step_cnt] = tr->i[y-1];
+      }
+
+      ret_path->jhmm[step_cnt] = tr->k[z];
+
+      if(step_cnt == ret_path->path_len-1) {
+        ret_path->jali[step_cnt]   = tr->i[z];
+      }
+      else {
+        /* Determine which splice codon type we have */
+        if( tr->c[z+1] == 0)
+          ret_path->jali[step_cnt]   = tr->i[z];
+        else if( tr->c[z+1] == 1)
+          ret_path->jali[step_cnt]   = tr->i[z]+1;
+        else if( tr->c[z+1] == 2)
+          ret_path->jali[step_cnt]   = tr->i[z]+2;
+      }
+
+      step_cnt++;
+
+      start_new = FALSE;
+    }
+    
+    z++;
+    if(tr->st[z] == p7T_M) start_new = TRUE;
+
+  }
+
+  p7_profile_fs_Destroy(sub_fs_model);
+  p7_trace_fs_Destroy(tr);
+
+  return ret_path;
+
+}
+
+SPLICE_PATH*
+p7_splice_AlignExons2(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int* remove_idx, int remove_cnt)
+{
+  int         y, z;
+  int         z1, z2;
+  int         intron_cnt;
+  int         step_cnt;
+  int         start_new;
+  P7_TRACE     *tr;
+  P7_FS_PROFILE *sub_fs_model;
+  SPLICE_PATH   *ret_path;
+
+
+  sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
+  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, ali_seq->n, p7_UNIGLOBAL);
+  
+  p7_gmx_sp_GrowTo(pli->vit, sub_fs_model->M, ali_seq->n, ali_seq->n);
+  tr = p7_trace_fs_Create();
+
+  if(sub_hmm->fs > 0.0) {
+    p7_splicepipline_GrowIndex(pli->sig_idx, sub_fs_model->M, ali_seq->n, ALIGNMENT_MODE);
+    p7_spliceviterbi_translated_semiglobal2(pli, ali_seq->dsq, gcode, ali_seq->n, sub_fs_model, pli->vit, remove_idx, remove_cnt);
+    p7_splicevitebi_translated_semiglobal_trace(pli, ali_seq->dsq, ali_seq->n, gcode, sub_fs_model, pli->vit, tr);
+  }
+  else {
+    p7_splicepipline_GrowIndex(pli->sig_idx, sub_fs_model->M, ali_seq->n, ALIGNMENT_MODE);
+    p7_spliceviterbi_translated_semiglobal2(pli, ali_seq->dsq, gcode, ali_seq->n, sub_fs_model, pli->vit, remove_idx, remove_cnt);
+    p7_splicevitebi_translated_semiglobal_trace(pli, ali_seq->dsq, ali_seq->n, gcode, sub_fs_model, pli->vit, tr);
+  }
+  //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
+
+  /* Find number of introns in trace */
+  intron_cnt = 0;
+  for(z = 0; z < tr->N; z++)
+    if(tr->st[z] == p7T_P) intron_cnt++;
+
+  ret_path = p7_splicepath_Create(intron_cnt+1);
+
+  /* Find first M state - start of first hit */
+  for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
+
+  /* Find last M state state - end of last hit */
+  for(z2 = tr->N-1; z1 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
+
+  step_cnt = 0;
+  start_new = TRUE;
+
+  z = z1;
+  while(z <= z2) {
+
+    if(start_new) {
+      
+      /* Save z value - currently set to fist M state in exon */
+      y = z;
+
+      /*Find end of exon */
+      while(tr->st[z] != p7T_P && tr->st[z] != p7T_E) z++;
+      if(tr->st[z] == p7T_E) while(tr->st[z] != p7T_M) z--;
+      else z--;
+  
+      
       /* If this is the first step in path the i coords are set my the first M state at
        * trace postion y, otherwise they are set by the P state at trace postion y-1 */
       ret_path->node_id[step_cnt] = -1;

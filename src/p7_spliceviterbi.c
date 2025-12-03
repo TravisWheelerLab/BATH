@@ -437,8 +437,10 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
     lookback[0][k] = -1;
   
   for(i = 0; i <= L; i++) { 
-    parser_index[i*2]   = -1;
-    parser_index[i*2+1] = -1;
+    parser_index[i*2]    = -1;
+    parser_index[i*2+1]  = -1;
+    parser_scores[i*2]   = -eslINFINITY;
+    parser_scores[i*2+1] = -eslINFINITY;
   }
 
   for(k = 0; k <  M; k++) {
@@ -1751,7 +1753,7 @@ p7_spliceviterbi_leftparser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 }
 
 int
-p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, P7_FS_PROFILE *sub_gm, int **remove_idx, int *idx_size) 
+p7_splicevitebi_intron_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, P7_FS_PROFILE *sub_gm, int **remove_idx, int *idx_size) 
 {
 
   int i,j,k;
@@ -1769,7 +1771,7 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, P7_FS_PROFILE 
   r_idx[1]   = gx->L;
  
   /* First find end of alignment */ 
-  for(j = gx->L; j > MIN_INTRON_LENG; j--) {
+  for(j = gx->L; j > 0; j--) {
     if   (XMX_SP(j,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", j);
     if   (XMX_SP(j, p7G_C) < XMX_SP(j-2, p7G_C) || XMX_SP(j, p7G_C) < XMX_SP(j-1, p7G_C)) continue;  
     
@@ -1777,21 +1779,21 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, P7_FS_PROFILE 
   }
   
   r_idx[0]   = j;
-//  printf("i %d j %d\n",r_idx[0], r_idx[1]);
-  for( ; j > MIN_INTRON_LENG; j--) {
+  printf("i %d j %d\n",r_idx[0], r_idx[1]);
+  for( ; j > 0; j--) {
 
-    if(parser_scores[j*2+1] > parser_scores[j*2]) {
-      k = parser_index[j*2];
+    if(parser_scores[j*2+1] > parser_scores[j*2]) { // if max P is greater than max M
+      k = parser_index[j*2]; 
       donor = parser_index[j*2+1];
-      if(j - donor > MAX_INTRON_INCL) {
+      if(j - donor > MAX_INTRON_INCL) { // If recorded donor site is > MAX_INTRON_INCL away
         i = j;
         while(i > donor && parser_scores[j*2+1] > parser_scores[i*2]) i--;
-        if(i-donor == 0) {
+        if(i-donor == 0) {  // If no max M from j to donor was greater then max P at j
           ESL_REALLOC(r_idx, sizeof(int) * (i_size+1) * 2);
           r_idx[i_size*2]   = i;
-         r_idx[i_size*2+1] = j; 
+          r_idx[i_size*2+1] = j; 
           i_size++;
-          //printf("i %d j %d k %d\n",r_idx[0], r_idx[1], k);
+          printf("i %d j %d k %d\n",r_idx[0], r_idx[1], k);
           j = i;
         }
       }
@@ -1807,6 +1809,217 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, P7_GMX *gx, P7_FS_PROFILE 
     if(r_idx != NULL) free(r_idx);
     return status;
 } 
+
+int
+p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX *gx, P7_FS_PROFILE *sub_gm, ESL_SQ *sub_seq, int **exon_idx, int *idx_size) 
+{
+
+  int i,j,k,s;
+  int tmp_j;
+  int step;
+  int true_i, true_j;
+  int donor;
+  int i_size;
+  int a_size;
+  float tol = 1e-5;
+  float *xmx = gx->xmx;
+  float *parser_scores = pli->sig_idx->parser_scores;
+  int   *parser_index  = pli->sig_idx->parser_index; 
+  int   *e_idx = NULL;
+  int status;
+
+  ESL_ALLOC(e_idx, sizeof(int) * path->path_len * 4);
+  a_size = path->path_len * 2;
+
+  /* First find end of alignment */ 
+  for(j = gx->L; j > MIN_INTRON_LENG; j--) {
+    if   (XMX_SP(j,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", j);
+    if   (XMX_SP(j, p7G_C) < XMX_SP(j-2, p7G_C) || XMX_SP(j, p7G_C) < XMX_SP(j-1, p7G_C)) continue;  
+    
+    if (esl_FCompare_old(XMX_SP(j, p7G_C), XMX_SP(j, p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK) break;
+  }
+
+  /* Find which step in path we are entering at */  
+  if(path->revcomp) true_j = sub_seq->n - j + sub_seq->end;
+  else              true_j = sub_seq->start + j - 1;
+
+  step = path->path_len-1;
+  for(s = 1; s < path->path_len; s++) {
+    if(path->revcomp) {
+      if(path->iali[s] < true_j) {
+        step = s-1; break;
+      }
+    }
+    else {
+      if(path->iali[s] > true_j) {
+        step = s-1; break;
+      }
+    }
+  }
+
+  //printf("true_j %d\n", true_j);
+  //printf("j %d\n", j);
+  e_idx[1]   = j;
+  i_size = 0;  
+  i = j;
+  for( i = j; i > MIN_INTRON_LENG; i--) {
+
+    /*If the max P if greater than the max M */
+    if(parser_scores[i*2+1] > parser_scores[i*2]) {
+      k = parser_index[i*2];
+      donor = parser_index[i*2+1];
+      /* If the donor site for the max P is more than MAX_INTRON_INCL away */
+      if(i - donor > MAX_INTRON_INCL) {
+
+        /* Check if maxP at j is greater than all max M up to donor*/
+        j = i;
+        while(j > donor && parser_scores[i*2+1] > parser_scores[j*2]) j--;
+
+        if(j == donor) {
+
+          /* Grow exon index if needed */
+          if((i_size+2) * 2 > a_size) {
+            ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
+            a_size = (i_size+2) * 2;
+          }
+
+         /* start of previous exon region (from last to first) */
+          e_idx[i_size*2] = i;
+          /* start of next exon region (from last to first) */
+          e_idx[(i_size+1)*2+1] = j; 
+    //    printf("i %d j %d\n", i, j);  
+          if(path->revcomp) {
+            true_i = sub_seq->n - i + sub_seq->end;
+            true_j = sub_seq->n - j + sub_seq->end;
+            //printf("true_i %d true_j %d\n", true_i, true_j);
+            /* Extend into intro region from upstream*/
+            s = step;
+            while(s >= 0 && path->jali[s] <= true_i) {
+              /* If there is a step in the path that ends after the previous exon region
+               * starts but extends further downstream, extend the exon region to match */
+              if(path->iali[s] > true_i) {
+                e_idx[i_size*2] = sub_seq->n - path->iali[s] + sub_seq->end;
+                true_i = path->iali[s];
+                step = s;
+              }
+              s--;
+            } 
+    
+            //printf("true_i %d true_j %d\n", true_i, true_j);
+            /* Extend into intro region from downstream*/
+            tmp_j = j;
+            s = 0;
+            while(s < step && path->iali[s] >= true_j) {
+              /* If there is a step in the path that starts before the next exon region
+               * ends but extends further upstream, extend the exon region to match */
+              if(path->jali[s] < true_j) {
+                e_idx[(i_size+1)*2+1] = sub_seq->n - path->jali[s] + sub_seq->end;
+                tmp_j  = e_idx[(i_size+1)*2+1];
+                true_j = path->jali[s];
+              }
+              s++;
+            }
+            //printf("true_i %d true_j %d\n", true_i, true_j);
+            /* Add new exon region */
+            s = step;
+            while(s >= 0 && path->jali[s] > true_i) {
+              /* If there is a step in the path that lies between the pervious and the
+               * next exon regions add a new exon region */
+              if(path->iali[s] < true_j) {
+                e_idx[(i_size+1)*2]   = sub_seq->n - path->iali[s] + sub_seq->end;
+                e_idx[(i_size+1)*2+1] = sub_seq->n - path->jali[s] + sub_seq->end;
+                i_size++;
+
+                if((i_size+2) * 2 > a_size) {
+                  ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
+                  a_size = (i_size+2) * 2;
+                }
+                e_idx[(i_size+1)*2+1] = tmp_j;
+              }
+              s--;
+            }   
+            //printf("true_i %d true_j %d\n", true_i, true_j); 
+          }
+          else {
+            true_i = sub_seq->start + i - 1;
+            true_j = sub_seq->start + j - 1;
+
+            /* Extend into intro region from upstream*/
+            s = step;
+            while(s >= 0 && path->jali[s] >= true_i) { 
+              /* If there is a step in the path that ends after the previous exon region 
+               * starts but extends further downstream, extend the exon region to match */
+              if(path->iali[s] < true_i) {
+                e_idx[i_size*2] = path->iali[s] - sub_seq->start + 1;
+                true_i = path->iali[s];      
+                step = s;
+              }
+              s--;
+            }
+
+            /* Extend into intro region from downstream*/
+            tmp_j = j;
+            s = 0;
+            while(s < step && path->iali[s] <= true_j) {
+              /* If there is a step in the path that starts before the next exon region
+               * ends but extends further upstream, extend the exon region to match */ 
+              if(path->jali[s] > true_j) {
+                e_idx[(i_size+1)*2+1] = path->jali[s] - sub_seq->start + 1;
+                tmp_j                 = path->jali[s] - sub_seq->start + 1;
+                true_j = path->jali[s];
+              }               
+              s++;
+            }
+
+            /* Add new exon region */
+            s = step;
+            while(s >= 0 && path->jali[s] < true_i) {
+              /* If there is a step in the path that lies between the pervious and the 
+               * next exon regions add a new exon region */
+              if(path->iali[s] > true_j) {
+                e_idx[(i_size+1)*2]   = path->iali[s] - sub_seq->start + 1;
+                e_idx[(i_size+1)*2+1] = path->jali[s] - sub_seq->start + 1;
+                i_size++;
+
+                if((i_size+2) * 2 > a_size) {
+                  ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
+                  a_size = (i_size+2) * 2;
+                }          
+                e_idx[(i_size+1)*2+1] = tmp_j; 
+              
+              }
+              s--;
+            }
+          }
+                  
+          i_size++;
+          i = j;
+        }
+      }
+    }
+  } 
+  e_idx[i_size*2] = 1;
+  i_size++;
+ 
+  /* ensure exon regions are at least one nucletoide long and do not overlap */
+  //printf("e_idx[0] %d e_idx[1] %d\n", e_idx[0], e_idx[1]);
+  if(e_idx[0] > e_idx[1]) e_idx[0] = e_idx[1];
+  for(i = 1; i < i_size; i++) {
+    //printf("e_idx[%d] %d e_idx[%d] %d\n", i*2, e_idx[i*2], i*2+1, e_idx[i*2+1]);
+    if(e_idx[i*2+1] >= e_idx[(i-1)*2]) e_idx[i*2+1] = e_idx[(i-1)*2] + 1; 
+    if(e_idx[i*2] > e_idx[i*2+1])      e_idx[i*2]   = e_idx[i*2+1];
+  }
+
+  *exon_idx = e_idx;
+  *idx_size   = i_size;
+
+  return eslOK;
+
+  ERROR:
+    if(e_idx != NULL) free(e_idx);
+    return status;
+} 
+
 
 int
 p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, int L, const ESL_GENCODE *gcode, const P7_FS_PROFILE *sub_gm, const P7_GMX *gx, P7_TRACE *tr)

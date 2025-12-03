@@ -84,7 +84,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
 #endif
 
 //TODO
-ncpus = ESL_MIN(ncpus,4);
+ncpus = ESL_MIN(ncpus,1);
   /* Intialize data for threads */
   infocnt = (ncpus == 0) ? 1 : ncpus;
   ESL_ALLOC(info, sizeof(*info) * infocnt);
@@ -588,9 +588,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     success = FALSE;
 
     copy_path = p7_splicepath_Clone(orig_path);
-
-    p7_splice_ExtendPath(info->seeds, gm, orig_path, graph);
-    //TODO
+//TODO
+    //p7_splice_ExtendPath(info->seeds, gm, orig_path, graph);
     seq_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) - ALIGNMENT_EXT*3;
     seq_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT*3;
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
@@ -1006,7 +1005,9 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   int seq_len;
   int contains_anchor;
   int global_start, global_end;
-  int idx_size;
+  int exon_cnt;
+  int remove_cnt;
+  int             *exon_idx;
   int             *remove_idx;
   int64_t         *nuc_index;
   P7_HMM          *sub_hmm;
@@ -1026,6 +1027,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   gm_fs = info->gm_fs;
   hmm   = info->hmm;
 
+  exon_idx   = NULL;
   remove_idx = NULL;
   nuc_index  = NULL;
 
@@ -1077,22 +1079,41 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   p7_gmx_sp_GrowTo(info->pli->vit, sub_sp_model->M, MIN_INTRON_LENG+5, path_seq->n);
   p7_splicepipline_GrowIndex(info->pli->sig_idx, sub_sp_model->M, path_seq->n, PARSER_MODE);
 
-  p7_spliceviterbi_rightparser_semiglobal(info->pli, path_seq->dsq, info->gcode, path_seq->n, sub_sp_model, info->pli->vit);
-  p7_splicevitebi_exon_definition(info->pli, info->pli->vit, sub_sp_model, &remove_idx, &idx_size);
-
-  for(i = 0; i < idx_size; i++) {
+  p7_spliceviterbi_parser_semiglobal(info->pli, path_seq->dsq, info->gcode, path_seq->n, sub_sp_model, info->pli->vit);
+  p7_splicevitebi_exon_definition(info->pli, path, info->pli->vit, sub_sp_model, path_seq, &exon_idx, &exon_cnt);
+  int status; 
+  //printf("i %d j %d\n", path_seq->start + exon_idx[0] - 1, path_seq->start + exon_idx[1] - 1);
+  //printf("i %d j %d\n", path_seq->n - exon_idx[0] + path_seq->end, path_seq->n - exon_idx[1] + path_seq->end);
+ // printf("i %d j %d\n", exon_idx[0], exon_idx[1]);
+  for(i = 1; i < exon_cnt; i++) {
     if(path->revcomp) {
-      //printf("i %d j %d\n", path_seq->n - remove_idx[i*2] + path_seq->end, path_seq->n - remove_idx[i*2+1] + path_seq->end);
+
+      //printf("i %d j %d\n", path_seq->n - exon_idx[i*2] + path_seq->end, path_seq->n - exon_idx[i*2+1] + path_seq->end);
+      //printf("i %d j %d\n", exon_idx[i*2], exon_idx[i*2+1]);
+      if(exon_idx[i*2+1] >= exon_idx[(i-1)*2]) ESL_XEXCEPTION(eslFAIL, "broken exon index");    
     }
     else {
-      //printf("i %d j %d\n", path_seq->start + remove_idx[i*2] - 1, path_seq->start + remove_idx[i*2+1] - 1);
+
+   //  printf("i %d j %d\n", path_seq->start + exon_idx[i*2] - 1, path_seq->start + exon_idx[i*2+1] - 1);
+   //  printf("i %d j %d\n", exon_idx[i*2], exon_idx[i*2+1]);
+     if(exon_idx[i*2] >= exon_idx[(i-1)*2+1]) ESL_XEXCEPTION(eslFAIL, "broken exon index");
     }
+  }
+  
+  if(exon_cnt > 1) {
+    ESL_ALLOC(remove_idx, sizeof(int) * exon_cnt);
+    sub_seq = p7_splice_GetSplicedSequence2(path, path_seq, exon_idx, exon_cnt, remove_idx, &remove_cnt, &nuc_index); 
+    esl_sq_Destroy(sub_seq);
   }
   
   p7_hmm_Destroy(sub_hmm);
   p7_profile_fs_Destroy(sub_sp_model); 
+  if(exon_idx != NULL) free(exon_idx);
   if(remove_idx != NULL) free(remove_idx);
+  if(nuc_index != NULL) free(nuc_index);
+  exon_idx = NULL;
   remove_idx = NULL;
+  nuc_index = NULL;
   /* Create the return path and set its most upstream coords. */
   ret_path = p7_splicepath_Create(1);
 
@@ -1101,7 +1122,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   ret_path->jali[0]    = path->jali[0];
   ret_path->ihmm[0]    = path->ihmm[0];
   ret_path->jhmm[0]    = path->jhmm[0];
-  /* For each neighboring pair of nodes in the path, align the sub hmm to the sub seqqunce (with or without part of the intron removed). */
+  /* For each neighboring pair of nodes in the path, align the sub hmm to the sub sequence (with or without part of the intron removed). */
   s = 1;
   while(s < path->path_len) {
     
@@ -1124,7 +1145,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
         break;
       }
 
-    /* Crete sub hmm */
+    /* Create sub hmm */
     sub_hmm     = p7_splice_GetSubHMM(hmm, path->ihmm[s-1], path->jhmm[s]);
     sub_hmm->fs = 0.;
 
@@ -1202,7 +1223,9 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   if(!contains_anchor) ret_path->path_len = 0;
 
   return ret_path;
-
+  
+  ERROR:
+    return NULL;
 }
 
 /*
@@ -2990,6 +3013,134 @@ p7_splice_GetSplicedSequence(SPLICE_PATH *path, ESL_SQ *path_seq, int up_node, i
     return NULL;
 }
 
+ESL_SQ* 
+p7_splice_GetSplicedSequence2(SPLICE_PATH *path, ESL_SQ *path_seq, int *exon_idx, int exon_cnt, int *remove_idx, int *remove_cnt, int64_t **nuc_index)
+{
+
+  int i;
+  int max_seq_len;
+  int seq_idx, seq_pos, true_idx;
+  int r_cnt;
+  int64_t *n_idx;
+  ESL_DSQ *splice_dsq;
+  ESL_SQ  *splice_seq;
+  int status;
+
+  splice_dsq = NULL;
+  splice_seq = NULL;
+ 
+  n_idx = *nuc_index;
+
+  /* Get the max lenght of the cub sequence - all exon regions plus MAX_INTRON_INCL for each inrtron region */
+  max_seq_len = exon_idx[(exon_cnt-1)*2+1] - exon_idx[(exon_cnt-1)*2] + 1; 
+  
+  for(i = exon_cnt-2; i >= 0; i--) {
+    max_seq_len += MAX_INTRON_INCL;
+    max_seq_len += exon_idx[i*2+1] - exon_idx[i*2] + 1;
+  }
+
+  ESL_ALLOC(n_idx,  sizeof(int64_t) * (max_seq_len+2));
+  ESL_ALLOC(splice_dsq, sizeof(ESL_DSQ) * (max_seq_len+2));
+
+  //printf("max_seq_len %d\n", max_seq_len);  
+  n_idx[0]   = -1;
+  splice_dsq[0]  = eslDSQ_SENTINEL;
+  seq_idx   = 1;
+
+  seq_pos  = exon_idx[(exon_cnt-1)*2];
+  if(path->revcomp) true_idx = path_seq->n - exon_idx[(exon_cnt-1)*2] + path_seq->end;
+  else true_idx = path_seq->start + exon_idx[(exon_cnt-1)*2] - 1;
+  
+  r_cnt = 0;
+  for(i = exon_cnt-1; i > 0; i--) {
+
+    /* add the exon region */
+    while(seq_pos <= exon_idx[i*2+1]) {
+      n_idx[seq_idx]      = true_idx;
+      splice_dsq[seq_idx] = path_seq->dsq[seq_pos];
+      seq_idx++;
+      seq_pos++;
+      if(path->revcomp) true_idx--;
+      else              true_idx++;
+    }   
+
+    //printf("exon %d seq_idx %d\n", i+1, seq_idx);
+   // printf("exon_idx[i*2+1] %d exon_idx[(i-1)*2] %d\n", exon_idx[i*2+1], exon_idx[(i-1)*2]);
+    /* If the intron region is less than of equal in length MAX_INTRON_INCL, include full intron region */
+    if(exon_idx[(i-1)*2] - exon_idx[i*2+1] - 1 <= MAX_INTRON_INCL)
+    {
+      while(seq_pos < exon_idx[(i-1)*2]) {
+        n_idx[seq_idx]      = true_idx;
+        splice_dsq[seq_idx] = path_seq->dsq[seq_pos];
+        seq_idx++;
+        seq_pos++;
+        if(path->revcomp) true_idx--;
+        else              true_idx++;
+      }
+    }
+    /* If the intron region is longer than MAX_INTRON_INCL, include (MAX_INTRON_INCL/2) from the start 
+     * and (MAX_INTRON_INCL/2) from the end aand record the location of the removed intron region */
+    else {
+      /* include start */
+      while(seq_pos <= exon_idx[i*2+1] + (MAX_INTRON_INCL/2)) {
+        n_idx[seq_idx]      = true_idx;
+        splice_dsq[seq_idx] = path_seq->dsq[seq_pos];
+        seq_idx++;
+        seq_pos++;
+        if(path->revcomp) true_idx--;
+        else              true_idx++;   
+      }
+      remove_idx[r_cnt] = seq_idx;  
+      r_cnt++;
+
+      /* exclude middle */
+      while(seq_pos < exon_idx[(i-1)*2] - (MAX_INTRON_INCL/2)) {
+        seq_pos++;
+        if(path->revcomp) true_idx--;        
+        else              true_idx++;
+      }
+      
+      /* include end */
+      while(seq_pos < exon_idx[(i-1)*2]) {
+        n_idx[seq_idx]      = true_idx;
+        splice_dsq[seq_idx] = path_seq->dsq[seq_pos];
+        seq_idx++;
+        seq_pos++;
+        if(path->revcomp) true_idx--;
+        else              true_idx++;
+      }
+    }
+  //  printf("intron %d seq_idx %d\n", i+1, seq_idx);
+  } 
+
+  /* add the exon region */
+  while(seq_pos <= exon_idx[1]) {
+    n_idx[seq_idx]      = true_idx;
+    splice_dsq[seq_idx] = path_seq->dsq[seq_pos];
+    seq_idx++;
+    seq_pos++;
+    if(path->revcomp) true_idx--;
+    else              true_idx++;
+  }
+
+  n_idx[seq_idx] = -1;
+  splice_dsq[seq_idx]   = eslDSQ_SENTINEL;
+
+  splice_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, splice_dsq, seq_idx-1, NULL,NULL,NULL);
+
+  *nuc_index  = n_idx;
+  *remove_cnt = r_cnt;
+ 
+  if(splice_dsq != NULL) free(splice_dsq);
+
+  return splice_seq;
+
+  ERROR:
+    if(n_idx  != NULL) free(n_idx);
+    if(splice_dsq != NULL) free(splice_dsq);
+    esl_sq_Destroy(splice_seq);   
+    return NULL;
+}
 
 
 

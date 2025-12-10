@@ -199,6 +199,8 @@ typedef struct _splice_info
 
 #define SIGNAL(nuc1, nuc2)           (4*nuc1+nuc2)
 
+#define PI(i,s)  (parser_index[(i)*p7S_PARSE_INDEX+s])
+#define PS(i,s)  (parser_scores[(i)*p7S_PARSE_SCORE+s])
 
 #define DONOR_GT                  11
 #define DONOR_GC                  9
@@ -240,12 +242,18 @@ enum p7s_splice_signals_e {
 };
 #define p7S_SPLICE_SIGNALS 3
 
-enum p7s_splice_codons_e {
-  xxxxXXX  = 0,
-  XxxxxXX  = 1,
-  XXxxxxX  = 2,
+enum p7s_parser_index {
+  p7S_PI  = 0,
+  p7S_PK  = 1,
+  p7S_MK  = 2,
 };
-#define p7S_SPLICE_CODONS 3
+#define p7S_PARSE_INDEX 3
+
+enum p7s_parser_score {
+  p7S_P  = 0,
+  p7S_M  = 1,
+};
+#define p7S_PARSE_SCORE 3
 
 /* p7_spliceedge.c */
 extern SPLICE_EDGE* p7_spliceedge_Create(void);

@@ -258,8 +258,8 @@ p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint)
   for(i = 0; i < L_hint; i++) 
     signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M_hint);
  
-  ESL_ALLOC(signal_sites->parser_index,  sizeof(int)   * Lx_hint * 2);
-  ESL_ALLOC(signal_sites->parser_scores, sizeof(float) * Lx_hint * 2);
+  ESL_ALLOC(signal_sites->parser_index,  sizeof(int)   * Lx_hint * p7S_PARSE_INDEX);
+  ESL_ALLOC(signal_sites->parser_scores, sizeof(float) * Lx_hint * p7S_PARSE_SCORE);
    
   signal_sites->alloc_M  = M_hint;
   signal_sites->alloc_L  = L_hint;
@@ -335,8 +335,8 @@ p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int mode
       ESL_REALLOC(signal_sites->lookback_mem, sizeof(int) * M);
     }
     if( (L+1) > signal_sites->alloc_Lx) {
-      ESL_REALLOC(signal_sites->parser_index,  sizeof(int)   * (L+1) * 2);
-      ESL_REALLOC(signal_sites->parser_scores, sizeof(float) * (L+1) * 2);
+      ESL_REALLOC(signal_sites->parser_index,  sizeof(int)   * (L+1) * p7S_PARSE_INDEX);
+      ESL_REALLOC(signal_sites->parser_scores, sizeof(float) * (L+1) * p7S_PARSE_SCORE);
       signal_sites->alloc_Lx = L+1;
     }
   }

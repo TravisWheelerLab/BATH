@@ -2058,7 +2058,7 @@ p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i, int c)
   case p7T_M: tr->i[tr->N] = i; tr->k[tr->N] = k;  tr->c[tr->N] = c; break; 
   case p7T_I: tr->i[tr->N] = i; tr->k[tr->N] = k;  tr->c[tr->N] = 0; break;
   case p7T_R: tr->i[tr->N] = i; tr->k[tr->N] = k;  tr->c[tr->N] = 0; break;
-  case p7T_P: tr->i[tr->N] = i; tr->k[tr->N] = k;  tr->c[tr->N] = 0; break;
+  case p7T_P: tr->i[tr->N] = i; tr->k[tr->N] = k;  tr->c[tr->N] = c; break;
   default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
   }
 

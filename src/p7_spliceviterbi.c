@@ -10,7 +10,7 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-#define TSC_P -10
+#define TSC_P -10.0
 
 
 // Global on model from position 1 to M
@@ -848,6 +848,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
   int          curr_i, prev_i;
   int          donor_i;
   float        TMP_SC; 
+  float        tol = 1e-5;
  
   /*Initialize the signal index */
   for(k = 0; k < M; k++) 
@@ -1021,12 +1022,12 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
                          ESL_MAX(IMX_SP(prev_i,k-1) + TSC(p7P_IM,k-1),
                          ESL_MAX(DMX_SP(prev_i,k-1) + TSC(p7P_DM,k-1),
                                  PMX_SP(prev_i,k-1) + TSC_P))) + p7P_MSC_CODON(gm_fs, k, c3);
-
+      /*record max M */
       if(MMX_SP(curr_i,k) > PS(i,p7S_M)) {
         PS(i,p7S_M)  = MMX_SP(curr_i,k);
         PI(i,p7S_MK) = k;
       }     
-
+  
       if(p7P_MSC_CODON(gm_fs, k, c3) == -eslINFINITY) 
         IMX_SP(curr_i,k) = -eslINFINITY;
       else                                            
@@ -1044,6 +1045,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
                        ESL_MAX(DMX_SP(prev_i,M-1) + TSC(p7P_DM,M-1),
                                PMX_SP(prev_i,M-1) + TSC_P)))         + p7P_MSC_CODON(gm_fs, M, c3);
 
+    
     if(MMX_SP(curr_i,M) > PS(i,p7S_M)) {
         PS(i,p7S_M)  = MMX_SP(curr_i,M);
         PI(i,p7S_MK) = M;
@@ -1062,6 +1064,16 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
                               XMX_SP(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
     XMX_SP(i,p7G_J) = -eslINFINITY; 
+
+
+    /* Check if the reocded max P at i-3,k then transitioned to the M at i,k+1 
+     * if not void the max P to prevent false introns from being recordeded */
+    k = PI(i-3,p7S_PK);
+    if(MMX_SP(curr_i,k+1) == -eslINFINITY ||
+       esl_FCompare_old(MMX_SP(curr_i,k+1), PMX_SP(prev_i,k) + TSC_P  + p7P_MSC_CODON(gm_fs,k+1,c3), tol) != eslOK) {
+       PS(i-3,p7S_P) = -eslINFINITY;
+       PI(i-3,p7S_PI) = PI(i-3,p7S_PK) = -1;
+    }
 
     /* get acceptor site */
     AGXXX = AGXX;
@@ -2245,7 +2257,6 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
   for(j = gx->L; j > MIN_INTRON_LENG; j--) {
     if   (XMX_SP(j,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", j);
     if   (XMX_SP(j, p7G_C) < XMX_SP(j-2, p7G_C) || XMX_SP(j, p7G_C) < XMX_SP(j-1, p7G_C)) continue;  
-   //printf("j %d XMX_SP(j, p7G_C) %f XMX_SP(j, p7G_E) %f sub_gm->xsc[p7P_E][p7P_MOVE] %f  \n", j, XMX_SP(j, p7G_C), XMX_SP(j, p7G_E), sub_gm->xsc[p7P_E][p7P_MOVE]); 
     if (esl_FCompare_old(XMX_SP(j, p7G_C), XMX_SP(j, p7G_E) + sub_gm->xsc[p7P_E][p7P_MOVE], tol) == eslOK) break;
   }
   i_size = 0;
@@ -2254,47 +2265,6 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
   if(path->revcomp) true_j = sub_seq->n - j + sub_seq->end;
   else              true_j = sub_seq->start + j - 1;
 
-/*
-  for(s = path->path_len-1; s >= 0; s--) {
-    if(path->revcomp){
-      if(path->iali[s] < true_j) {
-        e_idx[(i_size+1)*2]   = sub_seq->n - path->iali[s] + sub_seq->end;
-        e_idx[(i_size+1)*2+1] = sub_seq->n - path->jali[s] + sub_seq->end;
-        i_size++;
-
-        if((i_size+2) * 2 > a_size) {
-          ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
-          a_size = (i_size+2) * 2;
-        }
-      }
-      //Extend the last exon included in parser tarce 
-      else if(path->jali[s] < true_j) {
-        true_j = path->jali[s];
-        j = sub_seq->n - true_j + sub_seq->end;
-      }
-    }
-    else {
-      //Add an additional exon after parser exits model 
-
-      if(path->iali[s] > true_j) {
-        e_idx[i_size*2]   = path->iali[s] - sub_seq->start + 1;
-        e_idx[i_size*2+1] = path->jali[s] - sub_seq->start + 1;
-        i_size++;
-        
-        if((i_size+2) * 2 > a_size) {
-          ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
-          a_size = (i_size+2) * 2;
-        }        
-      }
-      //Extend the last exon included in parser tarce 
-      else if(path->jali[s] > true_j) {
-        true_j = path->jali[s];
-        j = true_j - sub_seq->start + 1;
-      }
-    }
-  }
-*/
-  //printf("gx->L %d\n", gx->L);
   //printf("true_j %d\n", true_j);
   //printf("j %d\n", j);
   e_idx[i_size*2 + 1]   = j;
@@ -2306,7 +2276,7 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
     if(PS(i,p7S_P) > PS(i,p7S_M)) {
       k = PI(i,p7S_PK);
       donor = PI(i,p7S_PI);
-          
+        
       /* If the donor site for the max P is more than MAX_INTRON_INCL away */
       if(i - donor > MAX_INTRON_INCL) {
 
@@ -2315,31 +2285,7 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
         while(j > donor && PS(i,p7S_P) > PS(j,p7S_M)) j--;
 
         if(j == donor) {
-/*
-          closest_s = path->path_len;
-          closest_j = MAX_INTRON_INCL;
-          for(s = 0; s < path->path_len; s++) {
-            if(path->revcomp) { 
-              iali = sub_seq->n + sub_seq->end - path->iali[s];
-              jali = sub_seq->n + sub_seq->end - path->jali[s];
-            }
-            else {
-              iali = path->iali[s] - sub_seq->start + 1;
-              jali = path->jali[s] - sub_seq->start + 1; 
-            }   
-          
-            if(abs(jali - donor) < closest_j) {
-              closest_j = abs(jali - donor);
-              closest_s = s;
-            }    
-          }
-         
-          if(s < path->path_len) {
-            closest_k = closest_j * 2 / 3;
-              
-          }
-
-*/
+          //printf("i %d j %d pk %d mk_i %d mk_j %d\n", i, j, PI(i,p7S_PK), PI(i,p7S_MK), PI(j,p7S_MK));
 
            //printf("acceptor %d donor %d\n", i, donor);
           /* Grow exon index if needed */
@@ -2353,7 +2299,7 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
           /* start of next exon region (from last to first) */
           e_idx[(i_size+1)*2+1] = j; 
           
-        //printf("i %d j %d k %d\n", i, j, k);  
+    //    printf("i %d j %d k %d\n", i, j, k);  
           if(path->revcomp) {
             true_i = sub_seq->n - i + sub_seq->end;
             true_j = sub_seq->n - j + sub_seq->end;

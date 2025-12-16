@@ -154,7 +154,7 @@
 1 exercise  bathsearch/--F3            @src/bathsearch@  --F3 0.0002                  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--nobias        @src/bathsearch@  --nobias                     !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--nonull2       @src/bathsearch@  --nonull2                    !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
-1 exercise  bathsearch/--nofs          @src/bathsearch@  --nofs                       !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/--fs            @src/bathsearch@  --fs                         !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--fsonly        @src/bathsearch@  --fsonly                     !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--qformat       @src/bathsearch@  --qformat stockholm          !testsuite/2OG-FeII_Oxy_3.sto!  !testsuite/2OG-FeII_Oxy_3-nt.fa! 
 1 exercise  bathsearch/--tformat       @src/bathsearch@  --tformat fasta              !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!

@@ -1413,8 +1413,8 @@ typedef struct p7_pipeline_s {
   enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
   int           frameshift;     /* TRUE for searches with bathsearch */
-  int           fs_pipe;        /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (do not use --nofs flag) */
-  int           std_pipe;          /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
+  int           fs_pipe;        /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
+  int           std_pipe;       /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;        /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;              /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;   /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */

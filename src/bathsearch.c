@@ -852,7 +852,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
     }
      
-     resCnt = 0;	
     //need to re-compute e-values before merging (when list will be sorted)
     resCnt = 0;
     if (esl_opt_IsUsed(go, "-Z")) {
@@ -866,7 +865,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         resCnt += info[i].pli->nres;
       }
     }
-
+    
     for (i = 0; i < infocnt; ++i)
       p7_tophits_ComputeBATHEvalues(info[i].th, resCnt, info[i].om->max_length*3);
 

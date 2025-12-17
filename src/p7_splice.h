@@ -107,8 +107,8 @@ typedef struct _splice_site_idx
   int   *parser_index;
   float *parser_scores;
 
-  int alloc_M;
-  int alloc_L;
+  int alloc_M;    
+  int alloc_L;    
   int alloc_Lx;
 
 } SPLICE_SITE_IDX;
@@ -213,7 +213,8 @@ typedef struct _splice_info
 #define SPLICE_OFFSET_2           15       /* start of XXxxxxX codons  */
 
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node */
-#define MAX_INTRON_LENG           200000   /*maximum intron length */
+#define MAX_SEARCH_SIZE           2.5e7    /*maximum search size (seq len * model len) */
+#define MAX_INTRON_LENG           2e5      /*maximum intron length */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
 #define MIN_INTRON_LENG           13       /*minimum intor length */
 #define MAX_INTRON_INCL           1500     /*maximum length on intron to be included in spliced Viterbi search */

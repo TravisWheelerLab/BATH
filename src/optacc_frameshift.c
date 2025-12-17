@@ -24,7 +24,7 @@
  *****************************************************************/
 
 #define TSCDELTA(s,k) ( (tsc[(k) * p7P_NTRANS + (s)] == -eslINFINITY) ? FLT_MIN : 1.0)
-#define MVX(i,k,c) (max_val[(k)*p7P_CODONS+L3-(i)+(c)])
+#define MVX(i,k,c) (max_val[(k)*p7P_FULL_CODONS+L3-(i)+(c)])
 enum p7e_optacc_etrace {
   p7E_C1 = 0,
   p7E_C2 = 1,

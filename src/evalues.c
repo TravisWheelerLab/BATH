@@ -108,7 +108,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
   if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
   if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
-  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau   (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd frameshifted tau");
+  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
  
 
   /* Store results */
@@ -553,7 +553,7 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   for(x = 0; x < abcDNA->K; x++) 
     n1[x] = n2[x] = n3[x] = x;  
 
-  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_CODONS);     /* DP matrix: for ForwardParser,  L rows */
+  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_FULL_CODONS);     /* DP matrix: for ForwardParser,  L rows */
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
@@ -594,11 +594,11 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
           }
         }
       }
-      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR;
+      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR; 
       if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }
-  if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR;
+  if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR; 
 
   /* Explanation of the eqn below: first find the x at which the Gumbel tail
    * mass is predicted to be equal to tailp. Then back up from that x

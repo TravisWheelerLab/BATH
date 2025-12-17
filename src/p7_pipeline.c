@@ -350,14 +350,17 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   /* Create sparce memeory forward and backward generic frameshift aware matricies 
    * for use in the frameshift pipeline filters
    */  
-   if ((pli->gxf  = p7_gmx_fs_Create(M_hint, 3, L_hint, p7P_CODONS)) == NULL) goto ERROR;
-   if ((pli->gxb  = p7_gmx_fs_Create(M_hint, 6, L_hint, 0))          == NULL) goto ERROR;   
+   if ((pli->gxf  = p7_gmx_fs_Create(M_hint, PARSER_ROWS_FWD, L_hint, 0)) == NULL) goto ERROR;
+   if ((pli->gxb  = p7_gmx_fs_Create(M_hint, PARSER_ROWS_BWD, L_hint, 0)) == NULL) goto ERROR;   
 
   /* Create full memeory forward and backward generic frameshift aware matricies
    * for use in the frameshift pipeline alignment
    */ 
-   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS)) == NULL) goto ERROR;
+   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_FULL_CODONS)) == NULL) goto ERROR;
    if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))         == NULL) goto ERROR;
+
+  /* Create intermediate values matrix */
+   if ((pli->iv  = p7_ivx_Create(M_hint)) == NULL) goto ERROR;
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
    * about to collect a stochastic trace ensemble. This eliminates run-to-run
@@ -545,6 +548,7 @@ p7_pipeline_fs_Destroy(P7_PIPELINE *pli)
   p7_gmx_Destroy(pli->gbck);
   p7_omx_Destroy(pli->oxf);
   p7_omx_Destroy(pli->oxb);
+  p7_ivx_Destroy(pli->iv);
   esl_randomness_Destroy(pli->r);
   p7_domaindef_fs_Destroy(pli->ddef);
   free(pli);
@@ -2690,7 +2694,8 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
 
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
-    p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, 4, dna_window->length, 0);
+    p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, PARSER_ROWS_FWD, dna_window->length, 0);
+	p7_ivx_GrowTo(pli->iv, gm_fs->M);
     p7_fs_ReconfigLength(gm_fs, dna_window->length);
 	
     p7_ForwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxf, &fwdsc_fs);
@@ -2709,7 +2714,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
     
     pli->pos_past_fwd += dna_window->length; 
-    p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, 6, dna_window->length, 0);
+    p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, PARSER_ROWS_BWD, dna_window->length, 0);
     p7_BackwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxb, NULL);
     p7_bg_SetLength(bg, dna_window->length);
  

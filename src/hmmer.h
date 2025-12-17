@@ -242,14 +242,22 @@ enum p7p_rsc_e {
 };
 #define p7P_NR 2
 
-enum p7p_rsc_codon {
-  p7P_C1 = 0, 
-  p7P_C2 = 1,
-  p7P_C3 = 2, 
+/* Out of order to allow either 3 or 5 codon lengths */
+enum p7p_rsc_codon { 
+  p7P_C1 = 0,
+  p7P_C2 = 1, 
+  p7P_C3 = 2,
   p7P_C4 = 3,
   p7P_C5 = 4,
 };
-#define p7P_CODONS         5
+#define p7P_FULL_CODONS 5
+
+enum p7p_rsc_parser_codon {
+  p7P_PC2 = 0,
+  p7P_PC3 = 1,
+  p7P_PC4 = 2,
+};
+#define p7P_PARSER_CODONS 3
 
 enum p7p_rsc_indels {
   p7P___X   = 0,
@@ -269,6 +277,15 @@ enum p7p_rsc_indels {
   p7P_XxxXX = 14,
   p7P_xxXXX = 15,
 };
+
+enum p7p_ivx_codon {
+  p7P_V1 = 0,
+  p7P_V2 = 1,
+  p7P_V3 = 2,
+  p7P_V4 = 3,
+  p7P_V5 = 4,
+};
+
 
 /* Indexing variables for codons and quasicodons */
 #define p7P_MAXCODONS      1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 */ 
@@ -622,6 +639,12 @@ typedef struct p7_gmx_s {
 
   float  *dp_mem;
 } P7_GMX;
+
+typedef struct p7_ivx_s {
+  int   allocM;
+  float *ivx;
+
+} P7_IVX;
 
 /* Macros below implement indexing idioms for generic DP routines.
  * They require the following setup, for profile <gm> and matrix <gx>:
@@ -1352,7 +1375,8 @@ typedef struct p7_pipeline_s {
   P7_GMX     *gxb;    /* five-row generic Backward matrix for frameshifts   */
   P7_GMX     *gfwd;   /* full Fwd generic matrix for domain envelopes     */
   P7_GMX     *gbck;   /* full Fwd generic matrix for domain envelopes     */
- 
+  P7_IVX     *iv;     /* intermediate values matrix for frameshift algorithms */ 
+
   /* Domain postprocessing                                                  */
   ESL_RANDOMNESS *r;    /* random number generator                  */
   int             do_reseeding; /* TRUE: reseed for reproducible results    */
@@ -1431,6 +1455,8 @@ typedef struct p7_pipeline_s {
   char          errbuf[eslERRBUFSIZE];
 } P7_PIPELINE;
 
+#define PARSER_ROWS_FWD 4
+#define PARSER_ROWS_BWD 6
 
 /*****************************************************************
  * 17. P7_BUILDER: pipeline for new HMM construction
@@ -1543,6 +1569,7 @@ extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 /* fwdback_frameshift.c */
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 extern int p7_ForwardParser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
+extern int p7_ForwardParser_Frameshift2(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 
@@ -1771,6 +1798,10 @@ extern void    p7_gmx_Destroy(P7_GMX *gx);
 extern int     p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance);
 extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
+
+extern P7_IVX *p7_ivx_Create(int allocM);
+extern int     p7_ivx_GrowTo(P7_IVX *iv, int M);
+extern void    p7_ivx_Destroy(P7_IVX *iv);
 
 /* p7_gmx_fs.c */
 extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int allocC);

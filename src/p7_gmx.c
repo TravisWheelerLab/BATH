@@ -1,10 +1,11 @@
-/* P7_GMX implementation: a generic dynamic programming matrix
+/* P7_GMX and P7_IMX implementation: a generic dynamic programming matrix and intermediate values matrix
  *
  * Contents:
  *   1. The <P7_GMX> object
- *   2. Debugging aids
- *   3. Unit tests
- *   4. Test driver
+ *   2. The <P7_IMX> object
+ *   3. Debugging aids
+ *   4. Unit tests
+ *   5. Test driver
  */
 #include "p7_config.h"
 
@@ -77,6 +78,7 @@ p7_gmx_Create(int allocM, int allocL)
   if (gx != NULL) p7_gmx_Destroy(gx);
   return NULL;
 }
+
 
 /* Function:  p7_gmx_GrowTo()
  * Synopsis:  Assure that DP matrix is big enough.
@@ -207,8 +209,87 @@ p7_gmx_Destroy(P7_GMX *gx)
   return;
 }
 
+
 /*****************************************************************
- * 2. Debugging aids
+ *= 2. The <P7_IVX> object.
+ *****************************************************************/
+
+/* Function:  p7_ivx_Create()
+ * Synopsis:  Allocate a new <P7_IMX>.
+ *
+ * Purpose:   Allocate a reusable, resizeable <P7_IVX> for models up to
+ *            size <allocM>
+ *            
+ * Returns:   a pointer to the new <P7_IVX>.
+ *
+ * Throws:    <NULL> on allocation error.
+ */
+P7_IVX *
+p7_ivx_Create(int allocM)
+{
+  int     status;
+  P7_IVX *iv = NULL;
+
+  ESL_ALLOC(iv, sizeof(P7_IVX));
+  iv->ivx = NULL;
+
+  ESL_ALLOC(iv->ivx, sizeof(float) * (allocM+1));
+
+  iv->allocM = allocM;
+  return iv;
+
+ ERROR:
+  if (iv != NULL) p7_ivx_Destroy(iv);
+  return NULL;
+}
+
+
+/* Function:  p7_ivx_GrowTo()
+ * Synopsis:  Assure that intermadiate values matrix is big enough.
+ *
+ * Returns:   <eslOK> on success, and <iv> may be reallocated upon
+ *            return; any data that may have been in <iv> must be 
+ *            assumed to be invalidated.
+ *
+ * Throws:    <eslEMEM> on allocation failure, and any data that may
+ *            have been in <gx> must be assumed to be invalidated.
+ */
+int
+p7_ivx_GrowTo(P7_IVX *iv, int M)
+{
+  int      status;
+  void    *p;
+
+  if(M > iv->allocM) {
+    ESL_RALLOC(iv->ivx, p, sizeof(float) * (M+1));
+	iv->allocM = M;
+  }
+ 
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
+/* Function:  p7_ivx_Destroy()
+ * Synopsis:  Frees an intermediate values matrix.
+ *
+ * Purpose:   Frees a <P7_IVX>.
+ *
+ * Returns:   (void)
+ */
+void
+p7_ivx_Destroy(P7_IVX *iv)
+{
+  if (iv == NULL) return;
+
+  if (iv->ivx != NULL) free(iv->ivx);
+  free(iv);
+  return;
+}
+
+/*****************************************************************
+ * 3. Debugging aids
  *****************************************************************/
 
 /* Function:  p7_gmx_Compare()
@@ -336,7 +417,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
 
 
 /*****************************************************************
- * 3. Unit tests
+ * 4. Unit tests
  *****************************************************************/
 #ifdef p7GMX_TESTDRIVE
 #include "esl_random.h"
@@ -457,7 +538,7 @@ utest_Compare(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_BG *bg, int L, float toleran
 
 
 /*****************************************************************
- * 4. Test driver
+ * 5. Test driver
  *****************************************************************/
 #ifdef p7GMX_TESTDRIVE
 /*

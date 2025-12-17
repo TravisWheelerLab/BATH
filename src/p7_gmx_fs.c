@@ -34,6 +34,10 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
   P7_GMX *gx = NULL;
   int     i;
 
+  /* don't try to make large allocs on 32-bit systems */
+  if ( (uint64_t) (allocM+1) * (uint64_t) (allocLx+1) * sizeof(float) * (p7G_NSCELLS + allocC) > SIZE_MAX / 2)
+    return NULL;
+
   /* level 1: the structure itself */
   ESL_ALLOC(gx, sizeof(P7_GMX));
   gx->dp     = NULL;
@@ -118,6 +122,10 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
    * while shrinking in another?)
    */
   ncells = (uint64_t) (M+1) * (uint64_t) (L+1);
+
+  /* don't try to make large allocs on 32-bit systems */
+  if ( ncells * sizeof(float) * (p7G_NSCELLS + ESL_MAX(C, gx->allocC)) > SIZE_MAX / 2) return eslEMEM;
+
   if (ncells > gx->ncells || C > gx->allocC) 
     {
       ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * (p7G_NSCELLS + C));

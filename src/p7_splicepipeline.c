@@ -288,10 +288,12 @@ p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int mode
 
   int i, k;
   int status;
-  
-  if(M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_L) return eslOK;
+
+  if(mode == ALIGNMENT_MODE && M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_L) return eslOK;
+  if(mode == PARSER_MODE && M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_Lx) return eslOK;
 
   if( M > signal_sites->alloc_M) {
+
     ESL_REALLOC(signal_sites->index_mem, sizeof(int)  * M * SIGNAL_MEM_SIZE);
     ESL_REALLOC(signal_sites->index,     sizeof(int*) * M);
 
@@ -305,6 +307,7 @@ p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int mode
   }
 
   if(mode == ALIGNMENT_MODE ) {
+
     if( (L+1) > signal_sites->alloc_L && M > signal_sites->alloc_M )  {
       ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * M);
       ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
@@ -331,8 +334,12 @@ p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int mode
   
   }
   else {
-    if(M > signal_sites->alloc_L * signal_sites->alloc_M) {
-      ESL_REALLOC(signal_sites->lookback_mem, sizeof(int) * M);
+
+    if(M > signal_sites->alloc_M) {
+      ESL_REALLOC(signal_sites->lookback_mem, sizeof(int) * signal_sites->alloc_L * M);
+
+      for(i = 0; i < signal_sites->alloc_L; i++)
+        signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
     }
     if( (L+1) > signal_sites->alloc_Lx) {
       ESL_REALLOC(signal_sites->parser_index,  sizeof(int)   * (L+1) * p7S_PARSE_INDEX);
@@ -340,7 +347,7 @@ p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int mode
       signal_sites->alloc_Lx = L+1;
     }
   }
- 
+
   return eslOK;
 
   ERROR:
@@ -351,7 +358,7 @@ p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int mode
 
 /* Function:  p7_splicesiteidx_Destroy()
  *
- * Purpose:  Frees a <SPLICE_SITE_IDX>
+* Purpose:  Frees a <SPLICE_SITE_IDX>
  */
 void
 p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites)

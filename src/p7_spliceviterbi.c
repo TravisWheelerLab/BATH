@@ -520,18 +520,19 @@ p7_spliceviterbi_translated_semiglobal2(SPLICE_PIPELINE *pli, const ESL_DSQ *sub
                             DMX_SP(i,k-1) + TSC(p7P_DD,k-1));
 
       PMX_SP(i,k) = -eslINFINITY;
+    } 
+
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,M-1),
+                  ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,M-1),
+                          DMX_SP(i-3,M-1) + TSC(p7P_DM,M-1)))+ p7P_MSC_CODON(gm_fs, M, c3);
   
-      MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,M-1),
-                    ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,M-1),
-                            DMX_SP(i-3,M-1) + TSC(p7P_DM,M-1)))+ p7P_MSC_CODON(gm_fs, M, c3);
+    IMX_SP(i,M) = -eslINFINITY;
+        
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,M-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,M-1));
   
-      IMX_SP(i,M) = -eslINFINITY;
-  
-      DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,M-1),
-                            DMX_SP(i,M-1) + TSC(p7P_DD,M-1));
-  
-      PMX_SP(i,M) = -eslINFINITY;
-    }
+    PMX_SP(i,M) = -eslINFINITY;
+    
  
     XMX_SP(i,p7G_E) = ESL_MAX(MMX_SP(i,M), DMX_SP(i,M));
     XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
@@ -932,6 +933,8 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
     
     DMX_SP(curr_i,1) = PMX_SP(curr_i,1) = -eslINFINITY; 
 
+    XMX_SP(i,p7G_J) = MMX_SP(curr_i,1);
+
     for (k = 2; k < M; k++) {
       
       MMX_SP(curr_i,k) = ESL_MAX(MMX_SP(prev_i,k-1) + TSC(p7P_MM,k-1),
@@ -953,6 +956,10 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
                                  DMX_SP(curr_i,k-1) + TSC(p7P_DD,k-1));
 
       PMX_SP(curr_i,k) = -eslINFINITY;
+
+      //Use J state to act as a non gloal C state 
+      XMX_SP(i,p7G_J) = ESL_MAX(XMX_SP(i,p7G_J),
+                        ESL_MAX(MMX_SP(curr_i,k), DMX_SP(curr_i,k)));
     } 
 
     MMX_SP(curr_i,M) = ESL_MAX(MMX_SP(prev_i,M-1) + TSC(p7P_MM,M-1),
@@ -975,11 +982,15 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
     
     XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
                               XMX_SP(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
-    
-    XMX_SP(i,p7G_J) = -eslINFINITY; 
+  
+    XMX_SP(i,p7G_J) = ESL_MAX(XMX_SP(i,p7G_J),
+                      ESL_MAX(MMX_SP(curr_i,M), DMX_SP(curr_i,M))); 
+
+    XMX_SP(i,p7G_J) = ESL_MAX(XMX_SP(i-3,p7G_J) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                              XMX_SP(i,p7G_J));
     //p7_gmx_sp_DumpRow(stdout, gx, i, curr_i, 0, gm_fs->M, p7_DEFAULT);
   }
- 
+
   AGXXX = ACXXX = AGXX = ACXX = AGX = ACX  = FALSE;  
   /* Main DP recursion */
   for (i = MIN_INTRON_LENG+5; i <= L; i++) 
@@ -1016,6 +1027,8 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
     
     DMX_SP(curr_i,1) = PMX_SP(curr_i,1) = -eslINFINITY; 
 
+    XMX_SP(i,p7G_J) = MMX_SP(curr_i,1);
+
     for (k = 2; k < M; k++) {
 
       MMX_SP(curr_i,k) = ESL_MAX(MMX_SP(prev_i,k-1) + TSC(p7P_MM,k-1),
@@ -1038,6 +1051,10 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
                                  DMX_SP(curr_i,k-1) + TSC(p7P_DD,k-1));
 
       PMX_SP(curr_i,k) = -eslINFINITY;
+
+      //Use J state to act as a non gloal C state
+      XMX_SP(i,p7G_J) = ESL_MAX(XMX_SP(i,p7G_J),
+                        ESL_MAX(MMX_SP(curr_i,k), DMX_SP(curr_i,k)));
     }  
      
     MMX_SP(curr_i,M) = ESL_MAX(MMX_SP(prev_i,M-1) + TSC(p7P_MM,M-1),
@@ -1063,18 +1080,23 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
     XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
                               XMX_SP(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
-    XMX_SP(i,p7G_J) = -eslINFINITY; 
+    XMX_SP(i,p7G_J) = ESL_MAX(XMX_SP(i,p7G_J),
+                      ESL_MAX(MMX_SP(curr_i,M), DMX_SP(curr_i,M)));
 
+    XMX_SP(i,p7G_J) = ESL_MAX(XMX_SP(i-3,p7G_J) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                              XMX_SP(i,p7G_J));
+    
 
     /* Check if the reocded max P at i-3,k then transitioned to the M at i,k+1 
      * if not void the max P to prevent false introns from being recordeded */
+/* 
     k = PI(i-3,p7S_PK);
-    if(MMX_SP(curr_i,k+1) == -eslINFINITY ||
-       esl_FCompare_old(MMX_SP(curr_i,k+1), PMX_SP(prev_i,k) + TSC_P  + p7P_MSC_CODON(gm_fs,k+1,c3), tol) != eslOK) {
+    if(PI(i,p7S_MK) != k+1 || MMX_SP(curr_i,k+1) == -eslINFINITY ||
+       esl_FCompare_old(MMX_SP(curr_i,k+1), PMX_SP(prev_i,k) + p7P_MSC_CODON(gm_fs,k+1,c3), tol) != eslOK) {
        PS(i-3,p7S_P) = -eslINFINITY;
        PI(i-3,p7S_PI) = PI(i-3,p7S_PK) = -1;
     }
-
+*/
     /* get acceptor site */
     AGXXX = AGXX;
     AGXX  = AGX;
@@ -1195,6 +1217,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
     }
 
     /* Record best scoring donor sites*/
+    /* For the parser the SIX0-2 arrays store the index of the M or D state prior to the intron */
     if(SIGNAL(sub_dsq[i-MIN_INTRON_LENG-1], sub_dsq[i-MIN_INTRON_LENG]) == DONOR_GT) {
       t = sub_dsq[i-MIN_INTRON_LENG-3];
       u = sub_dsq[i-MIN_INTRON_LENG-2];
@@ -1204,7 +1227,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
           TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1)); 
           if(TMP_SC > SSX2(k, p7S_GTAG, t, u)) {
             SSX2(k, p7S_GTAG, t, u) = TMP_SC;
-            SIX2(k, p7S_GTAG, t, u) = i-MIN_INTRON_LENG;
+            SIX2(k, p7S_GTAG, t, u) = i-MIN_INTRON_LENG-4;
           }
         }
       }
@@ -1215,7 +1238,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
           TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
           if(TMP_SC > SSX1(k, p7S_GTAG, u)) {
             SSX1(k, p7S_GTAG, u) = TMP_SC;
-            SIX1(k, p7S_GTAG, u) = i-MIN_INTRON_LENG; 
+            SIX1(k, p7S_GTAG, u) = i-MIN_INTRON_LENG-3; 
           } 
         }
       }
@@ -1225,7 +1248,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
         TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
         if(TMP_SC > SSX0(k, p7S_GTAG)) {
           SSX0(k, p7S_GTAG) = TMP_SC;
-          SIX0(k, p7S_GTAG) = i-MIN_INTRON_LENG;
+          SIX0(k, p7S_GTAG) = i-MIN_INTRON_LENG-2;
         }
       } 
     }
@@ -1238,7 +1261,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
           TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
           if(TMP_SC > SSX2(k, p7S_GCAG, t, u)) {
             SSX2(k, p7S_GCAG, t, u) = TMP_SC;
-            SIX2(k, p7S_GCAG, t, u) = i-MIN_INTRON_LENG;
+            SIX2(k, p7S_GCAG, t, u) = i-MIN_INTRON_LENG-4;
           }
         }
       }
@@ -1249,7 +1272,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
           TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
           if(TMP_SC > SSX1(k, p7S_GCAG, u)) {
             SSX1(k, p7S_GCAG, u) = TMP_SC;
-            SIX1(k, p7S_GCAG, u) = i-MIN_INTRON_LENG;
+            SIX1(k, p7S_GCAG, u) = i-MIN_INTRON_LENG-3;
           }
         }
       }
@@ -1259,7 +1282,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
         TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
         if(TMP_SC > SSX0(k, p7S_GCAG)) {
           SSX0(k, p7S_GCAG) = TMP_SC;
-          SIX0(k, p7S_GCAG) = i-MIN_INTRON_LENG;
+          SIX0(k, p7S_GCAG) = i-MIN_INTRON_LENG-2;
         }
       }    
     }
@@ -1272,7 +1295,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
           TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
           if(TMP_SC > SSX2(k, p7S_ATAC, t, u)) {
             SSX2(k, p7S_ATAC, t, u) = TMP_SC;
-            SIX2(k, p7S_ATAC, t, u) = i-MIN_INTRON_LENG;
+            SIX2(k, p7S_ATAC, t, u) = i-MIN_INTRON_LENG-4;
           }
         }
       }
@@ -1283,7 +1306,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
           TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
           if(TMP_SC > SSX1(k, p7S_ATAC, u)) {
             SSX1(k, p7S_ATAC, u) = TMP_SC;
-            SIX1(k, p7S_ATAC, u) = i-MIN_INTRON_LENG;
+            SIX1(k, p7S_ATAC, u) = i-MIN_INTRON_LENG-3;
           }
         }
       }
@@ -1293,7 +1316,7 @@ p7_spliceviterbi_parser_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
         TMP_SC = ESL_MAX(MMX_SP(donor_i,k-1), DMX_SP(donor_i,k-1));
         if(TMP_SC > SSX0(k, p7S_ATAC)) {
           SSX0(k, p7S_ATAC) = TMP_SC;
-          SIX0(k, p7S_ATAC) = i-MIN_INTRON_LENG;
+          SIX0(k, p7S_ATAC) = i-MIN_INTRON_LENG-2;
         }
       }
     }
@@ -2250,6 +2273,72 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
   int   *e_idx = NULL;
   int status;
 
+  for(i = 1; i <= gx->L; i++) {
+//   printf("i %d N %f C %f J %f M %f Mk %d P %f Pk %d Pi %d\n", i, XMX_SP(i,p7G_N), XMX_SP(i,p7G_C), XMX_SP(i,p7G_J), PS(i,p7S_M), PI(i,p7S_MK), PS(i,p7S_P), PI(i,p7S_PK), PI(i,p7S_PI));
+  }
+
+/*
+  int x;
+  float prev_avg0 = -eslINFINITY;
+  float curr_avg0 = -eslINFINITY;
+  float next_avg0;
+  float prev_avg1 = -eslINFINITY;
+  float curr_avg1 = -eslINFINITY;
+  float next_avg1;
+  float prev_avg2 = -eslINFINITY;
+  float curr_avg2 = -eslINFINITY;
+  float next_avg2;
+  int window_size = 10;
+ i = 0;
+  while(i+2 < gx->L - (window_size*3)) {
+
+    
+    next_avg0 = 0.;
+    for(x = i; x < i + (window_size*3); x+=3)
+      next_avg0 += PS(x,p7S_M);
+    next_avg0 /= (float) window_size;
+
+    next_avg1 = 0.;
+    for(x = i+1; x < (i+1) + (window_size*3); x+=3)
+      next_avg1 += PS(x,p7S_M);
+    next_avg1 /= (float) window_size;
+
+    next_avg2 = 0.;
+    for(x = i+2; x < (i+2) + (window_size*3); x+=3)
+      next_avg2 += PS(x,p7S_M);
+    next_avg2 /= (float) window_size;
+
+    if(curr_avg0 > curr_avg1 && curr_avg0 > curr_avg2) {
+      if(curr_avg0 > next_avg0 && curr_avg0 > prev_avg0) {
+        printf("0 i %d j %d diff %f %f\n", i-(window_size*3), i-3 ,curr_avg0-next_avg0, curr_avg0-prev_avg0);
+      }
+    }
+    else if(curr_avg1 > curr_avg0 && curr_avg1 > curr_avg2) {
+      if(curr_avg1 > next_avg1 && curr_avg1 > prev_avg1) {
+        printf("1 i %d j %d diff %f %f\n", (i+1)-(window_size*3), (i+1)-3, curr_avg1-next_avg1, curr_avg1-prev_avg1);
+      }
+    }
+    else if(curr_avg2 > curr_avg0 && curr_avg2 > curr_avg1) {
+      if(curr_avg2 > next_avg2 && curr_avg2 > prev_avg2) {
+        printf("2 i %d j %d diff %f %f\n", (i+2)-(window_size*3), (i+2)-3, curr_avg2-next_avg2, curr_avg2-prev_avg2);
+      }
+    }
+
+    prev_avg0 = curr_avg0;
+    curr_avg0 = next_avg0;
+    prev_avg1 = curr_avg1;
+    curr_avg1 = next_avg1;
+    prev_avg2 = curr_avg2;
+    curr_avg2 = next_avg2;
+
+    i+=3;
+  } 
+*/
+
+
+
+int i_dist, k_dist;
+int over_i, over_j;
   ESL_ALLOC(e_idx, sizeof(int) * path->path_len * 4);
   a_size = path->path_len * 2;
 
@@ -2268,59 +2357,88 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
   //printf("true_j %d\n", true_j);
   //printf("j %d\n", j);
   e_idx[i_size*2 + 1]   = j;
-    
-  i = j;
+
   for( i = j; i > MIN_INTRON_LENG; i--) {
 
-    /*If the max P if greater than the max M */
-    if(PS(i,p7S_P) > PS(i,p7S_M)) {
-      k = PI(i,p7S_PK);
+    //If the max P if greater than the max M 
+    if(PS(i,p7S_P) > PS(i,p7S_M)) { 
       donor = PI(i,p7S_PI);
-        
-      /* If the donor site for the max P is more than MAX_INTRON_INCL away */
+      
+      // If the donor site for the max P is more than MAX_INTRON_INCL away 
       if(i - donor > MAX_INTRON_INCL) {
 
-        /* Check if maxP at j is greater than all max M up to donor*/
+        // Check if maxP at j is greater than all max M up to donor
         j = i;
         while(j > donor && PS(i,p7S_P) > PS(j,p7S_M)) j--;
-
+ 
+    //  printf("donor %d acceptor %d j %d P %f M %f \n", donor, i, j, PS(i,p7S_P), PS(j,p7S_M));         
         if(j == donor) {
-          //printf("i %d j %d pk %d mk_i %d mk_j %d\n", i, j, PI(i,p7S_PK), PI(i,p7S_MK), PI(j,p7S_MK));
+/*
+          if(path->revcomp) {
+            true_i = sub_seq->n - i + sub_seq->end;
+            true_j = sub_seq->n - j + sub_seq->end;
+          } 
+          else {
+            true_i = sub_seq->start + i - 1;
+            true_j = sub_seq->start + j - 1;
+          }
+          // check that the max P k coordinate is constiant with the path 
+          i_dist = abs(true_i - path->iali[0]);
+          s = 1;
+          while(s < path->path_len-1) {
+            if(abs(true_i - path->iali[s]) > i_dist) { s--; break; }
+            i_dist = abs(true_i - path->iali[s]);
+            s++;
+          }
+          
+          if(path->revcomp) {
 
-           //printf("acceptor %d donor %d\n", i, donor);
-          /* Grow exon index if needed */
+          }
+          else {
+            over_i = ESL_MAX(true_i, path->iali[s]);
+            over_j = ESL_MIN(sub_seq->start + e_idx[i_size*2+1] - 1, path->jali[s]);
+          } 
+           
+//printf("s %d i_dist %d over_i %d over_j %d over %d\n", s+1, i_dist, over_i, over_j, over_j-over_i);
+//printf("true_j %d path->jali[s] %d\n", true_j, path->jali[s]);
+          if(over_j - over_i > 0) {
+            i_dist = true_i       - path->iali[s];
+            k_dist = PI(i,p7S_PK) - path->ihmm[s];
+
+            printf(" i_dist %d k_dist %d\n", i_dist,k_dist);
+            if(abs(i_dist - (k_dist*3)) > 30)
+              continue;
+          }
+
+*/
+          // Grow exon index if needed 
           if((i_size+2) * 2 > a_size) {
             ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
             a_size = (i_size+2) * 2;
           }
-
-         /* start of previous exon region (from last to first) */
+         // start of previous exon region (from last to first) 
           e_idx[i_size*2] = i;
-          /* start of next exon region (from last to first) */
+          // start of next exon region (from last to first) 
           e_idx[(i_size+1)*2+1] = j; 
-          
-    //    printf("i %d j %d k %d\n", i, j, k);  
+          //printf("i %d j %d\n", i, j);    
           if(path->revcomp) {
             true_i = sub_seq->n - i + sub_seq->end;
             true_j = sub_seq->n - j + sub_seq->end;
-            //printf("true_i %d true_j %d\n", true_i, true_j);
-            /* Extend into intro region from upstream*/
+            // Extend into intro region from upstream
             for(s = path->path_len-1; s >= 0; s--) {
-              /* If there is a step in the path that ends after the previous exon region
-               * starts but extends further downstream, extend the exon region to match */
+              // If there is a step in the path that ends after the previous exon region
+               // starts but extends further downstream, extend the exon region to match 
                if(path->jali[s] <= true_i && path->iali[s] > true_i) {
                  e_idx[i_size*2] = sub_seq->n - path->iali[s] + sub_seq->end;
                  true_i = path->iali[s];
                }
             }
     
-            //printf("true_i %d true_j %d\n", true_i, true_j);
-            /* Extend into intro region from downstream*/
+            // Extend into intro region from downstream
             tmp_j = j;
-            //printf("tmp_j %d \n", tmp_j);
             for(s = 0; s < path->path_len; s++) {
-               /* If there is a step in the path that starts before the next exon region
-               * ends but extends further upstream, extend the exon region to match */
+               // If there is a step in the path that starts before the next exon region
+               // ends but extends further upstream, extend the exon region to match 
               if(path->iali[s] >= true_j && path->jali[s] < true_j) {
                 e_idx[(i_size+1)*2+1] = sub_seq->n - path->jali[s] + sub_seq->end;
                 tmp_j  = e_idx[(i_size+1)*2+1];
@@ -2328,15 +2446,13 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
               }
             }
             
-            //printf("true_i %d true_j %d\n", true_i, true_j);
-            /* Add new exon region */
+            // Add new exon region 
             for(s = path->path_len-1; s >= 0; s--) {
-              /* If there is a step in the path that lies between the pervious and the
-               * next exon regions add a new exon region */
+              // If there is a step in the path that lies between the pervious and the
+               /// next exon regions add a new exon region 
               if(path->jali[s] > true_i && path->iali[s] < true_j) {
                 e_idx[(i_size+1)*2]   = sub_seq->n - path->iali[s] + sub_seq->end;
                 e_idx[(i_size+1)*2+1] = sub_seq->n - path->jali[s] + sub_seq->end;
-//printf("added e_idx[(i_size+1)*2] %d e_idx[(i_size+1)*2+1] %d\n", e_idx[(i_size+1)*2], e_idx[(i_size+1)*2+1]);
                 i_size++;
 
                 if((i_size+2) * 2 > a_size) {
@@ -2347,28 +2463,30 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
               }
             } 
              
-            //printf("true_i %d true_j %d\n", true_i, true_j); 
           }
           else {
             true_i = sub_seq->start + i - 1;
             true_j = sub_seq->start + j - 1;
 
-            /* Extend into intro region from upstream*/
             for(s = path->path_len-1; s >= 0; s--) {
-              /* If there is a step in the path that ends after the previous exon region
-               * starts but extends further downstream, extend the exon region to match */
+              
+            
+            }
+            // Extend into intro region from upstream
+            for(s = path->path_len-1; s >= 0; s--) {
+              // If there is a step in the path that ends after the previous exon region
+               // starts but extends further downstream, extend the exon region to match 
               if(path->jali[s] >= true_i && path->iali[s] < true_i) {
                 e_idx[i_size*2] = path->iali[s] - sub_seq->start + 1;
                 true_i = path->iali[s];
               }
             }
 
-            //printf("i %d j %d\n", e_idx[i_size*2], e_idx[(i_size+1)*2+1]);
-            /* Extend into intron region from downstream*/
+            // Extend into intron region from downstream
             tmp_j = j;
             for(s = 0; s < path->path_len; s++) {
-              /* If there is a step in the path that starts before the next exon region
-               * ends but extends further upstream, extend the exon region to match */
+              // If there is a step in the path that starts before the next exon region
+              // ends but extends further upstream, extend the exon region to match 
               if(path->iali[s] <= true_j && path->jali[s] > true_j) {
                 e_idx[(i_size+1)*2+1] = path->jali[s] - sub_seq->start + 1;
                 tmp_j                 = path->jali[s] - sub_seq->start + 1;
@@ -2376,11 +2494,10 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
               }
             }
            
-            //printf("i %d j %d\n", e_idx[i_size*2], e_idx[(i_size+1)*2+1]);
-            /* Add new exon region */
+            // Add new exon region 
             for(s = path->path_len-1; s >= 0; s--) {
-              /* If there is a step in the path that lies between the pervious and the
-               * next exon regions add a new exon region */
+              //If there is a step in the path that lies between the pervious and the
+               // next exon regions add a new exon region 
               if(path->jali[s] < true_i && path->iali[s] > true_j) {
                 e_idx[(i_size+1)*2]   = path->iali[s] - sub_seq->start + 1;
                 e_idx[(i_size+1)*2+1] = path->jali[s] - sub_seq->start + 1;
@@ -2393,7 +2510,6 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
                 e_idx[(i_size+1)*2+1] = tmp_j;
               }
             } 
-           //printf("i %d j %d\n", e_idx[i_size*2], e_idx[(i_size+1)*2+1]);
           }
                   
           i_size++;
@@ -2402,14 +2518,13 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
       }
     }
   } 
+
   e_idx[i_size*2] = 1;
   i_size++;
  
   /* ensure exon regions are at least one nucletoide long and do not overlap */
-  //printf("e_idx[0] %d e_idx[1] %d\n", e_idx[0], e_idx[1]);
   if(e_idx[0] > e_idx[1]) e_idx[0] = e_idx[1];
   for(i = 1; i < i_size; i++) {
-  //  printf("e_idx[%d] %d e_idx[%d] %d\n", i*2, e_idx[i*2], i*2+1, e_idx[i*2+1]);
     if(e_idx[i*2+1] >= e_idx[(i-1)*2]) e_idx[i*2+1] = e_idx[(i-1)*2] - 1; 
     if(e_idx[i*2] > e_idx[i*2+1])      e_idx[i*2]   = e_idx[i*2+1];
   }

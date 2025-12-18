@@ -233,7 +233,7 @@ p7_ivx_Create(int allocM)
   ESL_ALLOC(iv, sizeof(P7_IVX));
   iv->ivx = NULL;
 
-  ESL_ALLOC(iv->ivx, sizeof(float) * (allocM+1) * p7P_PARSER_CODONS);
+  ESL_ALLOC(iv->ivx, sizeof(float) * (allocM+1) * p7P_5CODONS);
 
   iv->allocM = allocM;
   return iv;
@@ -262,7 +262,7 @@ p7_ivx_GrowTo(P7_IVX *iv, int M)
 
 
   if(M > iv->allocM) {
-    ESL_RALLOC(iv->ivx, p, sizeof(float) * (M+1) * p7P_PARSER_CODONS);
+    ESL_RALLOC(iv->ivx, p, sizeof(float) * (M+1) * p7P_5CODONS);
 	iv->allocM = M;
   }
  

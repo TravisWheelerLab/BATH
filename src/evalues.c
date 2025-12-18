@@ -108,17 +108,17 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
   if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
   if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
-  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau_5codons (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
  
 
   /* Store results */
-  hmm->evparam[p7_MLAMBDA] = om->evparam[p7_MLAMBDA] = lambda;
-  hmm->evparam[p7_VLAMBDA] = om->evparam[p7_VLAMBDA] = lambda;
-  hmm->evparam[p7_FLAMBDA] = om->evparam[p7_FLAMBDA] = lambda;
-  hmm->evparam[p7_MMU]     = om->evparam[p7_MMU]     = mmu;
-  hmm->evparam[p7_VMU]     = om->evparam[p7_VMU]     = vmu;
-  hmm->evparam[p7_FTAU]    = om->evparam[p7_FTAU]    = tau;
-  hmm->evparam[p7_FTAUFS]  = om->evparam[p7_FTAUFS]  = (hmm->abc->type == eslAMINO) ? tau_fs : 0.0;
+  hmm->evparam[p7_MLAMBDA]  = om->evparam[p7_MLAMBDA] = lambda;
+  hmm->evparam[p7_VLAMBDA]  = om->evparam[p7_VLAMBDA] = lambda;
+  hmm->evparam[p7_FLAMBDA]  = om->evparam[p7_FLAMBDA] = lambda;
+  hmm->evparam[p7_MMU]      = om->evparam[p7_MMU]     = mmu;
+  hmm->evparam[p7_VMU]      = om->evparam[p7_VMU]     = vmu;
+  hmm->evparam[p7_FTAU]     = om->evparam[p7_FTAU]    = tau;
+  hmm->evparam[p7_FTAUFS5]  = om->evparam[p7_FTAUFS5]  = (hmm->abc->type == eslAMINO) ? tau_fs : 0.0;
   hmm->flags              |= p7H_STATS;
 
   if (gm != NULL) {
@@ -464,53 +464,17 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
 }
 
 
-/* Function:  p7_fs_Tau()
- * Synopsis:  Determine Forward frameshifted tau by brief simulation.
- * Incept:    SRE, Thu Aug  9 15:08:39 2007 [Janelia]
+/* Function:  p7_fs_Tau_3codons()
+ * Synopsis:  Determine tau for frameshift-aware Forward with 3 possible 
+ *            codon lengths by brief simulation.
  *
  * Purpose:   Determine the <tau> parameter for an exponential tail fit
- *            to the Forward score distribution for model <om>, on
- *            random sequences with the composition of the background
- *            model <bg>. This <tau> parameter is for an exponential
- *            distribution anchored from $P=1.0$, so it's not really a
- *            tail per se; but it's only an accurate fit in the tail
- *            of the Forward score distribution, from about $P=0.001$
- *            or so.
- *            
- *            The determination of <tau> is done by a brief simulation
- *            in which we fit a Gumbel distribution to a small number
- *            of Forward scores of random sequences, and use that to
- *            predict the location of the tail at probability <tailp>.
- *            
- *            The Gumbel is of course inaccurate, but we can use it
- *            here solely as an empirical distribution to determine
- *            the location of a reasonable <tau> more accurately on a
- *            smaller number of samples than we could do with raw
- *            order statistics. 
- *            
- *            Typical choices are L=100, N=200, tailp=0.04, which
- *            typically yield estimates $\hat{\mu}$ with a precision
- *            (standard deviation) of $\pm$ 0.2 bits, corresponding to
- *            a $\pm$ 15\% error in E-values. See [J1/135].
- *            
- *            The use of Gumbel fitting to a small number of $N$
- *            samples and the extrapolation of $\hat{\mu}$ from the
- *            estimated location of the 0.04 tail mass are both
- *            empirical and carefully optimized against several
- *            tradeoffs. Most importantly, around this choice of tail
- *            probability, a systematic error introduced by the use of
- *            the Gumbel fit is being cancelled by systematic error
- *            introduced by the use of a higher tail probability than
- *            the regime in which the exponential tail is a valid
- *            approximation. See [J1/135] for discussion.
- *            
- *            This function changes the length configuration of both
- *            <om> and <bg>. The caller must remember to reconfigure
- *            both of their length models appropriately for any
- *            subsequent alignments.
- *            
+ *            to the frameshift-aware Forward score distribution for 
+ *            model <gm_fs>, on random sequences with the composition 
+ *            of the background model <bg>.             
+ *
  * Args:      r      : source of randomness
- *            om     : configured profile to sample sequences from
+ *            gm_fs  : configured profile to sample sequences from
  *            bg     : null model (for background residue frequencies)
  *            L      : mean length model for seq emission from profile
  *            N      : number of sequences to generate
@@ -524,10 +488,11 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau)
 {
 
   P7_GMX  *gx      = NULL; 
+  P7_IVX  *iv      = NULL;
   ESL_DSQ *amino_dsq     = NULL;
   ESL_DSQ *dna_dsq     = NULL;
   double  *xv      = NULL;
@@ -553,7 +518,8 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
   for(x = 0; x < abcDNA->K; x++) 
     n1[x] = n2[x] = n3[x] = x;  
 
-  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_FULL_CODONS);     /* DP matrix: for ForwardParser,  L rows */
+  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_3CODONS);     /* DP matrix: for ForwardParser,  L rows */
+  iv = p7_ivx_Create(gm_fs->M);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
@@ -595,13 +561,152 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
         }
       }
 
-      P7_IVX *iv;
-      iv = p7_ivx_Create(gm_fs->M);
-      if ((status = p7_ForwardParser_Frameshift2(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
-      p7_ivx_Destroy(iv);
+     if ((status = p7_ForwardParser_Frameshift2(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
 
-//      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR; 
-      //      printf("fsc %f\n", fsc);
+      if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
+      xv[i] = (fsc - nullsc) / eslCONST_LOG2;
+    }
+  if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR; 
+
+  /* Explanation of the eqn below: first find the x at which the Gumbel tail
+   * mass is predicted to be equal to tailp. Then back up from that x
+   * by log(tailp)/lambda to set the origin of the exponential tail to 1.0
+   * instead of tailp.
+   */
+  *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
+	
+  free(xv);
+  free(n1);
+  free(n2);
+  free(n3);
+  free(amino_dsq);
+  free(dna_dsq);
+  p7_gmx_Destroy(gx);
+  p7_ivx_Destroy(iv);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  return eslOK;
+
+ ERROR:
+  *ret_tau = 0.;
+  if (xv  != NULL) free(xv);
+  if (n1 != NULL) free(n1);
+  if (n2 != NULL) free(n2);
+  if (n3 != NULL) free(n3);
+  if (amino_dsq != NULL) free(amino_dsq);
+  if (dna_dsq != NULL) free(dna_dsq);
+  if (gx  != NULL) p7_gmx_Destroy(gx);
+  if (iv  != NULL) p7_ivx_Destroy(iv);
+  if (gcode != NULL) esl_gencode_Destroy(gcode);
+  if (abcDNA != NULL) esl_alphabet_Destroy(abcDNA);
+  return status;
+}
+
+
+
+
+/* Function:  p7_fs_Tau_5codons()
+ * Synopsis:  Determine tau for frameshift-aware Forward with 5 possile 
+ *            codon lengths by brief simulation.
+ *
+ * Purpose:   Determine the <tau> parameter for an exponential tail fit
+ *            to the frameshift-aware Forward score distribution for 
+ *            model <gm_fs>, on random sequences with the composition 
+ *            of the background model <bg>.             
+ *
+ * Args:      r      : source of randomness
+ *            gm_fs  : configured profile to sample sequences from
+ *            bg     : null model (for background residue frequencies)
+ *            L      : mean length model for seq emission from profile
+ *            N      : number of sequences to generate
+ *            lambda : expected slope of the exponential tail (from p7_Lambda())
+ *            tailp  : tail mass from which we will extrapolate mu
+ *            ret_mu : RETURN: estimate for the Forward mu (base of exponential tail)
+ *
+ * Returns:   <eslOK> on success, and <*ret_fv> is the score difference
+ *            in bits.
+ *
+ * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
+ */
+int
+p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau)
+{
+
+  P7_GMX  *gx      = NULL; 
+  ESL_DSQ *amino_dsq     = NULL;
+  ESL_DSQ *dna_dsq     = NULL;
+  double  *xv      = NULL;
+  float    fsc, nullsc;		                  
+  double   gmu, glam;
+  int      status;
+  int      i, j, a, x, y, z;
+  ESL_GENCODE      *gcode = NULL;
+  ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
+  char *n1 = NULL;
+  char *n2 = NULL; 
+  char *n3 = NULL;
+ 
+  p7_FLogsumInit(); 
+
+  hmm->fs = indel_cost;
+ 
+  abcDNA = esl_alphabet_Create(eslDNA);
+  ESL_ALLOC(n1,   sizeof(char)   * abcDNA->K);
+  ESL_ALLOC(n2,   sizeof(char)   * abcDNA->K);
+  ESL_ALLOC(n3,   sizeof(char)   * abcDNA->K);
+
+  for(x = 0; x < abcDNA->K; x++) 
+    n1[x] = n2[x] = n3[x] = x;  
+
+  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_5CODONS);     /* DP matrix: for ForwardParser,  L rows */
+  ESL_ALLOC(xv,  sizeof(double)  * N);
+  ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
+  ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
+
+  if (gx == NULL) { status = eslEMEM; goto ERROR; }
+
+  gcode = esl_gencode_Create(abcDNA, gm_fs->abc);
+  esl_gencode_Set(gcode, hmm->ct);  //This is the default euk code - may want to allow for a flag. 
+
+  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
+  p7_fs_ReconfigLength(gm_fs, L*3);
+  p7_bg_SetLength(bg, L);
+
+  for (i = 0; i < N; i++)
+    {
+      if ((status = esl_rsq_xfIID(r, bg->f, gm_fs->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
+      dna_dsq[0] = dna_dsq[L*3+1] = eslDSQ_SENTINEL;            
+     
+      /* reverse translate amino acid sequence into dna sequence.
+       * This really should be done with a look-up table but this 
+       * is a temporary fix.  Randomly shuffling the n# strings 
+       * ensures a diversity in the codons used.                  */   
+      esl_rsq_CShuffle(r, n1, n1);
+      esl_rsq_CShuffle(r, n2, n2);
+      esl_rsq_CShuffle(r, n3, n3);
+
+      j = 1;
+      for(a = 1; a <= L; a++) { 
+      	for(x = 0; x < abcDNA->K; x++) { 
+	  for(y = 0; y < abcDNA->K; y++) {
+            for(z = 0; z < abcDNA->K; z++) { 
+	      if(gcode->basic[16*n1[x] + 4*n2[y] + n3[z]] == amino_dsq[a]) {
+                dna_dsq[j++] = n1[x];  x = abcDNA->K; 
+                dna_dsq[j++] = n2[y];  y = abcDNA->K; 
+                dna_dsq[j++] = n3[z];  z = abcDNA->K;
+              } 
+            }
+          }
+        }
+      }
+
+//      P7_IVX *iv;
+//      iv = p7_ivx_Create(gm_fs->M);
+//      if ((status = p7_ForwardParser_Frameshift2(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
+//      p7_ivx_Destroy(iv);
+
+      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR; 
+       
       if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }

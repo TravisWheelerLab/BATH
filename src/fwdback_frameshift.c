@@ -15,7 +15,7 @@
 
 #include "hmmer.h"
 
-#define IVX(i,k,c) (ivx[((k)*p7P_FULL_CODONS)+L+3-(i)+(c)])
+#define IVX(i,k,c) (ivx[((k)*p7P_5CODONS)+L+3-(i)+(c)])
 #define IVX_NEW(i,k) (ivx[(i) * (M+1) + (k)])
 /*****************************************************************
  * 1. Forward, Backward, Hybrid implementations.
@@ -65,9 +65,9 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   float *ivx       = NULL;
 
   /* Allocation and initalization of invermediate value array */
-  ESL_ALLOC(ivx,  sizeof(float)   * p7P_FULL_CODONS * (M+1 + L+1) );
+  ESL_ALLOC(ivx,  sizeof(float)   * p7P_5CODONS * (M+1 + L+1) );
 
-  for (c = 0; c < p7P_FULL_CODONS; c++) {
+  for (c = 0; c < p7P_5CODONS; c++) {
     for(k = 0; k <= M; k++)
       IVX(5,k,c) = -eslINFINITY;
   }
@@ -391,9 +391,9 @@ p7_ForwardParser_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   int curr, prev1, prev3;
 
   /* Allocation and initalization of invermediate value array */
-  ESL_ALLOC(ivx,  sizeof(float)  * p7P_FULL_CODONS * (M+1 + L+1) );
+  ESL_ALLOC(ivx,  sizeof(float)  * p7P_5CODONS * (M+1 + L+1) );
 
-  for (c = 0; c < p7P_FULL_CODONS; c++) {
+  for (c = 0; c < p7P_5CODONS; c++) {
     for(k = 0; k <= M; k++)
       IVX(5,k,c) = -eslINFINITY;
   }
@@ -698,7 +698,7 @@ p7_ForwardParser_Frameshift2(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
   int curr, prev2, prev3;
   int ivx_2, ivx_3, ivx_4;
 
-  for (i = 0; i < p7P_PARSER_CODONS; i++) {
+  for (i = 0; i < p7P_3CODONS; i++) {
     for(k = 0; k <= M; k++) { 
       IVX_NEW(i,k) = -eslINFINITY;
     }
@@ -775,9 +775,9 @@ p7_ForwardParser_Frameshift2(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L
     prev2 = (i-2) % PARSER_ROWS_FWD;
     prev3 = (i-3) % PARSER_ROWS_FWD;
 
-	ivx_2 = i     % p7P_PARSER_CODONS;
-	ivx_3 = (i-1) % p7P_PARSER_CODONS;
-	ivx_4 = (i-2) % p7P_PARSER_CODONS;
+	ivx_2 = i     % p7P_3CODONS;
+	ivx_3 = (i-1) % p7P_3CODONS;
+	ivx_4 = (i-2) % p7P_3CODONS;
 
 	MMX(curr,0) = IMX(curr,0) = DMX(curr,0) = -eslINFINITY;
     

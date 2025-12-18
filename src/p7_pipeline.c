@@ -356,7 +356,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
   /* Create full memeory forward and backward generic frameshift aware matricies
    * for use in the frameshift pipeline alignment
    */ 
-   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_FULL_CODONS)) == NULL) goto ERROR;
+   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_5CODONS)) == NULL) goto ERROR;
    if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))         == NULL) goto ERROR;
 
   /* Create intermediate values matrix */
@@ -2305,7 +2305,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
     /* P-vaule calculation */	
-    dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+    dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS5], gm_fs->evparam[p7_FLAMBDA]);
      
     /* Check if hit passes the e-value cutoff based on the current
      * residue count. This prevents hits from accumulating and using
@@ -2329,7 +2329,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       hit->dcl[0].ad->L = 0;     
 	
       hit->pre_score = bitscore  / eslCONST_LOG2;
-      hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS], gm_fs->evparam[p7_FLAMBDA]);
+      hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS5], gm_fs->evparam[p7_FLAMBDA]);
 
       hit->dcl[0].dombias  = dom_bias;
       
@@ -2701,13 +2701,13 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     p7_ForwardParser_Frameshift2(subseq, gcode, dna_window->length, gm_fs, pli->gxf, pli->iv, &fwdsc_fs);
     p7_gmx_Reuse(pli->gxf); 
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
+    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS5],  gm_fs->evparam[p7_FLAMBDA]);
     printf("1 fwdsc_fs %f P_fs %g\n", fwdsc_fs, P_fs);	
     p7_ForwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxf, &fwdsc_fs);
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]);
+    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS5],  gm_fs->evparam[p7_FLAMBDA]);
     printf("2 fwdsc_fs %f P_fs %g\n", fwdsc_fs, P_fs);
-    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS],  gm_fs->evparam[p7_FLAMBDA]); 
+    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS5],  gm_fs->evparam[p7_FLAMBDA]); 
   }
 
     /* Compare Pvalues to select either the standard or the frameshift pipeline

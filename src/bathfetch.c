@@ -293,8 +293,8 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
           bg = p7_bg_Create(hmm->abc);
 		
-          p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS] = tau_fs;
+          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS5] = tau_fs;
         }
 	  if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
 	      ((hmm->acc) && esl_keyhash_Lookup(keys, hmm->acc, -1, &keyidx) == eslOK))
@@ -375,8 +375,8 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
         bg = p7_bg_Create(hmm->abc);
 
-        p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS] = tau_fs;
+        p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS5] = tau_fs;
       }
 
       p7_hmmfile_WriteASCII(ofp, p7_BATH_3f, hmm);

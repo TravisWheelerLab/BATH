@@ -16,7 +16,7 @@ static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,    NULL, "show brief help on version and usage",                             1 },
   { "--ct",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
-  //{ "--fs",     eslARG_REAL,  "0.01",NULL, "0.0<=x<=1.0", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
+  //{ "--fsprob",     eslARG_REAL,  "0.01",NULL, "0.0<=x<=1.0", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -134,7 +134,7 @@ main(int argc, char **argv)
     {
       if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hmmfile_in); 
 
-      //fs = esl_opt_GetReal(go, "--fs");
+      //fs = esl_opt_GetReal(go, "--fsprob");
       fs = 0.01;
       ct = esl_opt_GetInteger(go, "--ct");
  

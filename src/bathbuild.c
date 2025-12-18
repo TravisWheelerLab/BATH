@@ -153,7 +153,7 @@ static ESL_OPTIONS options[] = {
     */
     { "--eentexp", eslARG_NONE,"default",NULL, NULL,    EFFOPTS,    NULL,      NULL, "adjust eff seq # to reach rel. ent. target using exp scaling",  99 },
     
-  { "--fs",        eslARG_REAL,   "0.01",   NULL, "0.0<=x<=1.0", NULL, NULL,     NULL, "set the frameshift probabilty",                         99 },
+  { "--fsprob",        eslARG_REAL,   "0.01",   NULL, "0.0<=x<=1.0", NULL, NULL,     NULL, "set the frameshift probabilty",                         99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -308,7 +308,7 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
   if (esl_opt_IsUsed(go, "-n")           && fprintf(cfg->ofp, "# name (the single) HMM:            %s\n",        esl_opt_GetString(go, "-n"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")           && fprintf(cfg->ofp, "# output directed to file:          %s\n",        esl_opt_GetString(go, "-o"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-O")           && fprintf(cfg->ofp, "# processed alignment resaved to:   %s\n",        esl_opt_GetString(go, "-O"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--fs")         && fprintf(cfg->ofp, "# frameshift probability:           %f\n",        esl_opt_GetReal(go, "--fs")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--fsprob")         && fprintf(cfg->ofp, "# frameshift probability:           %f\n",        esl_opt_GetReal(go, "--fsprob")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--amino")      && fprintf(cfg->ofp, "# input alignment is asserted as:   protein\n")                                        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--dna")        && fprintf(cfg->ofp, "# input alignment is asserted as:   DNA\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--rna")        && fprintf(cfg->ofp, "# input alignment is asserted as:   RNA\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -518,6 +518,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
   int              i;
   int              status;
 
+
   /* Open files, set alphabet.
    *   cfg->afp       - open alignment file for input
    *   cfg->sfp       - open unalgined sequence file for input
@@ -590,12 +591,14 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 
   for (i = 0; i < infocnt; ++i)
   {
+
       info[i].bg = p7_bg_Create(cfg->abc);
       info[i].bld = p7_builder_Create(go, cfg->abc);
 
       if (info[i].bld == NULL)  p7_Fail("p7_builder_Create failed");
 
       //do this here instead of in p7_builder_Create(), because it's an hmmbuild-specific option
+
 
       if ( esl_opt_IsOn(go, "--maxinsertlen") )
         info[i].bld->max_insert_len    = esl_opt_GetInteger(go, "--maxinsertlen");
@@ -629,7 +632,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       }
 
       /* special arguments for hmmbuild */
-      info[i].bld->fs         = (go != NULL && esl_opt_IsUsed (go, "--fs"))     ?  esl_opt_GetReal   (go, "--fs") : 0.01;
+      info[i].bld->fs         = (go != NULL && esl_opt_IsUsed (go, "--fsprob"))     ?  esl_opt_GetReal   (go, "--fsprob") : 0.01;
       info[i].bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
       info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
       if ( info[i].bld->w_beta < 0 || info[i].bld->w_beta > 1  ) esl_fatal("Invalid window-length beta value\n");

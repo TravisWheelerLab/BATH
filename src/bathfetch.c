@@ -56,7 +56,7 @@ static ESL_OPTIONS options[] = {
   { "-f",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"--index",      "second cmdline arg is a file of names to retrieve", 0 },
   { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          0 },
   { "-O",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
-  //{ "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
+  //{ "--fsprob",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
   { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
   { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       0 },
   { 0,0,0,0,0,0,0,0,0,0 },
@@ -253,7 +253,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             keyidx;
   int             status;
 
-  //fs = esl_opt_GetReal(go, "--fs");
+  //fs = esl_opt_GetReal(go, "--fsprob");
   fs = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
@@ -285,7 +285,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
           if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
         {
-	  //if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0)  hmm->fs = fs; 
+	  //if(esl_opt_IsUsed(go, "--fsprob") || hmm->fs == 0.0)  hmm->fs = fs; 
 	  hmm->fs = fs;
           if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)    hmm->ct = ct; 
 
@@ -338,7 +338,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   int             ct;
   int             status;
 
-  //fs = esl_opt_GetReal(go, "--fs");
+  //fs = esl_opt_GetReal(go, "--fsprob");
   fs = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
@@ -367,7 +367,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 
       if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
       { 
-	//if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0) hmm->fs = fs;
+	//if(esl_opt_IsUsed(go, "--fsprob") || hmm->fs == 0.0) hmm->fs = fs;
 	hmm->fs = fs;
         if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)   hmm->ct = ct;
  

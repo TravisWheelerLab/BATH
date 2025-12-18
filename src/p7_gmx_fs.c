@@ -460,9 +460,7 @@ p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int ken
   if(i == 0) {
     fprintf(ofp, "     ");
     for (k = kstart; k <= kend;  k++) {
-      fprintf(ofp, "%*d_0,", width, k);
-      for(c = 1; c <= gx->allocC; c++) 
-        fprintf(ofp, "%*d_%d,", width, k, c);
+      fprintf(ofp, "%*d,", width, k);
     }
 
     if (! (flags & p7_HIDE_SPECIALS)) fprintf(ofp, "%*s, %*s, %*s, %*s, %*s,\n", width, "E", width, "N", width, "J", width, "B", width, "C");
@@ -481,69 +479,39 @@ p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int ken
   /* DP matrix data */
   
   fprintf(ofp, "%3d, M, ", i);
-    for (k = kstart; k <= kend;        k++)  
-    {
-	val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_M + p7G_C0];
-	if (flags & p7_SHOW_LOG) val = log(val);
-	fprintf(ofp, "%*.*f, ", width, precision, val);
-         
-	val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_M + p7G_C1];
-	if (flags & p7_SHOW_LOG) val = log(val);
-	fprintf(ofp, "%*.*f, ", width, precision, val);
-
-	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_M + p7G_C2];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f, ", width, precision, val);
-
-       	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_M + p7G_C3];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f, ", width, precision, val);
-
-	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_M + p7G_C4];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f, ", width, precision, val);
-
-	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_M + p7G_C5];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f, ", width, precision, val);
-	}
+      for (k = kstart; k <= kend;        k++)  
+      {
+	    val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_M + p7G_C0];
+	    if (flags & p7_SHOW_LOG) val = log(val);
+	    fprintf(ofp, "%*.*f, ", width, precision, val);
+	  }
       if (! (flags & p7_HIDE_SPECIALS))
-	{
+	  {
     	  for (x = 0;  x <  p7G_NXCELLS; x++) 
 	    {
 	      val = gx->xmx[i * p7G_NXCELLS + x];
 	      if (flags & p7_SHOW_LOG) val = log(val);
 	      fprintf(ofp, "%*.*f, ", width, precision, val);
 	    }
-	}
+	  }
       fprintf(ofp, "\n");
 
       fprintf(ofp, "%3d, I, ", i);
       for (k = kstart; k <= kend;        k++) 
-	{
-	  val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_I];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f, ", width, precision, val);
-    	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	}
+	  {
+	    val = gx->dp[curr][k * (p7G_NSCELLS + gx->allocC) + p7G_I];
+	    if (flags & p7_SHOW_LOG) val = log(val);
+	    fprintf(ofp, "%*.*f, ", width, precision, val);
+	  }
       fprintf(ofp, "\n");
 
       fprintf(ofp, "%3d, D, ", i);
       for (k = kstart; k <= kend;        k++) 
-	{
-	  val =  gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_D];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f, ", width, precision, val);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-	  fprintf(ofp, "%*.*f, ", width, precision, 0.0);
-        }
+	  {
+	    val =  gx->dp[curr][k * (p7G_NSCELLS + gx->allocC)  + p7G_D];
+	    if (flags & p7_SHOW_LOG) val = log(val);
+	    fprintf(ofp, "%*.*f, ", width, precision, val);
+      }
       fprintf(ofp, "\n\n");
   
   return eslOK;

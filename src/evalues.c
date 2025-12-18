@@ -594,7 +594,14 @@ p7_fs_Tau(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L
           }
         }
       }
-      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR; 
+
+      P7_IVX *iv;
+      iv = p7_ivx_Create(gm_fs->M);
+      if ((status = p7_ForwardParser_Frameshift2(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
+      p7_ivx_Destroy(iv);
+
+//      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR; 
+      //      printf("fsc %f\n", fsc);
       if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }

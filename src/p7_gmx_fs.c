@@ -34,6 +34,10 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
   P7_GMX *gx = NULL;
   int     i;
 
+  /* don't try to make large allocs on 32-bit systems */
+  if ( (uint64_t) (allocM+1) * (uint64_t) (allocLx+1) * sizeof(float) * (p7G_NSCELLS + allocC) > SIZE_MAX / 2)
+    return NULL;
+
   /* level 1: the structure itself */
   ESL_ALLOC(gx, sizeof(P7_GMX));
   gx->dp     = NULL;
@@ -106,6 +110,10 @@ p7_gmx_sp_Create(int allocM, int allocL, int allocLx)
   P7_GMX *gx = NULL;
   int     i;
 
+  /* don't try to make large allocs on 32-bit systems */
+  if ( (uint64_t) (allocM+1) * (uint64_t) (allocLx+1) * sizeof(float) * p7G_NSCELLS_SP > SIZE_MAX / 2)
+    return NULL;
+  
   /* level 1: the structure itself */
   ESL_ALLOC(gx, sizeof(P7_GMX));
   gx->dp     = NULL;
@@ -184,6 +192,8 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
   C  = ESL_MAX(C,  gx->allocC);
 
  if (M < gx->allocW && L < gx->validR && Lx < gx->allocR && C <= gx->allocC) return eslOK;
+
+ if ( (uint64_t) (M+1) * (uint64_t) (Lx+1) * sizeof(float) * (p7G_NSCELLS + C) > SIZE_MAX / 2) return eslEMEM;
 
   /* must we realloc the 2D matrices? (or can we get away with just
    * jiggering the row pointers, if we are growing in one dimension
@@ -264,6 +274,8 @@ p7_gmx_sp_GrowTo(P7_GMX *gx, int M, int L, int Lx)
   Lx = ESL_MAX(Lx, gx->allocR-1);
 
  if (M < gx->allocW && L < gx->validR && Lx < gx->allocR) return eslOK;
+
+ if ( (uint64_t) (M+1) * (uint64_t) (Lx+1) * sizeof(float) * p7G_NSCELLS_SP > SIZE_MAX / 2) return eslEMEM;
 
   /* must we realloc the 2D matrices? (or can we get away with just
    * jiggering the row pointers, if we are growing in one dimension

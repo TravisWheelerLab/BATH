@@ -553,7 +553,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
-  if ((status = p7_fs_ReconfigLength(gm_fs, L*3)) != eslOK) goto ERROR;
+  if ((status = p7_fs_ReconfigLength(gm_fs, L)) != eslOK) goto ERROR;
   return eslOK;
 
  ERROR:
@@ -577,7 +577,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int global_start, int global_end)
+p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int global_start)
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
@@ -629,7 +629,13 @@ p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     tp[p7P_DM] = log(hmm->t[k][p7H_DM]);
     tp[p7P_DD] = log(hmm->t[k][p7H_DD]);
   }
- 
+
+  for (k = 0; k < global_start; k++) 
+   p7P_TSC(gm_fs, k, p7P_BM) = 0.;
+
+  for(k = global_start; k < hmm->M; k++) 
+    p7P_TSC(gm_fs, k, p7P_BM) = -eslINFINITY;
+
   /* Match emission scores. */
   sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
   sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
@@ -827,7 +833,7 @@ p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
-  if ((status = p7_fs_ReconfigLength(gm_fs, L*3)) != eslOK) goto ERROR;
+  if ((status = p7_fs_ReconfigLength(gm_fs, L)) != eslOK) goto ERROR;
   return eslOK;
 
  ERROR:

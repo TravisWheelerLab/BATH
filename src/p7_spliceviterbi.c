@@ -2235,8 +2235,8 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
 {
 
   int i,j,k,s;
+  int iali,jali;
   int tmp_j;
-  int true_i, true_j;
   int donor;
   int i_size;
   int a_size;
@@ -2260,10 +2260,6 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
 
   i_size = 0;
 
-  /* Find which step in path we are entering at */  
-  if(path->revcomp) true_j = sub_seq->n - j + sub_seq->end;
-  else              true_j = sub_seq->start + j - 1;
-
   e_idx[i_size*2 + 1]   = j;
 
   for( i = j; i > MIN_INTRON_LENG; i--) {
@@ -2272,13 +2268,14 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
     if(PS(i,p7S_P) > PS(i,p7S_M)) { 
       donor = PI(i,p7S_PI);
       
-      /* If the donor site for the max P is more than MAX_INTRON_INCL away */ 
-      if(i - donor > MAX_INTRON_INCL) {
+      /* If the donor site for the max P is more than MIN_INTRON_RMV away */ 
+      if(i - donor > MIN_INTRON_RMV) {
 
-        /* Check if maxP at j is greater than all max M up to donor */
+        /* Check if maxP at j is greater than all max M up to withing MAX_INTRON_INCL/2 of the donor */
         j = i;
-        while(j > donor && PS(i,p7S_P) > PS(j,p7S_M)) j--;
- 
+        while(j > donor  && PS(i,p7S_P) > PS(j,p7S_M)) j--;
+       
+       // printf("accept %d donor %d fali %d P %f M %f\n", i, donor, j, PS(i,p7S_P), PS(j,p7S_M));
         if(j == donor) {
           // Grow exon index if needed 
           if((i_size+2) * 2 > a_size) {
@@ -2290,94 +2287,50 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
           e_idx[i_size*2] = i;
           /* end of next exon region (from last to first) */
           e_idx[(i_size+1)*2+1] = j; 
-          
-          if(path->revcomp) {
-            true_i = sub_seq->n - i + sub_seq->end;
-            true_j = sub_seq->n - j + sub_seq->end;
-            /* Extend into intro region from upstream */
-            for(s = path->path_len-1; s >= 0; s--) {
-              /* If there is a step in the path that ends after the previous exon region
-                 starts but extends further downstream, extend the exon region to match */ 
-               if(path->jali[s] <= true_i && path->iali[s] > true_i) {
-                 e_idx[i_size*2] = sub_seq->n - path->iali[s] + sub_seq->end;
-                 true_i = path->iali[s];
-               }
-            }
-    
-            /* Extend into intro region from downstream */
-            tmp_j = j;
-            for(s = 0; s < path->path_len; s++) {
-               /* If there is a step in the path that starts before the next exon region
-                ends but extends further upstream, extend the exon region to match */ 
-              if(path->iali[s] >= true_j && path->jali[s] < true_j) {
-                e_idx[(i_size+1)*2+1] = sub_seq->n - path->jali[s] + sub_seq->end;
-                tmp_j  = e_idx[(i_size+1)*2+1];
-                true_j = path->jali[s];
-              }
-            }
-            
-            /* Add new exon region */
-            for(s = path->path_len-1; s >= 0; s--) {
-              /* If there is a step in the path that lies between the pervious and the
-                 next exon regions add a new exon region */ 
-              if(path->jali[s] > true_i && path->iali[s] < true_j) {
-                e_idx[(i_size+1)*2]   = sub_seq->n - path->iali[s] + sub_seq->end;
-                e_idx[(i_size+1)*2+1] = sub_seq->n - path->jali[s] + sub_seq->end;
-                i_size++;
+  
+           /* If there is a step in the path that ends after the previous exon region
+              starts but extends further downstream, extend the exon region to match */        
+          for(s = path->path_len-1; s >= 0; s--) {
+            iali = path->revcomp ? sub_seq->n + sub_seq->end - path->iali[s] : path->iali[s] - sub_seq->start + 1;
+            jali = path->revcomp ? sub_seq->n + sub_seq->end - path->jali[s] : path->jali[s] - sub_seq->start + 1;
+            if(jali >= i && iali < i) {
+                e_idx[i_size*2] = iali;
+                i = iali;
+            }  
+          }
 
-                if((i_size+2) * 2 > a_size) {
+           /* If there is a step in the path that starts before the next exon region
+            * ends but extends further upstream, extend the exon region to match */ 
+          tmp_j = j;
+          for(s = 0; s < path->path_len; s++) {
+            iali = path->revcomp ? sub_seq->n + sub_seq->end - path->iali[s] : path->iali[s] - sub_seq->start + 1;
+            jali = path->revcomp ? sub_seq->n + sub_seq->end - path->jali[s] : path->jali[s] - sub_seq->start + 1;
+            if(iali <= j && jali > j) {
+                e_idx[(i_size+1)*2+1] = jali;
+                tmp_j                 = jali;
+             } 
+          }
+
+          /* If there is a step in the path that lies between the pervious and the
+           * next exon regions add a new exon region */
+          for(s = path->path_len-1; s >= 0; s--) {
+            iali = path->revcomp ? sub_seq->n + sub_seq->end - path->iali[s] : path->iali[s] - sub_seq->start + 1;
+            jali = path->revcomp ? sub_seq->n + sub_seq->end - path->jali[s] : path->jali[s] - sub_seq->start + 1; 
+            if(jali < i && iali > j ) {
+              e_idx[(i_size+1)*2]   = iali;
+              e_idx[(i_size+1)*2+1] = jali;
+              i_size++;
+
+              /*Grow index */
+              if((i_size+2) * 2 > a_size) {
                   ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
                   a_size = (i_size+2) * 2;
-                }
-                e_idx[(i_size+1)*2+1] = tmp_j;     
               }
-            } 
-             
+
+              e_idx[(i_size+1)*2+1] = tmp_j;
+            }
           }
-          else {
-            true_i = sub_seq->start + i - 1;
-            true_j = sub_seq->start + j - 1;
-
-            /* Extend into intro region from upstream */
-            for(s = path->path_len-1; s >= 0; s--) {
-              /* If there is a step in the path that ends after the previous exon region
-                 starts but extends further downstream, extend the exon region to match */ 
-              if(path->jali[s] >= true_i && path->iali[s] < true_i) {
-                e_idx[i_size*2] = path->iali[s] - sub_seq->start + 1;
-                true_i = path->iali[s];
-              }
-            }
-
-            // Extend into intron region from downstream
-            tmp_j = j;
-            for(s = 0; s < path->path_len; s++) {
-              /* If there is a step in the path that starts before the next exon region
-                 ends but extends further upstream, extend the exon region to match */ 
-              if(path->iali[s] <= true_j && path->jali[s] > true_j) {
-                e_idx[(i_size+1)*2+1] = path->jali[s] - sub_seq->start + 1;
-                tmp_j                 = path->jali[s] - sub_seq->start + 1;
-                true_j = path->jali[s];
-              }
-            }
-           
-            /* Add new exon region */
-            for(s = path->path_len-1; s >= 0; s--) {
-              /*If there is a step in the path that lies between the pervious and the
-                next exon regions add a new exon region */ 
-              if(path->jali[s] < true_i && path->iali[s] > true_j) {
-                e_idx[(i_size+1)*2]   = path->iali[s] - sub_seq->start + 1;
-                e_idx[(i_size+1)*2+1] = path->jali[s] - sub_seq->start + 1;
-                i_size++;
             
-                if((i_size+2) * 2 > a_size) {
-                  ESL_REALLOC(e_idx, sizeof(int) * (i_size+2) * 4);
-                  a_size = (i_size+2) * 2;
-                }
-                e_idx[(i_size+1)*2+1] = tmp_j;
-              }
-            } 
-          }
-                  
           i_size++;
           i = j;
         }
@@ -2393,6 +2346,26 @@ p7_splicevitebi_exon_definition(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_GMX 
   for(i = 1; i < i_size; i++) {
     if(e_idx[i*2+1] >= e_idx[(i-1)*2]) e_idx[i*2+1] = e_idx[(i-1)*2] - 1; 
     if(e_idx[i*2] > e_idx[i*2+1])      e_idx[i*2]   = e_idx[i*2+1];
+  }
+
+  /* Check if any purported intron would remove a region where the path reprots a >30 amino acid gap.  
+   * This indicates a possible missing exon we want to search for */
+   for(i = 1; i < i_size; i++) { 
+     for(s = 1; s < path->path_len; s++) {
+       iali = path->revcomp ? sub_seq->n + sub_seq->end - path->iali[s-1] : path->iali[s-1] - sub_seq->start + 1;
+       jali = path->revcomp ? sub_seq->n + sub_seq->end - path->jali[s-1] : path->jali[s-1] - sub_seq->start + 1;
+   //    printf("iali %d jali %d e_idx[i*2] %d e_idx[i*2+1] %d\n", iali, jali, e_idx[i*2], e_idx[i*2+1]);
+       if(iali >= e_idx[i*2] && jali <= e_idx[i*2+1]) {
+    //     printf("1 iali %d jali %d e_idx[i*2] %d e_idx[i*2+1] %d\n", iali, jali, e_idx[i*2], e_idx[i*2+1]);
+         iali = path->revcomp ? sub_seq->n + sub_seq->end - path->iali[s] : path->iali[s] - sub_seq->start + 1;
+         jali = path->revcomp ? sub_seq->n + sub_seq->end - path->jali[s] : path->jali[s] - sub_seq->start + 1;
+         if(iali >= e_idx[(i-1)*2] && jali <= e_idx[(i-1)*2+1]) {
+           if(path->ihmm[s] - path->jhmm[s-1] - 1 > 30) {
+             e_idx[i*2+1] = e_idx[(i-1)*2] - 1;
+           } 
+         }
+       }
+     }
   }
 
   *exon_idx = e_idx;

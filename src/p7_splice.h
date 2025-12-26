@@ -217,7 +217,8 @@ typedef struct _splice_info
 #define MAX_INTRON_LENG           2e5      /*maximum intron length */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
 #define MIN_INTRON_LENG           13       /*minimum intor length */
-#define MAX_INTRON_INCL           1500     /*maximum length on intron to be included in spliced Viterbi search */
+#define MIN_INTRON_RMV            1500     /*minimum length of of nucletides to remore from a proported intron region */
+#define MAX_INTRON_INC            1500    /*maximum length on intron to be included in spliced Viterbi search */
 #define MAX_AMINO_GAP             100      /*max amino gap the spliced viterbi algoritm will try to bridge without searching the full intron */
 #define MAX_SP_AMINO_GAP          10       /*maximum amino gap for spliced edges */
 #define MAX_USP_AMINO_GAP         25       /*maximum amino gap fpr unspliced edges */ 
@@ -321,7 +322,7 @@ extern int p7_splicevitebi_lefttranslated_semiglobal_trace(SPLICE_PIPELINE *pli,
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);
-extern int p7_splice_AddOriginals(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
+extern int p7_splice_AddAnchors(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
 extern int p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
 extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, SPLICE_GRAPH *graph);
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);

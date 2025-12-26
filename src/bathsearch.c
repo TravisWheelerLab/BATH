@@ -526,7 +526,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   SPLICE_SAVED_HITS *saved_hits_accumulator = NULL; /* to hold hit info for spliced alignments */
   ID_LENGTH_LIST  *id_length_list           = NULL;
   ESL_STOPWATCH   *watch;
- 
+  ESL_STOPWATCH   *splice_watch; 
 
   /* multi threading */
   int              ncpus                    = 0; 
@@ -913,6 +913,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) { 
+      splice_watch = esl_stopwatch_Create();
+      esl_stopwatch_Start(splice_watch);
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       
       p7_splicehits_RemoveDuplicates(saved_hits_accumulator, tophits_accumulator, pipelinehits_accumulator->F3);
@@ -932,6 +934,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	  assign_Lengths(tophits_accumulator, id_length_list);
       p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 	  p7_tophits_SortBySortkey(tophits_accumulator);
+    
+      esl_stopwatch_Stop(splice_watch);
+      esl_stopwatch_Display(stdout, splice_watch, "# splice time:");
+      esl_stopwatch_Destroy(splice_watch); 
     }
     
     /* Print the results.  */
@@ -953,6 +959,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,   hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
 
     esl_stopwatch_Stop(watch);
+    esl_stopwatch_Display(stdout, watch, "# total time:");
     p7_pli_Statistics(ofp, pipelinehits_accumulator, watch);
     if (fprintf(ofp, "//\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 

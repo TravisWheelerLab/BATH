@@ -54,7 +54,7 @@ p7_splicegraph_Create()
   graph->nalloc         = 0;
   graph->num_nodes      = 0;
   graph->tot_edges      = 0;
-  graph->orig_N         = 0;
+  graph->anchor_N         = 0;
   graph->split_N        = 0;
   graph->recover_N      = 0;
   graph->th->N          = 0; 
@@ -547,7 +547,7 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
 
     hit = graph->th->hit[i];
 
-    if ( i < graph->orig_N)
+    if ( i < graph->anchor_N)
       fprintf(fp, "   %4d %6d %9d %12" PRId64 " %12" PRId64 " %10.2f %10f %10s\n",
               i+1, hit->dcl->ihmm, hit->dcl->jhmm, hit->dcl->iali, hit->dcl->jali, hit->dcl->aliscore, exp(hit->sum_lnP), (graph->reportable[i] ? "YES" : "NO"));
     else if (graph->split_orig_id[i] >= 0)

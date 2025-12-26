@@ -274,7 +274,7 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
     /* Get path length and check that path contains a anchor node */ 
     while(graph->best_out_edge[curr_node] >= 0) {
 
-      if(curr_node < graph->orig_N) contains_orig = TRUE;
+      if(curr_node < graph->anchor_N) contains_orig = TRUE;
 
       next_node = graph->best_out_edge[curr_node];
       
@@ -286,7 +286,7 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
       path_len++;
     } 
   
-    if(curr_node < graph->orig_N) contains_orig = TRUE;  
+    if(curr_node < graph->anchor_N) contains_orig = TRUE;  
 
     if(!contains_orig) graph->path_scores[start_node] = -eslINFINITY;
   }
@@ -361,7 +361,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
     /* Find the best place to start our path */
     best_start_score = -eslINFINITY;
     start_node  = -1;
-    for (i = 0; i < extend_graph->num_nodes; i++) {
+    for (i = 0; i < extend_graph->anchor_N; i++) {
       if(extend_graph->path_scores[i] > best_start_score) {
         best_start_score = extend_graph->path_scores[i];
         start_node  = i;
@@ -381,7 +381,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
        (upstream splice is not downstream of downstream splice) */
     while(extend_graph->best_out_edge[curr_node] >= 0) {
 
-      if(curr_node < extend_graph->orig_N) contains_orig = TRUE;
+      if(curr_node < extend_graph->anchor_N) contains_orig = TRUE;
 
       next_node = extend_graph->best_out_edge[curr_node];
       
@@ -392,7 +392,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
       path_len++;
     } 
   
-    if(curr_node < extend_graph->orig_N) contains_orig = TRUE;  
+    if(curr_node < extend_graph->anchor_N) contains_orig = TRUE;  
 
     if(!contains_orig) extend_graph->path_scores[start_node] = -eslINFINITY;
   }
@@ -468,14 +468,14 @@ longest_path_upstream (SPLICE_GRAPH *graph)
     graph->best_out_edge[i] = -1;
   }
 
-  /* Append source node downstream of all nodes with no outgoing edges*/
+  /* Append source node downstream of all anchor nodes with no outgoing edges*/
   if((status = p7_splicegraph_Grow(graph)) != eslOK) goto ERROR;
   graph->ali_scores[graph->num_nodes]  = 0.;
   graph->edges[graph->num_nodes] = NULL;
-  for(up = 0; up < graph->num_nodes; up++) {
+  for(up = 0; up < graph->anchor_N; up++) {
 
-    if(!graph->node_in_graph[up])     continue;
-    if(has_out_edge(graph, up)) continue;
+    if(!graph->node_in_graph[up]) continue;
+    if(has_out_edge(graph, up))   continue;
     edge = p7_splicegraph_AddEdge(graph, up, graph->num_nodes);
 
     edge->splice_score = 0.;
@@ -505,7 +505,7 @@ longest_path_upstream (SPLICE_GRAPH *graph)
     stack_size--;
     if(down == graph->num_nodes-1) continue;
 
-    /* Find nodes with ougoing edge to down*/
+    /* Find nodes with outgoing edge to down*/
     for(up = 0; up < graph->num_nodes-1; up++) {
       if (!graph->node_in_graph[up]) continue;
          

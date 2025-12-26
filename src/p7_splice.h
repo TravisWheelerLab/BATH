@@ -38,7 +38,7 @@ typedef struct _splice_graph {
   int nalloc;
   int num_nodes;
   int tot_edges;
-  int orig_N;
+  int anchor_N;
   int split_N;
   int recover_N; 
  

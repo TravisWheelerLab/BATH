@@ -1867,7 +1867,7 @@ rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PR
   dom->scores_per_pos = NULL;
   dom->aliscore       = 0.0; 
 
-  p7_splice_ComputeAliScores(dom, ddef->tr, orfsq->dsq, gm, bg, fs_prob, FALSE);
+  if(ddef->splice) p7_splice_ComputeAliScores(dom, ddef->tr, orfsq->dsq, gm, bg, fs_prob, FALSE);
 
   /* In rare cases the fwd/bwd agorithms produce low quality alignments.
    * When this happens we replace it with a viterbi alignment */

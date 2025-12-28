@@ -63,13 +63,15 @@ int
 p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom)
 {
 
-  int k, p, s, z;
-  int us, ds;
-  int k_start, k_end;
-  int k_trans;
-  int up_N, down_N;
-  float lost_sc;
+  int p, s, z;
+  int overlap_start;
+  int overlap_end;
+  int overlap_len;
+  int z1, z2;
   float min_lost_sc;
+  float curr_lost_sc;
+  float upstream_lost;
+  float downstream_lost;
   float *spp;
   float *upstream_suffix_sum;
   float *downstream_prefix_sum;
@@ -78,111 +80,115 @@ p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOM
 
   upstream_suffix_sum   = NULL;
   downstream_prefix_sum = NULL;
-  
-  /* If the hits overlap on the hmm coords use the the per postition 
-   * scores to find the optimal place to switch from one hit to the 
-   * next and subtrct the lost score from the edge score */
-  if(downstream_dom->ihmm <= upstream_dom->jhmm) {
 
-    /* Create an array of running sums of the per position sore suffixes for the upstream hit */
-    up_N = upstream_dom->jhmm - upstream_dom->ihmm + 1;
-    ESL_ALLOC(upstream_suffix_sum, sizeof(float) * up_N);
-    esl_vec_FSet(upstream_suffix_sum, up_N, 0.0);
-    
-    tr  = upstream_dom->tr;
-    spp = upstream_dom->scores_per_pos;
+  /* return if no there is no hmm overlap */
+  if(downstream_dom->ihmm > upstream_dom->jhmm)  return eslOK; 
 
-    z = tr->tfrom[0]+1;
-    while(tr->st[z] != p7T_M) z++;
-    k = tr->k[z];
-    s = 0;
-    p = 0;
-    /* Sum all postions (M & I) from each k */
-    while (k <= upstream_dom->jhmm) {
-      if(tr->k[z] == k) {
-        upstream_suffix_sum[s] += spp[p];
-        z++; p++;
-      }
-      else {
-        k++; s++;
-      }
-    }
-    /* Sum suffixes */
-    for(s = up_N-2; s >= 0; s--)
-      upstream_suffix_sum[s] += upstream_suffix_sum[s+1];
+  overlap_start = ESL_MAX(upstream_dom->ihmm, downstream_dom->ihmm);
+  overlap_end   = ESL_MIN(upstream_dom->jhmm, downstream_dom->jhmm);
+  if(overlap_start == upstream_dom->ihmm)   overlap_start++;
+  if(overlap_end   == downstream_dom->jhmm) overlap_end--;
+   
+  overlap_len   = overlap_end - overlap_start + 1;
 
-    /* Create an array of running sums of the per position sore prefixes for the downstream hit */    
-    down_N  = downstream_dom->jhmm - downstream_dom->ihmm + 1;
-    ESL_ALLOC(downstream_prefix_sum, sizeof(float) * down_N);
-    esl_vec_FSet(downstream_prefix_sum, down_N, 0.0);
-
-    tr  = downstream_dom->tr;
-    spp = downstream_dom->scores_per_pos;
-
-    z = tr->tfrom[0]+1;
-    while(tr->st[z] != p7T_M) z++;
-    k = tr->k[z];
-    s = 0;
-    p = 0;
-     /* Sum all postions (M & I) from each k */
-    while (k <= downstream_dom->jhmm) {
-       if(tr->k[z] == k) {
-        downstream_prefix_sum[s] += spp[p];
-        z++; p++;
-      }
-      else {
-        k++; s++;
-      }
-    }
-    /* Sum prefixes */
-    for(s = 1; s < down_N; s++)
-      downstream_prefix_sum[s] += downstream_prefix_sum[s-1];
-
-    /*Step through the overlap postions to find the best (minimiun lost score) transition point */
-    k_start = ESL_MAX(downstream_dom->ihmm, upstream_dom->ihmm+1);
-    k_end   = ESL_MIN(upstream_dom->jhmm,   downstream_dom->jhmm-1);
-    
-    us = k_start - upstream_dom->ihmm - 1;
-    ds = k_start - downstream_dom->ihmm - 1;
-
-    min_lost_sc = upstream_suffix_sum[us];  // lost_sc if all k belong to downstream
-    if(ds >= 0)
-      min_lost_sc += downstream_prefix_sum[ds];  // include any lost_sc from downstream overextention
-    k_trans = k_start;
-
-    us++;
-    ds++;
-    for(k = k_start; k < k_end; k++) {
-      /* lost_sc if k_start to k belong to upstream and k+1 to k_end belong to downstream */
-      lost_sc = upstream_suffix_sum[us] +  downstream_prefix_sum[ds];
-      if(lost_sc < min_lost_sc) {
-        min_lost_sc = lost_sc;
-        k_trans = k;
-      }
-      us++;
-      ds++;
-    }
-    if(us == up_N) us--;
-    if(ds == down_N) ds--;
-    
-    lost_sc = downstream_prefix_sum[ds]; // lost_sc if all k belong to upstream
-    if(k_end < upstream_dom->jhmm) {
- 
-      lost_sc += upstream_suffix_sum[us]; // include any lost_sc from upstream overextention
-    }
-    if(lost_sc < min_lost_sc) {
-      min_lost_sc = lost_sc;
-      k_trans = k_end;
-    }
-
-    edge->splice_score -= min_lost_sc;
-    
-    if(upstream_suffix_sum   != NULL) free(upstream_suffix_sum);
-    if(downstream_prefix_sum != NULL) free(downstream_prefix_sum);
-    
-
+  if(overlap_len < 1) {
+    edge->splice_score = -eslINFINITY;
+    return eslOK;
   }
 
+  ESL_ALLOC(upstream_suffix_sum,   sizeof(float) * overlap_len);
+  ESL_ALLOC(downstream_prefix_sum, sizeof(float) * overlap_len);
+  
+  esl_vec_FSet(upstream_suffix_sum,   overlap_len, 0.0);
+  esl_vec_FSet(downstream_prefix_sum, overlap_len, 0.0);
+
+  /* Fill the upstream array */
+  tr  = upstream_dom->tr;
+  spp = upstream_dom->scores_per_pos;
+  
+  z1 = tr->tfrom[0];
+  z2 = tr->tto[0];
+  while(tr->st[z2] != p7T_M) z2--;
+
+  /* Move to the end of the overlap in the trace and the scores_per_pos array */
+  p = z2 - z1 - 2;
+  z = z2;
+  while(tr->k[z] > overlap_end) { z--; p--;}
+
+  s = overlap_len - 1;
+  while(tr->k[z]  >= overlap_start) {
+    upstream_suffix_sum[s] += spp[p];
+    z--;
+    p--;
+    if(tr->k[z] < tr->k[z+1]) s--;
+  }
+ 
+  for(s = overlap_len - 2; s >= 0; s--)
+    upstream_suffix_sum[s] += upstream_suffix_sum[s+1];
+
+  upstream_lost = 0.;
+  /*Calculate any lost score from the end of the upstream hit */
+  if(upstream_dom->jhmm > overlap_end) {
+    z = z1+1;
+    p = 0;
+    while(tr->k[z] <= overlap_end) { z++; p++; }
+    while(z < z2) {
+      upstream_lost += spp[p];
+      z++;
+      p++;
+    }
+  }
+ 
+  /* Fill the downstream array */  
+  tr  = downstream_dom->tr;
+  spp = downstream_dom->scores_per_pos;
+
+  z1 = tr->tfrom[0];
+  z2 = tr->tto[0];
+ 
+ /* Move to the start of the overlap in the trace and the scores_per_pos array */
+  p = 0;
+  z = z1+1;
+  while(tr->k[z] < overlap_start) { z++; p++;}
+  
+  s = 0;
+  while(tr->k[z] <= overlap_end && z < z2) {
+    downstream_prefix_sum[s] += spp[p];
+    z++;
+    p++;
+    if(tr->k[z] > tr->k[z-1]) s++;
+  }
+
+  for(s = 1; s < overlap_len; s++)
+    downstream_prefix_sum[s] +=  downstream_prefix_sum[s-1];
+  
+  downstream_lost = 0.;
+  /*Calculate any lost score from the start of the downstream hit */
+  if(downstream_dom->ihmm < overlap_start) {
+    z = z2-1;
+    p = z2 - z1 - 2;
+    while(tr->k[z] >= overlap_start) { z--; p--; }
+    while(z > z1) {
+      downstream_lost += spp[p];
+      z--;
+      p--;
+    }
+  } 
+
+
+  /* Find the minimiom score loss to eliminate the overlap*/ 
+  min_lost_sc = upstream_suffix_sum[0];
+  for(s = 1; s < overlap_len; s++) {
+    curr_lost_sc = upstream_suffix_sum[s] + downstream_prefix_sum[s-1];
+    min_lost_sc = ESL_MIN(min_lost_sc, curr_lost_sc);
+  }
+  min_lost_sc = ESL_MIN(min_lost_sc, downstream_prefix_sum[overlap_len-1]);
+
+  edge->splice_score -= (min_lost_sc + upstream_lost + downstream_lost);
+    
+  if(upstream_suffix_sum   != NULL) free(upstream_suffix_sum);
+  if(downstream_prefix_sum != NULL) free(downstream_prefix_sum);
+    
   return eslOK;
 
   ERROR:

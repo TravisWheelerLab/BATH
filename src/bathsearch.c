@@ -743,9 +743,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if( ! (hmm->evparam[p7_FTAUFS] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for bathsearch. Please run bathconvert.\n", cfg->queryfile);
      
       if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fs %f' or run bathconvert with option '--fs %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);
-      
+       
       if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
     } 
+    else hmm->fs = 0.;
+   
 
     if(hmm->max_length == -1)
       p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);

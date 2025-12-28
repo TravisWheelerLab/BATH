@@ -42,7 +42,6 @@ static float seq_overlap2(SPLICE_PATH *path1, int step1, SPLICE_PATH *path2, int
 static int confirm_overlap(SPLICE_PATH *path1, int step1, SPLICE_PATH *path2, int step2, int confirm_side);
 static int remove_upstream(SPLICE_PATH *path1, SPLICE_PATH *path2, int *step2); 
 
-static int assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH *path1, SPLICE_PATH *path2, SPLICE_PATH *path3, P7_HMM *sub_hmm, ESL_SQ *path_seq, int full_intron, int *step);
 
 /*  Function: p7_splice_SpliceHits
  *  Synopsis: Splcing pipeline
@@ -456,7 +455,7 @@ p7_splice_AddAnchors(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOP
     graph->split_orig_id[graph->th->N-1] = graph->th->N-1;
   }
 
-  graph->orig_N = graph->recover_N = graph->th->N;
+  graph->anchor_N = graph->recover_N = graph->th->N;
   graph->seqname = graph->th->hit[0]->name;
 
   return eslOK;
@@ -476,7 +475,7 @@ p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
 
   th = graph->th;
 
-  if(graph->orig_N < 2) return eslOK;
+  if(graph->anchor_N < 2) return eslOK;
 
   for (i = 0; i < seed_hits->N; i++) {
 
@@ -490,15 +489,15 @@ p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
     if (graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
     if ((!graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
 
-    for(h1 = 0; h1 < graph->orig_N; h1++) {
+    for(h1 = 0; h1 < graph->anchor_N; h1++) {
       /* Is the seed hit upstream of an original hit */
       if(p7_splice_HitUpstream(curr_hit->dcl, th->hit[h1]->dcl, graph->revcomp)) {
-       //printf("seed %d upstream of hit %d\n", i+1, h1+1); 
+       
         if(graph->revcomp) gap_len = curr_hit->dcl->jali - th->hit[h1]->dcl->iali - 1;
         else               gap_len = th->hit[h1]->dcl->iali - curr_hit->dcl->jali - 1;
         if(gap_len > MAX_INTRON_LENG) continue;
        
-        for(h2 = 0; h2 < graph->orig_N; h2++) {
+        for(h2 = 0; h2 < graph->anchor_N; h2++) {
           if(h2 == h1) continue;
 
           /* Is the seed hit downstream of an original hit */
@@ -511,8 +510,8 @@ p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
              /* Re-purpose domain "is_included" for seed hits added to graph */
              curr_hit->dcl->is_included = TRUE;
              p7_splicegraph_AddNode(graph, curr_hit);
-             h1 = graph->orig_N;
-             h2 = graph->orig_N;
+             h1 = graph->anchor_N;
+             h2 = graph->anchor_N;
           }
         }
       }
@@ -590,9 +589,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
     copy_path = p7_splicepath_Clone(orig_path);
 //TODO
-    //p7_splice_ExtendPath(info->seeds, gm, orig_path, graph);
-    seq_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) - ALIGNMENT_EXT*3;
-    seq_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT*3;
+    p7_splice_ExtendPath(info->seeds, gm, orig_path, graph);
+    seq_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) - ALIGNMENT_EXT;
+    seq_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT;
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
     
 
@@ -611,74 +610,74 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //p7_splicepath_Dump(stdout,final_path);
 //fflush(stdout);
        //if(!path->frameshift)
-      if(final_path != NULL && final_path->path_len > 1)
-        p7_splice_AlignPath(graph, final_path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info, &success);
+    
+    if(final_path != NULL) {
+      p7_splice_AlignPath(graph, final_path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info, &success);
 
-       if(success) {
-         /* Break edges that overlap the hit so that paths do not intertwine */
-         hit_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
-         hit_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
-         p7_splice_EnforceRangeBounds(graph, hit_min, hit_max); 
-         pli->hit->dcl = NULL;
+      if(success) {
+        /* Break edges that overlap the hit so that paths do not intertwine */
+        hit_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
+        hit_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
+        p7_splice_EnforceRangeBounds(graph, hit_min, hit_max); 
+        pli->hit->dcl = NULL;
 
-         for(h = 0; h < graph->num_nodes; h++) {
-           node_min = ESL_MIN(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
-           node_max = ESL_MAX(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
+        for(h = 0; h < graph->num_nodes; h++) {
+          node_min = ESL_MIN(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
+          node_max = ESL_MAX(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
 
-           if(node_min <= hit_max && node_max >= hit_min) 
-              graph->node_in_graph[h] = FALSE;
-         }
+          if(node_min <= hit_max && node_max >= hit_min) 
+            graph->node_in_graph[h] = FALSE;
+        }
 
 //TODO move this to p7_splice_AlignPath 
-         /* Check of any nodes that got merged and therefore still need their original hits set to unreported */
-         for(s1 = 0; s1 < copy_path->path_len; s1++) {
-           if(copy_path->node_id[s1] >= graph->orig_N) continue;
-           if(graph->th->hit[copy_path->node_id[s1]]->dcl->ad != NULL) continue;
-           if(graph->th->hit[copy_path->node_id[s1]]->flags & p7_IS_REPORTED ) {
-             for(s2 = 0; s2 < final_path->path_len; s2++) {
-               if(final_path->node_id[s2] >= graph->orig_N) continue;
-               if(seq_overlap2(copy_path, s1, final_path, s2) > 0.0 && 
-                  hmm_overlap2(copy_path, s1, final_path, s2) > 0.0) {
+        /* Check of any nodes that got merged and therefore still need their original hits set to unreported */
+        for(s1 = 0; s1 < copy_path->path_len; s1++) {
+          if(copy_path->node_id[s1] >= graph->anchor_N) continue;
+          if(graph->th->hit[copy_path->node_id[s1]]->dcl->ad != NULL) continue;
+          if(graph->th->hit[copy_path->node_id[s1]]->flags & p7_IS_REPORTED ) {
+            for(s2 = 0; s2 < final_path->path_len; s2++) {
+              if(final_path->node_id[s2] >= graph->anchor_N) continue;
+              if(seq_overlap2(copy_path, s1, final_path, s2) > 0.0 && 
+                hmm_overlap2(copy_path, s1, final_path, s2) > 0.0) {
 #ifdef HMMER_THREADS
   if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
 #endif /*HMMER_THREADS*/
-                 tophits->nreported--;
-                 graph->th->hit[copy_path->node_id[s1]]->flags &= ~p7_IS_REPORTED;   
-                 graph->th->hit[copy_path->node_id[s1]]->dcl->is_reported = FALSE;
-                 if(graph->th->hit[copy_path->node_id[s1]]->flags & p7_IS_INCLUDED) {
-                   tophits->nincluded--;
-                   graph->th->hit[copy_path->node_id[s1]]->flags &= ~p7_IS_INCLUDED;
-                   graph->th->hit[copy_path->node_id[s1]]->dcl->is_included = FALSE;
-                 }
+                tophits->nreported--;
+                graph->th->hit[copy_path->node_id[s1]]->flags &= ~p7_IS_REPORTED;   
+                graph->th->hit[copy_path->node_id[s1]]->dcl->is_reported = FALSE;
+                if(graph->th->hit[copy_path->node_id[s1]]->flags & p7_IS_INCLUDED) {
+                  tophits->nincluded--;
+                  graph->th->hit[copy_path->node_id[s1]]->flags &= ~p7_IS_INCLUDED;
+                  graph->th->hit[copy_path->node_id[s1]]->dcl->is_included = FALSE;
+               }
 #ifdef HMMER_THREADS
   if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 #endif /*HMMER_THREADS*/
-               }      
-             }
-           }
-         }
+              }      
+            }
+          }
+        }
             
-       }
-       else {
-         /* Break edges that overlap the path so that paths do not intertwine */ 
-         path_min = ESL_MIN(copy_path->iali[0], copy_path->jali[copy_path->path_len-1]);
-         path_max = ESL_MAX(copy_path->iali[0], copy_path->jali[copy_path->path_len-1]);
-         p7_splice_EnforceRangeBounds(graph, path_min, path_max);
+      }
+      else {
+        /* Break edges that overlap the path so that paths do not intertwine */ 
+        path_min = ESL_MIN(copy_path->iali[0], copy_path->jali[copy_path->path_len-1]);
+        path_max = ESL_MAX(copy_path->iali[0], copy_path->jali[copy_path->path_len-1]);
+        p7_splice_EnforceRangeBounds(graph, path_min, path_max);
 
-         for(s1 = 0; s1 < copy_path->path_len; s1++) 
-           graph->node_in_graph[copy_path->node_id[s1]] = FALSE;
+        for(s1 = 0; s1 < copy_path->path_len; s1++) 
+          graph->node_in_graph[copy_path->node_id[s1]] = FALSE;
          
-       }
-      //if(path->frameshift)
-        //p7_splice_AlignFrameshiftPath (graph, path, pli, tophits, gm_fs, gcode, path_seq, info->db_nuc_cnt, info);
+      }
+    }
 
-      esl_sq_Destroy(path_seq);
-      p7_splicepath_Destroy(orig_path);
-      p7_splicepath_Destroy(copy_path);
-      p7_splicepath_Destroy(final_path);
-      p7_splicepipeline_Reuse(pli);
+    esl_sq_Destroy(path_seq);
+    p7_splicepath_Destroy(orig_path);
+    p7_splicepath_Destroy(copy_path);
+    p7_splicepath_Destroy(final_path);
+    p7_splicepipeline_Reuse(pli);
 
-      orig_path = p7_splicepath_GetBestPath_Unspliced(graph);
+    orig_path = p7_splicepath_GetBestPath_Unspliced(graph);
   }
   
   return eslOK;
@@ -702,8 +701,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 int
 p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, SPLICE_GRAPH *graph)
 {
-  int i,s;
+  int i,s,n;
   int gap_len;
+  int skip;
   P7_HIT *first_hit;
   P7_HIT *last_hit; 
   P7_HIT *curr_hit;
@@ -714,12 +714,13 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
   last_hit  = graph->th->hit[path->node_id[path->path_len-1]];
 
   /* Only extend from beginning if first hit is an original hit */
-  if(path->node_id[0] < graph->orig_N) {
+  if(path->node_id[0] < graph->anchor_N) {
     tmp_graph = p7_splicegraph_Create();
     tmp_graph->seqidx  = graph->seqidx;
     tmp_graph->revcomp = graph->revcomp;
     tmp_graph->seqname = graph->seqname; 
-   
+  
+    /*Create a new graph for the first node and the possible upstream extensions */ 
     p7_splicegraph_CreateNodes(tmp_graph, 1);  
     p7_splicegraph_AddNode(tmp_graph, first_hit);
   
@@ -727,8 +728,9 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
     tmp_graph->orig_hit_idx[0]  = path->node_id[0];
     tmp_graph->split_orig_id[0] = 0;
   
-    tmp_graph->orig_N = 1;
+    tmp_graph->anchor_N = 1;
     
+    /* Look for seed his to add to the tmp graph */
     for(i = 0; i < seed_hits->N; i++) {
       
       curr_hit = &(seed_hits->unsrt[i]);
@@ -741,8 +743,16 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
       if (tmp_graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
       if ((!tmp_graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
   
-      /*If the seed is upstream of the first hit, add it to the tmp graph */
+      /*If the seed is upstream of the first hit add it to the tmp graph unless there are any anchor nodes between */
       if(p7_splice_HitUpstream(curr_hit->dcl, first_hit->dcl, tmp_graph->revcomp)) { 
+        skip = FALSE;
+        for(n = 0; n < graph->anchor_N; n++) {
+          if(!graph->node_in_graph[n]) continue;
+          if(p7_splice_HitUpstream(curr_hit->dcl, graph->th->hit[n]->dcl, tmp_graph->revcomp)) {
+            if(p7_splice_HitBetween(curr_hit->dcl, graph->th->hit[n]->dcl, first_hit->dcl, tmp_graph->revcomp)) skip = TRUE;
+          }
+        }
+        if(skip) continue;
         if(graph->revcomp) gap_len = curr_hit->dcl->jali  - first_hit->dcl->iali - 1;
         else               gap_len = first_hit->dcl->iali - curr_hit->dcl->jali - 1;
         if(gap_len > MAX_INTRON_EXT || gap_len < ( first_hit->dcl->ihmm - curr_hit->dcl->jhmm - 1) * 3) continue;
@@ -768,11 +778,12 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
       p7_splicegraph_AddNode(graph, curr_hit);
       
       p7_splicepath_Insert(path, 0); 
-      path->node_id[0] = graph->num_nodes-1; 
-      path->ihmm[0]    =  tmp_path->ihmm[s];
-      path->jhmm[0]    =  tmp_path->jhmm[s];
-      path->iali[0]    =  tmp_path->iali[s];
-      path->jali[0]    =  tmp_path->jali[s];
+      path->node_id[0]  = graph->num_nodes-1; 
+      path->ihmm[0]     =  tmp_path->ihmm[s];
+      path->jhmm[0]     =  tmp_path->jhmm[s];
+      path->iali[0]     =  tmp_path->iali[s];
+      path->jali[0]     =  tmp_path->jali[s];
+      path->aliscore[0] = tmp_path->aliscore[s];
     }
 
     p7_splicepath_Destroy(tmp_path);
@@ -780,7 +791,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
   }
 
   /* Only extend from end if last hit is an original hit */
-  if(path->node_id[path->path_len-1] < graph->orig_N) {
+  if(path->node_id[path->path_len-1] < graph->anchor_N) {
     tmp_graph = p7_splicegraph_Create();
     tmp_graph->seqidx  = graph->seqidx;
     tmp_graph->revcomp = graph->revcomp;
@@ -793,7 +804,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
     tmp_graph->orig_hit_idx[0]  = path->node_id[path->path_len-1];
     tmp_graph->split_orig_id[0] = 0;
 
-    tmp_graph->orig_N = 1;
+    tmp_graph->anchor_N = 1;
 
     for(i = 0; i < seed_hits->N; i++) {
 
@@ -807,8 +818,17 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
       if (tmp_graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
       if ((!tmp_graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
 
-      /*If the seed is upstream of the first hit, add it to the tmp graph */
+      /*If the seed is upstream of the first hit, add it to the tmp graph unless there are any anchor nodes between*/
       if(p7_splice_HitUpstream(last_hit->dcl, curr_hit->dcl, tmp_graph->revcomp)) {
+        skip = FALSE;
+        for(n = 0; n < graph->anchor_N; n++) {
+          if(!graph->node_in_graph[n]) continue;
+          if(p7_splice_HitUpstream(graph->th->hit[n]->dcl, curr_hit->dcl, tmp_graph->revcomp)) {
+            if(p7_splice_HitBetween(last_hit->dcl, graph->th->hit[n]->dcl, curr_hit->dcl, tmp_graph->revcomp)) skip = TRUE;
+          }
+        }
+        if(skip) continue;
+
         if(graph->revcomp) gap_len = last_hit->dcl->jali - curr_hit->dcl->iali - 1;
         else               gap_len = curr_hit->dcl->iali - last_hit->dcl->jali - 1;
         if(gap_len > MAX_INTRON_EXT || gap_len < ( first_hit->dcl->ihmm - curr_hit->dcl->jhmm - 1) * 3) continue;
@@ -834,11 +854,12 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
       p7_splicegraph_AddNode(graph, curr_hit);
 
       p7_splicepath_Insert(path, path->path_len);
-      path->node_id[path->path_len-1] = graph->num_nodes-1;
-      path->ihmm[path->path_len-1]    =  tmp_path->ihmm[s];
-      path->jhmm[path->path_len-1]    =  tmp_path->jhmm[s];
-      path->iali[path->path_len-1]    =  tmp_path->iali[s];
-      path->jali[path->path_len-1]    =  tmp_path->jali[s];
+      path->node_id[path->path_len-1]  = graph->num_nodes-1;
+      path->ihmm[path->path_len-1]     =  tmp_path->ihmm[s];
+      path->jhmm[path->path_len-1]     =  tmp_path->jhmm[s];
+      path->iali[path->path_len-1]     =  tmp_path->iali[s];
+      path->jali[path->path_len-1]     =  tmp_path->jali[s];
+      path->aliscore[path->path_len-1] = tmp_path->aliscore[s];
     }
     
     p7_splicepath_Destroy(tmp_path);
@@ -896,12 +917,12 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
       if(amino_gap_len > 0 && seq_gap_len < amino_gap_len) continue;
 
       if(th->hit[up]->dcl->ihmm > th->hit[down]->dcl->jhmm ) { 
-
-        
-        if( up < graph->orig_N && down < graph->orig_N) {
+        /* If hits are upstream/ downstream on the sequence but are the opposite on th modle create a jump edge to prevent paths from skipping over other nodes */
+        if( up < graph->anchor_N && down < graph->anchor_N) {
           edge = p7_splicegraph_AddEdge(graph, up, down);
           edge->splice_score   = (th->hit[up]->dcl->aliscore + th->hit[down]->dcl->aliscore) * -1; 
-          // TODO edge->splice_score   = -eslCONST_LOG2 + log(2./(float) (gm->M * (gm->M + 1)));
+          // TODO 
+          //edge->splice_score   = -eslCONST_LOG2 + log(2./(float) (gm->M * (gm->M + 1)));
           edge->jump_edge      = TRUE;
           edge->bypass_checked = FALSE;
           edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
@@ -911,19 +932,28 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
         }
 
       }
-      else if(th->hit[up]->dcl->ihmm <= th->hit[down]->dcl->ihmm ) { 
+      else if(th->hit[up]->dcl->ihmm < th->hit[down]->dcl->ihmm || 
+              th->hit[up]->dcl->jhmm < th->hit[down]->dcl->jhmm) { 
               
         edge = p7_splicegraph_AddEdge(graph, up, down);
         edge->splice_score   = 0.;
         edge->bypass_checked = FALSE;
         edge->jump_edge      = FALSE; 
         /* If hits overlap, find the minimum lost score to remove the overlap */
+        
         p7_spliceedge_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
-  
+       
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
         edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
         edge->downstream_nuc_start   = th->hit[down]->dcl->iali;
+
+        /* If the edge has an hmm overlap and cost of eliminating that overlap is greater than the B->M entry 
+         * for the downstream hit then these hits are better off seperate and we will remove the edge */
+        if(edge->splice_score < p7P_TSC(gm, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
+          graph->num_edges[up]--;
+          graph->tot_edges--;
+        }
       }   
     }
   } 
@@ -999,48 +1029,55 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 {
 
   int i, n, r, s;
-  int r_shift;
-  int intron_len;
-  int amino_gap;
-  int full_intron;
+  int i_start, i_end;
+  int k_start, k_end;
+  int next_i_start, next_k_start;
+ // int r_shift;
   int seq_start;
   int seq_len;
   int contains_anchor;
-  int min_M, max_M;
+ // int min_M, max_M;
   int s_start, s_end;
-  int global_start, global_end;
-  int exon_cnt;
-  int exit_k;
-  int entrance_i, entrance_k;
-  int remove_cnt;
-  int max_intron_len;
-  int tmp_n, tmp_end;
-  int             *exon_idx;
-  int             *remove_idx;
-  int64_t         *nuc_index;
+//  int global_start, global_end;
+  //int exon_cnt;
+  //int exit_k;
+ // int entrance_i, entrance_k;
+ // int remove_cnt;
+ // int max_intron_len;
+ // int tmp_n, tmp_end;
+ // int             *exon_idx;
+ // int             *remove_idx;
+ // int64_t         *nuc_index;
+  float           ali_score;
   P7_HMM          *sub_hmm;
   P7_HMM          *hmm;
+  P7_FS_PROFILE   *gm_fs;
   P7_FS_PROFILE   *sub_sp_model;
   ESL_GENCODE     *gcode;
   ESL_SQ          *sub_seq;
-  ESL_SQ          *stitch_seq;
-  ESL_DSQ         *tmp_dsq;
+  SPLICE_EDGE     *tmp_edge;
+//  ESL_SQ          *stitch_seq;
+//  ESL_DSQ         *tmp_dsq;
   SPLICE_PIPELINE *pli;
+  SPLICE_PATH *tmp_path;
   SPLICE_PATH *ret_path;
   SPLICE_GRAPH *graph;
+  
   int status; 
 
-int trimed_end, trimed_start;
+//int trimed_end, trimed_start;
 
   graph = info->graph;
   pli   = info->pli;
   gcode = info->gcode;
   hmm   = info->hmm;
+  gm_fs = info->gm_fs;
 
-  exon_idx   = NULL;
-  remove_idx = NULL;
-  nuc_index  = NULL;
-
+ // exon_idx   = NULL;
+ // remove_idx = NULL;
+ // nuc_index  = NULL;
+  ret_path   = NULL;
+ 
   /* If there is only one hit in the path we must still relalign it in case that hit aligned through an intron */
   if(path->path_len == 1) {
    
@@ -1056,8 +1093,7 @@ int trimed_end, trimed_start;
     sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
     p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, sub_seq->n, 0);
 
-
-    ret_path = p7_splice_AlignExons2(pli, sub_sp_model, pli->bg, sub_seq, gcode, NULL, 0, sub_sp_model->M);
+    ret_path = p7_splice_AlignExons(pli, sub_sp_model, pli->bg, sub_seq, gcode, NULL, 0, sub_sp_model->M);
     for(s = 0; s < ret_path->path_len; s++) {
       
       ret_path->node_id[s] = path->node_id[0];
@@ -1081,287 +1117,460 @@ int trimed_end, trimed_start;
     return ret_path;
   }
 
-  
-  /* Create a sub sequence from the path sequence without the extention nucs */
-  seq_start = llabs(path->iali[0] - path_seq->start);
-  seq_len   = llabs(path->jali[path->path_len-1] - path->iali[0]) + 1;
-  sub_seq =  esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
-  sub_seq->start = path->iali[0];
-  sub_seq->end   = path->jali[path->path_len-1];
+  for(s_start = 0; s_start < path->path_len; s_start++) if(path->node_id[s_start] < graph->anchor_N) break;
+  if(s_start == path->path_len) goto ERROR;
+ 
+  next_i_start = next_k_start = 0; 
+  /* If their are upstream extention nodes see if they are recoved by spliced viterbi */ 
+  if(s_start != 0) {
+    k_start = path->ihmm[0]; 
+    i_start = path->iali[0]; 
+    k_end   = path->jhmm[s_start];
+    i_end   = path->jali[s_start];
 
-  /*Build sub model*/
-  max_M = path->jhmm[0];
-  min_M = path->ihmm[0];
-  for(s = 1; s < path->path_len; s++) {
-    max_M = ESL_MAX(max_M, path->jhmm[s]);
-    min_M = ESL_MIN(min_M, path->ihmm[s]);
+    /* Covert sequence positions to sub sequence positions */
+    if(path->revcomp) {
+      i_start = path_seq->n + path_seq->end - i_start;
+      i_end   = path_seq->n + path_seq->end - i_end;
+    }
+    else  {
+      i_start = i_start - path_seq->start + 1; 
+      i_end   = i_end   - path_seq->start + 1;
+    }
+
+    if(k_end <= k_start || i_end <= i_start + 2) {
+
+      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[0], path->node_id[1]);
+      tmp_edge->splice_score = -eslINFINITY;
+
+      return NULL;
+    } 
+    tmp_path = p7_splice_AlignExons2(pli, gm_fs, pli->bg, path_seq, gcode, i_start, i_end, k_start, k_end, TRUE, FALSE, &next_i_start, &next_k_start, &ali_score);
+
+    for(s = 0; s < tmp_path->path_len; s++) {
+
+      tmp_path->iali[s] = path->revcomp ? path_seq->n - tmp_path->iali[s] + path_seq->end : 
+                                          path_seq->start + tmp_path->iali[s] - 1;
+      tmp_path->jali[s] = path->revcomp ? path_seq->n - tmp_path->jali[s] + path_seq->end : 
+                                          path_seq->start + tmp_path->jali[s] - 1;
+
+    }
+
+    ret_path = p7_splicepath_Clone(tmp_path);
+
+    next_i_start = path->revcomp ? path_seq->n - next_i_start + path_seq->end :
+                                   path_seq->start + next_i_start - 1;    
+
+    p7_splicepath_Destroy(tmp_path);
   }
 
-  sub_hmm     = p7_splice_GetSubHMM(hmm, min_M, max_M);
-  sub_hmm->fs = 0.;
-  
-   /* Find the begining and end of the model global section (first to last anchor) */
-  for(s_start = 0; s_start < path->path_len; s_start++) if(path->node_id[s_start] < graph->orig_N) break;
-  if(s_start == path->path_len) goto ERROR;
-  for(s_end = path->path_len-1; s_end >= 0; s_end--) if(path->node_id[s_end] < graph->orig_N) break;  
+  for(s_end = path->path_len-1; s_end >= 0; s_end--) if(path->node_id[s_end] < graph->anchor_N) break;
   if(s_end == -1) goto ERROR;
 
-  global_start = path->ihmm[s_start];
-  global_end   = path->jhmm[s_end];
-  for(s = s_start; s <= s_end; s++) {
-    global_start = ESL_MIN(global_start, path->ihmm[s]);
-    global_end   = ESL_MAX(global_end, path->jhmm[s]);
-  }
-  global_start = global_start - min_M + 1;
-  global_end   = global_end   - min_M + 1;
-
-  sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, sub_seq->n, global_start);
-
-  /* Check for long introns */
-  max_intron_len = 0;
-  for(s = 1; s < path->path_len; s++) {
-    if(path->ihmm[s] - path->jhmm[s-1] - 1 < 30)
-      max_intron_len = ESL_MAX(max_intron_len, abs(path->iali[s] - path->jali[s-1]) - 1);
-  }
-
-  /* If the martix would be large and the is at least one large intron use the parsers */
-  if(sub_seq->n * (int64_t) sub_hmm->M > MAX_SEARCH_SIZE  && max_intron_len > MIN_INTRON_RMV) {
-    /* Grow matricies */ 
-
-    p7_gmx_sp_GrowTo(info->pli->vit, sub_sp_model->M, MIN_INTRON_LENG+5, sub_seq->n);
-    p7_splicepipline_GrowIndex(info->pli->sig_idx, sub_sp_model->M, sub_seq->n, PARSER_MODE);
+  for(s = s_start+1; s <= s_end; s++) {
+     
+   //TODO start coordes need to come from previous alignment
+    k_start = next_k_start == 0 ? path->ihmm[s-1] : next_k_start; 
+    i_start = next_i_start == 0 ? path->iali[s-1] : next_i_start;
+    k_end   = path->jhmm[s];
+    i_end   = path->jali[s];
     
-    p7_spliceviterbi_parser_semiglobal_fwd(info->pli, sub_seq->dsq, info->gcode, sub_seq->n, sub_sp_model, info->pli->vit, global_end);
-    p7_splicevitebi_exon_definition(info->pli, path, info->pli->vit, sub_sp_model, sub_seq, &exon_idx, &exon_cnt, &exit_k);
-
-    /* If the parser exited before the last position in the sub model, 
-     * rebuild the model with the exit k and the final position */ 
-    if(exit_k < sub_sp_model->M) {
-      p7_hmm_Destroy(sub_hmm);
-
-      sub_hmm     = p7_splice_GetSubHMM(hmm, min_M, (exit_k + min_M - 1));
-      sub_hmm->fs = 0.;
-
-      p7_profile_fs_Destroy(sub_sp_model);
-      
-      sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
-      p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, sub_seq->n, global_start); 
-
-    } 
-
-    /* If the parser found at least one long intron, remove it from the sequence before doing full matrix search */
-    if(exon_cnt > 1) {
-//for(i = exon_cnt-1; i >= 0; i--)
-//printf("i %d j %d\n", exon_idx[i*2], exon_idx[i*2+1]);
-printf("2 max_intron_len %d \n", max_intron_len);
-      ESL_ALLOC(remove_idx, sizeof(int) * exon_cnt);
-      stitch_seq = p7_splice_GetSplicedSequence2(path, sub_seq, exon_idx, exon_cnt, remove_idx, &remove_cnt, &nuc_index); 
-
-      p7_fs_ReconfigLength(sub_sp_model, stitch_seq->n);
-
-      /*If the stiched seq still creates a large matrix and first exon region covers more 
-       *than one step in the path with a long intron use the bwd splice viterbi parser to 
-       *find the sequence and model position of the model entrance */
-      if( stitch_seq->n * (int64_t) sub_hmm->M > MAX_SEARCH_SIZE) {
-        entrance_i = entrance_k = 1;
-        for(s = 1; s < path->path_len; s++) { 
-        
-          if(path->revcomp) {
-            /* Find a path step that overlaps with the first exon region */
-            if(sub_seq->n + sub_seq->end - path->iali[s] <= exon_idx[(exon_cnt-1)*2+1]) {
-              /* Check if it is proceeded by a long intron */
-              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
-                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, stitch_seq->dsq, info->gcode, stitch_seq->n, sub_sp_model, info->pli->vit, remove_idx, remove_cnt);
-                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
-                printf("1 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
-                break;
-              }
-            }
-            else break;
-          }
-          else {
-            if(path->iali[s] - sub_seq->start + 1 <= exon_idx[(exon_cnt-1)*2+1]) {
-              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
-                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, stitch_seq->dsq, info->gcode, stitch_seq->n, sub_sp_model, info->pli->vit, remove_idx, remove_cnt);
-                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
-                printf("1 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
-                break;
-              }
-            } 
-            else break;
-          }
-        }
-  
-        /* If the model entrance happened after the first position in the striched seqeunce we will trim the seqeunce and then shift the nuc index and remove_idx */ 
-        if(entrance_i != 1) {
-        
-          tmp_dsq = stitch_seq->dsq + (entrance_i - 1);
-          tmp_n = stitch_seq->n - entrance_i + 1;
-          esl_sq_Destroy(stitch_seq);
-          stitch_seq = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, tmp_dsq, tmp_n, NULL,NULL,NULL); 
-         
-          for(n = 1; n <= tmp_n; n++) 
-            nuc_index[n] = nuc_index[n+entrance_i-1];
-               
-          r = 0;
-          /*First remove any remove_idx values that are before the new sequence start,
-           * then adjust the remained remove_idx values */  
-          while(r < remove_cnt) {
-            if(remove_idx[r] <= entrance_i) {
-              for(r_shift = r; r_shift < remove_cnt - 1; r_shift++) 
-                remove_idx[r_shift] = remove_idx[r_shift+1];
-              remove_cnt--;
-            }
-            r++;
-          }
-          for(r = 0; r < remove_cnt; r++) 
-            remove_idx[r] = remove_idx[r] - entrance_i + 1;
-  
-        }
-        /* If the model entrance hppened after the first position in the sub model create a new sub model */
-        if(entrance_k != 1) {
-          p7_hmm_Destroy(sub_hmm);
-  
-          sub_hmm     = p7_splice_GetSubHMM(hmm, (min_M + entrance_k - 1), (min_M + exit_k - 1));
-          sub_hmm->fs = 0.;
-  
-          p7_profile_fs_Destroy(sub_sp_model);
-  
-          sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
-          p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, stitch_seq->n, 1);   
-  
-        }
-      }
-      printf("1 stitch_seq->n %ld sub_sp_model->M %d n*m %ld\n", stitch_seq->n, sub_sp_model->M, stitch_seq->n * (int64_t) sub_sp_model->M); 
-      fflush(stdout);
-      ret_path = p7_splice_AlignExons2(pli, sub_sp_model, pli->bg, stitch_seq, gcode, remove_idx, remove_cnt, sub_sp_model->M);
-//p7_splicepath_Dump(stdout,ret_path);
-      for(i = 0; i < ret_path->path_len; i++) {
-        ret_path->ihmm[i] = ret_path->ihmm[i] + path->ihmm[0] - 1;
-        ret_path->jhmm[i] = ret_path->jhmm[i] + path->ihmm[0] - 1;
-        ret_path->iali[i] = nuc_index[ret_path->iali[i]];
-        ret_path->jali[i] = nuc_index[ret_path->jali[i]];
-      }
-
-      esl_sq_Destroy(stitch_seq);
+    /* Covert sequence positions to sub sequence positions */
+    if(path->revcomp) {
+      i_start = path_seq->n + path_seq->end - i_start;
+      i_end   = path_seq->n + path_seq->end - i_end;
     }
-    /* If the parser failed to find any introns check if it trimed the sequence before doing full matrix search */
+    else  {
+      i_start = i_start - path_seq->start + 1;
+      i_end   = i_end   - path_seq->start + 1;
+    }
+    
+    if(k_end <= k_start || i_end <= i_start + 2) {
+
+      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[s-1], path->node_id[s]);
+      tmp_edge->splice_score = -eslINFINITY;
+
+      p7_splicepath_Destroy(ret_path);
+      return NULL;
+    }
+   
+    tmp_path = p7_splice_AlignExons2(pli, gm_fs, pli->bg, path_seq, gcode, i_start, i_end, k_start, k_end, FALSE, FALSE, &next_i_start, &next_k_start, &ali_score);
+     
+    /* If the spliced aligment score is less than the score of the two hits plus the B->M penalty,       
+     * these exons are better off as seperate hits so we erase the edge and return NULL */ 
+    if(tmp_path == NULL || ali_score < path->aliscore[s-1] + path->aliscore[s] + p7P_TSC(gm_fs, path->ihmm[s]-1, p7P_BM)) {
+      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[s-1], path->node_id[s]);
+      tmp_edge->splice_score = -eslINFINITY;
+
+      p7_splicepath_Destroy(tmp_path);
+      p7_splicepath_Destroy(ret_path); 
+      return NULL;
+    }
+    for(i = 0; i < tmp_path->path_len; i++) {
+      tmp_path->iali[i] = path->revcomp ? path_seq->n - tmp_path->iali[i] + path_seq->end :
+                                          path_seq->start + tmp_path->iali[i] - 1;
+      tmp_path->jali[i] = path->revcomp ? path_seq->n - tmp_path->jali[i] + path_seq->end :
+                                          path_seq->start + tmp_path->jali[i] - 1;
+    }
+
+    next_i_start = path->revcomp ? path_seq->n - next_i_start + path_seq->end :
+                                   path_seq->start + next_i_start - 1;
+
+    if(ret_path == NULL) ret_path = p7_splicepath_Clone(tmp_path);
     else {
-      trimed_end = trimed_start = FALSE;
-      if(exon_idx[1] < sub_seq->n) {
-        esl_sq_Destroy(sub_seq);
-        sub_seq =  esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, exon_idx[1], NULL,NULL,NULL);
-        sub_seq->start = path->iali[0];
-        if(path->revcomp) sub_seq->end = path->iali[0] - exon_idx[1] + 1;
-        else              sub_seq->end = path->iali[0] + exon_idx[1] - 1 ;
-        trimed_end = TRUE;
-      } 
+      ret_path->jali[ret_path->path_len-1] = tmp_path->jali[0];
+      ret_path->jhmm[ret_path->path_len-1] = tmp_path->jhmm[0];
 
-      /*If the seq and model still create a large matrix and there is still a long intron 
-       *in the part of the path covered by the new sub_seq run the bwd splice viterbi 
-       *parser to find the sequence and model position of the model entrance */ 
-      if( sub_seq->n * (int64_t) sub_hmm->M > MAX_SEARCH_SIZE) {
-        entrance_i = entrance_k = 1;
-        for(s = 1; s < path->path_len; s++) { 
+      for(i = 1; i < tmp_path->path_len; i++) {   
+        p7_splicepath_Insert(ret_path, ret_path->path_len);
+        ret_path->iali[ret_path->path_len-1] = tmp_path->iali[i];
+        ret_path->jali[ret_path->path_len-1] = tmp_path->jali[i];
+        ret_path->ihmm[ret_path->path_len-1] = tmp_path->ihmm[i];
+        ret_path->jhmm[ret_path->path_len-1] = tmp_path->jhmm[i]; 
         
-          if(path->revcomp) {
-            /* Find a path step that overlaps with the first exon region */
-            if(sub_seq->n + sub_seq->end - path->iali[s] <= exon_idx[(exon_cnt-1)*2+1]) {
-              /* Check if it is proceeded by a long intron */
-              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
-                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, sub_seq->dsq, info->gcode, sub_seq->n, sub_sp_model, info->pli->vit, NULL, 0);
-                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
-                printf("2 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
-                break;
-              }
-            }
-            else break;
-          }
-          else {
-            if(path->iali[s] - sub_seq->start + 1 <= exon_idx[(exon_cnt-1)*2+1]) {
-              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
-                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, sub_seq->dsq, info->gcode, sub_seq->n, sub_sp_model, info->pli->vit, NULL, 0);
-                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
-                printf("2 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
-                break;
-              }
-            } 
-            else break;
-          }
-        }
-
-        /* If the model entrance happened after the first position in the sub sequence we will trim the seqeunce */ 
-        if(entrance_i != 1) {
-          tmp_end = sub_seq->end; 
-          esl_sq_Destroy(sub_seq);
-          seq_start = seq_start + entrance_i - 1;
-          seq_len   = seq_len   - entrance_i + 1;
-          sub_seq =  esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
-          if(path->revcomp) sub_seq->start = path_seq->start - seq_start;
-          else              sub_seq->start = path_seq->start + seq_start;
-          sub_seq->end   = tmp_end;
-           trimed_start = TRUE;
-        }
-        /* If the model entrance hppened after the first position in the sub model create a new sub model */
-        if(entrance_k != 1) {
-          p7_hmm_Destroy(sub_hmm);
-  
-          sub_hmm     = p7_splice_GetSubHMM(hmm, (min_M + entrance_k - 1), (min_M + exit_k - 1));
-          sub_hmm->fs = 0.;
-  
-          p7_profile_fs_Destroy(sub_sp_model);
-  
-          sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
-          p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, sub_seq->n, 1);   
-  
-        }
       }
+    } 
+  
+    //p7_splicepath_Dump(stdout,tmp_path);
+    p7_splicepath_Destroy(tmp_path); 
+  }
 
-       printf("2 max_intron_len %d trimed_start %d trimed_end %d\n", max_intron_len, trimed_start, trimed_end );
-      printf("2 sub_seq->n %ld sub_sp_model->M %d n*m %ld\n", sub_seq->n, sub_sp_model->M, sub_seq->n * (int64_t) sub_sp_model->M);
-fflush(stdout);
-      ret_path = p7_splice_AlignExons2(pli, sub_sp_model, pli->bg, sub_seq, gcode, NULL, 0, sub_sp_model->M); 
-      for(i = 0; i < ret_path->path_len; i++) {
-        ret_path->ihmm[i] = ret_path->ihmm[i] + path->ihmm[0] - 1;
-        ret_path->jhmm[i] = ret_path->jhmm[i] + path->ihmm[0] - 1;
+  if(s_end != path->path_len-1) {
+    k_start = next_k_start == 0 ? path->ihmm[s_end] : next_k_start;
+    i_start = next_i_start == 0 ? path->iali[s_end] : next_i_start;
+    k_end   = path->jhmm[path->path_len-1];
+    i_end   = path->jali[path->path_len-1];
+ 
+    /* Covert sequence positions to sub sequence positions */
+    if(path->revcomp) {
+      i_start = path_seq->n + path_seq->end - i_start;
+      i_end   = path_seq->n + path_seq->end - i_end;
+    }
+    else  {
+      i_start = i_start - path_seq->start + 1;
+      i_end   = i_end   - path_seq->start + 1;
+    }
 
-        if(path->revcomp) {
-          ret_path->iali[i] = sub_seq->n - ret_path->iali[i] + sub_seq->end;
-          ret_path->jali[i] = sub_seq->n - ret_path->jali[i] + sub_seq->end;
-        }
-        else {
-          ret_path->iali[i] = sub_seq->start + ret_path->iali[i] - 1;
-          ret_path->jali[i] = sub_seq->start + ret_path->jali[i] - 1;
-        }
+    if(k_end <= k_start || i_end <= i_start + 2) {
+
+      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[path->path_len-2], path->node_id[path->path_len-1]);
+      tmp_edge->splice_score = -eslINFINITY;
+
+      p7_splicepath_Destroy(ret_path);
+      return NULL;
+    }
+
+    tmp_path = p7_splice_AlignExons2(pli, gm_fs, pli->bg, path_seq, gcode, i_start, i_end, k_start, k_end, FALSE, TRUE, &next_i_start, &next_k_start, &ali_score);
+
+    for(s = 0; s < tmp_path->path_len; s++) {
+
+      tmp_path->iali[s] = path->revcomp ? path_seq->n - tmp_path->iali[s] + path_seq->end :
+                                          path_seq->start + tmp_path->iali[s] - 1;
+      tmp_path->jali[s] = path->revcomp ? path_seq->n - tmp_path->jali[s] + path_seq->end :
+                                          path_seq->start + tmp_path->jali[s] - 1;
+    }
+
+    if(ret_path == NULL) ret_path = p7_splicepath_Clone(tmp_path);
+    else {
+      ret_path->jali[ret_path->path_len-1] = tmp_path->jali[0];
+      ret_path->jhmm[ret_path->path_len-1] = tmp_path->jhmm[0];
+
+      for(i = 1; i < tmp_path->path_len; i++) {
+        p7_splicepath_Insert(ret_path, ret_path->path_len);
+        ret_path->iali[ret_path->path_len-1] = tmp_path->iali[i];
+        ret_path->jali[ret_path->path_len-1] = tmp_path->jali[i];
+        ret_path->ihmm[ret_path->path_len-1] = tmp_path->ihmm[i];
+        ret_path->jhmm[ret_path->path_len-1] = tmp_path->jhmm[i];
+
       }
     }
-  }
-  /*If the martix is small or there are no long introns in the path do full matrix search */
-  else {
-   printf("3 sub_seq->n %ld sub_sp_model->M %d n*m %ld\n", sub_seq->n, sub_sp_model->M, sub_seq->n * (int64_t) sub_sp_model->M); 
-fflush(stdout);
-    ret_path = p7_splice_AlignExons2(pli, sub_sp_model, pli->bg, sub_seq, gcode, NULL, 0, global_end); 
-    for(i = 0; i < ret_path->path_len; i++) {
-      ret_path->ihmm[i] = ret_path->ihmm[i] + path->ihmm[0] - 1;
-      ret_path->jhmm[i] = ret_path->jhmm[i] + path->ihmm[0] - 1;
 
-      if(path->revcomp) {
-        ret_path->iali[i] = sub_seq->n - ret_path->iali[i] + sub_seq->end;
-        ret_path->jali[i] = sub_seq->n - ret_path->jali[i] + sub_seq->end;
-      }
-      else {
-        ret_path->iali[i] = sub_seq->start + ret_path->iali[i] - 1;
-        ret_path->jali[i] = sub_seq->start + ret_path->jali[i] - 1;
-      }
-    }
+  //  p7_splicepath_Dump(stdout,tmp_path);
+    p7_splicepath_Destroy(tmp_path);
+    
   }
-  
+   
+//  
+//  /* Create a sub sequence from the path sequence without the extention nucs */
+//  seq_start = llabs(path->iali[0] - path_seq->start);
+//  seq_len   = llabs(path->jali[path->path_len-1] - path->iali[0]) + 1;
+//  sub_seq =  esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
+//  sub_seq->start = path->iali[0];
+//  sub_seq->end   = path->jali[path->path_len-1];
+//
+//  /*Build sub model*/
+//  max_M = path->jhmm[0];
+//  min_M = path->ihmm[0];
+//  for(s = 1; s < path->path_len; s++) {
+//    max_M = ESL_MAX(max_M, path->jhmm[s]);
+//    min_M = ESL_MIN(min_M, path->ihmm[s]);
+//  }
+//
+//  sub_hmm     = p7_splice_GetSubHMM(hmm, min_M, max_M);
+//  sub_hmm->fs = 0.;
+//  
+//  /* Find the begining and end of the model global section (first to last anchor) */
+//  for(s_start = 0; s_start < path->path_len; s_start++) if(path->node_id[s_start] < graph->anchor_N) break;
+//  if(s_start == path->path_len) goto ERROR;
+//  for(s_end = path->path_len-1; s_end >= 0; s_end--) if(path->node_id[s_end] < graph->anchor_N) break;  
+//  if(s_end == -1) goto ERROR;
+//
+//  global_start = path->ihmm[s_start];
+//  global_end   = path->jhmm[s_end];
+//  for(s = s_start; s <= s_end; s++) {
+//    global_start = ESL_MIN(global_start, path->ihmm[s]);
+//    global_end   = ESL_MAX(global_end, path->jhmm[s]);
+//  }
+//  global_start = global_start - min_M + 1;
+//  global_end   = global_end   - min_M + 1;
+//
+//  sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
+//  p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, sub_seq->n, global_start);
+//
+//  /* Check for long introns */
+//  max_intron_len = 0;
+//  for(s = 1; s < path->path_len; s++) {
+//    if(path->ihmm[s] - path->jhmm[s-1] - 1 < 30)
+//      max_intron_len = ESL_MAX(max_intron_len, abs(path->iali[s] - path->jali[s-1]) - 1);
+//  }
+//
+//  /* If the martix would be large and the is at least one large intron use the parsers */
+//  if(sub_seq->n * (int64_t) sub_hmm->M > MAX_SEARCH_SIZE  && max_intron_len > MIN_INTRON_RMV) {
+//    /* Grow matricies */ 
+//
+//    p7_gmx_sp_GrowTo(info->pli->vit, sub_sp_model->M, MIN_INTRON_LENG+5, sub_seq->n);
+//    p7_splicepipline_GrowIndex(info->pli->sig_idx, sub_sp_model->M, sub_seq->n, PARSER_MODE);
+//    
+//    p7_spliceviterbi_parser_semiglobal_fwd(info->pli, sub_seq->dsq, info->gcode, sub_seq->n, sub_sp_model, info->pli->vit, global_end);
+//    p7_splicevitebi_exon_definition(info->pli, path, info->pli->vit, sub_sp_model, sub_seq, &exon_idx, &exon_cnt, &exit_k);
+//
+//    /* If the parser exited before the last position in the sub model, 
+//     * rebuild the model with the exit k and the final position */ 
+//    if(exit_k < sub_sp_model->M) {
+//      p7_hmm_Destroy(sub_hmm);
+//
+//      sub_hmm     = p7_splice_GetSubHMM(hmm, min_M, (exit_k + min_M - 1));
+//      sub_hmm->fs = 0.;
+//
+//      p7_profile_fs_Destroy(sub_sp_model);
+//      
+//      sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
+//      p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, sub_seq->n, global_start); 
+//
+//    } 
+//
+//    /* If the parser found at least one long intron, remove it from the sequence before doing full matrix search */
+//    if(exon_cnt > 1) {
+////for(i = exon_cnt-1; i >= 0; i--)
+////printf("i %d j %d\n", exon_idx[i*2], exon_idx[i*2+1]);
+//printf("2 max_intron_len %d \n", max_intron_len);
+//      ESL_ALLOC(remove_idx, sizeof(int) * exon_cnt);
+//      stitch_seq = p7_splice_GetSplicedSequence2(path, sub_seq, exon_idx, exon_cnt, remove_idx, &remove_cnt, &nuc_index); 
+//
+//      p7_fs_ReconfigLength(sub_sp_model, stitch_seq->n);
+//
+//      /*If the stiched seq still creates a large matrix and first exon region covers more 
+//       *than one step in the path with a long intron use the bwd splice viterbi parser to 
+//       *find the sequence and model position of the model entrance */
+//      if( stitch_seq->n * (int64_t) sub_hmm->M > MAX_SEARCH_SIZE) {
+//        entrance_i = entrance_k = 1;
+//        for(s = 1; s < path->path_len; s++) { 
+//        
+//          if(path->revcomp) {
+//            /* Find a path step that overlaps with the first exon region */
+//            if(sub_seq->n + sub_seq->end - path->iali[s] <= exon_idx[(exon_cnt-1)*2+1]) {
+//              /* Check if it is proceeded by a long intron */
+//              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
+//                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, stitch_seq->dsq, info->gcode, stitch_seq->n, sub_sp_model, info->pli->vit, remove_idx, remove_cnt);
+//                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
+//                printf("1 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
+//                break;
+//              }
+//            }
+//            else break;
+//          }
+//          else {
+//            if(path->iali[s] - sub_seq->start + 1 <= exon_idx[(exon_cnt-1)*2+1]) {
+//              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
+//                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, stitch_seq->dsq, info->gcode, stitch_seq->n, sub_sp_model, info->pli->vit, remove_idx, remove_cnt);
+//                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
+//                printf("1 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
+//                break;
+//              }
+//            } 
+//            else break;
+//          }
+//        }
+//  
+//        /* If the model entrance happened after the first position in the striched seqeunce we will trim the seqeunce and then shift the nuc index and remove_idx */ 
+//        if(entrance_i != 1) {
+//        
+//          tmp_dsq = stitch_seq->dsq + (entrance_i - 1);
+//          tmp_n = stitch_seq->n - entrance_i + 1;
+//          esl_sq_Destroy(stitch_seq);
+//          stitch_seq = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, tmp_dsq, tmp_n, NULL,NULL,NULL); 
+//         
+//          for(n = 1; n <= tmp_n; n++) 
+//            nuc_index[n] = nuc_index[n+entrance_i-1];
+//               
+//          r = 0;
+//          /*First remove any remove_idx values that are before the new sequence start,
+//           * then adjust the remained remove_idx values */  
+//          while(r < remove_cnt) {
+//            if(remove_idx[r] <= entrance_i) {
+//              for(r_shift = r; r_shift < remove_cnt - 1; r_shift++) 
+//                remove_idx[r_shift] = remove_idx[r_shift+1];
+//              remove_cnt--;
+//            }
+//            r++;
+//          }
+//          for(r = 0; r < remove_cnt; r++) 
+//            remove_idx[r] = remove_idx[r] - entrance_i + 1;
+//  
+//        }
+//        /* If the model entrance hppened after the first position in the sub model create a new sub model */
+//        if(entrance_k != 1) {
+//          p7_hmm_Destroy(sub_hmm);
+//  
+//          sub_hmm     = p7_splice_GetSubHMM(hmm, (min_M + entrance_k - 1), (min_M + exit_k - 1));
+//          sub_hmm->fs = 0.;
+//  
+//          p7_profile_fs_Destroy(sub_sp_model);
+//  
+//          sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
+//          p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, stitch_seq->n, 1);   
+//  
+//        }
+//      }
+//      printf("1 stitch_seq->n %ld sub_sp_model->M %d n*m %ld\n", stitch_seq->n, sub_sp_model->M, stitch_seq->n * (int64_t) sub_sp_model->M); 
+//      fflush(stdout);
+//      ret_path = p7_splice_AlignExons(pli, sub_sp_model, pli->bg, stitch_seq, gcode, remove_idx, remove_cnt, sub_sp_model->M);
+////p7_splicepath_Dump(stdout,ret_path);
+//      for(i = 0; i < ret_path->path_len; i++) {
+//        ret_path->ihmm[i] = ret_path->ihmm[i] + path->ihmm[0] - 1;
+//        ret_path->jhmm[i] = ret_path->jhmm[i] + path->ihmm[0] - 1;
+//        ret_path->iali[i] = nuc_index[ret_path->iali[i]];
+//        ret_path->jali[i] = nuc_index[ret_path->jali[i]];
+//      }
+//
+//      esl_sq_Destroy(stitch_seq);
+//    }
+//    /* If the parser failed to find any introns check if it trimed the sequence before doing full matrix search */
+//    else {
+//      trimed_end = trimed_start = FALSE;
+//      if(exon_idx[1] < sub_seq->n) {
+//        esl_sq_Destroy(sub_seq);
+//        sub_seq =  esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, exon_idx[1], NULL,NULL,NULL);
+//        sub_seq->start = path->iali[0];
+//        if(path->revcomp) sub_seq->end = path->iali[0] - exon_idx[1] + 1;
+//        else              sub_seq->end = path->iali[0] + exon_idx[1] - 1 ;
+//        trimed_end = TRUE;
+//      } 
+//
+//      /*If the seq and model still create a large matrix and there is still a long intron 
+//       *in the part of the path covered by the new sub_seq run the bwd splice viterbi 
+//       *parser to find the sequence and model position of the model entrance */ 
+//      if( sub_seq->n * (int64_t) sub_hmm->M > MAX_SEARCH_SIZE) {
+//        entrance_i = entrance_k = 1;
+//        for(s = 1; s < path->path_len; s++) { 
+//        
+//          if(path->revcomp) {
+//            /* Find a path step that overlaps with the first exon region */
+//            if(sub_seq->n + sub_seq->end - path->iali[s] <= exon_idx[(exon_cnt-1)*2+1]) {
+//              /* Check if it is proceeded by a long intron */
+//              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
+//                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, sub_seq->dsq, info->gcode, sub_seq->n, sub_sp_model, info->pli->vit, NULL, 0);
+//                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
+//                printf("2 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
+//                break;
+//              }
+//            }
+//            else break;
+//          }
+//          else {
+//            if(path->iali[s] - sub_seq->start + 1 <= exon_idx[(exon_cnt-1)*2+1]) {
+//              if(abs(path->iali[s] - path->jali[s-1]) - 1 > MIN_INTRON_RMV) {
+//                p7_spliceviterbi_parser_semiglobal_bwd(info->pli, sub_seq->dsq, info->gcode, sub_seq->n, sub_sp_model, info->pli->vit, NULL, 0);
+//                p7_spliceviterbi_find_entrance(info->pli, info->pli->vit, sub_sp_model, &entrance_i, &entrance_k);
+//                printf("2 entrance_i %d entrance_k %d\n", entrance_i, entrance_k);
+//                break;
+//              }
+//            } 
+//            else break;
+//          }
+//        }
+//
+//        /* If the model entrance happened after the first position in the sub sequence we will trim the seqeunce */ 
+//        if(entrance_i != 1) {
+//          tmp_end = sub_seq->end; 
+//          esl_sq_Destroy(sub_seq);
+//          seq_start = seq_start + entrance_i - 1;
+//          seq_len   = seq_len   - entrance_i + 1;
+//          sub_seq =  esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
+//          if(path->revcomp) sub_seq->start = path_seq->start - seq_start;
+//          else              sub_seq->start = path_seq->start + seq_start;
+//          sub_seq->end   = tmp_end;
+//           trimed_start = TRUE;
+//        }
+//        /* If the model entrance hppened after the first position in the sub model create a new sub model */
+//        if(entrance_k != 1) {
+//          p7_hmm_Destroy(sub_hmm);
+//  
+//          sub_hmm     = p7_splice_GetSubHMM(hmm, (min_M + entrance_k - 1), (min_M + exit_k - 1));
+//          sub_hmm->fs = 0.;
+//  
+//          p7_profile_fs_Destroy(sub_sp_model);
+//  
+//          sub_sp_model = p7_profile_sp_Create(sub_hmm->M, sub_hmm->abc);
+//          p7_ProfileConfig_sp(sub_hmm, pli->bg, gcode, sub_sp_model, sub_seq->n, 1);   
+//  
+//        }
+//      }
+//
+//       printf("2 max_intron_len %d trimed_start %d trimed_end %d\n", max_intron_len, trimed_start, trimed_end );
+//      printf("2 sub_seq->n %ld sub_sp_model->M %d n*m %ld\n", sub_seq->n, sub_sp_model->M, sub_seq->n * (int64_t) sub_sp_model->M);
+//fflush(stdout);
+//      ret_path = p7_splice_AlignExons(pli, sub_sp_model, pli->bg, sub_seq, gcode, NULL, 0, sub_sp_model->M); 
+//      for(i = 0; i < ret_path->path_len; i++) {
+//        ret_path->ihmm[i] = ret_path->ihmm[i] + path->ihmm[0] - 1;
+//        ret_path->jhmm[i] = ret_path->jhmm[i] + path->ihmm[0] - 1;
+//
+//        if(path->revcomp) {
+//          ret_path->iali[i] = sub_seq->n - ret_path->iali[i] + sub_seq->end;
+//          ret_path->jali[i] = sub_seq->n - ret_path->jali[i] + sub_seq->end;
+//        }
+//        else {
+//          ret_path->iali[i] = sub_seq->start + ret_path->iali[i] - 1;
+//          ret_path->jali[i] = sub_seq->start + ret_path->jali[i] - 1;
+//        }
+//      }
+//    }
+//  }
+//  /*If the martix is small or there are no long introns in the path do full matrix search */
+//  else {
+//   printf("3 sub_seq->n %ld sub_sp_model->M %d n*m %ld\n", sub_seq->n, sub_sp_model->M, sub_seq->n * (int64_t) sub_sp_model->M); 
+//fflush(stdout);
+//    ret_path = p7_splice_AlignExons(pli, sub_sp_model, pli->bg, sub_seq, gcode, NULL, 0, global_end); 
+//    for(i = 0; i < ret_path->path_len; i++) {
+//      ret_path->ihmm[i] = ret_path->ihmm[i] + path->ihmm[0] - 1;
+//      ret_path->jhmm[i] = ret_path->jhmm[i] + path->ihmm[0] - 1;
+//
+//      if(path->revcomp) {
+//        ret_path->iali[i] = sub_seq->n - ret_path->iali[i] + sub_seq->end;
+//        ret_path->jali[i] = sub_seq->n - ret_path->jali[i] + sub_seq->end;
+//      }
+//      else {
+//        ret_path->iali[i] = sub_seq->start + ret_path->iali[i] - 1;
+//        ret_path->jali[i] = sub_seq->start + ret_path->jali[i] - 1;
+//      }
+//    }
+//  }
+//  
   if(ret_path != NULL) {
     ret_path->revcomp = path->revcomp;
 
     for(s = 0; s < path->path_len; s++) {
-      if(path->node_id[s] >= graph->orig_N) continue;
+      if(path->node_id[s] >= graph->anchor_N) continue;
       for(i = 0; i < ret_path->path_len; i++) {
         if(ret_path->node_id[i] >= 0) continue;
         if(seq_overlap2(ret_path, i, path, s) > 0.0 && hmm_overlap2(ret_path, i, path, s) > 0.0)
@@ -1373,19 +1582,21 @@ fflush(stdout);
     for(i = 0; i < ret_path->path_len; i++) {
       if(ret_path->node_id[i] >= 0) contains_anchor = TRUE;
     }
-    if(!contains_anchor) ret_path->path_len = 0;
-
+    if(!contains_anchor) {
+      p7_splicepath_Destroy(ret_path);
+      ret_path = NULL;
+    }
   }
 
-  esl_sq_Destroy(sub_seq);
-  p7_hmm_Destroy(sub_hmm);
-  p7_profile_fs_Destroy(sub_sp_model); 
-  if(exon_idx != NULL) free(exon_idx);
-  if(remove_idx != NULL) free(remove_idx);
-  if(nuc_index != NULL) free(nuc_index);
-  exon_idx = NULL;
-  remove_idx = NULL;
-  nuc_index = NULL;
+  //esl_sq_Destroy(sub_seq);
+  //p7_hmm_Destroy(sub_hmm);
+  //p7_profile_fs_Destroy(sub_sp_model); 
+  //if(exon_idx != NULL) free(exon_idx);
+  //if(remove_idx != NULL) free(remove_idx);
+  //if(nuc_index != NULL) free(nuc_index);
+ // exon_idx = NULL;
+ // remove_idx = NULL;
+ // nuc_index = NULL;
 
   return ret_path;
 
@@ -1393,297 +1604,9 @@ fflush(stdout);
     return NULL;
 }
 
-/*
- * path1 = tmp_path
- * path2 = ret_path
- * path3 = path
- */
-int 
-assess_paths(SPLICE_WORKER_INFO *info, SPLICE_PATH *path1, SPLICE_PATH *path2, SPLICE_PATH *path3, P7_HMM *sub_hmm, ESL_SQ *path_seq, int full_intron, int *step)
-{
-  int  i, s; 
-  int  seq_start;
-  int  seq_len;
-  int  upstream_confirmed;
-  int  downstream_confirmed;
-  int *remove_idx;
-  ESL_SQ *sub_seq;
-  SPLICE_PATH *tmp_path;
-  
-  remove_idx = NULL;
- 
-  s = *step;
-
-  upstream_confirmed  = confirm_overlap(path1, 0, path3, s-1, p7_CONFIRM_START);
-  downstream_confirmed = confirm_overlap(path1, path1->path_len-1, path3, s, p7_CONFIRM_END); 
-//printf("upstream_confirmed %d downstream_confirmed %d\n", upstream_confirmed, downstream_confirmed);  
-  if(upstream_confirmed && path2->path_len > 0) {
-    if(path1->jhmm[0] < path2->ihmm[path2->path_len-1])  
-      upstream_confirmed = FALSE;
-    else if(path3->revcomp) {
-      if(path1->jali[0] > path2->iali[path2->path_len-1]) 
-         upstream_confirmed = FALSE;
-    }
-    else {
-      if(path1->jali[0] < path2->iali[path2->path_len-1])
-        upstream_confirmed = FALSE;
-    }
-  }
-//printf("upstream_confirmed %d downstream_confirmed %d\n", upstream_confirmed, downstream_confirmed);
-//printf("TMP PATH\n");
-//p7_splicepath_Dump(stdout, path1);    
-
-  /* Remove any unconfirmed nodes */
-  if(!downstream_confirmed) 
-    p7_splicepath_Remove(path3, s); 
-  if(!upstream_confirmed)
-    remove_upstream(path2, path3, &s);
-
-  if(upstream_confirmed && downstream_confirmed) {
-
-    if(path1->path_len == 1) {
-      if(path2->path_len == 0) {
-        path2->path_len++;
-        path2->iali[path2->path_len-1] = path1->iali[0];
-        path2->ihmm[path2->path_len-1] = path1->ihmm[0]; 
-      } 
-      path2->jali[path2->path_len-1] = path1->jali[0];
-      path2->jhmm[path2->path_len-1] = path1->jhmm[0];
-
-      s++; 
-    }
-    else if(path1->path_len == 2) {
-      if(path2->path_len == 0) {
-        path2->path_len++;
-        path2->iali[path2->path_len-1] = path1->iali[0];
-        path2->ihmm[path2->path_len-1] = path1->ihmm[0];
-      }
-      path2->jali[path2->path_len-1] = path1->jali[0];
-      path2->jhmm[path2->path_len-1] = path1->jhmm[0];       
-
-      p7_splicepath_Grow(path2);
-
-      path2->node_id[path2->path_len] = path3->node_id[s];
-      path2->iali[path2->path_len]    = path1->iali[1]; 
-      path2->jali[path2->path_len]    = path1->jali[1];
-      path2->ihmm[path2->path_len]    = path1->ihmm[1];
-      path2->jhmm[path2->path_len]    = path1->jhmm[1];
-      path2->path_len++;
-
-      s++;
-      
-    }   
-    else if(full_intron) {
-//printf("TMP PATH\n");
-//p7_splicepath_Dump(stdout, path1);
-      if(path2->path_len == 0) {
-        path2->path_len++;
-        path2->iali[path2->path_len-1] = path1->iali[0];
-        path2->ihmm[path2->path_len-1] = path1->ihmm[0];
-      }
-      path2->jali[path2->path_len-1] = path1->jali[0];
-      path2->jhmm[path2->path_len-1] = path1->jhmm[0];  
-
-      for(i = 1; i < path1->path_len-1; i++) {
-        p7_splicepath_Grow(path2);
-        path2->node_id[path2->path_len] = -1;  
-
-        if(seq_overlap2(path1, i, path3, s-1) > 0.25 && hmm_overlap2(path1, i, path3, s-1) > 0.25)  
-          path2->node_id[path2->path_len] = path3->node_id[s-1];
-        else if(seq_overlap2(path1, i, path3, s) > 0.25 && hmm_overlap2(path1, i, path3, s) > 0.25)
-          path2->node_id[path2->path_len] = path3->node_id[s];
-
-        path2->iali[path2->path_len] = path1->iali[i];
-        path2->jali[path2->path_len] = path1->jali[i];
-        path2->ihmm[path2->path_len] = path1->ihmm[i];
-        path2->jhmm[path2->path_len] = path1->jhmm[i];
-        path2->path_len++;     
-      }
-
-      p7_splicepath_Grow(path2);
-      path2->node_id[path2->path_len] = path3->node_id[s];
-      path2->iali[path2->path_len] = path1->iali[path1->path_len-1];
-      path2->jali[path2->path_len] = path1->jali[path1->path_len-1];
-      path2->ihmm[path2->path_len] = path1->ihmm[path1->path_len-1];
-      path2->jhmm[path2->path_len] = path1->jhmm[path1->path_len-1];
-      path2->path_len++;
-
-      s++;
-    } 
-    else {
-
-      seq_start = llabs(path3->iali[s-1] - path_seq->start);
-      seq_len   = llabs(path3->jali[s]   - path3->iali[s-1]) + 1;
-
-          /* Temp memory upper limit */
-      if(seq_len * sub_hmm->M > 400000000) {
-        path2->path_len = 0;
-        path3->path_len = 0;
-        
-        return eslOK;
-      }
-//printf("seq_len %d M %d\n", seq_len, sub_hmm->M);
-      sub_seq   = esl_sq_CreateDigitalFrom(path_seq->abc, NULL, path_seq->dsq+seq_start, seq_len, NULL,NULL,NULL);
-      sub_seq->start = path3->iali[s-1];
-      sub_seq->end   = path3->jali[s];
-
-      tmp_path = p7_splice_AlignExons(info->pli, sub_hmm, info->gm_fs, info->pli->bg, sub_seq, info->gcode, 0, 0);
-      
-      for(i = 0; i < tmp_path->path_len; i++) {
-
-        tmp_path->ihmm[i] = tmp_path->ihmm[i] + path3->ihmm[s-1] - 1;
-        tmp_path->jhmm[i] = tmp_path->jhmm[i] + path3->ihmm[s-1] - 1;
-        if(path3->revcomp) {
-          tmp_path->iali[i] = sub_seq->n - tmp_path->iali[i] + sub_seq->end;
-          tmp_path->jali[i] = sub_seq->n - tmp_path->jali[i] + sub_seq->end;
-        }
-        else {
-          tmp_path->iali[i] = sub_seq->start + tmp_path->iali[i] - 1;
-          tmp_path->jali[i] = sub_seq->start + tmp_path->jali[i] - 1;
-        }
-      }       
-      assess_paths(info, tmp_path, path2, path3, sub_hmm, path_seq, TRUE, &s);      
-      p7_splicepath_Destroy(tmp_path);
-      esl_sq_Destroy(sub_seq);
-    }
-  }
- 
-  *step = s;
-  
-  if(remove_idx != NULL) free(remove_idx);
-  return eslOK;
-}
-
 
 SPLICE_PATH*
-p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_HMM *sub_hmm, const P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int removed_start, int removed_end)
-{
-  int         y, z;
-  int         z1, z2;
-  int         intron_cnt;
-  int         step_cnt;
-  int         start_new;
-  P7_TRACE     *tr;
-  P7_FS_PROFILE *sub_fs_model;
-  SPLICE_PATH   *ret_path;
-
-
-  sub_fs_model = p7_profile_fs_Create(sub_hmm->M, sub_hmm->abc);
-  p7_ProfileConfig_fs(sub_hmm, bg, gcode, sub_fs_model, ali_seq->n, p7_UNIGLOBAL);
-  
-  p7_gmx_sp_GrowTo(pli->vit, sub_fs_model->M, ali_seq->n, ali_seq->n);
-  tr = p7_trace_fs_Create();
-
-  if(sub_hmm->fs > 0.0) {
-    p7_splicepipline_GrowIndex(pli->sig_idx, sub_fs_model->M, ali_seq->n, ALIGNMENT_MODE);
-    p7_spliceviterbi_translated_semiglobal(pli, ali_seq->dsq, gcode, ali_seq->n, sub_fs_model, pli->vit);
-    p7_splicevitebi_translated_semiglobal_trace(pli, ali_seq->dsq, ali_seq->n, gcode, sub_fs_model, pli->vit, tr);
-  }
-  else {
-    p7_splicepipline_GrowIndex(pli->sig_idx, sub_fs_model->M, ali_seq->n, ALIGNMENT_MODE);
-    p7_spliceviterbi_translated_semiglobal(pli, ali_seq->dsq, gcode, ali_seq->n, sub_fs_model, pli->vit);
-    p7_splicevitebi_translated_semiglobal_trace(pli, ali_seq->dsq, ali_seq->n, gcode, sub_fs_model, pli->vit, tr);
-  }
-  //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
-
-  /* Find number of introns in trace */
-  intron_cnt = 0;
-  for(z = 0; z < tr->N; z++)
-    if(tr->st[z] == p7T_P) intron_cnt++;
-
-  ret_path = p7_splicepath_Create(intron_cnt+1);
-
-  /* Find first M state - start of first hit */
-  for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
-
-  /* Find last M state state - end of last hit */
-  for(z2 = tr->N-1; z1 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
-
-  step_cnt = 0;
-  start_new = TRUE;
-
-  z = z1;
-  while(z <= z2) {
-
-    if(start_new) {
-      
-      /* Save z value - currently set to fist M state in exon */
-      y = z;
-
-      /*Find end of exon */
-      while(tr->st[z] != p7T_P && tr->st[z] != p7T_E) z++;
-      if(tr->st[z] == p7T_E) while(tr->st[z] != p7T_M) z--;
-      else z--;
-  
-      /* If an exon crosses the bounrdy of a removed intron we set all indicies to -1 */
-      if(removed_start > 0 ) {
-        if( (tr->i[y] - tr->c[y] + 1 <= removed_start && tr->i[z] >= removed_start)   ||
-            (tr->i[y] - tr->c[y] + 1 <= removed_end   && tr->i[z] >= removed_end) ||
-            (tr->i[y] - tr->c[y] + 1 >  removed_start && tr->i[z] <  removed_end)) {
-
-          ret_path->node_id[step_cnt] = -1;
-          ret_path->iali[step_cnt] = -1; 
-          ret_path->jali[step_cnt] = -1;
-          ret_path->ihmm[step_cnt] = -1;
-          ret_path->jhmm[step_cnt] = -1;
-          step_cnt++;
-          start_new = FALSE;
-          continue;
-        }
-      }
-
-      /* If this is the first step in path the i coords are set my the first M state at
-       * trace postion y, otherwise they are set by the P state at trace postion y-1 */
-      ret_path->node_id[step_cnt] = -1;
-      if(step_cnt == 0) {
-        ret_path->iali[step_cnt] = tr->i[y] - tr->c[y] + 1; 
-        ret_path->ihmm[step_cnt] = tr->k[y];        
-      }
-      else {
-        /* Determine which splice codon type we have */
-        ret_path->ihmm[step_cnt] = tr->k[y-1];
-        if( tr->c[y-1] == 0)
-          ret_path->iali[step_cnt] = tr->i[y-1] - 2; 
-        else if( tr->c[y-1] == 1)
-          ret_path->iali[step_cnt] = tr->i[y-1] - 1;
-        else
-          ret_path->iali[step_cnt] = tr->i[y-1];
-      }
-
-      ret_path->jhmm[step_cnt] = tr->k[z];
-
-      if(step_cnt == ret_path->path_len-1) {
-        ret_path->jali[step_cnt]   = tr->i[z];
-      }
-      else {
-        /* Determine which splice codon type we have */
-        if( tr->c[z+1] == 0)
-          ret_path->jali[step_cnt]   = tr->i[z];
-        else if( tr->c[z+1] == 1)
-          ret_path->jali[step_cnt]   = tr->i[z]+1;
-        else if( tr->c[z+1] == 2)
-          ret_path->jali[step_cnt]   = tr->i[z]+2;
-      }
-
-      step_cnt++;
-
-      start_new = FALSE;
-    }
-    
-    z++;
-    if(tr->st[z] == p7T_M) start_new = TRUE;
-
-  }
-
-  p7_profile_fs_Destroy(sub_fs_model);
-  p7_trace_fs_Destroy(tr);
-
-  return ret_path;
-
-}
-
-SPLICE_PATH*
-p7_splice_AlignExons2(SPLICE_PIPELINE *pli, const P7_FS_PROFILE *sub_sp_model, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int* remove_idx, int remove_cnt, int global_end)
+p7_splice_AlignExons(SPLICE_PIPELINE *pli, const P7_FS_PROFILE *sub_sp_model, P7_BG *bg, ESL_SQ *ali_seq, const ESL_GENCODE *gcode, int* remove_idx, int remove_cnt, int global_end)
 {
   int         y, z;
   int         z1, z2;
@@ -1782,6 +1705,128 @@ p7_splice_AlignExons2(SPLICE_PIPELINE *pli, const P7_FS_PROFILE *sub_sp_model, P
   return ret_path;
 
 }
+
+SPLICE_PATH*
+p7_splice_AlignExons2(SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *path_seq, const ESL_GENCODE *gcode, int i_start, int i_end, int k_start, int k_end, int extend_up, int extend_down, int *next_i_start, int *next_k_start, float *ali_score)
+{
+ 
+  int         L = i_end - i_start + 1;
+  int         M = k_end - k_start + 1;
+  int         y, z;
+  int         z1, z2;
+  int         intron_cnt;
+  int         step_cnt;
+  int         start_new;
+  P7_GMX       *gx = pli->vit;
+  P7_TRACE     *tr;
+  SPLICE_PATH   *ret_path;
+
+//TODO dont need Lx for p7_gmx_sp_GrowTo
+  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
+  p7_fs_ReconfigLength(gm_fs, L);
+ 
+  if(extend_up) 
+    p7_spliceviterbi_translated_semiglobal_extendup(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  else if(extend_down) 
+    p7_spliceviterbi_translated_semiglobal_extenddown(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  else {
+    p7_spliceviterbi_translated_semiglobal(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+    /* If the hits were in different frames and no splice site was able to pull score 
+     * from the upstream frame to the downstream frame the spliceing is a failure */
+    
+    if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
+  }
+
+  tr = p7_trace_fs_Create();
+  p7_splicevitebi_translated_semiglobal_trace2(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, ali_score);
+  //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
+
+  /* Find number of introns in trace */
+  intron_cnt = 0;
+  for(z = 0; z < tr->N; z++)
+    if(tr->st[z] == p7T_P) intron_cnt++;
+
+  ret_path = p7_splicepath_Create(intron_cnt+1);
+
+  /* Find first M state - start of first hit */
+  for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
+
+  /* Find last M state state - end of last hit */
+  for(z2 = tr->N-1; z1 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
+
+  step_cnt = 0;
+  start_new = TRUE;
+
+  z = z1;
+  while(z <= z2) {
+
+    if(start_new) {
+      
+      /* Save z value - currently set to fist M state in exon */
+      y = z;
+
+      /*Find end of exon */
+      while(tr->st[z] != p7T_P && tr->st[z] != p7T_E) z++;
+      if(tr->st[z] == p7T_E) while(tr->st[z] != p7T_M) z--;
+      else z--;
+  
+      
+      /* If this is the first step in path the i coords are set my the first M state at
+       * trace postion y, otherwise they are set by the P state at trace postion y-1 */
+      
+      ret_path->node_id[step_cnt] = -1;
+      if(step_cnt == 0) {
+        ret_path->iali[step_cnt] = tr->i[y] - tr->c[y] + 1; 
+        ret_path->ihmm[step_cnt] = tr->k[y];        
+        *next_i_start = ret_path->iali[step_cnt]; 
+        *next_k_start = ret_path->ihmm[step_cnt];
+      }
+      else {
+        /* Determine which splice codon type we have */
+        
+        ret_path->ihmm[step_cnt] = tr->k[y-1];
+        if( tr->c[y-1] == 0)
+          ret_path->iali[step_cnt] = tr->i[y-1] - 2; 
+        else if( tr->c[y-1] == 1) 
+          ret_path->iali[step_cnt] = tr->i[y-1] - 1;
+        else
+          ret_path->iali[step_cnt] = tr->i[y-1];
+        *next_i_start = tr->i[y] - tr->c[y] + 1;
+        *next_k_start = tr->k[y];
+      }
+
+      ret_path->jhmm[step_cnt] = tr->k[z];
+
+      if(step_cnt == ret_path->path_len-1) {
+        ret_path->jali[step_cnt]   = tr->i[z];
+      }
+      else {
+        /* Determine which splice codon type we have */
+        if( tr->c[z+1] == 0)
+          ret_path->jali[step_cnt]   = tr->i[z];
+        else if( tr->c[z+1] == 1)
+          ret_path->jali[step_cnt]   = tr->i[z] + 1;
+        else if( tr->c[z+1] == 2)
+          ret_path->jali[step_cnt]   = tr->i[z] + 2;
+      }
+
+      step_cnt++;
+
+      start_new = FALSE;
+    }
+    
+    z++;
+    if(tr->st[z] == p7T_M) start_new = TRUE;
+
+  }
+
+  p7_trace_fs_Destroy(tr);
+
+  return ret_path;
+
+}
+
 
 
 float
@@ -1937,6 +1982,21 @@ p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp) {
   
 }
 
+int
+p7_splice_HitBetween(P7_DOMAIN *up, P7_DOMAIN *mid, P7_DOMAIN *down, int revcomp) {
+
+  if (( revcomp  && up->iali <= mid->iali) ||
+     ((!revcomp) && up->iali >= mid->iali))
+    return FALSE;
+
+  if (( revcomp  && mid->jali <= down->jali) ||
+     ((!revcomp) && mid->jali >= down->jali))
+    return FALSE;
+
+  return TRUE;
+  
+}
+
 
 
 
@@ -1994,8 +2054,8 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
   //printf("path->revcomp %d\n", path->revcomp);
   if (path->revcomp) {
     path_start_pos = path_seq->n - path->iali[0] + path_seq->end;
-    ext_start_pos  = path_seq->n - (path->iali[0] + ALIGNMENT_EXT*3) + path_seq->end;
-    for(pos = path->iali[0]+3; pos <= path->iali[0] + ALIGNMENT_EXT*3; pos+=3) {
+    ext_start_pos  = path_seq->n - (path->iali[0] + ALIGNMENT_EXT) + path_seq->end;
+    for(pos = path->iali[0]+3; pos <= path->iali[0] + ALIGNMENT_EXT; pos+=3) {
 
       seq_pos = path_seq->n - pos + path_seq->end;   
       if(seq_pos < 1) {
@@ -2013,9 +2073,9 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
   }
   else {
     path_start_pos = path->iali[0] - path_seq->start + 1;
-    ext_start_pos  = (path->iali[0] - ALIGNMENT_EXT*3) - path_seq->start + 1;
+    ext_start_pos  = (path->iali[0] - ALIGNMENT_EXT) - path_seq->start + 1;
     //printf("ext_start_pos %d\n", ext_start_pos);
-    for(pos = path->iali[0]-3; pos >= path->iali[0] - ALIGNMENT_EXT*3; pos-=3) {
+    for(pos = path->iali[0]-3; pos >= path->iali[0] - ALIGNMENT_EXT; pos-=3) {
        
       seq_pos = pos - path_seq->start + 1;
       
@@ -2037,8 +2097,8 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
   /* Working forward from the end of the path find the first instance of a stop codon in the extended downstream region of path_seq */ 
   if (path->revcomp) {
     path_end_pos =  path_seq->n - path->jali[path->path_len-1] + path_seq->end;
-    ext_end_pos  =  path_seq->n - (path->jali[path->path_len-1] - ALIGNMENT_EXT*3) + path_seq->end; 
-    for(pos = path->jali[path->path_len-1]-1; pos >= path->jali[path->path_len-1] - ALIGNMENT_EXT*3; pos-=3) {
+    ext_end_pos  =  path_seq->n - (path->jali[path->path_len-1] - ALIGNMENT_EXT) + path_seq->end; 
+    for(pos = path->jali[path->path_len-1]-1; pos >= path->jali[path->path_len-1] - ALIGNMENT_EXT; pos-=3) {
       seq_pos = path_seq->n - pos + path_seq->end;
       if(seq_pos > path_seq->n-2) {
         ext_end_pos = seq_pos-1;
@@ -2056,9 +2116,9 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
   }
   else {
     path_end_pos = path->jali[path->path_len-1] - path_seq->start + 1;
-    ext_end_pos  = (path->jali[path->path_len-1] +  ALIGNMENT_EXT*3) - path_seq->start + 1;
-    //printf("ext_end_pos %d %d\n", ext_end_pos, path->jali[path->path_len-1] +  ALIGNMENT_EXT*3);
-    for(pos = path->jali[path->path_len-1]+1; pos <= path->jali[path->path_len-1] +  ALIGNMENT_EXT*3; pos+=3) {
+    ext_end_pos  = (path->jali[path->path_len-1] +  ALIGNMENT_EXT) - path_seq->start + 1;
+    //printf("ext_end_pos %d %d\n", ext_end_pos, path->jali[path->path_len-1] +  ALIGNMENT_EXT);
+    for(pos = path->jali[path->path_len-1]+1; pos <= path->jali[path->path_len-1] +  ALIGNMENT_EXT; pos+=3) {
 
       seq_pos = pos - path_seq->start + 1;
       if(seq_pos > path_seq->n-2 ) {
@@ -2115,6 +2175,7 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
   //printf("seq_pos %d true %d\n", seq_pos, path_seq->start + seq_pos-1);
   /*Add downstream extension nucleotides */
   for(seq_pos = path_end_pos+1; seq_pos <= ext_end_pos; seq_pos++) {
+    
     nuc_index[seq_idx] = seq_pos;
     nuc_dsq[seq_idx]   = path_seq->dsq[seq_pos];
     seq_idx++;
@@ -2231,7 +2292,7 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
       /* Ensure path will still contains an original hit after shifting */
       contains_orig = FALSE;
       for(exon = shift; exon < pli->hit->dcl->ad->exon_cnt ; exon ++ ) {
-        if(path->node_id[exon] < graph->orig_N && path->node_id[exon] > -1) contains_orig = TRUE;
+        if(path->node_id[exon] < graph->anchor_N && path->node_id[exon] > -1) contains_orig = TRUE;
       }
 
       if(!contains_orig) {
@@ -2267,7 +2328,7 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
     /* Find the first original hit in path to copy info*/
     i = 0;
-    while( path->node_id[i] >= graph->orig_N || path->node_id[i] == -1) {
+    while( path->node_id[i] >= graph->anchor_N || path->node_id[i] == -1) {
       pli->hit->dcl->ad->exon_orig[i] = FALSE;
       pli->hit->dcl->ad->exon_split[i] = FALSE;
       i++;
@@ -2314,7 +2375,7 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
     i++;
     for(  ; i < path->path_len; i++) {
       remove_node = path->node_id[i];
-      if(remove_node < 0 || remove_node >= graph->orig_N) {
+      if(remove_node < 0 || remove_node >= graph->anchor_N) {
         pli->hit->dcl->ad->exon_orig[i] = FALSE;
         pli->hit->dcl->ad->exon_split[i] = FALSE; 
       }

@@ -631,10 +631,7 @@ p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph)
 
   int i;
   float edge_score;
-  P7_TOPHITS *th;
   SPLICE_EDGE *tmp_edge;  
-
-  th = graph->th; 
 
   if(path == NULL) return;
 

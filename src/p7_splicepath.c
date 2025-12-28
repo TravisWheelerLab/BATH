@@ -65,6 +65,9 @@ p7_splicepath_Create(int path_len)
   ESL_ALLOC(path->iali,    sizeof(int64_t)*path->alloc_len);
   ESL_ALLOC(path->jali,    sizeof(int64_t)*path->alloc_len);
 
+  path->aliscore = NULL;
+  ESL_ALLOC(path->aliscore, sizeof(float)*path->alloc_len);
+  
   return path;
 
   ERROR:
@@ -95,12 +98,12 @@ p7_splicepath_Grow(SPLICE_PATH *path)
 
   path->alloc_len *= 2;
 
-  ESL_REALLOC(path->node_id, sizeof(int)     * path->alloc_len);
-  ESL_REALLOC(path->ihmm,    sizeof(int)     * path->alloc_len);
-  ESL_REALLOC(path->jhmm,    sizeof(int)     * path->alloc_len);
-  ESL_REALLOC(path->iali,    sizeof(int64_t) * path->alloc_len);
-  ESL_REALLOC(path->jali,    sizeof(int64_t) * path->alloc_len);
-
+  ESL_REALLOC(path->node_id,  sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->ihmm,     sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->jhmm,     sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->iali,     sizeof(int64_t) * path->alloc_len);
+  ESL_REALLOC(path->jali,     sizeof(int64_t) * path->alloc_len);
+  ESL_REALLOC(path->aliscore, sizeof(float)   * path->alloc_len);
   return eslOK;
 
   ERROR:
@@ -128,6 +131,8 @@ p7_splicepath_Clone(SPLICE_PATH *path)
     ret_path->jhmm[s] = path->jhmm[s];
     ret_path->iali[s] = path->iali[s];
     ret_path->jali[s] = path->jali[s];
+    
+    ret_path->aliscore[s] = path->aliscore[s];
   }
 
   return ret_path;
@@ -150,21 +155,22 @@ p7_splicepath_Insert(SPLICE_PATH *path, int step)
 
   for(s = path->path_len; s > step; s--) {
 
-    path->node_id[s] = path->node_id[s-1];
-    path->ihmm[s]    = path->ihmm[s-1];
-    path->jhmm[s]    = path->jhmm[s-1];
-    path->iali[s]    = path->iali[s-1];
-    path->jali[s]    = path->jali[s-1];
-
+    path->node_id[s]  = path->node_id[s-1];
+    path->ihmm[s]     = path->ihmm[s-1];
+    path->jhmm[s]     = path->jhmm[s-1];
+    path->iali[s]     = path->iali[s-1];
+    path->jali[s]     = path->jali[s-1];
+    path->aliscore[s] = path->aliscore[s-1];
   }
 
   path->path_len++;
  
-  path->node_id[step] = -1;
-  path->ihmm[step]    = -1;
-  path->jhmm[step]    = -1;
-  path->iali[step]    = -1;
-  path->jali[step]    = -1; 
+  path->node_id[step]  = -1;
+  path->ihmm[step]     = -1;
+  path->jhmm[step]     = -1;
+  path->iali[step]     = -1;
+  path->jali[step]     = -1; 
+  path->aliscore[step] = -eslINFINITY;
 
   return eslOK;
  
@@ -186,11 +192,12 @@ p7_splicepath_Remove(SPLICE_PATH *path, int step)
 
   for(s = step; s < path->path_len-1; s++) {
 
-    path->node_id[s] = path->node_id[s+1];
-    path->ihmm[s]    = path->ihmm[s+1];
-    path->jhmm[s]    = path->jhmm[s+1];
-    path->iali[s]    = path->iali[s+1];
-    path->jali[s]    = path->jali[s+1];   
+    path->node_id[s]  = path->node_id[s+1];
+    path->ihmm[s]     = path->ihmm[s+1];
+    path->jhmm[s]     = path->jhmm[s+1];
+    path->iali[s]     = path->iali[s+1];
+    path->jali[s]     = path->jali[s+1];   
+    path->aliscore[s] = path->aliscore[s+1];   
   }
 
   path->path_len--;
@@ -211,12 +218,13 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
 
    if(path == NULL) return;
 
-   if(path->node_id != NULL) free(path->node_id);
-   if(path->ihmm    != NULL) free(path->ihmm);
-   if(path->jhmm    != NULL) free(path->jhmm);
-   if(path->iali    != NULL) free(path->iali);
-   if(path->jali    != NULL) free(path->jali); 
-   if(path          != NULL) free(path);
+   if(path->node_id  != NULL) free(path->node_id);
+   if(path->ihmm     != NULL) free(path->ihmm);
+   if(path->jhmm     != NULL) free(path->jhmm);
+   if(path->iali     != NULL) free(path->iali);
+   if(path->jali     != NULL) free(path->jali); 
+   if(path->aliscore !=  NULL) free(path->aliscore);
+   if(path           != NULL) free(path);
 
    return;
 }
@@ -301,6 +309,8 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
   path->ihmm[0] = th->hit[start_node]->dcl->ihmm;
   path->iali[0] = th->hit[start_node]->dcl->iali;
 
+  path->aliscore[0] = th->hit[start_node]->dcl->aliscore;
+
   if(th->hit[start_node]->dcl->tr->fs) path->frameshift = TRUE; 
   
   curr_node = start_node;
@@ -316,6 +326,8 @@ p7_splicepath_GetBestPath_Unspliced(SPLICE_GRAPH *graph)
     path->jali[step_cnt-1] = out_edge->upstream_nuc_end;
     path->iali[step_cnt]   = out_edge->downstream_nuc_start;
 
+    path->aliscore[step_cnt] = th->hit[next_node]->dcl->aliscore;
+ 
     if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE; 
 
     curr_node = next_node;
@@ -361,7 +373,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
     /* Find the best place to start our path */
     best_start_score = -eslINFINITY;
     start_node  = -1;
-    for (i = 0; i < extend_graph->anchor_N; i++) {
+    for (i = 0; i < extend_graph->num_nodes; i++) {
       if(extend_graph->path_scores[i] > best_start_score) {
         best_start_score = extend_graph->path_scores[i];
         start_node  = i;
@@ -407,6 +419,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
   path->ihmm[0] = th->hit[start_node]->dcl->ihmm;
   path->iali[0] = th->hit[start_node]->dcl->iali;
 
+  path->aliscore[0] = th->hit[start_node]->dcl->aliscore;
   if(th->hit[start_node]->dcl->tr->fs) path->frameshift = TRUE; 
   
   curr_node = start_node;
@@ -421,6 +434,8 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
     path->ihmm[step_cnt]   = out_edge->downstream_amino_start;
     path->jali[step_cnt-1] = out_edge->upstream_nuc_end;
     path->iali[step_cnt]   = out_edge->downstream_nuc_start;
+
+    path->aliscore[step_cnt] = th->hit[next_node]->dcl->aliscore;
 
     if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE; 
 
@@ -472,7 +487,7 @@ longest_path_upstream (SPLICE_GRAPH *graph)
   if((status = p7_splicegraph_Grow(graph)) != eslOK) goto ERROR;
   graph->ali_scores[graph->num_nodes]  = 0.;
   graph->edges[graph->num_nodes] = NULL;
-  for(up = 0; up < graph->anchor_N; up++) {
+  for(up = 0; up < graph->num_nodes; up++) {
 
     if(!graph->node_in_graph[up]) continue;
     if(has_out_edge(graph, up))   continue;
@@ -615,7 +630,6 @@ p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph)
 {
 
   int i;
-  float hit_score;
   float edge_score;
   P7_TOPHITS *th;
   SPLICE_EDGE *tmp_edge;  
@@ -627,16 +641,16 @@ p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph)
   fprintf(fp, "  Path Length  %d\n", path->path_len);
   fprintf(fp, "  %4s %4s %9s %9s %10s %10s %10s %10s\n", "Step", "Node", "hmm_start", "hmm_end", "seq_start", "seq_end", "hit_score", "edge_score");
 
-  hit_score = th->hit[path->node_id[0]]->dcl->aliscore;
+  //hit_score = th->hit[path->node_id[0]]->dcl->aliscore;
   fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld %10f %10f\n", 1, path->node_id[0]+1,
-      path->ihmm[0], path->jhmm[0], path->iali[0], path->jali[0], hit_score, -eslINFINITY);
+      path->ihmm[0], path->jhmm[0], path->iali[0], path->jali[0], path->aliscore[0], -eslINFINITY);
   for(i = 1; i < path->path_len; i++) {
-    hit_score = th->hit[path->node_id[i]]->dcl->aliscore;
+    //hit_score = th->hit[path->node_id[i]]->dcl->aliscore;
     tmp_edge = p7_splicegraph_GetEdge(graph, path->node_id[i-1], path->node_id[i]);
     if(tmp_edge == NULL) edge_score = 0.0;
     else                 edge_score =  tmp_edge->splice_score;
     fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld %10f %10f\n", i+1, path->node_id[i]+1,
-      path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i], hit_score, edge_score);
+      path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i], path->aliscore[i], edge_score);
   }
 
   fprintf(fp, "\n");

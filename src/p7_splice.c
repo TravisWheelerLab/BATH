@@ -1296,17 +1296,26 @@ p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_
   for(z = 0; z < tr->N; z++)
     if(tr->st[z] == p7T_P) intron_cnt++;
 
-  ret_path = p7_splicepath_Create(intron_cnt+1);
 
   /* Find first M state - start of first hit */
   for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
+  if (z1 == tr->N) {
+   p7_trace_Destroy(tr);
+   return NULL;
+ }
 
   /* Find last M state state - end of last hit */
-  for(z2 = tr->N-1; z1 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
+  for(z2 = tr->N-1; z2 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
+  if (z2 == -1) {
+    p7_trace_Destroy(tr);
+    return NULL;
+  }
+
+  ret_path = p7_splicepath_Create(intron_cnt+1);
 
   step_cnt = 0;
   start_new = TRUE;
-
+  
   z = z1;
   while(z <= z2) {
 

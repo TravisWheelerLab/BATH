@@ -499,17 +499,32 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 
     MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
 
-    for (k = 1; k < M; k++) {
+    sub_k = k_start;
+
+    MMX_SP(i,1) = XMX_SP(i-3,p7G_B) + p7P_MSC_CODON(gm_fs, sub_k, c3);
+
+    if(p7P_MSC_CODON(gm_fs, sub_k, c3) == -eslINFINITY)
+      IMX_SP(i,1) = -eslINFINITY;
+    else
+      IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,1) + TSC(p7P_II,sub_k));
+
+    DMX_SP(i,1) = PMX_SP(i,1) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E), MMX_SP(i,1));  
+
+    for (k = 2; k < M; k++) {
       sub_k = k_start + k -1;
 
       MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
                     ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
-                    ESL_MAX(DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1),
-                            XMX_SP(i-3,p7G_B)))) + p7P_MSC_CODON(gm_fs, sub_k, c3);
+                            DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1))) + p7P_MSC_CODON(gm_fs, sub_k, c3);
        
-      if(p7P_MSC_CODON(gm_fs, sub_k, c3) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
-      else                                                IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
-                                                                                IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+      if(p7P_MSC_CODON(gm_fs, sub_k, c3) == -eslINFINITY) 
+        IMX_SP(i,k) = -eslINFINITY;
+      else  
+        IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                              IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
                             DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
@@ -788,7 +803,7 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
 
   gx->M = M;
   gx->L = L;
-
+//p7_gmx_sp_Dump(stdout, gx, p7_DEFAULT);
   return eslOK;
 }
 
@@ -887,17 +902,32 @@ p7_spliceviterbi_translated_semiglobal_extenddown(SPLICE_PIPELINE *pli, const ES
 
     XMX_SP(i,p7G_E) = -eslINFINITY;
  
-    for (k = 1; k < M; k++) {
-      sub_k = k_start + k -1;
+    sub_k = k_start;
+
+    MMX_SP(i,1) = XMX_SP(i-3,p7G_B) + p7P_MSC_CODON(gm_fs, sub_k, c3); 
+    
+    if(p7P_MSC_CODON(gm_fs, sub_k, c3) == -eslINFINITY) 
+      IMX_SP(i,1) = -eslINFINITY;
+    else                                                
+      IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,1) + TSC(p7P_II,sub_k));
+
+    DMX_SP(i,1) = PMX_SP(i,1) = -eslINFINITY; 
+
+    XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E), MMX_SP(i,1));
+    
+    for (k = 2; k < M; k++) {
+    
+      sub_k = k_start + k -1;  
 
       MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
                     ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
-                    ESL_MAX(DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1),
-                            XMX_SP(i-3,p7G_B)))) + p7P_MSC_CODON(gm_fs, sub_k, c3);
-       
-      if(p7P_MSC_CODON(gm_fs, sub_k, c3) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
-      else                                                IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
-                                                                                IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+                            DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1))) + p7P_MSC_CODON(gm_fs, sub_k, c3);
+      if(p7P_MSC_CODON(gm_fs, sub_k, c3) == -eslINFINITY) 
+        IMX_SP(i,k) = -eslINFINITY;
+      else                         
+        IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                              IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
                             DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
@@ -1273,7 +1303,7 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
       else if (esl_FCompare_old(MMX_SP(i,k), XMX_SP(i-3, p7G_B)                      + emit, tol) == eslOK) scur = p7T_B;
       else if (esl_FCompare_old(MMX_SP(i,k), PMX_SP(i-3, k-1) + TSC_P                + emit, tol) == eslOK) scur = p7T_P;
       else ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);  
-
+      
       k--; i-=3;
       break;
 

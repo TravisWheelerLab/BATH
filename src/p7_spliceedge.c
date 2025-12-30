@@ -45,9 +45,13 @@ p7_spliceedge_Create(void)
   ESL_ALLOC(edge, sizeof(SPLICE_EDGE));
 
   edge->frameshift = FALSE;
-  edge->bypass_checked = FALSE;
   edge->jump_edge = FALSE;
 
+  edge->i_start = -1;
+  edge->k_start = -1;
+
+  edge->next_i_start = -1;
+  edge->next_k_start = -1;
   edge->splice_score = -eslINFINITY;
   edge->signal_score = -eslINFINITY;
 

@@ -303,9 +303,17 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int down_node)
   ret_edge = &(graph->edges[up_node][graph->num_edges[up_node]]);
   graph->num_edges[up_node]++; 
   graph->tot_edges++;
- 
+
+  ret_edge->i_start = -1;
+  ret_edge->k_start = -1; 
+
+  ret_edge->next_i_start = -1;
+  ret_edge->next_k_start = -1;
+
   ret_edge->upstream_node_id   = up_node;
   ret_edge->downstream_node_id = down_node; 
+
+  ret_edge->splice_score = 0.;
 
   return ret_edge;
 
@@ -337,7 +345,10 @@ p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_node)
   int i;
   
   for(i = 0; i < graph->num_edges[up_node]; i++) {
-    if(graph->edges[up_node][i].downstream_node_id == down_node) return TRUE;
+    if(graph->edges[up_node][i].downstream_node_id == down_node) {  
+       if(graph->edges[up_node][i].splice_score != -eslINFINITY) return TRUE;
+       else return FALSE;
+    }
   }
 
   return FALSE;

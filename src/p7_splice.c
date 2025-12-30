@@ -81,7 +81,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
 #endif
 
 //TODO
-//ncpus = ESL_MIN(ncpus,0);
+//ncpus = ESL_MIN(ncpus,4);
   /* Intialize data for threads */
   infocnt = (ncpus == 0) ? 1 : ncpus;
   ESL_ALLOC(info, sizeof(*info) * infocnt);
@@ -92,7 +92,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
     info[i].om             = p7_oprofile_Clone(om);
     info[i].gm             = p7_profile_Clone(gm);
     info[i].gm_fs          = p7_profile_fs_Clone(gm_fs);
-	info[i].pli            = p7_splicepipeline_Create(go, gm->M, gm->M * 3);
+	info[i].pli            = p7_splicepipeline_Create(go, 100, 300);
 	info[i].pli->bg        = p7_bg_Create(om->abc);
 	if (info[i].pli->do_biasfilter)
 	  p7_bg_SetFilter(info[i].pli->bg, om->M, om->compo);
@@ -565,6 +565,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   gcode      = info->gcode;
   seq_file   = info->seq_file;
 
+
   printf("\nQuery %s Target %s strand %c seqidx %ld\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);
 
@@ -590,7 +591,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     seq_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT;
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
     
-
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
 //printf("FIRST PATH \n");
 //p7_splicepath_Dump(stdout,orig_path);
@@ -604,24 +604,26 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
 //printf("FINAL PATH\n");
 //p7_splicepath_Dump(stdout,final_path);
+
 //fflush(stdout);
        //if(!path->frameshift)
     
     if(final_path != NULL) {
+      
       p7_splice_AlignPath(graph, final_path, orig_path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info, &success);
-
+     
       if(success) {
         /* Break edges that overlap the hit so that paths do not intertwine */
         hit_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
         hit_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
         p7_splice_EnforceRangeBounds(graph, hit_min, hit_max); 
         pli->hit->dcl = NULL;
-
+      
         for(h = 0; h < graph->num_nodes; h++) {
           node_min = ESL_MIN(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
           node_max = ESL_MAX(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
 
-          if(node_min <= hit_max && node_max >= hit_min) 
+          if(node_min <= hit_max && node_max >= hit_min)  
             graph->node_in_graph[h] = FALSE;
         }
       }
@@ -636,15 +638,18 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
          
       }
     }
-
+   
     esl_sq_Destroy(path_seq);
     p7_splicepath_Destroy(orig_path);
     p7_splicepath_Destroy(final_path);
     p7_splicepipeline_Reuse(pli);
-
+   
     orig_path = p7_splicepath_GetBestPath_Unspliced(graph);
+    
   }
-  
+
+//printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
+//  fflush(stdout);  
   return eslOK;
 
 }
@@ -887,9 +892,8 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
           edge = p7_splicegraph_AddEdge(graph, up, down);
           edge->splice_score   = (th->hit[up]->dcl->aliscore + th->hit[down]->dcl->aliscore) * -1; 
           // TODO 
-          //edge->splice_score   = -eslCONST_LOG2 + log(2./(float) (gm->M * (gm->M + 1)));
+          //edge->splice_score   = -eslCONST_LOG2 + p7P_TSC(gm, th->hit[down]->dcl->ihmm-1, p7P_BM);
           edge->jump_edge      = TRUE;
-          edge->bypass_checked = FALSE;
           edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
           edge->downstream_amino_start = th->hit[down]->dcl->ihmm;
           edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
@@ -901,8 +905,6 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
               th->hit[up]->dcl->jhmm < th->hit[down]->dcl->jhmm) { 
               
         edge = p7_splicegraph_AddEdge(graph, up, down);
-        edge->splice_score   = 0.;
-        edge->bypass_checked = FALSE;
         edge->jump_edge      = FALSE; 
         /* If hits overlap, find the minimum lost score to remove the overlap */
         
@@ -915,7 +917,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
 
         /* If the edge has an hmm overlap and cost of eliminating that overlap is greater than the B->M entry 
          * for the downstream hit then these hits are better off seperate and we will remove the edge */
-        if(edge->splice_score < p7P_TSC(gm, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
+        if(edge->splice_score < -eslCONST_LOG2 + p7P_TSC(gm, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
           graph->num_edges[up]--;
           graph->tot_edges--;
         }
@@ -957,8 +959,6 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
       amino_gap_len = th->hit[down]->dcl->ihmm - th->hit[up]->dcl->jhmm - 1;
       if(seq_gap_len < amino_gap_len) continue;
       edge = p7_splicegraph_AddEdge(graph, up, down);
-      edge->splice_score       = 0.;
-      edge->bypass_checked     = FALSE;
 
       /* If hits overlap, find the minimum lost socre to remove the overlap */
       p7_spliceedge_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
@@ -1002,11 +1002,12 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   float           ali_score;
   P7_FS_PROFILE   *gm_fs;
   ESL_GENCODE     *gcode;
-  SPLICE_EDGE     *tmp_edge;
+  SPLICE_EDGE     *edge;
   SPLICE_PIPELINE *pli;
   SPLICE_PATH *tmp_path;
   SPLICE_PATH *ret_path;
   SPLICE_GRAPH *graph;
+  int status;
   
   graph = info->graph;
   pli   = info->pli;
@@ -1015,14 +1016,14 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 
   ret_path   = NULL;
  
-  /* If there is only one hit in the path we must still relalign it in case that hit aligned through an intron */
+  /* If there is only one hit in the path we must still realign it in case that hit aligned through an intron */
   if(path->path_len == 1) {
    
      i_start = path->iali[0];
      i_end   = path->jali[0];
      k_start = path->ihmm[0];
      k_end   = path->jhmm[0];
-
+     
     /* Covert sequence positions to sub sequence positions */
     if(path->revcomp) {
       i_start = path_seq->n + path_seq->end - i_start;
@@ -1034,6 +1035,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     }
      
      ret_path = p7_splice_AlignExons(pli, gm_fs, pli->bg, path_seq, gcode, i_start, i_end, k_start, k_end, FALSE, FALSE, &next_i_start, &next_k_start, &ali_score);
+    if(ret_path == NULL)     ESL_XEXCEPTION(eslFAIL, "Splice Viterbi Fail");
+  
     for(s = 0; s < ret_path->path_len; s++) {
       
       ret_path->node_id[s] = path->node_id[0];
@@ -1041,12 +1044,12 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       ret_path->ihmm[s] = ret_path->ihmm[s] + path->ihmm[0] - 1;
       ret_path->jhmm[s] = ret_path->jhmm[s] + path->ihmm[0] - 1;
       if(path->revcomp) {
-         ret_path->iali[s] = path_seq->n - ret_path->iali[s] + path_seq->end;
-         ret_path->jali[s] = path_seq->n - ret_path->jali[s] + path_seq->end;
+        ret_path->iali[s] = path_seq->n - ret_path->iali[s] + path_seq->end;
+        ret_path->jali[s] = path_seq->n - ret_path->jali[s] + path_seq->end;
       }
       else {
-         ret_path->iali[s] = path_seq->start + ret_path->iali[s] - 1;
-         ret_path->jali[s] = path_seq->start + ret_path->jali[s] - 1;
+        ret_path->iali[s] = path_seq->start + ret_path->iali[s] - 1;
+        ret_path->jali[s] = path_seq->start + ret_path->jali[s] - 1;
       }
     }
     ret_path->revcomp = path->revcomp;
@@ -1057,12 +1060,16 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   for(s_start = 0; s_start < path->path_len; s_start++) if(path->node_id[s_start] < graph->anchor_N) break;
  
   next_i_start = next_k_start = 0; 
+
+  //TODO for extensions swithc to doing pairs and impement aliscore checks and save splice sites
   /* If their are upstream extention nodes see if they are recoved by spliced viterbi */ 
   if(s_start != 0) {
     k_start = path->ihmm[0]; 
     i_start = path->iali[0]; 
     k_end   = path->jhmm[s_start];
     i_end   = path->jali[s_start];
+    
+    edge =  p7_splicegraph_GetEdge(graph, path->node_id[0], path->node_id[1]);
 
     /* Covert sequence positions to sub sequence positions */
     if(path->revcomp) {
@@ -1075,14 +1082,20 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     }
 
     if(k_end <= k_start || i_end <= i_start + 2) {
-
-      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[0], path->node_id[1]);
-      tmp_edge->splice_score = -eslINFINITY;
-
+      edge->splice_score = -eslINFINITY;
       return NULL;
     } 
+   
+    ali_score = -eslINFINITY;
     tmp_path = p7_splice_AlignExons(pli, gm_fs, pli->bg, path_seq, gcode, i_start, i_end, k_start, k_end, TRUE, FALSE, &next_i_start, &next_k_start, &ali_score);
 
+    if(tmp_path == NULL) {
+      edge->splice_score = -eslINFINITY;
+      p7_splicepath_Destroy(tmp_path);
+      p7_splicepath_Destroy(ret_path);
+      return NULL;
+    }
+    
     for(s = 0; s < tmp_path->path_len; s++) {
 
       tmp_path->iali[s] = path->revcomp ? path_seq->n - tmp_path->iali[s] + path_seq->end : 
@@ -1104,13 +1117,41 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
   for(s_end = path->path_len-1; s_end >= 0; s_end--) if(path->node_id[s_end] < graph->anchor_N) break;
 
   for(s = s_start+1; s <= s_end; s++) {
-     
-   //TODO start coordes need to come from previous alignment
     k_start = next_k_start == 0 ? path->ihmm[s-1] : next_k_start; 
     i_start = next_i_start == 0 ? path->iali[s-1] : next_i_start;
     k_end   = path->jhmm[s];
     i_end   = path->jali[s];
+
+    /* Check if we have spliced this pair of nodes before */
+    edge =  p7_splicegraph_GetEdge(graph, path->node_id[s-1], path->node_id[s]);
+    if(i_start == edge->i_start && k_start == edge->k_start) {
+
+      if(ret_path == NULL) {
+        ret_path = p7_splicepath_Create(2);
+        ret_path->iali[0] = i_start;
+        ret_path->ihmm[0] = k_start;
+      } 
+      else p7_splicepath_Insert(ret_path, ret_path->path_len);
+
+      ret_path->jali[ret_path->path_len-2] = edge->upstream_nuc_end;
+      ret_path->jhmm[ret_path->path_len-2] = edge->upstream_amino_end;
+      ret_path->iali[ret_path->path_len-1] = edge->downstream_nuc_start;
+      ret_path->ihmm[ret_path->path_len-1] = edge->downstream_amino_start;
+      ret_path->jali[ret_path->path_len-1] = i_end;
+      ret_path->jhmm[ret_path->path_len-1] = k_end;
+
+      ret_path->node_id[ret_path->path_len-2] = 0;
+      ret_path->node_id[ret_path->path_len-1] = 0;
     
+      next_k_start = edge->next_k_start; 
+      next_i_start = edge->next_i_start;
+
+//printf("Redo \n");
+//p7_splicepath_Dump(stdout,ret_path);
+
+      continue;
+    }
+
     /* Covert sequence positions to sub sequence positions */
     if(path->revcomp) {
       i_start = path_seq->n + path_seq->end - i_start;
@@ -1123,35 +1164,57 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     
     if(k_end <= k_start || i_end <= i_start + 2) {
       //printf("gm_fs->name %s path_seq->name %s revcomp %d\n", gm_fs->name, path_seq->name, path->revcomp);
-      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[s-1], path->node_id[s]);
-      tmp_edge->splice_score = -eslINFINITY;
-
+      edge->splice_score = -eslINFINITY;
       p7_splicepath_Destroy(ret_path);
       return NULL;
     }
-   
+ 
+    ali_score = -eslINFINITY; 
     tmp_path = p7_splice_AlignExons(pli, gm_fs, pli->bg, path_seq, gcode, i_start, i_end, k_start, k_end, FALSE, FALSE, &next_i_start, &next_k_start, &ali_score);
      
     /* If the spliced aligment score is less than the score of the two hits plus the B->M penalty,       
      * these exons are better off as seperate hits so we erase the edge and return NULL */ 
-    if(tmp_path == NULL || ali_score < path->aliscore[s-1] + path->aliscore[s] + p7P_TSC(gm_fs, path->ihmm[s]-1, p7P_BM)) {
-      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[s-1], path->node_id[s]);
-      tmp_edge->splice_score = -eslINFINITY;
+
+    if(tmp_path == NULL || ali_score < path->aliscore[s-1] + path->aliscore[s] + -eslCONST_LOG2 + p7P_TSC(gm_fs, path->ihmm[s]-1, p7P_BM)) {
+      
+      edge->splice_score = -eslINFINITY;
 
       p7_splicepath_Destroy(tmp_path);
       p7_splicepath_Destroy(ret_path); 
       return NULL;
     }
+
+    /* Converpt path coords back to full sequence */
     for(i = 0; i < tmp_path->path_len; i++) {
       tmp_path->iali[i] = path->revcomp ? path_seq->n - tmp_path->iali[i] + path_seq->end :
                                           path_seq->start + tmp_path->iali[i] - 1;
       tmp_path->jali[i] = path->revcomp ? path_seq->n - tmp_path->jali[i] + path_seq->end :
                                           path_seq->start + tmp_path->jali[i] - 1;
     }
-
+ 
     next_i_start = path->revcomp ? path_seq->n - next_i_start + path_seq->end :
                                    path_seq->start + next_i_start - 1;
 
+ 
+    /* If exactly two exons wer found record the splice site on the edge */ 
+    if(tmp_path->path_len == 2) {
+      edge->upstream_nuc_end       = tmp_path->jali[0];
+      edge->upstream_amino_end     = tmp_path->jhmm[0];
+      edge->downstream_nuc_start   = tmp_path->iali[1];   
+      edge->downstream_amino_start = tmp_path->ihmm[1]; 
+      edge->i_start = i_start;
+      edge->k_start = k_start;
+      edge->next_i_start = next_i_start;
+      edge->next_k_start = next_k_start;
+    }
+    else {
+      edge->i_start = -1;
+      edge->k_start = -1;
+      edge->next_i_start = -1;
+      edge->next_k_start = -1;
+    }
+    //TODO if more than 2 were found add the new exons and edges
+    
     if(ret_path == NULL) ret_path = p7_splicepath_Clone(tmp_path);
     else {
       ret_path->jali[ret_path->path_len-1] = tmp_path->jali[0];
@@ -1166,6 +1229,9 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
         
       }
     } 
+
+//printf("New \n");
+//p7_splicepath_Dump(stdout,ret_path);
   
     //p7_splicepath_Dump(stdout,tmp_path);
     p7_gmx_Reuse(pli->vit);
@@ -1177,7 +1243,9 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     i_start = next_i_start == 0 ? path->iali[s_end] : next_i_start;
     k_end   = path->jhmm[path->path_len-1];
     i_end   = path->jali[path->path_len-1];
- 
+
+    edge =  p7_splicegraph_GetEdge(graph, path->node_id[path->path_len-2], path->node_id[path->path_len-1]);
+
     /* Covert sequence positions to sub sequence positions */
     if(path->revcomp) {
       i_start = path_seq->n + path_seq->end - i_start;
@@ -1189,18 +1257,24 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
     }
 
     if(k_end <= k_start || i_end <= i_start + 2) {
-
-      tmp_edge =  p7_splicegraph_GetEdge(graph, path->node_id[path->path_len-2], path->node_id[path->path_len-1]);
-      tmp_edge->splice_score = -eslINFINITY;
-
+      edge->splice_score = -eslINFINITY;
       p7_splicepath_Destroy(ret_path);
       return NULL;
     }
 
+    ali_score = -eslINFINITY;
     tmp_path = p7_splice_AlignExons(pli, gm_fs, pli->bg, path_seq, gcode, i_start, i_end, k_start, k_end, FALSE, TRUE, &next_i_start, &next_k_start, &ali_score);
+    
+
+    if(tmp_path == NULL) {
+      edge->splice_score = -eslINFINITY;
+      p7_splicepath_Destroy(tmp_path);
+      p7_splicepath_Destroy(ret_path);
+      return NULL;
+    }
 
     for(s = 0; s < tmp_path->path_len; s++) {
-
+      
       tmp_path->iali[s] = path->revcomp ? path_seq->n - tmp_path->iali[s] + path_seq->end :
                                           path_seq->start + tmp_path->iali[s] - 1;
       tmp_path->jali[s] = path->revcomp ? path_seq->n - tmp_path->jali[s] + path_seq->end :
@@ -1222,7 +1296,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
       }
     }
 
-  //  p7_splicepath_Dump(stdout,tmp_path);
+  
     p7_gmx_Reuse(pli->vit);
     p7_splicepath_Destroy(tmp_path);
     
@@ -1252,6 +1326,8 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 
   return ret_path;
 
+  ERROR:
+    return NULL;
 }
 
 
@@ -1271,10 +1347,13 @@ p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_
   SPLICE_PATH   *ret_path;
 
 //TODO dont need Lx for p7_gmx_sp_GrowTo
+//  char strand;
+//  strand = path_seq->start < path_seq->end ? '+' : '-';
+  //printf("seq %s strand %c M %d L %d\n", path_seq->name, strand, M, L);
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
   p7_fs_ReconfigLength(gm_fs, L);
- 
+  
   if(extend_up) 
     p7_spliceviterbi_translated_semiglobal_extendup(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
   else if(extend_down) 
@@ -1283,7 +1362,6 @@ p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_
     p7_spliceviterbi_translated_semiglobal(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
     /* If the hits were in different frames and no splice site was able to pull score 
      * from the upstream frame to the downstream frame the spliceing is a failure */
-    
     if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
   }
 
@@ -1296,13 +1374,12 @@ p7_splice_AlignExons(SPLICE_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_
   for(z = 0; z < tr->N; z++)
     if(tr->st[z] == p7T_P) intron_cnt++;
 
-
   /* Find first M state - start of first hit */
   for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
   if (z1 == tr->N) {
-   p7_trace_Destroy(tr);
-   return NULL;
- }
+    p7_trace_Destroy(tr);
+    return NULL;
+  }
 
   /* Find last M state state - end of last hit */
   for(z2 = tr->N-1; z2 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
@@ -1667,7 +1744,8 @@ if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
     
     if(esl_abc_XIsNonresidue(gm->abc, amino)) {
       path->frameshift = TRUE;
-    //printf("seq_idx %d\n", seq_idx); 
+    printf("seq %s\n", path_seq->name); 
+    fflush(stdout);
       ESL_XEXCEPTION(eslFAIL, "STOP codon");
       free(nuc_index);
       free(nuc_dsq);

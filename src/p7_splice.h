@@ -13,7 +13,6 @@
 typedef struct _splice_edge {
 
   int frameshift;
-  int bypass_checked;
   int jump_edge;
 
   int upstream_node_id;
@@ -24,6 +23,12 @@ typedef struct _splice_edge {
 
   int upstream_nuc_end;    
   int downstream_nuc_start; 
+
+  int i_start;
+  int k_start;
+
+  int next_i_start;
+  int next_k_start;
 
   float splice_score;
   float signal_score;

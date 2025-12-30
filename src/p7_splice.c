@@ -566,7 +566,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   seq_file   = info->seq_file;
 
 
-  printf("\nQuery %s Target %s strand %c seqidx %ld\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
+  printf("\nQuery %s Target %s strand %c seqidx %lld\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
@@ -1582,7 +1582,7 @@ p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PATH *orig_pa
 
   path_seq_len = 0;
   for (i = 0; i < path->path_len; i++) {
-    path_seq_len += abs(path->jali[i] - path->iali[i]) + 1;
+    path_seq_len += llabs(path->jali[i] - path->iali[i]) + 1;
   }
   
   /* If the spliced seqeunce length is non-mod 3 send to farmshift alignment */

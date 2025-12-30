@@ -614,7 +614,7 @@ p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path)
   fprintf(fp, "  Path Length  %d\n", path->path_len);
   fprintf(fp, "  %4s %4s %9s %9s %10s %10s \n", "Step", "Node", "hmm_start", "hmm_end", "seq_start", "seq_end");
   for(i = 0; i < path->path_len; i++) {
-    fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld \n", i+1, path->node_id[i]+1,
+    fprintf(fp, "  %4d %4d %9d %9d %10lld %10lld \n", i+1, path->node_id[i]+1,
       path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i]);
   }
 
@@ -637,14 +637,14 @@ p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph)
   fprintf(fp, "  %4s %4s %9s %9s %10s %10s %10s %10s\n", "Step", "Node", "hmm_start", "hmm_end", "seq_start", "seq_end", "hit_score", "edge_score");
 
   //hit_score = th->hit[path->node_id[0]]->dcl->aliscore;
-  fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld %10f %10f\n", 1, path->node_id[0]+1,
+  fprintf(fp, "  %4d %4d %9d %9d %10lld %10lld %10f %10f\n", 1, path->node_id[0]+1,
       path->ihmm[0], path->jhmm[0], path->iali[0], path->jali[0], path->aliscore[0], -eslINFINITY);
   for(i = 1; i < path->path_len; i++) {
     //hit_score = th->hit[path->node_id[i]]->dcl->aliscore;
     tmp_edge = p7_splicegraph_GetEdge(graph, path->node_id[i-1], path->node_id[i]);
     if(tmp_edge == NULL) edge_score = 0.0;
     else                 edge_score =  tmp_edge->splice_score;
-    fprintf(fp, "  %4d %4d %9d %9d %10ld %10ld %10f %10f\n", i+1, path->node_id[i]+1,
+    fprintf(fp, "  %4d %4d %9d %9d %10lld %10lld %10f %10f\n", i+1, path->node_id[i]+1,
       path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i], path->aliscore[i], edge_score);
   }
 

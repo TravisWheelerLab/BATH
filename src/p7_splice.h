@@ -265,8 +265,6 @@ enum p7s_parser_score {
 #define p7S_PARSE_SCORE 3
 
 /* p7_spliceedge.c */
-extern SPLICE_EDGE* p7_spliceedge_Create(void);
-extern int p7_spliceedge_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom);
 
 /* p7_splicegraph.c */
 extern SPLICE_GRAPH* p7_splicegraph_Create(void);
@@ -277,6 +275,7 @@ extern int p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit);
 extern SPLICE_EDGE* p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int down_node);
 extern int p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_node);
 extern SPLICE_EDGE* p7_splicegraph_GetEdge(SPLICE_GRAPH* graph, int up_node, int down_node);
+extern int p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom);
 extern int p7_splicegraph_PathExists (SPLICE_GRAPH *graph, int upstream_node, int downstream_node);
 extern int p7_splicegraph_RemoveDuplicates(SPLICE_GRAPH *graph);
 extern void p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph);

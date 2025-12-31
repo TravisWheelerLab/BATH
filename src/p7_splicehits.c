@@ -23,7 +23,7 @@ static int hit_sorter(const void *vh1, const void *vh2);
  * 1. The SPLICE_SAVED_HITS structure.
  *****************************************************************/
 
-/* Function:  p7_splichits_CreateSavedHits()
+/* Function:  p7_splicehits_CreateSavedHits()
  * Synopsis:  Allocates a saved hits list.
  *
  * Purpose:   Allocates a new <SPLICE_SAVED_HITS> 
@@ -260,7 +260,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
 
   if(!sh->is_sorted) p7_splicehits_SortSavedHits(sh);
   
-  /* If two saved hits overlap set the shorter lone as duplicate */ 
+  /* If two saved hits overlap set the shorter one as duplicate */ 
   j = 0;
   for (i = 1; i < sh->N; i++)  
   {
@@ -280,7 +280,7 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
     s_i   = sh->srt[i]->seq_start;
     e_i   = sh->srt[i]->seq_end;
 
-    if (sh->srt[j]->strand) ESL_SWAP(s_i, e_i, int);
+    if (sh->srt[i]->strand) ESL_SWAP(s_i, e_i, int);
     len_i = e_i - s_i + 1 ; 
 
     intersect_alistart  = ESL_MAX(s_i, s_j);
@@ -442,7 +442,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
       seed_min = ESL_MIN(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
       if(seed_min - hit_max > MAX_INTRON_LENG) break;
 
-      // Is saved hit upstearm and within of top hit  
+      /* Is saved hit upstream and within of top hit  */
       if(sh->srt[i]->hmm_start <= th->hit[h]->dcl->ihmm ||
          sh->srt[i]->hmm_end   <= th->hit[h]->dcl->jhmm) {
 
@@ -482,7 +482,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
     if(!sh->srt[i]->is_seed) continue;
     //printf("sh->srt[i]->seq_start %d sh->srt[i]->seq_end %d\n", sh->srt[i]->seq_start, sh->srt[i]->seq_end); 
     //fflush(stdout);
-    /* If the saved hit is on a new sequence or strand sove to beginging of current sequence */
+    /* If the saved hit is on a new sequence or strand move to beginging of current sequence */
     if(sh->srt[i]->seqidx != last_seqidx ||
        sh->srt[i]->strand != last_strand) {
 
@@ -576,7 +576,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
  *****************************************************************/
 
 
-/* Function:  p7_splicephits_Dump()
+/* Function:  p7_splicehits_Dump()
  *
  * Purpose: Dumps hit info for each hit in <sh>
  *

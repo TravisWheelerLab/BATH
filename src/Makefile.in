@@ -88,7 +88,6 @@ OBJS =  build.o\
 	eweight.o\
 	fwdback_frameshift.o\
     viterbi_frameshift.o\
-    viterbi_translated.o\
 	generic_decoding.o\
 	generic_fwdback.o\
 	generic_fwdback_chk.o\
@@ -99,8 +98,6 @@ OBJS =  build.o\
 	generic_stotrace.o\
 	generic_viterbi.o\
 	generic_vtrace.o\
-    global_viterbi.o\
-    global_vtrace.o\
 	h2_io.o\
 	heatmap.o\
 	hmmdmstr.o\
@@ -141,7 +138,6 @@ OBJS =  build.o\
     p7_search_builder.o\
 	p7_spensemble.o\
 	p7_splice.o\
-    p7_spliceedge.o\
     p7_splicegraph.o\
     p7_splicehits.o\
     p7_splicepath.o\

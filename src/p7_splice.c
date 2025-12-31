@@ -937,7 +937,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
         edge->jump_edge      = FALSE; 
         /* If hits overlap, find the minimum lost score to remove the overlap */
         
-        p7_spliceedge_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
+        p7_splicegraph_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
        
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
@@ -990,7 +990,7 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
       edge = p7_splicegraph_AddEdge(graph, up, down);
 
       /* If hits overlap, find the minimum lost socre to remove the overlap */
-      p7_spliceedge_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
+      p7_splicegraph_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
 
       edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
       edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 

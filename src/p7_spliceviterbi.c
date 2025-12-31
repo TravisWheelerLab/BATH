@@ -1435,5 +1435,3 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
 
 
 
-
-

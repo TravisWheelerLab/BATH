@@ -207,6 +207,14 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if(graph->best_out_edge != NULL) free(graph->best_out_edge);
   if(graph->best_in_edge  != NULL) free(graph->best_in_edge);
 
+  for(i = 0; i < graph->num_nodes; i++) {
+    /* Empty trace means that this was a temporary hit added durring alignment that needs to be freed */
+    if(graph->th->hit[i]->dcl->tr->N == 0) {
+      p7_trace_fs_Destroy(graph->th->hit[i]->dcl->tr);
+      p7_hit_Destroy(graph->th->hit[i]);
+    }   
+  }
+
   if (graph->th->hit != NULL) free(graph->th->hit);
   if (graph->th      != NULL) free(graph->th);
 
@@ -312,6 +320,8 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int down_node)
 
   ret_edge->upstream_node_id   = up_node;
   ret_edge->downstream_node_id = down_node; 
+
+  ret_edge->jump_edge = FALSE;
 
   ret_edge->splice_score = 0.;
 

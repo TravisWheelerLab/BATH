@@ -569,16 +569,16 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   fflush(stdout);
 
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("RECOVER\n");
-p7_splicegraph_DumpHits(stdout, graph);
-fflush(stdout);
+//printf("RECOVER\n");
+//p7_splicegraph_DumpHits(stdout, graph);
+//fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(graph, gm);
  
   /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
-  orig_path = p7_splicepath_GetBestPath_Unspliced(graph);
+  orig_path = p7_splicepath_GetBestPath_Anchors(graph);
 //p7_splicegraph_DumpGraph(stdout, graph);
 
   while(orig_path != NULL) {
@@ -594,21 +594,21 @@ fflush(stdout);
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
     
 //if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-printf("FIRST PATH \n");
+//printf("FIRST PATH \n");
 //p7_splicepath_Dump(stdout,orig_path);
-p7_splicepath_DumpScores(stdout,orig_path,graph);
-fflush(stdout);
+//p7_splicepath_DumpScores(stdout,orig_path,graph);
+//fflush(stdout);
 //if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 
     
     final_path = p7_splice_FindExons(info, orig_path, path_seq);
  
 
-printf("FINAL PATH\n");
-p7_splicepath_Dump(stdout,final_path);
-fflush(stdout);
+//printf("FINAL PATH\n");
+//p7_splicepath_Dump(stdout,final_path);
+//fflush(stdout);
 
-p7_splicegraph_DumpHits(stdout, graph);    
+//p7_splicegraph_DumpHits(stdout, graph);    
     if(final_path != NULL) {
       
       p7_splice_AlignPath(graph, final_path, orig_path, pli, tophits, om, gm, gcode, path_seq, info->db_nuc_cnt, gm_fs->fs, info, &success);
@@ -645,7 +645,7 @@ p7_splicegraph_DumpHits(stdout, graph);
     p7_splicepath_Destroy(final_path);
     p7_splicepipeline_Reuse(pli);
 
-    orig_path = p7_splicepath_GetBestPath_Unspliced(graph);
+    orig_path = p7_splicepath_GetBestPath_Anchors(graph);
 //p7_splicegraph_DumpHits(stdout, graph); 
 //p7_splicegraph_DumpGraph(stdout, graph);
     
@@ -1086,7 +1086,7 @@ p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_se
 
   /* If their are upstream extention nodes see if they are recoved by spliced viterbi */ 
   if(s_start != 0) {
-printf("starting %d %d\n", path->node_id[0]+1,path->node_id[1]+1 );
+//printf("starting %d %d\n", path->node_id[0]+1,path->node_id[1]+1 );
     k_start = path->ihmm[0]; 
     i_start = path->iali[0]; 
     k_end   = path->jhmm[s_start];
@@ -1146,7 +1146,7 @@ printf("starting %d %d\n", path->node_id[0]+1,path->node_id[1]+1 );
         i_end   = i_end   - path_seq->start + 1;
       }
   
-printf("aligning %d %d\n", path->node_id[0]+1, path->node_id[1]+1);
+//printf("aligning %d %d\n", path->node_id[0]+1, path->node_id[1]+1);
   
       ret_path = p7_splice_AlignExtendUp(pli, graph, path, gm_fs, pli->bg, path_seq, gcode, s_start, i_start, i_end, k_start, k_end, &next_i_start, &next_k_start);
 
@@ -1182,7 +1182,7 @@ printf("aligning %d %d\n", path->node_id[0]+1, path->node_id[1]+1);
    *************************/
 
   for(s = s_start+1; s <= s_end; s++) {
-printf("\nstarting %d %d\n", path->node_id[s-1]+1,path->node_id[s]+1 );
+//printf("\nstarting %d %d\n", path->node_id[s-1]+1,path->node_id[s]+1 );
 
     /* Start coordinates are set by perious search */
     k_start = next_k_start == 0 ? path->ihmm[s-1] : next_k_start; 
@@ -1242,13 +1242,13 @@ printf("\nstarting %d %d\n", path->node_id[s-1]+1,path->node_id[s]+1 );
     }
 
     ali_score = -eslINFINITY; 
-printf("aligning %d %d\n", path->node_id[s-1]+1,path->node_id[s]+1 );
+//printf("aligning %d %d\n", path->node_id[s-1]+1,path->node_id[s]+1 );
     tmp_path = p7_splice_AlignExons(pli, graph, path, gm_fs, pli->bg, path_seq, gcode, s, i_start, i_end, k_start, k_end, &next_i_start, &next_k_start, &ali_score);
      
     /* If the alignment failed or the spliced aligment score is less than the score of the two hits plus 
      * the B->M penalty these exons are better off as seperate hits so we erase the edge and return NULL */ 
     if(tmp_path == NULL || ali_score < path->aliscore[s-1] + path->aliscore[s] + -eslCONST_LOG2 + p7P_TSC(gm_fs, path->ihmm[s]-1, p7P_BM)) {
-printf("2 fail\n"); 
+//printf("2 fail\n"); 
       edge->splice_score = -eslINFINITY;
 
       p7_splicepath_Destroy(tmp_path);
@@ -1280,7 +1280,7 @@ printf("2 fail\n");
    *************************/
 
   if(s_end != path->path_len-1) {
-printf("\nstarting %d %d\n", path->node_id[s_end]+1,path->node_id[s_end+1]+1 );
+//printf("\nstarting %d %d\n", path->node_id[s_end]+1,path->node_id[s_end+1]+1 );
     k_start = next_k_start == 0 ? path->ihmm[s_end] : next_k_start;
     i_start = next_i_start == 0 ? path->iali[s_end] : next_i_start;
     k_end   = path->jhmm[path->path_len-1];

@@ -53,10 +53,11 @@ typedef struct _splice_graph {
   char        *seqname;    
 
   /* Hits and hit info */
-  int         *node_in_graph;        /* Is the hit part of the current graph */
+  int         *node_in_graph;   /* Is the hit part of the current graph */
   int         *reportable;      /* For orignal hits, do they pass the repoting threshold */
   int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
   int         *split_orig_id;
+  int         *reachable;      /* is this node erachable from the sink node */
 
   /*Edge info */  
   int   *edge_in_graph;
@@ -226,8 +227,8 @@ typedef struct _splice_info
 #define MAX_AMINO_EXT            100
 #define MIN_INTRON_LENG           13       /*minimum intor length */
 #define MIN_INTRON_RMV            1500     /*minimum length of of nucletides to remore from a proported intron region */
-#define MAX_INTRON_INC            1500    /*maximum length on intron to be included in spliced Viterbi search */
-#define MAX_AMINO_GAP             100      /*max amino gap the spliced viterbi algoritm will try to bridge without searching the full intron */
+#define MAX_INTRON_INC            1500     /*maximum length on intron to be included in spliced Viterbi search */
+#define MAX_AMINO_GAP             3000     /*max amino gap the spliced viterbi algoritm will try to bridge without searching the full intron */
 #define MAX_SP_AMINO_GAP          10       /*maximum amino gap for spliced edges */
 #define MAX_USP_AMINO_GAP         25       /*maximum amino gap fpr unspliced edges */ 
 #define MAX_EXT_AMINO_GAP         25       /*maximum amino gap fpr extention edges */
@@ -329,13 +330,15 @@ extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PA
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);
 extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);
 extern SPLICE_PATH* p7_splice_AlignSingle(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *path_seq, const ESL_GENCODE *gcode, int i_start, int i_end, int k_start, int k_end);
-extern SPLICE_PATH* p7_splice_AlignExtendUp(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *path_seq, const ESL_GENCODE *gcode, int s_start, int i_start, int i_end, int k_start, int k_end, int *next_i_start, int *next_k_start);
+extern SPLICE_PATH* p7_splice_AlignExtendUp(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *path_seq, const ESL_GENCODE *gcode, int s_start, int i_start, int i_end, int k_start, int k_end);
 extern SPLICE_PATH* p7_splice_AlignExons(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *path_seq, const ESL_GENCODE *gcode, int down, int i_start, int i_end, int k_start, int k_end, int *next_i_start, int *next_k_start,float *ali_score);
-extern SPLICE_PATH* p7_splice_AlignExtendDown(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, SPLICE_PATH *path, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *path_seq, const ESL_GENCODE *gcode, int s_end, int i_start, int i_end, int k_start, int k_end);
+extern SPLICE_PATH* p7_splice_AlignExtendDown(SPLICE_PIPELINE *pli, SPLICE_PATH *path, P7_FS_PROFILE *gm_fs, P7_BG *bg, ESL_SQ *path_seq, const ESL_GENCODE *gcode, int s_end, int i_start, int i_end, int k_start, int k_end);
 extern int p7_splice_EnforceRangeBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_max);
 extern int p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp);
 extern int p7_splice_HitBetween(P7_DOMAIN *up, P7_DOMAIN *mid, P7_DOMAIN *down, int revcomp);
-extern SPLICE_PATH* p7_splice_FindExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
+extern SPLICE_PATH* p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
+extern int p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
+extern int p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
 extern int p7_splice_AlignPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PATH *orig_path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_OPROFILE *om, P7_PROFILE *gm, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, float fs_prob, SPLICE_WORKER_INFO *info, int *success);
 //extern int p7_splice_AlignFrameshiftPath(SPLICE_GRAPH *graph, SPLICE_PATH *path, SPLICE_PIPELINE *pli, P7_TOPHITS *tophits, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, ESL_SQ *path_seq, int64_t db_nuc_cnt, SPLICE_WORKER_INFO *info);
 extern ESL_SQ* p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp, SPLICE_WORKER_INFO *info);

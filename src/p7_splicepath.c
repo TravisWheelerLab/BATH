@@ -20,8 +20,8 @@
 #include "p7_splice.h"
 
 static int longest_path_anchors (SPLICE_GRAPH *graph);
-static int longest_path_upstream (SPLICE_GRAPH *graph);
-static int topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
+static int longest_path_extension (SPLICE_GRAPH *graph);
+static int topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
 static int has_out_edge(SPLICE_GRAPH *graph, int node_id);
 
 /*****************************************************************
@@ -369,7 +369,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
   contains_orig = FALSE;
  
   /* Find best scoring paths */
-  if((status = longest_path_upstream(extend_graph)) != eslOK) goto ERROR;
+  if((status = longest_path_extension(extend_graph)) != eslOK) goto ERROR;
 
   while(!contains_orig) {
     /* Find the best place to start our path */
@@ -474,10 +474,16 @@ longest_path_anchors (SPLICE_GRAPH *graph)
 
   /* Reset path and edge data */ 
   for(i = 0; i < graph->num_nodes; i++) {
-    if(graph->node_in_graph[i])
+    if(graph->node_in_graph[i]) 
       graph->path_scores[i]   = graph->ali_scores[i];
     else
       graph->path_scores[i]   = -eslINFINITY;
+    
+    if(i < graph->anchor_N)
+      graph->reachable[i] = TRUE;
+    else
+      graph->reachable[i] = FALSE;
+
     graph->best_out_edge[i] = -1;
   }
 
@@ -485,15 +491,18 @@ longest_path_anchors (SPLICE_GRAPH *graph)
   if((status = p7_splicegraph_Grow(graph)) != eslOK) goto ERROR;
   graph->ali_scores[graph->num_nodes]  = 0.;
   graph->edges[graph->num_nodes] = NULL;
-  for(up = 0; up < graph->anchor_N; up++) {
+  for(up = 0; up < graph->num_nodes; up++) {
     
     if(!graph->node_in_graph[up]) continue;
     if(has_out_edge(graph, up))   continue;
     p7_splicegraph_AddEdge(graph, up, graph->num_nodes);
 
+    if(up <  graph->anchor_N) graph->reachable[up] = TRUE;
+
   }
 
   graph->node_in_graph[graph->num_nodes]  = TRUE;
+  graph->reachable[graph->num_nodes]      = FALSE;
   graph->num_edges[graph->num_nodes]      = 0;
   graph->path_scores[graph->num_nodes]    = 0.;
   graph->num_nodes++;
@@ -507,31 +516,31 @@ longest_path_anchors (SPLICE_GRAPH *graph)
 
   for(i = 0; i < graph->num_nodes; i++) {
     if (!graph->node_in_graph[i]) continue;
-    if(!visited[i]) {
-      topological_sort_upstream(graph, visited, stack, &stack_size, i);
-    }
+    if(!visited[i]) 
+      topological_sort(graph, visited, stack, &stack_size, i);
   }
 
-   while(stack_size > 0) {
+
+  
+  while(stack_size > 0) {
     /*pop top of stack */
     down = stack[stack_size-1];
     stack_size--;
-    if(down == graph->num_nodes-1) continue;
+    if (!graph->reachable[down] ) continue; 
 
     /* Find nodes with outgoing edge to down*/
     for(up = 0; up < graph->num_nodes-1; up++) {
       if (!graph->node_in_graph[up]) continue;
-         
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
       
       if(tmp_edge != NULL && tmp_edge->splice_score != -eslINFINITY) {
-       
+         
         step_score = graph->ali_scores[up] + tmp_edge->splice_score + graph->path_scores[down];
         if(graph->path_scores[up] <= step_score) {
-
-          graph->path_scores[up]  = step_score;
-          if(down != graph->num_nodes-1)
-            graph->best_out_edge[up] = down;
+          graph->path_scores[up]   = step_score;
+          graph->best_out_edge[up] = down;
+          graph->reachable[up]     = TRUE;
+            
         }
       }
     }
@@ -539,7 +548,7 @@ longest_path_anchors (SPLICE_GRAPH *graph)
 
   /* Erase source node */
   graph->num_nodes--;
-  for(up = 0; up < graph->anchor_N; up++) {
+  for(up = 0; up < graph->num_nodes; up++) {
     if(!graph->node_in_graph[up]) continue;
     if(graph->edges[up][graph->num_edges[up]-1].downstream_node_id == graph->num_nodes) graph->num_edges[up]--;
   }
@@ -558,7 +567,7 @@ longest_path_anchors (SPLICE_GRAPH *graph)
 
 
 int
-longest_path_upstream (SPLICE_GRAPH *graph)
+longest_path_extension (SPLICE_GRAPH *graph)
 {
 
   int         i;
@@ -605,15 +614,14 @@ longest_path_upstream (SPLICE_GRAPH *graph)
   for(i = 0; i < graph->num_nodes; i++) {
     if (!graph->node_in_graph[i]) continue;
     if(!visited[i]) {
-      topological_sort_upstream(graph, visited, stack, &stack_size, i);
+      topological_sort(graph, visited, stack, &stack_size, i);
     }
   }
 
-   while(stack_size > 0) {
+  while(stack_size > 0) {
     /*pop top of stack */
     down = stack[stack_size-1];
     stack_size--;
-    if(down == graph->num_nodes-1) continue;
 
     /* Find nodes with outgoing edge to down*/
     for(up = 0; up < graph->num_nodes-1; up++) {
@@ -649,7 +657,7 @@ longest_path_upstream (SPLICE_GRAPH *graph)
 }
 
 int
-topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node)
+topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node)
 {
 
   int i;
@@ -661,7 +669,7 @@ topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *st
     if(!graph->node_in_graph[i]) continue;
     if(visited[i]) continue;
     if(p7_splicegraph_EdgeExists(graph, i, node))  
-      topological_sort_upstream(graph, visited, stack, stack_size, i);
+      topological_sort(graph, visited, stack, stack_size, i);
   }
 
   stack[*stack_size] = node;
@@ -680,8 +688,10 @@ has_out_edge(SPLICE_GRAPH *graph, int node_id)
   
   for(i = 0; i < graph->num_edges[node_id]; i++) {
     if(graph->edges[node_id][i].downstream_node_id >= 0  && 
-       graph->edges[node_id][i].splice_score != -eslINFINITY)
+       graph->edges[node_id][i].splice_score != -eslINFINITY &&
+       graph->node_in_graph[graph->edges[node_id][i].downstream_node_id]) 
       return TRUE;
+   
   }
   return FALSE;
 }

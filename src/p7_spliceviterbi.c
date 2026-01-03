@@ -1,4 +1,4 @@
-/* Spliced Viterbi algorithm and trace back - translated and fraemshift versions. */
+/* Spliced Viterbi algorithm and trace back */
 
 #include "p7_config.h"
 
@@ -64,7 +64,7 @@ p7_spliceviterbi_translated_semiglobal_extendup(SPLICE_PIPELINE *pli, const ESL_
   {
     w = x;
     sub_i = i_start + i - 1;
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
     else                                                x = p7P_MAXCODONS;
     
@@ -458,7 +458,7 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
   {
     w = x;
     sub_i = i_start + i - 1;
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
     else                                                x = p7P_MAXCODONS;
 
@@ -510,8 +510,6 @@ p7_spliceviterbi_translated_semiglobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_
                             IMX_SP(i-3,1) + TSC(p7P_II,sub_k));
 
     DMX_SP(i,1) = PMX_SP(i,1) = -eslINFINITY;
-
-    XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E), MMX_SP(i,1));  
 
     for (k = 2; k < M; k++) {
       sub_k = k_start + k -1;
@@ -859,7 +857,7 @@ p7_spliceviterbi_translated_semiglobal_extenddown(SPLICE_PIPELINE *pli, const ES
   {
     w = x;
     sub_i = i_start + i - 1;
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
     else                                                x = p7P_MAXCODONS;
 
@@ -1421,7 +1419,7 @@ p7_splicevitebi_translated_semiglobal_trace(SPLICE_PIPELINE *pli, const ESL_DSQ 
 
     if ((status = p7_trace_fs_Append(tr, scur, k_start+k-1, i_start+i-1, c)) != eslOK) return status;
     
-    /* For NCJ, we had to defer i decrement. */
+    /* For NC, we had to defer i decrement. */
     if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
    
     sprv = scur;

@@ -368,7 +368,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
   th = extend_graph->th;
   contains_orig = FALSE;
  
-  /* Find best scoreing paths */
+  /* Find best scoring paths */
   if((status = longest_path_upstream(extend_graph)) != eslOK) goto ERROR;
 
   while(!contains_orig) {
@@ -391,7 +391,7 @@ p7_splicepath_GetBestPath_Extension(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *exte
   
     out_edge = NULL;
     
-    /* Check each set of niehgbring edges to ensure they are not "backwards" 
+    /* Check each set of neighboring edges to ensure they are not "backwards" 
        (upstream splice is not downstream of downstream splice) */
     while(extend_graph->best_out_edge[curr_node] >= 0) {
 
@@ -486,15 +486,16 @@ longest_path_anchors (SPLICE_GRAPH *graph)
   graph->ali_scores[graph->num_nodes]  = 0.;
   graph->edges[graph->num_nodes] = NULL;
   for(up = 0; up < graph->anchor_N; up++) {
-  
+    
     if(!graph->node_in_graph[up]) continue;
     if(has_out_edge(graph, up))   continue;
     p7_splicegraph_AddEdge(graph, up, graph->num_nodes);
 
-    graph->num_edges[graph->num_nodes] = 0;
   }
 
-  graph->path_scores[graph->num_nodes] = 0.;
+  graph->node_in_graph[graph->num_nodes]  = TRUE;
+  graph->num_edges[graph->num_nodes]      = 0;
+  graph->path_scores[graph->num_nodes]    = 0.;
   graph->num_nodes++;
 
   ESL_ALLOC(visited, sizeof(int) * graph->num_nodes);
@@ -522,10 +523,13 @@ longest_path_anchors (SPLICE_GRAPH *graph)
       if (!graph->node_in_graph[up]) continue;
          
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
+      
       if(tmp_edge != NULL && tmp_edge->splice_score != -eslINFINITY) {
+       
         step_score = graph->ali_scores[up] + tmp_edge->splice_score + graph->path_scores[down];
         if(graph->path_scores[up] <= step_score) {
-          graph->path_scores[up]   = step_score;
+
+          graph->path_scores[up]  = step_score;
           if(down != graph->num_nodes-1)
             graph->best_out_edge[up] = down;
         }
@@ -585,10 +589,10 @@ longest_path_upstream (SPLICE_GRAPH *graph)
     if(has_out_edge(graph, up))   continue;
     p7_splicegraph_AddEdge(graph, up, graph->num_nodes);
 
-    graph->num_edges[graph->num_nodes] = 0;
   }
-
-  graph->path_scores[graph->num_nodes] = 0.;
+  graph->node_in_graph[graph->num_nodes] = TRUE; 
+  graph->num_edges[graph->num_nodes]     = 0;
+  graph->path_scores[graph->num_nodes]   = 0.;
   graph->num_nodes++;
 
   ESL_ALLOC(visited, sizeof(int) * graph->num_nodes);
@@ -653,11 +657,11 @@ topological_sort_upstream(SPLICE_GRAPH *graph, int *visited, int *stack, int *st
   visited[node] = TRUE;
  
   for(i = 0; i < graph->num_nodes; i++) {
+    
     if(!graph->node_in_graph[i]) continue;
     if(visited[i]) continue;
     if(p7_splicegraph_EdgeExists(graph, i, node))  
       topological_sort_upstream(graph, visited, stack, stack_size, i);
-
   }
 
   stack[*stack_size] = node;

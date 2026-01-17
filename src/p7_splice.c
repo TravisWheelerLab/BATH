@@ -553,7 +553,6 @@ p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, con
   int first_i;
   float bias;
 
-  fs_prob = 0.;
   if(tr->ndom == 0) p7_trace_Index(tr);
 
   N = tr->tto[0] - tr->tfrom[0] - 1;
@@ -1571,7 +1570,7 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension
 /*  Function: p7_splice_SpliceExons
  *  Synopsis: Find the best splice site (if any) between each pair of node in the path
  *
- *  Purpose : From the fist to the last anchor node in the path, recover 
+ *  Purpose : From the first to the last anchor node in the path, recover 
  *            the splice site by either performing the alignment or by
  *            retreveing the site from a pervious alignment. If no site 
  *            is found or the spliced alignment score is less that the 
@@ -1706,7 +1705,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
      * better off as seperate hits so we erase the edge and return NULL */ 
     if(tmp_path == NULL) {
 
-      /* refetch edge in acase of realloc */
+      /* refetch edge in in case of realloc */
       edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]); 
       edge->splice_score = -eslINFINITY;
       p7_splicepath_Destroy(ret_path);
@@ -2070,7 +2069,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
 
     if(start_new) {
       
-      /* Save z value - currently set to fist M state in exon */
+      /* Save z value - currently set to first M state in exon */
       y = z;
 
       /*Find end of exon */
@@ -2145,7 +2144,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   tmp_path->revcomp  = orig_path->revcomp;
   ret_path->revcomp  = orig_path->revcomp;
 
-  /* Convert to true coorinates */
+  /* Convert to true coordinates */
   for(s = 0; s < ret_path->path_len; s++) {
     if(orig_path->revcomp) {
       tmp_path->iali[s] = path_seq->n - tmp_path->iali[s] + path_seq->end;
@@ -2221,7 +2220,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
         /* 2. add edges */
         edge = p7_splicegraph_AddEdge(graph, tmp_path->node_id[s-1], tmp_path->node_id[s]); 
         
-        /* 3. add start coordes */
+        /* 3. add start coords */
         edge->i_start = tmp_path->iali[s-1];
         edge->k_start = tmp_path->ihmm[s-1];
 
@@ -2246,7 +2245,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
         /* 2. add edges */
         edge = p7_splicegraph_AddEdge(graph, tmp_path->node_id[s-1], tmp_path->node_id[s]);
 
-        /* 3. add start coordes */
+        /* 3. add start coords */
         edge->i_start = tmp_path->iali[s-1];
         edge->k_start = tmp_path->ihmm[s-1];
 
@@ -2265,7 +2264,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
       }
       else {
         
-        /* 3. add start coordes */
+        /* 3. add start coords */
         edge->i_start = tmp_path->iali[s-1];
         edge->k_start = tmp_path->ihmm[s-1];
 
@@ -2378,7 +2377,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
 
     if(start_new) {
       
-      /* Save z value - currently set to fist M state in exon */
+      /* Save z value - currently set to first M state in exon */
       y = z;
 
       /*Find end of exon */
@@ -2514,7 +2513,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
 
       edge = p7_splicegraph_AddEdge(graph, tmp_path->node_id[s-1], tmp_path->node_id[s]);
 
-        /* 3. add start coordes */
+        /* 3. add start coords */
         edge->i_start = tmp_path->iali[s-1];
         edge->k_start = tmp_path->ihmm[s-1];
 
@@ -2533,7 +2532,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
     else {
       edge = p7_splicegraph_GetEdge(graph, tmp_path->node_id[s-1], tmp_path->node_id[s]);
 
-      /* 3. add start coordes */
+      /* 3. add start coords */
       edge->i_start = tmp_path->iali[s-1];
       edge->k_start = tmp_path->ihmm[s-1];
 
@@ -2557,6 +2556,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   else                      *next_i_end = path_seq->start + *next_i_end - 1;
 
   p7_trace_fs_Destroy(tr);
+  p7_splicepath_Destroy(tmp_path);
 
   return ret_path;
 
@@ -2647,7 +2647,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
 
     if(start_new) {
       
-      /* Save z value - currently set to fist M state in exon */
+      /* Save z value - currently set to first M state in exon */
       y = z;
 
       /*Find end of exon */
@@ -2719,7 +2719,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   ret_path->revcomp = spliced_path->revcomp;
   tmp_path->revcomp = spliced_path->revcomp;  
 
-  /* Convert to true coorinates */
+  /* Convert to true coordinates */
   for(s = 0; s < ret_path->path_len; s++) {
     if(spliced_path->revcomp) {
       ret_path->iali[s] = path_seq->n - ret_path->iali[s] + path_seq->end;
@@ -2779,7 +2779,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
 
       edge = p7_splicegraph_AddEdge(graph, tmp_path->node_id[s], tmp_path->node_id[s+1]);
 
-      /* 3. add start coordes */
+      /* 3. add start coords */
       edge->i_start = tmp_path->iali[s];
       edge->k_start = tmp_path->ihmm[s];
 
@@ -2796,7 +2796,10 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
       edge->downstream_amino_start = ret_path->ihmm[s+1];
     }
     else {
-      /* 3. add start coordes */
+
+      edge = p7_splicegraph_GetEdge(graph, tmp_path->node_id[s], tmp_path->node_id[s+1]);
+
+      /* 3. add start coords */
       edge->i_start = tmp_path->iali[s];
       edge->k_start = tmp_path->ihmm[s];
 
@@ -2817,6 +2820,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   }
 
   p7_trace_fs_Destroy(tr);
+  p7_splicepath_Destroy(tmp_path);
 
   return ret_path;
 
@@ -2825,7 +2829,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
 
 
 /*  Function: p7_splice_AlignSingle
- *  Synopsis: Use global spliced Viterbi to any internal intrns in a sigle hit
+ *  Synopsis: Use global spliced Viterbi to any internal introns in a single hit
  *
  *  Purpose : Align the single anchor node in a path to find splice sites 
  *            (if any) and any new exons not in the path. Add new exons to 
@@ -2900,7 +2904,7 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
 
     if(start_new) {
       
-      /* Save z value - currently set to fist M state in exon */
+      /* Save z value - currently set to first M state in exon */
       y = z;
 
       /*Find end of exon */
@@ -2962,11 +2966,8 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
 
   ret_path->revcomp = spliced_path->revcomp;
 
-  /* Convert to true coorinates */
+  /* Convert to true coordinates */
   for(s = 0; s < ret_path->path_len; s++) {
-
-    ret_path->ihmm[s] = ret_path->ihmm[s];
-    ret_path->jhmm[s] = ret_path->jhmm[s];
 
     if(spliced_path->revcomp) {
       ret_path->iali[s] = path_seq->n - ret_path->iali[s] + path_seq->end;

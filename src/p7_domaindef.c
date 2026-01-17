@@ -870,9 +870,6 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
                   */
                   ddef->nenvelopes++;
 
-                  /*the !long_target argument will cause the function to recompute null2
-                   * scores if this is part of a long_target (nhmmer) pipeline */
-		 
                   if (rescore_isolated_domain_nonframeshift(ddef, om, gm, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg, gm_fs->fs) == eslOK)
                        last_j2 = j2;
 

@@ -109,19 +109,22 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
 
   pli->fwd = NULL;
   pli->bwd = NULL;
+  pli->pp  = NULL;
   if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->bwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+  if ((pli->pp  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
 
   pli->gfwd = NULL;
   pli->gbwd = NULL;
-
-  if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_CODONS)) == NULL) goto ERROR;
-  if ((pli->gbwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, 0         )) == NULL) goto ERROR;
+  pli->gpp  = NULL;
+  if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint*3, L_hint*3, p7P_CODONS)) == NULL) goto ERROR;
+  if ((pli->gbwd = p7_gmx_fs_Create(M_hint, L_hint*3, L_hint*3, 0         )) == NULL) goto ERROR;
+  if ((pli->gpp  = p7_gmx_fs_Create(M_hint, L_hint*3, L_hint*3, p7P_CODONS)) == NULL) goto ERROR;
 
   pli->vit = NULL;
-  if ((pli->vit = p7_gmx_sp_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+  if ((pli->vit = p7_gmx_sp_Create(M_hint, L_hint*3, L_hint*3)) == NULL) goto ERROR;
   
-  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint, L_hint);
+  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint*3, L_hint*3);
 
   pli->bg = NULL;
 
@@ -151,9 +154,11 @@ p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli)
  
   p7_omx_Reuse(pli->fwd);
   p7_omx_Reuse(pli->bwd);
+  p7_omx_Reuse(pli->pp);
 
   p7_gmx_Reuse(pli->gfwd);
   p7_gmx_Reuse(pli->gbwd);
+  p7_gmx_Reuse(pli->gpp);
 
   p7_gmx_Reuse(pli->vit);
 
@@ -194,9 +199,11 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 
   p7_omx_Destroy(pli->fwd);
   p7_omx_Destroy(pli->bwd);
+  p7_omx_Destroy(pli->pp);
 
   p7_gmx_Destroy(pli->gfwd);
   p7_gmx_Destroy(pli->gbwd);
+  p7_gmx_Destroy(pli->gpp);
 
   p7_gmx_Destroy(pli->vit);
 

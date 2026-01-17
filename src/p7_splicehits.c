@@ -442,7 +442,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
       seed_min = ESL_MIN(sh->srt[i]->seq_start, sh->srt[i]->seq_end);
       if(seed_min - hit_max > MAX_INTRON_LENG) break;
 
-      /* Is saved hit upstream and within of top hit  */
+      /* Is saved hit upstream of top hit  */
       if(sh->srt[i]->hmm_start <= th->hit[h]->dcl->ihmm ||
          sh->srt[i]->hmm_end   <= th->hit[h]->dcl->jhmm) {
 
@@ -456,7 +456,7 @@ p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *h
        
       }
 
-      // Is saved hit downstearm and within of top hit 
+      // Is saved hit downstearm of top hit 
 	  if(th->hit[h]->dcl->ihmm <= sh->srt[i]->hmm_start ||
          th->hit[h]->dcl->jhmm <= sh->srt[i]->hmm_end) {
 

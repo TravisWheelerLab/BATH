@@ -784,8 +784,11 @@ typedef struct p7_alidisplay_s {
   int     *exon_hmm_ends;       /* array of amino end positions for exons in spliced alignment        */
   int     *exon_orig;           /* array of bools stating whether exon was an original hit or a missed exon */
   int     *exon_split;          /* array of bools stating whether exon was split from a loarger original hit */
-  float   *exon_sum_score;      /* array of summed per pos ali scores for exons in spliced alignment  */ 
   float   *exon_pid;            /* array of percent identities for exons in spliced alignment         */
+  float   *exon_score;
+  float   *exon_bias;
+  float   *exon_pp;
+  double  *exon_lnP;
 
   int   memsize;                /* size of allocated block of memory    */
   char *mem;      /* memory used for the char data above  */

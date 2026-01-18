@@ -2242,23 +2242,65 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
       }
       else if (pli->frameshift)
       {
-        if(pli->pid) {  
-          if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %9s %9s %6s %5s %6s %7s %6s %5s %s\n",
-            " hit ID", tnamew-1, " target name",        taccw, " accession",  qnamew, " query name",          qaccw, " accession",  "  hmm len",  " hmm from", "   hmm to", "  seq len", " ali from", "   ali to", " env from", "   env to", "  E-value", " score", " bias", "   pid", " shifts", " stops",  " pipe", (pli->show_cigar ? "CIGAR" : " description of target")) < 0)
+        if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s",
+            " hit ID", tnamew-1, " target name",        taccw, " accession",  qnamew, " query name",          qaccw, " accession",  "  hmm len",  " hmm from", "   hmm to", "  seq len", " ali from", "   ali to") < 0)
+             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+
+        if(pli->spliced) {
+          if (fprintf(ofp, " %9s", " exon cnt") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-          if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %9s %9s %6s %5s %6s %7s %6s %5s %s\n",
-            "-------", tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "---------", "---------","---------", "---------", "---------", "---------", "------", "-----", "------", "-------", "------", "-----", "---------------------") < 0)
-            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-        } 
+        }
         else {
-          if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %9s %9s %6s %5s %7s %6s %5s %s\n",
-            " hit ID", tnamew-1, " target name",        taccw, " accession",  qnamew, " query name",          qaccw, " accession",  "  hmm len",  " hmm from", "   hmm to", "  seq len", " ali from", "   ali to", " env from", "   env to", "  E-value", " score", " bias", " shifts", " stops",  " pipe", (pli->show_cigar ? "CIGAR" : " description of target")) < 0)
-            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-          if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s %9s %9s %9s %6s %5s %7s %6s %5s %s\n",
-            "-------", tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "---------", "---------","---------", "---------", "---------", "---------", "------", "-----", "-------", "------", "-----", "---------------------") < 0)
+          if (fprintf(ofp, " %9s %9s", " env from", "   env to") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
         }
 
+        if (fprintf(ofp, "  %9s %6s %5s", "  E-value", " score", " bias") < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+
+        if(pli->pid) { 
+          if (fprintf(ofp, " %6s", "   pid") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        }          
+
+        if(pli->fs_pipe) {
+          if (fprintf(ofp, " %7s %6s", " shifts", " stops") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        }
+
+        if (fprintf(ofp, " %s\n", (pli->show_cigar ? "CIGAR" : " description of target")) < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+         
+        if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %9s %9s %9s",
+            "-------", tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "---------", "---------", "---------") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+
+        if(pli->spliced) {
+          if (fprintf(ofp, " %9s", "---------") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        }
+        else {
+           if (fprintf(ofp, " %9s %9s", "---------", "---------") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        }
+
+        if (fprintf(ofp, "  %9s %6s %5s", "---------", "------", "-----") < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+
+        if(pli->pid) {
+          if (fprintf(ofp, " %6s", "------") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        }
+
+        if(pli->fs_pipe) {
+          if (fprintf(ofp, " %7s %6s", "-------", "------") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+        }
+
+        if (fprintf(ofp, " %s\n", "---------------------") < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+         
+        
       }
       else
       {
@@ -2317,8 +2359,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
         }
         else if(pli->frameshift) 
 	    {       
-                
-		  if (fprintf(ofp, "%8d %-*s %-*s %-*s %-*s %9d %9d %9d %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %*" PRId64 " %9.2g %6.1f %5.1f ",
+          if (fprintf(ofp, "%8d %-*s %-*s %-*s %-*s %8d  %8d  %8d  %*" PRId64 " %*" PRId64 " %*" PRId64 "",
                 id,
                 tnamew, th->hit[h]->name,
                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
@@ -2329,34 +2370,52 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
                 th->hit[h]->dcl[d].ad->hmmto,
                 posw, th->hit[h]->dcl[d].ad->L,
                 posw, th->hit[h]->dcl[d].iali,
-                posw, th->hit[h]->dcl[d].jali,
+                posw, th->hit[h]->dcl[d].jali) < 0)
+		        ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+
+          if(pli->spliced) {
+                      
+            if (fprintf(ofp, " %8d ",
+                th->hit[h]->dcl[d].ad->exon_cnt) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+          }
+          else {
+            
+             if (fprintf(ofp, " %*" PRId64 " %*" PRId64 "", 
                 posw, th->hit[h]->dcl[d].ienv,
-                posw, th->hit[h]->dcl[d].jenv,
-                exp(th->hit[h]->lnP), //* pli->Z,
+                posw, th->hit[h]->dcl[d].jenv) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+          }            
+
+    	  if (fprintf(ofp, " %9.2g %6.1f %5.1f",
+                exp(th->hit[h]->lnP), 
                 th->hit[h]->score,
                 th->hit[h]->dcl[d].dombias * eslCONST_LOG2R) < 0) /* convert NATS to BITS at last moment */
 		        ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
 
-				if(pli->pid) {
-                  if (fprintf(ofp, "%6.2f ", th->hit[h]->dcl[d].ad->pid) < 0) 
-                  ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-                }
-
-                if (fprintf(ofp, "%7d %6d %5s",
-                th->hit[h]->dcl[d].ad->frameshifts,
-                th->hit[h]->dcl[d].ad->stops,
-                th->hit[h]->frameshift ? "fs " : "std ") < 0)
+      	  if(pli->pid) {
+            if (fprintf(ofp, " %6.2f ", 
+                th->hit[h]->dcl[d].ad->pid) < 0) 
                 ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+          }
 
-                if(pli->show_cigar) {
-                  p7_tophits_CreateCigarString(th->hit[h]->dcl[d].tr, &cigar);
-                  if (fprintf(ofp, " %s\n", cigar) < 0)
-                  ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-                } 
-                else {
-                  if (fprintf(ofp, " %s\n", (th->hit[h]->desc == NULL ? "-" : th->hit[h]->desc)) < 0)
-                  ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
-                }
+          if(pli->fs_pipe) {
+            if (fprintf(ofp, " %7d %6d",
+                th->hit[h]->dcl[d].ad->frameshifts,
+                th->hit[h]->dcl[d].ad->stops) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+          }
+
+          
+          if(pli->show_cigar) {
+            p7_tophits_CreateCigarString(th->hit[h]->dcl[d].tr, &cigar);
+            if (fprintf(ofp, " %s\n", cigar) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+          } 
+          else {
+             if (fprintf(ofp, " %s\n", (th->hit[h]->desc == NULL ? "-" : th->hit[h]->desc)) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+          }
 	   }
         else
         {

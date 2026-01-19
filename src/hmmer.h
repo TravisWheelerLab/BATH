@@ -642,6 +642,7 @@ typedef struct p7_gmx_s {
 
 typedef struct p7_ivx_s {
   int   allocM;
+  int   allocC;
   float *ivx;
 
 } P7_IVX;
@@ -1570,8 +1571,8 @@ extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 
 /* fwdback_frameshift.c */
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_ForwardParser_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_ForwardParser_Frameshift2(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
+extern int p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 extern int p7_BackwardParser_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
 
@@ -1801,8 +1802,8 @@ extern int     p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance);
 extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
-extern P7_IVX *p7_ivx_Create(int allocM);
-extern int     p7_ivx_GrowTo(P7_IVX *iv, int M);
+extern P7_IVX *p7_ivx_Create(int allocM, int allocC);
+extern int     p7_ivx_GrowTo(P7_IVX *iv, int M, int C);
 extern void    p7_ivx_Destroy(P7_IVX *iv);
 
 /* p7_gmx_fs.c */

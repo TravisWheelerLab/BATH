@@ -70,7 +70,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   int             EfL    = ((cfg_b != NULL) ? cfg_b->EfL    : 100);
   int             EfN    = ((cfg_b != NULL) ? cfg_b->EfN    : 200);
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
-  double          lambda, mmu, vmu, tau, tau_fs;
+  double          lambda, mmu, vmu, tau, tau_fs3, tau_fs5;
   int             status;
   P7_FS_PROFILE     *gm_fs  = NULL;  
 
@@ -108,7 +108,8 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
   if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
   if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
-  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau_5codons (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau_3codons (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau_5codons (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
  
 
   /* Store results */
@@ -118,7 +119,8 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   hmm->evparam[p7_MMU]      = om->evparam[p7_MMU]     = mmu;
   hmm->evparam[p7_VMU]      = om->evparam[p7_VMU]     = vmu;
   hmm->evparam[p7_FTAU]     = om->evparam[p7_FTAU]    = tau;
-  hmm->evparam[p7_FTAUFS5]  = om->evparam[p7_FTAUFS5]  = (hmm->abc->type == eslAMINO) ? tau_fs : 0.0;
+  hmm->evparam[p7_FTAUFS3]  = om->evparam[p7_FTAUFS3]  = (hmm->abc->type == eslAMINO) ? tau_fs3 : 0.0;
+  hmm->evparam[p7_FTAUFS5]  = om->evparam[p7_FTAUFS5]  = (hmm->abc->type == eslAMINO) ? tau_fs5 : 0.0;
   hmm->flags              |= p7H_STATS;
 
   if (gm != NULL) {
@@ -518,8 +520,8 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   for(x = 0; x < abcDNA->K; x++) 
     n1[x] = n2[x] = n3[x] = x;  
 
-  gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_3CODONS);     /* DP matrix: for ForwardParser,  L rows */
-  iv = p7_ivx_Create(gm_fs->M);
+  gx = p7_gmx_fs_Create(hmm->M, p7P_3CODONS, L*3, p7P_3CODONS);     
+  iv = p7_ivx_Create(gm_fs->M, p7P_3CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
@@ -561,7 +563,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
         }
       }
 
-     if ((status = p7_ForwardParser_Frameshift2(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
+     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
 
       if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
@@ -633,6 +635,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
 {
 
   P7_GMX  *gx      = NULL; 
+  P7_IVX  *iv      = NULL;
   ESL_DSQ *amino_dsq     = NULL;
   ESL_DSQ *dna_dsq     = NULL;
   double  *xv      = NULL;
@@ -659,6 +662,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
     n1[x] = n2[x] = n3[x] = x;  
 
   gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_5CODONS);     /* DP matrix: for ForwardParser,  L rows */
+  iv = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
@@ -700,12 +704,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
         }
       }
 
-//      P7_IVX *iv;
-//      iv = p7_ivx_Create(gm_fs->M);
-//      if ((status = p7_ForwardParser_Frameshift2(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
-//      p7_ivx_Destroy(iv);
-
-      if ((status = p7_ForwardParser_Frameshift(dna_dsq, gcode, L*3, gm_fs, gx, &fsc))      != eslOK) goto ERROR; 
+      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR; 
        
       if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
@@ -726,6 +725,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   free(amino_dsq);
   free(dna_dsq);
   p7_gmx_Destroy(gx);
+  p7_ivx_Destroy(iv);
   esl_gencode_Destroy(gcode);
   esl_alphabet_Destroy(abcDNA);
   return eslOK;
@@ -739,6 +739,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   if (amino_dsq != NULL) free(amino_dsq);
   if (dna_dsq != NULL) free(dna_dsq);
   if (gx  != NULL) p7_gmx_Destroy(gx);
+  if (iv  != NULL) p7_ivx_Destroy(iv);
   if (gcode != NULL) esl_gencode_Destroy(gcode);
   if (abcDNA != NULL) esl_alphabet_Destroy(abcDNA);
   return status;

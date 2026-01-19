@@ -146,6 +146,8 @@ main(int argc, char **argv)
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
           bg = p7_bg_Create(hmm->abc);
 
+		  p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+		  hmm->evparam[p7_FTAUFS3] = tau_fs;
           p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS5] = tau_fs;
         }

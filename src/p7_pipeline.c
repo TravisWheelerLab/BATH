@@ -360,7 +360,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))         == NULL) goto ERROR;
 
   /* Create intermediate values matrix */
-   if ((pli->iv  = p7_ivx_Create(M_hint)) == NULL) goto ERROR;
+   if ((pli->iv  = p7_ivx_Create(M_hint, p7P_3CODONS)) == NULL) goto ERROR;
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
    * about to collect a stochastic trace ensemble. This eliminates run-to-run
@@ -2695,19 +2695,15 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
     p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, PARSER_ROWS_FWD, dna_window->length, 0);
-	p7_ivx_GrowTo(pli->iv, gm_fs->M);
+	p7_ivx_GrowTo(pli->iv, gm_fs->M, p7P_3CODONS);
     p7_fs_ReconfigLength(gm_fs, dna_window->length);
     
-    p7_ForwardParser_Frameshift2(subseq, gcode, dna_window->length, gm_fs, pli->gxf, pli->iv, &fwdsc_fs);
-    p7_gmx_Reuse(pli->gxf); 
+    p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxf, pli->iv, &fwdsc_fs);
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS5],  gm_fs->evparam[p7_FLAMBDA]);
+    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS3],  gm_fs->evparam[p7_FLAMBDA]);
     printf("1 fwdsc_fs %f P_fs %g\n", fwdsc_fs, P_fs);	
-    p7_ForwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxf, &fwdsc_fs);
-    seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS5],  gm_fs->evparam[p7_FLAMBDA]);
-    printf("2 fwdsc_fs %f P_fs %g\n", fwdsc_fs, P_fs);
-    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS5],  gm_fs->evparam[p7_FLAMBDA]); 
+    
+    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS3],  gm_fs->evparam[p7_FLAMBDA]); 
   }
 
     /* Compare Pvalues to select either the standard or the frameshift pipeline

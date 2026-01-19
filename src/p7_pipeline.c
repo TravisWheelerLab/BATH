@@ -2701,8 +2701,6 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxf, pli->iv, &fwdsc_fs);
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
     P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS3],  gm_fs->evparam[p7_FLAMBDA]);
-    printf("1 fwdsc_fs %f P_fs %g\n", fwdsc_fs, P_fs);	
-    
     P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS3],  gm_fs->evparam[p7_FLAMBDA]); 
   }
 

@@ -713,7 +713,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
       if( ! (hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
-      if( ! (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for this version of bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if( hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
 
       if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fsprob %f' or run bathconvert with option '--fsprob %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);
       

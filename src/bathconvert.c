@@ -153,7 +153,7 @@ main(int argc, char **argv)
         hmm->evparam[p7_FTAUFS5] = tau_fs;
       }
 
-      if(hmm->evparam[p7_FTAUFS3] == -eslINFINITY)
+      if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET)
       {
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);

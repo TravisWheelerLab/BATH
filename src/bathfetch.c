@@ -299,7 +299,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
         hmm->evparam[p7_FTAUFS5] = tau_fs;
       }
 
-      if(hmm->evparam[p7_FTAUFS3] == -eslINFINITY) {
+      if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET) {
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
         bg = p7_bg_Create(hmm->abc);
@@ -387,12 +387,14 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
         bg = p7_bg_Create(hmm->abc);
-
+  
+        p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS3] = tau_fs;
         p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS5] = tau_fs;
       }
 
-      if(hmm->evparam[p7_FTAUFS3] == -eslINFINITY) {
+      if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET) {
         r = esl_randomness_CreateFast(42);
         gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
         bg = p7_bg_Create(hmm->abc);

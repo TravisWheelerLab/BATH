@@ -15,7 +15,8 @@ CKSUM 1166427327
 STATS LOCAL MSV          -6.4582  0.72049
 STATS LOCAL VITERBI      -6.5560  0.72049
 STATS LOCAL FORWARD      -4.5231  0.72049
-STATS LOCAL FS FORWARD    1.7222  0.72049
+STATS LOCAL FS3 FORWARD   0.6484  0.72049
+STATS LOCAL FS5 FORWARD   1.7222  0.72049
 FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   

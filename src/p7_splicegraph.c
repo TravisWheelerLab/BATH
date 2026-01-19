@@ -117,7 +117,7 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->edge_mem,  sizeof(int)          * graph->nalloc);
   ESL_ALLOC(graph->num_edges, sizeof(int)          * graph->nalloc);
 
-  for(i = 0; i < graph->num_nodes; i++) {
+  for(i = 0; i < graph->nalloc; i++) {
     ESL_ALLOC(graph->edges[i], sizeof(SPLICE_EDGE) * EDGE_ALLOC);
     graph->edge_mem[i]  = EDGE_ALLOC;
     graph->num_edges[i] = 0;
@@ -609,8 +609,10 @@ p7_splicegraph_NodeOverlap(SPLICE_GRAPH *graph, int node_id, SPLICE_PATH *path, 
   int64_t overlap_seq_start;
   int64_t overlap_seq_end;
 
+
   overlap_hmm_start = ESL_MAX(graph->th->hit[node_id]->dcl->ihmm, path->ihmm[step_id]);
   overlap_hmm_end   = ESL_MIN(graph->th->hit[node_id]->dcl->jhmm, path->jhmm[step_id]);
+  
 
   if(overlap_hmm_end - overlap_hmm_start + 1 <= 0) return FALSE;
 

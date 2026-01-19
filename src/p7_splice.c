@@ -1287,6 +1287,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
       tmp_edge = p7_splicegraph_GetEdge(tmp_graph, tmp_path->node_id[s], tmp_path->node_id[s+1]);
   
       edge = p7_splicegraph_AddEdge(graph, graph->num_nodes-1, spliced_path->node_id[0]);
+
       edge->upstream_amino_end     = tmp_edge->upstream_amino_end;
       edge->downstream_amino_start = tmp_edge->downstream_amino_start;
       edge->upstream_nuc_end       = tmp_edge->upstream_nuc_end;
@@ -2415,7 +2416,8 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
         tmp_path->iali[step_cnt] = tr->i[y] - tr->c[y] + 1;
         tmp_path->ihmm[step_cnt] = tr->k[y];
       }
-     
+    
+      tmp_path->jhmm[step_cnt] = tr->k[z]; 
       ret_path->jhmm[step_cnt] = tr->k[z];
 
       if(step_cnt == ret_path->path_len-1) {
@@ -2473,8 +2475,8 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   }
 
   /* Assign node ids */
-  ret_path->node_id[0] = s_end;
-  tmp_path->node_id[0] = s_end;
+  ret_path->node_id[0] = spliced_path->node_id[s_end];
+  tmp_path->node_id[0] = spliced_path->node_id[s_end];
 
   for(s1 = 1; s1 < tmp_path->path_len; s1++) {
     for(s2 = s_end+1; s2 < spliced_path->path_len; s2++) {
@@ -2531,6 +2533,9 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
     }
     else {
       edge = p7_splicegraph_GetEdge(graph, tmp_path->node_id[s-1], tmp_path->node_id[s]);
+
+      if(edge == NULL)
+        edge = p7_splicegraph_AddEdge(graph, tmp_path->node_id[s-1], tmp_path->node_id[s]);
 
       /* 3. add start coords */
       edge->i_start = tmp_path->iali[s-1];
@@ -2641,7 +2646,8 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
 
   step_cnt = 0;
   start_new = TRUE;
-  
+ 
+
   z = z1;
   while(z <= z2) {
 
@@ -2686,7 +2692,8 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
         tmp_path->iali[step_cnt] = tr->i[y] - tr->c[y] + 1;
         tmp_path->ihmm[step_cnt] = tr->k[y];
       }
-     
+    
+      tmp_path->jhmm[step_cnt] = tr->k[z]; 
       ret_path->jhmm[step_cnt] = tr->k[z];
 
       if(step_cnt == ret_path->path_len-1) {
@@ -2738,11 +2745,12 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   }
 
   /* Assign node ids */
-  ret_path->node_id[ret_path->path_len-1] = s_start;
-  tmp_path->node_id[tmp_path->path_len-1] = s_start;
+  ret_path->node_id[ret_path->path_len-1] = spliced_path->node_id[s_start];
+  tmp_path->node_id[tmp_path->path_len-1] = spliced_path->node_id[s_start];
 
   for(s1 = 0; s1 < tmp_path->path_len-1; s1++) {  
     for(s2 = s_start-1; s2 >= 0; s2--) {
+         
       if(p7_splicegraph_NodeOverlap(graph, spliced_path->node_id[s2], tmp_path, s1)) {
         ret_path->node_id[s1] = spliced_path->node_id[s2];
         tmp_path->node_id[s1] = spliced_path->node_id[s2];
@@ -2798,6 +2806,9 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
     else {
 
       edge = p7_splicegraph_GetEdge(graph, tmp_path->node_id[s], tmp_path->node_id[s+1]);
+
+      if(edge == NULL) 
+        edge = p7_splicegraph_AddEdge(graph, tmp_path->node_id[s], tmp_path->node_id[s+1]);
 
       /* 3. add start coords */
       edge->i_start = tmp_path->iali[s];
@@ -3516,11 +3527,12 @@ p7_splice_CreateSplicedSequnce(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
       spliced_path->frameshift = TRUE;
   
       p7_splicepath_Dump(stdout, spliced_path); 
-      ESL_XEXCEPTION(eslFAIL, "STOP codon");
+      
       free(nuc_index);
       free(nuc_dsq);
       free(amino_dsq);
-
+//TODO remove
+      ESL_XEXCEPTION(eslFAIL, "STOP codon");
       return eslOK;
     }
 
@@ -3690,6 +3702,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   for(e = 0; e < hit->dcl->ad->exon_cnt; e++) {
 
     if(hit->dcl->ad->exon_pp[e] == 0.) {
+      
       status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
      
       p7_trace_splice_Destroy(hit->dcl->tr);
@@ -3760,7 +3773,7 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
  
   /* If the alignmnt has rejected some exons we first remove those from the path */ 
   if(spliced_path->path_len > ad->exon_cnt) {
-
+    
     /* Convert sqfrom, sqto to full sequence coords */
     if(spliced_path->revcomp) {
       ad->sqto    = path_seq->n - ad->sqto   + path_seq->end;
@@ -3858,7 +3871,7 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
     if(spliced_path->node_id[s] < graph->anchor_N && spliced_path->node_id[s] >= 0) contains_anchor = TRUE;
 
   if(!contains_anchor) return eslOK;
- 
+
   return eslEINACCURATE;
    
 }

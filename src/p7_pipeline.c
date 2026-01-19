@@ -2716,7 +2716,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     
     pli->pos_past_fwd += dna_window->length; 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, PARSER_ROWS_BWD, dna_window->length, 0);
-    p7_BackwardParser_Frameshift(subseq, gcode, dna_window->length, gm_fs, pli->gxb, NULL);
+    p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxb, pli->iv, NULL);
     p7_bg_SetLength(bg, dna_window->length);
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,

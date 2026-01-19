@@ -138,23 +138,34 @@ main(int argc, char **argv)
       fs = 0.01;
       ct = esl_opt_GetInteger(go, "--ct");
  
-      if(fs != hmm->fs || ct != hmm->ct)
-        {
-          hmm->fs = fs;
-          hmm->ct = ct;
-          r = esl_randomness_CreateFast(42);
-          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-          bg = p7_bg_Create(hmm->abc);
+      bg = p7_bg_Create(hmm->abc);
 
-		  p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-		  hmm->evparam[p7_FTAUFS3] = tau_fs;
-          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS5] = tau_fs;
-        }
+      if(fs != hmm->fs || ct != hmm->ct)
+      {
+        hmm->fs = fs;
+        hmm->ct = ct;
+        r = esl_randomness_CreateFast(42);
+        gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+
+	    p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS3] = tau_fs;
+        p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS5] = tau_fs;
+      }
+
+      if(hmm->evparam[p7_FTAUFS3] == -eslINFINITY)
+      {
+        r = esl_randomness_CreateFast(42);
+        gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+
+        p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS3] = tau_fs;
+      }
+
       if(hmm->max_length == -1)
-	{
+	  {
 		p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);	
-	} 
+	  } 
      
       hmmidx++;
       entropy = p7_MeanMatchRelativeEntropy(hmm, bg); 

@@ -616,8 +616,8 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
       if (fprintf(fp, "STATS LOCAL MSV         %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL VITERBI     %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL FORWARD     %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-	  if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FS3 FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS3], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FS5 FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS5], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+	  if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FS3 FORWARD %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS3], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FS5 FORWARD %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS5], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if(hmm->abc->type == eslAMINO) if (fprintf(fp, "FRAMESHIFT PROB  %8.4f\n", hmm->fs) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if(hmm->abc->type == eslAMINO) if (fprintf(fp, "CODON TABLE  %d\n", hmm->ct) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
     }
@@ -1504,7 +1504,7 @@ if (*ret_abc == NULL) {
 		else if (strcasecmp(tok2, "FORWARD") == 0)     { hmm->evparam[p7_FTAU] = atof(tok3);   hmm->evparam[p7_FLAMBDA] = atof(tok4); statstracker |= 0x4; }
         else if (strcasecmp(tok2, "FS3")     == 0)     { hmm->evparam[p7_FTAUFS3] = atof(tok4); }
 		else if (strcasecmp(tok2, "FS5")     == 0)     { hmm->evparam[p7_FTAUFS5] = atof(tok4); }
-		else if (strcasecmp(tok2, "FS")      == 0)     { hmm->evparam[p7_FTAUFS5] = atof(tok4); }
+		else if (strcasecmp(tok2, "FS")      == 0)     { hmm->evparam[p7_FTAUFS5] = atof(tok4);  hmm->evparam[p7_FTAUFS3] = -eslINFINITY; }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }
@@ -1518,9 +1518,9 @@ if (*ret_abc == NULL) {
 		if      (strcasecmp(tok2, "VLAMBDA") == 0)  { hmm->evparam[p7_MLAMBDA] = hmm->evparam[p7_VLAMBDA] = hmm->evparam[p7_FLAMBDA] = atof(tok3);  statstracker |= 0x1; }
 		else if (strcasecmp(tok2, "VMU")     == 0)  {                            hmm->evparam[p7_MMU]     = hmm->evparam[p7_VMU]     = atof(tok3);  statstracker |= 0x2; }
 		else if (strcasecmp(tok2, "FTAU")    == 0)  {                                                       hmm->evparam[p7_FTAU]    = atof(tok3);  statstracker |= 0x4; }
-		else if (strcasecmp(tok2, "FTAUFS3") == 0)  {                                                       hmm->evparam[p7_FTAUFS3] = atof(tok3); }
-		else if (strcasecmp(tok2, "FTAUFS5") == 0)  {                                                       hmm->evparam[p7_FTAUFS5] = atof(tok3); }
-		else if (strcasecmp(tok2, "FTAUFS") == 0)  {                                                       hmm->evparam[p7_FTAUFS5] = atof(tok3); }
+		else if (strcasecmp(tok2, "FTAUFS3") == 0)  { hmm->evparam[p7_FTAUFS3] = atof(tok3); }
+		else if (strcasecmp(tok2, "FTAUFS5") == 0)  { hmm->evparam[p7_FTAUFS5] = atof(tok3); }
+		else if (strcasecmp(tok2, "FTAUFS") == 0)   { hmm->evparam[p7_FTAUFS5] = atof(tok3); hmm->evparam[p7_FTAUFS3] = -eslINFINITY; }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }

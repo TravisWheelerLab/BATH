@@ -521,7 +521,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
     n1[x] = n2[x] = n3[x] = x;  
 
   gx = p7_gmx_fs_Create(hmm->M, p7P_3CODONS, L*3, p7P_3CODONS);     
-  iv = p7_ivx_Create(gm_fs->M, p7P_3CODONS);
+  iv = p7_ivx_Create(hmm->M, p7P_3CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
@@ -662,7 +662,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
     n1[x] = n2[x] = n3[x] = x;  
 
   gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_5CODONS);     /* DP matrix: for ForwardParser,  L rows */
-  iv = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
+  iv = p7_ivx_Create(hmm->M, p7P_5CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));

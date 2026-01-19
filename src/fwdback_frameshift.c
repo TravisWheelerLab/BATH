@@ -600,14 +600,14 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   int          i, k;
   int          c1, c2, c3, c4, c5;  
   int          t, u, v, w, x;
-  int          status;
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
   int curr, prev1, prev3;
   int ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
 
   for (i = 0; i < p7P_5CODONS; i++) {
-    for(k = 0; k <= M; k++)
+    for(k = 0; k <= M; k++) {
       IVX5(i,k) = -eslINFINITY;
+    }
   }
 
   /* Initialization for row 0 */
@@ -895,14 +895,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   gx->M = M;
   gx->L = L;
  
-  if (ivx != NULL) free(ivx);
-
- 
   return eslOK;
-
-ERROR:
-  if (ivx != NULL) free(ivx);
-  return status;
 }
 
 

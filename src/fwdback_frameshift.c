@@ -25,7 +25,7 @@
  * Synopsis:  The Frameshift Aware Forward algorithm.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
- *            aware translated comarison between a dna sequence and a
+ *            aware translated comparison between a dna sequence and a
  *            framshift-aware codon HMM.  
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
@@ -45,8 +45,8 @@
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gcode  - genetci code table 
- *            gm_fs  - a freamshift-aware codon profile. 
+ *            gcode  - genetic code table 
+ *            gm_fs  - a frameshift-aware codon profile. 
  *            gx     - DP matrix with room for an MxL alignment
  *            opt_sc - optRETURN: Forward lod score in nats
  *           
@@ -93,7 +93,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   
   c1 = p7P_CODON1(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
-  for (k = 1; k < M; k++) {
+  for (k = 1; k <= M; k++) {
     IVX5(1,k) = XMX_FS(0,p7G_B) + TSC(p7P_BM,k-1);  
 
     MMX_FS(1,k,p7G_C1) = IVX5(1,k) + p7P_MSC_CODON(gm_fs, k, c1);
@@ -101,7 +101,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     MMX_FS(1,k,p7G_C3) = -eslINFINITY; 
     MMX_FS(1,k,p7G_C4) = -eslINFINITY;
     MMX_FS(1,k,p7G_C5) = -eslINFINITY;
-    MMX_FS(1,M,p7G_C0) = MMX_FS(1,k,p7G_C1);
+    MMX_FS(1,k,p7G_C0) = MMX_FS(1,k,p7G_C1);
 	IMX_FS(1,k)  = -eslINFINITY;
     DMX_FS(1,k)  = p7_FLogsum(MMX_FS(1,k-1,p7G_C0) + TSC(p7P_MD,k-1),
                               DMX_FS(1,k-1)        + TSC(p7P_DD,k-1));
@@ -132,7 +132,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   c2 = p7P_CODON2(w, x);
   c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
 
-  for (k = 1; k < M; k++) {
+  for (k = 1; k <= M; k++) {
     IVX5(2,k) = XMX_FS(1,p7G_B) + TSC(p7P_BM,k-1);  
 	MMX_FS(2,k,p7G_C1) = IVX5(2,k) + p7P_MSC_CODON(gm_fs, k, c1);
     MMX_FS(2,k,p7G_C2) = IVX5(1,k) + p7P_MSC_CODON(gm_fs, k, c2);
@@ -149,8 +149,8 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
                                  XMX_FS(2,p7G_E)));
   }
  
-  XMX_FS(2,p7G_J) = XMX_FS(1,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
-  XMX_FS(2,p7G_C) = XMX_FS(1,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
+  XMX_FS(2,p7G_J) = XMX_FS(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+  XMX_FS(2,p7G_C) = XMX_FS(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
   
   t = u = v = p7P_MAXCODONS;
   /* Initialization for rows 3 and 4 */
@@ -160,7 +160,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
     else                                            x = p7P_MAXCODONS; 
   
@@ -268,13 +268,13 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
      
     XMX_FS(i, p7G_E) = -eslINFINITY;
    
-    /* Reasign nucluotide to correct temporary holders for use in emissions array */ 
+    /* Reasign nucleotide to correct temporary holders for use in emissions array */ 
     t = u;
     u = v;
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
     else                                            x = p7P_MAXCODONS; 
   
@@ -396,8 +396,8 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
  * Synopsis:  The frameshift-aware Forward algorithm using 3 codon lengths - low memory.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
- *            aware translated comarison between a dna sequence and an
- *            frameshift aware cofon HMM, using three coon lengths, 
+ *            aware translated comparison between a dna sequence and an
+ *            frameshift aware codon HMM, using three codon lengths, 
  *            with a minimal sized DP matrix. 
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
@@ -476,7 +476,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   for (k = 1; k <= M; k++)
   {
     IVX3(2,k) = XMX(0,p7G_B) + TSC(p7P_BM,k-1);
-    MMX(i,k)  = IVX3(2,k) + p7P_MSC_CODON(gm_fs, k, c2); 
+    MMX(2,k)  = IVX3(2,k) + p7P_MSC_CODON(gm_fs, k, c2); 
     IMX(2,k) = -eslINFINITY;
     DMX(2,k) = p7_FLogsum(MMX(2,k-1)        + TSC(p7P_MD,k-1),
                           DMX(2,k-1)        + TSC(p7P_DD,k-1));
@@ -498,7 +498,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     v = w;
     w = x;
 	
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
     else                                            x = p7P_MAXCODONS;
 
@@ -600,7 +600,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
  * Synopsis:  The frameshift-aware Forward algorithm using 5 codon lengths - low memory.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
- *            aware translated comarison between a dna sequence and an
+ *            aware translated comparison between a dna sequence and an
  *            amino acid HMM. 
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
@@ -703,7 +703,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
 
   for (k = 1; k < M; k++) {
     IVX5(2,k) = XMX(1,p7G_B) + TSC(p7P_BM,k-1);  
-	MMX(2,k)  = IVX5(1,k) + p7P_MSC_CODON(gm_fs, k, c1);
+	MMX(2,k)  = IVX5(2,k) + p7P_MSC_CODON(gm_fs, k, c1);
 	MMX(2,k)  = p7_FLogsum(MMX(2,k), IVX5(1,k) + p7P_MSC_CODON(gm_fs, k, c2)); //IVX5(1,k) now holds the i-2 transtion
 	IMX(2,k)  = -eslINFINITY;
     DMX(2,k)  = p7_FLogsum(MMX(2,k-1) + TSC(p7P_MD,k-1),
@@ -714,8 +714,8 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
                               XMX(2,p7G_E)));
   }
  
-  XMX(2,p7G_J) = XMX(1,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
-  XMX(2,p7G_C) = XMX(1,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
+  XMX(2,p7G_J) = XMX(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+  XMX(2,p7G_C) = XMX(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
   
   t = u = v = p7P_MAXCODONS;
   /* Initialization for rows 3 and 4 */
@@ -725,7 +725,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     v = w;
     w = x;
 
-    /* if new nuccleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
     else                                            x = p7P_MAXCODONS; 
   
@@ -837,7 +837,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
     else                                            x = p7P_MAXCODONS; 
   
@@ -978,7 +978,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   float       *ivx   = NULL;
   int          t, u, v, w, x;
 
-  /* Allocation and initalization of invermediate value array */
+  /* Allocation and initialization of intermediate value array */
   ESL_ALLOC(ivx,  sizeof(float) * (M+1));
 
   for(k = 0; k <= M; k++)
@@ -1019,7 +1019,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS; 
   
@@ -1121,7 +1121,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS; 
   
@@ -1195,7 +1195,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
     else                                              x = p7P_MAXCODONS; 
   
@@ -1319,8 +1319,6 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     }
     MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
   }
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[L];
-  else                                              x = p7P_MAXCODONS;
   
   for (k = M-1; k >= 1; k--) 
   {
@@ -1335,10 +1333,10 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   /* Check for degenerate nucleotides */
 
   /* Initialization of row L-2  */
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) w = dsq[L];
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) w = dsq[L];
   else                                              w = p7P_MAXCODONS;
 
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[L-1];
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
   else                                              x = p7P_MAXCODONS;
   
   
@@ -1390,7 +1388,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS; 
   
@@ -1470,7 +1468,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS; 
   
@@ -1541,7 +1539,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   v = w;
   w = x;
 
-  /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */  
+  /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
   else                                              x = p7P_MAXCODONS; 
   

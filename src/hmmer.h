@@ -251,12 +251,6 @@ enum p7p_rsc_codon {
   p7P_C5 = 4,
 };
 #define p7P_5CODONS 5
-
-enum p7p_rsc_parser_codon {
-  p7P_PC2 = 0,
-  p7P_PC3 = 1,
-  p7P_PC4 = 2,
-};
 #define p7P_3CODONS 3
 
 enum p7p_rsc_indels {
@@ -997,7 +991,7 @@ typedef struct p7_hmm_window_s {
   int64_t       target_len;  //length of the target sequence
   int8_t        complementarity;
   int8_t        used_to_extend;
-  ESL_SQ_BLOCK *orf_block;   // all orfs used to create the window - FarHMMER
+  ESL_SQ_BLOCK *orf_block;   // all orfs used to create the window - BATH
 } P7_HMM_WINDOW;
 
 typedef struct p7_hmm_window_list_s {
@@ -1745,7 +1739,6 @@ extern int    p7_bg_Dump(FILE *ofp, const P7_BG *bg);
 extern void   p7_bg_Destroy(P7_BG *bg);
 extern int    p7_bg_SetLength(P7_BG *bg, int L);
 extern int    p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-extern int    p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
 
 extern int    p7_bg_Read(char *bgfile, P7_BG *bg, char *errbuf);
 extern int    p7_bg_Write(FILE *fp, P7_BG *bg);

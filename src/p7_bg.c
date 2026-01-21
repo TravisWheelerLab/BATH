@@ -444,30 +444,6 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
   *ret_sc = (float) L * log(bg->p1) + log(1.-bg->p1);
   return eslOK;
 }
-/* Function:  p7_bg_fs_NullOne()
- *
- * Purpose:   Calculate the null1 lod score, for sequence <dsq>
- *            of length <L> "aligned" to the base null model <bg>. 
- * 
- * Note:      Because the residue composition in null1 <bg> is the
- *            same as the background used to calculate residue
- *            scores in profiles and null models, all we have to
- *            do here is score null model transitions.
- *
- *            Can accept a NULL for *dsq, in which case the returned
- *            value will be (float) L * log(bg->p1) + log(1.-bg->p1);
- */
-int
-p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
-{
-  /* The length distirbution of the three frames are calculated */
-  /* seperatly as p1^(L/3) and then added together		*/ 
-  /* log(3 * p1^(L/3) * (1-p1)) = L/3 * log(p1) + log(3) + log(1-p1)) */
- 
-  *ret_sc = (float) L/3. * log(bg->p1) + log(3) + log(1.-bg->p1);    
-  return eslOK;
-}
-
 
 /*****************************************************************
  * 4. Filter null model

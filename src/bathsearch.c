@@ -542,7 +542,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       
     }
     else {
-      hmmfile = "/tmp/temp.bhmm";
+	  ESL_ALLOC(hmmfile, sizeof(char) * 256);
+	  snprintf(hmmfile, 256, "/tmp/hmmfile_%d.bhmm", getpid());
     }
 
     status = bath_open_msa_file(cfg, &qfp_msa, &abcAA);
@@ -553,7 +554,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         hmmfile = esl_opt_GetString(go, "--hmmout");
       }
       else {
-        hmmfile = "/tmp/temp.bhmm"; 
+	    ESL_ALLOC(hmmfile, sizeof(char) * 256);
+        snprintf(hmmfile, 256, "/tmp/hmmfile_%d.bhmm", getpid());
       }
  
       status = bath_open_seq_file(cfg, &qfp_sq, &abcAA);
@@ -596,7 +598,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
           hmmfile = esl_opt_GetString(go, "--hmmout");
         }
         else {
-          hmmfile = "/tmp/temp.bhmm"; 
+	      ESL_ALLOC(hmmfile, sizeof(char) * 256);
+          snprintf(hmmfile, 256, "/tmp/hmmfile_%d.bhmm", getpid());
         }           
 
         status = bath_open_msa_file(cfg, &qfp_msa, &abcAA);
@@ -954,6 +957,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   if (ofp != stdout) fclose(ofp);
   if (tblfp)         fclose(tblfp);
   if (fstblfp)         fclose(fstblfp);
+  if (!esl_opt_IsOn(go, "--hmmout") && hmmfile != NULL) free(hmmfile);
 
   return eslOK;
 
@@ -963,8 +967,8 @@ ERROR:
   if (ofp != stdout) fclose(ofp);
   if (tblfp)         fclose(tblfp);
   if (fstblfp)       fclose(fstblfp);
-
-  if (hmmfile != NULL) free (hmmfile);
+  if (!esl_opt_IsOn(go, "--hmmout") && hmmfile != NULL) free(hmmfile);
+  
   return eslFAIL;
 }
 

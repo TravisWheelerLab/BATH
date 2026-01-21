@@ -132,6 +132,7 @@
 1 exercise  bathsearch/--tblout        @src/bathsearch@  --tblout   %bathsearch.tbl%  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--fstblout      @src/bathsearch@  --fstblout %bathsearch.fs%   !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--hmmout        @src/bathsearch@  --hmmout   %bathsearch.bhmm% !testsuite/2OG-FeII_Oxy_3.sto!  !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/tmphmm          @src/bathsearch@                               !testsuite/2OG-FeII_Oxy_3.sto!  !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--acc           @src/bathsearch@  --acc                        !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--noali         @src/bathsearch@  --noali                      !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--notrans       @src/bathsearch@  --notrans                    !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!

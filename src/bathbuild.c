@@ -1442,9 +1442,6 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
   if (msa == NULL  && sq == NULL)
   {
     if (cfg->abc->type == eslAMINO) {
-      //Temporarily Remove fs_prob from output
-      //if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "len",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-      //if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
       if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %9s %8s %6s %s\n", "idx",    "name",                 "nseq",  "len",   "mlen",  "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
       if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
     } else {

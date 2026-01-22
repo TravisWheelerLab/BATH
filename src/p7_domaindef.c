@@ -1654,7 +1654,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   
   if (!null2_is_done)
   { 
-    p7_Null2_fs_ByExpectation(gm_fs, gx1, null2);
+    p7_Null2_fs_ByExpectation(gm_fs, pp, null2);
 
     t = u = v = w = x = -1;
     z = 0;

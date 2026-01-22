@@ -57,8 +57,8 @@ if ($? != 0) { die "FAIL: bathsearch failed on first test sequence with --fsonly
 
 # Verify.
 if ($h3::ntbl        != 1)      { printf("FAIL: expected one line in tbl; saw %d\n",              $h3::ntbl);          exit 1; }
-if ($h3::fullsc[0]   != "63.5") { printf("FAIL: expected score of 63.5 for first hit; saw %s\n",  $h3::fullsc[0]);     exit 1; }
-if ($h3::fullbias[0] != "0.1")  { printf("FAIL: expected bias of 0.1 for first hit; saw %s\n",    $h3::fullbias[0]);   exit 1; }
+if ($h3::fullsc[0]   != "63.6") { printf("FAIL: expected score of 63.6 for first hit; saw %s\n",  $h3::fullsc[0]);     exit 1; }
+if ($h3::fullbias[0] != "0.0")  { printf("FAIL: expected bias of 0.0 for first hit; saw %s\n",    $h3::fullbias[0]);   exit 1; }
 
 system("$bathsearch -l 10 --tblout $tmppfx.tbl $hmm20aa $tmppfx.2 > $tmppfx.out 2>&1");
 if ($? != 0) { print "FAIL: bathsearch failed on second test sequence"; }

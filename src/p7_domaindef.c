@@ -610,7 +610,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */
-  p7_fs_ReconfigUnihit(gm_fs, saveL);                                                          /* process each domain in unihit mode, regardless of om->mode     */
+  p7_fs_ReconfigUnihit(gm_fs, saveL/3);                                                          /* process each domain in unihit mode, regardless of om->mode     */
 
   i         = -1;
   triggered = FALSE;
@@ -690,12 +690,12 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         * works
         */
         p7_ivx_GrowTo(iv, gm_fs->M, p7P_5CODONS); 
-        p7_fs_ReconfigMultihit(gm_fs, saveL);
+        p7_fs_ReconfigMultihit(gm_fs, saveL/3);
         p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, iv, NULL);
 
         region_trace_ensemble_frameshift(ddef, gm_fs, windowsq->dsq, windowsq->abc, i, j, fwd, bck, &nc);
 
-        p7_fs_ReconfigUnihit(gm_fs, saveL);
+        p7_fs_ReconfigUnihit(gm_fs, saveL/3);
        
         /* ddef->n2sc is now set on i..j by the traceback-dependent method */
         last_j2 = 0;
@@ -746,8 +746,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
    } 
   }
   /* Restore model to uni/multihit mode, and to its original length model */
-  if (p7_IsMulti(save_mode)) p7_fs_ReconfigMultihit(gm_fs, saveL); 
-  else                       p7_fs_ReconfigUnihit(gm_fs, saveL); 
+  if (p7_IsMulti(save_mode)) p7_fs_ReconfigMultihit(gm_fs, saveL/3); 
+  else                       p7_fs_ReconfigUnihit(gm_fs, saveL/3); 
 
   return eslOK;
 }
@@ -1600,7 +1600,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
 
   if (Ld < 15) return eslOK;
   
-  p7_fs_ReconfigLength(gm_fs, Ld);
+  p7_fs_ReconfigLength(gm_fs, Ld/3);
   p7_ivx_GrowTo(iv, gm_fs->M, p7P_5CODONS); 
  
   dsq_holder = windowsq->dsq;

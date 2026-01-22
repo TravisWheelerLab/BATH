@@ -2300,8 +2300,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     else
       dom_bias = 0.0; 
 
-    p7_bg_SetLength(bg, ESL_MAX(env_len,gm_fs->max_length*3));
-    p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len,gm_fs->max_length*3), &nullsc);
+    p7_bg_SetLength(bg, ESL_MAX(env_len/3,gm_fs->max_length));
+    p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len/3,gm_fs->max_length), &nullsc);
     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
     /* P-vaule calculation */	
@@ -2691,12 +2691,12 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
    * Forward on full Window and save score and P value.*/
 
   if(pli->fs_pipe && (!pli->std_pipe || min_P_orf <= pli->F4)) {
-    p7_bg_SetLength(bg, dna_window->length);
+    p7_bg_SetLength(bg, dna_window->length/3);
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
 
     p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, PARSER_ROWS_FWD, dna_window->length, 0);
 	p7_ivx_GrowTo(pli->iv, gm_fs->M, p7P_3CODONS);
-    p7_fs_ReconfigLength(gm_fs, dna_window->length);
+    p7_fs_ReconfigLength(gm_fs, dna_window->length/3);
     
     p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxf, pli->iv, &fwdsc_fs);
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
@@ -2715,7 +2715,6 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     pli->pos_past_fwd += dna_window->length; 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, PARSER_ROWS_BWD, dna_window->length, 0);
     p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxb, pli->iv, NULL);
-    p7_bg_SetLength(bg, dna_window->length);
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->iv, pli->ddef, bg, gcode,

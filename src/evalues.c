@@ -532,7 +532,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   esl_gencode_Set(gcode, hmm->ct);  //This is the default euk code - may want to allow for a flag. 
 
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
-  p7_fs_ReconfigLength(gm_fs, L*3);
+  p7_fs_ReconfigLength(gm_fs, L);
   p7_bg_SetLength(bg, L);
 
   for (i = 0; i < N; i++)
@@ -551,9 +551,9 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
       j = 1;
       for(a = 1; a <= L; a++) { 
       	for(x = 0; x < abcDNA->K; x++) { 
-	  for(y = 0; y < abcDNA->K; y++) {
+	      for(y = 0; y < abcDNA->K; y++) {
             for(z = 0; z < abcDNA->K; z++) { 
-	      if(gcode->basic[16*n1[x] + 4*n2[y] + n3[z]] == amino_dsq[a]) {
+	          if(gcode->basic[16*n1[x] + 4*n2[y] + n3[z]] == amino_dsq[a]) {
                 dna_dsq[j++] = n1[x];  x = abcDNA->K; 
                 dna_dsq[j++] = n2[y];  y = abcDNA->K; 
                 dna_dsq[j++] = n3[z];  z = abcDNA->K;
@@ -673,7 +673,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   esl_gencode_Set(gcode, hmm->ct);  //This is the default euk code - may want to allow for a flag. 
 
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
-  p7_fs_ReconfigLength(gm_fs, L*3);
+  p7_fs_ReconfigLength(gm_fs, L);
   p7_bg_SetLength(bg, L);
 
   for (i = 0; i < N; i++)

@@ -1651,13 +1651,13 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
-extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode);
+extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L);
+extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L);
+extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigUnihit (P7_FS_PROFILE *gm_fs, int L);
+extern int p7_fs_ReconfigUnihit (P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp);
 extern int p7_fs_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, const ESL_GENCODE *gcode, float *fwd_emissions, float *sc_tmp);
 

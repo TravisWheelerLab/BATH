@@ -17,7 +17,7 @@
 #define IVX3(i,k) (ivx[((k)*p7P_3CODONS) + (i)])
 #define IVX5(i,k) (ivx[((k)*p7P_5CODONS) + (i)])
 /*****************************************************************
- * 1. Forward, Backward, Hybrid implementations.
+ * 1. Forward, Backward, implementations.
  *****************************************************************/
 
 /* Function:  p7_Forward_Frameshift()
@@ -381,7 +381,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
                                 p7_FLogsum( XMX_FS(L-1,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
                                             XMX_FS(L-2,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP])) + 
                                             gm_fs->xsc[p7P_C][p7P_MOVE];
-  
+ 
   gx->M = M;
   gx->L = L;
  
@@ -581,9 +581,10 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   
   }
    
-  if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C)   + gm_fs->xsc[p7P_C][p7P_MOVE],
-                                p7_FLogsum( XMX(L-1,p7G_C) + gm_fs->xsc[p7P_C][p7P_MOVE],
-                                            XMX(L-2,p7G_C) + gm_fs->xsc[p7P_C][p7P_MOVE]));
+  if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C),
+                                p7_FLogsum( XMX(L-1,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                                            XMX(L-2,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP])) +
+		                                    gm_fs->xsc[p7P_C][p7P_MOVE];
   gx->M = M;
   gx->L = L;
  
@@ -929,9 +930,10 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   }
 
 
-  if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C) + gm_fs->xsc[p7P_C][p7P_MOVE],
-                                p7_FLogsum( XMX(L-1,p7G_C) + gm_fs->xsc[p7P_C][p7P_MOVE],
-                                            XMX(L-2,p7G_C) + gm_fs->xsc[p7P_C][p7P_MOVE]));
+  if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C),
+                                p7_FLogsum( XMX(L-1,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                                            XMX(L-2,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP])) 
+		                                   +  gm_fs->xsc[p7P_C][p7P_MOVE];
   gx->M = M;
   gx->L = L;
  
@@ -981,7 +983,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 
   /* Initialization of row L  */
   XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY; /* need to enter and exit model */
-  XMX(L,p7G_C) = gm_fs->xsc[p7P_C][p7P_MOVE];                   /* C<-T          */
+  XMX(L,p7G_C) = gm_fs->xsc[p7P_C][p7P_MOVE];                   /* C<-T         */
   XMX(L,p7G_E) = XMX(L,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE];    /* E<-C, no tail */
   MMX(L,M)     = DMX(L,M) = XMX(L,p7G_E);                    /* {MD}_M <- E (prob 1.0) */
   IMX(L,M)     = -eslINFINITY;                               /* no I_M state        */
@@ -1002,8 +1004,8 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   MMX(L,0) = IMX(L,0) = DMX(L,0)  = -eslINFINITY;
 
   /* Initialization of row L - 1  */
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
-  else                                              x = p7P_MAXCODONS;
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) x = dsq[L];
+  else                                            x = p7P_MAXCODONS;
 
   c1 = p7P_CODON1(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
@@ -1019,8 +1021,10 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 
   XMX(L-1,p7G_J) = XMX(L-1,p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
   XMX(L-1,p7G_N) = XMX(L-1,p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
-  XMX(L-1,p7G_C) =                  gm_fs->xsc[p7P_C][p7P_MOVE];
- 
+  XMX(L-1,p7G_C) = gm_fs->xsc[p7P_C][p7P_LOOP] + gm_fs->xsc[p7P_C][p7P_MOVE];
+  XMX(L-1,p7G_E) = p7_FLogsum( XMX(L-1,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
+				               XMX(L-1,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
+
   MMX(L-1,M)  = DMX(L-1,M) = XMX(L-1,p7G_E); 
   for (k = M-1; k >= 1; k--)
   {
@@ -1040,8 +1044,8 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   /* Initialization of row L - 2  */
   w = x;
 
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-2])) x = dsq[L-2];
-  else                                              x = p7P_MAXCODONS;
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
+  else                                            x = p7P_MAXCODONS;
 
   c1 = p7P_CODON1(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
@@ -1063,8 +1067,10 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   
   XMX(L-2,p7G_J) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
   XMX(L-2,p7G_N) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
-  XMX(L-2,p7G_C) =                  gm_fs->xsc[p7P_C][p7P_MOVE];
-  
+  XMX(L-2,p7G_C) = gm_fs->xsc[p7P_C][p7P_LOOP] + gm_fs->xsc[p7P_C][p7P_MOVE];
+  XMX(L-2,p7G_E) = p7_FLogsum( XMX(L-2,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
+                               XMX(L-2,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
+
   MMX(L-2,M)  = DMX(L-2,M) = XMX(L-2,p7G_E);
   for (k = M-1; k >= 1; k--)
   {
@@ -1697,8 +1703,8 @@ main(int argc, char **argv)
 
   abcDNA = esl_alphabet_Create(eslDNA);
   gcode = esl_gencode_Create(abcDNA, abcAA);
-  bg = p7_bg_fs_Create(abcAA);
-  p7_bg_SetLength(bg, L);
+  bg = p7_bg_fs_Create(abcDNA);
+  p7_bg_SetLength(bg, L/3);
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_UNILOCAL);
   fwd_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L, 0);
@@ -1796,17 +1802,18 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENC
   if ((bck    = p7_gmx_fs_Create(gm_fs->M, L,               L, 0))           == NULL)  esl_fatal("matrix creation failed");
   if ((iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS))                          == NULL)  esl_fatal("ivx creation failed");
 
+
   avg_sc = 0.;
   for (idx = 0; idx < nseq; idx++)
     {
       if (esl_rsq_xfIID(r, bg->f, abc->K, L, dsq) != eslOK) esl_fatal("seq generation failed");
       if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
       if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
-       
+      
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
 
-      if (p7_bg_NullOne(bg, dsq, L, &nullsc)      != eslOK) esl_fatal("null score failed");
-
+      if (p7_bg_NullOne(bg, dsq, L/3, &nullsc)      != eslOK) esl_fatal("null score failed");
+   
       avg_sc += fsc - nullsc;
 
       if (p7_ForwardParser_Frameshift_5Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 5 failed");
@@ -1886,6 +1893,7 @@ main(int argc, char **argv)
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA))               == NULL)  esl_fatal("failed to create gencode");
   if (p7_hmm_Sample(r, M, abcAA, &hmm)                          != eslOK) esl_fatal("failed to sample an HMM");
   if ((bg = p7_bg_Create(abcAA))                                == NULL)  esl_fatal("failed to create null model");
+  if ((p7_bg_SetLength(bg,  L/3))                               != eslOK) esl_fatal("failed to config background");
   if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
   if (p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);

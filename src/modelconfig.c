@@ -210,7 +210,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode)
+p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode)
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
@@ -539,7 +539,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
-  if ((status = p7_fs_ReconfigLength(gm_fs, L*3)) != eslOK) goto ERROR;
+  if ((status = p7_fs_ReconfigLength(gm_fs, L_amino)) != eslOK) goto ERROR;
   return eslOK;
 
  ERROR:
@@ -606,18 +606,18 @@ p7_ReconfigLength(P7_PROFILE *gm, int L)
  *            control the target length dependence of the model.
  */
 int
-p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L)
+p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L_amino)
 {
   float ploop, pmove;
   
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm_fs->nj) / ((float) L/3.0f + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  pmove = (2.0f + gm_fs->nj) / ((float) L_amino/3.0f + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
   ploop = 1.0f - pmove;
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
-  gm_fs->L = L;
+  gm_fs->L = L_amino;
   return eslOK;
 }
 
@@ -670,12 +670,12 @@ p7_ReconfigMultihit(P7_PROFILE *gm, int L)
  *            <p7_ReconfigLength()>.
  */
 int
-p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L)
+p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L_amino)
 {
   gm_fs->xsc[p7P_E][p7P_MOVE] = -eslCONST_LOG2;   
   gm_fs->xsc[p7P_E][p7P_LOOP] = -eslCONST_LOG2;   
   gm_fs->nj                   = 1.0f;
-  return p7_fs_ReconfigLength(gm_fs, L);
+  return p7_fs_ReconfigLength(gm_fs, L_amino);
 }
 
 
@@ -713,12 +713,12 @@ p7_ReconfigUnihit(P7_PROFILE *gm, int L)
  *            process individual domains.
  */
 int
-p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L)
+p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L_amino)
 {
   gm_fs->xsc[p7P_E][p7P_MOVE] = 0.0f;
   gm_fs->xsc[p7P_E][p7P_LOOP] = -eslINFINITY;
   gm_fs->nj                   = 0.0f;
-  return p7_fs_ReconfigLength(gm_fs, L);
+  return p7_fs_ReconfigLength(gm_fs, L_amino);
 }
 
 /* Function:  p7_UpdateFwdEmissionScores()

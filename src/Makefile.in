@@ -152,7 +152,8 @@ BENCHMARKS = \
 	generic_decoding_benchmark\
 	generic_fwdback_benchmark\
 	generic_fwdback_chk_benchmark\
-	generic_msv_benchmark\
+    fwdback_frameshift_benchmark\
+    generic_msv_benchmark\
 	generic_null2_benchmark\
 	generic_optacc_benchmark\
 	generic_stotrace_benchmark\
@@ -163,7 +164,8 @@ UTESTS =\
 	build_utest\
 	generic_fwdback_utest\
 	generic_fwdback_chk_utest\
-	generic_msv_utest\
+    fwdback_frameshift_utest\
+    generic_msv_utest\
 	generic_stotrace_utest\
 	generic_viterbi_utest\
 	hmmer_utest\

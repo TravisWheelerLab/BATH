@@ -5,7 +5,6 @@
  *   2. Benchmark driver.
  *   3. Unit tests.
  *   4. Test driver
- *   5. Example.
  */
 #include "p7_config.h"
 
@@ -964,30 +963,22 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
  * Return:    <eslOK> on success.
  */
 int
-p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
+p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
 
   float const *tsc  = gm_fs->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;           
+  float       *ivx   = iv->ivx;
   int          M    = gm_fs->M;
-  int          i, k;// c;  
+  int          i, k;;  
   int          c1, c2, c3, c4, c5;
-  int          status;
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
-  float       *ivx   = NULL;
   int          t, u, v, w, x;
-
-  /* Allocation and initialization of intermediate value array */
-  ESL_ALLOC(ivx,  sizeof(float) * (M+1));
 
   for(k = 0; k <= M; k++)
     ivx[k] = -eslINFINITY;
 
-  /* Note: backward calculates the probability we can get *out* of
-   * cell i,k; exclusive of emitting residue x_i.
-   */
-  
   /* Initialization of row L  */
   XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY; /* need to enter and exit model */
   XMX(L,p7G_C) = gm_fs->xsc[p7P_C][p7P_MOVE];                   /* C<-T          */
@@ -1010,10 +1001,88 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   }
   MMX(L,0) = IMX(L,0) = DMX(L,0)  = -eslINFINITY;
 
-  /* Check for degenerate nucleotides */
-  t = u = v = w = x = -1; 
+  /* Initialization of row L - 1  */
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
+  else                                              x = p7P_MAXCODONS;
 
-  for (i = L-1; i > L-5; i--)
+  c1 = p7P_CODON1(x);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+
+  ivx[1]       = MMX(L,1) + p7P_MSC_CODON(gm_fs, 1, c1);
+  XMX(L-1,p7G_B) = ivx[1]   + TSC(p7P_BM,0);
+  for (k = 2; k <= M; k++)
+  {
+    ivx[k] =  MMX(L,k) + p7P_MSC_CODON(gm_fs, k, c1);
+
+    XMX(L-1,p7G_B) = p7_FLogsum( XMX(L-1,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+  }
+
+  XMX(L-1,p7G_J) = XMX(L-1,p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
+  XMX(L-1,p7G_N) = XMX(L-1,p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
+  XMX(L-1,p7G_C) =                  gm_fs->xsc[p7P_C][p7P_MOVE];
+ 
+  MMX(L-1,M)  = DMX(L-1,M) = XMX(L-1,p7G_E); 
+  for (k = M-1; k >= 1; k--)
+  {
+    MMX(L-1,k) = p7_FLogsum( DMX(L-1,k+1)   + TSC(p7P_MD,k),
+                 p7_FLogsum( ivx[k+1]       + TSC(p7P_MM,k),
+                             XMX(L-1,p7G_E)  + esc));
+
+    DMX(L-1,k) = p7_FLogsum( p7_FLogsum( XMX(L-1,p7G_E) + esc,
+                                          DMX(L-1, k+1)  + TSC(p7P_DD,k)),
+                                          ivx[k+1]       + TSC(p7P_DM,k));
+
+    IMX(L-1,k) = ivx[k+1]            + TSC(p7P_IM,k);
+  }
+
+  MMX(L-1,0) = IMX(L-1,0) = DMX(L-1,0)  = -eslINFINITY;
+
+  /* Initialization of row L - 2  */
+  w = x;
+
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-2])) x = dsq[L-2];
+  else                                              x = p7P_MAXCODONS;
+
+  c1 = p7P_CODON1(x);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+
+  c2 = p7P_CODON2(x, w);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+
+  ivx[1] =                     MMX(L-1,1) + p7P_MSC_CODON(gm_fs, 1, c1);
+  ivx[1] = p7_FLogsum( ivx[1], MMX(L,1)   + p7P_MSC_CODON(gm_fs, 1, c2));
+
+  XMX(L-2,p7G_B)   =  ivx[1] + TSC(p7P_BM,0);
+  for (k = 2; k <= M; k++)
+  {
+    ivx[k] =                     MMX(L-1,k) + p7P_MSC_CODON(gm_fs, k, c1);
+    ivx[k] = p7_FLogsum( ivx[k], MMX(L,k)   + p7P_MSC_CODON(gm_fs, k, c2));
+   
+    XMX(L-2,p7G_B) = p7_FLogsum( XMX(L-2,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+  }
+  
+  XMX(L-2,p7G_J) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
+  XMX(L-2,p7G_N) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
+  XMX(L-2,p7G_C) =                  gm_fs->xsc[p7P_C][p7P_MOVE];
+  
+  MMX(L-2,M)  = DMX(L-2,M) = XMX(L-2,p7G_E);
+  for (k = M-1; k >= 1; k--)
+  {
+    MMX(L-2,k) = p7_FLogsum( DMX(L-2,k+1)   + TSC(p7P_MD,k),
+                 p7_FLogsum( ivx[k+1]       + TSC(p7P_MM,k),
+                             XMX(L-2,p7G_E)  + esc));
+
+    DMX(L-2,k) = p7_FLogsum( p7_FLogsum( XMX(L-2,p7G_E) + esc,
+                                         DMX(L-2, k+1)  + TSC(p7P_DD,k)),
+                                         ivx[k+1]       + TSC(p7P_DM,k));
+
+    IMX(L-2,k) = ivx[k+1]            + TSC(p7P_IM,k);
+  }
+  MMX(L-2,0) = IMX(L-2,0) = DMX(L-2,0)  = -eslINFINITY;
+  
+  /* Initialization of rows L-3 and L-4  */
+  t = u = v = p7P_MAXCODONS;
+  for (i = L-3; i > L-5; i--)
   {
     u = v;
     v = w;
@@ -1036,50 +1105,32 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     c4 = p7P_CODON4(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
 
-    ivx[1] =                     MMX(i+1,1) + p7P_MSC_CODON(gm_fs, 1, c1);
-
-    if( i < L-1 )
-      ivx[1] = p7_FLogsum(ivx[1], MMX(i+2,1) + p7P_MSC_CODON(gm_fs, 1, c2));
-     
-    if( i < L-2 )
-      ivx[1] = p7_FLogsum( ivx[1], MMX(i+3,1) + p7P_MSC_CODON(gm_fs, 1, c3));
-
-    if( i < L-3 )
-      ivx[1] = p7_FLogsum( ivx[1], MMX(i+4,1) + p7P_MSC_CODON(gm_fs, 1, c4));
+    ivx[1] =                    MMX(i+1,1) + p7P_MSC_CODON(gm_fs, 1, c1);
+    ivx[1] = p7_FLogsum(ivx[1], MMX(i+2,1) + p7P_MSC_CODON(gm_fs, 1, c2));
+    ivx[1] = p7_FLogsum(ivx[1], MMX(i+3,1) + p7P_MSC_CODON(gm_fs, 1, c3));
+    if( i == L-4 )
+      ivx[1] = p7_FLogsum(ivx[1], MMX(i+4,1) + p7P_MSC_CODON(gm_fs, 1, c4));
   
     XMX(i,p7G_B)   =  ivx[1] + TSC(p7P_BM,0);
  
     for (k = 2; k <= M; k++) 
     {
-      ivx[k]  =                     MMX(i+1,k) + p7P_MSC_CODON(gm_fs, k, c1);
-      
-      if( i < L-1 )
-        ivx[k] = p7_FLogsum( ivx[k], MMX(i+2,k) + p7P_MSC_CODON(gm_fs, k, c2));
-
-      if( i < L-2 )
-        ivx[k] = p7_FLogsum( ivx[k], MMX(i+3,k) + p7P_MSC_CODON(gm_fs, k, c3));
-
-      if( i < L-3 )
-        ivx[k] = p7_FLogsum( ivx[k], MMX(i+4,k) + p7P_MSC_CODON(gm_fs, k, c4));
+      ivx[k] =                    MMX(i+1,k) + p7P_MSC_CODON(gm_fs, k, c1);
+      ivx[k] = p7_FLogsum(ivx[k], MMX(i+2,k) + p7P_MSC_CODON(gm_fs, k, c2));
+      ivx[k] = p7_FLogsum(ivx[k], MMX(i+3,k) + p7P_MSC_CODON(gm_fs, k, c3));
+      if( i == L-4 )
+        ivx[k] = p7_FLogsum(ivx[k], MMX(i+4,k) + p7P_MSC_CODON(gm_fs, k, c4));
 
       XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
     }
 
-    if(i < L-2) {
-      XMX(i,p7G_J) = p7_FLogsum( XMX(i+3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
-                                 XMX(i,  p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE]);
+    XMX(i,p7G_J) = p7_FLogsum( XMX(i+3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
+                               XMX(i,  p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE]);
 
-      XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
+    XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
 
-      XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP],
-                                 XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE]);
-    } else {
-      XMX(i,p7G_J) =             XMX(i,  p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
-
-      XMX(i,p7G_N) =             XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
-
-      XMX(i,p7G_C) =                              gm_fs->xsc[p7P_C][p7P_MOVE];
-    }
+    XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP],
+                               XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE]);
 
     XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
                               XMX(i,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
@@ -1090,23 +1141,17 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 
     for (k = M-1; k >= 1; k--)
     {
-      /* i can come from i+5, i+4, i+3, i+2 or i+1 */
-      MMX(i,k) = p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
-                 p7_FLogsum( ivx[k+1]      + TSC(p7P_MM,k),
-                             XMX(i,p7G_E) + esc));
- 
-      if( i < L-2 )
-        MMX(i,k) = p7_FLogsum( MMX(i,k) , IMX(i+3,k)  + TSC(p7P_MI,k));
+      MMX(i,k) = p7_FLogsum( p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
+                             p7_FLogsum( IMX(i+3,k)   + TSC(p7P_MI,k),
+                                         ivx[k+1]      + TSC(p7P_MM,k))),
+                                         XMX(i,p7G_E) + esc);
 
       DMX(i,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
                                          DMX(i, k+1)  + TSC(p7P_DD,k)),
                                          ivx[k+1]      + TSC(p7P_DM,k));
 
-      if (i < L-2 )
-        IMX(i,k) = p7_FLogsum(           IMX(i+3,k  )   + TSC(p7P_II,k),
-                                         ivx[k+1]          + TSC(p7P_IM,k));
-      else
-        IMX(i,k) = ivx[k+1]            + TSC(p7P_IM,k);
+      IMX(i,k) = p7_FLogsum(           IMX(i+3,k  )   + TSC(p7P_II,k),
+                                       ivx[k+1]          + TSC(p7P_IM,k));
     }
 
     MMX(i,0) = IMX(i,0) = DMX(i,0)  = -eslINFINITY;
@@ -1249,14 +1294,9 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   
   gx->M = M;
   gx->L = L;
-  if (ivx != NULL) free(ivx);
   
   return eslOK;
 
-ERROR:
-  if (ivx != NULL) free(ivx);
-  return status;
-  
 }
 
 /* Function:  p7_BackwardPraser_Frameshift_3Codons()
@@ -1347,31 +1387,31 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   prev2 = L     % 6;
 
   ivx[1]       = MMX(prev2,1) + p7P_MSC_CODON(gm_fs, 1, c2); 
-  XMX(i,p7G_B) = ivx[1]       + TSC(p7P_BM,0);
+  XMX(L-2,p7G_B) = ivx[1]      + TSC(p7P_BM,0);
   for (k = 2; k <= M; k++)
   {
     ivx[k] =  MMX(prev2,k) + p7P_MSC_CODON(gm_fs, k, c2);
 
-    XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+    XMX(L-2,p7G_B) = p7_FLogsum( XMX(L-2,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
   }
 
-  XMX(i,p7G_J) = XMX(i,  p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
-  XMX(i,p7G_N) = XMX(i,  p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
-  XMX(i,p7G_C) =                  gm_fs->xsc[p7P_C][p7P_MOVE];
+  XMX(L-2,p7G_J) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
+  XMX(L-2,p7G_N) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
+  XMX(L-2,p7G_C) =                  gm_fs->xsc[p7P_C][p7P_MOVE];
   
-  XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
-                            XMX(i,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
+  XMX(L-2,p7G_E) = p7_FLogsum(XMX(L-2,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
+                              XMX(L-2,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
-  MMX(curr,M)  = DMX(curr,M) = XMX(i,p7G_E); 
+  MMX(curr,M)  = DMX(curr,M) = XMX(L-2,p7G_E); 
   IMX(curr,M)  = -eslINFINITY;       
 
   for (k = M-1; k >= 1; k--)
   {
     MMX(curr,k) = p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
                   p7_FLogsum( ivx[k+1]        + TSC(p7P_MM,k),
-                              XMX(i,p7G_E)    + esc));
+                              XMX(L-2,p7G_E)    + esc));
 
-    DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
+    DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(L-2,p7G_E) + esc,
                                           DMX(curr, k+1)  + TSC(p7P_DD,k)),
                                           ivx[k+1]        + TSC(p7P_DM,k));
 
@@ -1592,18 +1632,11 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 /*****************************************************************
  * 2. Benchmark driver.
  *****************************************************************/
-#ifdef p7GENERIC_FWDBACK_BENCHMARK
+#ifdef p7FWDBACK_FRAMESHIFT_BENCHMARK
 /*
-   gcc -g -O2      -o generic_fwdback_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_FWDBACK_BENCHMARK generic_fwdback.c -lhmmer -leasel -lm
-   icc -O3 -static -o generic_fwdback_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_FWDBACK_BENCHMARK generic_fwdback.c -lhmmer -leasel -lm
-   ./generic_fwdback_benchmark <hmmfile>
- */
-/* As of Fri Dec 28 14:48:39 2007
- *    Viterbi  = 61.8 Mc/s
- *    Forward  =  8.6 Mc/s
- *   Backward  =  7.1 Mc/s
- *        MSV  = 55.9 Mc/s
- * (gcc -g -O2, 3.2GHz Xeon, N=50K, L=400, M=72 RRM_1 model)
+   gcc -g -O2      -o fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7FWDBACK_FRAMESHIFT_BENCHMARK fwdback_frameshift.c -lhmmer -leasel -lm
+   icc -O3 -static -o fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7FWDBACK_FRAMESHIFT_BENCHMARK fwdback_frameshift.c -lhmmer -leasel -lm
+   ./fwdback_frameshift_benchmark <hmmfile>
  */
 #include "p7_config.h"
 
@@ -1620,10 +1653,14 @@ static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
-  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
   { "-N",        eslARG_INT,   "2000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
-  { "-B",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark GBackward()",                     0 },
-  { "-F",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark GForward()",                      0 },
+  { "-B",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Backward_Frameshift()",           0 },
+  { "-F",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Forward_Frameshift()",            0 },
+  { "-P",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Parsers",                         0 },
+  { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark full matrix version",             0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  "-P", NULL, "only benchmark 3 codon length Forward Parser",   0 },
+  { "-V",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  "-P", NULL, "only benchmark 5 codon length Forward Parser",   0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
@@ -1636,13 +1673,18 @@ main(int argc, char **argv)
   char           *hmmfile = esl_opt_GetArg(go, 1);
   ESL_STOPWATCH  *w       = esl_stopwatch_Create();
   ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHEBET   *abcDNA  = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
   P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
+  P7_FS_PROFILE  *gm_fs   = NULL;
+  P7_GMX         *fwd_p   = NULL;
+  P7_GMX         *bck_p   = NULL;
   P7_GMX         *fwd     = NULL;
   P7_GMX         *bck     = NULL;
+  P7_IVX         *iv      = NULL;
+  ESL_GENCODE    *gcode   = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
@@ -1651,14 +1693,19 @@ main(int argc, char **argv)
   double          base_time, bench_time, Mcs;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
-  bg = p7_bg_Create(abc);
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode = esl_gencode_Create(abcDNA, abcAA);
+  bg = p7_bg_fs_Create(abcAA);
   p7_bg_SetLength(bg, L);
-  gm = p7_profile_Create(hmm->M, abc);
-  p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  fwd = p7_gmx_Create(gm->M, L);
-  bck = p7_gmx_Create(gm->M, L);
+  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
+  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_UNILOCAL);
+  fwd_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L, 0);
+  bck_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L, 0);
+  fwd   = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  bck   = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
+  iv    = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
@@ -1670,13 +1717,23 @@ main(int argc, char **argv)
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
-      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
-      if (! esl_opt_GetBoolean(go, "-B"))  p7_GForward (dsq, L, gm, fwd, &sc);
-      if (! esl_opt_GetBoolean(go, "-F"))  p7_GBackward(dsq, L, gm, bck, NULL);
-
+      esl_rsq_xfIID(r, bg->f, abcDNA->K, L, dsq);
+      if (! esl_opt_GetBoolean(go, "-B"))  {
+        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Forward_Frameshift (dsq, gcode, L, gm_fs, fwd, iv, &sc);
+        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T")) p7_ForwardParser_Frameshift_5Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &sc);
+        p7_gmx_Reuse(fwd_p);
+        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V")) p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &sc);
+      } 
+      if (! esl_opt_GetBoolean(go, "-F"))  {
+        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, NULL); 
+        if (! esl_opt_GetBoolean(go, "-U"))                                   p7_BackwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, bck_p, iv, NULL);
+   
+      p7_gmx_Reuse(fwd_p);
+      p7_gmx_Reuse(bck_p);
       p7_gmx_Reuse(fwd);
       p7_gmx_Reuse(bck);
     }
+
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
   Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
@@ -1685,19 +1742,24 @@ main(int argc, char **argv)
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
+  p7_gmx_Destroy(bck_p);
+  p7_gmx_Destroy(fwd_p);
   p7_gmx_Destroy(bck);
   p7_gmx_Destroy(fwd);
-  p7_profile_Destroy(gm);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs);
   p7_bg_Destroy(bg);
   p7_hmm_Destroy(hmm);
   p7_hmmfile_Close(hfp);
-  esl_alphabet_Destroy(abc);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA)
   esl_stopwatch_Destroy(w);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7GENERIC_FWDBACK_BENCHMARK*/
+#endif /*p7FWDBACK_FRAMESHIFT_BENCHMARK*/
 /*----------------- end, benchmark ------------------------------*/
 
 
@@ -1706,205 +1768,85 @@ main(int argc, char **argv)
 /*****************************************************************
  * 3. Unit tests
  *****************************************************************/
-#ifdef p7GENERIC_FWDBACK_TESTDRIVE
+#ifdef p7FWDBACK_FRAMESHIFT_TESTDRIVE
 #include <string.h>
 #include "esl_getopts.h"
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
-/* Forward is hard to validate. 
- * We do know that the Forward score is >= Viterbi.
- * We also know that the expected score on random seqs is <= 0 (not
- * exactly - we'd have to sample the random length from the background
- * model too, not just use a fixed L - but it's close enough to
- * being true to be a useful test.)
- */
 static void
-utest_forward(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, P7_PROFILE *gm, int nseq, int L)
+utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENCODE *gcode, P7_BG *bg, P7_FS_PROFILE *gm_fs, int nseq, int L)
 {
-  float     avg_sc;
-  ESL_DSQ  *dsq  = NULL;
-  P7_GMX   *fwd  = NULL;
-  P7_GMX   *bck  = NULL;
-  int       idx;
-  float     fsc, bsc;
-  float     vsc, nullsc;
+  float       avg_sc;
+  ESL_DSQ     *dsq   = NULL;
+  P7_GMX      *fwd_p = NULL;
+  P7_GMX      *bck_p = NULL;
+  P7_GMX      *fwd   = NULL;
+  P7_GMX      *bck   = NULL;
+  P7_IVX      *iv    = NULL;
+  int         idx;
+  float       fsc, bsc;
+  float       fsc_p, bsc_p;
+  float       nullsc;
 
   if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2))) == NULL)  esl_fatal("malloc failed");
-  if ((fwd    = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
-  if ((bck    = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L/3, 0))           == NULL)  esl_fatal("matrix creation failed");
+  if ((bck_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L/3, 0))           == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd    = p7_gmx_fs_Create(gm_fs->M, L,               L/3, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
+  if ((bck    = p7_gmx_fs_Create(gm_fs->M, L,               L/3, 0))           == NULL)  esl_fatal("matrix creation failed");
+  if ((iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS))                          == NULL)  esl_fatal("ivx creation failed");
 
   avg_sc = 0.;
   for (idx = 0; idx < nseq; idx++)
     {
       if (esl_rsq_xfIID(r, bg->f, abc->K, L, dsq) != eslOK) esl_fatal("seq generation failed");
-      if (p7_GViterbi(dsq, L, gm, fwd, &vsc)      != eslOK) esl_fatal("viterbi failed");
-      if (p7_GForward(dsq, L, gm, fwd, &fsc)      != eslOK) esl_fatal("forward failed");
-      if (p7_GBackward(dsq, L, gm, bck, &bsc)     != eslOK) esl_fatal("backward failed");
-
-      if (fsc < vsc)             esl_fatal("Forward score can't be less than Viterbi score");
+      if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+      if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &bsc)     != eslOK) esl_fatal("backward failed");
+       
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
 
       if (p7_bg_NullOne(bg, dsq, L, &nullsc)      != eslOK) esl_fatal("null score failed");
 
       avg_sc += fsc - nullsc;
 
+      if (p7_ForwardParser_Frameshift_5Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 5 failed");
+
+      if (fabs(fsc-fsc_p) > 0.001) esl_fatal("Forward/Forward Parser failed: %f %f\n", fsc, fsc_p);
+
+      if (p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 3 failed");
+      if (p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser failed");
+       
+      if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser/Backward Parser failed: %f %f\n", fsc_p, bsc_p);
+      if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+      if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
+
       if (esl_opt_GetBoolean(go, "--vv")) 
-  printf("utest_forward: Forward score: %.4f (total so far: %.4f)\n", fsc, avg_sc);
+        printf("utest_forward_fs: Forward score: %.4f (total so far: %.4f)\n", fsc, avg_sc);
     }
 
   avg_sc /= (float) nseq;
   if (avg_sc > 0.) esl_fatal("Forward scores have positive expectation (%f nats)", avg_sc);
 
+  p7_gmx_Destroy(fwd_p);
+  p7_gmx_Destroy(bck_p);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(bck);
+  p7_ivx_Destroy(iv);
   free(dsq);
   return;
 }
 
-/* The "generation" test scores sequences generated by the same profile.
- * Each Viterbi and Forward score should be >= the trace score of the emitted seq.
- * The expectation of Forward scores should be positive.
- */
-static void
-utest_generation(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc,
-     P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int nseq)
-{
-  ESL_SQ   *sq = esl_sq_CreateDigital(abc);
-  P7_GMX   *gx = p7_gmx_Create(gm->M, 100);
-  P7_TRACE *tr = p7_trace_Create();
-  float     vsc, fsc, nullsc, tracesc;
-  float     avg_fsc;
-  int       idx;
 
-  avg_fsc = 0.0;
-  for (idx = 0; idx < nseq; idx++)
-    {
-      if (p7_ProfileEmit(r, hmm, gm, bg, sq, tr)     != eslOK) esl_fatal("profile emission failed");
-
-      if (p7_gmx_GrowTo(gx, gm->M, sq->n)            != eslOK) esl_fatal("failed to reallocate gmx");
-      if (p7_GViterbi(sq->dsq, sq->n, gm, gx, &vsc)  != eslOK) esl_fatal("viterbi failed");
-      if (p7_GForward(sq->dsq, sq->n, gm, gx, &fsc)  != eslOK) esl_fatal("forward failed");
-      if (p7_trace_Score(tr, sq->dsq, gm, &tracesc)  != eslOK) esl_fatal("trace score failed");
-      if (p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc) != eslOK) esl_fatal("null score failed");
-
-      if (vsc < tracesc) esl_fatal("viterbi score is less than trace");
-      if (fsc < tracesc) esl_fatal("forward score is less than trace");
-      if (vsc > fsc)     esl_fatal("viterbi score is greater than forward");
-
-      if (esl_opt_GetBoolean(go, "--vv")) 
-  printf("generated:  len=%d v=%8.4f  f=%8.4f  t=%8.4f\n", (int) sq->n, vsc, fsc, tracesc);
-      
-      avg_fsc += (fsc - nullsc);
-    }
-  
-  avg_fsc /= (float) nseq;
-  if (avg_fsc < 0.) esl_fatal("generation: Forward scores have negative expectation (%f nats)", avg_fsc);
-
-  p7_gmx_Destroy(gx);
-  p7_trace_Destroy(tr);
-  esl_sq_Destroy(sq);
-}
-
-
-/* The "enumeration" test samples a random enumerable HMM (transitions to insert are 0,
- * so the generated seq space only includes seqs of L<=M). 
- *
- * The test scores all seqs of length <=M by both Viterbi and Forward, verifies that 
- * the two scores are identical, and verifies that the sum of all the probabilities is
- * 1.0. It also verifies that the score of a sequence of length M+1 is indeed -infinity.
- * 
- * Because this function is going to work in unscaled probabilities, adding them up,
- * all P(seq) terms must be >> DBL_EPSILON.  That means M must be small; on the order 
- * of <= 10. 
- */
-static void
-utest_enumeration(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, int M)
-{
-  char            errbuf[eslERRBUFSIZE];
-  P7_HMM         *hmm  = NULL;
-  P7_PROFILE     *gm   = NULL;
-  P7_BG          *bg   = NULL;
-  ESL_DSQ        *dsq  = NULL;
-  P7_GMX         *gx   = NULL;
-  float  vsc, fsc;
-  float  bg_ll;       /* log P(seq | bg) */
-  double fp;                  /* P(seq | model) */
-  int L;
-  int i;
-  double total_p;
-  char   *seq;
-    
-  /* Sample an enumerable HMM & profile of length M.  */
-  if (p7_hmm_SampleEnumerable(r, M, abc, &hmm)      != eslOK) esl_fatal("failed to sample an enumerable HMM");
-  if ((bg = p7_bg_Create(abc))                      == NULL)  esl_fatal("failed to create null model");
-  if ((gm = p7_profile_Create(hmm->M, abc))         == NULL)  esl_fatal("failed to create profile");
-  if (p7_ProfileConfig(hmm, bg, gm, 0, p7_UNILOCAL) != eslOK) esl_fatal("failed to config profile");
-  if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
-  if (p7_profile_Validate(gm, errbuf, 0.0001)       != eslOK) esl_fatal("whoops, profile is bad!: %s", errbuf);
-
-  if (  (dsq = malloc(sizeof(ESL_DSQ) * (M+3)))     == NULL)  esl_fatal("allocation failed");
-  if (  (seq = malloc(sizeof(char)    * (M+2)))     == NULL)  esl_fatal("allocation failed");
-  if ((gx     = p7_gmx_Create(hmm->M, M+3))         == NULL)  esl_fatal("matrix creation failed");
-
-  /* Enumerate all sequences of length L <= M
-   */
-  total_p = 0;
-  for (L = 0; L <= M; L++)
-    {
-      /* Initialize dsq of length L at 0000... */
-      dsq[0] = dsq[L+1] = eslDSQ_SENTINEL;
-      for (i = 1; i <= L; i++) dsq[i] = 0;
-
-      while (1)     /* enumeration of seqs of length L*/
-  {
-    if (p7_GViterbi(dsq, L, gm, gx, &vsc)  != eslOK) esl_fatal("viterbi failed");
-    if (p7_GForward(dsq, L, gm, gx, &fsc)  != eslOK) esl_fatal("forward failed");
- 
-    /* calculate bg log likelihood component of the scores */
-    for (bg_ll = 0., i = 1; i <= L; i++)  bg_ll += log(bg->f[dsq[i]]);
-    
-    /* convert to probability, adding the bg LL back to the LLR */
-    fp =  exp(fsc + bg_ll);
-
-    if (esl_opt_GetBoolean(go, "--vv")) {
-      esl_abc_Textize(abc, dsq, L, seq);
-      printf("probability of sequence: %10s   %16g  (lod v=%8.4f f=%8.4f)\n", seq, fp, vsc, fsc);
-    }
-    total_p += fp;
-
-    /* Increment dsq like a reversed odometer */
-    for (i = 1; i <= L; i++) 
-      if (dsq[i] < abc->K-1) { dsq[i]++; break; } else { dsq[i] = 0; }
-    if (i > L) break;  /* we're done enumerating sequences */
-  }
-    }
-
-  /* That sum is subject to significant numerical error because of
-   * discretization error in FLogsum(); don't expect it to be too close.
-   */
-  if (total_p < 0.999 || total_p > 1.001) esl_fatal("Enumeration unit test failed: total Forward p isn't near 1.0 (%g)", total_p);
-  if (esl_opt_GetBoolean(go, "-v")) {
-    printf("enumeration test: total p is %g\n", total_p);
-  }
-  
-  p7_gmx_Destroy(gx);
-  p7_bg_Destroy(bg);
-  p7_profile_Destroy(gm);
-  p7_hmm_Destroy(hmm);
-  free(dsq);
-  free(seq);
-}
-#endif /*p7GENERIC_FWDBACK_TESTDRIVE*/
+#endif /*p7FWDBACK_FRAMESHIFT_TESTDRIVE*/
 /*------------------------- end, unit tests ---------------------*/
 
 /*****************************************************************
  * 4. Test driver.
  *****************************************************************/
 
-/* gcc -g -Wall -Dp7GENERIC_FWDBACK_TESTDRIVE -I. -I../easel -L. -L../easel -o generic_fwdback_utest generic_fwdback.c -lhmmer -leasel -lm
+/* gcc -g -Wall -Dp7FWDBACK_FRAMESHIFT_TESTDRIVE -I. -I../easel -L. -L../easel -o fwdback_frameshift_utest fwdback_frameshift.c -lhmmer -leasel -lm
  */
-#ifdef p7GENERIC_FWDBACK_TESTDRIVE
+#ifdef p7FWDBACK_FRAMESHIFT_TESTDRIVE
 #include "easel.h"
 #include "esl_getopts.h"
 #include "esl_msa.h"
@@ -1926,173 +1868,44 @@ static char banner[] = "unit test driver for the generic Forward/Backward implem
 int
 main(int argc, char **argv)
 {
-  ESL_GETOPTS    *go   = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
-  ESL_RANDOMNESS *r    = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc  = NULL;
-  P7_HMM         *hmm  = NULL;
-  P7_PROFILE     *gm   = NULL;
-  P7_BG          *bg   = NULL;
-  int             M    = 100;
-  int             L    = 200;
-  int             nseq = 20;
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  P7_HMM         *hmm    = NULL;
+  P7_FS_PROFILE  *gm_fs  = NULL;
+  P7_BG          *bg     = NULL;
+  ESL_GENCODE    *gcode  = NULL;
+  int             M      = 100;
+  int             L      = 600;
+  int             nseq   = 20;
   char            errbuf[eslERRBUFSIZE];
 
   p7_FLogsumInit();
 
-  if ((abc = esl_alphabet_Create(eslAMINO))         == NULL)  esl_fatal("failed to create alphabet");
-  if (p7_hmm_Sample(r, M, abc, &hmm)                != eslOK) esl_fatal("failed to sample an HMM");
-  if ((bg = p7_bg_Create(abc))                      == NULL)  esl_fatal("failed to create null model");
-  if ((gm = p7_profile_Create(hmm->M, abc))         == NULL)  esl_fatal("failed to create profile");
-  if (p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL)    != eslOK) esl_fatal("failed to config profile");
+  if ((abcAA  = esl_alphabet_Create(eslAMINO))                  == NULL)  esl_fatal("failed to create alphabet");
+  if ((abcDNA = esl_alphabet_Create(eslDNA))                    == NULL)  esl_fatal("failed to create alphabet");
+  if ((gcode  = esl_gencode_Create(abcDNA,abcAA))               == NULL)  esl_fatal("failed to create gencode");
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)                          != eslOK) esl_fatal("failed to sample an HMM");
+  if ((bg = p7_bg_Create(abcAA))                                == NULL)  esl_fatal("failed to create null model");
+  if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
+  if (p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
-  if (p7_profile_Validate(gm,  errbuf, 0.0001)      != eslOK) esl_fatal("whoops, profile is bad!: %s", errbuf);
 
-  utest_forward    (go, r, abc, bg, gm, nseq, L);
-  utest_generation (go, r, abc, gm, hmm, bg, nseq);
-  utest_enumeration(go, r, abc, 4);  /* can't go much higher than 5; enumeration test is cpu-intensive. */
+  utest_forward_fs    (go, r, abcDNA, gcode, bg, gm_fs, nseq, L);
 
-  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs);
   p7_bg_Destroy(bg);
   p7_hmm_Destroy(hmm);
-  esl_alphabet_Destroy(abc);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_gencode_Destroy(gcode);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7GENERIC_FWDBACK_TESTDRIVE*/
+#endif /*p7FWDBACK_FRAMESHIFT_TESTDRIVE*/
 /*-------------------- end, test driver -------------------------*/
 
 
-/*****************************************************************
- * 5. Example
- *****************************************************************/
-#ifdef p7GENERIC_FWDBACK_EXAMPLE
-/* 
-   gcc -g -O2 -o generic_fwdback_example -Dp7GENERIC_FWDBACK_EXAMPLE -I. -I../easel -L. -L../easel generic_fwdback.c -lhmmer -leasel -lm
- */
-#include "p7_config.h"
-
-#include "easel.h"
-#include "esl_alphabet.h"
-#include "esl_getopts.h"
-#include "esl_sq.h"
-#include "esl_sqio.h"
-
-#include "hmmer.h"
-
-#define STYLES     "--fs,--sw,--ls,--s"                 /* Exclusive choice for alignment mode     */
-
-static ESL_OPTIONS options[] = {
-  /* name           type      default  env  range  toggles reqs incomp  help                                       docgroup*/
-  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,   NULL,  NULL, NULL, "show brief help on version and usage",             0 },
-  { "--fs",      eslARG_NONE,"default",NULL, NULL, STYLES,  NULL, NULL, "multihit local alignment",                         0 },
-  { "--sw",      eslARG_NONE,   FALSE, NULL, NULL, STYLES,  NULL, NULL, "unihit local alignment",                           0 },
-  { "--ls",      eslARG_NONE,   FALSE, NULL, NULL, STYLES,  NULL, NULL, "multihit glocal alignment",                        0 },
-  { "--s",       eslARG_NONE,   FALSE, NULL, NULL, STYLES,  NULL, NULL, "unihit glocal alignment",                          0 },
-  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-};
-static char usage[]  = "[-options] <hmmfile> <seqfile>";
-static char banner[] = "example of Forward/Backward, generic implementation";
-
-int 
-main(int argc, char **argv)
-{
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  char           *seqfile = esl_opt_GetArg(go, 2);
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_GMX         *fwd     = NULL;
-  P7_GMX         *bck     = NULL;
-  ESL_SQ         *sq      = NULL;
-  ESL_SQFILE     *sqfp    = NULL;
-  int             format  = eslSQFILE_UNKNOWN;
-  float           fsc, bsc;
-  float           nullsc;
-  int             status;
-
-  /* Initialize log-sum calculator */
-  p7_FLogsumInit();
-
-  /* Read in one HMM */
-  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
-  p7_hmmfile_Close(hfp);
- 
-  /* Read in one sequence */
-  sq     = esl_sq_CreateDigital(abc);
-  status = esl_sqfile_Open(seqfile, format, NULL, &sqfp);
-  if      (status == eslENOTFOUND) p7_Fail("No such file.");
-  else if (status == eslEFORMAT)   p7_Fail("Format unrecognized.");
-  else if (status == eslEINVAL)    p7_Fail("Can't autodetect stdin or .gz.");
-  else if (status != eslOK)        p7_Fail("Open failed, code %d.", status);
- 
-  /* Configure a profile from the HMM */
-  bg = p7_bg_Create(abc);
-  gm = p7_profile_Create(hmm->M, abc);
-
-  /* Now reconfig the models however we were asked to */
-  if      (esl_opt_GetBoolean(go, "--fs"))  p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL);
-  else if (esl_opt_GetBoolean(go, "--sw"))  p7_ProfileConfig(hmm, bg, gm, sq->n, p7_UNILOCAL);
-  else if (esl_opt_GetBoolean(go, "--ls"))  p7_ProfileConfig(hmm, bg, gm, sq->n, p7_GLOCAL);
-  else if (esl_opt_GetBoolean(go, "--s"))   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_UNIGLOCAL);
-  
-  /* Allocate matrices */
-  fwd = p7_gmx_Create(gm->M, sq->n);
-  bck = p7_gmx_Create(gm->M, sq->n);
-
-  printf("%-30s   %-10s %-10s   %-10s %-10s\n", "# seq name",      "fwd (raw)",   "bck (raw) ",  "fwd (bits)",  "bck (bits)");
-  printf("%-30s   %10s %10s   %10s %10s\n",     "#--------------", "----------",  "----------",  "----------",  "----------");
-
-  while ( (status = esl_sqio_Read(sqfp, sq)) != eslEOF)
-    {
-      if      (status == eslEFORMAT) p7_Fail("Parse failed (sequence file %s)\n%s\n", sqfp->filename, sqfp->get_error(sqfp));     
-      else if (status != eslOK)      p7_Fail("Unexpected error %d reading sequence file %s", status, sqfp->filename);
-
-      /* Resize the DP matrices if necessary */
-      p7_gmx_GrowTo(fwd, gm->M, sq->n);
-      p7_gmx_GrowTo(bck, gm->M, sq->n);
-
-      /* Set the profile and null model's target length models */
-      p7_bg_SetLength(bg,   sq->n);
-      p7_ReconfigLength(gm, sq->n);
-
-      /* Run Forward, Backward */
-      p7_GForward (sq->dsq, sq->n, gm, fwd, &fsc);
-      p7_GBackward(sq->dsq, sq->n, gm, bck, &bsc);
-
-      p7_gmx_Dump(stdout, fwd, p7_DEFAULT);
-
-      /* Those scores are partial log-odds likelihoods in nats.
-       * Subtract off the rest of the null model, convert to bits.
-       */
-      p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc);
-
-      printf("%-30s   %10.4f %10.4f   %10.4f %10.4f\n", 
-       sq->name, 
-       fsc, bsc, 
-       (fsc - nullsc) / eslCONST_LOG2, (bsc - nullsc) / eslCONST_LOG2);
-
-      p7_gmx_Reuse(fwd);
-      p7_gmx_Reuse(bck);
-      esl_sq_Reuse(sq);
-    }
-
-  /* Cleanup */
-  esl_sqfile_Close(sqfp);
-  esl_sq_Destroy(sq);
-  p7_gmx_Destroy(fwd);
-  p7_gmx_Destroy(bck);
-  p7_profile_Destroy(gm);
-  p7_bg_Destroy(bg);
-  p7_hmm_Destroy(hmm);
-  esl_alphabet_Destroy(abc);
-  esl_getopts_Destroy(go);
-  return 0;
-}
-#endif /*p7GENERIC_FWDBACK_EXAMPLE*/
-/*-------------------- end, example -----------------------------*/
 

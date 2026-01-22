@@ -221,30 +221,30 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
 
     XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX(i,M), DMX(i, M)));
     /* now the special states; it's important that E is already done, and B is done after N,J */
-    t1 = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
     if( i > 2 )
       XMX(i, p7G_J) = ESL_MAX( t1 * p7_FLogsum(XMX(i-3,p7G_J), pp->xmx[i*p7G_NXCELLS + p7G_J]),
                                t2 * XMX(i,  p7G_E));
     else
       XMX(i, p7G_J) =          t2 * XMX(i,  p7G_E);
 
-    t1 = ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 1.0);
     if( i > 2 )
       XMX(i,p7G_C) = ESL_MAX( t1 * p7_FLogsum(XMX(i-3,p7G_C),  pp->xmx[i*p7G_NXCELLS + p7G_C]),
                               t2 * XMX(i,  p7G_E));
     else
       XMX(i,p7G_C) =          t2 * XMX(i,  p7G_E);
 
-    t1 = ( (gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
     if( i > 2 )
       XMX(i,p7G_N) = t1 *  p7_FLogsum(XMX(i-3,p7G_N), pp->xmx[i*p7G_NXCELLS + p7G_N]);
     else
       XMX(i,p7G_N) = t1 *                    pp->xmx[i*p7G_NXCELLS + p7G_N];
  
-    t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 1.0);
       
     XMX(i,p7G_B) = ESL_MAX( t1 * XMX(i,  p7G_N), 
                             t2 * XMX(i,  p7G_J));
@@ -376,22 +376,22 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
 
 
     /* now the special states; it's important that E is already done, and B is done after N,J */
-    t1 = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
       
     XMX(i, p7G_J) = ESL_MAX( t1 * p7_FLogsum(XMX(i-3,p7G_J), pp->xmx[i*p7G_NXCELLS + p7G_J]),
                              t2 * XMX(i,  p7G_E));
 
-    t1 = ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 1.0);
     XMX(i,p7G_C) = ESL_MAX( t1 * p7_FLogsum(XMX(i-3,p7G_C), pp->xmx[i*p7G_NXCELLS + p7G_C]),
                             t2 * XMX(i,  p7G_E));
 
-    t1 = ( (gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 1.0);
     XMX(i,p7G_N) =          t1 *  p7_FLogsum(XMX(i-3,p7G_N), pp->xmx[i*p7G_NXCELLS + p7G_N]);
 
-    t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-    t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+    t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 1.0);
+    t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 1.0);
       
     XMX(i,p7G_B) = ESL_MAX( t1 * XMX(i,  p7G_N), 
                             t2 * XMX(i,  p7G_J));

@@ -514,8 +514,8 @@ get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
   float **dp  = pp->dp;
   float  *xmx = pp->xmx;
   switch (scur) {
-  case p7T_M: return expf(MMX_FS(i,k,p7G_C0));
-  case p7T_I: return expf(IMX_FS(i,k));
+  case p7T_M: return MMX_FS(i,k,p7G_C0);
+  case p7T_I: return IMX_FS(i,k);
   case p7T_N: if (sprv == scur) return XMX_FS(i,p7G_N);
   case p7T_C: if (sprv == scur) return XMX_FS(i,p7G_C); 
   case p7T_J: if (sprv == scur) return XMX_FS(i,p7G_J); 

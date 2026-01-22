@@ -1790,10 +1790,10 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENC
   float       nullsc;
 
   if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2))) == NULL)  esl_fatal("malloc failed");
-  if ((fwd_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L/3, 0))           == NULL)  esl_fatal("matrix creation failed");
-  if ((bck_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L/3, 0))           == NULL)  esl_fatal("matrix creation failed");
-  if ((fwd    = p7_gmx_fs_Create(gm_fs->M, L,               L/3, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
-  if ((bck    = p7_gmx_fs_Create(gm_fs->M, L,               L/3, 0))           == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L, 0))           == NULL)  esl_fatal("matrix creation failed");
+  if ((bck_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L, 0))           == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd    = p7_gmx_fs_Create(gm_fs->M, L,               L, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
+  if ((bck    = p7_gmx_fs_Create(gm_fs->M, L,               L, 0))           == NULL)  esl_fatal("matrix creation failed");
   if ((iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS))                          == NULL)  esl_fatal("ivx creation failed");
 
   avg_sc = 0.;
@@ -1801,7 +1801,7 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENC
     {
       if (esl_rsq_xfIID(r, bg->f, abc->K, L, dsq) != eslOK) esl_fatal("seq generation failed");
       if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
-      if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &bsc)     != eslOK) esl_fatal("backward failed");
+      if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
        
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
 
@@ -1817,8 +1817,6 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENC
       if (p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser failed");
        
       if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser/Backward Parser failed: %f %f\n", fsc_p, bsc_p);
-      if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
-      if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
 
       if (esl_opt_GetBoolean(go, "--vv")) 
         printf("utest_forward_fs: Forward score: %.4f (total so far: %.4f)\n", fsc, avg_sc);

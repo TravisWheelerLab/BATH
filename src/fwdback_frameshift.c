@@ -1784,7 +1784,7 @@ main(int argc, char **argv)
 #include "esl_randomseq.h"
 
 static void
-utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENCODE *gcode, P7_BG *bg, P7_FS_PROFILE *gm_fs, int nseq, int L)
+utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_FS_PROFILE *gm_fs, int nseq, int L)
 {
   float       avg_sc;
   ESL_DSQ     *dsq   = NULL;
@@ -1809,13 +1809,13 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENC
   avg_sc = 0.;
   for (idx = 0; idx < nseq; idx++)
     {
-      if (esl_rsq_xfIID(r, bg->f, abc->K, L, dsq) != eslOK) esl_fatal("seq generation failed");
+      if (esl_rsq_xfIID(r, bgDNA->f, abc->K, L, dsq) != eslOK) esl_fatal("seq generation failed");
       if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
       if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
       
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
 
-      if (p7_bg_NullOne(bg, dsq, L/3, &nullsc)      != eslOK) esl_fatal("null score failed");
+      if (p7_bg_NullOne(bgAA, dsq, L/3, &nullsc)      != eslOK) esl_fatal("null score failed");
    
       avg_sc += fsc - nullsc;
 
@@ -1882,7 +1882,8 @@ main(int argc, char **argv)
   ESL_ALPHABET   *abcDNA = NULL;
   P7_HMM         *hmm    = NULL;
   P7_FS_PROFILE  *gm_fs  = NULL;
-  P7_BG          *bg     = NULL;
+  P7_BG          *bgAA   = NULL;
+  P7_BG          *bgDNA  = NULL;
   ESL_GENCODE    *gcode  = NULL;
   int             M      = 100;
   int             L      = 600;
@@ -1895,16 +1896,18 @@ main(int argc, char **argv)
   if ((abcDNA = esl_alphabet_Create(eslDNA))                    == NULL)  esl_fatal("failed to create alphabet");
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA))               == NULL)  esl_fatal("failed to create gencode");
   if (p7_hmm_Sample(r, M, abcAA, &hmm)                          != eslOK) esl_fatal("failed to sample an HMM");
-  if ((bg = p7_bg_Create(abcAA))                                == NULL)  esl_fatal("failed to create null model");
-  if ((p7_bg_SetLength(bg,  L/3))                               != eslOK) esl_fatal("failed to config background");
+  if ((bgAA = p7_bg_Create(abcAA))                              == NULL)  esl_fatal("failed to create null model");
+  if ((bgDNA = p7_bg_Create(abcDNA))                            == NULL)  esl_fatal("failed to create null model");
+  if ((p7_bg_SetLength(bgAA,  L/3))                             != eslOK) esl_fatal("failed to config background");
   if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
-  if (p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
 
   utest_forward_fs    (go, r, abcDNA, gcode, bg, gm_fs, nseq, L);
 
   p7_profile_fs_Destroy(gm_fs);
-  p7_bg_Destroy(bg);
+  p7_bg_Destroy(bgAA);
+  p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);

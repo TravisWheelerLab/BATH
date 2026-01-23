@@ -1680,10 +1680,11 @@ main(int argc, char **argv)
   ESL_STOPWATCH  *w       = esl_stopwatch_Create();
   ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
   ESL_ALPHABET   *abcAA   = NULL;
-  ESL_ALPHEBET   *abcDNA  = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_BG          *bgAA    = NULL;
   P7_FS_PROFILE  *gm_fs   = NULL;
   P7_GMX         *fwd_p   = NULL;
   P7_GMX         *bck_p   = NULL;
@@ -1703,10 +1704,10 @@ main(int argc, char **argv)
 
   abcDNA = esl_alphabet_Create(eslDNA);
   gcode = esl_gencode_Create(abcDNA, abcAA);
-  bg = p7_bg_fs_Create(abcDNA);
-  p7_bg_SetLength(bg, L/3);
+  bgDNA = p7_bg_fs_Create(abcDNA);
+  bgAA  = p7_bg_fs_Create(abcAA);
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
-  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_UNILOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL);
   fwd_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L, 0);
   bck_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L, 0);
   fwd   = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
@@ -1715,15 +1716,15 @@ main(int argc, char **argv)
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
-  for (i = 0; i < N; i++) esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+  for (i = 0; i < N; i++) esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
   esl_stopwatch_Stop(w);
   base_time = w->user;
 
   /* Benchmark time. */
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
-    {
-      esl_rsq_xfIID(r, bg->f, abcDNA->K, L, dsq);
+  {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
       if (! esl_opt_GetBoolean(go, "-B"))  {
         if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Forward_Frameshift (dsq, gcode, L, gm_fs, fwd, iv, &sc);
         if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T")) p7_ForwardParser_Frameshift_5Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &sc);
@@ -1733,18 +1734,19 @@ main(int argc, char **argv)
       if (! esl_opt_GetBoolean(go, "-F"))  {
         if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, NULL); 
         if (! esl_opt_GetBoolean(go, "-U"))                                   p7_BackwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, bck_p, iv, NULL);
-   
-      p7_gmx_Reuse(fwd_p);
-      p7_gmx_Reuse(bck_p);
-      p7_gmx_Reuse(fwd);
-      p7_gmx_Reuse(bck);
-    }
+     }
 
+     p7_gmx_Reuse(fwd_p);
+     p7_gmx_Reuse(bck_p);
+     p7_gmx_Reuse(fwd);
+     p7_gmx_Reuse(bck);
+    
+  }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
-  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  Mcs        = (double) N * (double) L * (double) gm_fs->M * 1e-6 / (double) bench_time;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n",   gm->M);
+  printf("# M    = %d\n",   gm_fs->M);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
@@ -1754,12 +1756,13 @@ main(int argc, char **argv)
   p7_gmx_Destroy(fwd);
   p7_ivx_Destroy(iv);
   p7_profile_fs_Destroy(gm_fs);
-  p7_bg_Destroy(bg);
+  p7_bg_Destroy(bgDNA);
+  p7_bg_Destroy(bgAA);
   p7_hmm_Destroy(hmm);
   p7_hmmfile_Close(hfp);
   esl_gencode_Destroy(gcode);
   esl_alphabet_Destroy(abcAA);
-  esl_alphabet_Destroy(abcDNA)
+  esl_alphabet_Destroy(abcDNA);
   esl_stopwatch_Destroy(w);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);

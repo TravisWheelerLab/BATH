@@ -1,4 +1,4 @@
-/* Posterior decoding algorithms; generic versions.
+/* Posterior decoding algorithms; frameshift versions.
  * 
  * Contents:
  *   1. Posterior decoding algorithms.
@@ -145,8 +145,8 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
 
   /* denom normailzes i for all codons in which i may be present 
    * while bias_denom only normailizes i for all codons ending in i*/
-  for (i = 1; i <= L; i++) 
-  {
+   for (i = 1; i <= L ; i++) {
+    
     denom = -eslINFINITY;
     for (k = 1; k < M; k++) {  
       denom = p7_FLogsum(MMX_FS(i,k,p7G_C0), denom); 
@@ -256,8 +256,8 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
     XMX_FS(i,p7G_N) = XMX_FS(i,p7G_N) + denom;
     XMX_FS(i,p7G_J) = XMX_FS(i,p7G_J) + denom;
     XMX_FS(i,p7G_C) = XMX_FS(i,p7G_C) + denom;
-  
-  }
+ 
+  } 
 
   return eslOK;
 }
@@ -440,6 +440,8 @@ main(int argc, char **argv)
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
+  abcAA  = esl_alphabet_Create(eslAMINO);
+  abcDNA = esl_alphabet_Create(eslDNA); 
   bgAA  = p7_bg_Create(abcAA);                  p7_bg_SetLength(bgAA, L/3);
   gcode = esl_gencode_Create(abcDNA,abcAA);
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA);  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);

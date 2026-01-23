@@ -17,30 +17,35 @@
 /* Function:  p7_Decoding_Frameshift() - BATH
  * Synopsis:  Posterior decoding of residue assignments.
  *
- * Purpose:   Calculates a posterior decoding of the residues in a DNA
- *            target sequence, given framshift aware codon profile 
- *            <gm_fs> and filled Forward and Backward matrices <fwd>, 
- *            <bck> for the profile aligned to that target sequence. The 
- *            resulting posterior decoding is stored in a DP matrix <pp>, 
- *            provided by the caller.
+ * Purpose:   Calculates a posterior decoding of the residues and 
+ *            of the codons in a DNA target sequence, given framshift 
+ *            aware codon profile  <gm_fs> and filled Forward and 
+ *            Backward matrices <fwd>, <bck> for the profile aligned 
+ *            to that target sequence. The nucleotide posterior decoding 
+ *            is stored in a DP matrix <pp>, provided by the caller, and 
+ *            the codon posterior decoding is overwriten to the <fwd>
+ *            matrix.
  *            
  *            Each residue <i> must have been emitted by match state
  *            <1..M>, insert state <1..M-1>, or an NN, CC, or JJ loop
  *            transition.  For <dp = pp->dp>, <xmx = pp->xmx>,
  *            <MMX_FS(i,k,p7G_C0)> is the probability that match <k> 
- *            emitted a (quasi)codon ending in residue <i>; 
- *            <MMX_FS(i,k,p7G_C1-5)> is the probability that match <k>
- *            emitted a (quasi)codon of length 1,2,3,4,or 5, ending in 
- *            residue <i>; <IMX(i,k)> is the probability that insert
- *            <k> emitted a length three cdodon ending in residue <i>; 
- *            <XMX(i,N)>,<XMX(i,C)>, <XMX(i,J)> are the probabilities 
- *            that residue <i> was the last nucleotide in a codon
- *            emitted on an NN, CC, or JJ transition. The frameshift 
- *            aware implementation requires two seperate normalizations.
- *            In the <pp> martis we normalize so that the sum over all 
- *            emssions that end at position, <i> is 1.0. In the <fwd>
- *            matrix we normalize so that the sum over all emissions 
- *            that include <i> at any point in the (quasi)codon is 1.0.
+ *            emitted the residue <i> as the last nucletotide in any 
+ *            (quasi)codon while <MMX_FS(i,k,p7G_C1-5)> gives the same 
+ *            probability but for each scepific (quasi)codon length; 
+ *            <IMX(i,k)> is the probability that insert
+ *            <k> emitted <i> as the last nucleotide in a cdodon ending 
+ *            in residue <i>; <XMX(i,N)>,<XMX(i,C)>, <XMX(i,J)> are the 
+ *            probabilities that residue <i> was the last nucleotide in 
+ *            a codon emitted on an N->N, C->C, or J->J transition. 
+ *            The frameshift aware implementation requires two seperate 
+ *            normalizations. In the <pp> matrix we normalize so that 
+ *            the sum over all emssions that include the residue <i> at
+ *            any position in in the (quasi)codon. In the <fwd> matrix we 
+ *            normalize so that the sum over all emissions which end at 
+ *            <i>.The <pp> posteriors are used for alignment creation
+ *            and bias scoring, and the <fwd> posteriors are used for 
+ *            the alignemtn post-porb display line. 
  *
  * Args:      gm_fs - frameshift codon profile 
  *            fwd   - filled Forward matrix 
@@ -257,25 +262,17 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
   return eslOK;
 }
 
-/* Function:  p7_GDomainDecoding()
+/* Function:  p7_DomainDecoding_Frameshift
  * Synopsis:  Posterior decoding of domain location.
  *
  * Purpose:   The caller has calculated Forward and Backward matrices
- *            <fwd> and <bck> for model <gm> aligned to a target
- *            sequence. (The target sequence doesn't need to be
- *            provided, because all we need to know is its length
- *            <L>, and that's available in either of the two DP 
- *            matrices.)
+ *            <fwd> and <bck> for frameshift codon model <gm_fs> 
+ *            aligned to a target sequence of length <L>.
  * 
  *            We use this information to calculate the posterior
  *            probabilities that we're in a begin state B, end state
  *            E, or any core model state {M,D,I} at each target
  *            sequence position <i = 1..L>.
- * 
- *            This information is stored in three arrays in
- *            <ddef>. This routine expects that this storage has
- *            already been (re)allocated appropriately for a target
- *            seq of length <L>.
  * 
  *            <ddef->btot[i]> stores the cumulative expectation
  *            $\sum_1^i$ of the number of i's that were emitted (by an
@@ -297,42 +294,15 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
  *            Upon return, each of these arrays has been made, and
  *            <ddef->L> has * been set.
  *
- * Args:      gm   - profile
- *            fwd  - filled Forward matrix
- *            bck  - filled Backward matrix
- *            ddef - container for the results.
+ * Args:      gm_fs - profile
+ *            fwd   - filled Forward matrix
+ *            bck   - filled Backward matrix
+ *            ddef  - container for the results.
  *
  * Returns:   <eslOK> on success.
  *
  * Throws:    (no abnormal error conditions)
  * 
- * Notes:    Ideas for future optimization:
- * 
- *           - The calculations only need to access the xmx[CNJBE][i] special
- *             states in the fwd, bck matrices, so we could use
- *             streamlined (checkpointed?) matrices that only maintain
- *             this info over all i. This would be a step in letting
- *             us do domain parses in linear memory.
- *   
- *           - indeed, the <btot>, <etot>, and <mocc> arrays could be made
- *             sparse; on long target sequences, we expect long
- *             stretches of negligible posterior probability that
- *             we're in the model or using a begin or end
- *             transition.
- *   
- *           - indeed indeed, we don't really need to store the <btot>, <etot>,
- *             and <mocc> arrays at all. We can define regions in a
- *             single pass in O(1) extra memory, straight from the
- *             <fwd>, <bck> matrices, if we have to (xref
- *             J2/101). <p7_domaindef_ByPosteriorHeuristics()> is
- *             already implemented in a way to make this easy. We're
- *             not doing that for now, partly for clarity in the code,
- *             and partly because I think we'll want to output the
- *             <btot>, <etot>, and <mocc> arrays -- this view of the
- *             posterior decoding of the domain structure of a target
- *             sequence will be useful. Also, it's a lot easier to
- *             implement the <is_multidomain_region()> trigger if
- *             these arrays are available.  
  */
 int
 p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef)
@@ -342,8 +312,8 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
                        p7_FLogsum( fwd->xmx[(L-1)*p7G_NXCELLS+p7G_C],
                                    fwd->xmx[(L-2)*p7G_NXCELLS+p7G_C])) +
                                    gm_fs->xsc[p7P_C][p7P_MOVE];
-  float njcp; // bp, ep;
-  int   i;//, k;
+  float njcp; 
+  int   i;
 
   ddef->btot[0] = 0.;
   ddef->btot[1] = 0.;
@@ -354,6 +324,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
 
   for (i = 3; i <= L; i++)
   {
+    /* Accumulate probabiliies at the B and E states - proabilities of transitioning in or out of the core martix */
     ddef->btot[i] = ddef->btot[i-3] + expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_B] + bck->xmx[(i-3)*p7G_NXCELLS+p7G_B] - overall_logp); 
 
     ddef->etot[i] = ddef->etot[i-3] + expf(fwd->xmx[i*p7G_NXCELLS+p7G_E] + bck->xmx[i*p7G_NXCELLS+p7G_E] - overall_logp);;
@@ -365,6 +336,8 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
 
   for (i = 3; i < L-1; i++)
   {
+
+    /* Sum poropabilities in the N, J and C states */
     njcp = 0.0;
     njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);
     njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
@@ -378,6 +351,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
     njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
     njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_C] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_C] + gm_fs->xsc[p7P_C][p7P_LOOP] - overall_logp);
     
+    /* Probability of i emitted by the core model is aaprixmated as 1 - probability of i emited by the specials */
     ddef->mocc[i] = 1. - njcp;
   }
   njcp = 0.0;
@@ -409,11 +383,11 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
  *****************************************************************/
 #ifdef p7DECODING_FRAMEHIFT_BENCHMARK
 /*
+   gcc -g -O2      -o decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7DECODING_FRAMESHIFT_BENCHMARK decoding_frameshift.c -lhmmer -leasel -lm
+
    icc -O3 -static -o decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7DECODING_FRAMESHIFT_BENCHMARK decoding_frameshift.c -lhmmer -leasel -lm
    ./benchmark_decoding_frameshift <hmmfile>
-                   RRM_1 (M=72)       Caudal_act (M=136)      SMC_N (M=1151)
-                 -----------------    ------------------     -------------------
-   21 Aug 08      6.62u (21.8 Mc/s)    12.52u (21.7 Mc/s)     106.27u (21.7 Mc/s)
+   
  */
 #include "p7_config.h"
 

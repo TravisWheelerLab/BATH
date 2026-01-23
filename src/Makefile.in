@@ -150,6 +150,7 @@ BENCHMARKS = \
 	evalues_benchmark\
 	logsum_benchmark\
 	generic_decoding_benchmark\
+	decoding_frameshift_benchmark\
 	generic_fwdback_benchmark\
 	generic_fwdback_chk_benchmark\
     fwdback_frameshift_benchmark\

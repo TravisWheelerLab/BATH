@@ -381,7 +381,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
 /*****************************************************************
  * 2. Benchmark driver
  *****************************************************************/
-#ifdef p7DECODING_FRAMEHIFT_BENCHMARK
+#ifdef p7DECODING_FRAMESHIFT_BENCHMARK
 /*
    gcc -g -O2      -o decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7DECODING_FRAMESHIFT_BENCHMARK decoding_frameshift.c -lhmmer -leasel -lm
 
@@ -423,11 +423,13 @@ main(int argc, char **argv)
   ESL_GENCODE    *gcode   = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = NULL;
   P7_FS_PROFILE  *gm_fs   = NULL;
   P7_GMX         *fwd     = NULL;
   P7_GMX         *bck     = NULL;
   P7_GMX         *pp      = NULL;
+  P7_IVX         *iv      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
@@ -436,16 +438,18 @@ main(int argc, char **argv)
   double          Mcs;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
-  bg    = p7_bg_Create(abcDNA);               p7_bg_SetLength(bg, L/3);
+  bgAA  = p7_bg_Create(abcAA);                  p7_bg_SetLength(bgAA, L/3);
   gcode = esl_gencode_Create(abcDNA,abcAA);
-  gm_fs = p7_profile_fs_Create(hmm->M, abc);  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_LOCAL);
-  fwd   = p7_gmx_fs_Create(gm->M, L, L, p7P_5CODONS);  
-  bck   = p7_gmx_fs_Create(gm->M, L, L, 0);
-  pp    = p7_gmx_fs_Create(gm->M, L, L, p7P_5CODONS);
+  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
+  fwd   = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);  
+  bck   = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
+  pp    = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  iv    = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
+  bgDNA = p7_bg_Create(abcDNA);
 
-  esl_rsq_xfIID(r, bg->f, abcDNA->K, L, dsq);
+  esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
   p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc);
   p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc);
 
@@ -454,17 +458,19 @@ main(int argc, char **argv)
     p7_Decoding_Frameshift(gm_fs, fwd, bck, pp);
   esl_stopwatch_Stop(w);
 
-  Mcs  = (double) N * (double) L * (double) gm->M * 1e-6 / w->user;
+  Mcs  = (double) N * (double) L * (double) gm_fs->M * 1e-6 / w->user;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n", gm->M);
+  printf("# M    = %d\n", gm_fs->M);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
   p7_gmx_Destroy(pp);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(bck);
-  p7_profile_fd_Destroy(gm);
-  p7_bg_Destroy(bg);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs);
+  p7_bg_Destroy(bgDNA);
+  p7_bg_Destroy(bgAA);
   p7_hmm_Destroy(hmm);
   p7_hmmfile_Close(hfp);
   esl_gencode_Destroy(gcode);

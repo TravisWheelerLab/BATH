@@ -1906,7 +1906,7 @@ main(int argc, char **argv)
   if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
 
-  utest_forward_fs    (go, r, abcDNA, gcode, bg, gm_fs, nseq, L);
+  utest_forward_fs    (go, r, abcDNA, gcode, bgAA, bgDNA, gm_fs, nseq, L);
 
   p7_profile_fs_Destroy(gm_fs);
   p7_bg_Destroy(bgAA);

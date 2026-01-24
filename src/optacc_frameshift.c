@@ -20,19 +20,6 @@
  *****************************************************************/
 
 #define TSCDELTA(s,k) ( (tsc[(k) * p7P_NTRANS + (s)] == -eslINFINITY) ? -eslINFINITY : 0.0)
-#define MVX(i,k,c) (max_val[(k)*p7P_FULL_CODONS+L3-(i)+(c)])
-enum p7e_optacc_etrace {
-  p7E_C1 = 0,
-  p7E_C2 = 1,
-  p7E_C3 = 2,
-  p7E_C4 = 3,
-  p7E_C5 = 4,
-  p7E_D  = 5,
-  p7E_E  = 6,
-};
-#define p7E_EXIT 7
-#define p7E_MATCH 5
-
 /* The TSCDELTA is used to make impossible paths impossible in the
  * optimal accuracy decoding algorithm;
  */
@@ -125,7 +112,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
 
    max1 = ESL_MAX(TSCDELTA(p7P_MM, k-1) + MMX(1,k-1),
           ESL_MAX(TSCDELTA(p7P_DM, k-1) + DMX(1,k-1),
-                  TSCDELTA(p7P_BM, k-1) + XMX(2,p7G_B)));
+                  TSCDELTA(p7P_BM, k-1) + XMX(1,p7G_B)));
 
     max1 = (max1 != -eslINFINITY ? p7_FLogsum(max1, pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]) : -eslINFINITY);
 
@@ -374,7 +361,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
  *****************************************************************/
 
 static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
-static inline int select_m(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k, int *ret_c);
+static inline int select_m(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
 static inline int select_d(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
 static inline int select_i(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
 static inline int select_n(int i);
@@ -384,28 +371,29 @@ static inline int select_e(const P7_FS_PROFILE *gm_fs,                   const P
 static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i);
 
 
-/* Function:  p7_GOATrace()
+/* Function:  p7_OATrace_Frameshift()
  * Synopsis:  Optimal accuracy decoding: traceback.
- * Incept:    SRE, Fri Feb 29 12:59:11 2008 [Janelia]
  *
- * Purpose:   The traceback stage of the optimal accuracy decoding algorithm
- *            \citep{Kall05}.
+ * Purpose:   The traceback stage of the frameshift aware optimal 
+ *            accuracy decoding algorithm
  *            
  *            Caller provides the OA DP matrix <gx> that was just
- *            calculated by <p7_GOptimalAccuracy()>, as well as the
- *            posterior decoding matrix <pp>, which was calculated by
- *            Forward/Backward on a target sequence of length <L>
- *            using the query model <gm>.
+ *            calculated by <p7_OptimalAccuracy_Frameshift()>, as 
+ *            well as the posterior decoding matricies <pp>, and 
+ *            <probs> which were calculated by Forward/Backward on 
+ *            a target sequence of length <L> using the query model 
+ *           <gm_fs>.
  *            
  *            Caller provides an empty traceback structure <tr> to
  *            hold the result, allocated to hold optional posterior
  *            probability annotation on residues (with
- *            <p7_trace_CreateWithPP()>, generally).  This will be
+ *            <p7_trace_fs_CreateWithPP()>).  This will be
  *            internally reallocated as needed for larger traces.
  *
- * Args:      gm    - query profile      
- *            pp    - posterior decoding matrix created by <p7_PosteriorDecoding()>
+ * Args:      gm_fs - query profile      
+ *            pp    - posterior decoding (i normalized accross all codons containing i)
  *            gx    - OA DP matrix calculated by  <p7_OptimalAccuracyDP()>
+ *            probs -  posterior decoding (i normalized accross all codons ending at i)
  *            tr    - RESULT: OA traceback, allocated with posterior probs
  *
  * Returns:   <eslOK> on success, and <tr> contains the OA traceback.
@@ -415,12 +403,13 @@ static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P
 int
 p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr)
 {
-  int   i = gx->L;  /* position in seq (1..L)         */
-  int   k = 0;  /* position in model (1..M)       */
-  int   c = 0;
-  float postprob;
-  int   sprv, scur;
-  int   status;
+  int           i   = gx->L;  /* position in seq (1..L)         */
+  int           k   = 0;  /* position in model (1..M)       */
+  ESL_DSQ       c = 0;
+  float        postprob;
+  int          sprv, scur;
+  int          status;
+  float match_codon[5];
 
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
@@ -432,18 +421,32 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
   while (sprv != p7T_S) 
     { 
      switch (sprv) {
-      case p7T_M: scur = select_m(gm_fs,     gx, i,  k, &c); i -= c; k--; break;
-      case p7T_D: scur = select_d(gm_fs,     gx, i,  k);             k--; break;
-      case p7T_I: scur = select_i(gm_fs,     gx, i,  k);     i -= 3;      break;
-      case p7T_N: scur = select_n(               i);                      break;
-      case p7T_C: scur = select_c(gm_fs, pp, gx, i);                      break;
-      case p7T_J: scur = select_j(gm_fs, pp, gx, i);                      break;
-      case p7T_E: scur = select_e(gm_fs,     gx, i, &k);                  break;
-      case p7T_B: scur = select_b(gm_fs,     gx, i);                      break;
+      case p7T_M: scur = select_m(gm_fs,     gx, i,  k);          k--;  break;
+      case p7T_D: scur = select_d(gm_fs,     gx, i,  k);          k--;  break;
+      case p7T_I: scur = select_i(gm_fs,     gx, i,  k); i -= 3;        break;
+      case p7T_N: scur = select_n(               i);                    break;
+      case p7T_C: scur = select_c(gm_fs, pp, gx, i);                    break;
+      case p7T_J: scur = select_j(gm_fs, pp, gx, i);                    break;
+      case p7T_E: scur = select_e(gm_fs,     gx, i, &k);                break;
+      case p7T_B: scur = select_b(gm_fs,     gx, i);                    break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
-    
+
+      /* To prevent the trace from containing excessive frameshifts we defer to the 
+       * posterior probabilities matrix in determining match state emissions lenghts */
+      if(scur == p7T_M) 
+      {
+        match_codon[0] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1];
+        match_codon[1] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2];
+        match_codon[2] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3];
+        match_codon[3] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4];
+        match_codon[4] = pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]; 
+       
+        c = esl_vec_FArgMax(match_codon, 5) + 1;
+      }
+      else c = 0;
+     
       postprob = get_postprob(probs, scur, sprv, k, i); 
 
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
@@ -451,11 +454,13 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
       /* For NCJ, we had to defer i decrement. */
       if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
       sprv = scur;
+      i-=c;
     }
   tr->M = gm_fs->M;
   tr->L = gx->L;
   return p7_trace_fs_Reverse(tr);
 }
+
 
 static inline float
 get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
@@ -473,56 +478,21 @@ get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
 }
 
 static inline int
-select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k, int *ret_c)
+select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float       *xmx  = gx->xmx; /* so XMX() macro works           */
   float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
-  int   max_idx;
-  float path[20];
+  float path[4];
   int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
   
-  esl_vec_FSet(path, 20, -eslINFINITY);
+  /* Codon length has already been determined and i moved to the pervious state */
+  path[0] = TSCDELTA(p7P_MM, k-1) + MMX(i,k-1);
+  path[1] = TSCDELTA(p7P_IM, k-1) + IMX(i,k-1);
+  path[2] = TSCDELTA(p7P_DM, k-1) + DMX(i,k-1);
+  path[3] = TSCDELTA(p7P_BM, k-1) + XMX(i,p7G_B);
+  return state[esl_vec_FArgMax(path, 4)];
 
-  path[0] = TSCDELTA(p7P_MM, k-1) + MMX(i-1,k-1);
-  path[1] = TSCDELTA(p7P_IM, k-1) + IMX(i-1,k-1);
-  path[2] = TSCDELTA(p7P_DM, k-1) + DMX(i-1,k-1);
-  path[3] = TSCDELTA(p7P_BM, k-1) + XMX(i-1,p7G_B);
-  
-  if(i > 1) {
-    path[4]  = TSCDELTA(p7P_MM, k-1) + MMX(i-2,k-1);
-    path[5]  = TSCDELTA(p7P_IM, k-1) + IMX(i-2,k-1);
-    path[6]  = TSCDELTA(p7P_DM, k-1) + DMX(i-2,k-1);
-    path[7]  = TSCDELTA(p7P_BM, k-1) + XMX(i-2,p7G_B);
-  }
-
-  if(i > 2) {
-    path[8]  = TSCDELTA(p7P_MM, k-1) + MMX(i-3,k-1);
-    path[9]  = TSCDELTA(p7P_IM, k-1) + IMX(i-3,k-1);
-    path[10] = TSCDELTA(p7P_DM, k-1) + DMX(i-3,k-1);
-    path[11] = TSCDELTA(p7P_BM, k-1) + XMX(i-3,p7G_B);
-  }
-
-  if(i > 3) {
-    path[12] = TSCDELTA(p7P_MM, k-1) + MMX(i-4,k-1);
-    path[13] = TSCDELTA(p7P_IM, k-1) + IMX(i-4,k-1);
-    path[14] = TSCDELTA(p7P_DM, k-1) + DMX(i-4,k-1);
-    path[15] = TSCDELTA(p7P_BM, k-1) + XMX(i-4,p7G_B);
-  }
-
-  if(i > 4) {
-    path[16] = TSCDELTA(p7P_MM, k-1) + MMX(i-1,k-1);
-    path[17] = TSCDELTA(p7P_IM, k-1) + IMX(i-1,k-1);
-    path[18] = TSCDELTA(p7P_DM, k-1) + DMX(i-1,k-1);
-    path[19] = TSCDELTA(p7P_BM, k-1) + XMX(i-1,p7G_B);
-  }
-
-  max_idx = esl_vec_FArgMax(path, 20);
-  
-  *ret_c = (max_idx / 4) + 1; 
-   
-  return state[max_idx % 4];
-  
 }
 
 static inline int
@@ -649,6 +619,8 @@ select_b(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i)
  *****************************************************************/
 #ifdef p7OPTACC_FRAMESHIFT_BENCHMARK
 /*
+    gcc -g -O2      -o optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7OPTACC_FRAMESHIFT_BENCHMARK optacc_frameshift.c -lhmmer -leasel -lm
+
    icc -O3 -static -o optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7OPTACC_FRAMESHIFT_BENCHMARK optacc_frameshift.c -lhmmer -leasel -lm
    ./optacc_frameshift_benchmark <hmmfile>
  */
@@ -689,7 +661,7 @@ main(int argc, char **argv)
   P7_HMM         *hmm     = NULL;
   P7_BG          *bgAA    = NULL;
   P7_BG          *bgDNA   = NULL;
-  P7_FS_PROFILE  *gm      = NULL;
+  P7_FS_PROFILE  *gm_fs   = NULL;
   P7_GMX         *gx1     = NULL;
   P7_GMX         *gx2     = NULL;
   P7_GMX         *pp      = NULL;
@@ -706,8 +678,8 @@ main(int argc, char **argv)
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
-  gcode = esl_gencode_Create(gcode);
   abcDNA = esl_alphabet_Create(eslDNA);
+  gcode = esl_gencode_Create(abcDNA, abcAA);
   bgAA  = p7_bg_Create(abcAA);
   bgDNA = p7_bg_Create(abcDNA);
   p7_bg_SetLength(bgAA, L/3);
@@ -715,9 +687,9 @@ main(int argc, char **argv)
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L, p7_UNILOCAL);
   gx1 = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
-  gx2 = p7_gmx_fs_Create(gm_fs->M, L, L 0);
+  gx2 = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
   pp  = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
-  iv  = p7_ovx_Create(gm_fs->M, p7P_5CODONS);
+  iv  = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
   tr  = p7_trace_fs_CreateWithPP();
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);

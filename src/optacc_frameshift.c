@@ -4,8 +4,6 @@
  *   1. Optimal alignment accuracy fill.
  *   2. Optimal alignment accuracy traceback.
  *   3. Benchmark driver
- *   4. Unit tests
- *   5. Test driver
  * 
  */
 #include "p7_config.h"
@@ -417,13 +415,12 @@ static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P
 int
 p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr)
 {
-  int   i   = gx->L;  /* position in seq (1..L)         */
-  int   k   = 0;  /* position in model (1..M)       */
+  int   i = gx->L;  /* position in seq (1..L)         */
+  int   k = 0;  /* position in model (1..M)       */
   int   c = 0;
   float postprob;
   int   sprv, scur;
   int   status;
-  float match_codon[5];
 
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
@@ -449,7 +446,6 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
     
       postprob = get_postprob(probs, scur, sprv, k, i); 
 
-	  if(scur != p7T_M) c = 0;
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
 
       /* For NCJ, we had to defer i decrement. */
@@ -522,10 +518,10 @@ select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k, int *ret_c)
   }
 
   max_idx = esl_vec_FArgMax(path, 20);
-
-  *ret_c = (max_idx / 4) + 1; 
   
-   return state[max_idx % 4];
+  *ret_c = (max_idx / 4) + 1; 
+   
+  return state[max_idx % 4];
   
 }
 
@@ -651,13 +647,10 @@ select_b(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i)
 /*****************************************************************
  * 3. Benchmark driver
  *****************************************************************/
-#ifdef p7GENERIC_OPTACC_BENCHMARK
+#ifdef p7OPTACC_FRAMESHIFT_BENCHMARK
 /*
-   icc -O3 -static -o generic_optacc_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_OPTACC_BENCHMARK generic_optacc.c -lhmmer -leasel -lm
-   ./benchmark-generic-optacc <hmmfile>
-                   RRM_1 (M=72)       Caudal_act (M=136)      SMC_N (M=1151)
-                 -----------------    ------------------     -------------------
-   20 Aug 08:    67.96u (21.2 Mc/s)   128.14u (21.2 Mc/s)    1091.90u (21.1 Mc/s)
+   icc -O3 -static -o optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7OPTACC_FRAMESHIFT_BENCHMARK optacc_frameshift.c -lhmmer -leasel -lm
+   ./optacc_frameshift_benchmark <hmmfile>
  */
 #include "p7_config.h"
 
@@ -680,7 +673,7 @@ static ESL_OPTIONS options[] = {
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
-static char banner[] = "benchmark driver for optimal accuracy alignment, generic version";
+static char banner[] = "benchmark driver for optimal accuracy alignment, frameshift version";
 
 int 
 main(int argc, char **argv)
@@ -689,13 +682,18 @@ main(int argc, char **argv)
   char           *hmmfile = esl_opt_GetArg(go, 1);
   ESL_STOPWATCH  *w       = esl_stopwatch_Create();
   ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_GENCODE    *gcode   = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_FS_PROFILE  *gm      = NULL;
   P7_GMX         *gx1     = NULL;
   P7_GMX         *gx2     = NULL;
+  P7_GMX         *pp      = NULL;
+  P7_IVX         *iv      = NULL;
   P7_TRACE       *tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
@@ -706,195 +704,65 @@ main(int argc, char **argv)
 
   p7_FLogsumInit();
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
-  bg = p7_bg_Create(abc);
-  p7_bg_SetLength(bg, L);
-  gm = p7_profile_Create(hmm->M, abc);
-  p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  gx1 = p7_gmx_Create(gm->M, L);
-  gx2 = p7_gmx_Create(gm->M, L);
-  tr  = p7_trace_CreateWithPP();
+  gcode = esl_gencode_Create(gcode);
+  abcDNA = esl_alphabet_Create(eslDNA);
+  bgAA  = p7_bg_Create(abcAA);
+  bgDNA = p7_bg_Create(abcDNA);
+  p7_bg_SetLength(bgAA, L/3);
+  p7_bg_SetLength(bgDNA, L);
+  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L, p7_UNILOCAL);
+  gx1 = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  gx2 = p7_gmx_fs_Create(gm_fs->M, L, L 0);
+  pp  = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  iv  = p7_ovx_Create(gm_fs->M, p7P_5CODONS);
+  tr  = p7_trace_fs_CreateWithPP();
 
-  esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
-  p7_GForward (dsq, L, gm, gx1, &fsc);
-  p7_GBackward(dsq, L, gm, gx2, &bsc);
-  p7_GDecoding(gm, gx1, gx2, gx2);                   /* <gx2> is now the posterior decoding matrix */
+  esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx1, iv, &fsc);
+  p7_Backward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv, &bsc);
+  p7_Decoding_Frameshift(gm_fs, gx1, gx2, pp);
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
-    {
-      p7_GOptimalAccuracy(gm, gx2, gx1, &accscore);       /* <gx1> is now the OA matrix */
-
-      if (! esl_opt_GetBoolean(go, "--notrace"))
   {
-    p7_GOATrace(gm, gx2, gx1, tr);
-    p7_trace_Reuse(tr);
+    p7_OptimalAccuracy_Frameshift(gm_fs, pp, gx2, &accscore);
+    if (! esl_opt_GetBoolean(go, "--notrace"))
+    {
+      p7_OATrace_Frameshift(gm_fs, pp, gx2, gx1, tr);
+      p7_trace_Reuse(tr);
+    }  
+
   }
-    }
+   
   esl_stopwatch_Stop(w);
-  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / w->user;
+  Mcs        = (double) N * (double) L * (double) gm_fs->M * 1e-6 / w->user;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n", gm->M);
+  printf("# M    = %d\n", gm_fs->M);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
-  p7_trace_Destroy(tr);
+  p7_trace_fs_Destroy(tr);
   p7_gmx_Destroy(gx1);
   p7_gmx_Destroy(gx2);
-  p7_profile_Destroy(gm);
-  p7_bg_Destroy(bg);
+  p7_gmx_Destroy(pp);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs);
+  p7_bg_Destroy(bgAA);
+  p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);
   p7_hmmfile_Close(hfp);
-  esl_alphabet_Destroy(abc);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_gencode_Destroy(gcode);
   esl_stopwatch_Destroy(w);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7GENERIC_OPTACC_BENCHMARK*/
+#endif /*p7OPTACC_FRAMESHIFT_BENCHMARK*/
 /*---------------- end, benchmark driver ------------------------*/
-
-
-/*****************************************************************
- * 4. Unit tests
- *****************************************************************/
-#ifdef p7GENERIC_OPTACC_TESTDRIVE
-
-#endif /*p7GENERIC_OPTACC_TESTDRIVE*/
-/*------------------- end, unit tests ---------------------------*/
-
-
-/*****************************************************************
- * 5. Test driver
- *****************************************************************/
-#ifdef p7GENERIC_OPTACC_TESTDRIVE
-
-#endif /*p7GENERIC_OPTACC_TESTDRIVE*/
-/*------------------ end, test driver ---------------------------*/
-
-
-
-
-/*****************************************************************
- * 6. Example
- *****************************************************************/
-#ifdef p7GENERIC_OPTACC_EXAMPLE
-/* 
-   gcc -g -Wall -o generic_optacc_example -Dp7GENERIC_OPTACC_EXAMPLE -I. -I../easel -L. -L../easel generic_optacc.c -lhmmer -leasel -lm
-   ./generic_optacc_example <hmmfile> <seqfile>
-*/
-#include "p7_config.h"
-
-#include "easel.h"
-#include "esl_alphabet.h"
-#include "esl_getopts.h"
-#include "esl_sq.h"
-#include "esl_sqio.h"
-
-#include "hmmer.h"
-
-static ESL_OPTIONS options[] = {
-  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
-  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
-  { "-d",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "dump posterior residue decoding matrix",           0 },
-  { "-m",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "dump OA matrix",                                   0 },
-  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-};
-static char usage[]  = "[-options] <hmmfile> <seqfile>";
-static char banner[] = "example of optimal accuracy alignment, generic implementation";
-
-int 
-main(int argc, char **argv)
-{
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  char           *seqfile = esl_opt_GetArg(go, 2);
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_GMX         *gx1     = NULL;
-  P7_GMX         *gx2     = NULL;
-  ESL_SQ         *sq      = NULL;
-  ESL_SQFILE     *sqfp    = NULL;
-  P7_TRACE       *tr      = NULL;
-  int             format  = eslSQFILE_UNKNOWN;
-  char            errbuf[eslERRBUFSIZE];
-  float           fsc, bsc, vsc;
-  float           accscore;
-  int             status;
-
-  /* Read in one HMM */
-  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
-  p7_hmmfile_Close(hfp);
- 
-  /* Read in one sequence */
-  sq     = esl_sq_CreateDigital(abc);
-  status = esl_sqfile_OpenDigital(abc, seqfile, format, NULL, &sqfp);
-  if      (status == eslENOTFOUND) p7_Fail("No such file.");
-  else if (status == eslEFORMAT)   p7_Fail("Format unrecognized.");
-  else if (status == eslEINVAL)    p7_Fail("Can't autodetect stdin or .gz.");
-  else if (status != eslOK)        p7_Fail("Open failed, code %d.", status);
-  if  (esl_sqio_Read(sqfp, sq) != eslOK) p7_Fail("Failed to read sequence");
-  esl_sqfile_Close(sqfp);
- 
-  /* Configure a profile from the HMM */
-  bg = p7_bg_Create(abc);
-  p7_bg_SetLength(bg, sq->n);
-  gm = p7_profile_Create(hmm->M, abc);
-  p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL); /* multihit local: H3 default */
-  
-  /* Allocations */
-  gx1 = p7_gmx_Create(gm->M, sq->n);
-  gx2 = p7_gmx_Create(gm->M, sq->n);
-  tr  = p7_trace_CreateWithPP();
-
-  p7_FLogsumInit();
-  /* Run Forward, Backward; do OA fill and trace */
-  p7_GForward (sq->dsq, sq->n, gm, gx1, &fsc);
-  p7_GBackward(sq->dsq, sq->n, gm, gx2, &bsc);
-  p7_GDecoding(gm, gx1, gx2, gx2);                   /* <gx2> is now the posterior decoding matrix */
-  p7_GOptimalAccuracy(gm, gx2, gx1, &accscore);       /* <gx1> is now the OA matrix */
-  p7_GOATrace(gm, gx2, gx1, tr);
-
-  if (esl_opt_GetBoolean(go, "-d")) p7_gmx_Dump(stdout, gx2, p7_DEFAULT);
-  if (esl_opt_GetBoolean(go, "-m")) p7_gmx_Dump(stdout, gx1, p7_DEFAULT);
-
-  p7_trace_Dump(stdout, tr, gm, sq->dsq);
-  if (p7_trace_Validate(tr, abc, sq->dsq, errbuf) != eslOK) p7_Die("trace fails validation:\n%s\n", errbuf);
-
-  printf("fwd = %.4f nats\n", fsc);
-  printf("bck = %.4f nats\n", bsc);
-  printf("acc = %.4f (%.2f%%)\n", accscore, accscore * 100. / (float) sq->n);
-
-  p7_trace_Reuse(tr);
-
-  p7_GViterbi(sq->dsq, sq->n, gm, gx1, &vsc);
-  p7_GTrace  (sq->dsq, sq->n, gm, gx1, tr);
-  p7_trace_SetPP(tr, gx2);
-  p7_trace_Dump(stdout, tr, gm, sq->dsq);
-
-  printf("vit = %.4f nats\n", vsc);
-  printf("acc = %.4f\n", p7_trace_GetExpectedAccuracy(tr));
-
-  /* Cleanup */
-  esl_sq_Destroy(sq);
-  p7_trace_Destroy(tr);
-  p7_gmx_Destroy(gx1);
-  p7_gmx_Destroy(gx2);
-  p7_profile_Destroy(gm);
-  p7_bg_Destroy(bg);
-  p7_hmm_Destroy(hmm);
-  esl_alphabet_Destroy(abc);
-  esl_getopts_Destroy(go);
-  return 0;
-}
-#endif /*p7GENERIC_OPTACC_EXAMPLE*/
-/*-------------------- end, example -----------------------------*/
-
-
 
 

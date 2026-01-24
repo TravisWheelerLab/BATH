@@ -157,6 +157,7 @@ BENCHMARKS = \
     generic_msv_benchmark\
 	generic_null2_benchmark\
 	generic_optacc_benchmark\
+    optacc_frameshift_benchmark\
 	generic_stotrace_benchmark\
 	generic_viterbi_benchmark \
 	p7_hmmcache_benchmark

@@ -437,6 +437,8 @@ main(int argc, char **argv)
   float           fsc, bsc;
   double          Mcs;
 
+  p7_FLogsumInit();
+
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
@@ -449,7 +451,7 @@ main(int argc, char **argv)
   bck   = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
   pp    = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
   iv    = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
-  bgDNA = p7_bg_Create(abcDNA);
+  bgDNA = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
   p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc);

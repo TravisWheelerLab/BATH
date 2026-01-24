@@ -393,6 +393,7 @@ main(int argc, char **argv)
   esl_stopwatch_Stop(w);
   base_time = w->user;
 
+  p7_FLogsumInit();
   /* Benchmark time. */
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)

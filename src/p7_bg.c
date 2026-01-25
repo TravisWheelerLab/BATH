@@ -445,6 +445,31 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
   return eslOK;
 }
 
+/* Function:  p7_bg_fs_NullOne()
+ *
+ * Purpose:   Calculate the null1 lod score, for sequence <dsq>
+ *            of length <L> aligned to the 3 frame null model <bg>.
+ *
+ * Note:      Because the residue composition in null1 <bg> is the
+ *            same as the background used to calculate residue
+ *            scores in profiles and null models, all we have to
+ *            do here is score null model transitions.
+ *
+ *            For application to frameshift aware alinments, we 
+ *            claculate the null for a single frame then muliply 
+ *            by three.
+ */
+int
+p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int aminoL, float *ret_sc)
+{
+
+  float null_per_frame = (float) aminoL * log(bg->p1) + log(1.-bg->p1); 
+  *ret_sc = null_per_frame + log(3.0); 
+
+  return eslOK;
+}
+
+
 /*****************************************************************
  * 4. Filter null model
  *****************************************************************/

@@ -613,7 +613,7 @@ p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L_amino)
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm_fs->nj) / ((float) L_amino/3.0f + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  pmove = (2.0f + gm_fs->nj) / ((float) L_amino + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
   ploop = 1.0f - pmove;
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);

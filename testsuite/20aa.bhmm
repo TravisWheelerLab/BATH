@@ -8,15 +8,15 @@ MM    no
 CONS  yes
 CS    no
 MAP   yes
-DATE  Thu Jan 22 00:27:30 2026
+DATE  Sat Jan 24 19:26:21 2026
 NSEQ  10
 EFFN  1.958008
 CKSUM 1166427327
 STATS LOCAL MSV          -6.4582  0.72049
 STATS LOCAL VITERBI      -6.5560  0.72049
 STATS LOCAL FORWARD      -4.5231  0.72049
-STATS LOCAL FS3 FORWARD  -1.5164  0.72049
-STATS LOCAL FS5 FORWARD   0.2367  0.72049
+STATS LOCAL FS3 FORWARD  -3.7047  0.72049
+STATS LOCAL FS5 FORWARD  -2.3092  0.72049
 FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   

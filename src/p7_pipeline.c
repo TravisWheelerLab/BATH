@@ -2301,7 +2301,7 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
       dom_bias = 0.0; 
 
     p7_bg_SetLength(bg, ESL_MAX(env_len/3,gm_fs->max_length));
-    p7_bg_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len/3,gm_fs->max_length), &nullsc);
+    p7_bg_fs_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len/3,gm_fs->max_length), &nullsc);
     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
     /* P-vaule calculation */	

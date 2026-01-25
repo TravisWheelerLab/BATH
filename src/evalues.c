@@ -503,22 +503,14 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   int      status;
   int      i, j, a, x, y, z;
   ESL_GENCODE      *gcode = NULL;
-  ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
-  char *n1 = NULL;
-  char *n2 = NULL; 
-  char *n3 = NULL;
- 
+  ESL_ALPHABET     *abcDNA = NULL;       /* DNA sequence alphabet                               */
+  P7_CODONTABLE    *codon_table;
+
   p7_FLogsumInit(); 
 
   hmm->fs = indel_cost;
  
   abcDNA = esl_alphabet_Create(eslDNA);
-  ESL_ALLOC(n1,   sizeof(char)   * abcDNA->K);
-  ESL_ALLOC(n2,   sizeof(char)   * abcDNA->K);
-  ESL_ALLOC(n3,   sizeof(char)   * abcDNA->K);
-
-  for(x = 0; x < abcDNA->K; x++) 
-    n1[x] = n2[x] = n3[x] = x;  
 
   gx = p7_gmx_fs_Create(hmm->M, p7P_3CODONS, L*3, p7P_3CODONS);     
   iv = p7_ivx_Create(hmm->M, p7P_3CODONS);
@@ -529,7 +521,9 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   if (gx == NULL) { status = eslEMEM; goto ERROR; }
 
   gcode = esl_gencode_Create(abcDNA, gm_fs->abc);
-  esl_gencode_Set(gcode, hmm->ct);  //This is the default euk code - may want to allow for a flag. 
+  esl_gencode_Set(gcode, hmm->ct);  
+
+  codon_table = p7_codontable_Create(gcode);
 
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
   p7_fs_ReconfigLength(gm_fs, L);
@@ -540,32 +534,16 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
       if ((status = esl_rsq_xfIID(r, bg->f, gm_fs->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
       dna_dsq[0] = dna_dsq[L*3+1] = eslDSQ_SENTINEL;            
      
-      /* reverse translate amino acid sequence into dna sequence.
-       * This really should be done with a look-up table but this 
-       * is a temporary fix.  Randomly shuffling the n# strings 
-       * ensures a diversity in the codons used.                  */   
-      esl_rsq_CShuffle(r, n1, n1);
-      esl_rsq_CShuffle(r, n2, n2);
-      esl_rsq_CShuffle(r, n3, n3);
-
+      /* reverse translate amino acid sequence into dna sequence. */
       j = 1;
-      for(a = 1; a <= L; a++) { 
-      	for(x = 0; x < abcDNA->K; x++) { 
-	      for(y = 0; y < abcDNA->K; y++) {
-            for(z = 0; z < abcDNA->K; z++) { 
-	          if(gcode->basic[16*n1[x] + 4*n2[y] + n3[z]] == amino_dsq[a]) {
-                dna_dsq[j++] = n1[x];  x = abcDNA->K; 
-                dna_dsq[j++] = n2[y];  y = abcDNA->K; 
-                dna_dsq[j++] = n3[z];  z = abcDNA->K;
-              } 
-            }
-          }
-        }
-      }
+	  for(a = 1; a <= L; a++) {
+        p7_codontable_GetCodon(codon_table, r, amino_dsq[a], dna_dsq+j);
+		j+=3;
+	  } 
 
      if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR;
 
-      if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
+      if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }
   if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR; 
@@ -578,29 +556,25 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
 	
   free(xv);
-  free(n1);
-  free(n2);
-  free(n3);
   free(amino_dsq);
   free(dna_dsq);
   p7_gmx_Destroy(gx);
   p7_ivx_Destroy(iv);
   esl_gencode_Destroy(gcode);
   esl_alphabet_Destroy(abcDNA);
+  p7_codontable_Destroy(codon_table);
   return eslOK;
 
  ERROR:
   *ret_tau = 0.;
   if (xv  != NULL) free(xv);
-  if (n1 != NULL) free(n1);
-  if (n2 != NULL) free(n2);
-  if (n3 != NULL) free(n3);
   if (amino_dsq != NULL) free(amino_dsq);
   if (dna_dsq != NULL) free(dna_dsq);
   if (gx  != NULL) p7_gmx_Destroy(gx);
   if (iv  != NULL) p7_ivx_Destroy(iv);
   if (gcode != NULL) esl_gencode_Destroy(gcode);
   if (abcDNA != NULL) esl_alphabet_Destroy(abcDNA);
+  if (codon_table != NULL) p7_codontable_Destroy(codon_table);
   return status;
 }
 
@@ -645,21 +619,13 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   int      i, j, a, x, y, z;
   ESL_GENCODE      *gcode = NULL;
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
-  char *n1 = NULL;
-  char *n2 = NULL; 
-  char *n3 = NULL;
- 
+  P7_CODONTABLE    *codon_table; 
+
   p7_FLogsumInit(); 
 
   hmm->fs = indel_cost;
  
   abcDNA = esl_alphabet_Create(eslDNA);
-  ESL_ALLOC(n1,   sizeof(char)   * abcDNA->K);
-  ESL_ALLOC(n2,   sizeof(char)   * abcDNA->K);
-  ESL_ALLOC(n3,   sizeof(char)   * abcDNA->K);
-
-  for(x = 0; x < abcDNA->K; x++) 
-    n1[x] = n2[x] = n3[x] = x;  
 
   gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_5CODONS);     /* DP matrix: for ForwardParser,  L rows */
   iv = p7_ivx_Create(hmm->M, p7P_5CODONS);
@@ -672,6 +638,8 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   gcode = esl_gencode_Create(abcDNA, gm_fs->abc);
   esl_gencode_Set(gcode, hmm->ct);  //This is the default euk code - may want to allow for a flag. 
 
+  codon_table = p7_codontable_Create(gcode);
+
   p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L, p7_LOCAL);
   p7_fs_ReconfigLength(gm_fs, L);
   p7_bg_SetLength(bg, L);
@@ -681,32 +649,16 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
       if ((status = esl_rsq_xfIID(r, bg->f, gm_fs->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
       dna_dsq[0] = dna_dsq[L*3+1] = eslDSQ_SENTINEL;            
      
-      /* reverse translate amino acid sequence into dna sequence.
-       * This really should be done with a look-up table but this 
-       * is a temporary fix.  Randomly shuffling the n# strings 
-       * ensures a diversity in the codons used.                  */   
-      esl_rsq_CShuffle(r, n1, n1);
-      esl_rsq_CShuffle(r, n2, n2);
-      esl_rsq_CShuffle(r, n3, n3);
-
+      /* reverse translate amino acid sequence into dna sequence */
       j = 1;
-      for(a = 1; a <= L; a++) { 
-      	for(x = 0; x < abcDNA->K; x++) { 
-	  for(y = 0; y < abcDNA->K; y++) {
-            for(z = 0; z < abcDNA->K; z++) { 
-	      if(gcode->basic[16*n1[x] + 4*n2[y] + n3[z]] == amino_dsq[a]) {
-                dna_dsq[j++] = n1[x];  x = abcDNA->K; 
-                dna_dsq[j++] = n2[y];  y = abcDNA->K; 
-                dna_dsq[j++] = n3[z];  z = abcDNA->K;
-              } 
-            }
-          }
-        }
+      for(a = 1; a <= L; a++) {
+        p7_codontable_GetCodon(codon_table, r, amino_dsq[a], dna_dsq+j);
+        j+=3;
       }
 
       if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, gcode, L*3, gm_fs, gx, iv, &fsc))      != eslOK) goto ERROR; 
        
-      if ((status = p7_bg_NullOne(bg, dna_dsq, L*3-2, &nullsc))          != eslOK) goto ERROR;   
+      if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }
   if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR; 
@@ -719,29 +671,25 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
 	
   free(xv);
-  free(n1);
-  free(n2);
-  free(n3);
   free(amino_dsq);
   free(dna_dsq);
   p7_gmx_Destroy(gx);
   p7_ivx_Destroy(iv);
   esl_gencode_Destroy(gcode);
   esl_alphabet_Destroy(abcDNA);
+  p7_codontable_Destroy(codon_table);
   return eslOK;
 
  ERROR:
   *ret_tau = 0.;
   if (xv  != NULL) free(xv);
-  if (n1 != NULL) free(n1);
-  if (n2 != NULL) free(n2);
-  if (n3 != NULL) free(n3);
   if (amino_dsq != NULL) free(amino_dsq);
   if (dna_dsq != NULL) free(dna_dsq);
   if (gx  != NULL) p7_gmx_Destroy(gx);
   if (iv  != NULL) p7_ivx_Destroy(iv);
   if (gcode != NULL) esl_gencode_Destroy(gcode);
   if (abcDNA != NULL) esl_alphabet_Destroy(abcDNA);
+  if (codon_table != NULL) p7_codontable_Destroy(codon_table);
   return status;
 }
 

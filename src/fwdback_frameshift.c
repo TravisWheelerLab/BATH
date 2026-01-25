@@ -1784,67 +1784,122 @@ main(int argc, char **argv)
 #include "esl_randomseq.h"
 
 static void
-utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_FS_PROFILE *gm_fs, int nseq, int L)
+utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GENCODE *gcode, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_HMM *hmm, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, int nseq, int L)
 {
-  float       avg_sc;
-  ESL_DSQ     *dsq   = NULL;
-  P7_GMX      *fwd_p = NULL;
-  P7_GMX      *bck_p = NULL;
-  P7_GMX      *fwd   = NULL;
-  P7_GMX      *bck   = NULL;
-  P7_IVX      *iv    = NULL;
+  int         i,j;
+  float       avg_sc_rnd;
+  float       avg_sc_gen;
+  ESL_SQ      *sq;
+  P7_TRACE    *tr;
+  ESL_DSQ     *dsqAA  = NULL;
+  ESL_DSQ     *dsqDNA = NULL;
+  P7_GMX      *fwd_p  = NULL;
+  P7_GMX      *bck_p  = NULL;
+  P7_GMX      *fwd    = NULL;
+  P7_GMX      *bck    = NULL;
+  P7_IVX      *iv     = NULL;
   int         idx;
   float       fsc, bsc;
   float       fsc_p, bsc_p;
   float       nullsc;
 
   p7_FLogsumInit();
-
-  if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2))) == NULL)  esl_fatal("malloc failed");
+ 
+  if ((sq     = esl_sq_CreateDigital(abcAA))                                 == NULL)  esl_fatal("sequence creation failed");
+  if ((dsqAA  = malloc(sizeof(ESL_DSQ) *((L/3)+2)))                          == NULL)  esl_fatal("malloc failed");
+  if ((dsqDNA = malloc(sizeof(ESL_DSQ) *(L+2)))                              == NULL)  esl_fatal("malloc failed");
   if ((fwd_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L, 0))           == NULL)  esl_fatal("matrix creation failed");
   if ((bck_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L, 0))           == NULL)  esl_fatal("matrix creation failed");
   if ((fwd    = p7_gmx_fs_Create(gm_fs->M, L,               L, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
   if ((bck    = p7_gmx_fs_Create(gm_fs->M, L,               L, 0))           == NULL)  esl_fatal("matrix creation failed");
-  if ((iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS))                          == NULL)  esl_fatal("ivx creation failed");
+  if ((tr     = p7_trace_Create())                                           == NULL)  esl_fatal("trace creation failed");
+  if ((iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS))                        == NULL)  esl_fatal("ivx creation failed");
 
 
-  avg_sc = 0.;
+  /* Compare Forward and Backward scores when aligneing to DAN sequences reverse translated 
+     from randomly generate Amni Acid Sequences. Keep track of the average Forward score */
+  avg_sc_rnd = 0.;
   for (idx = 0; idx < nseq; idx++)
     {
-      if (esl_rsq_xfIID(r, bgDNA->f, abc->K, L, dsq) != eslOK) esl_fatal("seq generation failed");
-      if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
-      if (p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
+      if (esl_rsq_xfIID(r, bgAA->f, abcAA->K, (L/3), dsqAA) != eslOK) esl_fatal("seq generation failed");
+      j = 1; 
+	  for(i = 1; i <= (L/3); i++) {
+        p7_codontable_GetCodon(codon_table, r, dsqAA[i], dsqDNA+j);
+        j+=3;
+	  }
+
+      if (p7_Forward_Frameshift(dsqDNA, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+      if (p7_Backward_Frameshift(dsqDNA, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
       
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
 
-      if (p7_bg_NullOne(bgAA, dsq, L/3, &nullsc)      != eslOK) esl_fatal("null score failed");
+      if (p7_bg_fs_NullOne(bgAA, dsqAA, (L/3), &nullsc)      != eslOK) esl_fatal("null score failed");
    
-      avg_sc += fsc - nullsc;
+      avg_sc_rnd += fsc - nullsc;
 
-      if (p7_ForwardParser_Frameshift_5Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 5 failed");
+      if (p7_ForwardParser_Frameshift_5Codons(dsqDNA, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 5 failed");
 
       if (fabs(fsc-fsc_p) > 0.001) esl_fatal("Forward/Forward Parser failed: %f %f\n", fsc, fsc_p);
 
-      if (p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 3 failed");
-      if (p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser failed");
+      if (p7_ForwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 3 failed");
+      if (p7_ForwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser failed");
        
       if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser/Backward Parser failed: %f %f\n", fsc_p, bsc_p);
 
       if (esl_opt_GetBoolean(go, "--vv")) 
-        printf("utest_forward_fs: Forward score: %.4f (total so far: %.4f)\n", fsc, avg_sc);
+        printf("utest_forward_fs: Forward score on random sequence len %d: %.4f (total so far: %.4f)\n", L, fsc, avg_sc_rnd);
     }
 
-  avg_sc /= (float) nseq;
-  if (avg_sc > 0.) esl_fatal("Forward scores have positive expectation (%f nats)", avg_sc);
+  avg_sc_rnd /= (float) nseq;
 
+
+  /* Get the average forward score on DNA sequence reverse tranlated from Amino Acid 
+   * sequence generated by the model and compare to the averge on random sequence */
+  avg_sc_gen = 0.;
+  for (idx = 0; idx < nseq; idx++)
+    {
+      if (p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr)     != eslOK) esl_fatal("profile emission failed");
+          
+	  if(dsqDNA != NULL) free(dsqDNA);
+      if ((dsqDNA = malloc(sizeof(ESL_DSQ) *(sq->n*3+2))) == NULL)  esl_fatal("malloc failed"); 	  
+
+	  j = 1;
+      for(i = 1; i <= sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsqDNA+j);
+        j+=3;
+      }
+      p7_ReconfigLength(gm, sq->n);
+
+	  p7_gmx_fs_GrowTo(fwd, gm->M, (sq->n*3), (sq->n*3), p7P_5CODONS);
+
+	  if (p7_Forward_Frameshift(dsqDNA, gcode, (sq->n*3), gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+
+	  p7_bg_SetLength(bgAA,  sq->n);
+
+      p7_bg_fs_NullOne(bgAA, dsqAA, sq->n, &nullsc);	  
+
+	  avg_sc_gen += fsc - nullsc;
+
+	  if (esl_opt_GetBoolean(go, "--vv"))
+        printf("utest_forward_fs: Forward score on generated sequence len %d: %.4f (total so far: %.4f)\n", (int)(sq->n*3), fsc, avg_sc_gen);
+    }
+
+  avg_sc_gen /= (float) nseq;
+
+  if (avg_sc_rnd > avg_sc_gen) esl_fatal("Average Forwrd scores on random sequence (%f) and better than on generated seqeucen (%f)", avg_sc_rnd, avg_sc_gen);
+
+  esl_sq_Destroy(sq);
   p7_gmx_Destroy(fwd_p);
   p7_gmx_Destroy(bck_p);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(bck);
   p7_ivx_Destroy(iv);
-  free(dsq);
+  p7_trace_Destroy(tr);
+  free(dsqAA);
+  free(dsqDNA);
   return;
 }
+
 
 
 #endif /*p7FWDBACK_FRAMESHIFT_TESTDRIVE*/
@@ -1883,12 +1938,14 @@ main(int argc, char **argv)
   ESL_ALPHABET   *abcAA  = NULL;
   ESL_ALPHABET   *abcDNA = NULL;
   P7_HMM         *hmm    = NULL;
+  P7_PROFILE     *gm     = NULL;
   P7_FS_PROFILE  *gm_fs  = NULL;
   P7_BG          *bgAA   = NULL;
   P7_BG          *bgDNA  = NULL;
   ESL_GENCODE    *gcode  = NULL;
+  P7_CODONTABLE  *ct     = NULL;
   int             M      = 100;
-  int             L      = 600;
+  int             L      = 600; // must by a multiple of 3
   int             nseq   = 20;
   char            errbuf[eslERRBUFSIZE];
 
@@ -1897,21 +1954,25 @@ main(int argc, char **argv)
   if ((abcAA  = esl_alphabet_Create(eslAMINO))                  == NULL)  esl_fatal("failed to create alphabet");
   if ((abcDNA = esl_alphabet_Create(eslDNA))                    == NULL)  esl_fatal("failed to create alphabet");
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA))               == NULL)  esl_fatal("failed to create gencode");
+  if ((ct     = p7_codontable_Create(gcode))                    == NULL)  esl_fatal("failed to create codon table");
   if (p7_hmm_Sample(r, M, abcAA, &hmm)                          != eslOK) esl_fatal("failed to sample an HMM");
   if ((bgAA = p7_bg_Create(abcAA))                              == NULL)  esl_fatal("failed to create null model");
   if ((bgDNA = p7_bg_Create(abcDNA))                            == NULL)  esl_fatal("failed to create null model");
   if ((p7_bg_SetLength(bgAA,  L/3))                             != eslOK) esl_fatal("failed to config background");
   if ((p7_bg_SetLength(bgDNA,  L))                              != eslOK) esl_fatal("failed to config background");
+  if ((gm = p7_profile_Create(hmm->M, abcAA))                   == NULL)  esl_fatal("failed to create profile");
+  if ((p7_ProfileConfig(hmm, bgAA, gm, L, p7_LOCAL))            != eslOK) esl_fatal("failed to config profile");
   if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
   if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
 
-  utest_forward_fs    (go, r, abcDNA, gcode, bgAA, bgDNA, gm_fs, nseq, L);
+  utest_forward_fs    (go, r, abcAA, gcode, ct, bgAA, hmm, gm, gm_fs, nseq, L);
 
   p7_profile_fs_Destroy(gm_fs);
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);
+  p7_codontable_Destroy(ct);
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);
   esl_gencode_Destroy(gcode);

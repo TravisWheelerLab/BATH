@@ -675,6 +675,16 @@ typedef struct p7_ivx_s {
 #define p7_SHOW_LOG      (1<<1)
 
 
+typedef struct p7_codon_table {
+
+  int K;             /*amino acid acphebet length       */
+  int transl_table;  /* NCBI translation table          */
+  ESL_DSQ *table;    /* codon storage                   */
+  int *num_codons;   /* number of codons per amino acid */
+
+} P7_CODONTABLE;
+
+
 /*****************************************************************
  * 7. P7_PRIOR: mixture Dirichlet prior for profile HMMs
  *****************************************************************/
@@ -1640,6 +1650,9 @@ extern int   p7_h2io_WriteASCII(FILE *fp, P7_HMM *hmm);
 extern void         p7_banner(FILE *fp, const char *progname, char *banner);
 extern ESL_GETOPTS *p7_CreateDefaultApp(ESL_OPTIONS *options, int nargs, int argc, char **argv, char *banner, char *usage);
 extern int          p7_AminoFrequencies(float *f);
+extern P7_CODONTABLE* p7_codontable_Create(ESL_GENCODE *gcode);
+extern int p7_codontable_GetCodon(P7_CODONTABLE* codon_table, ESL_RANDOMNESS *r, ESL_DSQ amino, ESL_DSQ *codon);
+extern void p7_codontable_Destroy(P7_CODONTABLE* codon_table);
 
 /* logsum.c */
 extern int   p7_FLogsumInit(void);
@@ -1739,7 +1752,7 @@ extern int    p7_bg_Dump(FILE *ofp, const P7_BG *bg);
 extern void   p7_bg_Destroy(P7_BG *bg);
 extern int    p7_bg_SetLength(P7_BG *bg, int L);
 extern int    p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-
+extern int    p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int aminoL, float *ret_sc);
 extern int    p7_bg_Read(char *bgfile, P7_BG *bg, char *errbuf);
 extern int    p7_bg_Write(FILE *fp, P7_BG *bg);
 

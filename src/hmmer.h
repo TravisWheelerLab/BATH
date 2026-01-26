@@ -620,7 +620,7 @@ enum p7g_xcodons_n {
 typedef struct p7_gmx_s {
   int  M;    /* actual model dimension (model 1..M)    */
   int  L;    /* actual sequence dimension (seq 1..L)   */
-  
+ 
   int      allocR;      /* current allocated # of rows : L+1 <= validR <= allocR                */
   int      validR;      /* # of rows actually pointing at DP memory                             */
   int      allocW;      /* current set row width :  M+1 <= allocW                               */
@@ -653,11 +653,6 @@ typedef struct p7_ivx_s {
 #define IMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_I])
 #define DMX(i,k) (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
 #define XMX(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
-
-#define MMX_FS_FWD(i,k,c) (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
-#define IMX_FS_FWD(i,k)   (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_I])
-#define DMX_FS_FWD(i,k)   (dp[(i+5)][(k) * p7G_NSCELLS_FS + p7G_D])
-#define XMX_FS_FWD(i,s)   (xmx[(i+5)     * p7G_NXCELLS    + (s)])
 
 #define MMX_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
 #define IMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_I])

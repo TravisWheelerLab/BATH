@@ -276,14 +276,14 @@ main(int argc, char **argv)
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
 
-  esl_alphabet_Create(eslDNA);
-  gcode = esl_gencode_Create(abcDNA, abcAA);
-  bgAA = p7_bg_Create(abcAA);
-  bgAA = p7_bg_Create(abcDNA);
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgAA   = p7_bg_Create(abcAA);
+  bgDNA  = p7_bg_Create(abcDNA);
   p7_bg_SetLength(bgAA, L/3);
   p7_bg_SetLength(bgDNA, L/3);
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
-  p7_ProfileConfig_fs(hmm, bgAA, gm_fs, L/3, p7_UNILOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL);
   fwd = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
   iv  = p7_ivx_Create(gm_fs->M, p7P_5CODONS); 
   tr  = p7_trace_fs_Create();

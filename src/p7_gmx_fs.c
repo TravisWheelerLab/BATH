@@ -115,9 +115,9 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
   int      i;
   uint64_t ncells;
   int      do_reset = FALSE;
-
- if (M < gx->allocW && L < gx->validR && Lx < gx->allocR) return eslOK;
-
+printf("M %d L %d Lx %d C %d\n", M, L, Lx, C);
+ if (M < gx->allocW && L < gx->validR && Lx < gx->allocR && C <= gx->allocC) return eslOK;
+printf("M %d L %d Lx %d C %d\n", M, L, Lx, C);
   /* must we realloc the 2D matrices? (or can we get away with just
    * jiggering the row pointers, if we are growing in one dimension
    * while shrinking in another?)
@@ -646,7 +646,7 @@ p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int ken
 #include "esl_randomseq.h"
 
 static void
-gmx_testpattern(P7_GMX *gx, int M, int Lx, C)
+gmx_testpattern(P7_GMX *gx, int M, int Lx, int C)
 {
   int i,k,s,n, n2;
 
@@ -663,10 +663,10 @@ gmx_testpattern(P7_GMX *gx, int M, int Lx, C)
     for (k = 0; k <= M; k++)
       for (s = 0; s < (p7G_NSCELLS+C); s++)
 		{
-		  if (gx->dp[i][k*(p7G_NSCELLS+C)+s] != n) esl_fatal("gmx_fs unit test failed: test pattern corrupted");
+		  if (gx->dp[i][k*(p7G_NSCELLS+C)+s] != n) esl_fatal("gmx_fs unit test failed: test pattern corrupted at i = %d, k = %d, s = %d", i, k, s);
 		  n++;
 		}
-  
+   
   /* Reading it back via the dp_mem vector itself ought to be the same */
   n2 = 0;
   for (i = 0; i < gx->ncells; i++)
@@ -675,6 +675,8 @@ gmx_testpattern(P7_GMX *gx, int M, int Lx, C)
 	  if (gx->dp_mem[i*(p7G_NSCELLS+C)+s] != n2) esl_fatal("gmx_fs unit test failed: test pattern corrupted (2nd test)");
 		n2++;
 	}
+ 
+  printf("n %d n2 %d\n",n, n2);
   /* and the number of cells ought to match too */
   if (n != n2) esl_fatal("gmx_fs unit test failed: unexpected # of cells");
 
@@ -686,12 +688,17 @@ utest_GrowTo(void)
 {
   int     M, L, Lx, C;
   P7_GMX *gx = NULL;
-
+printf("1\n");
   M = 20;  L = 20;  Lx = 4;   C = 0; gx= p7_gmx_fs_Create(M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);
+printf("2\n");
   M = 40;  L = 20;  Lx = 4;   C = 0; p7_gmx_fs_GrowTo(gx, M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);  /* grow in M only */
+printf("3\n");
   M = 40;  L = 40;  Lx = 4;   C = 0; p7_gmx_fs_GrowTo(gx, M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);  /* grow in L only */
+printf("4\n");
   M = 40;  L = 40;  Lx = 40;  C = 0; p7_gmx_fs_GrowTo(gx, M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);  /* grow in Lx only */
+printf("5\n");
   M = 40;  L = 40;  Lx = 40;  C = 3; p7_gmx_fs_GrowTo(gx, M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);  /* grow in C only */
+printf("6\n");
   M = 80;  L = 10;  Lx = 10;  C = 3; p7_gmx_fs_GrowTo(gx, M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);  /* grow in M, but with enough ncells */
   M = 10;  L = 80;  Lx = 80;  C = 3; p7_gmx_fs_GrowTo(gx, M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);  /* grow in Lx, but with enough ncells */
   M = 10;  L = 40;  Lx = 40;  C = 5; p7_gmx_fs_GrowTo(gx, M, L, Lx, C);  gmx_testpattern(gx, M, Lx, C);  /* grow in C, but with enough ncells */
@@ -702,7 +709,7 @@ utest_GrowTo(void)
 }
 
 static void
-utest_Compare(ESL_RANDOMNESS *r, P7_PROFILE *gm_fs, P7_BG *bgDNA, ESL_GENCODE *gcode, int L, float tolerance)
+utest_Compare(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_BG *bgDNA, ESL_GENCODE *gcode, int L, float tolerance)
 {
   char         *msg = "gmx_Compare unit test failure";
   ESL_DSQ      *dsq = malloc(sizeof(ESL_DSQ) *(L+2));
@@ -712,17 +719,17 @@ utest_Compare(ESL_RANDOMNESS *r, P7_PROFILE *gm_fs, P7_BG *bgDNA, ESL_GENCODE *g
   P7_IVX       *iv2 = p7_ivx_Create(5, p7P_3CODONS);
   float         fsc;
 
-  if (!r || !gm || !dsq || !gx1 || !gx2 )                                   esl_fatal(msg);
-  if (esl_rsq_xfIID(r, bgDNA->f, gcode->nt_abc->K, L, dsq)         != eslOK) esl_fatal(msg);
-  if (p7_gmx_fs_GrowTo(gx2, gm_fs->M, L, L, p7P_5CODONS)           != eslOK) esl_fatal(msg);
-  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx1, ivx1, &fsc) != eslOK) esl_fatal(msg);
-  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx2, ivx1, &fsc) != eslOK) esl_fatal(msg);
-  if (p7_gmx_fs_Compare(gx1, gx2, p7P_5CODONS, tolerance)          != eslOK) esl_fatal(msg);   
+  if (!r || !gm_fs || !dsq || !gx1 || !gx2 )                                esl_fatal(msg);
+  if (esl_rsq_xfIID(r, bgDNA->f, gcode->nt_abc->K, L, dsq)        != eslOK) esl_fatal(msg);
+  if (p7_gmx_fs_GrowTo(gx2, gm_fs->M, L, L, p7P_5CODONS)          != eslOK) esl_fatal(msg);
+  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx1, iv1, &fsc) != eslOK) esl_fatal(msg);
+  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv1, &fsc) != eslOK) esl_fatal(msg);
+  if (p7_gmx_fs_Compare(gx1, gx2, p7P_5CODONS, tolerance)         != eslOK) esl_fatal(msg);   
 
   p7_gmx_Reuse(gx2);
-  if (p7_ivx_GrowTo(ivx2, gm_fs->M, p7P_5CODONS)                   != eslOK) esl_fatal(msg);
-  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx2, ivx2, &fsc) != eslOK) esl_fatal(msg);  
-  if (p7_gmx_fs_Compare(gx1, gx2, p7P_5CODONS, tolerance)          != eslOK) esl_fatal(msg);
+  if (p7_ivx_GrowTo(iv2, gm_fs->M, p7P_5CODONS)                   != eslOK) esl_fatal(msg);
+  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv2, &fsc) != eslOK) esl_fatal(msg);  
+  if (p7_gmx_fs_Compare(gx1, gx2, p7P_5CODONS, tolerance)         != eslOK) esl_fatal(msg);
 
   p7_gmx_Destroy(gx1);
   p7_gmx_Destroy(gx2);
@@ -740,7 +747,7 @@ utest_Compare(ESL_RANDOMNESS *r, P7_PROFILE *gm_fs, P7_BG *bgDNA, ESL_GENCODE *g
  *****************************************************************/
 #ifdef p7GMX_FS_TESTDRIVE
 /*
-  gcc -o p7_gmx_fs_utest -msse2 -g -Wall -I. -L. -I../easel -L../easel -Dp7GMX_FS_TESTDRIVE p7_gmx.c -lhmmer -leasel -lm
+  gcc -o p7_gmx_fs_utest -msse2 -g -Wall -I. -L. -I../easel -L../easel -Dp7GMX_FS_TESTDRIVE p7_gmx_fs.c -lhmmer -leasel -lm
   ./p7_gmx_fs_utest
  */
 #include "p7_config.h"
@@ -786,11 +793,11 @@ main(int argc, char **argv)
 
   p7_FLogsumInit();
 
-  if (p7_hmm_Sample(r, M, abcAA, &hmm)                             != eslOK) esl_fatal(msg);
-  if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))                == NULL)  esl_fatal(msg);
-  if (p7_bg_SetLength(bgAA, L/3)                                   != eslOK) esl_fatal(msg);
-  if (p7_bg_SetLength(bgDNA, L)                                    != eslOK) esl_fatal(msg);
-  if (p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, L/3, p7_UNILOCAL) != eslOK) esl_fatal(msg);
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)                              != eslOK) esl_fatal(msg);
+  if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))                 == NULL)  esl_fatal(msg);
+  if (p7_bg_SetLength(bgAA, L/3)                                    != eslOK) esl_fatal(msg);
+  if (p7_bg_SetLength(bgDNA, L)                                     != eslOK) esl_fatal(msg);
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL) != eslOK) esl_fatal(msg);
 
   utest_GrowTo();
   utest_Compare(r, gm_fs, bgDNA, gcode, L, tol);

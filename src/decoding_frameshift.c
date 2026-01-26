@@ -263,7 +263,7 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
 }
 
 /* Function:  p7_DomainDecoding_Frameshift
- * Synopsis:  Posterior decoding of domain location.
+ * Synopsis:  Posterior decoding of domain location for frameshift aware alignments.
  *
  * Purpose:   The caller has calculated Forward and Backward matrices
  *            <fwd> and <bck> for frameshift codon model <gm_fs> 
@@ -315,6 +315,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
   float njcp; 
   int   i;
 
+  /* First three psoitions are set to 0. They will be included in a domain that starts at i=3 */
   ddef->btot[0] = 0.;
   ddef->btot[1] = 0.;
   ddef->btot[2] = 0.;
@@ -337,7 +338,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
   for (i = 3; i < L-1; i++)
   {
 
-    /* Sum poropabilities in the N, J and C states */
+    /* Sum poropabilities in the N, J and C states for all codons in which i is present */
     njcp = 0.0;
     njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_N] + bck->xmx[i*p7G_NXCELLS+p7G_N] + gm_fs->xsc[p7P_N][p7P_LOOP] - overall_logp);
     njcp += expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_J] + bck->xmx[i*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);

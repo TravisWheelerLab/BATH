@@ -32,8 +32,10 @@
  *            all 5 special states <N,B,E,J,C>, and <L> by <gm_fs-M> 
  *            cells for all core model states <M,I,D> and all 5 codon
  *            lengths; calculate the probability of the sequence
- *            given the model using the Forward algorithm; return the
- *            Forward matrix in <gx>, and the Forward score in <ret_sc>.
+ *            given the model using the Forward algorithm; use the 
+ *            intermediate value matrix to store partial calculations; 
+ *            return the Forward matrix in <gx>, and the Forward score 
+ *            in <ret_sc>.
  *            
  *            The Forward score is in lod score form.  To convert to a
  *            bitscore, the caller needs to subtract a null model lod
@@ -47,6 +49,7 @@
  *            gcode  - genetic code table 
  *            gm_fs  - a frameshift-aware codon profile. 
  *            gx     - DP matrix with room for an MxL alignment
+ *            iv     - intermediate value matrix 
  *            opt_sc - optRETURN: Forward lod score in nats
  *           
  * Return:    <eslOK> on success.
@@ -390,6 +393,43 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
 }
 
 
+/* Function:  p7_ForwardParser_Frameshift_3Codons()
+ * Synopsis:  The frameshift-aware Forward algorithm using 3 codon lengths - low memory.
+ *
+ * Purpose:   The Forward dynamic programming algorithm for frameshift
+ *            aware translated comparison between a dna sequence and an
+ *            frameshift aware codon HMM, using three codon lengths,
+ *            with a minimal sized DP matrix.
+ *
+ *            Given a digital sequence <dsq> of length <L>, a profile
+ *            <gm_fs>, and DP matrix <gx> allocated with <L> cells for
+ *            all 5 special states <N,B,E,J,C>, and at least 2 by
+ *            <gm_fs->M> cells for all core model states <M,I,D>;
+ *            calculate the probability of the sequence given the model
+ *            and 3 permissible codon lengths using the Forward algorithm -
+ *            reusing the rows in the core matrix; use the intermdiate
+ *            value matrix <iv> to store partial calculations; return the
+ *            Forward matrix in <gx>, and the Forward score in <ret_sc>.
+ *
+ *            The Forward score is in lod score form. To convert to a
+ *            bitscore, the caller needs to subtract a null model lod
+ *            score, then convert to bits.
+ *
+ *            Caller must have initialized the log-sum calculation
+ *            with a call to <p7_FLogsumInit()>.
+ *
+ * Args:      dsq    - nucleotide sequence in digitized form, 1..L
+ *            L      - length of dsq
+ *            gcode  - genetic code table
+ *            gm_fs  - framshift-aware codon profile.
+ *            gx     - DP matrix
+ *            iv     - intermedite value matrix
+ *            opt_sc - optRETURN: Forward lod score in nats
+ *
+ * Return:    <eslOK> on success.
+ */
+
+
 
 /* Function:  p7_ForwardParser_Frameshift_3Codons()
  * Synopsis:  The frameshift-aware Forward algorithm using 3 codon lengths - low memory.
@@ -401,12 +441,13 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
  *            <gm_fs>, and DP matrix <gx> allocated with <L> cells for
- *            all 5 special states <N,B,E,J,C>, and 2 by <gm_fs->M> 
- *            cells for all core model states <M,I,D>; calculate the 
- *            probability of the sequence given the model and 3 
- *            permissible codon lengths using the Forward algorithm - 
- *            reusing the rows in the core matrix; return the Forward 
- *            matrix in <gx>, and the Forward score in <ret_sc>.
+ *            the special states <N,B,E,J,C>, and <PARSER_ROWS_FWD> by 
+ *            <gm_fs->M> cells for all core model states <M,I,D>; 
+ *            calculate the probability of the sequence given the model 
+ *            and 3 permissible codon lengths using the Forward algorithm - 
+ *            reusing the rows in the core matrix; use the intermdiate 
+ *            value matrix <iv> to store partial calculations; return the 
+ *            Forward matrix in <gx>, and the Forward score in <ret_sc>.
  *           
  *            The Forward score is in lod score form. To convert to a
  *            bitscore, the caller needs to subtract a null model lod
@@ -419,7 +460,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
  *            L      - length of dsq
  *            gcode  - genetic code table
  *            gm_fs  - framshift-aware codon profile. 
- *            gx     - DP matrix with room for an MxL alignment
+ *            gx     - DP matrix 
  *            iv     - intermedite value matrix 
  *            opt_sc - optRETURN: Forward lod score in nats
  *           
@@ -593,9 +634,6 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
 }
 
 
-
-
-
 /* Function:  p7_ForwardParser_Frameshift_5Codons()
  * Synopsis:  The frameshift-aware Forward algorithm using 5 codon lengths - low memory.
  *
@@ -605,12 +643,13 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
  *            <gmi_fs>, and DP matrix <gx> allocated with <L> cells for
- *            all 5 special states <N,B,E,J,C>, and 4 by <gm_fs->M>
- *            cells for all core model states <M,I,D>; calculate the
- *            probability of the sequence given the model and 5 
- *            permissible codon lengths using the Forward algorithm - 
- *            reusing the rows in the core matrix; return the Forward 
- *            matrix in <gx>, and the Forward score in <ret_sc>.
+ *            the special states <N,B,E,J,C>, and <PARSER_ROWS_FWD> by 
+ *            <gm_fs->M> cells for all core model states <M,I,D>; 
+ *            calculate th probability of the sequence given the model 
+ *            and 5 permissible codon lengths using the Forward algorithm 
+ *            - reusing the rows in the core matrix; use the intermdiate
+ *            value matrix <iv> to store partial calculations; return the 
+ *            Forward  matrix in <gx>, and the Forward score in <ret_sc>.
  *           
  *            The Forward score is in lod score form.  To convert to a
  *            bitscore, the caller needs to subtract a null model lod
@@ -652,7 +691,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   }
 
   /* Initialization for row 0 */
-  XMX(0,p7G_N) = 0.; //* S->N, p=1            */
+  XMX(0,p7G_N) = 0.; /* S->N, p=1            */
   XMX(0,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];                   /* S->N->B, no N-tail   */
   XMX(0,p7G_E) = XMX(0,p7G_J) = XMX(0,p7G_C) = -eslINFINITY;
   for (k = 0; k <= M; k++) 
@@ -940,26 +979,32 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   return eslOK;
 }
 
-
 /* Function:  p7_Backward_Frameshift()
  * Synopsis:  The Backward algorithm.
  *
- * Purpose:   The Backward dynamic programming algorithm.
+ * Purpose:   The Frameshift Aware Backward dynamic programming algorithm.
  * 
  *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm>, and DP matrix <gx> allocated for at least <gm->M>
+ *            <gm_fs>, and DP matrix <gx> allocated for at least <gm->M>
  *            by <L> cells; calculate the probability of the sequence
- *            given the model using the Backward algorithm; return the
- *            Backward matrix in <gx>, and the Backward score in <ret_sc>.
+ *            given the model using the Backward algorithm;  use the
+ *            intermediate value matrix to store partial calculations;
+ *            return the Backward matrix in <gx>, and the Backward score 
+ *            in <ret_sc>.
  *           
  *            The Backward score is in lod score form. To convert to a
  *            bitscore, the caller needs to subtract a null model lod
  *            score, then convert to bits.
  *
- * Args:      dsq    - sequence in digitized form, 1..L
+ *            Caller must have initialized the log-sum calculation
+ *            with a call to <p7_FLogsumInit()>.
+ *
+ * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm     - profile 
+ *            gcode  - genetic code table
+ *            gm_fs  - framshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
+ *            iv     - intermediate value martix
  *            opt_sc - optRETURN: Backward lod score in nats
  *           
  * Return:    <eslOK> on success.
@@ -1308,22 +1353,26 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 /* Function:  p7_BackwardPraser_Frameshift_3Codons()
  * Synopsis:  The Backward algorithm.
  *
- * Purpose:   The Backward dynamic programming algorithm.
+ * Purpose:   The Backward dynamic programming algorithm - low memeory, 3 codon lengths.
  * 
- *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm>, and DP matrix <gx> allocated for at least <gm->M>
- *            by <L> cells; calculate the probability of the sequence
- *            given the model using the Backward algorithm; return the
- *            Backward matrix in <gx>, and the Backward score in <ret_sc>.
+ *            Given a digital sequence <dsq> of length <L>, a profile <gm_fs>, 
+ *            and DP matrix <gx> allocated for at least <L>  cells for the 
+ *            special states, and <PARSER_ROWS_BWD> by <gm_fs->M> cells for 
+ *            the core model states <M,I,D>; calculate the probability of the 
+ *            sequence given the model using the Backward algorithm; use the 
+ *            intermediate value matrix to store partial calculations; return 
+ *            the Backward matrix in <gx>, and the Backward score in <ret_sc>.
  *           
  *            The Backward score is in lod score form. To convert to a
  *            bitscore, the caller needs to subtract a null model lod
  *            score, then convert to bits.
  *
- * Args:      dsq    - sequence in digitized form, 1..L
+ * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm     - profile 
+ *            gcode  - genetic code table
+ *            gm_fs  - framshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
+ *            iv     - intermediate value martix
  *            opt_sc - optRETURN: Backward lod score in nats
  *           
  * Return:    <eslOK> on success.
@@ -1640,27 +1689,31 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
 }
 
-/* Function:  p7_BackwardParser_Frameshift_5Codons()
- * Synopsis:  The Backward algorithm - low memory, 5 codon lengths
+/* Function:  p7_BackwardPraser_Frameshift_5Codons()
+ * Synopsis:  The Backward algorithm.
  *
- * Purpose:   The Backward dynamic programming algorithm.
- * 
- *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm>, and DP matrix <gx> allocated for at least <gm->M>
- *            by <L> cells; calculate the probability of the sequence
- *            given the model using the Backward algorithm; return the
- *            Backward matrix in <gx>, and the Backward score in <ret_sc>.
- *           
+ * Purpose:   The Backward dynamic programming algorithm - low memeory, 5 codon lengths.
+ *
+ *            Given a digital sequence <dsq> of length <L>, a profile <gm_fs>,
+ *            and DP matrix <gx> allocated for at least <L>  cells for the
+ *            special states, and <PARSER_ROWS_BWD> by <gm_fs->M> cells for
+ *            the core model states <M,I,D>; calculate the probability of the
+ *            sequence given the model using the Backward algorithm; use the
+ *            intermediate value matrix to store partial calculations; return
+ *            the Backward matrix in <gx>, and the Backward score in <ret_sc>.
+ *
  *            The Backward score is in lod score form. To convert to a
  *            bitscore, the caller needs to subtract a null model lod
  *            score, then convert to bits.
  *
- * Args:      dsq    - sequence in digitized form, 1..L
+ * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm     - profile 
+ *            gcode  - genetic code table
+ *            gm_fs  - framshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
+ *            iv     - intermediate value martix
  *            opt_sc - optRETURN: Backward lod score in nats
- *           
+ *
  * Return:    <eslOK> on success.
  */
 int

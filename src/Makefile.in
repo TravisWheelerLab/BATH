@@ -108,7 +108,7 @@ OBJS =  build.o\
 	modelconfig.o\
 	modelstats.o\
 	mpisupport.o\
-        null2_frameshift.o\
+    null2_frameshift.o\
 	optacc_frameshift.o\
 	seqmodel.o\
 	stotrace_frameshift.o\
@@ -159,6 +159,7 @@ BENCHMARKS = \
 	generic_optacc_benchmark\
     optacc_frameshift_benchmark\
 	generic_stotrace_benchmark\
+    stotrace_frameshift_benchmark\
 	generic_viterbi_benchmark \
 	p7_hmmcache_benchmark
 
@@ -178,6 +179,7 @@ UTESTS =\
 	p7_bg_utest\
 	p7_domain_utest\
 	p7_gmx_utest\
+    p7_gmx_fs_utest\
 	p7_gmxchk_utest\
 	p7_hit_utest\
 	p7_hmmd_search_stats_utest\
@@ -187,8 +189,8 @@ UTESTS =\
 	p7_tophits_utest\
 	p7_trace_utest\
 	p7_scoredata_utest\
-  hmmpgmd2msa_utest\
-  hmmd_search_status_utest
+    hmmpgmd2msa_utest\
+    hmmd_search_status_utest
 
 ITESTS = \
 	itest_brute

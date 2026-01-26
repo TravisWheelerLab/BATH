@@ -66,7 +66,6 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 1.0 : 0.0;
   float        nn, jj, cc;
   float        nb, jb, ej, ec;
-  float        max1, max2, max3, max4, max5;
   float        codon[5];
 
   nn = ((gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0);

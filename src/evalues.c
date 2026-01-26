@@ -501,7 +501,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   float    fsc, nullsc;		                  
   double   gmu, glam;
   int      status;
-  int      i, j, a, x, y, z;
+  int      i, j, a;
   ESL_GENCODE      *gcode = NULL;
   ESL_ALPHABET     *abcDNA = NULL;       /* DNA sequence alphabet                               */
   P7_CODONTABLE    *codon_table;
@@ -616,7 +616,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
   float    fsc, nullsc;		                  
   double   gmu, glam;
   int      status;
-  int      i, j, a, x, y, z;
+  int      i, j, a;
   ESL_GENCODE      *gcode = NULL;
   ESL_ALPHABET    *abcDNA = NULL;       /* DNA sequence alphabet                               */
   P7_CODONTABLE    *codon_table; 

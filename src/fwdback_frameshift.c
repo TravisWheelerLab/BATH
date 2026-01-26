@@ -1334,20 +1334,24 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
   float const *tsc  = gm_fs->tsc;
   float      **dp   = gx->dp;
-  float       *xmx  = gx->xmx;           
+  float       *xmx  = gx->xmx;
   float       *ivx  = iv->ivx;
   int          M    = gm_fs->M;
-  int          i, k; 
+  int          i, k;
   int          c2, c3, c4;
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
   int          u, v, w, x;
   int          curr, prev2, prev3, prev4;
 
+  for(k = 0; k <= M; k++)
+    ivx[k] = -eslINFINITY;
+
   /* Initialization of row L and L-1  */
+  XMX(L,p7G_C)   =                               gm_fs->xsc[p7P_C][p7P_MOVE];
+  XMX(L-1,p7G_C) = gm_fs->xsc[p7P_C][p7P_LOOP] + gm_fs->xsc[p7P_C][p7P_MOVE];
   for(i = L; i >= L-1; i--) {
     curr = i % PARSER_ROWS_BWD;
     XMX(i,p7G_J) = XMX(i,p7G_B) = XMX(i,p7G_N) = -eslINFINITY; /* need to enter and exit model */
-    XMX(i,p7G_C) = gm_fs->xsc[p7P_C][p7P_MOVE];                   /* C<-T          */
     XMX(i,p7G_E) = XMX(i,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE];    /* E<-C, no tail */
     MMX(curr,M)  = DMX(curr,M) = XMX(i,p7G_E);                    /* {MD}_M <- E (prob 1.0) */
     IMX(curr,M)  = -eslINFINITY;                               /* no I_M state        */
@@ -1403,7 +1407,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
   XMX(L-2,p7G_J) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_J][p7P_MOVE];
   XMX(L-2,p7G_N) = XMX(L-2,p7G_B) + gm_fs->xsc[p7P_N][p7P_MOVE];
-  XMX(L-2,p7G_C) =                  gm_fs->xsc[p7P_C][p7P_MOVE];
+  XMX(L-2,p7G_C) = gm_fs->xsc[p7P_C][p7P_LOOP] + gm_fs->xsc[p7P_C][p7P_MOVE];
   
   XMX(L-2,p7G_E) = p7_FLogsum(XMX(L-2,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
                               XMX(L-2,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
@@ -1599,17 +1603,21 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   c4 = p7P_CODON4(x, w, v, u);
   c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
 
-  ivx[1] = p7_FLogsum( MMX(2,1) + p7P_MSC_CODON(gm_fs, 1, c2), 
-           p7_FLogsum( MMX(3,1) + p7P_MSC_CODON(gm_fs, 1, c3),
-                       MMX(4,1) + p7P_MSC_CODON(gm_fs, 1, c4)));
+  prev2 = 2 % PARSER_ROWS_BWD;
+  prev3 = 3 % PARSER_ROWS_BWD;
+  prev4 = 4 % PARSER_ROWS_BWD;
+
+  ivx[1] = p7_FLogsum( MMX(prev2,1) + p7P_MSC_CODON(gm_fs, 1, c2), 
+           p7_FLogsum( MMX(prev3,1) + p7P_MSC_CODON(gm_fs, 1, c3),
+                       MMX(prev4,1) + p7P_MSC_CODON(gm_fs, 1, c4)));
                       
   XMX(0,p7G_B) = ivx[1] + TSC(p7P_BM,0); 
 
   for (k = 2; k <= M; k++) 
   {
-   ivx[k] =  p7_FLogsum( MMX(2,k) + p7P_MSC_CODON(gm_fs, k, c2),
-             p7_FLogsum( MMX(3,k) + p7P_MSC_CODON(gm_fs, k, c3),
-                         MMX(4,k) + p7P_MSC_CODON(gm_fs, k, c4)));
+   ivx[k] =  p7_FLogsum( MMX(prev2,k) + p7P_MSC_CODON(gm_fs, k, c2),
+             p7_FLogsum( MMX(prev3,k) + p7P_MSC_CODON(gm_fs, k, c3),
+                         MMX(prev4,k) + p7P_MSC_CODON(gm_fs, k, c4)));
  
     XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1)); 
   }
@@ -1632,8 +1640,8 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
 }
 
-/* Function:  p7_Backward_Frameshift()
- * Synopsis:  The Backward algorithm.
+/* Function:  p7_BackwardParser_Frameshift_5Codons()
+ * Synopsis:  The Backward algorithm - low memory, 5 codon lengths
  *
  * Purpose:   The Backward dynamic programming algorithm.
  * 
@@ -1721,7 +1729,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   XMX(L-1,p7G_E) = p7_FLogsum( XMX(L-1,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
 				               XMX(L-1,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
-  MMX(curr,M)  = DMX(curr,M) = XMX(curr,p7G_E); 
+  MMX(curr,M)  = DMX(curr,M) = XMX(L-1,p7G_E); 
   for (k = M-1; k >= 1; k--)
   {
     MMX(curr,k) = p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
@@ -1770,14 +1778,14 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   XMX(L-2,p7G_E) = p7_FLogsum( XMX(L-2,p7G_J) + gm_fs->xsc[p7P_E][p7P_LOOP],
                                XMX(L-2,p7G_C) + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
-  MMX(curr,M)  = DMX(curr,M) = XMX(curr,p7G_E);
+  MMX(curr,M)  = DMX(curr,M) = XMX(L-2,p7G_E);
   for (k = M-1; k >= 1; k--)
   {
     MMX(curr,k) = p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
                  p7_FLogsum( ivx[k+1]       + TSC(p7P_MM,k),
                              XMX(L-2,p7G_E)  + esc));
 
-    DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(curr,p7G_E) + esc,
+    DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(L-2,p7G_E) + esc,
                                           DMX(curr, k+1)  + TSC(p7P_DD,k)),
                                           ivx[k+1]       + TSC(p7P_DM,k));
 
@@ -1978,12 +1986,11 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     c5 = p7P_CODON5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
 
-    curr  =  i    % PARSER_ROWS_BWD;
-    prev1 = (i+1) % PARSER_ROWS_BWD;
-    prev2 = (i+2) % PARSER_ROWS_BWD;
-    prev3 = (i+3) % PARSER_ROWS_BWD;
-    prev4 = (i+4) % PARSER_ROWS_BWD;
-    prev5 = (i+5) % PARSER_ROWS_BWD;
+    prev1 = 1 % PARSER_ROWS_BWD;
+    prev2 = 2 % PARSER_ROWS_BWD;
+    prev3 = 3 % PARSER_ROWS_BWD;
+    prev4 = 4 % PARSER_ROWS_BWD;
+    prev5 = 5 % PARSER_ROWS_BWD;
 
   ivx[1] = p7_FLogsum( MMX(prev1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 
           p7_FLogsum( MMX(prev2,1) + p7P_MSC_CODON(gm_fs, 1, c2),
@@ -2236,6 +2243,8 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
       if (fabs(bsc-bsc_p) > 0.001) esl_fatal("Backward/Backward Parser failed: %f %f\n", bsc, bsc_p);
       if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser 5 /Backward Parser 5 failed: %f %f\n", fsc_p, bsc_p);
 
+	  p7_gmx_Reuse(fwd_p);
+	  p7_gmx_Reuse(bck_p);
       if (p7_ForwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 3 failed");
       if (p7_BackwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser failed");
        

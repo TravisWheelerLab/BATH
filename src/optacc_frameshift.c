@@ -26,17 +26,17 @@
 
 
 /* Function:  p7_OptimalAccuracy_Frameshift()
- * Synopsis:  Optimal accuracy decoding: fill. 
+ * Synopsis:  Optimal accuracy decoding for frameshift aware alignments: fill. 
  *
  * Purpose:   Calculates the fill step of the optimal accuracy decoding
  *            algorithm.
  *            
  *            Caller provides the posterior decoding matrix <pp>,
  *            which was calculated by Forward/Backward on a target sequence
- *            of length <L> using the query model <gmi_fs>.
+ *            of length <L> using the query model <gm_fs>.
  *            
  *            Caller also provides a DP matrix <gx>, allocated for the
- *            <gm->M> by <pp->L> comparison. The routine fills this in
+ *            <gm_fs->M> by <pp->L> comparison. The routine fills this in
  *            with OA scores.
  *
  *            For the frameshift version, probabilities are smaller due to

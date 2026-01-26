@@ -645,7 +645,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         }
       }
       
-      i = ESL_MAX(1, d-3);
+      i = ESL_MAX(1, d-3); // one codon wiggle room
       d = j+1;
 
       /* Frameshift aware domain ends must be evident in all three frames */
@@ -667,8 +667,16 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         }
       }
       
-      j = d;
- 
+      j = ESL_MIN(gxf->L, d+3); // one codon wiggle room
+
+      if(j - i + 1 < 12) {
+        i     = -1;
+        triggered = FALSE;
+        start     = FALSE;
+        end       = FALSE; 
+        continue; 
+      }
+
       /* We have a region i..j to evaluate. */
       p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_5CODONS);
       p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);

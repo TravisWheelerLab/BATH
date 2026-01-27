@@ -2154,8 +2154,8 @@ main(int argc, char **argv)
 
   abcDNA = esl_alphabet_Create(eslDNA);
   gcode = esl_gencode_Create(abcDNA, abcAA);
-  bgDNA = p7_bg_fs_Create(abcDNA);
-  bgAA  = p7_bg_fs_Create(abcAA);
+  bgDNA = p7_bg_Create(abcDNA);
+  bgAA  = p7_bg_Create(abcAA);
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL);
   fwd_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L, 0);

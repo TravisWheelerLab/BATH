@@ -667,7 +667,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     for (i = 0; i < infocnt; ++i)
     {
-      info[i].bg    = p7_bg_fs_Create(abcAA);
+      info[i].bg    = p7_bg_Create(abcAA);
 #ifdef HMMER_THREADS
       info[i].queue = queue;
 #endif

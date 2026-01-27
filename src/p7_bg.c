@@ -80,60 +80,6 @@ p7_bg_Create(const ESL_ALPHABET *abc)
   return NULL;
 }
 
-/* Function:  p7_bg_fs_Create()
- * Synopsis:  Create a <P7_BG> null model object.
- *
- * Purpose:   Allocate a <P7_BG> object for digital alphabet <abc>,
- *            initializes it to appropriate default values, and
- *            returns a pointer to it.
- *            
- *            For protein models, default iid background frequencies
- *            are set (by <p7_AminoFrequencies()>) to average
- *            Swiss-Prot residue composition. For DNA, RNA and other
- *            alphabets, default frequencies are set to a uniform
- *            distribution.
- *            
- *            The model composition <bg->mcomp[]> is not initialized
- *            here; neither is the filter null model <bg->fhmm>.  To
- *            use the filter null model, caller will want to
- *            initialize these fields by calling
- *            <p7_bg_SetFilter()>.
- *
- * Throws:    <NULL> on allocation failure.
- *
- * Xref:      STL11/125.
- */
-P7_BG *
-p7_bg_fs_Create(const ESL_ALPHABET *abc)
-{
-  P7_BG *bg = NULL;
-  int    status;
-
-  ESL_ALLOC(bg, sizeof(P7_BG));
-  bg->f     = NULL;
-  bg->fhmm  = NULL;
-
-  ESL_ALLOC(bg->f,     sizeof(float) * (abc->K+1));
-
-  if ((bg->fhmm = esl_hmm_Create(abc, 2)) == NULL) goto ERROR;
-  
-  if       (abc->type == eslAMINO)
-    {
-      if (p7_AminoFrequencies(bg->f) != eslOK) goto ERROR;
-      bg->f[abc->K] = 1.;
-    }
-  else
-    esl_vec_FSet(bg->f, abc->K, 1. / (float) abc->K);
-
-  bg->p1    = 350./351.;
-  bg->omega = 1./256.;
-  bg->abc   = abc;
-  return bg;
-
- ERROR:
-  p7_bg_Destroy(bg);
-  return NULL;
-}
 /* Function:  p7_bg_CreateUniform()
  * Synopsis:  Creates background model with uniform freqs.
  *
@@ -198,38 +144,6 @@ p7_bg_Clone(const P7_BG *bg)
   return NULL;
 }
 
-/* Function:  p7_bg_fs_Clone()
- * Synopsis:  Create a duplicate of an existing <P7_BG> object.
- *
- * Purpose:   Creates a duplicate of the existing <P7_BG> object <bg>.
- *
- * Returns:   ptr to the duplicate <P7_BG> object.
- *
- * Throws:    <NULL> on allocation failure.
- */
-P7_BG *
-p7_bg_fs_Clone(const P7_BG *bg)
-{
-  P7_BG *dup = NULL;
-  int    status;
-
-  ESL_ALLOC(dup, sizeof(P7_BG));
-  dup->f    = NULL;
-  dup->fhmm = NULL;
-  dup->abc  = bg->abc;          /* by reference only */
-
-  ESL_ALLOC(dup->f, sizeof(float) * (bg->abc->K+1));
-  memcpy(dup->f, bg->f, sizeof(float) * (bg->abc->K+1));
-  if ((dup->fhmm = esl_hmm_Clone(bg->fhmm)) == NULL) goto ERROR;
-
-  dup->p1    = bg->p1;
-  dup->omega = bg->omega;
-  return dup;
-
- ERROR:
-  p7_bg_Destroy(dup);
-  return NULL;
-}
 
 /* Function:  p7_bg_Dump()
  * Synopsis:  Outputs <P7_BG> object as text, for diagnostics.
@@ -444,27 +358,28 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
   *ret_sc = (float) L * log(bg->p1) + log(1.-bg->p1);
   return eslOK;
 }
+
 /* Function:  p7_bg_fs_NullOne()
  *
  * Purpose:   Calculate the null1 lod score, for sequence <dsq>
- *            of length <L> "aligned" to the base null model <bg>. 
- * 
+ *            of length <L> aligned to the 3 frame null model <bg>.
+ *
  * Note:      Because the residue composition in null1 <bg> is the
  *            same as the background used to calculate residue
  *            scores in profiles and null models, all we have to
  *            do here is score null model transitions.
  *
- *            Can accept a NULL for *dsq, in which case the returned
- *            value will be (float) L * log(bg->p1) + log(1.-bg->p1);
+ *            For application to frameshift aware alinments, we 
+ *            claculate the null for a single frame then muliply 
+ *            by three.
  */
 int
-p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
+p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int aminoL, float *ret_sc)
 {
-  /* The length distirbution of the three frames are calculated */
-  /* seperatly as p1^(L/3) and then added together		*/ 
-  /* log(3 * p1^(L/3) * (1-p1)) = L/3 * log(p1) + log(3) + log(1-p1)) */
- 
-  *ret_sc = (float) L/3. * log(bg->p1) + log(3) + log(1.-bg->p1);    
+
+  float null_per_frame = (float) aminoL * log(bg->p1) + log(1.-bg->p1); 
+  *ret_sc = null_per_frame + log(3.0); 
+
   return eslOK;
 }
 
@@ -590,8 +505,8 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 /* Function:  p7_bg_fs_FilterScore()
  * Synopsis:  Calculates the filter null model score.
  *
- * Purpose:   Calculates the filter null model <bg> score for sequence
- *            <dsq> of length <L>, and return it in 
+ * Purpose:   Calculates the three frame filter null model <bg> score 
+ *            for sequence <dsq> of length <L>, and return it in 
  *            <*ret_sc>.
  *            
  *            The score is calculated as an HMM Forward score using
@@ -606,9 +521,10 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 int
 p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
 {
-  int     i,j;
+  int     i,j,f;
   int     L;
   float   nullsc;
+  float   sum_nullsc;
   ESL_DSQ amino;
   ESL_DSQ *orf_dsq;
   ESL_HMX *hmx;
@@ -623,23 +539,27 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
     ESL_ALLOC(orf_dsq, sizeof(ESL_DSQ) * dnasq->n);
     orf_dsq[0] = eslDSQ_SENTINEL;
 
-    L = 0;
-    j = 1;
-    for (i = 1; i < dnasq->n-2; i++) {
-      amino = esl_gencode_GetTranslation(gcode,&dnasq->dsq[i]);
-      if(esl_abc_XIsCanonical(gcode->aa_abc, amino)) {
-        orf_dsq[j] = amino;
-        j++;
-        L++;
+    /* Translate all three frames */
+    sum_nullsc = -eslINFINITY;
+    for(f = 1; f <= 3; f++) {
+      j = 1;
+      for (i = f; i < dnasq->n-2; i+=3) {
+        amino = esl_gencode_GetTranslation(gcode,&dnasq->dsq[i]);
+        if(esl_abc_XIsCanonical(gcode->aa_abc, amino)) {
+          orf_dsq[j] = amino;
+          j++;
+        }
       }
-    }
-    orf_dsq[j] = eslDSQ_SENTINEL;
+      orf_dsq[j] = eslDSQ_SENTINEL;
+      L = j-1;
+      hmx = esl_hmx_Create(L, bg->fhmm->M);
+      esl_hmm_Forward(orf_dsq, L, bg->fhmm, hmx, &nullsc);
 
-    hmx = esl_hmx_Create(L, bg->fhmm->M);
-    esl_hmm_Forward(orf_dsq, L, bg->fhmm, hmx, &nullsc);
+      sum_nullsc = p7_FLogsum(sum_nullsc, nullsc);
+    }
   }
 
-  *ret_sc = nullsc + (float) dnasq->n * logf(bg->p1) + logf(1.-bg->p1);
+  *ret_sc = sum_nullsc + ((float) (dnasq->n/3) * logf(bg->p1) + logf(1.-bg->p1) + log(3.0));
 
   if(orf_dsq != NULL) free(orf_dsq);
   esl_hmx_Destroy(hmx);
@@ -651,126 +571,6 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
     esl_hmx_Destroy(hmx);
     return status;
 
-}
-
-int
-p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, ESL_HMX *fwd, float *opt_sc)
-{
-  int   i, k, m;
-  int   a, v, w, x;
-  int   M     = hmm->M;
-  float logsc1, logsc2, logsc3;
-  float max;
-
-  fwd->sc[0] = 0.0;
-	
-  if (L == 0) {
-    fwd->sc[L+1] = logsc1 = log(hmm->pi[M]);
-    if (opt_sc != NULL) *opt_sc = logsc1;
-    return eslOK;
-  }
-	
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) w = dsq[1];
-  else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[1]))
-  {
-    for(w = 0; w < gcode->nt_abc->K; w++)
-       if(gcode->nt_abc->degen[dsq[1]][w]) break;
-  }
-	
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
-  else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[2]))
-  {
-    for(x = 0; x < gcode->nt_abc->K; x++)
-       if(gcode->nt_abc->degen[dsq[2]][x]) break;
-  }
-
-  //first codons in the three frames end at i = 3, i = 4 and i = 5 	
-  for (i = 3; i < 6; i++)
-  {
-
-    max = 0.0;
-    v = w;
-    w = x;
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
-    {
-      for(x = 0; x < gcode->nt_abc->K; x++)
-        if(gcode->nt_abc->degen[dsq[i]][x]) break;
-    }
-    for (k = 0; k < M; k++) {
-
-      a = gcode->basic[v*16+w*4+x];
-      fwd->dp[i][k] = hmm->eo[a][k] * hmm->pi[k];
-      max = ESL_MAX(fwd->dp[i][k], max);
-    }
-    for (k = 0; k < M; k++) {
-      fwd->dp[i][k] /= max;
-    }
-    fwd->sc[i] = log(max); 
-  }
-
-  for (i = 6; i <= L; i++)
-    { 
-
-      max = 0.0;
-      v = w;
-      w = x;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-      else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
-      {
-        for(x = 0; x < gcode->nt_abc->K; x++)
-          if(gcode->nt_abc->degen[dsq[i]][x]) break;
-      }
-
-      for (k = 0; k < M; k++)
-        {
-
-          fwd->dp[i][k] = 0.0;
-
-          for (m = 0; m < M; m++)
-            fwd->dp[i][k] += fwd->dp[i-3][m] * hmm->t[m][k];
-
-          a = gcode->basic[v*16+w*4+x];
-          fwd->dp[i][k] *= hmm->eo[a][k]; 
-
-          max = ESL_MAX(fwd->dp[i][k], max);
-        }
-
-      for (k = 0; k < M; k++)
-        fwd->dp[i][k] /= max;
-     
-      fwd->sc[i] = log(max);
-    }
-	
-  fwd->sc[L+1] = 0.0;
-  fwd->sc[L+2] = 0.0;
-  fwd->sc[L+3] = 0.0;
-  for (m = 0; m < M; m++) 
-  {
-    fwd->sc[L+1] += fwd->dp[L-2][m] * hmm->t[m][M];
-    fwd->sc[L+2] += fwd->dp[L-1][m] * hmm->t[m][M];
-    fwd->sc[L+3] += fwd->dp[L  ][m] * hmm->t[m][M];
-  }  
-	
-  fwd->sc[L+1] = log(fwd->sc[L+1]);
-  fwd->sc[L+2] = log(fwd->sc[L+2]);
-  fwd->sc[L+3] = log(fwd->sc[L+3]);
-  logsc1 = logsc2 = logsc3 = 0.0;
-  for (i = 3; i <= L+3; i++) {
-    switch (i%3) {
-      case 0: logsc1 += fwd->sc[i]; break;
-      case 1: logsc2 += fwd->sc[i]; break;
-      case 2: logsc3 += fwd->sc[i]; break;
-      default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
-    }
-  }
-  
-  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3);
-
-  fwd->M = hmm->M;
-  fwd->L = L;
-  if (opt_sc != NULL) *opt_sc = logsc1;
-  return eslOK;
 }
 
 /*****************************************************************

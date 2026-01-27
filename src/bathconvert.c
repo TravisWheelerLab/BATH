@@ -16,7 +16,7 @@ static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,    NULL, "show brief help on version and usage",                             1 },
   { "--ct",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
-  //{ "--fs",     eslARG_REAL,  "0.01",NULL, "0.0<=x<=1.0", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
+  //{ "--fsprob",     eslARG_REAL,  "0.01",NULL, "0.0<=x<=1.0", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -134,25 +134,46 @@ main(int argc, char **argv)
     {
       if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hmmfile_in); 
 
-      //fs = esl_opt_GetReal(go, "--fs");
+      //fs = esl_opt_GetReal(go, "--fsprob");
       fs = 0.01;
       ct = esl_opt_GetInteger(go, "--ct");
  
-      if(fs != hmm->fs || ct != hmm->ct)
-        {
-          hmm->fs = fs;
-          hmm->ct = ct;
-          r = esl_randomness_CreateFast(42);
-          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-          bg = p7_bg_Create(hmm->abc);
+      bg = p7_bg_Create(hmm->abc);
 
-          p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS] = tau_fs;
-        }
+      r = esl_randomness_CreateFast(42);
+      gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+
+      /* If we have a new frameshift probaility or codon table we need to recalculate FS taus */
+      if(fs != hmm->fs || ct != hmm->ct)
+      {
+        hmm->fs = fs;
+        hmm->ct = ct;
+
+	    p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS3] = tau_fs;
+        p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS5] = tau_fs;
+      }
+
+      if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET)
+      {
+
+        p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS3] = tau_fs;
+      }
+      
+
+      if(hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)
+      {
+
+        p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS5] = tau_fs;
+      }
+
       if(hmm->max_length == -1)
-	{
+	  {
 		p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);	
-	} 
+	  } 
      
       hmmidx++;
       entropy = p7_MeanMatchRelativeEntropy(hmm, bg); 

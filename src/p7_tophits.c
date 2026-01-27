@@ -3088,8 +3088,6 @@ p7_tophits_TabularTail(FILE *ofp, const char *progname, enum p7_pipemodes_e pipe
 
   if (fprintf(ofp, "#\n") < 0)                                                                    ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Program:         %s\n",      (progname == NULL) ? "[none]" : progname) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
-//  if (fprintf(ofp, "# Version:         %s (%s)\n", HMMER_VERSION, HMMER_DATE) < 0)                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
-//  if (fprintf(ofp, "# Pipeline mode:   %s\n",      modestamp) < 0)                                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Query file:      %s\n",      (qfile    == NULL) ? "[none]" : qfile) < 0)    ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Target file:     %s\n",      (tfile    == NULL) ? "[none]" : tfile) < 0)    ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");
   if (fprintf(ofp, "# Option settings: %s\n",      spoof_cmd) < 0)                                ESL_XEXCEPTION_SYS(eslEWRITE, "tabular output tail, write failed");

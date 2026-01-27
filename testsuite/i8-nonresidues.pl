@@ -42,8 +42,8 @@ print FP2 <<"EOF";
 GCATGTGACGAGTTTGGCCATATAAAAC*TTATGAATCCACAGCGCTCAACTGTATGGTAT
 EOF
 
-system("$bathsearch --nofs --tblout $tmppfx.tbl $hmm20aa $tmppfx.1 > $tmppfx.out 2>&1");
-if ($? != 0) { die "FAIL: bathsearch failed on first test sequence with --nofs\n"; }
+system("$bathsearch --tblout $tmppfx.tbl $hmm20aa $tmppfx.1 > $tmppfx.out 2>&1");
+if ($? != 0) { die "FAIL: bathsearch failed on first test sequence\n"; }
 &h3::ParseTbl("$tmppfx.tbl");
 
 # Verify.
@@ -57,11 +57,11 @@ if ($? != 0) { die "FAIL: bathsearch failed on first test sequence with --fsonly
 
 # Verify.
 if ($h3::ntbl        != 1)      { printf("FAIL: expected one line in tbl; saw %d\n",              $h3::ntbl);          exit 1; }
-if ($h3::fullsc[0]   != "62.5") { printf("FAIL: expected score of 62.5 for first hit; saw %s\n",  $h3::fullsc[0]);     exit 1; }
-if ($h3::fullbias[0] != "0.1")  { printf("FAIL: expected bias of 0.1 for first hit; saw %s\n",    $h3::fullbias[0]);   exit 1; }
+if ($h3::fullsc[0]   != "62.3") { printf("FAIL: expected score of 62.3 for first hit; saw %s\n",  $h3::fullsc[0]);     exit 1; }
+if ($h3::fullbias[0] != "0.0")  { printf("FAIL: expected bias of 0.0 for first hit; saw %s\n",    $h3::fullbias[0]);   exit 1; }
 
-system("$bathsearch -l 10 --nofs --tblout $tmppfx.tbl $hmm20aa $tmppfx.2 > $tmppfx.out 2>&1");
-if ($? != 0) { print "FAIL: bathsearch failed on second test sequence with --nofs"; }
+system("$bathsearch -l 10 --tblout $tmppfx.tbl $hmm20aa $tmppfx.2 > $tmppfx.out 2>&1");
+if ($? != 0) { print "FAIL: bathsearch failed on second test sequence"; }
 &h3::ParseTbl("$tmppfx.tbl");
 
 if ($h3::ntbl    != 2)          { printf("FAIL: expected two lines in tbl; saw %d\n",     $h3::ntbl);    exit 1; }
@@ -75,7 +75,7 @@ if ($? != 0) { print "FAIL: bathsearch failed on second test sequence with --fso
 &h3::ParseTbl("$tmppfx.tbl");
 
 if ($h3::ntbl        != 1)      { printf("FAIL: expected two lines in tbl; saw %d\n",             $h3::ntbl);          exit 1; }
-if ($h3::fullsc[0]   != "57.2") { printf("FAIL: expected score of 57.2 for first hit; saw %s\n",  $h3::fullsc[0]);     exit 1; }
+if ($h3::fullsc[0]   != "57.0") { printf("FAIL: expected score of 57.0 for first hit; saw %s\n",  $h3::fullsc[0]);     exit 1; }
 if ($h3::fullbias[0] != "0.0")  { printf("FAIL: expected bias of 0.0 for first hit; saw %s\n",    $h3::fullbias[0]);   exit 1; }
 
 print "ok\n";

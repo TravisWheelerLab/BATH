@@ -55,11 +55,8 @@ static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, co
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
 static int rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OMX *ox1, P7_OMX *ox2,
            int i, int j, int null2_is_done, P7_BG *bg, int long_target, P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq,  
-           P7_GMX *gx1, P7_GMX *gx2, int i, int j, P7_BG *bg, ESL_GENCODE *gcode);
-static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, 
-           const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
-           P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg, float fs_prob);
+static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode);
+static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg, float fs_prob);
 
 
 
@@ -587,10 +584,7 @@ p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPRO
  * Throws:    <eslEMEM> on allocation failure. 
  */
 int
-p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
-                                              P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg, 
-	                                          ESL_GENCODE *gcode, int64_t window_start
-)
+p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg,  ESL_GENCODE *gcode, int64_t window_start)
 {
 
   int i, j;
@@ -610,7 +604,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */
-  p7_fs_ReconfigUnihit(gm_fs, saveL);                                                          /* process each domain in unihit mode, regardless of om->mode     */
+  p7_fs_ReconfigUnihit(gm_fs, saveL/3);                                                          /* process each domain in unihit mode, regardless of om->mode     */
 
   i         = -1;
   triggered = FALSE;
@@ -645,7 +639,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         }
       }
       
-      i = ESL_MAX(1, d-3);
+      i = ESL_MAX(1, d-3); // one codon wiggle room
       d = j+1;
 
       /* Frameshift aware domain ends must be evident in all three frames */
@@ -667,10 +661,18 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         }
       }
       
-      j = d;
- 
+      j = ESL_MIN(gxf->L, d+3); // one codon wiggle room
+
+      if(j - i + 1 < 12) {
+        i     = -1;
+        triggered = FALSE;
+        start     = FALSE;
+        end       = FALSE; 
+        continue; 
+      }
+
       /* We have a region i..j to evaluate. */
-      p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_CODONS);             
+      p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_5CODONS);
       p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);
       ddef->nregions++;
       
@@ -689,14 +691,13 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
         * here; we will consolidate later if null2 strategy
         * works
         */
-    
-        p7_fs_ReconfigMultihit(gm_fs, saveL);
-
-        p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, NULL);
+        p7_ivx_GrowTo(iv, gm_fs->M, p7P_5CODONS); 
+        p7_fs_ReconfigMultihit(gm_fs, saveL/3);
+        p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs, fwd, iv, NULL);
 
         region_trace_ensemble_frameshift(ddef, gm_fs, windowsq->dsq, windowsq->abc, i, j, fwd, bck, &nc);
 
-        p7_fs_ReconfigUnihit(gm_fs, saveL);
+        p7_fs_ReconfigUnihit(gm_fs, saveL/3);
        
         /* ddef->n2sc is now set on i..j by the traceback-dependent method */
         last_j2 = 0;
@@ -727,13 +728,10 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
          
          i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
 
-         if (rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
-        }
-
-        
         if(nc == 0) {
           ddef->nenvelopes++;
-          rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, i, j, bg, gcode);
+         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, iv, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
+
         }
 
         p7_spensemble_Reuse(ddef->sp);
@@ -743,7 +741,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 	
       ddef->nenvelopes++;
        
-      rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, i, j, bg, gcode);
+      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, iv, i, j, bg, gcode);
+
     }
     i     = -1;
     triggered = FALSE;
@@ -753,8 +752,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
    } 
   }
   /* Restore model to uni/multihit mode, and to its original length model */
-  if (p7_IsMulti(save_mode)) p7_fs_ReconfigMultihit(gm_fs, saveL); 
-  else                       p7_fs_ReconfigUnihit(gm_fs, saveL); 
+  if (p7_IsMulti(save_mode)) p7_fs_ReconfigMultihit(gm_fs, saveL/3); 
+  else                       p7_fs_ReconfigUnihit(gm_fs, saveL/3); 
 
   return eslOK;
 }
@@ -1582,8 +1581,8 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
  * 
  */
 static int
-rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, 
-	                 	           P7_GMX *gx1, P7_GMX *gx2, int i, int j, P7_BG *bg, ESL_GENCODE *gcode)
+rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode)
+
 {
 
   P7_DOMAIN     *dom           = NULL;
@@ -1603,16 +1602,17 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   
   if (Ld < 15) return eslOK;
   
-  p7_fs_ReconfigLength(gm_fs, Ld);
-  
+  p7_fs_ReconfigLength(gm_fs, Ld/3);
+  p7_ivx_GrowTo(iv, gm_fs->M, p7P_5CODONS); 
+ 
   /* Forward */ 
-  p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, &envsc);
+  p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx1, iv, &envsc);
   
   /* Backward */
-  p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, NULL);
+  p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, iv, NULL);
 
   /* Posterior Probabilities */
-  if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS)) == NULL) goto ERROR;
+  if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_5CODONS)) == NULL) goto ERROR;
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
 
   /* Find an optimal accuracy alignment */
@@ -1638,8 +1638,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
  
   p7_splice_ComputeAliScores_fs(dom, ddef->tr, windowsq, gm_fs, bg, FALSE); 
 
-  /* In rare cases the fwd/bwd agorithms produce low quality alignments. 
-   * When this happens we replace it with a viterbi alignment */
+  /* In rare cases the fwd/bwd agorithms produce low quality alignments, 
+   * particularly when short hits are algined to long modles.  When this 
+   * happens we replace it with a viterbi alignment */
   if(dom->aliscore < 0.0 ) {
 
     p7_trace_Reuse(ddef->tr);

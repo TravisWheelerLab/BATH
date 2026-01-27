@@ -56,7 +56,7 @@ static ESL_OPTIONS options[] = {
   { "-f",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"--index",      "second cmdline arg is a file of names to retrieve", 0 },
   { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          0 },
   { "-O",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
-  //{ "--fs",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
+  //{ "--fsprob",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
   { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
   { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       0 },
   { 0,0,0,0,0,0,0,0,0,0 },
@@ -253,7 +253,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             keyidx;
   int             status;
 
-  //fs = esl_opt_GetReal(go, "--fs");
+  //fs = esl_opt_GetReal(go, "--fsprob");
   fs = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
@@ -262,50 +262,52 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 
 
   while (esl_fileparser_NextLine(efp) == eslOK)
-    {
-      if (esl_fileparser_GetTokenOnLine(efp, &key, &keylen) != eslOK)
-	p7_Fail("Failed to read HMM name on line %d of file %s\n", efp->linenumber, keyfile);
+  {
+    if (esl_fileparser_GetTokenOnLine(efp, &key, &keylen) != eslOK)
+	  p7_Fail("Failed to read HMM name on line %d of file %s\n", efp->linenumber, keyfile);
 
      
-      status = esl_keyhash_Store(keys, key, -1, &keyidx);
-      if (status == eslEDUP) p7_Fail("HMM key %s occurs more than once in file %s\n", key, keyfile);
+    status = esl_keyhash_Store(keys, key, -1, &keyidx);
+    if (status == eslEDUP) p7_Fail("HMM key %s occurs more than once in file %s\n", key, keyfile);
 
+    if (hfp->ssi != NULL) { onefetch(go, ofp, key, hfp);  nhmm++; }
 
-      if (hfp->ssi != NULL) { onefetch(go, ofp, key, hfp);  nhmm++; }
-
-    }
+  }
 
   if (hfp->ssi == NULL) 
-    {
-      while ((status = p7_hmmfile_Read(hfp, &abc, &hmm)) != eslEOF)
+  {
+    while ((status = p7_hmmfile_Read(hfp, &abc, &hmm)) != eslEOF)
 	{
 	  if      (status == eslEOD)       p7_Fail("read failed, HMM file %s may be truncated?", hfp->fname);
 	  else if (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hfp->fname);
 	  else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hfp->fname);
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
-          if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
-        {
-	  //if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0)  hmm->fs = fs; 
-	  hmm->fs = fs;
-          if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)    hmm->ct = ct; 
+
+      if(hmm->abc->type == eslAMINO) {
+        if(fs != hmm->fs || ct != hmm->ct || hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
 
           r = esl_randomness_CreateFast(42);
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
           bg = p7_bg_Create(hmm->abc);
-		
-          p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS] = tau_fs;
+
+          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS3] = tau_fs;
+          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS5] = tau_fs;
         }
-	  if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
-	      ((hmm->acc) && esl_keyhash_Lookup(keys, hmm->acc, -1, &keyidx) == eslOK))
-	    {
-	      p7_hmmfile_WriteASCII(ofp, p7_BATH_3f, hmm);
-	      nhmm++;
-	    }
+      }
+
+
+      if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
+	     ((hmm->acc) && esl_keyhash_Lookup(keys, hmm->acc, -1, &keyidx) == eslOK))
+	  {
+	    p7_hmmfile_WriteASCII(ofp, p7_BATH_3f, hmm);
+	    nhmm++;
+	  }
 
 	  p7_hmm_Destroy(hmm);
 	}
-    }
+  }
 
   if(bg != NULL)    p7_bg_Destroy(bg);
   if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
@@ -338,7 +340,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   int             ct;
   int             status;
 
-  //fs = esl_opt_GetReal(go, "--fs");
+  //fs = esl_opt_GetReal(go, "--fsprob");
   fs = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
@@ -365,19 +367,20 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   if (status == eslOK) 
     { 
 
-      if(hmm->abc->type == eslAMINO && (fs != hmm->fs || ct != hmm->ct))
-      { 
-	//if(esl_opt_IsUsed(go, "--fs") || hmm->fs == 0.0) hmm->fs = fs;
-	hmm->fs = fs;
-        if(esl_opt_IsUsed(go, "--ct") || hmm->ct == 0)   hmm->ct = ct;
- 
-        r = esl_randomness_CreateFast(42);
-        gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-        bg = p7_bg_Create(hmm->abc);
+      if(hmm->abc->type == eslAMINO) {
+        if(fs != hmm->fs || ct != hmm->ct || hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
 
-        p7_fs_Tau(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS] = tau_fs;
+          r = esl_randomness_CreateFast(42);
+          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+          bg = p7_bg_Create(hmm->abc);
+
+          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS3] = tau_fs;
+          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS5] = tau_fs;
+        }
       }
+
 
       p7_hmmfile_WriteASCII(ofp, p7_BATH_3f, hmm);
       p7_hmm_Destroy(hmm);

@@ -68,10 +68,10 @@
 #define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL ||  mode == p7_UNIGLOBAL)
 #define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL)
 
-#define p7_NEVPARAM 7  /* number of statistical parameters stored in models                      */
+#define p7_NEVPARAM 8  /* number of statistical parameters stored in models                      */
 #define p7_NCUTOFFS 6  /* number of Pfam score cutoffs stored in models                          */
 #define p7_NOFFSETS 3  /* number of disk offsets stored in models for hmmscan's fast model input */
-enum p7_evparams_e {    p7_MMU  = 0, p7_MLAMBDA = 1,     p7_VMU = 2,  p7_VLAMBDA = 3, p7_FTAU = 4, p7_FLAMBDA = 5 , p7_FTAUFS = 6 };
+enum p7_evparams_e {    p7_MMU  = 0, p7_MLAMBDA = 1,     p7_VMU = 2,  p7_VLAMBDA = 3, p7_FTAU = 4, p7_FLAMBDA = 5 , p7_FTAUFS3 = 6 , p7_FTAUFS5 = 7 };
 enum p7_cutoffs_e  {     p7_GA1 = 0,     p7_GA2 = 1,     p7_TC1 = 2,      p7_TC2 = 3,  p7_NC1 = 4,     p7_NC2 = 5 };
 enum p7_offsets_e  { p7_MOFFSET = 0, p7_FOFFSET = 1, p7_POFFSET = 2 };
 
@@ -243,14 +243,16 @@ enum p7p_rsc_e {
 };
 #define p7P_NR 2
 
-enum p7p_rsc_codon {
-  p7P_C1 = 0, 
-  p7P_C2 = 1,
-  p7P_C3 = 2, 
+/* Out of order to allow either 3 or 5 codon lengths */
+enum p7p_rsc_codon { 
+  p7P_C1 = 0,
+  p7P_C2 = 1, 
+  p7P_C3 = 2,
   p7P_C4 = 3,
   p7P_C5 = 4,
 };
-#define p7P_CODONS 5
+#define p7P_5CODONS 5
+#define p7P_3CODONS 3
 
 enum p7p_rsc_indels {
   p7P___X   = 0,  // two deletes then one nucleotide
@@ -270,6 +272,15 @@ enum p7p_rsc_indels {
   p7P_XxxXX = 14, // one nucleotide, two inserts, two nucleotides
   p7P_xxXXX = 15, // two inserts then three nucleotides
 };
+
+enum p7p_ivx_codon {
+  p7P_V1 = 0,
+  p7P_V2 = 1,
+  p7P_V3 = 2,
+  p7P_V4 = 3,
+  p7P_V5 = 4,
+};
+
 
 /* Indexing variables for codons and quasicodons */
 #define p7P_MAXCODONS      1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 */ 
@@ -623,7 +634,7 @@ enum p7g_splicecells_e {
 typedef struct p7_gmx_s {
   int  M;    /* actual model dimension (model 1..M)    */
   int  L;    /* actual sequence dimension (seq 1..L)   */
-  
+ 
   int      allocR;      /* current allocated # of rows : L+1 <= validR <= allocR                */
   int      validR;      /* # of rows actually pointing at DP memory                             */
   int      allocW;      /* current set row width :  M+1 <= allocW                               */
@@ -637,6 +648,13 @@ typedef struct p7_gmx_s {
 
   float  *dp_mem;
 } P7_GMX;
+
+typedef struct p7_ivx_s {
+  int   allocM;
+  int   allocC;
+  float *ivx;
+
+} P7_IVX;
 
 /* Macros below implement indexing idioms for generic DP routines.
  * They require the following setup, for profile <gm> and matrix <gx>:
@@ -672,6 +690,16 @@ typedef struct p7_gmx_s {
 /* Flags that control P7_GMX debugging dumps */
 #define p7_HIDE_SPECIALS (1<<0)
 #define p7_SHOW_LOG      (1<<1)
+
+
+typedef struct p7_codon_table {
+
+  int K;             /*amino acid acphebet length       */
+  int transl_table;  /* NCBI translation table          */
+  ESL_DSQ *table;    /* codon storage                   */
+  int *num_codons;   /* number of codons per amino acid */
+
+} P7_CODONTABLE;
 
 
 /*****************************************************************
@@ -1379,15 +1407,16 @@ enum p7_complementarity_e { p7_NOCOMPLEMENT    = 0, p7_COMPLEMENT   = 1 };
 
 typedef struct p7_pipeline_s {
   /* Dynamic programming matrices                                           */
-  P7_OMX     *oxf;               /* one-row Forward matrix, accel pipe       */
-  P7_OMX     *oxb;               /* one-row Backward matrix, accel pipe      */
-  P7_OMX     *fwd;               /* full Fwd matrix for domain envelopes     */
-  P7_OMX     *bck;               /* full Bck matrix for domain envelopes     */
-  P7_GMX     *gxf;               /* three-row generic Forward matrix for frameshift    */
-  P7_GMX     *gxb;               /* five-row generic Backward matrix for frameshifts   */
-  P7_GMX     *gfwd;              /* full Fwd generic matrix for domain envelopes     */
-  P7_GMX     *gbck;              /* full Fwd generic matrix for domain envelopes     */
- 
+  P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe       */
+  P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe      */
+  P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes     */
+  P7_OMX     *bck;    /* full Bck matrix for domain envelopes     */
+  P7_GMX     *gxf;    /* three-row generic Forward matrix for frameshift    */
+  P7_GMX     *gxb;    /* five-row generic Backward matrix for frameshifts   */
+  P7_GMX     *gfwd;   /* full Fwd generic matrix for domain envelopes     */
+  P7_GMX     *gbck;   /* full Fwd generic matrix for domain envelopes     */
+  P7_IVX     *iv;     /* intermediate values matrix for frameshift algorithms */ 
+
   /* Domain postprocessing                                                  */
   ESL_RANDOMNESS *r;                       /* random number generator                  */
   int             do_reseeding;            /* TRUE: reseed for reproducible results    */
@@ -1457,7 +1486,6 @@ typedef struct p7_pipeline_s {
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;               /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;    /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
-
   int           show_accessions;          /* TRUE to output accessions not names      */
   int           show_alignments;          /* TRUE to output alignments (default)      */
   int           is_translated;            /* TRUE is hmmscant or hmmsearcht           */
@@ -1470,6 +1498,8 @@ typedef struct p7_pipeline_s {
   char          errbuf[eslERRBUFSIZE];
 } P7_PIPELINE;
 
+#define PARSER_ROWS_FWD 4
+#define PARSER_ROWS_BWD 6
 
 /*****************************************************************
  * 17. P7_BUILDER: pipeline for new HMM construction
@@ -1560,7 +1590,9 @@ extern int p7_Lambda(P7_HMM *hmm, P7_BG *bg, double *ret_lambda);
 extern int p7_MSVMu     (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_mmu);
 extern int p7_ViterbiMu (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_vmu);
 extern int p7_Tau       (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
-extern int p7_fs_Tau       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau_3codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau_5codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau);
+
 
 /* eweight.c */
 extern int p7_EntropyWeight(const P7_HMM *hmm, const P7_BG *bg, const P7_PRIOR *pri, double infotarget, double *ret_Neff);
@@ -1579,15 +1611,18 @@ extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
-/* fwdback_frameshift.c */
-extern int p7_Forward_Frameshift        (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_ForwardParser_Frameshift  (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_Backward_Frameshift       (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-extern int p7_BackwardParser_Frameshift (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *ret_sc);
-
 /* viterbi_frameshift.c */
 extern int p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc);
 extern int p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr); 
+
+/* fwdback_frameshift.c */
+extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
+extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);
@@ -1596,7 +1631,6 @@ extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX 
 /* generic_null2.c */
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
-extern int p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2); 
 extern int p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2);
 
 /* generic_optacc.c */
@@ -1668,6 +1702,9 @@ extern int   p7_h2io_WriteASCII(FILE *fp, P7_HMM *hmm);
 extern void         p7_banner(FILE *fp, const char *progname, char *banner);
 extern ESL_GETOPTS *p7_CreateDefaultApp(ESL_OPTIONS *options, int nargs, int argc, char **argv, char *banner, char *usage);
 extern int          p7_AminoFrequencies(float *f);
+extern P7_CODONTABLE* p7_codontable_Create(ESL_GENCODE *gcode);
+extern int p7_codontable_GetCodon(P7_CODONTABLE* codon_table, ESL_RANDOMNESS *r, ESL_DSQ amino, ESL_DSQ *codon);
+extern void p7_codontable_Destroy(P7_CODONTABLE* codon_table);
 
 /* logsum.c */
 extern int   p7_FLogsumInit(void);
@@ -1679,14 +1716,14 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
-extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode);
-extern int p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int global_start);
+extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode);
+extern int p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int global_start);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L);
+extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L);
+extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigUnihit (P7_FS_PROFILE *gm_fs, int L);
+extern int p7_fs_ReconfigUnihit (P7_FS_PROFILE *gm_fs, int L_amnio);
 extern int p7_fs_UpdateEmissionScores(P7_FS_PROFILE *gm_fs, P7_BG *bg, const P7_HMM *hmm);
 
 
@@ -1761,23 +1798,19 @@ extern int            p7_alidisplay_Compare(const P7_ALIDISPLAY *ad1, const P7_A
 
 /* p7_bg.c */
 extern P7_BG *p7_bg_Create(const ESL_ALPHABET *abc);
-extern P7_BG *p7_bg_fs_Create(const ESL_ALPHABET *abc);
 extern P7_BG *p7_bg_CreateUniform(const ESL_ALPHABET *abc);
 extern P7_BG *p7_bg_Clone(const P7_BG *bg);
-extern P7_BG *p7_bg_fs_Clone(const P7_BG *bg);
 extern int    p7_bg_Dump(FILE *ofp, const P7_BG *bg);
 extern void   p7_bg_Destroy(P7_BG *bg);
 extern int    p7_bg_SetLength(P7_BG *bg, int L);
 extern int    p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-extern int    p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-
+extern int    p7_bg_fs_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int aminoL, float *ret_sc);
 extern int    p7_bg_Read(char *bgfile, P7_BG *bg, char *errbuf);
 extern int    p7_bg_Write(FILE *fp, P7_BG *bg);
 
 extern int    p7_bg_SetFilter  (P7_BG *bg, int M, const float *compo);
 extern int    p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
 extern int    p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc);
-extern int      p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, ESL_HMX *fwd, float *opt_sc);
 
 /* p7_builder.c */
 extern P7_BUILDER *p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc);
@@ -1811,9 +1844,8 @@ extern int p7_domaindef_ByViterbi            (P7_PROFILE *gm, const ESL_SQ *sq, 
 extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
                                           P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
                                           P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, 
-		P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_DOMAINDEF *ddef, 
-                P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start);
+extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start);
+
 extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 
 /* p7_gmx.c */
@@ -1825,6 +1857,10 @@ extern void    p7_gmx_Destroy(P7_GMX *gx);
 extern int     p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance);
 extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
+
+extern P7_IVX *p7_ivx_Create(int allocM, int allocC);
+extern int     p7_ivx_GrowTo(P7_IVX *iv, int M, int C);
+extern void    p7_ivx_Destroy(P7_IVX *iv);
 
 /* p7_gmx_fs.c */
 extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int allocC);
@@ -1985,6 +2021,7 @@ extern int         p7_fs_profile_IsMultihit(const P7_FS_PROFILE *gm_fs);
 extern int         p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, char st2, int k2, float *ret_tsc); 
 extern int         p7_profile_fs_GetT(const P7_FS_PROFILE *gm_fs, char st1, int k1, char st2, int k2, float *ret_tsc);
 extern int         p7_profile_Validate(const P7_PROFILE *gm, char *errbuf, float tol);
+extern int         p7_profile_fs_Validate(const P7_FS_PROFILE *gm_fs, char *errbuf, float tol);
 extern int         p7_profile_Compare(P7_PROFILE *gm1, P7_PROFILE *gm2, float tol);
 
 /* p7_search_builder.c */

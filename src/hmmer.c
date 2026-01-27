@@ -183,6 +183,116 @@ p7_AminoFrequencies(float *f)
   return eslOK;
 }
 
+/* Function:  p7_codontable_Create()
+ * Synopsis:  Allocate a new <P7_CODONTABLE>.
+ *
+ * Purpose:   Allocate a codon lookup table for reverse taranslating 
+ *            amino acids to codons using the alphabets and the NCBI 
+ *            translation table sepcified by the <ESL_GENCODE>.
+ *
+ * Returns:   a pointer to the new <P7_CODONTABLE>.
+ *
+ * Throws:    <NULL> on allocation error.
+ */
+P7_CODONTABLE*
+p7_codontable_Create(ESL_GENCODE *gcode) {
+ 
+  ESL_DSQ a, x, y, z;
+  P7_CODONTABLE *codon_table = NULL;
+  int status;
+
+  ESL_ALLOC(codon_table, sizeof(P7_CODONTABLE));
+  codon_table->K            = gcode->aa_abc->K;
+  codon_table->transl_table = gcode->transl_table;
+
+  codon_table->table      = NULL;
+  codon_table->num_codons = NULL;
+
+  /* 18 = 6 * 3 = max number of codons per amino * codon length */
+  ESL_ALLOC(codon_table->table, sizeof(ESL_DSQ) * codon_table->K * 18);
+  ESL_ALLOC(codon_table->num_codons, sizeof(int) * codon_table->K);
+
+  /* Set all nucleotides to "missing" and number of codons per amino to 0*/
+  for(a = 0; a < codon_table->K; a++) {
+	for(x = 0; x < 18; x++)
+      codon_table->table[(a * 18) + x] = gcode->nt_abc->Kp-1;
+
+	codon_table->num_codons[a] = 0;
+  }
+
+  for(x = 0; x < gcode->nt_abc->K; x++) {
+    for(y = 0; y < gcode->nt_abc->K; y++) {
+	  for(z = 0; z < gcode->nt_abc->K; z++) {
+	    a = gcode->basic[16*x + 4*y + z];
+		if(a < codon_table->K) {
+		  codon_table->table[(a * 18) + (codon_table->num_codons[a] * 3)]     = x;
+		  codon_table->table[(a * 18) + (codon_table->num_codons[a] * 3) + 1] = y;
+		  codon_table->table[(a * 18) + (codon_table->num_codons[a] * 3) + 2] = z;
+		  codon_table->num_codons[a]++;
+		}
+	  }
+	}
+  }
+   
+  return codon_table;
+
+ERROR:
+  p7_codontable_Destroy(codon_table);
+  return NULL;
+}
+
+/* Function:  p7_codontable_GetCodon()
+ * Synopsis:  Get a randomly selected codon that translates to the sepcified amino acid
+ *
+ * Purpose:   Randomly select one of the codons that translates to 
+ *            <amino> and record it in <codon>. <codon> must be 
+ *            allocated for at least 3 <ESL_DSQ>
+ *
+ * Returns:   <eslOK> on success
+ *
+ * Throws:    <eslERANGE> for an invalid amino
+ *            <eslEINVAL> for an aminio with no codons
+ *
+ */
+int 
+p7_codontable_GetCodon(P7_CODONTABLE* codon_table, ESL_RANDOMNESS *r, ESL_DSQ amino, ESL_DSQ *codon)
+{
+  int x;
+
+  if(amino >= codon_table->K)             return eslERANGE;
+  if(codon_table->num_codons[amino] == 0) return eslEINVAL;
+
+  x = esl_rnd_Roll(r, codon_table->num_codons[amino]);
+
+  codon[0] = codon_table->table[(amino * 18) + (x * 3)];
+  codon[1] = codon_table->table[(amino * 18) + (x * 3) + 1];
+  codon[2] = codon_table->table[(amino * 18) + (x * 3) + 2];
+
+  return eslOK;
+	
+}
+
+/* Function:  p7_codontable_Destroy()
+ *
+ * Purpose:   Frees a <P7_CODONTABLE>.
+ *
+ * Returns:   (void)
+ */
+void
+p7_codontable_Destroy(P7_CODONTABLE* codon_table) 
+{
+
+  if(codon_table == NULL) return;
+
+  if(codon_table->table != NULL)      free(codon_table->table);
+  if(codon_table->num_codons != NULL) free(codon_table->num_codons);
+  
+  free(codon_table);
+
+  return;
+}
+
+
 /*****************************************************************
  * 2. Unit tests
  *****************************************************************/
@@ -199,9 +309,63 @@ utest_alphabet_config(int alphatype)
   if (abc->Kp > p7_MAXCODE)                           esl_fatal(msg);
   esl_alphabet_Destroy(abc);
 }
+
+static int
+utest_codontable(ESL_GETOPTS *go, int alpha_amino, int alpha_DNA) 
+{
+
+ int i;
+ ESL_DSQ  a;
+ ESL_DSQ          *codon;
+ ESL_ALPHABET     *abcAA;
+ ESL_ALPHABET     *abcDNA;
+ ESL_GENCODE      *gcode;
+ ESL_RANDOMNESS   *r;
+ P7_CODONTABLE    *codon_table;
+ int status;
+
+ ESL_ALLOC(codon, sizeof(ESL_DSQ) * 3);
+
+ r = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+
+ abcAA  = esl_alphabet_Create(alpha_amino);
+ abcDNA = esl_alphabet_Create(alpha_DNA);
+ gcode  = esl_gencode_Create(abcDNA,abcAA);
+
+ codon_table = p7_codontable_Create(gcode);
+
+ for(i = 0; i < 100; i++) {
+   for(a = 0; a < abcAA->K; a++) {
+     codon[0] = abcDNA->Kp-1;
+     codon[1] = abcDNA->Kp-1;
+     codon[2] = abcDNA->Kp-1;
+
+     p7_codontable_GetCodon(codon_table, r, a, codon);
+	 if(codon[0] >= abcDNA->K) esl_fatal("P7_CODONTABLE unit test failed with non-nucleotide at postion 0");
+	 if(codon[1] >= abcDNA->K) esl_fatal("P7_CODONTABLE unit test failed with non-nucleotide at postion 1");
+	 if(codon[2] >= abcDNA->K) esl_fatal("P7_CODONTABLE unit test failed with non-nucleotide at postion 2");
+
+     if(gcode->basic[16*codon[0] + 4*codon[1] + codon[2]] != a)
+	   esl_fatal("P7_CODONTABLE unit test failed with wrong amino acid");
+	
+   }
+ }
+
+ esl_randomness_Destroy(r);
+ esl_alphabet_Destroy(abcAA);
+ esl_alphabet_Destroy(abcDNA);
+ esl_gencode_Destroy(gcode);
+ p7_codontable_Destroy(codon_table);
+ free(codon);
+
+ return(eslOK);
+
+ERROR:
+ return status;
+
+}
 #endif /*p7HMMER_TESTDRIVE*/
 
-  
 
 /*****************************************************************
  * 3. Test driver
@@ -216,6 +380,7 @@ utest_alphabet_config(int alphatype)
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL, NULL, "show brief help on version and usage",              0 },
+   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options]";
@@ -231,6 +396,8 @@ main(int argc, char **argv)
   utest_alphabet_config(eslRNA);
   utest_alphabet_config(eslCOINS);
   utest_alphabet_config(eslDICE);
+
+  utest_codontable(go, eslAMINO, eslDNA);
 
   esl_getopts_Destroy(go);
   return 0;

@@ -1,7 +1,8 @@
-/* Stochastic traceback of a Frameshift-Aware Forward matrix; generic (non-SIMD) version.
+/* Stochastic traceback of a Forward matrix; frameshift aware version.
  * 
  * Contents:
  *   1. Stochastic traceback implementation.
+ *   2. Benchmark driver.
  *
  */
 #include "p7_config.h"
@@ -18,12 +19,11 @@
  *****************************************************************/
 
 /* Function:  p7_StochasticTrace_Frameshift()
- * Synopsis:  Stochastic traceback of a Forward matrix.
- * Incept:    SRE, Thu Jan  3 15:39:20 2008 [Janelia]
+ * Synopsis:  Stochastic traceback of a frameshift-aware Forward matrix.
  *
  * Purpose:   Stochastic traceback of Forward matrix <gx> to
  *            sample an alignment of digital sequence <dsq>
- *            (of length <L>) to the profile <gm>. 
+ *            (of length <L>) to the profile <gm_fs>. 
  *            
  *            The sampled traceback is returned in <tr>, which the
  *            caller must have at least made an initial allocation of
@@ -32,7 +32,7 @@
  * Args:      r      - source of random numbers
  *            dsq    - digital sequence aligned to, 1..L 
  *            L      - length of dsq
- *            gm     - profile
+ *            gm_fs    - profile
  *            mx     - Forward matrix to trace, L x M
  *            tr     - storage for the recovered traceback.
  *
@@ -50,7 +50,6 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
   float  *xmx = gx->xmx;
   float const *tsc  = gm_fs->tsc;
   float  *sc;      /* scores of possible choices: up to 2M-1, in the case of exits to E  */
-  //int d;
   int     scur, sprv;
 
   /* we'll index M states as 1..M, and D states as 2..M = M+2..2M: M0, D1 are impossibles. */
@@ -215,5 +214,108 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
 
 
 
+
+/*****************************************************************
+ * 2. Benchmark driver
+ *****************************************************************/
+#ifdef p7STOTRACE_FRAMESHIFT_BENCHMARK
+/*
+   gcc -g -O2      -o stotrace_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7STOTRACE_FRAMESHIFT_BENCHMARK stotrace_frameshift.c -lhmmer -leasel -lm
+   icc -O3 -static -o stotrace_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7STOTRACE_FRAMESHIFT_BENCHMARK stotrace_frameshift.c -lhmmer -leasel -lm
+   ./stotrace_frameshift_benchmark <hmmfile>
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target seq" ,                   0 },
+  { "-N",        eslARG_INT,  "50000", NULL, "n>0", NULL,  NULL, NULL, "number of sampled tracebacks",                   0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for generic stochastic trace";
+
+int 
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_GENCODE    *gcode   = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_FS_PROFILE  *gm_fs   = NULL;
+  P7_GMX         *fwd     = NULL;
+  P7_IVX         *iv      = NULL;
+  P7_TRACE       *tr      = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           sc, fsc;
+  float           bestsc  = -eslINFINITY;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
+
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgAA   = p7_bg_Create(abcAA);
+  bgDNA  = p7_bg_Create(abcDNA);
+  p7_bg_SetLength(bgAA, L/3);
+  p7_bg_SetLength(bgDNA, L/3);
+  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL);
+  fwd = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  iv  = p7_ivx_Create(gm_fs->M, p7P_5CODONS); 
+  tr  = p7_trace_fs_Create();
+  esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+
+  p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc);
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      p7_StochasticTrace_Frameshift(r, dsq, L, gm_fs, fwd, tr);
+      p7_trace_Reuse(tr);
+    }
+  esl_stopwatch_Stop(w);
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+
+  free(dsq);
+  p7_trace_fs_Destroy(tr);
+  p7_gmx_Destroy(fwd);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs);
+  p7_bg_Destroy(bgAA);
+  p7_bg_Destroy(bgDNA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7STOTRACE_FRAMESHIFT_BENCHMARK*/
+/*---------------------- end, benchmark -------------------------*/
 
 

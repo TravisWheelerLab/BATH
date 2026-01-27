@@ -1,4 +1,4 @@
-/* P7_GMX implementation: a generic dynamic programming matrix
+/* P7_GMX : a generic dynamic programming matrix
  *
  * Contents:
  *   1. The <P7_GMX> object
@@ -77,6 +77,7 @@ p7_gmx_Create(int allocM, int allocL)
   if (gx != NULL) p7_gmx_Destroy(gx);
   return NULL;
 }
+
 
 /* Function:  p7_gmx_GrowTo()
  * Synopsis:  Assure that DP matrix is big enough.
@@ -206,6 +207,7 @@ p7_gmx_Destroy(P7_GMX *gx)
   free(gx);
   return;
 }
+
 
 /*****************************************************************
  * 2. Debugging aids

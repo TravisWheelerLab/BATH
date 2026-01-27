@@ -121,14 +121,15 @@ static ESL_OPTIONS options[] = {
   { "--S2",           eslARG_REAL,   "1e-3",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                         7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                            7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                               7 },
+  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "Use frameshift aware algorthims",                                          7 },
   { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--nofs",        "send all potential hits to the frameshift aware pipeline",                    7 },
-  { "--nofs",         eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--fsonly",      "send all potential hits to the non-frameshift aware pipeline",                7 },
+  
 /* Other options */
   { "-Z",             eslARG_REAL,    FALSE,     NULL,       "x>=0",     NULL,   NULL, NULL,           "set database size (Megabases) to <x> for E-value calculations",               12 }, 
   { "--seed",         eslARG_INT,    "42",       NULL,       "n>=0",     NULL,   NULL, NULL,           "set RNG seed to <n> (if 0: one-time arbitrary seed)",                         12 },
   { "--w_beta",       eslARG_REAL,    NULL,      NULL,       "0>=x<=1",  NULL,   NULL, NULL,           "tail mass at which window length is determined",                              12 },
   { "--w_length",     eslARG_INT,     NULL,      NULL,       "x>=4",      NULL,   NULL, NULL,           "window length - essentially max expected hit length" ,                       12 },
-  #ifdef HMMER_THREADS 
+#ifdef HMMER_THREADS 
   { "--block_length", eslARG_INT,     NULL,      NULL,       "n>=50000", NULL,   NULL, NULL,           "length of blocks read from target database (threaded) ",                      12 },
   { "--cpu",          eslARG_INT,     p7_NCPU,  "HMMER_NCPU","n>=0",     NULL,   NULL, CPUOPTS,        "number of parallel CPU workers to use for multithreads",                      12 },
 #endif
@@ -156,14 +157,14 @@ static ESL_OPTIONS options[] = {
   { "--B3",           eslARG_INT,    "1000",     NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (Fwd)",                         99 },
  
   /* Not used, but retained because esl option-handling code errors if it isn't kept here.  Placed in group 99 so that it doesn't print to help*/
-  { "--domZ",         eslARG_REAL,    FALSE,     NULL,       "x>0",      NULL,  NULL, NULL,            "Not used",                                                                    99 },
-  { "--domE",         eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                    99 },
-  { "--domT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                    99 },
-  { "--incdomE",      eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                    99 },
-  { "--incdomT",      eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                    99 },
-  { "--watson",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate top strand",                                                   99 }, 
-  { "--crick",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate bottom strand",                                                99 },
-  { "--fs",           eslARG_REAL,   "0.01",     NULL,       "0<=x<=1",  NULL,  NULL, NULL,            "set the frameshift probabilty",                                               99 },
+  { "--domZ",         eslARG_REAL,    FALSE,     NULL,       "x>0",      NULL,  NULL, NULL,            "Not used",                                                                 99 },
+  { "--domE",         eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                 99 },
+  { "--domT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                 99 },
+  { "--incdomE",      eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                 99 },
+  { "--incdomT",      eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                 99 },
+  { "--crick",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate top strand",                                                99 },
+  { "--watson",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate bottom strand",                                             99 }, 
+  { "--fsprob",       eslARG_REAL,   "0.01",     NULL,       "0<=x<=1",  NULL,  NULL, NULL,            "set the frameshift probabilty",                                            99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -269,7 +270,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   
   if (                                                         fprintf(ofp, "# query HMM file:                                %s\n", hmmfile)                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (                                                         fprintf(ofp, "# target sequence database:                      %s\n", seqfile)                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (	                                                       fprintf(ofp, "# frameshift probability:                        %f\n", esl_opt_GetReal(go, "--fs"))                      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (	                                                       fprintf(ofp, "# frameshift probability:                        %f\n", esl_opt_GetReal(go, "--fsprob"))                      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (                                                         fprintf(ofp, "# codon translation table:                       %d\n", esl_opt_GetInteger(go, "--ct"))                   < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")                              && fprintf(ofp, "# output directed to file:                       %s\n",      esl_opt_GetString(go, "-o"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--tblout")                        && fprintf(ofp, "# per-seq hits tabular output:                   %s\n",      esl_opt_GetString(go, "--tblout"))           < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -302,8 +303,8 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
       esl_opt_IsUsed(go, "--S2")                            && fprintf(ofp, "# Splice anchor threshold:                    <= %g\n",      esl_opt_GetReal(go, "--S2"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nobias")                        && fprintf(ofp, "# biased composition HMM filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nonull2")                       && fprintf(ofp, "# null2 bias corrections:                        off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--fs")                            && fprintf(ofp, "# Use the frameshift aware algorithms\n")                                                                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fsonly")                        && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
-  if (esl_opt_IsUsed(go, "--nofs")                          && fprintf(ofp, "# Use only the non-frameshift aware pipeline\n")                                                          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--restrictdb_stkey")              && fprintf(ofp, "# Restrict db to start at seq key:               %s\n",      esl_opt_GetString(go, "--restrictdb_stkey")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--restrictdb_n")                  && fprintf(ofp, "# Restrict db to # target seqs:                  %d\n",      esl_opt_GetInteger(go, "--restrictdb_n"))    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--ssifile")                       && fprintf(ofp, "# Override ssi file to:                          %s\n",      esl_opt_GetString(go, "--ssifile"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -684,7 +685,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    abcDNA = esl_alphabet_Create(eslDNA); 
 
   /* Get translation variables */
-  indel_cost = esl_opt_GetReal(go, "--fs");
+  indel_cost = esl_opt_GetReal(go, "--fsprob");
   codon_table = esl_opt_GetInteger(go, "--ct");
  
   if (status == eslOK)
@@ -695,7 +696,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     for (i = 0; i < infocnt; ++i)
     {
-      info[i].bg    = p7_bg_fs_Create(abcAA);
+      info[i].bg    = p7_bg_Create(abcAA);
 #ifdef HMMER_THREADS
       info[i].queue = queue;
 #endif
@@ -739,11 +740,12 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     gm      = NULL;
     om      = NULL;       /* optimized query profile                  */
 
-    if(! (esl_opt_IsUsed(go, "--nofs"))) { //check that HMM is properly formated for bathsearch
-      if( ! (hmm->evparam[p7_FTAUFS] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for bathsearch. Please run bathconvert.\n", cfg->queryfile);
-     
-      if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fs %f' or run bathconvert with option '--fs %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);
-       
+    if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
+      if( ! (hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if( hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+
+      if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fsprob %f' or run bathconvert with option '--fsprob %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);
+      
       if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
     } 
     else hmm->fs = 0.;

@@ -1,11 +1,8 @@
-/* Posterior decoding algorithms; generic versions.
+/* Posterior decoding algorithms; frameshift versions.
  * 
  * Contents:
  *   1. Posterior decoding algorithms.
  *   2. Benchmark driver.
- *   3. Unit tests.
- *   4. Test driver.
- *   5. Example.
  */
 #include "p7_config.h"
 
@@ -20,57 +17,43 @@
 /* Function:  p7_Decoding_Frameshift() - BATH
  * Synopsis:  Posterior decoding of residue assignments.
  *
- * Purpose:   Calculates a posterior decoding of the residues in a DNA
- *            target sequence, given framshift aware codon profile 
- *            <gm_fs> and filled Forward and Backward matrices <fwd>, 
- *            <bck> for the profile aligned to that target sequence. The 
- *            resulting posterior decoding is stored in a DP matrix <pp>, 
- *            provided by the caller.
+ * Purpose:   Calculates a posterior decoding of the residues and 
+ *            of the codons in a DNA target sequence, given framshift 
+ *            aware codon profile  <gm_fs> and filled Forward and 
+ *            Backward matrices <fwd>, <bck> for the profile aligned 
+ *            to that target sequence. The nucleotide posterior decoding 
+ *            is stored in a DP matrix <pp>, provided by the caller, and 
+ *            the codon posterior decoding is overwriten to the <fwd>
+ *            matrix.
  *            
  *            Each residue <i> must have been emitted by match state
  *            <1..M>, insert state <1..M-1>, or an NN, CC, or JJ loop
  *            transition.  For <dp = pp->dp>, <xmx = pp->xmx>,
- *            <MMX(i,k)> is the probability that match <k> emitted
- *            residue <i>; <IMX(i,k)> is the probability that insert
- *            <k> emitted residue <i>; <XMX(i,N)>,<XMX(i,C)>,
- *            <XMX(i,J)> are the probabilities that residue <i> was
- *            emitted on an NN, CC, or JJ transition. The sum over all
- *            these possibilities for a given residue <i> is 1.0.
+ *            <MMX_FS(i,k,p7G_C0)> is the probability that match <k> 
+ *            emitted the residue <i> as the last nucletotide in any 
+ *            (quasi)codon while <MMX_FS(i,k,p7G_C1-5)> gives the same 
+ *            probability but for each scepific (quasi)codon length; 
+ *            <IMX(i,k)> is the probability that insert
+ *            <k> emitted <i> as the last nucleotide in a cdodon ending 
+ *            in residue <i>; <XMX(i,N)>,<XMX(i,C)>, <XMX(i,J)> are the 
+ *            probabilities that residue <i> was the last nucleotide in 
+ *            a codon emitted on an N->N, C->C, or J->J transition. 
+ *            The frameshift aware implementation requires two seperate 
+ *            normalizations. In the <pp> matrix we normalize so that 
+ *            the sum over all emssions that include the residue <i> at
+ *            any position in in the (quasi)codon. In the <fwd> matrix we 
+ *            normalize so that the sum over all emissions which end at 
+ *            <i>.The <pp> posteriors are used for alignment creation
+ *            and bias scoring, and the <fwd> posteriors are used for 
+ *            the alignemtn post-porb display line. 
  *
- *            Thus the only nonzero entries in a posterior decoding matrix
- *            <pp> are <M_{1..M}>, <I_{1..M-1}>, <N_{1..L-1}> (residue L
- *            can't be emitted by N), <C_{2..L}> (residue 1 can't be 
- *            emitted by C), and <J_{2..L-1}> (residues 1,L can't be
- *            emitted by J).
- *            
- *            In particular, row i=0 is unused (all zeros) in a pp
- *            matrix; the null2 calculation will take advantage of
- *            this by using the zero row for workspace.
- *            
- *            The caller may pass the Backward matrix <bck> as <pp>,
- *            in which case <bck> will be overwritten with
- *            <pp>. However, the caller may \emph{not} overwrite <fwd>
- *            this way; an <(i-1)> dependency in the calculation of
- *            NN, CC, JJ transitions prevents this.
- *
- * Args:      gm   - profile (must be the same that was used to fill <fwd>, <bck>).
- *            fwd  - filled Forward matrix 
- *            bck  - filled Backward matrix
- *            pp   - RESULT: posterior decoding matrix.
+ * Args:      gm_fs - frameshift codon profile 
+ *            fwd   - filled Forward matrix 
+ *            bck   - filled Backward matrix
+ *            pp    - RESULT: posterior decoding matrix.
  *
  * Returns:   <eslOK> on success.
  *
- * Throws:    (no abnormal error conditions)
- *
- * Note:      Burns time renormalizing each row. If you don't do this,
- *            probabilities will have an error of +/- 0.001 or so, creeping
- *            in from error in FLogsum()'s table approximation and even
- *            in log() and exp() themselves; including "probabilities"
- *            up to  ~1.001. Though this isn't going to break anything
- *            in normal use, it does drive the unit tests wild; the SSE
- *            implementation is more accurate, and unit tests that try
- *            to compare SSE and generic results will see differences,
- *            some sufficient to alter the choice of OA traceback.
  *    
  */
 int
@@ -83,7 +66,7 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
   int          i,k;
   float        overall_sc = fwd->xmx[p7G_NXCELLS*L + p7G_C] + gm_fs->xsc[p7P_C][p7P_MOVE];
   float        denom, bias_denom;
-  float        back_sc; // fwd_sc;
+  float        back_sc; 
   
   pp->M = M;
   pp->L = L;
@@ -161,9 +144,10 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
         }
     }
 
-  /* normailze i for all codons in which i may be present */
-  for (i = 1; i <= L; i++) 
-  {
+  /* denom normailzes i for all codons in which i may be present 
+   * while bias_denom only normailizes i for all codons ending in i*/
+   for (i = 1; i <= L ; i++) {
+    
     denom = -eslINFINITY;
     for (k = 1; k < M; k++) {  
       denom = p7_FLogsum(MMX_FS(i,k,p7G_C0), denom); 
@@ -273,31 +257,23 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
     XMX_FS(i,p7G_N) = XMX_FS(i,p7G_N) + denom;
     XMX_FS(i,p7G_J) = XMX_FS(i,p7G_J) + denom;
     XMX_FS(i,p7G_C) = XMX_FS(i,p7G_C) + denom;
-  
-  }
+ 
+  } 
 
   return eslOK;
 }
 
-/* Function:  p7_GDomainDecoding()
- * Synopsis:  Posterior decoding of domain location.
+/* Function:  p7_DomainDecoding_Frameshift
+ * Synopsis:  Posterior decoding of domain location for frameshift aware alignments.
  *
  * Purpose:   The caller has calculated Forward and Backward matrices
- *            <fwd> and <bck> for model <gm> aligned to a target
- *            sequence. (The target sequence doesn't need to be
- *            provided, because all we need to know is its length
- *            <L>, and that's available in either of the two DP 
- *            matrices.)
+ *            <fwd> and <bck> for frameshift codon model <gm_fs> 
+ *            aligned to a target sequence of length <L>.
  * 
  *            We use this information to calculate the posterior
  *            probabilities that we're in a begin state B, end state
  *            E, or any core model state {M,D,I} at each target
  *            sequence position <i = 1..L>.
- * 
- *            This information is stored in three arrays in
- *            <ddef>. This routine expects that this storage has
- *            already been (re)allocated appropriately for a target
- *            seq of length <L>.
  * 
  *            <ddef->btot[i]> stores the cumulative expectation
  *            $\sum_1^i$ of the number of i's that were emitted (by an
@@ -319,42 +295,15 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bc
  *            Upon return, each of these arrays has been made, and
  *            <ddef->L> has * been set.
  *
- * Args:      gm   - profile
- *            fwd  - filled Forward matrix
- *            bck  - filled Backward matrix
- *            ddef - container for the results.
+ * Args:      gm_fs - profile
+ *            fwd   - filled Forward matrix
+ *            bck   - filled Backward matrix
+ *            ddef  - container for the results.
  *
  * Returns:   <eslOK> on success.
  *
  * Throws:    (no abnormal error conditions)
  * 
- * Notes:    Ideas for future optimization:
- * 
- *           - The calculations only need to access the xmx[CNJBE][i] special
- *             states in the fwd, bck matrices, so we could use
- *             streamlined (checkpointed?) matrices that only maintain
- *             this info over all i. This would be a step in letting
- *             us do domain parses in linear memory.
- *   
- *           - indeed, the <btot>, <etot>, and <mocc> arrays could be made
- *             sparse; on long target sequences, we expect long
- *             stretches of negligible posterior probability that
- *             we're in the model or using a begin or end
- *             transition.
- *   
- *           - indeed indeed, we don't really need to store the <btot>, <etot>,
- *             and <mocc> arrays at all. We can define regions in a
- *             single pass in O(1) extra memory, straight from the
- *             <fwd>, <bck> matrices, if we have to (xref
- *             J2/101). <p7_domaindef_ByPosteriorHeuristics()> is
- *             already implemented in a way to make this easy. We're
- *             not doing that for now, partly for clarity in the code,
- *             and partly because I think we'll want to output the
- *             <btot>, <etot>, and <mocc> arrays -- this view of the
- *             posterior decoding of the domain structure of a target
- *             sequence will be useful. Also, it's a lot easier to
- *             implement the <is_multidomain_region()> trigger if
- *             these arrays are available.  
  */
 int
 p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef)
@@ -364,9 +313,10 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
                        p7_FLogsum( fwd->xmx[(L-1)*p7G_NXCELLS+p7G_C],
                                    fwd->xmx[(L-2)*p7G_NXCELLS+p7G_C])) +
                                    gm_fs->xsc[p7P_C][p7P_MOVE];
-  float njcp; // bp, ep;
-  int   i;//, k;
+  float njcp; 
+  int   i;
 
+  /* First three psoitions are set to 0. They will be included in a domain that starts at i=3 */
   ddef->btot[0] = 0.;
   ddef->btot[1] = 0.;
   ddef->btot[2] = 0.;
@@ -376,6 +326,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
 
   for (i = 3; i <= L; i++)
   {
+    /* Accumulate probabiliies at the B and E states - proabilities of transitioning in or out of the core martix */
     ddef->btot[i] = ddef->btot[i-3] + expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_B] + bck->xmx[(i-3)*p7G_NXCELLS+p7G_B] - overall_logp); 
 
     ddef->etot[i] = ddef->etot[i-3] + expf(fwd->xmx[i*p7G_NXCELLS+p7G_E] + bck->xmx[i*p7G_NXCELLS+p7G_E] - overall_logp);;
@@ -387,6 +338,8 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
 
   for (i = 3; i < L-1; i++)
   {
+
+    /* Sum poropabilities in the N, J and C states for all codons in which i is present */
     njcp = 0.0;
   
     /*N state */
@@ -404,6 +357,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
     njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
     njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_J] + gm_fs->xsc[p7P_J][p7P_LOOP] - overall_logp);
     
+    /* Probability of i emitted by the core model is aaprixmated as 1 - probability of i emited by the specials */
     ddef->mocc[i] = 1. - njcp;
   }
   njcp = 0.0;
@@ -446,13 +400,13 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, cons
 /*****************************************************************
  * 2. Benchmark driver
  *****************************************************************/
-#ifdef p7GENERIC_DECODING_BENCHMARK
+#ifdef p7DECODING_FRAMESHIFT_BENCHMARK
 /*
-   icc -O3 -static -o generic_decoding_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_BENCHMARK generic_decoding.c -lhmmer -leasel -lm
-   ./benchmark-generic-decoding <hmmfile>
-                   RRM_1 (M=72)       Caudal_act (M=136)      SMC_N (M=1151)
-                 -----------------    ------------------     -------------------
-   21 Aug 08      6.62u (21.8 Mc/s)    12.52u (21.7 Mc/s)     106.27u (21.7 Mc/s)
+   gcc -g -O2      -o decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7DECODING_FRAMESHIFT_BENCHMARK decoding_frameshift.c -lhmmer -leasel -lm
+
+   icc -O3 -static -o decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7DECODING_FRAMESHIFT_BENCHMARK decoding_frameshift.c -lhmmer -leasel -lm
+   ./benchmark_decoding_frameshift <hmmfile>
+   
  */
 #include "p7_config.h"
 
@@ -469,7 +423,7 @@ static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
-  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
   { "-N",        eslARG_INT,   "5000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
@@ -483,14 +437,18 @@ main(int argc, char **argv)
   char           *hmmfile = esl_opt_GetArg(go, 1);
   ESL_STOPWATCH  *w       = esl_stopwatch_Create();
   ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_GENCODE    *gcode   = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_FS_PROFILE  *gm_fs   = NULL;
   P7_GMX         *fwd     = NULL;
   P7_GMX         *bck     = NULL;
   P7_GMX         *pp      = NULL;
+  P7_IVX         *iv      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
@@ -498,198 +456,57 @@ main(int argc, char **argv)
   float           fsc, bsc;
   double          Mcs;
 
+  p7_FLogsumInit();
+
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
-  bg = p7_bg_Create(abc);                 p7_bg_SetLength(bg, L);
-  gm = p7_profile_Create(hmm->M, abc);    p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
-  fwd = p7_gmx_Create(gm->M, L);  
-  bck = p7_gmx_Create(gm->M, L);
-  pp  = p7_gmx_Create(gm->M, L);
+  abcAA  = esl_alphabet_Create(eslAMINO);
+  abcDNA = esl_alphabet_Create(eslDNA); 
+  bgAA  = p7_bg_Create(abcAA);                  p7_bg_SetLength(bgAA, L/3);
+  gcode = esl_gencode_Create(abcDNA,abcAA);
+  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
+  fwd   = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);  
+  bck   = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
+  pp    = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  iv    = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
+  bgDNA = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
 
-  esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
-  p7_GForward (dsq, L, gm, fwd, &fsc);
-  p7_GBackward(dsq, L, gm, bck, &bsc);
+  esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc);
+  p7_Backward_Frameshift(dsq, gcode, L, gm_fs, bck, iv, &bsc);
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++) 
-    p7_GDecoding(gm, fwd, bck, pp);   
+    p7_Decoding_Frameshift(gm_fs, fwd, bck, pp);
   esl_stopwatch_Stop(w);
 
-  Mcs  = (double) N * (double) L * (double) gm->M * 1e-6 / w->user;
+  Mcs  = (double) N * (double) L * (double) gm_fs->M * 1e-6 / w->user;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n", gm->M);
+  printf("# M    = %d\n", gm_fs->M);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
   p7_gmx_Destroy(pp);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(bck);
-  p7_profile_Destroy(gm);
-  p7_bg_Destroy(bg);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs);
+  p7_bg_Destroy(bgDNA);
+  p7_bg_Destroy(bgAA);
   p7_hmm_Destroy(hmm);
   p7_hmmfile_Close(hfp);
-  esl_alphabet_Destroy(abc);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
   esl_stopwatch_Destroy(w);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7GENERIC_DECODING_BENCHMARK*/
+#endif /*p7DECODING_FRAMESHIFT_BENCHMARK*/
 /*------------------ end, benchmark driver ----------------------*/
 
-
-
-
-/*****************************************************************
- * 3. Unit tests
- *****************************************************************/
-#ifdef p7GENERIC_DECODING_TESTDRIVE
-
-#endif /*p7GENERIC_DECODING_TESTDRIVE*/
-/*--------------------- end, unit tests -------------------------*/
-
-
-
-
-/*****************************************************************
- * 4. Test driver
- *****************************************************************/
-#ifdef p7GENERIC_DECODING_TESTDRIVE
-
-#endif /*p7GENERIC_DECODING_TESTDRIVE*/
-/*-------------------- end, test driver -------------------------*/
-
-
-
-
-/*****************************************************************
- * 5. Example
- *****************************************************************/
-#ifdef p7GENERIC_DECODING_EXAMPLE
-
-#include "p7_config.h"
-
-#include "easel.h"
-#include "esl_alphabet.h"
-#include "esl_getopts.h"
-#include "esl_sq.h"
-#include "esl_sqio.h"
-
-#include "hmmer.h"
-
-#define STYLES     "--fs,--sw,--ls,--s"    /* Exclusive choice for alignment mode     */
-
-static ESL_OPTIONS options[] = {
-  /* name           type      default  env  range  toggles reqs incomp  help                                       docgroup*/
-  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,   NULL,  NULL, NULL, "show brief help on version and usage",             0 },
-  { "--fs",      eslARG_NONE,"default",NULL, NULL, STYLES,  NULL, NULL, "multihit local alignment",                         0 },
-  { "--sw",      eslARG_NONE,   FALSE, NULL, NULL, STYLES,  NULL, NULL, "unihit local alignment",                           0 },
-  { "--ls",      eslARG_NONE,   FALSE, NULL, NULL, STYLES,  NULL, NULL, "multihit glocal alignment",                        0 },
-  { "--s",       eslARG_NONE,   FALSE, NULL, NULL, STYLES,  NULL, NULL, "unihit glocal alignment",                          0 },
-  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-};
-static char usage[]  = "[-options] <hmmfile> <seqfile>";
-static char banner[] = "example of posterior decoding, generic implementation";
-
-static void dump_matrix_csv(FILE *fp, P7_GMX *pp, int istart, int iend, int kstart, int kend);
-
-int 
-main(int argc, char **argv)
-{
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  char           *seqfile = esl_opt_GetArg(go, 2);
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_GMX         *fwd     = NULL;
-  P7_GMX         *bck     = NULL;
-  ESL_SQ         *sq      = NULL;
-  ESL_SQFILE     *sqfp    = NULL;
-  int             format  = eslSQFILE_UNKNOWN;
-  float           fsc, bsc;
-
-  /* Read in one query profile */
-  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
-  p7_hmmfile_Close(hfp);
- 
-  /* Read in one target sequence */
-  sq     = esl_sq_CreateDigital(abc);
-  if (esl_sqfile_Open(seqfile, format, NULL, &sqfp) != eslOK) p7_Fail("Failed to open sequence file %s", seqfile);
-  if (esl_sqio_Read(sqfp, sq)                       != eslOK) p7_Fail("Failed to read sequence");
-  esl_sqfile_Close(sqfp);
- 
-  /* Configure a profile from the HMM */
-  bg = p7_bg_Create(abc);
-  gm = p7_profile_Create(hmm->M, abc);
-
-  /* Now reconfig the model however we were asked to */
-  if      (esl_opt_GetBoolean(go, "--fs"))  p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL);
-  else if (esl_opt_GetBoolean(go, "--sw"))  p7_ProfileConfig(hmm, bg, gm, sq->n, p7_UNILOCAL);
-  else if (esl_opt_GetBoolean(go, "--ls"))  p7_ProfileConfig(hmm, bg, gm, sq->n, p7_GLOCAL);
-  else if (esl_opt_GetBoolean(go, "--s"))   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_UNIGLOCAL);
-  
-  /* Allocate matrices */
-  fwd = p7_gmx_Create(gm->M, sq->n);
-  bck = p7_gmx_Create(gm->M, sq->n);
-
-  /* Set the profile and null model's target length models */
-  p7_bg_SetLength(bg,   sq->n);
-  p7_ReconfigLength(gm, sq->n);
-
-  /* Run Forward, Backward */
-  p7_GForward (sq->dsq, sq->n, gm, fwd, &fsc);
-  p7_GBackward(sq->dsq, sq->n, gm, bck, &bsc);
-
-  /* Decoding: <bck> becomes the posterior probability mx */
-  p7_GDecoding(gm, fwd, bck, bck);
-
-  //p7_gmx_Dump(stdout, bck, p7_DEFAULT);
-  dump_matrix_csv(stdout, bck, 1, sq->n, 1, gm->M);
-
-  /* Cleanup */
-  esl_sq_Destroy(sq);
-  p7_profile_Destroy(gm);
-  p7_gmx_Destroy(fwd);
-  p7_gmx_Destroy(bck);
-  p7_bg_Destroy(bg);
-  p7_hmm_Destroy(hmm);
-  esl_alphabet_Destroy(abc);
-  esl_getopts_Destroy(go);
-  return 0;
-}
-
-static void
-dump_matrix_csv(FILE *fp, P7_GMX *pp, int istart, int iend, int kstart, int kend)
-{
-  int   width     = 7;
- int   precision = 5;
-  int   i, k;
-  float val;
-
-  printf("i,");
-  for (k = kstart; k <= kend; k++)
-    printf("%-d%s", k, k==kend ? "\n" : ",");
-
-  for (i = istart; i <= iend; i++)
-    {
-      printf("%-d,", i);
-      for (k = kstart; k <= kend; k++)
-  {
-    val = pp->dp[i][k * p7G_NSCELLS + p7G_M] + 
-      pp->dp[i][k * p7G_NSCELLS + p7G_I] + 
-      pp->dp[i][k * p7G_NSCELLS + p7G_D];
-
-    fprintf(fp, "%*.*f%s", width, precision, val, k==kend ? "\n" : ", ");
-  }
-    }
-}  
-#endif /*p7GENERIC_DECODING_EXAMPLE*/
-/*------------------------ example ------------------------------*/
 
 
 

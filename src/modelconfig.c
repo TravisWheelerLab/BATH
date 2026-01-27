@@ -215,7 +215,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L, int mode)
+p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode)
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
@@ -553,7 +553,8 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
-  if ((status = p7_fs_ReconfigLength(gm_fs, L)) != eslOK) goto ERROR;
+  if ((status = p7_fs_ReconfigLength(gm_fs, L_amino)) != eslOK) goto ERROR;
+
   return eslOK;
 
  ERROR:
@@ -902,19 +903,19 @@ p7_ReconfigLength(P7_PROFILE *gm, int L)
  *            control the target length dependence of the model.
  */
 int
-p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L)
+p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L_amino)
 {
   float ploop, pmove;
   
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm_fs->nj) / ((float) L/3.0f + 2.0f + gm_fs->nj); /* 2/(L+2) for uni; 3/(L+3) for multi */
+  pmove = (2.0f + gm_fs->nj) / ((float) L_amino + 2.0f + gm_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
   ploop = 1.0f - pmove;
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
+  gm_fs->L = L_amino;
 
-  gm_fs->L = L;
   return eslOK;
 }
 
@@ -967,12 +968,12 @@ p7_ReconfigMultihit(P7_PROFILE *gm, int L)
  *            <p7_ReconfigLength()>.
  */
 int
-p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L)
+p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L_amino)
 {
   gm_fs->xsc[p7P_E][p7P_MOVE] = -eslCONST_LOG2;   
   gm_fs->xsc[p7P_E][p7P_LOOP] = -eslCONST_LOG2;   
   gm_fs->nj                   = 1.0f;
-  return p7_fs_ReconfigLength(gm_fs, L);
+  return p7_fs_ReconfigLength(gm_fs, L_amino);
 }
 
 
@@ -1010,12 +1011,12 @@ p7_ReconfigUnihit(P7_PROFILE *gm, int L)
  *            process individual domains.
  */
 int
-p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L)
+p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L_amino)
 {
   gm_fs->xsc[p7P_E][p7P_MOVE] = 0.0f;
   gm_fs->xsc[p7P_E][p7P_LOOP] = -eslINFINITY;
   gm_fs->nj                   = 0.0f;
-  return p7_fs_ReconfigLength(gm_fs, L);
+  return p7_fs_ReconfigLength(gm_fs, L_amino);
 }
 
 /* Function:  p7_fs_UpdateEmissionScores()
@@ -1069,8 +1070,24 @@ utest_Config(P7_HMM *hmm, P7_BG *bg)
   if ((gm = p7_profile_Create(hmm->M, hmm->abc))    == NULL)   esl_fatal(msg);
   if (p7_ProfileConfig(hmm, bg, gm, 350, p7_LOCAL)  != eslOK)  esl_fatal(msg);
   if (p7_profile_Validate(gm, NULL, 0.0001)         != eslOK)  esl_fatal(msg);
+ 
 
   p7_profile_Destroy(gm);
+  return;
+}
+
+static void
+utest_Config_fs(P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode)
+{
+  char       *msg = "modelconfig.c::p7_ProfileConfig_fs() unit test failed";
+  P7_FS_PROFILE *gm_fs  = NULL;
+
+  if ((gm_fs = p7_profile_fs_Create(hmm->M, hmm->abc))           == NULL)   esl_fatal(msg);
+  if (p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 350, p7_LOCAL)  != eslOK)  esl_fatal(msg);
+  if (p7_profile_fs_Validate(gm_fs, NULL, 0.0001)                      != eslOK)  esl_fatal(msg);
+
+
+  p7_profile_fs_Destroy(gm_fs);
   return;
 }
 
@@ -1113,23 +1130,30 @@ utest_occupancy(P7_HMM *hmm)
 int
 main(int argc, char **argv)
 {  
-  ESL_ALPHABET   *abc    = NULL;
+  ESL_ALPHABET   *abcAA  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  ESL_GENCODE    *gcode  = NULL;
   ESL_RANDOMNESS *r      = NULL;
   P7_HMM         *hmm    = NULL;
   P7_BG          *bg     = NULL;
   int             M      = 10000;
   
-  if ((abc = esl_alphabet_Create(eslAMINO)) == NULL)  esl_fatal("failed to create amino alphabet");
-  if ((r   = esl_randomness_CreateFast(0))  == NULL)  esl_fatal("failed to create randomness");
-  if (p7_hmm_Sample(r, M, abc, &hmm)        != eslOK) esl_fatal("failed to sample random HMM");
-  if ((bg = p7_bg_Create(abc))              == NULL)  esl_fatal("failed to created null model");
+  if ((abcAA  = esl_alphabet_Create(eslAMINO))     == NULL)  esl_fatal("failed to create amino alphabet");
+  if ((abcDNA = esl_alphabet_Create(eslDNA))       == NULL)  esl_fatal("failed to create DNA alphabet");
+  if ((gcode  = esl_gencode_Create(abcDNA, abcAA)) == NULL)  esl_fatal("failed to create gencode");
+  if ((r      = esl_randomness_CreateFast(0))      == NULL)  esl_fatal("failed to create randomness");
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)             != eslOK) esl_fatal("failed to sample random HMM");
+  if ((bg = p7_bg_Create(abcAA))                   == NULL)  esl_fatal("failed to created null model");
 
   utest_Config(hmm, bg);
+  utest_Config_fs(hmm, bg, gcode);
   utest_occupancy(hmm);
 
   p7_hmm_Destroy(hmm);
   p7_bg_Destroy(bg);
-  esl_alphabet_Destroy(abc);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_gencode_Destroy(gcode);
   esl_randomness_Destroy(r);
   return eslOK;
 }

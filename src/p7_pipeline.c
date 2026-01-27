@@ -2291,8 +2291,8 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *b
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / ((env_len/3.)+2));
     bitscore += 2 * log(2. / (gm_fs->max_length+2));
-    bitscore -= (env_len-ali_len)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
-    bitscore += (ESL_MAX(env_len,gm_fs->max_length*3)-ali_len) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
+    bitscore -= ((env_len-ali_len)/3)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
+    bitscore += ((ESL_MAX(env_len,gm_fs->max_length*3)-ali_len)/3) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
 
     /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)

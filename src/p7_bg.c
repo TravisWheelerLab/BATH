@@ -505,8 +505,8 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 /* Function:  p7_bg_fs_FilterScore()
  * Synopsis:  Calculates the filter null model score.
  *
- * Purpose:   Calculates the filter null model <bg> score for sequence
- *            <dsq> of length <L>, and return it in 
+ * Purpose:   Calculates the three frame filter null model <bg> score 
+ *            for sequence <dsq> of length <L>, and return it in 
  *            <*ret_sc>.
  *            
  *            The score is calculated as an HMM Forward score using
@@ -521,9 +521,10 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
 int
 p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
 {
-  int     i,j;
+  int     i,j,f;
   int     L;
   float   nullsc;
+  float   sum_nullsc;
   ESL_DSQ amino;
   ESL_DSQ *orf_dsq;
   ESL_HMX *hmx;
@@ -538,23 +539,27 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
     ESL_ALLOC(orf_dsq, sizeof(ESL_DSQ) * dnasq->n);
     orf_dsq[0] = eslDSQ_SENTINEL;
 
-    L = 0;
-    j = 1;
-    for (i = 1; i < dnasq->n-2; i++) {
-      amino = esl_gencode_GetTranslation(gcode,&dnasq->dsq[i]);
-      if(esl_abc_XIsCanonical(gcode->aa_abc, amino)) {
-        orf_dsq[j] = amino;
-        j++;
-        L++;
+    /* Translate all three frames */
+    sum_nullsc = -eslINFINITY;
+    for(f = 1; f <= 3; f++) {
+      j = 1;
+      for (i = f; i < dnasq->n-2; i+=3) {
+        amino = esl_gencode_GetTranslation(gcode,&dnasq->dsq[i]);
+        if(esl_abc_XIsCanonical(gcode->aa_abc, amino)) {
+          orf_dsq[j] = amino;
+          j++;
+        }
       }
-    }
-    orf_dsq[j] = eslDSQ_SENTINEL;
+      orf_dsq[j] = eslDSQ_SENTINEL;
+      L = j-1;
+      hmx = esl_hmx_Create(L, bg->fhmm->M);
+      esl_hmm_Forward(orf_dsq, L, bg->fhmm, hmx, &nullsc);
 
-    hmx = esl_hmx_Create(L, bg->fhmm->M);
-    esl_hmm_Forward(orf_dsq, L, bg->fhmm, hmx, &nullsc);
+      sum_nullsc = p7_FLogsum(sum_nullsc, nullsc);
+    }
   }
 
-  *ret_sc = nullsc + (float) dnasq->n * logf(bg->p1) + logf(1.-bg->p1);
+  *ret_sc = sum_nullsc + ((float) (dnasq->n/3) * logf(bg->p1) + logf(1.-bg->p1) + log(3.0));
 
   if(orf_dsq != NULL) free(orf_dsq);
   esl_hmx_Destroy(hmx);
@@ -566,126 +571,6 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
     esl_hmx_Destroy(hmx);
     return status;
 
-}
-
-int
-p7_bg_fs_Forward(const ESL_DSQ *dsq, int L, const ESL_GENCODE *gcode, const ESL_HMM *hmm, ESL_HMX *fwd, float *opt_sc)
-{
-  int   i, k, m;
-  int   a, v, w, x;
-  int   M     = hmm->M;
-  float logsc1, logsc2, logsc3;
-  float max;
-
-  fwd->sc[0] = 0.0;
-	
-  if (L == 0) {
-    fwd->sc[L+1] = logsc1 = log(hmm->pi[M]);
-    if (opt_sc != NULL) *opt_sc = logsc1;
-    return eslOK;
-  }
-	
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) w = dsq[1];
-  else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[1]))
-  {
-    for(w = 0; w < gcode->nt_abc->K; w++)
-       if(gcode->nt_abc->degen[dsq[1]][w]) break;
-  }
-	
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
-  else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[2]))
-  {
-    for(x = 0; x < gcode->nt_abc->K; x++)
-       if(gcode->nt_abc->degen[dsq[2]][x]) break;
-  }
-
-  //first codons in the three frames end at i = 3, i = 4 and i = 5 	
-  for (i = 3; i < 6; i++)
-  {
-
-    max = 0.0;
-    v = w;
-    w = x;
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
-    {
-      for(x = 0; x < gcode->nt_abc->K; x++)
-        if(gcode->nt_abc->degen[dsq[i]][x]) break;
-    }
-    for (k = 0; k < M; k++) {
-
-      a = gcode->basic[v*16+w*4+x];
-      fwd->dp[i][k] = hmm->eo[a][k] * hmm->pi[k];
-      max = ESL_MAX(fwd->dp[i][k], max);
-    }
-    for (k = 0; k < M; k++) {
-      fwd->dp[i][k] /= max;
-    }
-    fwd->sc[i] = log(max); 
-  }
-
-  for (i = 6; i <= L; i++)
-    { 
-
-      max = 0.0;
-      v = w;
-      w = x;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-      else if(esl_abc_XIsDegenerate(gcode->nt_abc, dsq[i]))
-      {
-        for(x = 0; x < gcode->nt_abc->K; x++)
-          if(gcode->nt_abc->degen[dsq[i]][x]) break;
-      }
-
-      for (k = 0; k < M; k++)
-        {
-
-          fwd->dp[i][k] = 0.0;
-
-          for (m = 0; m < M; m++)
-            fwd->dp[i][k] += fwd->dp[i-3][m] * hmm->t[m][k];
-
-          a = gcode->basic[v*16+w*4+x];
-          fwd->dp[i][k] *= hmm->eo[a][k]; 
-
-          max = ESL_MAX(fwd->dp[i][k], max);
-        }
-
-      for (k = 0; k < M; k++)
-        fwd->dp[i][k] /= max;
-     
-      fwd->sc[i] = log(max);
-    }
-	
-  fwd->sc[L+1] = 0.0;
-  fwd->sc[L+2] = 0.0;
-  fwd->sc[L+3] = 0.0;
-  for (m = 0; m < M; m++) 
-  {
-    fwd->sc[L+1] += fwd->dp[L-2][m] * hmm->t[m][M];
-    fwd->sc[L+2] += fwd->dp[L-1][m] * hmm->t[m][M];
-    fwd->sc[L+3] += fwd->dp[L  ][m] * hmm->t[m][M];
-  }  
-	
-  fwd->sc[L+1] = log(fwd->sc[L+1]);
-  fwd->sc[L+2] = log(fwd->sc[L+2]);
-  fwd->sc[L+3] = log(fwd->sc[L+3]);
-  logsc1 = logsc2 = logsc3 = 0.0;
-  for (i = 3; i <= L+3; i++) {
-    switch (i%3) {
-      case 0: logsc1 += fwd->sc[i]; break;
-      case 1: logsc2 += fwd->sc[i]; break;
-      case 2: logsc3 += fwd->sc[i]; break;
-      default: ESL_EXCEPTION(eslEINCONCEIVABLE, "impossible.");
-    }
-  }
-  
-  logsc1 = p7_FLogsum( p7_FLogsum( logsc1, logsc2), logsc3);
-
-  fwd->M = hmm->M;
-  fwd->L = L;
-  if (opt_sc != NULL) *opt_sc = logsc1;
-  return eslOK;
 }
 
 /*****************************************************************

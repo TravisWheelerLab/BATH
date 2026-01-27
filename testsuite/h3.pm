@@ -11,53 +11,103 @@ sub ParseTbl {
     @tacc     = ();
     @qname    = ();
     @qacc     = ();
+    @hmmlen   = ();
+    @hmmfrom  = ();
+    @hmmto    = ();
+    @seqlen   = ();
+    @alifrom  = ();
+    @alito    = ();
+    @envfrom  = ();
+    @envto    = ();
     @fullE    = ();
     @fullsc   = ();
     @fullbias = ();
-    #@best1E   = ();
-    #@best1sc  = ();
-    #@best1bias= ();
-    #@nexp     = ();
-    #@nreg     = ();
-    #@nclu     = ();
-    #@nov      = ();
-    #@nenv     = ();
-    #@ndom     = ();
-    #@nrep     = ();
-    #@ninc     = ();
     @tdesc    = ();
-    
+
     if (! open(TBLFILE, $tblfile)) { print "FAIL: couldn't open table file"; exit 1 ; }
     while (<TBLFILE>)
     {
 	if (/^\#/) { next; }
 	chop;
-	@fields = split(' ', $_, 20);
+	@fields = split(' ', $_, 17);
 
 	$tname[$ntbl]     = $fields[1];
 	$tacc[$ntbl]      = $fields[2];
 	$qname[$ntbl]     = $fields[3];
 	$qacc[$ntbl]      = $fields[4];
+    $hmmlen[$ntbl]    = $fields[5];
+    $hmmfrom[$ntbl]   = $fields[6];
+    $hmmto[$ntbl]     = $fields[7];
+    $seqlen[$ntbl]    = $fields[8];
+    $alifrom[$ntbl]   = $fields[9];
+    $alito[$ntbl]     = $fields[10];
+    $envfrom[$ntbl]   = $fields[11];
+    $envto[$ntbl]     = $fields[12];
 	$fullE[$ntbl]     = $fields[13];
 	$fullsc[$ntbl]    = $fields[14];
 	$fullbias[$ntbl]  = $fields[15];
-	#$best1E[$ntbl]    = $fields[7];
-	#$best1sc[$ntbl]   = $fields[8];
-	#$best1bias[$ntbl] = $fields[9];
-	#$nexp[$ntbl]      = $fields[10];
-	#$nreg[$ntbl]      = $fields[11];
-	#$nclu[$ntbl]      = $fields[12];
-	#$nov[$ntbl]       = $fields[13];
-	#$nenv[$ntbl]      = $fields[14];	
-	#$ndom[$ntbl]      = $fields[15];
-	#$nrep[$ntbl]      = $fields[16];
-	#$ninc[$ntbl]      = $fields[17];
-	$tdesc[$ntbl]     = $fields[19];
+	$tdesc[$ntbl]     = $fields[16];
 	$ntbl++;
     }
     close TBLFILE;
     1;
 }
+
+sub ParseFSTbl {
+    my ($tblfile)    = @_;
+    my (@fields);
+
+    $ntbl     = 0;
+    @tname    = ();
+    @tacc     = ();
+    @qname    = ();
+    @qacc     = ();
+    @hmmlen   = ();
+    @hmmfrom  = ();
+    @hmmto    = ();
+    @seqlen   = ();
+    @alifrom  = ();
+    @alito    = ();
+    @envfrom  = ();
+    @envto    = ();
+    @fullE    = ();
+    @fullsc   = ();
+    @fullbias = ();
+    @shifts   = ();
+    @stops    = ();
+    @tdesc    = ();
+
+    if (! open(TBLFILE, $tblfile)) { print "FAIL: couldn't open table file"; exit 1 ; }
+    while (<TBLFILE>)
+    {
+	if (/^\#/) { next; }
+	chop;
+	@fields = split(' ', $_, 19);
+
+	$tname[$ntbl]     = $fields[1];
+	$tacc[$ntbl]      = $fields[2];
+	$qname[$ntbl]     = $fields[3];
+	$qacc[$ntbl]      = $fields[4];
+    $hmmlen[$ntbl]    = $fields[5];
+    $hmmfrom[$ntbl]   = $fields[6];
+    $hmmto[$ntbl]     = $fields[7];
+    $seqlen[$ntbl]    = $fields[8];
+    $alifrom[$ntbl]   = $fields[9];
+    $alito[$ntbl]     = $fields[10];
+    $envfrom[$ntbl]   = $fields[11];
+    $envto[$ntbl]     = $fields[12];
+	$fullE[$ntbl]     = $fields[13];
+	$fullsc[$ntbl]    = $fields[14];
+	$fullbias[$ntbl]  = $fields[15];
+    $shifts[$ntbl]    = $fields[16];
+    $stops[$ntbl]     = $fields[17];
+	$tdesc[$ntbl]     = $fields[18];
+	$ntbl++;
+    }
+    close TBLFILE;
+    1;
+}
+
 
 
 sub ParseDomTbl {

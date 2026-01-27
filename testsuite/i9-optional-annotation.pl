@@ -64,11 +64,11 @@ if ($? != 0) { die "FAIL: bathbuild failed\n"; }
 @output = `$builddir/src/bathsearch --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;
 if ($? != 0) { die "FAIL: bathsearch failed\n"; }
 
-&h3::ParseTbl("$tmppfx.tbl");
+&h3::ParseFSTbl("$tmppfx.tbl");
 if ($h3::ntbl       != 4)                      { die "FAIL: on expected number lines\n";   }
 if ($h3::tname[0]   ne "test1")                { die "FAIL: on line 0 target name\n";      }
 if ($h3::tacc[0]    ne "AC00001")              { die "FAIL: on line 0 accession\n";        }
-if ($h3::tdesc[0]   ne "Sequence description") { die "FAIL: on line 0 desc\n";             }
+if ($h3::tdesc[0]   ne "Sequence description") { die "FAIL: on line 0 desc\n"              }
 if ($h3::qname[0]   ne "ali1")                 { die "FAIL: on line 0 query name\n";       }
 if ($h3::qacc[0]    ne "XX01234.5")            { die "FAIL: on line 0 query accession\n";  }
 if ($h3::tname[1]   ne "test2")                { die "FAIL: on line 1 target name\n";      }
@@ -77,6 +77,20 @@ if ($h3::tdesc[1]   ne "-")                    { die "FAIL: on line 1 desc\n";  
 if ($h3::qname[2]   ne "ali2")                 { die "FAIL: on line 2 query name\n";       }
 if ($h3::qacc[2]    ne "-")                    { die "FAIL: on line 2 query accession\n";  }
 
+@output = `$builddir/src/bathsearch --nofs --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;
+if ($? != 0) { die "FAIL: bathsearch failed\n"; }
+&h3::ParseTbl("$tmppfx.tbl");
+if ($h3::ntbl       != 4)                      { die "FAIL: on expected number lines\n";   }
+if ($h3::tname[0]   ne "test1")                { die "FAIL: on line 0 target name\n";      }
+if ($h3::tacc[0]    ne "AC00001")              { die "FAIL: on line 0 accession\n";        }
+if ($h3::tdesc[0]   ne "Sequence description") { die "FAIL: on line 0 desc\n"              }
+if ($h3::qname[0]   ne "ali1")                 { die "FAIL: on line 0 query name\n";       }
+if ($h3::qacc[0]    ne "XX01234.5")            { die "FAIL: on line 0 query accession\n";  }
+if ($h3::tname[1]   ne "test2")                { die "FAIL: on line 1 target name\n";      }
+if ($h3::tacc[1]    ne "-")                    { die "FAIL: on line 1 accession\n";        }
+if ($h3::tdesc[1]   ne "-")                    { die "FAIL: on line 1 desc\n";             }
+if ($h3::qname[2]   ne "ali2")                 { die "FAIL: on line 2 query name\n";       }
+if ($h3::qacc[2]    ne "-")                    { die "FAIL: on line 2 query accession\n";  }
 
 print "ok\n";
 unlink "$tmppfx.sto";

@@ -190,9 +190,9 @@
 1 exercise  fragments              !testsuite/i7-bathbuild-fragments.pl! @src/bathbuild@               %OUTFILES%
 1 exercise  nonresidues            !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
 1 exercise  opt-annotation         !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
-1 exercise  dup-names             !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
-1 exercise  stdin_pipes           !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
-#1 exercise  brute-itest           @src/itest_brute@  
+1 exercise  dup-names              !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
+1 exercise  stdin_pipes            !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
+#1 exercise brute-itest            @src/itest_brute@  
 
 ################################################################
 # valgrind tests  (optional. 'make SQCLEVEL=3 check')

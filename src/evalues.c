@@ -724,20 +724,22 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
 
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp   help                                       docgroup*/
-  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL,  "show brief help on version and usage",            0 },
-  { "-s",        eslARG_INT,      "0", NULL, NULL,  NULL,  NULL, NULL,  "set random number generator seed to <n>",         0 },
-  { "--EmL",     eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "length of sequences for MSV Gumbel mu fit",       0 },   
-  { "--EmN",     eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "number of sequences for MSV Gumbel mu fit",       0 },   
-  { "--EvL",     eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "length of sequences for Viterbi Gumbel mu fit",   0 },   
-  { "--EvN",     eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "number of sequences for Viterbi Gumbel mu fit",   0 },   
-  { "--EfL",     eslARG_INT,    "100", NULL,"n>0",  NULL,  NULL, NULL,  "length of sequences for Forward exp tail tau fit",0 },   
-  { "--EfN",     eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "number of sequences for Forward exp tail tau fit",0 },   
-  { "--Eft",     eslARG_REAL,  "0.04", NULL,"0<x<1",NULL,  NULL, NULL,  "tail mass for Forward exponential tail tau fit",  0 },   
-  { "-Z",        eslARG_INT,      "1", NULL, NULL,  NULL,  NULL, NULL,  "set number of iterations per model to <n>",       0 },
-  { "--lambda",  eslARG_REAL,    NULL, NULL, NULL,  NULL,  NULL, NULL,  "set lambda param to <x>",                         0 },
-  { "--msvonly", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run MSV mu calibration (for benchmarking)",  0 },
-  { "--vitonly", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run Vit mu calibration (for benchmarking)",  0 },
-  { "--fwdonly", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run Fwd tau calibration (for benchmarking)", 0 },
+  { "-h",         eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL,  "show brief help on version and usage",                       0 },
+  { "-s",         eslARG_INT,      "0", NULL, NULL,  NULL,  NULL, NULL,  "set random number generator seed to <n>",                    0 },
+  { "--EmL",      eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "length of sequences for MSV Gumbel mu fit",                  0 },   
+  { "--EmN",      eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "number of sequences for MSV Gumbel mu fit",                  0 },   
+  { "--EvL",      eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "length of sequences for Viterbi Gumbel mu fit",              0 },   
+  { "--EvN",      eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "number of sequences for Viterbi Gumbel mu fit",              0 },   
+  { "--EfL",      eslARG_INT,    "100", NULL,"n>0",  NULL,  NULL, NULL,  "length of sequences for Forward exp tail tau fit",           0 },   
+  { "--EfN",      eslARG_INT,    "200", NULL,"n>0",  NULL,  NULL, NULL,  "number of sequences for Forward exp tail tau fit",           0 },   
+  { "--Eft",      eslARG_REAL,  "0.04", NULL,"0<x<1",NULL,  NULL, NULL,  "tail mass for Forward exponential tail tau fit",             0 },   
+  { "-Z",         eslARG_INT,      "1", NULL, NULL,  NULL,  NULL, NULL,  "set number of iterations per model to <n>",                  0 },
+  { "--lambda",   eslARG_REAL,    NULL, NULL, NULL,  NULL,  NULL, NULL,  "set lambda param to <x>",                                    0 },
+  { "--msvonly",  eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run MSV mu calibration (for benchmarking)",             0 },
+  { "--vitonly",  eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run Vit mu calibration (for benchmarking)",             0 },
+  { "--fwdonly",  eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run Amino Acid Fwd tau calibration (for benchmarking)", 0 },
+  { "--fwd3only", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run 3 codon Fwd tau calibration (for benchmarking)",    0 },
+  { "--fwd5only", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL,BMARKS, "only run 5 codon Fwd tau calibration (for benchmarking)",    0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
@@ -750,15 +752,20 @@ main(int argc, char **argv)
   char           *hmmfile = esl_opt_GetArg(go, 1);
   ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
   ESL_ALPHABET   *abc     = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_GENCODE    *gcode   = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
   P7_BG          *bg      = NULL;
   P7_PROFILE     *gm      = NULL;
   P7_OPROFILE    *om      = NULL;
+  P7_FS_PROfILE  *gm_fs   = NULL;
   double          lambda  = 0.0;
   double          mmu     = 0.0;
   double          vmu     = 0.0;
   double          ftau    = 0.0;
+  double          ftau3   = 0.0;
+  double          ftau5   = 0.0;
   int             Z       = esl_opt_GetInteger(go, "-Z");
   int             EmL     = esl_opt_GetInteger(go, "--EmL");
   int             EmN     = esl_opt_GetInteger(go, "--EmN");
@@ -768,13 +775,15 @@ main(int argc, char **argv)
   int             EfN     = esl_opt_GetInteger(go, "--EfN");
   int             Eft     = esl_opt_GetReal   (go, "--Eft");
   int             iteration;
-  int             do_msv, do_vit, do_fwd;
+  int             do_msv, do_vit, do_fwd, do_fwd3, do_fwd5;
   int             status;
 
-  if      (esl_opt_GetBoolean(go, "--msvonly") == TRUE) { do_msv =  TRUE; do_vit = FALSE; do_fwd = FALSE; }
-  else if (esl_opt_GetBoolean(go, "--vitonly") == TRUE) { do_msv = FALSE; do_vit =  TRUE; do_fwd = FALSE; }
-  else if (esl_opt_GetBoolean(go, "--fwdonly") == TRUE) { do_msv = FALSE; do_vit = FALSE; do_fwd =  TRUE; }
-  else                                                  { do_msv =  TRUE; do_vit =  TRUE; do_fwd =  TRUE; }
+  if      (esl_opt_GetBoolean(go, "--msvonly")  == TRUE) { do_msv =  TRUE; do_vit = FALSE; do_fwd = FALSE; do_fwd3 = FALSE;  do_fwd5 = FALSE; }
+  else if (esl_opt_GetBoolean(go, "--vitonly")  == TRUE) { do_msv = FALSE; do_vit =  TRUE; do_fwd = FALSE; do_fwd3 = FALSE;  do_fwd5 = FALSE; }
+  else if (esl_opt_GetBoolean(go, "--fwdonly")  == TRUE) { do_msv = FALSE; do_vit = FALSE; do_fwd =  TRUE; do_fwd3 = FALSE;  do_fwd5 = FALSE; }
+  else if (esl_opt_GetBoolean(go, "--fwd3only") == TRUE) { do_msv = FALSE; do_vit = FALSE; do_fwd = FALSE; do_fwd3 =  TRUE;  do_fwd5 = FALSE; }
+  else if (esl_opt_GetBoolean(go, "--fwd5only") == TRUE) { do_msv = FALSE; do_vit = FALSE; do_fwd = FALSE; do_fwd3 = FALSE;  do_fwd5 =  TRUE; }
+  else                                                   { do_msv =  TRUE; do_vit =  TRUE; do_fwd =  TRUE; do_fwd3 =  TRUE;  do_fwd5 =  TRUE; }
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   while ((status = p7_hmmfile_Read(hfp, &abc, &hmm)) != eslEOF) 
@@ -784,17 +793,28 @@ main(int argc, char **argv)
       p7_ProfileConfig(hmm, bg, gm, EvL, p7_LOCAL); /* the EvL doesn't matter */
       om = p7_oprofile_Create(hmm->M, abc);
       p7_oprofile_Convert(gm, om);
-
+      if(abc->type == eslAMINO) {
+        abcDNA = esl_alphabet_Create(eslDNA);
+        gcode  = esl_gencode_Create(abcDNA, abc)
+        gm_fs = p7_profile_Create(hmm->M, abc);
+        p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, EvL, p7_LOCAL);
+      }
+      
       if (esl_opt_IsOn(go, "--lambda"))	lambda = esl_opt_GetReal(go, "--lambda"); 
       else p7_Lambda(hmm, bg, &lambda);	  
 
       for (iteration = 0; iteration < Z; iteration++)
 	{
-	  if (do_msv) p7_MSVMu     (r, om, bg, EmL, EmN, lambda,       &mmu);
-	  if (do_vit) p7_ViterbiMu (r, om, bg, EvL, EvN, lambda,       &vmu);
-	  if (do_fwd) p7_Tau       (r, om, bg, EfL, EfN, lambda, Eft,  &ftau);
-      
-	  printf("%s %.4f %.4f %.4f %.4f\n", hmm->name, lambda, mmu, vmu, ftau);
+	  if (do_msv)  p7_MSVMu     (r, om, bg, EmL, EmN, lambda,       &mmu);
+	  if (do_vit)  p7_ViterbiMu (r, om, bg, EvL, EvN, lambda,       &vmu);
+	  if (do_fwd)  p7_Tau       (r, om, bg, EfL, EfN, lambda, Eft,  &ftau);
+      if(abc->type == eslAMINO) {
+        if (do_fwd3) p7_fs_Tau_3codons(r, gm_fs, hmm, bg, EfL, EfN, 0.01, lambda, Eft, &ftau3) 
+        if (do_fwd5) p7_fs_Tau_5codons(r, gm_fs, hmm, bg, EfL, EfN, 0.01, lambda, Eft, &ftau5)
+      }
+	  printf("%s %.4f %.4f %.4f %.4f", hmm->name, lambda, mmu, vmu, ftau);
+      if (abc->type == eslAMINO)  printf(" %.4f %.4f\n", ftau3, ftau5);
+      else                        printf("\n");
 	}
 
       p7_hmm_Destroy(hmm);      

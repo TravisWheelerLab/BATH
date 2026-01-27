@@ -812,6 +812,46 @@ p7_profile_Validate(const P7_PROFILE *gm, char *errbuf, float tol)
   return eslFAIL;
 }
 
+int
+p7_profile_fs_Validate(const P7_FS_PROFILE *gm_fs, char *errbuf, float tol)
+{
+  int     status;
+  int     k;
+  double *pstart = NULL;
+
+  ESL_ALLOC(pstart, sizeof(double) * (gm_fs->M+1));
+  pstart[0] = 0.0;
+
+  /* Validate the entry distribution.
+   * In a glocal model, this is an explicit probability distribution,
+   * corresponding to left wing retraction.
+   * In a local model, this is an implicit probability distribution,
+   * corresponding to the implicit local alignment model, and we have
+   * to calculate the M(M+1)/2 fragment probabilities accordingly.
+   */
+  if (p7_fs_profile_IsLocal(gm_fs))
+    {        /* the code block below is also in emit.c:sample_endpoints */
+      for (k = 1; k <= gm_fs->M; k++)
+  pstart[k] = exp(p7P_TSC(gm_fs, k-1, p7P_BM)) * (gm_fs->M - k + 1); /* multiply p_ij by the number of exits j */
+    }
+  else
+    {
+      for (k = 1; k <= gm_fs->M; k++)
+  pstart[k] = exp(p7P_TSC(gm_fs, k-1, p7P_BM));
+    }
+
+  if (esl_vec_DValidate(pstart, gm_fs->M+1, tol, NULL) != eslOK) ESL_XFAIL(eslFAIL, errbuf, "profile entry distribution is not normalized properly");
+  free(pstart);
+  return eslOK;
+
+ ERROR:
+  if (pstart != NULL) free(pstart);
+  return eslFAIL;
+}
+
+
+
+
 /* Function:  p7_profile_Compare()
  * Synopsis:  Compare two profiles for equality.
  *

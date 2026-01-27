@@ -156,6 +156,7 @@ BENCHMARKS = \
     fwdback_frameshift_benchmark\
     generic_msv_benchmark\
 	generic_null2_benchmark\
+    null2_frameshift_benchmark\
 	generic_optacc_benchmark\
     optacc_frameshift_benchmark\
 	generic_stotrace_benchmark\

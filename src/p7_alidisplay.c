@@ -1986,6 +1986,7 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, i
       if (fprintf(fp, " FRAME\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
+    if (ad->ppline != NULL) {
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 
     for (i = 0; i < aliwidth; i++)
@@ -1995,8 +1996,8 @@ p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, i
     }
 
     if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");	  
-  
-    /* print DNA sequence */
+    }
+   
     k1 += nk;
     if   (ad->sqfrom < ad->sqto) { i1 = i2 + 1;  a1 = a2 + 1; }
     else                         { i1 = i2 - 1;  a1 = a2 - 1; }// revcomp hit for DNA
@@ -2862,33 +2863,49 @@ main(int argc, char **argv)
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_STOPWATCH  *w       = esl_stopwatch_Create();
   ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_GENCODE    *gcode   = NULL; 
+  P7_CODONTABLE  *ct      = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
   P7_BG          *bg      = NULL;
   P7_PROFILE     *gm      = NULL;
   P7_OPROFILE    *om      = NULL;
+  P7_FS_PROFILE  *gm_fs   = NULL;
   P7_TRACE       *tr      = NULL;
   ESL_SQ         *sq      = NULL;
+  ESL_SQ         *sqDNA   = NULL;
   P7_ALIDISPLAY  *ad      = NULL;
-  int             i,z;
+  P7_PIPELINE    *pli     = NULL;
+  int             i,x,y,z;
+  int status;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
   p7_hmmfile_Close(hfp);
   
+  ESL_ALLOC(pli, sizeof(P7_PIPELINE));
+  pli->show_accessions = FALSE;
 
-  bg = p7_bg_Create(abc);
+  bg = p7_bg_Create(abcAA);
   p7_bg_SetLength(bg, 0);
-  gm = p7_profile_Create(hmm->M, abc);
+  gm = p7_profile_Create(hmm->M, abcAA);
   p7_ProfileConfig(hmm, bg, gm, 0, p7_UNIGLOCAL); /* that sets N,C,J to generate nothing */
-  om = p7_oprofile_Create(gm->M, abc);
+  om = p7_oprofile_Create(gm->M, abcAA);
   p7_oprofile_Convert(gm, om);
 
-  if (esl_opt_GetBoolean(go, "-p")) tr = p7_trace_CreateWithPP();
-  else                              tr = p7_trace_Create();
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  ct     = p7_codontable_Create(gcode);
+  gm_fs = p7_profile_fs_Create(hmm->M, abcAA); 
+  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 0, p7_UNIGLOCAL);
 
-  sq = esl_sq_CreateDigital(abc);
+
+  if (esl_opt_GetBoolean(go, "-p")) tr = p7_trace_fs_CreateWithPP();
+  else                              tr = p7_trace_fs_Create();
+
+  sq = esl_sq_CreateDigital(abcAA);
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
@@ -2903,26 +2920,70 @@ main(int argc, char **argv)
 	      if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
 	  ad = p7_alidisplay_Create(tr, 0, om, sq, NULL);
-	  p7_alidisplay_Print(stdout, ad, 40, 40, 80, FALSE);
+	  p7_alidisplay_Print(stdout, ad, 40, 40, 80, pli);
 	  p7_alidisplay_Destroy(ad);
 	}
       p7_trace_Reuse(tr);
       esl_sq_Reuse(sq);
     }
   esl_stopwatch_Stop(w);
-  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  esl_stopwatch_Display(stdout, w, "# Standard CPU time: ");
+
+
+  pli->frameshift = TRUE;
+  pli->show_translated_sequence = TRUE;
+  pli->show_frameline = FALSE;
+
+  sqDNA = esl_sq_CreateDigital(abcDNA);
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      p7_ProfileEmit(r, hmm, gm, bg, sq, tr);
+      esl_sq_GrowTo(sqDNA, sq->n*3);
+      esl_sq_SetName(sqDNA, "random");
+
+      y = 1;
+      for(x = 1; x <= sq->n; x++) {
+        p7_codontable_GetCodon(ct, r, sq->dsq[x], sqDNA->dsq+y);
+        y+=3;
+      }
+      
+      p7_trace_fs_Convert(tr, 1, 1);
+      if (! esl_opt_GetBoolean(go, "-b"))
+    {
+      if (esl_opt_GetBoolean(go, "-p"))
+        for (z = 0; z < tr->N; z++)
+          if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
+
+      ad = p7_alidisplay_fs_Create(tr, 0, gm, gm_fs, sqDNA, gcode);
+      p7_alidisplay_Print(stdout, ad, 40, 40, 80, pli);
+      p7_alidisplay_Destroy(ad);
+    }
+      p7_trace_Reuse(tr);
+      esl_sq_Reuse(sq);
+    }
+  esl_stopwatch_Stop(w);
+  esl_stopwatch_Display(stdout, w, "# Frameshift CPU time: ");
 
   esl_sq_Destroy(sq);
+  esl_sq_Destroy(sqDNA);
   p7_trace_Destroy(tr);
   p7_oprofile_Destroy(om);
   p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs);
+  p7_codontable_Destroy(ct);
   p7_bg_Destroy(bg);
   p7_hmm_Destroy(hmm);
-  esl_alphabet_Destroy(abc);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_gencode_Destroy(gcode);
   esl_randomness_Destroy(r);
   esl_stopwatch_Destroy(w);
   esl_getopts_Destroy(go);
   return 0;
+
+ERROR:
+  return status;
 }
 #endif /*p7ALIDISPLAY_BENCHMARK*/
 /*--------------------- end, benchmark driver -------------------*/

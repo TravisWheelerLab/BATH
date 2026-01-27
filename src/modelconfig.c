@@ -772,8 +772,24 @@ utest_Config(P7_HMM *hmm, P7_BG *bg)
   if ((gm = p7_profile_Create(hmm->M, hmm->abc))    == NULL)   esl_fatal(msg);
   if (p7_ProfileConfig(hmm, bg, gm, 350, p7_LOCAL)  != eslOK)  esl_fatal(msg);
   if (p7_profile_Validate(gm, NULL, 0.0001)         != eslOK)  esl_fatal(msg);
+ 
 
   p7_profile_Destroy(gm);
+  return;
+}
+
+static void
+utest_Config_fs(P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode)
+{
+  char       *msg = "modelconfig.c::p7_ProfileConfig_fs() unit test failed";
+  P7_FS_PROFILE *gm_fs  = NULL;
+
+  if ((gm_fs = p7_profile_fs_Create(hmm->M, hmm->abc))           == NULL)   esl_fatal(msg);
+  if (p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 350, p7_LOCAL)  != eslOK)  esl_fatal(msg);
+  if (p7_profile_fs_Validate(gm_fs, NULL, 0.0001)                      != eslOK)  esl_fatal(msg);
+
+
+  p7_profile_fs_Destroy(gm_fs);
   return;
 }
 
@@ -816,23 +832,30 @@ utest_occupancy(P7_HMM *hmm)
 int
 main(int argc, char **argv)
 {  
-  ESL_ALPHABET   *abc    = NULL;
+  ESL_ALPHABET   *abcAA  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  ESL_GENCODE    *gcode  = NULL;
   ESL_RANDOMNESS *r      = NULL;
   P7_HMM         *hmm    = NULL;
   P7_BG          *bg     = NULL;
   int             M      = 10000;
   
-  if ((abc = esl_alphabet_Create(eslAMINO)) == NULL)  esl_fatal("failed to create amino alphabet");
-  if ((r   = esl_randomness_CreateFast(0))  == NULL)  esl_fatal("failed to create randomness");
-  if (p7_hmm_Sample(r, M, abc, &hmm)        != eslOK) esl_fatal("failed to sample random HMM");
-  if ((bg = p7_bg_Create(abc))              == NULL)  esl_fatal("failed to created null model");
+  if ((abcAA  = esl_alphabet_Create(eslAMINO))     == NULL)  esl_fatal("failed to create amino alphabet");
+  if ((abcDNA = esl_alphabet_Create(eslDNA))       == NULL)  esl_fatal("failed to create DNA alphabet");
+  if ((gcode  = esl_gencode_Create(abcDNA, abcAA)) == NULL)  esl_fatal("failed to create gencode");
+  if ((r      = esl_randomness_CreateFast(0))      == NULL)  esl_fatal("failed to create randomness");
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)             != eslOK) esl_fatal("failed to sample random HMM");
+  if ((bg = p7_bg_Create(abcAA))                   == NULL)  esl_fatal("failed to created null model");
 
   utest_Config(hmm, bg);
+  utest_Config_fs(hmm, bg, gcode);
   utest_occupancy(hmm);
 
   p7_hmm_Destroy(hmm);
   p7_bg_Destroy(bg);
-  esl_alphabet_Destroy(abc);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_gencode_Destroy(gcode);
   esl_randomness_Destroy(r);
   return eslOK;
 }

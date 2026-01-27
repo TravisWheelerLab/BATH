@@ -1583,7 +1583,6 @@ extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX 
 /* generic_null2.c */
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
-extern int p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2); 
 extern int p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2);
 
 /* generic_optacc.c */
@@ -1739,10 +1738,8 @@ extern int            p7_alidisplay_Compare(const P7_ALIDISPLAY *ad1, const P7_A
 
 /* p7_bg.c */
 extern P7_BG *p7_bg_Create(const ESL_ALPHABET *abc);
-extern P7_BG *p7_bg_fs_Create(const ESL_ALPHABET *abc);
 extern P7_BG *p7_bg_CreateUniform(const ESL_ALPHABET *abc);
 extern P7_BG *p7_bg_Clone(const P7_BG *bg);
-extern P7_BG *p7_bg_fs_Clone(const P7_BG *bg);
 extern int    p7_bg_Dump(FILE *ofp, const P7_BG *bg);
 extern void   p7_bg_Destroy(P7_BG *bg);
 extern int    p7_bg_SetLength(P7_BG *bg, int L);
@@ -1959,6 +1956,7 @@ extern int         p7_fs_profile_IsMultihit(const P7_FS_PROFILE *gm_fs);
 extern int         p7_profile_GetT(const P7_PROFILE *gm, char st1, int k1, 
            char st2, int k2, float *ret_tsc);
 extern int         p7_profile_Validate(const P7_PROFILE *gm, char *errbuf, float tol);
+extern int         p7_profile_fs_Validate(const P7_FS_PROFILE *gm_fs, char *errbuf, float tol);
 extern int         p7_profile_Compare(P7_PROFILE *gm1, P7_PROFILE *gm2, float tol);
 
 /* p7_search_builder.c */

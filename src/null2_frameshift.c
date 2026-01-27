@@ -3,15 +3,7 @@
  * Contents:
  *   1. Null2 estimation algorithms.
  *   2. Benchmark driver.
- *   3. Unit tests.
- *   4. Test driver.
- *   5. Example.
  *
- * See p7_domaindef.c -- null2 correction of per-seq and per-domain
- * scores is embedded within p7_domaindef's logic; we split it out
- * to a separate file because it's so important.
- * 
- * SRE, Thu Feb 28 09:51:27 2008 [Janelia]
  */
 #include "p7_config.h"
 
@@ -20,37 +12,26 @@
 
 #include "hmmer.h"
 
-#define MMX(i,k)      (dp[(i)][(k) * p7G_NSCELLS + p7G_M])
-#define IMX(i,k)      (dp[(i)][(k) * p7G_NSCELLS + p7G_I])
-#define DMX(i,k)      (dp[(i)][(k) * p7G_NSCELLS + p7G_D])
-#define XMX(i,s)      (xmx[(i) * p7G_NXCELLS + (s)])
-
-
 /*****************************************************************
  * 1. Null2 estimation algorithms.
  *****************************************************************/
 
 /* Function:  p7_Null2_fs_ByExpectation()
  * Synopsis:  Calculate null2 model from posterior probabilities.
- * Incept:    SRE, Thu Feb 28 09:52:28 2008 [Janelia]
  *
  * Purpose:   Calculate the "null2" model for the envelope encompassed
- *            by a posterior probability calculation <pp> for model
- *            <gm>.  Return the null2 odds emission probabilities
- *            $\frac{f'{x}}{f{x}}$ in <null2>, which caller
- *            provides as space for at least <alphabet->Kp> residues.
- *            
- *            The expectation method is applied to envelopes in
- *            simple, well resolved regions (regions containing just a
- *            single envelope, where no stochastic traceback
- *            clustering was required).
- *            
+ *            by a posterior probability calculation <pp> for frameshift
+ *            aware model <gm_fs>. Return the null2 odds amino acide
+ *            emission probabilities $\frac{f'{x}}{f{x}}$ in <null2>,
+ *            which caller provides as space for at least <alphabet->Kp>
+ *            residues.
+ *
  *            Make sure that the posterior probability matrix <pp> has
  *            been calculated by the caller for only the envelope; thus
  *            its rows are numbered <1..Ld>, for envelope <ienv..jenv>
  *            of length <Ld=jenv-ienv+1>.
- *            
- * Args:      gm    - profile, in any mode, target length model set to <L>
+ *
+ * Args:      gm_fs - profile, in any mode, target length model set to <L>
  *            pp    - posterior prob matrix, for <gm> against domain envelope <dsq+i-1> (offset)
  *            null2 - RETURN: null2 odds ratios per residue; <0..Kp-1>; caller allocated space
  *
@@ -111,9 +92,9 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
       for (k = 1; k < M; k++)
         {
           null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC_AMINO(gm_fs, k, x));
-          null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k));//        + p7P_ISC(gm_fs, k, x));
+          null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k));
         }
-      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC_AMINO(gm_fs, k, x));
+      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC_AMINO(gm_fs, M, x));
       null2[x] = p7_FLogsum(null2[x], xfactor);
     }
     
@@ -132,111 +113,16 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
   return eslOK;
 }
 
-/* Function:  p7_Null2_fs_ByTrace()
- * Synopsis:  Assign null2 scores to an envelope by the sampling method.
- * Incept:    SRE, Thu May  1 10:00:43 2008 [Janelia]
- *
- * Purpose:   Given a traceback <tr> for an alignment of model <gm> to
- *            some target sequence; calculate null2 odds ratios $\frac{f'{x}}{f{x}}$ 
- *            as the state-usage-weighted emission probabilities,
- *            with state usages calculated by counting emissions used
- *            at positions <zstart..zend> in the trace.
- *            
- *            Because we only need to collect state usages from the
- *            trace <tr>, the target sequence is irrelevant. Because
- *            we are only averaging emission odds ratios from model
- *            <gm>, the configuration of <gm> is irrelevant (uni
- *            vs. multihit, or length config).
- *
- * Args:      gm     - model, in any configuration; only emission odds are used
- *            tr     - traceback for any region (or all) of a target sequence
- *            zstart - first elem in <tr> to collect from; use 0 for complete
- *            zend   - last elem in <tr> to collect from; use tr->N-1 for complete
- *            wrk    - DP matrix w/ at least one row, for workspace
- *            null2  - RESULT: odds ratios f'(x)/f(x) for all Kp residues
- * 
- * Returns:   <eslOK> on success, and the <ddef->n2sc> scores are set
- *            for region <i..j>.
- *
- * Throws:    <eslEMEM> on allocation error.
- */
-int
-p7_Null2_fs_ByTrace(const P7_FS_PROFILE *gm_fs, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2)
-{
-  float  **dp   = wrk->dp;	/* so that {MDI}MX() macros work */
-  float   *xmx  = wrk->xmx;	/* so that XMX() macro works     */
-  int      Ld   = 0;
-  int      M    = gm_fs->M;
-  int      k;			/* index over model position     */
- // int      t, u, v,w,x;			/* index over residues           */
-  int      x, z;			/* index over trace position     */
-  float    xfactor;
-
-  /* We'll use the i=0 row in wrk for working space: dp[0][] and xmx[0..4]. */
-  esl_vec_FSet(wrk->dp[0], (M+1)*p7G_NSCELLS_FS, 0.0);
-  esl_vec_FSet(wrk->xmx,   p7G_NXCELLS,       0.0);
-
-  /* Calculate emitting state usage in this particular trace segment: */
-  for (z = zstart; z < zend; z++) 
-    {
-      switch (tr->st[z]) {
-        case p7T_M:                              Ld++;  MMX_FS(0,tr->k[z],p7G_C0) += 1.0;  break;
-        case p7T_I:                              Ld++;  IMX_FS(0,tr->k[z]) += 1.0;         break;
-        case p7T_N:  if (tr->st[z-1] == p7T_N) { Ld++;  XMX_FS(0,p7G_N)    += 1.0; }       break;
-        case p7T_C:  if (tr->st[z-1] == p7T_C) { Ld++;  XMX_FS(0,p7G_C)    += 1.0; }       break;
-        case p7T_J:  if (tr->st[z-1] == p7T_J) { Ld++;  XMX_FS(0,p7G_J)    += 1.0; }       break;
-      }
-    }
-
-  esl_vec_FScale(wrk->dp[0], (M+1)*p7G_NSCELLS_FS, (1.0 / (float) Ld));
-  esl_vec_FScale(wrk->xmx,   p7G_NXCELLS,          (1.0 / (float) Ld));
-
-  /* Calculate null2's odds ratio emission probabilities, by taking
-   * posterior weighted sum over all emission vectors used in paths
-   * explaining the domain.
-   */
-  esl_vec_FSet(null2, gm_fs->abc->K, 0.0);
-  xfactor = XMX_FS(0,p7G_N) + XMX_FS(0,p7G_C) + XMX_FS(0,p7G_J);
-
-  for (x = 0; x < gm_fs->abc->K; x++)
-    {
-      null2[x] = 0.;
-      for (k = 1; k < M; k++)
-        {
-          null2[x] += MMX_FS(0,k,p7G_C0) * expf(p7P_MSC_AMINO(gm_fs, k, x));
-          null2[x] += IMX_FS(0,k);//        * expf(p7P_ISC(gm_fs, k, x));
-        }
-      
-      null2[x] += MMX_FS(0,M,p7G_C0) * expf(p7P_MSC_AMINO(gm_fs, M, x));
-      null2[x] += xfactor;
-    }
-  /* now null2[x] = \frac{f_d(x)}{f_0(x)} odds ratios for all x in alphabet,
-   * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies
-   * for this envelope.
-   */
-
-  /* make valid scores for all degeneracies, by averaging the odds ratios. */
-  esl_abc_FAvgScVec(gm_fs->abc, null2);
-  null2[gm_fs->abc->K]    = 1.0;        /* gap character    */
-  null2[gm_fs->abc->Kp-2] = 1.0;        /* nonresidue "*"   */
-  null2[gm_fs->abc->Kp-1] = 1.0;        /* missing data "~" */
-
-  return eslOK;
-}
-
-
 
 
 /*****************************************************************
  * 2. Benchmark driver
  *****************************************************************/
-#ifdef p7GENERIC_NULL2_BENCHMARK
+#ifdef p7NULL2_FRAMESHIFT_BENCHMARK
 /*
-   icc -O3 -static -o generic_null2_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_NULL2_BENCHMARK generic_null2.c -lhmmer -leasel -lm
-   ./benchmark-generic-null2 <hmmfile>
-                   RRM_1 (M=72)       Caudal_act (M=136)      SMC_N (M=1151)
-                 -----------------    ------------------     -------------------
-   21 Aug 2008    7.77u (185 Mc/s)     14.13u (192 Mc/s)     139.03u (165.6 Mc/s)
+    gcc -g -O2      -o null2_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7NULL2_FRAMESHIFT_BENCHMARK null2_frameshift.c -lhmmer -leasel -lm
+   icc -O3 -static -o null2_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7NULL2_FRAMESHIFT_BENCHMARK null2_frameshift.c -lhmmer -leasel -lm
+   ./null2_frameshift_benchmark <hmmfile>
  */
 #include "p7_config.h"
 
@@ -253,7 +139,7 @@ static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
-  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
   { "-N",        eslARG_INT,  "50000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
@@ -267,13 +153,18 @@ main(int argc, char **argv)
   char           *hmmfile = esl_opt_GetArg(go, 1);
   ESL_STOPWATCH  *w       = esl_stopwatch_Create();
   ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_GENCODE    *gcode   = NULL;
   P7_HMMFILE     *hfp     = NULL;
   P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_FS_PROFILE  *gm_fs   = NULL;
   P7_GMX         *gx1     = NULL;
   P7_GMX         *gx2     = NULL;
+  P7_GMX         *pp      = NULL;
+  P7_IVX         *iv      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
@@ -283,161 +174,53 @@ main(int argc, char **argv)
   double          Mcs;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
 
-  bg = p7_bg_Create(abc);                 p7_bg_SetLength(bg, L);
-  gm = p7_profile_Create(hmm->M, abc);    p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
-  gx1 = p7_gmx_Create(gm->M, L);  
-  gx2 = p7_gmx_Create(gm->M, L);
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgDNA  = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
+  bgAA   = p7_bg_Create(abcAA);                 p7_bg_SetLength(bgAA, L/3);
+  gm_fs  = p7_profile_fs_Create(hmm->M, abcAA); p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
+  gx1    = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);  
+  gx2    = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
+  pp     = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
 
-  esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
-  p7_GForward (dsq, L, gm, gx1, &fsc);
-  p7_GBackward(dsq, L, gm, gx2, &bsc);
-  p7_GDecoding(gm, gx1, gx2, gx2);   
+  esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  p7_Forward_Frameshift (dsq, gcode, L, gm_fs, gx1, iv, &fsc);
+  p7_Backward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv, &bsc);
+  p7_Decoding_Frameshift(gm_fs, gx1, gx2, pp);   
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++) 
-    p7_GNull2_ByExpectation(gm, gx2, null2);   
+    p7_Null2_fs_ByExpectation(gm_fs, pp, null2);   
   esl_stopwatch_Stop(w);
 
-  Mcs  = (double) N * (double) L * (double) gm->M * 1e-6 / w->user;
+  Mcs  = (double) N * (double) L * (double) gm_fs->M * 1e-6 / w->user;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n", gm->M);
+  printf("# M    = %d\n", gm_fs->M);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
   p7_gmx_Destroy(gx1);
   p7_gmx_Destroy(gx2);
-  p7_profile_Destroy(gm);
-  p7_bg_Destroy(bg);
+  p7_gmx_Destroy(pp);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs);
+  p7_bg_Destroy(bgAA);
+  p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);
   p7_hmmfile_Close(hfp);
-  esl_alphabet_Destroy(abc);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_gencode_Destroy(gcode);
   esl_stopwatch_Destroy(w);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7GENERIC_NULL2_BENCHMARK*/
+#endif /*p7NULL2_FRAMESHIFT_BENCHMARK*/
 /*------------------ end, benchmark driver ----------------------*/
-
-
-
-
-/*****************************************************************
- * 3. Unit tests
- *****************************************************************/
-#ifdef p7GENERIC_NULL2_TESTDRIVE
-
-static void
-utest_correct_normalization(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_BG *bg, ESL_DSQ *dsq, int L, P7_GMX *fwd, P7_GMX *bck)
-{
-  char *msg = "normalization unit test failed";
-  float null2[p7_MAXABET];
-  float sum;
-  int   x;
-
-  esl_rsq_xfIID(r, bg->f, gm->abc->K, L, dsq); /* sample a random digital seq of length L */
-
-  p7_GForward (dsq, L, gm, fwd, NULL); 
-  p7_GBackward(dsq, L, gm, bck, NULL);       
-  p7_PosteriorNull2(L, gm, fwd, bck, bck); /* <bck> now contains posterior probs */
-  p7_Null2Corrections(gm, dsq, L, 0, bck, fwd, null2, NULL, NULL);	/* use <fwd> as workspace */
-
-  /* Convert null2 from lod score to frequencies f_d  */
-  for (x = 0; x < gm->abc->K; x++)
-    null2[x] = exp(null2[x]) * bg->f[x];
-
-  sum = esl_vec_FSum(null2, gm->abc->K);
-  if (sum < 0.99 || sum > 1.01) esl_fatal(msg);
-}  
-
-
-#endif /*p7GENERIC_NULL2_TESTDRIVE*/
-/*--------------------- end, unit tests -------------------------*/
-
-
-
-
-/*****************************************************************
- * 4. Test driver
- *****************************************************************/
-#ifdef p7GENERIC_NULL2_TESTDRIVE
-/* gcc -o null2_utest -g -Wall -I../easel -L../easel -I. -L. -Dp7NULL2_TESTDRIVE null2.c -lhmmer -leasel -lm
- * ./null2_utest
- */
-#include "p7_config.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "easel.h"
-#include "esl_getopts.h"
-#include "esl_random.h"
-#include "esl_alphabet.h"
-#include "hmmer.h"
-
-static ESL_OPTIONS options[] = {
-  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
-  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
-  { "-L",        eslARG_INT,    "200", NULL, NULL,  NULL,  NULL, NULL, "length of sampled sequences",                      0 },
-  { "-M",        eslARG_INT,    "100", NULL, NULL,  NULL,  NULL, NULL, "length of sampled HMM",                            0 },
-  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
-  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-};
-
-static char usage[]  = "[-options]";
-static char banner[] = "unit test driver for the null2 correction calculation";
-
-int 
-main(int argc, char **argv)
-{
-  ESL_GETOPTS    *go          = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
-  ESL_RANDOMNESS *r           = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc         = esl_alphabet_Create(eslAMINO);
-  P7_HMM         *hmm         = NULL;
-  P7_BG          *bg          = NULL;
-  P7_PROFILE     *gm          = NULL;
-  P7_GMX         *fwd         = NULL;
-  P7_GMX         *bck         = NULL;
-  ESL_DSQ        *dsq         = NULL;
-  int             M           = esl_opt_GetInteger(go, "-M");
-  int             L           = esl_opt_GetInteger(go, "-L");
-
-  /* Sample a random HMM */
-  p7_hmm_Sample(r, M, abc, &hmm);
-
-  /* Configure a profile from the sampled HMM */
-  bg = p7_bg_Create(abc);
-  p7_bg_SetLength(bg, L);
-  gm = p7_profile_Create(hmm->M, abc);
-  p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
-
-  /* Other initial allocations */
-  dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
-  fwd  = p7_gmx_Create(gm->M, L);
-  bck  = p7_gmx_Create(gm->M, L);
-
-  utest_correct_normalization(r, gm, bg, dsq, L, fwd, bck);
-
-  free(dsq);
-  p7_gmx_Destroy(fwd);
-  p7_gmx_Destroy(bck);
-  p7_profile_Destroy(gm);
-  p7_bg_Destroy(bg);
-  p7_hmm_Destroy(hmm);
-  esl_alphabet_Destroy(abc);
-  esl_randomness_Destroy(r);
-  esl_getopts_Destroy(go);
-  return 0;
-}
-#endif /*p7GENERIC_NULL2_TESTDRIVE*/
-/*-------------------- end, test driver -------------------------*/
-
-
-
-
-
 
 
 

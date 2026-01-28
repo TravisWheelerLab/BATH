@@ -56,7 +56,6 @@
 #include "esl_stopwatch.h"      /* ESL_STOPWATCH         */
 #include "p7_splicehits.h"
 
-
 /* Search modes. */
 #define p7_NO_MODE   0
 #define p7_LOCAL     1    /* multihit local:  "fs" mode   */
@@ -1036,7 +1035,6 @@ typedef struct p7_hmm_window_s {
   int64_t       target_len;  //length of the target sequence
   int8_t        complementarity;
   int8_t        used_to_extend;
-  ESL_SQ_BLOCK *orf_block;   // all orfs used to create the window - BATH
 } P7_HMM_WINDOW;
 
 typedef struct p7_hmm_window_list_s {

@@ -86,7 +86,7 @@ static ESL_OPTIONS options[] = {
   { "--exontblout",   eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,"--splice",NULL,         "save parseable table of exons to file <f>",                                   2 },
   { "--fstblout",     eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "save table of frameshift locations to file <f>",                              2 },
   { "--hmmout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "if input is alignment(s) or sequence(s) write produced hmms to file <f>",     2 },
-  { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "enable spliced alignments (requires SSI index 'esl-sftech --index <seqdb>')", 2 },
+  { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--fs",         "enable spliced alignments ",                                                  2 },
   { "--pid",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "include percent identity column in --tblout and/or --exontblout files",       2 },
   { "--acc",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "prefer accessions over names in output",                                      2 },
   { "--noali",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't output alignments, so output is smaller",                               2 },
@@ -112,17 +112,17 @@ static ESL_OPTIONS options[] = {
   { "--tformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert target <seqfile> is in format <s>: no autodetection",                  5 },
 
   /* Control of acceleration pipeline */
-  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3,--F4","turn all heuristic filters off (less speed, more power)",                     7 },
-  { "--F1",           eslARG_REAL,   "0.02",    NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                            7 },
+  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3,--F4","turn all heuristic filters off (less speed, more power)",                7 },
+  { "--F1",           eslARG_REAL,   "0.02",    NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                             7 },
   { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                            7 },
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                            7 },
-  { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,   NULL,"--max",         "promote windows to FS Fwd if a coresponding ORF has P <= F4",                            7 },
+  { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,   NULL,"--max",         "promote windows to FS Fwd if a coresponding ORF has P <= F4",                 7 },
   { "--S1",           eslARG_REAL,   "0.05",    NULL,        NULL,      NULL,   "--splice","--max",    "splicing seed threshold, keep SSV hits w/ P <= S1",                           7 },
-  { "--S2",           eslARG_REAL,   "1e-3",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                         7 },
+  { "--S2",           eslARG_REAL,   "1e-3",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                           7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                            7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                               7 },
-  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "Use frameshift aware algorthims",                                          7 },
-  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,        "send all potential hits to the frameshift aware pipeline",                    7 },
+  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "Use frameshift aware algorthims",                                             7 },
+  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,        "send all potential hits to the frameshift aware pipeline",                       7 },
   
 /* Other options */
   { "-Z",             eslARG_REAL,    FALSE,     NULL,       "x>=0",     NULL,   NULL, NULL,           "set database size (Megabases) to <x> for E-value calculations",               12 }, 

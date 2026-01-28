@@ -1,4 +1,4 @@
-/* Frameshift aware Viterbi algorithm.*/
+/* Frameshift aware Viterbi algorithm and traceback.*/
 #include "p7_config.h"
 
 #include "easel.h"
@@ -8,16 +8,13 @@
 
 #include "hmmer.h"
 
+#define IVX(i,k) (ivx[((k)*p7P_5CODONS) + (i)])
 
-//TODO UPDATE
-#define IVX(i,k,c) (iv[((k)*p7P_5CODONS)+L+3-(i)+(c)])
-
-/* Function:  p7_fs_Viterbi()
+/* Function:  p7_Viterbi_Frameshift()
  * Synopsis:  The Viterbi algorithm, with frameshift awareness.
- * Incept:    SRE, Tue Jan 30 10:50:53 2007 [Einstein's, St. Louis]
  * 
  * Purpose:   The Viterbi dynamic programming algorithm for aligning 
- *             DNA to proteins with frameshift awareness. 
+ *            DNA to proteins with frameshift awareness. 
  *
  *            Given a digital nucleotide sequence <dsq> of length <L>, 
  *            a frameshift aware codon profile <gm_fs>, and DP matrix 
@@ -38,32 +35,25 @@
  *            L      - length of dsq
  *            gm_fs  - profile. 
  *            gx     - DP matrix with room for an MxL alignment
+ *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Viterbi lod score in nats
  *           
  * Return:   <eslOK> on success.
  */
 int
-p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, float *opt_sc)
+p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
   float const *tsc  = gm_fs->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
+  float       *ivx  = iv->ivx;
   int          M    = gm_fs->M;
   int          i,k,c;
   int          c1, c2, c3, c4, c5;
   int          t, u, v, w, x;
+  int          ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
-  float       *iv   = NULL;  
-  int          status;
-
-   /* Allocation and initalization of invermediate value array */
-  ESL_ALLOC(iv,  sizeof(float)   * p7P_5CODONS * (M+1 + L+1) );
-
-  for (c = 0; c < p7P_5CODONS; c++) {
-    for(k = 0; k <= M; k++)
-      IVX(5,k,c) = -eslINFINITY;
-  }
-
+  
   /* Initialization of the zero row.  */
   XMX_FS(0,p7G_N) = 0.;                                  /* S->N, p=1            */
   XMX_FS(0,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];         /* S->N->B, no N-tail   */
@@ -72,15 +62,85 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
     MMX_FS(0,k,p7G_C0) = MMX_FS(0,k,p7G_C1) = MMX_FS(0,k,p7G_C2) = MMX_FS(0,k,p7G_C3) =
     MMX_FS(0,k,p7G_C4) = MMX_FS(0,k,p7G_C5) = IMX_FS(0,k)        = DMX_FS(0,k)        = -eslINFINITY;
 
-  /*Special cases for the first 4 rows */
-  t = u = v = w = x = -1;
-  for(i = 1; i < 5; i++)
+   /* Initialization for row 1 */
+  XMX_FS(1,p7G_N) = 0.;
+  XMX_FS(1,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];
+  XMX_FS(1,p7G_E) = -eslINFINITY;
+  MMX_FS(1,0,p7G_C1) = MMX_FS(1,0,p7G_C2) = MMX_FS(1,0,p7G_C3) = MMX_FS(1,0,p7G_C4) = MMX_FS(1,0,p7G_C5) = -eslINFINITY;
+  MMX_FS(1,0,p7G_C0) = IMX_FS(1,0) = DMX_FS(1,0) = -eslINFINITY;
+
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+  else                                            x = p7P_MAXCODONS;
+
+  c1 = p7P_CODON1(x);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  for (k = 1; k <= M; k++) {
+    IVX(1,k) = XMX_FS(0,p7G_B) + TSC(p7P_BM,k-1);
+
+    MMX_FS(1,k,p7G_C1) = IVX(1,k) + p7P_MSC_CODON(gm_fs, k, c1);
+    MMX_FS(1,k,p7G_C2) = -eslINFINITY;
+    MMX_FS(1,k,p7G_C3) = -eslINFINITY;
+    MMX_FS(1,k,p7G_C4) = -eslINFINITY;
+    MMX_FS(1,k,p7G_C5) = -eslINFINITY;
+    MMX_FS(1,k,p7G_C0) = MMX_FS(1,k,p7G_C1);
+    IMX_FS(1,k)  = -eslINFINITY;
+    DMX_FS(1,k)  = ESL_MAX(MMX_FS(1,k-1,p7G_C0) + TSC(p7P_MD,k-1),
+                           DMX_FS(1,k-1)        + TSC(p7P_DD,k-1));
+
+    XMX_FS(1,p7G_E) = ESL_MAX(MMX_FS(1,k,p7G_C0) + esc,
+                      ESL_MAX(DMX_FS(1,k)        + esc,
+                              XMX_FS(1,p7G_E)));
+  }
+
+  XMX_FS(1,p7G_J) = XMX_FS(1,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+  XMX_FS(1,p7G_C) = XMX_FS(1,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
+
+   /* Initialization for row 2 */
+  XMX_FS(2,p7G_N) = 0.;
+  XMX_FS(2,p7G_B) = gm_fs->xsc[p7P_N][p7P_MOVE];
+  XMX_FS(2,p7G_E) = -eslINFINITY;
+  MMX_FS(2,0,p7G_C1) = MMX_FS(2,0,p7G_C2) = MMX_FS(2,0,p7G_C3) = MMX_FS(2,0,p7G_C4) = MMX_FS(2,0,p7G_C5) = -eslINFINITY;
+  MMX_FS(2,0,p7G_C0) = IMX_FS(2,0) = DMX_FS(2,0) = -eslINFINITY;
+
+  w = x;
+  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
+  else                                            x = p7P_MAXCODONS;
+
+  c1 = p7P_CODON1(x);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+
+  c2 = p7P_CODON2(w, x);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+
+  for (k = 1; k <= M; k++) {
+    IVX(2,k) = XMX_FS(1,p7G_B) + TSC(p7P_BM,k-1);
+    MMX_FS(2,k,p7G_C1) = IVX(2,k) + p7P_MSC_CODON(gm_fs, k, c1);
+    MMX_FS(2,k,p7G_C2) = IVX(1,k) + p7P_MSC_CODON(gm_fs, k, c2);
+    MMX_FS(2,k,p7G_C3) = -eslINFINITY;
+    MMX_FS(2,k,p7G_C4) = -eslINFINITY;
+    MMX_FS(2,k,p7G_C5) = -eslINFINITY;
+    MMX_FS(2,k,p7G_C0) = ESL_MAX( MMX_FS(2,k,p7G_C1), MMX_FS(2,k,p7G_C2));
+    IMX_FS(2,k)  = -eslINFINITY;
+    DMX_FS(2,k)  = ESL_MAX(MMX_FS(2,k-1,p7G_C0) + TSC(p7P_MD,k-1),
+                           DMX_FS(2,k-1)        + TSC(p7P_DD,k-1));
+
+    XMX_FS(2,p7G_E) = ESL_MAX(MMX_FS(2,k,p7G_C0) + esc,
+                      ESL_MAX(DMX_FS(2,k)        + esc,
+                              XMX_FS(2,p7G_E)));
+  }
+
+  XMX_FS(2,p7G_J) = XMX_FS(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+  XMX_FS(2,p7G_C) = XMX_FS(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
+
+  t = u = v = p7P_MAXCODONS;
+  /* Initialization for rows 3 and 4 */
+  for(i = 3; i < 5; i++)
   {
     u = v;
     v = w;
     w = x;
-  
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
     else                                            x = p7P_MAXCODONS;
 
@@ -97,113 +157,93 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
     c4 = p7P_CODON4(u, v, w, x);
     c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
 
-    MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) =
-    MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0)        = DMX_FS(i,0)        = -eslINFINITY;
+    ivx_1 = i     % p7P_5CODONS;
+    ivx_2 = (i-1) % p7P_5CODONS;
+    ivx_3 = (i-2) % p7P_5CODONS;
+    ivx_4 = (i-3) % p7P_5CODONS;
+
+    MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = -eslINFINITY;
+    MMX_FS(i,0,p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
 
     XMX_FS(i,p7G_E) = -eslINFINITY;
 
-    /* Initialization of the states reacheable at row i */
     for (k = 1; k < M; k++)
     {
-      IVX(i,k,p7P_C1) = ESL_MAX(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1),
-                        ESL_MAX(IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1),
-                        ESL_MAX(DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1),
-                                XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1))));
+      IVX(ivx_1,k) = ESL_MAX(MMX_FS(i-1,k-1,p7G_C0) + TSC(p7P_MM,k-1),
+                     ESL_MAX(IMX_FS(i-1,k-1)        + TSC(p7P_IM,k-1),
+                     ESL_MAX(DMX_FS(i-1,k-1)        + TSC(p7P_DM,k-1),
+                             XMX_FS(i-1,p7G_B)      + TSC(p7P_BM,k-1))));
 
-      MMX_FS(i,k,p7G_C1) = IVX(i,k,p7P_C1) + p7P_MSC_CODON(gm_fs, k, c1);
-
-      if( i > 1 )
-        MMX_FS(i,k,p7G_C2) = IVX(i,k,p7P_C2) + p7P_MSC_CODON(gm_fs, k, c2);
-      else
-        MMX_FS(i,k,p7G_C2) = -eslINFINITY;
-      if( i > 2 )
-        MMX_FS(i,k,p7G_C3) = IVX(i,k,p7P_C3) + p7P_MSC_CODON(gm_fs, k, c3);
-      else
-        MMX_FS(i,k,p7G_C3) = -eslINFINITY;
-      if( i > 3 )
-        MMX_FS(i,k,p7G_C4) = IVX(i,k,p7P_C4) + p7P_MSC_CODON(gm_fs, k, c4);
-      else
-        MMX_FS(i,k,p7G_C4) = -eslINFINITY;
+      MMX_FS(i,k,p7G_C1) = IVX(ivx_1,k) + p7P_MSC_CODON(gm_fs, k, c1);
+      MMX_FS(i,k,p7G_C2) = IVX(ivx_2,k) + p7P_MSC_CODON(gm_fs, k, c2);
+      MMX_FS(i,k,p7G_C3) = IVX(ivx_3,k) + p7P_MSC_CODON(gm_fs, k, c3);
+      MMX_FS(i,k,p7G_C4) = -eslINFINITY;
       MMX_FS(i,k,p7G_C5) = -eslINFINITY;
+      if( i == 4 )
+        MMX_FS(i,k,p7G_C4) = IVX(ivx_4,k) + p7P_MSC_CODON(gm_fs, k, c4);
 
-      MMX_FS(i,k,p7G_C0) =  ESL_MAX(ESL_MAX(MMX_FS(i,k,p7G_C1), MMX_FS(i,k,p7G_C2)),
-                                    ESL_MAX(MMX_FS(i,k,p7G_C3), MMX_FS(i,k,p7G_C4)));
+      MMX_FS(i,k,p7G_C0) = ESL_MAX( MMX_FS(i,k,p7G_C1),
+                           ESL_MAX( MMX_FS(i,k,p7G_C2),
+                           ESL_MAX( MMX_FS(i,k,p7G_C3),
+                                    MMX_FS(i,k,p7G_C4))));
 
-      /* insert state */
-      if ( i > 2)
-        IMX_FS(i,k) = ESL_MAX(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
-                              IMX_FS(i-3,k)        + TSC(p7P_II,k));
-      else
-        IMX_FS(i,k) = -eslINFINITY;
+      IMX_FS(i,k) = ESL_MAX(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
+                            IMX_FS(i-3,k)        + TSC(p7P_II,k));
 
-      /* delete state */
+      IMX_FS(i,k) = ESL_MAX(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
+                            IMX_FS(i-3,k)        + TSC(p7P_II,k));
+
       DMX_FS(i,k) = ESL_MAX(MMX_FS(i,k-1,p7G_C0) + TSC(p7P_MD,k-1),
                             DMX_FS(i,k-1)        + TSC(p7P_DD,k-1));
 
-      /* E state update */
       XMX_FS(i,p7G_E) = ESL_MAX(MMX_FS(i,k,p7G_C0) + esc,
                         ESL_MAX(DMX_FS(i,k)        + esc,
                                 XMX_FS(i,p7G_E)));
+
     }
 
-    IVX(i,M,p7P_C1) = ESL_MAX(MMX_FS(i-1,M-1,p7G_C0)   + TSC(p7P_MM,M-1),
-                      ESL_MAX(IMX_FS(i-1,M-1)          + TSC(p7P_IM,M-1),
-                      ESL_MAX(DMX_FS(i-1,M-1)          + TSC(p7P_DM,M-1),
-                              XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,M-1))));
+    IVX(ivx_1,M) = ESL_MAX(MMX_FS(i-1,M-1,p7G_C0) + TSC(p7P_MM,M-1),
+                   ESL_MAX(IMX_FS(i-1,M-1)        + TSC(p7P_IM,M-1),
+                   ESL_MAX(DMX_FS(i-1,M-1)        + TSC(p7P_DM,M-1),
+                           XMX_FS(i-1,p7G_B)      + TSC(p7P_BM,M-1))));
 
-    MMX_FS(i,M,p7G_C1) = IVX(i,M,p7P_C1) + p7P_MSC_CODON(gm_fs, M, c1);
+    MMX_FS(i,M,p7G_C1) = IVX(ivx_1,M) + p7P_MSC_CODON(gm_fs, M, c1);
+    MMX_FS(i,M,p7G_C2) = IVX(ivx_2,M) + p7P_MSC_CODON(gm_fs, M, c2);
+    MMX_FS(i,M,p7G_C3) = IVX(ivx_3,M) + p7P_MSC_CODON(gm_fs, M, c3);
+    MMX_FS(i,M,p7G_C4) = -eslINFINITY;
+    MMX_FS(i,M,p7G_C5) = -eslINFINITY;
+    if( i == 4 )
+      MMX_FS(i,M,p7G_C4) = IVX(ivx_4,M) + p7P_MSC_CODON(gm_fs, M, c4);
 
-    if( i > 1 )
-      MMX_FS(i,M,p7G_C2) = IVX(i,M,p7P_C2) + p7P_MSC_CODON(gm_fs, M, c2);
-    else
-      MMX_FS(i,M,p7G_C2) = -eslINFINITY;
-    if( i > 2 )
-      MMX_FS(i,M,p7G_C3) = IVX(i,M,p7P_C3) + p7P_MSC_CODON(gm_fs, M, c3);
-    else
-      MMX_FS(i,M,p7G_C3) = -eslINFINITY;
-    if( i > 3 )
-      MMX_FS(i,M,p7G_C4) = IVX(i,M,p7P_C4) + p7P_MSC_CODON(gm_fs, M, c4);
-    else
-      MMX_FS(i,M,p7G_C4) = -eslINFINITY;
-    MMX_FS(i,M,p7G_C5)   = -eslINFINITY;
+    MMX_FS(i,M,p7G_C0) = ESL_MAX( MMX_FS(i,M,p7G_C1),
+                         ESL_MAX( MMX_FS(i,M,p7G_C2),
+                         ESL_MAX( MMX_FS(i,M,p7G_C3),
+                                  MMX_FS(i,M,p7G_C4))));
 
-    MMX_FS(i,M,p7G_C0) =  ESL_MAX(ESL_MAX(MMX_FS(i,M,p7G_C1), MMX_FS(i,M,p7G_C2)),
-                                  ESL_MAX(MMX_FS(i,M,p7G_C3), MMX_FS(i,M,p7G_C4)));
-
-    /* insert state */
     IMX_FS(i,M) = -eslINFINITY;
 
-    /* delete state */
     DMX_FS(i,M) = ESL_MAX(MMX_FS(i,M-1,p7G_C0) + TSC(p7P_MD,M-1),
                           DMX_FS(i,M-1)        + TSC(p7P_DD,M-1));
 
-    /* E state update */
     XMX_FS(i,p7G_E) = ESL_MAX(MMX_FS(i,M,p7G_C0),
                       ESL_MAX(DMX_FS(i,M),
                               XMX_FS(i,p7G_E)));
 
-    /* Initialization of the J, C, N & B states for row 1-4 */
+    XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
+                              XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
 
-    if(i > 2)
-    {
-      XMX_FS(i,p7G_J) = ESL_MAX(XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP],
-                                XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP]);
+    XMX_FS(i,p7G_C) = ESL_MAX(XMX_FS(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
+                              XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
 
-      XMX_FS(i,p7G_C) = ESL_MAX(XMX_FS(i-3,p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP],
-                                XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE]);
-      XMX_FS(i,p7G_N) =         XMX_FS(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
-    } else {
-      XMX_FS(i,p7G_J) =         XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_LOOP];
-      XMX_FS(i,p7G_C) =         XMX_FS(i,p7G_E)   + gm_fs->xsc[p7P_E][p7P_MOVE];
-      XMX_FS(i,p7G_N) =         0.;
-    }
-
+    XMX_FS(i,p7G_N) =         XMX_FS(i-3,p7G_N) + gm_fs->xsc[p7P_N][p7P_LOOP];
 
     XMX_FS(i,p7G_B) = ESL_MAX(XMX_FS(i,p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE],
                               XMX_FS(i,p7G_J) + gm_fs->xsc[p7P_J][p7P_MOVE]);
-  } 
 
-  /* Main DP recursion */
+  }
+
+
+   /* Main DP recursion */
   for (i = 5; i <= L; i++) 
   {
     MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3)
@@ -237,23 +277,29 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
     c5 = p7P_CODON5(t, u, v, w, x);
     c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
 
+    ivx_1 = i     % p7P_5CODONS;
+    ivx_2 = (i-1) % p7P_5CODONS;
+    ivx_3 = (i-2) % p7P_5CODONS;
+    ivx_4 = (i-3) % p7P_5CODONS;
+    ivx_5 = (i-5) % p7P_5CODONS;
+
     for (k = 1; k < M; k++)
     {
 
-      IVX(i,k,p7P_C1) = ESL_MAX(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1),
-                        ESL_MAX(IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1),
-                        ESL_MAX(DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1),
-                                XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1))));
+      IVX(ivx_1,k) = ESL_MAX(MMX_FS(i-1,k-1,p7G_C0)   + TSC(p7P_MM,k-1),
+                     ESL_MAX(IMX_FS(i-1,k-1)          + TSC(p7P_IM,k-1),
+                     ESL_MAX(DMX_FS(i-1,k-1)          + TSC(p7P_DM,k-1),
+                             XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1))));
 
-      MMX_FS(i,k,p7G_C1) = IVX(i,k,p7P_C1) + p7P_MSC_CODON(gm_fs, k, c1);
+      MMX_FS(i,k,p7G_C1) = IVX(ivx_1,k) + p7P_MSC_CODON(gm_fs, k, c1);
 
-      MMX_FS(i,k,p7G_C2) = IVX(i,k,p7P_C2) + p7P_MSC_CODON(gm_fs, k, c2);
+      MMX_FS(i,k,p7G_C2) = IVX(ivx_2,k) + p7P_MSC_CODON(gm_fs, k, c2);
 
-      MMX_FS(i,k,p7G_C3) = IVX(i,k,p7P_C3) + p7P_MSC_CODON(gm_fs, k, c3);
+      MMX_FS(i,k,p7G_C3) = IVX(ivx_3,k) + p7P_MSC_CODON(gm_fs, k, c3);
 
-      MMX_FS(i,k,p7G_C4) = IVX(i,k,p7P_C4) + p7P_MSC_CODON(gm_fs, k, c4);
+      MMX_FS(i,k,p7G_C4) = IVX(ivx_4,k) + p7P_MSC_CODON(gm_fs, k, c4);
 
-      MMX_FS(i,k,p7G_C5) = IVX(i,k,p7P_C5) + p7P_MSC_CODON(gm_fs, k, c5);
+      MMX_FS(i,k,p7G_C5) = IVX(ivx_5,k) + p7P_MSC_CODON(gm_fs, k, c5);
 
       MMX_FS(i,k,p7G_C0) =  ESL_MAX(ESL_MAX(MMX_FS(i,k,p7G_C1),
                             ESL_MAX(MMX_FS(i,k,p7G_C2), MMX_FS(i,k,p7G_C3))),
@@ -274,20 +320,20 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
     }
 
     /* unrolled match state M_M */
-    IVX(i,M,p7P_C1) = ESL_MAX(MMX_FS(i-1,M-1,p7G_C0)   + TSC(p7P_MM,M-1),
-                      ESL_MAX(IMX_FS(i-1,M-1)          + TSC(p7P_IM,M-1),
-                      ESL_MAX(DMX_FS(i-1,M-1)          + TSC(p7P_DM,M-1),
-                              XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,M-1))));
+    IVX(ivx_1,M) = ESL_MAX(MMX_FS(i-1,M-1,p7G_C0)   + TSC(p7P_MM,M-1),
+                   ESL_MAX(IMX_FS(i-1,M-1)          + TSC(p7P_IM,M-1),
+                   ESL_MAX(DMX_FS(i-1,M-1)          + TSC(p7P_DM,M-1),
+                           XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,M-1))));
 
-    MMX_FS(i,M,p7G_C1) = IVX(i,M,p7P_C1) + p7P_MSC_CODON(gm_fs, M, c1);
+    MMX_FS(i,M,p7G_C1) = IVX(ivx_1,M) + p7P_MSC_CODON(gm_fs, M, c1);
 
-    MMX_FS(i,M,p7G_C2) = IVX(i,M,p7P_C2) + p7P_MSC_CODON(gm_fs, M, c2);
+    MMX_FS(i,M,p7G_C2) = IVX(ivx_2,M) + p7P_MSC_CODON(gm_fs, M, c2);
 
-    MMX_FS(i,M,p7G_C3) = IVX(i,M,p7P_C3) + p7P_MSC_CODON(gm_fs, M, c3);
+    MMX_FS(i,M,p7G_C3) = IVX(ivx_3,M) + p7P_MSC_CODON(gm_fs, M, c3);
 
-    MMX_FS(i,M,p7G_C4) = IVX(i,M,p7P_C4) + p7P_MSC_CODON(gm_fs, M, c4);
+    MMX_FS(i,M,p7G_C4) = IVX(ivx_4,M) + p7P_MSC_CODON(gm_fs, M, c4);
 
-    MMX_FS(i,M,p7G_C5) = IVX(i,M,p7P_C5) + p7P_MSC_CODON(gm_fs, M, c5);
+    MMX_FS(i,M,p7G_C5) = IVX(ivx_5,M) + p7P_MSC_CODON(gm_fs, M, c5);
 
     MMX_FS(i,M,p7G_C0) =  ESL_MAX(ESL_MAX(MMX_FS(i,M,p7G_C1),
                           ESL_MAX(MMX_FS(i,M,p7G_C2), MMX_FS(i,M,p7G_C3))),
@@ -323,21 +369,30 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
   gx->M = gm_fs->M;
   gx->L = L;
 
-  if (iv != NULL) free(iv);
-
   return eslOK;
 
-  ERROR:
-  if (iv != NULL) free(iv);
-  return status;
 }
 
 
 
-
-
+/* Function: p7_VTrace_Frameshift()
+ *
+ * Purpose:  Traceback of a Frameshift aware Viterbi matrix: retrieval
+ *           of optimum alignment.
+ *
+ * Args:     dsq    - digital sequence aligned to, 1..L
+ *           L      - length of <dsq>
+ *           gm     - profile
+ *           mx     - Viterbi matrix to trace, L x M
+ *           tr     - storage for the recovered traceback.
+ *
+ * Return:   <eslOK> on success.
+ *           <eslFAIL> if even the optimal path has zero probability;
+ *           in this case, the trace is set blank (<tr->N = 0>).
+ *
+ */
 int
-p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr)
+p7_VTrace_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr)
 {
   int          i   = L;     /* position in seq (1..L)         */
   int          k   = 0;     /* position in model (1..M)       */
@@ -349,9 +404,9 @@ p7_fs_VTrace(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX
   float        tol = 1e-5;  /* floating point "equality" test */
   float const *tsc = gm_fs->tsc;
   int     sprv, scur;       /* previous, current state in trace */
-  float  path[4];
-  int    state[4] = {p7T_M, p7T_I, p7T_D, p7T_B};
-  float match_codon[5];
+  float   path[4];
+  int     state[4] = {p7T_M, p7T_I, p7T_D, p7T_B};
+  float   match_codon[5];
   int     status;
 
 #if eslDEBUGLEVEL > 0

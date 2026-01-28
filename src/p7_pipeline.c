@@ -2299,22 +2299,14 @@ p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_SCORE
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
     }
     
-    /* Adjust score from env_len to max window length. Note that the loop and move 
-     * costs are calculated based on amino lengths but paid per nucleotide*/
+    /* Adjust score from env_len to max window length. Note that the loop and move costs */ 
+    /* Note that loop probabilities are based on amino length but paid based on nucleotide length */
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / ((env_len/3.)+2));
     bitscore += 2 * log(2. / (gm_fs->max_length+2));
     bitscore -= (env_len-ali_len)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
     bitscore += (ESL_MAX(env_len,gm_fs->max_length*3)-ali_len) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
-
-    /* Adjust score from env_len to max window length. Note that the loop and move 
-     * costs are calculated based on amino lengths but paid per nucleotide*/
-    bitscore = dom->envsc;
-    bitscore -= 2 * log(2. / ((env_len/3.)+2));
-    bitscore += 2 * log(2. / (gm_fs->max_length+2));
-    bitscore -= ((env_len-ali_len)/3)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
-    bitscore += ((ESL_MAX(env_len,gm_fs->max_length*3)-ali_len)/3) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
-
+   
     /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)
       dom_bias = p7_FLogsum(0.0, log(bg->omega) + dom->domcorrection);
@@ -2408,8 +2400,8 @@ ERROR:
  *            of Domain Definition
  *
  * Purpose:   This is called by p7_pli_postViterbi_BATH(), and 
- *            runs the post-Domain Definition part of the "statndard" 
- *            or non-frameshift aware branch of the BATH pipeline. 
+ *            runs the post-Domain Definition part of the  
+ *            non-frameshift aware branch of the BATH pipeline. 
  *            It consists of running various bookkeeping and sanity 
  *            checks on hits reported by p7_pli_postDomainDef_nonFrameshift().   
  *

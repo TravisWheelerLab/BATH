@@ -8,7 +8,9 @@
 
 #include "hmmer.h"
 
-#define IVX(i,k,c) (iv[((k)*p7P_CODONS)+L+3-(i)+(c)])
+
+//TODO UPDATE
+#define IVX(i,k,c) (iv[((k)*p7P_5CODONS)+L+3-(i)+(c)])
 
 /* Function:  p7_fs_Viterbi()
  * Synopsis:  The Viterbi algorithm, with frameshift awareness.
@@ -55,9 +57,9 @@ p7_fs_Viterbi(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_P
   int          status;
 
    /* Allocation and initalization of invermediate value array */
-  ESL_ALLOC(iv,  sizeof(float)   * p7P_CODONS * (M+1 + L+1) );
+  ESL_ALLOC(iv,  sizeof(float)   * p7P_5CODONS * (M+1 + L+1) );
 
-  for (c = 0; c < p7P_CODONS; c++) {
+  for (c = 0; c < p7P_5CODONS; c++) {
     for(k = 0; k <= M; k++)
       IVX(5,k,c) = -eslINFINITY;
   }

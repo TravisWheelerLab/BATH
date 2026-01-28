@@ -61,7 +61,7 @@ close SEQ1;
 @output = `$builddir/src/bathbuild $tmppfx.bhmm $tmppfx.sto 2>&1`;
 if ($? != 0) { die "FAIL: bathbuild failed\n"; }
 
-@output = `$builddir/src/bathsearch --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;
+@output = `$builddir/src/bathsearch --fs --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;
 if ($? != 0) { die "FAIL: bathsearch failed\n"; }
 
 &h3::ParseFSTbl("$tmppfx.tbl");
@@ -77,7 +77,7 @@ if ($h3::tdesc[1]   ne "-")                    { die "FAIL: on line 1 desc\n";  
 if ($h3::qname[2]   ne "ali2")                 { die "FAIL: on line 2 query name\n";       }
 if ($h3::qacc[2]    ne "-")                    { die "FAIL: on line 2 query accession\n";  }
 
-@output = `$builddir/src/bathsearch --nofs --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;
+@output = `$builddir/src/bathsearch --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;
 if ($? != 0) { die "FAIL: bathsearch failed\n"; }
 &h3::ParseTbl("$tmppfx.tbl");
 if ($h3::ntbl       != 4)                      { die "FAIL: on expected number lines\n";   }

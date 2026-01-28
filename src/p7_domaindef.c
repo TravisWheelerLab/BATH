@@ -728,9 +728,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
          
          i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
 
-        if(nc == 0) {
           ddef->nenvelopes++;
-         if (rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, iv, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
+         if (rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, iv, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
 
         }
 
@@ -741,7 +740,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 	
       ddef->nenvelopes++;
        
-      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, iv, i, j, bg, gcode);
+      rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, iv, i, j, bg, gcode);
 
     }
     i     = -1;
@@ -1581,7 +1580,7 @@ rescore_isolated_domain(P7_DOMAINDEF *ddef, P7_OPROFILE *om, const ESL_SQ *sq, c
  * 
  */
 static int
-rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode)
+rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode)
 
 {
 
@@ -1612,6 +1611,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, iv, NULL);
 
   /* Posterior Probabilities */
+//TODO add gxppfs to pli
   if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_5CODONS)) == NULL) goto ERROR;
   p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
 
@@ -1642,9 +1642,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
    * particularly when short hits are algined to long modles.  When this 
    * happens we replace it with a viterbi alignment */
   if(dom->aliscore < 0.0 ) {
-
+//TODO add gxv to pli 
     p7_trace_Reuse(ddef->tr);
-    gxv = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_CODONS);
+    gxv = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_5CODONS);
 
     p7_fs_Viterbi(windowsq->dsq+i-1, gcode, Ld, gm_fs, gxv, NULL);
     p7_fs_VTrace(windowsq->dsq+i-1, Ld, gm_fs, gxv, ddef->tr); 
@@ -1665,7 +1665,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   }
 
      /* Compute bias correction */
-  p7_Null2_fs_ByExpectation(gm_fs, gx1, null2);
+  p7_Null2_fs_ByExpectation(gm_fs, gxppfs, null2);
 
   t = u = v = w = x = -1;
   z = 0;

@@ -3243,7 +3243,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
     replace_hit->dcl->is_included = TRUE;
 
     replace_hit->pre_score = pli->hit->dcl->envsc  / eslCONST_LOG2;
-    replace_hit->pre_lnP   = esl_exp_logsurv (replace_hit->pre_score, om->evparam[p7_FTAUFS], om->evparam[p7_FLAMBDA]);
+    replace_hit->pre_lnP   = esl_exp_logsurv (replace_hit->pre_score, om->evparam[p7_FTAUFS5], om->evparam[p7_FLAMBDA]);
 
     replace_hit->sum_score  = replace_hit->score  = dom_score;
     replace_hit->sum_lnP    = replace_hit->lnP    = dom_lnP;
@@ -3627,7 +3627,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
      * If we can find the offending exon and cut the path in two at that point then we can 
      * save the good exons, but to do that we need an alignment so we createone with Viterbi */
     
-    p7_gmx_fs_GrowTo(pli->gfwd, gm->M, pli->amino_sq->n, pli->amino_sq->n, p7P_CODONS);
+    p7_gmx_fs_GrowTo(pli->gfwd, gm->M, pli->amino_sq->n, pli->amino_sq->n, p7P_5CODONS);
     p7_ReconfigUnihit(gm, pli->amino_sq->n); 
 
     p7_GViterbi(pli->amino_sq->dsq, pli->amino_sq->n, gm, pli->gfwd, NULL);

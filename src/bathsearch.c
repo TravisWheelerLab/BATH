@@ -122,7 +122,7 @@ static ESL_OPTIONS options[] = {
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                            7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                               7 },
   { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "Use frameshift aware algorthims",                                          7 },
-  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--nofs",        "send all potential hits to the frameshift aware pipeline",                    7 },
+  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,        "send all potential hits to the frameshift aware pipeline",                    7 },
   
 /* Other options */
   { "-Z",             eslARG_REAL,    FALSE,     NULL,       "x>=0",     NULL,   NULL, NULL,           "set database size (Megabases) to <x> for E-value calculations",               12 }, 

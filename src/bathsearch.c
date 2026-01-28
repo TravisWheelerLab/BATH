@@ -993,8 +993,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   }   
 
     /* Terminate outputs... any last words? */
-  if (tblfp)    p7_tophits_TabularTail(tblfp,    "bathsearch", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go);
-  if (fstblfp)  p7_tophits_TabularTail(fstblfp,  "bathsearch", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go); 
+  if (tblfp)      p7_tophits_TabularTail(tblfp,      "bathsearch", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go);
+  if (fstblfp)    p7_tophits_TabularTail(fstblfp,    "bathsearch", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go); 
+  if (exontblfp)  p7_tophits_TabularTail(exontblfp,  "bathsearch", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go);
   if (ofp)      { if (fprintf(ofp, "[ok]\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
   /* Cleanup - prepare for exit */

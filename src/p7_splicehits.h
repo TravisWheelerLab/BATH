@@ -1,4 +1,4 @@
-/* Structs and MACROs for bilding a splice graph */
+/* The SPLICE_HIT_INFO and SPLICE_SAVED_HITS objects*/
 
 #include "p7_config.h"
 

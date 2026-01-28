@@ -243,7 +243,16 @@ p7_splicehits_MergeSavedHits(SPLICE_SAVED_HITS *sh1, SPLICE_SAVED_HITS *sh2)
 }
 
 
-
+/* Function:  p7_splicehits_RemoveDuplicates()
+ * Synopsis:  Remove duplicate entires in SPLICE_SAVED_HITS
+ *
+ * Purpose:   Find any duplicate (ie overlapping) saved hits 
+ *            and "remove" the shorter one by setting duplicate 
+ *            to TRUE
+ *
+ * Returns:   <eslOK> on success.
+ *
+ */
 int 
 p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3) 
 {
@@ -361,6 +370,19 @@ p7_splicehits_RemoveDuplicates(SPLICE_SAVED_HITS *sh, P7_TOPHITS *th, double F3)
   return eslOK;
 }
 
+
+
+/* Function:  p7_splicehits_GetSeedHits()
+ * Synopsis:  Find seed hits in SPLICE_SAVED_HITS and transfer to P7_TOPHITS
+ *
+ * Purpose:   Find any saved hits in <sh> that are between two hits
+ *            in <th> on the same sequence and strand. Add them as
+ *            to the <seed_hits>. 
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    p7_Fail on sequence file read error
+ */
 P7_TOPHITS*
 p7_splicehits_GetSeedHits(SPLICE_SAVED_HITS *sh, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3) 
 {

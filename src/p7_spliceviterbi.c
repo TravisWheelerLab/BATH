@@ -12,9 +12,41 @@
 
 #define TSC_P -10.0
 
-
+/* Function:  p7_spliceviterbi_TranslatedGlobal()
+ * Synopsis:  Fully global translated spliced Viterbi algorithm
+ *
+ * Purpose:   For finding the maxiumum scoring splice site between two 
+ *            exons. Algins globally from poistion <i_start> to <i_end> 
+ *            on the <sub_dsq> and from <k_start> to <k_end> on the 
+ *            <gm_fs>. The DP matrix <gx> must include room for the 
+ *            standard core model stats <M, I, D> as well as the splice 
+ *            state <P>. The <P> state acts as a modiifed <M> state 
+ *            that emits a codon that is made of either two nucleotides 
+ *            from before the donor site and one from after the acceptor 
+ *            site, one nucleotide from from before the donor site and 
+ *            two from after the acceptor, or from the three after the 
+ *            acceptor. 
+ *
+ *            Potetnial donor sites are recorded in the <index> and 
+ *            <score> matricies (63*M) via the SIX and SSX macros. For 
+ *            each potential acceptor site the index of the maximum 
+ *            scoring doonor site is recorded in the lookback matrix 
+ *            (L*M). 
+ *
+ * Args:      pli     - splicing pipeline containing the splice site matricies and scores
+ *            sub_dsq - nucleotide sequence 
+ *            gcode   - genetic code table
+ *            gm_fs   - a codon profile.
+ *            gx      - DP matrix with room for an MxL alignment
+ *            i_start - start poition on the <sub_dsq>
+ *            i_end   - end poition on the <sub_dsq>
+ *            k_start - start poition on the <gm_fs>
+ *            k_end   - end poition on the <gm_fs>
+ *
+ * Return:    <eslOK> on success.
+ */
 int
-p7_spliceviterbi_translated_global(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   
   float const *tsc  = gm_fs->tsc;
@@ -77,8 +109,10 @@ p7_spliceviterbi_translated_global(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
     XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
   }
 
-  /*Special cases for the rows 3-MIN_INTRON_LENG+4*/
   AGXXX = ACXXX = AGXX = ACXX = AGX = ACX  = FALSE;
+  GT = GC = AT = FALSE;
+
+  /*Special cases for the rows 3-MIN_INTRON_LENG+4*/
   loop_end = ESL_MIN(L, MIN_INTRON_LENG+4);
   for (i = 3; i <= loop_end; i++)
   {
@@ -154,7 +188,6 @@ p7_spliceviterbi_translated_global(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
 
   }
 
-  GT = GC = AT = FALSE;
   /* Main DP recursion */
   for (i = MIN_INTRON_LENG+5; i <= L; i++)
   {
@@ -408,13 +441,48 @@ p7_spliceviterbi_translated_global(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq,
 
   gx->M = M;
   gx->L = L;
-//p7_gmx_sp_Dump(stdout, gx, p7_DEFAULT);
+
   return eslOK;
 }
 
 
+/* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendDown()
+ * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
+ *
+ * Purpose:   For finding the maxiumum scoring splice site between an 
+ *            exons and a downstream region that may contiain one or 
+ *            more other exons. Aligns globally from the start postions 
+ *            <i_start> on the <sub_dsq> and <k_start> on the <gm_fs>, 
+ *            but can exit at any point at ro before <i_end> on the 
+ *            <sub_dsq> and <k_end> on the <gm_fs>. The DP matrix <gx> 
+ *            must include room for the standard core model stats <M,I,D> 
+ *            as well as the splice state <P>. The <P> state acts as a 
+ *            modiifed <M> state that emits a codon that is made of either 
+ *            two nucleotides from before the donor site and one from 
+ *            after the acceptor site, one nucleotide from from before the 
+ *            donor site and two from after the acceptor, or from the
+ *            three after the acceptor. 
+ *
+ *            Potetnial donor sites are recorded in the <index> and 
+ *            <score> matricies (63*M) via the SIX and SSX macros. For 
+ *            each potential acceptor site the index of the maximum 
+ *            scoring doonor site is recorded in the lookback matrix 
+ *            (L*M). 
+ *
+ * Args:      pli     - splicing pipeline containing the splice site matricies and scores
+ *            sub_dsq - nucleotide sequence 
+ *            gcode   - genetic code table
+ *            gm_fs   - a codon profile.
+ *            gx      - DP matrix with room for an MxL alignment
+ *            i_start - start poition on the <sub_dsq>
+ *            i_end   - end poition on the <sub_dsq>
+ *            k_start - start poition on the <gm_fs>
+ *            k_end   - end poition on the <gm_fs>
+ *
+ * Return:    <eslOK> on success.
+ */
 int
-p7_spliceviterbi_translated_semiglobal_extenddown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_fs->tsc;
   float      **dp   = gx->dp;
@@ -830,9 +898,43 @@ p7_spliceviterbi_translated_semiglobal_extenddown(SPLICE_PIPELINE *pli, const ES
 
 }
 
-
+/* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendUP()
+ * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
+ *
+ * Purpose:   For finding the maxiumum scoring splice site between an
+ *            exons and an upstream region that may contiain one or
+ *            more other exons. Can enter the model at any point at or 
+ *            after <i_start> on the <sub_dsq> and <k_start> on the 
+ *            <gm_fs>, but must exit globally ar at <i_end> on the
+ *            <sub_dsq> and <k_end> on the <gm_fs>. The DP matrix <gx>
+ *            must include room for the standard core model stats <M,I,D>
+ *            as well as the splice state <P>. The <P> state acts as a
+ *            modiifed <M> state that emits a codon that is made of either
+ *            two nucleotides from before the donor site and one from
+ *            after the acceptor site, one nucleotide from from before the
+ *            donor site and two from after the acceptor, or from the
+ *            three after the acceptor.
+ *
+ *            Potetnial donor sites are recorded in the <index> and
+ *            <score> matricies (63*M) via the SIX and SSX macros. For
+ *            each potential acceptor site the index of the maximum
+ *            scoring doonor site is recorded in the lookback matrix
+ *            (L*M).
+ *
+ * Args:      pli     - splicing pipeline containing the splice site matricies and scores
+ *            sub_dsq - nucleotide sequence
+ *            gcode   - genetic code table
+ *            gm_fs   - a codon profile.
+ *            gx      - DP matrix with room for an MxL alignment
+ *            i_start - start poition on the <sub_dsq>
+ *            i_end   - end poition on the <sub_dsq>
+ *            k_start - start poition on the <gm_fs>
+ *            k_end   - end poition on the <gm_fs>
+ *
+ * Return:    <eslOK> on success.
+ */
 int
-p7_spliceviterbi_translated_semiglobal_extendup(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_fs->tsc;
   float      **dp   = gx->dp;
@@ -1223,11 +1325,33 @@ p7_spliceviterbi_translated_semiglobal_extendup(SPLICE_PIPELINE *pli, const ESL_
 
 }
 
-
-
-
+/* Function:  p7_splicevitebi_TranslatedTrace()
+ * Synopsis:  Create a trace fot any of the translted spliced vitebi algorithms
+ *
+ * Purpose:   Create a trace that includes the exons(s) and any splice site(s) 
+ *            from the filled translated spliced viterbi matrix <gx> and the 
+ *            donor site index matrix <lookback>. Returns the fill trance <tr> 
+ *            and the trace <aliscore>.
+ *
+ * Args:      pli       - splicing pipeline containing the splice site matricies and scores
+ *            sub_dsq   - nucleotide sequence
+ *            gcode     - genetic code table
+ *            gm_fs     - a codon profile.
+ *            gx        - filled spliced viterbi DP matrix
+ *            tr        - trace to fil
+ *            i_start   - start poition on the <sub_dsq>
+ *            i_end     - end poition on the <sub_dsq>
+ *            k_start   - start poition on the <gm_fs>
+ *            k_end     - end poition on the <gm_fs>
+ *            ali_score - returned alignment score
+ *
+ * Return:    <eslOK> on success. 
+ *            <eslFAIL> if even the optimal path has zero probability;
+ *            in this case, the trace is set blank (<tr->N = 0>).
+ *
+ */            
 int
-p7_splicevitebi_translated_trace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, float *ali_score)
+p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, float *ali_score)
 {
   int          M   = k_end - k_start + 1;
   int          L   = i_end - i_start + 1;

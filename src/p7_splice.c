@@ -889,7 +889,7 @@ p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp)
 }
 
 
-/*  Function: p7_splice_HitiBetween
+/*  Function: p7_splice_HitBetween
  *
  *  Synopsis: Determine if one hit is between to other his on the sequence
  *
@@ -1270,7 +1270,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
   }
 
   p7_splice_CreateExtensionEdges(graph, tmp_graph, gm); 
-  tmp_path = p7_splicepath_GetBestPath_Extension(tmp_graph); 
+  tmp_path = p7_splicepath_GetBestPath(tmp_graph); 
 
   /* Set the most upstream hit in the tmp_path to start at the minimum 
    * hmm for all hits in tmp_path and add it to the original path  */
@@ -1407,7 +1407,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
   p7_splice_CreateExtensionEdges(graph, tmp_graph, gm); 
 
 
-  tmp_path = p7_splicepath_GetBestPath_Extension(tmp_graph);
+  tmp_path = p7_splicepath_GetBestPath(tmp_graph);
 
   /* Set the most downstream hit in the tmp_path to end at the maximum  
    * hmm for all hits in tmp_path and add it to the original path  */
@@ -2031,14 +2031,14 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
   p7_fs_ReconfigLength(gm_fs, L);
    
-  p7_spliceviterbi_translated_global(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
 
   /* If the hits were in different frames and no splice site was able to pull score 
    * from the upstream frame to the downstream frame the spliceing is a failure */
   if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_translated_trace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, ali_score);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, ali_score);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2338,10 +2338,10 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
   p7_fs_ReconfigLength(gm_fs, L);
   
-   p7_spliceviterbi_translated_semiglobal_extenddown(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+   p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_translated_trace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, &ali_score);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, &ali_score);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
@@ -2611,10 +2611,10 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
   p7_fs_ReconfigLength(gm_fs, L);
   
-  p7_spliceviterbi_translated_semiglobal_extendup(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_translated_trace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, &ali_score);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, &ali_score);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
@@ -2875,10 +2875,10 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
   p7_fs_ReconfigLength(gm_fs, L);
   
-  p7_spliceviterbi_translated_global(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_translated_trace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, &ali_score);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end, &ali_score);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
@@ -3910,7 +3910,6 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   bg       = pli->bg;
   amino_sq = pli->amino_sq;
 
-//p7_trace_Dump(stdout, tr, NULL, NULL);
 
   p7_bg_SetLength(bg, om->max_length);
   p7_bg_NullOne  (bg, amino_sq->dsq, om->max_length, &nullsc);
@@ -3958,7 +3957,6 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   exon_score += 2 * log(2.0 / ((float) om->max_length + 2.0));
   ad->exon_score[0] = (exon_score - (nullsc + ad->exon_bias[0]))  / eslCONST_LOG2;
 
-//  printf("start_score %f end_score %f exon_score %f nullsc %f ad->exon_bias[0] %f ad->exon_score[0] %f\n", start_score, end_score, exon_score, nullsc,  ad->exon_bias[0], ad->exon_score[0]); 
   ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
   if(do_pp) {
@@ -3970,7 +3968,6 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
 
   }
   else ad->exon_pp[0] = -eslINFINITY;
- //printf("ad->exon_score[e] %f ad->exon_pp[e] %f exp(ad->exon_lnP[e]) %f\n", ad->exon_score[0],  ad->exon_pp[0], exp(ad->exon_lnP[0]));
 
   for(e = 1; e < ad->exon_cnt; e++) {
 
@@ -4027,8 +4024,7 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
 
     }
     else ad->exon_pp[e] = -eslINFINITY;
- //printf("start_score %f end_score %f exon_score %f nullsc %f ad->exon_bias[0] %f ad->exon_score[0] %f\n", start_score, end_score, exon_score, nullsc,  ad->exon_bias[e], ad->exon_score[e]);
-   // printf("ad->exon_score[e] %f ad->exon_pp[e] %f exp(ad->exon_lnP[e]) %f\n", ad->exon_score[e],  ad->exon_pp[e], exp(ad->exon_lnP[e]));
+   
   }
 
   return eslOK;

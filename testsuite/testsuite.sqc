@@ -82,8 +82,6 @@
 1 prep      Caudal                @easel/miniapps/esl-afetch@ !testsuite/minifam! Caudal_act > %CAUDAL.STO%
 1 prep      hmm                   @src/bathbuild@ %CAUDAL.BHMM% %CAUDAL.STO%
 1 prep      minifam               @src/bathbuild@ %MINIFAM.BHMM% !testsuite/minifam!
-#1 prep      minifam_press         @src/hmmpress@ %MINIFAM.HMM% 
-
 
 # bathbuild  xxxxxxxxxxxxxxxxxxxx
 1 exercise  bathbuild            @src/bathbuild@                    --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
@@ -104,7 +102,6 @@
 1 exercise  build/--wgsc         @src/bathbuild@  --wgsc            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--wblosum      @src/bathbuild@  --wblosum         --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--wnone        @src/bathbuild@  --wnone           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
-# --wgiven not tested
 1 exercise  build/--wid          @src/bathbuild@  --wblosum --wid 0.5  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--eent         @src/bathbuild@  --eent               --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--eclust       @src/bathbuild@  --eclust             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
@@ -157,6 +154,7 @@
 1 exercise  bathsearch/--nonull2       @src/bathsearch@  --nonull2                    !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--fs            @src/bathsearch@  --fs                         !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--fsonly        @src/bathsearch@  --fsonly                     !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/--splice        @src/bathsearch@  --splice                     !testsuite/tmem-258.bhmm!       !testsuite/tmem-258.fa!
 1 exercise  bathsearch/--qformat       @src/bathsearch@  --qformat stockholm          !testsuite/2OG-FeII_Oxy_3.sto!  !testsuite/2OG-FeII_Oxy_3-nt.fa! 
 1 exercise  bathsearch/--tformat       @src/bathsearch@  --tformat fasta              !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--popen         @src/bathsearch@  --popen 0.4                  !testsuite/2OG-FeII_Oxy_3.fa!   !testsuite/2OG-FeII_Oxy_3-nt.fa! 

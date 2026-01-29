@@ -164,7 +164,8 @@ typedef struct p7_hmm_s {
   float **t;                    /* transition prob's. t[(0),1..M][0..p7H_NTRANSITIONS-1]   */
   float **mat;                  /* match emissions.  mat[1..M][0..K-1]                     */ 
   float **ins;                  /* insert emissions. ins[1..M][0..K-1]                     */
-  float   fs;                   /* frameshift probability.                                 */
+  float   fsprob;               /* frameshift probability.                                 */
+  int     fs;                   /* bool for frameshift on/off                              */
   int     ct;                   /* codon translationa table                                */
   /*::cexcerpt::plan7_core::end::*/
 
@@ -1517,7 +1518,8 @@ typedef struct p7_builder_s {
 
   /* BATH parameters */
   int                  ct;           /* NCBI codon translation table ID                        */
-  float                fs;           /* frameshift probability                                 */
+  int                  fs;            /* bool for calculating frameshift stats */
+  float                fsprob;        /* frameshift probability                                 */
 
 } P7_BUILDER;
 
@@ -1547,8 +1549,8 @@ extern int p7_Lambda(P7_HMM *hmm, P7_BG *bg, double *ret_lambda);
 extern int p7_MSVMu     (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_mmu);
 extern int p7_ViterbiMu (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_vmu);
 extern int p7_Tau       (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
-extern int p7_fs_Tau_3codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau);
-extern int p7_fs_Tau_5codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau_3codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau_5codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
 
 
 /* eweight.c */

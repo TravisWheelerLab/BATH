@@ -61,6 +61,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   P7_BG          *bg     = (esl_byp_IsProvided(byp_bg)  ? *byp_bg  : NULL); 
   P7_PROFILE     *gm     = (esl_byp_IsProvided(byp_gm)  ? *byp_gm  : NULL); 
   P7_OPROFILE    *om     = (esl_byp_IsProvided(byp_om)  ? *byp_om  : NULL); 
+  P7_FS_PROFILE  *gm_fs  = NULL;  
   ESL_RANDOMNESS *r      = (esl_byp_IsProvided(byp_rng) ? *byp_rng : NULL);
   char           *errbuf = ((cfg_b != NULL) ? cfg_b->errbuf : NULL);
   int             EmL    = ((cfg_b != NULL) ? cfg_b->EmL    : 200);
@@ -72,7 +73,6 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
   double          lambda, mmu, vmu, tau, tau_fs3, tau_fs5;
   int             status;
-  P7_FS_PROFILE     *gm_fs  = NULL;  
 
   /* Configure any objects we need
    * that weren't already passed to us as a bypass optimization 
@@ -108,8 +108,13 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
   if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
   if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
-  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau_3codons (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
-  if(hmm->abc->type == eslAMINO) if ((status = p7_fs_Tau_5codons (r, gm_fs, hmm, bg, EfL, EfN, hmm->fs, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+  if (cfg_b != NULL && cfg_b->fs) {
+    gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+    if ((status = p7_fs_Tau_3codons (r, gm_fs, hmm, bg, EfL, EfN, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+    if ((status = p7_fs_Tau_5codons (r, gm_fs, hmm, bg, EfL, EfN, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+    p7_profile_fs_Destroy(gm_fs); 
+    
+  }
  
 
   /* Store results */
@@ -119,8 +124,8 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   hmm->evparam[p7_MMU]      = om->evparam[p7_MMU]     = mmu;
   hmm->evparam[p7_VMU]      = om->evparam[p7_VMU]     = vmu;
   hmm->evparam[p7_FTAU]     = om->evparam[p7_FTAU]    = tau;
-  hmm->evparam[p7_FTAUFS3]  = om->evparam[p7_FTAUFS3]  = (hmm->abc->type == eslAMINO) ? tau_fs3 : 0.0;
-  hmm->evparam[p7_FTAUFS5]  = om->evparam[p7_FTAUFS5]  = (hmm->abc->type == eslAMINO) ? tau_fs5 : 0.0;
+  hmm->evparam[p7_FTAUFS3]  = (cfg_b != NULL && cfg_b->fs) ? tau_fs3 : p7_EVPARAM_UNSET;
+  hmm->evparam[p7_FTAUFS5]  = (cfg_b != NULL && cfg_b->fs) ? tau_fs5 : p7_EVPARAM_UNSET;
   hmm->flags              |= p7H_STATS;
 
   if (gm != NULL) {
@@ -132,7 +137,6 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     gm->evparam[p7_FTAU]    = tau;
   }
   
-  if (gm_fs   != NULL)                     p7_profile_fs_Destroy(gm_fs); 
   if (byp_rng != NULL) *byp_rng = r;  else esl_randomness_Destroy(r); /* bypass convention: no-op if rng was provided.*/
   if (byp_bg  != NULL) *byp_bg  = bg; else p7_bg_Destroy(bg);         /* bypass convention: no-op if bg was provided. */
   if (byp_gm  != NULL) *byp_gm  = gm; else p7_profile_Destroy(gm);    /* bypass convention: no-op if gm was provided. */
@@ -140,11 +144,11 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   return eslOK;
 
  ERROR:
-  if (gm_fs   != NULL)                     p7_profile_fs_Destroy(gm_fs);
   if (! esl_byp_IsProvided(byp_rng)) esl_randomness_Destroy(r);
   if (! esl_byp_IsProvided(byp_bg))  p7_bg_Destroy(bg);
   if (! esl_byp_IsProvided(byp_gm))  p7_profile_Destroy(gm);
   if (! esl_byp_IsProvided(byp_om))  p7_oprofile_Destroy(om);
+  if (gm_fs   != NULL)               p7_profile_fs_Destroy(gm_fs);
   return status;
 }
 /*---------------------- end, wrapper API -----------------------*/
@@ -490,7 +494,7 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
   P7_GMX  *gx      = NULL; 
@@ -508,8 +512,6 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
 
   p7_FLogsumInit(); 
 
-  hmm->fs = indel_cost;
- 
   abcDNA = esl_alphabet_Create(eslDNA);
 
   gx = p7_gmx_fs_Create(hmm->M, p7P_3CODONS, L*3, p7P_3CODONS);     
@@ -605,7 +607,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, float indel_cost, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
   P7_GMX  *gx      = NULL; 
@@ -623,8 +625,6 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_HMM *hmm, P7_BG *b
 
   p7_FLogsumInit(); 
 
-  hmm->fs = indel_cost;
- 
   abcDNA = esl_alphabet_Create(eslDNA);
 
   gx = p7_gmx_fs_Create(hmm->M, 3, L*3, p7P_5CODONS);     /* DP matrix: for ForwardParser,  L rows */
@@ -809,8 +809,8 @@ main(int argc, char **argv)
 	  if (do_vit)  p7_ViterbiMu (r, om, bg, EvL, EvN, lambda,       &vmu);
 	  if (do_fwd)  p7_Tau       (r, om, bg, EfL, EfN, lambda, Eft,  &ftau);
       if(abc->type == eslAMINO) {
-        if (do_fwd3) p7_fs_Tau_3codons(r, gm_fs, hmm, bg, EfL, EfN, 0.01, lambda, Eft, &ftau3) 
-        if (do_fwd5) p7_fs_Tau_5codons(r, gm_fs, hmm, bg, EfL, EfN, 0.01, lambda, Eft, &ftau5)
+        if (do_fwd3) p7_fs_Tau_3codons(r, gm_fs, hmm, bg, EfL, EfN, lambda, Eft, &ftau3) 
+        if (do_fwd5) p7_fs_Tau_5codons(r, gm_fs, hmm, bg, EfL, EfN, lambda, Eft, &ftau5)
       }
 	  printf("%s %.4f %.4f %.4f %.4f", hmm->name, lambda, mmu, vmu, ftau);
       if (abc->type == eslAMINO)  printf(" %.4f %.4f\n", ftau3, ftau5);

@@ -112,7 +112,7 @@ static ESL_OPTIONS options[] = {
   { "--F1",           eslARG_REAL,   "0.02",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                         6 },
   { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                         6 },
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         6 },
-  { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                      6 },
+  { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,  "--fs","--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                      6 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         6 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            6 },
 
@@ -724,10 +724,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     om      = NULL;       /* optimized query profile                  */
 
     if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
-      if( ! (hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET && hmm->fs && hmm->ct)) p7_Fail("HMM file %s not formated for bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if( ! (hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET && hmm->fsprob && hmm->ct)) p7_Fail("HMM file %s not formated for bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
       if( hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
 
-      if( hmm->fs != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fsprob %f' or run bathconvert with option '--fsprob %f'.\n", indel_cost, cfg->queryfile, hmm->fs, indel_cost);
+      if( hmm->fsprob != indel_cost)  p7_Fail("Requested frameshift probability of %f does not match the frameshift probability in the HMM file %s. Please either run bathsearch with option '--fsprob %f' or run bathconvert with option '--fsprob %f'.\n", indel_cost, cfg->queryfile, hmm->fsprob, indel_cost);
       
       if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
     } 

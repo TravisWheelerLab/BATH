@@ -223,9 +223,9 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float   *tp;
   float    sc[p7_MAXCODE];
   float    Z;
-  float    one_indel  = log(hmm->fs);
-  float    two_indel  = log(hmm->fs/2);
-  float    no_indel   = log(1. - hmm->fs*4);
+  float    one_indel  = log(hmm->fsprob);
+  float    two_indel  = log(hmm->fsprob/2);
+  float    no_indel   = log(1. - hmm->fsprob*4);
 
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");

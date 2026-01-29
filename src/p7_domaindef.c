@@ -1645,7 +1645,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
 //TODO Maybe get rid of this  
     p7_trace_Reuse(ddef->tr);
     gxv = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_5CODONS);
-    
+
     p7_Viterbi_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gxv, iv, NULL);
     p7_VTrace_Frameshift(windowsq->dsq+i-1, Ld, gm_fs, gxv, ddef->tr); 
     p7_trace_fs_SetPP(ddef->tr, gx1);

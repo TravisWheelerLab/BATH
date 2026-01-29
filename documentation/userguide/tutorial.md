@@ -7,7 +7,7 @@ There are two sections in this tutorial. The first section - Input files - will 
 **Tools**
 ---
 
-**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 5 below) or a file containing sequences or sequence alignments (see Practice 11).
+**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 5 below) or a file containing sequences or sequence alignments (see Practice 11). The alignments bathsearch procedures are translated (codons to amino acids) and can be frameshift aware or spliced. 
 ```
 Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
 ```
@@ -16,15 +16,15 @@ Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
 ```
 Usage: bathbuild [-options] <hmmfile_out> <msa_or_seq_file_in>
 ```
-**bathstat**   - show summary statistics for a BATH formated pHMM file
+**bathstat**   - show summary statistics for a BATH-formatted pHMM file
 ```
 Usage: bathstat [-options] <hmmfile_in>
 ```
-**bathconvert** - convert HMMER formated pHMM files to BATH formated pHMM files
+**bathconvert** - convert HMMER-formatted or older BATH-formatted pHMM files to the current BATH format
 ```
 Usage: bathconvert [-options] <hmmfile_out> <hmmfile_in>
 ```
-**bathfetch**   - copy selected pHMMs from an HMMER or BATH formatted file (converting if necessary) to a new BATH formated pHMM file
+**bathfetch**   - copy selected pHMMs from an HMMER or BATH formatted file (converting if necessary) to a new BATH formatted pHMM file
 ```
 Usage: bathfetch [options] <hmmfile_in> <key>         (retrieves HMM named <key>)
 Usage: bathfetch [options] -f <hmmfile_in> <keyfile>  (retrieves all HMMs in <keyfile>)
@@ -36,9 +36,9 @@ Usage: bathfetch [options] --index <hmmfile_in>       (indexes <hmmfile>)
 
 Before you begin using BATH, it will be helpful to become familiar with the file types it uses. Running bathsearch requires two input files; a protein query file and a DNA target file. The target file must contain one or more DNA sequences in a recognizable unaligned sequence or multiple sequence alignment (MSA) format. Accepted unaligned sequence formats include fasta, embl, and genbank. Accepted MSA formats include stockholm, a2m, afa, psiblast, clustal, and phylip. 
 
-BATH's installation includes a branch of the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
+BATH's installation includes a branch of the [Easel](https://github.com/EddyRivasLab/easel) software suite developed by the Eddy/Rivas Lab.  The Easel miniapps are a set of tools designed to perform a number of operations on MSA and unaligned sequence files.  To familiarize yourself with those tools, see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (pages 145-204). 
 
-A bathsearch query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a BATH formated pHMM file (although you may also use an MSA or unaligned sequence file - see practice 11). If you are not interested in taking advantage of BATH's frameshift-aware algorithms, you can also use a HMMER formatted pHMM file along with the '--nofs' flag. The rest of this section will focus on practices to get you acquainted with the BATH tools that are used to create and manipulate BATH formated pHMM files.
+A bathsearch query file contains the proteins you wish to search for in the target DNA. The preferred format for query files is a BATH-formatted pHMM file (although you may also use an MSA or unaligned sequence file - see practice 11). The current version of BATH performs translated (non-framshifted, non-spliced) alignment by default.  To enable the frameshift-aware algorithms, you can use the --fs flag.  To enable the splicing algorithm, you can use the --splice flag.  At this time, BATH does not support using --fs and --splice for the same search. The rest of this section will focus on practices to get you acquainted with the BATH tools that are used to create and manipulate BATH formated pHMM files.
 
 <details><summary>Practice 1: building a pHMM from an MSA using bathbuild</summary>
 <p>
@@ -121,7 +121,7 @@ id  description
  25 Candidate Division SR1 and Gracilibacteria
 ```
 
-In practice 10 you will search pHMMs built from MET.msa against a target sequence from the genome of an endosymbiotic bacteria that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
+In practice 10 you will search pHMMs built from MET.msa against a target sequence from the genome of an endosymbiotic bacterium that uses codon table 4. Running the following command will build the pHMMs using the correct codon table for that target:
    
 ```bash
    % bathbuild --ct 4 MET-ct4.bhmm MET.msa
@@ -148,7 +148,7 @@ The summary output that is printed to your stdout should resemble the text below
 <details><summary>Practice 3: building a pHMM from an unaligned sequences file</summary>
 <p>
 
-If your queries are single unaligned sequences rather than MSAs you can still build HMMs using bathbuild and the flag '--unali'. The file three_seqs.fa contains three unaligned protein sequences. To build three HMMs (one for each sequence) use the following command. 
+If your queries are single unaligned sequences rather than MSAs you can still build HMMs using bathbuild and the flag '--unali'. The file three_seqs.fa contains three unaligned protein sequences. To build three HMMs, one for each sequence, use the following command. 
    
 ```bash
    % bathbuild --unali three_seqs.bhmm three_seqs.fa
@@ -197,10 +197,10 @@ The fields are mainly the same as those produced by bathbuild, and detailed in p
 </p>
 </details>
 
-<details><summary>Practice 5: converting an HMMER formated pHMM file to BATH format using bathconvert</summary>
+<details><summary>Practice 5: converting an HMMER-formatted pHMM file to BATH format using bathconvert</summary>
 <p>
 
-If you have an existing HMMER formatted pHMM file and want to use it to run bathsearch with frameshift detectionG you will first need to convert it to the BATH format using bathconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the BATH formatted file tRNA-proteins.bhmm containing the same twelve pHMMs:
+If you have an existing HMMER-formatted pHMM file and want to use it to run bathsearch with frameshift detection, you will first need to convert it to the BATH format using bathconvert. The file tRNA-proteins.hmm contains 12 pHMMs in HMMER3 format. The following command will create the BATH formatted file tRNA-proteins.bhmm containing the same twelve pHMMs:
 
 ```bash
    % bathconvert  tRNA-proteins.bhmm  tRNA-proteins.hmm

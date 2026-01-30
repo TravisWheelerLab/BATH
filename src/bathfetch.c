@@ -52,12 +52,12 @@ cmdline_help(char *argv0, ESL_GETOPTS *go)
 
 static ESL_OPTIONS options[] = {
   /* name       type        default env   range togs  reqs  incomp      help                                                   docgroup */
-  { "-h",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "help; show brief info on version and usage",        0 },
-  { "-f",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"--index",      "second cmdline arg is a file of names to retrieve", 0 },
+  { "-h",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL, NULL,          "help; show brief info on version and usage",        0 },
+  { "-f",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"--index",      "second cmdline arg is a file of names to retrieve", 0 },
   { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          0 },
-  { "-O",       eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
-  //{ "--fsprob",     eslARG_REAL,  "0.01",NULL, "0.001<=x<=0.05", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
-  { "--ct",         eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
+  { "-O",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
+  { "--fs",     eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,  NULL,  "calculate statistics for frameshift aware search",     0 },
+  { "--ct",     eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
   { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       0 },
   { 0,0,0,0,0,0,0,0,0,0 },
 };
@@ -245,7 +245,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   ESL_RANDOMNESS *r  = NULL;
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
-  float           fs;
+  float           fsprob;
   int             ct;
   int             nhmm   = 0;
   char           *key;
@@ -253,8 +253,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             keyidx;
   int             status;
 
-  //fs = esl_opt_GetReal(go, "--fsprob");
-  fs = 0.01;
+  fsprob = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
@@ -278,25 +277,47 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   {
     while ((status = p7_hmmfile_Read(hfp, &abc, &hmm)) != eslEOF)
 	{
+     
 	  if      (status == eslEOD)       p7_Fail("read failed, HMM file %s may be truncated?", hfp->fname);
 	  else if (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hfp->fname);
 	  else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hfp->fname);
 	  else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
 
-      if(hmm->abc->type == eslAMINO) {
-        if(fs != hmm->fs || ct != hmm->ct || hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
+      if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hfp->fname);
 
-          r = esl_randomness_CreateFast(42);
-          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-          bg = p7_bg_Create(hmm->abc);
+      if(bg == NULL) bg = p7_bg_Create(hmm->abc);
+      if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS3] = tau_fs;
-          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS5] = tau_fs;
+      /* If we have a new codon table we need to recalculate FS taus */
+      if(ct != hmm->ct) {
+         hmm->ct = ct;
+         if(hmm->fs) {
+           hmm->fsprob = fsprob;
+
+           if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+
+           p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+           hmm->evparam[p7_FTAUFS3] = tau_fs;
+           p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+           hmm->evparam[p7_FTAUFS5] = tau_fs;
         }
       }
 
+      /* convert from non fs to fs */
+      if(esl_opt_IsUsed(go, "--fs")) {
+        hmm->fs = TRUE;
+        hmm->fsprob = fsprob;
+
+        if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+
+        if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
+
+          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS3] = tau_fs;
+          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS5] = tau_fs;
+        }
+      }
 
       if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
 	     ((hmm->acc) && esl_keyhash_Lookup(keys, hmm->acc, -1, &keyidx) == eslOK))
@@ -306,6 +327,8 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  }
 
 	  p7_hmm_Destroy(hmm);
+      p7_profile_fs_Destroy(gm_fs);
+      gm_fs = NULL;
 	}
   }
 
@@ -336,12 +359,11 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   ESL_RANDOMNESS *r  = NULL;
   P7_FS_PROFILE     *gm_fs  = NULL;
   double          tau_fs;
-  float           fs; 
+  float           fsprob; 
   int             ct;
   int             status;
 
-  //fs = esl_opt_GetReal(go, "--fsprob");
-  fs = 0.01;
+  fsprob = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
   if (hfp->ssi != NULL)
@@ -359,6 +381,8 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hfp->fname);
       else if (status != eslOK)        p7_Fail("Unexpected error in reading HMMs from %s",   hfp->fname);
 
+      if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hfp->fname);
+
       if (strcmp(key, hmm->name) == 0 || (hmm->acc && strcmp(key, hmm->acc) == 0)) break;
       p7_hmm_Destroy(hmm);
       hmm = NULL;
@@ -367,23 +391,44 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   if (status == eslOK) 
     { 
 
-      if(hmm->abc->type == eslAMINO) {
-        if(fs != hmm->fs || ct != hmm->ct || hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
+      if(bg == NULL) bg = p7_bg_Create(hmm->abc);
+      if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-          r = esl_randomness_CreateFast(42);
-          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-          bg = p7_bg_Create(hmm->abc);
+      /* If we have a new codon table we need to recalculate FS taus */
+      if(ct != hmm->ct) {
+         hmm->ct = ct;
+         if(hmm->fs) {
+           hmm->fsprob = fsprob;
 
-          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS3] = tau_fs;
-          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS5] = tau_fs;
+           if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+
+           p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+           hmm->evparam[p7_FTAUFS3] = tau_fs;
+           p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+           hmm->evparam[p7_FTAUFS5] = tau_fs;
         }
       }
 
+      /* convert from non fs to fs */
+      if(esl_opt_IsUsed(go, "--fs")) {
+        hmm->fs = TRUE;
+        hmm->fsprob = fsprob;
 
+        if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+
+        if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
+
+          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS3] = tau_fs;
+          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS5] = tau_fs;
+        }
+      }
+ 
       p7_hmmfile_WriteASCII(ofp, p7_BATH_3f, hmm);
       p7_hmm_Destroy(hmm);
+      p7_profile_fs_Destroy(gm_fs);
+      gm_fs = NULL;
     }
   else p7_Fail("HMM %s not found in file %s\n", key, hfp->fname);
 	

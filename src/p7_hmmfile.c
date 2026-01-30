@@ -568,7 +568,8 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
   int status;
   
   if (format == -1) format = p7_HMMFILE_3f;
-
+  if(hmm == NULL) printf("NULL\n");
+  
   if      (format == p7_BATH_3f)     { if (fprintf(fp, "BATH3/f\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
   else if (format == p7_HMMFILE_3f)  { if (fprintf(fp, "HMMER3/f [%s | %s]\n",                             HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");}
   else if (format == p7_HMMFILE_3e)  { if (fprintf(fp, "HMMER3/e [%s | %s; reverse compatibility mode]\n", HMMER_VERSION, HMMER_DATE) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
@@ -609,17 +610,17 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
       if (fprintf(fp, "STATS LOCAL     VLAMBDA %f\n", hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL         VMU %f\n", hmm->evparam[p7_MMU])     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL        FTAU %f\n", hmm->evparam[p7_FTAU])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-	  if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL        FTAUFS3 %f\n", hmm->evparam[p7_FTAUFS3])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL        FTAUFS5 %f\n", hmm->evparam[p7_FTAUFS5])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+	  if(hmm->fs) if (fprintf(fp, "STATS LOCAL        FTAUFS3 %f\n", hmm->evparam[p7_FTAUFS3])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->fs) if (fprintf(fp, "STATS LOCAL        FTAUFS5 %f\n", hmm->evparam[p7_FTAUFS5])    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
 
     } else {        /* default stats lines */
       if (fprintf(fp, "STATS LOCAL MSV         %8.4f %8.5f\n", hmm->evparam[p7_MMU],  hmm->evparam[p7_MLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL VITERBI     %8.4f %8.5f\n", hmm->evparam[p7_VMU],  hmm->evparam[p7_VLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
       if (fprintf(fp, "STATS LOCAL FORWARD     %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-	  if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FS3 FORWARD %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS3], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "STATS LOCAL FS5 FORWARD %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS5], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "FRAMESHIFT PROB  %8.4f\n", hmm->fs) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
-      if(hmm->abc->type == eslAMINO) if (fprintf(fp, "CODON TABLE  %d\n", hmm->ct) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+	  if(hmm->fs) if (fprintf(fp, "STATS LOCAL FS3 FORWARD %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS3], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->fs) if (fprintf(fp, "STATS LOCAL FS5 FORWARD %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS5], hmm->evparam[p7_FLAMBDA]) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->fs) if (fprintf(fp, "FRAMESHIFT PROB  %8.4f\n", hmm->fsprob) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+      if(hmm->ct) if (fprintf(fp, "CODON TABLE  %d\n", hmm->ct) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
     }
       
   }
@@ -683,6 +684,9 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
     if (fputc('\n', fp) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
   }
   if (fputs("//\n", fp) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
+
+  if(hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET  && hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET) hmm->fs == TRUE;
+
   return eslOK;
 }
 
@@ -931,13 +935,15 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
       coffset += offset;
       if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FORWARD     %8.4f %8.5f\n", hmm->evparam[p7_FTAU], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
       coffset += offset;
-      if(hmm->abc->type == eslAMINO) {
+      if(hmm->fs) {
 	    if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FS3 FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS3], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
         coffset += offset;
         if ((offset = sprintf(ret_hmm + coffset, "STATS LOCAL FS5 FORWARD  %8.4f %8.5f\n", hmm->evparam[p7_FTAUFS5], hmm->evparam[p7_FLAMBDA])) < 0) return eslEWRITE;
         coffset += offset;
-        if ((offset = sprintf(ret_hmm + coffset, "FRAMESHIFT PROB  %8.4f\n", hmm->fs)) < 0) return eslEWRITE;
+        if ((offset = sprintf(ret_hmm + coffset, "FRAMESHIFT PROB  %8.4f\n", hmm->fsprob)) < 0) return eslEWRITE;
         coffset += offset;
+      }
+      if(hmm->ct) {
         if ((offset = sprintf(ret_hmm + coffset, "CODON TABLE  %d\n", hmm->ct)) < 0) return eslEWRITE;
         coffset += offset;
       }
@@ -1529,7 +1535,7 @@ if (*ret_abc == NULL) {
       else if (strcmp(tag, "FRAMESHIFT") == 0) {
         if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok2, NULL))  != eslOK)   ESL_XFAIL(status,    hfp->errbuf, "No frameshift probaility found on FRAMESHIFT PROB line");
         if ((status = esl_fileparser_GetTokenOnLine(hfp->efp, &tok3, NULL))  != eslOK)   ESL_XFAIL(status,    hfp->errbuf, "No frameshift probaility found on FRAMESHIFT PROB line");
-        if ((hmm->fs = atof(tok3))                                            == 0)     ESL_XFAIL(status,    hfp->errbuf, "Invalid frameshift probability %s on FRAMESHIFT PROB line", tok3);	
+        if ((hmm->fsprob = atof(tok3))                                            == 0)     ESL_XFAIL(status,    hfp->errbuf, "Invalid frameshift probability %s on FRAMESHIFT PROB line", tok3);	
       }
 
       else if (strcmp(tag, "CODON") == 0) {

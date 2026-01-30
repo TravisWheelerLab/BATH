@@ -6,14 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HMMER_MPI
-#include "mpi.h"
-#endif
-
 #include "easel.h"
 #include "esl_alphabet.h"
 #include "esl_getopts.h"
-#include "esl_mpi.h"
 #include "esl_msa.h"
 #include "esl_msafile.h"
 #include "esl_msaweight.h"
@@ -72,12 +67,8 @@ static ESL_OPTIONS options[] = {
   { "-o",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
   { "--ct",        eslARG_INT,    "1",      NULL, NULL,             NULL, NULL,     NULL, "use alt genetic code of NCBI transl table <n>",         1 }, 
+  { "--fs",        eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     NULL, "calculate statistics for frameshift aware search",      1 }, 
   { "--unali",     eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     "-O", "input file is an unaligned sequence file",              1 },
-
-  /* Selecting the alphabet rather than autoguessing it */
-  { "--amino",     eslARG_NONE,   FALSE,    NULL, NULL,         ALPHOPTS, NULL,     NULL, "input alignment is protein sequence data",              2 },
-  { "--dna",       eslARG_NONE,   FALSE,    NULL, NULL,         ALPHOPTS, NULL,     NULL, "input alignment is DNA sequence data",                  2 },
-  { "--rna",       eslARG_NONE,   FALSE,    NULL, NULL,         ALPHOPTS, NULL,     NULL, "input alignment is RNA sequence data",                  2 },
 
   /* Alternate model construction strategies */
   { "--fast",      eslARG_NONE,   "default",NULL, NULL,          CONOPTS, NULL,     NULL, "assign cols w/ >= symfrac residues as consensus",       3 },
@@ -127,10 +118,6 @@ static ESL_OPTIONS options[] = {
 #ifdef HMMER_THREADS 
   { "--cpu",       eslARG_INT,    p7_NCPU,"HMMER_NCPU","n>=0",NULL,   NULL,    NULL, "number of parallel CPU workers for multithreads",       8 },
 #endif
-#ifdef HMMER_MPI
-  { "--mpi",       eslARG_NONE,   FALSE, NULL, NULL,       NULL,    NULL,      NULL, "run as an MPI parallel program",                        8 },
-#endif
-  { "--stall",     eslARG_NONE,       FALSE, NULL, NULL,    NULL,     NULL,    NULL, "arrest after start: for attaching debugger to process", 8 },
   { "--informat",  eslARG_STRING,     NULL, NULL, NULL,    NULL,     NULL,    NULL, "assert input infile is in format <s> (no autodetect)", 8 },
   { "--seed",      eslARG_INT,        "42", NULL, "n>=0",  NULL,     NULL,    NULL, "set RNG seed to <n> (if 0: one-time arbitrary seed)",   8 },
   { "--w_beta",    eslARG_REAL,       NULL, NULL, NULL,    NULL,     NULL,    NULL, "tail mass at which window length is determined",        8 },
@@ -161,7 +148,7 @@ static ESL_OPTIONS options[] = {
 /* struct cfg_s : "Global" application configuration shared by all threads/processes
  * 
  * This structure is passed to routines within main.c, as a means of semi-encapsulation
- * of shared data amongst different parallel processes (threads or MPI processes).
+ * of shared data amongst different parallel processes 
  */
 struct cfg_s {
   FILE         *ofp;		/* output file (default is stdout) */
@@ -182,10 +169,6 @@ struct cfg_s {
   int           nali;		/* which # alignment this is in file (only valid in serial mode)   */
   int           nnamed;		/* number of alignments that had their own names */
 
-  int           do_mpi;		/* TRUE if we're doing MPI parallelization */
-  int           nproc;		/* how many MPI processes, total */
-  int           my_rank;	/* who am I, in 0..nproc-1 */
-  int           do_stall;	/* TRUE to stall the program until gdb attaches */
 };
 
 
@@ -198,13 +181,6 @@ static void serial_loop  (WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPT
 static void thread_loop(ESL_THREADS *obj, ESL_WORK_QUEUE *queue, struct cfg_s *cfg, const ESL_GETOPTS *go);
 static void pipeline_thread(void *arg);
 #endif /*HMMER_THREADS*/
-
-#ifdef HMMER_MPI
-static void  mpi_master    (const ESL_GETOPTS *go, struct cfg_s *cfg);
-static void  mpi_worker    (const ESL_GETOPTS *go, struct cfg_s *cfg);
-static void  mpi_init_open_failure(ESL_MSAFILE *afp, int status);
-static void  mpi_init_other_failure(char *format, ...);
-#endif
 
 static int output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg);
 static int output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_SQ *sq, P7_HMM *hmm, ESL_MSA *postmsa, double entropy);
@@ -268,19 +244,6 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
   if (strcmp(*ret_infile, "-") == 0 && ! esl_opt_IsOn(go, "--informat"))
     { if (puts("Must specify --informat to read <infile> from stdin ('-')") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed"); goto FAILURE; }
 
-#ifdef HMMER_MPI
-  if (esl_opt_IsOn(go, "--mpi") && esl_opt_IsOn(go, "--cpu")) 
-    {
-      int mpisetby = esl_opt_GetSetter(go, "--mpi");
-      int cpusetby = esl_opt_GetSetter(go, "--cpu");
-
-      if (mpisetby == cpusetby) {
-	if (puts("Options --cpu and --mpi are incompatible. The MPI implementation is not multithreaded.") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-	goto FAILURE;
-      }
-    }
-#endif
-
   *ret_go = go;
   return eslOK;
   
@@ -300,18 +263,14 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
 static int
 output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
 {
-  if (cfg->my_rank > 0)  return eslOK;
 
   if (fprintf(cfg->ofp, "# input file:                       %s\n", cfg->infile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(cfg->ofp, "# output HMM file:                  %s\n", cfg->hmmfile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (fprintf(cfg->ofp, "# frameshift stats calculated:      %s\n", (esl_opt_IsUsed(go, "--fs") ? "YES" : "NO")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
   if (esl_opt_IsUsed(go, "-n")           && fprintf(cfg->ofp, "# name (the single) HMM:            %s\n",        esl_opt_GetString(go, "-n"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")           && fprintf(cfg->ofp, "# output directed to file:          %s\n",        esl_opt_GetString(go, "-o"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-O")           && fprintf(cfg->ofp, "# processed alignment resaved to:   %s\n",        esl_opt_GetString(go, "-O"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--fsprob")         && fprintf(cfg->ofp, "# frameshift probability:           %f\n",        esl_opt_GetReal(go, "--fsprob")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--amino")      && fprintf(cfg->ofp, "# input alignment is asserted as:   protein\n")                                        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--dna")        && fprintf(cfg->ofp, "# input alignment is asserted as:   DNA\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--rna")        && fprintf(cfg->ofp, "# input alignment is asserted as:   RNA\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fast")       && fprintf(cfg->ofp, "# model architecture construction:  fast/heuristic\n")                                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--hand")       && fprintf(cfg->ofp, "# model architecture construction:  hand-specified by RF annotation\n")                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--symfrac")    && fprintf(cfg->ofp, "# sym fraction for model structure: %.3f\n",      esl_opt_GetReal(go, "--symfrac"))    < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -347,9 +306,6 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
 
 #ifdef HMMER_THREADS
   if (esl_opt_IsUsed(go, "--cpu")        && fprintf(cfg->ofp, "# number of worker threads:         %d\n",        esl_opt_GetInteger(go, "--cpu"))     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
-#endif
-#ifdef HMMER_MPI
-  if (esl_opt_IsUsed(go, "--mpi")        && fprintf(cfg->ofp, "# parallelization mode:             MPI\n")                                            < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 #endif
   if (esl_opt_IsUsed(go, "--seed"))  {
     if (esl_opt_GetInteger(go, "--seed") == 0  && fprintf(cfg->ofp,"# random number seed:               one-time arbitrary\n")                        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -411,8 +367,6 @@ main(int argc, char **argv)
   process_commandline(argc, argv, &go, &cfg.hmmfile, &cfg.infile);    
 
   /* Initialize what we can in the config structure (without knowing the alphabet yet).
-   * Fields controlled by masters are set up in usual_master() or mpi_master()
-   * Fields used by workers are set up in mpi_worker()
    */
   cfg.ofp         = NULL;	           
   cfg.fmt         = eslMSAFILE_UNKNOWN;    /* autodetect alignment format by default. */ 
@@ -425,10 +379,6 @@ main(int argc, char **argv)
 
   cfg.nali       = 0;		           /* this counter is incremented in masters */
   cfg.nnamed     = 0;		           /* 0 or 1 if a single MSA; == nali if multiple MSAs */
-  cfg.do_mpi     = FALSE;	           /* this gets reset below, if we init MPI */
-  cfg.nproc      = 0;		           /* this gets reset below, if we init MPI */
-  cfg.my_rank    = 0;		           /* this gets reset below, if we init MPI */
-  cfg.do_stall   = esl_opt_GetBoolean(go, "--stall");
   cfg.hmmName    = esl_opt_GetString(go, "-n"); /* NULL by default */
 
   if (esl_opt_IsOn(go, "--informat")) {
@@ -436,55 +386,24 @@ main(int argc, char **argv)
     if (cfg.fmt == eslMSAFILE_UNKNOWN) p7_Fail("%s is not a recognized input sequence file format\n", esl_opt_GetString(go, "--informat"));
   }
 
-
-  /* This is our stall point, if we need to wait until we get a
-   * debugger attached to this process for debugging (especially
-   * useful for MPI):
-   */
-  while (cfg.do_stall); 
+  /* This is from the MPI - maybe we don't need it */
 
   /* Start timing. */
   esl_stopwatch_Start(w);
 
-  /* Figure out who we are, and send control there: 
-   * we might be an MPI master, an MPI worker, or a serial program.
-   */
-#ifdef HMMER_MPI
-  if (esl_opt_GetBoolean(go, "--mpi")) 
-    {
-      cfg.do_mpi     = TRUE;
-      MPI_Init(&argc, &argv);
-      MPI_Comm_rank(MPI_COMM_WORLD, &(cfg.my_rank));
-      MPI_Comm_size(MPI_COMM_WORLD, &(cfg.nproc));
+  usual_master(go, &cfg);
+  esl_stopwatch_Stop(w);
 
-      if (cfg.my_rank > 0)  mpi_worker(go, &cfg);
-      else 		    mpi_master(go, &cfg);
-
-      esl_stopwatch_Stop(w);
-      esl_stopwatch_MPIReduce(w, 0, MPI_COMM_WORLD);
-      MPI_Finalize();
-    }
-  else
-#endif /*HMMER_MPI*/
-    {
-      usual_master(go, &cfg);
-      esl_stopwatch_Stop(w);
-    }
-
-  if (cfg.my_rank == 0) {
-    fputc('\n', cfg.ofp);
-    esl_stopwatch_Display(cfg.ofp, w, "# CPU time: ");
-  }
+  fputc('\n', cfg.ofp);
+  esl_stopwatch_Display(cfg.ofp, w, "# CPU time: ");
 
   /* Clean up the shared cfg. 
    */
-  if (cfg.my_rank == 0) {
-    if (esl_opt_IsOn(go, "-o")) { fclose(cfg.ofp); }
-    if (cfg.afp)   esl_msafile_Close(cfg.afp);
-    if (cfg.sfp)   esl_sqfile_Close(cfg.sfp); 
-    if (cfg.abc)   esl_alphabet_Destroy(cfg.abc);
-    if (cfg.hmmfp) fclose(cfg.hmmfp);
-  }
+  if (esl_opt_IsOn(go, "-o")) { fclose(cfg.ofp); }
+  if (cfg.afp)   esl_msafile_Close(cfg.afp);
+  if (cfg.sfp)   esl_sqfile_Close(cfg.sfp); 
+  if (cfg.abc)   esl_alphabet_Destroy(cfg.abc);
+  if (cfg.hmmfp) fclose(cfg.hmmfp);
   
   esl_getopts_Destroy(go);
   esl_stopwatch_Destroy(w);
@@ -526,16 +445,11 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
    *   cfg->hmmfp     - open HMM file for output
    *   cfg->postmsafp - optional open MSA resave file, or NULL
    *   cfp->ofp       - optional open output file, or stdout
-   * The mpi_master's version of this is in init_master_cfg(), with
-   * different error handling (necessitated by our MPI design).
    */
-  if      (esl_opt_GetBoolean(go, "--amino"))   cfg->abc = esl_alphabet_Create(eslAMINO);
-  else if (esl_opt_GetBoolean(go, "--dna"))     cfg->abc = esl_alphabet_Create(eslDNA);
-  else if (esl_opt_GetBoolean(go, "--rna"))     cfg->abc = esl_alphabet_Create(eslRNA);
-  else                                          cfg->abc = NULL;
 
   if (!esl_opt_IsUsed(go, "--unali")) {
     status = esl_msafile_Open(&(cfg->abc), cfg->infile, NULL, cfg->fmt, NULL, &(cfg->afp));
+    if(cfg->abc->type != eslAMINO) p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
     if (status != eslOK) esl_msafile_OpenFailure(cfg->afp, status);
   } else {
     status = esl_sqfile_Open(cfg->infile, cfg->fmt, NULL, &(cfg->sfp));
@@ -551,6 +465,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
     
     if (a_type == eslUNKNOWN) p7_Fail("Unable to guess alphabet for the %s%s input file %s\n", (cfg->fmt==eslUNKNOWN ? "" : esl_sqio_DecodeFormat(cfg->fmt)), (cfg->fmt==eslSQFILE_UNKNOWN ? "":"-formatted"), cfg->infile);
     cfg->abc = esl_alphabet_Create(a_type); 
+    if(cfg->abc->type != eslAMINO) p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
   }
 
   cfg->hmmfp = fopen(cfg->hmmfile, "w");
@@ -594,11 +509,9 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 
       info[i].bg = p7_bg_Create(cfg->abc);
       info[i].bld = p7_builder_Create(go, cfg->abc);
+      info[i].bld->fs = esl_opt_IsUsed(go, "--fs");
 
       if (info[i].bld == NULL)  p7_Fail("p7_builder_Create failed");
-
-      //do this here instead of in p7_builder_Create(), because it's an hmmbuild-specific option
-
 
       if ( esl_opt_IsOn(go, "--maxinsertlen") )
         info[i].bld->max_insert_len    = esl_opt_GetInteger(go, "--maxinsertlen");
@@ -632,7 +545,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       }
 
       /* special arguments for hmmbuild */
-      info[i].bld->fs         = (go != NULL && esl_opt_IsUsed (go, "--fsprob"))     ?  esl_opt_GetReal   (go, "--fsprob") : 0.01;
+      info[i].bld->fsprob     = (go != NULL && esl_opt_IsUsed (go, "--fs"))     ?  esl_opt_GetReal   (go, "--fsprob") : 0.01;
       info[i].bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
       info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
       if ( info[i].bld->w_beta < 0 || info[i].bld->w_beta > 1  ) esl_fatal("Invalid window-length beta value\n");
@@ -693,354 +606,6 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
   return eslFAIL;
 }
 
-#ifdef HMMER_MPI
-/* mpi_master()
- * The MPI version of hmmbuild.
- * Follows standard pattern for a master/worker load-balanced MPI program (J1/78-79).
- * 
- * A master can only return if it's successful. 
- * Errors in an MPI master come in two classes: recoverable and nonrecoverable.
- * 
- * Recoverable errors include all worker-side errors, and any
- * master-side error that do not affect MPI communication. Error
- * messages from recoverable messages are delayed until we've cleanly
- * shut down the workers.
- * 
- * Unrecoverable errors are master-side errors that may affect MPI
- * communication, meaning we cannot count on being able to reach the
- * workers and shut them down. Unrecoverable errors result in immediate
- * p7_Fail()'s, which will cause MPI to shut down the worker processes
- * uncleanly.
- */
-static void
-mpi_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
-{
-  int         have_work     = TRUE;	/* TRUE while alignments remain  */
-  int         nproc_working = 0;	        /* number of worker processes working, up to nproc-1 */
-  int         wi;          	        /* rank of next worker to get an alignment to work on */
-  char       *buf           = NULL;	/* input/output buffer, for packed MPI messages */
-  int         bn            = 0;
-  ESL_MSA    *msa           = NULL;
-  P7_HMM     *hmm           = NULL;
-  P7_BG      *bg            = NULL;
-  ESL_MSA   **msalist       = NULL;
-  ESL_MSA    *postmsa       = NULL;
-  int        *msaidx        = NULL;
-  char        errmsg[eslERRBUFSIZE];
-  int         n;
-  int         pos;
-  double      entropy;
-  int         status;
-  int         xstatus       = eslOK;	/* changes from OK on recoverable error */
-  int         rstatus;			/* status specifically from msa read */
-  MPI_Status  mpistatus; 
-
-  /* Open files, set alphabet.
-   *   cfg->abc       - alphabet expected or guessed in ali file
-   *   cfg->afp       - open alignment file for input
-   *   cfg->hmmfp     - open HMM file for output
-   *   cfp->ofp       - optional open output file, or stdout
-   *   cfg->postmsafp - optional open MSA resave file, or NULL
-   * Error handling requires first broadcasting a non-OK status to workers
-   * to get them to shut down cleanly.
-   */
-  if      (esl_opt_GetBoolean(go, "--amino"))   cfg->abc = esl_alphabet_Create(eslAMINO);
-  else if (esl_opt_GetBoolean(go, "--dna"))     cfg->abc = esl_alphabet_Create(eslDNA);
-  else if (esl_opt_GetBoolean(go, "--rna"))     cfg->abc = esl_alphabet_Create(eslRNA);
-  else                                          cfg->abc = NULL;
-
-  status = esl_msafile_Open(&(cfg->abc), cfg->infile, NULL, cfg->fmt, NULL, &(cfg->afp));
-  if (status != eslOK) mpi_init_open_failure(cfg->afp, status);
-
-  cfg->hmmfp = fopen(cfg->hmmfile, "w");
-  if (cfg->hmmfp == NULL) mpi_init_other_failure("Failed to open HMM file %s for writing", cfg->hmmfile); 
-  
-  if (esl_opt_IsUsed(go, "-o")) 
-    {
-      cfg->ofp = fopen(esl_opt_GetString(go, "-o"), "w");
-      if (cfg->ofp == NULL) mpi_init_other_failure("Failed to open -o output file %s\n", esl_opt_GetString(go, "-o"));
-    }
-  else cfg->ofp = stdout;
-
-  if (cfg->postmsafile) 
-    {
-      cfg->postmsafp = fopen(cfg->postmsafile, "w");
-      if (cfg->postmsafp == NULL) mpi_init_other_failure("Failed to MSA resave file %s for writing", cfg->postmsafile);
-    }
-  else cfg->postmsafp = NULL;
-
-  /* Other initialization in the master
-   */
-  bn = 4096; 
-  if ((buf     = malloc(sizeof(char) * bn))              == NULL) mpi_init_other_failure("allocation failed"); 
-  if ((msalist = malloc(sizeof(ESL_MSA *) * cfg->nproc)) == NULL) mpi_init_other_failure("allocation failed"); 
-  if ((msaidx  = malloc(sizeof(int)       * cfg->nproc)) == NULL) mpi_init_other_failure("allocation failed"); 
-  if ((bg      = p7_bg_Create(cfg->abc))                 == NULL) mpi_init_other_failure("allocation failed"); 
-
-  for (wi = 0; wi < cfg->nproc; wi++) { msalist[wi] = NULL; msaidx[wi] = 0; } 
-
-  /* Looks like the master is initialized successfully...
-   * Tell the workers we're fine; send initial output to the user
-   */
-  xstatus = eslOK;
-  MPI_Bcast(&xstatus, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  output_header(go, cfg);                                          /* cheery output header                                */
-  output_result(cfg, NULL, 0, NULL, NULL, NULL, NULL, 0.0);	   /* tabular results header (with no args, special-case) */  
-  ESL_DPRINTF1(("MPI master is initialized\n"));  
-
-  /* Worker initialization:
-   * Because we've already successfully initialized the master before we start
-   * initializing the workers, we don't expect worker initialization to fail;
-   * so we just receive a quick OK/error code reply from each worker to be sure,
-   * and don't worry about an informative message. 
-   */
-  MPI_Bcast(&(cfg->abc->type), 1, MPI_INT, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&xstatus, &status, 1, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
-  if (status != eslOK) { MPI_Finalize(); p7_Fail("One or more MPI worker processes failed to initialize."); }
-  ESL_DPRINTF1(("%d workers are initialized\n", cfg->nproc-1));
-
-
-  /* Main loop: combining load workers, send/receive, clear workers loops;
-   * also, catch error states and die later, after clean shutdown of workers.
-   * 
-   * When a recoverable error occurs, have_work = FALSE, xstatus !=
-   * eslOK, and errmsg is set to an informative message. No more
-   * errmsg's can be received after the first one. We wait for all the
-   * workers to clear their work units, then send them shutdown signals,
-   * then finally print our errmsg and exit.
-   * 
-   * Unrecoverable errors just crash us out with p7_Fail().
-   */
-  wi = 1;
-  while (have_work || nproc_working)
-    {
-      if (have_work) 
-	{
-	  rstatus = esl_msafile_Read(cfg->afp, &msa);
-	  if      (rstatus == eslOK)  {  cfg->nali++;                            ESL_DPRINTF1(("MPI master read MSA %s\n", msa->name == NULL? "" : msa->name));  } 
-	  else if (rstatus == eslEOF) {  have_work  = FALSE;  rstatus = eslOK;   ESL_DPRINTF1(("MPI master has run out of MSAs (having read %d)\n", cfg->nali)); }
-	  else                        {  have_work  = FALSE;  xstatus = rstatus; ESL_DPRINTF1(("MPI master msa read has failed... start to shut down\n")); }
-	}
-
-      if ((have_work && nproc_working == cfg->nproc-1) || (!have_work && nproc_working > 0))
-	{
-	  if (MPI_Probe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &mpistatus) != 0) { MPI_Finalize(); p7_Fail("mpi probe failed"); }
-	  if (MPI_Get_count(&mpistatus, MPI_PACKED, &n)                != 0) { MPI_Finalize(); p7_Fail("mpi get count failed"); }
-	  wi = mpistatus.MPI_SOURCE;
-	  ESL_DPRINTF1(("MPI master sees a result of %d bytes from worker %d\n", n, wi));
-
-	  if (n > bn) {
-	    if ((buf = realloc(buf, sizeof(char) * n)) == NULL) p7_Fail("reallocation failed");
-	    bn = n; 
-	  }
-	  if (MPI_Recv(buf, bn, MPI_PACKED, wi, 0, MPI_COMM_WORLD, &mpistatus) != 0) { MPI_Finalize(); p7_Fail("mpi recv failed"); }
-	  ESL_DPRINTF1(("MPI master has received the buffer\n"));
-
-	  /* If we're in a recoverable error state, we're only clearing worker results;
-           * just receive them, don't unpack them or print them.
-           * But if our xstatus is OK, go ahead and process the result buffer.
-	   */
-	  if (xstatus == eslOK)	
-	    {
-	      pos = 0;
-	      if (MPI_Unpack(buf, bn, &pos, &xstatus, 1, MPI_INT, MPI_COMM_WORLD)     != 0) { MPI_Finalize();  p7_Fail("mpi unpack failed");}
-	      if (xstatus == eslOK) /* worker reported success. Get the HMM. */
-		{
-		  ESL_DPRINTF1(("MPI master sees that the result buffer contains an HMM\n"));
-		  if (p7_hmm_MPIUnpack(buf, bn, &pos, MPI_COMM_WORLD, &(cfg->abc), &hmm) != eslOK) {  MPI_Finalize(); p7_Fail("HMM unpack failed"); }
-		  ESL_DPRINTF1(("MPI master has unpacked the HMM\n"));
-
-		  if (cfg->postmsafile != NULL) {
-		    if (esl_msa_MPIUnpack(cfg->abc, buf, bn, &pos, MPI_COMM_WORLD, &postmsa) != eslOK) { MPI_Finalize(); p7_Fail("postmsa unpack failed");}
-		  } 
-
-		  entropy = p7_MeanMatchRelativeEntropy(hmm, bg);
-		  if ((status = output_result(cfg, errmsg, msaidx[wi], msalist[wi], NULL, hmm, postmsa, entropy)) != eslOK) xstatus = status;
-
-		  esl_msa_Destroy(postmsa); postmsa = NULL;
-		  p7_hmm_Destroy(hmm);      hmm     = NULL;
-		}
-	      else	/* worker reported an error. Get the errmsg. */
-		{
-		  if (MPI_Unpack(buf, bn, &pos, errmsg, eslERRBUFSIZE, MPI_CHAR, MPI_COMM_WORLD) != 0) { MPI_Finalize(); p7_Fail("mpi unpack of errmsg failed"); }
-		  ESL_DPRINTF1(("MPI master sees that the result buffer contains an error message\n"));
-		}
-	    }
-	  esl_msa_Destroy(msalist[wi]);
-	  msalist[wi] = NULL;
-	  msaidx[wi]  = 0;
-	  nproc_working--;
-	}
-
-      if (have_work)
-	{   
-	  ESL_DPRINTF1(("MPI master is sending MSA %s to worker %d\n", msa->name == NULL ? "":msa->name, wi));
-	  if (esl_msa_MPISend(msa, wi, 0, MPI_COMM_WORLD, &buf, &bn) != eslOK) p7_Fail("MPI msa send failed");
-	  msalist[wi] = msa;
-	  msaidx[wi]  = cfg->nali; /* 1..N for N alignments in the MSA database */
-	  msa = NULL;
-	  wi++;
-	  nproc_working++;
-	}
-    }
-  
-  /* On success or recoverable errors:
-   * Shut down workers cleanly. 
-   */
-  ESL_DPRINTF1(("MPI master is done. Shutting down all the workers cleanly\n"));
-  for (wi = 1; wi < cfg->nproc; wi++) 
-    if (esl_msa_MPISend(NULL, wi, 0, MPI_COMM_WORLD, &buf, &bn) != eslOK) p7_Fail("MPI msa send failed");
-
-  free(buf);
-  free(msaidx);
-  free(msalist);
-  p7_bg_Destroy(bg);
-
-  if      (rstatus != eslOK) { MPI_Finalize(); esl_msafile_ReadFailure(cfg->afp, rstatus); }
-  else if (xstatus != eslOK) { MPI_Finalize(); p7_Fail(errmsg); }
-  else                        return;
-}
-
-static void
-mpi_init_open_failure(ESL_MSAFILE *afp, int status)
-{
-  MPI_Bcast(&status, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  MPI_Finalize();
-  esl_msafile_OpenFailure(afp, status);
-}
-
-static void
-mpi_init_other_failure(char *format, ...)
-{
-  va_list argp;
-  int status = eslFAIL;
-
-  MPI_Bcast(&status, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  MPI_Finalize();
-  if (fprintf(stderr, "\nError: ") < 0) exit(eslEWRITE);
-
-  va_start(argp, format);
-  if (vfprintf(stderr, format, argp) < 0) exit(eslEWRITE);
-  va_end(argp);
-
-  if (fprintf(stderr, "\n") < 0) exit(eslEWRITE);
-  fflush(stderr);
-  exit(1);
-}
-
-static void
-mpi_worker(const ESL_GETOPTS *go, struct cfg_s *cfg)
-{
-  int           xstatus = eslOK;
-  int           status;
-  int           type;
-  P7_BUILDER   *bld         = NULL;
-  ESL_MSA      *msa         = NULL;
-  ESL_MSA      *postmsa     = NULL;
-  ESL_MSA     **postmsa_ptr = (cfg->postmsafile != NULL) ? &postmsa : NULL;
-  P7_HMM       *hmm         = NULL;
-  P7_BG        *bg          = NULL;
-  char         *wbuf        = NULL;	/* packed send/recv buffer  */
-  void         *tmp;			/* for reallocation of wbuf */
-  int           wn          = 0;	/* allocation size for wbuf */
-  int           sz, n;		        /* size of a packed message */
-  int           pos;
-  char          errmsg[eslERRBUFSIZE];
-  ESL_SQ     *sq          = NULL;
-
-  /* After master initialization: master broadcasts its status.
-   */
-  MPI_Bcast(&xstatus, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  if (xstatus != eslOK) return; /* master saw an error code; workers do an immediate normal shutdown. */
-  ESL_DPRINTF2(("worker %d: sees that master has initialized\n", cfg->my_rank));
-  
-  /* Master now broadcasts worker initialization information (alphabet type) 
-   * Workers returns their status post-initialization.
-   * Initial allocation of wbuf must be large enough to guarantee that
-   * we can pack an error result into it, because after initialization,
-   * errors will be returned as packed (code, errmsg) messages.
-   */
-  MPI_Bcast(&type, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  if (xstatus == eslOK) { if ((cfg->abc = esl_alphabet_Create(type))      == NULL)    xstatus = eslEMEM; }
-  if (xstatus == eslOK) { wn = 4096;  if ((wbuf = malloc(wn * sizeof(char))) == NULL) xstatus = eslEMEM; }
-  if (xstatus == eslOK) { if ((bld = p7_builder_Create(go, cfg->abc))     == NULL)    xstatus = eslEMEM; }
-
-  //special arguments for hmmbuild
-  bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
-  bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
-  if ( bld->w_beta < 0 || bld->w_beta > 1  ) goto ERROR;
-
-
-  MPI_Reduce(&xstatus, &status, 1, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD); /* everyone sends xstatus back to master */
-  if (xstatus != eslOK) {
-    if (wbuf != NULL) free(wbuf);
-    if (bld  != NULL) p7_builder_Destroy(bld);
-    return; /* shutdown; we passed the error back for the master to deal with. */
-  }
-
-  bg = p7_bg_Create(cfg->abc);
-
-  ESL_DPRINTF2(("worker %d: initialized\n", cfg->my_rank));
-
-                      /* source = 0 (master); tag = 0 */
-  while (esl_msa_MPIRecv(0, 0, MPI_COMM_WORLD, cfg->abc, &wbuf, &wn, &msa) == eslOK) 
-    {
-      /* Build the HMM */
-      ESL_DPRINTF2(("worker %d: has received MSA %s (%d columns, %d seqs)\n", cfg->my_rank, msa->name, msa->alen, msa->nseq));
-
-      if ( msa->nseq == 1 && esl_opt_IsUsed(go, "--singlemx")) {
-        //for, single sequence, use blosum matrix:
-        sq = esl_sq_CreateDigital(cfg->abc);
-        if ((status = esl_sq_FetchFromMSA(msa, 0, &sq)) != eslOK) { strcpy(errmsg, bld->errbuf); goto ERROR; }
-        if ((status = p7_SingleBuilder(bld, sq, bg, &hmm, NULL, NULL, NULL)) != eslOK) { strcpy(errmsg, bld->errbuf); goto ERROR; }
-        esl_sq_Destroy(sq);
-        sq = NULL;
-        hmm->eff_nseq = 1;
-      } else {
-        if ((status = p7_Builder(bld, msa, bg, &hmm, NULL, NULL, NULL, postmsa_ptr)) != eslOK) { strcpy(errmsg, bld->errbuf); goto ERROR; }
-      }
-
-
-      ESL_DPRINTF2(("worker %d: has produced an HMM %s\n", cfg->my_rank, hmm->name));
-
-      /* Calculate upper bound on size of sending status, HMM, and optional postmsa; make sure wbuf can hold it. */
-      n = 0;
-      if (MPI_Pack_size(1,    MPI_INT, MPI_COMM_WORLD, &sz) != 0)     goto ERROR; else n += sz;
-      if (p7_hmm_MPIPackSize( hmm,     MPI_COMM_WORLD, &sz) != eslOK) goto ERROR; else n += sz;
-      if (esl_msa_MPIPackSize(postmsa, MPI_COMM_WORLD, &sz) != eslOK) goto ERROR; else n += sz;
-      if (n > wn) { ESL_RALLOC(wbuf, tmp, sizeof(char) * n); wn = n; }
-      ESL_DPRINTF2(("worker %d: has calculated that HMM will pack into %d bytes\n", cfg->my_rank, n));
-
-      /* Send status, HMM, and optional postmsa back to the master */
-      pos = 0;
-      if (MPI_Pack       (&status, 1, MPI_INT, wbuf, wn, &pos, MPI_COMM_WORLD) != 0)     goto ERROR;
-      if (p7_hmm_MPIPack (hmm,                 wbuf, wn, &pos, MPI_COMM_WORLD) != eslOK) goto ERROR;
-      if (esl_msa_MPIPack(postmsa,             wbuf, wn, &pos, MPI_COMM_WORLD) != eslOK) goto ERROR;
-      MPI_Send(wbuf, pos, MPI_PACKED, 0, 0, MPI_COMM_WORLD);
-      ESL_DPRINTF2(("worker %d: has sent HMM to master in message of %d bytes\n", cfg->my_rank, pos));
-
-      esl_msa_Destroy(msa);     msa     = NULL;
-      esl_msa_Destroy(postmsa); postmsa = NULL;
-      p7_hmm_Destroy(hmm);      hmm     = NULL;
-    }
-
-  if (wbuf != NULL) free(wbuf);
-  p7_builder_Destroy(bld);
-  return;
-
- ERROR:
-  ESL_DPRINTF2(("worker %d: fails, is sending an error message, as follows:\n%s\n", cfg->my_rank, errmsg));
-  pos = 0;
-  MPI_Pack(&status, 1,                MPI_INT,  wbuf, wn, &pos, MPI_COMM_WORLD);
-  MPI_Pack(errmsg,  eslERRBUFSIZE,    MPI_CHAR, wbuf, wn, &pos, MPI_COMM_WORLD);
-  MPI_Send(wbuf, pos, MPI_PACKED, 0, 0, MPI_COMM_WORLD);
-  if (wbuf != NULL) free(wbuf);
-  if (msa  != NULL) esl_msa_Destroy(msa);
-  if (hmm  != NULL) p7_hmm_Destroy(hmm);
-  if (bld  != NULL) p7_builder_Destroy(bld);
-  return;
-}
-#endif /*HMMER_MPI*/
 
 
 static void
@@ -1442,8 +1007,8 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
   if (msa == NULL  && sq == NULL)
   {
     if (cfg->abc->type == eslAMINO) {
-      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %9s %8s %6s %s\n", "idx",    "name",                 "nseq",  "len",   "mlen",  "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %4s %8s %6s %s\n", "idx",    "name",                 "nseq",  "len",   "mlen",  "ctbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
+      if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %4s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "----", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
     } else {
       if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %5s %8s %6s %s\n", "idx", "name",                 "nseq",  "len",  "mlen",  "W", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
       if (fprintf(cfg->ofp, "# %-6s %-20s %5s %5s %5s %5s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-----", "-----", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
@@ -1455,21 +1020,7 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
   if (msa != NULL) 
   {
     if (cfg->abc->type == eslAMINO) {
-      /*
-       if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %7.5f %9d %8.2f %6.3f %s\n",
-          idx,
-          (msa->name != NULL) ? msa->name : "",
-          msa->nseq,
-          msa->alen,
-          hmm->M,
-          hmm->fs,
-          hmm->ct,
-          hmm->eff_nseq,
-          entropy,
-          (msa->desc != NULL) ? msa->desc : "") < 0)
-      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-    */
-      if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %9d %8.2f %6.3f %s\n",
+      if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %4d %8.2f %6.3f %s\n",
           idx,
           (msa->name != NULL) ? msa->name : "",
           msa->nseq,
@@ -1501,13 +1052,12 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
   }
   else if (sq != NULL) {
     if (cfg->abc->type == eslAMINO) {
-      if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %7.5f %9d %8.2f %6.3f %s\n",
+      if (fprintf(cfg->ofp, "  %-6d %-20s %5d %5" PRId64 " %5d %4d %8.2f %6.3f %s\n",
           idx,
           (sq->name != NULL) ? sq->name : "",
           1,
           sq->n,
           hmm->M,
-          hmm->fs,
           hmm->ct,
           hmm->eff_nseq,
           entropy,
@@ -1551,9 +1101,6 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
  * (We don't know we're in a multiple MSA database until we're on the second
  * alignment.)
  * 
- * If we're in MPI mode, we assume we're in a multiple MSA database,
- * even on the first alignment.
- * 
  * Because we can't tell whether we've got more than one
  * alignment 'til we're on the second one, these fatal errors
  * only happen after the first HMM has already been built.
@@ -1565,33 +1112,12 @@ set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
   char *name = NULL;
   int   status;
 
-  if (cfg->do_mpi == FALSE && cfg->nali == 1) /* first (only?) HMM in file: */
-    {
-      if  (cfg->hmmName != NULL)
-	{
-	  if ((status = esl_msa_SetName(msa, cfg->hmmName, -1)) != eslOK) return status;
-	}
-      else if (msa->name != NULL) 
-	{
-	  cfg->nnamed++;
-	}
-      else if (cfg->afp->bf->filename)
-	{
-	  if ((status = esl_FileTail(cfg->afp->bf->filename, TRUE, &name)) != eslOK) return status; /* TRUE=nosuffix */	  
-	  if ((status = esl_msa_SetName(msa, name, -1))                    != eslOK) return status;
-	  free(name);
-	}
-      else ESL_FAIL(eslEINVAL, errbuf, "Failed to set model name: msa has no name, no msa filename, and no -n");
-    }
-  else 
-    {
-      if (cfg->hmmName   != NULL) ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. You can't use -n with an alignment database.");
-      else if (msa->name != NULL) cfg->nnamed++;
-      else                        ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. I need name annotation on each alignment in a multi MSA file; failed on #%d", cfg->nali+1);
+  if   (msa->name != NULL) cfg->nnamed++;
+  else                     ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. I need name annotation on each alignment in a multi MSA file; failed on #%d", cfg->nali+1);
 
-      /* special kind of failure: the *first* alignment didn't have a name, and we used the filename to
-       * construct one; now that we see a second alignment, we realize this was a boo-boo*/
-      if (cfg->nnamed != cfg->nali)            ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. I need name annotation on each alignment in a multi MSA file; first MSA didn't have one");
-    }
+  /* special kind of failure: the *first* alignment didn't have a name, and we used the filename to
+  * construct one; now that we see a second alignment, we realize this was a boo-boo*/
+  if (cfg->nnamed != cfg->nali)            ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. I need name annotation on each alignment in a multi MSA file; first MSA didn't have one");
+    
   return eslOK;
 }

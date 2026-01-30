@@ -105,7 +105,8 @@ p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc)
     }
   }
 
-  bld->fs         = (go != NULL) ?  esl_opt_GetReal   (go, "--fsprob")         : 0.01;
+  bld->fs         = (go != NULL) ?  esl_opt_IsUsed    (go, "--fs")         : TRUE;
+  bld->fsprob     = (go != NULL) ?  esl_opt_GetReal   (go, "--fsprob")     : 0.01;
   bld->ct         = (go != NULL) ?  esl_opt_GetInteger(go, "--ct")         : 1;
   bld->symfrac    = (go != NULL) ?  esl_opt_GetReal   (go, "--symfrac")    : 0.5; 
   bld->fragthresh = (go != NULL) ?  esl_opt_GetReal   (go, "--fragthresh") : 0.5; 
@@ -437,8 +438,9 @@ p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg,
     for (i=1; i<hmm->M; i++ )
       hmm->t[i][p7H_II] = ESL_MIN(hmm->t[i][p7H_II], bld->max_insert_len*hmm->t[i][p7H_MI]);
 
-  hmm->fs = bld->fs;
-  hmm->ct = bld->ct;
+  hmm->fs     = bld->fs;
+  hmm->fsprob = bld->fsprob;
+  hmm->ct     = bld->ct;
 
   if ((status =  effective_seqnumber  (bld, msa, hmm, bg))              != eslOK) goto ERROR;
   if ((status =  parameterize         (bld, hmm))                       != eslOK) goto ERROR;
@@ -453,12 +455,9 @@ p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg,
         for (j=0; j<hmm->abc->K; j++)
           hmm->mat[i][j] = bg->f[j];
 
-  /*bathsearch requires MaxLength for amino acid HMMs*/
-  //if ( bld->abc->type == eslDNA ||  bld->abc->type == eslRNA ) {
   if (bld->w_len > 0)           hmm->max_length = bld->w_len;
   else if (bld->w_beta == 0.0)  hmm->max_length = hmm->M *4;
   else if ( (status =  p7_Builder_MaxLength(hmm, bld->w_beta)) != eslOK) goto ERROR;
-  //}
 
   hmm->checksum = checksum;
   hmm->flags   |= p7H_CHKSUM;
@@ -529,14 +528,13 @@ p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq, P7_BG *bg, P7_HMM **opt_hmm,
   if ((status = p7_hmm_SetConsensus(hmm, sq_cp))                                                                   != eslOK) goto ERROR; 
   if ((status = calibrate(bld, hmm, bg, opt_gm, opt_om))                                                        != eslOK) goto ERROR;
 
-  if ( bld->abc->type == eslDNA ||  bld->abc->type == eslRNA ) {
-    if (bld->w_len > 0)           hmm->max_length = bld->w_len;
-    else if (bld->w_beta == 0.0)  hmm->max_length = hmm->M *4;
-    else if ( (status =  p7_Builder_MaxLength(hmm, bld->w_beta)) != eslOK) goto ERROR;
-  }
+  if (bld->w_len > 0)           hmm->max_length = bld->w_len;
+  else if (bld->w_beta == 0.0)  hmm->max_length = hmm->M *4;
+  else if ( (status =  p7_Builder_MaxLength(hmm, bld->w_beta)) != eslOK) goto ERROR;
 
-  hmm->fs = bld->fs;
-  hmm->ct = bld->ct;
+  hmm->fs     = bld->fs;
+  hmm->fsprob = bld->fsprob;
+  hmm->ct     = bld->ct;
 
   /* build a faux trace: relative to core model (B->M_1..M_L->E) */
   if (opt_tr != NULL) 

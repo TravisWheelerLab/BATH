@@ -14,9 +14,9 @@
 
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
-  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,    NULL, "show brief help on version and usage",                             1 },
-  { "--ct",        eslARG_INT,      "1", NULL,   NULL,      NULL,        NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
-  //{ "--fsprob",     eslARG_REAL,  "0.01",NULL, "0.0<=x<=1.0", NULL, NULL, NULL,  "set the frameshift probabilty",                 99 },
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "show brief help on version and usage",                             1 },
+  { "--fs",      eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate statistics for frameshift aware search",      1 }, 
+  { "--ct",      eslARG_INT,      "1", NULL, NULL,      NULL,       NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -39,29 +39,12 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
 
   if (hmm == NULL)
   {
-      /* Temporariliy remove fs_prob from output */
-      //if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "fs_prob", "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-      //if (fprintf(stdout, "# %-6s %-20s %5s %5s %7s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "-------", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-
       if (fprintf(stdout, "# %-6s %-20s %5s %5s %9s %8s %6s %s\n", "idx", "name",                 "nseq",  "mlen",  "codon_tbl", "eff_nseq",  "re/pos",  "description")     < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
       if (fprintf(stdout, "# %-6s %-20s %5s %5s %9s %8s %6s %s\n", "------", "--------------------", "-----", "-----", "---------", "--------",  "------",  "-----------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
 
     return eslOK;
   }
   else {
-    /*
-    if (fprintf(stdout, "  %-6d %-20s %5d %5d %7.5f %9d %8.2f %6.3f %s\n",
-          hmmidx,
-          (hmm->name != NULL) ? hmm->name : "",
-          hmm->nseq,
-          hmm->M,
-          hmm->fs,
-          hmm->ct,
-          hmm->eff_nseq,
-          entropy,
-          (hmm->desc != NULL) ? hmm->desc : "") < 0)
-      ESL_EXCEPTION_SYS(eslEWRITE, "output_result: write failed");
-    */
     if (fprintf(stdout, "  %-6d %-20s %5d %5d %9d %8.2f %6.3f %s\n",
           hmmidx,
           (hmm->name != NULL) ? hmm->name : "",
@@ -92,10 +75,10 @@ main(int argc, char **argv)
   int            status;
   int            hmmidx;
   char           errbuf[eslERRBUFSIZE];
-  float          fs;
+  float          fsprob;
   int            ct;
-  P7_BG          *bg   = NULL;
-  ESL_RANDOMNESS *r  = NULL;
+  P7_BG          *bg     = NULL;
+  ESL_RANDOMNESS *r      = NULL;
   P7_FS_PROFILE  *gm_fs  = NULL;
   double          tau_fs;
   double          entropy;
@@ -134,40 +117,41 @@ main(int argc, char **argv)
     {
       if(hmm->abc->type != eslAMINO) p7_Fail("Invalid alphabet type in the pHMM input file %s. Expect Amino Acid\n", hmmfile_in); 
 
-      //fs = esl_opt_GetReal(go, "--fsprob");
-      fs = 0.01;
+      if(bg == NULL) bg = p7_bg_Create(hmm->abc);
+      if(r == NULL)  r = esl_randomness_CreateFast(42);
+
+      fsprob = 0.01;
       ct = esl_opt_GetInteger(go, "--ct");
  
-      bg = p7_bg_Create(hmm->abc);
+      /* If we have a new codon table we need to recalculate FS taus */
+      if(ct != hmm->ct) {
+         hmm->ct = ct;
+         if(hmm->fs) {
+           hmm->fsprob = fsprob;
 
-      r = esl_randomness_CreateFast(42);
-      gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+           if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
 
-      /* If we have a new frameshift probaility or codon table we need to recalculate FS taus */
-      if(fs != hmm->fs || ct != hmm->ct)
-      {
-        hmm->fs = fs;
-        hmm->ct = ct;
-
-	    p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS3] = tau_fs;
-        p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS5] = tau_fs;
+           p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+           hmm->evparam[p7_FTAUFS3] = tau_fs;
+           p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+           hmm->evparam[p7_FTAUFS5] = tau_fs;
+        }
       }
+        
+      /* convert from non fs to fs */ 
+      if(esl_opt_IsUsed(go, "--fs")) {
+        hmm->fs = TRUE;
+        hmm->fsprob = fsprob;
 
-      if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET)
-      {
+        if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+        
+        if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
 
-        p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS3] = tau_fs;
-      }
-      
-
-      if(hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)
-      {
-
-        p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->fs, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS5] = tau_fs;
+          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS3] = tau_fs;
+          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS5] = tau_fs;
+        }
       }
 
       if(hmm->max_length == -1)
@@ -183,6 +167,8 @@ main(int argc, char **argv)
 
 
       p7_hmm_Destroy(hmm);
+      p7_profile_fs_Destroy(gm_fs);
+      gm_fs = NULL;
     }
   if      (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hmmfile_in);
   else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hmmfile_in);

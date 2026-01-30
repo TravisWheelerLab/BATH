@@ -180,9 +180,11 @@ p7_search_builder(const ESL_GETOPTS *go, ESL_ALPHABET *abc, char *infile, char *
       }
 
       /* special arguments for bathbuild */
-      info[i].bld->fs         = (go != NULL && esl_opt_IsUsed (go, "--fsprob"))     ?  esl_opt_GetReal   (go, "--fsprob") : 0.01;
+      info[i].bld->fs         = (go != NULL && esl_opt_IsUsed (go, "--fs"))     ?  esl_opt_GetBoolean(go, "--fs")      : FALSE;
+      info[i].bld->fsprob     = (go != NULL && esl_opt_IsUsed (go, "--fsprob")) ?  esl_opt_GetReal   (go, "--fsprob")  : 0.01;
+      info[i].bld->ct         = (go != NULL && esl_opt_IsUsed (go, "--ct"))     ?  esl_opt_GetInteger(go, "--ct")      : 1;
       info[i].bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
-      info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
+      info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")  : p7_DEFAULT_WINDOW_BETA;
       if ( info[i].bld->w_beta < 0 || info[i].bld->w_beta > 1  ) esl_fatal("Invalid window-length beta value\n");
 
 #ifdef HMMER_THREADS

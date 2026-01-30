@@ -2209,15 +2209,15 @@ ERROR:
 
 }
 
-/* Function:  p7_pli_postDomainDef_Frameshift() - BATH 
+/* Function:  p7_pli_postDomainDef_Frameshift_BATH()  
  * Synopsis:  the part of the BATH search Pipeline downstream
  *            of Domain Definition
  *
- * Purpose:   This is called by p7_pli_postViterbi_BATH(), and 
- *            runs the post-Domain Definition part of the frameshift 
- *            aware branch of the BATH pipeline. It consists of 
- *            running various bookkeeping and sanity checks on hits 
- *            reported by  p7_pli_postDomainDef_Frameshift().   
+ * Purpose:   This is called by p7_pli_postViterbi_Frameshift_BATH(), 
+ *            and runs the post-Domain Definition part of the 
+ *            frameshift aware branch of the BATH pipeline. It 
+ *            consists of running various bookkeeping and sanity 
+ *            checks on hits 
  *
  * Args:      pli             - the main pipeline object
  *            gm_fs           - fs-aware codon profile (query)
@@ -2234,7 +2234,7 @@ ERROR:
  *
  */
 static int 
-p7_pli_postDomainDef_Frameshift(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, 
+p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, 
                               int64_t seqidx, int window_start, ESL_SQ *dnasq, int complementarity 
 )
 {
@@ -2369,15 +2369,15 @@ ERROR:
 
 }
 
-/* Function:  p7_pli_postDomainDef_nonFrameshift() - BATH
+/* Function:  p7_pli_postDomainDef_BATH() 
  * Synopsis:  the part of the BATH search Pipeline downstream
  *            of Domain Definition
  *
- * Purpose:   This is called by p7_pli_postViterbi_BATH(), and 
- *            runs the post-Domain Definition part of the "statndard" 
- *            or non-frameshift aware branch of the BATH pipeline. 
- *            It consists of running various bookkeeping and sanity 
- *            checks on hits reported by p7_pli_postDomainDef_nonFrameshift().   
+ * Purpose:   This is called by p7_pli_postViterbi_Frameshift_BATH(), 
+ *            or p7_pli_postViterbi_BATH() and runs the post-Domain 
+ *            Definition part of non-frameshift aware branch of the 
+ *            BATH pipeline. It consists of running various bookkeeping 
+ *            and sanity checks on hits 
  *
  * Args:      pli             - the main pipeline object
  *            om              - optimized protien profile (query)  
@@ -2397,10 +2397,7 @@ ERROR:
  */
 
 static int 
-p7_pli_postDomainDef_nonFrameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, 
-                                   int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, 
-                                   int complementarity, float nullsc 
-)
+p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity, float nullsc)
 {
 
   int              d;
@@ -2526,9 +2523,9 @@ ERROR:
   ESL_EXCEPTION(eslEMEM, "Error in nonFrameshift pipeline\n");
 }
 
-/* Function:  p7_pli_postViterbi_BATH()
+/* Function:  p7_pli_postViterbi_Frameshift_BATH()
  * Synopsis:  the part of the BATH search Pipeline downstream
- *            of the Viterbi filter
+ *            of the Viterbi filter for framshift search
  *
  * Purpose:   This is called by p7_Pipeline_Frameshift(), and runs the
  *            post-Viterbi part of the frameshift aware pipeline. It 
@@ -2569,7 +2566,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
+p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
                               int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode,
                              P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity, int32_t *k_coords_list, int32_t *m_coords_list
 )
@@ -2597,6 +2594,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
 
   subseq = dnasq->dsq + dna_window->n - 1;
   
+  /* Get true coords */
   window_start = complementarity ? dnasq->start - (dna_window->n + dna_window->length) : dnasq->start + dna_window->n - 1; 
   window_end   = complementarity ? dnasq->start - dna_window->n + 1 : window_start + dna_window->length - 1;
 
@@ -2633,6 +2631,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
      curr_orf = &(orf_block->list[f]);
      pli_tmp->oxf_holder[f] = NULL;
 
+     /* Convert to true coords */
      if(complementarity) {
        orf_start =  dnasq->start - (dnasq->n - curr_orf->end   + 1) + 1;
        orf_end   =  dnasq->start - (dnasq->n - curr_orf->start + 1) + 1;
@@ -2724,7 +2723,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     if (pli->ddef->nenvelopes ==   0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
    
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
-    p7_pli_postDomainDef_Frameshift(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dnasq, complementarity);
+    p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dnasq, complementarity);
 
   } 
 
@@ -2759,7 +2758,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
         
         /* Send any hits from the standard pipeline to be further processed */   
-        p7_pli_postDomainDef_nonFrameshift(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
+        p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
       }
     }  
   } 
@@ -2791,6 +2790,117 @@ ERROR:
   } 
 
 }
+
+
+
+/* Function:  p7_pli_postViterbi_BATH()
+ * Synopsis:  the part of the BATH search Pipeline downstream
+ *            of the Viterbi filter for non-frameshift search
+ *
+ * Purpose:   This is called by p7_Pipeline_Frameshift(), and runs the
+ *            post-Viterbi part of the frameshift aware pipeline. It 
+ *            consists of running Forward filters on ORFs and protien 
+ *            profiles <om> and on corresponding DNA windows and fs-
+ *            aware codon models <gm-fs>. Whichever target-query pair 
+ *            produces the lowest p-value (that also passes the F3 
+ *            threshhold) will be run through the backward filter and 
+ *            passed to the remained of the apporptirate branch of the 
+ *            pipeline.  
+ *
+ * Args:      pli             - the main pipeline object
+ *            om              - optimized protien profile (query)
+ *            gm              - non-optimized protien profile (query)
+ *            gm_fs           - fs-aware codon profile (query)
+ *            bg              - background model
+ *            hitlist         - pointer to hit storage bin
+ *            seqidx          - the id # of the target sequence from which 
+ *                              the ORFs were translated
+ *            dna_window      - a window obeject with the start and length 
+ *                              of the window and all associated orfs
+ *            dnasq           - the target dna sequence
+ *            wrk             - workstate for translating codons
+ *            gcode           - genetic code information for codon translation
+ *            pli_tmp         - frameshift pipeline object for use in domain definition 
+ *            complementarity - boolean; is the passed window sourced from a complementary sequence block
+ * Returns:   <eslOK> on success. If a significant hit is obtained,
+ *            its information is added to the growing <hitlist>.
+ *
+ *            <eslERANGE> on numerical overflow errors in the optimized 
+ *            vector implementations; particularly in non-frameshift
+ *            posterior decoding. I don't believe this is possible for
+ *            multihit local models, but I'm set up to catch it
+ *            anyway. We may emit a warning to the user, but cleanly
+ *            skip the problematic sequence and continue.
+ *
+ *
+ */
+static int
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity
+)
+{
+
+  int              f;
+  int              status;
+  float            fwdsc;                      /* forward scores                               */
+  float            nullsc;                     /* ORF null score for forward filter            */
+  float            filtersc;                   /* total filterscs for forward filters          */
+  float            seqscore;                   /* the corrected per-seq bit score              */
+  double           P;                          /* lowest p-value produced by an ORF */
+  ESL_SQ          *curr_orf;                   /* current ORF holder                           */
+
+
+  /*set up seq object for domaindef function*/
+  if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
+  if ((status = esl_sq_SetSource   (pli_tmp->tmpseq, dnasq->source)) != eslOK) goto ERROR;
+  if ((status = esl_sq_SetAccession(pli_tmp->tmpseq, dnasq->acc))    != eslOK) goto ERROR;
+  if ((status = esl_sq_SetDesc     (pli_tmp->tmpseq, dnasq->desc))   != eslOK) goto ERROR;
+
+    /* Loop through ORFs */
+  for(f = 0; f < orf_block->count; f++) {
+    curr_orf = &(orf_block->list[f]);
+
+    pli_tmp->tmpseq->start = curr_orf->start;
+    pli_tmp->tmpseq->end   = curr_orf->end;
+    pli_tmp->tmpseq->dsq   = dnasq->dsq + curr_orf->start - 1; 
+    pli_tmp->tmpseq->n     = curr_orf->end - curr_orf->start + 1;
+    pli_tmp->tmpseq->L     = pli_tmp->tmpseq->n; 
+
+    p7_bg_SetLength(bg, curr_orf->n);
+    p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc);
+
+    if (pli->do_biasfilter)
+      p7_bg_FilterScore(bg, curr_orf->dsq, curr_orf->n, &filtersc);
+    else filtersc = nullsc;
+ 
+    p7_oprofile_ReconfigLength(om, curr_orf->n);
+    p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);
+    p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc);
+    seqscore = (fwdsc-filtersc) / eslCONST_LOG2;
+    P = esl_exp_surv(seqscore,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+
+    if (P > pli->F3) continue; 
+
+    pli->pos_past_fwd += curr_orf->n * 3;
+    p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);
+
+    p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
+
+    status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli->oxf, pli->oxf, pli->oxb, pli->ddef, bg);
+    if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
+    if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
+    if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
+
+    p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, curr_orf->start, curr_orf, dnasq, complementarity, nullsc);
+  }
+    
+
+  return eslOK;
+
+ERROR:
+  return status;
+
+}
+
 
 /* Function:  p7_Pipeline_BATH()
  * Synopsis:  Sequence to profile comparison pipeline for 
@@ -2972,29 +3082,36 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   pli->pos_past_bias += ESL_MAX(p7_pli_fs_GetPosPast(bias_coords), min_length);
   pli->pos_past_vit += ESL_MAX(p7_pli_fs_GetPosPast(vit_coords), min_length);
 
-  if (data->prefix_lengths == NULL)  //otherwise, already filled in
-    p7_hmm_ScoreDataComputeRest(om, data);
-
-  /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
-  p7_hmmwindow_init(&post_vit_windowlist);  
-  
-  if(post_vit_orf_block->count > 0) 
-  {
-    ESL_ALLOC(k_coords_list, sizeof(int32_t) * post_vit_orf_block->count); 
-    ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
-  }
-
-  p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx, k_coords_list, m_coords_list); 
-
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
-  free (pli_tmp->tmpseq->dsq); //this ESL_SQ object is just a container that'll point to a series of other DSQs, so free the one we just created inside the larger SQ object
-
-  /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
-  for(i = 0; i < post_vit_windowlist.count; i++)
-  {
-    window_len   = post_vit_windowlist.windows[i].length; 
-    if (window_len < 15) continue;
-    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, k_coords_list, m_coords_list);
+  free (pli_tmp->tmpseq->dsq); 
+ 
+  /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
+  if(pli->fs_pipe) {
+    if (data->prefix_lengths == NULL)  //otherwise, already filled in
+      p7_hmm_ScoreDataComputeRest(om, data);
+  
+    /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
+    p7_hmmwindow_init(&post_vit_windowlist);  
+    
+    if(post_vit_orf_block->count > 0) 
+    {
+      ESL_ALLOC(k_coords_list, sizeof(int32_t) * post_vit_orf_block->count); 
+      ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
+    }
+  
+    p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx, k_coords_list, m_coords_list); 
+  
+    /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
+    for(i = 0; i < post_vit_windowlist.count; i++)
+    {
+      window_len   = post_vit_windowlist.windows[i].length; 
+      if (window_len < 15) continue;
+      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, k_coords_list, m_coords_list);
+    }
+  }
+  else {
+    
+    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity);
   }
 
 

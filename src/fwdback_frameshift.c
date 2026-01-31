@@ -2431,6 +2431,7 @@ main(int argc, char **argv)
   utest_forward_fs    (go, r, abcAA, gcode, ct, bgAA, hmm, gm, gm_fs, nseq, L);
 
   p7_profile_fs_Destroy(gm_fs);
+  p7_profile_Destroy(gm);
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);

@@ -359,7 +359,7 @@ main(int argc, char **argv)
   cfg.firstseq_key = NULL;
   cfg.n_targetseq  = -1;
   process_commandline(argc, argv, &go, &cfg.queryfile, &cfg.dbfile);    
-
+  
   if (esl_opt_IsOn(go, "--qformat")) { /* is this an msa or a single sequence file? */
     cfg.qfmt = esl_sqio_EncodeFormat(esl_opt_GetString(go, "--qformat")); // try single sequence format
     if (cfg.qfmt == eslSQFILE_UNKNOWN) {
@@ -515,7 +515,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              nquery                   = 0;
 
   /* alphabets and translation */
-  float            indel_cost; 
   int              codon_table;
   ESL_ALPHABET    *abcAA                    = NULL;              /* AA  query  alphabet                                */
   ESL_ALPHABET    *abcDNA                   = NULL;              /* DNA target alphabet                              */
@@ -553,7 +552,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   int              qhstatus                 = eslOK;
   int              sstatus                  = eslOK;
   int              ssistatus                = eslOK;  
-
 
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
   else                                     textw = esl_opt_GetInteger(go, "--textw");
@@ -694,7 +692,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
    abcDNA = esl_alphabet_Create(eslDNA); 
 
   /* Get translation variables */
-  indel_cost = esl_opt_GetReal(go, "--fsprob");
   codon_table = esl_opt_GetInteger(go, "--ct");
  
   if (status == eslOK)
@@ -742,6 +739,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (status != eslOK) p7_Fail("Error reading hmms from %s (%d)\n", cfg->queryfile, status);
   }
 
+  watch = esl_stopwatch_Create();
+
   /* Outer loop: over each query HMM */
   while (qhstatus == eslOK) 
   {
@@ -750,9 +749,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     om      = NULL;       /* optimized query profile                  */
 
     if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
-      if(!(hmm->fsprob && hmm->ct))                      p7_Fail("HMM file %s not formated for frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n");
-      if( hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n");
-      if( hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n");
+      if(!(hmm->fsprob && hmm->ct))                      p7_Fail("HMM file %s not formated for frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if( hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if( hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
 
     } 
     else hmm->fs = 0.;
@@ -764,8 +763,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
 
     nquery++;
-    
-    watch = esl_stopwatch_Create();
     esl_stopwatch_Start(watch);
 	
     /* seqfile may need to be rewound (multiquery mode) */

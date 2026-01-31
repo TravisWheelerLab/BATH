@@ -449,7 +449,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 
   if (!esl_opt_IsUsed(go, "--unali")) {
     status = esl_msafile_Open(&(cfg->abc), cfg->infile, NULL, cfg->fmt, NULL, &(cfg->afp));
-    if(cfg->abc->type != eslAMINO) p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
+    if(cfg->abc != NULL && cfg->abc->type != eslAMINO) p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
     if (status != eslOK) esl_msafile_OpenFailure(cfg->afp, status);
   } else {
     status = esl_sqfile_Open(cfg->infile, cfg->fmt, NULL, &(cfg->sfp));

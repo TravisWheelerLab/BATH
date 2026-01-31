@@ -70,8 +70,7 @@ AUXPROGOBJS = \
 HDRS =  hmmer.h \
 	p7_gbands.h \
 	p7_gmxb.h \
-	p7_gmxchk.h \
-	p7_hmmcache.h
+	p7_gmxchk.h 
 
 OBJS =  build.o\
 	decoding_frameshift.o\
@@ -114,7 +113,6 @@ OBJS =  build.o\
 	p7_gmx_fs.o\
 	p7_hit.o\
 	p7_hmm.o\
-	p7_hmmcache.o\
 	p7_hmmfile.o\
 	p7_hmmwindow.o\
 	p7_pipeline.o\
@@ -148,8 +146,7 @@ BENCHMARKS = \
     optacc_frameshift_benchmark\
 	generic_stotrace_benchmark\
     stotrace_frameshift_benchmark\
-	generic_viterbi_benchmark \
-	p7_hmmcache_benchmark
+	generic_viterbi_benchmark 
 
 UTESTS =\
 	build_utest\

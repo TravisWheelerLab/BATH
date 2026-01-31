@@ -2609,7 +2609,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
   pli_tmp->tmpseq->start = dna_window->n;
   pli_tmp->tmpseq->end = dna_window->n + dna_window->length - 1; 
   pli_tmp->tmpseq->dsq = subseq;
- 
+  
   tot_orf_sc = eslINFINITY;
   tot_orf_P  = eslINFINITY;
   min_P_orf  = eslINFINITY;
@@ -2642,6 +2642,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
 
      /* Only process ORF if it belongs to the current window */ 
      if(orf_start >= window_start && orf_end <= window_end) { 
+	   
        p7_bg_SetLength(bg, curr_orf->n);
        p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);
          
@@ -2841,6 +2842,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
 
   int              f;
   int              status;
+  int64_t          orf_start, orf_end;
   float            fwdsc;                      /* forward scores                               */
   float            nullsc;                     /* ORF null score for forward filter            */
   float            filtersc;                   /* total filterscs for forward filters          */
@@ -2859,10 +2861,19 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   for(f = 0; f < orf_block->count; f++) {
     curr_orf = &(orf_block->list[f]);
 
-    pli_tmp->tmpseq->start = curr_orf->start;
-    pli_tmp->tmpseq->end   = curr_orf->end;
-    pli_tmp->tmpseq->dsq   = dnasq->dsq + curr_orf->start - 1; 
-    pli_tmp->tmpseq->n     = curr_orf->end - curr_orf->start + 1;
+	if(complementarity) {
+	  orf_start = dnasq->n - curr_orf->start + 1;
+	  orf_end   = dnasq->n - curr_orf->end + 1;
+	}
+	else {
+	  orf_start = curr_orf->start;
+	  orf_end   = curr_orf->end;
+	}
+
+    pli_tmp->tmpseq->start = orf_start; 
+    pli_tmp->tmpseq->end   = orf_end;
+    pli_tmp->tmpseq->dsq   = dnasq->dsq + orf_start - 1; 
+    pli_tmp->tmpseq->n     = orf_end - orf_start + 1;
     pli_tmp->tmpseq->L     = pli_tmp->tmpseq->n; 
 
     p7_bg_SetLength(bg, curr_orf->n);
@@ -2890,7 +2901,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
 
-    p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, curr_orf->start, curr_orf, dnasq, complementarity, nullsc);
+    p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, orf_start, curr_orf, dnasq, complementarity, nullsc);
   }
     
 

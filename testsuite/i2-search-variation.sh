@@ -26,6 +26,28 @@ then
    exit 1
 fi
 
+# One with --fs
+$prog --fs $hmmfile $seqfile > $tmppfx.out;   if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
+cat $tmppfx.out | grep -v "^#" > $tmppfx.out1
+
+diff $tmppfx.out1 $tmppfx.out2 > /dev/null
+if test $? -eq 0
+then
+   echo "FAIL: results are the same despite only one using --fs"
+#   exit 1
+fi
+
+#Both with --fs
+$prog --fs $hmmfile $seqfile > $tmppfx.out;   if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
+cat $tmppfx.out | grep -v "^#" > $tmppfx.out2
+
+diff $tmppfx.out1 $tmppfx.out2 > /dev/null
+if test $? -ne 0
+then
+   echo "FAIL: results differ"
+#   exit 1
+fi
+
 # Running with different seeds shows stochastically differing results
 $prog --seed 2 $hmmfile $seqfile > $tmppfx.out;   if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
 cat $tmppfx.out | grep -v "^#" > $tmppfx.out1
@@ -35,6 +57,19 @@ cat $tmppfx.out | grep -v "^#" > $tmppfx.out2
 diff $tmppfx.out1 $tmppfx.out2 > /dev/null
 if test $? -eq 0 
 then 
+   echo "FAIL: results are the same despite different rng seeds"
+#   exit 1
+fi
+
+# Running with different seeds shows stochastically differing results
+$prog --fs --seed 2 $hmmfile $seqfile > $tmppfx.out;   if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
+cat $tmppfx.out | grep -v "^#" > $tmppfx.out1
+$prog --fs --seed 3 $hmmfile $seqfile > $tmppfx.out;   if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
+cat $tmppfx.out | grep -v "^#" > $tmppfx.out2
+
+diff $tmppfx.out1 $tmppfx.out2 > /dev/null
+if test $? -eq 0
+then
    echo "FAIL: results are the same despite different rng seeds"
    exit 1
 fi

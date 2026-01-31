@@ -58,13 +58,7 @@
 # Option tests 
 ################################################################
 
-# Prep a press'ed "minifam" that's used here and also in some integration tests,
-# and extract an individual 'typical' model Caudal_act.
-1 prep      Caudal                @easel/miniapps/esl-afetch@ !testsuite/minifam! Caudal_act > %CAUDAL.STO%
-1 prep      hmm                   @src/bathbuild@ %CAUDAL.BHMM% %CAUDAL.STO%
 1 prep      minifam               @src/bathbuild@ %MINIFAM.BHMM% !testsuite/minifam!
-#1 prep      minifam_press         @src/hmmpress@ %MINIFAM.HMM% 
-
 
 # bathbuild  xxxxxxxxxxxxxxxxxxxx
 1 exercise  bathbuild            @src/bathbuild@                    --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
@@ -145,9 +139,12 @@
 1 exercise  bathsearch/--seed          @src/bathsearch@  --seed 42                         !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa! 
 
 # xxxxxxxxx xxxxxxxxxxxxxxxxxxxx
-1 exercise  bathfetch             @src/bathfetch@   %MINIFAM.BHMM% Caudal_act
-1 exercise  bathstat              @src/bathstat@    !testsuite/Caudal_act.bhmm!
-1 exercise  bathconvert           @src/bathconvert@ %CAUDAL.bhmm% !testsuite/Caudal_act.hmm!
+1 exercise  bathfetch             @src/bathfetch@        %MINIFAM.BHMM% Caudal_act
+1 exercise  bathfetch/--fs        @src/bathfetch@ --fs   %MINIFAM.BHMM% Caudal_act
+1 exercise  bathstat              @src/bathstat@         !testsuite/Caudal_act.bhmm!
+1 exercise  bathconvert           @src/bathconvert@      %CAUDAL.bhmm% !testsuite/Caudal_act.hmm!
+1 exercise  bathconvert/--fs      @src/bathconvert@ --fs %CAUDAL.bhmm% !testsuite/Caudal_act.hmm!
+
 
 #################################################################
 # Integration tests
@@ -165,13 +162,13 @@
 #
 #           xxxxxxxxxxxxxxxxxxxx
 1 exercise  bathbuild_variation    !testsuite/i1-build-variation.sh!     @src/bathbuild@   !testsuite/Caudal_act.sto!          %OUTFILES%
-1 exercise  bathsearch_variation   !testsuite/i2-search-variation.sh!    @src/bathsearch@  %CAUDAL.BHMM%   !testsuite/Caudal_act-nt.fa!  %OUTFILES%
-1 exercise  fragments              !testsuite/i7-bathbuild-fragments.pl! @src/bathbuild@               %OUTFILES%
+1 exercise  bathsearch_variation   !testsuite/i2-search-variation.sh!    @src/bathsearch@  !testsuite/Caudal_act.bhmm! !testsuite/Caudal_act-nt.fa! %OUTFILES%
+1 exercise  zerolength             !testsuite/i4-zerolength-seqs.sh!     @@ !! %MINIFAM.BHMM% %OUTFILES%
+1 exercise  fragments              !testsuite/i7-bathbuild-fragments.pl! @src/bathbuild@     %OUTFILES%
 1 exercise  nonresidues            !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
 1 exercise  opt-annotation         !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
-1 exercise  dup-names             !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
-1 exercise  stdin_pipes           !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
-#1 exercise  brute-itest           @src/itest_brute@  
+1 exercise  dup-names              !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
+1 exercise  stdin_pipes            !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
 
 ################################################################
 # valgrind tests  (optional. 'make SQCLEVEL=3 check')
@@ -184,6 +181,7 @@
 3 valgrind  generic_msv           @src/generic_msv_utest@
 3 valgrind  generic_stotrace      @src/generic_stotrace_utest@
 3 valgrind  generic_viterbi       @src/generic_viterbi_utest@
+3 valgrind  fwdback_frameshift    @src/fwdback_frameshift_utest@
 3 valgrind  logsum                @src/logsum_utest@
 3 valgrind  modelconfig           @src/modelconfig_utest@
 3 valgrind  p7_alidisplay         @src/p7_alidisplay_utest@
@@ -204,11 +202,15 @@
 3 valgrind  stotrace              @src/impl/stotrace_utest@
 3 valgrind  vitfilter             @src/impl/vitfilter_utest@
 
-1 prep      minifam               @src/bathbuild@ %MINIFAM.HMM% !testsuite/minifam!
+1 prep      minifam               @src/bathbuild@ %MINIFAM.BHMM% !testsuite/minifam!
 
-3 valgrind  bathbuild             @src/bathbuild@   %GLOBIN.HMM% !testsuite/globins4.sto!
-3 valgrind  bathconvert           @src/bathconvert@ %M1.BHMM% !testsuite/M1.hmm!
-3 valgrind  bathfetch             @src/bathfetch@   %MINIFAM.HMM% Caudal_act
-3 valgrind  bathsearch            @src/bathsearch@  %GLOBIN.HMM% !testsuite/globins45-nt.fa!
-3 valgrind  bathstat              @src/bathstat@    %MINIFAM.HMM% 
+3 valgrind  bathbuild             @src/bathbuild@        %GLOBIN.BHMM% !testsuite/globins4.sto!
+3 valgrind  bathbuild/--fs        @src/bathbuild@   --fs %GLOBIN.BHMM% !testsuite/globins4.sto!
+3 valgrind  bathconvert           @src/bathconvert@      %M1.BHMM% !testsuite/M1.hmm!
+3 valgrind  bathconvert/--fs      @src/bathconvert@ --fs %M1.BHMM% !testsuite/M1.hmm!
+3 valgrind  bathfetch             @src/bathfetch@        %MINIFAM.BHMM% Caudal_act
+3 valgrind  bathfetch/--fs        @src/bathfetch@   --fs %MINIFAM.BHMM% Caudal_act
+3 valgrind  bathsearch            @src/bathsearch@       %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/--fs       @src/bathsearch@  --fs %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathstat              @src/bathstat@         %MINIFAM.BHMM% 
 

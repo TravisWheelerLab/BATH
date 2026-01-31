@@ -56,7 +56,6 @@ PROGS = bathsearch\
 
 # "auxprogs" are built but not installed.
 AUXPROGS = \
-	hmmc2 \
 	hmmerfm-exactmatch
 
 PROGOBJS = bathsearch.o\
@@ -66,20 +65,16 @@ PROGOBJS = bathsearch.o\
            bathstat.o
 
 AUXPROGOBJS = \
-	hmmc2.o \
 	hmmerfm-exactmatch.o
 
 HDRS =  hmmer.h \
-	cachedb.h \
 	p7_gbands.h \
 	p7_gmxb.h \
 	p7_gmxchk.h \
 	p7_hmmcache.h
 
 OBJS =  build.o\
-	cachedb.o\
 	decoding_frameshift.o\
-	cachedb_shard.o\
 	emit.o\
 	errors.o\
 	evalues.o\
@@ -97,12 +92,6 @@ OBJS =  build.o\
 	generic_vtrace.o\
 	h2_io.o\
 	heatmap.o\
-	hmmdmstr.o\
-	hmmdmstr_shard.o\
-	hmmd_search_status.o\
-	hmmdwrkr.o\
-	hmmdwrkr_shard.o\
-	hmmdutils.o\
 	hmmer.o\
 	logsum.o\
 	modelconfig.o\
@@ -126,7 +115,6 @@ OBJS =  build.o\
 	p7_hit.o\
 	p7_hmm.o\
 	p7_hmmcache.o\
-	p7_hmmd_search_stats.o\
 	p7_hmmfile.o\
 	p7_hmmwindow.o\
 	p7_pipeline.o\
@@ -137,7 +125,6 @@ OBJS =  build.o\
 	p7_tophits.o\
 	p7_trace.o\
 	p7_scoredata.o\
-	hmmpgmd2msa.o\
 	fm_alphabet.o\
 	fm_general.o\
 	fm_sse.o\
@@ -183,15 +170,12 @@ UTESTS =\
     p7_gmx_fs_utest\
 	p7_gmxchk_utest\
 	p7_hit_utest\
-	p7_hmmd_search_stats_utest\
 	p7_hmm_utest\
 	p7_hmmfile_utest\
 	p7_profile_utest\
 	p7_tophits_utest\
 	p7_trace_utest\
-	p7_scoredata_utest\
-    hmmpgmd2msa_utest\
-    hmmd_search_status_utest
+	p7_scoredata_utest
 
 ITESTS = \
 	itest_brute

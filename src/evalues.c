@@ -102,7 +102,6 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     if ((status = p7_oprofile_Convert(gm, om))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to convert to optimized profile");
   }
 
-  gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
   /* The calibration steps themselves */
   if ((status = p7_Lambda(hmm, bg, &lambda))                             != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine lambda");
   if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
@@ -141,6 +140,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if (byp_bg  != NULL) *byp_bg  = bg; else p7_bg_Destroy(bg);         /* bypass convention: no-op if bg was provided. */
   if (byp_gm  != NULL) *byp_gm  = gm; else p7_profile_Destroy(gm);    /* bypass convention: no-op if gm was provided. */
   if (byp_om  != NULL) *byp_om  = om; else p7_oprofile_Destroy(om);   /* bypass convention: no-op if om was provided. */
+
   return eslOK;
 
  ERROR:

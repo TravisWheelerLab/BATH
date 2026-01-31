@@ -552,7 +552,8 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_G
       }
       orf_dsq[j] = eslDSQ_SENTINEL;
       L = j-1;
-      hmx = esl_hmx_Create(L, bg->fhmm->M);
+      if (hmx == NULL) hmx = esl_hmx_Create(L, bg->fhmm->M);
+      else             esl_hmx_GrowTo(hmx, L, bg->fhmm->M);
       esl_hmm_Forward(orf_dsq, L, bg->fhmm, hmx, &nullsc);
 
       sum_nullsc = p7_FLogsum(sum_nullsc, nullsc);

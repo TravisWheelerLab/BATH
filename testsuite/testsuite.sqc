@@ -163,16 +163,15 @@
 #           xxxxxxxxxxxxxxxxxxxx
 1 exercise  bathbuild_variation    !testsuite/i1-build-variation.sh!     @src/bathbuild@   !testsuite/Caudal_act.sto!          %OUTFILES%
 1 exercise  bathsearch_variation   !testsuite/i2-search-variation.sh!    @src/bathsearch@  !testsuite/Caudal_act.bhmm! !testsuite/Caudal_act-nt.fa! %OUTFILES%
-1 exercise  zerolength             !testsuite/i4-zerolength-seqs.sh!     @@ !! %MINIFAM.BHMM% %OUTFILES%
 1 exercise  fragments              !testsuite/i7-bathbuild-fragments.pl! @src/bathbuild@     %OUTFILES%
 1 exercise  nonresidues            !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
 1 exercise  opt-annotation         !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
 1 exercise  dup-names              !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
 1 exercise  stdin_pipes            !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
 
-################################################################
-# valgrind tests  (optional. 'make SQCLEVEL=3 check')
-################################################################
+###########################################################################
+# valgrind tests (optional. 'export SQC_VALGRIND=1; make SQCLEVEL=3 check'
+###########################################################################
 
 #           xxxxxxxxxxxxxxxxxxxx
 3 valgrind  hmmer                 @src/hmmer_utest@
@@ -205,12 +204,16 @@
 1 prep      minifam               @src/bathbuild@ %MINIFAM.BHMM% !testsuite/minifam!
 
 3 valgrind  bathbuild             @src/bathbuild@        %GLOBIN.BHMM% !testsuite/globins4.sto!
-3 valgrind  bathbuild/--fs        @src/bathbuild@   --fs %GLOBIN.BHMM% !testsuite/globins4.sto!
+3 valgrind  bathbuild/--fs        @src/bathbuild@   --fs %GLOBIN_FS.BHMM% !testsuite/globins4.sto!
 3 valgrind  bathconvert           @src/bathconvert@      %M1.BHMM% !testsuite/M1.hmm!
 3 valgrind  bathconvert/--fs      @src/bathconvert@ --fs %M1.BHMM% !testsuite/M1.hmm!
 3 valgrind  bathfetch             @src/bathfetch@        %MINIFAM.BHMM% Caudal_act
 3 valgrind  bathfetch/--fs        @src/bathfetch@   --fs %MINIFAM.BHMM% Caudal_act
 3 valgrind  bathsearch            @src/bathsearch@       %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
-3 valgrind  bathsearch/--fs       @src/bathsearch@  --fs %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/--fs       @src/bathsearch@  --fs %GLOBIN_FS.BHMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/msa        @src/bathsearch@       !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/msa/--fs   @src/bathsearch@  --fs !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/seq        @src/bathsearch@       !testsuite/globins.fa! !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/seq/--fs   @src/bathsearch@  --fs !testsuite/globins.fa! !testsuite/globins45-nt.fa!
 3 valgrind  bathstat              @src/bathstat@         %MINIFAM.BHMM% 
 

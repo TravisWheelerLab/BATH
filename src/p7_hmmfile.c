@@ -685,8 +685,6 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
   }
   if (fputs("//\n", fp) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed");
 
-  if(hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET  && hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET) hmm->fs == TRUE;
-
   return eslOK;
 }
 

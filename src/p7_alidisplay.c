@@ -8,7 +8,6 @@
  *   4. Benchmark driver.
  *   5. Unit tests.
  *   6. Test driver.
- *   7. Example.
  */
 #include "p7_config.h"
 
@@ -3364,103 +3363,5 @@ main(int argc, char **argv)
 #endif /*p7ALIDISPLAY_TESTDRIVE*/
 /*------------------- end, test driver --------------------------*/
 
-
-/*****************************************************************
- * 7. Example.
- *****************************************************************/
-/* 
-   gcc -o p7_alidisplay_example -std=gnu99 -g -Wall -I. -L. -I../easel -L../easel -Dp7ALIDISPLAY_EXAMPLE p7_alidisplay.c -lhmmer -leasel -lm 
-*/
-#ifdef p7ALIDISPLAY_EXAMPLE
-#include "p7_config.h"
-
-#include "easel.h"
-#include "esl_alphabet.h"
-#include "esl_getopts.h"
-#include "esl_sq.h"
-#include "esl_sqio.h"
-
-#include "hmmer.h"
-
-static ESL_OPTIONS options[] = {
-  /* name           type         default   env  range   toggles   reqs   incomp                             help                                                  docgroup*/
-  { "-h",           eslARG_NONE,   FALSE, NULL, NULL,      NULL,  NULL,  NULL,                          "show brief help on version and usage",                         0 },
- {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-};
-static char usage[]  = "[-options] <hmmfile> <seqfile>";
-static char banner[] = "example driver for P7_ALIDISPLAY";
-
-int 
-main(int argc, char **argv)
-{
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  char           *seqfile = esl_opt_GetArg(go, 2);
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_OPROFILE    *om      = NULL;
-  P7_TRACE       *tr1     = NULL;
-  P7_TRACE       *tr2     = NULL;
-  ESL_SQFILE     *sqfp    = NULL;
-  ESL_SQ         *sq      = NULL;
-  ESL_SQ         *sq2     = NULL;
-  P7_ALIDISPLAY  *ad      = NULL;
-  P7_PIPELINE    *pli     = NULL;
-  P7_TOPHITS     *hitlist = NULL;
-
-  p7_FLogsumInit();
-
-  /* Read a single HMM from a file */
-  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
-  p7_hmmfile_Close(hfp);
-
-  /* Read a single sequence from a file */
-  if (esl_sqfile_Open(seqfile, eslSQFILE_UNKNOWN, NULL, &sqfp) != eslOK) p7_Fail("Failed to open sequence file %s", seqfile);
-  sq = esl_sq_CreateDigital(abc);
-  if (esl_sqio_Read(sqfp, sq) != eslOK) p7_Fail("Failed to read sequence");
-
-  /* Configure a profile from the HMM */
-  bg = p7_bg_Create(abc);
-  p7_bg_SetLength(bg, 0);
-  gm = p7_profile_Create(hmm->M, abc);
-  p7_ProfileConfig(hmm, bg, gm, 0, p7_UNILOCAL); 
-  om = p7_oprofile_Create(gm->M, abc);
-  p7_oprofile_Convert(gm, om);
-
-  /* Create a pipeline and a top hits list */
-  pli     = p7_pipeline_Create(NULL/*=default*/, hmm->M, 400, FALSE, p7_SEARCH_SEQS);
-  hitlist = p7_tophits_Create();
-
-  /* Run the pipeline */
-  p7_pli_NewSeq(pli, sq);
-  p7_bg_SetLength(bg, sq->n);
-  p7_oprofile_ReconfigLength(om, sq->n);
-  p7_Pipeline(pli, om, bg, sq, NULL, hitlist, NULL);
-
-  if (hitlist->N == 0) { p7_Fail("target sequence doesn't hit"); }
-
-  if (p7_alidisplay_Backconvert(hitlist->hit[0]->dcl[0].ad, abc, &sq2, &tr2) != eslOK) p7_Fail("backconvert failed");
-  
-  p7_trace_Dump(stdout, tr2, gm, sq2->dsq);
-
-  p7_tophits_Destroy(hitlist);
-  p7_alidisplay_Destroy(ad);
-  esl_sq_Destroy(sq);
-  esl_sq_Destroy(sq2);
-  p7_trace_Destroy(tr2);
-  p7_trace_Destroy(tr1);
-  p7_oprofile_Destroy(om);
-  p7_profile_Destroy(gm);
-  p7_bg_Destroy(bg);
-  p7_hmm_Destroy(hmm);
-  esl_alphabet_Destroy(abc);
-  esl_getopts_Destroy(go);
-  return 0;
-}
-#endif /*p7ALIDISPLAY_EXAMPLE*/
 
 

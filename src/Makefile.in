@@ -189,12 +189,10 @@ EXAMPLES = \
 	generic_viterbi_example\
 	generic_vtrace_example\
 	logsum_example\
-	p7_alidisplay_example\
 	p7_bg_example\
 	p7_bg_example2\
 	p7_domaindef_example\
 	p7_hmmfile_example\
-	p7_pipeline_example\
 	p7_spensemble_example
 
 # beautification magic stolen from git

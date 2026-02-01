@@ -1105,7 +1105,6 @@ typedef struct p7_pipeline_s {
 
   int           show_accessions;/* TRUE to output accessions not names      */
   int           show_alignments;/* TRUE to output alignments (default)      */
-  int           is_translated;  /* TRUE is hmmscant or hmmsearcht           */
   int           show_translated_sequence; /* TRUE to display translated DNA sequence in domain display for hmmscant */
   int           show_vertical_codon; /* TRUE to display the DNA codon vertically in the alignment display */
   int           show_frameline;  /* TRUE to display the frame of each codon in the alignment display */

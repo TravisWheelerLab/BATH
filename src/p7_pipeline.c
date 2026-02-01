@@ -105,7 +105,6 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
 
   /* Set Frameshift Mode */
   pli->frameshift = TRUE;
-  pli->is_translated = FALSE; 
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
 
@@ -1784,10 +1783,10 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
   fprintf(ofp, "-------------------------------------\n");
   if (pli->mode == p7_SEARCH_SEQS) {
     fprintf(ofp, "Query model(s):              %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
-    fprintf(ofp, "Target %-12s          %15" PRId64 "  (%" PRId64 " residues searched)\n", pli->is_translated?"orf(s):":"sequence(s):", pli->nseqs,   pli->nres);
+    fprintf(ofp, "Target %-12s          %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
     ntargets = pli->nseqs;
   } else {
-    fprintf(ofp, "Query %-12s           %15" PRId64 "  (%" PRId64 " residues searched)\n", pli->is_translated?"orf(s):":"sequence(s):", pli->nseqs,   pli->nres);
+    fprintf(ofp, "Query %-12s           %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
     fprintf(ofp, "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
     ntargets = pli->nmodels;
   }

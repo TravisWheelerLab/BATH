@@ -1473,7 +1473,6 @@ typedef struct p7_pipeline_s {
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
   enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
-  int           long_targets;    /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
   int           frameshift;      /* TRUE for searches with bathsearch */
   int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
   int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (do not use --nofs flag) */
@@ -1933,27 +1932,20 @@ extern void p7_null3_score(const ESL_ALPHABET *abc, const ESL_DSQ *dsq, P7_TRACE
 extern void p7_null3_windowed_score(const ESL_ALPHABET *abc, const ESL_DSQ *dsq, int start, int stop, P7_BG *bg, float *ret_sc);
 
 /* p7_pipeline.c */
-extern P7_PIPELINE *p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode);
-extern int          p7_pipeline_Reuse  (P7_PIPELINE *pli);
-extern void         p7_pipeline_Destroy(P7_PIPELINE *pli);
-extern int          p7_pipeline_Merge  (P7_PIPELINE *p1, P7_PIPELINE *p2);
-extern P7_PIPELINE* p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode);
-extern int          p7_pipeline_fs_Reuse  (P7_PIPELINE *pli);
-extern void         p7_pipeline_fs_Destroy(P7_PIPELINE *pli);
+extern P7_PIPELINE* p7_pipeline_Create_BATH (ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode);
+extern int          p7_pipeline_Reuse_BATH  (P7_PIPELINE *pli);
+extern int          p7_pipeline_Merge_BATH  (P7_PIPELINE *p1, P7_PIPELINE *p2);
+extern void         p7_pipeline_Destroy_BATH(P7_PIPELINE *pli);
 
-extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
-extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);
 extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, float score,     double lnP);
-extern int p7_pli_DomainReportable  (P7_PIPELINE *pli, float dom_score, double lnP);
-
 extern int p7_pli_TargetIncludable  (P7_PIPELINE *pli, float score,     double lnP);
-extern int p7_pli_DomainIncludable  (P7_PIPELINE *pli, float dom_score, double lnP);
+
 extern int p7_pli_NewModel          (P7_PIPELINE *pli, const P7_OPROFILE *om, P7_BG *bg);
 extern int p7_pli_NewModelThresholds(P7_PIPELINE *pli, const P7_OPROFILE *om);
 extern int p7_pli_NewSeq            (P7_PIPELINE *pli, const ESL_SQ *sq);
 extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data,
                                P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, 
-                               ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity);
+                               ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity, SPLICE_SAVED_HITS *saved_hits);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 

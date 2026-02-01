@@ -1432,7 +1432,6 @@ typedef struct p7_pipeline_s {
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
   enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
-  int           long_targets;   /* TRUE if the target sequences are expected to be very long (e.g. dna chromosome search in nhmmer) */
   int           frameshift;     /* TRUE for searches with bathsearch */
   int           fs_pipe;        /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
   int           std_pipe;       /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */

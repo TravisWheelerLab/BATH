@@ -105,7 +105,6 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
 
   /* Set Frameshift Mode */
   pli->frameshift = TRUE;
-  pli->long_targets = FALSE;
   pli->is_translated = FALSE; 
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
@@ -503,7 +502,7 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->by_E )
     { 
-      if      ( pli->long_targets || pli->frameshift ) { if (exp(lnP) <= pli->E) return TRUE; } // database size is already built into the Pval if pli->long_targets 
+      if      ( pli->frameshift ) { if (exp(lnP) <= pli->E) return TRUE; }  
       else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
     }
   else if (! pli->by_E   && score         >= pli->T) return TRUE;
@@ -519,8 +518,8 @@ p7_pli_TargetIncludable(P7_PIPELINE *pli, float score, double lnP)
 {
   if      (  pli->inc_by_E )
     {
-      if      ( pli->long_targets || pli->frameshift ) {
-        if (exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or pli->frameshift = TRUE
+      if      ( pli->frameshift ) {
+        if (exp(lnP) <= pli->incE) return TRUE;
       }
       else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
     }
@@ -639,13 +638,13 @@ int
 p7_pli_NewSeq(P7_PIPELINE *pli, const ESL_SQ *sq)
 {
 
-  if (!pli->long_targets) pli->nseqs++; // if target is DNA, sequence counting happens in the serial loop, which can track multiple windows for a single long sequence
+  pli->nseqs++; 
   pli->nres += sq->n;
   if (pli->Z_setby == p7_ZSETBY_NTARGETS && pli->mode == p7_SEARCH_SEQS) pli->Z = pli->nseqs;
   return eslOK;
 }
 
-/* Function:  p7_pipeline_Merge()
+/* Function:  p7_pipeline_Merge_BATH()
  * Synopsis:  Merge the pipeline statistics
  *
  * Purpose:   Caller has a new model <om>. Prepare the pipeline <pli>
@@ -662,7 +661,7 @@ p7_pli_NewSeq(P7_PIPELINE *pli, const ESL_SQ *sq)
  *            have the appropriate ones set.
  */
 int
-p7_pipeline_Merge(P7_PIPELINE *p1, P7_PIPELINE *p2)
+p7_pipeline_Merge_BATH(P7_PIPELINE *p1, P7_PIPELINE *p2)
 {
   /* if we are searching a sequence database, we need to keep track of the
    * number of sequences and residues processed.
@@ -1793,7 +1792,7 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
     ntargets = pli->nmodels;
   }
 
-  if (pli->long_targets || pli->frameshift) { // nhmmer style
+  if (pli->frameshift) { 
     fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
         pli->pos_past_msv,
         (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,

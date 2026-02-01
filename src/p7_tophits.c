@@ -2050,7 +2050,6 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
 
 
 
-
 /* Function:  p7_tophits_TabularTail()
  * Synopsis:  Print a trailer on a tabular output file.
  *

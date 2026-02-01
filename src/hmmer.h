@@ -856,10 +856,10 @@ typedef struct p7_dom_s {
  * heuristic thresholds. The structure is reusable to minimize the
  * number of allocation/free cycles that need to be done when
  * processing a large number of sequences. You create the structure
- * with <p7_domaindef_Create()>; after you're done with defining
+ * with <p7_domaindef_Create_BATH()>; after you're done with defining
  * domains on a sequence, you call <p7_domaindef_Reuse()> before using
  * it on the next sequence; and when you're completely done, you free
- * it with <p7_domaindef_Destroy()>. All memory management is handled
+ * it with <p7_domaindef_Destroy_BATH()>. All memory management is handled
  * internally; you don't need to reallocate anything yourself.
  */
 typedef struct p7_domaindef_s {
@@ -1832,22 +1832,15 @@ extern int p7_domain_TestSample(ESL_RAND64 *rng, P7_DOMAIN **ret_obj);
 extern int p7_domain_Compare(P7_DOMAIN *first, P7_DOMAIN *second, double atol, double rtol);
 
 /* p7_domaindef.c */
-extern P7_DOMAINDEF *p7_domaindef_Create (ESL_RANDOMNESS *r);
-extern P7_DOMAINDEF *p7_domaindef_fs_Create (ESL_RANDOMNESS *r, ESL_GETOPTS *go);
+extern P7_DOMAINDEF *p7_domaindef_Create_BATH (ESL_RANDOMNESS *r, ESL_GETOPTS *go);
 extern int           p7_domaindef_Fetch  (P7_DOMAINDEF *ddef, int which, int *opt_i, int *opt_j, float *opt_sc, P7_ALIDISPLAY **opt_ad);
 extern int           p7_domaindef_GrowTo (P7_DOMAINDEF *ddef, int L);
 extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);
 extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
-extern void          p7_domaindef_Destroy(P7_DOMAINDEF *ddef);
-extern void          p7_domaindef_fs_Destroy(P7_DOMAINDEF *ddef);
+extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
-extern int p7_domaindef_ByViterbi            (P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_GMX *gx1, P7_GMX *gx2, P7_DOMAINDEF *ddef);
-extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,
-                                          P7_DOMAINDEF *ddef, P7_BG *bg, int long_target,
-                                          P7_BG *bg_tmp, float *scores_arr, float *fwd_emissions_arr);
-extern int p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start);
-
-extern int p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
+extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg,  ESL_GENCODE *gcode, int64_t window_start);
+extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);

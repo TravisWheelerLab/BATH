@@ -51,225 +51,6 @@ typedef struct {
  * 1. The P7_PIPELINE object: allocation, initialization, destruction.
  *****************************************************************/
 
-/* Function:  p7_pipeline_Create() - HMMER
- * Synopsis:  Create a new accelerated comparison pipeline.
- *
- * Purpose:   Given an application configuration structure <go>
- *            containing certain standardized options (described
- *            below), some initial guesses at the model size <M_hint>
- *            and sequence length <L_hint> that will be processed,
- *            and a <mode> that can be either <p7_SCAN_MODELS> or
- *            <p7_SEARCH_SEQS> depending on whether we're searching one sequence
- *            against a model database (hmmscan mode) or one model
- *            against a sequence database (hmmsearch mode); create new
- *            pipeline object.
- *
- *            In search mode, we would generally know the length of
- *            our query profile exactly, and would pass <om->M> as <M_hint>;
- *            in scan mode, we generally know the length of our query
- *            sequence exactly, and would pass <sq->n> as <L_hint>.
- *            Targets will come in various sizes as we read them,
- *            and the pipeline will resize any necessary objects as
- *            needed, so the other (unknown) length is only an
- *            initial allocation.
- *            
- *            The configuration <go> must include settings for the 
- *            following options:
- *            
- *            || option      ||            description                    || usually  ||
- *            | --noali      |  don't output alignments (smaller output)   |   FALSE   |
- *            | -E           |  report hits <= this E-value threshold      |    10.0   |
- *            | -T           |  report hits >= this bit score threshold    |    NULL   |
- *            | -Z           |  set initial hit search space size          |    NULL   |
- *            | --domZ       |  set domain search space size               |    NULL   |
- *            | --domE       |  report domains <= this E-value threshold   |    10.0   |
- *            | --domT       |  report domains <= this bit score threshold |    NULL   |
- *            | --incE       |  include hits <= this E-value threshold     |    0.01   |
- *            | --incT       |  include hits >= this bit score threshold   |    NULL   |
- *            | --incdomE    |  include domains <= this E-value threshold  |    0.01   |
- *            | --incdomT    |  include domains <= this score threshold    |    NULL   |
- *            | --cut_ga     |  model-specific thresholding using GA       |   FALSE   |
- *            | --cut_nc     |  model-specific thresholding using NC       |   FALSE   |
- *            | --cut_tc     |  model-specific thresholding using TC       |   FALSE   |
- *            | --max        |  turn all heuristic filters off             |   FALSE   |
- *            | --F1         |  Stage 1 (MSV) thresh: promote hits P <= F1 |    0.02   |
- *            | --F2         |  Stage 2 (Vit) thresh: promote hits P <= F2 |    1e-3   |
- *            | --F3         |  Stage 2 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
- *            | --nobias     |  turn OFF composition bias filter HMM       |   FALSE   |
- *            | --nonull2    |  turn OFF biased comp score correction      |   FALSE   |
- *            | --seed       |  RNG seed (0=use arbitrary seed)            |      42   |
- *            | --acc        |  prefer accessions over names in output     |   FALSE   |
- *
- *            As a special case, if <go> is <NULL>, defaults are set as above.
- *            This shortcut is used in simplifying test programs and the like.
- *            
- * Returns:   ptr to new <P7_PIPELINE> object on success. Caller frees this
- *            with <p7_pipeline_Destroy()>.
- *
- * Throws:    <NULL> on allocation failure.
- */
-P7_PIPELINE *
-p7_pipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint, int long_targets, enum p7_pipemodes_e mode)
-{
-  P7_PIPELINE *pli  = NULL;
-  int          seed = (go ? esl_opt_GetInteger(go, "--seed") : 42);
-  int          status;
-
-  ESL_ALLOC(pli, sizeof(P7_PIPELINE));
-
-  pli->do_alignment_score_calc = 0;
-  pli->long_targets = long_targets;
-  pli->frameshift = FALSE;
-  pli->is_translated = FALSE; /* translated tools will need to override this */
-  pli->pid = FALSE;
-
-  if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->bck = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->oxf = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;
-  if ((pli->oxb = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;     
-
-  /* Normally, we reinitialize the RNG to the original seed every time we're
-   * about to collect a stochastic trace ensemble. This eliminates run-to-run
-   * variability. As a special case, if seed==0, we choose an arbitrary one-time 
-   * seed: time() sets the seed, and we turn off the reinitialization.
-   */
-  pli->r                  =  esl_randomness_CreateFast(seed);
-  pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
-  pli->ddef               = p7_domaindef_Create(pli->r);
-  pli->ddef->do_reseeding = pli->do_reseeding;
-
-  /* Configure reporting thresholds */
-  pli->by_E            = TRUE;
-  pli->E               = (go ? esl_opt_GetReal(go, "-E") : 10.0);
-  pli->T               = 0.0;
-  pli->dom_by_E        = TRUE;
-  pli->domE            = (go ? esl_opt_GetReal(go, "--domE") : 10.0);
-  pli->domT            = 0.0;
-  pli->use_bit_cutoffs = FALSE;
-  if (go && esl_opt_IsOn(go, "-T")) 
-    {
-      pli->T    = esl_opt_GetReal(go, "-T");  
-      pli->by_E = FALSE;
-    }
-  if (go && esl_opt_IsOn(go, "--domT")) 
-    {
-      pli->domT     = esl_opt_GetReal(go, "--domT"); 
-      pli->dom_by_E = FALSE;
-    }
-
-  /* Configure inclusion thresholds */
-  pli->inc_by_E           = TRUE;
-  pli->incE               = (go ? esl_opt_GetReal(go, "--incE") : 0.01);
-  pli->incT               = 0.0;
-  pli->incdom_by_E        = TRUE;
-  pli->incdomE            = (go ? esl_opt_GetReal(go, "--incdomE") : 0.01);
-  pli->incdomT            = 0.0;
-  if (go && esl_opt_IsOn(go, "--incT")) 
-    {
-      pli->incT     = esl_opt_GetReal(go, "--incT"); 
-      pli->inc_by_E = FALSE;
-    } 
-  if (go && esl_opt_IsOn(go, "--incdomT")) 
-    {
-      pli->incdomT     = esl_opt_GetReal(go, "--incdomT"); 
-      pli->incdom_by_E = FALSE;
-    }
-
-  /* Configure for one of the model-specific thresholding options */
-  if (go && esl_opt_GetBoolean(go, "--cut_ga"))
-    {
-      pli->T        = pli->domT        = 0.0;
-      pli->by_E     = pli->dom_by_E    = FALSE;
-      pli->incT     = pli->incdomT     = 0.0;
-      pli->inc_by_E = pli->incdom_by_E = FALSE;
-      pli->use_bit_cutoffs = p7H_GA;
-    }
-  if (go && esl_opt_GetBoolean(go, "--cut_nc"))
-    {
-      pli->T        = pli->domT        = 0.0;
-      pli->by_E     = pli->dom_by_E    = FALSE;
-      pli->incT     = pli->incdomT     = 0.0;
-      pli->inc_by_E = pli->incdom_by_E = FALSE;
-      pli->use_bit_cutoffs = p7H_NC;
-    }
-  if (go && esl_opt_GetBoolean(go, "--cut_tc"))
-    {
-      pli->T        = pli->domT        = 0.0;
-      pli->by_E     = pli->dom_by_E    = FALSE;
-      pli->incT     = pli->incdomT     = 0.0;
-      pli->inc_by_E = pli->incdom_by_E = FALSE;
-      pli->use_bit_cutoffs = p7H_TC;
-    }
-
-  /* Configure search space sizes for E value calculations  */
-  pli->Z       = pli->domZ       = 0.0;
-  pli->Z_setby = pli->domZ_setby = p7_ZSETBY_NTARGETS;
-  if (go && esl_opt_IsOn(go, "-Z")) 
-    {
-      pli->Z_setby = p7_ZSETBY_OPTION;
-      pli->Z       = esl_opt_GetReal(go, "-Z");
-    }
-  if (go && esl_opt_IsOn(go, "--domZ")) 
-    {
-      pli->domZ_setby = p7_ZSETBY_OPTION;
-      pli->domZ       = esl_opt_GetReal(go, "--domZ");
-    }
-
-  /* Configure acceleration pipeline thresholds */
-  pli->do_max        = FALSE;
-  pli->do_biasfilter = TRUE;
-  pli->do_null2      = TRUE;
-  pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
-  pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
-  pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
-
-  if (long_targets) {
-    pli->B1     = (go ? esl_opt_GetInteger(go, "--B1") : 100);
-    pli->B2     = (go ? esl_opt_GetInteger(go, "--B2") : 240);
-    pli->B3     = (go ? esl_opt_GetInteger(go, "--B3") : 1000);
-  } else {
-    pli->B1 = pli->B2 = pli->B3 = -1;
-  }
-
-  if (go && esl_opt_GetBoolean(go, "--max")) 
-    {
-      pli->do_max        = TRUE;
-      pli->do_biasfilter = FALSE;
-
-      pli->F2 = pli->F3 = 1.0;
-      pli->F1 = (pli->long_targets ? 0.3 : 1.0); // need to set some threshold for F1 even on long targets. Should this be tighter?
-    }
-  if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
-  if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
-
-  /* Accounting as we collect results */
-  pli->nmodels         = 0;
-  pli->nseqs           = 0;
-  pli->nres            = 0;
-  pli->nnodes          = 0;
-  pli->n_past_msv      = 0;
-  pli->n_past_bias     = 0;
-  pli->n_past_vit      = 0;
-  pli->n_past_fwd      = 0;
-  pli->pos_past_msv    = 0;
-  pli->pos_past_bias   = 0;
-  pli->pos_past_vit    = 0;
-  pli->pos_past_fwd    = 0;
-  pli->mode            = mode;
-  pli->show_accessions = (go && esl_opt_GetBoolean(go, "--acc")   ? TRUE  : FALSE);
-  pli->show_alignments = (go && esl_opt_GetBoolean(go, "--noali") ? FALSE : TRUE);
-  pli->show_translated_sequence = (go && esl_opt_GetBoolean(go, "--notrans") ? FALSE : TRUE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
-  pli->show_vertical_codon = (go && esl_opt_GetBoolean(go, "--vertcodon") ? TRUE : FALSE); /* TRUE to display translated DNA sequence in domain display for hmmscant */
-  pli->hfp             = NULL;
-  pli->errbuf[0]       = '\0';
-
-  return pli;
-
- ERROR:
-  p7_pipeline_Destroy(pli);
-  return NULL;
-}
-
 
 /* Function:  p7_pipeline_fs_Create() - BATH 
  * Synopsis:  Create a new frameshift aware comparison pipeline.
@@ -373,7 +154,7 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    */
    pli->r                  =  esl_randomness_CreateFast(seed);
    pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
-   pli->ddef               = p7_domaindef_fs_Create(pli->r, go);
+   pli->ddef               = p7_domaindef_Create_BATH(pli->r, go);
    pli->ddef->do_reseeding = pli->do_reseeding;
 
    /* Configure reporting thresholds */
@@ -524,24 +305,6 @@ p7_pipeline_fs_Reuse(P7_PIPELINE *pli)
   return eslOK;
 }
 
-/* Function:  p7_pipeline_Destroy()
- * Synopsis:  Free a <P7_PIPELINE> object.
- *
- * Purpose:   Free a <P7_PIPELINE> object.
- */
-void
-p7_pipeline_Destroy(P7_PIPELINE *pli)
-{
-  if (pli == NULL) return;
-  p7_omx_Destroy(pli->oxf);
-  p7_omx_Destroy(pli->oxb);
-  p7_omx_Destroy(pli->fwd);
-  p7_omx_Destroy(pli->bck);
-  esl_randomness_Destroy(pli->r);
-  p7_domaindef_Destroy(pli->ddef);
-  free(pli);
-}
-
 /* Function:  p7_pipeline_fs_Destroy() - BATH 
  * Synopsis:  Free a frameshift aware <P7_PIPELINE> object.
  *
@@ -560,7 +323,7 @@ p7_pipeline_fs_Destroy(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->oxb);
   p7_ivx_Destroy(pli->iv);
   esl_randomness_Destroy(pli->r);
-  p7_domaindef_fs_Destroy(pli->ddef);
+  p7_domaindef_Destroy_BATH(pli->ddef);
   free(pli);
 }
 
@@ -1703,7 +1466,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, PARSER_ROWS_BWD, dna_window->length, 0);
     p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxb, pli->iv, NULL);
  
-    status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs, pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->iv, pli->ddef, bg, gcode, dna_window->n);;
+    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli_tmp->tmpseq, gm, gm_fs, pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->iv, pli->ddef, bg, gcode, dna_window->n);
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
@@ -1751,7 +1514,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
  
             hit_info->hmm_start = window->k - window->length + 1;
             hit_info->hmm_end   = window->k;
-         //   printf("filtersc_orf %f hit_info->hmm_start %d hit_info->hmm_end %d\n", filtersc_orf, hit_info->hmm_start, hit_info->hmm_end); 
             if(complementarity) {
               hit_info->seq_start = dnasq->end + curr_orf->start - (window->n*3) + 2;
               hit_info->seq_end   = dnasq->end + curr_orf->start - ((window->n+window->length-1)*3);
@@ -1760,7 +1522,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
               hit_info->seq_start = dnasq->start + curr_orf->start + (window->n*3) - 4;
               hit_info->seq_end   = dnasq->start + curr_orf->start + ((window->n+window->length-1)*3) - 2;
             }
-            //printf("hit_info->seq_start %d hit_info->seq_end %d\n", hit_info->seq_start, hit_info->seq_end);
           }
         }
 
@@ -1778,7 +1539,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
           
           p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], pli->oxb, NULL);
           
-          status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli_tmp->oxf_holder[f], pli->oxf, pli->oxb, pli->ddef, bg);
+          status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli_tmp->oxf_holder[f], pli->oxf, pli->oxb, pli->ddef, bg);
           if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
           if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
           if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
@@ -1786,6 +1547,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
           /* Send any hits from the standard pipeline to be further processed */   
           p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, pli_tmp->tmpseq, complementarity, nullsc_orf);
         }
+
       }
     }  
   } 
@@ -1914,7 +1676,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
 
     p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
 
-    status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli->oxf, pli->oxf, pli->oxb, pli->ddef, bg);
+    status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli->oxf, pli->oxf, pli->oxb, pli->ddef, bg);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
     if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/

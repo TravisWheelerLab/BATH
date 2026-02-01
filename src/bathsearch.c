@@ -877,7 +877,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     }
     
     for (i = 0; i < infocnt; ++i)
-      p7_tophits_ComputeBATHEvalues(info[i].th, resCnt, info[i].om->max_length*3);
+      p7_tophits_ComputeEvalues_BATH(info[i].th, resCnt, info[i].om->max_length*3);
 
     /* merge the results of the search results */
     for (i = 0; i < infocnt; ++i)

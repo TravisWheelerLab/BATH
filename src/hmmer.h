@@ -2069,7 +2069,7 @@ extern void        p7_tophits_Destroy(P7_TOPHITS *h);
 extern int         p7_tophits_Reuse(P7_TOPHITS *h);
 
 
-extern int p7_tophits_ComputeBATHEvalues(P7_TOPHITS *th, int64_t N, int W);
+extern int p7_tophits_ComputeEvalues_BATH(P7_TOPHITS *th, int64_t N, int W);
 extern int p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs);
 extern int p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli);
 extern int p7_tophits_CompareRanking(P7_TOPHITS *th, ESL_KEYHASH *kh, int *opt_nnew);

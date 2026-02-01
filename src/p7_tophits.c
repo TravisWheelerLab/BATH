@@ -805,7 +805,7 @@ p7_tophits_frame(int nuc_from, int nuc_to)
   return frame;
 }
 
-/* Function:  p7_tophits_ComputeBATHEvalues()
+/* Function:  p7_tophits_ComputeEvalues_BATH()
  * Synopsis:  Compute e-values based on pvalues and window sizes.
  *
  * Purpose:      After bathsearch pipeline has completed, the th object 
@@ -820,7 +820,7 @@ p7_tophits_frame(int nuc_from, int nuc_to)
  * Returns:   <eslOK> on success.
  */
 int
-p7_tophits_ComputeBATHEvalues(P7_TOPHITS *th, int64_t N, int W)
+p7_tophits_ComputeEvalues_BATH(P7_TOPHITS *th, int64_t N, int W)
 {
   int i;    /* counters over hits */
 

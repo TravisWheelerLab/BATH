@@ -19,7 +19,7 @@
 #include "hmmer.h"
 
 static int is_multidomain_region  (P7_DOMAINDEF *ddef, int i, int j);
-static int is_multidomain_region_fs  (P7_DOMAINDEF *ddef, int i, int j);
+static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq,  
@@ -398,7 +398,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE 
       p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);
       ddef->nregions++;
 
-      if (is_multidomain_region_fs(ddef, i, j))
+      if (is_multidomain_region_frameshift(ddef, i, j))
       {
 	
         /* This region appears to contain more than one domain, so we have to
@@ -587,9 +587,6 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
                   */
                   ddef->nenvelopes++;
 
-                  /*the !long_target argument will cause the function to recompute null2
-                   * scores if this is part of a long_target (nhmmer) pipeline */
-		  
                   if (rescore_isolated_domain_bath(ddef, om, gm, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
                        last_j2 = j2;
 
@@ -664,7 +661,7 @@ is_multidomain_region(P7_DOMAINDEF *ddef, int i, int j)
   return ( (max >= ddef->rt3) ? TRUE : FALSE);
 }
 
-/* is_multidomain_region_fs() - BATH
+/* is_multidomain_region_frameshift() 
  *
  * This function is supposed to define the trigger for when we need 
  * to hand a "region" of a DNA window off to a deeper analysis (using 
@@ -692,7 +689,7 @@ is_multidomain_region(P7_DOMAINDEF *ddef, int i, int j)
  * Xref:    J2/101.  
  */
 static int
-is_multidomain_region_fs(P7_DOMAINDEF *ddef, int i, int j)
+is_multidomain_region_frameshift(P7_DOMAINDEF *ddef, int i, int j)
 {
   int   z,f;
   float max;

@@ -104,7 +104,6 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   pli->do_alignment_score_calc = 0;
 
   /* Set Frameshift Mode */
-  pli->frameshift = TRUE;
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
 
@@ -499,12 +498,8 @@ p7_pli_GetPosPast_BATH(P7_ORF_COORDS *coords)
 int
 p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
-  if      (  pli->by_E )
-    { 
-      if      ( pli->frameshift ) { if (exp(lnP) <= pli->E) return TRUE; }  
-      else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
-    }
-  else if (! pli->by_E   && score         >= pli->T) return TRUE;
+  if      (  pli->by_E && exp(lnP) <= pli->E) return TRUE; 
+  else if (! pli->by_E && score    >= pli->T) return TRUE;
 
   return FALSE;
 }
@@ -515,15 +510,8 @@ p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 int
 p7_pli_TargetIncludable(P7_PIPELINE *pli, float score, double lnP)
 {
-  if      (  pli->inc_by_E )
-    {
-      if      ( pli->frameshift ) {
-        if (exp(lnP) <= pli->incE) return TRUE;
-      }
-      else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
-    }
-
-  else if (! pli->inc_by_E   && score         >= pli->incT) return TRUE;
+  if      (  pli->inc_by_E && exp(lnP) <= pli->incE) return TRUE;
+  else if (! pli->inc_by_E   && score  >= pli->incT) return TRUE;
 
   return FALSE;
 }
@@ -688,17 +676,8 @@ p7_pipeline_Merge_BATH(P7_PIPELINE *p1, P7_PIPELINE *p2)
   p1->pos_past_fwd  += p2->pos_past_fwd;
   p1->pos_output    += p2->pos_output;
 
-  if (p1->Z_setby == p7_ZSETBY_NTARGETS)
-    {
-      if(p2->frameshift)
-        p1->Z += p2->Z;
-      else 
-        p1->Z += (p1->mode == p7_SCAN_MODELS) ? p2->nmodels : p2->nseqs;
-    }
-  else
-    {
-      p1->Z = p2->Z;
-    }
+  if (p1->Z_setby == p7_ZSETBY_NTARGETS) p1->Z += p2->Z;
+  else                                   p1->Z =  p2->Z;
 
   return eslOK;
 }
@@ -1791,60 +1770,30 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
     ntargets = pli->nmodels;
   }
 
-  if (pli->frameshift) { 
-    fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_msv,
-        (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,
-        pli->F1);
+  fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
+      pli->pos_past_msv,
+      (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,
+      pli->F1);
 
-    fprintf(ofp, "Residues passing bias filter:%15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_bias,
-        (double)pli->pos_past_bias / (pli->nres*pli->nmodels) ,
-        pli->F1);
+  fprintf(ofp, "Residues passing bias filter:%15" PRId64 "  (%.3g); expected (%.3g)\n",
+      pli->pos_past_bias,
+      (double)pli->pos_past_bias / (pli->nres*pli->nmodels) ,
+      pli->F1);
 
-    fprintf(ofp, "Residues passing Vit filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_vit,
-        (double)pli->pos_past_vit / (pli->nres*pli->nmodels) ,
-        pli->F2);
+  fprintf(ofp, "Residues passing Vit filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
+      pli->pos_past_vit,
+      (double)pli->pos_past_vit / (pli->nres*pli->nmodels) ,
+      pli->F2);
 
-    fprintf(ofp, "Residues passing Fwd filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
-        pli->pos_past_fwd,
-        (double)pli->pos_past_fwd / (pli->nres*pli->nmodels) ,
-        pli->F3);
+  fprintf(ofp, "Residues passing Fwd filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
+      pli->pos_past_fwd,
+      (double)pli->pos_past_fwd / (pli->nres*pli->nmodels) ,
+      pli->F3);
 
-    fprintf(ofp, "Total number of hits:        %15d  (%.3g)\n",
-        (int)pli->n_output,
-        (double)pli->pos_output / (pli->nres*pli->nmodels) );
+  fprintf(ofp, "Total number of hits:        %15d  (%.3g)\n",
+      (int)pli->n_output,
+      (double)pli->pos_output / (pli->nres*pli->nmodels) );
 
-  } else { // typical case output
-
-    fprintf(ofp, "Passed MSV filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_msv,
-        (double) pli->n_past_msv / ntargets,
-        pli->F1 * ntargets,
-        pli->F1);
-
-    fprintf(ofp, "Passed bias filter:          %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_bias,
-        (double) pli->n_past_bias / ntargets,
-        pli->F1 * ntargets,
-        pli->F1);
-
-    fprintf(ofp, "Passed Vit filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_vit,
-        (double) pli->n_past_vit / ntargets,
-        pli->F2 * ntargets,
-        pli->F2);
-
-    fprintf(ofp, "Passed Fwd filter:           %15" PRId64 "  (%.6g); expected %.1f (%.6g)\n",
-        pli->n_past_fwd,
-        (double) pli->n_past_fwd / ntargets,
-        pli->F3 * ntargets,
-        pli->F3);
-
-    fprintf(ofp, "Initial search space (Z):    %15.0f  %s\n", pli->Z,    pli->Z_setby    == p7_ZSETBY_OPTION ? "[as set by --Z on cmdline]"    : "[actual number of targets]");
-    fprintf(ofp, "Domain search space  (domZ): %15.0f  %s\n", pli->domZ, pli->domZ_setby == p7_ZSETBY_OPTION ? "[as set by --domZ on cmdline]" : "[number of targets reported over threshold]");
-  }
 
   if (w != NULL) {
     esl_stopwatch_Display(ofp, w, "# CPU time: ");

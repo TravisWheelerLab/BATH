@@ -1096,7 +1096,6 @@ typedef struct p7_pipeline_s {
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
   enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
-  int           frameshift;     /* TRUE for searches with bathsearch */
   int           fs_pipe;        /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
   int           std_pipe;       /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;        /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
@@ -1363,8 +1362,6 @@ extern char           p7_alidisplay_EncodeAliPostProb(float p, float hi, float m
 
 extern int            p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
 extern int            p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
-extern int            p7_alidisplay_translated_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
-extern int            p7_alidisplay_nontranslated_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, int show_accessions);
 
 extern int            p7_alidisplay_Backconvert(const P7_ALIDISPLAY *ad, const ESL_ALPHABET *abc, ESL_SQ **ret_sq, P7_TRACE **ret_tr);
 extern int            p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad);

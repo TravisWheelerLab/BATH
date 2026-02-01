@@ -142,7 +142,7 @@ p7_domaindef_Create(ESL_RANDOMNESS *r)
   return NULL;
 }
 
-/* Function:  p7_domaindef_fs_Create() - BATH
+/* Function:  p7_domaindef_Create_BATH()
  * Synopsis:  Creates a new <P7_DOMAINDEF> object.
  *
  * Purpose:   Creates a new <P7_DOMAINDEF> object, with <r> registered
@@ -154,7 +154,7 @@ p7_domaindef_Create(ESL_RANDOMNESS *r)
  * Throws:    <NULL> on allocation failure.
  */
 P7_DOMAINDEF *
-p7_domaindef_fs_Create(ESL_RANDOMNESS *r, ESL_GETOPTS *go)
+p7_domaindef_Create_BATH(ESL_RANDOMNESS *r, ESL_GETOPTS *go)
 {
   P7_DOMAINDEF *ddef   = NULL;
   int           Lalloc = 512;  /* this initial alloc doesn't matter much; space is realloced as needed */

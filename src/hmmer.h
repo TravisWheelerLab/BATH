@@ -1744,7 +1744,7 @@ extern int p7_domain_Compare(P7_DOMAIN *first, P7_DOMAIN *second, double atol, d
 
 /* p7_domaindef.c */
 extern P7_DOMAINDEF *p7_domaindef_Create (ESL_RANDOMNESS *r);
-extern P7_DOMAINDEF *p7_domaindef_fs_Create (ESL_RANDOMNESS *r, ESL_GETOPTS *go);
+extern P7_DOMAINDEF *p7_domaindef_Create_BATH (ESL_RANDOMNESS *r, ESL_GETOPTS *go);
 extern int           p7_domaindef_Fetch  (P7_DOMAINDEF *ddef, int which, int *opt_i, int *opt_j, float *opt_sc, P7_ALIDISPLAY **opt_ad);
 extern int           p7_domaindef_GrowTo (P7_DOMAINDEF *ddef, int L);
 extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);

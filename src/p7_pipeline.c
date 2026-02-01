@@ -137,7 +137,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    */
    pli->r                  =  esl_randomness_CreateFast(seed);
    pli->do_reseeding       = (seed == 0) ? FALSE : TRUE;
-   pli->ddef               = p7_domaindef_fs_Create(pli->r, go);
+   pli->ddef               = p7_domaindef_Create_BATH(pli->r, go);
    pli->ddef->do_reseeding = pli->do_reseeding;
 
    /* Configure reporting thresholds */

@@ -54,18 +54,11 @@ PROGS = bathsearch\
         bathfetch\
         bathstat
 
-# "auxprogs" are built but not installed.
-AUXPROGS = \
-	hmmerfm-exactmatch
-
 PROGOBJS = bathsearch.o\
            bathbuild.o\
            bathconvert.o\
            bathfetch.o\
            bathstat.o
-
-AUXPROGOBJS = \
-	hmmerfm-exactmatch.o
 
 HDRS =  hmmer.h \
 	p7_gbands.h \
@@ -121,11 +114,7 @@ OBJS =  build.o\
 	p7_spensemble.o\
 	p7_tophits.o\
 	p7_trace.o\
-	p7_scoredata.o\
-	fm_alphabet.o\
-	fm_general.o\
-	fm_sse.o\
-	fm_ssv.o
+	p7_scoredata.o
 
 STATS = \
 	evalues_stats

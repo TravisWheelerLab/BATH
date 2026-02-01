@@ -796,7 +796,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       
     /* Create processing pipeline and hit list accumulators */
     tophits_accumulator  = p7_tophits_Create(); 
-    pipelinehits_accumulator = p7_pipeline_fs_Create(go, 100, 300, p7_SEARCH_SEQS);
+    pipelinehits_accumulator = p7_pipeline_Create_BATH(go, 100, 300, p7_SEARCH_SEQS);
     pipelinehits_accumulator->nmodels = 1;
     pipelinehits_accumulator->nnodes = hmm->M;
     if (esl_opt_IsUsed(go, "--splice"))
@@ -821,7 +821,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info[i].gm     = p7_profile_Clone(gm);
       info[i].gm_fs  = p7_profile_fs_Clone(gm_fs);
       info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
-      info[i].pli = p7_pipeline_fs_Create(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
+      info[i].pli = p7_pipeline_Create_BATH(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
       status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
       if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
 
@@ -886,7 +886,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_pipeline_Merge(pipelinehits_accumulator, info[i].pli);
       if (esl_opt_IsUsed(go, "--splice")) 
         p7_splicehits_MergeSavedHits(saved_hits_accumulator, info[i].sh);
-      p7_pipeline_fs_Destroy(info[i].pli);
+      p7_pipeline_Destroy_BATH(info[i].pli);
       p7_tophits_Destroy(info[i].th);
       p7_oprofile_Destroy(info[i].om);
       p7_profile_Destroy(info[i].gm);
@@ -973,7 +973,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_pli_Statistics(ofp, pipelinehits_accumulator, watch);
     if (fprintf(ofp, "//\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
-    p7_pipeline_fs_Destroy(pipelinehits_accumulator);
+    p7_pipeline_Destroy_BATH(pipelinehits_accumulator);
     p7_tophits_Destroy(tophits_accumulator);
     p7_splicehits_DestroySavedHits(saved_hits_accumulator);
     p7_oprofile_Destroy(om);
@@ -1073,7 +1073,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 
       p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT, info->sh);
-      p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+      p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
       esl_sq_ReuseBlock(info->wrk1->orf_block);    
     } 
@@ -1087,7 +1087,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 	
       p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT, info->sh); 
-      p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+      p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
       
       esl_sq_ReuseBlock(info->wrk1->orf_block);
       
@@ -1259,7 +1259,7 @@ pipeline_thread(void *arg)
        
         p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT, info->sh);
 
-        p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+        p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
         esl_sq_ReuseBlock(info->wrk1->orf_block);
       } 
@@ -1271,7 +1271,7 @@ pipeline_thread(void *arg)
 	
         p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT, info->sh);
 
-        p7_pipeline_fs_Reuse(info->pli); // prepare for next search
+        p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
 	esl_sq_ReuseBlock(info->wrk1->orf_block);
         esl_sq_ReverseComplement(dnaSeq);

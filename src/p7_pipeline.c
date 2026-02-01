@@ -51,9 +51,8 @@ typedef struct {
  * 1. The P7_PIPELINE object: allocation, initialization, destruction.
  *****************************************************************/
 
-
-/* Function:  p7_pipeline_fs_Create() - BATH 
- * Synopsis:  Create a new frameshift aware comparison pipeline.
+/* Function:  p7_pipeline_Create_BATH() 
+ * Synopsis:  Create a new BATH comparison pipeline.
  *
  * Purpose:   Given an application configuration structure <go>
  *            containing certain standardized options (described
@@ -107,7 +106,7 @@ typedef struct {
  * Throws:    <NULL> on allocation failure.
  */
 P7_PIPELINE *
-p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode)
+p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode)
 {
   P7_PIPELINE *pli  = NULL;
   int          seed = (go ? esl_opt_GetInteger(go, "--seed") : 42);
@@ -262,38 +261,16 @@ p7_pipeline_fs_Create(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes
    return pli;
 
 ERROR:
-  p7_pipeline_fs_Destroy(pli);
+  p7_pipeline_Destroy_BATH(pli);
   return NULL;
 }
 
-/* Function:  p7_pipeline_Reuse()
- * Synopsis:  Reuse a pipeline for next target.
+/* Function:  p7_pipeline_Reuse_BATH() 
+ * Synopsis:  Reuse a BATH for next target.
  *
- * Purpose:   Reuse <pli> for next target sequence (search mode)
- *            or model (scan mode). 
- *            
- *            May eventually need to distinguish from reusing pipeline
- *            for next query, but we're not really focused on multiquery
- *            use of hmmscan/hmmsearch/phmmer for the moment.
  */
 int
-p7_pipeline_Reuse(P7_PIPELINE *pli)
-{
-  p7_omx_Reuse(pli->oxf);
-  p7_omx_Reuse(pli->oxb);
-  p7_omx_Reuse(pli->fwd);
-  p7_omx_Reuse(pli->bck);
-  p7_domaindef_Reuse(pli->ddef);
-  return eslOK;
-}
-
-/* Function:  p7_pipeline_fs_Reuse() - BATH 
- * Synopsis:  Reuse a frameshift pipeline for next target.
- *
- * Purpose:   Reuse frameshift aware <pli> for next target sequence.
- */
-int
-p7_pipeline_fs_Reuse(P7_PIPELINE *pli)
+p7_pipeline_Reuse_BATH(P7_PIPELINE *pli)
 {
   p7_gmx_Reuse(pli->gxf);
   p7_gmx_Reuse(pli->gxb);
@@ -305,13 +282,12 @@ p7_pipeline_fs_Reuse(P7_PIPELINE *pli)
   return eslOK;
 }
 
-/* Function:  p7_pipeline_fs_Destroy() - BATH 
- * Synopsis:  Free a frameshift aware <P7_PIPELINE> object.
+/* Function:  p7_pipeline_Destroy_BATH() 
+ * Synopsis:  Free a BATH <P7_PIPELINE> object.
  *
- * Purpose:   Free a frameshift aware <P7_PIPELINE> object.
  */
 void
-p7_pipeline_fs_Destroy(P7_PIPELINE *pli)
+p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
 {
   if (pli == NULL) return;
  
@@ -1466,7 +1442,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, PARSER_ROWS_BWD, dna_window->length, 0);
     p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxb, pli->iv, NULL);
  
-    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli_tmp->tmpseq, gm, gm_fs, pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->iv, pli->ddef, bg, gcode, dna_window->n);
+    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli_tmp->tmpseq, gm, gm_fs, pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->iv, pli->ddef, bg, gcode, dna_window->n);;
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
@@ -1547,7 +1523,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
           /* Send any hits from the standard pipeline to be further processed */   
           p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, pli_tmp->tmpseq, complementarity, nullsc_orf);
         }
-
       }
     }  
   } 

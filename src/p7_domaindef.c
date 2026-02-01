@@ -26,7 +26,6 @@ static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE 
 static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg, float fs_prob);
 
 
-
 /*****************************************************************
  * 1. The P7_DOMAINDEF object: allocation, reuse, destruction
  *****************************************************************/
@@ -585,7 +584,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
                   ddef->nenvelopes++;
 
                   if (rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg, gm_fs->fs) == eslOK)
-                       last_j2 = j2;
+                  last_j2 = j2;
 
           }
             p7_spensemble_Reuse(ddef->sp);
@@ -967,7 +966,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
 
 
 
- /* rescore_isolated_domain_frameshift() - BATH
+ /* rescore_isolated_domain_frameshift() 
  *
  * We have isolated a single domain's envelope from <i>..<j> in DNA 
  * window <windowsq>, and now we want to score it in isolation and 
@@ -1237,7 +1236,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
 static int
 rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
 		                      P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg, float fs_prob)
-
 {
 
   P7_DOMAIN     *dom           = NULL;

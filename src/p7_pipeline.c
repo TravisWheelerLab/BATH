@@ -118,8 +118,6 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
 
   /* Set Frameshift Mode */
   pli->frameshift = TRUE;
-  pli->long_targets = FALSE;
-  pli->is_translated = FALSE;
   pli->spliced =  (go ? esl_opt_IsUsed(go, "--splice") : 0); 
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
@@ -603,34 +601,9 @@ p7_pli_fs_GetPosPast(P7_ORF_COORDS *coords)
 int
 p7_pli_TargetReportable(P7_PIPELINE *pli, float score, double lnP)
 {
-  if      (  pli->by_E )
-    { 
-      if      ( pli->long_targets || pli->frameshift ) { if (exp(lnP) <= pli->E) return TRUE; } // database size is already built into the Pval if pli->long_targets 
-      else if ( exp(lnP) * pli->Z <= pli->E) return TRUE;
-    }
-  else if (! pli->by_E   && score         >= pli->T) return TRUE;
+  if      (  pli->by_E && exp(lnP) <= pli->E) return TRUE;
+  else if (! pli->by_E && score    >= pli->T) return TRUE;
 
-  return FALSE;
-}
-
-/* Function:  p7_pli_DomainReportable
- * Synopsis:  Returns TRUE if domain score meets reporting threshold. 
- *
- * Purpose:   Returns <TRUE> if the bit score <score> and/or 
- *            log P-value <lnP> meet per-domain reporting thresholds 
- *            for the processing pipeline.
- */
-int
-p7_pli_DomainReportable(P7_PIPELINE *pli, float dom_score, double lnP)
-{
-  if      (  pli->dom_by_E )
-    {
-      if      ( pli->long_targets || pli->frameshift ) { 
-        if (exp(lnP) <= pli->domE) return TRUE; // database size is already built into the Pval if pli->long_targets or frameshift = TRUE 
-      }
-      else if ( exp(lnP) * pli->domZ <= pli->domE) return TRUE;
-    }
-  else if (! pli->dom_by_E   && dom_score        >= pli->domT) return TRUE;
   return FALSE;
 }
 
@@ -640,32 +613,9 @@ p7_pli_DomainReportable(P7_PIPELINE *pli, float dom_score, double lnP)
 int
 p7_pli_TargetIncludable(P7_PIPELINE *pli, float score, double lnP)
 {
-  if      (  pli->inc_by_E )
-    {
-      if      ( pli->long_targets || pli->frameshift ) {
-        if (exp(lnP) <= pli->incE) return TRUE; // database size is already built into the Pval if pli->long_targets or pli->frameshift = TRUE
-      }
-      else if ( exp(lnP) * pli->Z <= pli->incE) return TRUE;
-    }
+  if      (  pli->inc_by_E && exp(lnP) <= pli->incE) return TRUE; 
+  else if (! pli->inc_by_E && score    >= pli->incT) return TRUE;
 
-  else if (! pli->inc_by_E   && score         >= pli->incT) return TRUE;
-
-  return FALSE;
-}
-
-/* Function:  p7_pli_DomainIncludable()
- * Synopsis:  Returns TRUE if domain score meets inclusion threshold.
- */
-int
-p7_pli_DomainIncludable(P7_PIPELINE *pli, float dom_score, double lnP)
-{
-
-  if      ( pli->long_targets ) {
-    if (pli->incdom_by_E    && exp(lnP) <= pli->incdomE) return TRUE;
-  }
-  else if ( pli->incdom_by_E   && exp(lnP) * pli->domZ <= pli->incdomE) return TRUE;
-  else if (! pli->incdom_by_E   && dom_score        >= pli->incdomT) return TRUE;
-  
   return FALSE;
 }
 
@@ -778,7 +728,7 @@ int
 p7_pli_NewSeq(P7_PIPELINE *pli, const ESL_SQ *sq)
 {
 
-  if (!pli->long_targets) pli->nseqs++; // if target is DNA, sequence counting happens in the serial loop, which can track multiple windows for a single long sequence
+  pli->nseqs++;
   pli->nres += sq->n;
   if (pli->Z_setby == p7_ZSETBY_NTARGETS && pli->mode == p7_SEARCH_SEQS) pli->Z = pli->nseqs;
   return eslOK;
@@ -1953,15 +1903,15 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
   fprintf(ofp, "-------------------------------------\n");
   if (pli->mode == p7_SEARCH_SEQS) {
     fprintf(ofp, "Query model(s):              %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
-    fprintf(ofp, "Target %-12s          %15" PRId64 "  (%" PRId64 " residues searched)\n", pli->is_translated?"orf(s):":"sequence(s):", pli->nseqs,   pli->nres);
+    fprintf(ofp, "Target %-12s          %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
     ntargets = pli->nseqs;
   } else {
-    fprintf(ofp, "Query %-12s           %15" PRId64 "  (%" PRId64 " residues searched)\n", pli->is_translated?"orf(s):":"sequence(s):", pli->nseqs,   pli->nres);
+    fprintf(ofp, "Query %-12s           %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
     fprintf(ofp, "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
     ntargets = pli->nmodels;
   }
 
-  if (pli->long_targets || pli->frameshift) { // nhmmer style
+  if (pli->frameshift) {
     fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",
         pli->pos_past_msv,
         (double)pli->pos_past_msv / (pli->nres*pli->nmodels) ,

@@ -1286,7 +1286,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, PARSER_ROWS_BWD, dna_window->length, 0);
     p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxb, pli->iv, NULL);
  
-    status = p7_domaindef_ByPosteriorHeuristics_Frameshift(pli_tmp->tmpseq, gm, gm_fs,
+    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli_tmp->tmpseq, gm, gm_fs,
            pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->iv, pli->ddef, bg, gcode,
            dna_window->n, pli->do_biasfilter);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
@@ -1323,7 +1323,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
         
         p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], pli->oxb, NULL);
         
-        status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli_tmp->oxf_holder[f], pli->oxf, pli->oxb, pli->ddef, bg);
+        status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli_tmp->oxf_holder[f], pli->oxf, pli->oxb, pli->ddef, bg);
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
@@ -1466,7 +1466,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
 
     p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
 
-    status = p7_domaindef_ByPosteriorHeuristics_nonFrameshift(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli->oxf, pli->oxf, pli->oxb, pli->ddef, bg);
+    status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm, gm_fs, pli->oxf, pli->oxf, pli->oxb, pli->ddef, bg);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
     if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/

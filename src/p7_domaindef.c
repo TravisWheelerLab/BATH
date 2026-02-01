@@ -25,7 +25,7 @@ static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PR
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq,  
            P7_GMX *gx1, P7_GMX *gx2, P7_IVX *iv, int i, int j, int null2_is_done, P7_BG *bg, 
            ESL_GENCODE *gcode, int do_biasfilter);
-static int rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
+static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs,
 	   const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
            P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg);
 
@@ -279,7 +279,7 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
  * 2. Routines inferring domain structure of a target sequence
  *****************************************************************/
 
-/* Function:  p7_domaindef_ByPosteriorHeuristics_Frameshift() - BATH
+/* Function:  p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH() 
  * Synopsis:  Define "domains" in a DNA window using posterior probs
  *            with frameshift awareness.
  *
@@ -303,7 +303,7 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
  * Throws:    <eslEMEM> on allocation failure. 
  */
 int
-p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
+p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
            P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg, 
 	  ESL_GENCODE *gcode, int64_t window_start, int do_biasfilter
 )
@@ -477,7 +477,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
 }
 
 
-/* Function:  p7_domaindef_ByPosteriorHeuristics_nonFrameshift() - BATH
+/* Function:  p7_domaindef_ByPosteriorHeuristics_BATH() 
  * Synopsis:  Define domains in a sequence using posterior probs.
  * Incept:    SRE, Sat Feb 23 08:17:44 2008 [Janelia]
  *
@@ -501,7 +501,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift(ESL_SQ *windowsq, P7_PROFILE *gm, 
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
+p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
 	   P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg)
 {
   int i, j;
@@ -590,7 +590,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
                   /*the !long_target argument will cause the function to recompute null2
                    * scores if this is part of a long_target (nhmmer) pipeline */
 		  
-                  if (rescore_isolated_domain_nonframeshift(ddef, om, gm, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
+                  if (rescore_isolated_domain_bath(ddef, om, gm, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE, bg) == eslOK)
                        last_j2 = j2;
 
           }
@@ -603,7 +603,7 @@ p7_domaindef_ByPosteriorHeuristics_nonFrameshift(const ESL_SQ *orfsq, const ESL_
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
 	    
-            rescore_isolated_domain_nonframeshift(ddef, om, gm, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE, bg);
+            rescore_isolated_domain_bath(ddef, om, gm, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE, bg);
         }
         i     = -1;
         triggered = FALSE;
@@ -1181,7 +1181,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   return eslEMEM;
 }
 
-/* rescore_isolated_domain_nonframeshift() - BATH
+/* rescore_isolated_domain_bath() 
  *
  * We have isolated a single domain's envelope from <i>..<j> in
  * translated ORF sequence <orfsq>, and now we want to score it 
@@ -1217,7 +1217,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
  * 
  */
 static int
-rescore_isolated_domain_nonframeshift(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
+rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, 
 		                      const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, 
 		                      P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg)
 {

@@ -745,8 +745,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         aa = p7P_AMINO(gm_fs, k, codon_idx);
         indel = p7P_INDEL(gm_fs, k, codon_idx);
         
-        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) ad->codon[y] = 6;
-
         ad->ntseq [5*(z-z1)]   = nuc_one(c, indel, n1, alphaDNA);
         ad->ntseq [5*(z-z1)+1] = nuc_two(c, indel, n1, n2, alphaDNA);
         ad->ntseq [5*(z-z1)+2] = nuc_three(c, indel, n1, n2, n3, alphaDNA);
@@ -760,7 +758,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 
         ad->aseq[z-z1] = toupper(alphaAmino[aa]);
         if(c != 3) ad->frameshifts++;
-        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) ad->stops++;
+        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6; // 6 used for stop codons
+          ad->stops++;
+        }
+
         break;
 	
       case p7T_I:
@@ -770,16 +772,20 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 
         get_codon_index(sq->abc, 3, sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i], -1, -1, &codon_idx);
         indel = p7P_INDEL(gm_fs, k, codon_idx);
-        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) ad->codon[y] = 6;
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
 
         aa = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
-        
+
 	    ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
         ad->ntseq [5*(z-z1)] = ' ';
         ad->ntseq [5*(z-z1)+1] = alphaDNA[sq->dsq[i-2]];
         ad->ntseq [5*(z-z1)+2] = alphaDNA[sq->dsq[i-1]];
         ad->ntseq [5*(z-z1)+3] = alphaDNA[sq->dsq[i]];
         ad->ntseq [5*(z-z1)+4] = ' ';
+        
         break;
 	
       case p7T_D:
@@ -1838,7 +1844,10 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         nuc_pos += c;
 
         if(c != 3) ad->frameshifts++;
-        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) ad->stops++;
+        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6; // 6 used for stop codons
+          ad->stops++;
+        }
         break;
 	
       case p7T_I:
@@ -1846,7 +1855,14 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         ad->codon[y] = 3;
       	ad->model [z-z1] = '.';
         ad->mline [z-z1] = ' ';
-        
+       
+        get_codon_index(sq->abc, 3, sq->dsq[nuc_index[nuc_pos]], sq->dsq[nuc_index[nuc_pos+1]], sq->dsq[nuc_index[nuc_pos+2]], -1, -1, &codon_idx);
+        indel = p7P_INDEL(gm_fs, k, codon_idx);
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
+ 
         aa = esl_gencode_GetTranslation(gcode, &nuc_dsq[nuc_pos]);
         
 	    ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
@@ -1960,7 +1976,11 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         ad->aseq[z-z1] = alphaAmino[aa];
         
         if(c != 3) ad->frameshifts++;
-        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) ad->stops++;
+        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
+
         break;
  
       case p7T_RI:
@@ -1970,6 +1990,13 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         n1 = sq->dsq[nuc_index[nuc_pos]];
         n2 = sq->dsq[nuc_index[nuc_pos+1]];
         n3 = sq->dsq[nuc_index[nuc_pos+2]];
+
+        get_codon_index(sq->abc, 3, n1, n2, n3, -1, -1, &codon_idx);
+        indel = p7P_INDEL(gm_fs, k, codon_idx);
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
 
         aa = esl_gencode_GetTranslation(gcode, &nuc_dsq[nuc_pos]);
 

@@ -53,7 +53,7 @@ if ($h3::fullbias[0] != "0.1")  { printf("FAIL: expected bias of 0.1 for first h
 
 system("$bathsearch --fsonly --tblout $tmppfx.tbl $hmm20aa $tmppfx.1 > $tmppfx.out 2>&1");
 if ($? != 0) { die "FAIL: bathsearch failed on first test sequence with --fsonly\n"; }
-&h3::ParseTbl("$tmppfx.tbl");
+&h3::ParseFSTbl("$tmppfx.tbl");
 
 # Verify.
 if ($h3::ntbl        != 1)      { printf("FAIL: expected one line in tbl; saw %d\n",              $h3::ntbl);          exit 1; }
@@ -72,7 +72,7 @@ if ($h3::fullbias[1] != "0.6")  { printf("FAIL: expected bias of 0.6; saw %s\n",
 
 system("$bathsearch -l 10 --fsonly --tblout $tmppfx.tbl $hmm20aa $tmppfx.2 > $tmppfx.out 2>&1");
 if ($? != 0) { print "FAIL: bathsearch failed on second test sequence with --fsonly"; }
-&h3::ParseTbl("$tmppfx.tbl");
+&h3::ParseFSTbl("$tmppfx.tbl");
 
 if ($h3::ntbl        != 1)      { printf("FAIL: expected two lines in tbl; saw %d\n",             $h3::ntbl);          exit 1; }
 if ($h3::fullsc[0]   != "57.0") { printf("FAIL: expected score of 57.0 for first hit; saw %s\n",  $h3::fullsc[0]);     exit 1; }

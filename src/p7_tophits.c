@@ -1021,30 +1021,6 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
   if (pli->domZ_setby == p7_ZSETBY_NTARGETS) pli->domZ = (double) th->nreported;
 
 
-  /* Second pass is over domains, flagging reportable/includable ones. 
-   * Depends on knowing the domZ we just set.
-   * Note how this enforces a hierarchical logic of 
-   * (sequence|domain) must be reported to be included, and
-   * domain can only be (reported|included) if whole sequence is too.
-   */
-  if (! pli->use_bit_cutoffs && !pli->long_targets && !pli->frameshift)
-  {
-    for (h = 0; h < th->N; h++)
-    {
-      if (th->hit[h]->flags & p7_IS_REPORTED)
-      {
-        for (d = 0; d < th->hit[h]->ndom; d++)
-        {
-          if (p7_pli_DomainReportable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
-            th->hit[h]->dcl[d].is_reported = TRUE;
-          if ((th->hit[h]->flags & p7_IS_INCLUDED) &&
-              p7_pli_DomainIncludable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
-            th->hit[h]->dcl[d].is_included = TRUE;
-        }
-      }
-    }
-  }
-
   /* Count the reported, included domains */
   for (h = 0; h < th->N; h++)  
     for (d = 0; d < th->hit[h]->ndom; d++)

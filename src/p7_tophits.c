@@ -2051,48 +2051,6 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
 
 
 
-/* Function:  p7_tophits_AliScores()
- * Synopsis:  Output per-position scores for each position of each query/hit pair
- *
- * Purpose:   This depends on per-alignment-position scores having been
- *            previously computed, as in p7_pipeline_computeAliScores()
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    none
- */
-int
-p7_tophits_AliScores(FILE *ofp, char *qname, P7_TOPHITS *th )
-{
-  P7_HIT *hit;
-  int h, i;
-  float *scores;
-
-  for (h = 0; h < th->N; h++) {
-    hit = th->hit[h];
-    if (hit->flags & p7_IS_REPORTED)
-    {
-      fprintf (ofp, "%s %s %" PRId64 " %" PRId64 " :", qname, hit->name, hit->dcl[0].iali, hit->dcl[0].jali);
-
-      scores = hit->dcl[0].scores_per_pos;
-      for (i=0; i<hit->dcl[0].ad->N; i++) {
-        if (scores[i] == -eslINFINITY)
-          fprintf (ofp, " >");
-        else
-          fprintf (ofp, " %.3f", scores[i] * eslCONST_LOG2R);
-
-      }
-      fprintf (ofp, "\n");
-    }
-
-  }
-  return eslOK;
-
-}
-
-
-
-
 /* Function:  p7_tophits_TabularTail()
  * Synopsis:  Print a trailer on a tabular output file.
  *

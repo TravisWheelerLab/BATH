@@ -664,7 +664,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
     ad->sqto    = tr->i[z1];
     ad->sqfrom  = tr->i[z2];	
   }	 
-  ad->L       = sq->n;
+  ad->L       = sq->L;
 
 
   /* optional rf line */
@@ -968,7 +968,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
     ad->sqto    = tr->i[z1];
     ad->sqfrom  = tr->i[z2];	
   }	 
-  ad->L       = sq->n;
+  ad->L       = sq->L;
   
   /* optional rf line */
   if (ad->rfline != NULL) {
@@ -1235,7 +1235,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   ad->orffrom = 1;
   ad->orfto   = 0;
 
-  ad->L       = target_seq->n;
+  ad->L       = target_seq->L;
   
   /* optional rf line */
   if (ad->rfline != NULL) {
@@ -1690,7 +1690,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   ad->exon_hmm_starts[0] = ad->hmmfrom;
   ad->exon_pid[0]        = 0.;
 	 
-  ad->L       = sq->n;
+  ad->L       = sq->L;
   
   /* optional rf line */
   if (ad->rfline != NULL) {

@@ -816,7 +816,7 @@ typedef struct p7_dom_s {
  * with <p7_domaindef_Create_BATH()>; after you're done with defining
  * domains on a sequence, you call <p7_domaindef_Reuse()> before using
  * it on the next sequence; and when you're completely done, you free
- * it with <p7_domaindef_Destroy()>. All memory management is handled
+ * it with <p7_domaindef_Destroy_BATH()>. All memory management is handled
  * internally; you don't need to reallocate anything yourself.
  */
 typedef struct p7_domaindef_s {
@@ -1748,8 +1748,7 @@ extern int           p7_domaindef_Fetch  (P7_DOMAINDEF *ddef, int which, int *op
 extern int           p7_domaindef_GrowTo (P7_DOMAINDEF *ddef, int L);
 extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);
 extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
-extern void          p7_domaindef_Destroy(P7_DOMAINDEF *ddef);
-extern void          p7_domaindef_fs_Destroy(P7_DOMAINDEF *ddef);
+extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
 extern int p7_domaindef_ByViterbi            (P7_PROFILE *gm, const ESL_SQ *sq, const ESL_SQ *ntsq, P7_GMX *gx1, P7_GMX *gx2, P7_DOMAINDEF *ddef);
 extern int p7_domaindef_ByPosteriorHeuristics(const ESL_SQ *sq, const ESL_SQ *ntsq, P7_OPROFILE *om, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck,

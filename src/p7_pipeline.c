@@ -277,7 +277,7 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->oxb);
   p7_ivx_Destroy(pli->iv);
   esl_randomness_Destroy(pli->r);
-  p7_domaindef_fs_Destroy(pli->ddef);
+  p7_domaindef_Destroy_BATH(pli->ddef);
   free(pli);
 }
 

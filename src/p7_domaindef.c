@@ -109,7 +109,7 @@ p7_domaindef_Create_BATH(ESL_RANDOMNESS *r, ESL_GETOPTS *go)
   return ddef;
   
  ERROR:
-  p7_domaindef_fs_Destroy(ddef);
+  p7_domaindef_Destroy_BATH(ddef);
   return NULL;
 }
 
@@ -245,47 +245,14 @@ p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef)
 }
 
 
-
-/* Function:  p7_domaindef_Destroy()
+/* Function:  p7_domaindef_Destroy_BATH() 
  * Synopsis:  Destroys a <P7_DOMAINDEF>.
  * Incept:    SRE, Fri Jan 25 13:52:46 2008 [Janelia]
  *
  * Purpose:   Destroys a <P7_DOMAINDEF>.
  */
 void
-p7_domaindef_Destroy(P7_DOMAINDEF *ddef)
-{
-  int d;
-  if (ddef == NULL) return;
-
-  if (ddef->mocc != NULL) free(ddef->mocc);
-  if (ddef->btot != NULL) free(ddef->btot);
-  if (ddef->etot != NULL) free(ddef->etot);
-  if (ddef->n2sc != NULL) free(ddef->n2sc);
-
-  if (ddef->dcl  != NULL) {
-    for (d = 0; d < ddef->ndom; d++) {
-      if (ddef->dcl[d].scores_per_pos) free(ddef->dcl[d].scores_per_pos);
-      p7_alidisplay_Destroy(ddef->dcl[d].ad);
-    }
-    free(ddef->dcl);
-  }
-
-  p7_spensemble_Destroy(ddef->sp);
-  p7_trace_Destroy(ddef->tr);
-  p7_trace_Destroy(ddef->gtr);
-  free(ddef);
-  return;
-}
-
-/* Function:  p7_domaindef_fs_Destroy() - BATH
- * Synopsis:  Destroys a <P7_DOMAINDEF>.
- * Incept:    SRE, Fri Jan 25 13:52:46 2008 [Janelia]
- *
- * Purpose:   Destroys a <P7_DOMAINDEF>.
- */
-void
-p7_domaindef_fs_Destroy(P7_DOMAINDEF *ddef)
+p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
 {
   int d;
   if (ddef == NULL) return;

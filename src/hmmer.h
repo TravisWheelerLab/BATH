@@ -813,7 +813,7 @@ typedef struct p7_dom_s {
  * heuristic thresholds. The structure is reusable to minimize the
  * number of allocation/free cycles that need to be done when
  * processing a large number of sequences. You create the structure
- * with <p7_domaindef_Create()>; after you're done with defining
+ * with <p7_domaindef_Create_BATH()>; after you're done with defining
  * domains on a sequence, you call <p7_domaindef_Reuse()> before using
  * it on the next sequence; and when you're completely done, you free
  * it with <p7_domaindef_Destroy()>. All memory management is handled
@@ -1743,7 +1743,6 @@ extern int p7_domain_TestSample(ESL_RAND64 *rng, P7_DOMAIN **ret_obj);
 extern int p7_domain_Compare(P7_DOMAIN *first, P7_DOMAIN *second, double atol, double rtol);
 
 /* p7_domaindef.c */
-extern P7_DOMAINDEF *p7_domaindef_Create (ESL_RANDOMNESS *r);
 extern P7_DOMAINDEF *p7_domaindef_Create_BATH (ESL_RANDOMNESS *r, ESL_GETOPTS *go);
 extern int           p7_domaindef_Fetch  (P7_DOMAINDEF *ddef, int which, int *opt_i, int *opt_j, float *opt_sc, P7_ALIDISPLAY **opt_ad);
 extern int           p7_domaindef_GrowTo (P7_DOMAINDEF *ddef, int L);

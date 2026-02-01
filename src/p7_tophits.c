@@ -965,21 +965,8 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
  * Synopsis:  Apply score and E-value thresholds to a hitlist before output.
  *
  * Purpose:   After a pipeline has completed, go through it and mark all
- *            the targets and domains that are "significant" (satisfying
- *            the reporting thresholds set for the pipeline). 
- *            
- *            Also sets the final total number of reported and
- *            included targets, the number of reported and included
- *            targets in each target, and the size of the search space
- *            for per-domain conditional E-value calculations,
- *            <pli->domZ>. By default, <pli->domZ> is the number of
- *            significant targets reported.
- *
- *            If model-specific thresholds were used in the pipeline,
- *            we cannot apply those thresholds now. They were already
- *            applied in the pipeline. In this case all we're
- *            responsible for here is counting them (setting
- *            nreported, nincluded counters).
+ *            the hits that are "significant" (satisfying the reporting 
+ *            thresholds set for the pipeline). 
  *            
  * Returns:   <eslOK> on success.
  */
@@ -998,10 +985,10 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
         th->hit[h]->flags |= p7_IS_REPORTED;
         if (p7_pli_TargetIncludable(pli, th->hit[h]->score, th->hit[h]->lnP))
             th->hit[h]->flags |= p7_IS_INCLUDED;
-        if (pli->long_targets || pli->frameshift) { // no domains in dna search, so:
-          th->hit[h]->dcl[0].is_reported = th->hit[h]->flags & p7_IS_REPORTED;
-          th->hit[h]->dcl[0].is_included = th->hit[h]->flags & p7_IS_INCLUDED;
-        }
+       
+        th->hit[h]->dcl[0].is_reported = th->hit[h]->flags & p7_IS_REPORTED;
+        th->hit[h]->dcl[0].is_included = th->hit[h]->flags & p7_IS_INCLUDED;
+      
       }
     }
   }
@@ -1018,30 +1005,6 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
   /* Now we can determined domZ, the effective search space in which additional domains are found */
   if (pli->domZ_setby == p7_ZSETBY_NTARGETS) pli->domZ = (double) th->nreported;
 
-
-  /* Second pass is over domains, flagging reportable/includable ones. 
-   * Depends on knowing the domZ we just set.
-   * Note how this enforces a hierarchical logic of 
-   * (sequence|domain) must be reported to be included, and
-   * domain can only be (reported|included) if whole sequence is too.
-   */
-  if (! pli->use_bit_cutoffs && !pli->long_targets && !pli->frameshift)
-  {
-    for (h = 0; h < th->N; h++)
-    {
-      if (th->hit[h]->flags & p7_IS_REPORTED)
-      {
-        for (d = 0; d < th->hit[h]->ndom; d++)
-        {
-          if (p7_pli_DomainReportable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
-            th->hit[h]->dcl[d].is_reported = TRUE;
-          if ((th->hit[h]->flags & p7_IS_INCLUDED) &&
-              p7_pli_DomainIncludable(pli, th->hit[h]->dcl[d].bitscore, th->hit[h]->dcl[d].lnP))
-            th->hit[h]->dcl[d].is_included = TRUE;
-        }
-      }
-    }
-  }
 
   /* Count the reported, included domains */
   for (h = 0; h < th->N; h++)  

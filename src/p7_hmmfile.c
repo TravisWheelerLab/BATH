@@ -2063,7 +2063,7 @@ read_asc20hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
   if (( status = p7_hmm_SetConsensus(hmm, NULL)) != eslOK) ESL_XFAIL(status, hfp->errbuf, "Failed to create consensus line");
 
   /* Calibrate the model:         cfg   rng   bg    gm    om */
-  if ((status = p7_Calibrate(hmm, NULL, NULL, &bg, NULL, NULL)) != eslOK) ESL_XFAIL(status, hfp->errbuf, "Failed to calibrate HMMER2 model after input conversion");
+  if ((status = p7_Calibrate(hmm, NULL, NULL, &bg, NULL, NULL, NULL)) != eslOK) ESL_XFAIL(status, hfp->errbuf, "Failed to calibrate HMMER2 model after input conversion");
 
   if (*ret_abc == NULL) *ret_abc = abc;
   if ( opt_hmm != NULL) *opt_hmm = hmm; else p7_hmm_Destroy(hmm);

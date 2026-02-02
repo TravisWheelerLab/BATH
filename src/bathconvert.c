@@ -80,6 +80,9 @@ main(int argc, char **argv)
   P7_BG          *bg     = NULL;
   ESL_RANDOMNESS *r      = NULL;
   P7_FS_PROFILE  *gm_fs  = NULL;
+  ESL_GENCODE    *gcode  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
   double          entropy;
 
@@ -122,37 +125,30 @@ main(int argc, char **argv)
 
       fsprob = 0.01;
       ct = esl_opt_GetInteger(go, "--ct");
- 
-      /* If we have a new codon table we need to recalculate FS taus */
-      if(ct != hmm->ct) {
-         hmm->ct = ct;
-         if(hmm->fs) {
-           hmm->fsprob = fsprob;
 
-           if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+      /* Do we need fs stats */ 
+      if((ct != hmm->ct && hmm->fs) ||
+         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
 
-           p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-           hmm->evparam[p7_FTAUFS3] = tau_fs;
-           p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-           hmm->evparam[p7_FTAUFS5] = tau_fs;
-        }
+        hmm->ct = ct;
+
+        if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
+        if(gcode     == NULL) gcode     = esl_gencode_Create(abcDNA, hmm->abc);
+        esl_gencode_Set(gcode, hmm->ct);
+
+        if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
+
+        gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+        p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 100, p7_LOCAL);
+
+        p7_fs_Tau_3codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS3] = tau_fs;
+
+        p7_fs_Tau_5codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS5] = tau_fs; 
       }
-        
-      /* convert from non fs to fs */ 
-      if(esl_opt_IsUsed(go, "--fs")) {
-        hmm->fs = TRUE;
-        hmm->fsprob = fsprob;
 
-        if(gm_fs == NULL) gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-        
-        if(hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET) {
-
-          p7_fs_Tau_3codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS3] = tau_fs;
-          p7_fs_Tau_5codons(r, gm_fs, hmm, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS5] = tau_fs;
-        }
-      }
+      hmm->ct = ct;
 
       if(hmm->max_length == -1)
 	  {
@@ -165,10 +161,8 @@ main(int argc, char **argv)
 
       p7_hmmfile_WriteASCII (ofp, fmtcode, hmm);
 
-
       p7_hmm_Destroy(hmm);
       p7_profile_fs_Destroy(gm_fs);
-      gm_fs = NULL;
     }
   if      (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hmmfile_in);
   else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hmmfile_in);
@@ -179,11 +173,13 @@ main(int argc, char **argv)
 
   esl_stopwatch_Destroy(w);
   if(bg != NULL)    p7_bg_Destroy(bg);
-  if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
   if(r != NULL)     esl_randomness_Destroy(r);
   if(ofp) fclose(ofp);
   if(hfp) p7_hmmfile_Close(hfp);
   if(abc) esl_alphabet_Destroy(abc);
+  if(abcDNA) esl_alphabet_Destroy(abcDNA);
+  if(gcode) esl_gencode_Destroy(gcode);
+  if(codon_tbl) p7_codontable_Destroy(codon_tbl);
   if(go) esl_getopts_Destroy(go);
   return 0;
 
@@ -195,6 +191,9 @@ main(int argc, char **argv)
   if(ofp) fclose(ofp);
   if(hfp) p7_hmmfile_Close(hfp);
   if(abc) esl_alphabet_Destroy(abc);
+  if(abcDNA) esl_alphabet_Destroy(abcDNA);
+  if(gcode) esl_gencode_Destroy(gcode);
+  if(codon_tbl) p7_codontable_Destroy(codon_tbl);
   if(go) esl_getopts_Destroy(go);
   exit(status);
 }

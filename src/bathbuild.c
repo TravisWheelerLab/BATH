@@ -640,7 +640,7 @@ serial_loop(WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPTS *go)
           sq = NULL;
           hmm->eff_nseq = 1;
         } else {
-          if ((status = p7_Builder(info->bld, msa, info->bg, &hmm, NULL, NULL, NULL, postmsa_ptr )) != eslOK) p7_Fail("build failed: %s", bld->errbuf);
+          if ((status = p7_Builder(info->bld, msa, info->bg, &hmm, NULL, NULL, NULL, NULL, postmsa_ptr )) != eslOK) p7_Fail("build failed: %s", bld->errbuf);
 
           //if not --singlemx, but the user set the popen/pextend flags, override the computed gap params now:
           if (info->bld->popen != -1 || info->bld->pextend != -1) {
@@ -953,7 +953,7 @@ pipeline_thread(void *arg)
         item->hmm->eff_nseq = 1;
       } else {
     
-        status = p7_Builder(info->bld, item->msa, info->bg, &item->hmm, NULL, NULL, NULL, &item->postmsa);
+        status = p7_Builder(info->bld, item->msa, info->bg, &item->hmm, NULL, NULL, NULL, NULL, &item->postmsa);
         if (status != eslOK) p7_Fail("build failed: %s", info->bld->errbuf);
         //if not --singlemx, but the user set the popen/pextend flags, override the computed gap params now:
         if (info->bld->popen != -1 || info->bld->pextend != -1) {

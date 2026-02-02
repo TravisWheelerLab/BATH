@@ -299,7 +299,8 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int64_t seqidx, int32_t *k_coords_list, int32_t *m_coords_list) { 
+p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int64_t seqidx) 
+{ 
 
   int            i;
   int            new_hit_cnt;
@@ -343,8 +344,6 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
     p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
     p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
 
-	k_coords_list[i] = k_coords;
-    m_coords_list[i] = m_coords;
 
 	/* Rescore bias based on viterbi alignment */
     if (pli->do_biasfilter)
@@ -1116,15 +1115,13 @@ ERROR:
 static int
 p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
                               int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode,
-                             P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity, int32_t *k_coords_list, int32_t *m_coords_list
-)
+                             P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
   int              f;
   int              status;
   int64_t          window_start, window_end;
   int64_t          orf_start, orf_end; 
-  int32_t          prev_k, prev_m;
   ESL_DSQ         *subseq;                     /* current DNA window holder                    */ 
   ESL_SQ          *curr_orf;                   /* current ORF holder                           */
   float            fwdsc_fs, fwdsc_orf;        /* forward scores                               */
@@ -1172,9 +1169,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     ESL_ALLOC(P_orf, sizeof(double) * orf_block->count);
     ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
 
-    prev_k = 0;
-    prev_m = 0;
-
    for(f = 0; f < orf_block->count; f++) {
      curr_orf = &(orf_block->list[f]);
      pli_tmp->oxf_holder[f] = NULL;
@@ -1218,13 +1212,8 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
         * exons and remove addtional core model entry cost to 
         * simulate the use of an intron state rather than a J state*/  
          
-       if(prev_m > 0 && prev_k < m_coords_list[f] && abs(k_coords_list[f] - prev_m) < 15) {   
-         tot_orf_sc =  p7_FLogsum(tot_orf_sc, (fwdsc_orf - gm->tsc[p7P_NTRANS+p7P_BM]));
-       } 
-       else  { tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf); }
+        tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf); 
     
-        prev_k = k_coords_list[f];
-        prev_m = m_coords_list[f];
       }
     }
     tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
@@ -1532,7 +1521,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   double             P;                   /* p-value holder                          */
   int                window_len;          /* length of DNA window                    */
   int                min_length;          /* minimum number of nucs passing a filter */
-  int32_t           *k_coords_list, *m_coords_list; /* ORF Viterbi trace HMM coords            */
   ESL_SQ            *orfsq;               /* ORF sequence                            */
   ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */
   P7_HMM_WINDOWLIST  post_vit_windowlist; /* list of windows from ORFs that pass viterbi */
@@ -1546,9 +1534,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_windowlist.windows = NULL;
 
-  k_coords_list = NULL; 
-  m_coords_list = NULL;
- 
   msv_coords = NULL;
   bias_coords = NULL;
   vit_coords = NULL;
@@ -1652,20 +1637,14 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
     p7_hmmwindow_init(&post_vit_windowlist);  
     
-    if(post_vit_orf_block->count > 0) 
-    {
-      ESL_ALLOC(k_coords_list, sizeof(int32_t) * post_vit_orf_block->count); 
-      ESL_ALLOC(m_coords_list, sizeof(int32_t) * post_vit_orf_block->count);
-    }
-  
-    p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx, k_coords_list, m_coords_list); 
+    p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx); 
   
     /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
       window_len   = post_vit_windowlist.windows[i].length; 
       if (window_len < 15) continue;
-      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, k_coords_list, m_coords_list);
+      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity);
     }
   }
   else {
@@ -1701,8 +1680,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     free(pli_tmp);
   }
   if (post_vit_windowlist.windows != NULL) free (post_vit_windowlist.windows); 
-  if(k_coords_list != NULL) free(k_coords_list);
-  if(m_coords_list != NULL) free(m_coords_list);
 
   return eslOK;
 
@@ -1736,8 +1713,6 @@ ERROR:
 
   if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (post_vit_windowlist.windows != NULL) free (post_vit_windowlist.windows);
-  if(k_coords_list != NULL) free(k_coords_list);
-  if(m_coords_list != NULL) free(m_coords_list);
   return status;
 }
 

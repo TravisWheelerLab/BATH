@@ -3113,37 +3113,6 @@ p7_alidisplay_DecodePostProb(char pc)
 }
 
 
-/* Function:  p7_alidisplay_Print()
-      if (ad->ntseq[npos+i] == '$') i+=5;  
- * Synopsis:  Human readable output of <P7_ALIDISPLAY>
- *
- * Purpose:   Prints alignment <ad> to stream <fp>.
- *            
- *            Put at least <min_aliwidth> alignment characters per
- *            line; try to make lines no longer than <linewidth>
- *            characters, including name, coords, and spacing.  The
- *            width of lines may exceed <linewidth>, if that's what it
- *            takes to put a name, coords, and <min_aliwidth>
- *            characters of alignment on a line.
- *            
- *            As a special case, if <linewidth> is negative or 0, then
- *            alignments are formatted in a single block of unlimited
- *            line length.
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEWRITE> on write error, such as filling the disk.
- */
-int
-p7_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
-{
-   int status;
-   if((status = p7_frameshift_alidisplay_Print(fp, ad, max_namewidth, min_aliwidth, linewidth, pli)) != eslOK) return status;
-
-     return status;
-}
-
-
 int
 p7_alidiplay_frame(int nuc_from, int nuc_to)
 {
@@ -3163,7 +3132,7 @@ p7_alidiplay_frame(int nuc_from, int nuc_to)
   return frame;
 }
 
-/* Function:  p7_frameshift_alidisplay_Print()
+/* Function:  p7_alidisplay_Print_BATH()
 * Synopsis:  Human readable output of <P7_ALIDISPLAY> for BATH
 *
 * Purpose:   Prints alignment <ad> to stream <fp>.
@@ -3184,7 +3153,7 @@ p7_alidiplay_frame(int nuc_from, int nuc_to)
 * Throws:    <eslEWRITE> on write error, such as filling the disk.
 */
 int
-p7_frameshift_alidisplay_Print(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
+p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli)
 {
   char *buf          = NULL;
   char *show_hmmname = NULL;
@@ -4046,7 +4015,7 @@ main(int argc, char **argv)
           if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
       ad = p7_alidisplay_fs_Create(tr, 0, gm, gm_fs, sqDNA, gcode);
-      p7_alidisplay_Print(stdout, ad, 40, 40, 80, pli);
+      p7_alidisplay_PrintBATH(stdout, ad, 40, 40, 80, pli);
       p7_alidisplay_Destroy(ad);
     }
       p7_trace_Reuse(tr);

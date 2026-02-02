@@ -1436,7 +1436,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 		if (fprintf(ofp, "\n") < 0)
 	      ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
 
-		if ((status = p7_alidisplay_Print(ofp, th->hit[h]->dcl[0].ad, 40, 40, textw, pli)) != eslOK) return status;
+		if ((status = p7_alidisplay_Print_BATH(ofp, th->hit[h]->dcl[0].ad, 40, 40, textw, pli)) != eslOK) return status;
 		  
 		if (fprintf(ofp, "\n") < 0)
 		  ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");

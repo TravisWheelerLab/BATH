@@ -48,7 +48,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   float       *xmx  = gx->xmx;
   float       *ivx  = iv->ivx;
   int          M    = gm_fs->M;
-  int          i,k,c;
+  int          i,k;
   int          c1, c2, c3, c4, c5;
   int          t, u, v, w, x;
   int          ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;

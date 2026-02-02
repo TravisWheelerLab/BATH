@@ -1170,9 +1170,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     ESL_ALLOC(P_orf, sizeof(double) * orf_block->count);
     ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
 
-    prev_k = 0;
-    prev_m = 0;
-
    for(f = 0; f < orf_block->count; f++) {
      curr_orf = &(orf_block->list[f]);
      pli_tmp->oxf_holder[f] = NULL;

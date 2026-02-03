@@ -19,7 +19,7 @@
  *            Given a digital nucleotide sequence <dsq> of length <L>, 
  *            a frameshift aware codon profile <gm_fs>, and DP matrix 
  *            <gx> allocated for at least <L> by <gm_fs->M> cells; 
- *            calculate the maximum scoring path by fremashift-aware 
+ *            calculate the maximum scoring path by frameshift-aware 
  *            Viterbi; return the Viterbi score in <ret_sc>, and the
  *            Viterbi matrix is in <gx>.
  *            
@@ -190,9 +190,6 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
       IMX_FS(i,k) = ESL_MAX(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
                             IMX_FS(i-3,k)        + TSC(p7P_II,k));
 
-      IMX_FS(i,k) = ESL_MAX(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
-                            IMX_FS(i-3,k)        + TSC(p7P_II,k));
-
       DMX_FS(i,k) = ESL_MAX(MMX_FS(i,k-1,p7G_C0) + TSC(p7P_MD,k-1),
                             DMX_FS(i,k-1)        + TSC(p7P_DD,k-1));
 
@@ -251,13 +248,13 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
 
     XMX_FS(i, p7G_E) = -eslINFINITY;
 
-    /* Reasign nucluotide to correct temporary holders for use in emissions array */
+    /* Reasign nucleotide to correct temporary holders for use in emissions array */
     t = u;
     u = v;
     v = w;
     w = x;
 
-    /* if new nucleotide is not A,C,G, or T set it to placeholder vlaue */
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
     else                                            x = p7P_MAXCODONS;
 
@@ -281,7 +278,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     ivx_2 = (i-1) % p7P_5CODONS;
     ivx_3 = (i-2) % p7P_5CODONS;
     ivx_4 = (i-3) % p7P_5CODONS;
-    ivx_5 = (i-5) % p7P_5CODONS;
+    ivx_5 = (i-4) % p7P_5CODONS;
 
     for (k = 1; k < M; k++)
     {

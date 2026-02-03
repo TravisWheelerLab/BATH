@@ -699,27 +699,29 @@ static char banner[] = "benchmark driver for MSVFilter() implementation";
 int
 main(int argc, char **argv)
 {
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
-  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_OPROFILE    *om      = NULL;
-  P7_OMX         *ox      = NULL;
-  P7_GMX         *gx      = NULL;
-  int             L       = esl_opt_GetInteger(go, "-L");
-  int             N       = esl_opt_GetInteger(go, "-N");
-  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
-  int             i;
-  float           sc1, sc2;
-  double          base_time, bench_time, Mcs;
+  ESL_GETOPTS       *go         = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char              *hmmfile    = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH     *w          = esl_stopwatch_Create();
+  ESL_RANDOMNESS    *r          = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET      *abc        = NULL;
+  P7_HMMFILE        *hfp        = NULL;
+  P7_HMM            *hmm        = NULL;
+  P7_BG             *bg         = NULL;
+  P7_PROFILE        *gm         = NULL;
+  P7_OPROFILE       *om         = NULL;
+  P7_OMX            *ox         = NULL;
+  P7_GMX            *gx         = NULL;
+  P7_SCOREDATA      *data       = NULL;
+  P7_HMM_WINDOWLIST  windowlist;
+  int                L          = esl_opt_GetInteger(go, "-L");
+  int                N          = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ           *dsq        = malloc(sizeof(ESL_DSQ) * (L+2));
+  int                i;
+  float              sc1, sc2;
+  double             base_time, bench_time, Mcs;
 
-  if (p7_hmmfile_Open(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
-  if (p7_hmmfile_Read(hfp, &abc, &hmm)           != eslOK) p7_Fail("Failed to read HMM");
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
   bg = p7_bg_Create(abc);
   p7_bg_SetLength(bg, L);
@@ -728,6 +730,9 @@ main(int argc, char **argv)
   om = p7_oprofile_Create(gm->M, abc);
   p7_oprofile_Convert(gm, om);
   p7_oprofile_ReconfigLength(om, L);
+  data = p7_hmm_ScoreDataCreate(om, NULL);
+  windowlist.windows = NULL;
+  p7_hmmwindow_init(&windowlist);
 
   if (esl_opt_GetBoolean(go, "-x")) p7_profile_SameAsMF(om, gm);
 
@@ -749,25 +754,40 @@ main(int argc, char **argv)
 
       /* -c option: compare generic to fast score */
       if (esl_opt_GetBoolean(go, "-c"))
-	{
-	  p7_GMSV    (dsq, L, gm, gx, 2.0, &sc2);
-	  printf("%.4f %.4f\n", sc1, sc2);
-	}
+    {
+      p7_GMSV    (dsq, L, gm, gx, 2.0, &sc2);
+      printf("%.4f %.4f\n", sc1, sc2);
+    }
 
       /* -x option: compare generic to fast score in a way that should give exactly the same result */
       if (esl_opt_GetBoolean(go, "-x"))
-	{
-	  p7_GViterbi(dsq, L, gm, gx, &sc2);
-	  sc2 /= om->scale_b;
-	  if (om->mode == p7_UNILOCAL)   sc2 -= 2.0; /* that's ~ L \log \frac{L}{L+2}, for our NN,CC,JJ */
-	  else if (om->mode == p7_LOCAL) sc2 -= 3.0; /* that's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ */
-	  printf("%.4f %.4f\n", sc1, sc2);
-	}
+    {
+      p7_GViterbi(dsq, L, gm, gx, &sc2);
+      sc2 /= om->scale_b;
+      if (om->mode == p7_UNILOCAL)   sc2 -= 2.0; /* that's ~ L \log \frac{L}{L+2}, for our NN,CC,JJ */
+      else if (om->mode == p7_LOCAL) sc2 -= 3.0; /* that's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ */
+      printf("%.4f %.4f\n", sc1, sc2);
+    }
     }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
   Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
-  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  esl_stopwatch_Display(stdout, w, "# MSV CPU time: ");
+  printf("# M    = %d\n",   gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_SSVFilter_BATH(dsq, L, om, ox, data, bg, 0.02, &windowlist);
+
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# SSV CPU time: ");
   printf("# M    = %d\n",   gm->M);
   printf("# %.1f Mc/s\n", Mcs);
 
@@ -778,6 +798,7 @@ main(int argc, char **argv)
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bg);
   p7_hmm_Destroy(hmm);
+  p7_hmm_ScoreDataDestroy(data);
   p7_hmmfile_Close(hfp);
   esl_alphabet_Destroy(abc);
   esl_stopwatch_Destroy(w);

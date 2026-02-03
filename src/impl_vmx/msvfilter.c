@@ -787,6 +787,7 @@ main(int argc, char **argv)
   esl_stopwatch_Destroy(w);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);
+  if (windowlist.windows != NULL) free (windowlist.windows);
   return 0;
 }
 #endif /*p7MSVFILTER_BENCHMARK*/

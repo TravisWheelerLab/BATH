@@ -75,7 +75,6 @@ main(int argc, char **argv)
   int            status;
   int            hmmidx;
   char           errbuf[eslERRBUFSIZE];
-  float          fsprob;
   int            ct;
   P7_BG          *bg     = NULL;
   ESL_RANDOMNESS *r      = NULL;
@@ -123,29 +122,33 @@ main(int argc, char **argv)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      fsprob = 0.01;
-      ct = esl_opt_GetInteger(go, "--ct");
+      if(esl_opt_IsUsed(go, "--ct")) ct = esl_opt_GetInteger(go, "--ct");
+      else                           ct = hmm->ct;
 
       /* Do we need fs stats */ 
-      if((ct != hmm->ct && hmm->fs) ||
-         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
+      if(hmm->fs || esl_opt_IsUsed(go, "--fs")) {
 
-        hmm->ct = ct;
+        if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+           (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
 
-        if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
-        if(gcode     == NULL) gcode     = esl_gencode_Create(abcDNA, hmm->abc);
-        esl_gencode_Set(gcode, hmm->ct);
+          hmm->fs = TRUE;
+          hmm->ct = ct;
 
-        if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
+          if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
+          if(gcode     == NULL) gcode     = esl_gencode_Create(abcDNA, hmm->abc);
+          esl_gencode_Set(gcode, hmm->ct);
 
-        gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-        p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 100, p7_LOCAL);
+          if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
 
-        p7_fs_Tau_3codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS3] = tau_fs;
+          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
+          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 100, p7_LOCAL);
 
-        p7_fs_Tau_5codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-        hmm->evparam[p7_FTAUFS5] = tau_fs; 
+          p7_fs_Tau_3codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS3] = tau_fs;
+
+          p7_fs_Tau_5codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          hmm->evparam[p7_FTAUFS5] = tau_fs; 
+        }
       }
 
       hmm->ct = ct;

@@ -77,7 +77,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   int             EfL    = ((cfg_b != NULL) ? cfg_b->EfL    : 100);
   int             EfN    = ((cfg_b != NULL) ? cfg_b->EfN    : 200);
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
-  double          lambda, mmu, vmu, tau, vmu_fs, tau_fs3, tau_fs5;
+  double          lambda, mmu, vmu, tau, tau_fs3, tau_fs5;
   int             status;
 
   /* Configure any objects we need

@@ -1522,9 +1522,9 @@ if (*ret_abc == NULL) {
 		if      (strcasecmp(tok2, "VLAMBDA") == 0)  { hmm->evparam[p7_MLAMBDA] = hmm->evparam[p7_VLAMBDA] = hmm->evparam[p7_FLAMBDA] = atof(tok3);  statstracker |= 0x1; }
 		else if (strcasecmp(tok2, "VMU")     == 0)  {                            hmm->evparam[p7_MMU]     = hmm->evparam[p7_VMU]     = atof(tok3);  statstracker |= 0x2; }
 		else if (strcasecmp(tok2, "FTAU")    == 0)  {                                                       hmm->evparam[p7_FTAU]    = atof(tok3);  statstracker |= 0x4; }
-		else if (strcasecmp(tok2, "FTAUFS3") == 0)  { hmm->evparam[p7_FTAUFS3] = atof(tok3); hmm->fs = TRUE; }
-		else if (strcasecmp(tok2, "FTAUFS5") == 0)  { hmm->evparam[p7_FTAUFS5] = atof(tok3); hmm->fs = TRUE; }
-        else if (strcasecmp(tok2, "FSTAU")   == 0)  { hmm->fs = TRUE }
+		else if (strcasecmp(tok2, "FTAUFS3") == 0)  { hmm->evparam[p7_FTAUFS3] = atof(tok3); hmm->fs = TRUE; hmm->fs = TRUE; }
+		else if (strcasecmp(tok2, "FTAUFS5") == 0)  { hmm->evparam[p7_FTAUFS5] = atof(tok3); hmm->fs = TRUE; hmm->fs = TRUE; }
+        else if (strcasecmp(tok2, "FSTAU")   == 0)  { hmm->fs = TRUE; }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }
@@ -1582,8 +1582,6 @@ if (*ret_abc == NULL) {
     } /* end, loop over possible header tags */
   
   if (status != eslOK) goto ERROR;
-
-  if(hmm->evparam[p7_FTAUFS3] == 
 
   /* If we saw one STATS line, we need all 3. (True for both 3/a and 3/b formats) */
   if      (statstracker == 0x7) hmm->flags |= p7H_STATS;

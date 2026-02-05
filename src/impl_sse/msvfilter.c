@@ -439,8 +439,204 @@ p7_SSVFilter_longtarget(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, 
 }
 /*------------------ end, p7_SSVFilter_longtarget() ------------------------*/
 
+/* Function:  p7_SSVFilter_BATH()
+ * Synopsis:  Identical to p7_SSVFilter_longtarget(), except for nullsc is
+ *            computed based on ORF seq length
+ *
+ * Args:      dsq             - digital ORF sequence, 1..L
+ *            L               - length of dsq in residues
+ *            om              - optimized profile
+ *            ox              - DP matrix
+ *            msvdata         - compact representation of substitution scores, for backtracking diagonals
+ *            bg              - the background model, required for translating a P-value threshold into a score threshold
+ *            P               - p-value below which a region is captured as being above threshold
+ *            windowlist      - preallocated container for all hits (resized if necessary)
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <ox> allocation is too small.
+ */
+int
+p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata,
+                        P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist)
+{
+
+  register __m128i mpv;            /* previous row values                                       */
+  register __m128i xEv;		   /* E state: keeps max for Mk->E for a single iteration       */
+  register __m128i xBv;		   /* B state: splatted vector of B[i-1] for B->Mk calculations */
+  register __m128i sv;		   /* temp storage of 1 curr row value in progress              */
+  register __m128i biasv;	   /* emission bias in a vector                                 */
+  int i;			   /* counter over sequence positions 1..L                      */
+  int q;			   /* counter over vectors 0..nq-1                              */
+  int Q        = p7O_NQB(om->M);   /* segment length: # of vectors                              */
+  __m128i *dp  = ox->dpb[0];	   /* we're going to use dp[0][0..q..Q-1], not {MDI}MX(q) macros*/
+  __m128i *rsc;			   /* will point at om->rbv[x] for residue x[i]                 */
+  __m128i tjbmv;                   /* vector for J->B move cost + B->M move costs               */
+  __m128i basev;                   /* offset for scores                                         */
+  __m128i ceilingv;                /* saturated simd value used to test for overflow           */
+  __m128i tempv;                   /* work vector                                               */
+  int cmp;
+  int k;
+  int n;
+  int end;
+  int rem_sc;
+  int start;
+  int target_end;
+  int target_start;
+  int max_end;
+  int max_sc;
+  int sc;
+  int pos_since_max;
+  float nullsc;
+  float ret_sc;
+
+  union { __m128i v; uint8_t b[16]; } u;
+
+  /*
+   * Computing the score required to let P meet the F1 prob threshold
+   * In original code, converting from a scaled int MSV
+   * score S (the score getting to state E) to a probability goes like this:
+   *  usc =  S - om->tec_b - om->tjb_b - om->base_b;
+   *  usc /= om->scale_b;
+   *  usc -= 3.0;
+   *  P = f ( (usc - nullsc) / eslCONST_LOG2 , mu, lambda)
+   * and we're computing the threshold usc, so reverse it:
+   *  (usc - nullsc) /  eslCONST_LOG2 = inv_f( P, mu, lambda)
+   *  usc = nullsc + eslCONST_LOG2 * inv_f( P, mu, lambda)
+   *  usc += 3
+   *  usc *= om->scale_b
+   *  S = usc + om->tec_b + om->tjb_b + om->base_b
+   */
+  __m128i sc_threshv;
+  uint8_t sc_thresh;
+  float invP = esl_gumbel_invsurv(P, om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+
+  /* Check that the DP matrix is ok for us. */
+  if (Q > ox->allocQ16)  ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small");
+  ox->M   = om->M;
+
+  p7_bg_SetLength(bg, L);
+  p7_oprofile_ReconfigMSVLength(om, L);
+  p7_bg_NullOne  (bg, dsq, L, &nullsc);
 
 
+  sc_thresh = (int) ceil( ( ( nullsc  + (invP * eslCONST_LOG2) + 3.0 )  * om->scale_b ) + om->base_b +  om->tec_b  + om->tjb_b );
+  sc_threshv = _mm_set1_epi8((int8_t) 255 - sc_thresh);
+
+  /* Initialization. In offset unsigned  arithmetic, -infinity is 0, and 0 is om->base.
+   */
+  biasv = _mm_set1_epi8((int8_t) om->bias_b); /* yes, you can set1() an unsigned char vector this way */
+  ceilingv = _mm_cmpeq_epi8(biasv, biasv);
+  for (q = 0; q < Q; q++) dp[q] = _mm_setzero_si128();
+
+  basev = _mm_set1_epi8((int8_t) om->base_b);
+  tjbmv = _mm_set1_epi8((int8_t) om->tjb_b + (int8_t) om->tbm_b);
+
+  xBv = _mm_subs_epu8(basev, tjbmv);
+
+  for (i = 1; i <= L; i++) 
+    {
+      rsc = om->rbv[dsq[i]];
+      xEv = _mm_setzero_si128();
+
+      /* Right shifts by 1 byte. 4,8,12,x becomes x,4,8,12.
+       * Because ia32 is littlendian, this means a left bit shift.
+       * Zeros shift on automatically, which is our -infinity.
+       */
+      mpv = _mm_slli_si128(dp[Q-1], 1);
+      for (q = 0; q < Q; q++) {
+        /* Calculate new MMXo(i,q); don't store it yet, hold it in sv. */
+        sv   = _mm_max_epu8(mpv, xBv);
+        sv   = _mm_adds_epu8(sv, biasv);
+        sv   = _mm_subs_epu8(sv, *rsc);   rsc++;
+        xEv  = _mm_max_epu8(xEv, sv);
+        
+        mpv   = dp[q];   	  /* Load {MDI}(i-1,q) into mpv */
+        dp[q] = sv;       	  /* Do delayed store of M(i,q) now that memory is usable */
+      }
+
+      /* test if the pthresh significance threshold has been reached;
+       * note: don't use _mm_cmpgt_epi8, because it's a signed comparison, which won't work on uint8s */
+      tempv = _mm_adds_epu8(xEv, sc_threshv);
+      tempv = _mm_cmpeq_epi8(tempv, ceilingv);
+      cmp = _mm_movemask_epi8(tempv);
+
+      if (cmp != 0) {  //hit pthresh, so add position to list and reset values
+        //figure out which model state hit threshold
+        end = -1;
+        rem_sc = -1;
+        for (q = 0; q < Q; q++) {  /// Unpack and unstripe, so we can find the state that exceeded pthresh
+          u.v = dp[q];
+          for (k = 0; k < 16; k++) { // unstripe
+            //(q+Q*k+1) is the model position k at which the xE score is found
+            if (u.b[k] >= sc_thresh && u.b[k] > rem_sc && (q+Q*k+1) <= om->M) {
+              end = (q+Q*k+1);
+              rem_sc = u.b[k];
+            }
+          }
+          dp[q] = _mm_set1_epi8(0); // while we're here ... this will cause values to get reset to xB in next dp iteration
+        }
+
+        //recover the diagonal that hit threshold
+        start = end;                    // model position
+        target_end = target_start = i;  // target position
+        sc = rem_sc;
+        while (rem_sc > om->base_b - om->tjb_b - om->tbm_b) {
+          rem_sc -= om->bias_b -  ssvdata->ssv_scores[start*om->abc->Kp + dsq[target_start]];
+          --start;
+          --target_start;
+        }
+        start++;
+        target_start++;
+
+
+        //extend diagonal further with single diagonal extension
+        k = end+1;
+        n = target_end+1;
+        max_end = target_end;
+        max_sc = sc;
+        pos_since_max = 0;
+        while (k<om->M && n<=L) {
+          sc += om->bias_b -  ssvdata->ssv_scores[k*om->abc->Kp + dsq[n]];
+          
+          if (sc >= max_sc) {
+            max_sc = sc;
+            max_end = n;
+            pos_since_max=0;
+          } else {
+            pos_since_max++;
+            if (pos_since_max == 5)
+              break;
+          }
+          k++;
+          n++;
+        }
+
+        end  +=  (max_end - target_end);
+        //k    +=  (max_end - target_end);
+        target_end = max_end;
+
+        ret_sc = ((float) (max_sc - om->tjb_b) - (float) om->base_b);
+        ret_sc /= om->scale_b;
+        ret_sc -= 3.0; // that's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ
+
+        p7_hmmwindow_new(  windowlist,
+                           0, 
+                           target_start,       // position in the target at which the diagonal starts
+                           0,                  // position in the target fm_index at which diagonal starts;  not used here, just in FM-based filter
+                           end,                // position in the model at which the diagonal ends
+                           end-start+1 ,       // length of diagonal
+                           ret_sc,             // score of diagonal
+                           p7_NOCOMPLEMENT, 
+                           L
+                           );
+
+        i = target_end; // skip forward
+      }
+    } /* end loop over sequence residues 1..L */
+  return eslOK;
+}
+/*------------------ end, p7_SSVFilter_BATH() ------------------------*/
 
 /*****************************************************************
  * 2. Benchmark driver.
@@ -503,24 +699,26 @@ static char banner[] = "benchmark driver for MSVFilter() implementation";
 int 
 main(int argc, char **argv)
 {
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
-  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_OPROFILE    *om      = NULL;
-  P7_OMX         *ox      = NULL;
-  P7_GMX         *gx      = NULL;
-  int             L       = esl_opt_GetInteger(go, "-L");
-  int             N       = esl_opt_GetInteger(go, "-N");
-  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
-  int             i;
-  float           sc1, sc2;
-  double          base_time, bench_time, Mcs;
+  ESL_GETOPTS       *go         = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char              *hmmfile    = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH     *w          = esl_stopwatch_Create();
+  ESL_RANDOMNESS    *r          = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET      *abc        = NULL;
+  P7_HMMFILE        *hfp        = NULL;
+  P7_HMM            *hmm        = NULL;
+  P7_BG             *bg         = NULL;
+  P7_PROFILE        *gm         = NULL;
+  P7_OPROFILE       *om         = NULL;
+  P7_OMX            *ox         = NULL;
+  P7_GMX            *gx         = NULL;
+  P7_SCOREDATA      *data       = NULL; 
+  P7_HMM_WINDOWLIST  windowlist;
+  int                L          = esl_opt_GetInteger(go, "-L");
+  int                N          = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ           *dsq        = malloc(sizeof(ESL_DSQ) * (L+2));
+  int                i;
+  float              sc1, sc2;
+  double             base_time, bench_time, Mcs;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
@@ -532,6 +730,9 @@ main(int argc, char **argv)
   om = p7_oprofile_Create(gm->M, abc);
   p7_oprofile_Convert(gm, om);
   p7_oprofile_ReconfigLength(om, L);
+  data = p7_hmm_ScoreDataCreate(om, NULL);
+  windowlist.windows = NULL;
+  p7_hmmwindow_init(&windowlist);  
 
   if (esl_opt_GetBoolean(go, "-x")) p7_profile_SameAsMF(om, gm);
 
@@ -571,10 +772,25 @@ main(int argc, char **argv)
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
   Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
-  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  esl_stopwatch_Display(stdout, w, "# MSV CPU time: ");
   printf("# M    = %d\n",   gm->M);
   printf("# %.1f Mc/s\n", Mcs);
 
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_SSVFilter_BATH(dsq, L, om, ox, data, bg, 0.02, &windowlist);
+
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# SSV CPU time: ");
+  printf("# M    = %d\n",   gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+  
   free(dsq);
   p7_omx_Destroy(ox);
   p7_gmx_Destroy(gx);
@@ -582,11 +798,13 @@ main(int argc, char **argv)
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bg);
   p7_hmm_Destroy(hmm);
+  p7_hmm_ScoreDataDestroy(data);
   p7_hmmfile_Close(hfp);
   esl_alphabet_Destroy(abc);
   esl_stopwatch_Destroy(w);
   esl_randomness_Destroy(r);
   esl_getopts_Destroy(go);
+  if (windowlist.windows != NULL) free (windowlist.windows);
   return 0;
 }
 #endif /*p7MSVFILTER_BENCHMARK*/

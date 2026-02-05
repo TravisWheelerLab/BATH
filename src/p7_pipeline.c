@@ -307,239 +307,126 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
  * 2. The pipeline API.
  *****************************************************************/
 
-/* Function:  p7_pli_ExtendAndMergeWindows
- * Synopsis:  Turns a list of ssv diagonals into windows, and merges
- *            overlapping windows.
+/* Function:  p7_pli_ExtendAndMergeWindows_BATH
+ * Synopsis:  Turns a list of ORF ssv diagonals into DNA windows, and 
+ *            merges overlapping windows.
  *
- * Purpose:   Accepts a <windowlist> of SSV diagonals, extends those
- *            to windows based on a combination of the max_length
- *            value from <om> and the prefix and suffix lengths stored
- *            in <data>, then merges (in place) windows that overlap
- *            by more than <pct_overlap> percent, ensuring that windows
- *            stay within the bounds of 1..<L>.
+ * Purpose:   Accepts a <orf_block> of and creates a set of SSV 
+ *            diagonals. For each ORFs best (higest scoreing)
+ *            diagonal, extends those windows based on a combination 
+ *            of the max_length value from <om> and the prefix and 
+ *            suffix lengths stored in <data>, and converts them to
+ *            DNA coordinates. Then merges (in place) windows that 
+ *            overlap by more than <pct_overlap> percent, ensuring 
+ *            that windows stay within the bounds of 1..<L>.
  *
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap) 
-{
+p7_pli_ExtendAndMergeWindows_BATH(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity)
+{ 
 
-  int i;
+  int i, f;
+  int best_window;
+  float best_score;
+  P7_HMM_WINDOWLIST    tmp_windowlist;
   P7_HMM_WINDOW        *prev_window = NULL;
   P7_HMM_WINDOW        *curr_window = NULL;
   int64_t              window_start;
   int64_t              window_end;
   int32_t              window_len;
-  int64_t              tmp;
+  int64_t              overlap_start;
+  int64_t              overlap_end;
+  int32_t              overlap_len;
   int                  new_hit_cnt = 0;
-   if (windowlist->count == 0)
-    return eslOK;
+  ESL_SQ *curr_orf;
 
-  /* extend windows */
-  for (i=0; i<windowlist->count; i++) {
-    curr_window = windowlist->windows+i;
-    
-    if ( curr_window->complementarity == p7_COMPLEMENT) {
-      //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
-      curr_window->n = curr_window->target_len - curr_window->n +  1;
-      window_start   = ESL_MAX( 1                      ,  curr_window->n - curr_window->length - (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) ) ;
-      window_end     = ESL_MIN( curr_window->target_len,  curr_window->n                       + (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) )   ;
-      tmp            = window_end;
-      window_end     = curr_window->target_len - window_start; // +  1;
-      window_start   = curr_window->target_len - tmp ; //+  1;
-      curr_window->n = curr_window->target_len - curr_window->n +  1;
-    } else {
-      // the 0.1 multiplier provides for a small buffer in excess of the predefined prefix/suffix lengths - one proportional to max_length
-      window_start = ESL_MAX( 1                      ,  curr_window->n -                       (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) ) ;
-      window_end   = ESL_MIN( curr_window->target_len,  curr_window->n + curr_window->length + (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) )   ;
+  p7_hmmwindow_init(&tmp_windowlist);
+
+  for(f = 0; f < orf_block->count; f++)
+  {
+    curr_orf = &(orf_block->list[f]);
+  
+    p7_oprofile_ReconfigLength(om, curr_orf->n);
+    p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);    /* expand the one-row omx if needed */ 
+
+    p7_SSVFilter_BATH(curr_orf->dsq, curr_orf->n, om, pli->oxf, data, bg, pli->F1, &tmp_windowlist); 
+
+    if(tmp_windowlist.count == 0) continue; 
+
+    best_window = 0;
+    best_score  = tmp_windowlist.windows[0].score;
+    for(i = 1; i < tmp_windowlist.count; i++) {
+      if(tmp_windowlist.windows[i].score > best_score) {
+        best_window = i;
+        best_score  = tmp_windowlist.windows[i].score;
+      }
     }
-    curr_window->length = window_end - window_start + 1;
-    curr_window->fm_n -= (curr_window->n - window_start);
-    curr_window->n = window_start;
+
+    curr_window = tmp_windowlist.windows+best_window;
+
+    /* Extend ORF coords */
+    window_start = curr_window->n -                       (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1])) + 1;
+    window_end   = curr_window->n + curr_window->length + (om->max_length * (0.1 + data->suffix_lengths[curr_window->k])) - 2;
+
+    window_start = ESL_MIN(0,           window_start); //move start to at least the begining of the ORF
+    window_end   = ESL_MAX(curr_orf->n, window_end);   // move end to at least the end of the ORF    
+
+    /* Convert to DNA coords */
+    if(complementarity) {
+      window_start   = ESL_MAX(1,        (dnasq->n - curr_orf->start + 1) + (window_start * 3));
+      window_end     = ESL_MIN(dnasq->n, (dnasq->n - curr_orf->start + 1) + (window_end * 3));
+    }
+    else {
+      window_start = ESL_MAX(1,        curr_orf->start + (window_start * 3));
+      window_end   = ESL_MIN(dnasq->n, curr_orf->start + (window_end * 3));
+    }
+    
+    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, curr_window->k, window_end-window_start+1, 0.0, complementarity, dnasq->n);    
+
+    tmp_windowlist.count = 0;
   }
+
+  if (tmp_windowlist.windows != NULL) free (tmp_windowlist.windows);
+  
+  if( windowlist->count == 0) return eslOK;
+
+  p7_hmmwindow_SortByStart(windowlist);
+  new_hit_cnt = 0;
 
   /* merge overlapping windows, compressing list in place. */
   for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
 
-    window_start = ESL_MAX(prev_window->n, curr_window->n);
-    window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-    window_len   = window_end - window_start + 1;
+    overlap_start = ESL_MAX(prev_window->n, curr_window->n);
+    overlap_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
+    overlap_len   = overlap_end - overlap_start + 1;
 
-    if (  prev_window->complementarity == curr_window->complementarity &&
-          prev_window->id == curr_window->id &&
-          (float)(window_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap )
+    window_start  = ESL_MIN(prev_window->n, curr_window->n);
+    window_end    = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
+    window_len    = window_end - window_start + 1;
+
+    if(((float)(overlap_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap) &&
+      window_len < ( 2 * (om->max_length * 3)))
     {
-      //merge windows
-      window_start        = ESL_MIN(prev_window->n, curr_window->n);
-      window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-      prev_window->fm_n  -= (prev_window->n - window_start);
-      prev_window->n      = window_start;
-      prev_window->length = window_end - window_start + 1;
-    } else {
+        prev_window->n      = window_start;
+        prev_window->length = window_len;
+    } 
+    else {
       new_hit_cnt++;
       windowlist->windows[new_hit_cnt] = windowlist->windows[i];
     }
   }
-
   windowlist->count = new_hit_cnt+1;
 
   return eslOK;
 }
 
-/* Function:  p7_pli_ExtendAndMergeORFs - BATH 
- * Synopsis:  Creates a DNA window around the coodinated of an ORF 
- *
- * Purpose:   Accepts a <orf_block> of ORFs, extends the DNA coordinates 
- *            based on a combination of the max_length value from <om> 
- *            and the prefix and suffix lengths stored in <data>, then 
- *            merges (in place) ORFs whose DNA coordinates overlap by 
- *            more than <pct_overlap> percent, ensuring that coordinates
- *            stay within the bounds of 1..<dna_sq->L>.
- *
- * Returns:   <eslOK>
- */
-int
-p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dna_sq, P7_PROFILE *gm, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity, int64_t seqidx) { 
-
-  int            i;
-  int            new_hit_cnt;
-
-  int32_t        i_coords, j_coords;          /* original ORF hit coords */
-  int32_t        ext_i_coords, ext_j_coords;  /* extended ORF hit coords */
-  int32_t        k_coords, m_coords;          /* original HMM hit coords */
-  
-  int64_t        window_start, window_end;
-  int64_t        overlap_len;
-  int64_t        max_window_start, min_window_end;
-  int64_t        min_window_start, max_window_end;
- 
-  float          vsc;
-  float          filtersc;
-  float          nullsc;
-  float          seq_score;
-  double         P; 
-  
-  ESL_SQ        *curr_orf      = NULL;
-  P7_HMM_WINDOW *prev_window   = NULL;
-  P7_HMM_WINDOW *curr_window   = NULL;
-  
-  P7_GMX        *vgx           = NULL;
-  P7_TRACE      *vtr           = NULL;
-
-  if (orf_block->count == 0)
-    return eslOK;
-  vgx = p7_gmx_Create(gm->M, 100);
-  vtr = p7_trace_Create();
-
-  /* extend each ORF's DNA coordinates based on the model's max length*/
-  
-  for(i = 0; i < orf_block->count; i++)
-  {
-    curr_orf = &(orf_block->list[i]);
-    p7_gmx_GrowTo(vgx, gm->M, curr_orf->n); 
-    p7_ReconfigLength(gm, curr_orf->n);
-    
-    p7_GViterbi(curr_orf->dsq, curr_orf->n, gm, vgx, &vsc);
-    p7_GTrace(curr_orf->dsq, curr_orf->n, gm, vgx, vtr); 
-    p7_trace_GetDomainCoords(vtr, 0, &i_coords, &j_coords, &k_coords, &m_coords);
-
-	/* Rescore bias based on viterbi alignment */
-    if (pli->do_biasfilter)
-    {
-       p7_bg_SetLength(bg, curr_orf->n);
-       p7_bg_FilterScore(bg, curr_orf->dsq+i_coords-1, (j_coords-i_coords+1), &filtersc);
-
-       /* Subtract out alignment length nullsc and add orf length null score back in */
-       nullsc = (float) (j_coords-i_coords+1) * logf(bg->p1) + logf(1.-bg->p1);
-       filtersc -= nullsc;
-       nullsc = (float) curr_orf->n * logf(bg->p1) + logf(1.-bg->p1);
-       filtersc += nullsc;
-
-       seq_score = (vsc - filtersc) / eslCONST_LOG2;
-       P = esl_gumbel_surv(seq_score, gm->evparam[p7_VMU], gm->evparam[p7_VLAMBDA]);
-       if (P > pli->F2) {
-         p7_gmx_Reuse(vgx);
-         p7_trace_Reuse(vtr);
-         continue;
-       }
-    }
-
-    ext_i_coords = ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
-    ext_j_coords = ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
-     
-    if(complementarity == p7_NOCOMPLEMENT)
-    {
-      window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3));
-      window_end   = ESL_MIN(dna_sq->n, curr_orf->start + (ext_j_coords * 3));
-     
-    }
-    else
-    {
-      window_start   = ESL_MAX(1,         (dna_sq->n - curr_orf->start + 1) + (ext_i_coords * 3));
-      window_end     = ESL_MIN(dna_sq->n, (dna_sq->n - curr_orf->start + 1) + (ext_j_coords * 3)); 
-    }
-    
-    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, k_coords, window_end-window_start+1, 0.0, complementarity, dna_sq->n);
-    p7_gmx_Reuse(vgx);
-    p7_trace_Reuse(vtr);
-  }
-
-
-  if(windowlist->count == 0) {
-    p7_gmx_Destroy(vgx);
-    p7_trace_Destroy(vtr);
-    return eslOK;
-  }
-
-  p7_hmmwindow_SortByStart(windowlist); 
-  new_hit_cnt = 0;
-   
-   /* merge overlapping windows, compressing list in place. */
-   
-   for (i=1; i<windowlist->count; i++) {
-    prev_window = windowlist->windows+new_hit_cnt;
-    curr_window = windowlist->windows+i;
-    
-    max_window_start =  ESL_MAX(prev_window->n, curr_window->n);
-    min_window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-    overlap_len   = min_window_end - max_window_start + 1;
-    
-    if (  prev_window->complementarity == curr_window->complementarity &&
-          (float)(overlap_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap )
-    {
-
-      min_window_start        = ESL_MIN(prev_window->n, curr_window->n);
-      max_window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-      /* If length of merged window would not be too long then merge windows */
-
-      if((max_window_end -  min_window_start + 1) < (2 * (gm->max_length * 3))) 
-      {
-        prev_window->fm_n  -= (prev_window->n - min_window_start);
-        prev_window->n      = min_window_start;
-        prev_window->length = max_window_end - min_window_start + 1;
-      } else {
-        new_hit_cnt++;
-        windowlist->windows[new_hit_cnt] = windowlist->windows[i];
-      }
-    } else {
-      new_hit_cnt++;
-      windowlist->windows[new_hit_cnt] = windowlist->windows[i];
-    }
-  }
-  
-  windowlist->count = new_hit_cnt+1;
-
-  p7_gmx_Destroy(vgx);
-  p7_trace_Destroy(vtr);
-  return eslOK;
-}
 
 
 
-
-/* Function:  p7_pli_fs_GetPosPast
+/* Function:  p7_pli_etPosPast_BATH
  * Synopsis:  Counts DNA positions passing MSV, Viterbi or Forward filter as ORFs 
  *
  * Purpose:    Uses ORF start and end positons on the DNA sequence to 
@@ -932,6 +819,7 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_
       dom->jenv       = dnasq->start - (window_start + dom->jenv) + 2;
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2;
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
+	  
     }
     
     /* Adjust score from env_len to max window length. Note that the loop and move costs */ 
@@ -1294,7 +1182,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     
     ESL_ALLOC(P_orf, sizeof(double) * orf_block->count);
     ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
-   
+
    for(f = 0; f < orf_block->count; f++) {
      curr_orf = &(orf_block->list[f]);
      pli_tmp->oxf_holder[f] = NULL;
@@ -1310,6 +1198,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
   
      /* Only process ORF if it belongs to the current window */ 
      if(orf_start >= window_start && orf_end <= window_end) { 
+
        p7_bg_SetLength(bg, curr_orf->n);
        p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);
          
@@ -1332,17 +1221,8 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
        P_orf[f] = esl_exp_surv(seqscore_orf,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]); 
        min_P_orf = ESL_MIN(min_P_orf, P_orf[f]);  
         
-       /* Sum the scores of all ORFs in the window (without bias). 
-        * If there are multiple ORFs, and thier Viterbi trace 
-        * coordinates are within 20 Amino Acids, assume these are 
-        * exons and remove addtional core model entry cost to 
-        * simulate the use of an intron state rather than a J state*/  
-        
-       if(tot_orf_sc != -eslINFINITY) {
-         tot_orf_sc =  p7_FLogsum(tot_orf_sc, (fwdsc_orf - gm->tsc[p7P_NTRANS+p7P_BM]));
-       } 
-       else  { tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf); }
-       
+       tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf); 
+    
       }
     }
     tot_orf_P = esl_exp_surv(tot_orf_sc / eslCONST_LOG2,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
@@ -1375,7 +1255,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
-  
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
   
     pli->pos_past_fwd += dna_window->length; 
@@ -1794,8 +1673,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
     p7_hmmwindow_init(&post_vit_windowlist);  
     
-    p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx); 
-  
+    p7_pli_ExtendAndMergeWindows_BATH(pli, post_vit_orf_block, dnasq, om, bg, data, &post_vit_windowlist, 0., complementarity); 
+
     /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
@@ -1887,18 +1766,17 @@ ERROR:
   int
 p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
 {
-  double ntargets; 
 
   fprintf(ofp, "Internal pipeline statistics summary:\n");
   fprintf(ofp, "-------------------------------------\n");
   if (pli->mode == p7_SEARCH_SEQS) {
     fprintf(ofp, "Query model(s):              %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
     fprintf(ofp, "Target %-12s          %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
-    ntargets = pli->nseqs;
+    
   } else {
     fprintf(ofp, "Query %-12s           %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
     fprintf(ofp, "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
-    ntargets = pli->nmodels;
+    
   }
 
   fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",

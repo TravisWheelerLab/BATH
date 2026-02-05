@@ -1506,9 +1506,9 @@ if (*ret_abc == NULL) {
 		if      (strcasecmp(tok2, "MSV")     == 0)     { hmm->evparam[p7_MMU]  = atof(tok3);   hmm->evparam[p7_MLAMBDA] = atof(tok4); statstracker |= 0x1; }
 		else if (strcasecmp(tok2, "VITERBI") == 0)     { hmm->evparam[p7_VMU]  = atof(tok3);   hmm->evparam[p7_VLAMBDA] = atof(tok4); statstracker |= 0x2; }
 		else if (strcasecmp(tok2, "FORWARD") == 0)     { hmm->evparam[p7_FTAU] = atof(tok3);   hmm->evparam[p7_FLAMBDA] = atof(tok4); statstracker |= 0x4; }
-        else if (strcasecmp(tok2, "FS3")     == 0)     { hmm->evparam[p7_FTAUFS3] = atof(tok4); }
-		else if (strcasecmp(tok2, "FS5")     == 0)     { hmm->evparam[p7_FTAUFS5] = atof(tok4); }
-        else if (strcasecmp(tok2, "FS")      == 0)     { /* Outdated statistic */}
+        else if (strcasecmp(tok2, "FS3")     == 0)     { hmm->evparam[p7_FTAUFS3] = atof(tok4); hmm->fs = TRUE; }
+		else if (strcasecmp(tok2, "FS5")     == 0)     { hmm->evparam[p7_FTAUFS5] = atof(tok4); hmm->fs = TRUE; }
+        else if (strcasecmp(tok2, "FS")      == 0)     { hmm->fs = TRUE; }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }
@@ -1522,9 +1522,9 @@ if (*ret_abc == NULL) {
 		if      (strcasecmp(tok2, "VLAMBDA") == 0)  { hmm->evparam[p7_MLAMBDA] = hmm->evparam[p7_VLAMBDA] = hmm->evparam[p7_FLAMBDA] = atof(tok3);  statstracker |= 0x1; }
 		else if (strcasecmp(tok2, "VMU")     == 0)  {                            hmm->evparam[p7_MMU]     = hmm->evparam[p7_VMU]     = atof(tok3);  statstracker |= 0x2; }
 		else if (strcasecmp(tok2, "FTAU")    == 0)  {                                                       hmm->evparam[p7_FTAU]    = atof(tok3);  statstracker |= 0x4; }
-		else if (strcasecmp(tok2, "FTAUFS3") == 0)  { hmm->evparam[p7_FTAUFS3] = atof(tok3); }
-		else if (strcasecmp(tok2, "FTAUFS5") == 0)  { hmm->evparam[p7_FTAUFS5] = atof(tok3); }
-        else if (strcasecmp(tok2, "FSTAU")   == 0)     { /* Outdated statistic */}
+		else if (strcasecmp(tok2, "FTAUFS3") == 0)  { hmm->evparam[p7_FTAUFS3] = atof(tok3); hmm->fs = TRUE; hmm->fs = TRUE; }
+		else if (strcasecmp(tok2, "FTAUFS5") == 0)  { hmm->evparam[p7_FTAUFS5] = atof(tok3); hmm->fs = TRUE; hmm->fs = TRUE; }
+        else if (strcasecmp(tok2, "FSTAU")   == 0)  { hmm->fs = TRUE; }
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }

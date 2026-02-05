@@ -77,7 +77,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   int             EfL    = ((cfg_b != NULL) ? cfg_b->EfL    : 100);
   int             EfN    = ((cfg_b != NULL) ? cfg_b->EfN    : 200);
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
-  double          lambda, mmu, vmu, tau, vmu_fs, tau_fs3, tau_fs5;
+  double          lambda, mmu, vmu, tau, tau_fs3, tau_fs5;
   int             status;
 
   /* Configure any objects we need
@@ -137,7 +137,6 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   hmm->evparam[p7_MMU]      = om->evparam[p7_MMU]     = mmu;
   hmm->evparam[p7_VMU]      = om->evparam[p7_VMU]     = vmu;
   hmm->evparam[p7_FTAU]     = om->evparam[p7_FTAU]    = tau;
-  hmm->evparam[p7_VMUFS]    = (cfg_b != NULL && cfg_b->fs) ? vmu_fs  : p7_EVPARAM_UNSET;
   hmm->evparam[p7_FTAUFS3]  = (cfg_b != NULL && cfg_b->fs) ? tau_fs3 : p7_EVPARAM_UNSET;
   hmm->evparam[p7_FTAUFS5]  = (cfg_b != NULL && cfg_b->fs) ? tau_fs5 : p7_EVPARAM_UNSET;
   

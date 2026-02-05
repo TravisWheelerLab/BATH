@@ -1119,10 +1119,11 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   if (pli->show_accessions) namew = ESL_MAX(8, p7_tophits_GetMaxShownLength(th));
   else                      namew = ESL_MAX(8, p7_tophits_GetMaxNameLength(th));
 
+  posw = ESL_MAX(6, p7_tophits_GetMaxPositionLength(th));
+
   if (textw >  0)           descw = ESL_MAX(32, textw - namew - 2*posw - 32); /* 32 chars excluding desc and two posw's is from the format: 2 + 9+2 +6+2 +5+2 +<name>+1 +<startpos>+1 +<endpos>+1 +1 */
   else                      descw = 0;                               /* unlimited desc length is handled separately */
 
-  posw = ESL_MAX(6, p7_tophits_GetMaxPositionLength(th));
 
   if (fprintf(ofp, "Scores for complete hit%s:\n",     pli->mode == p7_SEARCH_SEQS ? "s" : "") < 0)
     ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");

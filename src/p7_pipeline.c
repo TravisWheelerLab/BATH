@@ -364,10 +364,10 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
          continue;
        }
     }
-
+    
     ext_i_coords = ESL_MIN(0,           (i_coords - (gm->max_length * (0.1 + data->prefix_lengths[k_coords]))-1)); //negeative numbers
     ext_j_coords = ESL_MAX(curr_orf->n, (j_coords + (gm->max_length * (0.1 + data->suffix_lengths[m_coords]))+1)); //positive numbers
-     
+    
     if(complementarity == p7_NOCOMPLEMENT)
     {
       window_start = ESL_MAX(1,         curr_orf->start + (ext_i_coords * 3));
@@ -396,7 +396,6 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
   new_hit_cnt = 0;
    
    /* merge overlapping windows, compressing list in place. */
-   
    for (i=1; i<windowlist->count; i++) {
     prev_window = windowlist->windows+new_hit_cnt;
     curr_window = windowlist->windows+i;
@@ -449,50 +448,73 @@ p7_pli_ExtendAndMergeORFs (P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dn
  * Returns:   <eslOK>
  */
 int
-p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap) {
+p7_pli_ExtendAndMergeWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, int complementarity)
+{ 
 
-  int i;
+  int i, f;
+  int best_window;
+  float best_score;
+  P7_HMM_WINDOWLIST    tmp_windowlist;
   P7_HMM_WINDOW        *prev_window = NULL;
   P7_HMM_WINDOW        *curr_window = NULL;
   int64_t              window_start;
   int64_t              window_end;
   int32_t              window_len;
-  int64_t              tmp;
   int                  new_hit_cnt = 0;
+  ESL_SQ *curr_orf;
 
-  if (windowlist->count == 0)
-    return eslOK;
+  p7_hmmwindow_init(&tmp_windowlist);
 
-  /* extend windows */
-  for (i=0; i<windowlist->count; i++) {
+  for(f = 0; f < orf_block->count; f++)
+  {
+    curr_orf = &(orf_block->list[f]);
+  
+    p7_oprofile_ReconfigLength(om, curr_orf->n);
+    p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);    /* expand the one-row omx if needed */ 
 
-    curr_window = windowlist->windows+i;
+    p7_SSVFilter_BATH(curr_orf->dsq, curr_orf->n, om, pli->oxf, data, bg, 0.05, &tmp_windowlist); //0.05 = S1 
 
-    if ( curr_window->complementarity == p7_COMPLEMENT) {
-      //flip for complement (then flip back), so the min and max bounds allow for appropriate overlap into neighboring segments in a multi-segment FM sequence
-      curr_window->n = curr_window->target_len - curr_window->n +  1;
+    if(tmp_windowlist.count == 0) continue;
 
-      window_start   = ESL_MAX( 1                      ,  curr_window->n - curr_window->length - (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) ) ;
-      window_end     = ESL_MIN( curr_window->target_len,  curr_window->n                       + (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) )   ;
-      tmp            = window_end;
-      window_end     = curr_window->target_len - window_start; // +  1;
-      window_start   = curr_window->target_len - tmp ; //+  1;
-
-      curr_window->n = curr_window->target_len - curr_window->n +  1;
-
-    } else {
-
-      // the 0.1 multiplier provides for a small buffer in excess of the predefined prefix/suffix lengths - one proportional to max_length
-      window_start = ESL_MAX( 1                      ,  curr_window->n -                       (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1]  )) ) ;
-      window_end   = ESL_MIN( curr_window->target_len,  curr_window->n + curr_window->length + (om->max_length * (0.1 + data->suffix_lengths[curr_window->k] ) ) )   ;
+    best_window = 0;
+    best_score  = tmp_windowlist.windows[0].score;
+    for(i = 1; i < tmp_windowlist.count; i++) {
+      if(tmp_windowlist.windows[i].score > best_score) {
+        best_window = i;
+        best_score  = tmp_windowlist.windows[i].score;
+      }
     }
 
-    curr_window->length = window_end - window_start + 1;
+    curr_window = tmp_windowlist.windows+best_window;
 
-    curr_window->fm_n -= (curr_window->n - window_start);
-    curr_window->n = window_start;
+    /* Extend ORF coords */
+    window_start = curr_window->n -                       (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1])) + 1;
+    window_end   = curr_window->n + curr_window->length + (om->max_length * (0.1 + data->suffix_lengths[curr_window->k])) - 2;
+
+    window_start = ESL_MIN(0,           window_start); //move start to at least the begining of the ORF
+    window_end   = ESL_MAX(curr_orf->n, window_end);   // move end to at least the end of the ORF    
+
+    /* Convert to DNA coords */
+    if(complementarity) {
+      window_start   = ESL_MAX(1,        (dnasq->n - curr_orf->start + 1) + (window_start * 3));
+      window_end     = ESL_MIN(dnasq->n, (dnasq->n - curr_orf->start + 1) + (window_end * 3));
+    }
+    else {
+      window_start = ESL_MAX(1,        curr_orf->start + (window_start * 3));
+      window_end   = ESL_MIN(dnasq->n, curr_orf->start + (window_end * 3));
+    }
+
+    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, curr_window->k, window_end-window_start+1, 0.0, complementarity, dnasq->n);    
+
+    tmp_windowlist.count = 0;
   }
 
+  if (tmp_windowlist.windows != NULL) free (tmp_windowlist.windows);
+  
+  if( windowlist->count == 0) return eslOK;
+
+  p7_hmmwindow_SortByStart(windowlist);
+  new_hit_cnt = 0;
 
   /* merge overlapping windows, compressing list in place. */
   for (i=1; i<windowlist->count; i++) {
@@ -503,19 +525,13 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
     window_end   = ESL_MIN(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
     window_len   = window_end - window_start + 1;
 
-    if (  prev_window->complementarity == curr_window->complementarity &&
-          prev_window->id == curr_window->id &&
-          (float)(window_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap // &&
-          //curr_window->n + curr_window->length >=  prev_window->n + prev_window->length
-          )
+    if(((float)(window_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap) &&
+      window_len < (2 * (om->max_length * 3)))
     {
-      //merge windows
-      window_start        = ESL_MIN(prev_window->n, curr_window->n);
-      window_end          = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
-      prev_window->fm_n  -= (prev_window->n - window_start);
-      prev_window->n      = window_start;
-      prev_window->length = window_end - window_start + 1;
-    } else {
+        prev_window->n      = window_start;
+        prev_window->length = window_len;
+    } 
+    else {
       new_hit_cnt++;
       windowlist->windows[new_hit_cnt] = windowlist->windows[i];
     }
@@ -524,6 +540,9 @@ p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *data, P7_HMM_
 
   return eslOK;
 }
+
+
+
 
 
 /* Function:  p7_pli_etPosPast_BATH
@@ -1615,6 +1634,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   ESL_SQ            *orfsq;               /* ORF sequence                            */
   ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */
   P7_HMM_WINDOWLIST  post_vit_windowlist; /* list of windows from ORFs that pass viterbi */
+  P7_HMM_WINDOWLIST  tmp_windowlist;
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;  /* number of nucleotieds passing filters */
   P7_PIPELINE_BATH_OBJS *pli_tmp;   
 
@@ -1624,6 +1644,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   post_vit_orf_block = NULL;
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_windowlist.windows = NULL;
+  tmp_windowlist.windows = NULL;
 
   msv_coords = NULL;
   bias_coords = NULL;
@@ -1727,9 +1748,12 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   
     /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
     p7_hmmwindow_init(&post_vit_windowlist);  
+    p7_hmmwindow_init(&tmp_windowlist);
     
-    p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx); 
-  
+   p7_pli_ExtendAndMergeORFs (pli, post_vit_orf_block, dnasq, gm, bg, data, &post_vit_windowlist, 0., complementarity, seqidx); 
+   
+    p7_pli_ExtendAndMergeWindows(pli, post_vit_orf_block, dnasq, om, bg, data, &tmp_windowlist, 0., complementarity); 
+
     /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
@@ -1771,6 +1795,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     free(pli_tmp);
   }
   if (post_vit_windowlist.windows != NULL) free (post_vit_windowlist.windows); 
+  if (tmp_windowlist.windows != NULL) free (tmp_windowlist.windows);  
+  
 
   return eslOK;
 
@@ -1822,18 +1848,17 @@ ERROR:
   int
 p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
 {
-  double ntargets; 
 
   fprintf(ofp, "Internal pipeline statistics summary:\n");
   fprintf(ofp, "-------------------------------------\n");
   if (pli->mode == p7_SEARCH_SEQS) {
     fprintf(ofp, "Query model(s):              %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
     fprintf(ofp, "Target %-12s          %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
-    ntargets = pli->nseqs;
+    
   } else {
     fprintf(ofp, "Query %-12s           %15" PRId64 "  (%" PRId64 " residues searched)\n", "sequence(s):", pli->nseqs,   pli->nres);
     fprintf(ofp, "Target model(s):             %15" PRId64 "  (%" PRId64 " nodes)\n",     pli->nmodels, pli->nnodes);
-    ntargets = pli->nmodels;
+    
   }
 
   fprintf(ofp, "Residues passing SSV filter: %15" PRId64 "  (%.3g); expected (%.3g)\n",

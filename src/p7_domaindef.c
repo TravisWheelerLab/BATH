@@ -1005,7 +1005,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
 
   P7_DOMAIN     *dom           = NULL;
   P7_GMX        *gxppfs        = NULL;
-  P7_GMX        *gxv           = NULL;
   int            Ld            = j-i+1;
   int            z1, z2;
   float          domcorrection = 0.0;
@@ -1055,35 +1054,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   dom->scores_per_pos = NULL; 
   dom->aliscore       = 0.0; 
  
-  p7_splice_ComputeAliScores_fs(dom, ddef->tr, windowsq, gm_fs, bg, FALSE); 
-
-  /* In rare cases the fwd/bwd agorithms produce low quality alignments, 
-   * particularly when short hits are algined to long modles.  When this 
-   * happens we replace it with a viterbi alignment */
-  if(dom->aliscore < 0.0 ) {
-//TODO Maybe get rid of this  
-    p7_trace_Reuse(ddef->tr);
-    gxv = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_5CODONS);
-
-    p7_Viterbi_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gxv, iv, NULL);
-    p7_VTrace_Frameshift(windowsq->dsq+i-1, Ld, gm_fs, gxv, ddef->tr); 
-    p7_trace_fs_SetPP(ddef->tr, gx1);
-
-    for (z = 0; z < ddef->tr->N; z++)
-      if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
-
-    p7_trace_fs_Index(ddef->tr);
-
-    p7_gmx_Destroy(gxv);
-
-    if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
-    dom->scores_per_pos = NULL;
-    dom->aliscore       = 0.0;
-
-    if(ddef->splice) p7_splice_ComputeAliScores_fs(dom, ddef->tr, windowsq, gm_fs, bg, FALSE);
-  }
-
-     /* Compute bias correction */
+  /* Compute bias correction */
   p7_Null2_fs_ByExpectation(gm_fs, gxppfs, null2);
 
   t = u = v = w = x = -1;
@@ -1175,16 +1146,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   dom->is_included   = FALSE; /* gets set later by caller */
   dom->tr            = p7_trace_fs_Clone(ddef->tr); 
 
-  if(ddef->splice) {
-    p7_bg_SetLength(bg, dom->jali-dom->iali+1);
-    p7_bg_fs_NullOne(bg, windowsq->dsq, dom->jali-dom->iali+1, &null1);
-    dom->aliscore -= (dom->domcorrection + null1);      
-  }
-  else if(dom->scores_per_pos != NULL) {
-    free(dom->scores_per_pos);
-    dom->scores_per_pos = NULL;
-  }
-
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);
   p7_gmx_Destroy(gxppfs);
@@ -1194,7 +1155,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
  ERROR:
   p7_trace_Reuse(ddef->tr);
   p7_gmx_Destroy(gxppfs);
-  p7_gmx_Destroy(gxv);
   return eslEMEM;
 }
 

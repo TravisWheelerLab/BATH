@@ -1023,6 +1023,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 0 : -eslINFINITY;
   int          t, u, v, w, x;
 
+
   for(k = 0; k <= M; k++)
     ivx[k] = -eslINFINITY;
 
@@ -1394,6 +1395,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
   for(k = 0; k <= M; k++)
     ivx[k] = -eslINFINITY;
+
 
   /* Initialization of row L and L-1  */
   XMX(L,p7G_C)   =                               gm_fs->xsc[p7P_C][p7P_MOVE];
@@ -2247,9 +2249,10 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
   P7_GMX      *bck_p  = NULL;
   P7_GMX      *fwd    = NULL;
   P7_GMX      *bck    = NULL;
+  P7_GMX      *vit    = NULL;
   P7_IVX      *iv     = NULL;
   int         idx;
-  float       fsc, bsc;
+  float       vsc, fsc, bsc;
   float       fsc_p, bsc_p;
   float       nullsc;
 
@@ -2262,12 +2265,12 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
   if ((bck_p  = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L, 0))           == NULL)  esl_fatal("matrix creation failed");
   if ((fwd    = p7_gmx_fs_Create(gm_fs->M, L,               L, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
   if ((bck    = p7_gmx_fs_Create(gm_fs->M, L,               L, 0))           == NULL)  esl_fatal("matrix creation failed");
+  if ((vit    = p7_gmx_fs_Create(gm_fs->M, L,               L, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
   if ((tr     = p7_trace_Create())                                           == NULL)  esl_fatal("trace creation failed");
   if ((iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS))                        == NULL)  esl_fatal("ivx creation failed");
 
-
-  /* Compare Forward and Backward scores when aligneing to DAN sequences reverse translated 
-     from randomly generate Amni Acid Sequences. Keep track of the average Forward score */
+  /* Compare Viterbi, Forward, and Backward scores when aligneing to DNA sequences reverse translated 
+     from randomly generated Amnio Acid sequences. Keep track of the average Forward score */
   avg_sc_rnd = 0.;
   for (idx = 0; idx < nseq; idx++)
     {
@@ -2277,10 +2280,11 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
         p7_codontable_GetCodon(codon_table, r, dsqAA[i], dsqDNA+j);
         j+=3;
 	  }
-
+      if (p7_Viterbi_Frameshift(dsqDNA, gcode, L, gm_fs, vit, iv, &vsc)      != eslOK) esl_fatal("viterbi failed");
       if (p7_Forward_Frameshift(dsqDNA, gcode, L, gm_fs, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
       if (p7_Backward_Frameshift(dsqDNA, gcode, L, gm_fs, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
-      
+     
+      if (fsc < vsc)             esl_fatal("Forward score can't be less than Viterbi score"); 
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
 
       if (p7_bg_fs_NullOne(bgAA, dsqAA, (L/3), &nullsc)      != eslOK) esl_fatal("null score failed");
@@ -2305,6 +2309,12 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
 
       if (esl_opt_GetBoolean(go, "--vv")) 
         printf("utest_forward_fs: Forward score on random sequence len %d: %.4f (total so far: %.4f)\n", L, fsc, avg_sc_rnd);
+
+      p7_gmx_Reuse(fwd_p);
+      p7_gmx_Reuse(bck_p);
+      p7_gmx_Reuse(fwd);
+      p7_gmx_Reuse(bck);
+      p7_gmx_Reuse(vit);
     }
 
   avg_sc_rnd /= (float) nseq;
@@ -2350,6 +2360,7 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
   p7_gmx_Destroy(bck_p);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(bck);
+  p7_gmx_Destroy(vit);
   p7_ivx_Destroy(iv);
   p7_trace_Destroy(tr);
   free(dsqAA);

@@ -382,7 +382,7 @@ p7_pli_ExtendAndMergeWindows_BATH(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL
       window_end   = ESL_MIN(dnasq->n, curr_orf->start + (window_end * 3));
     }
     
-    p7_hmmwindow_new(windowlist, 0, window_start, window_start-1, curr_window->k, window_end-window_start+1, 0.0, complementarity, dnasq->n);    
+    p7_hmmwindow_new(windowlist, 0, window_start, curr_window->k, window_end-window_start+1, 0.0, complementarity, dnasq->n);    
 
     tmp_windowlist.count = 0;
   }
@@ -1121,13 +1121,12 @@ ERROR:
  */
 static int
 p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist,  
-                              int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode,
-                             P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity, SPLICE_SAVED_HITS *saved_hits)
+                                   int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode,
+                                   P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
-  int              f,w;
+  int              f;
   int              status;
-  int                old_window_cnt; 
   int64_t          window_start, window_end;
   int64_t          orf_start, orf_end; 
   ESL_DSQ         *subseq;                     /* current DNA window holder                    */ 
@@ -1142,12 +1141,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
   double           tot_orf_P;                  /* P-value of summed forward score for all ORFs */
   double           min_P_orf;                  /* lowest p-value produced by an ORF */
   double          *P_orf;                      /* list of standard forward P-values for each ORf*/
-  P7_HMM_WINDOWLIST  ssv_windowlist;      /* list of ORF windows from SSV for splicing */
-  P7_HMM_WINDOW     *window;
-  SPLICE_HIT_INFO *hit_info;
-
-  ssv_windowlist.windows = NULL;
-  if(pli->spliced) p7_hmmwindow_init(&ssv_windowlist); 
 
   pli_tmp->oxf_holder = NULL;
 
@@ -1156,12 +1149,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
   /* Get true coords */
   window_start = complementarity ? dnasq->start - (dna_window->n + dna_window->length) : dnasq->start + dna_window->n - 1; 
   window_end   = complementarity ? dnasq->start - dna_window->n + 1 : window_start + dna_window->length - 1;
-
-  /*set up seq object for domaindef function*/
-  if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
-  if ((status = esl_sq_SetSource   (pli_tmp->tmpseq, dnasq->source)) != eslOK) goto ERROR;
-  if ((status = esl_sq_SetAccession(pli_tmp->tmpseq, dnasq->acc))    != eslOK) goto ERROR;
-  if ((status = esl_sq_SetDesc     (pli_tmp->tmpseq, dnasq->desc))   != eslOK) goto ERROR;
 
   pli_tmp->tmpseq->L = dna_window->length;
   pli_tmp->tmpseq->n = dna_window->length;
@@ -1173,6 +1160,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
   tot_orf_P  = eslINFINITY;
   min_P_orf  = eslINFINITY;
   P_orf = NULL;
+
   /* If this search is using the standard translation pipeline
    *  (user did not specify --fsonly) than run the standard
    *  Foward on every ORF that is within the current window */ 
@@ -1291,43 +1279,9 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
      
       if(orf_start >= window_start && orf_end <= window_end) {
 
-        if(pli->spliced) {
-      
-          old_window_cnt = ssv_windowlist.count;
-          p7_SSVFilter_BATH(curr_orf->dsq, curr_orf->n, om, pli->oxf, data, bg, pli->F1, &ssv_windowlist);
-         
-          for(w = old_window_cnt; w < ssv_windowlist.count; w++) {
-            window = &(ssv_windowlist.windows[w]);
-  
-            p7_splicehits_CreateNext(saved_hits, &hit_info);       
-           
-            hit_info->seqidx    = seqidx;
-            hit_info->strand    = complementarity;
-            hit_info->duplicate = FALSE;
-            hit_info->is_seed   = FALSE;
-            hit_info->fwd       = FALSE; 
- 
-            hit_info->hmm_start = window->k - window->length + 1;
-            hit_info->hmm_end   = window->k;
-            if(complementarity) {
-              hit_info->seq_start = dnasq->end + curr_orf->start - (window->n*3) + 2;
-              hit_info->seq_end   = dnasq->end + curr_orf->start - ((window->n+window->length-1)*3);
-            }
-            else {
-              hit_info->seq_start = dnasq->start + curr_orf->start + (window->n*3) - 4;
-              hit_info->seq_end   = dnasq->start + curr_orf->start + ((window->n+window->length-1)*3) - 2;
-            }
-          }
-        }
-
         /* Ensure current ORF is within the current window and that it passed the Forward filter */
         if(P_orf[f] <= pli->F3) { 
  
-          if(pli->spliced) {
-            for(w = 1; w <= ssv_windowlist.count - old_window_cnt ; w++) 
-              saved_hits->unsrt[saved_hits->N - w].fwd = TRUE; 
-          } 
-
           pli->pos_past_fwd += curr_orf->n * 3;
           p7_oprofile_ReconfigLength(om, curr_orf->n);
           p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);     
@@ -1357,8 +1311,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     free(pli_tmp->oxf_holder);
   } 
     
-  if (ssv_windowlist.windows != NULL)      free (ssv_windowlist.windows);
-
   return eslOK;
 
 ERROR:
@@ -1410,12 +1362,12 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity
-)
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, P7_SCOREDATA *data, P7_HMM_WINDOWLIST *splcing_windows, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
-  int              f;
+  int              f, w;
   int              status;
+  int              old_window_cnt;
   int64_t          orf_start, orf_end;
   float            fwdsc;                      /* forward scores                               */
   float            nullsc;                     /* ORF null score for forward filter            */
@@ -1423,7 +1375,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
   float            seqscore;                   /* the corrected per-seq bit score              */
   double           P;                          /* lowest p-value produced by an ORF */
   ESL_SQ          *curr_orf;                   /* current ORF holder                           */
-
+  P7_HMM_WINDOW   *window;
 
   /*set up seq object for domaindef function*/
   if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
@@ -1462,6 +1414,28 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS
     p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, &fwdsc);
     seqscore = (fwdsc-filtersc) / eslCONST_LOG2;
     P = esl_exp_surv(seqscore,  om->evparam[p7_FTAU],  om->evparam[p7_FLAMBDA]);
+
+    /*Create exon seeds for apliced alignments */
+    if(pli->spliced) {
+      
+      old_window_cnt = splcing_windows->count;
+      p7_SSVFilter_BATH(curr_orf->dsq, curr_orf->n, om, pli->oxf, data, bg, pli->F1, splcing_windows);
+         
+      for(w = old_window_cnt; w < splcing_windows->count; w++) {
+
+        window = &(splcing_windows->windows[w]);
+
+        window->id = seqidx; 
+        window->complementarity = complementarity;
+        if(complementarity)
+          window->n = dnasq->end + curr_orf->start - ((window->n+window->length-1)*3); 
+        else
+          window->n = dnasq->start + curr_orf->start + (window->n*3) - 4;
+        window->length *= 3;
+  
+        if(P <= pli->F3) window->pass_forward = TRUE;  
+      }
+    }
 
     if (P > pli->F3) continue; 
 
@@ -1545,7 +1519,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity, SPLICE_SAVED_HITS *saved_hits)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, P7_HMM_WINDOWLIST *splcing_windows, int complementarity)
 {
 
   int                i;
@@ -1556,7 +1530,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   float              seq_score;           /* null corrected bit score                */
   float              filtersc;            /* bias and null score                     */
   double             P;                   /* p-value holder                          */
-  int                window_len;          /* length of DNA window                    */
   int                min_length;          /* minimum number of nucs passing a filter */
   ESL_SQ            *orfsq;               /* ORF sequence                            */
   ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */
@@ -1662,14 +1635,24 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
   pli->pos_past_bias += ESL_MAX(p7_pli_fs_GetPosPast(bias_coords), min_length);
   pli->pos_past_vit += ESL_MAX(p7_pli_fs_GetPosPast(vit_coords), min_length);
 
+
+  /*set up seq object for domaindef function*/
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
   free (pli_tmp->tmpseq->dsq); 
- 
-  /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
-  if(pli->fs_pipe) {
+  if ((status = esl_sq_SetName     (pli_tmp->tmpseq, dnasq->name))   != eslOK) goto ERROR;
+  if ((status = esl_sq_SetSource   (pli_tmp->tmpseq, dnasq->source)) != eslOK) goto ERROR;
+  if ((status = esl_sq_SetAccession(pli_tmp->tmpseq, dnasq->acc))    != eslOK) goto ERROR;
+  if ((status = esl_sq_SetDesc     (pli_tmp->tmpseq, dnasq->desc))   != eslOK) goto ERROR;
+
+  if(!pli->fs_pipe) { /* not using frameshift algorithms */
+
+    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, wrk, gcode, data, splcing_windows, pli_tmp, complementarity);
+
+  }
+  else  { /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
     if (data->prefix_lengths == NULL)  //otherwise, already filled in
       p7_hmm_ScoreDataComputeRest(om, data);
-  
+
     /* convert block of ORFs that passed Viterbi into collection of non-overlapping DNA windows */
     p7_hmmwindow_init(&post_vit_windowlist);  
     
@@ -1678,14 +1661,9 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     /* Send ORFs and protien models along with DNA windows and fs-aware coddon models to Forward filters */
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
-      window_len   = post_vit_windowlist.windows[i].length; 
-      if (window_len < 15) continue;
-      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm, gm_fs, data, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity, saved_hits);
+      
+      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm, gm_fs, data, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity);
     }
-  }
-  else {
-    
-    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity);
   }
 
   /* clean up */ 

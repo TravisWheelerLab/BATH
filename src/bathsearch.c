@@ -36,18 +36,18 @@ typedef struct {
   ESL_WORK_QUEUE   *queue;
 #endif /*HMMER_THREADS*/
 
-  P7_BG            *bg;	       /* null model                                                        */
-  ESL_SQ           *ntsq;      /* DNA target sequence                                               */
-  P7_PIPELINE      *pli;       /* work pipeline                                                     */
-  P7_TOPHITS       *th;        /* top hit results                                                   */
-  P7_OPROFILE      *om;        /* optimized query profile                                           */
-  P7_PROFILE       *gm;		   /* non-optimized query profile                                       */
-  P7_FS_PROFILE    *gm_fs;     /* non optimized frameshift query profile                            */
-  P7_SCOREDATA     *scoredata; /* used to create DNA windows from ORFs                              */
-  ESL_GENCODE      *gcode;     /* used for translating ORFs                                         */
-  ESL_GENCODE_WORKSTATE *wrk1; /* used for intitial translation of taget DNA to ORFs                */ 
-  ESL_GENCODE_WORKSTATE *wrk2; /* used for secondary translation of DNA window for bias calcultaion */
-  SPLICE_SAVED_HITS     *sh;   /* basic hit info for all hits that pass the viterbi fiter           */
+  P7_BG            *bg;	        /* null model                                                        */
+  ESL_SQ           *ntsq;       /* DNA target sequence                                               */
+  P7_PIPELINE      *pli;        /* work pipeline                                                     */
+  P7_TOPHITS       *th;         /* top hit results                                                   */
+  P7_OPROFILE      *om;         /* optimized query profile                                           */
+  P7_PROFILE       *gm;		    /* non-optimized query profile                                       */
+  P7_FS_PROFILE    *gm_fs;      /* non optimized frameshift query profile                            */
+  P7_SCOREDATA     *scoredata;  /* used to create DNA windows from ORFs                              */
+  ESL_GENCODE      *gcode;      /* used for translating ORFs                                         */
+  ESL_GENCODE_WORKSTATE *wrk1;  /* used for intitial translation of taget DNA to ORFs                */ 
+  ESL_GENCODE_WORKSTATE *wrk2;  /* used for secondary translation of DNA window for bias calcultaion */
+  P7_HMM_WINDOWLIST     *hw;    /* exon seeds for splicing algorithms                        */
 } WORKER_INFO;
 
 
@@ -82,7 +82,7 @@ static ESL_OPTIONS options[] = {
   { "-h",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "show brief help on version and usage",                                     1 },
 
   /* Algorithm options */
-  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "use frameshift alignment algorthims",                                      2 },
+  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--splice",     "use frameshift alignment algorthims",                                      2 },
   { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--fs",         "use spliced alignment algorithms ",                                        2 },
 
   /* Control of output */
@@ -532,7 +532,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_TOPHITS      *seed_hits                = NULL;
   P7_TOPHITS      *tophits_accumulator      = NULL; /* to hold the top hits information from all 6 frame translations     */
   P7_PIPELINE     *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
-  SPLICE_SAVED_HITS *saved_hits_accumulator = NULL; /* to hold hit info for spliced alignments */
+  P7_HMM_WINDOWLIST *seed_accumulator       = NULL;
   ID_LENGTH_LIST  *id_length_list           = NULL;
   ESL_STOPWATCH   *watch;
   ESL_STOPWATCH   *splice_watch; 
@@ -754,7 +754,10 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if( hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
 
     } 
-    else hmm->fs = 0.;
+    else {
+      hmm->fs = FALSE;
+      hmm->fsprob = 0.;
+    }
    
 
     if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
@@ -799,18 +802,19 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     pipelinehits_accumulator = p7_pipeline_Create_BATH(go, 100, 300, p7_SEARCH_SEQS);
     pipelinehits_accumulator->nmodels = 1;
     pipelinehits_accumulator->nnodes = hmm->M;
-    if (esl_opt_IsUsed(go, "--splice"))
-      saved_hits_accumulator = p7_splicehits_CreateSavedHits();
-
+    if (esl_opt_IsUsed(go, "--splice")) 
+      seed_accumulator = p7_hmmwindow_CreateList();
+    
     scoredata = p7_hmm_ScoreDataCreate(om, NULL);
 
     for (i = 0; i < infocnt; ++i)
     {
       /* Create processing pipeline and hit list */
-      if (esl_opt_IsUsed(go, "--splice"))
-        info[i].sh = p7_splicehits_CreateSavedHits();
-      else  
-        info[i].sh = NULL; 
+      info[i].hw = NULL;
+      if (esl_opt_IsUsed(go, "--splice")) {
+        info[i].hw = p7_hmmwindow_CreateList();
+      }
+
       info[i].gcode = gcode;
       info[i].wrk1 = esl_gencode_WorkstateCreate(go, gcode);
       info[i].wrk1->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);
@@ -884,16 +888,16 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     {
       p7_tophits_Merge(tophits_accumulator, info[i].th);
       p7_pipeline_Merge(pipelinehits_accumulator, info[i].pli);
-      if (esl_opt_IsUsed(go, "--splice")) 
-        p7_splicehits_MergeSavedHits(saved_hits_accumulator, info[i].sh);
+      if (esl_opt_IsUsed(go, "--splice"))  
+        p7_hmmwindow_Merge(seed_accumulator, info[i].hw);
+      
       p7_pipeline_Destroy_BATH(info[i].pli);
       p7_tophits_Destroy(info[i].th);
       p7_oprofile_Destroy(info[i].om);
       p7_profile_Destroy(info[i].gm);
       p7_profile_fs_Destroy(info[i].gm_fs);
       p7_hmm_ScoreDataDestroy(info[i].scoredata); 
-      p7_splicehits_DestroySavedHits(info[i].sh);
-
+      p7_hmmwindow_DestroyList(info[i].hw);
       if(info[i].wrk1->orf_block != NULL)
       {
         esl_sq_DestroyBlock(info[i].wrk1->orf_block);
@@ -926,13 +930,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       splice_watch = esl_stopwatch_Create();
       esl_stopwatch_Start(splice_watch);
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
+      p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 
+      seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm_fs, dbfp, gcode, pipelinehits_accumulator->F3);
       
-      p7_splicehits_RemoveDuplicates(saved_hits_accumulator, tophits_accumulator, pipelinehits_accumulator->F3);
-      seed_hits = p7_splicehits_GetSeedHits(saved_hits_accumulator, tophits_accumulator, hmm, gm_fs, dbfp, gcode, pipelinehits_accumulator->F3);
-      
-      p7_splicehits_DestroySavedHits(saved_hits_accumulator);
-      saved_hits_accumulator = NULL;
-
       p7_splice_SpliceHits(tophits_accumulator, seed_hits, hmm, om, gm, gm_fs, go, gcode, dbfp, resCnt);
 
       for(i = 0; i < seed_hits->N; i++) {
@@ -975,7 +975,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     p7_pipeline_Destroy_BATH(pipelinehits_accumulator);
     p7_tophits_Destroy(tophits_accumulator);
-    p7_splicehits_DestroySavedHits(saved_hits_accumulator);
+    p7_hmmwindow_DestroyList(seed_accumulator);
     p7_oprofile_Destroy(om);
     p7_profile_Destroy(gm);
     p7_profile_fs_Destroy(gm_fs);
@@ -1072,7 +1072,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
        /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 
-      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT, info->sh);
+      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, info->hw, p7_NOCOMPLEMENT);
       p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
       esl_sq_ReuseBlock(info->wrk1->orf_block);    
@@ -1086,7 +1086,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       esl_sq_ReverseComplement(dbsq_dna);
       do_sq_by_sequences(info->gcode, info->wrk1, dbsq_dna);
 	
-      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT, info->sh); 
+      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk1->orf_block, info->wrk2, info->gcode, info->hw, p7_COMPLEMENT); 
       p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
       
       esl_sq_ReuseBlock(info->wrk1->orf_block);
@@ -1257,7 +1257,7 @@ pipeline_thread(void *arg)
         info->pli->nres += dnaSeq->W;
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
        
-        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_NOCOMPLEMENT, info->sh);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, info->hw, p7_NOCOMPLEMENT);
 
         p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
@@ -1269,7 +1269,7 @@ pipeline_thread(void *arg)
         esl_sq_ReverseComplement(dnaSeq);
         do_sq_by_sequences(info->gcode, info->wrk1, dnaSeq);
 	
-        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, p7_COMPLEMENT, info->sh);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk1->orf_block, info->wrk2, info->gcode, info->hw, p7_COMPLEMENT);
 
         p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 

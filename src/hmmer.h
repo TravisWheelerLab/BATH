@@ -54,7 +54,6 @@
 #include "esl_sq.h"		/* ESL_SQ                */
 #include "esl_scorematrix.h"    /* ESL_SCOREMATRIX       */
 #include "esl_stopwatch.h"      /* ESL_STOPWATCH         */
-#include "p7_splicehits.h"
 
 /* Search modes. */
 #define p7_NO_MODE   0
@@ -1028,21 +1027,22 @@ typedef struct p7_scoredata_s {
 
 typedef struct p7_hmm_window_s {
   float         score;
-  float         null_sc;
-  int32_t       id;          //sequence id of the database sequence hit
-  int64_t       n;           //position in database sequence at which the diagonal/window starts
-  int64_t       fm_n;        //position in the concatenated fm-index sequence at which the diagonal starts
+  int64_t       id;          //sequence id of the database sequence hit
+  int64_t       n;           //position in database sequence at which the diagonal/window starts (min for DNA)
   int32_t       length;      // length of the diagonal/window
   int16_t       k;           //position of the model at which the diagonal ends
   int64_t       target_len;  //length of the target sequence
   int8_t        complementarity;
-  int8_t        used_to_extend;
+  int8_t        duplicate;
+  int8_t        pass_forward;
+  int8_t        is_seed;
 } P7_HMM_WINDOW;
 
 typedef struct p7_hmm_window_list_s {
   P7_HMM_WINDOW *windows;
   int       count;
   int       size;
+  int8_t    sorted;
 } P7_HMM_WINDOWLIST;
 
 
@@ -1584,9 +1584,16 @@ extern int  p7_hmmfile_Position(P7_HMMFILE *hfp, const off_t offset);
 
 
 /* p7_hmmwindow.c */
+extern P7_HMM_WINDOWLIST* p7_hmmwindow_CreateList(void);
 extern int p7_hmmwindow_init (P7_HMM_WINDOWLIST *list);
-extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
+extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
+extern void p7_hmmwindow_DestroyList(P7_HMM_WINDOWLIST *hw);
+extern int p7_hmmwindow_Merge(P7_HMM_WINDOWLIST *hw1, P7_HMM_WINDOWLIST *hm2);
 extern int p7_hmmwindow_SortByStart(P7_HMM_WINDOWLIST *w);
+extern int p7_hmmwindow_SortBySeq(P7_HMM_WINDOWLIST *w);
+extern int p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3);
+extern P7_TOPHITS* p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3);
+extern void p7_hmwwindow_Dump(FILE *fp, P7_HMM_WINDOWLIST *hw);
 
 /* p7_msvdata.c */
 extern P7_SCOREDATA   *p7_hmm_ScoreDataCreate(P7_OPROFILE *om, P7_PROFILE *gm );
@@ -1620,7 +1627,7 @@ extern int p7_pli_NewModelThresholds(P7_PIPELINE *pli, const P7_OPROFILE *om);
 extern int p7_pli_NewSeq            (P7_PIPELINE *pli, const ESL_SQ *sq);
 extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data,
                                P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, 
-                               ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity, SPLICE_SAVED_HITS *saved_hits);
+                               ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, P7_HMM_WINDOWLIST *splcing_windows, int complementarity);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 

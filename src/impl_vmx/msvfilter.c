@@ -412,7 +412,6 @@ p7_SSVFilter_longtarget(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, 
 	  p7_hmmwindow_new(  windowlist,
 			     0,                  // sequence_id; used in the FM-based filter, but not here
 			     target_start,       // position in the target at which the diagonal starts
-			     0,                  // position in the target fm_index at which diagonal starts;  not used here, just in FM-based filter
 			     end,                // position in the model at which the diagonal ends
 			     end-start+1 ,       // length of diagonal
 			     ret_sc,             // score of diagonal
@@ -606,7 +605,6 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const 
 	  p7_hmmwindow_new(  windowlist,
 			     0, 
 			     target_start,       // position in the target at which the diagonal starts
-			     0,                  // position in the target fm_index at which diagonal starts;  not used here, just in FM-based filter
 			     end,                // position in the model at which the diagonal ends
 			     end-start+1 ,       // length of diagonal
 			     ret_sc,             // score of diagonal

@@ -22,7 +22,7 @@ static int is_multidomain_region  (P7_DOMAINDEF *ddef, int i, int j);
 static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, P7_GMX *wrk, int *ret_nc);
-static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode);
+static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_GMX *pp, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode);
 static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done, P7_BG *bg, float fs_prob);
 
 
@@ -299,7 +299,7 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
  * Throws:    <eslEMEM> on allocation failure. 
  */
 int
-p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg,  ESL_GENCODE *gcode, int64_t window_start)
+p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg,  ESL_GENCODE *gcode, int64_t window_start)
 {
 
   int i, j;
@@ -389,6 +389,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE 
       /* We have a region i..j to evaluate. */
       p7_gmx_fs_GrowTo(fwd, gm_fs->M, j-i+1, j-i+1, p7P_5CODONS);
       p7_gmx_fs_GrowTo(bck, gm_fs->M, j-i+1, j-i+1, 0);
+      p7_gmx_fs_GrowTo(pp,  gm_fs->M, j-i+1, j-i+1, p7P_5CODONS);
       ddef->nregions++;
 
       if (is_multidomain_region_frameshift(ddef, i, j))
@@ -444,7 +445,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE 
          i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
 
           ddef->nenvelopes++;
-         if (rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, iv, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
+         if (rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, pp, iv, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
 
         }
 
@@ -455,7 +456,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE 
 	
       ddef->nenvelopes++;
        
-      rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, iv, i, j, bg, gcode);
+      rescore_isolated_domain_frameshift(ddef, gm_fs, windowsq, fwd, bck, pp, iv, i, j, bg, gcode);
 
     }
     i     = -1;
@@ -999,12 +1000,11 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs,
  * 
  */
 static int
-rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode)
+rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, P7_GMX *gx1, P7_GMX *gx2, P7_GMX *pp, P7_IVX *iv, int i, int j, P7_BG *bg, ESL_GENCODE *gcode)
 
 {
 
   P7_DOMAIN     *dom           = NULL;
-  P7_GMX        *gxppfs        = NULL;
   int            Ld            = j-i+1;
   int            z1, z2;
   float          domcorrection = 0.0;
@@ -1029,13 +1029,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs, gx2, iv, NULL);
 
   /* Posterior Probabilities */
-//TODO add gxppfs to pli
-  if ((gxppfs = p7_gmx_fs_Create(gm_fs->M, Ld, Ld, p7P_5CODONS)) == NULL) goto ERROR;
-  p7_Decoding_Frameshift(gm_fs, gx1, gx2, gxppfs);      
+  p7_Decoding_Frameshift(gm_fs, gx1, gx2, pp);      
 
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(gm_fs, gxppfs, gx2, &oasc);      
-  p7_OATrace_Frameshift(gm_fs, gxppfs, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  p7_OptimalAccuracy_Frameshift(gm_fs, pp, gx2, &oasc);      
+  p7_OATrace_Frameshift(gm_fs, pp, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1055,7 +1053,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
   dom->aliscore       = 0.0; 
  
   /* Compute bias correction */
-  p7_Null2_fs_ByExpectation(gm_fs, gxppfs, null2);
+  p7_Null2_fs_ByExpectation(gm_fs, pp, null2);
 
   t = u = v = w = x = -1;
   z = 0;
@@ -1148,13 +1146,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_FS_PROFILE *gm_fs, ESL
 
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);
-  p7_gmx_Destroy(gxppfs);
   
   return eslOK;
 
  ERROR:
   p7_trace_Reuse(ddef->tr);
-  p7_gmx_Destroy(gxppfs);
   return eslEMEM;
 }
 

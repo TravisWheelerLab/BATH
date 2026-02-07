@@ -458,7 +458,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE 
 	
       ddef->nenvelopes++;
        
-      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, iv, pp, i, j, FALSE, bg, gcode, do_biasfilter);
+      rescore_isolated_domain_frameshift(ddef, gm, gm_fs, windowsq, fwd, bck, pp, iv, i, j, FALSE, bg, gcode, do_biasfilter);
     }
     i     = -1;
     triggered = FALSE;
@@ -1164,11 +1164,17 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PROFILE *gm, P7_FS_PRO
   
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);
-  
+  p7_gmx_Reuse(gx1);
+  p7_gmx_Reuse(gx2);
+  p7_gmx_Reuse(pp);    
+
   return eslOK;
 
  ERROR:
   p7_trace_Reuse(ddef->tr);
+  p7_gmx_Reuse(gx1);
+  p7_gmx_Reuse(gx2);
+  p7_gmx_Reuse(pp);
   return eslEMEM;
 }
 

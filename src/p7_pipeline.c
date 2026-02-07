@@ -123,7 +123,8 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    * for use in the frameshift pipeline alignment
    */ 
    if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_5CODONS)) == NULL) goto ERROR;
-   if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))         == NULL) goto ERROR;
+   if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))          == NULL) goto ERROR;
+   if ((pli->pp   = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_5CODONS)) == NULL) goto ERROR;
 
   /* Create intermediate values matrix */
    if ((pli->iv  = p7_ivx_Create(M_hint, p7P_3CODONS)) == NULL) goto ERROR;
@@ -252,6 +253,7 @@ p7_pipeline_Reuse_BATH(P7_PIPELINE *pli)
   p7_gmx_Reuse(pli->gxb);
   p7_gmx_Reuse(pli->gfwd);
   p7_gmx_Reuse(pli->gbck);
+  p7_gmx_Reuse(pli->pp);
   p7_omx_Reuse(pli->oxf);
   p7_omx_Reuse(pli->oxb);
   p7_domaindef_Reuse(pli->ddef);
@@ -271,6 +273,7 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
   p7_gmx_Destroy(pli->gxb);
   p7_gmx_Destroy(pli->gfwd);
   p7_gmx_Destroy(pli->gbck);
+  p7_gmx_Destroy(pli->pp);
   p7_omx_Destroy(pli->oxf);
   p7_omx_Destroy(pli->oxb);
   p7_ivx_Destroy(pli->iv);
@@ -1222,7 +1225,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
     p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxb, pli->iv, NULL);
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli_tmp->tmpseq, gm, gm_fs,
-           pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->iv, pli->ddef, bg, gcode,
+           pli->gxf, pli->gxb, pli->gfwd, pli->gbck, pli->pp, pli->iv, pli->ddef, bg, gcode,
            dna_window->n, pli->do_biasfilter);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */

@@ -1027,15 +1027,16 @@ enum p7_zsetby_e    { p7_ZSETBY_NTARGETS = 0, p7_ZSETBY_OPTION = 1, p7_ZSETBY_FI
 enum p7_complementarity_e { p7_NOCOMPLEMENT    = 0, p7_COMPLEMENT   = 1 };
 
 typedef struct p7_pipeline_s {
-  /* Dynamic programming matrices                                           */
-  P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe       */
-  P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe      */
-  P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes     */
-  P7_OMX     *bck;    /* full Bck matrix for domain envelopes     */
-  P7_GMX     *gxf;    /* three-row generic Forward matrix for frameshift    */
-  P7_GMX     *gxb;    /* five-row generic Backward matrix for frameshifts   */
-  P7_GMX     *gfwd;   /* full Fwd generic matrix for domain envelopes     */
-  P7_GMX     *gbck;   /* full Fwd generic matrix for domain envelopes     */
+  /* Dynamic programming matrices                                             */
+  P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe                   */
+  P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe                  */
+  P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes                 */
+  P7_OMX     *bck;    /* full Bck matrix for domain envelopes                 */
+  P7_GMX     *gxf;    /* three-row generic Forward matrix for frameshift      */
+  P7_GMX     *gxb;    /* five-row generic Backward matrix for frameshifts     */
+  P7_GMX     *gfwd;   /* full Fwd generic matrix for domain envelopes         */
+  P7_GMX     *gbck;   /* full Fwd generic matrix for domain envelopes         */
+  P7_GMX     *pp;     /* full posterior matrix for domain envelopes           */
   P7_IVX     *iv;     /* intermediate values matrix for frameshift algorithms */ 
 
   /* Domain postprocessing                                                  */
@@ -1413,9 +1414,7 @@ extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);
 extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
 extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
-extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, 
-		P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, P7_DOMAINDEF *ddef, 
-                P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start, int do_biasfilter);
+extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start, int do_biasfilter);
 extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
 
 /* p7_gmx.c */

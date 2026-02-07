@@ -1109,7 +1109,6 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
 static int
 set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
 {
-  char *name = NULL;
   int   status;
 
   if   (msa->name != NULL) cfg->nnamed++;

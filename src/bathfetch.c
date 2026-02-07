@@ -249,7 +249,6 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   ESL_ALPHABET   *abcDNA = NULL;
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
-  float           fsprob;
   int             ct;
   int             nhmm   = 0;
   char           *key;
@@ -257,7 +256,6 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             keyidx;
   int             status;
 
-  fsprob = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
@@ -365,11 +363,9 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   ESL_ALPHABET   *abcDNA = NULL;
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
-  float           fsprob; 
   int             ct;
   int             status;
 
-  fsprob = 0.01;
   ct = esl_opt_GetInteger(go, "--ct");
 
   if (hfp->ssi != NULL)

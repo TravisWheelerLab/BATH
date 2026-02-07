@@ -20,7 +20,6 @@
 #include "p7_splice.h"
 
 static int longest_path (SPLICE_GRAPH *graph);
-static int longest_path_extension (SPLICE_GRAPH *graph);
 static int topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
 static int has_out_edge(SPLICE_GRAPH *graph, int node_id);
 
@@ -431,6 +430,7 @@ longest_path (SPLICE_GRAPH *graph)
     
     if(!graph->node_in_graph[up]) continue;
     if(has_out_edge(graph, up))   continue;
+    
     p7_splicegraph_AddEdge(graph, up, graph->num_nodes);
 
   }

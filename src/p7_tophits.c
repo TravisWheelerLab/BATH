@@ -851,8 +851,10 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
 {
   int     i;    /* counter over hits */
   int     j;    /* previous un-duplicated hit */
-  int     s_i, s_j, e_i, e_j, dir_i, dir_j, len_i, len_j;
-  int     intersect_alistart, intersect_aliend, intersect_alilen;
+  int64_t s_i, s_j, e_i, e_j;
+  int     dir_i, dir_j, len_i, len_j;
+  int64_t intersect_alistart, intersect_aliend;
+  int     intersect_alilen;
   int     intersect_hmmstart, intersect_hmmend, intersect_hmmlen;
   double  p_i, p_j;
   int remove;
@@ -1109,9 +1111,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   int    d;
   int    namew;
   int    posw;
-  int    orfw;
   int    descw;
-  int    orfsecdashw;
   char   *showname;
 
   int    have_printed_incthresh = FALSE;
@@ -1781,12 +1781,8 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int qaccw  = ((qacc != NULL) ? ESL_MAX(10, strlen(qacc)) : 10);
   int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
   int posw   = ESL_MAX(9, p7_tophits_GetMaxPositionLength(th));
-  int     i,h;
+  int     h;
   int     id;
-  int64_t sqfrom;
-  int64_t sqto;
-  int64_t lowest;
-  int64_t highest;
   char   *cigar = NULL;
 	
   if (show_header)

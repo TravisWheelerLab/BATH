@@ -810,8 +810,8 @@ typedef struct p7_alidisplay_s {
   int64_t *exon_seq_ends;       /* array of nucleotide end positions for exons in spliced alignment   */
   int     *exon_hmm_starts;     /* array of amino start positions for exons in spliced alignment      */
   int     *exon_hmm_ends;       /* array of amino end positions for exons in spliced alignment        */
-  int     *exon_orig;           /* array of bools stating whether exon was an original hit or a missed exon */
-  int     *exon_split;          /* array of bools stating whether exon was split from a loarger original hit */
+  int     *exon_anchor;         /* array of bools stating whether exon was an anchor node             */
+  int     *exon_extend;         /* array of bools stating whether exon was an  extension node         */
   float   *exon_pid;            /* array of percent identities for exons in spliced alignment         */
   float   *exon_score;
   float   *exon_bias;

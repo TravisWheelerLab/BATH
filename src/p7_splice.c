@@ -2881,17 +2881,12 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
     /* Find the first original hit in path to copy info*/
     i = 0;
     while( spliced_path->node_id[i] >= graph->anchor_N || spliced_path->node_id[i] == -1) {
-      pli->hit->dcl->ad->exon_orig[i] = FALSE;
-      pli->hit->dcl->ad->exon_split[i] = FALSE;
+      pli->hit->dcl->ad->exon_anchor[i] = FALSE;
+      pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
       i++;
     }
-    pli->hit->dcl->ad->exon_orig[i] = TRUE;
-    if(i < spliced_path->path_len-2 && spliced_path->node_id[i] == spliced_path->node_id[i+1])
-      pli->hit->dcl->ad->exon_split[i] = TRUE;
-    else 
-      pli->hit->dcl->ad->exon_split[i] = FALSE;
-
-
+    pli->hit->dcl->ad->exon_anchor[i] = TRUE;
+    pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
 #ifdef HMMER_THREADS
   if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
 #endif /*HMMER_THREADS*/
@@ -2926,17 +2921,12 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
     for(  ; i < spliced_path->path_len; i++) {
       remove_node = spliced_path->node_id[i];
       if(remove_node < 0 || remove_node >= graph->anchor_N) {
-        pli->hit->dcl->ad->exon_orig[i] = FALSE;
-        pli->hit->dcl->ad->exon_split[i] = FALSE; 
+        pli->hit->dcl->ad->exon_anchor[i] = FALSE;
+        pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
       }
       else {
-        pli->hit->dcl->ad->exon_orig[i] = TRUE;
-        if((i > 0                && spliced_path->node_id[i] == spliced_path->node_id[i-1]) ||
-           (i < spliced_path->path_len-2 && spliced_path->node_id[i] == spliced_path->node_id[i+1]))
-          pli->hit->dcl->ad->exon_split[i] = TRUE;
-        else
-          pli->hit->dcl->ad->exon_split[i] = FALSE;
-
+        pli->hit->dcl->ad->exon_anchor[i] = TRUE;
+        pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
         if(graph->orig_hit_idx[remove_node] == graph->orig_hit_idx[replace_node])
           continue;   
 

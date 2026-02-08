@@ -360,7 +360,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode)
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode)
 {
 
   P7_ALIDISPLAY *ad       = NULL;
@@ -719,7 +719,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_PROFILE *gm, con
        	}	
 
 	if      (aa == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
-        else if (expf(p7P_MSC(gm, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+        else if (expf(p7P_MSC_AMINO(gm_fs, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else                                                  ad->mline[z-z1] = ' ';
 
         ad->aseq[z-z1] = toupper(alphaAmino[aa]);
@@ -2493,7 +2493,7 @@ main(int argc, char **argv)
         for (z = 0; z < tr->N; z++)
           if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
-      ad = p7_alidisplay_fs_Create(tr, 0, gm, gm_fs, sqDNA, gcode);
+      ad = p7_alidisplay_fs_Create(tr, 0, gm_fs, sqDNA, gcode);
       p7_alidisplay_PrintBATH(stdout, ad, 40, 40, 80, pli);
       p7_alidisplay_Destroy(ad);
     }

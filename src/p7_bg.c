@@ -519,10 +519,10 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
  *            by <bg->p1>) that the null1 model uses is imposed.
  */
 int
-p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
+p7_bg_fs_FilterScore(P7_BG *bg, ESL_DSQ *dna_dsq, int L, const ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
 {
   int     i,j,f;
-  int     L;
+  int     orf_L;
   float   nullsc;
   float   sum_nullsc;
   ESL_DSQ amino;
@@ -536,31 +536,31 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE *gcode, int do_biasfi
   nullsc = 0.;
   if( do_biasfilter) {
 
-    ESL_ALLOC(orf_dsq, sizeof(ESL_DSQ) * dnasq->n);
+    ESL_ALLOC(orf_dsq, sizeof(ESL_DSQ) * L);
     orf_dsq[0] = eslDSQ_SENTINEL;
 
     /* Translate all three frames */
     sum_nullsc = -eslINFINITY;
     for(f = 1; f <= 3; f++) {
       j = 1;
-      for (i = f; i < dnasq->n-2; i+=3) {
-        amino = esl_gencode_GetTranslation(gcode,&dnasq->dsq[i]);
+      for (i = f; i < L-2; i+=3) {
+        amino = esl_gencode_GetTranslation(gcode,&dna_dsq[i]);
         if(esl_abc_XIsCanonical(gcode->aa_abc, amino)) {
           orf_dsq[j] = amino;
           j++;
         }
       }
       orf_dsq[j] = eslDSQ_SENTINEL;
-      L = j-1;
-      if (hmx == NULL) hmx = esl_hmx_Create(L, bg->fhmm->M);
-      else             esl_hmx_GrowTo(hmx, L, bg->fhmm->M);
-      esl_hmm_Forward(orf_dsq, L, bg->fhmm, hmx, &nullsc);
+      orf_L = j-1;
+      if (hmx == NULL) hmx = esl_hmx_Create(orf_L, bg->fhmm->M);
+      else             esl_hmx_GrowTo(hmx, orf_L, bg->fhmm->M);
+      esl_hmm_Forward(orf_dsq, orf_L, bg->fhmm, hmx, &nullsc);
 
       sum_nullsc = p7_FLogsum(sum_nullsc, nullsc);
     }
   }
 
-  *ret_sc = sum_nullsc + ((float) (dnasq->n/3) * logf(bg->p1) + logf(1.-bg->p1) + log(3.0));
+  *ret_sc = sum_nullsc + ((float) (L/3) * logf(bg->p1) + logf(1.-bg->p1) + log(3.0));
 
   if(orf_dsq != NULL) free(orf_dsq);
   esl_hmx_Destroy(hmx);

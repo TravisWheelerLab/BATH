@@ -69,7 +69,7 @@
 #define p7_NEVPARAM 8  /* number of statistical parameters stored in models                      */
 #define p7_NCUTOFFS 6  /* number of Pfam score cutoffs stored in models                          */
 #define p7_NOFFSETS 3  /* number of disk offsets stored in models for hmmscan's fast model input */
-enum p7_evparams_e {    p7_MMU  = 0, p7_MLAMBDA = 1,     p7_VMU = 2,  p7_VLAMBDA = 3, p7_FTAU = 4, p7_FLAMBDA = 5 , p7_FTAUFS3 = 7 , p7_FTAUFS5 = 8 };
+enum p7_evparams_e {    p7_MMU  = 0, p7_MLAMBDA = 1,     p7_VMU = 2,  p7_VLAMBDA = 3, p7_FTAU = 4, p7_FLAMBDA = 5 , p7_FTAUFS3 = 6 , p7_FTAUFS5 = 7 };
 enum p7_cutoffs_e  {     p7_GA1 = 0,     p7_GA2 = 1,     p7_TC1 = 2,      p7_TC2 = 3,  p7_NC1 = 4,     p7_NC2 = 5 };
 enum p7_offsets_e  { p7_MOFFSET = 0, p7_FOFFSET = 1, p7_POFFSET = 2 };
 
@@ -1425,6 +1425,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, con
 extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos); 
 extern P7_ALIDISPLAY *p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt);
 extern P7_ALIDISPLAY *p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt);
+
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);
@@ -1459,7 +1460,7 @@ extern int    p7_bg_Write(FILE *fp, P7_BG *bg);
 
 extern int    p7_bg_SetFilter  (P7_BG *bg, int M, const float *compo);
 extern int    p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-extern int    p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc);
+extern int    p7_bg_fs_FilterScore(P7_BG *bg, ESL_DSQ *dna_dsq, int L, const ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc);
 
 /* p7_builder.c */
 extern P7_BUILDER *p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc);
@@ -1487,9 +1488,8 @@ extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);
 extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
 extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
-extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(ESL_SQ *windowsq, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_GMX *gxf, P7_GMX *gxb, P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp, P7_IVX *iv, P7_DOMAINDEF *ddef, P7_BG *bg, ESL_GENCODE *gcode, int64_t window_start);
-
-extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef, P7_BG *bg);
+extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_PROFILE *gm_fs, P7_BG *bg, const ESL_GENCODE *gcode);
+extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_BG *bg, P7_DOMAINDEF *ddef);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
@@ -1626,9 +1626,7 @@ extern int p7_pli_DomainIncludable  (P7_PIPELINE *pli, float dom_score, double l
 extern int p7_pli_NewModel          (P7_PIPELINE *pli, const P7_OPROFILE *om, P7_BG *bg);
 extern int p7_pli_NewModelThresholds(P7_PIPELINE *pli, const P7_OPROFILE *om);
 extern int p7_pli_NewSeq            (P7_PIPELINE *pli, const ESL_SQ *sq);
-extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data,
-                               P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, 
-                               ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, P7_HMM_WINDOWLIST *splcing_windows, int complementarity);
+extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, P7_HMM_WINDOWLIST *splcing_windows, int complementarity);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 
@@ -1686,7 +1684,7 @@ extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 /* p7_splice.c */
 extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt);
 extern int p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, const P7_PROFILE *gm, P7_BG *bg, float fs_prob, int do_bias);
-extern int p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_SQ *nuc_sq, const P7_FS_PROFILE *gm_fs, P7_BG *bg, int do_bias);
+extern int p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *nuc_sq, const P7_FS_PROFILE *gm_fs, P7_BG *bg, int do_bias);
 
 
 /* p7_tophits.c */

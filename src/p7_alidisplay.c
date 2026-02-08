@@ -1836,6 +1836,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
            ad->exon_pid[x] += 1.;
            exact++; 
          }
+
         /* >1 not >0; om has odds ratios, not scores */
         else if (expf(p7P_MSC_AMINO(gm_fs, k, aa)) > 1.0)                       ad->mline[z-z1] = '+';
         else                                                                    ad->mline[z-z1] = ' ';
@@ -4014,7 +4015,7 @@ main(int argc, char **argv)
         for (z = 0; z < tr->N; z++)
           if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
-      ad = p7_alidisplay_fs_Create(tr, 0, gm, gm_fs, sqDNA, gcode);
+      ad = p7_alidisplay_fs_Create(tr, 0, gm_fs, sqDNA, gcode);
       p7_alidisplay_PrintBATH(stdout, ad, 40, 40, 80, pli);
       p7_alidisplay_Destroy(ad);
     }

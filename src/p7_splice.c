@@ -641,7 +641,7 @@ p7_splice_ComputeAliScores(P7_DOMAIN *dom, P7_TRACE *tr, ESL_DSQ *amino_dsq, con
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, ESL_SQ *nuc_sq, const P7_FS_PROFILE *gm_fs, P7_BG *bg, int do_bias)
+p7_splice_ComputeAliScores_fs(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *nuc_sq, const P7_FS_PROFILE *gm_fs, P7_BG *bg, int do_bias)
 {
 
   int a, i, k, c, n;

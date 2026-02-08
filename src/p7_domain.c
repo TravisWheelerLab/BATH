@@ -37,8 +37,6 @@ extern P7_DOMAIN *p7_domain_Create_empty()
   the_domain->jenv = 0;
   the_domain->iali = 0;
   the_domain->jali = 0;
-  the_domain->iorf = 0;
-  the_domain->jorf = 0;
   the_domain->envsc = 0.0;
   the_domain->domcorrection = 0.0;
   the_domain->dombias = 0.0;
@@ -183,54 +181,44 @@ extern int p7_domain_Serialize(const P7_DOMAIN *obj, uint8_t **buf, uint32_t *n,
   memcpy(ptr, &network_64bit, sizeof(int64_t));
   ptr += sizeof(int64_t);
 
-  // Field 6: iorf
-  network_64bit = esl_hton64(obj->iorf);
-  memcpy(ptr, &network_64bit, sizeof(int64_t));
-  ptr += sizeof(int64_t);
-
-  // Field 7: jorf
-  network_64bit = esl_hton64(obj->jorf);
-  memcpy(ptr, &network_64bit, sizeof(int64_t));
-  ptr += sizeof(int64_t);
-
-  // Field 8: envsc
+  // Field 6: envsc
   network_32bit = esl_hton32(*((uint32_t *) &(obj->envsc)));  // ow, this hurts, but is probably the best way to get the 
   // bits that represent a float out of a structure.  Boy, will it fail horribly on any architecture that doesn't use 
   // 32-bit floats
   memcpy((void *) ptr, (void *) &network_32bit, sizeof(obj->envsc));
   ptr += sizeof(obj->envsc);
 
-  // Field 9: domcorrection
+  // Field 7: domcorrection
   network_32bit = esl_hton32(*((uint32_t *) &(obj->domcorrection)));  
   memcpy((void *) ptr, (void *) &network_32bit, sizeof(obj->domcorrection));
   ptr += sizeof(obj->domcorrection);
 
-  // Field 10: dombias
+  // Field 8: dombias
   network_32bit = esl_hton32(*((uint32_t *) &(obj->dombias)));  
   memcpy((void *) ptr, (void *) &network_32bit, sizeof(obj->dombias));
   ptr += sizeof(obj->dombias);
 
-  // Field 11: oasc
+  // Field 9: oasc
   network_32bit = esl_hton32(*((uint32_t *) &(obj->oasc)));  
   memcpy((void *) ptr, (void *) &network_32bit, sizeof(obj->oasc));
   ptr += sizeof(obj->oasc);
 
-  // Field 12: bitscore
+  // Field 10: bitscore
   network_32bit = esl_hton32(*((uint32_t *) &(obj->bitscore)));  
   memcpy((void *) ptr, (void *) &network_32bit, sizeof(obj->bitscore));
   ptr += sizeof(obj->bitscore);
 
-  // Field 13: lnP
+  // Field 11: lnP
   network_64bit = esl_hton64(*((uint64_t *) &(obj->lnP)));  
   memcpy((void *) ptr, (void *) &network_64bit, sizeof(obj->lnP));
   ptr += sizeof(obj->lnP);
 
-  // Field 14: is_reported
+  // Field 12: is_reported
   network_32bit = esl_hton32(obj->is_reported);
   memcpy(ptr, &network_32bit, sizeof(int32_t));
   ptr += sizeof(int32_t);
 
-  // Field 15: is_included
+  // Field 13: is_included
   network_32bit = esl_hton32(obj->is_included);
   memcpy(ptr, &network_32bit, sizeof(int32_t));
   ptr += sizeof(int32_t);
@@ -332,63 +320,53 @@ extern int p7_domain_Deserialize(const uint8_t *buf, uint32_t *n, P7_DOMAIN *ret
   ret_obj->jali = esl_ntoh64(network_64bit);
   ptr += sizeof(uint64_t);  
 
-  // Sixth field: iorf
-  memcpy(&network_64bit, ptr, sizeof(uint64_t)); 
-  ret_obj->iorf = esl_ntoh64(network_64bit);
-  ptr += sizeof(uint64_t);  
-
-  // Seventh field: jorf
-  memcpy(&network_64bit, ptr, sizeof(uint64_t)); 
-  ret_obj->jorf = esl_ntoh64(network_64bit);
-  ptr += sizeof(uint64_t);  
-
-  // Eighth field: envsc
+  // Sixth field: envsc
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); // Grab the bytes out of the buffer
   host_32bit = esl_ntoh32(network_32bit);
   ret_obj->envsc = *((float *) &host_32bit);
   ptr += sizeof(uint32_t);
 
-  // Ninth field: domcorrection
+  // Seventh field: domcorrection
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); // Grab the bytes out of the buffer
   host_32bit = esl_ntoh32(network_32bit);
   ret_obj->domcorrection = *((float *) &host_32bit);
   ptr += sizeof(uint32_t);
 
-  // Tenth field: dombias
+  // Eighth field: dombias
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); // Grab the bytes out of the buffer
   host_32bit = esl_ntoh32(network_32bit);
   ret_obj->dombias = *((float *) &host_32bit);
   ptr += sizeof(uint32_t);
 
-  // Eleventh field: oasc
+  // Ninth field: oasc
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); // Grab the bytes out of the buffer
   host_32bit = esl_ntoh32(network_32bit);
   ret_obj->oasc = *((float *) &host_32bit);
   ptr += sizeof(uint32_t);
 
-  // Ninth field: bitscore
+  // Tenth field: bitscore
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); // Grab the bytes out of the buffer
   host_32bit = esl_ntoh32(network_32bit);
   ret_obj->bitscore = *((float *) &host_32bit);
   ptr += sizeof(uint32_t);
 
-  // Tenth field: lnP
+  // Eleventh field: lnP
   memcpy(&network_64bit, ptr, sizeof(uint64_t)); // Grab the bytes out of the buffer
   host_64bit = esl_ntoh64(network_64bit);
   ret_obj->lnP = *((double *) &host_64bit);
   ptr += sizeof(uint64_t);
 
-  // Eleventh field: is_reported
+  // Twelfth field: is_reported
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); 
   ret_obj->is_reported = esl_ntoh32(network_32bit);
   ptr += sizeof(uint32_t);
 
-  // Twelfth field: is_included
+  // Thirteenth field: is_included
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); 
   ret_obj->is_included = esl_ntoh32(network_32bit);
   ptr += sizeof(uint32_t);
 
-  // Thirteenth field: length of scores_per_pos array
+  // Fourteenth field: length of scores_per_pos array
   memcpy(&network_32bit, ptr, sizeof(uint32_t)); 
   int scores_per_pos_length = esl_ntoh32(network_32bit);
   ptr += sizeof(uint32_t);
@@ -459,8 +437,6 @@ extern int p7_domain_TestSample(ESL_RAND64 *rng, P7_DOMAIN **ret_obj)
   the_domain->jenv = esl_rand64(rng);
   the_domain->iali = esl_rand64(rng);
   the_domain->jali = esl_rand64(rng);
-  the_domain->iorf = esl_rand64(rng);
-  the_domain->jorf = esl_rand64(rng);
   the_domain->envsc = (float) esl_rand64_double(rng);
   the_domain->domcorrection = (float) esl_rand64_double(rng);
   the_domain->dombias = (float) esl_rand64_double(rng);
@@ -526,12 +502,6 @@ extern int p7_domain_Compare(P7_DOMAIN *first, P7_DOMAIN *second, double atol, d
     return eslFAIL;
   }
   if(first->jali != second->jali){
-    return eslFAIL;
-  }
-  if(first->iorf != second->iorf){
-    return eslFAIL;
-  }
-  if(first->jorf != second->jorf){
     return eslFAIL;
   }
   if(esl_FCompare(first->envsc, second->envsc, (float) atol, (float) rtol) != eslOK){

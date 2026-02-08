@@ -577,7 +577,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
     p7_trace_fs_Append(hit->dcl->tr, p7T_T, 0, 0, 0);
 
     hit->dcl->scores_per_pos = NULL;
-    p7_splice_ComputeAliScores_fs(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, bg, TRUE);
+    p7_pli_computeAliScores_BATH(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, bg);
  
     last_seqidx = hw->windows[i].id;
     last_strand = hw->windows[i].complementarity;    

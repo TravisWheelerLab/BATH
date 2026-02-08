@@ -675,77 +675,225 @@ p7_pipeline_Merge(P7_PIPELINE *p1, P7_PIPELINE *p2)
 }
 
 /* Function:  p7_pli_computeAliScores()
- * Synopsis:  Compute per-position scores for the alignment for a domain
+ * Synopsis:  Compute per-position scores for a BATH alignment 
  *
- * Purpose:   Compute per-position (Viterbi) scores for the alignment for a domain,
- *            for the purpose of optionally printing these scores out in association
- *            with each alignment. Such scores can, for example, be used to detangle
- *            overlapping alignments (from different models)
- *
- * Args:      dom             - domain with the alignment for which we wish to compute scores
- *            seq             - sequence in which domain resides
- *            data            - contains model's emission and transition values in unstriped form
- *            K               - alphabet size
+ * Purpose:   Compute per-position (Viterbi) scores for a BATH 
+ *            alignment for use in splcing algorithms 
  *
  * Returns:   <eslOK> on success.
  *
  * Throws:    <eslEMEM> on allocation failure.
  */
-static int
-p7_pli_computeAliScores(P7_DOMAIN *dom, ESL_DSQ *seq, const P7_SCOREDATA *data, int K)
+int
+p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, const P7_FS_PROFILE *gm_fs, P7_BG *bg)
 {
+
+  int a, i, k, c, n;
+  int codon_idx;
+  int indel;
+  int amino;
+  int z1, z2;
+  int N;
+  float bias;
+  ESL_DSQ *nuc_dsq;
+  ESL_DSQ *amino_dsq;
   int status;
-  int i, j, k;
-  float sc;
 
-  //Compute score contribution of each position in the alignment to the overall Viterbi score
-  ESL_ALLOC( dom->scores_per_pos, sizeof(float) * dom->ad->N );
-  for (i=0; i<dom->ad->N; i++)  dom->scores_per_pos[i] = 0.0;
-  i = dom->iali - 1;        //sequence position
-  j = dom->ad->hmmfrom - 1; //model position
-  k = 0;
-  while ( k<dom->ad->N) {
-    if (dom->ad->model[k] != '.' && dom->ad->aseq[k] != '-') { //match
-      i++;  j++;
-      // Including the MM cost is a hack. The cost of getting to/from this match
-      // state does matter, but an IM or DM transition would improperly deflate
-      // the score of this column, so just give MM. That amount is offset out of
-      // the score shown for preceding indels
-      dom->scores_per_pos[k] = data->fwd_scores[K * j + seq[i]]
-                             +  (j==1 ? 0 : log(data->fwd_transitions[p7O_MM][j]) );
-      k++;
-    } else if (dom->ad->model[k] == '.' ) { // insert
-      //spin through the insert, accumulating cost;  only assign to final column in gap
-      dom->scores_per_pos[k] = -eslINFINITY;
+  nuc_dsq   = seq->dsq;
+  amino_dsq = NULL;
 
-      sc = log(data->fwd_transitions[p7O_MI][j]);
-      i++; k++;
-      while (k<dom->ad->N && dom->ad->model[k] == '.') { //extend insert
-        dom->scores_per_pos[k] = -eslINFINITY;
-        sc += log(data->fwd_transitions[p7O_II][j]);
-        i++; k++;
+  ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * tr->N);
+  amino_dsq[0] = eslDSQ_SENTINEL;
+
+  if(tr->ndom == 0) p7_trace_fs_Index(tr);
+
+  for(z1 = 0;       z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
+  for(z2 = tr->N-1; z2 >= 0;    z2--) if(tr->st[z2] == p7T_M || tr->st[z2] == p7T_D) break;
+
+  N = z2 - z1 + 1;
+  if(dom->scores_per_pos == NULL)
+    ESL_ALLOC( dom->scores_per_pos, sizeof(float) * N);
+  else
+    ESL_REALLOC( dom->scores_per_pos, sizeof(float) * N);
+  for (n=0; n<N; n++)  dom->scores_per_pos[n] = 0.0;
+
+  k  = tr->hmmfrom[0];
+  n  = 0;
+  a  = 1;
+  while (z1<=z2) {
+    i = tr->i[z1];
+    c = tr->c[z1];
+
+    if (tr->st[z1] == p7T_M) {
+      if(c == 1) {
+        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          codon_idx = p7P_CODON1(nuc_dsq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC2;
+        tr->fs++;
       }
-      sc += log(data->fwd_transitions[p7O_IM][j+1]) - log(data->fwd_transitions[p7O_MM][j+1]);
-      dom->scores_per_pos[k-1] = sc;
-
-    } else if (dom->ad->aseq[k] == '-' ) { // delete
-      dom->scores_per_pos[k] = -eslINFINITY;
-      sc = log(data->fwd_transitions[p7O_MD][j]);
-      j++; k++;
-      while (k<dom->ad->N && dom->ad->aseq[k] == '-')  { //extend delete
-        dom->scores_per_pos[k] = -eslINFINITY;
-        sc += log(data->fwd_transitions[p7O_DD][j]);
-        j++; k++;
+      else if(c == 2) {
+        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          codon_idx = p7P_CODON2(nuc_dsq[i-1], nuc_dsq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC1;
+        tr->fs++;
       }
-      sc += log(data->fwd_transitions[p7O_DM][j+1]) - log(data->fwd_transitions[p7O_MM][j+1]);
-      dom->scores_per_pos[k-1] = sc;
+      else if(c == 3) {
+        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          codon_idx = p7P_CODON3(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+        else
+          codon_idx    = p7P_DEGEN_C;
+        /* record stop codon */
+        indel = p7P_INDEL(gm_fs, k, codon_idx);
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) tr->fs++;
+      }
+      else if(c == 4) {
+        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          codon_idx = p7P_CODON4(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC1;
+        tr->fs++;
+      }
+      else if(c == 5) {
+        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-4]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          codon_idx = p7P_CODON5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+        else
+          codon_idx    = p7P_DEGEN_QC2;
+        tr->fs++;
+      }
+
+      dom->scores_per_pos[n] = p7P_MSC_CODON(gm_fs, k, codon_idx);
+      amino = p7P_AMINO(gm_fs, k, codon_idx);
+
+      amino_dsq[a] = amino;
+      a++;
+
+      if (tr->st[z1-1] == p7T_I)
+        dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_IM);
+      else if (tr->st[z1-1] == p7T_D)
+        dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_DM);
+      k++; z1++; n++;
+
+      while(z1 < z2 && tr->st[z1] == p7T_M) {
+        c = tr->c[z1];
+        i = tr->i[z1];
+
+        if(c == 1) {
+          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+            codon_idx = p7P_CODON1(nuc_dsq[i]);
+          else
+            codon_idx    = p7P_DEGEN_QC2;
+          tr->fs++;
+        }
+        else if(c == 2) {
+          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+            codon_idx = p7P_CODON2(nuc_dsq[i-1], nuc_dsq[i]);
+          else
+            codon_idx    = p7P_DEGEN_QC1;
+          tr->fs++;
+        }
+        else if(c == 3) {
+          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+            codon_idx = p7P_CODON3(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+          else
+            codon_idx    = p7P_DEGEN_C;
+          indel = p7P_INDEL(gm_fs, k, codon_idx);
+          if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) tr->fs++;
+        }
+        else if(c == 4) {
+          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+            codon_idx = p7P_CODON4(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+          else
+            codon_idx    = p7P_DEGEN_QC1;
+          tr->fs++;
+        }
+        else if(c == 5) {
+          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-4]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+            codon_idx = p7P_CODON5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+          else
+            codon_idx    = p7P_DEGEN_QC2;
+          tr->fs++;
+        }
+
+        dom->scores_per_pos[n] = p7P_MSC_CODON(gm_fs, k, codon_idx);
+
+        amino = p7P_AMINO(gm_fs, k, codon_idx);
+        amino_dsq[a] = amino;
+        a++;
+        
+
+        dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_MM);
+        k++; z1++; n++;
+      }
     }
+    else if (tr->st[z1] == p7T_I) {
+      
+      if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
+         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+        codon_idx = p7P_CODON3(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+      else
+        codon_idx    = p7P_DEGEN_C;
+
+      amino = p7P_AMINO(gm_fs, k, codon_idx);
+      amino_dsq[a] = amino;
+      a++;
+      
+
+      dom->scores_per_pos[n] = p7P_TSC(gm_fs, k, p7P_MI);
+      z1++; n++;
+      while (z1 < z2 && tr->st[z1] == p7T_I) {
+        dom->scores_per_pos[n] = p7P_TSC(gm_fs, k, p7P_II);
+        z1++; n++;
+      }
+    }
+    else if (tr->st[z1] == p7T_D) {
+      dom->scores_per_pos[n] = p7P_TSC(gm_fs, k-1, p7P_MD);
+      k++; z1++; n++;
+      while (z1 < z2 && tr->st[z1] == p7T_D)  {
+        dom->scores_per_pos[n] = p7P_TSC(gm_fs, k-1, p7P_DD);
+        k++; z1++; n++;
+      }
+    }
+    else ESL_XEXCEPTION(eslFAIL, "Impossible state from p7_pli_computeAliScores_BATH()");
   }
+
+  dom->aliscore = 0.0;
+  for (n=0; n<N; n++)  dom->aliscore += dom->scores_per_pos[n];
+
+  amino_dsq[a] = eslDSQ_SENTINEL;
+  p7_bg_SetLength(bg, a-1);
+  p7_bg_FilterScore(bg, amino_dsq, a-1, &bias);
+
+  dom->aliscore -= bias;
+  free(amino_dsq);
 
   return eslOK;
 
-ERROR:
-  return eslEMEM;
+  ERROR:
+    if(amino_dsq != NULL) free(amino_dsq);
+    return status; 
 
 }
 

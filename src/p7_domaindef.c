@@ -1237,7 +1237,6 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
 
   p7_OATrace        (om, ox2, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-  
     
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)
@@ -1260,10 +1259,14 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   dom->ad             = NULL;
   dom->scores_per_pos = NULL;
   dom->aliscore       = 0.0; 
-  
-  p7_splice_ComputeAliScores_fs(dom, ddef->tr, windowsq, gm_fs, bg, FALSE);
-  if(dom->aliscore < 0.0) return eslFAIL;  /* rare: domain is assumed to be repetitive garbage */
-  
+ 
+  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs, bg); 
+
+  if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
+    p7_trace_Reuse(ddef->tr);    
+    return eslFAIL; 
+  }
+
   if (!null2_is_done) {   
     p7_Null2_ByExpectation(om, ox2, null2);
     for (pos = i; pos <= j; pos++) {

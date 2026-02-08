@@ -1045,6 +1045,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
    * scoring false positive domain(s).  Use the current residue count to 
    * throw away any domains already bellow the reporting threshold before 
    * we do any further calculations */
+  pli->Z = (float)pli->nres / (float)gm_fs->max_length;
   if(P * pli->Z > pli->E) {
     p7_gmx_Reuse(gx1);
     return eslOK;

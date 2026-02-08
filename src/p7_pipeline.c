@@ -1067,7 +1067,6 @@ ERROR:
  *            dna_window      - a window obeject with the start and length 
  *                              of the window and all associated orfs
  *            dnasq           - the target dna sequence
- *            wrk             - workstate for translating codons
  *            gcode           - genetic code information for codon translation
  *            pli_tmp         - frameshift pipeline object for use in domain definition 
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
@@ -1086,7 +1085,7 @@ ERROR:
  */
 static int
 p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist,  
-                              int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode,
+                              int64_t seqidx, P7_HMM_WINDOW *dna_window, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode,
                              P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
@@ -1201,7 +1200,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE
 
   if(pli->fs_pipe && (!pli->std_pipe || min_P_orf <= pli->F4)) {
     p7_bg_SetLength(bg, dna_window->length/3);
-    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, wrk, gcode, pli->do_biasfilter, &filtersc_fs);
+    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq, gcode, pli->do_biasfilter, &filtersc_fs);
 
     p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, PARSER_ROWS_FWD, dna_window->length, 0);
 	p7_ivx_GrowTo(pli->iv, gm_fs->M, p7P_3CODONS);
@@ -1327,7 +1326,6 @@ ERROR:
  *            dna_window      - a window obeject with the start and length 
  *                              of the window and all associated orfs
  *            dnasq           - the target dna sequence
- *            wrk             - workstate for translating codons
  *            gcode           - genetic code information for codon translation
  *            pli_tmp         - frameshift pipeline object for use in domain definition 
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
@@ -1344,7 +1342,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity
 )
 {
 
@@ -1468,7 +1466,6 @@ ERROR:
  *                              the current window was extracted
  *            dnasq           - digital sequence of the DNA window
  *            orf_block       - collection of ORFs translated form <dnasq>
- *            wrk             - codon translation workstate
  *            gcode           - genetic code information for codon translation
  *            complementarity - is <sq> from the top strand 
  *                        (p7_NOCOMPLEMENT), or bottom strand 
@@ -1479,7 +1476,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, int complementarity)
 {
 
   int                i;
@@ -1615,12 +1612,12 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFIL
     {
       window_len   = post_vit_windowlist.windows[i].length; 
       if (window_len < 15) continue;
-      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity);
+      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
     }
   }
   else {
     
-    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, wrk, gcode, pli_tmp, complementarity);
+    p7_pli_postViterbi_BATH(pli, om, gm, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
   }
 
 

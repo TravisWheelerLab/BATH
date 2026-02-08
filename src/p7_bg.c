@@ -519,7 +519,7 @@ p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
  *            by <bg->p1>) that the null1 model uses is imposed.
  */
 int
-p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE_WORKSTATE *wrk, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
+p7_bg_fs_FilterScore(P7_BG *bg, ESL_SQ *dnasq, ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc)
 {
   int     i,j,f;
   int     L;

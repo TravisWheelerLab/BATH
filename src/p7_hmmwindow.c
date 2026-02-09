@@ -558,7 +558,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
     }
     else {
       hit->dcl->iali = hw->windows[i].n;
-      hit->dcl->iali = hw->windows[i].n + hw->windows[i].length - 1;
+      hit->dcl->jali = hw->windows[i].n + hw->windows[i].length - 1;
     }
  
     /* Create trace for seed hit */

@@ -170,7 +170,7 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
     ESL_REALLOC(graph->edge_mem,  sizeof(int)         * graph->nalloc);
     ESL_REALLOC(graph->num_edges, sizeof(int)         * graph->nalloc);   
 
-    for(i = old_alloc-1; i < graph->nalloc; i++) {
+    for(i = old_alloc; i < graph->nalloc; i++) {
       graph->edges[i] = NULL;     
       graph->edge_mem[i]  = 0;
       graph->num_edges[i] = 0;

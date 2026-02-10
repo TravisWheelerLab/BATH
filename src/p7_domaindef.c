@@ -23,7 +23,7 @@ static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, int *ret_nc);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, ESL_SQ *windowsq, int i, int j, P7_BG *bg,  const ESL_GENCODE *gcode);
-static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, P7_BG *bg, int i, int j, int null2_is_done);
+static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done);
 
 /*****************************************************************
  * 1. The P7_DOMAINDEF object: allocation, reuse, destruction
@@ -496,7 +496,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_BG *bg, P7_DOMAINDEF *ddef)
+p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
 {
   int i, j;
   int triggered;
@@ -580,7 +580,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
                  * happens. [xref J5/130].
               */
               ddef->nenvelopes++;
-              if (rescore_isolated_domain_bath(ddef, om, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, bg, i2, j2, TRUE) == eslOK)
+              if (rescore_isolated_domain_bath(ddef, om, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE) == eslOK)
               last_j2 = j2;
           }
             p7_spensemble_Reuse(ddef->sp);
@@ -591,7 +591,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
 		
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
-            rescore_isolated_domain_bath(ddef, om, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, bg, i, j, FALSE);
+            rescore_isolated_domain_bath(ddef, om, gm_fs, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE);
         }
         i     = -1;
         triggered = FALSE;
@@ -1028,7 +1028,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
    * scoring false positive domain(s).  Use the current residue count to 
    * throw away any domains already bellow the reporting threshold before 
    * we do any further calculations */
-  if(P * pli->Z > pli->E) {
+  pli->Z = (float)pli->nres / (float)gm_fs->max_length;
+  if (pli->inc_by_E  && P * pli->Z > pli->E) {
     p7_gmx_Reuse(gx1);
     return eslOK;
   }
@@ -1209,7 +1210,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
  * 
  */
 static int
-rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, P7_BG *bg, int i, int j, int null2_is_done)
+rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
 {
 
   P7_DOMAIN     *dom           = NULL;
@@ -1260,9 +1261,11 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   dom->scores_per_pos = NULL;
   dom->aliscore       = 0.0; 
  
-  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs, bg); 
+  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs); 
 
   if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
+    free(dom->scores_per_pos);   
+    dom->scores_per_pos = NULL;
     p7_trace_Reuse(ddef->tr);    
     return eslFAIL; 
   }
@@ -1303,12 +1306,7 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   dom->is_included   = FALSE;         /* gets set later by caller */
   dom->tr            = p7_trace_fs_Clone(ddef->tr); 
 
-  if(ddef->splice) {
-    p7_bg_SetLength(bg, dom->jali-dom->iali+1);
-    p7_bg_fs_NullOne(bg, windowsq->dsq, dom->jali-dom->iali+1, &null1);
-    dom->aliscore -= (dom->domcorrection + null1);   
-  }
-  else if(dom->scores_per_pos != NULL) {
+  if(!ddef->splice) { 
     free(dom->scores_per_pos); 
     dom->scores_per_pos = NULL;
   }

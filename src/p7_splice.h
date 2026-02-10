@@ -142,8 +142,6 @@ typedef struct _splice_pipeline
   double   F1;  
   double   F2;
   double   F3;
-  double   S1;
-  double   S2;
   double   incE;
   double   incT;
 

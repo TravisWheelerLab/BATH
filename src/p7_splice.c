@@ -671,7 +671,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
       /* If extension nodes were added, splice them */
       if(spliced_path->extension[0] || spliced_path->extension[spliced_path->path_len-1]) {
-  
+        
         esl_sq_Destroy(path_seq);
   
         seq_min = ESL_MIN(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) - ALIGNMENT_EXT;
@@ -921,9 +921,10 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
     if (curr_hit->seqidx != tmp_graph->seqidx) continue;
     if (tmp_graph->revcomp    && curr_hit->dcl->iali < curr_hit->dcl->jali) continue;
     if ((!tmp_graph->revcomp) && curr_hit->dcl->iali > curr_hit->dcl->jali) continue;
-
+    
     /*If the seed is upstream of the first hit add it to the tmp graph unless there are any anchor nodes between */
     if(p7_splice_HitUpstream(curr_hit->dcl, first_hit->dcl, tmp_graph->revcomp)) { 
+
       skip = FALSE;
       for(n = 0; n < graph->anchor_N; n++) {
         if(!graph->node_in_graph[n]) continue;
@@ -1180,14 +1181,14 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension
 
       /* Are hits upstream/downstream */
       if(!p7_splice_HitUpstream(th->hit[up]->dcl, th->hit[down]->dcl, extension_graph->revcomp)) continue;
-    
+
       if(extension_graph->revcomp)
         seq_gap_len = th->hit[up]->dcl->jali - th->hit[down]->dcl->iali - 1;
       else
         seq_gap_len = th->hit[down]->dcl->iali - th->hit[up]->dcl->jali - 1;        
 
       if(seq_gap_len > MAX_INTRON_EXT) continue;
-     
+
       amino_gap_len = th->hit[down]->dcl->ihmm - th->hit[up]->dcl->jhmm - 1;
 
       if(amino_gap_len > MAX_AMINO_GAP) continue;
@@ -1221,10 +1222,10 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension
       else if(!extension_graph->tmp_node[up] && !extension_graph->tmp_node[down])
       {
         /* If hits overlap, find the minimum lost socre to remove the overlap */
-
+      
         edge = p7_splicegraph_AddEdge(extension_graph, up, down);
         p7_splicegraph_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
-
+         
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
         edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
@@ -1516,6 +1517,8 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
         spliced_path->jali[spliced_path->path_len-1] = tmp_path->jali[i];
         spliced_path->ihmm[spliced_path->path_len-1] = tmp_path->ihmm[i];
         spliced_path->jhmm[spliced_path->path_len-1] = tmp_path->jhmm[i];
+
+        spliced_path->extension[spliced_path->path_len-1] = TRUE;
       }
       p7_splicepath_Destroy(tmp_path);
     }
@@ -1578,6 +1581,7 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
         spliced_path->ihmm[0] = tmp_path->ihmm[i];
         spliced_path->jhmm[0] = tmp_path->jhmm[i];
 
+        spliced_path->extension[0] = TRUE;
       }
       p7_splicepath_Destroy(tmp_path);
     }

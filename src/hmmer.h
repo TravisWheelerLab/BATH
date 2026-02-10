@@ -1029,10 +1029,10 @@ typedef struct p7_hmm_window_s {
   float         score;
   int64_t       id;          //sequence id of the database sequence hit
   int64_t       n;           //position in database sequence at which the diagonal/window starts (min for DNA)
-  int32_t       length;      // length of the diagonal/window
+  int32_t       length;      //length of the diagonal/window
   int16_t       k;           //position of the model at which the diagonal ends
   int64_t       target_len;  //length of the target sequence
-  int8_t        complementarity;
+  int8_t        complementarity;  
   int8_t        duplicate;
   int8_t        pass_forward;
   int8_t        is_seed;
@@ -1117,11 +1117,6 @@ typedef struct p7_pipeline_s {
   double  F2;                    /* Viterbi filter threshold                 */
   double  F3;                    /* uncorrected Forward filter threshold     */
   double  F4;                    /* min ORF Forward filter before fs Forward */
-  double  S1;                    /* SSV threshold for splicing seed hits     */
-  double  S2;                    /* Threshold for adding Forward hits to splicing graph */
-  int     B1;                    /* window length for biased-composition modifier - MSV*/
-  int     B2;                    /* window length for biased-composition modifier - Viterbi*/
-  int     B3;                    /* window length for biased-composition modifier - Forward*/
   int     do_biasfilter;         /* TRUE to use biased comp HMM filter       */
   int     do_null2;              /* TRUE to use null2 score corrections      */
 
@@ -1143,7 +1138,7 @@ typedef struct p7_pipeline_s {
 
   enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
-  int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (do not use --nofs flag) */
+  int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
   int           std_pipe;        /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           pid;             /* TRUE if user uses --pid flag to print percent identiy column to --tblout and --exontblout */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
@@ -1489,7 +1484,7 @@ extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
 extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
 extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_PROFILE *gm_fs, P7_BG *bg, const ESL_GENCODE *gcode);
-extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_BG *bg, P7_DOMAINDEF *ddef);
+extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
@@ -1626,7 +1621,7 @@ extern int p7_pli_DomainIncludable  (P7_PIPELINE *pli, float dom_score, double l
 extern int p7_pli_NewModel          (P7_PIPELINE *pli, const P7_OPROFILE *om, P7_BG *bg);
 extern int p7_pli_NewModelThresholds(P7_PIPELINE *pli, const P7_OPROFILE *om);
 extern int p7_pli_NewSeq            (P7_PIPELINE *pli, const ESL_SQ *sq);
-extern int p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, const P7_FS_PROFILE *gm_fs, P7_BG *bg);
+extern int p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, const P7_FS_PROFILE *gm_fs);
 extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, P7_HMM_WINDOWLIST *splcing_windows, int complementarity);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);

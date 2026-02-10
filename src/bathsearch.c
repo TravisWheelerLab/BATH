@@ -118,8 +118,6 @@ static ESL_OPTIONS options[] = {
   { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                         6 },
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         6 },
   { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,  "--fs","--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                     6 },
-  { "--S1",           eslARG_REAL,   "0.05",    NULL,        NULL,      NULL,   "--splice","--max",    "splicing seed threshold, keep SSV hits w/ P <= S1",                        6 },
-  { "--S2",           eslARG_REAL,   "1e-3",    NULL,        NULL,      NULL,   "--splice","--max",    "graph inclusion threshold, splice hits w/ P <= S2",                        6 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         6 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            6 },
 
@@ -152,14 +150,6 @@ static ESL_OPTIONS options[] = {
   { "--restrictdb_n",     eslARG_INT,   "-1",    NULL,        NULL,      NULL,   NULL, NULL,           "Search <j> target sequences (starting at --restrictdb_stkey)",             99 },
   { "--ssifile",          eslARG_STRING, NULL,   NULL,        NULL,      NULL,   NULL, NULL,           "restrictdb_x values require ssi file. Override default to <s>",            99 },
 
-  /* stage-specific window length used for bias composition estimate,
-   * hidden because they are confusing/expert options. May drag them out
-   * into the daylight eventually
-   */
-  { "--B1",           eslARG_INT,    "110",      NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (SSV)",                         99 },
-  { "--B2",           eslARG_INT,    "240",      NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (Vit)",                         99 },
-  { "--B3",           eslARG_INT,    "1000",     NULL,        NULL,      NULL,  NULL,"--max,--nobias", "window length for biased-composition modifier (Fwd)",                         99 },
- 
   /* Not used, but retained because esl option-handling code errors if it isn't kept here.  Placed in group 99 so that it doesn't print to help*/
   { "--domZ",         eslARG_REAL,    FALSE,     NULL,       "x>0",      NULL,  NULL, NULL,            "Not used",                                                                 99 },
   { "--domE",         eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,  NULL, DOMREPOPTS,      "Not used",                                                                 99 },
@@ -305,10 +295,6 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--F2")                            && fprintf(ofp, "# Vit filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F2"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F3")                            && fprintf(ofp, "# Fwd filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F3"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F4")                            && fprintf(ofp, "# ORF P threshold for FS FWD:                 <= %g\n",      esl_opt_GetReal(go, "--F4"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--splice") && 
-      esl_opt_IsUsed(go, "--S1")                            && fprintf(ofp, "# Splice seed threshold:                      <= %g\n",      esl_opt_GetReal(go, "--S1"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (esl_opt_IsUsed(go, "--splice") && 
-      esl_opt_IsUsed(go, "--S2")                            && fprintf(ofp, "# Splice anchor threshold:                    <= %g\n",      esl_opt_GetReal(go, "--S2"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nobias")                        && fprintf(ofp, "# biased composition HMM filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nonull2")                       && fprintf(ofp, "# null2 bias corrections:                        off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fs")                            && fprintf(ofp, "# Use the frameshift aware algorithms\n")                                                                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");

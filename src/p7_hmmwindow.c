@@ -385,16 +385,12 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
   char         *seqname;
   P7_HIT       *hit;
   P7_TOPHITS   *seed_hits;
-  P7_BG        *bg;
   ESL_ALPHABET *abcDNA;
   ESL_SQFILE   *dbfp;
   ESL_SQ       *dbsq_dna;
   int status;
 
   window_len = (1024 * 256);
-
-  bg = p7_bg_Create(gm_fs->abc);
-  p7_bg_SetFilter(bg, gm_fs->M, gm_fs->compo);
 
   seed_hits = p7_tophits_Create();
   hit = NULL;
@@ -577,13 +573,12 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
     p7_trace_fs_Append(hit->dcl->tr, p7T_T, 0, 0, 0);
 
     hit->dcl->scores_per_pos = NULL;
-    p7_pli_computeAliScores_BATH(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs, bg);
+    p7_pli_computeAliScores_BATH(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs);
  
     last_seqidx = hw->windows[i].id;
     last_strand = hw->windows[i].complementarity;    
   }
 
-  p7_bg_Destroy(bg);
   esl_alphabet_Destroy(abcDNA);
   esl_sq_Destroy(dbsq_dna);
   esl_sqfile_Close(dbfp);

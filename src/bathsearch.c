@@ -90,7 +90,6 @@ static ESL_OPTIONS options[] = {
   { "--exontblout",   eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,"--splice",NULL,         "save parseable table of exons to file <f>",                                3 },
   { "--fstblout",     eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL, "--fs", NULL,           "save table of frameshift locations to file <f>",                           3 },
   { "--hmmout",       eslARG_OUTFILE, NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "if input is alignment(s) or sequence(s) write produced hmms to file <f>",  3 },
-  { "--pid",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "include percent identity column in --tblout and/or --exontblout files",    3 },
   { "--acc",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "prefer accessions over names in output",                                   3 },
   { "--noali",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't output alignments, so output is smaller",                            3 },
   { "--notrans",      eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "don't show the translated DNA sequence in  alignment",                     3 }, 
@@ -158,8 +157,12 @@ static ESL_OPTIONS options[] = {
   { "--incdomT",      eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,  NULL, INCDOMOPTS,      "Not used",                                                                 99 },
   { "--crick",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate top strand",                                                99 },
   { "--watson",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,  NULL, NULL,            "only translate bottom strand",                                             99 }, 
-  { "--fsprob",       eslARG_REAL,   "0.01",     NULL,       "0<=x<=1",  NULL,  NULL, NULL,            "set the frameshift probabilty",                                            99 },
-  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "send all potential hits to the frameshift aware pipeline",                 99 },
+  /* Hidden frameshift options - for debugging/testing */
+  { "--fsprob",       eslARG_REAL,   "0.01",     NULL,       "0<=x<=1",  NULL,   "--fs", NULL,         "set the frameshift probabilty",                                            99 },
+  { "--fsonly",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--splice",     "send all potential hits to the frameshift aware pipeline",                 99 },
+  
+  /* Hidden splicing options - for debugging/testing */
+  { "--nodeinfo",     eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--exontblout", NULL,    "additional info on node types for --exontblout",                           99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -938,9 +941,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
     p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-
+    
     if (tblfp)     p7_tophits_TabularTargets    (tblfp,     hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
-    if (exontblfp) p7_tophits_TabularExons      (exontblfp, hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
+    if (exontblfp) p7_tophits_TabularExons      (exontblfp, hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1), esl_opt_IsUsed(go, "--nodeinfo"));
     if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,   hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
 
     esl_stopwatch_Stop(watch);

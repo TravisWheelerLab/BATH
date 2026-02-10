@@ -1139,7 +1139,6 @@ typedef struct p7_pipeline_s {
   int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
   int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
   int           std_pipe;        /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
-  int           pid;             /* TRUE if user uses --pid flag to print percent identiy column to --tblout and --exontblout */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;               /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/
   int           block_length;    /* length of overlapping blocks read in the multi-threaded variant (default MAX_RESIDUE_COUNT) */
@@ -1711,7 +1710,7 @@ extern int p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int t
 
 
 extern int p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header);
-extern int p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header);
+extern int p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header, int exon_info);
 extern int p7_tophits_TabularTail(FILE *ofp, const char *progname, enum p7_pipemodes_e pipemode, 
           const char *qfile, const char *tfile, const ESL_GETOPTS *go);
 extern int p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header);

@@ -121,7 +121,6 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   pli->spliced =  (go ? esl_opt_IsUsed(go, "--splice") : 0); 
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
-  pli->pid =      (go ? esl_opt_IsUsed(go, "--pid") : 0);
 
   /* Create sparce memeory forward and backward optimized matricies for use in the 
    * non-frameshift pipeline branch
@@ -709,7 +708,6 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
   int indel;
   int z1, z2;
   int N;
-  float bias;
   ESL_DSQ *nuc_dsq;
   int status;
 
@@ -1285,7 +1283,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
 
     for(f = 0; f < orf_block->count; f++) {
       curr_orf = &(orf_block->list[f]);
-      pli_tmp->oxf_holder[f] = NULL;
       pli_tmp->P_orf[f] = eslINFINITY; 
 
       if(curr_orf->idx == windowidx) { 
@@ -1300,7 +1297,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
        /* Save the Forward Martix for each ORF so we do not have to rerun 
         * Forward in the event that the standard pipeline is selected */
         p7_oprofile_ReconfigLength(om, curr_orf->n);
-        if ((pli_tmp->oxf_holder[f] = p7_omx_Create(om->M, 0, curr_orf->n)) == NULL) goto ERROR ;
+        if ((pli_tmp->oxf_holder[f] = p7_omx_Create(om->M, 0, curr_orf->n)) == NULL) goto ERROR;
         p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], &fwdsc_orf);
        
        /* Find the individual p-value (with bias) of each ORF in the window and store it. 
@@ -1389,8 +1386,10 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
 
   if(pli_tmp->oxf_holder != NULL) 
   {
-    for(f = 0; f < orf_block->count; f++) 
+    for(f = 0; f < orf_block->count; f++) { 
       p7_omx_Destroy(pli_tmp->oxf_holder[f]);
+      pli_tmp->oxf_holder[f] = NULL;
+    }
   } 
     
   return eslOK;
@@ -1400,8 +1399,10 @@ ERROR:
 
   if(pli_tmp->oxf_holder != NULL) 
   {
-    for(f = 0; f < orf_block->count; f++) 
+    for(f = 0; f < orf_block->count; f++) { 
       p7_omx_Destroy(pli_tmp->oxf_holder[f]);
+      pli_tmp->oxf_holder[f] = NULL;
+    }
   } 
 
 }
@@ -1741,6 +1742,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCO
 
 	ESL_ALLOC(pli_tmp->P_orf,      sizeof(double)   * post_vit_orf_block->count);
     ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * post_vit_orf_block->count);
+    for(i = 0; i < post_vit_orf_block->count; i++) 
+      pli_tmp->oxf_holder[i] = NULL;
 
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
@@ -1805,7 +1808,7 @@ ERROR:
 
   if (pli_tmp != NULL)
   {
-    if (pli_tmp->tmpseq     != NULL)  esl_sq_Destroy(pli_tmp->tmpseq);
+    if (pli_tmp->tmpseq     != NULL) esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->oxf_holder != NULL) free(pli_tmp->oxf_holder);
     if (pli_tmp->P_orf      != NULL) free(pli_tmp->P_orf);
     free(pli_tmp);

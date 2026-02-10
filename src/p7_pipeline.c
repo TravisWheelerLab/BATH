@@ -1730,7 +1730,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCO
     p7_pli_postViterbi_BATH(pli, om, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, gcode, data, splcing_windows, pli_tmp, complementarity);
 
   }
-  else  { /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
+  else if(post_vit_orf_block->count > 0)  { /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
     if (data->prefix_lengths == NULL)  //otherwise, already filled in
       p7_hmm_ScoreDataComputeRest(om, data);
 

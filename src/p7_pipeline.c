@@ -1366,7 +1366,6 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs,
 
     p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, orf_start, curr_orf, dnasq, complementarity, nullsc);
   }
-    
 
   return eslOK;
 
@@ -1564,7 +1563,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCO
   if(!pli->fs_pipe) { /* not using frameshift algorithms */
     p7_pli_postViterbi_BATH(pli, om, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
   }
-  else {  /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
+  else if(post_vit_orf_block->count > 0) {  /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
     if (data->prefix_lengths == NULL)  //otherwise, already filled in
       p7_hmm_ScoreDataComputeRest(om, data);
   

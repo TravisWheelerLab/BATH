@@ -117,7 +117,7 @@ extern void p7_domain_Destroy(P7_DOMAIN *obj)
 
 // base size is 2 ints bigger than required for the fixed-length members of the strucuture, one int for the serialized length,
 // one int for the length of the scores_per_pos array (in floats)
-#define SER_BASE_SIZE (4 * sizeof(int)) + (6 * sizeof(int64_t)) + (5 * sizeof(float)) + (sizeof(double))
+#define SER_BASE_SIZE (4 * sizeof(int)) + (4 * sizeof(int64_t)) + (5 * sizeof(float)) + (sizeof(double))
 
 extern int p7_domain_Serialize(const P7_DOMAIN *obj, uint8_t **buf, uint32_t *n, uint32_t *nalloc)
 {

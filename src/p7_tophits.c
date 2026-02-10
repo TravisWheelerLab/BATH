@@ -519,42 +519,6 @@ p7_tophits_GetMaxPositionLength(P7_TOPHITS *h)
   return max;
 }
 
-/* Function:  p7_tophits_GetMaxORFposLength()
- * Synopsis:  Returns maximum position length in hit list, for the ORF position (DNA target).
- *
- * Purpose:   Returns the length of the longest ORF hit location (start/end)
- *               of all the registered hits, in chars. This is useful when
- *               deciding how to format output.
- *
- *            The maximum is taken over all registered hits. This
- *            opens a possible side effect: caller might print only
- *            the top hits, and the max name length in these top hits
- *            may be different than the max length over all the hits.
- *
- *            Used specifically for translated search.
- *
- *            If there are no hits in <h>, or none of the
- *            hits have names, returns 0.
- */
-int
-p7_tophits_GetMaxORFposLength(P7_TOPHITS *h)
-{
-  int64_t i;
-  int max = 0;
-  int n;
-  char buffer [13];
-
-  for (i = 0; i < h->N; i++) {
-    if (h->unsrt[i].nreported>0 && h->unsrt[i].dcl[0].iorf > 0) {
-      n = sprintf (buffer, "%" PRId64 "", h->unsrt[i].dcl[0].iorf);
-      max = ESL_MAX(n, max);
-      n = sprintf (buffer, "%" PRId64 "", h->unsrt[i].dcl[0].jorf);
-      max = ESL_MAX(n, max);
-    }
-  }
-  return max;
-}
-
 /* Function:  p7_tophits_GetMaxNameLength()
  * Synopsis:  Returns maximum name length in hit list (targets).
  *

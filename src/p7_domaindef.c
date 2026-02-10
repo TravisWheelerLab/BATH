@@ -1001,7 +1001,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   int            codon_idx;  
   int            z;
   int            pos;
-  float          null1;
   float          null2[p7_MAXCODE];
   int            status;
   ESL_DSQ        t, u, v, w, x;
@@ -1216,7 +1215,6 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   P7_DOMAIN     *dom           = NULL;
   int            Ld            = j-i+1;
   int            z1, z2;
-  float          null1;
   float          domcorrection = 0.0;
   float          envsc, oasc, bcksc;
   int            z;

@@ -1237,7 +1237,6 @@ extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GE
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);
-extern int p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX *gx, float nu,  P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist);
 
 /* generic_null2.c */
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
@@ -1263,8 +1262,6 @@ extern int p7_GViterbi     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 
 /* generic_vtrace.c */
 extern int p7_GTrace       (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
-extern int p7_GViterbi_longtarget(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx,
-                       float filtersc, double P, P7_HMM_WINDOWLIST *windowlist);
 
 /* viterbi_frameshift.c */
 extern int p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
@@ -1414,7 +1411,7 @@ extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
 extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
 extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_PROFILE *gm_fs, P7_BG *bg, const ESL_GENCODE *gcode);
-extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef);
+extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
@@ -1505,7 +1502,7 @@ extern int  p7_hmmfile_Position(P7_HMMFILE *hfp, const off_t offset);
 
 /* p7_hmmwindow.c */
 extern int p7_hmmwindow_init (P7_HMM_WINDOWLIST *list);
-extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
+extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
 extern int p7_hmmwindow_SortByStart(P7_HMM_WINDOWLIST *w);
 
 /* p7_msvdata.c */

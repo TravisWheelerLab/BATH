@@ -36,7 +36,7 @@ ERROR:
  *
  * Synopsis:  Return a pointer to the next window element on the list
  *
- * Purpose:   Accepts <id>, <pos>, <fm_pos>, <k>, <length>, <score>,
+ * Purpose:   Accepts <id>, <pos>, <k>, <length>, <score>,
  *            and <complementarity>, assigns those to the next window
  *            element, then returns it, increasing the size of the
  *            list, if necessary.
@@ -45,7 +45,7 @@ ERROR:
  *            the next seed diagonal
  */
 P7_HMM_WINDOW *
-p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len) {
+p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len) {
   int status;
   P7_HMM_WINDOW *window;
 
@@ -57,7 +57,6 @@ p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t f
 
   window->id               = id;
   window->n                = pos;
-  window->fm_n             = fm_pos;
   window->k                = k;
   window->length           = length;
   window->score            = score;

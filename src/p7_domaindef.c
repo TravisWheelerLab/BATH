@@ -498,7 +498,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *tmp_fwd, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
+p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
 {
   int i, j;
   int triggered;
@@ -511,7 +511,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
   int status;
 
   if ((status = p7_domaindef_GrowTo(ddef, orfsq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
-  if ((status = p7_DomainDecoding(om, tmp_fwd, bck, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
+  if ((status = p7_DomainDecoding(om, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
 
   esl_vec_FSet(ddef->n2sc, orfsq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[orfsq->n];             /* posterior expectation for # of domains (same as etot[orfsq->n])   */

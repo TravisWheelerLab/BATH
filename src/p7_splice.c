@@ -2746,7 +2746,7 @@ p7_splice_EnforceBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_ma
 int
 p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success)
 {
-  int           e, i, s;
+  int           i, s;
   int           s1, s2;
   int           shift;
   int           orf_len;
@@ -2843,10 +2843,6 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
 
     /*If the first or last exon does not pass the reporting threshold, 
      * break the edge to the corresponding node and realign */
-    for(e = 0; e < pli->hit->dcl->ad->exon_cnt; e++) 
-      pli->hit->dcl->ad->exon_lnP[e] += log((float)info->db_nuc_cnt / (float)om->max_length);
-
-    
     if ( spliced_path->path_len >  pli->hit->dcl->ad->exon_cnt) {
       /* Shift the path to start at the first hit that was inculded in the alignment
        * and end at the last hit that was included in the alignment */
@@ -3309,7 +3305,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     
     hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt);
 
-    p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, NULL, FALSE, FALSE); 
+    p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, FALSE); 
     status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
 
     p7_trace_splice_Destroy(hit->dcl->tr);
@@ -3361,7 +3357,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt);
 
-  p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, null2, pli->do_null2, TRUE);
+  p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, TRUE);
 
   /*Check for 0 posterior probablity caused by low quailty exons */
   for(e = 0; e < hit->dcl->ad->exon_cnt; e++) {
@@ -3552,7 +3548,7 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
  *
  */
 int
-p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om, float *null2, int do_null2, int do_pp)
+p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om, int do_pp)
 {
 
   int i, e, z;
@@ -3573,10 +3569,6 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   fwd      = pli->fwd;
   bg       = pli->bg;
   amino_sq = pli->amino_sq;
-
-
-  p7_bg_SetLength(bg, om->max_length);
-  p7_bg_NullOne  (bg, amino_sq->dsq, om->max_length, &nullsc);
 
   for(z = 0; z < tr->N; z++) if(tr->st[z] == p7T_M) break;
   start_i = tr->i[z]-1; // start_i is the -1 from the first amino position in the exon 
@@ -3599,29 +3591,22 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   
   end_i = start_i + exon_amino_len;
   
-  ad->exon_bias[0] = 0.;
   for(i = start_i+1; i <= end_i; i++) 
     scale += log(fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]); 
   
-  if(do_null2) {
-    ad->exon_bias[0] = 0.;
-    for(i = start_i+1; i <= end_i; i++) 
-      ad->exon_bias[0] += logf(null2[amino_sq->dsq[i]]);
-    
-    ad->exon_bias[0] = ESL_MAX(0., p7_FLogsum(0.0, log(bg->omega) + ad->exon_bias[0]));
-  }
-  else ad->exon_bias[0] = 0.;
-
   end_score = log(fwd->xmx[end_i*p7X_NXCELLS+p7X_C]) + scale;
 
   exon_score = (end_score - start_score);
 
+  p7_bg_SetLength(bg, exon_amino_len);
+  p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
+
   /* Subtract out old N->B perobablity and add in new N->B and C->T probabilities */
   exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
-  exon_score += 2 * log(2.0 / ((float) om->max_length + 2.0));
-  ad->exon_score[0] = (exon_score - (nullsc + ad->exon_bias[0]))  / eslCONST_LOG2;
-
+  exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
+  ad->exon_score[0] = (exon_score - nullsc)  / eslCONST_LOG2;
   ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+
 
   if(do_pp) {
     exon_pp = tr->pp[z];
@@ -3652,29 +3637,23 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
  
     end_i = start_i + exon_amino_len;
    
-    ad->exon_bias[e] = 0.;   
    
     for(i = start_i+1; i <= end_i; i++) { 
       scale += log(fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]);
 
     }
-    if(do_null2) {
-      for(i = start_i+1; i <= end_i; i++)
-        ad->exon_bias[e] += logf(null2[amino_sq->dsq[i]]);
-      ad->exon_bias[e] = ESL_MAX(0., p7_FLogsum(0.0, log(bg->omega) + ad->exon_bias[e]));
-    }
-
-    ad->exon_bias[e] = ESL_MAX(ad->exon_bias[e], 0.);
-
     end_score = log(fwd->xmx[end_i*p7X_NXCELLS+p7X_C]) + scale;
 
     exon_score = (end_score - start_score);
+  
+    p7_bg_SetLength(bg, exon_amino_len);
+    p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
 
     /* Subtract out old N->B perobablity and add in new N->B and C->T probabilities */
     exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
-    exon_score += 2 * log(2.0 / ((float) om->max_length + 2.0));
+    exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
 
-    ad->exon_score[e] = (exon_score - (nullsc + ad->exon_bias[e]))  / eslCONST_LOG2;  
+    ad->exon_score[e] = (exon_score - nullsc) / eslCONST_LOG2;
 
     ad->exon_lnP[e] = esl_exp_logsurv (ad->exon_score[e],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 

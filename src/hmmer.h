@@ -814,7 +814,6 @@ typedef struct p7_alidisplay_s {
   int     *exon_extend;         /* array of bools stating whether exon was an  extension node         */
   float   *exon_pid;            /* array of percent identities for exons in spliced alignment         */
   float   *exon_score;
-  float   *exon_bias;
   float   *exon_pp;
   double  *exon_lnP;
 

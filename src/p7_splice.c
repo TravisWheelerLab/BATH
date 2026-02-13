@@ -682,7 +682,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
         
       }
       else if (spliced_path->path_len == 1) p7_splice_SpliceSingle(info, spliced_path, path_seq);        
-      
+     
 //printf("FINAL PATH\n");
 //p7_splicepath_Dump(stdout,spliced_path);
 //fflush(stdout);
@@ -691,16 +691,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
       if(spliced_path->path_len > 1) {
 
-        /* Recheck node assignments to maxiimize the number of anchor nodes */
-        for(h = 0; h < graph->anchor_N; h++) {
-          if(!graph->node_in_graph[h]) continue;
-          for(s = 0; s < spliced_path->path_len; s++) {
-            if(spliced_path->node_id[s] >= graph->anchor_N) {
-              if(p7_splicegraph_NodeOverlap(graph, h, spliced_path, s))
-                spliced_path->node_id[s] = h;
-            }
-          }
-        }
         /* Create the final alginement */  
         p7_splice_AlignSplicedPath(info, orig_path, spliced_path, path_seq, &success);
 
@@ -2868,6 +2858,17 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
         }
       }
 
+      /*Redo node  assignments to maxiimize the number of anchor nodes */
+      for(i = 0; i < graph->anchor_N; i++) {
+        if(!graph->node_in_graph[i]) continue;
+        for(s = 0; s < spliced_path->path_len; s++) {
+          if(spliced_path->node_id[s] >= graph->anchor_N) {
+            if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s))
+              spliced_path->node_id[s] = i;
+          }
+        }
+      }
+
       /* Shift path to start at frist hits that is in alignment */
       for(s = 0; s < shift; s++) 
         p7_splicepath_Remove(spliced_path, 0);
@@ -3625,7 +3626,7 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
     while(tr->i[z] <= end_i)  { exon_pp += tr->pp[z]; z++; }
     
     ad->exon_pp[0] = exon_pp / (float) exon_amino_len;
-
+    printf("ad->exon_pp[0] %f\n", ad->exon_pp[0]);
   }
   else ad->exon_pp[0] = -eslINFINITY;
 
@@ -3675,7 +3676,7 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
       while(tr->i[z] <= end_i && tr->st[z] != p7T_E) { exon_pp += tr->pp[z]; z++; }
 
       ad->exon_pp[e] = exon_pp / (float) exon_amino_len;
-
+      printf("ad->exon_pp[e] %f\n", ad->exon_pp[e]);
     }
     else ad->exon_pp[e] = -eslINFINITY;
    

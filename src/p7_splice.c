@@ -1255,9 +1255,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
   int i_sub_start, i_sub_end;
   int k_start, k_end;
   int next_i_start, next_k_start;
-  P7_PROFILE      *gm;
   SPLICE_EDGE     *edge;
-  SPLICE_EDGE     *next_edge;
   SPLICE_PIPELINE *pli;
   SPLICE_PATH *tmp_path;
   SPLICE_PATH *ret_path;
@@ -1265,7 +1263,6 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
   
   graph = info->graph;
   pli   = info->pli;
-  gm    = info->gm;
 
   ret_path   = NULL;
  
@@ -1293,27 +1290,10 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
   next_i_start = next_k_start = 0; 
   /* Splice each pair or nodes from the first to the last anchor */  
   for(s = s_start+1; s < s_end+1; s++) {
-
+  
     edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]);
-	/*If these nodes were previously spliced and merged we cwn skip to the next downstream node */
-	if(s != s_end && edge->merged) {
-      /*Make sure there is an edge to the next node in the path */
-      if(!p7_splicegraph_EdgeExists(graph, orig_path->node_id[s-1], orig_path->node_id[s+1])) {
-        next_edge = p7_splicegraph_AddEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s+1]);
-        next_edge->upstream_amino_end     = orig_path->jhmm[s-1];
-        next_edge->downstream_amino_start = orig_path->ihmm[s+1];
-        next_edge->upstream_nuc_end       = orig_path->jali[s-1];
-        next_edge->downstream_nuc_start   = orig_path->iali[s+1];
-        if(!graph->tmp_node[orig_path->node_id[s-1]] && !graph->tmp_node[orig_path->node_id[s+1]])
-          p7_splicegraph_AliScoreEdge(next_edge, gm, graph->th->hit[orig_path->node_id[s-1]]->dcl, graph->th->hit[orig_path->node_id[s+1]]->dcl);
-      }
-      p7_splicepath_Remove(orig_path, s);
-      s_end--;
-      s--;
-      continue;    
-    }
 
-    /* After the first pair of nodes the start coordinates are set by the previous search */
+	/* After the first pair of nodes the start coordinates are set by the previous search */
     k_start = next_k_start == 0 ? orig_path->ihmm[s-1] : next_k_start; 
     i_start = next_i_start == 0 ? orig_path->iali[s-1] : next_i_start;
     k_end   = orig_path->jhmm[s];
@@ -1329,7 +1309,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
 
         ret_path->extension[0] = FALSE;
       } 
-      else p7_splicepath_Insert(ret_path, ret_path->path_len);
+      else p7_splicepath_Insert(ret_path, ret_path->path_len); 
 
       /* Recover splice coordinates and add to path */
       ret_path->jali[ret_path->path_len-2] = edge->upstream_nuc_end;
@@ -1371,11 +1351,11 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
       p7_splicepath_Destroy(ret_path);
       return NULL;
     }
-
+    
     tmp_path = p7_splice_AlignExons(info, orig_path, path_seq, s, i_sub_start, i_sub_end, k_start, k_end, &next_i_start, &next_k_start);
-
     /* If the alignment failed erase the edge and return NULL */ 
     if(tmp_path == NULL) {
+      
       /* refetch edge in in case of realloc */
       edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]); 
       edge->splice_score = -eslINFINITY;
@@ -1405,20 +1385,15 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
     /* When hits are merged we need to remove one from the path */
     if(tmp_path->path_len == 1) {
       if(s != s_end) {
-        /*Make sure there is an edge to the next node in the path */ 
-        if(!p7_splicegraph_EdgeExists(graph, orig_path->node_id[s-1], orig_path->node_id[s+1])) {
-          next_edge = p7_splicegraph_AddEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s+1]);
-          next_edge->upstream_amino_end     = orig_path->jhmm[s-1];
-          next_edge->downstream_amino_start = orig_path->ihmm[s+1]; 
-          next_edge->upstream_nuc_end       = orig_path->jali[s-1];
-          next_edge->downstream_nuc_start   = orig_path->iali[s+1];
-          if(!graph->tmp_node[orig_path->node_id[s-1]] && !graph->tmp_node[orig_path->node_id[s+1]])
-            p7_splicegraph_AliScoreEdge(next_edge, gm, graph->th->hit[orig_path->node_id[s-1]]->dcl, graph->th->hit[orig_path->node_id[s+1]]->dcl);
-
-        }
-
         edge = p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]);
-        edge->merged = TRUE; 
+        edge->splice_score = -eslINFINITY;
+
+        /*If there is not an edge to the next node we must reject this path */
+        if(!p7_splicegraph_EdgeExists(graph, orig_path->node_id[s-1], orig_path->node_id[s+1])) {
+          p7_splicepath_Destroy(tmp_path);
+          p7_splicepath_Destroy(ret_path);
+          return NULL;
+        }
   
         p7_splicepath_Remove(orig_path, s);
         s_end--;
@@ -2890,6 +2865,17 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   
     }
 
+    /*Redo node  assignments to maxiimize the number of anchor nodes */
+    for(i = 0; i < graph->anchor_N; i++) {
+      if(!graph->node_in_graph[i]) continue;
+      for(s = 0; s < spliced_path->path_len; s++) {
+        if(spliced_path->node_id[s] >= graph->anchor_N) {
+          if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s))
+            spliced_path->node_id[s] = i;
+        }
+      }
+    }
+
     /* Find the first original hit in path to copy info*/
     i = 0;
     while( spliced_path->node_id[i] >= graph->anchor_N || spliced_path->node_id[i] == -1) {
@@ -3626,7 +3612,6 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
     while(tr->i[z] <= end_i)  { exon_pp += tr->pp[z]; z++; }
     
     ad->exon_pp[0] = exon_pp / (float) exon_amino_len;
-    printf("ad->exon_pp[0] %f\n", ad->exon_pp[0]);
   }
   else ad->exon_pp[0] = -eslINFINITY;
 
@@ -3676,7 +3661,7 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
       while(tr->i[z] <= end_i && tr->st[z] != p7T_E) { exon_pp += tr->pp[z]; z++; }
 
       ad->exon_pp[e] = exon_pp / (float) exon_amino_len;
-      printf("ad->exon_pp[e] %f\n", ad->exon_pp[e]);
+      
     }
     else ad->exon_pp[e] = -eslINFINITY;
    

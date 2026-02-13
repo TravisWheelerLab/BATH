@@ -15,7 +15,6 @@ typedef struct _splice_edge {
 
   //int frameshift;
   int jump_edge;
-  int merged;
 
   int upstream_node_id;
   int downstream_node_id;

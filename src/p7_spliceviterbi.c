@@ -1330,8 +1330,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
  *
  * Purpose:   Create a trace that includes the exons(s) and any splice site(s) 
  *            from the filled translated spliced viterbi matrix <gx> and the 
- *            donor site index matrix <lookback>. Returns the fill trance <tr> 
- *            and the trace <aliscore>.
+ *            donor site index matrix <lookback>. Returns the filled trance <tr> 
  *
  * Args:      pli       - splicing pipeline containing the splice site matricies and scores
  *            sub_dsq   - nucleotide sequence
@@ -1343,7 +1342,6 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
  *            i_end     - end poition on the <sub_dsq>
  *            k_start   - start poition on the <gm_fs>
  *            k_end     - end poition on the <gm_fs>
- *            ali_score - returned alignment score
  *
  * Return:    <eslOK> on success. 
  *            <eslFAIL> if even the optimal path has zero probability;
@@ -1351,7 +1349,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
  *
  */            
 int
-p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, float *ali_score)
+p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
 {
   int          M   = k_end - k_start + 1;
   int          L   = i_end - i_start + 1;
@@ -1393,7 +1391,6 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
 
     case p7T_E:     /* E connects from any M state. k set here */
       if (XMX_SP(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
-      *ali_score = XMX_SP(i, p7G_E);
       for (k = M; k >= 1; k--) {
         if (esl_FCompare_old(XMX_SP(i, p7G_E), MMX_SP(i,k), tol) == eslOK) { scur = p7T_M; break; }
         if (esl_FCompare_old(XMX_SP(i, p7G_E), DMX_SP(i,k), tol) == eslOK) { scur = p7T_D; break; }
@@ -1451,7 +1448,6 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
       break;
 
     case p7T_P:
-      *ali_score -= TSC_P;
       scur = snxt;
       k--; i = donor_idx - c - 2;
       break;
@@ -1463,7 +1459,6 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
 
     case p7T_B:         /* B connects from N, J */
       if (XMX_SP(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
-      *ali_score -= XMX_SP(i,p7G_B);
       if      (esl_FCompare_old(XMX_SP(i,p7G_B), XMX_SP(i, p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE], tol) == eslOK) scur = p7T_N;
       else  ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
       break;

@@ -15,6 +15,7 @@ typedef struct _splice_edge {
 
   //int frameshift;
   int jump_edge;
+  int merged;
 
   int upstream_node_id;
   int downstream_node_id;
@@ -309,7 +310,7 @@ extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 extern int p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end); 
 extern int p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
 extern int p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, float *ali_score);
+extern int p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);
@@ -318,7 +319,7 @@ extern int p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
 extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph);
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm);
 extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph, P7_PROFILE *gm);
-extern SPLICE_PATH* p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int *next_i_start, int *next_k_start,float *ali_score);
+extern SPLICE_PATH* p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int *next_i_start, int *next_k_start);
 extern SPLICE_PATH* p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int s_end, int i_start, int i_end, int k_start, int k_end, int *next_i_end, int *next_k_end);
 extern SPLICE_PATH* p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int s_start, int i_start, int i_end, int k_start, int k_end);
 extern SPLICE_PATH* p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int i_start, int i_end, int k_start, int k_end);

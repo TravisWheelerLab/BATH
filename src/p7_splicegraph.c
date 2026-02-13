@@ -328,6 +328,7 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int down_node)
   ret_edge->downstream_node_id = down_node; 
 
   ret_edge->jump_edge = FALSE;
+  ret_edge->merged    = FALSE;
 
   ret_edge->splice_score = 0.;
 

@@ -2146,7 +2146,8 @@ main(int argc, char **argv)
   P7_HMM         *hmm     = NULL;
   P7_BG          *bgDNA   = NULL;
   P7_BG          *bgAA    = NULL;
-  P7_FS_PROFILE  *gm_fs5   = NULL;
+  P7_FS_PROFILE  *gm_fs5  = NULL;
+  P7_FS_PROFILE  *gm_fs3  = NULL;
   P7_GMX         *fwd_p   = NULL;
   P7_GMX         *bck_p   = NULL;
   P7_GMX         *fwd     = NULL;
@@ -2168,7 +2169,10 @@ main(int argc, char **argv)
   bgDNA = p7_bg_Create(abcDNA);
   bgAA  = p7_bg_Create(abcAA);
   gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA);
+  gm_fs3 = p7_profile_fs3_Create(hmm->M, abcAA);
   p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
+  p7_ProfileConfig_fs3(hmm, bgAA, gcode, gm_fs3, L/3, p7_UNILOCAL);
+
   fwd_p = p7_gmx_fs_Create(gm_fs5->M, PARSER_ROWS_FWD, L, 0);
   bck_p = p7_gmx_fs_Create(gm_fs5->M, PARSER_ROWS_BWD, L, 0);
   fwd   = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
@@ -2190,11 +2194,11 @@ main(int argc, char **argv)
         if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Forward_Frameshift (dsq, gcode, L, gm_fs5, fwd, iv, &sc);
         if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T")) p7_ForwardParser_Frameshift_5Codons(dsq, gcode, L, gm_fs5, fwd_p, iv, &sc);
         p7_gmx_Reuse(fwd_p);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V")) p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs5, fwd_p, iv, &sc);
+        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V")) p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, fwd_p, iv, &sc);
       } 
       if (! esl_opt_GetBoolean(go, "-F"))  {
         if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Backward_Frameshift(dsq, gcode, L, gm_fs5, bck, iv, NULL); 
-        if (! esl_opt_GetBoolean(go, "-U"))                                   p7_BackwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs5, bck_p, iv, NULL);
+        if (! esl_opt_GetBoolean(go, "-U"))                                   p7_BackwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, bck_p, iv, NULL);
      }
 
      p7_gmx_Reuse(fwd_p);
@@ -2217,6 +2221,7 @@ main(int argc, char **argv)
   p7_gmx_Destroy(fwd);
   p7_ivx_Destroy(iv);
   p7_profile_fs_Destroy(gm_fs5);
+  p7_profile_fs_Destroy(gm_fs3);
   p7_bg_Destroy(bgDNA);
   p7_bg_Destroy(bgAA);
   p7_hmm_Destroy(hmm);
@@ -2245,7 +2250,7 @@ main(int argc, char **argv)
 #include "esl_randomseq.h"
 
 static void
-utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GENCODE *gcode, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_HMM *hmm, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs5, int nseq, int L)
+utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GENCODE *gcode, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_HMM *hmm, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, int nseq, int L)
 {
   int         i,j;
   float       avg_sc_rnd;
@@ -2311,8 +2316,8 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
 
 	  p7_gmx_Reuse(fwd_p);
 	  p7_gmx_Reuse(bck_p);
-      if (p7_ForwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs5, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 3 failed");
-      if (p7_BackwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs5, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser failed");
+      if (p7_ForwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs3, fwd_p, iv, &fsc_p) != eslOK)  esl_fatal("forward parser 3 failed");
+      if (p7_BackwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs3, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser 3 failed");
        
       if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser 3 /Backward Parser 3 failed: %f %f\n", fsc_p, bsc_p);
 
@@ -2416,7 +2421,8 @@ main(int argc, char **argv)
   ESL_ALPHABET   *abcDNA = NULL;
   P7_HMM         *hmm    = NULL;
   P7_PROFILE     *gm     = NULL;
-  P7_FS_PROFILE  *gm_fs5  = NULL;
+  P7_FS_PROFILE  *gm_fs5 = NULL;
+  P7_FS_PROFILE  *gm_fs3 = NULL;
   P7_BG          *bgAA   = NULL;
   P7_BG          *bgDNA  = NULL;
   ESL_GENCODE    *gcode  = NULL;
@@ -2441,11 +2447,14 @@ main(int argc, char **argv)
   if ((p7_ProfileConfig(hmm, bgAA, gm, L, p7_LOCAL))            != eslOK) esl_fatal("failed to config profile");
   if ((gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
   if (p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
+  if ((gm_fs3 = p7_profile_fs3_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
+  if (p7_ProfileConfig_fs3(hmm, bgAA, gcode, gm_fs3, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
 
-  utest_forward_fs    (go, r, abcAA, gcode, ct, bgAA, hmm, gm, gm_fs5, nseq, L);
+  utest_forward_fs    (go, r, abcAA, gcode, ct, bgAA, hmm, gm, gm_fs3, gm_fs5, nseq, L);
 
   p7_profile_fs_Destroy(gm_fs5);
+  p7_profile_fs_Destroy(gm_fs3);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);

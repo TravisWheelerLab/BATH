@@ -2461,7 +2461,7 @@ main(int argc, char **argv)
   gcode  = esl_gencode_Create(abcDNA, abcAA);
   ct     = p7_codontable_Create(gcode);
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA); 
-  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 0, p7_UNIGLOCAL);
+  p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, 0, p7_UNIGLOCAL);
 
 
   if (esl_opt_GetBoolean(go, "-p")) tr = p7_trace_fs_CreateWithPP();

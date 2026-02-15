@@ -447,7 +447,7 @@ main(int argc, char **argv)
   abcDNA = esl_alphabet_Create(eslDNA); 
   bgAA  = p7_bg_Create(abcAA);                  p7_bg_SetLength(bgAA, L/3);
   gcode = esl_gencode_Create(abcDNA,abcAA);
-  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
+  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);  p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
   fwd   = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);  
   bck   = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
   pp    = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);

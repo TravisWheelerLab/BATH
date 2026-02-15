@@ -123,7 +123,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
 
     if(gm_fs == NULL) {
       if  ( (gm_fs  = p7_profile_fs_Create(hmm->M, hmm->abc))                    == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
-      if  ( (status = p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, EvL, p7_LOCAL)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure profile");
+      if  ( (status = p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, EvL, p7_LOCAL)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure profile");
     }  
     if ((status = p7_fs_Tau_3codons (r, gm_fs, gcode, ct, bg, EfL, EfN, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
     if ((status = p7_fs_Tau_5codons (r, gm_fs, gcode, ct, bg, EfL, EfN, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
@@ -865,7 +865,7 @@ main(int argc, char **argv)
         if(ct     == NULL) ct     = p7_codontable_Create(gcode);
  
         gm_fs = p7_profile_Create(hmm->M, abc);
-        p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, EfL, p7_LOCAL);
+        p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, EfL, p7_LOCAL);
       }
       
       if (esl_opt_IsOn(go, "--lambda"))	lambda = esl_opt_GetReal(go, "--lambda"); 

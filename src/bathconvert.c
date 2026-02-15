@@ -141,7 +141,7 @@ main(int argc, char **argv)
           if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
 
           gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 100, p7_LOCAL);
+          p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, 100, p7_LOCAL);
 
           p7_fs_Tau_3codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS3] = tau_fs;

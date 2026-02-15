@@ -623,7 +623,7 @@ main(int argc, char **argv)
   p7_bg_SetLength(bgAA, L/3);
   p7_bg_SetLength(bgDNA, L);
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
-  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L, p7_UNILOCAL);
+  p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L, p7_UNILOCAL);
   gx1 = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
   gx2 = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
   pp  = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);

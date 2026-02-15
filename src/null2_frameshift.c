@@ -180,7 +180,7 @@ main(int argc, char **argv)
   gcode  = esl_gencode_Create(abcDNA, abcAA);
   bgDNA  = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
   bgAA   = p7_bg_Create(abcAA);                 p7_bg_SetLength(bgAA, L/3);
-  gm_fs  = p7_profile_fs_Create(hmm->M, abcAA); p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
+  gm_fs  = p7_profile_fs_Create(hmm->M, abcAA); p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
   gx1    = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);  
   gx2    = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
   pp     = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);

@@ -762,7 +762,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       
     p7_oprofile_Convert(gm, om);                                      /* convert <om> to <gm>*/
-    p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);  /* build framshift aware codon HMM */
+    p7_ProfileConfig_fs5(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);  /* build framshift aware codon HMM */
       
     /* Create processing pipeline and hit list accumulators */
     tophits_accumulator  = p7_tophits_Create(); 

@@ -485,16 +485,6 @@ enum p7t_statetype_e {
 };
 #define p7T_NSTATETYPES 12
 
-enum p7t_codontype_e {
-  p7T_C0 = 0,
-  p7T_C1 = 1,
-  p7T_C2 = 2,
-  p7T_C3 = 3,
-  p7T_C4 = 4,
-  p7T_C5 = 5,
-};
-#define p7T_NCODONTYPES 6
-
 /* cigar string types */
 enum p7t_cigartype_e {
   p7T_1M = 0,
@@ -611,22 +601,6 @@ enum p7g_xcells_e {
   p7G_C  = 4
 };
 #define p7G_NXCELLS 5
-
-enum p7g_xcodons_b {
-  p7G_B1  = 0,
-  p7G_B2  = 1,
-  p7G_B3  = 2,
-  p7G_B4  = 3,
-  p7G_B5  = 4
-};
-
-enum p7g_xcodons_n {
-  p7G_N1  = 0,
-  p7G_N2  = 1,
-  p7G_N3  = 2,
-  p7G_N4  = 3,
-  p7G_N5  = 4
-};
 
 typedef struct p7_gmx_s {
   int  M;    /* actual model dimension (model 1..M)    */

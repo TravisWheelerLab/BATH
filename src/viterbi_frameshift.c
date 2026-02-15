@@ -72,7 +72,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
   else                                            x = p7P_MAXCODONS5;
 
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   for (k = 1; k <= M; k++) {
     IVX(1,k) = XMX_FS(0,p7G_B) + TSC(p7P_BM,k-1);
@@ -106,10 +106,10 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
   else                                            x = p7P_MAXCODONS5;
 
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-  c2 = p7P_CODON2(w, x);
+  c2 = p7P_CODON2_FS5(w, x);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   for (k = 1; k <= M; k++) {
@@ -145,16 +145,16 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     else                                            x = p7P_MAXCODONS5;
 
     /* find correct index for looking up scores of codons and quasicodons */
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2_FS5(w, x);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3_FS5(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4_FS5(u, v, w, x);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     ivx_1 = i     % p7P_5CODONS;
@@ -262,19 +262,19 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     else                                            x = p7P_MAXCODONS5;
 
     /* find correct index for looking up scores of codons and quasicodons */
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2_FS5(w, x);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3_FS5(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4_FS5(u, v, w, x);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
-    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_CODON5_FS5(t, u, v, w, x);
     c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     ivx_1 = i     % p7P_5CODONS;

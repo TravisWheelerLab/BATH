@@ -512,7 +512,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           ad->frameshifts++;           
 
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))  
-            codon_idx = p7P_CODON1(sq->dsq[i]);  
+            codon_idx = p7P_CODON1_FS5(sq->dsq[i]);  
           else 
             codon_idx = p7P_DEGEN5_QC2;
  
@@ -545,7 +545,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           ad->frameshifts++;
        
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
-            codon_idx = p7P_CODON2(sq->dsq[i-1], sq->dsq[i]);
+            codon_idx = p7P_CODON2_FS5(sq->dsq[i-1], sq->dsq[i]);
           else
             codon_idx = p7P_DEGEN5_QC1;
 
@@ -586,7 +586,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 	 else if(c == 3) {
 
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) 
-            codon_idx = p7P_CODON3(sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
+            codon_idx = p7P_CODON3_FS5(sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
           else  
             codon_idx    = p7P_DEGEN5_C;
              	   
@@ -640,7 +640,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 	  ad->frameshifts++;
     
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
-            codon_idx = p7P_CODON4(sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
+            codon_idx = p7P_CODON4_FS5(sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
           else
             codon_idx = p7P_DEGEN5_QC1;
          
@@ -681,7 +681,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 	  ad->frameshifts++;
          
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-4]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
-            codon_idx = p7P_CODON5(sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
+            codon_idx = p7P_CODON5_FS5(sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
           else
             codon_idx = p7P_DEGEN5_QC2;     
 
@@ -719,7 +719,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
        	}	
 
 	if      (aa == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
-        else if (expf(p7P_MSC_AMINO(gm_fs, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+        else if (expf(p7P_MSC_AMINO5(gm_fs, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else                                                  ad->mline[z-z1] = ' ';
 
         ad->aseq[z-z1] = toupper(alphaAmino[aa]);

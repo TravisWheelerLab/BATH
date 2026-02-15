@@ -91,10 +91,10 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
   {
       for (k = 1; k < M; k++)
         {
-          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC_AMINO(gm_fs, k, x));
+          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC_AMINO5(gm_fs, k, x));
           null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k));
         }
-      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC_AMINO(gm_fs, M, x));
+      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC_AMINO5(gm_fs, M, x));
       null2[x] = p7_FLogsum(null2[x], xfactor);
     }
     

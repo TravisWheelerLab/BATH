@@ -93,7 +93,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
   else                                            x = p7P_MAXCODONS5;
   
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   for (k = 1; k <= M; k++) {
     IVX5(1,k) = XMX_FS(0,p7G_B) + TSC(p7P_BM,k-1);  
@@ -128,10 +128,10 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
   else                                            x = p7P_MAXCODONS5;
   
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-  c2 = p7P_CODON2(w, x);
+  c2 = p7P_CODON2_FS5(w, x);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   for (k = 1; k <= M; k++) {
@@ -167,16 +167,16 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2_FS5(w, x);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3_FS5(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4_FS5(u, v, w, x);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     ivx_1 = i     % p7P_5CODONS;
@@ -281,19 +281,19 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2_FS5(w, x);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3_FS5(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4_FS5(u, v, w, x);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
-    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_CODON5_FS5(t, u, v, w, x);
     c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     ivx_1 = i     % p7P_5CODONS;
@@ -507,7 +507,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   else                                            x = p7P_MAXCODONS5;
 
   /* Length 2 quasi-codon */
-  c2 = p7P_CODON2(w, x);
+  c2 = p7P_CODON2_FS5(w, x);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
  
   XMX(2,p7G_E) = -eslINFINITY;
@@ -543,15 +543,15 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     else                                            x = p7P_MAXCODONS5;
 
 	/* Length 2 quasi-codon */
-	c2 = p7P_CODON2(w, x);
+	c2 = p7P_CODON2_FS5(w, x);
 	c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
 	/* Length 3 codon */
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3_FS5(v, w, x);
 	c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
 	/* Length 4 quasi-codon */
-	c4 = p7P_CODON4(u, v, w, x);
+	c4 = p7P_CODON4_FS5(u, v, w, x);
 	c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
 	curr  = i     % PARSER_ROWS_FWD;
@@ -706,7 +706,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
   else                                            x = p7P_MAXCODONS5;
   
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   for (k = 1; k < M; k++) {
     IVX5(1,k) = XMX(0,p7G_B) + TSC(p7P_BM,k-1);  
@@ -734,10 +734,10 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
   else                                            x = p7P_MAXCODONS5;
   
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-  c2 = p7P_CODON2(w, x);
+  c2 = p7P_CODON2_FS5(w, x);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   for (k = 1; k < M; k++) {
@@ -769,16 +769,16 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2_FS5(w, x);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3_FS5(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4_FS5(u, v, w, x);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  = i     % PARSER_ROWS_FWD;
@@ -881,19 +881,19 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(w, x);
+    c2 = p7P_CODON2_FS5(w, x);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(v, w, x);
+    c3 = p7P_CODON3_FS5(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(u, v, w, x);
+    c4 = p7P_CODON4_FS5(u, v, w, x);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
-    c5 = p7P_CODON5(t, u, v, w, x);
+    c5 = p7P_CODON5_FS5(t, u, v, w, x);
     c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     for (k = 1; k < M; k++)
@@ -1053,7 +1053,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) x = dsq[L];
   else                                            x = p7P_MAXCODONS5;
 
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
   ivx[1]       = MMX(L,1) + p7P_MSC_CODON(gm_fs, 1, c1);
@@ -1093,10 +1093,10 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
   else                                            x = p7P_MAXCODONS5;
 
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-  c2 = p7P_CODON2(x, w);
+  c2 = p7P_CODON2_FS5(x, w);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   ivx[1] =                     MMX(L-1,1) + p7P_MSC_CODON(gm_fs, 1, c1);
@@ -1145,16 +1145,16 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     ivx[1] =                    MMX(i+1,1) + p7P_MSC_CODON(gm_fs, 1, c1);
@@ -1223,19 +1223,19 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
-    c5 = p7P_CODON5(x, w, v, u, t);
+    c5 = p7P_CODON5_FS5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     ivx[1] = p7_FLogsum( MMX(i+1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 
@@ -1297,19 +1297,19 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
-    c5 = p7P_CODON5(x, w, v, u, t);
+    c5 = p7P_CODON5_FS5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
   ivx[1] = p7_FLogsum( MMX(1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 
@@ -1441,7 +1441,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   else                                              x = p7P_MAXCODONS5;
   
   
-  c2 = p7P_CODON2(x, w);
+  c2 = p7P_CODON2_FS5(x, w);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   curr  = (L-2) % PARSER_ROWS_BWD;
@@ -1494,13 +1494,13 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  =  i    % PARSER_ROWS_BWD;
@@ -1574,13 +1574,13 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  =  i    % PARSER_ROWS_BWD;
@@ -1645,13 +1645,13 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   else                                              x = p7P_MAXCODONS5; 
   
   /* find correct index for looking up scores of codons and quasicodons */ 
-  c2 = p7P_CODON2(x, w);
+  c2 = p7P_CODON2_FS5(x, w);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-  c3 = p7P_CODON3(x, w, v);
+  c3 = p7P_CODON3_FS5(x, w, v);
   c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-  c4 = p7P_CODON4(x, w, v, u);
+  c4 = p7P_CODON4_FS5(x, w, v, u);
   c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
   prev2 = 2 % PARSER_ROWS_BWD;
@@ -1763,7 +1763,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) x = dsq[L];
   else                                            x = p7P_MAXCODONS5;
 
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   
   curr  = (L-1)    % PARSER_ROWS_BWD;
@@ -1806,10 +1806,10 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
   else                                            x = p7P_MAXCODONS5;
 
-  c1 = p7P_CODON1(x);
+  c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-  c2 = p7P_CODON2(x, w);
+  c2 = p7P_CODON2_FS5(x, w);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   curr  = (L-2)    % PARSER_ROWS_BWD;
@@ -1861,16 +1861,16 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  =  i    % PARSER_ROWS_BWD;
@@ -1945,19 +1945,19 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
-    c5 = p7P_CODON5(x, w, v, u, t);
+    c5 = p7P_CODON5_FS5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     curr  =  i    % PARSER_ROWS_BWD;
@@ -2026,19 +2026,19 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1(x);
+    c1 = p7P_CODON1_FS5(x);
     c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-    c2 = p7P_CODON2(x, w);
+    c2 = p7P_CODON2_FS5(x, w);
     c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-    c3 = p7P_CODON3(x, w, v);
+    c3 = p7P_CODON3_FS5(x, w, v);
     c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
-    c4 = p7P_CODON4(x, w, v, u);
+    c4 = p7P_CODON4_FS5(x, w, v, u);
     c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
-    c5 = p7P_CODON5(x, w, v, u, t);
+    c5 = p7P_CODON5_FS5(x, w, v, u, t);
     c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     prev1 = 1 % PARSER_ROWS_BWD;

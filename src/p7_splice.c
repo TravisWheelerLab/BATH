@@ -1290,7 +1290,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
   next_i_start = next_k_start = 0; 
   /* Splice each pair or nodes from the first to the last anchor */  
   for(s = s_start+1; s < s_end+1; s++) {
-  
+    
     edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]);
 
 	/* After the first pair of nodes the start coordinates are set by the previous search */
@@ -3284,7 +3284,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   if((status = p7_Decoding(om, pli->fwd, pli->bwd, pli->pp)) == eslERANGE) { 
     /* This is a rare event usually caused by a low probability exon somewhere in the path. 
      * If we can find the offending exon and cut the path in two at that point then we can 
-     * save the good exons, but to do that we need an alignment so we createone with Viterbi */
+     * save the good exons, but to do that we need an alignment so we create one with Viterbi */
     
     p7_gmx_fs_GrowTo(pli->gfwd, gm->M, pli->amino_sq->n, pli->amino_sq->n, p7P_5CODONS);
     p7_ReconfigUnihit(gm, pli->amino_sq->n); 
@@ -3357,10 +3357,9 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, TRUE);
 
-  /*Check for 0 posterior probablity caused by low quailty exons */
+  /*Check for zero posterior probablity cuase by underflow and remove low quailty exons */
   for(e = 0; e < hit->dcl->ad->exon_cnt; e++) {
-
-    if(hit->dcl->ad->exon_pp[e] == 0.) {
+    if(hit->dcl->ad->exon_pp[e] == 0.0) {
       status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
      
       p7_trace_splice_Destroy(hit->dcl->tr);
@@ -3428,7 +3427,7 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
   int contains_anchor;
   int min_idx;
   float min_score;
- 
+
   /* If the alignmnt has rejected some exons we first remove those from the path */ 
   if(spliced_path->path_len > ad->exon_cnt) {
     
@@ -3470,38 +3469,44 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
       p7_splicepath_Remove(spliced_path, 0);
       if(spliced_path->path_len == 1) return eslOK;
     }
+    
     spliced_path->iali[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->iali;
     spliced_path->ihmm[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->ihmm;
 
     while(spliced_path->node_id[spliced_path->path_len-1] < 0 || spliced_path->node_id[spliced_path->path_len-1] >= graph->anchor_N) { 
       spliced_path->path_len--;
+      if(spliced_path->path_len == 1) return eslOK;
+
       spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
       spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;
-      if(spliced_path->path_len == 1) return eslOK;
     }
-
     
+
   }
   else {
-    /* Use the Exon scores to find the weakest place in the path */
 
-    min_idx   = 0;
+    /* Use the Exon p-values to find the weakest place in the path */
+    min_idx = 0;
     min_score = ad->exon_score[0];
-    for(e = 0; e < ad->exon_cnt; e++) {  
+
+    for(e = 0; e < ad->exon_cnt; e++ ) {
+      /* Catch underflow senarios */
       if(isnan(ad->exon_score[e]) || ad->exon_score[e] == -eslINFINITY) {
         min_idx = e;
         break;
       }
+
       if( ad->exon_score[e] < min_score) {
-          min_score = ad->exon_score[e];
-          min_idx = e;
-      }  
+        min_score = ad->exon_score[e];
+        min_idx = e;
+      }
     }
 
     if(min_idx == 0) {
       p7_splicepath_Remove(spliced_path, 0);
       if(spliced_path->path_len == 1) return eslOK;
 
+      /* Move the begining of the path to the next anchor node */
       while(spliced_path->node_id[0] < 0 || graph->tmp_node[spliced_path->node_id[0]]) {
         p7_splicepath_Remove(spliced_path, 0);
         if(spliced_path->path_len == 1) return eslOK;
@@ -3513,6 +3518,7 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
       spliced_path->path_len = min_idx;
       if(spliced_path->path_len == 1) return eslOK; 
  
+      /* Move end of path to the previous anchor node */
       while(spliced_path->node_id[spliced_path->path_len-1] < 0 ||  graph->tmp_node[spliced_path->node_id[spliced_path->path_len-1]]) {
         spliced_path->path_len--; 
         if(spliced_path->path_len == 1) return eslOK;
@@ -3522,7 +3528,46 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
     }
   
   }
- 
+
+  /*Make sure we have not created backwards nodes that end before they start */
+  if(spliced_path->revcomp) {
+    while(spliced_path->iali[0] <= spliced_path->jali[0] || spliced_path->ihmm[0] >= spliced_path->jhmm[0] ) {
+      p7_splicepath_Remove(spliced_path, 0); 
+      if(spliced_path->path_len == 1) return eslOK;
+
+      spliced_path->iali[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->iali;
+      spliced_path->ihmm[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->ihmm;
+    } 
+
+    while(spliced_path->iali[spliced_path->path_len-1] <= spliced_path->jali[spliced_path->path_len-1] || 
+          spliced_path->ihmm[spliced_path->path_len-1] >= spliced_path->jhmm[spliced_path->path_len-1]) {
+      spliced_path->path_len--;
+      if(spliced_path->path_len == 1) return eslOK;
+
+       spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
+       spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;         
+    }
+  }
+  else {
+    while(spliced_path->iali[0] >= spliced_path->jali[0] || spliced_path->ihmm[0] >= spliced_path->jhmm[0] ) {
+      p7_splicepath_Remove(spliced_path, 0);
+      if(spliced_path->path_len == 1) return eslOK;
+
+      spliced_path->iali[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->iali;
+      spliced_path->ihmm[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->ihmm;
+    }
+
+    while(spliced_path->iali[spliced_path->path_len-1] >= spliced_path->jali[spliced_path->path_len-1] ||
+          spliced_path->ihmm[spliced_path->path_len-1] >= spliced_path->jhmm[spliced_path->path_len-1]) {
+      spliced_path->path_len--;
+      if(spliced_path->path_len == 1) return eslOK;
+
+       spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
+       spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;
+    }
+  }
+
+
   /*Make sure path still contains an anchor */
   contains_anchor = FALSE;
   for(s = 0; s < spliced_path->path_len; s++)
@@ -3605,16 +3650,22 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   ad->exon_score[0] = (exon_score - nullsc)  / eslCONST_LOG2;
   ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
-
   if(do_pp) {
+    /* If we are doing posteriors that means we have a Forward matrix with Forward scores and can calculate a Forward p-value */
+    ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+
     exon_pp = tr->pp[z];
     z++;
     while(tr->i[z] <= end_i)  { exon_pp += tr->pp[z]; z++; }
     
     ad->exon_pp[0] = exon_pp / (float) exon_amino_len;
   }
-  else ad->exon_pp[0] = -eslINFINITY;
+  else {
+    /* If we are not doing posteriors that means we have a Viterbi matrix with Viterbi scores and can calculate a Viterbi p-value */
+    ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0], om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);    
 
+    ad->exon_pp[0] = -eslINFINITY;
+  }
   for(e = 1; e < ad->exon_cnt; e++) {
 
     start_i = end_i;
@@ -3655,6 +3706,9 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
     ad->exon_lnP[e] = esl_exp_logsurv (ad->exon_score[e],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
     if(do_pp) {
+      /* If we are doing posteriors that means we have a Forward matrix with Forward scores and can calculate a Forward p-value */
+      ad->exon_lnP[e] = esl_exp_logsurv (ad->exon_score[e],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);   
+     
       exon_pp = tr->pp[z];
       z++;
      
@@ -3663,8 +3717,12 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
       ad->exon_pp[e] = exon_pp / (float) exon_amino_len;
       
     }
-    else ad->exon_pp[e] = -eslINFINITY;
-   
+    else {
+      /* If we are not doing posteriors that means we have a Viterbi matrix with Viterbi scores and can calculate a Viterbi p-value */
+      ad->exon_lnP[e] = esl_exp_logsurv (ad->exon_score[e], om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
+     
+      ad->exon_pp[e] = -eslINFINITY;
+    }
   }
 
   return eslOK;

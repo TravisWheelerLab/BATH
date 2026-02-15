@@ -1105,7 +1105,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
   int              f;
@@ -1184,14 +1184,14 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
     p7_bg_SetLength(bg, dna_window->length/3);
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, pli->do_biasfilter, &filtersc_fs);
 
-    p7_gmx_fs_GrowTo(pli->gxf, gm_fs5->M, PARSER_ROWS_FWD, dna_window->length, 0);
-	p7_ivx_GrowTo(pli->iv, gm_fs5->M, p7P_3CODONS);
-    p7_fs_ReconfigLength(gm_fs5, dna_window->length/3);
+    p7_gmx_fs_GrowTo(pli->gxf, gm_fs3->M, PARSER_ROWS_FWD, dna_window->length, 0);
+	p7_ivx_GrowTo(pli->iv, gm_fs3->M, p7P_3CODONS);
+    p7_fs_ReconfigLength(gm_fs3, dna_window->length/3);
     
-    p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs5, pli->gxf, pli->iv, &fwdsc_fs);
+    p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs3, pli->gxf, pli->iv, &fwdsc_fs);
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs5->evparam[p7_FTAUFS3],  gm_fs5->evparam[p7_FLAMBDA]);
-    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs5->evparam[p7_FTAUFS3],  gm_fs5->evparam[p7_FLAMBDA]); 
+    P_fs = esl_exp_surv(seqscore_fs,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]);
+    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]); 
   }
 
   /* If the DNA window passed frameshift forward AND produced a lower P-value 
@@ -1201,8 +1201,8 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
     
     pli->pos_past_fwd += dna_window->length; 
-    p7_gmx_fs_GrowTo(pli->gxb, gm_fs5->M, PARSER_ROWS_BWD, dna_window->length, 0);
-    p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs5, pli->gxb, pli->iv, NULL);
+    p7_gmx_fs_GrowTo(pli->gxb, gm_fs3->M, PARSER_ROWS_BWD, dna_window->length, 0);
+    p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs3, pli->gxb, pli->iv, NULL);
  
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, gm_fs5, bg, gcode);
 
@@ -1432,7 +1432,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, int complementarity)
 {
 
   int                i;
@@ -1576,7 +1576,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_SC
 
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
-      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm_fs5, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), i, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
+      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm_fs3, gm_fs5, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), i, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
     }
   }
 

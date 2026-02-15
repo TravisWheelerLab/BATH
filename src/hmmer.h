@@ -279,21 +279,22 @@ enum p7p_ivx_codon {
 
 
 /* Indexing variables for codons and quasicodons */
-#define p7P_MAXCODONS      1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 */ 
-#define p7P_DEGEN_C        1364    /* index for degnerate codon */
-#define p7P_DEGEN_QC1      1365    /* index for degnerate quasicodons with one indel  */
-#define p7P_DEGEN_QC2      1366    /* index for degnerate quasicodons with two indels */
-#define p7P_NUC1           341     
-#define p7P_NUC2           85
-#define p7P_NUC3           21
-#define p7P_NUC4           5
+#define p7P_MAXCODONS5     1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 (final 3 for codons with non-cononcial nucleotides) */ 
+#define p7P_MAXCODONS3     338     /* 4^2 + 4^3 + 4^4 + 2 */
+#define p7P_DEGEN5_C       1364    /* index for degnerate codon */
+#define p7P_DEGEN5_QC1     1365    /* index for degnerate quasicodons with one indel  */
+#define p7P_DEGEN5_QC2     1366    /* index for degnerate quasicodons with two indels */
+#define p7P_NUC1_FS5       341     
+#define p7P_NUC2_FS5       85
+#define p7P_NUC3_FS5       21
+#define p7P_NUC4_FS5       5
 
 /* find the correct emmisions array index of a codon or quasicodon */
-#define p7P_CODON1(x)             ((x) * p7P_NUC1) 
-#define p7P_CODON2(w, x)          ((x) * p7P_NUC1 + (w) * p7P_NUC2 + p7P_C2)
-#define p7P_CODON3(v, w, x)       ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + p7P_C3)
-#define p7P_CODON4(u, v, w, x)    ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + p7P_C4)
-#define p7P_CODON5(t, u, v, w, x) ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + (t) + p7P_C5)
+#define p7P_CODON1(x)             ((x) * p7P_NUC1_FS5) 
+#define p7P_CODON2(w, x)          ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + p7P_C2)
+#define p7P_CODON3(v, w, x)       ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + (v) * p7P_NUC3_FS5 + p7P_C3)
+#define p7P_CODON4(u, v, w, x)    ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + (v) * p7P_NUC3_FS5 + (u) * p7P_NUC4_FS5 + p7P_C4)
+#define p7P_CODON5(t, u, v, w, x) ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + (v) * p7P_NUC3_FS5 + (u) * p7P_NUC4_FS5 + (t) + p7P_C5)
 #define p7P_MINIDX(a,b)           ((b) ^ (((a) ^ (b)) & -((a) < (b))))  
 
 /* Accessing codon translations */
@@ -308,7 +309,7 @@ enum p7p_ivx_codon {
 #define p7P_MSC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
 #define p7P_ISC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
 #define p7P_MSC_CODON(gm, k ,x)  ((gm)->rsc[(k)][(x)])
-#define p7P_MSC_AMINO(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS + (x)])
+#define p7P_MSC_AMINO(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS5 + (x)])
 
 typedef struct p7_profile_s {
   float  *tsc;                            /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */

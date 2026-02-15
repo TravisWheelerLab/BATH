@@ -181,20 +181,20 @@ p7_profile_fs5_Create(int allocM, const ESL_ALPHABET *abc)
   gm_fs5->indel_pos[0] = NULL;
 
   /* level 2 */
-  ESL_ALLOC(gm_fs5->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS + abc->Kp));
+  ESL_ALLOC(gm_fs5->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS5 + abc->Kp));
 
   for (x = 1; x <= allocM; x++)   
-    gm_fs5->rsc[x] = gm_fs5->rsc[0] + x * (p7P_MAXCODONS + abc->Kp);
+    gm_fs5->rsc[x] = gm_fs5->rsc[0] + x * (p7P_MAXCODONS5 + abc->Kp);
 
-  ESL_ALLOC(gm_fs5->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
-
-  for (x = 1; x <= allocM; x++)
-    gm_fs5->codons[x] = gm_fs5->codons[0] + x * p7P_MAXCODONS;
-
-  ESL_ALLOC(gm_fs5->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
+  ESL_ALLOC(gm_fs5->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS5+1)); /* +1 for trailing \0 */
 
   for (x = 1; x <= allocM; x++)
-    gm_fs5->indel_pos[x] = gm_fs5->indel_pos[0] + x * p7P_MAXCODONS;
+    gm_fs5->codons[x] = gm_fs5->codons[0] + x * p7P_MAXCODONS5;
+
+  ESL_ALLOC(gm_fs5->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS5+1)); /* +1 for trailing \0 */
+
+  for (x = 1; x <= allocM; x++)
+    gm_fs5->indel_pos[x] = gm_fs5->indel_pos[0] + x * p7P_MAXCODONS5;
 
   /* Initialize some edge pieces of memory that are never used,
    * and are only present for indexing convenience. */
@@ -204,7 +204,7 @@ p7_profile_fs5_Create(int allocM, const ESL_ALPHABET *abc)
     p7P_TSC(gm_fs5, 1, p7P_DD) = -eslINFINITY;
   }
 
-  for (x = 0; x < (p7P_MAXCODONS + abc->Kp); x++) 
+  for (x = 0; x < (p7P_MAXCODONS5 + abc->Kp); x++) 
     p7P_MSC_CODON(gm_fs5, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
   
   /* Set remaining info  */
@@ -241,6 +241,7 @@ p7_profile_fs5_Create(int allocM, const ESL_ALPHABET *abc)
   p7_profile_fs_Destroy(gm_fs5);
   return NULL;
 }
+
 
 /* Function:  p7_profile_Copy()
  * Synopsis:  Copy a profile.
@@ -315,10 +316,10 @@ p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
   if (src->M > dst->allocM) ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
 
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
-  for (x = 0; x <= src->M;      x++) { esl_vec_FCopy( src->rsc[x],       (p7P_MAXCODONS + src->abc->Kp), dst->rsc[x]);       }
+  for (x = 0; x <= src->M;      x++) { esl_vec_FCopy( src->rsc[x],       (p7P_MAXCODONS5 + src->abc->Kp), dst->rsc[x]);       }
   for (x = 0; x < p7P_NXSTATES; x++) { esl_vec_FCopy( src->xsc[x],       p7P_NXTRANS,                    dst->xsc[x]);       }
-  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->codons[x],    p7P_MAXCODONS,                  dst->codons[x]);    }
-  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS,                  dst->indel_pos[x]); }
+  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->codons[x],    p7P_MAXCODONS5,                  dst->codons[x]);    }
+  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS5,                  dst->indel_pos[x]); }
 
   dst->mode        = src->mode;
   dst->L           = src->L;

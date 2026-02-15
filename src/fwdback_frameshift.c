@@ -91,10 +91,10 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   MMX_FS(1,0,p7G_C0) = IMX_FS(1,0) = DMX_FS(1,0) = -eslINFINITY;
   
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   for (k = 1; k <= M; k++) {
     IVX5(1,k) = XMX_FS(0,p7G_B) + TSC(p7P_BM,k-1);  
 
@@ -126,13 +126,13 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   
   w = x;
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
   c2 = p7P_CODON2(w, x);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   for (k = 1; k <= M; k++) {
     IVX5(2,k) = XMX_FS(1,p7G_B) + TSC(p7P_BM,k-1);  
@@ -154,7 +154,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   XMX_FS(2,p7G_J) = XMX_FS(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
   XMX_FS(2,p7G_C) = XMX_FS(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
   
-  t = u = v = p7P_MAXCODONS;
+  t = u = v = p7P_MAXCODONS5;
   /* Initialization for rows 3 and 4 */
   for(i = 3; i < 5; i++)
   {
@@ -164,20 +164,20 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else                                            x = p7P_MAXCODONS; 
+    else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(w, x);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(u, v, w, x);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     ivx_1 = i     % p7P_5CODONS;
     ivx_2 = (i-1) % p7P_5CODONS;
@@ -278,23 +278,23 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else                                            x = p7P_MAXCODONS; 
+    else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(w, x);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(u, v, w, x);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     c5 = p7P_CODON5(t, u, v, w, x);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
+    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     ivx_1 = i     % p7P_5CODONS;
     ivx_2 = (i-1) % p7P_5CODONS;
@@ -498,17 +498,17 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   }
 
   /* Initialization of row 2 */
-  u = v = p7P_MAXCODONS;
+  u = v = p7P_MAXCODONS5;
   
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) w = dsq[1];
-  else                                            w = p7P_MAXCODONS;
+  else                                            w = p7P_MAXCODONS5;
 
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
 
   /* Length 2 quasi-codon */
   c2 = p7P_CODON2(w, x);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
  
   XMX(2,p7G_E) = -eslINFINITY;
   MMX(2,0) = IMX(2,0) = DMX(2,0) = -eslINFINITY;
@@ -540,19 +540,19 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
 	
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else                                            x = p7P_MAXCODONS;
+    else                                            x = p7P_MAXCODONS5;
 
 	/* Length 2 quasi-codon */
 	c2 = p7P_CODON2(w, x);
-	c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+	c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
 	/* Length 3 codon */
     c3 = p7P_CODON3(v, w, x);
-	c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+	c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
 	/* Length 4 quasi-codon */
 	c4 = p7P_CODON4(u, v, w, x);
-	c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+	c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
 	curr  = i     % PARSER_ROWS_FWD;
     prev2 = (i-2) % PARSER_ROWS_FWD;
@@ -704,10 +704,10 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   MMX(1,0) = IMX(1,0) = DMX(1,0) = -eslINFINITY;
   
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   for (k = 1; k < M; k++) {
     IVX5(1,k) = XMX(0,p7G_B) + TSC(p7P_BM,k-1);  
 	MMX(1,k)  = IVX5(1,k) + p7P_MSC_CODON(gm_fs, k, c1);
@@ -732,13 +732,13 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   
   w = x;
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
   c2 = p7P_CODON2(w, x);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   for (k = 1; k < M; k++) {
     IVX5(2,k) = XMX(1,p7G_B) + TSC(p7P_BM,k-1);  
@@ -756,7 +756,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   XMX(2,p7G_J) = XMX(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
   XMX(2,p7G_C) = XMX(2,p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
   
-  t = u = v = p7P_MAXCODONS;
+  t = u = v = p7P_MAXCODONS5;
   /* Initialization for rows 3 and 4 */
   for(i = 3; i < 5; i++)
   {
@@ -766,20 +766,20 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else                                            x = p7P_MAXCODONS; 
+    else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(w, x);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(u, v, w, x);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  = i     % PARSER_ROWS_FWD;
     prev1 = (i-1) % PARSER_ROWS_FWD;
@@ -878,23 +878,23 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
-    else                                            x = p7P_MAXCODONS; 
+    else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(w, x);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(u, v, w, x);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     c5 = p7P_CODON5(t, u, v, w, x);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
+    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     for (k = 1; k < M; k++)
     {  
@@ -1051,10 +1051,10 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 
   /* Initialization of row L - 1  */
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) x = dsq[L];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
   ivx[1]       = MMX(L,1) + p7P_MSC_CODON(gm_fs, 1, c1);
   XMX(L-1,p7G_B) = ivx[1]   + TSC(p7P_BM,0);
@@ -1091,13 +1091,13 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   w = x;
 
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
   c2 = p7P_CODON2(x, w);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   ivx[1] =                     MMX(L-1,1) + p7P_MSC_CODON(gm_fs, 1, c1);
   ivx[1] = p7_FLogsum( ivx[1], MMX(L,1)   + p7P_MSC_CODON(gm_fs, 1, c2));
@@ -1133,7 +1133,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   MMX(L-2,0) = IMX(L-2,0) = DMX(L-2,0)  = -eslINFINITY;
   
   /* Initialization of rows L-3 and L-4  */
-  t = u = v = p7P_MAXCODONS;
+  t = u = v = p7P_MAXCODONS5;
   for (i = L-3; i > L-5; i--)
   {
     u = v;
@@ -1142,20 +1142,20 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     ivx[1] =                    MMX(i+1,1) + p7P_MSC_CODON(gm_fs, 1, c1);
     ivx[1] = p7_FLogsum(ivx[1], MMX(i+2,1) + p7P_MSC_CODON(gm_fs, 1, c2));
@@ -1220,23 +1220,23 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     c5 = p7P_CODON5(x, w, v, u, t);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
+    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     ivx[1] = p7_FLogsum( MMX(i+1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 
             p7_FLogsum( MMX(i+2,1) + p7P_MSC_CODON(gm_fs, 1, c2), 
@@ -1294,23 +1294,23 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     c5 = p7P_CODON5(x, w, v, u, t);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
+    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
   ivx[1] = p7_FLogsum( MMX(1,1) + p7P_MSC_CODON(gm_fs, 1, c1), 
           p7_FLogsum( MMX(2,1) + p7P_MSC_CODON(gm_fs, 1, c2),
@@ -1435,14 +1435,14 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
   /* Initialization of row L-2  */
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) w = dsq[L];
-  else                                              w = p7P_MAXCODONS;
+  else                                              w = p7P_MAXCODONS5;
 
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
-  else                                              x = p7P_MAXCODONS;
+  else                                              x = p7P_MAXCODONS5;
   
   
   c2 = p7P_CODON2(x, w);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   curr  = (L-2) % PARSER_ROWS_BWD;
   prev2 = L     % PARSER_ROWS_BWD;
@@ -1482,7 +1482,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
 
   /* Initialization of rows L-3 and L-4  */
-  u = v = p7P_MAXCODONS; 
+  u = v = p7P_MAXCODONS5; 
   for (i = L-3; i > L-5; i--)
   {
     u = v;
@@ -1491,17 +1491,17 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  =  i    % PARSER_ROWS_BWD;
     prev2 = (i+2) % PARSER_ROWS_BWD;
@@ -1571,17 +1571,17 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  =  i    % PARSER_ROWS_BWD;
     prev2 = (i+2) % PARSER_ROWS_BWD;
@@ -1642,17 +1642,17 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
   /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
-  else                                              x = p7P_MAXCODONS; 
+  else                                              x = p7P_MAXCODONS5; 
   
   /* find correct index for looking up scores of codons and quasicodons */ 
   c2 = p7P_CODON2(x, w);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   c3 = p7P_CODON3(x, w, v);
-  c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+  c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
   c4 = p7P_CODON4(x, w, v, u);
-  c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+  c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
   prev2 = 2 % PARSER_ROWS_BWD;
   prev3 = 3 % PARSER_ROWS_BWD;
@@ -1761,10 +1761,10 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
   /* Initialization of row L - 1  */
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) x = dsq[L];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   
   curr  = (L-1)    % PARSER_ROWS_BWD;
   prev1 =  L       % PARSER_ROWS_BWD;
@@ -1804,13 +1804,13 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   w = x;
 
   if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
-  else                                            x = p7P_MAXCODONS;
+  else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
   c2 = p7P_CODON2(x, w);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
   curr  = (L-2)    % PARSER_ROWS_BWD;
   prev1 = (L-1)      % PARSER_ROWS_BWD;
@@ -1849,7 +1849,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
   
   /* Initialization of rows L-3 and L-4  */
-  t = u = v = p7P_MAXCODONS;
+  t = u = v = p7P_MAXCODONS5;
   for (i = L-3; i > L-5; i--)
   {
     u = v;
@@ -1858,20 +1858,20 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     curr  =  i    % PARSER_ROWS_BWD;
     prev1 = (i+1) % PARSER_ROWS_BWD;
@@ -1942,23 +1942,23 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     c5 = p7P_CODON5(x, w, v, u, t);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
+    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     curr  =  i    % PARSER_ROWS_BWD;
     prev1 = (i+1) % PARSER_ROWS_BWD;
@@ -2023,23 +2023,23 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
     if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
-    else                                              x = p7P_MAXCODONS; 
+    else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
     c1 = p7P_CODON1(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN_QC2);
+    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
     c2 = p7P_CODON2(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN_QC1);
+    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
     c3 = p7P_CODON3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     c4 = p7P_CODON4(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN_QC1);
+    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
 
     c5 = p7P_CODON5(x, w, v, u, t);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN_QC2);
+    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
 
     prev1 = 1 % PARSER_ROWS_BWD;
     prev2 = 2 % PARSER_ROWS_BWD;

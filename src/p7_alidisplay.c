@@ -514,7 +514,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))  
             codon_idx = p7P_CODON1(sq->dsq[i]);  
           else 
-            codon_idx = p7P_DEGEN_QC2;
+            codon_idx = p7P_DEGEN5_QC2;
  
           aa = p7P_AMINO(gm_fs, k, codon_idx);
           indel = p7P_INDEL(gm_fs, k, codon_idx); 
@@ -547,7 +547,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
             codon_idx = p7P_CODON2(sq->dsq[i-1], sq->dsq[i]);
           else
-            codon_idx = p7P_DEGEN_QC1;
+            codon_idx = p7P_DEGEN5_QC1;
 
 
           aa = p7P_AMINO(gm_fs, k, codon_idx);
@@ -588,7 +588,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) 
             codon_idx = p7P_CODON3(sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
           else  
-            codon_idx    = p7P_DEGEN_C;
+            codon_idx    = p7P_DEGEN5_C;
              	   
           aa = p7P_AMINO(gm_fs, k, codon_idx);		
           indel = p7P_INDEL(gm_fs, k, codon_idx);
@@ -642,7 +642,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
             codon_idx = p7P_CODON4(sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
           else
-            codon_idx = p7P_DEGEN_QC1;
+            codon_idx = p7P_DEGEN5_QC1;
          
           aa = p7P_AMINO(gm_fs, k, codon_idx);
           indel = p7P_INDEL(gm_fs, k, codon_idx);         
@@ -683,7 +683,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-4]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
             codon_idx = p7P_CODON5(sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
           else
-            codon_idx = p7P_DEGEN_QC2;     
+            codon_idx = p7P_DEGEN5_QC2;     
 
           aa = p7P_AMINO(gm_fs, k, codon_idx);
           indel = p7P_INDEL(gm_fs, k, codon_idx);

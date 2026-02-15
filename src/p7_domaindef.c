@@ -1107,11 +1107,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
       case p7T_D:  z++;   break;
       case p7T_M:  if(ddef->tr->i[z] == pos)
                    {  
-                     if(ddef->tr->c[z] == 1)      { codon_idx = p7P_CODON1(x);             codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC2); }      
-                     else if(ddef->tr->c[z] == 2) { codon_idx = p7P_CODON2(w, x);          codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC1); }
-                     else if(ddef->tr->c[z] == 3) { codon_idx = p7P_CODON3(v, w, x);       codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_C); } 
-                     else if(ddef->tr->c[z] == 4) { codon_idx = p7P_CODON4(u, v, w, x);    codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC1); }
-                     else if(ddef->tr->c[z] == 5) { codon_idx = p7P_CODON5(t, u, v, w, x); codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_QC2); }
+                     if(ddef->tr->c[z] == 1)      { codon_idx = p7P_CODON1(x);             codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC2); }      
+                     else if(ddef->tr->c[z] == 2) { codon_idx = p7P_CODON2(w, x);          codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC1); }
+                     else if(ddef->tr->c[z] == 3) { codon_idx = p7P_CODON3(v, w, x);       codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_C); } 
+                     else if(ddef->tr->c[z] == 4) { codon_idx = p7P_CODON4(u, v, w, x);    codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC1); }
+                     else if(ddef->tr->c[z] == 5) { codon_idx = p7P_CODON5(t, u, v, w, x); codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC2); }
                      ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs, ddef->tr->k[z], codon_idx)]);
                      z++; 
                    }
@@ -1121,7 +1121,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
       case p7T_I:  if(ddef->tr->i[z] == pos)
                    {
                      codon_idx = p7P_CODON3(v, w, x);       
-                     codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN_C);
+                     codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_C);
                      ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs, ddef->tr->k[z], codon_idx)]);
                      z++;
                    }

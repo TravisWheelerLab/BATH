@@ -336,7 +336,7 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   for (k = 1; k <= hmm->M; k++) { 
   
     /* set all scoresfor the current model postion to negative infinity */ 
-    esl_vec_FSet(gm_fs5->rsc[k], p7P_MAXCODONS, -eslINFINITY);
+    esl_vec_FSet(gm_fs5->rsc[k], p7P_MAXCODONS5, -eslINFINITY);
 
     /* find maximum scoring amio acid for each one nucleotide quasicodon (__X or X__) */
     for (del1 = 0; del1 < 4; del1++)
@@ -530,17 +530,17 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
      /* additional index for codons and quasicodons containing degenerate nucleotides */
      a = hmm->abc->Kp-3;
     
-     codon_idx = p7P_DEGEN_C;
+     codon_idx = p7P_DEGEN5_C;
      p7P_MSC_CODON(gm_fs5, k, codon_idx) = p7P_MSC_AMINO(gm_fs5, k, a) + no_indel;
      p7P_AMINO(gm_fs5, k, codon_idx) = a;
      p7P_INDEL(gm_fs5,k, codon_idx) = p7P_xxx;
 
-    codon_idx = p7P_DEGEN_QC1; 
+    codon_idx = p7P_DEGEN5_QC1; 
     p7P_MSC_CODON(gm_fs5, k, codon_idx) = p7P_MSC_AMINO(gm_fs5, k, a) + one_indel;
     p7P_AMINO(gm_fs5, k, codon_idx) = a;
     p7P_INDEL(gm_fs5,k, codon_idx) = p7P_xxx;
 
-    codon_idx = p7P_DEGEN_QC2;
+    codon_idx = p7P_DEGEN5_QC2;
     p7P_MSC_CODON(gm_fs5, k, codon_idx) = p7P_MSC_AMINO(gm_fs5, k, a) + two_indel;
     p7P_AMINO(gm_fs5, k, codon_idx) = a;
     p7P_INDEL(gm_fs5,k, codon_idx) = p7P_xxx;

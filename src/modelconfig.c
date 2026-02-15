@@ -232,9 +232,9 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   float   *tp;
   float    sc[p7_MAXCODE];
   float    Z;
-  float    one_indel  = log(hmm->fsprob);
-  float    two_indel  = log(hmm->fsprob/2);
-  float    no_indel   = log(1. - hmm->fsprob*4);
+  float    one_indel  = log(hmm->fsprob);  /* For length 2 and 4 and stop codons*/
+  float    two_indel  = log(hmm->fsprob/2); /* For length 1 and 5 */
+  float    no_indel   = log(1. - hmm->fsprob*4); /* for length 3 non-stop */
 
   /* Contract checks */
   if (gm_fs5->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
@@ -596,15 +596,14 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   float   *tp;
   float    sc[p7_MAXCODE];
   float    Z;
-  float    one_indel  = log(hmm->fsprob);
-  float    two_indel  = log(hmm->fsprob/2);
-  float    no_indel   = log(1. - hmm->fsprob*4);
+  float    one_indel  = log(hmm->fsprob); /*For length 2 and 4 and stop codon */
+  float    no_indel   = log(1. - hmm->fsprob*3);
 
   /* Contract checks */
   if (gm_fs3->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
   if (hmm->M > gm_fs3->allocM)             ESL_XEXCEPTION(eslEINVAL, "profile too small to hold HMM");
   if (! (hmm->flags & p7H_CONS))           ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
-  if (gm_fs3->codon_lengths != 5)          ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
+  if (gm_fs3->codon_lengths != 3)          ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 3 codon lengths");
 
   /* Copy some pointer references and other info across from HMM  */
   gm_fs3->M                = hmm->M;
@@ -694,7 +693,7 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
     esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
     
     for (x = 0; x < hmm->abc->Kp; x++)  
-      p7P_MSC_AMINO5(gm_fs3, k, x) = sc[x];
+      p7P_MSC_AMINO3(gm_fs3, k, x) = sc[x];
   } 
 
   /* Assign scores, amino acids, and indel positions to all codons and quasicodons*/
@@ -769,7 +768,7 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
                 }
              }
            } else {
-             p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a);
+             p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
              p7P_AMINO(gm_fs3, k, codon_idx) = a;
              p7P_INDEL(gm_fs3, k, codon_idx) = p7P_XXX;
            }             
@@ -832,20 +831,16 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
     /* additional index for codons and quasicodons containing degenerate nucleotides */
     a = hmm->abc->Kp-3;
     
-    codon_idx = p7P_DEGEN5_C;
-    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a) + no_indel;
+    codon_idx = p7P_DEGEN3_C;
+    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a) + no_indel;
     p7P_AMINO(gm_fs3, k, codon_idx) = a;
     p7P_INDEL(gm_fs3,k, codon_idx) = p7P_xxx;
 
-    codon_idx = p7P_DEGEN5_QC1; 
-    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a) + one_indel;
+    codon_idx = p7P_DEGEN3_QC1; 
+    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a) + one_indel;
     p7P_AMINO(gm_fs3, k, codon_idx) = a;
     p7P_INDEL(gm_fs3,k, codon_idx) = p7P_xxx;
 
-    codon_idx = p7P_DEGEN5_QC2;
-    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a) + two_indel;
-    p7P_AMINO(gm_fs3, k, codon_idx) = a;
-    p7P_INDEL(gm_fs3,k, codon_idx) = p7P_xxx;
   }
 
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */

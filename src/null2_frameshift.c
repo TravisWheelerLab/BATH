@@ -21,7 +21,7 @@
  *
  * Purpose:   Calculate the "null2" model for the envelope encompassed
  *            by a posterior probability calculation <pp> for frameshift
- *            aware model <gm_fs>. Return the null2 odds amino acide
+ *            aware model <gm_fs5>. Return the null2 odds amino acide
  *            emission probabilities $\frac{f'{x}}{f{x}}$ in <null2>,
  *            which caller provides as space for at least <alphabet->Kp>
  *            residues.
@@ -31,7 +31,7 @@
  *            its rows are numbered <1..Ld>, for envelope <ienv..jenv>
  *            of length <Ld=jenv-ienv+1>.
  *
- * Args:      gm_fs - profile, in any mode, target length model set to <L>
+ * Args:      gm_fs5 - profile, in any mode, target length model set to <L>
  *            pp    - posterior prob matrix, for <gm> against domain envelope <dsq+i-1> (offset)
  *            null2 - RETURN: null2 odds ratios per residue; <0..Kp-1>; caller allocated space
  *
@@ -43,9 +43,9 @@
  * Throws:    (no abnormal error conditions)
  */
 int
-p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
+p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2)
 {
-  int      M      = gm_fs->M;
+  int      M      = gm_fs5->M;
   int      Ld     = pp->L;
   float  **dp     = pp->dp;
   float   *xmx    = pp->xmx;
@@ -85,30 +85,30 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2)
   xfactor = p7_FLogsum(xfactor, XMX_FS(0,p7G_C));
   xfactor = p7_FLogsum(xfactor, XMX_FS(0,p7G_J));
   
-  esl_vec_FSet(null2, gm_fs->abc->K, -eslINFINITY);
+  esl_vec_FSet(null2, gm_fs5->abc->K, -eslINFINITY);
 
-  for (x = 0; x < gm_fs->abc->K; x++)
+  for (x = 0; x < gm_fs5->abc->K; x++)
   {
       for (k = 1; k < M; k++)
         {
-          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC_AMINO5(gm_fs, k, x));
+          null2[x] = p7_FLogsum(null2[x], MMX_FS(0,k,p7G_C0) + p7P_MSC_AMINO5(gm_fs5, k, x));
           null2[x] = p7_FLogsum(null2[x], IMX_FS(0,k));
         }
-      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC_AMINO5(gm_fs, M, x));
+      null2[x] = p7_FLogsum(null2[x], MMX_FS(0,M,p7G_C0) + p7P_MSC_AMINO5(gm_fs5, M, x));
       null2[x] = p7_FLogsum(null2[x], xfactor);
     }
     
-  esl_vec_FExp (null2, gm_fs->abc->K);
+  esl_vec_FExp (null2, gm_fs5->abc->K);
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} for all x in alphabet,
    * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies
    * for this envelope.
    */
 
   /* make valid scores for all degeneracies, by averaging the odds ratios. */
-  esl_abc_FAvgScVec(gm_fs->abc, null2); /* does not set gap, nonres, missing  */
-  null2[gm_fs->abc->K]    = 1.0;        /* gap character    */
-  null2[gm_fs->abc->Kp-2] = 1.0;        /* nonresidue "*"   */
-  null2[gm_fs->abc->Kp-1] = 1.0;        /* missing data "~" */
+  esl_abc_FAvgScVec(gm_fs5->abc, null2); /* does not set gap, nonres, missing  */
+  null2[gm_fs5->abc->K]    = 1.0;        /* gap character    */
+  null2[gm_fs5->abc->Kp-2] = 1.0;        /* nonresidue "*"   */
+  null2[gm_fs5->abc->Kp-1] = 1.0;        /* missing data "~" */
 
   return eslOK;
 }
@@ -160,7 +160,7 @@ main(int argc, char **argv)
   P7_HMM         *hmm     = NULL;
   P7_BG          *bgAA    = NULL;
   P7_BG          *bgDNA   = NULL;
-  P7_FS_PROFILE  *gm_fs   = NULL;
+  P7_FS_PROFILE  *gm_fs5   = NULL;
   P7_GMX         *gx1     = NULL;
   P7_GMX         *gx2     = NULL;
   P7_GMX         *pp      = NULL;
@@ -180,25 +180,25 @@ main(int argc, char **argv)
   gcode  = esl_gencode_Create(abcDNA, abcAA);
   bgDNA  = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
   bgAA   = p7_bg_Create(abcAA);                 p7_bg_SetLength(bgAA, L/3);
-  gm_fs  = p7_profile_fs5_Create(hmm->M, abcAA); p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL);
-  gx1    = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);  
-  gx2    = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
-  pp     = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
-  iv     = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
+  gm_fs5  = p7_profile_fs5_Create(hmm->M, abcAA); p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL);
+  gx1    = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);  
+  gx2    = p7_gmx_fs_Create(gm_fs5->M, L, L, 0);
+  pp     = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
+  iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_Forward_Frameshift (dsq, gcode, L, gm_fs, gx1, iv, &fsc);
-  p7_Backward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv, &bsc);
-  p7_Decoding_Frameshift(gm_fs, gx1, gx2, pp);   
+  p7_Forward_Frameshift (dsq, gcode, L, gm_fs5, gx1, iv, &fsc);
+  p7_Backward_Frameshift(dsq, gcode, L, gm_fs5, gx2, iv, &bsc);
+  p7_Decoding_Frameshift(gm_fs5, gx1, gx2, pp);   
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++) 
-    p7_Null2_fs_ByExpectation(gm_fs, pp, null2);   
+    p7_Null2_fs_ByExpectation(gm_fs5, pp, null2);   
   esl_stopwatch_Stop(w);
 
-  Mcs  = (double) N * (double) L * (double) gm_fs->M * 1e-6 / w->user;
+  Mcs  = (double) N * (double) L * (double) gm_fs5->M * 1e-6 / w->user;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n", gm_fs->M);
+  printf("# M    = %d\n", gm_fs5->M);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
@@ -206,7 +206,7 @@ main(int argc, char **argv)
   p7_gmx_Destroy(gx2);
   p7_gmx_Destroy(pp);
   p7_ivx_Destroy(iv);
-  p7_profile_fs_Destroy(gm_fs);
+  p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);

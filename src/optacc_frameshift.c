@@ -33,17 +33,17 @@
  *            
  *            Caller provides the posterior decoding matrix <pp>,
  *            which was calculated by Forward/Backward on a target sequence
- *            of length <L> using the query model <gm_fs>.
+ *            of length <L> using the query model <gm_fs5>.
  *            
  *            Caller also provides a DP matrix <gx>, allocated for the
- *            <gm_fs->M> by <pp->L> comparison. The routine fills this in
+ *            <gm_fs5->M> by <pp->L> comparison. The routine fills this in
  *            with OA scores.
  *
  *            For the frameshift version, probabilities are smaller due to
  *            being normalized across multiple frames, so they are kept in 
  *            log space 
  *            
- * Args:      gm_fs - query profile      
+ * Args:      gm_fs5 - query profile      
  *            pp    - posterior decoding matrix created by <p7_GPosteriorDecoding()>
  *            gx    - RESULT: caller provided DP matrix for <gm->M> by <L> 
  *            ret_e - RETURN: expected number of correctly decoded positions 
@@ -55,26 +55,26 @@
  * Throws:    (no abnormal error conditions)
  */
 int
-p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_GMX *gx, float *ret_e)
+p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e)
 {
   int          L    = pp->L;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float const *tsc  = gm_fs->tsc;
+  float const *tsc  = gm_fs5->tsc;
   int          i,k,c;
-  int          M    = gm_fs->M;
-  float        esc  = p7_fs_profile_IsLocal(gm_fs) ? 1.0 : 0.0;
+  int          M    = gm_fs5->M;
+  float        esc  = p7_fs_profile_IsLocal(gm_fs5) ? 1.0 : 0.0;
   float        nn, jj, cc;
   float        nb, jb, ej, ec;
   float        codon[5];
 
-  nn = ((gm_fs->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0);
-  jj = ((gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0);
-  cc = ((gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0);
-  nb = ((gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 0.0);
-  jb = ((gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 0.0);
-  ej = ((gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0); 
-  ec = ((gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 0.0);
+  nn = ((gm_fs5->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0);
+  jj = ((gm_fs5->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0);
+  cc = ((gm_fs5->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0);
+  nb = ((gm_fs5->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 0.0);
+  jb = ((gm_fs5->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 0.0);
+  ej = ((gm_fs5->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? -eslINFINITY : 0.0); 
+  ec = ((gm_fs5->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? -eslINFINITY : 0.0);
  
   /* Initialization of the zero row (i=0; no residues to account for.  */
   XMX(0,p7G_N) = 0.;                                                /* S->N, p=1            */
@@ -299,14 +299,14 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_G
  *****************************************************************/
 
 static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
-static inline int select_m(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
-static inline int select_d(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
-static inline int select_i(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int k);
+static inline int select_m(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
+static inline int select_d(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
+static inline int select_i(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
 static inline int select_n(int i);
-static inline int select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i);
-static inline int select_j(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i);
-static inline int select_e(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i, int *ret_k);
-static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P7_GMX *gx, int i);
+static inline int select_c(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i);
+static inline int select_j(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i);
+static inline int select_e(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int *ret_k);
+static inline int select_b(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i);
 
 
 /* Function:  p7_OATrace_Frameshift()
@@ -320,7 +320,7 @@ static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P
  *            well as the posterior decoding matricies <pp>, and 
  *            <probs> which were calculated by Forward/Backward on 
  *            a target sequence of length <L> using the query model 
- *           <gm_fs>.
+ *           <gm_fs5>.
  *            
  *            Caller provides an empty traceback structure <tr> to
  *            hold the result, allocated to hold optional posterior
@@ -328,7 +328,7 @@ static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P
  *            <p7_trace_fs_CreateWithPP()>).  This will be
  *            internally reallocated as needed for larger traces.
  *
- * Args:      gm_fs - query profile      
+ * Args:      gm_fs5 - query profile      
  *            pp    - posterior decoding (i normalized accross all codons containing i)
  *            gx    - OA DP matrix calculated by  <p7_OptimalAccuracyDP()>
  *            probs -  posterior decoding (i normalized accross all codons ending at i)
@@ -339,7 +339,7 @@ static inline int select_b(const P7_FS_PROFILE *gm_fs,                   const P
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr)
+p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr)
 {
   int           i   = gx->L;  /* position in seq (1..L)         */
   int           k   = 0;  /* position in model (1..M)       */
@@ -359,14 +359,14 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
   while (sprv != p7T_S) 
     { 
      switch (sprv) {
-      case p7T_M: scur = select_m(gm_fs,     gx, i,  k);          k--;  break;
-      case p7T_D: scur = select_d(gm_fs,     gx, i,  k);          k--;  break;
-      case p7T_I: scur = select_i(gm_fs,     gx, i,  k); i -= 3;        break;
+      case p7T_M: scur = select_m(gm_fs5,     gx, i,  k);          k--;  break;
+      case p7T_D: scur = select_d(gm_fs5,     gx, i,  k);          k--;  break;
+      case p7T_I: scur = select_i(gm_fs5,     gx, i,  k); i -= 3;        break;
       case p7T_N: scur = select_n(               i);                    break;
-      case p7T_C: scur = select_c(gm_fs, pp, gx, i);                    break;
-      case p7T_J: scur = select_j(gm_fs, pp, gx, i);                    break;
-      case p7T_E: scur = select_e(gm_fs,     gx, i, &k);                break;
-      case p7T_B: scur = select_b(gm_fs,     gx, i);                    break;
+      case p7T_C: scur = select_c(gm_fs5, pp, gx, i);                    break;
+      case p7T_J: scur = select_j(gm_fs5, pp, gx, i);                    break;
+      case p7T_E: scur = select_e(gm_fs5,     gx, i, &k);                break;
+      case p7T_B: scur = select_b(gm_fs5,     gx, i);                    break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
@@ -394,7 +394,7 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX
       sprv = scur;
       i-=c;
     }
-  tr->M = gm_fs->M;
+  tr->M = gm_fs5->M;
   tr->L = gx->L;
   return p7_trace_fs_Reverse(tr);
 }
@@ -416,11 +416,11 @@ get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
 }
 
 static inline int
-select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
+select_m(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float       *xmx  = gx->xmx; /* so XMX() macro works           */
-  float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
+  float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
   float path[4];
   int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
   
@@ -434,10 +434,10 @@ select_m(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
 }
 
 static inline int
-select_d(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
+select_d(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
-  float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
+  float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
   float        path[2];
 
   path[0] = TSCDELTA(p7P_MD, k-1) + MMX(i, k-1);
@@ -446,10 +446,10 @@ select_d(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
 }
   
 static inline int
-select_i(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int k)
+select_i(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
-  float const *tsc  = gm_fs->tsc;  /* so TSCDELTA() macro works */
+  float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
   float        path[2];
 
   path[0] = TSCDELTA(p7P_MI, k) + MMX(i-3,k);
@@ -465,10 +465,10 @@ select_n(int i)
 }
 
 static inline int
-select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
+select_c(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i)
 {
-  float  t1   =  ( (gm_fs->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float  t2   =  ( (gm_fs->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t1   =  ( (gm_fs5->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t2   =  ( (gm_fs5->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float  path[4];
   int    state[4] = { p7T_C, p7T_C, p7T_C, p7T_E };
@@ -491,10 +491,10 @@ select_c(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
 }
 
 static inline int
-select_j(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
+select_j(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i)
 {
-  float  t1   = ( (gm_fs->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float  t2   = ( (gm_fs->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t1   = ( (gm_fs5->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t2   = ( (gm_fs5->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float  path[2];
   int    state[2] = { p7T_J, p7T_E };
@@ -507,7 +507,7 @@ select_j(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, int i)
 }
 
 static inline int
-select_e(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int *ret_k)
+select_e(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int *ret_k)
 {
   float **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float   max  = -eslINFINITY;
@@ -515,13 +515,13 @@ select_e(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int *ret_k)
   int     kmax = -1;
   int     k;
 
-  if (! p7_fs_profile_IsLocal(gm_fs)) /* glocal/global is easier */
+  if (! p7_fs_profile_IsLocal(gm_fs5)) /* glocal/global is easier */
     {
-      *ret_k = gm_fs->M;
-      return ((expf(MMX(i,gm_fs->M)) >= expf(DMX(i,gm_fs->M))) ? p7T_M : p7T_D);
+      *ret_k = gm_fs5->M;
+      return ((expf(MMX(i,gm_fs5->M)) >= expf(DMX(i,gm_fs5->M))) ? p7T_M : p7T_D);
     }
 
-  for (k = 1; k <= gm_fs->M; k++)
+  for (k = 1; k <= gm_fs5->M; k++)
     {
       if (expf(MMX(i,k)) >  max) { max = expf(MMX(i,k)); smax = p7T_M; kmax = k; }
       if (expf(DMX(i,k)) >  max) { max = expf(DMX(i,k)); smax = p7T_D; kmax = k; }
@@ -532,10 +532,10 @@ select_e(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i, int *ret_k)
 
   
 static inline int
-select_b(const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, int i)
+select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i)
 {
-  float t1 = ( (gm_fs->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float t2 = ( (gm_fs->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float t1 = ( (gm_fs5->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float t2 = ( (gm_fs5->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float path[2];
   
@@ -599,7 +599,7 @@ main(int argc, char **argv)
   P7_HMM         *hmm     = NULL;
   P7_BG          *bgAA    = NULL;
   P7_BG          *bgDNA   = NULL;
-  P7_FS_PROFILE  *gm_fs   = NULL;
+  P7_FS_PROFILE  *gm_fs5   = NULL;
   P7_GMX         *gx1     = NULL;
   P7_GMX         *gx2     = NULL;
   P7_GMX         *pp      = NULL;
@@ -622,35 +622,35 @@ main(int argc, char **argv)
   bgDNA = p7_bg_Create(abcDNA);
   p7_bg_SetLength(bgAA, L/3);
   p7_bg_SetLength(bgDNA, L);
-  gm_fs = p7_profile_fs5_Create(hmm->M, abcAA);
-  p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L, p7_UNILOCAL);
-  gx1 = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
-  gx2 = p7_gmx_fs_Create(gm_fs->M, L, L, 0);
-  pp  = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
-  iv  = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
+  gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA);
+  p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs5, L, p7_UNILOCAL);
+  gx1 = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
+  gx2 = p7_gmx_fs_Create(gm_fs5->M, L, L, 0);
+  pp  = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
+  iv  = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
   tr  = p7_trace_fs_CreateWithPP();
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx1, iv, &fsc);
-  p7_Backward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv, &bsc);
-  p7_Decoding_Frameshift(gm_fs, gx1, gx2, pp);
+  p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, gx1, iv, &fsc);
+  p7_Backward_Frameshift(dsq, gcode, L, gm_fs5, gx2, iv, &bsc);
+  p7_Decoding_Frameshift(gm_fs5, gx1, gx2, pp);
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
   {
-    p7_OptimalAccuracy_Frameshift(gm_fs, pp, gx2, &accscore);
+    p7_OptimalAccuracy_Frameshift(gm_fs5, pp, gx2, &accscore);
     if (! esl_opt_GetBoolean(go, "--notrace"))
     {
-      p7_OATrace_Frameshift(gm_fs, pp, gx2, gx1, tr);
+      p7_OATrace_Frameshift(gm_fs5, pp, gx2, gx1, tr);
       p7_trace_Reuse(tr);
     }  
 
   }
    
   esl_stopwatch_Stop(w);
-  Mcs        = (double) N * (double) L * (double) gm_fs->M * 1e-6 / w->user;
+  Mcs        = (double) N * (double) L * (double) gm_fs5->M * 1e-6 / w->user;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n", gm_fs->M);
+  printf("# M    = %d\n", gm_fs5->M);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
@@ -659,7 +659,7 @@ main(int argc, char **argv)
   p7_gmx_Destroy(gx2);
   p7_gmx_Destroy(pp);
   p7_ivx_Destroy(iv);
-  p7_profile_fs_Destroy(gm_fs);
+  p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);

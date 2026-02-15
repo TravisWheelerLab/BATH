@@ -39,7 +39,7 @@ typedef struct {
   P7_PIPELINE      *pli;         /* work pipeline                             */
   P7_TOPHITS       *th;          /* top hit results                           */
   P7_OPROFILE      *om;          /* optimized query profile                   */
-  P7_FS_PROFILE    *gm_fs;       /* non optimized frameshift query profile    */
+  P7_FS_PROFILE    *gm_fs5;       /* non optimized frameshift query profile    */
   P7_SCOREDATA     *scoredata;   /* used to create DNA windows from ORFs      */
   ESL_GENCODE      *gcode;       /* used for translating ORFs                 */
   ESL_GENCODE_WORKSTATE *wrk;    /* used for translation of taget DNA to ORFs */ 
@@ -506,7 +506,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
  /* worker and worker items */ 
   WORKER_INFO     *info                     = NULL;
   P7_SCOREDATA    *scoredata                = NULL;              
-  P7_FS_PROFILE   *gm_fs                    = NULL;
+  P7_FS_PROFILE   *gm_fs5                    = NULL;
   P7_PROFILE      *gm                       = NULL;
   P7_OPROFILE     *om                       = NULL;       /* optimized query profile                  */
 
@@ -716,7 +716,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   /* Outer loop: over each query HMM */
   while (qhstatus == eslOK) 
   {
-    gm_fs   = NULL;
+    gm_fs5   = NULL;
     gm      = NULL;
     om      = NULL;       /* optimized query profile                  */
 
@@ -756,13 +756,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (hmm->desc) { if (fprintf(ofp, "Description: %s\n", hmm->desc) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
     /* Convert to an optimized model */
-    gm_fs = p7_profile_fs5_Create (hmm->M, abcAA);
+    gm_fs5 = p7_profile_fs5_Create (hmm->M, abcAA);
     gm = p7_profile_Create (hmm->M, abcAA);
     om = p7_oprofile_Create(hmm->M, abcAA);
     p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       
     p7_oprofile_Convert(gm, om);                                      /* convert <om> to <gm>*/
-    p7_ProfileConfig_fs5(hmm, info->bg, gcode, gm_fs, 100, p7_LOCAL);  /* build framshift aware codon HMM */
+    p7_ProfileConfig_fs5(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build framshift aware codon HMM */
       
     /* Create processing pipeline and hit list accumulators */
     tophits_accumulator  = p7_tophits_Create(); 
@@ -780,7 +780,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);
       info[i].th     = p7_tophits_Create();
       info[i].om     = p7_oprofile_Clone(om);
-      info[i].gm_fs  = p7_profile_fs_Clone(gm_fs);
+      info[i].gm_fs5  = p7_profile_fs_Clone(gm_fs5);
       info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
       info[i].pli = p7_pipeline_Create_BATH(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
       status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
@@ -848,7 +848,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_pipeline_Destroy_BATH(info[i].pli);
       p7_tophits_Destroy(info[i].th);
       p7_oprofile_Destroy(info[i].om);
-      p7_profile_fs_Destroy(info[i].gm_fs);
+      p7_profile_fs_Destroy(info[i].gm_fs5);
       p7_hmm_ScoreDataDestroy(info[i].scoredata);
 
       if(info[i].wrk->orf_block != NULL)
@@ -899,7 +899,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_tophits_Destroy(tophits_accumulator);
     p7_oprofile_Destroy(om);
     p7_profile_Destroy(gm);
-    p7_profile_fs_Destroy(gm_fs);
+    p7_profile_fs_Destroy(gm_fs5);
     p7_hmm_Destroy(hmm);
     p7_hmm_ScoreDataDestroy(scoredata);
     destroy_id_length(id_length_list);
@@ -990,7 +990,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
        /* translate DNA sequence to 3 frame ORFs */
       do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 
-      p7_Pipeline_BATH(info->pli, info->om, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
+      p7_Pipeline_BATH(info->pli, info->om, info->gm_fs5, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
       p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
       esl_sq_ReuseBlock(info->wrk->orf_block);    
@@ -1004,7 +1004,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       esl_sq_ReverseComplement(dbsq_dna);
       do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
 	
-      p7_Pipeline_BATH(info->pli, info->om, info->gm_fs, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
+      p7_Pipeline_BATH(info->pli, info->om, info->gm_fs5, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, p7_COMPLEMENT); 
       p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
       
       esl_sq_ReuseBlock(info->wrk->orf_block);
@@ -1175,7 +1175,7 @@ pipeline_thread(void *arg)
         info->pli->nres += dnaSeq->W;
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
        
-        p7_Pipeline_BATH(info->pli, info->om, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm_fs5, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_NOCOMPLEMENT);
 
         p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
@@ -1187,7 +1187,7 @@ pipeline_thread(void *arg)
         esl_sq_ReverseComplement(dnaSeq);
         do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
 	
-        p7_Pipeline_BATH(info->pli, info->om, info->gm_fs, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
+        p7_Pipeline_BATH(info->pli, info->om, info->gm_fs5, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, p7_COMPLEMENT);
 
         p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 

@@ -360,11 +360,11 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode)
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode)
 {
 
   P7_ALIDISPLAY *ad       = NULL;
-  char          *alphaAmino = gm_fs->abc->sym;
+  char          *alphaAmino = gm_fs5->abc->sym;
   char          *alphaDNA = sq->abc->sym;
   int            n, pos, z, y;
   int            z1, z2;
@@ -376,6 +376,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3,n4,n5;
+
+  if (gm_fs5->codon_lengths != 5)  ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
 
   /* First figure out which piece of the trace (from first match to last match) 
    * we're going to represent, and how big it is.
@@ -411,13 +413,13 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   n = (z2-z1+2) * 3;                          /* model, mline, aseq mandatory         */
   n += 5*(z2-z1+1)+1;                     /* nucleotide sequence                  */
   n += (z2-z1+2);			   /* codon lengths       */
-  if (gm_fs->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
-  if (gm_fs->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
-  if (gm_fs->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
+  if (gm_fs5->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (gm_fs5->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (gm_fs5->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
   if (tr->pp     != NULL) n += (z2-z1+2);   /* optional posterior prob line         */
-  hmm_namelen = strlen(gm_fs->name);                           n += hmm_namelen + 1;
-  hmm_acclen  = (gm_fs->acc  != NULL ? strlen(gm_fs->acc)  : 0);  n += hmm_acclen  + 1;
-  hmm_desclen = (gm_fs->desc != NULL ? strlen(gm_fs->desc) : 0);  n += hmm_desclen + 1;
+  hmm_namelen = strlen(gm_fs5->name);                           n += hmm_namelen + 1;
+  hmm_acclen  = (gm_fs5->acc  != NULL ? strlen(gm_fs5->acc)  : 0);  n += hmm_acclen  + 1;
+  hmm_desclen = (gm_fs5->desc != NULL ? strlen(gm_fs5->desc) : 0);  n += hmm_desclen + 1;
   sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
   sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
   sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
@@ -430,9 +432,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->memsize = sizeof(char) * n;
   ESL_ALLOC(ad->mem, ad->memsize);
  
-  if (gm_fs->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
+  if (gm_fs5->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
   ad->mmline = NULL;
-  if (gm_fs->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
+  if (gm_fs5->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
   ad->model   = ad->mem + pos;  pos += z2-z1+2;
   ad->mline   = ad->mem + pos;  pos += z2-z1+2;
   ad->aseq    = ad->mem + pos;  pos += z2-z1+2;
@@ -447,9 +449,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
   ad->orfname = ad->mem + pos;  pos += orf_namelen +1;  
 
-  strcpy(ad->hmmname, gm_fs->name);
-  if (gm_fs->acc  != NULL) strcpy(ad->hmmacc,  gm_fs->acc);  else ad->hmmacc[0]  = 0;
-  if (gm_fs->desc != NULL) strcpy(ad->hmmdesc, gm_fs->desc); else ad->hmmdesc[0] = 0;
+  strcpy(ad->hmmname, gm_fs5->name);
+  if (gm_fs5->acc  != NULL) strcpy(ad->hmmacc,  gm_fs5->acc);  else ad->hmmacc[0]  = 0;
+  if (gm_fs5->desc != NULL) strcpy(ad->hmmdesc, gm_fs5->desc); else ad->hmmdesc[0] = 0;
 
   strcpy(ad->sqname,  sq->name);
   strcpy(ad->sqacc,   sq->acc);
@@ -459,7 +461,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
-  ad->M       = gm_fs->M;
+  ad->M       = gm_fs5->M;
   ad->frameshifts = 0; 
   ad->stops = 0;
   if(sq->start < sq->end) {
@@ -473,18 +475,18 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   
   /* optional rf line */
   if (ad->rfline != NULL) {
-    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->rf[tr->k[z]]);
+    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs5->rf[tr->k[z]]);
     ad->rfline[z-z1] = '\0';
   }
   /* optional mm line */
   if (ad->mmline != NULL) {
-    for (z = z1; z <= z2; z++) ad->mmline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->mm[tr->k[z]]);
+    for (z = z1; z <= z2; z++) ad->mmline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs5->mm[tr->k[z]]);
     ad->mmline[z-z1] = '\0';
   }
 
   /* optional cs line */
   if (ad->csline != NULL) {
-    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->cs[tr->k[z]]);
+    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs5->cs[tr->k[z]]);
     ad->csline[z-z1] = '\0';
   }
  
@@ -505,7 +507,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   
       switch (s) {
       case p7T_M:
-        ad->model[z-z1] = gm_fs->consensus[k];
+        ad->model[z-z1] = gm_fs5->consensus[k];
 	ad->codon[y] = c;
 
 	if(c == 1) {
@@ -516,8 +518,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           else 
             codon_idx = p7P_DEGEN5_QC2;
  
-          aa = p7P_AMINO(gm_fs, k, codon_idx);
-          indel = p7P_INDEL(gm_fs, k, codon_idx); 
+          aa = p7P_AMINO(gm_fs5, k, codon_idx);
+          indel = p7P_INDEL(gm_fs5, k, codon_idx); 
 
           if(indel == p7P_X__) {
             n1 = ' ';
@@ -550,8 +552,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
             codon_idx = p7P_DEGEN5_QC1;
 
 
-          aa = p7P_AMINO(gm_fs, k, codon_idx);
-          indel = p7P_INDEL(gm_fs, k, codon_idx);
+          aa = p7P_AMINO(gm_fs5, k, codon_idx);
+          indel = p7P_INDEL(gm_fs5, k, codon_idx);
 
           if(indel == p7P_XX_) {
             n1 = ' ';
@@ -590,8 +592,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           else  
             codon_idx    = p7P_DEGEN5_C;
              	   
-          aa = p7P_AMINO(gm_fs, k, codon_idx);		
-          indel = p7P_INDEL(gm_fs, k, codon_idx);
+          aa = p7P_AMINO(gm_fs5, k, codon_idx);		
+          indel = p7P_INDEL(gm_fs5, k, codon_idx);
           
           if(indel == p7P_XXX) 
           {
@@ -644,8 +646,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           else
             codon_idx = p7P_DEGEN5_QC1;
          
-          aa = p7P_AMINO(gm_fs, k, codon_idx);
-          indel = p7P_INDEL(gm_fs, k, codon_idx);         
+          aa = p7P_AMINO(gm_fs5, k, codon_idx);
+          indel = p7P_INDEL(gm_fs5, k, codon_idx);         
 
           if(indel == p7P_xXXX) { 
                 n1 = tolower(alphaDNA[sq->dsq[i-3]]);
@@ -685,8 +687,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           else
             codon_idx = p7P_DEGEN5_QC2;     
 
-          aa = p7P_AMINO(gm_fs, k, codon_idx);
-          indel = p7P_INDEL(gm_fs, k, codon_idx);
+          aa = p7P_AMINO(gm_fs5, k, codon_idx);
+          indel = p7P_INDEL(gm_fs5, k, codon_idx);
 	
 	  if(indel == p7P_xxXXX) {
                 n1 = tolower(alphaDNA[sq->dsq[i-4]]);
@@ -718,8 +720,8 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           }
        	}	
 
-	if      (aa == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
-        else if (expf(p7P_MSC_AMINO5(gm_fs, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+	if      (aa == esl_abc_DigitizeSymbol(gm_fs5->abc, gm_fs5->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
+        else if (expf(p7P_MSC_AMINO5(gm_fs5, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
         else                                                  ad->mline[z-z1] = ' ';
 
         ad->aseq[z-z1] = toupper(alphaAmino[aa]);
@@ -753,7 +755,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 	
       case p7T_D:
         ad->codon[y] = 0;
-	ad->model [z-z1] = gm_fs->consensus[k];
+	ad->model [z-z1] = gm_fs5->consensus[k];
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = '-';
         ad->ntseq [5*(z-z1)] = ' ';
@@ -2434,7 +2436,7 @@ main(int argc, char **argv)
   P7_BG          *bg      = NULL;
   P7_PROFILE     *gm      = NULL;
   P7_OPROFILE    *om      = NULL;
-  P7_FS_PROFILE  *gm_fs   = NULL;
+  P7_FS_PROFILE  *gm_fs5   = NULL;
   P7_TRACE       *tr      = NULL;
   ESL_SQ         *sq      = NULL;
   ESL_SQ         *sqDNA   = NULL;
@@ -2460,8 +2462,8 @@ main(int argc, char **argv)
   abcDNA = esl_alphabet_Create(eslDNA);
   gcode  = esl_gencode_Create(abcDNA, abcAA);
   ct     = p7_codontable_Create(gcode);
-  gm_fs = p7_profile_fs5_Create(hmm->M, abcAA); 
-  p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, 0, p7_UNIGLOCAL);
+  gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA); 
+  p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs5, 0, p7_UNIGLOCAL);
 
 
   if (esl_opt_GetBoolean(go, "-p")) tr = p7_trace_fs_CreateWithPP();
@@ -2493,7 +2495,7 @@ main(int argc, char **argv)
         for (z = 0; z < tr->N; z++)
           if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
-      ad = p7_alidisplay_fs_Create(tr, 0, gm_fs, sqDNA, gcode);
+      ad = p7_alidisplay_fs_Create(tr, 0, gm_fs5, sqDNA, gcode);
       p7_alidisplay_PrintBATH(stdout, ad, 40, 40, 80, pli);
       p7_alidisplay_Destroy(ad);
     }
@@ -2508,7 +2510,7 @@ main(int argc, char **argv)
   p7_trace_Destroy(tr);
   p7_oprofile_Destroy(om);
   p7_profile_Destroy(gm);
-  p7_profile_fs_Destroy(gm_fs);
+  p7_profile_fs_Destroy(gm_fs5);
   p7_codontable_Destroy(ct);
   p7_bg_Destroy(bg);
   p7_hmm_Destroy(hmm);

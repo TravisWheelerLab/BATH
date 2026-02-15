@@ -24,7 +24,7 @@
  *
  * Purpose:   Stochastic traceback of Forward matrix <gx> to
  *            sample an alignment of digital sequence <dsq>
- *            (of length <L>) to the profile <gm_fs>. 
+ *            (of length <L>) to the profile <gm_fs5>. 
  *            
  *            The sampled traceback is returned in <tr>, which the
  *            caller must have at least made an initial allocation of
@@ -33,7 +33,7 @@
  * Args:      r      - source of random numbers
  *            dsq    - digital sequence aligned to, 1..L 
  *            L      - length of dsq
- *            gm_fs    - profile
+ *            gm_fs5    - profile
  *            mx     - Forward matrix to trace, L x M
  *            tr     - storage for the recovered traceback.
  *
@@ -262,7 +262,7 @@ main(int argc, char **argv)
   P7_HMM         *hmm     = NULL;
   P7_BG          *bgAA    = NULL;
   P7_BG          *bgDNA   = NULL;
-  P7_FS_PROFILE  *gm_fs   = NULL;
+  P7_FS_PROFILE  *gm_fs5   = NULL;
   P7_GMX         *fwd     = NULL;
   P7_IVX         *iv      = NULL;
   P7_TRACE       *tr      = NULL;
@@ -282,19 +282,19 @@ main(int argc, char **argv)
   bgDNA  = p7_bg_Create(abcDNA);
   p7_bg_SetLength(bgAA, L/3);
   p7_bg_SetLength(bgDNA, L/3);
-  gm_fs = p7_profile_fs5_Create(hmm->M, abcAA);
-  p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL);
-  fwd = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
-  iv  = p7_ivx_Create(gm_fs->M, p7P_5CODONS); 
+  gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA);
+  p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
+  fwd = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
+  iv  = p7_ivx_Create(gm_fs5->M, p7P_5CODONS); 
   tr  = p7_trace_fs_Create();
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
-  p7_Forward_Frameshift(dsq, gcode, L, gm_fs, fwd, iv, &fsc);
+  p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, fwd, iv, &fsc);
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
-      p7_StochasticTrace_Frameshift(r, dsq, L, gm_fs, fwd, tr);
+      p7_StochasticTrace_Frameshift(r, dsq, L, gm_fs5, fwd, tr);
       p7_trace_Reuse(tr);
     }
   esl_stopwatch_Stop(w);
@@ -304,7 +304,7 @@ main(int argc, char **argv)
   p7_trace_fs_Destroy(tr);
   p7_gmx_Destroy(fwd);
   p7_ivx_Destroy(iv);
-  p7_profile_fs_Destroy(gm_fs);
+  p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);

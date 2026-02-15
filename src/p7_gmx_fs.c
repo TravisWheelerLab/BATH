@@ -704,26 +704,26 @@ utest_GrowTo(void)
 }
 
 static void
-utest_Compare(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, P7_BG *bgDNA, ESL_GENCODE *gcode, int L, float tolerance)
+utest_Compare(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, P7_BG *bgDNA, ESL_GENCODE *gcode, int L, float tolerance)
 {
   char         *msg = "gmx_Compare unit test failure";
   ESL_DSQ      *dsq = malloc(sizeof(ESL_DSQ) *(L+2));
-  P7_GMX       *gx1 = p7_gmx_fs_Create(gm_fs->M, L, L, p7P_5CODONS);
+  P7_GMX       *gx1 = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
   P7_GMX       *gx2 = p7_gmx_fs_Create(5, 4, 4, 0);
-  P7_IVX       *iv1 = p7_ivx_Create(gm_fs->M, p7P_5CODONS);
+  P7_IVX       *iv1 = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
   P7_IVX       *iv2 = p7_ivx_Create(5, p7P_3CODONS);
   float         fsc;
 
-  if (!r || !gm_fs || !dsq || !gx1 || !gx2 )                                esl_fatal(msg);
+  if (!r || !gm_fs5 || !dsq || !gx1 || !gx2 )                                esl_fatal(msg);
   if (esl_rsq_xfIID(r, bgDNA->f, gcode->nt_abc->K, L, dsq)        != eslOK) esl_fatal(msg);
-  if (p7_gmx_fs_GrowTo(gx2, gm_fs->M, L, L, p7P_5CODONS)          != eslOK) esl_fatal(msg);
-  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx1, iv1, &fsc) != eslOK) esl_fatal(msg);
-  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv1, &fsc) != eslOK) esl_fatal(msg);
+  if (p7_gmx_fs_GrowTo(gx2, gm_fs5->M, L, L, p7P_5CODONS)          != eslOK) esl_fatal(msg);
+  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, gx1, iv1, &fsc) != eslOK) esl_fatal(msg);
+  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, gx2, iv1, &fsc) != eslOK) esl_fatal(msg);
   if (p7_gmx_fs_Compare(gx1, gx2, p7P_5CODONS, tolerance)         != eslOK) esl_fatal(msg);   
 
   p7_gmx_Reuse(gx2);
-  if (p7_ivx_GrowTo(iv2, gm_fs->M, p7P_5CODONS)                   != eslOK) esl_fatal(msg);
-  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs, gx2, iv2, &fsc) != eslOK) esl_fatal(msg);  
+  if (p7_ivx_GrowTo(iv2, gm_fs5->M, p7P_5CODONS)                   != eslOK) esl_fatal(msg);
+  if (p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, gx2, iv2, &fsc) != eslOK) esl_fatal(msg);  
   if (p7_gmx_fs_Compare(gx1, gx2, p7P_5CODONS, tolerance)         != eslOK) esl_fatal(msg);
 
   p7_gmx_Destroy(gx1);
@@ -781,7 +781,7 @@ main(int argc, char **argv)
   P7_BG          *bgAA   = p7_bg_Create(abcAA);
   P7_BG          *bgDNA  = p7_bg_Create(abcDNA);
   P7_HMM         *hmm   = NULL;
-  P7_FS_PROFILE  *gm_fs = NULL;
+  P7_FS_PROFILE  *gm_fs5 = NULL;
   int             M     = esl_opt_GetInteger(go, "-M");
   int             L     = esl_opt_GetInteger(go, "-L");
   float           tol   = esl_opt_GetReal   (go, "-t");
@@ -789,13 +789,13 @@ main(int argc, char **argv)
   p7_FLogsumInit();
 
   if (p7_hmm_Sample(r, M, abcAA, &hmm)                              != eslOK) esl_fatal(msg);
-  if ((gm_fs = p7_profile_fs5_Create(hmm->M, abcAA))                 == NULL)  esl_fatal(msg);
+  if ((gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA))                 == NULL)  esl_fatal(msg);
   if (p7_bg_SetLength(bgAA, L/3)                                    != eslOK) esl_fatal(msg);
   if (p7_bg_SetLength(bgDNA, L)                                     != eslOK) esl_fatal(msg);
-  if (p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL) != eslOK) esl_fatal(msg);
+  if (p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL) != eslOK) esl_fatal(msg);
 
   utest_GrowTo();
-  utest_Compare(r, gm_fs, bgDNA, gcode, L, tol);
+  utest_Compare(r, gm_fs5, bgDNA, gcode, L, tol);
 
   esl_getopts_Destroy(go);
   esl_randomness_Destroy(r);
@@ -805,7 +805,7 @@ main(int argc, char **argv)
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);
   p7_hmm_Destroy(hmm);
-  p7_profile_fs_Destroy(gm_fs);
+  p7_profile_fs_Destroy(gm_fs5);
   return eslOK;
 }
 #endif /*p7GMX_FS_TESTDRIVE*/

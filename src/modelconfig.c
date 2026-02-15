@@ -239,7 +239,8 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   /* Contract checks */
   if (gm_fs5->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
   if (hmm->M > gm_fs5->allocM)             ESL_XEXCEPTION(eslEINVAL, "profile too small to hold HMM");
-  if (! (hmm->flags & p7H_CONS))       ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
+  if (! (hmm->flags & p7H_CONS))           ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
+  if (gm_fs5->codon_lengths != 5)          ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
 
   /* Copy some pointer references and other info across from HMM  */
   gm_fs5->M                = hmm->M;
@@ -557,6 +558,308 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
 }
 
 
+/* Function:  p7_ProfileConfig_fs3()
+ * Synopsis:  Configure a search 3 codon length frameshift aware profile.
+ *
+ * Purpose:   Given a model <hmm> with core amino acide probabilities,
+ *            the null1 model <bg>, a desired search <mode> and an
+ *            expected target sequence length <L>; configure the
+ *            frameshift aware search model in <gm_fs3> with lod scores
+ *            relative to the background frequencies in <bg>. For
+ *            quasicodons (length 1 or 4) the emissiosn probability
+ *            at position k is assigned to the maximum emisssions
+ *            probability at positions k for an amnio acid that can be
+ *            translated from a codon made by adding (length 1) or
+ *            subtracting (length 4) nucleotides from the quasicodon.
+ *            Length 3 codon emissiosn probabilities are asigned to the
+ *            probability fo the amino acid they translate to. All
+ *            (quasi)codon emissions probabilites are then adjusted by
+ *            the apporitate frameshift probability.
+ *
+ *
+ * Returns:   <eslOK> on success; the profile <gm> now contains
+ *            scores and is ready for searching target sequences.
+ *
+ * Throws:    <eslEMEM> on allocation error.
+ */
+int
+p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs3, int L_amino, int mode)
+{
+  int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
+  int     a;
+  int     del1, del2;
+  int     sub;
+  int     codon;
+  int     status;
+  int     codon_idx;
+  float   *occ = NULL;
+  float   *tp;
+  float    sc[p7_MAXCODE];
+  float    Z;
+  float    one_indel  = log(hmm->fsprob);
+  float    two_indel  = log(hmm->fsprob/2);
+  float    no_indel   = log(1. - hmm->fsprob*4);
+
+  /* Contract checks */
+  if (gm_fs3->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
+  if (hmm->M > gm_fs3->allocM)             ESL_XEXCEPTION(eslEINVAL, "profile too small to hold HMM");
+  if (! (hmm->flags & p7H_CONS))           ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
+  if (gm_fs3->codon_lengths != 5)          ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
+
+  /* Copy some pointer references and other info across from HMM  */
+  gm_fs3->M                = hmm->M;
+  gm_fs3->max_length       = hmm->max_length;
+  gm_fs3->mode             = mode;
+  gm_fs3->roff             = -1;
+  gm_fs3->eoff             = -1;
+  gm_fs3->offs[p7_MOFFSET] = -1;
+  gm_fs3->offs[p7_FOFFSET] = -1;
+  gm_fs3->offs[p7_POFFSET] = -1;
+  if (gm_fs3->name != NULL) free(gm_fs3->name);
+  if (gm_fs3->acc  != NULL) free(gm_fs3->acc);
+  if (gm_fs3->desc != NULL) free(gm_fs3->desc);
+  if ((status = esl_strdup(hmm->name,   -1, &(gm_fs3->name))) != eslOK) goto ERROR;
+  if ((status = esl_strdup(hmm->acc,    -1, &(gm_fs3->acc)))  != eslOK) goto ERROR;
+  if ((status = esl_strdup(hmm->desc,   -1, &(gm_fs3->desc))) != eslOK) goto ERROR;
+  if (hmm->flags & p7H_RF)    strcpy(gm_fs3->rf,        hmm->rf);
+  if (hmm->flags & p7H_MMASK) strcpy(gm_fs3->mm,        hmm->mm);
+  if (hmm->flags & p7H_CONS)  strcpy(gm_fs3->consensus, hmm->consensus); /* must be present, actually, so the flag test is just for symmetry w/ other optional HMM fields */
+  if (hmm->flags & p7H_CS)    strcpy(gm_fs3->cs,        hmm->cs);
+  for (z = 0; z < p7_NEVPARAM; z++) gm_fs3->evparam[z] = hmm->evparam[z];
+  for (z = 0; z < p7_NCUTOFFS; z++) gm_fs3->cutoff[z]  = hmm->cutoff[z];
+  for (z = 0; z < p7_MAXABET;  z++) gm_fs3->compo[z]   = hmm->compo[z]; 
+
+  /* Entry scores. */
+  if (p7_fs_profile_IsLocal(gm_fs3))
+    {
+      /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
+       * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
+      Z = 0.;
+      ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
+
+      if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
+      for (k = 1; k <= hmm->M; k++)
+    Z += occ[k] * (float) (hmm->M-k+1);
+      for (k = 1; k <= hmm->M; k++)
+    p7P_TSC(gm_fs3, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
+
+      free(occ);
+    }
+  else  /* glocal modes: left wing retraction; must be in log space for precision */
+    {
+      Z = log(hmm->t[0][p7H_MD]);
+      p7P_TSC(gm_fs3, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
+      for (k = 1; k < hmm->M; k++)
+    {
+       p7P_TSC(gm_fs3, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
+       Z += log(hmm->t[k][p7H_DD]);
+    }
+    }
+  
+  /* E state loop/move probabilities: nonzero for MOVE allows loops/multihits
+   * N,C,J transitions are set later by length config
+   */
+  if (p7_fs_profile_IsMultihit(gm_fs3)) {
+    gm_fs3->xsc[p7P_E][p7P_MOVE] = -eslCONST_LOG2;
+    gm_fs3->xsc[p7P_E][p7P_LOOP] = -eslCONST_LOG2;
+    gm_fs3->nj                   = 1.0f;
+  } else {
+    gm_fs3->xsc[p7P_E][p7P_MOVE] = 0.0f;
+    gm_fs3->xsc[p7P_E][p7P_LOOP] = -eslINFINITY;
+    gm_fs3->nj                   = 0.0f;
+  }
+  
+  /* Transition scores. */
+  for (k = 1; k < gm_fs3->M; k++) {
+    tp = gm_fs3->tsc + k * p7P_NTRANS;
+    tp[p7P_MM] = log(hmm->t[k][p7H_MM]);
+    tp[p7P_MI] = log(hmm->t[k][p7H_MI]);
+    tp[p7P_MD] = log(hmm->t[k][p7H_MD]);
+    tp[p7P_IM] = log(hmm->t[k][p7H_IM]);
+    tp[p7P_II] = log(hmm->t[k][p7H_II]);
+    tp[p7P_DM] = log(hmm->t[k][p7H_DM]);
+    tp[p7P_DD] = log(hmm->t[k][p7H_DD]);
+  }
+ 
+  /* Match emission scores. */
+  sc[hmm->abc->K]     = -eslINFINITY; /* gap character */
+  sc[hmm->abc->Kp-1]  = -eslINFINITY; /* missing data character */
+  sc[hmm->abc->Kp-2]  = -eslINFINITY; /* STOP character */
+  
+  for (k = 1; k <= hmm->M; k++) {
+    /* Turn amino acid emissions into log odds */
+    for (x = 0; x < hmm->abc->K; x++)
+     sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
+    
+    esl_abc_FExpectScVec(hmm->abc, sc, bg->f);
+    
+    for (x = 0; x < hmm->abc->Kp; x++)  
+      p7P_MSC_AMINO5(gm_fs3, k, x) = sc[x];
+  } 
+
+  /* Assign scores, amino acids, and indel positions to all codons and quasicodons*/
+  for (k = 1; k <= hmm->M; k++) { 
+  
+    /* set all scoresfor the current model postion to negative infinity */ 
+    esl_vec_FSet(gm_fs3->rsc[k], (p7P_MAXCODONS3+gm_fs3->abc->Kp), -eslINFINITY);
+
+    /* find maximum scoring amio acid for each two nucleotide quasicodon (_XX or X_X or XX_) */   
+    for (del1 = 0; del1 < 4; del1++) 
+      for (w = 0; w < 4; w++)
+        for (x = 0; x < 4; x++) {
+          codon_idx = p7P_CODON2_FS3(w, x);
+          //_XX
+          codon = 16 * del1 + 4 * w + x;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+            p7P_AMINO(gm_fs3, k, codon_idx) = a;
+            p7P_INDEL(gm_fs3, k, codon_idx) =  p7P__XX;    
+          }
+       
+          //X_X
+          codon = 16 * w + 4 * del1 + x;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+            p7P_AMINO(gm_fs3, k, codon_idx) = a;
+            p7P_INDEL(gm_fs3, k, codon_idx) =  p7P_X_X;
+          } 
+
+          //XX_   
+          codon = 16 * w + 4 * x + del1;
+          a = gcode->basic[codon];
+          if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+            p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+            p7P_AMINO(gm_fs3, k, codon_idx) = a;
+            p7P_INDEL(gm_fs3, k, codon_idx) =  p7P_XX_;
+          }  
+        }
+ 
+    /* find maximum scoring amio acid for each three nucleotide codon */
+    for (v = 0; v < 4; v++)
+       for (w = 0; w < 4; w++)
+         for (x = 0; x < 4; x++) {
+           codon_idx = p7P_CODON3_FS3(v, w, x);
+           codon = 16 * v + 4 * w + x;
+           a = gcode->basic[codon];
+           /* stop codons are treated like codons with a single substitution error */
+           if(a == hmm->abc->Kp-2) { 
+             for (sub = 0; sub < 4; sub ++) {
+                codon = 16 * sub + 4 * w + x;
+                a = gcode->basic[codon];
+                if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+                   p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+                   p7P_AMINO(gm_fs3, k, codon_idx) = a;
+                   p7P_INDEL(gm_fs3, k, codon_idx) = p7P_xXX;
+                }
+                codon = 16 * v + 4 * sub + x;
+                a = gcode->basic[codon];
+                if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+                   p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+                   p7P_AMINO(gm_fs3, k, codon_idx) = a;
+                   p7P_INDEL(gm_fs3, k, codon_idx) = p7P_XxX;
+                }
+                codon = 16 * v + 4 * w + sub;
+                a = gcode->basic[codon];
+                if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+                   p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+                   p7P_AMINO(gm_fs3, k, codon_idx) = a;
+                   p7P_INDEL(gm_fs3, k, codon_idx) = p7P_XXx;
+                }
+             }
+           } else {
+             p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a);
+             p7P_AMINO(gm_fs3, k, codon_idx) = a;
+             p7P_INDEL(gm_fs3, k, codon_idx) = p7P_XXX;
+           }             
+         }
+
+    /* find maximum scoring amio acid for each four nucleotide quasicodon (XXxX, XxXX, or xXXX) */ 
+    for ( u = 0; u < 4; u++) 
+      for (v = 0; v < 4; v++) 
+        for (w = 0; w < 4; w++) 
+          for (x = 0; x < 4; x++) {
+	    codon_idx = p7P_CODON4_FS3(u, v, w, x);
+            //XXxX
+            codon       = 16 * u + 4 * v + x;
+            a = gcode->basic[codon];
+            if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+              p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+              p7P_AMINO(gm_fs3, k, codon_idx) = a;
+              p7P_INDEL(gm_fs3, k, codon_idx) =  p7P_XXxX;
+            }
+            //XxXX
+            codon      = 16 * u + 4 * w + x;
+            a = gcode->basic[codon];
+            if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+              p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+              p7P_AMINO(gm_fs3, k, codon_idx) = a;
+              p7P_INDEL(gm_fs3, k, codon_idx) =  p7P_XxXX;
+            }           
+            //xXXX
+            codon      = 16 * v + 4 * w + x;  
+            a = gcode->basic[codon];
+            if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
+              p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
+              p7P_AMINO(gm_fs3, k, codon_idx) = a;
+              p7P_INDEL(gm_fs3, k, codon_idx) =  p7P_xXXX;
+            }
+          }
+   
+    /* add substitution and indel cost */
+    for (t = 0; t < 4; t++) {
+      for ( u = 0; u < 4; u++) {
+        codon_idx = p7P_CODON2_FS3(u, t);
+        p7P_MSC_CODON(gm_fs3, k, codon_idx) += one_indel;
+        for (v = 0; v < 4; v++) {
+          codon_idx = p7P_CODON3_FS3(v, u, t);
+          codon = 16 * v + 4 * u + t;
+          a = gcode->basic[codon];
+          if(a == hmm->abc->Kp-2) // stop codon
+            p7P_MSC_CODON(gm_fs3, k, codon_idx) += one_indel;
+          else
+            p7P_MSC_CODON(gm_fs3, k, codon_idx) += no_indel;
+          for (w = 0; w < 4; w++) {
+            codon_idx = p7P_CODON4_FS3(w, v, u, t);
+            p7P_MSC_CODON(gm_fs3, k, codon_idx) += one_indel;
+           
+          }
+        }
+      }
+    }
+
+    /* additional index for codons and quasicodons containing degenerate nucleotides */
+    a = hmm->abc->Kp-3;
+    
+    codon_idx = p7P_DEGEN5_C;
+    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a) + no_indel;
+    p7P_AMINO(gm_fs3, k, codon_idx) = a;
+    p7P_INDEL(gm_fs3,k, codon_idx) = p7P_xxx;
+
+    codon_idx = p7P_DEGEN5_QC1; 
+    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a) + one_indel;
+    p7P_AMINO(gm_fs3, k, codon_idx) = a;
+    p7P_INDEL(gm_fs3,k, codon_idx) = p7P_xxx;
+
+    codon_idx = p7P_DEGEN5_QC2;
+    p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO5(gm_fs3, k, a) + two_indel;
+    p7P_AMINO(gm_fs3, k, codon_idx) = a;
+    p7P_INDEL(gm_fs3,k, codon_idx) = p7P_xxx;
+  }
+
+  /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
+  gm_fs3->L = 0;            /* force ReconfigLength to reconfig */
+  if ((status = p7_fs_ReconfigLength(gm_fs3, L_amino)) != eslOK) goto ERROR;
+  return eslOK;
+
+ERROR:
+  if (occ != NULL) free(occ);
+  return status;
+}
+
+
+
 
 /* Function:  p7_ReconfigLength()
  * Synopsis:  Set the target sequence length of a model.
@@ -793,14 +1096,14 @@ static void
 utest_Config_fs(P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode)
 {
   char       *msg = "modelconfig.c::p7_ProfileConfig_fs() unit test failed";
-  P7_FS_PROFILE *gm_fs  = NULL;
+  P7_FS_PROFILE *gm_fs5  = NULL;
 
-  if ((gm_fs = p7_profile_fs5_Create(hmm->M, hmm->abc))            == NULL)   esl_fatal(msg);
-  if (p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, 350, p7_LOCAL)  != eslOK)  esl_fatal(msg);
-  if (p7_profile_fs_Validate(gm_fs, NULL, 0.0001)                 != eslOK)  esl_fatal(msg);
+  if ((gm_fs5 = p7_profile_fs5_Create(hmm->M, hmm->abc))            == NULL)   esl_fatal(msg);
+  if (p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs5, 350, p7_LOCAL)  != eslOK)  esl_fatal(msg);
+  if (p7_profile_fs_Validate(gm_fs5, NULL, 0.0001)                 != eslOK)  esl_fatal(msg);
 
 
-  p7_profile_fs_Destroy(gm_fs);
+  p7_profile_fs_Destroy(gm_fs5);
   return;
 }
 

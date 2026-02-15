@@ -513,7 +513,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   /* Length 2 quasi-codon */
   c2 = p7P_CODON2_FS3(w, x);
   c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
- 
+
   XMX(2,p7G_E) = -eslINFINITY;
   MMX(2,0) = IMX(2,0) = DMX(2,0) = -eslINFINITY;
   
@@ -555,7 +555,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
 	c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
 
 	/* Length 4 quasi-codon */
-	c4 = p7P_CODON4_FS5(u, v, w, x);
+	c4 = p7P_CODON4_FS3(u, v, w, x);
 	c4 = p7P_MINIDX(c4, p7P_DEGEN3_QC1);
 
 	curr  = i     % PARSER_ROWS_FWD;

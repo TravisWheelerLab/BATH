@@ -323,6 +323,10 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   sc[hmm->abc->Kp-2]  = -eslINFINITY; /* STOP character */
   
   for (k = 1; k <= hmm->M; k++) {
+
+    /* set all scoresfor the current model postion to negative infinity */ 
+    esl_vec_FSet(gm_fs5->rsc[k], (p7P_MAXCODONS5+gm_fs5->abc->Kp), -eslINFINITY);
+
     /* Turn amino acid emissions into log odds */
     for (x = 0; x < hmm->abc->K; x++)
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
@@ -336,9 +340,6 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   /* Assign scores, amino acids, and indel positions to all codons and quasicodons*/
   for (k = 1; k <= hmm->M; k++) { 
   
-    /* set all scoresfor the current model postion to negative infinity */ 
-    esl_vec_FSet(gm_fs5->rsc[k], p7P_MAXCODONS5, -eslINFINITY);
-
     /* find maximum scoring amio acid for each one nucleotide quasicodon (__X or X__) */
     for (del1 = 0; del1 < 4; del1++)
       for (del2 = 0; del2 < 4; del2++)
@@ -686,6 +687,10 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   sc[hmm->abc->Kp-2]  = -eslINFINITY; /* STOP character */
   
   for (k = 1; k <= hmm->M; k++) {
+
+    /* set all scoresfor the current model postion to negative infinity */ 
+    esl_vec_FSet(gm_fs3->rsc[k], (p7P_MAXCODONS3+gm_fs3->abc->Kp), -eslINFINITY);
+
     /* Turn amino acid emissions into log odds */
     for (x = 0; x < hmm->abc->K; x++)
      sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
@@ -694,15 +699,12 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
     
     for (x = 0; x < hmm->abc->Kp; x++)  
       p7P_MSC_AMINO3(gm_fs3, k, x) = sc[x];
+      
   } 
 
   /* Assign scores, amino acids, and indel positions to all codons and quasicodons*/
   for (k = 1; k <= hmm->M; k++) { 
-  
-    /* set all scoresfor the current model postion to negative infinity */ 
-    esl_vec_FSet(gm_fs3->rsc[k], (p7P_MAXCODONS3+gm_fs3->abc->Kp), -eslINFINITY);
-
-    /* find maximum scoring amio acid for each two nucleotide quasicodon (_XX or X_X or XX_) */   
+     /* find maximum scoring amio acid for each two nucleotide quasicodon (_XX or X_X or XX_) */   
     for (del1 = 0; del1 < 4; del1++) 
       for (w = 0; w < 4; w++)
         for (x = 0; x < 4; x++) {
@@ -710,6 +712,7 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
           //_XX
           codon = 16 * del1 + 4 * w + x;
           a = gcode->basic[codon];
+          
           if (p7P_MSC_AMINO3(gm_fs3, k, a) > p7P_MSC_CODON(gm_fs3, k, codon_idx)) {
             p7P_MSC_CODON(gm_fs3, k, codon_idx) = p7P_MSC_AMINO3(gm_fs3, k, a);
             p7P_AMINO(gm_fs3, k, codon_idx) = a;

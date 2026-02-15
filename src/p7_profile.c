@@ -495,7 +495,7 @@ p7_profile_fs3_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
   int status;
 
   if (src->M > dst->allocM)       ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
-  if (dst->codon_lengths != 5)    ESL_EXCEPTION(eslEINVAL, "destination proflie not allocated for 5 codon lengths");
+  if (dst->codon_lengths != 3)    ESL_EXCEPTION(eslEINVAL, "destination proflie not allocated for 3 codon lengths");
 
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
   for (x = 0; x <= src->M;      x++) { esl_vec_FCopy( src->rsc[x],       (p7P_MAXCODONS3 + src->abc->Kp), dst->rsc[x]);       }

@@ -122,7 +122,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     if  ( (ct     = p7_codontable_Create(gcode))                               == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate codon tbl");
 
     if(gm_fs == NULL) {
-      if  ( (gm_fs  = p7_profile_fs_Create(hmm->M, hmm->abc))                    == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
+      if  ( (gm_fs  = p7_profile_fs5_Create(hmm->M, hmm->abc))                    == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
       if  ( (status = p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, EvL, p7_LOCAL)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure profile");
     }  
     if ((status = p7_fs_Tau_3codons (r, gm_fs, gcode, ct, bg, EfL, EfN, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");

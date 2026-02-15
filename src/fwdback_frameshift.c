@@ -2158,7 +2158,7 @@ main(int argc, char **argv)
   gcode = esl_gencode_Create(abcDNA, abcAA);
   bgDNA = p7_bg_Create(abcDNA);
   bgAA  = p7_bg_Create(abcAA);
-  gm_fs = p7_profile_fs_Create(hmm->M, abcAA);
+  gm_fs = p7_profile_fs5_Create(hmm->M, abcAA);
   p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL);
   fwd_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_FWD, L, 0);
   bck_p = p7_gmx_fs_Create(gm_fs->M, PARSER_ROWS_BWD, L, 0);
@@ -2430,7 +2430,7 @@ main(int argc, char **argv)
   if ((p7_bg_SetLength(bgDNA,  L))                              != eslOK) esl_fatal("failed to config background");
   if ((gm = p7_profile_Create(hmm->M, abcAA))                   == NULL)  esl_fatal("failed to create profile");
   if ((p7_ProfileConfig(hmm, bgAA, gm, L, p7_LOCAL))            != eslOK) esl_fatal("failed to config profile");
-  if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
+  if ((gm_fs = p7_profile_fs5_Create(hmm->M, abcAA))             == NULL)  esl_fatal("failed to create profile");
   if (p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
 

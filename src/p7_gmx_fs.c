@@ -789,7 +789,7 @@ main(int argc, char **argv)
   p7_FLogsumInit();
 
   if (p7_hmm_Sample(r, M, abcAA, &hmm)                              != eslOK) esl_fatal(msg);
-  if ((gm_fs = p7_profile_fs_Create(hmm->M, abcAA))                 == NULL)  esl_fatal(msg);
+  if ((gm_fs = p7_profile_fs5_Create(hmm->M, abcAA))                 == NULL)  esl_fatal(msg);
   if (p7_bg_SetLength(bgAA, L/3)                                    != eslOK) esl_fatal(msg);
   if (p7_bg_SetLength(bgDNA, L)                                     != eslOK) esl_fatal(msg);
   if (p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs, L/3, p7_UNILOCAL) != eslOK) esl_fatal(msg);

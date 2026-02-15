@@ -2460,7 +2460,7 @@ main(int argc, char **argv)
   abcDNA = esl_alphabet_Create(eslDNA);
   gcode  = esl_gencode_Create(abcDNA, abcAA);
   ct     = p7_codontable_Create(gcode);
-  gm_fs = p7_profile_fs_Create(hmm->M, abcAA); 
+  gm_fs = p7_profile_fs5_Create(hmm->M, abcAA); 
   p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, 0, p7_UNIGLOCAL);
 
 

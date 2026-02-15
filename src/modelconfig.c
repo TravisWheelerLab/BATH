@@ -200,7 +200,7 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
  * Purpose:   Given a model <hmm> with core amino acide probabilities, 
  *            the null1 model <bg>, a desired search <mode> and an
  *            expected target sequence length <L>; configure the
- *            frameshift aware search model in <gm_fs> with lod scores 
+ *            frameshift aware search model in <gm_fs5> with lod scores 
  *            relative to the background frequencies in <bg>. For 
  *            quasicodons (length 1,2,4 or 5) the emissiosn probability 
  *            at position k is assigned to the maximum emisssions
@@ -556,6 +556,8 @@ p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
   return status;
 }
 
+
+
 /* Function:  p7_ReconfigLength()
  * Synopsis:  Set the target sequence length of a model.
  *
@@ -793,7 +795,7 @@ utest_Config_fs(P7_HMM *hmm, P7_BG *bg, ESL_GENCODE *gcode)
   char       *msg = "modelconfig.c::p7_ProfileConfig_fs() unit test failed";
   P7_FS_PROFILE *gm_fs  = NULL;
 
-  if ((gm_fs = p7_profile_fs_Create(hmm->M, hmm->abc))            == NULL)   esl_fatal(msg);
+  if ((gm_fs = p7_profile_fs5_Create(hmm->M, hmm->abc))            == NULL)   esl_fatal(msg);
   if (p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs, 350, p7_LOCAL)  != eslOK)  esl_fatal(msg);
   if (p7_profile_fs_Validate(gm_fs, NULL, 0.0001)                 != eslOK)  esl_fatal(msg);
 

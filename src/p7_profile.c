@@ -130,17 +130,15 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
   return NULL;
 }
 
-/* Function:  p7_profile_fs_Create()
+/* Function:  p7_profile_fs5_Create()
  * Synopsis:  Allocates a profile.
  *
- * Purpose:   Allocates for a profile of up to <M> nodes, for digital
- *            alphabet <abc>.
+ * Purpose:   Allocates for a 5 codon length frameshift profile of up 
+ *            to <M> nodes, for digital alphabet <abc>.
  *
- *            Because this function might be in the critical path (in
- *            hmmscan, for example), we leave much of the model
- *            unintialized, including scores and length model
- *            probabilities. The <p7_ProfileConfig()> call is what
- *            sets these.
+ *            We leave much of the model unintialized, including 
+ *            scores and length model probabilities. 
+ *            The <p7_ProfileConfig_fs5()> call is what sets these.
  *
  *            The alignment mode is set to <p7_NO_MODE>.  The
  *            reference pointer <gm->abc> is set to <abc>.
@@ -149,98 +147,98 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
  *
  * Throws:    <NULL> on allocation error.
  *
- * Xref:      STL11/125.
+ * p7_profile_fs5_CreateXref:      STL11/125.
  */
 P7_FS_PROFILE *
-p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc)
+p7_profile_fs5_Create(int allocM, const ESL_ALPHABET *abc)
 {
-  P7_FS_PROFILE *gm_fs = NULL;
-  int         x;// y, z;
+  P7_FS_PROFILE *gm_fs5 = NULL;
+  int         x;
   int         status;
 
   /* level 0 */
-  ESL_ALLOC(gm_fs, sizeof(P7_FS_PROFILE));
-  gm_fs->tsc       = NULL;
-  gm_fs->rsc       = NULL;
-  gm_fs->codons    = NULL;
-  gm_fs->indel_pos = NULL;
-  gm_fs->rf        = NULL;
-  gm_fs->mm        = NULL;
-  gm_fs->cs        = NULL;
-  gm_fs->consensus = NULL;
+  ESL_ALLOC(gm_fs5, sizeof(P7_FS_PROFILE));
+  gm_fs5->tsc       = NULL;
+  gm_fs5->rsc       = NULL;
+  gm_fs5->codons    = NULL;
+  gm_fs5->indel_pos = NULL;
+  gm_fs5->rf        = NULL;
+  gm_fs5->mm        = NULL;
+  gm_fs5->cs        = NULL;
+  gm_fs5->consensus = NULL;
 
   /* level 1 */
-  ESL_ALLOC(gm_fs->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
-  ESL_ALLOC(gm_fs->rsc,       sizeof(float *)   * (allocM+1));
-  ESL_ALLOC(gm_fs->codons,    sizeof(ESL_DSQ *) * (allocM+1));
-  ESL_ALLOC(gm_fs->indel_pos, sizeof(ESL_DSQ *) * (allocM+1));
-  ESL_ALLOC(gm_fs->rf,        sizeof(char)      * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
-  ESL_ALLOC(gm_fs->mm,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_fs->cs,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_fs->consensus, sizeof(char)      * (allocM+2));
-  gm_fs->rsc[0]       = NULL;
-  gm_fs->codons[0]    = NULL;
-  gm_fs->indel_pos[0] = NULL;
+  ESL_ALLOC(gm_fs5->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
+  ESL_ALLOC(gm_fs5->rsc,       sizeof(float *)   * (allocM+1));
+  ESL_ALLOC(gm_fs5->codons,    sizeof(ESL_DSQ *) * (allocM+1));
+  ESL_ALLOC(gm_fs5->indel_pos, sizeof(ESL_DSQ *) * (allocM+1));
+  ESL_ALLOC(gm_fs5->rf,        sizeof(char)      * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
+  ESL_ALLOC(gm_fs5->mm,        sizeof(char)      * (allocM+2));
+  ESL_ALLOC(gm_fs5->cs,        sizeof(char)      * (allocM+2));
+  ESL_ALLOC(gm_fs5->consensus, sizeof(char)      * (allocM+2));
+  gm_fs5->rsc[0]       = NULL;
+  gm_fs5->codons[0]    = NULL;
+  gm_fs5->indel_pos[0] = NULL;
 
   /* level 2 */
-  ESL_ALLOC(gm_fs->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS + abc->Kp));
+  ESL_ALLOC(gm_fs5->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS + abc->Kp));
 
   for (x = 1; x <= allocM; x++)   
-    gm_fs->rsc[x] = gm_fs->rsc[0] + x * (p7P_MAXCODONS + abc->Kp);
+    gm_fs5->rsc[x] = gm_fs5->rsc[0] + x * (p7P_MAXCODONS + abc->Kp);
 
-  ESL_ALLOC(gm_fs->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
-
-  for (x = 1; x <= allocM; x++)
-    gm_fs->codons[x] = gm_fs->codons[0] + x * p7P_MAXCODONS;
-
-  ESL_ALLOC(gm_fs->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
+  ESL_ALLOC(gm_fs5->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
 
   for (x = 1; x <= allocM; x++)
-    gm_fs->indel_pos[x] = gm_fs->indel_pos[0] + x * p7P_MAXCODONS;
+    gm_fs5->codons[x] = gm_fs5->codons[0] + x * p7P_MAXCODONS;
+
+  ESL_ALLOC(gm_fs5->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS+1)); /* +1 for trailing \0 */
+
+  for (x = 1; x <= allocM; x++)
+    gm_fs5->indel_pos[x] = gm_fs5->indel_pos[0] + x * p7P_MAXCODONS;
 
   /* Initialize some edge pieces of memory that are never used,
    * and are only present for indexing convenience. */
-  esl_vec_FSet(gm_fs->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
+  esl_vec_FSet(gm_fs5->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
   if (allocM > 1) {
-    p7P_TSC(gm_fs, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
-    p7P_TSC(gm_fs, 1, p7P_DD) = -eslINFINITY;
+    p7P_TSC(gm_fs5, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
+    p7P_TSC(gm_fs5, 1, p7P_DD) = -eslINFINITY;
   }
 
   for (x = 0; x < (p7P_MAXCODONS + abc->Kp); x++) 
-    p7P_MSC_CODON(gm_fs, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
+    p7P_MSC_CODON(gm_fs5, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
   
   /* Set remaining info  */
-  gm_fs->mode             = p7_NO_MODE;
-  gm_fs->L                = 0;
-  gm_fs->allocM           = allocM;
-  gm_fs->M                = 0;
-  gm_fs->max_length       = -1;
-  gm_fs->nj               = 0.0f;
+  gm_fs5->mode             = p7_NO_MODE;
+  gm_fs5->L                = 0;
+  gm_fs5->allocM           = allocM;
+  gm_fs5->M                = 0;
+  gm_fs5->max_length       = -1;
+  gm_fs5->nj               = 0.0f;
 
-  gm_fs->roff             = -1;
-  gm_fs->eoff             = -1;
-  gm_fs->offs[p7_MOFFSET] = -1;
-  gm_fs->offs[p7_FOFFSET] = -1;
-  gm_fs->offs[p7_POFFSET] = -1;
+  gm_fs5->roff             = -1;
+  gm_fs5->eoff             = -1;
+  gm_fs5->offs[p7_MOFFSET] = -1;
+  gm_fs5->offs[p7_FOFFSET] = -1;
+  gm_fs5->offs[p7_POFFSET] = -1;
 
-  gm_fs->name             = NULL;
-  gm_fs->acc              = NULL;
-  gm_fs->desc             = NULL;
-  gm_fs->rf[0]            = 0;     /* RF line is optional annotation; this flags that it's not set yet */
-  gm_fs->mm[0]            = 0;     /* likewise for MM annotation line */
-  gm_fs->cs[0]            = 0;     /* likewise for CS annotation line */
-  gm_fs->consensus[0]     = 0;
+  gm_fs5->name             = NULL;
+  gm_fs5->acc              = NULL;
+  gm_fs5->desc             = NULL;
+  gm_fs5->rf[0]            = 0;     /* RF line is optional annotation; this flags that it's not set yet */
+  gm_fs5->mm[0]            = 0;     /* likewise for MM annotation line */
+  gm_fs5->cs[0]            = 0;     /* likewise for CS annotation line */
+  gm_fs5->consensus[0]     = 0;
 
-  for (x = 0; x < p7_NEVPARAM; x++) gm_fs->evparam[x] = p7_EVPARAM_UNSET;
-  for (x = 0; x < p7_NCUTOFFS; x++) gm_fs->cutoff[x]  = p7_CUTOFF_UNSET;
-  for (x = 0; x < p7_MAXABET;  x++) gm_fs->compo[x]   = p7_COMPO_UNSET;
+  for (x = 0; x < p7_NEVPARAM; x++) gm_fs5->evparam[x] = p7_EVPARAM_UNSET;
+  for (x = 0; x < p7_NCUTOFFS; x++) gm_fs5->cutoff[x]  = p7_CUTOFF_UNSET;
+  for (x = 0; x < p7_MAXABET;  x++) gm_fs5->compo[x]   = p7_COMPO_UNSET;
 
-  gm_fs->abc         = abc;
+  gm_fs5->abc         = abc;
 
-  return gm_fs;
+  return gm_fs5;
 
  ERROR:
-  p7_profile_fs_Destroy(gm_fs);
+  p7_profile_fs_Destroy(gm_fs5);
   return NULL;
 }
 
@@ -384,7 +382,7 @@ p7_profile_fs_Clone(const P7_FS_PROFILE *gm)
 {
   P7_FS_PROFILE *g2 = NULL;
   int         status;
-  if ((g2 = p7_profile_fs_Create(gm->allocM, gm->abc)) == NULL) return NULL;
+  if ((g2 = p7_profile_fs5_Create(gm->allocM, gm->abc)) == NULL) return NULL;
   if ((status = p7_profile_fs_Copy(gm, g2)) != eslOK) goto ERROR;
   return g2;
 

@@ -409,7 +409,7 @@ typedef struct p7_bg_s {
 
   ESL_HMM *fhmm;  /* bias filter: p7_bg_SetFilter() sets this, from model's mean composition */
 
-  float    omega;  /* the "prior" on null2/null3: set at initialization (one omega for both null types)  */
+  float    omega;  /* the "prior" on null2: set at initialization (one omega for both null types)  */
 
   const ESL_ALPHABET *abc;  /* reference to alphabet in use: set at initialization             */
 } P7_BG;
@@ -1512,12 +1512,6 @@ extern int            p7_hmm_ScoreDataComputeRest(P7_OPROFILE *om, P7_SCOREDATA 
 extern void           p7_hmm_ScoreDataDestroy( P7_SCOREDATA *data );
 extern int            p7_hmm_initWindows (P7_HMM_WINDOWLIST *list);
 extern P7_HMM_WINDOW *p7_hmm_newWindow (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity);
-
-
-
-/* p7_null3.c */
-extern void p7_null3_score(const ESL_ALPHABET *abc, const ESL_DSQ *dsq, P7_TRACE *tr, int start, int stop, P7_BG *bg, float *ret_sc);
-extern void p7_null3_windowed_score(const ESL_ALPHABET *abc, const ESL_DSQ *dsq, int start, int stop, P7_BG *bg, float *ret_sc);
 
 /* p7_pipeline.c */
 extern P7_PIPELINE* p7_pipeline_Create_BATH (ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode);

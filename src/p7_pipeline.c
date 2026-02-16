@@ -1134,6 +1134,9 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
   tot_orf_P  = eslINFINITY;
   min_P_orf  = eslINFINITY;
   
+  for(f = 0; f < orf_block->count; f++) 
+    pli_tmp->oxf_holder[f] = NULL;
+
   /* If this search is using the standard translation pipeline (user did not specify --fsonly) 
    * then run the standard Foward on every ORF that is within the current window */ 
   if(pli->std_pipe) {
@@ -1142,7 +1145,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
 
    for(f = 0; f < orf_block->count; f++) {
      curr_orf = &(orf_block->list[f]);
-     pli_tmp->oxf_holder[f] = NULL;
      pli_tmp->P_orf[f] = eslINFINITY; 
 
      if(curr_orf->idx == windowidx) { 
@@ -1443,7 +1445,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs3, P7_FS
   float              seq_score;           /* null corrected bit score                */
   float              filtersc;            /* bias and null score                     */
   double             P;                   /* p-value holder                          */
-  int                window_len;          /* length of DNA window                    */
   int                min_length;          /* minimum number of nucs passing a filter */
   ESL_SQ            *orfsq;               /* ORF sequence                            */
   ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */

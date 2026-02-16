@@ -441,7 +441,7 @@ p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg, P7_HMM **opt_hmm, P7_TRACE 
   hmm->fs     = bld->fs;
   hmm->fsprob = bld->fsprob;
   hmm->ct     = bld->ct;
-
+  
   if ((status =  effective_seqnumber  (bld, msa, hmm, bg))                                    != eslOK) goto ERROR;
   if ((status =  parameterize         (bld, hmm))                                             != eslOK) goto ERROR;
   if ((status =  annotate             (bld, msa, hmm))                                        != eslOK) goto ERROR;
@@ -522,10 +522,15 @@ p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq, P7_BG *bg, P7_HMM **opt_hmm,
   }
   sq_cp->n = j-1;
   sq_cp->dsq[j] = sq->dsq[sq->n+1];
-
+   
   if ((status = p7_Seqmodel(bld->abc, sq_cp->dsq, sq_cp->n, sq_cp->name, bld->Q, bg->f, bld->popen, bld->pextend, &hmm)) != eslOK) goto ERROR;
   if ((status = p7_hmm_SetComposition(hmm))                                                                              != eslOK) goto ERROR;
   if ((status = p7_hmm_SetConsensus(hmm, sq_cp))                                                                         != eslOK) goto ERROR; 
+
+  hmm->fs     = bld->fs;
+  hmm->fsprob = bld->fsprob;
+  hmm->ct     = bld->ct;
+
   if ((status = calibrate(bld, hmm, bg, opt_gm, opt_om, NULL, NULL))                                                     != eslOK) goto ERROR;
 
   if (bld->w_len > 0)           hmm->max_length = bld->w_len;

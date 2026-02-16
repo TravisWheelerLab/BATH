@@ -502,27 +502,6 @@ enum p7t_splicestates_e {
   p7T_A    = 15
 };
 
-enum p7t_codontype_e {
-  p7T_C0 = 0,
-  p7T_C1 = 1,
-  p7T_C2 = 2,
-  p7T_C3 = 3,
-  p7T_C4 = 4,
-  p7T_C5 = 5,
-};
-#define p7T_NCODONTYPES 6
-
-/* cigar string types */
-enum p7t_cigartype_e {
-  p7T_1M = 0,
-  p7T_1D = 1,
-  p7T_1I = 2,
-  p7T_2F = 3,
-  p7T_1F = 4,
-  p7T_1B = 5,
-  p7T_2B = 6,
-};
-
 /* splice options */
 enum p7s_splice_options_e {
   p7S_xxyyABC   = 0,
@@ -799,6 +778,7 @@ typedef struct p7_alidisplay_s {
   char *ntseq;                  /* nucleotide target sequence for bath  */
   char *ppline;                 /* posterior prob annotation; or NULL   */
   char *codon;                  /* number of nuceltides in each codon   */
+  char *cigar;                  /* cigar string for the alignment       */
   int   frameshifts;            /* number of codons with frameshifts    */
   int   stops;                  /* number of stop codons */
   int   N;                      /* length of strings                    */

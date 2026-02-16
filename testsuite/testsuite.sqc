@@ -101,6 +101,10 @@
 1 prep      convert                    @src/bathconvert@ --ct 5                            %TESTCT%                        !testsuite/2OG-FeII_Oxy_3.bhmm!
 1 exercise  bathsearch                 @src/bathsearch@                                    !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--fs            @src/bathsearch@  --fs                              !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/msa             @src/bathsearch@                                    !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
+1 exercise  bathsearch/msa/--fs        @src/bathsearch@  --fs                              !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
+1 exercise  bathsearch/seq             @src/bathsearch@                                    !testsuite/globins.fa! !testsuite/globins45-nt.fa!
+1 exercise  bathsearch/seq/--fs        @src/bathsearch@  --fs                              !testsuite/globins.fa! !testsuite/globins45-nt.fa!
 1 exercise  bathsearch/-h              @src/bathsearch@  -h
 1 exercise  bathsearch/-o              @src/bathsearch@  -o              %bathsearch.out%  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--tblout        @src/bathsearch@  --tblout        %bathsearch.tbl%  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!

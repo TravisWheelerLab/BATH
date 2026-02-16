@@ -31,10 +31,6 @@
 #include <stdio.h>		
 #include <stddef.h>             // ptrdiff_t 
 
-#ifdef HMMER_MPI
-#include "mpi.h"
-#endif
-
 #ifdef HMMER_THREADS
 #include <pthread.h>
 #endif
@@ -61,9 +57,8 @@
 #define p7_GLOCAL    2    /* multihit glocal: "ls" mode   */
 #define p7_UNILOCAL  3    /* unihit local: "sw" mode      */
 #define p7_UNIGLOCAL 4    /* unihit glocal: "s" mode      */
-#define p7_UNIGLOBAL 5
 
-#define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL ||  mode == p7_UNIGLOBAL)
+#define p7_IsLocal(mode)  (mode == p7_LOCAL || mode == p7_UNILOCAL)
 #define p7_IsMulti(mode)  (mode == p7_LOCAL || mode == p7_GLOCAL)
 
 #define p7_NEVPARAM 8  /* number of statistical parameters stored in models                      */
@@ -291,7 +286,7 @@ enum p7p_ivx_codon {
 #define p7P_DEGEN5_QC2     1366    /* index for degnerate quasicodons with two indels (5 codon lengths) */
 #define p7P_DEGEN3_C       336     /* index for degnerate codon (3 codon lengths)*/
 #define p7P_DEGEN3_QC1     337     /* index for degnerate quasicodons with one indel (3 codon lengths) */
-#define p7P_DEGENSP_C      64      /* index for degnerate codon (1 codon length)*/
+#define p7P_DEGEN1_C      64      /* index for degnerate codon (1 codon length)*/
 
 /* Index offsets for the p7P_CODON macros bellow */
 #define p7P_NUC1_FS5       341     
@@ -317,7 +312,7 @@ enum p7p_ivx_codon {
 #define p7P_CODON3_FS3(v, w, x)       ((x) * p7P_NUC1_FS3 + (w) * p7P_NUC2_FS3 + (v) * p7P_NUC3_FS3 + p7P_C2) 
 #define p7P_CODON4_FS3(u, v, w, x)    ((x) * p7P_NUC1_FS3 + (w) * p7P_NUC2_FS3 + (v) * p7P_NUC3_FS3 + (u) + p7P_C3)
 
-#define p7P_CODON3_FS1(v, w, x)        ((x) * p7P_NUC1_SP + (w) * p7P_NUC2_SP + (v))
+#define p7P_CODON3_FS1(v, w, x)        ((x) * p7P_NUC1_FS1 + (w) * p7P_NUC2_FS1 + (v))
 
 #define p7P_MINIDX(a,b)           ((b) ^ (((a) ^ (b)) & -((a) < (b))))  
 
@@ -1266,7 +1261,7 @@ extern int p7_Lambda(P7_HMM *hmm, P7_BG *bg, double *ret_lambda);
 extern int p7_MSVMu     (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_mmu);
 extern int p7_ViterbiMu (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_vmu);
 extern int p7_Tau       (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
-extern int p7_fs_Tau_3codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau_3codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
 extern int p7_fs_Tau_5codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
 
 
@@ -1379,13 +1374,12 @@ extern int   p7_ILogsum(int s1, int s2);
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
 extern int p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs5, int L_amino, int mode);
-extern int p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs5, int L_amino, int mode);
-extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode);
-extern int p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int global_start);
+extern int p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs3, int L_amino, int mode);
+extern int p7_ProfileConfig_tr(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_tr, int L_amino, int mode);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs5, int L_amino);
+extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs5, int L_amino);
+extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigUnihit (P7_FS_PROFILE *gm_fs, int L_amnio);
 extern int p7_fs_UpdateEmissionScores(P7_FS_PROFILE *gm_fs, P7_BG *bg, const P7_HMM *hmm);
@@ -1398,31 +1392,6 @@ extern double p7_MeanForwardScore        (const P7_HMM *hmm, const P7_BG *bg);
 extern int    p7_MeanPositionRelativeEntropy(const P7_HMM *hmm, const P7_BG *bg, double *ret_entropy);
 extern int    p7_hmm_CompositionKLD(const P7_HMM *hmm, const P7_BG *bg, float *ret_KL, float **opt_avp);
 
-
-/* mpisupport.c */
-#ifdef HMMER_MPI
-extern int p7_hmm_MPISend(P7_HMM *hmm, int dest, int tag, MPI_Comm comm, char **buf, int *nalloc);
-extern int p7_hmm_MPIPackSize(P7_HMM *hmm, MPI_Comm comm, int *ret_n);
-extern int p7_hmm_MPIPack(P7_HMM *hmm, char *buf, int n, int *position, MPI_Comm comm);
-extern int p7_hmm_MPIUnpack(char *buf, int n, int *pos, MPI_Comm comm, ESL_ALPHABET **abc, P7_HMM **ret_hmm);
-extern int p7_hmm_MPIRecv(int source, int tag, MPI_Comm comm, char **buf, int *nalloc, ESL_ALPHABET **abc, P7_HMM **ret_hmm);
-
-extern int p7_profile_MPISend(P7_PROFILE *gm, int dest, int tag, MPI_Comm comm, char **buf, int *nalloc);
-extern int p7_profile_MPIRecv(int source, int tag, MPI_Comm comm, const ESL_ALPHABET *abc, const P7_BG *bg,
-            char **buf, int *nalloc,  P7_PROFILE **ret_gm);
-
-extern int p7_pipeline_MPISend(P7_PIPELINE *pli, int dest, int tag, MPI_Comm comm, char **buf, int *nalloc);
-extern int p7_pipeline_MPIRecv(int source, int tag, MPI_Comm comm, char **buf, int *nalloc, ESL_GETOPTS *go, P7_PIPELINE **ret_pli);
-
-extern int p7_tophits_MPISend(P7_TOPHITS *th, int dest, int tag, MPI_Comm comm, char **buf, int *nalloc);
-extern int p7_tophits_MPIRecv(int source, int tag, MPI_Comm comm, char **buf, int *nalloc, P7_TOPHITS **ret_th);
-
-extern int p7_oprofile_MPISend(P7_OPROFILE *om, int dest, int tag, MPI_Comm comm, char **buf, int *nalloc);
-extern int p7_oprofile_MPIPackSize(P7_OPROFILE *om, MPI_Comm comm, int *ret_n);
-extern int p7_oprofile_MPIPack(P7_OPROFILE *om, char *buf, int n, int *pos, MPI_Comm comm);
-extern int p7_oprofile_MPIUnpack(char *buf, int n, int *pos, MPI_Comm comm, ESL_ALPHABET **abc, P7_OPROFILE **ret_om);
-extern int p7_oprofile_MPIRecv(int source, int tag, MPI_Comm comm, char **buf, int *nalloc, ESL_ALPHABET **abc, P7_OPROFILE **ret_om);
-#endif /*HMMER_MPI*/
 
 /* tracealign.c */
 extern int p7_tracealign_Seqs(ESL_SQ **sq,           P7_TRACE **tr, int nseq, int M,  int optflags, P7_HMM *hmm, ESL_MSA **ret_msa);
@@ -1646,15 +1615,16 @@ extern void       p7_prior_Destroy(P7_PRIOR *pri);
 extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
 
 /* p7_profile.c */
-extern P7_PROFILE *p7_profile_Create(int M, const ESL_ALPHABET *abc);
+extern P7_PROFILE    *p7_profile_Create(int M, const ESL_ALPHABET *abc);
 extern P7_FS_PROFILE *p7_profile_fs5_Create(int M, const ESL_ALPHABET *abc);
 extern P7_FS_PROFILE *p7_profile_fs3_Create(int M, const ESL_ALPHABET *abc);
-extern P7_FS_PROFILE *p7_profile_sp_Create(int M, const ESL_ALPHABET *abc);
-extern P7_PROFILE *p7_profile_Clone(const P7_PROFILE *gm);
-extern P7_FS_PROFILE *p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs5);
+extern P7_FS_PROFILE *p7_profile_tr_Create(int M, const ESL_ALPHABET *abc);
+extern P7_PROFILE    *p7_profile_Clone(const P7_PROFILE *gm);
+extern P7_FS_PROFILE *p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
 extern int         p7_profile_fs5_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
 extern int         p7_profile_fs3_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
+extern int         p7_profile_tr_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
 extern int         p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
 extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);
 extern int         p7_profile_Reuse(P7_PROFILE *gm);
@@ -1690,7 +1660,7 @@ extern int     p7_spensemble_GetClusterCoords(P7_SPENSEMBLE *sp, int which,
 extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 
 /* p7_splice.c */
-extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt);
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, P7_FS_PROFILE *gm_fs5, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt);
 
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);

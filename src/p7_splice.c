@@ -47,7 +47,7 @@ static void* splice_thread(void *arg);
  *  Synopsis: Splcing pipeline
  *
  *  Purpose : Run the splicing pipeline on a collections of hits 
- *            <tophits> between a protein query model <gm> and a 
+ *            <tophits> between a protein query model <om> and a 
  *            nucleotide sequence from the target file <seq_file>.
  *
  * Returns:   <eslOK> on success. If hits are successfully splice
@@ -57,7 +57,7 @@ static void* splice_thread(void *arg);
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt)
+p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, P7_FS_PROFILE *gm_fs5, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt)
 {
 
   int                i;
@@ -72,7 +72,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
   ali_seq = NULL;
   info    = NULL; 
  
-  printf("\nQuery %s LENG %d\n",  gm->name, gm->M);
+  printf("\nQuery %s LENG %d\n",  om->name, om->M);
   fflush(stdout);
 
 
@@ -88,18 +88,17 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
 
   for (i = 0; i < infocnt; ++i)
   {
-	info[i].hmm            = p7_hmm_Clone(hmm);
-    info[i].om             = p7_oprofile_Clone(om);
-    info[i].gm             = p7_profile_Clone(gm);
-    info[i].gm_fs          = p7_profile_fs_Clone(gm_fs);
-	info[i].pli            = p7_splicepipeline_Create(go, 100, 100);
-	info[i].pli->bg        = p7_bg_Create(om->abc);
+    info[i].om         = p7_oprofile_Clone(om);
+    info[i].gm         = p7_profile_Clone(gm);
+    info[i].gm_tr      = p7_profile_fs_Clone(gm_tr);
+	info[i].pli        = p7_splicepipeline_Create(go, 100, 100);
+	info[i].pli->bg    = p7_bg_Create(om->abc);
 	if (info[i].pli->do_biasfilter)
 	  p7_bg_SetFilter(info[i].pli->bg, om->M, om->compo);
-	info[i].tophits        = tophits;
-    info[i].gcode          = gcode;
-	info[i].seq_file       = seq_file;
-	info[i].db_nuc_cnt     = db_nuc_cnt;
+	info[i].tophits    = tophits;
+    info[i].gcode      = gcode;
+	info[i].seq_file   = seq_file;
+	info[i].db_nuc_cnt = db_nuc_cnt;
   }
 
   for (i = 0; i < infocnt; ++i)
@@ -115,10 +114,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
   /* Clean up */
   for (i = 0; i < infocnt; ++i)
   {
- 	p7_hmm_Destroy(info[i].hmm);
 	p7_oprofile_Destroy(info[i].om);
     p7_profile_Destroy(info[i].gm);
-    p7_profile_fs_Destroy(info[i].gm_fs);
+    p7_profile_fs_Destroy(info[i].gm_tr);
     p7_splicepipeline_Destroy(info[i].pli);
   }
   if(info           != NULL) free(info);
@@ -140,7 +138,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_HMM *hmm, P7
       }
       
       ali_seq = p7_splice_GetSubSequence(seq_file, tophits->hit[i]->name, seq_min, seq_max, revcomp, NULL);
-      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs, ali_seq, gcode);
+      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs5, ali_seq, gcode);
       tophits->hit[i]->dcl->ad->exon_cnt = 1;
       tophits->hit[i]->dcl->ad->sqfrom = tophits->hit[i]->dcl->iali;
       tophits->hit[i]->dcl->ad->sqto   = tophits->hit[i]->dcl->jali;  
@@ -615,17 +613,17 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   ESL_SQ            *path_seq;
   SPLICE_GRAPH      *graph;
   SPLICE_PIPELINE   *pli;
-  P7_PROFILE        *gm;
+  P7_FS_PROFILE     *gm_tr;
   ESL_SQFILE        *seq_file;
 
   path_seq         = NULL;
 
   graph      = info->graph;
   pli        = info->pli;
-  gm         = info->gm;
+  gm_tr      = info->gm_tr;
   seq_file   = info->seq_file;
 
-  printf("\nQuery %s Target %s strand %c seqidx %lld\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
+  printf("\nQuery %s Target %s strand %c seqidx %lld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);
 
 //printf("RECOVER\n");
@@ -633,7 +631,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //fflush(stdout);
 
   /* Create edges between original and recovered nodes */
-  p7_splice_CreateUnsplicedEdges(graph, gm);
+  p7_splice_CreateUnsplicedEdges(graph, gm_tr);
  
   /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
   orig_path = p7_splicepath_GetBestPath(graph);
@@ -663,7 +661,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     if(spliced_path != NULL) {
 
       /* Add additional nodes to the begining and end of spliced_path */
-      p7_splice_ExtendPath(info->seeds, gm, orig_path, spliced_path, graph);
+      p7_splice_ExtendPath(info->seeds, orig_path, spliced_path, graph);
 
 //printf("EXTEND PATH\n");
 //p7_splicepath_Dump(stdout,spliced_path);
@@ -736,7 +734,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //p7_splicegraph_DumpGraph(stdout, graph);
     
   }
-printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
+printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);  
   return eslOK;
 
@@ -756,7 +754,7 @@ printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm->name, graph->
  *
  */
 int
-p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm) 
+p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr) 
 {
   int up, down;
   int seq_gap_len;
@@ -812,7 +810,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
         edge = p7_splicegraph_AddEdge(graph, up, down);
 
         /* If hits overlap, find the minimum lost score to remove the overlap */
-        p7_splicegraph_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
+        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
        
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
@@ -821,7 +819,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
 
         /* If the edge has an hmm overlap and cost of eliminating that overlap is greater than the B->M entry 
          * for the downstream hit then these hits are better off seperate and we will remove the edge */
-        if(edge->splice_score < -eslCONST_LOG2 + p7P_TSC(gm, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
+        if(edge->splice_score < -eslCONST_LOG2 + p7P_TSC(gm_tr, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
           graph->num_edges[up]--;
         }
       }   
@@ -846,7 +844,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_PROFILE *gm)
  *
  */
 int
-p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph)
+p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph)
 {
   int i,s,n;
   int skip;
@@ -931,7 +929,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
     }
   }
 
-  p7_splice_CreateExtensionEdges(graph, tmp_graph, gm); 
+  p7_splice_CreateExtensionEdges(graph, tmp_graph); 
   tmp_path = p7_splicepath_GetBestPath(tmp_graph); 
 
   /* Set the most upstream hit in the tmp_path to start at the minimum 
@@ -1066,7 +1064,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
     }
   }   
 
-  p7_splice_CreateExtensionEdges(graph, tmp_graph, gm); 
+  p7_splice_CreateExtensionEdges(graph, tmp_graph); 
 
 
   tmp_path = p7_splicepath_GetBestPath(tmp_graph);
@@ -1153,7 +1151,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, P7_PROFILE *gm, SPLICE_PATH *path, S
  *
  */
 int
-p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph, P7_PROFILE *gm) 
+p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph) 
 {
   int up, down;
   int seq_gap_len;
@@ -1214,7 +1212,7 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension
         /* If hits overlap, find the minimum lost socre to remove the overlap */
       
         edge = p7_splicegraph_AddEdge(extension_graph, up, down);
-        p7_splicegraph_AliScoreEdge(edge, gm, th->hit[up]->dcl, th->hit[down]->dcl); 
+        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
          
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
@@ -1667,13 +1665,13 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   SPLICE_EDGE *edge;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
-  P7_FS_PROFILE *gm_fs;
+  P7_FS_PROFILE *gm_tr;
   ESL_GENCODE *gcode;
   P7_HIT      *hit;
 
   graph = info->graph;
   pli   = info->pli;
-  gm_fs = info->gm_fs;
+  gm_tr = info->gm_tr;
   gcode = info->gcode;
 
   gx = pli->vit;
@@ -1683,16 +1681,16 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
-  p7_fs_ReconfigLength(gm_fs, L);
+  p7_fs_ReconfigLength(gm_tr, L/3);
    
-  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   /* If the hits were in different frames and no splice site was able to pull score 
    * from the upstream frame to the downstream frame the spliceing is a failure */
   if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -1979,22 +1977,22 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   P7_HIT      *hit;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
-  P7_FS_PROFILE *gm_fs;
+  P7_FS_PROFILE *gm_tr;
   ESL_GENCODE *gcode;
 
   graph = info->graph;
   pli   = info->pli;
-  gm_fs = info->gm_fs;
+  gm_tr = info->gm_tr;
   gcode = info->gcode;  
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
-  p7_fs_ReconfigLength(gm_fs, L);
+  p7_fs_ReconfigLength(gm_tr, L/3);
   
-   p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+   p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
@@ -2251,22 +2249,22 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   P7_HIT      *hit;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
-  P7_FS_PROFILE *gm_fs;
+  P7_FS_PROFILE *gm_tr;
   ESL_GENCODE *gcode;
 
   graph = info->graph;
   pli   = info->pli;
-  gm_fs = info->gm_fs;
+  gm_tr = info->gm_tr;
   gcode = info->gcode;
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
-  p7_fs_ReconfigLength(gm_fs, L);
+  p7_fs_ReconfigLength(gm_tr, L);
   
-  p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
@@ -2515,21 +2513,21 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   P7_TRACE    *tr;
   SPLICE_PATH *ret_path;
   SPLICE_PIPELINE *pli;
-  P7_FS_PROFILE *gm_fs;
+  P7_FS_PROFILE *gm_tr;
   ESL_GENCODE *gcode;
 
   pli   = info->pli;
-  gm_fs = info->gm_fs;
+  gm_tr = info->gm_tr;
   gcode = info->gcode;
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L, ALIGNMENT_MODE);
-  p7_fs_ReconfigLength(gm_fs, L);
+  p7_fs_ReconfigLength(gm_tr, L);
   
-  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_fs, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_fs, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */

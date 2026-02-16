@@ -398,7 +398,7 @@ p7_splicegraph_GetEdge(SPLICE_GRAPH* graph, int up_node, int down_node)
 
 
 int
-p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_PROFILE *gm, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom)
+p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom)
 {
 
   int p, s, z;

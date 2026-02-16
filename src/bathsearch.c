@@ -514,6 +514,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_SCOREDATA    *scoredata                = NULL;              
   P7_FS_PROFILE   *gm_fs5                   = NULL;
   P7_FS_PROFILE   *gm_fs3                   = NULL;
+  P7_FS_PROFILE   *gm_tr                    = NULL;
   P7_PROFILE      *gm                       = NULL;
   P7_OPROFILE     *om                       = NULL;       /* optimized query profile                  */
 
@@ -914,11 +915,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) { 
       splice_watch = esl_stopwatch_Create();
       esl_stopwatch_Start(splice_watch);
+
+      gm_tr = p7_profile_tr_Create (hmm->M, abcAA); 
+      p7_ProfileConfig_tr(hmm, info->bg, gcode, gm_tr, 100, p7_UNILOCAL); 
+
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 
       seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm_fs5, dbfp, gcode, pipelinehits_accumulator->F3);
       
-      p7_splice_SpliceHits(tophits_accumulator, seed_hits, hmm, om, gm, gm_fs5, go, gcode, dbfp, resCnt);
+      p7_splice_SpliceHits(tophits_accumulator, seed_hits, om, gm, gm_tr, gm_fs5, go, gcode, dbfp, resCnt);
 
       for(i = 0; i < seed_hits->N; i++) {
         p7_trace_fs_Destroy(seed_hits->unsrt[i].dcl->tr);
@@ -965,6 +970,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_profile_Destroy(gm);
     p7_profile_fs_Destroy(gm_fs5);
     p7_profile_fs_Destroy(gm_fs3);
+    p7_profile_fs_Destroy(gm_tr);
     p7_hmm_Destroy(hmm);
     p7_hmm_ScoreDataDestroy(scoredata);
     destroy_id_length(id_length_list);

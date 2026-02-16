@@ -588,7 +588,7 @@ p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcod
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
-  int     del1, del2;
+  int     del1;
   int     sub;
   int     codon;
   int     status;

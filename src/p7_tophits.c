@@ -1073,9 +1073,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   int    d;
   int    namew;
   int    posw;
-  int    orfw;
   int    descw;
-  int    orfsecdashw;
   char   *showname;
 
   int    have_printed_incthresh = FALSE;

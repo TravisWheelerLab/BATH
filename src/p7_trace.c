@@ -1572,33 +1572,33 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const
           switch (tr->c[z]) {
             case 1:
               if(esl_abc_XIsCanonical(abc, c1))
-                codon_idx = p7P_CODON1(c1);
+                codon_idx = p7P_CODON1_FS5(c1);
               else
-                codon_idx = p7P_DEGEN_QC2;
+                codon_idx = p7P_DEGEN5_QC2;
               break;
             case 2:
               if(esl_abc_XIsCanonical(abc, c1) &&
                  esl_abc_XIsCanonical(abc, c2))
-                codon_idx = p7P_CODON2(c2, c1);
+                codon_idx = p7P_CODON2_FS5(c2, c1);
               else
-                codon_idx = p7P_DEGEN_QC1;
+                codon_idx = p7P_DEGEN5_QC1;
               break;
             case 3:
               if(esl_abc_XIsCanonical(abc, c1) &&
                  esl_abc_XIsCanonical(abc, c2) &&
                  esl_abc_XIsCanonical(abc, c3))
-                codon_idx = p7P_CODON3(c3, c2, c1);
+                codon_idx = p7P_CODON3_FS5(c3, c2, c1);
               else
-                codon_idx    = p7P_DEGEN_C;
+                codon_idx    = p7P_DEGEN5_C;
                break;
             case 4:
               if(esl_abc_XIsCanonical(abc, c1) &&
                  esl_abc_XIsCanonical(abc, c2) &&
                  esl_abc_XIsCanonical(abc, c3) &&
                  esl_abc_XIsCanonical(abc, c4))
-                codon_idx = p7P_CODON4(c4, c3, c2, c1);
+                codon_idx = p7P_CODON4_FS5(c4, c3, c2, c1);
               else
-                codon_idx = p7P_DEGEN_QC1;
+                codon_idx = p7P_DEGEN5_QC1;
               break;
             case 5:
               if(esl_abc_XIsCanonical(abc, c1) &&
@@ -1606,9 +1606,9 @@ p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const
                  esl_abc_XIsCanonical(abc, c3) &&
                  esl_abc_XIsCanonical(abc, c4) &&
                  esl_abc_XIsCanonical(abc, c5))
-                codon_idx = p7P_CODON5(c5, c4, c3, c2, c1);
+                codon_idx = p7P_CODON5_FS5(c5, c4, c3, c2, c1);
               else
-                codon_idx = p7P_DEGEN_QC2;
+                codon_idx = p7P_DEGEN5_QC2;
               break;
             default: break; 
           }          

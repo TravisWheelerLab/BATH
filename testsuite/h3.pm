@@ -23,6 +23,7 @@ sub ParseTbl {
     @fullE    = ();
     @fullsc   = ();
     @fullbias = ();
+    @pid      = ();
     @tdesc    = ();
 
     if (! open(TBLFILE, $tblfile)) { print "FAIL: couldn't open table file"; exit 1 ; }
@@ -30,7 +31,7 @@ sub ParseTbl {
     {
 	if (/^\#/) { next; }
 	chop;
-	@fields = split(' ', $_, 17);
+	@fields = split(' ', $_, 18);
 
 	$tname[$ntbl]     = $fields[1];
 	$tacc[$ntbl]      = $fields[2];
@@ -47,7 +48,8 @@ sub ParseTbl {
 	$fullE[$ntbl]     = $fields[13];
 	$fullsc[$ntbl]    = $fields[14];
 	$fullbias[$ntbl]  = $fields[15];
-	$tdesc[$ntbl]     = $fields[16];
+    $pid[$ntbl]       = $fields[16];
+	$tdesc[$ntbl]     = $fields[17];
 	$ntbl++;
     }
     close TBLFILE;
@@ -74,6 +76,7 @@ sub ParseFSTbl {
     @fullE    = ();
     @fullsc   = ();
     @fullbias = ();
+    @pid      = ();
     @shifts   = ();
     @stops    = ();
     @tdesc    = ();
@@ -83,8 +86,7 @@ sub ParseFSTbl {
     {
 	if (/^\#/) { next; }
 	chop;
-	@fields = split(' ', $_, 19);
-
+	@fields = split(' ', $_, 20);
 	$tname[$ntbl]     = $fields[1];
 	$tacc[$ntbl]      = $fields[2];
 	$qname[$ntbl]     = $fields[3];
@@ -100,9 +102,10 @@ sub ParseFSTbl {
 	$fullE[$ntbl]     = $fields[13];
 	$fullsc[$ntbl]    = $fields[14];
 	$fullbias[$ntbl]  = $fields[15];
-    $shifts[$ntbl]    = $fields[16];
-    $stops[$ntbl]     = $fields[17];
-	$tdesc[$ntbl]     = $fields[18];
+    $pid[$ntbl]       = $fields[16];
+    $shifts[$ntbl]    = $fields[17];
+    $stops[$ntbl]     = $fields[18];
+	$tdesc[$ntbl]     = $fields[19];
 	$ntbl++;
     }
     close TBLFILE;

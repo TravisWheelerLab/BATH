@@ -99,7 +99,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
     sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                                x = p7P_MAXCODONS;
+    else                                                x = p7P_MAXCODONS5;
 
     XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
 
@@ -120,10 +120,10 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
     w = x;
     sub_i = i_start + i - 1;
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                                x = p7P_MAXCODONS;
+    else                                                x = p7P_MAXCODONS5;
 
-    c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_CODON3_FS5(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     /* get acceptor site */
     AGXXX = AGXX;
@@ -197,10 +197,10 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
 
     sub_i = i_start + i - 1;
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                            x = p7P_MAXCODONS;
+    else                                            x = p7P_MAXCODONS5;
 
-    c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_CODON3_FS5(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     /* get acceptor site */
     AGXXX = AGXX;
@@ -295,8 +295,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
       for (k = 2; k < M; k++) {
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+          c2 = p7P_CODON3_FS5(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN5_C);
           TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, sub_k, c2);
 
           if(TMP_SC > PMX_SP(i,k)) {
@@ -316,8 +316,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
       for (k = 2; k < M; k++) {
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+          c2 = p7P_CODON3_FS5(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN5_C);
 
           TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, sub_k, c2);
           if(TMP_SC > PMX_SP(i,k)) {
@@ -332,8 +332,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
           for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+            c1 = p7P_CODON3_FS5(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN5_C);
 
             TMP_SC = SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -355,8 +355,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
           for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+            c1 = p7P_CODON3_FS5(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN5_C);
 
             TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -534,7 +534,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                                x = p7P_MAXCODONS;
+    else                                                x = p7P_MAXCODONS5;
 
     XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
 
@@ -553,10 +553,10 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     w = x;
     sub_i = i_start + i - 1;
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                                x = p7P_MAXCODONS;
+    else                                                x = p7P_MAXCODONS5;
 
-    c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_CODON3_FS5(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     /* get acceptor site */
     AGXXX = AGXX;
@@ -643,9 +643,9 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
 
     sub_i = i_start + i - 1;
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                            x = p7P_MAXCODONS;
-    c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    else                                            x = p7P_MAXCODONS5;
+    c3 = p7P_CODON3_FS5(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     /* get acceptor site */
     AGXXX = AGXX;
@@ -750,8 +750,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
       for (k = 2; k < M; k++) {
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+          c2 = p7P_CODON3_FS5(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN5_C);
 
           TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, sub_k, c2);
 
@@ -772,8 +772,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
       for (k = 2; k < M; k++) {
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+          c2 = p7P_CODON3_FS5(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN5_C);
 
           TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, sub_k, c2);
           if(TMP_SC > PMX_SP(i,k)) {
@@ -788,8 +788,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
           for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+            c1 = p7P_CODON3_FS5(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN5_C);
 
             TMP_SC = SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -811,8 +811,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
           for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+            c1 = p7P_CODON3_FS5(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN5_C);
 
             TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -986,7 +986,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                                x = p7P_MAXCODONS;
+    else                                                x = p7P_MAXCODONS5;
     
     XMX_SP(i,p7G_N) =  0;
     XMX_SP(i,p7G_B) =  gm_fs->xsc[p7P_N][p7P_MOVE];
@@ -1008,10 +1008,10 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     w = x;
     sub_i = i_start + i - 1;
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                                x = p7P_MAXCODONS;
+    else                                                x = p7P_MAXCODONS5;
 
-    c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    c3 = p7P_CODON3_FS5(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     /* get acceptor site */
     AGXXX = AGXX;
@@ -1074,9 +1074,9 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
 
     sub_i = i_start + i - 1;
     if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i])) x = sub_dsq[sub_i];
-    else                                            x = p7P_MAXCODONS;
-    c3 = p7P_CODON3(v, w, x);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+    else                                            x = p7P_MAXCODONS5;
+    c3 = p7P_CODON3_FS5(v, w, x);
+    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
     /* get acceptor site */
     AGXXX = AGXX;
@@ -1173,8 +1173,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
       for (k = 2; k < M; k++) {
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+          c2 = p7P_CODON3_FS5(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN5_C);
 
           TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, sub_k, c2);
 
@@ -1195,8 +1195,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
       for (k = 2; k < M; k++) {
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+          c2 = p7P_CODON3_FS5(nuc1, w, x);
+          c2 = p7P_MINIDX(c2, p7P_DEGEN5_C);
 
           TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, sub_k, c2);
           if(TMP_SC > PMX_SP(i,k)) {
@@ -1211,8 +1211,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
           for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+            c1 = p7P_CODON3_FS5(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN5_C);
 
             TMP_SC = SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_fs, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -1234,8 +1234,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         sub_k = k_start + k -1;
         for(nuc1 = 0; nuc1 < 4; nuc1++) {
           for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+            c1 = p7P_CODON3_FS5(nuc1, nuc2, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN5_C);
 
             TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_fs, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -1405,14 +1405,14 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
       sub_i = i_start + i - 1; 
       
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-2])) v = sub_dsq[sub_i-2];
-      else                                              v = p7P_MAXCODONS;
+      else                                              v = p7P_MAXCODONS5;
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-1])) w = sub_dsq[sub_i-1];
-      else                                              w = p7P_MAXCODONS;
+      else                                              w = p7P_MAXCODONS5;
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i]))   x = sub_dsq[sub_i];
-      else                                              x = p7P_MAXCODONS; 
+      else                                              x = p7P_MAXCODONS5; 
 
-      c3 = p7P_CODON3(v, w, x);
-      c3 = p7P_MINIDX(c3, p7P_DEGEN_C);
+      c3 = p7P_CODON3_FS5(v, w, x);
+      c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
 
       sub_k  = k_start + k - 1;
       emit = p7P_MSC_CODON(gm_fs, sub_k, c3);
@@ -1477,30 +1477,30 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
       /* nucleotides upstream of donor */
       sub_d = i_start + donor_idx - 1;
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_d-3])) t = sub_dsq[sub_d-3];
-      else                                                          t = p7P_MAXCODONS;
+      else                                                          t = p7P_MAXCODONS5;
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_d-2])) u = sub_dsq[sub_d-2];
-      else                                                          u = p7P_MAXCODONS;
+      else                                                          u = p7P_MAXCODONS5;
 
       sub_i = i_start + i - 1;
       /* nucleotides upstream of acceptor */
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-2])) v = sub_dsq[sub_i-2];
-      else                                                  v = p7P_MAXCODONS;
+      else                                                  v = p7P_MAXCODONS5;
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-1])) w = sub_dsq[sub_i-1];
-      else                                                  w = p7P_MAXCODONS;
+      else                                                  w = p7P_MAXCODONS5;
       if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i]))   x = sub_dsq[sub_i];
-      else                                                  x = p7P_MAXCODONS; 
+      else                                                  x = p7P_MAXCODONS5; 
      
       sub_k = k_start + k - 1;
-      c0 = p7P_CODON3(v, w, x);
-      c0 = p7P_MINIDX(c0, p7P_DEGEN_C);
+      c0 = p7P_CODON3_FS5(v, w, x);
+      c0 = p7P_MINIDX(c0, p7P_DEGEN5_C);
       emit0 = p7P_MSC_CODON(gm_fs, sub_k, c0);
 
-      c1 = p7P_CODON3(u, w, x);
-      c1 = p7P_MINIDX(c1, p7P_DEGEN_C);
+      c1 = p7P_CODON3_FS5(u, w, x);
+      c1 = p7P_MINIDX(c1, p7P_DEGEN5_C);
       emit1 = p7P_MSC_CODON(gm_fs, sub_k, c1);
 
-      c2 = p7P_CODON3(t, u, x);
-      c2 = p7P_MINIDX(c2, p7P_DEGEN_C);
+      c2 = p7P_CODON3_FS5(t, u, x);
+      c2 = p7P_MINIDX(c2, p7P_DEGEN5_C);
       emit2 = p7P_MSC_CODON(gm_fs, sub_k, c2);
             
       if(SIGNAL(sub_dsq[sub_d-1], sub_dsq[sub_d]) == DONOR_GT) {

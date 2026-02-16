@@ -374,7 +374,7 @@ static int    build_model          (P7_BUILDER *bld, ESL_MSA *msa, P7_HMM **ret_
 static int    effective_seqnumber  (P7_BUILDER *bld, const ESL_MSA *msa, P7_HMM *hmm, const P7_BG *bg);
 static int    parameterize         (P7_BUILDER *bld, P7_HMM *hmm);
 static int    annotate             (P7_BUILDER *bld, const ESL_MSA *msa, P7_HMM *hmm);
-static int    calibrate            (P7_BUILDER *bld, P7_HMM *hmm, P7_BG *bg, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs);
+static int    calibrate            (P7_BUILDER *bld, P7_HMM *hmm, P7_BG *bg, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs3, P7_FS_PROFILE **opt_gm_fs5);
 static int    make_post_msa        (P7_BUILDER *bld, const ESL_MSA *premsa, const P7_HMM *hmm, P7_TRACE **tr, ESL_MSA **opt_postmsa);
 
 /* Function:  p7_Builder()
@@ -393,7 +393,8 @@ static int    make_post_msa        (P7_BUILDER *bld, const ESL_MSA *premsa, cons
  *            opt_trarr   - optRETURN: array of faux tracebacks, <0..nseq-1>
  *            opt_gm      - optRETURN: profile corresponding to <hmm>
  *            opt_om      - optRETURN: optimized profile corresponding to <gm>
- *            opt_gm_fs   - optRETURN: frameshift profile corresponding to <hmm>
+ *            opt_gm_fs5  - optRETURN: 3 codon length frameshift profile corresponding to <hmm>
+ *            opt_gm_fs5  - optRETURN: 5 codon length frameshift profile corresponding to <hmm>
  *            opt_postmsa - optRETURN: RF-annotated, possibly modified MSA 
  *
  * Returns:   <eslOK> on success. The new HMM is optionally returned in
@@ -415,9 +416,7 @@ static int    make_post_msa        (P7_BUILDER *bld, const ESL_MSA *premsa, cons
  * Xref:      J4/30.
  */
 int
-p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg,
-	   P7_HMM **opt_hmm, P7_TRACE ***opt_trarr, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs,
-	   ESL_MSA **opt_postmsa)
+p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg, P7_HMM **opt_hmm, P7_TRACE ***opt_trarr, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs3, P7_FS_PROFILE **opt_gm_fs5, ESL_MSA **opt_postmsa)
 {
 
   int i,j;
@@ -442,12 +441,12 @@ p7_Builder(P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg,
   hmm->fs     = bld->fs;
   hmm->fsprob = bld->fsprob;
   hmm->ct     = bld->ct;
-
-  if ((status =  effective_seqnumber  (bld, msa, hmm, bg))              != eslOK) goto ERROR;
-  if ((status =  parameterize         (bld, hmm))                       != eslOK) goto ERROR;
-  if ((status =  annotate             (bld, msa, hmm))                  != eslOK) goto ERROR;
-  if ((status =  calibrate            (bld, hmm, bg, opt_gm, opt_om, opt_gm_fs))   != eslOK) goto ERROR;
-  if ((status =  make_post_msa        (bld, msa, hmm, tr, opt_postmsa)) != eslOK) goto ERROR;
+  
+  if ((status =  effective_seqnumber  (bld, msa, hmm, bg))                                    != eslOK) goto ERROR;
+  if ((status =  parameterize         (bld, hmm))                                             != eslOK) goto ERROR;
+  if ((status =  annotate             (bld, msa, hmm))                                        != eslOK) goto ERROR;
+  if ((status =  calibrate            (bld, hmm, bg, opt_gm, opt_om, opt_gm_fs3, opt_gm_fs5)) != eslOK) goto ERROR;
+  if ((status =  make_post_msa        (bld, msa, hmm, tr, opt_postmsa))                       != eslOK) goto ERROR;
 
   //force masked positions to background  (it'll be close already, so no relevant impact on weighting)
   if (hmm->mm != NULL)
@@ -523,11 +522,16 @@ p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq, P7_BG *bg, P7_HMM **opt_hmm,
   }
   sq_cp->n = j-1;
   sq_cp->dsq[j] = sq->dsq[sq->n+1];
-
+   
   if ((status = p7_Seqmodel(bld->abc, sq_cp->dsq, sq_cp->n, sq_cp->name, bld->Q, bg->f, bld->popen, bld->pextend, &hmm)) != eslOK) goto ERROR;
-  if ((status = p7_hmm_SetComposition(hmm))                                                                     != eslOK) goto ERROR;
-  if ((status = p7_hmm_SetConsensus(hmm, sq_cp))                                                                   != eslOK) goto ERROR; 
-  if ((status = calibrate(bld, hmm, bg, opt_gm, opt_om, NULL))                                                        != eslOK) goto ERROR;
+  if ((status = p7_hmm_SetComposition(hmm))                                                                              != eslOK) goto ERROR;
+  if ((status = p7_hmm_SetConsensus(hmm, sq_cp))                                                                         != eslOK) goto ERROR; 
+
+  hmm->fs     = bld->fs;
+  hmm->fsprob = bld->fsprob;
+  hmm->ct     = bld->ct;
+
+  if ((status = calibrate(bld, hmm, bg, opt_gm, opt_om, NULL, NULL))                                                     != eslOK) goto ERROR;
 
   if (bld->w_len > 0)           hmm->max_length = bld->w_len;
   else if (bld->w_beta == 0.0)  hmm->max_length = hmm->M *4;
@@ -1030,15 +1034,16 @@ annotate(P7_BUILDER *bld, const ESL_MSA *msa, P7_HMM *hmm)
  * of them, it can pass non-<NULL> <opt_gm>, <opt_om> pointers.
  */
 static int
-calibrate(P7_BUILDER *bld, P7_HMM *hmm, P7_BG *bg, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs)
+calibrate(P7_BUILDER *bld, P7_HMM *hmm, P7_BG *bg, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs3, P7_FS_PROFILE **opt_gm_fs5)
 {
   int status;
 
-  if (opt_gm    != NULL) *opt_gm    = NULL;
-  if (opt_om    != NULL) *opt_om    = NULL;
-  if (opt_gm_fs != NULL) *opt_gm_fs = NULL;
+  if (opt_gm     != NULL) *opt_gm     = NULL;
+  if (opt_om     != NULL) *opt_om     = NULL;
+  if (opt_gm_fs3 != NULL) *opt_gm_fs3 = NULL;
+  if (opt_gm_fs5 != NULL) *opt_gm_fs5 = NULL;
   
-  if ((status = p7_Calibrate(hmm, bld, &(bld->r), &bg, opt_gm, opt_om, opt_gm_fs)) != eslOK) goto ERROR;
+  if ((status = p7_Calibrate(hmm, bld, &(bld->r), &bg, opt_gm, opt_om, opt_gm_fs3, opt_gm_fs5)) != eslOK) goto ERROR;
   return eslOK;
 
  ERROR:

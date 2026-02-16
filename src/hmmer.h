@@ -283,21 +283,42 @@ enum p7p_ivx_codon {
 
 
 /* Indexing variables for codons and quasicodons */
-#define p7P_MAXCODONS      1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 */ 
-#define p7P_DEGEN_C        1364    /* index for degnerate codon */
-#define p7P_DEGEN_QC1      1365    /* index for degnerate quasicodons with one indel  */
-#define p7P_DEGEN_QC2      1366    /* index for degnerate quasicodons with two indels */
-#define p7P_NUC1           341     
-#define p7P_NUC2           85
-#define p7P_NUC3           21
-#define p7P_NUC4           5
+#define p7P_MAXCODONS5     1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 (final 3 for codons with non-cononcial nucleotides) */ 
+#define p7P_MAXCODONS3     338     /* 4^2 + 4^3 + 4^4 + 2 (final 2 for codons with non-cononcial nucleotides)*/
+#define p7P_MAXCODONS1     65      /* 4^3 + 1 */
+#define p7P_DEGEN5_C       1364    /* index for degnerate codon (5 codon lengths)*/
+#define p7P_DEGEN5_QC1     1365    /* index for degnerate quasicodons with one indel (5 codon lengths) */
+#define p7P_DEGEN5_QC2     1366    /* index for degnerate quasicodons with two indels (5 codon lengths) */
+#define p7P_DEGEN3_C       336     /* index for degnerate codon (3 codon lengths)*/
+#define p7P_DEGEN3_QC1     337     /* index for degnerate quasicodons with one indel (3 codon lengths) */
+#define p7P_DEGENSP_C      64      /* index for degnerate codon (1 codon length)*/
+
+/* Index offsets for the p7P_CODON macros bellow */
+#define p7P_NUC1_FS5       341     
+#define p7P_NUC2_FS5       85
+#define p7P_NUC3_FS5       21
+#define p7P_NUC4_FS5       5
+
+#define p7P_NUC1_FS3       84
+#define p7P_NUC2_FS3       21
+#define p7P_NUC3_FS3       5
+
+#define p7P_NUC1_FS1       16
+#define p7P_NUC2_FS1       4
 
 /* find the correct emmisions array index of a codon or quasicodon */
-#define p7P_CODON1(x)             ((x) * p7P_NUC1) 
-#define p7P_CODON2(w, x)          ((x) * p7P_NUC1 + (w) * p7P_NUC2 + p7P_C2)
-#define p7P_CODON3(v, w, x)       ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + p7P_C3)
-#define p7P_CODON4(u, v, w, x)    ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + p7P_C4)
-#define p7P_CODON5(t, u, v, w, x) ((x) * p7P_NUC1 + (w) * p7P_NUC2 + (v) * p7P_NUC3 + (u) * p7P_NUC4 + (t) + p7P_C5)
+#define p7P_CODON1_FS5(x)             ((x) * p7P_NUC1_FS5) 
+#define p7P_CODON2_FS5(w, x)          ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + p7P_C2)
+#define p7P_CODON3_FS5(v, w, x)       ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + (v) * p7P_NUC3_FS5 + p7P_C3)
+#define p7P_CODON4_FS5(u, v, w, x)    ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + (v) * p7P_NUC3_FS5 + (u) * p7P_NUC4_FS5 + p7P_C4)
+#define p7P_CODON5_FS5(t, u, v, w, x) ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + (v) * p7P_NUC3_FS5 + (u) * p7P_NUC4_FS5 + (t) + p7P_C5)
+
+#define p7P_CODON2_FS3(w, x)          ((x) * p7P_NUC1_FS3 + (w) * p7P_NUC2_FS3) 
+#define p7P_CODON3_FS3(v, w, x)       ((x) * p7P_NUC1_FS3 + (w) * p7P_NUC2_FS3 + (v) * p7P_NUC3_FS3 + p7P_C2) 
+#define p7P_CODON4_FS3(u, v, w, x)    ((x) * p7P_NUC1_FS3 + (w) * p7P_NUC2_FS3 + (v) * p7P_NUC3_FS3 + (u) + p7P_C3)
+
+#define p7P_CODON3_FS1(v, w, x)        ((x) * p7P_NUC1_SP + (w) * p7P_NUC2_SP + (v))
+
 #define p7P_MINIDX(a,b)           ((b) ^ (((a) ^ (b)) & -((a) < (b))))  
 
 /* Accessing codon translations */
@@ -312,7 +333,9 @@ enum p7p_ivx_codon {
 #define p7P_MSC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
 #define p7P_ISC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
 #define p7P_MSC_CODON(gm, k ,x)  ((gm)->rsc[(k)][(x)])
-#define p7P_MSC_AMINO(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS + (x)])
+#define p7P_MSC_AMINO5(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS5 + (x)])
+#define p7P_MSC_AMINO3(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS3 + (x)])
+#define p7P_MSC_AMINO1(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS1 + (x)])
 
 typedef struct p7_profile_s {
   float  *tsc;                            /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
@@ -355,6 +378,7 @@ typedef struct p7_fs_profile_s {
   float   xsc[p7P_NXSTATES][p7P_NXTRANS]; /* special transitions [NECJ][LOOP,MOVE]                            */
 
   int     mode;                           /* configured algorithm mode (e.g. p7_LOCAL)                        */ 
+  int     codon_lengths;                  /* Number of codon lengths the model has been allocated and configured for */
   int     L;                              /* current configured target seq length                             */
   int     allocM;                         /* max # of nodes allocated in this structure                       */
   int     M;                              /* number of nodes in the model                                     */
@@ -624,12 +648,9 @@ enum p7g_xcells_e {
 #define p7G_NXCELLS 5
 
 enum p7g_splicecells_e {
-  p7G_maxM = 0,
-  p7G_maxP = 1,
   p7G_P = 3
 };
 #define p7G_NSCELLS_SP 4
-
 
 typedef struct p7_gmx_s {
   int  M;    /* actual model dimension (model 1..M)    */
@@ -1240,13 +1261,13 @@ extern void p7_Die (char *format, ...);
 extern void p7_Fail(char *format, ...);
 
 /* evalues.c */
-extern int p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **byp_bg, P7_PROFILE **byp_gm, P7_OPROFILE **byp_om, P7_FS_PROFILE **byp_gm_fs);
+extern int p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **byp_bg, P7_PROFILE **byp_gm, P7_OPROFILE **byp_om, P7_FS_PROFILE **byp_gm_fs3, P7_FS_PROFILE **byp_gm_fs5);
 extern int p7_Lambda(P7_HMM *hmm, P7_BG *bg, double *ret_lambda);
 extern int p7_MSVMu     (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_mmu);
 extern int p7_ViterbiMu (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda,               double *ret_vmu);
 extern int p7_Tau       (ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
-extern int p7_fs_Tau_3codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
-extern int p7_fs_Tau_5codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau_3codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
+extern int p7_fs_Tau_5codons       (ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau);
 
 
 /* eweight.c */
@@ -1258,8 +1279,8 @@ extern int p7_GDecoding      (const P7_PROFILE *gm, const P7_GMX *fwd,       P7_
 extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /*decoding_frameshift*/
-extern int p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
-extern int p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
+extern int p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
+extern int p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_fwdback.c */
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
@@ -1267,12 +1288,12 @@ extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* fwdback_frameshift.c */
-extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
-extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
+extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 
 
 /* generic_msv.c */
@@ -1281,21 +1302,21 @@ extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P
 /* generic_null2.c */
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
-extern int p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs, P7_GMX *pp, float *null2);
+extern int p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2);
 
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
 extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
 
 /* optacc_frameshift.c */
-extern int p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
-extern int p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr);
+extern int p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
+extern int p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr);
 
 /* generic_stotrace.c */
 extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
 
 /*stotrace_frameshift.c */
-extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_viterbi.c */
 extern int p7_GViterbi     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
@@ -1304,8 +1325,8 @@ extern int p7_GViterbi     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 extern int p7_GTrace       (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
 
 /* viterbi_frameshift.c */
-extern int p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
-extern int p7_VTrace_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr); 
+extern int p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
+extern int p7_VTrace_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, P7_TRACE *tr); 
 
 /* heatmap.c (evolving now, intend to move this to Easel in the future) */
 extern double dmx_upper_max(ESL_DMATRIX *D);
@@ -1357,16 +1378,17 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
+extern int p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs5, int L_amino, int mode);
+extern int p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs5, int L_amino, int mode);
 extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode);
 extern int p7_ProfileConfig_sp(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int global_start);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L_amino);
+extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs5, int L_amino);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
-extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L_amino);
+extern int p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs5, int L_amino);
 extern int p7_ReconfigUnihit  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigUnihit (P7_FS_PROFILE *gm_fs, int L_amnio);
 extern int p7_fs_UpdateEmissionScores(P7_FS_PROFILE *gm_fs, P7_BG *bg, const P7_HMM *hmm);
-
 
 /* modelstats.c */
 extern double p7_MeanMatchInfo           (const P7_HMM *hmm, const P7_BG *bg);
@@ -1410,7 +1432,7 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
-extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode);
+extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode);
 extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos); 
 extern P7_ALIDISPLAY *p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt);
 extern P7_ALIDISPLAY *p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt);
@@ -1457,7 +1479,7 @@ extern int         p7_builder_LoadScoreSystem(P7_BUILDER *bld, const char *matri
 extern int         p7_builder_SetScoreSystem (P7_BUILDER *bld, const char *mxfile, const char *env, double popen, double pextend, P7_BG *bg);
 extern void        p7_builder_Destroy(P7_BUILDER *bld);
 
-extern int p7_Builder      (P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg, P7_HMM **opt_hmm, P7_TRACE ***opt_trarr, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs, ESL_MSA **opt_postmsa);
+extern int p7_Builder      (P7_BUILDER *bld, ESL_MSA *msa, P7_BG *bg, P7_HMM **opt_hmm, P7_TRACE ***opt_trarr, P7_PROFILE **opt_gm, P7_OPROFILE **opt_om, P7_FS_PROFILE **opt_gm_fs3, P7_FS_PROFILE **opt_gm_fs5, ESL_MSA **opt_postmsa);
 extern int p7_SingleBuilder(P7_BUILDER *bld, ESL_SQ *sq,   P7_BG *bg, P7_HMM **opt_hmm, P7_TRACE  **opt_tr,    P7_PROFILE **opt_gm, P7_OPROFILE **opt_om); 
 extern int p7_Builder_MaxLength      (P7_HMM *hmm, double emit_thresh);
 
@@ -1477,8 +1499,8 @@ extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);
 extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
 extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
-extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_PROFILE *gm_fs, P7_BG *bg, const ESL_GENCODE *gcode);
-extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef);
+extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_PROFILE *gm_fs5, P7_BG *bg, const ESL_GENCODE *gcode);
+extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
@@ -1610,7 +1632,7 @@ extern int p7_pli_NewModel          (P7_PIPELINE *pli, const P7_OPROFILE *om, P7
 extern int p7_pli_NewModelThresholds(P7_PIPELINE *pli, const P7_OPROFILE *om);
 extern int p7_pli_NewSeq            (P7_PIPELINE *pli, const ESL_SQ *sq);
 extern int p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, const P7_FS_PROFILE *gm_fs);
-extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, P7_HMM_WINDOWLIST *splcing_windows, int complementarity);
+extern int p7_Pipeline_BATH   (P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode, P7_HMM_WINDOWLIST *splcing_windows, int complementarity);
 
 extern int p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w);
 
@@ -1625,12 +1647,14 @@ extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
 
 /* p7_profile.c */
 extern P7_PROFILE *p7_profile_Create(int M, const ESL_ALPHABET *abc);
-extern P7_FS_PROFILE *p7_profile_fs_Create(int M, const ESL_ALPHABET *abc);
+extern P7_FS_PROFILE *p7_profile_fs5_Create(int M, const ESL_ALPHABET *abc);
+extern P7_FS_PROFILE *p7_profile_fs3_Create(int M, const ESL_ALPHABET *abc);
 extern P7_FS_PROFILE *p7_profile_sp_Create(int M, const ESL_ALPHABET *abc);
 extern P7_PROFILE *p7_profile_Clone(const P7_PROFILE *gm);
-extern P7_FS_PROFILE *p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs);
+extern P7_FS_PROFILE *p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs5);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
-extern int         p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
+extern int         p7_profile_fs5_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
+extern int         p7_profile_fs3_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
 extern int         p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
 extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);
 extern int         p7_profile_Reuse(P7_PROFILE *gm);

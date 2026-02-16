@@ -734,26 +734,26 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
     if (tr->st[z1] == p7T_M) {
       if(c == 1) {
         if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-          codon_idx = p7P_CODON1(nuc_dsq[i]);
+          codon_idx = p7P_CODON1_FS5(nuc_dsq[i]);
         else
-          codon_idx    = p7P_DEGEN_QC2;
+          codon_idx    = p7P_DEGEN5_QC2;
         tr->fs++;
       }
       else if(c == 2) {
         if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-          codon_idx = p7P_CODON2(nuc_dsq[i-1], nuc_dsq[i]);
+          codon_idx = p7P_CODON2_FS5(nuc_dsq[i-1], nuc_dsq[i]);
         else
-          codon_idx    = p7P_DEGEN_QC1;
+          codon_idx    = p7P_DEGEN5_QC1;
         tr->fs++;
       }
       else if(c == 3) {
         if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-          codon_idx = p7P_CODON3(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+          codon_idx = p7P_CODON3_FS5(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
         else
-          codon_idx    = p7P_DEGEN_C;
+          codon_idx    = p7P_DEGEN5_C;
         /* record stop codon */
         indel = p7P_INDEL(gm_fs, k, codon_idx);
         if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) tr->fs++;
@@ -763,9 +763,9 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-          codon_idx = p7P_CODON4(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+          codon_idx = p7P_CODON4_FS5(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
         else
-          codon_idx    = p7P_DEGEN_QC1;
+          codon_idx    = p7P_DEGEN5_QC1;
         tr->fs++;
       }
       else if(c == 5) {
@@ -774,9 +774,9 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-          codon_idx = p7P_CODON5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+          codon_idx = p7P_CODON5_FS5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
         else
-          codon_idx    = p7P_DEGEN_QC2;
+          codon_idx    = p7P_DEGEN5_QC2;
         tr->fs++;
       }
 
@@ -794,26 +794,26 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
 
         if(c == 1) {
           if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-            codon_idx = p7P_CODON1(nuc_dsq[i]);
+            codon_idx = p7P_CODON1_FS5(nuc_dsq[i]);
           else
-            codon_idx    = p7P_DEGEN_QC2;
+            codon_idx    = p7P_DEGEN5_QC2;
           tr->fs++;
         }
         else if(c == 2) {
           if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-            codon_idx = p7P_CODON2(nuc_dsq[i-1], nuc_dsq[i]);
+            codon_idx = p7P_CODON2_FS5(nuc_dsq[i-1], nuc_dsq[i]);
           else
-            codon_idx    = p7P_DEGEN_QC1;
+            codon_idx    = p7P_DEGEN5_QC1;
           tr->fs++;
         }
         else if(c == 3) {
           if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-            codon_idx = p7P_CODON3(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+            codon_idx = p7P_CODON3_FS5(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
-            codon_idx    = p7P_DEGEN_C;
+            codon_idx    = p7P_DEGEN5_C;
           indel = p7P_INDEL(gm_fs, k, codon_idx);
           if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) tr->fs++;
         }
@@ -822,9 +822,9 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-            codon_idx = p7P_CODON4(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+            codon_idx = p7P_CODON4_FS5(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
-            codon_idx    = p7P_DEGEN_QC1;
+            codon_idx    = p7P_DEGEN5_QC1;
           tr->fs++;
         }
         else if(c == 5) {
@@ -833,9 +833,9 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
            esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-            codon_idx = p7P_CODON5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+            codon_idx = p7P_CODON5_FS5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
-            codon_idx    = p7P_DEGEN_QC2;
+            codon_idx    = p7P_DEGEN5_QC2;
           tr->fs++;
         }
 
@@ -850,9 +850,9 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
       if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
          esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-        codon_idx = p7P_CODON3(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
+        codon_idx = p7P_CODON3_FS5(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
       else
-        codon_idx    = p7P_DEGEN_C;
+        codon_idx    = p7P_DEGEN5_C;
 
       dom->scores_per_pos[n] = p7P_TSC(gm_fs, k, p7P_MI);
       z1++; n++;
@@ -893,7 +893,7 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
  *            checks on hits 
  *
  * Args:      pli             - the main pipeline object
- *            gm_fs           - fs-aware codon profile (query)
+ *            gm_fs5           - fs-aware codon profile (query)
  *            bg              - background model
  *            hitlist         - pointer to hit storage bin
  *            seqidx          - the id # of the DNA sequence  
@@ -906,7 +906,7 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
  *
  */
 static int 
-p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_SQ *windowsq, ESL_GENCODE *gcode, int complementarity)
+p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_SQ *windowsq, ESL_GENCODE *gcode, int complementarity)
 {
 
   int              d;
@@ -959,9 +959,9 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_
     /* Note that loop probabilities are based on amino length but paid based on nucleotide length */
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / ((env_len/3.)+2));
-    bitscore += 2 * log(2. / (gm_fs->max_length+2));
+    bitscore += 2 * log(2. / (gm_fs5->max_length+2));
     bitscore -= ((env_len-ali_len)/3.)                              * log((float) (env_len/3.) / (float) ((env_len/3.)+2));
-    bitscore += ((ESL_MAX(env_len,gm_fs->max_length*3)-ali_len)/3.) * log((float) gm_fs->max_length / (float) (gm_fs->max_length+2));
+    bitscore += ((ESL_MAX(env_len,gm_fs5->max_length*3)-ali_len)/3.) * log((float) gm_fs5->max_length / (float) (gm_fs5->max_length+2));
 
     /* Bias calculation and adjustments to Forward score */
     if (pli->do_null2)
@@ -969,22 +969,22 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_
     else
       dom_bias = 0.0; 
 
-    p7_bg_SetLength(bg, ESL_MAX(env_len/3,gm_fs->max_length));
-    p7_bg_fs_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len/3,gm_fs->max_length), &nullsc);
+    p7_bg_SetLength(bg, ESL_MAX(env_len/3,gm_fs5->max_length));
+    p7_bg_fs_NullOne  (bg, dnasq->dsq, ESL_MAX(env_len/3,gm_fs5->max_length), &nullsc);
     dom_score  = (bitscore - (nullsc + dom_bias))  / eslCONST_LOG2;
      
     /* P-vaule calculation */	
-    dom_lnP   = esl_exp_logsurv(dom_score, gm_fs->evparam[p7_FTAUFS5], gm_fs->evparam[p7_FLAMBDA]);
+    dom_lnP   = esl_exp_logsurv(dom_score, gm_fs5->evparam[p7_FTAUFS5], gm_fs5->evparam[p7_FLAMBDA]);
      
     /* Check if hit passes the e-value cutoff based on the current
      * residue count. This prevents hits from accumulating and using
      * excessive memmory. */
 
-    pli->Z = (float)pli->nres / (float)gm_fs->max_length;
+    pli->Z = (float)pli->nres / (float)gm_fs5->max_length;
     if (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) 
     { 
 
-      dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs, windowsq, gcode);
+      dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs5, windowsq, gcode);
       dom->ad->sqfrom = dom->iali;
       dom->ad->sqto   = dom->jali;
       dom->ad->L      = dnasq->L;   
@@ -993,8 +993,9 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_
       hit->ndom        = 1;
       hit->best_domain = 0;
 
-      hit->window_length = gm_fs->max_length;
+      hit->window_length = gm_fs5->max_length;
       hit->target_len = dnasq->n;
+
       hit->seqidx = seqidx;
       if(!complementarity)
         hit->subseq_start = dom->ienv - tmp_i + 1;
@@ -1005,7 +1006,7 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_
       hit->dcl[0] = pli->ddef->dcl[d];
       
       hit->pre_score = bitscore  / eslCONST_LOG2;
-      hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs->evparam[p7_FTAUFS5], gm_fs->evparam[p7_FLAMBDA]);
+      hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  gm_fs5->evparam[p7_FTAUFS5], gm_fs5->evparam[p7_FLAMBDA]);
 
       hit->dcl[0].dombias  = dom_bias;
       
@@ -1022,9 +1023,9 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs, P7_
         if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
         if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
       } else {
-        if ((status  = esl_strdup(gm_fs->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
-        if ((status  = esl_strdup(gm_fs->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
-        if ((status  = esl_strdup(gm_fs->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
+        if ((status  = esl_strdup(gm_fs5->name, -1, &(hit->name)))  != eslOK) esl_fatal("allocation failure");
+        if ((status  = esl_strdup(gm_fs5->acc,  -1, &(hit->acc)))   != eslOK) esl_fatal("allocation failure");
+        if ((status  = esl_strdup(gm_fs5->desc, -1, &(hit->desc)))  != eslOK) esl_fatal("allocation failure");
       }
 
     }
@@ -1222,7 +1223,7 @@ ERROR:
  * Args:      pli             - the main pipeline object
  *            om              - optimized protien profile (query)
  *            gm              - non-optimized protien profile (query)
- *            gm_fs           - fs-aware codon profile (query)
+ *            gm_fs5           - fs-aware codon profile (query)
  *            bg              - background model
  *            hitlist         - pointer to hit storage bin
  *            seqidx          - the id # of the DNA sequence  
@@ -1246,7 +1247,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
   int              f;
@@ -1274,6 +1275,9 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
   tot_orf_sc = eslINFINITY;
   tot_orf_P  = eslINFINITY;
   min_P_orf  = eslINFINITY;
+  
+  for(f = 0; f < orf_block->count; f++) 
+    pli_tmp->oxf_holder[f] = NULL;
 
   /* If this search is using the standard translation pipeline (user did not specify --fsonly) 
    * then run the standard Foward on every ORF that is within the current window */ 
@@ -1324,14 +1328,14 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
     p7_bg_SetLength(bg, dna_window->length/3);
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, pli->do_biasfilter, &filtersc_fs);
 
-    p7_gmx_fs_GrowTo(pli->gxf, gm_fs->M, PARSER_ROWS_FWD, dna_window->length, 0);
-	p7_ivx_GrowTo(pli->iv, gm_fs->M, p7P_3CODONS);
-    p7_fs_ReconfigLength(gm_fs, dna_window->length/3);
+    p7_gmx_fs_GrowTo(pli->gxf, gm_fs3->M, PARSER_ROWS_FWD, dna_window->length, 0);
+	p7_ivx_GrowTo(pli->iv, gm_fs3->M, p7P_3CODONS);
+    p7_fs_ReconfigLength(gm_fs3, dna_window->length/3);
     
-    p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxf, pli->iv, &fwdsc_fs);
+    p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs3, pli->gxf, pli->iv, &fwdsc_fs);
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs->evparam[p7_FTAUFS3],  gm_fs->evparam[p7_FLAMBDA]);
-    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs->evparam[p7_FTAUFS3],  gm_fs->evparam[p7_FLAMBDA]); 
+    P_fs = esl_exp_surv(seqscore_fs,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]);
+    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]); 
   }
 
   /* If the DNA window passed frameshift forward AND produced a lower P-value 
@@ -1341,17 +1345,17 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
   
     pli->pos_past_fwd += dna_window->length; 
-    p7_gmx_fs_GrowTo(pli->gxb, gm_fs->M, PARSER_ROWS_BWD, dna_window->length, 0);
-    p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs, pli->gxb, pli->iv, NULL);
+    p7_gmx_fs_GrowTo(pli->gxb, gm_fs3->M, PARSER_ROWS_BWD, dna_window->length, 0);
+    p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs3, pli->gxb, pli->iv, NULL);
  
-    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, gm_fs, bg, gcode);
+    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, gm_fs5, bg, gcode);
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
    
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
-    p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
+    p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
 
   } 
   /* If the DNA window did NOT pass pass frameshift forward or did not produced a 
@@ -1372,7 +1376,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
         
         p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], pli->oxb, NULL);
         
-        status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm_fs, pli_tmp->oxf_holder[f], pli->oxb, pli->fwd, pli->bck, pli->ddef);
+        status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm_fs5, pli_tmp->oxf_holder[f], pli->oxb, pli->fwd, pli->bck, pli->ddef);
 
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
@@ -1426,7 +1430,7 @@ ERROR:
  * Args:      pli             - the main pipeline object
  *            om              - optimized protien profile (query)
  *            gm              - non-optimized protien profile (query)
- *            gm_fs           - fs-aware codon profile (query)
+ *            gm_fs5           - fs-aware codon profile (query)
  *            bg              - background model
  *            hitlist         - pointer to hit storage bin
  *            seqidx          - the id # of the target sequence from which 
@@ -1450,7 +1454,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_SCOREDATA *data, P7_HMM_WINDOWLIST *splcing_windows, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_SCOREDATA *data, P7_HMM_WINDOWLIST *splcing_windows, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
   int              f, w;
@@ -1526,7 +1530,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs,
 
     p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
 
-    status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm_fs, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef);
+    status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm_fs5, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
     if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
@@ -1553,7 +1557,7 @@ ERROR:
  *            all 3 frames and these are compared directly to an 
  *            optimized protien profile <om>. For the forward filter
  *            both an ORF to <om> and a DNA window to frameshift 
- *            aware codon model <gm_fs> and a comparison is preformed. 
+ *            aware codon model <gm_fs5> and a comparison is preformed. 
  *            Which ever Forward filter produces the lower p-value  
  *            determines which target and query form are used for the 
  *            remainder of the pipeline. If a significant hit is 
@@ -1579,7 +1583,7 @@ ERROR:
  * Args:      pli             - the main pipeline object
  *            om              - optimized protein profile (query)
  *            gm              - generic protein profile (query)
- *            gm_fs           - generic fs-aware codon profile (query)
+ *            gm_fs5           - generic fs-aware codon profile (query)
  *            data            - for picking window edges based on 
  *                              maximum prefix/suffix extensions
  *            bg              - background model
@@ -1599,7 +1603,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *splcing_windows, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *splcing_windows, int complementarity)
 {
 
   int                i;
@@ -1728,7 +1732,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCO
 
   if(!pli->fs_pipe) { /* not using frameshift algorithms */
 
-    p7_pli_postViterbi_BATH(pli, om, gm_fs, bg, hitlist, seqidx, post_vit_orf_block, dnasq, gcode, data, splcing_windows, pli_tmp, complementarity);
+    p7_pli_postViterbi_BATH(pli, om, gm_fs5, bg, hitlist, seqidx, post_vit_orf_block, dnasq, gcode, data, splcing_windows, pli_tmp, complementarity);
 
   }
   else if(post_vit_orf_block->count > 0)  { /* For frameshift search - create DNA widnows for ORFs that pass viterbi */
@@ -1747,7 +1751,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs, P7_SCO
 
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
-      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm_fs, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), i, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
+      p7_pli_postViterbi_Frameshift_BATH(pli, om, gm_fs3, gm_fs5, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), i, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
     }
   }
 

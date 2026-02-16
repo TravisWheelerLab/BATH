@@ -238,15 +238,16 @@ create_ssi_index(ESL_GETOPTS *go, P7_HMMFILE *hfp)
 static void
 multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 {
-  ESL_KEYHASH    *keys   = esl_keyhash_Create();
-  ESL_FILEPARSER *efp    = NULL;
-  ESL_ALPHABET   *abc    = NULL;
-  P7_HMM         *hmm    = NULL;
-  P7_BG          *bg   = NULL;
-  ESL_RANDOMNESS *r  = NULL;
-  P7_FS_PROFILE     *gm_fs  = NULL;
-  ESL_GENCODE    *gcode  = NULL;
-  ESL_ALPHABET   *abcDNA = NULL;
+  ESL_KEYHASH    *keys      = esl_keyhash_Create();
+  ESL_FILEPARSER *efp       = NULL;
+  ESL_ALPHABET   *abc       = NULL;
+  P7_HMM         *hmm       = NULL;
+  P7_BG          *bg        = NULL;
+  ESL_RANDOMNESS *r         = NULL;
+  P7_FS_PROFILE  *gm_fs5    = NULL;
+  P7_FS_PROFILE  *gm_fs3    = NULL;
+  ESL_GENCODE    *gcode     = NULL;
+  ESL_ALPHABET   *abcDNA    = NULL;
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
   int             ct;
@@ -304,13 +305,16 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 
           if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
 
-          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 100, p7_LOCAL);
+          gm_fs3 = p7_profile_fs3_Create (hmm->M, hmm->abc);
+          p7_ProfileConfig_fs3(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL); 
 
-          p7_fs_Tau_3codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          gm_fs5 = p7_profile_fs5_Create (hmm->M, hmm->abc);
+          p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
+
+          p7_fs_Tau_3codons(r, gm_fs3, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS3] = tau_fs;
 
-          p7_fs_Tau_5codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          p7_fs_Tau_5codons(r, gm_fs5, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS5] = tau_fs;
         }
       }
@@ -325,13 +329,16 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 	  }
 
 	  p7_hmm_Destroy(hmm);
-      p7_profile_fs_Destroy(gm_fs);
-      gm_fs = NULL;
+      p7_profile_fs_Destroy(gm_fs3);
+      gm_fs3 = NULL;
+      p7_profile_fs_Destroy(gm_fs5);
+      gm_fs5 = NULL;
 	}
   }
 
   if(bg != NULL)    p7_bg_Destroy(bg);
-  if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
+  if(gm_fs5 != NULL) p7_profile_fs_Destroy(gm_fs5);
+  if(gm_fs3 != NULL) p7_profile_fs_Destroy(gm_fs3);
   if(r != NULL)     esl_randomness_Destroy(r); 
   if (ofp != stdout) printf("\nRetrieved %d HMMs.\n", nhmm);
   if (abc != NULL) esl_alphabet_Destroy(abc);
@@ -354,13 +361,14 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 static void
 onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 {
-  ESL_ALPHABET   *abc  = NULL;
-  P7_HMM         *hmm  = NULL;
-  P7_BG          *bg   = NULL;
-  ESL_RANDOMNESS *r  = NULL;
-  P7_FS_PROFILE     *gm_fs  = NULL;
-  ESL_GENCODE    *gcode  = NULL;
-  ESL_ALPHABET   *abcDNA = NULL;
+  ESL_ALPHABET   *abc       = NULL;
+  P7_HMM         *hmm       = NULL;
+  P7_BG          *bg        = NULL;
+  ESL_RANDOMNESS *r         = NULL;
+  P7_FS_PROFILE  *gm_fs5    = NULL;
+  P7_FS_PROFILE  *gm_fs3    = NULL;
+  ESL_GENCODE    *gcode     = NULL;
+  ESL_ALPHABET   *abcDNA    = NULL;
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
   int             ct;
@@ -409,14 +417,17 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
           esl_gencode_Set(gcode, hmm->ct);
 
           if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
-         
-          gm_fs = p7_profile_fs_Create (hmm->M, hmm->abc);
-          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs, 100, p7_LOCAL);
+        
+          gm_fs3 = p7_profile_fs3_Create (hmm->M, hmm->abc); 
+          p7_ProfileConfig_fs3(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL);
 
-          p7_fs_Tau_3codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          gm_fs5 = p7_profile_fs5_Create (hmm->M, hmm->abc);
+          p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
+
+          p7_fs_Tau_3codons(r, gm_fs3, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS3] = tau_fs;
 
-          p7_fs_Tau_5codons(r, gm_fs, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          p7_fs_Tau_5codons(r, gm_fs5, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS5] = tau_fs;
         }
       }
@@ -425,13 +436,16 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 
       p7_hmmfile_WriteASCII(ofp, p7_BATH_3f, hmm);
       p7_hmm_Destroy(hmm);
-      p7_profile_fs_Destroy(gm_fs);
-      gm_fs = NULL;
+      p7_profile_fs_Destroy(gm_fs3);
+      gm_fs3 = NULL;
+      p7_profile_fs_Destroy(gm_fs5);
+      gm_fs5 = NULL;
     }
   else p7_Fail("HMM %s not found in file %s\n", key, hfp->fname);
 	
   if(bg != NULL)    p7_bg_Destroy(bg);
-  if(gm_fs != NULL) p7_profile_fs_Destroy(gm_fs);
+  if(gm_fs5 != NULL) p7_profile_fs_Destroy(gm_fs5);
+  if(gm_fs3 != NULL) p7_profile_fs_Destroy(gm_fs3);
   if(r != NULL)     esl_randomness_Destroy(r);
   if(abc) esl_alphabet_Destroy(abc);
   if(abcDNA) esl_alphabet_Destroy(abcDNA);

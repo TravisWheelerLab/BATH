@@ -1256,15 +1256,17 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   for (z = 0; z < ddef->tr->N; z++)
     if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
 
+  /*Index bewfore converting to get ORF start coords */
+  p7_trace_Index(ddef->tr);
+
   if(orfsq->start < orfsq->end)
     p7_trace_fs_Convert(ddef->tr, orfsq->start, windowsq->start);
   else
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
-  p7_trace_Index(ddef->tr);
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0]);
+  dom->ad             = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, ddef->tr->sqfrom[0]);
   
   dom->scores_per_pos = NULL;  
 

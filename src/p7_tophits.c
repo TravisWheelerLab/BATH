@@ -1443,13 +1443,13 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
  * Returns:   <eslOK> on success.
  */
 int 
-p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
+p7_tophits_CreateCigarString(P7_FS_PROFILE *gm_fs5, P7_TRACE *tr, char **ret_cigar)
 {
 
   int       z; 
   int       z1, z2;   
   int       s, c;
-  int       s_count;
+  int       n_count;
   int       i_start, i_end;
   int       cur_cigar_length;
   int       max_cigar_length;
@@ -1466,9 +1466,9 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
   cur_cigar_length = 0;
   max_cigar_length = (z2-z1+2) * 3;
   ESL_ALLOC(cigar, sizeof(char) * max_cigar_length); 
-  cur_cigar_length = sprintf (cigar, "%c", '\0'); 
+  cigar[0] = '\0';
  
-  s_count = 0;
+  n_count = 0;
   z = z1;
   while(z <= z2)
   {
@@ -1477,30 +1477,26 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
     switch (s) {
       case p7T_M:
         while(s == p7T_M && c == 3) {
-          s_count++;
+          n_count += 3;
           z++;
           s = tr->st[z];
           c = tr->c[z];
         }
-       
+        
         if (s == p7T_M && c != 3) {
           s_count++;
           z++;
         }
-
-        if (s == p7T_R && c == 3) 
-          s_count++;
- 
-        cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'M');
-
+        
+        cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", s_count, 'M');
         if      (s == p7T_M && c == 1) 
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'B');
+		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 2, 'B');
         else if (s == p7T_M && c == 2)
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'B');
+		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 1, 'B');
         else if (s == p7T_M && c == 4)
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 1, 'F');
+		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 1, 'F');
         else if (s == p7T_M && c == 5)
-          cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, 2, 'F');
+		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 2, 'F');
 
         s_count = 0;
         break;
@@ -1510,8 +1506,7 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
           z++;
           s = tr->st[z];
         }
-
-        cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'I');
+        cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", s_count, 'I');
 
         s_count = 0;
         break;
@@ -1521,8 +1516,7 @@ p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
           z++;
           s = tr->st[z];
         }
-        
-        cur_cigar_length = sprintf (cigar, "%s%d%c", cigar, s_count, 'D');
+        cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", s_count, 'D');        
 
         s_count = 0;
         break;

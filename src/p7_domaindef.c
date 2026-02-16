@@ -1261,8 +1261,10 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   else
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
+  p7_trace_Index(ddef->tr);
+
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm_fs5, windowsq, gcode);
+  dom->ad             = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0]);
   
   dom->scores_per_pos = NULL;  
 

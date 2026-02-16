@@ -485,17 +485,22 @@ enum p7t_statetype_e {
 };
 #define p7T_NSTATETYPES 12
 
-/* cigar string types */
-enum p7t_cigartype_e {
-  p7T_1M = 0,
-  p7T_1D = 1,
-  p7T_1I = 2,
-  p7T_2F = 3,
-  p7T_1F = 4,
-  p7T_1B = 5,
-  p7T_2B = 6,
+enum p7t_splicestates_e {
+  p7T_R    = 12,
+  p7T_RI   = 13,
+  p7T_P    = 14,
+  p7T_A    = 15
 };
 
+/* splice options */
+enum p7s_splice_options_e {
+  p7S_xxyyABC   = 0,
+  p7S_AxxyyBC   = 1,
+  p7S_ABxxyyC   = 2,
+  p7S_ABCxxyyD  = 3,
+  p7S_ABCDxxyyE = 4
+
+};
 
 typedef struct p7_trace_s {
   int    N;              /* length of traceback                       */
@@ -504,6 +509,7 @@ typedef struct p7_trace_s {
   int   *k;              /* node index; 1..M if M,D,I; else 0 [0..N-1]*/
   int   *i;              /* pos emitted in dsq, 1..L; else 0  [0..N-1]*/
   int   *c;              /* codon length for frameshift search        */
+  int   *sp;             /* splice option for sliced alignments       */
   float *pp;             /* posterior prob of x_i; else 0     [0..N-1]*/
   int    M;              /* model length M (maximum k)                */
   int    L;              /* sequence length L (maximum i)             */
@@ -746,26 +752,40 @@ typedef struct p7_alidisplay_s {
   char *ntseq;                  /* nucleotide target sequence for bath  */
   char *ppline;                 /* posterior prob annotation; or NULL   */
   char *codon;                  /* number of nuceltides in each codon   */
+  char *cigar;                  /* cigar string for the alignment       */
   int   frameshifts;            /* number of codons with frameshifts    */
   int   stops;                  /* number of stop codons */
   int   N;                      /* length of strings                    */
 
-  char *hmmname;    /* name of HMM                          */
-  char *hmmacc;      /* accession of HMM; or [0]='\0'        */
-  char *hmmdesc;    /* description of HMM; or [0]='\0'      */
-  int   hmmfrom;    /* start position on HMM (1..M, or -1)  */
-  int   hmmto;      /* end position on HMM (1..M, or -1)    */
-  int   M;      /* length of model                      */
-  
-  char *sqname;      /* name of target sequence              */
-  char *orfname;        /* name of ORF within target sequence (assigned by hmmer pipeline)  */
-  char *sqacc;      /* accession of target seq; or [0]='\0' */
-  char *sqdesc;      /* description of targ seq; or [0]='\0' */
-  int64_t  sqfrom;    /* start position on sequence (1..L)    */
-  int64_t  sqto;        /* end position on sequence   (1..L)    */
-  int64_t  orffrom;     /* start position on sequence (1..L)    */
-  int64_t  orfto;       /* end position on sequence   (1..L)    */
-  int64_t  L;      /* length of sequence                   */
+  char *hmmname;                /* name of HMM                          */
+  char *hmmacc;                 /* accession of HMM; or [0]='\0'        */
+  char *hmmdesc;                /* description of HMM; or [0]='\0'      */
+  int   hmmfrom;                /* start position on HMM (1..M, or -1)  */
+  int   hmmto;                  /* end position on HMM (1..M, or -1)    */
+  int   M;                      /* length of model                      */
+
+  char *sqname;                 /* name of target sequence              */
+  char *orfname;                /* name of ORF within target sequence (assigned by hmmer pipeline)  */
+  char *sqacc;                  /* accession of target seq; or [0]='\0' */
+  char *sqdesc;                 /* description of targ seq; or [0]='\0' */
+  int64_t  sqfrom;              /* start position on sequence (1..L)    */
+  int64_t  sqto;                /* end position on sequence   (1..L)    */
+  int64_t  orffrom;             /* start position on sequence (1..L)    */
+  int64_t  orfto;               /* end position on sequence   (1..L)    */
+  int64_t  L;                   /* length of sequence                   */
+  float    pid;                 /* full alignment percent identity      */
+
+  int     exon_cnt;             /* number of exons in spliced alignment */
+  int64_t *exon_seq_starts;     /* array of nucleotide start positions for exons in spliced alignment */
+  int64_t *exon_seq_ends;       /* array of nucleotide end positions for exons in spliced alignment   */
+  int     *exon_hmm_starts;     /* array of amino start positions for exons in spliced alignment      */
+  int     *exon_hmm_ends;       /* array of amino end positions for exons in spliced alignment        */
+  int     *exon_anchor;         /* array of bools stating whether exon was an anchor node             */
+  int     *exon_extend;         /* array of bools stating whether exon was an  extension node         */
+  float   *exon_pid;            /* array of percent identities for exons in spliced alignment         */
+  float   *exon_score;
+  float   *exon_pp;
+  double  *exon_lnP;
 
   int   memsize;                /* size of allocated block of memory    */
   char *mem;      /* memory used for the char data above  */
@@ -1084,6 +1104,7 @@ typedef struct p7_pipeline_s {
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
   enum p7_pipemodes_e mode;     /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
+  int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
   int           fs_pipe;        /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
   int           std_pipe;       /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;        /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
@@ -1334,9 +1355,9 @@ extern int p7_tracealign_computeTraces(P7_HMM *hmm, ESL_SQ  **sq, int offset, in
 extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MSA **ret_msa, float **ret_pp, float **ret_relent, float **ret_scores );
 
 /* p7_alidisplay.c */
-extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
-extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode);
-
+extern P7_ALIDISPLAY* p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
+extern P7_ALIDISPLAY* p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode);
+extern P7_ALIDISPLAY* p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos);
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);

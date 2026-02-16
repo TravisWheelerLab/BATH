@@ -104,7 +104,9 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
 
   pli->do_alignment_score_calc = 0;
 
-  /* Set Frameshift Mode */
+   
+  /* Set Alignment Mode */
+  pli->spliced =  FALSE;
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
 

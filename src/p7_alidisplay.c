@@ -1,4 +1,4 @@
-/* Formatting, transmitting, and printing single alignments to a
+ /* Formatting, transmitting, and printing single alignments to a
  * profile.
  * 
  * Contents:
@@ -27,6 +27,166 @@
 #define PPLINE_PRESENT (1 << 3)
 #define ASEQ_PRESENT (1 << 4)
 #define NTSEQ_PRESENT (1 << 5)
+
+/*Find the codon index for BATH alignments */
+static int get_codon_index(const ESL_ALPHABET *abc, int codon_len, int c1, int c2, int c3, int c4, int c5, int *ret_idx) 
+{
+
+  int codon_idx;
+  int status;
+
+  switch (codon_len) {  
+    case 1: 
+      if(esl_abc_XIsCanonical(abc, c1))
+        codon_idx = p7P_CODON1_FS5(c1);
+      else
+        codon_idx = p7P_DEGEN5_QC2;
+      break;
+    case 2:
+      if(esl_abc_XIsCanonical(abc, c1) &&
+         esl_abc_XIsCanonical(abc, c2))
+        codon_idx = p7P_CODON2_FS5(c1, c2);
+      else
+        codon_idx = p7P_DEGEN5_QC1;
+      break;
+    case 3:
+      if(esl_abc_XIsCanonical(abc, c1) &&
+         esl_abc_XIsCanonical(abc, c2) &&
+         esl_abc_XIsCanonical(abc, c3))
+        codon_idx = p7P_CODON3_FS5(c1, c2, c3);
+      else
+        codon_idx    = p7P_DEGEN5_C;
+       break;
+    case 4:
+      if(esl_abc_XIsCanonical(abc, c1) &&
+         esl_abc_XIsCanonical(abc, c2) &&
+         esl_abc_XIsCanonical(abc, c3) &&
+         esl_abc_XIsCanonical(abc, c4))
+        codon_idx = p7P_CODON4_FS5(c1, c2, c3, c4);
+      else
+        codon_idx = p7P_DEGEN5_QC1;
+      break;
+    case 5: 
+      if(esl_abc_XIsCanonical(abc, c1) &&
+         esl_abc_XIsCanonical(abc, c2) &&
+         esl_abc_XIsCanonical(abc, c3) &&
+         esl_abc_XIsCanonical(abc, c4) &&
+         esl_abc_XIsCanonical(abc, c5))
+        codon_idx = p7P_CODON5_FS5(c1, c2, c3, c4, c5);
+      else
+        codon_idx = p7P_DEGEN5_QC2;
+      break;
+    default: ESL_XEXCEPTION(eslEINVAL, "invalid codon length"); 
+  }
+
+  *ret_idx = codon_idx;
+
+  return eslOK;
+    
+  ERROR:
+    return status; 
+} 
+
+/* Find the first character in a BATH alginment codon string */
+static char nuc_one(int codon_len, int indel, int c1, char *alphaDNA) {
+
+  char n1;
+
+  if(codon_len < 4) 
+    n1 = ' ';
+  else if (indel == p7P_xXXX || indel == p7P_xxXXX || indel == p7P_xxx)
+    n1 = tolower(alphaDNA[c1]);
+  else
+    n1 = alphaDNA[c1];
+
+  return n1; 
+}
+
+/* Find the second character in a BATH alginment codon string */
+static char nuc_two(int codon_len, int indel, int c1, int c2, char *alphaDNA) {
+
+  char n2;
+
+  if (codon_len < 4) {
+    if (indel == p7P___X || indel == p7P__XX)
+      n2 = '-';
+    else if ( indel == p7P_xXX || indel == p7P_xxx)
+      n2 = tolower(alphaDNA[c1]);
+    else
+     n2 = alphaDNA[c1];
+  } 
+  else if (indel == p7P_XXxX || indel == p7P_xXXX || indel == p7P_XXxxX )
+    n2 = alphaDNA[c2];
+  else
+    n2 = tolower(alphaDNA[c2]);
+
+  return n2;
+}
+
+/* Find the third character in a BATH alginment codon string */
+static char nuc_three(int codon_len, int indel, int c1, int c2, int c3, char *alphaDNA) {
+
+  char n3;
+
+  if (codon_len == 1 || indel == p7P_X_X) 
+    n3 = '-';
+  else if (indel == p7P__XX)
+    n3 = alphaDNA[c1];
+  else if (codon_len < 4) {
+    if(indel == p7P_XxX || indel == p7P_xxx)
+      n3 = tolower(alphaDNA[c2]);
+    else
+      n3 = alphaDNA[c2];
+  }
+  else if (indel == p7P_XxXX || indel == p7P_xXXX || indel == p7P_xxXXX)
+    n3 = alphaDNA[c3];
+  else
+    n3 = tolower(alphaDNA[c3]);   
+  
+  return n3;
+}
+
+/* Find the fourth character in a BATH alginment codon string */
+static char nuc_four(int codon_len, int indel, int c1, int c2, int c3, int c4, char *alphaDNA) {
+
+  char n4;
+
+  if(indel == p7P___X)
+    n4 = alphaDNA[c1];
+  else if ( indel == p7P___X || indel == p7P_X_X )
+    n4 = alphaDNA[c2];
+  else if (codon_len < 3)
+    n4 = '-';
+  else if (codon_len == 3) {
+     if( indel == p7P_XXx || indel == p7P_xxx )
+       n4 = tolower(alphaDNA[c3]);
+     else
+       n4 = alphaDNA[c3];
+  }
+  else if (indel == p7P_XXxxX || indel == p7P_xxx)
+    n4 = tolower(alphaDNA[c4]);
+  else
+     n4 = alphaDNA[c4];
+
+  return n4;
+}
+
+/* Find the fifth character in a BATH alginment codon string */
+static char nuc_five(int codon_len, int indel, int c5, char *alphaDNA) {
+
+  char n5;
+
+  if(codon_len < 5)
+    n5 = ' ';
+  else if ( indel == p7P_xxx)
+    n5 = tolower(alphaDNA[c5]);
+  else
+    n5 = alphaDNA[c5];
+
+  return n5;
+}
+
+
 
 /*****************************************************************
  * 1. The P7_ALIDISPLAY object
@@ -100,7 +260,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   int            orf_namelen; /* used for translated search only */
   int            status;
   char           n1,n2,n3;
-  //int            j;
 
   ESL_SQ         *ntorfseqtxt = NULL;
 
@@ -180,6 +339,21 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
 
+  ad->pid = 0.0;
+
+  /* Used for splice alignments only */
+  ad->exon_seq_starts = NULL;
+  ad->exon_seq_ends   = NULL;
+  ad->exon_hmm_starts = NULL;
+  ad->exon_hmm_ends   = NULL; 
+  ad->exon_score      = NULL;
+  ad->exon_pp         = NULL;
+  ad->exon_lnP        = NULL;
+  ad->exon_pid        = NULL;
+  ad->exon_anchor     = NULL;
+  ad->exon_extend     = NULL;
+  ad->exon_cnt        = 0;
+
   /* Determine hit coords */
   ad->hmmfrom = tr->k[z1];
   ad->hmmto   = tr->k[z2];
@@ -215,7 +389,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
     for (z = z1; z <= z2; z++) ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
     ad->ppline[z-z1] = '\0';
   }
-
+  
   /* mandatory three alignment display lines: model, mline, aseq */
   for (z = z1; z <= z2; z++) 
     {
@@ -330,14 +504,328 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   return NULL;
 }
 
-/* Function:  p7_alidisplay_fs_Create()
+/* Function:  p7_alidisplay_fs_Create() - `BATH
+ * Synopsis:  Create an alignment display, from trace and fs_profile.
+ *
+ * Purpose:   Creates and returns an BATH formated alignment display 
+ *            for domain number <which> in traceback <tr> from the fs 
+ *            pipeline, where the traceback corresponds to an alignment 
+ *            of optimized profile <om> to digital sequence <dsq>, and 
+ *            the unique name of that target sequence <dsq> is <sqname>. 
+ *            The <which> index starts at 0.
+ *            
+ *            It will be a little faster if the trace is indexed with
+ *            <p7_trace_Index()> first. The number of domains is then
+ *            in <tr->ndom>. If the caller wants to create alidisplays
+ *            for all of these, it would loop <which> from
+ *            <0..tr->ndom-1>.
+ *           
+ *            However, even without an index, the routine will work fine.
+ *
+ * Args:      tr       - traceback
+ *            which    - domain number, 0..tr->ndom-1
+ *            gm_fs    - frameshift codon profile (query)
+ *            sq       - digital nucleotide sequence (target)
+ *            gcode    - genetic code for tranlsation codons 
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <NULL> on allocation failure, or if something's internally corrupt 
+ *            in the data.
+ */
+P7_ALIDISPLAY *
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode)
+{
+
+  P7_ALIDISPLAY *ad       = NULL;
+  char          *alphaAmino = gm_fs->abc->sym;
+  char          *alphaDNA = sq->abc->sym;
+  int            n, pos, z, y;
+  int            z1, z2;
+  int            k,i,s,c;
+  int            indel, aa;
+  int            codon_idx;
+  int            hmm_namelen, hmm_acclen, hmm_desclen;
+  int            sq_namelen,  sq_acclen,  sq_desclen;
+  int            orf_namelen; /* used for translated search only */
+  int            exact; 
+  int            status;
+  char           n1,n2,n3,n4,n5;
+
+  /* First figure out which piece of the trace (from first match to last match) 
+   * we're going to represent, and how big it is.
+   */
+  if (tr->ndom > 0) {		/* if we have an index, this is a little faster: */
+    for (z1 = tr->tfrom[which]; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;  /* find next M state      */
+    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
+    for (z2 = tr->tto[which];   z2 >= 0 ;   z2--) if (tr->st[z2] == p7T_M) break;  /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  } else {			/* without an index, we can still do it fine:    */
+    
+    for (z1 = 0; which >= 0 && z1 < tr->N; z1++) 
+      if (tr->st[z1] == p7T_B) which--; 					   /* find the right B state */
+    
+    if (z1 == tr->N) return NULL;                                                  /* no such domain <which> */
+    for (; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;            /* find next M state      */
+    if (z1 == tr->N) return NULL;                                                 /* no M? corrupt trace    */
+    for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;           /* find the next E state  */
+    for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                    /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  }
+
+  /* Now we know that z1..z2 in the trace will be represented in the
+   * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
+   * our display lines, so allocate z2-z1+2. We know each position is
+   * M, D, or I, so there's a 1:1 correspondence of trace positions
+   * with alignment display positions.  We also know the display
+   * starts and ends with M states.
+   * 
+   * So now let's allocate. The alidisplay is packed into a single
+   * memory space, so this appears to be intricate, but it's just
+   * bookkeeping.  
+   */
+  n = (z2-z1+2) * 3;                          /* model, mline, aseq mandatory         */
+  n += 5*(z2-z1+1)+1;                     /* nucleotide sequence                  */
+  n += (z2-z1+2);			   /* codon lengths       */
+  if (gm_fs->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (gm_fs->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (gm_fs->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
+  if (tr->pp     != NULL) n += (z2-z1+2);   /* optional posterior prob line         */
+  hmm_namelen = strlen(gm_fs->name);                           n += hmm_namelen + 1;
+  hmm_acclen  = (gm_fs->acc  != NULL ? strlen(gm_fs->acc)  : 0);  n += hmm_acclen  + 1;
+  hmm_desclen = (gm_fs->desc != NULL ? strlen(gm_fs->desc) : 0);  n += hmm_desclen + 1;
+  sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
+  sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
+  sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
+  orf_namelen = strlen(sq->orfid);                          n += orf_namelen + 1; /* same for orfname          */
+
+  ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
+  ad->mem = NULL;
+  
+  pos = 0; 
+  ad->memsize = sizeof(char) * n;
+  ESL_ALLOC(ad->mem, ad->memsize);
+ 
+  if (gm_fs->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
+  ad->mmline = NULL;
+  if (gm_fs->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
+  ad->model   = ad->mem + pos;  pos += z2-z1+2;
+  ad->mline   = ad->mem + pos;  pos += z2-z1+2;
+  ad->aseq    = ad->mem + pos;  pos += z2-z1+2;
+  ad->codon   = ad->mem + pos;  pos += z2-z1+2;
+  ad->ntseq  = ad->mem + pos;  pos += 5*(z2-z1+1)+1; /* for the nucleotide sequence there will be 5 times as many bytes */
+  if (tr->pp != NULL)  { ad->ppline = ad->mem + pos;  pos += z2-z1+2;} else { ad->ppline = NULL; }
+  ad->hmmname = ad->mem + pos;  pos += hmm_namelen +1;
+  ad->hmmacc  = ad->mem + pos;  pos += hmm_acclen +1;
+  ad->hmmdesc = ad->mem + pos;  pos += hmm_desclen +1;
+  ad->sqname  = ad->mem + pos;  pos += sq_namelen +1;
+  ad->sqacc   = ad->mem + pos;  pos += sq_acclen +1;
+  ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
+  ad->orfname = ad->mem + pos;  pos += orf_namelen +1;  
+
+  strcpy(ad->hmmname, gm_fs->name);
+  if (gm_fs->acc  != NULL) strcpy(ad->hmmacc,  gm_fs->acc);  else ad->hmmacc[0]  = 0;
+  if (gm_fs->desc != NULL) strcpy(ad->hmmdesc, gm_fs->desc); else ad->hmmdesc[0] = 0;
+
+  strcpy(ad->sqname,  sq->name);
+  strcpy(ad->sqacc,   sq->acc);
+  strcpy(ad->sqdesc,  sq->desc);
+  strcpy(ad->orfname,  sq->orfid);
+
+  ad->pid = 0.0;
+
+  /* Used for splice alignments only */
+  ad->exon_seq_starts = NULL;
+  ad->exon_seq_ends   = NULL;
+  ad->exon_hmm_starts = NULL;
+  ad->exon_hmm_ends   = NULL;
+  ad->exon_score      = NULL;
+  ad->exon_pp         = NULL;
+  ad->exon_lnP        = NULL;
+  ad->exon_pid        = NULL;
+  ad->exon_anchor     = NULL;
+  ad->exon_extend     = NULL;
+  ad->exon_cnt        = 0;
+
+  /* Determine hit coords */
+  ad->hmmfrom = tr->k[z1];
+  ad->hmmto   = tr->k[z2];
+  tr->hmmfrom[0] = tr->k[z1];
+  tr->hmmto[0]   = tr->k[z2];
+  ad->M       = gm_fs->M;
+  ad->frameshifts = 0; 
+  ad->stops = 0;
+  if(sq->start < sq->end) {
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];		 
+  } else {
+    ad->sqto    = tr->i[z1];
+    ad->sqfrom  = tr->i[z2];	
+  }	 
+  ad->L       = sq->L;
+
+
+  /* optional rf line */
+  if (ad->rfline != NULL) {
+    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->rf[tr->k[z]]);
+    ad->rfline[z-z1] = '\0';
+  }
+  /* optional mm line */
+  if (ad->mmline != NULL) {
+    for (z = z1; z <= z2; z++) ad->mmline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->mm[tr->k[z]]);
+    ad->mmline[z-z1] = '\0';
+  }
+
+  /* optional cs line */
+  if (ad->csline != NULL) {
+    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs->cs[tr->k[z]]);
+    ad->csline[z-z1] = '\0';
+  }
+ 
+  if (ad->ppline != NULL) {
+    for (z = z1; z <= z2; z++)  
+       ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
+    ad->ppline[z-z1] = '\0';
+  }
+
+  /* mandatory three alignment display lines: model, mline, aseq */
+  exact = 0;
+  y = 0;
+  for (z = z1; z <= z2; z++) 
+  {
+    k = tr->k[z];
+    i = tr->i[z];
+    s = tr->st[z];
+    c = tr->c[z];
+  
+    switch (s) {
+      case p7T_M:
+        ad->model[z-z1] = gm_fs->consensus[k];
+	    ad->codon[y] = c;
+
+        if(c == 3) {
+          n1 = sq->dsq[i-2];
+          n2 = sq->dsq[i-1];
+          n3 = sq->dsq[i];
+          n4 = -1;
+          n5 = -1;
+        }
+        else if(c == 1) {
+          n1 = sq->dsq[i];
+          n2 = -1;
+          n3 = -1;
+          n4 = -1;
+          n5 = -1;
+        }
+        else if(c == 2) {
+          n1 = sq->dsq[i-1];
+          n2 = sq->dsq[i];
+          n3 = -1;
+          n4 = -1;
+          n5 = -1;
+        }
+        else if(c == 4) {
+          n1 = sq->dsq[i-3];
+          n2 = sq->dsq[i-2];
+          n3 = sq->dsq[i-1];
+          n4 = sq->dsq[i];
+          n5 = -1;
+        }
+        else if (c == 5) {
+          n1 = sq->dsq[i-4];
+          n2 = sq->dsq[i-3];
+          n3 = sq->dsq[i-2];
+          n4 = sq->dsq[i-1];
+          n5 = sq->dsq[i];
+        }
+        
+        get_codon_index(sq->abc, c, n1, n2, n3, n4, n5, &codon_idx);
+        aa = p7P_AMINO(gm_fs, k, codon_idx);
+        indel = p7P_INDEL(gm_fs, k, codon_idx);
+        
+        ad->ntseq [5*(z-z1)]   = nuc_one(c, indel, n1, alphaDNA);
+        ad->ntseq [5*(z-z1)+1] = nuc_two(c, indel, n1, n2, alphaDNA);
+        ad->ntseq [5*(z-z1)+2] = nuc_three(c, indel, n1, n2, n3, alphaDNA);
+        ad->ntseq [5*(z-z1)+3] = nuc_four(c, indel, n1, n2, n3, n4, alphaDNA);
+        ad->ntseq [5*(z-z1)+4] = nuc_five(c, indel, n5, alphaDNA);
+ 
+  	    if      (aa == esl_abc_DigitizeSymbol(gm_fs->abc, gm_fs->consensus[k])) { ad->mline[z-z1] = ad->model[z-z1]; exact++; }
+        /* >1 not >0; om has odds ratios, not scores */
+        else if (expf(p7P_MSC_AMINO5(gm_fs, k, aa)) > 1.0)                       ad->mline[z-z1] = '+';
+        else                                                                    ad->mline[z-z1] = ' ';
+
+        ad->aseq[z-z1] = toupper(alphaAmino[aa]);
+        if(c != 3) ad->frameshifts++;
+        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6; // 6 used for stop codons
+          ad->stops++;
+        }
+
+        break;
+	
+      case p7T_I:
+        ad->codon[y] = 3;
+      	ad->model [z-z1] = '.';
+        ad->mline [z-z1] = ' ';
+
+        get_codon_index(sq->abc, 3, sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i], -1, -1, &codon_idx);
+        indel = p7P_INDEL(gm_fs, k, codon_idx);
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
+
+        aa = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
+
+	    ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
+        ad->ntseq [5*(z-z1)] = ' ';
+        ad->ntseq [5*(z-z1)+1] = alphaDNA[sq->dsq[i-2]];
+        ad->ntseq [5*(z-z1)+2] = alphaDNA[sq->dsq[i-1]];
+        ad->ntseq [5*(z-z1)+3] = alphaDNA[sq->dsq[i]];
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        
+        break;
+	
+      case p7T_D:
+        ad->codon[y] = 0;
+	    ad->model [z-z1] = gm_fs->consensus[k];
+        ad->mline [z-z1] = ' ';
+        ad->aseq  [z-z1] = '-';
+        ad->ntseq [5*(z-z1)] = ' ';
+        ad->ntseq [5*(z-z1)+1] = '-';
+        ad->ntseq [5*(z-z1)+2] = '-';
+        ad->ntseq [5*(z-z1)+3] = '-';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        break;
+
+      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
+    }
+    y++;
+  }
+ 
+  ad->model [z2-z1+1] = '\0';
+  ad->mline [z2-z1+1] = '\0';
+  ad->aseq  [z2-z1+1] = '\0';
+  ad->ntseq  [5*(z2-z1+1)] = '\0';
+  ad->N = z2-z1+1;
+  ad->pid = ((float) exact / ad->N) * 100;
+ 
+  return ad;
+
+  ERROR:
+    p7_alidisplay_Destroy(ad);
+    return NULL;
+}
+
+/* Function:  p7_alidisplay_nonfs_Create() - BATH
  * Synopsis:  Create an alignment display, from trace and oprofile.
  *
- * Purpose:   Creates and returns an alignment display for domain number
- *            <which> in traceback <tr>, where the traceback
- *            corresponds to an alignment of optimized profile <om> to digital sequence
- *            <dsq>, and the unique name of that target
- *            sequence <dsq> is <sqname>. The <which> index starts at 0.
+ * Purpose:   Creates and returns a BATH formated  alignment display 
+ *            for domain number <which> in traceback <tr> from the std
+ *            pipeline, where the traceback corresponds to an alignment 
+ *            of optimized profile <om> to digital sequence<dsq>, and 
+ *            the unique name of that target sequence <dsq> is <sqname>. 
+ *            The <which> index starts at 0.
  *            
  *            It will be a little faster if the trace is indexed with
  *            <p7_trace_Index()> first. The number of domains is then
@@ -350,9 +838,8 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  * Args:      tr       - traceback
  *            which    - domain number, 0..tr->ndom-1
  *            om       - optimized profile (query)
- *            sq       - digital sequence (target)
- *            ntsq     - text sequence (original nucleotide target in the case of translated search)
- *            ddef_app - optional posterior prob alignment line; only nhmmer sends a not-NULL value
+ *            sq       - digital nucleotide sequence (target)
+ *            orfsq    - digital amino sequence (translation of target)
  *
  * Returns:   <eslOK> on success.
  *
@@ -360,22 +847,733 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode)
+p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos)
+{
+
+  P7_ALIDISPLAY *ad       = NULL;
+  char          *alphaAmino = om->abc->sym;
+  char          *alphaDNA = sq->abc->sym;
+  int            n, pos, z, y;
+  int            z1, z2;
+  int            k,i,s,c;
+  int            hmm_namelen, hmm_acclen, hmm_desclen;
+  int            sq_namelen,  sq_acclen,  sq_desclen;
+  int            orf_namelen; /* used for translated search only */
+  int            exact;
+  int            status;
+
+  /* First figure out which piece of the trace (from first match to last match) 
+   * we're going to represent, and how big it is.
+   */
+  
+  if (tr->ndom > 0) {		/* if we have an index, this is a little faster: */
+    for (z1 = tr->tfrom[which]; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;  /* find next M state    */
+    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
+    for (z2 = tr->tto[which];   z2 >= 0 ;   z2--) if (tr->st[z2] == p7T_M) break;  /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  } else {			/* without an index, we can still do it fine:    */
+    
+    for (z1 = 0; which >= 0 && z1 < tr->N; z1++) if (tr->st[z1] == p7T_B) which--; /* find the right B state */
+    if (z1 == tr->N) return NULL;                                                  /* no such domain <which> */
+    for (; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;                       /* find next M state      */
+    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
+    for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;                /* find the next E state  */
+    for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                       /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  }
+    
+  /* Now we know that z1..z2 in the trace will be represented in the
+   * alidisplay; that's z2-z1+1 positions. We need a \0 trailer on all
+   * our display lines, so allocate z2-z1+2. We know each position is
+   * M, D, or I, so there's a 1:1 correspondence of trace positions
+   * with alignment display positions.  We also know the display
+   * starts and ends with M states.
+   * 
+   * So now let's allocate. The alidisplay is packed into a single
+   * memory space, so this appears to be intricate, but it's just
+   * bookkeeping.  
+   */
+  n = (z2-z1+2) * 3;                          /* model, mline, aseq mandatory         */
+  n += 5*(z2-z1+1)+1;                     /* nucleotide sequence                  */
+  n += (z2-z1+2);			   /* codon lengths       */
+  if (om->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (om->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (om->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
+  if (tr->pp     != NULL) n += (z2-z1+2);   /* optional posterior prob line         */
+  hmm_namelen = strlen(om->name);                           n += hmm_namelen + 1;
+  hmm_acclen  = (om->acc  != NULL ? strlen(om->acc)  : 0);  n += hmm_acclen  + 1;
+  hmm_desclen = (om->desc != NULL ? strlen(om->desc) : 0);  n += hmm_desclen + 1;
+  sq_namelen  = strlen(sq->name);                           n += sq_namelen  + 1;	  
+  sq_acclen   = strlen(sq->acc);                            n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
+  sq_desclen  = strlen(sq->desc);                           n += sq_desclen  + 1; /* same for desc              */
+  orf_namelen = strlen(sq->orfid);                          n += orf_namelen + 1; /* same for orfname          */
+
+  ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
+  ad->mem = NULL;
+  
+  pos = 0; 
+  ad->memsize = sizeof(char) * n;
+  ESL_ALLOC(ad->mem, ad->memsize);
+ 
+  if (om->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
+  ad->mmline = NULL;
+  if (om->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
+  ad->model   = ad->mem + pos;  pos += z2-z1+2;
+  ad->mline   = ad->mem + pos;  pos += z2-z1+2;
+  ad->aseq    = ad->mem + pos;  pos += z2-z1+2;
+  ad->codon   = ad->mem + pos;  pos += z2-z1+2;
+  ad->ntseq  = ad->mem + pos;  pos += 5*(z2-z1+1)+1; /* for the nucleotide sequence there will be 5 times as many bytes */
+  if (tr->pp != NULL)  { ad->ppline = ad->mem + pos;  pos += z2-z1+2;} else { ad->ppline = NULL; }
+  ad->hmmname = ad->mem + pos;  pos += hmm_namelen +1;
+  ad->hmmacc  = ad->mem + pos;  pos += hmm_acclen +1;
+  ad->hmmdesc = ad->mem + pos;  pos += hmm_desclen +1;
+  ad->sqname  = ad->mem + pos;  pos += sq_namelen +1;
+  ad->sqacc   = ad->mem + pos;  pos += sq_acclen +1;
+  ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
+  ad->orfname = ad->mem + pos;  pos += orf_namelen +1;  
+
+  strcpy(ad->hmmname, om->name);
+  if (om->acc  != NULL) strcpy(ad->hmmacc,  om->acc);  else ad->hmmacc[0]  = 0;
+  if (om->desc != NULL) strcpy(ad->hmmdesc, om->desc); else ad->hmmdesc[0] = 0;
+
+  strcpy(ad->sqname,  sq->name);
+  strcpy(ad->sqacc,   sq->acc);
+  strcpy(ad->sqdesc,  sq->desc);
+  strcpy(ad->orfname,  sq->orfid);
+
+  ad->pid = 0.0;
+
+  /* Used for splice alignments only */
+  ad->exon_seq_starts = NULL;
+  ad->exon_seq_ends   = NULL;
+  ad->exon_hmm_starts = NULL;
+  ad->exon_hmm_ends   = NULL;
+  ad->exon_score      = NULL;
+  ad->exon_pp         = NULL;
+  ad->exon_lnP        = NULL; 
+  ad->exon_pid        = NULL;
+  ad->exon_anchor     = NULL;
+  ad->exon_extend     = NULL;
+  ad->exon_cnt        = 0;
+
+  /* Determine hit coords */
+  ad->hmmfrom = tr->k[z1];
+  ad->hmmto   = tr->k[z2];
+  tr->hmmfrom[0] = tr->k[z1];
+  tr->hmmto[0]   = tr->k[z2];
+  ad->M       = om->M;
+  ad->frameshifts = 0; 
+  ad->stops = 0;
+  if(sq->start < sq->end) {
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];		 
+  } else {
+    ad->sqto    = tr->i[z1];
+    ad->sqfrom  = tr->i[z2];	
+  }	 
+  ad->L       = sq->L;
+  
+  /* optional rf line */
+  if (ad->rfline != NULL) {
+    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : om->rf[tr->k[z]]);
+    ad->rfline[z-z1] = '\0';
+  }
+
+  /* optional cs line */
+  if (ad->csline != NULL) {
+    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : om->cs[tr->k[z]]);
+    ad->csline[z-z1] = '\0';
+  }
+ 
+  if (ad->ppline != NULL) {
+    for (z = z1; z <= z2; z++) 
+       ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
+    ad->ppline[z-z1] = '\0';
+  }
+
+  /* mandatory three alignment display lines: model, mline, aseq */
+  y = 0;
+  exact = 0;
+  for (z = z1; z <= z2; z++) 
+  {
+    k = tr->k[z];
+    i = tr->i[z];
+    s = tr->st[z];
+    c = tr->c[z];
+  
+    switch (s) {
+      case p7T_M:
+        ad->model[z-z1] = om->consensus[k];
+	    ad->codon[y] = c;
+        ad->aseq[z-z1] = toupper(alphaAmino[orfsq->dsq[orf_pos]]);
+          
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[sq->dsq[i-2]]);
+        ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[sq->dsq[i-1]]);
+        ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[sq->dsq[i]]);
+        ad->ntseq [5*(z-z1)+4] = ' ';
+          	   	    
+        if      (orfsq->dsq[orf_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
+          ad->mline[z-z1] = ad->model[z-z1];
+          exact++;
+        }
+        else if (p7_oprofile_FGetEmission(om, k, orfsq->dsq[orf_pos]) > 1.0)               
+          ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+        else                                                  
+         ad->mline[z-z1] = ' ';
+        orf_pos++;
+        break;
+	
+      case p7T_I:
+        ad->codon[y] = 3;
+      	ad->model [z-z1] = '.';
+        ad->aseq[z-z1] = toupper(alphaAmino[orfsq->dsq[orf_pos]]);
+
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[sq->dsq[i-2]]);
+        ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[sq->dsq[i-1]]);
+        ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[sq->dsq[i]]);
+        ad->ntseq [5*(z-z1)+4] = ' ';
+
+        ad->mline [z-z1] = ' ';
+        orf_pos++; 
+        break;
+	
+      case p7T_D:
+        ad->codon[y] = 0;
+	    ad->model [z-z1] = om->consensus[k];
+        ad->mline [z-z1] = ' ';
+        ad->aseq  [z-z1] = '-';
+        ad->ntseq [5*(z-z1)] = ' ';
+        ad->ntseq [5*(z-z1)+1] = '-';
+        ad->ntseq [5*(z-z1)+2] = '-';
+        ad->ntseq [5*(z-z1)+3] = '-';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        break;
+
+      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
+    }
+    y++;
+  }
+ 
+  ad->model [z2-z1+1] = '\0';
+  ad->mline [z2-z1+1] = '\0';
+  ad->aseq  [z2-z1+1] = '\0';
+  ad->ntseq  [5*(z2-z1+1)] = '\0';
+  ad->N = z2-z1+1;
+  ad->pid = ((float)exact/ad->N) * 100;
+ 
+  return ad;
+
+  ERROR:
+    p7_alidisplay_Destroy(ad);
+    return NULL;
+}
+
+/* Function:  p7_alidisplay_splice_Create() - BATH
+ * Synopsis:  Create a spliced alignment display, from trace and oprofile.
+ *
+ * Purpose:   Creates and returns a BATH formated and spliced alignment
+ *            display for domain number <which> in traceback <tr>,
+ *            where the traceback corresponds to an alignment of
+ *            optimized profile <om> to digital sequence <dsq>, and the
+ *            unique name of that target sequence <dsq> is <sqname>.
+ *            The <which> index starts at 0.
+ *
+ *            It will be a little faster if the trace is indexed with
+ *            <p7_trace_Index()> first. The number of domains is then
+ *            in <tr->ndom>. If the caller wants to create alidisplays
+ *            for all of these, it would loop <which> from
+ *            <0..tr->ndom-1>.
+ *
+ *            However, even without an index, the routine will work fine.
+ *
+ * Args:      tr           - traceback
+ *            which        - domain number, 0..tr->ndom-1
+ *            om           - optimized profile (query)
+ *            target_seq   - digital nucleotide sequence (unspliced target)
+ *            amino_sq     - digital amino sequence (translation of spliced nucleotides
+ *            orig_nuc_idx - array of indicies in <target_seq> that correspond to the spliced <tr->i> indicies
+ *            amino_pos    - first position in the alignmant for <amino_sq>
+ *            splice_cnt   - the total number of introns
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <NULL> on allocation failure, or if something's internally corrupt
+ *            in the data.
+ */
+P7_ALIDISPLAY *
+p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt)
+{
+
+  int            z1, z2;
+  int            n, pos;
+  int            x,y,z;
+  int            k,s,p;
+  int64_t        i, prev_i;
+  int            sq_namelen,  sq_acclen,  sq_desclen;
+  int            hmm_namelen, hmm_acclen, hmm_desclen;
+  int            orf_namelen;
+  int            revcomp;
+  int            exact;
+  int            exonN;
+  int            P_A_cnt;
+  char          *alphaAmino;
+  char          *alphaDNA;
+  P7_ALIDISPLAY *ad;
+  int            status;
+
+
+  alphaAmino = om->abc->sym;
+  alphaDNA   = target_seq->abc->sym;
+  /* First figure out which piece of the trace (from first match to last match)
+   * we're going to represent, and how big it is.
+   */
+
+  if (tr->ndom > 0) {       /* if we have an index, this is a little faster: */
+    for (z1 = tr->tfrom[which]; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;  /* find next M state    */
+    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
+    for (z2 = tr->tto[which];   z2 >= 0 ;   z2--) if (tr->st[z2] == p7T_M) break;  /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  } else {          /* without an index, we can still do it fine:    */
+
+    for (z1 = 0; which >= 0 && z1 < tr->N; z1++) if (tr->st[z1] == p7T_B) which--; /* find the right B state */
+    if (z1 == tr->N) return NULL;                                                  /* no such domain <which> */
+    for (; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;                       /* find next M state      */
+    if (z1 == tr->N) return NULL;                                                  /* no M? corrupt trace    */
+    for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;                /* find the next E state  */
+    for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                       /* find prev M state      */
+    if (z2 == -1) return NULL;                                                     /* no M? corrupt trace    */
+  }
+
+  /* Allocate enough space for each M, D, and I trace position plus up to 3 for every exon splicing */
+  n = (z2-z1+2) * 3;                        /* model, mline, aseq mandatory         */
+  n += 5*(z2-z1+1)+1;                       /* nucleotide sequence                  */
+  n += (z2-z1+2);                           /* codon lengths                        */
+  if (om->rf[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (om->mm[0]  != 0)    n += (z2-z1+2);   /* optional reference line              */
+  if (om->cs[0]  != 0)    n += (z2-z1+2);   /* optional structure line              */
+  if (tr->pp     != NULL) n += (z2-z1+2);   /* optional posterior prob line         */
+  hmm_namelen = strlen(om->name);                           n += hmm_namelen + 1;
+  hmm_acclen  = (om->acc  != NULL ? strlen(om->acc)  : 0);  n += hmm_acclen  + 1;
+  hmm_desclen = (om->desc != NULL ? strlen(om->desc) : 0);  n += hmm_desclen + 1;
+  sq_namelen  = strlen(target_seq->name);                   n += sq_namelen  + 1;
+  sq_acclen   = strlen(target_seq->acc);                    n += sq_acclen   + 1; /* sq->acc is "\0" when unset */
+  sq_desclen  = strlen(target_seq->desc);                   n += sq_desclen  + 1; /* same for desc              */
+  orf_namelen = strlen(target_seq->orfid);                  n += orf_namelen + 1; /* same for orfid             */
+
+  ad = NULL;
+  ESL_ALLOC(ad, sizeof(P7_ALIDISPLAY));
+  ad->mem = NULL;
+
+  pos = 0;
+  ad->memsize = sizeof(char) * n;
+  ESL_ALLOC(ad->mem, ad->memsize);
+
+  if (om->rf[0]  != 0) { ad->rfline = ad->mem + pos; pos += z2-z1+2; } else { ad->rfline = NULL; }
+  ad->mmline = NULL;
+  if (om->cs[0]  != 0) { ad->csline = ad->mem + pos; pos += z2-z1+2; } else { ad->csline = NULL; }
+  ad->model   = ad->mem + pos;  pos += z2-z1+2;
+  ad->mline   = ad->mem + pos;  pos += z2-z1+2;
+  ad->aseq    = ad->mem + pos;  pos += z2-z1+2;
+  ad->codon   = ad->mem + pos;  pos += z2-z1+2;
+  ad->ntseq  = ad->mem + pos;  pos += 5*(z2-z1+1)+1; /* for the nucleotide sequence there will be 5 times as many bytes */
+  if (tr->pp != NULL)  { ad->ppline = ad->mem + pos;  pos += z2-z1+2;} else { ad->ppline = NULL; }
+  ad->hmmname = ad->mem + pos;  pos += hmm_namelen +1;
+  ad->hmmacc  = ad->mem + pos;  pos += hmm_acclen +1;
+  ad->hmmdesc = ad->mem + pos;  pos += hmm_desclen +1;
+  ad->sqname  = ad->mem + pos;  pos += sq_namelen +1;
+  ad->sqacc   = ad->mem + pos;  pos += sq_acclen +1;
+  ad->sqdesc  = ad->mem + pos;  pos += sq_desclen +1;
+  ad->orfname = ad->mem + pos;  pos += orf_namelen +1;
+
+  strcpy(ad->hmmname, om->name);
+  if (om->acc  != NULL) strcpy(ad->hmmacc,  om->acc);  else ad->hmmacc[0]  = 0;
+  if (om->desc != NULL) strcpy(ad->hmmdesc, om->desc); else ad->hmmdesc[0] = 0;
+
+  strcpy(ad->sqname,  target_seq->name);
+  strcpy(ad->sqacc,   target_seq->acc);
+  strcpy(ad->sqdesc,  target_seq->desc);
+  strcpy(ad->orfname, target_seq->orfid);
+
+  ad->pid = 0.0;
+
+  ESL_ALLOC(ad->exon_seq_starts, sizeof(int64_t) * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_hmm_starts, sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_score,      sizeof(float)   * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_pp,         sizeof(float)   * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_lnP,        sizeof(double)  * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1)); 
+  ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
+  
+ 
+  /* Determine hit coords */
+  ad->hmmfrom     = tr->k[z1];
+  ad->hmmto       = tr->k[z2];
+  ad->M           = om->M;
+  ad->frameshifts = 0;
+  ad->stops       = 0;
+  ad->exon_cnt    = 1;
+
+  revcomp = 1;
+  if(target_seq->start < target_seq->end)
+    revcomp = 0;
+
+  if(revcomp) {
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];
+    ad->exon_seq_starts[0]        = target_seq->n - ad->sqfrom + target_seq->end;
+  } else {
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];
+    ad->exon_seq_starts[0] =        ad->sqfrom + target_seq->start - 1;
+  }
+  
+  ad->exon_hmm_starts[0] = ad->hmmfrom;
+  ad->exon_pid[0]        = 0.;
+
+  /* Use orf coords to keep track of the sequence amino acid alignment length */
+  ad->orffrom = 1;
+  ad->orfto   = 0;
+
+  ad->L       = target_seq->L;
+  
+  /* optional rf line */
+  if (ad->rfline != NULL) {
+    for (z = z1; z <= z2; z++) {
+      if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->rfline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->rfline[z-z1] = ' ';
+      else                                                ad->rfline[z-z1] = om->rf[tr->k[z]];
+    }
+    ad->rfline[z-z1] = '\0';
+  }
+  /* optional mm line */
+  if (ad->mmline != NULL) {
+    for (z = z1; z <= z2; z++) {
+      if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->mmline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->mmline[z-z1] = ' ';
+      else                                                ad->mmline[z-z1] = om->mm[tr->k[z]];  
+    }
+    ad->mmline[z-z1] = '\0';
+  }
+
+  /* optional cs line */
+  if (ad->csline != NULL) {
+    for (z = z1; z <= z2; z++) {
+      if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->csline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->csline[z-z1] = ' ';
+      else                                                ad->csline[z-z1] = om->mm[tr->k[z]];
+    }
+    ad->csline[z-z1] = '\0';
+  }
+ 
+  if (ad->ppline != NULL) {
+    for (z = z1; z <= z2; z++) { 
+      if      (tr->st[z] == p7T_D)                        ad->ppline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->ppline[z-z1] = ' ';
+      else                                                ad->ppline[z-z1] = p7_alidisplay_EncodePostProb(tr->pp[z]);       
+    }      
+    ad->ppline[z-z1] = '\0';
+  }
+
+  /* There are three ways that the splice signals can apprear in our aligment        */
+  /* xx is the doner splice signal and yy is the acceptor splice signal              */
+  /* A,B, and C are the nucleotides of the codon surrounding the splice signals      */
+  /* $ is used to let p7_alidisplay_Print() know how to display the splice signals  */
+  /*                 p7T_R       p7T_P      p7T_A                  */
+  /* p7S_xxyyABC               "xx$yy"    " ABC "                  */
+  /* p7S_AxxyyBC    " A   "    "xx$yy"    "  BC "                  */
+  /* p7S_ABxxyyC    " AB  "    "xx$yy"    "   C "                  */
+
+  /* mandatory three alignment display lines: model, mline, aseq */
+  exact = 0;
+  exonN = 0;
+  x = y = 0;
+  P_A_cnt = 0;
+  for (z = z1; z <= z2; z++)
+  {
+    k = tr->k[z];
+    i = tr->i[z];
+    s = tr->st[z];
+    p = tr->sp[z];
+    switch (s) {
+      case p7T_M:
+        exonN++;
+        ad->orfto++;
+        ad->codon[y] = 3;
+        ad->model[z-z1] = om->consensus[k];
+        ad->aseq[z-z1]  = toupper(alphaAmino[amino_sq->dsq[amino_pos]]);
+        if      (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
+          ad->mline[z-z1] = ad->model[z-z1];
+          ad->exon_pid[x] += 1.;
+          exact++;
+        }
+        else if (p7_oprofile_FGetEmission(om, k, amino_sq->dsq[amino_pos]) > 1.0)
+          ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+        else
+          ad->mline[z-z1] = ' ';
+        amino_pos++;
+
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[i-2]]);
+        ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
+        ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        prev_i = i;
+        break;
+
+      case p7T_I:
+        exonN++;
+        ad->orfto++;
+        ad->codon[y] = 3;
+        ad->model [z-z1] = '.';
+        ad->aseq[z-z1] = tolower(alphaAmino[amino_sq->dsq[amino_pos]]);
+        ad->mline [z-z1] = ' ';
+        amino_pos++;
+
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = toupper(alphaDNA[target_seq->dsq[i-2]]);
+        ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[target_seq->dsq[i-1]]);
+        ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[target_seq->dsq[i]]);
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        prev_i = i;
+        break;
+
+      case p7T_D:
+        exonN++;
+        ad->codon[y] = 0;
+        ad->model [z-z1] = om->consensus[k];
+        ad->mline [z-z1] = ' ';
+        ad->aseq  [z-z1] = '-';
+
+        ad->ntseq [5*(z-z1)] = ' ';
+        ad->ntseq [5*(z-z1)+1] = '-';
+        ad->ntseq [5*(z-z1)+2] = '-';
+        ad->ntseq [5*(z-z1)+3] = '-';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        break;
+
+      case p7T_R:
+        exonN++;
+        ad->orfto++;
+        ad->model [z-z1] = om->consensus[k];
+        if (amino_sq->dsq[amino_pos] == esl_abc_DigitizeSymbol(om->abc, om->consensus[k])) {
+          ad->mline[z-z1] = ad->model[z-z1];
+          ad->exon_pid[x] += 1.;
+          exact++;
+        }
+        else if (p7_oprofile_FGetEmission(om, k, amino_sq->dsq[amino_pos]) > 1.0)
+          ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+        else
+          ad->mline[z-z1] = ' '; 
+        ad->aseq[z-z1]  = alphaAmino[amino_sq->dsq[amino_pos]];  
+
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = alphaDNA[target_seq->dsq[prev_i+1]];
+        if (p == p7S_AxxyyBC) {
+          ad->ntseq [5*(z-z1)+2] = ' ';
+          ad->codon [z-z1] = 1;
+        }
+        else if(p == p7S_ABxxyyC) {
+          ad->ntseq [5*(z-z1)+2] = alphaDNA[target_seq->dsq[prev_i+2]];  
+          ad->codon [z-z1] = 2;
+        }
+        ad->ntseq [5*(z-z1)+3] = ' ';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        amino_pos++; 
+        break;       
+      case p7T_RI:
+        exonN++;
+        ad->model [z-z1] = '.';
+        ad->mline[z-z1]  = ' ';
+        ad->aseq[z-z1]   = tolower(alphaAmino[amino_sq->dsq[amino_pos]]);       
+
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = alphaDNA[target_seq->dsq[prev_i+1]];
+        if (p == p7S_AxxyyBC) {
+          ad->ntseq [5*(z-z1)+2] = ' ';
+          ad->codon [z-z1] = 1;
+        }
+        else if(p == p7S_ABxxyyC) {
+          ad->ntseq [5*(z-z1)+2] = alphaDNA[target_seq->dsq[prev_i+2]];
+          ad->codon [z-z1] = 2;
+        }
+        ad->ntseq [5*(z-z1)+3] = ' ';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+        amino_pos++;
+        break;
+       case p7T_P:
+        P_A_cnt++;
+        ad->model [z-z1] = ' ';
+        ad->mline [z-z1] = ' ';
+        ad->aseq  [z-z1] = ' ';
+
+        ad->codon[y] = 4;
+        if(p == p7S_xxyyABC) {
+
+          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+1]]);
+          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+2]]);
+          ad->ntseq [5*(z-z1)+2] = '$';
+          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-4]]);
+          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-3]]);
+
+          if(revcomp){
+            ad->exon_seq_ends[x]     = target_seq->n - prev_i + target_seq->end;
+            ad->exon_seq_starts[x+1] = target_seq->n-(i-2)+target_seq->end;
+          }
+          else {
+            ad->exon_seq_ends[x]     = prev_i + target_seq->start - 1;
+            ad->exon_seq_starts[x+1] = (i-2) + target_seq->start - 1;
+          }
+        }
+        else if (p == p7S_AxxyyBC) {
+          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+2]]);
+          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+3]]);
+          ad->ntseq [5*(z-z1)+2] = '$';
+          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-3]]);
+          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-2]]);
+
+          if(revcomp){
+            ad->exon_seq_ends[x]     = target_seq->n - (prev_i+1) + target_seq->end;
+            ad->exon_seq_starts[x+1] = target_seq->n-(i-1)+target_seq->end;
+          }
+          else {
+            ad->exon_seq_ends[x]     = (prev_i+1) + target_seq->start - 1;
+            ad->exon_seq_starts[x+1] = (i-1) + target_seq->start - 1;
+          }
+        }
+        else if (p == p7S_ABxxyyC) {
+          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+3]]);
+          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+4]]);
+          ad->ntseq [5*(z-z1)+2] = '$';
+          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-2]]);
+          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-1]]);
+     
+          if(revcomp){
+            ad->exon_seq_ends[x]     = target_seq->n - (prev_i+2) + target_seq->end;
+            ad->exon_seq_starts[x+1] = target_seq->n- i +target_seq->end;
+          }
+          else {
+            ad->exon_seq_ends[x]     = (prev_i+2) + target_seq->start - 1;
+            ad->exon_seq_starts[x+1] = i + target_seq->start - 1;
+          } 
+        }
+
+        /* End of exon bookkeeping */
+        ad->exon_hmm_ends[x] = k;
+        ad->exon_hmm_starts[x+1] = k+1;
+        ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100;
+        exonN = 0;
+        x++;
+        ad->exon_pid[x]        = 0.;
+        ad->exon_cnt++;
+        prev_i = i;
+        break;
+      case p7T_A:
+        P_A_cnt++;
+        ad->model[z-z1] = ' ';
+      
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = ' ';
+        if (p == p7S_AxxyyBC) {
+          ad->ntseq [5*(z-z1)+2] = alphaDNA[target_seq->dsq[i-1]];
+          ad->codon [z-z1] = 2;
+        }
+        else if (p == p7S_ABxxyyC) {
+          ad->ntseq [5*(z-z1)+2] = ' ';
+          ad->codon [z-z1] = 1;
+        }
+        ad->ntseq [5*(z-z1)+3] = alphaDNA[target_seq->dsq[i]];
+        ad->ntseq [5*(z-z1)+4] = ' ';
+
+        ad->mline[z-z1] = ' ';
+        ad->aseq[z-z1]  = ' ';
+        break;
+
+      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
+    }
+    y++;
+  }
+
+  ad->exon_hmm_ends[x] = k;
+  if(revcomp)
+    ad->exon_seq_ends[x] = target_seq->n - i + target_seq->end;
+  else
+    ad->exon_seq_ends[x] = i + target_seq->start - 1;
+
+  ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100; 
+ 
+  ad->model [z2-z1+1] = '\0';
+  ad->mline [z2-z1+1] = '\0';
+  ad->aseq  [z2-z1+1] = '\0';
+  ad->ntseq [5*(z2-z1+1)] = '\0';
+  ad->N = z2-z1+1;
+  ad->pid = ((float)exact/(ad->N-P_A_cnt)) * 100;  
+
+  return ad;
+
+  ERROR:
+    p7_alidisplay_Destroy(ad);
+    return NULL;
+}
+
+
+
+/* Function:  p7_alidisplay_splice_fs_Create() - `BATH
+ * Synopsis:  Create a spliced alignment display, from trace and fs_profile.
+ *
+ * Purpose:   Creates and returns an BATH formated spliced alignment display 
+ *            for domain number <which> in traceback <tr> from the fs 
+ *            pipeline, where the traceback corresponds to an alignment 
+ *            of optimized profile <om> to digital sequence <dsq>, and 
+ *            the unique name of that target sequence <dsq> is <sqname>. 
+ *            The <which> index starts at 0.
+ *            
+ *            It will be a little faster if the trace is indexed with
+ *            <p7_trace_Index()> first. The number of domains is then
+ *            in <tr->ndom>. If the caller wants to create alidisplays
+ *            for all of these, it would loop <which> from
+ *            <0..tr->ndom-1>.
+ *           
+ *            However, even without an index, the routine will work fine.
+ *
+ * Args:      tr       - traceback
+ *            which    - domain number, 0..tr->ndom-1
+ *            gm_fs    - frameshift codon profile (query)
+ *            sq       - digital nucleotide sequence (target)
+ *            gcode    - genetic code for tranlsation codons 
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <NULL> on allocation failure, or if something's internally corrupt 
+ *            in the data.
+ */
+P7_ALIDISPLAY *
+p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt)
 {
 
   P7_ALIDISPLAY *ad       = NULL;
   char          *alphaAmino = gm_fs5->abc->sym;
   char          *alphaDNA = sq->abc->sym;
-  int            n, pos, z, y;
+  int            n, pos;
   int            z1, z2;
-  int            k,i,s,c;
+  int            k,s,c,p;
+  int            x, y, z;
+  int            revcomp;
+  int            exonN;
   int            indel, aa;
   int            codon_idx;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            orf_namelen; /* used for translated search only */
+  int            exact; 
+  int            P_A_cnt;
   int            status;
-  char           n1,n2,n3,n4,n5;
+  int            n1,n2,n3,n4,n5;
+  char           c1,c2,c3,c4,c5;
 
   if (gm_fs5->codon_lengths != 5)  ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
 
@@ -458,304 +1656,234 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   strcpy(ad->sqdesc,  sq->desc);
   strcpy(ad->orfname,  sq->orfid);
 
+  ad->pid = 0.0;
+
+  /* Used for splice alignments only */
+  ESL_ALLOC(ad->exon_seq_starts, sizeof(int64_t) * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_hmm_starts, sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_score,      sizeof(float)   * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_pp,         sizeof(float)   * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_lnP,        sizeof(double)  * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
+    
   /* Determine hit coords */
-  ad->hmmfrom = tr->k[z1];
-  ad->hmmto   = tr->k[z2];
-  ad->M       = gm_fs5->M;
+  ad->hmmfrom    = tr->k[z1];
+  ad->hmmto      = tr->k[z2];
+  tr->hmmfrom[0] = tr->k[z1];
+  tr->hmmto[0]   = tr->k[z2];
+  ad->M          = gm_fs5->M;
+
   ad->frameshifts = 0; 
-  ad->stops = 0;
-  if(sq->start < sq->end) {
-    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
-    ad->sqto    = tr->i[z2];		 
+  ad->stops       = 0;
+  ad->exon_cnt    = 1;
+
+  revcomp = 1;
+  if(sq->start < sq->end)
+    revcomp = 0;
+
+  if(revcomp) {
+    ad->sqfrom  = tr->i[z1]- (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];
+    ad->exon_seq_starts[0] = sq->n - ad->sqfrom + sq->end;
   } else {
-    ad->sqto    = tr->i[z1];
-    ad->sqfrom  = tr->i[z2];	
-  }	 
-  ad->L       = sq->n;
+    ad->sqfrom  = tr->i[z1] - (tr->c[z1] - 1);
+    ad->sqto    = tr->i[z2];
+    ad->exon_seq_starts[0]  = ad->sqfrom + sq->start - 1;
+  }
+
+  ad->exon_hmm_starts[0] = ad->hmmfrom;
+  ad->exon_pid[0]        = 0.;
+	 
+  ad->L       = sq->L;
   
   /* optional rf line */
   if (ad->rfline != NULL) {
-    for (z = z1; z <= z2; z++) ad->rfline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs5->rf[tr->k[z]]);
+    for (z = z1; z <= z2; z++) {
+      if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->rfline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->rfline[z-z1] = ' ';
+      else                                                ad->rfline[z-z1] = gm_fs5->rf[tr->k[z]];
+    }
+
     ad->rfline[z-z1] = '\0';
   }
   /* optional mm line */
   if (ad->mmline != NULL) {
-    for (z = z1; z <= z2; z++) ad->mmline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs5->mm[tr->k[z]]);
+    for (z = z1; z <= z2; z++) {
+      if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->mmline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->mmline[z-z1] = ' ';
+      else                                                ad->mmline[z-z1] = gm_fs5->mm[tr->k[z]];  
+    }
+
     ad->mmline[z-z1] = '\0';
   }
 
   /* optional cs line */
   if (ad->csline != NULL) {
-    for (z = z1; z <= z2; z++) ad->csline[z-z1] = ((tr->st[z] == p7T_I) ? '.' : gm_fs5->cs[tr->k[z]]);
+    for (z = z1; z <= z2; z++) {
+      if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->csline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->csline[z-z1] = ' ';
+      else                                                ad->csline[z-z1] = gm_fs5->mm[tr->k[z]];
+    }
     ad->csline[z-z1] = '\0';
   }
  
   if (ad->ppline != NULL) {
-    for (z = z1; z <= z2; z++) ad->ppline[z-z1] = ( (tr->st[z] == p7T_D) ? '.' : p7_alidisplay_EncodePostProb(tr->pp[z]));
-    
-	    ad->ppline[z-z1] = '\0';
+    for (z = z1; z <= z2; z++) { 
+      if      (tr->st[z] == p7T_D)                        ad->ppline[z-z1] = '.';
+      else if (tr->st[z] == p7T_A)                        ad->ppline[z-z1] = ' ';
+      else                                                ad->ppline[z-z1] = p7_alidisplay_EncodePostProb(tr->pp[z]);       
+    }      
+    ad->ppline[z-z1] = '\0';
   }
 
+  /* There are five ways that the splice signals can apprear in our aligment         */
+  /* xx is the doner splice signal and yy is the acceptor splice signal               */
+  /* A,B,C,D and E are the nucleotides of the codon surrounding the splice signals    */
+  /* lower case letter signify instertions and '-' indcates deletion                  */
+  /* N represents the nucleotides present in the last state beofre the splice signal  */
+  /* $ is used to let p7_alidisplay_Print() know how to display the splice signals    */
+  /*                                                CODON 1                                     */
+  /*                 p7T_R                          p7T_P      p7T_A                            */
+  /* p7S_xxyyABC                                   "xx$yy"                                      */
+  /*                                                CODON 2                                     */
+  /*                 p7T_R                          p7T_P      p7T_A                            */
+  /* p7S_xxyyABC                                    "xx$yy"                                     */
+  /* p7S_AxxyyBC    " A   "                         "xx$yy"    "  B- " or "  -B "               */
+  /*                                                CODON 3                                     */
+  /*                 p7T_R                          p7T_P      p7T_A                            */
+  /* p7S_xxyyABC                                    "xx$yy"                                     */
+  /* p7S_AxxyyBC    " A   "                         "xx$yy"    "  BC "                           */
+  /* p7S_ABxxyyC    " AB  "                         "xx$yy"    "   C "                           */
+  /*                                                CODON 4                                      */
+  /*                 p7T_R                          p7T_P      p7T_A                            */
+  /* p7S_xxyyABC                                    "xx$yy"                                     */
+  /* p7S_AxxyyBC    " A   " or "A    " or "a    "   "xx$yy"    " BcD " or " bCD" or " BCD "     */
+  /* p7S_ABxxyyC    " AB  " or "Ab   " or "aB   "   "xx$yy"    "   cD"  or "  CD "               */
+  /* p7S_ABCxxyyD   " ABc " or "AbC  " or "aBC  "   "xx$yy"    "    D"                           */
+  /*                                                CODON 5                                       */
+  /*                 p7T_R                          p7T_P      p7T_A                            */
+  /* p7S_xxyyABC                                    "xx$yy"                                      */
+  /* p7S_AxxyyBC    "A    " or "a    "              "xx$yy"    " BcdE" or " bcDE" or " bCDE"     */
+  /* p7S_ABxxyyC    "AB   " or "Ab   " or "ab   "   "xx$yy"    "  cdE" or "  cDE" or "  CDE"      */
+  /* p7S_ABCxxyyD   "ABc  " or "Abc  " or "abC  "   "xx$yy"    "   dE" or "   DE"                 */
+  /* p7S_ABCDxxyyE  "ABcd " or "AbcD " or "abCD "   "xx$yy"    "    E"                            */
+
   /* mandatory three alignment display lines: model, mline, aseq */
-  y = 0;
+  exact = 0;
+  exonN = 0;
+  x = y = 0;
+  P_A_cnt = 0;
   for (z = z1; z <= z2; z++) 
-    {
-      k = tr->k[z];
-      i = tr->i[z];
-      s = tr->st[z];
-      c = tr->c[z];
-  
-      switch (s) {
+  {
+    k = tr->k[z];
+    s = tr->st[z];
+    c = tr->c[z];
+    p = tr->sp[z];
+    switch (s) {
       case p7T_M:
-        ad->model[z-z1] = gm_fs5->consensus[k];
-	ad->codon[y] = c;
+        exonN++;                                    
+        ad->model[z-z1] = gm_fs5->consensus[k];      
+	    ad->codon[y] = c;
 
-	if(c == 1) {
-          ad->frameshifts++;           
-
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))  
-            codon_idx = p7P_CODON1_FS5(sq->dsq[i]);  
-          else 
-            codon_idx = p7P_DEGEN5_QC2;
- 
-          aa = p7P_AMINO(gm_fs5, k, codon_idx);
-          indel = p7P_INDEL(gm_fs5, k, codon_idx); 
-
-          if(indel == p7P_X__) {
-            n1 = ' ';
-            n2 = alphaDNA[sq->dsq[i]];
-            n3 = '-';
-            n4 = '-';
-            n5 = ' ';
-          }
-          else if(indel == p7P___X) { 
-            n1 = ' ';
-            n2 = '-';
-            n3 = '-';
-            n4 = alphaDNA[sq->dsq[i]];
-            n5 = ' ';
-          }
-          else if(indel == p7P_xxx) {
-            n1 = ' ';
-            n2 = '-';
-            n3 = tolower(alphaDNA[sq->dsq[i]]);
-            n4 = '-';
-            n5 = ' ';
-          }
-	}
-	else if(c == 2) {
-          ad->frameshifts++;
-       
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
-            codon_idx = p7P_CODON2_FS5(sq->dsq[i-1], sq->dsq[i]);
-          else
-            codon_idx = p7P_DEGEN5_QC1;
-
-
-          aa = p7P_AMINO(gm_fs5, k, codon_idx);
-          indel = p7P_INDEL(gm_fs5, k, codon_idx);
-
-          if(indel == p7P_XX_) {
-            n1 = ' ';
-            n2 = alphaDNA[sq->dsq[i-1]];
-            n3 = alphaDNA[sq->dsq[i]];
-            n4 = '-';
-            n5 = ' ';
-          }
-          else if(indel == p7P__XX) {
-            n1 = ' ';
-            n2 = '-';
-            n3 = alphaDNA[sq->dsq[i-1]];
-            n4 = alphaDNA[sq->dsq[i]];
-            n5 = ' ';
-          }
-          else if(indel == p7P_X_X) {
-            n1 = ' ';
-            n2 = alphaDNA[sq->dsq[i-1]];
-            n3 = '-';
-            n4 = alphaDNA[sq->dsq[i]];
-            n5 = ' ';
-          }
-          else if(indel == p7P_xxx) {
-            n1 = ' ';
-            n2 = tolower(alphaDNA[sq->dsq[i-1]]);
-            n3 = tolower(alphaDNA[sq->dsq[i]]);
-            n4 = '-';
-            n5 = ' ';
-          }
-    
-	 }
-	 else if(c == 3) {
-
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i])) 
-            codon_idx = p7P_CODON3_FS5(sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
-          else  
-            codon_idx    = p7P_DEGEN5_C;
-             	   
-          aa = p7P_AMINO(gm_fs5, k, codon_idx);		
-          indel = p7P_INDEL(gm_fs5, k, codon_idx);
-          
-          if(indel == p7P_XXX) 
-          {
-            n1 = ' ';
-            n2 = alphaDNA[sq->dsq[i-2]];
-            n3 = alphaDNA[sq->dsq[i-1]];
-            n4 = alphaDNA[sq->dsq[i]];
-            n5 = ' ';
-          }
-          else if(indel == p7P_xXX) {
-            ad->stops++;
-            ad->codon[y] = 6;
-            n1 = ' ';
-            n2 = tolower(alphaDNA[sq->dsq[i-2]]);
-            n3 = alphaDNA[sq->dsq[i-1]];
-            n4 = alphaDNA[sq->dsq[i]];
-            n5 = ' ';
-          }
-          else if(indel == p7P_XxX) {
-            ad->stops++;
-            ad->codon[y] = 6;
-            n1 = ' ';
-            n2 = alphaDNA[sq->dsq[i-2]];
-            n3 = tolower(alphaDNA[sq->dsq[i-1]]);
-            n4 = alphaDNA[sq->dsq[i]];
-            n5 = ' ';
-          }
-          else if(indel == p7P_XXx) {
-            ad->stops++;
-            ad->codon[y] = 6;
-            n1 = ' ';
-            n2 = alphaDNA[sq->dsq[i-2]];
-            n3 = alphaDNA[sq->dsq[i-1]];
-            n4 = tolower(alphaDNA[sq->dsq[i]]);
-            n5 = ' ';
-          }
-          else if(indel == p7P_xxx) {
-	    n1 = ' ';
-	    n2 = tolower(alphaDNA[sq->dsq[i-2]]);
-            n3 = tolower(alphaDNA[sq->dsq[i-1]]);
-	    n4 = tolower(alphaDNA[sq->dsq[i]]);
-            n5 = ' ';
-          }
+  	    if(c == 3) {
+          n1 = sq->dsq[nuc_index[nuc_pos]];
+          n2 = sq->dsq[nuc_index[nuc_pos+1]];
+          n3 = sq->dsq[nuc_index[nuc_pos+2]];
+          n4 = -1;
+          n5 = -1;
         }
-	else if(c == 4) {
-	  ad->frameshifts++;
-    
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
-            codon_idx = p7P_CODON4_FS5(sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
-          else
-            codon_idx = p7P_DEGEN5_QC1;
-         
-          aa = p7P_AMINO(gm_fs5, k, codon_idx);
-          indel = p7P_INDEL(gm_fs5, k, codon_idx);         
-
-          if(indel == p7P_xXXX) { 
-                n1 = tolower(alphaDNA[sq->dsq[i-3]]);
-                n2 = alphaDNA[sq->dsq[i-2]];
-                n3 = alphaDNA[sq->dsq[i-1]];
-                n4 = alphaDNA[sq->dsq[i]];
-                n5 = ' ';
-          }
-	  else if(indel == p7P_XXxX) {
-                n1 = ' ';
-                n2 = alphaDNA[sq->dsq[i-3]];
-                n3 = alphaDNA[sq->dsq[i-2]];
-                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
-                n5 = alphaDNA[sq->dsq[i]];
-          }
-          else if(indel == p7P_XxXX) {
-                n1 = alphaDNA[sq->dsq[i-3]];
-                n2 = tolower(alphaDNA[sq->dsq[i-2]]);
-                n3 = alphaDNA[sq->dsq[i-1]];
-                n4 = alphaDNA[sq->dsq[i]];
-                n5 = ' ';
-          }
-          else if(indel == p7P_xxx) {
-            n1 = tolower(alphaDNA[sq->dsq[i-3]]);
-            n2 = tolower(alphaDNA[sq->dsq[i-2]]);
-            n3 = tolower(alphaDNA[sq->dsq[i-1]]);
-            n4 = tolower(alphaDNA[sq->dsq[i]]);
-            n5 = ' ';
-          }
-
-        }	
-        else if(c == 5) {
-	  ad->frameshifts++;
-         
-          if(esl_abc_XIsCanonical(sq->abc, sq->dsq[i-4]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-3]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-2]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i-1]) && esl_abc_XIsCanonical(sq->abc, sq->dsq[i]))
-            codon_idx = p7P_CODON5_FS5(sq->dsq[i-4], sq->dsq[i-3], sq->dsq[i-2], sq->dsq[i-1], sq->dsq[i]);  
-          else
-            codon_idx = p7P_DEGEN5_QC2;     
-
-          aa = p7P_AMINO(gm_fs5, k, codon_idx);
-          indel = p7P_INDEL(gm_fs5, k, codon_idx);
-	
-	  if(indel == p7P_xxXXX) {
-                n1 = tolower(alphaDNA[sq->dsq[i-4]]);
-                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
-                n3 = alphaDNA[sq->dsq[i-2]];
-                n4 = alphaDNA[sq->dsq[i-1]];
-                n5 = alphaDNA[sq->dsq[i]];
-          }
-	  else if(indel == p7P_XXxxX) {
-                n1 = alphaDNA[sq->dsq[i-4]];
-                n2 = alphaDNA[sq->dsq[i-3]];
-                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
-                n4 = tolower(alphaDNA[sq->dsq[i-1]]);
-                n5 = alphaDNA[sq->dsq[i]];
-          }
-	  else if(indel == p7P_XxxXX) {
-                n1 = alphaDNA[sq->dsq[i-4]];
-                n2 = tolower(alphaDNA[sq->dsq[i-3]]);
-                n3 = tolower(alphaDNA[sq->dsq[i-2]]);
-                n4 = alphaDNA[sq->dsq[i-1]];
-                n5 = alphaDNA[sq->dsq[i]];
-          }
-          else if(indel == p7P_xxx) {
-            n1 = tolower(alphaDNA[sq->dsq[i-4]]);
-            n2 = tolower(alphaDNA[sq->dsq[i-3]]);
-            n3 = tolower(alphaDNA[sq->dsq[i-2]]);
-            n4 = tolower(alphaDNA[sq->dsq[i-1]]);
-            n5 = tolower(alphaDNA[sq->dsq[i]]);
-          }
+	    else if(c == 1) {
+          n1 = sq->dsq[nuc_index[nuc_pos]];
+          n2 = -1; 
+          n3 = -1;
+          n4 = -1;
+          n5 = -1;
+        }
+	    else if(c == 2) {
+          n1 = sq->dsq[nuc_index[nuc_pos]];
+          n2 = sq->dsq[nuc_index[nuc_pos+1]];
+          n3 = -1;
+          n4 = -1;
+          n5 = -1;
+   	    }
+	    else if(c == 4) {
+          n1 = sq->dsq[nuc_index[nuc_pos]];
+          n2 = sq->dsq[nuc_index[nuc_pos+1]];
+          n3 = sq->dsq[nuc_index[nuc_pos+2]];
+          n4 = sq->dsq[nuc_index[nuc_pos+3]];      
+          n5 = -1;    
        	}	
+        else if (c == 5) {
+          n1 = sq->dsq[nuc_index[nuc_pos]];
+          n2 = sq->dsq[nuc_index[nuc_pos+1]];
+          n3 = sq->dsq[nuc_index[nuc_pos+2]];
+          n4 = sq->dsq[nuc_index[nuc_pos+3]];
+          n5 = sq->dsq[nuc_index[nuc_pos+4]];
+        }
+       
+        get_codon_index(sq->abc, c, n1, n2, n3, n4, n5, &codon_idx); 
+        aa = p7P_AMINO(gm_fs5, k, codon_idx);
+        indel = p7P_INDEL(gm_fs5, k, codon_idx);
 
-	if      (aa == esl_abc_DigitizeSymbol(gm_fs5->abc, gm_fs5->consensus[k])) ad->mline[z-z1] = ad->model[z-z1];
-        else if (expf(p7P_MSC_AMINO5(gm_fs5, k, aa)) > 1.0)               ad->mline[z-z1] = '+'; /* >1 not >0; om has odds ratios, not scores */
+        ad->ntseq [5*(z-z1)]   = nuc_one(c, indel, n1, alphaDNA);
+        ad->ntseq [5*(z-z1)+1] = nuc_two(c, indel, n1, n2, alphaDNA);
+        ad->ntseq [5*(z-z1)+2] = nuc_three(c, indel, n1, n2, n3, alphaDNA);
+        ad->ntseq [5*(z-z1)+3] = nuc_four(c, indel, n1, n2, n3, n4, alphaDNA);
+        ad->ntseq [5*(z-z1)+4] = nuc_five(c, indel, n5, alphaDNA);	
+
+	    if      (aa == esl_abc_DigitizeSymbol(gm_fs5->abc, gm_fs5->consensus[k])) { 
+           ad->mline[z-z1] = ad->model[z-z1]; 
+           ad->exon_pid[x] += 1.;
+           exact++; 
+        }
+        /* >1 not >0; om has odds ratios, not scores */
+        else if (expf(p7P_MSC_AMINO5(gm_fs5, k, aa)) > 1.0)                       ad->mline[z-z1] = '+';
         else                                                  ad->mline[z-z1] = ' ';
 
         ad->aseq[z-z1] = toupper(alphaAmino[aa]);
-        ad->ntseq [5*(z-z1)] = n1;
-        ad->ntseq [5*(z-z1)+1] = n2;
-        ad->ntseq [5*(z-z1)+2] = n3;
-	ad->ntseq [5*(z-z1)+3] = n4;
-        ad->ntseq [5*(z-z1)+4] = n5;
+        nuc_pos += c;
+
+        if(c != 3) ad->frameshifts++;
+        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6; // 6 used for stop codons
+          ad->stops++;
+        }
         break;
 	
       case p7T_I:
+        exonN++;
         ad->codon[y] = 3;
       	ad->model [z-z1] = '.';
         ad->mline [z-z1] = ' ';
-        ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
-        n1 = ' ';
-        n2 = alphaDNA[sq->dsq[i-2]];	
-	n3 = alphaDNA[sq->dsq[i-1]];	
-        n4 = alphaDNA[sq->dsq[i]];	
-        n5 = ' ';
-
-        aa = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
+       
+        get_codon_index(sq->abc, 3, sq->dsq[nuc_index[nuc_pos]], sq->dsq[nuc_index[nuc_pos+1]], sq->dsq[nuc_index[nuc_pos+2]], -1, -1, &codon_idx);
+        indel = p7P_INDEL(gm_fs5, k, codon_idx);
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
+ 
+        aa = esl_gencode_GetTranslation(gcode, &nuc_dsq[nuc_pos]);
         
-	ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
+	    ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
         ad->ntseq [5*(z-z1)] = ' ';
-        ad->ntseq [5*(z-z1)+1] = toupper(n2);
-        ad->ntseq [5*(z-z1)+2] = toupper(n3);
-        ad->ntseq [5*(z-z1)+3] = toupper(n4);
+        ad->ntseq [5*(z-z1)+1] = alphaDNA[sq->dsq[nuc_index[nuc_pos]]];
+        ad->ntseq [5*(z-z1)+2] = toupper(alphaDNA[sq->dsq[nuc_index[nuc_pos+1]]]);
+        ad->ntseq [5*(z-z1)+3] = toupper(alphaDNA[sq->dsq[nuc_index[nuc_pos+2]]]);
         ad->ntseq [5*(z-z1)+4] = ' ';
+
+        nuc_pos += 3;
         break;
 	
       case p7T_D:
+        exonN++;
         ad->codon[y] = 0;
-	ad->model [z-z1] = gm_fs5->consensus[k];
+
+	    ad->model [z-z1] = gm_fs5->consensus[k];
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = '-';
         ad->ntseq [5*(z-z1)] = ' ';
@@ -765,23 +1893,247 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         ad->ntseq [5*(z-z1)+4] = ' ';
         break;
 
-      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
-      }
-      y++;
-    }
+      case p7T_R:
+        exonN++;                                    
+        ad->model[z-z1] = gm_fs5->consensus[k];      
+
+        /* Store next five nucleotides. Unlike the M state we know these nucleotides 
+         * exist because R states are always followed by a P and then an A state */      
+        n1 = sq->dsq[nuc_index[nuc_pos]]; 
+        n2 = sq->dsq[nuc_index[nuc_pos+1]];
+        n3 = sq->dsq[nuc_index[nuc_pos+2]];
+        n4 = sq->dsq[nuc_index[nuc_pos+3]];
+        n5 = sq->dsq[nuc_index[nuc_pos+4]];
+        
+        get_codon_index(sq->abc, c, n1, n2, n3, n4, n5, &codon_idx); 
+        aa        = p7P_AMINO(gm_fs5, k, codon_idx);
+        indel     = p7P_INDEL(gm_fs5, k, codon_idx);
+        
+        c1 = nuc_one(c, indel, n1, alphaDNA);
+        c2 = nuc_two(c, indel, n1, n2, alphaDNA);
+        c3 = nuc_three(c, indel, n1, n2, n3, alphaDNA);
+        c4 = nuc_four(c, indel, n1, n2, n3, n4, alphaDNA);
+        c5 = nuc_five(c, indel, n5, alphaDNA);
+        if (p == p7S_AxxyyBC) {
+          ad->codon [z-z1] = 1;
+          ad->ntseq [5*(z-z1)]   = c1; 
+          if (c == 2) {
+            ad->ntseq [5*(z-z1)+1] = c2;
+            if(indel == p7P__XX || indel == p7P_X_X)
+              ad->ntseq [5*(z-z1)+2] = c3; 
+            else
+               ad->ntseq [5*(z-z1)+2] = ' ';
+          }
+          else if(c == 3) {
+            ad->ntseq [5*(z-z1)+1] = c2; 
+            ad->ntseq [5*(z-z1)+2] = ' ';
+          }
+          else if(c >= 4) {
+            ad->ntseq [5*(z-z1)+1] = ' ';
+            ad->ntseq [5*(z-z1)+2] = ' ';
+          }
+          ad->ntseq [5*(z-z1)+3] = ' ';
+          ad->ntseq [5*(z-z1)+4] = ' ';
+          nuc_pos += 1; //move to start of A state
+        }
+        else if(p == p7S_ABxxyyC) {
+          ad->codon [z-z1] = 2;
+          ad->ntseq [5*(z-z1)]   = c1; 
+          ad->ntseq [5*(z-z1)+1] = c2; 
+          if(c == 3) {
+            ad->ntseq [5*(z-z1)+2] = c3; 
+          }
+          else if(c >= 4) {
+            ad->ntseq [5*(z-z1)+2] = ' ';
+          }
+          ad->ntseq [5*(z-z1)+3] = ' ';
+          ad->ntseq [5*(z-z1)+4] = ' ';
+          nuc_pos += 2; //move to start of A state
+        }
+        else if(p == p7S_ABCxxyyD) {
+          ad->codon [z-z1] = 3;
+          ad->ntseq [5*(z-z1)]   = c1; 
+          ad->ntseq [5*(z-z1)+1] = c2; 
+          ad->ntseq [5*(z-z1)+2] = c3; 
+          ad->ntseq [5*(z-z1)+3] = ' ';
+          ad->ntseq [5*(z-z1)+4] = ' ';
+
+          nuc_pos += 3; //move to start of A state
+        }
+        else if(p == p7S_ABCDxxyyE) {
+          ad->codon [z-z1] = 4;
+
+          ad->ntseq [5*(z-z1)]   = c1;
+          ad->ntseq [5*(z-z1)+1] = c2; 
+          ad->ntseq [5*(z-z1)+2] = c3; 
+          ad->ntseq [5*(z-z1)+3] = c4; 
+          ad->ntseq [5*(z-z1)+4] = ' ';
+
+          nuc_pos += 4; //move to start of A state
+        }
+
+        if      (aa == esl_abc_DigitizeSymbol(gm_fs5->abc, gm_fs5->consensus[k])) { ad->mline[z-z1] = ad->model[z-z1]; exact++; }
+        /* >1 not >0; om has odds ratios, not scores */
+        else if (expf(p7P_MSC_AMINO5(gm_fs5, k, aa)) > 1.0)                       ad->mline[z-z1] = '+';
+        else                                                                    ad->mline[z-z1] = ' ';            
+
+        ad->aseq[z-z1] = alphaAmino[aa];
+        
+        if(c != 3) ad->frameshifts++;
+        else if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
+
+        break;
  
+      case p7T_RI:
+        ad->model [z-z1] = '.';
+        exonN++;
+
+        n1 = sq->dsq[nuc_index[nuc_pos]];
+        n2 = sq->dsq[nuc_index[nuc_pos+1]];
+        n3 = sq->dsq[nuc_index[nuc_pos+2]];
+
+        get_codon_index(sq->abc, 3, n1, n2, n3, -1, -1, &codon_idx);
+        indel = p7P_INDEL(gm_fs5, k, codon_idx);
+        if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
+          ad->codon[y] = 6;
+          ad->stops++;
+        }
+
+        aa = esl_gencode_GetTranslation(gcode, &nuc_dsq[nuc_pos]);
+
+        ad->ntseq [5*(z-z1)]   = ' ';
+        ad->ntseq [5*(z-z1)+1] = alphaDNA[n1];
+        if (p == p7S_AxxyyBC) {
+          ad->codon [z-z1] = 1;
+          ad->ntseq [5*(z-z1)+2] = ' '; 
+          nuc_pos += 1;
+        }
+        else { //p7S_ABxxyyC 
+          ad->codon [z-z1] = 2;
+          ad->ntseq [5*(z-z1)+2] = alphaDNA[n2];
+           nuc_pos += 2;
+        }     
+        ad->ntseq [5*(z-z1)+3] = ' ';
+        ad->ntseq [5*(z-z1)+4] = ' ';
+
+        ad->aseq[z-z1]  = alphaAmino[aa];
+        ad->mline [z-z1] = ' ';
+        break;
+      case p7T_P:
+        P_A_cnt++;
+        ad->model [z-z1] = ' ';
+        ad->mline [z-z1] = ' ';
+        ad->aseq  [z-z1] = ' ';
+
+        ad->codon[y] = 4;
+    
+        ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos-1]+1]]);
+        ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos-1]+2]]);
+        ad->ntseq [5*(z-z1)+2] = '$';
+        ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos]-2]]);
+        ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos]-1]]);
+         
+        /* End of exon bookkeeping */
+        if(revcomp) {
+          ad->exon_seq_ends[x]     = sq->n - nuc_index[nuc_pos-1] + sq->end;
+          ad->exon_seq_starts[x+1] = sq->n - nuc_index[nuc_pos] + sq->end;
+        }
+        else {
+          ad->exon_seq_ends[x]     = nuc_index[nuc_pos-1] + sq->start - 1;
+          ad->exon_seq_starts[x+1] = nuc_index[nuc_pos] + sq->start - 1;
+        }
+        ad->exon_hmm_ends[x]     = k;
+        ad->exon_hmm_starts[x+1] = k+1;
+        ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100;
+        exonN = 0;
+        x++;
+        ad->exon_pid[x]       = 0.;
+        ad->exon_cnt++;
+        break;
+      case p7T_A:
+        P_A_cnt++;
+        ad->model[z-z1] = ' ';
+
+        ad->ntseq [5*(z-z1)]   = ' ';
+        if (p == p7S_AxxyyBC) {
+          ad->codon [z-z1]= (c-1);
+          if (c == 2) {
+            ad->ntseq [5*(z-z1)+1] = ' ';
+            if(indel == p7P__XX || indel == p7P_X_X)
+              ad->ntseq [5*(z-z1)+2] = ' ';
+            else
+              ad->ntseq [5*(z-z1)+2] = c3;
+          }
+          else if(c == 3) {
+            ad->ntseq [5*(z-z1)+1] = ' ';
+            ad->ntseq [5*(z-z1)+2] = c3;
+          }
+          else if(c >= 4) {
+            ad->ntseq [5*(z-z1)+1] = c2;
+            ad->ntseq [5*(z-z1)+2] = c3;
+          }
+          ad->ntseq [5*(z-z1)+3] = c4;
+          nuc_pos += (c-1); 
+        }
+        else if(p == p7S_ABxxyyC) {
+          ad->codon [z-z1] = (c-2);
+          ad->ntseq [5*(z-z1)+1] = ' ';
+          if(c == 3) 
+            ad->ntseq [5*(z-z1)+2] = ' ';
+          else if(c >= 4) 
+            ad->ntseq [5*(z-z1)+2] = c3;
+          ad->ntseq [5*(z-z1)+3] = c4;
+          nuc_pos += (c-2); //move to start of A state
+        }
+        else if(p == p7S_ABCxxyyD) {
+          ad->codon [z-z1] = (c-3);
+          ad->ntseq [5*(z-z1)+1] = ' ';
+          ad->ntseq [5*(z-z1)+2] = ' ';
+          ad->ntseq [5*(z-z1)+3] = c4;
+          nuc_pos += (c-3); //move to start of A state
+        }
+        else if(p == p7S_ABCDxxyyE) {
+          ad->codon [z-z1] = 1;
+          ad->ntseq [5*(z-z1)+1] = ' ';
+          ad->ntseq [5*(z-z1)+2] = ' ';
+          ad->ntseq [5*(z-z1)+3] = ' ';
+          nuc_pos += 1; //move to start of A state
+        }
+        ad->ntseq [5*(z-z1)+4] = c5;
+
+        ad->mline[z-z1] = ' ';
+        ad->aseq[z-z1]  = ' ';
+        break;
+      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
+    }
+    y++;
+  }
+
+  ad->exon_hmm_ends[x] = k;
+  if(revcomp)
+    ad->exon_seq_ends[x] = sq->n - nuc_index[nuc_pos-1] + sq->end;
+  else
+    ad->exon_seq_ends[x] = nuc_index[nuc_pos-1] + sq->start - 1;
+  ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100;
+  
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';
   ad->ntseq  [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
-
+  ad->pid = ((float)exact/(ad->N-P_A_cnt)) * 100;
+ 
   return ad;
 
- ERROR:
-  p7_alidisplay_Destroy(ad);
-  return NULL;
+  ERROR:
+    p7_alidisplay_Destroy(ad);
+    return NULL;
 }
+
+
 
 /* Function: p7_alidisplay_Create_empty()
  * Synopsis: Creates an empty P7_ALIDISPLAY object
@@ -812,6 +2164,20 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->ntseq = NULL;
   new_obj->ppline = NULL;
   new_obj->N = 0;
+  new_obj->pid = 0.0;
+
+  /* Used for splice alignments only */
+  new_obj->exon_seq_starts = NULL;
+  new_obj->exon_seq_ends   = NULL;
+  new_obj->exon_hmm_starts = NULL;
+  new_obj->exon_hmm_ends   = NULL;
+  new_obj->exon_score      = NULL;
+  new_obj->exon_pp         = NULL;
+  new_obj->exon_lnP        = NULL;
+  new_obj->exon_pid        = NULL;
+  new_obj->exon_anchor     = NULL;
+  new_obj->exon_extend     = NULL;
+  new_obj->exon_cnt        = 0;
 
   new_obj->hmmname = NULL; 
   new_obj->hmmacc = NULL;
@@ -880,6 +2246,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->ntseq  = (ad->ntseq  ? ad2->mem + (ad->ntseq  - ad->mem) : NULL );
       ad2->ppline = (ad->ppline ? ad2->mem + (ad->ppline - ad->mem) : NULL );
       ad2->N      = ad->N;
+      ad2->pid    = ad->pid;
 
       ad2->hmmname = ad2->mem + (ad->hmmname - ad->mem);
       ad2->hmmacc  = ad2->mem + (ad->hmmacc  - ad->mem);
@@ -899,7 +2266,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->orffrom = ad->orffrom;
       ad2->orfto   = ad->orfto;
     }
-  else				/* deserialized */
+    else				/* deserialized */
     {
       if ( esl_strdup(ad->rfline, -1, &(ad2->rfline)) != eslOK) goto ERROR;
       if ( esl_strdup(ad->mmline, -1, &(ad2->mmline)) != eslOK) goto ERROR;
@@ -925,12 +2292,42 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ad2->sqto    = ad->sqto;
       ad2->L       = ad->L;      
 
+      ad2->pid     = ad->pid;
+
       if ( esl_strdup(ad->orfname,  -1, &(ad2->orfname)) != eslOK) goto ERROR;
       ad2->orffrom = ad->orffrom;
       ad2->orfto   = ad->orfto;
 
     }
 
+
+    /* Used for splice alignments only */
+	if(ad->exon_cnt) {
+	
+      ESL_ALLOC(ad2->exon_seq_starts, sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_seq_ends,   sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_hmm_starts, sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_hmm_ends,   sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_score,      sizeof(float)   * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_pp,         sizeof(float)   * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_lnP,        sizeof(double)  * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_pid,        sizeof(float)   * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_anchor,     sizeof(int)     * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_extend,     sizeof(int)     * ad->exon_cnt);
+ 
+      memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt);
+      memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt); 
+      memcpy(ad2->exon_hmm_starts, ad->exon_hmm_starts, ad->exon_cnt);
+      memcpy(ad2->exon_hmm_ends,   ad->exon_hmm_ends,   ad->exon_cnt);
+      memcpy(ad2->exon_score,      ad->exon_score,      ad->exon_cnt);
+      memcpy(ad2->exon_pp,         ad->exon_pp,         ad->exon_cnt);
+      memcpy(ad2->exon_lnP,        ad->exon_lnP,        ad->exon_cnt);
+      memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt);
+      memcpy(ad2->exon_anchor,     ad->exon_anchor,     ad->exon_cnt);
+      memcpy(ad2->exon_extend,     ad->exon_extend,     ad->exon_cnt);
+      ad2->exon_cnt        = ad->exon_cnt;
+   }
+  
   return ad2;
 
  ERROR:
@@ -1610,24 +3007,44 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
   if (ad->mem)
     {	/* serialized form */
       free(ad->mem);
+      if(ad->exon_seq_starts) free(ad->exon_seq_starts);
+      if(ad->exon_seq_ends)   free(ad->exon_seq_ends);
+      if(ad->exon_hmm_starts) free(ad->exon_hmm_starts);
+      if(ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
+      if(ad->exon_score)      free(ad->exon_score);
+      if(ad->exon_pp)         free(ad->exon_pp);
+      if(ad->exon_lnP)        free(ad->exon_lnP);
+      if(ad->exon_pid)        free(ad->exon_pid);
+      if(ad->exon_anchor)     free(ad->exon_anchor);
+      if(ad->exon_extend)     free(ad->exon_extend);
     }
   else
     {	/* deserialized form */
-      if (ad->rfline)  free(ad->rfline);
-      if (ad->mmline)  free(ad->mmline);
-      if (ad->csline)  free(ad->csline);
-      if (ad->model)   free(ad->model);
-      if (ad->mline)   free(ad->mline);
-      if (ad->aseq)    free(ad->aseq);
-      if (ad->ntseq)   free(ad->ntseq);
-      if (ad->ppline)  free(ad->ppline);
-      if (ad->hmmname) free(ad->hmmname);
-      if (ad->hmmacc)  free(ad->hmmacc);
-      if (ad->hmmdesc) free(ad->hmmdesc);
-      if (ad->sqname)  free(ad->sqname);
-      if (ad->sqacc)   free(ad->sqacc);
-      if (ad->sqdesc)  free(ad->sqdesc);
-      if (ad->orfname) free(ad->orfname);
+      if (ad->rfline)          free(ad->rfline);
+      if (ad->mmline)          free(ad->mmline);
+      if (ad->csline)          free(ad->csline);
+      if (ad->model)           free(ad->model);
+      if (ad->mline)           free(ad->mline);
+      if (ad->aseq)            free(ad->aseq);
+      if (ad->ntseq)           free(ad->ntseq);
+      if (ad->ppline)          free(ad->ppline);
+      if (ad->hmmname)         free(ad->hmmname);
+      if (ad->hmmacc)          free(ad->hmmacc);
+      if (ad->hmmdesc)         free(ad->hmmdesc);
+      if (ad->sqname)          free(ad->sqname);
+      if (ad->sqacc)           free(ad->sqacc);
+      if (ad->sqdesc)          free(ad->sqdesc);
+      if (ad->orfname)         free(ad->orfname);
+      if (ad->exon_seq_starts) free(ad->exon_seq_starts);
+      if (ad->exon_seq_ends)   free(ad->exon_seq_ends);
+      if (ad->exon_hmm_starts) free(ad->exon_hmm_starts);
+      if (ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
+      if (ad->exon_score)      free(ad->exon_score);
+      if (ad->exon_pp)         free(ad->exon_pp);
+      if (ad->exon_lnP)        free(ad->exon_lnP); 
+      if (ad->exon_pid)        free(ad->exon_pid);
+      if (ad->exon_anchor)     free(ad->exon_anchor);
+      if (ad->exon_extend)     free(ad->exon_extend);
     }
   free(ad);
 }
@@ -1741,31 +3158,33 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
   char *show_hmmname = NULL;
   char *show_seqname = NULL;
   int  *frameline    = NULL;
-  int   namewidth, coordwidth, aliwidth;
+  int   namewidth, coordwidth;
+  int   max_aliwidth, cur_aliwidth;
   int   frame;
   int   pos;
   int   status;
   int   ni, nk;
-  int   z;
+  int   y,z;
   long  i1,i2;
   long  c1;
-  int   a1,a2;
   int   k1,k2;
   int   npos;
-  int   i,j,y;
+  int   i,j;
   int   show_accessions;
-  int   show_translated_sequence;
+  int   exon_cnt;
+  int   spliced_ali;
+  int   is_splice_line, was_splice_line;
+  char  *exon_name;
 
   show_accessions = pli->show_accessions;
-  show_translated_sequence = pli->show_translated_sequence;
 
-   /* implement the --acc option for preferring accessions over names in output  */
+  /* implement the --acc option for preferring accessions over names in output  */
   show_hmmname = (show_accessions && ad->hmmacc[0] != '\0') ? ad->hmmacc : ad->hmmname;
   show_seqname = (show_accessions && ad->sqacc[0]  != '\0') ? ad->sqacc  : ad->sqname;
 
   /* dynamically size the output lines */
   namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
-
+  
   while(namewidth > max_namewidth+3) {
 	if(strlen(show_hmmname) > strlen(show_seqname)) {
       show_hmmname[max_namewidth]   = '.';
@@ -1784,193 +3203,281 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
     namewidth  = ESL_MAX(strlen(show_hmmname), strlen(show_seqname));
   }
 
+  namewidth  = ESL_MAX(namewidth, 8);
 
-  if (show_translated_sequence) {
-      namewidth  = ESL_MAX(namewidth, strlen(ad->orfname));
-  }
- 
   coordwidth = ESL_MAX(
  	       ESL_MAX(integer_textwidth(ad->hmmfrom), integer_textwidth(ad->hmmto)),
 	       ESL_MAX(integer_textwidth(ad->sqfrom), integer_textwidth(ad->sqto)));
-  aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
 
-  if (aliwidth < ad->N && aliwidth < min_aliwidth) aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
-  aliwidth /= 5; /* divide by 5 if printing codons horizontally */
+  max_aliwidth   = (linewidth > 0) ? linewidth - namewidth - 2*coordwidth - 5 : ad->N;
 
-  ESL_ALLOC(buf, sizeof(char) * (aliwidth+1));
-  buf[aliwidth] = 0;
+  if (max_aliwidth < ad->N && max_aliwidth < min_aliwidth) max_aliwidth = min_aliwidth; /* at least, regardless of some silly linewidth setting */
+
+  max_aliwidth -= 4; /* six extra spaces required for printing splice sites */
+  max_aliwidth /= 5; /* divide by 5 if printing codons horizontally */
+
+  ESL_ALLOC(buf, sizeof(char) * (max_aliwidth+1));
+  buf[max_aliwidth] = 0;
 	
- if(pli->show_frameline) ESL_ALLOC(frameline, sizeof(int) * (aliwidth+1));
+  if(pli->show_frameline) ESL_ALLOC(frameline, sizeof(int) * (max_aliwidth+1));
  
-   /* Break the alignment into multiple blocks of width aliwidth for printing */
+   /* Break the alignment into multiple blocks of width max_aliwidth for printing */
   i1 = ad->sqfrom;
   if(ad->sqfrom < ad->sqto) i2 = i1 - 1;
   else                      i2 = i1 + 1;
 
-  if(ad->sqfrom < ad->sqto) { a1 = (i1+2)/3;    a2 = a1-1; }
-  else                      { a1 = (i1+2)/3-1;  a2 = a1 + 1; }
   k1 = ad->hmmfrom;
 
-  for (pos = 0; pos < ad->N; pos += aliwidth)
+  ESL_ALLOC(exon_name, sizeof(char)*10);
+  if(ad->exon_seq_starts == NULL) spliced_ali = FALSE;
+  else                            spliced_ali = TRUE; 
+
+
+  exon_cnt = 1;
+  pos = 0;
+  was_splice_line = FALSE;
+  while(pos < ad->N)
   {   
+
     if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
+    cur_aliwidth = max_aliwidth;
+    is_splice_line = FALSE;
+    
+    if( spliced_ali ) {
+      /* Determine if the line we are about to print conatins a splice boundry */
+      for (z = pos; z < pos + max_aliwidth + 1 && z < ad->N; z++) {
+        if (ad->ntseq[z*5] == 0) break;
+
+        /* '$' in the third nucleotide postion denotes a splice site */
+        if (ad->ntseq[z*5+2]  == '$') {
+          is_splice_line = TRUE;
+          cur_aliwidth    = z-pos;
+          break;
+        } 
+      }
+    }
+    
     ni = nk = 0; 
-    for (z = pos; z < pos + aliwidth && z < ad->N; z++) 
+    for (z = pos; z < pos + cur_aliwidth && z < ad->N; z++) 
     {
-      if (ad->model[z] != '.') nk++; /* k advances except on insert states */
-      if (ad->aseq[z]  != '-') ni++; /* i advances except on delete states */
+      if (ad->model[z] != '.' && ad->model[z] != ' ') nk++; /* k advances except on insert states and splice states*/
+      if (ad->aseq[z]  != '-')                        ni++; /* i advances except on delete states */
     }
     k2 = k1+nk-1;
 
+    /* Optional CS Line */
     if (ad->csline != NULL) 
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-      for (i = 0; i < aliwidth; i++)
+     
+      /* Print spaces at begining of line to make room for splice signal */
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      for (i = 0; i < cur_aliwidth; i++)
       {
         if (ad->csline[pos+i] == 0) break; 
         if (fprintf(fp,  "  %c  ", ad->csline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
       }
-	
-      if (fprintf(fp, "CS\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      /* Print spaces at end of line to make room for splice signal */
+      if (fprintf(fp,  "  \n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
+
+    /* Optional RF Line */
     if (ad->rfline != NULL) 
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
- 
-      for (i = 0; i < aliwidth; i++)
+
+      /* Print spaces at begining of line to make room for splice signal */
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      for (i = 0; i < cur_aliwidth; i++)
       {
         if (ad->rfline[pos+i] == 0) break; 
         if (fprintf(fp, "  %c  ",  ad->rfline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
       }
-
-      if (fprintf(fp, "RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      /* Print spaces at end of line to make room for splice signal */
+      if (fprintf(fp,  "   RF\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
-    if (ad->mmline != NULL) 
-    {
-      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-      for (i = 0; i < aliwidth; i++)
-      {
-        if (ad->mmline[pos+i] == 0) break; 
-        if (fprintf(fp, "  %c  ", ad->mmline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-      }
- 
-      if (fprintf(fp, "MM\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-    }
-
+    /*  Mandatory Model Line */
     if (fprintf(fp, "  %*s %*d ", namewidth,  show_hmmname, coordwidth, k1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-    for (i = 0; i < aliwidth; i++)
+   
+     /* Print spaces at begining of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+    
+    for (i = 0; i < cur_aliwidth; i++)
     {
       if (ad->model[pos+i] == 0) break; 
       if (fprintf(fp, "  %c  ", ad->model[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-
+    /* Print spaces at end of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     if (fprintf(fp, " %-*d\n", coordwidth, k2) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+   
+    /* Mandatory Match Line */
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 
-    for (i = 0; i < aliwidth; i++)
+    /* Print spaces at begining of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+    for (i = 0; i < cur_aliwidth; i++)
     {
       if (ad->mline[pos+i] == 0) break; 
       if (fprintf(fp,  "  %c  ", ad->mline[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
     }
+    /* Print spaces at end of line to make room for splice signal */
+    if (fprintf(fp,  "  \n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
 
-    if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-
-    if (show_translated_sequence)
-    {
-      if (fprintf(fp, "  %*s", namewidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-
-      if (ni > 0) { if (fprintf(fp, " %*s ", coordwidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-      else { if (fprintf(fp, " %*s ", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-	   
-      for (i = 0, y = 0; i < aliwidth; i++, y++)
-      {
-        if (ad->aseq[pos+i] == 0) break; 
-        if (fprintf(fp, "  %c  ", ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
-	if(ad->codon[pos+y] != 0)
-        { 			    
-	  if(ad->sqfrom < ad->sqto) a2++;	 
-	  else                      a2--;	 
-	} 
-      }
-      if (ni > 0) { if (fprintf(fp, " %-*s\n", coordwidth, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-      else { if (fprintf(fp, " %*s\n", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    /* Print Mandatory Translation Line */
+    if(pli->spliced ) {
+      if (sprintf(exon_name, "%s %d", "exon", exon_cnt) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+      if (fprintf(fp, "  %*s", namewidth, exon_name)      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (fprintf(fp, " %*s ", coordwidth, "") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-  
-    if (fprintf(fp, "  %*s", namewidth, show_seqname)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-    if (ni > 0) { if (fprintf(fp, " %*ld ", coordwidth, i1)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-   else { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    else {
+      if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, " ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
 
-   npos = pos * 5;
-   
-   
-     /*
-      * Display the DNA codon horizontally
-      */
-      for (i = 0, j = 0; j < aliwidth; i+=5, j++)
-      {
-        if (ad->ntseq[npos+i] == 0) break; 
-        if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-	if(ad->sqfrom < ad->sqto)       { c1 = i2; i2 += (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); } 
-	else                            { c1 = i2 - 1; i2 -= (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]);; }
+    /* Print spaces at begining of line to make room for splice signal */
+    if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+    for (i = 0, y = 0; i < cur_aliwidth; i++, y++)
+    {
+      if (ad->aseq[pos+i] == 0) break; 
+      if (fprintf(fp, "  %c  ", ad->aseq[pos+i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    }
+    /* Print spaces at end of line to make room for splice signal */
+    if (fprintf(fp,  "  \n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+ 
+    /* Print Mandatory Target Line */ 
+    if (fprintf(fp, "  %*s", namewidth, show_seqname)    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    if (ni > 0) { if (fprintf(fp, " %*ld ", coordwidth, i1) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    else        { if (fprintf(fp, " %*s ", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
-	if(frameline != NULL) 
-	{
-	  if(ad->codon[pos+j] == 0 || ad->codon[pos+j] == 6 ) frame = 0;
-	  else                      frame = p7_alidiplay_frame(c1, i2);
-	  
-          frameline[j] = frame;
-        }
+    npos = pos * 5;
+    /* Print Acceptor Site Signal */
+    if (was_splice_line) {
+      if (fprintf(fp, "%c%c", ad->ntseq[npos-2],ad->ntseq[npos-1]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (ad->sqfrom < ad->sqto) i2 += 2;
+      else                       i2 -= 2;
+    }
+    else {
+       if (fprintf(fp, "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+    /* Print ntseq */
+    for (i = 0, j = 0; j < cur_aliwidth; i+=5, j++)
+    {
+      if (ad->ntseq[npos+i] ==  0)  break;
+      if (fprintf(fp, "%c%c%c%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1],ad->ntseq[npos+i+2],ad->ntseq[npos+i+3],ad->ntseq[npos+i+4]) < 0) 
+        ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+        /* codon length of 6 denotes stop codon */
+        
+	    if(ad->sqfrom < ad->sqto)       { c1 = i2;     i2 += (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); } 
+	    else                            { c1 = i2 - 1; i2 -= (ad->codon[pos+j] == 6 ? 3 : ad->codon[pos+j]); }
+
+      /* Get info for optional frame line */
+	    if(frameline != NULL) 
+	    {
+	      if(ad->codon[pos+j] == 0 || ad->codon[pos+j] == 6 ) frame = 0;
+	      else                      frame = p7_alidiplay_frame(c1, i2);
+        frameline[j] = frame;
       }
-    		
-	
+    }
+    /* Print Donor Site Signal */
+    if(is_splice_line) {
+      if (fprintf(fp, "%c%c", ad->ntseq[npos+i],ad->ntseq[npos+i+1]) < 0)
+        ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (ad->sqfrom < ad->sqto) i2 += 2;
+      else                       i2 -= 2; 
+    } 
+    else {
+      if (fprintf(fp, "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+   
     if (ni > 0) { if (fprintf(fp, " %-*ld\n", coordwidth, i2)  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-    else { if (fprintf(fp, " %*s\n", coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+    else        { if (fprintf(fp, " %*s\n",   coordwidth, "-") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
+    /* Print Optional Frame line */
     if(frameline != NULL)
     {
       if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
-
-      for (i = 0; i < aliwidth; i++)
+      /* Print space at begining of line to make room for splice signal */ 
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+      for (i = 0; i < cur_aliwidth; i++)
       {
-	if (ad->aseq[pos+i] == 0) break;
-	if(frameline[i] > 0)            { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-	else if(frameline[i] < 0)       { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
-        else if(ad->codon[pos+i] == 6) { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } 
-	else                            { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+	      if (ad->aseq[pos+i] == 0) break;
+	      if(frameline[i] > 0)            { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+	      else if(frameline[i] < 0)       { if (fprintf(fp, " %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+          else if(ad->codon[pos+i] == 6) { if (fprintf(fp, "  %d  ", frameline[i]) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } 
+	      else                            { if (fprintf(fp, "  .  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
       }
-
+      if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
       if (fprintf(fp, " FRAME\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
 
-    if (ad->ppline != NULL) {
+    /* Print Mandatory Post Prob Line */
+
     if (fprintf(fp, "  %*s ", namewidth+coordwidth+1, "")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    
+    if (was_splice_line) { 
+      if (fprintf(fp, "||") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); 
+    }
+    else { if (fprintf(fp, "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
 
-    for (i = 0; i < aliwidth; i++)
+    for (i = 0; i < cur_aliwidth; i++)
     {
-      if (ad->ppline[pos+i] == 0) break; 
-      if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      if (ad->ppline != NULL) {
+        if (ad->ppline[pos+i] == 0) break;
+        if (fprintf(fp,  "  %c  ", ad->ppline[pos+i])  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
+      else {
+        if (ad->aseq[pos+i] == 0) break;
+        if (fprintf(fp,  "     ")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+      }
     }
 
-    if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");	  
+    /* c-treminal splice */
+    if(is_splice_line) {
+      if (fprintf(fp, "||") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
-   
+    else { if (fprintf(fp,  "  ") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); }
+
+    if (fprintf(fp, " PP\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");  
+
     k1 += nk;
-    if   (ad->sqfrom < ad->sqto) { i1 = i2 + 1;  a1 = a2 + 1; }
-    else                         { i1 = i2 - 1;  a1 = a2 - 1; }// revcomp hit for DNA
+    if   (ad->sqfrom < ad->sqto)  i1 = i2 + 1;
+    else                          i1 = i2 - 1;
+ 
+    pos += cur_aliwidth; 
+    if(is_splice_line) {
+      pos++;                          // pass over splice pos with '$'
+
+      /* Get the nucleotide state coord for next exon */
+	  if(ad->sqfrom < ad->sqto) {
+        i1 = ad->exon_seq_starts[exon_cnt] - 2; 
+        i2 = i1 - 1;
+      }
+	  else {
+        i1 = ad->exon_seq_starts[exon_cnt] + 2;
+        i2 = i1 + 1;
+      }
+      
+      exon_cnt++;
+      if (fprintf(fp, "\n")  < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
+    }
+     
+    was_splice_line = is_splice_line;
+  if(cur_aliwidth == -1) break;
   }
+  
   fflush(fp);
   free(buf);
+  free(exon_name);
+  if(frameline != NULL) free(frameline);
   return eslOK;
 
-ERROR:
-if (buf) free(buf);
-return status;
+  ERROR:
+    if (buf) free(buf);
+    if(exon_name) free(exon_name);
+    if(frameline != NULL) free(frameline);
+    return status;
 }
-
- 
 
 /* Function:  p7_alidisplay_Backconvert()
  * Synopsis:  Convert an alidisplay to a faux trace and subsequence.
@@ -2179,6 +3686,16 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->orfname = NULL;
   ad->mem     = NULL;
   ad->memsize = 0;
+  ad->exon_seq_starts = NULL;
+  ad->exon_seq_ends   = NULL;
+  ad->exon_hmm_starts = NULL;
+  ad->exon_hmm_ends   = NULL;
+  ad->exon_score      = NULL;
+  ad->exon_pp         = NULL;
+  ad->exon_lnP        = NULL; 
+  ad->exon_pid        = NULL;
+  ad->exon_anchor     = NULL;
+  ad->exon_extend     = NULL;
 
   /* Optional lines are added w/ 50% chance */
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->rfline, sizeof(char) * (N+1));
@@ -2606,6 +4123,16 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->orfname = NULL;
   ad->mem     = NULL;
   ad->memsize = 0;
+  ad->exon_seq_starts = NULL;
+  ad->exon_seq_ends   = NULL;
+  ad->exon_hmm_starts = NULL;
+  ad->exon_hmm_ends   = NULL;
+  ad->exon_score      = NULL;
+  ad->exon_pp         = NULL;
+  ad->exon_lnP        = NULL;
+  ad->exon_pid        = NULL;
+  ad->exon_anchor     = NULL;
+  ad->exon_extend     = NULL;
 
   /* Optional lines are added w/ 50% chance */
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->rfline, sizeof(char) * (N+1));

@@ -116,12 +116,13 @@
 1 exercise  bathsearch/--framelne      @src/bathsearch@  --fs --frameline                  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--notextw       @src/bathsearch@  --notextw                         !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--textw         @src/bathsearch@  --textw 256                       !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/--cigar         @src/bathsearch@  --cigar --tblout %bathsearch.tbl% !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--ct            @src/bathsearch@  --ct 5                            %TESTCT%                        !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-l              @src/bathsearch@  -l -95                            !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-m              @src/bathsearch@  -m                                !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-M              @src/bathsearch@  -M                                !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
-1 exercise  bathsearch/topstrand       @src/bathsearch@  --strand plus                     !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
-1 exercise  bathsearch/botstrand       @src/bathsearch@  --strand minus                    !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/--plus          @src/bathsearch@  --strand plus                     !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
+1 exercise  bathsearch/--minus         @src/bathsearch@  --strand minus                    !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-E              @src/bathsearch@  -E 0.01                           !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/-T              @src/bathsearch@  -T 20                             !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--incE          @src/bathsearch@  --incE 0.01                       !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!

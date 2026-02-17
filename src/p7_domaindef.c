@@ -1245,6 +1245,7 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   for (z = 0; z < ddef->tr->N; z++)
     if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
 
+  /*Index before converting to get ORF coords used in alignment creation */
   p7_trace_Index(ddef->tr);
 
   /* get ptr to next empty domain structure in domaindef's results */

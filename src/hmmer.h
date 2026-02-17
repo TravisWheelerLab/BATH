@@ -825,7 +825,7 @@ typedef struct p7_alidisplay_s {
 typedef struct p7_dom_s { 
   int64_t        ienv, jenv;
   int64_t        iali, jali;
-  int            ihmm, jhmm;     /* query model start and end positions for alignment - used for SPLAH */ 
+  int            ihmm, jhmm;      
 
   float          envsc;          /* Forward score in envelope ienv..jenv; NATS; without null2 correction       */
   float          domcorrection;  /* null2 score when calculating a per-domain score; NATS                      */

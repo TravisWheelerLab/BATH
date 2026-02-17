@@ -1443,13 +1443,13 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
  * Returns:   <eslOK> on success.
  */
 int 
-p7_tophits_CreateCigarString(P7_FS_PROFILE *gm_fs5, P7_TRACE *tr, char **ret_cigar)
+p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
 {
 
   int       z; 
   int       z1, z2;   
   int       s, c;
-  int       n_count;
+  int       s_count;
   int       i_start, i_end;
   int       cur_cigar_length;
   int       max_cigar_length;
@@ -1468,7 +1468,7 @@ p7_tophits_CreateCigarString(P7_FS_PROFILE *gm_fs5, P7_TRACE *tr, char **ret_cig
   ESL_ALLOC(cigar, sizeof(char) * max_cigar_length); 
   cigar[0] = '\0';
  
-  n_count = 0;
+  s_count = 0;
   z = z1;
   while(z <= z2)
   {
@@ -1477,7 +1477,7 @@ p7_tophits_CreateCigarString(P7_FS_PROFILE *gm_fs5, P7_TRACE *tr, char **ret_cig
     switch (s) {
       case p7T_M:
         while(s == p7T_M && c == 3) {
-          n_count += 3;
+          s_count += 3;
           z++;
           s = tr->st[z];
           c = tr->c[z];

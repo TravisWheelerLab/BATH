@@ -826,9 +826,6 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
 	  
     }
 
-    dom->ad->sqfrom = dom->iali;
-    dom->ad->sqto   = dom->jali;
-
     /* Adjust score from env_len to max window length. Note that the loop and move 
      * costs are calculated based on amino lengths but paid per nucleotide*/
     bitscore = dom->envsc;

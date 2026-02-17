@@ -713,8 +713,6 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
 
   nuc_dsq   = seq->dsq;
 
-  if(tr->ndom == 0) p7_trace_fs_Index(tr);
-
   for(z1 = 0;       z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
   for(z2 = tr->N-1; z2 >= 0;    z2--) if(tr->st[z2] == p7T_M || tr->st[z2] == p7T_D) break;
 
@@ -725,11 +723,11 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
     ESL_REALLOC( dom->scores_per_pos, sizeof(float) * N);
   for (n=0; n<N; n++)  dom->scores_per_pos[n] = 0.0;
 
-  k  = tr->hmmfrom[0];
   n  = 0;
   while (z1<=z2) {
     i = tr->i[z1];
     c = tr->c[z1];
+    k = tr->k[z1]; 
 
     if (tr->st[z1] == p7T_M) {
       if(c == 1) {
@@ -1152,6 +1150,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
      {
       
        if(!pli->spliced) {
+         
          dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0]);
          dom->ad->sqfrom = dom->iali;
          dom->ad->sqto   = dom->jali;

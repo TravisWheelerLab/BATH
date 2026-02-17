@@ -37,6 +37,8 @@ extern P7_DOMAIN *p7_domain_Create_empty()
   the_domain->jenv = 0;
   the_domain->iali = 0;
   the_domain->jali = 0;
+  the_domain->ihmm = 0;
+  the_domain->jhmm = 0;
   the_domain->envsc = 0.0;
   the_domain->domcorrection = 0.0;
   the_domain->dombias = 0.0;

@@ -1356,115 +1356,6 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 }
 
 
-/* Function:  p7_tophits_CreateCigarString()
- * Synopsis:  Coonvert trace to a CIGAR string for tabular ouput - BATH.
- *
- * Purpose:      The tabular output for bathsearch contains an optional 
- *               CIGAR string for the alignment of each hit. This string 
- *               reperesents matches between standard codons and amino acids 
- *               as 'M', codon instertions ad 'I', and codon  deltetions as 
- *               'D'. Each is preoceeded by a number indicating how many 
- *               conscutive istances of that state were found. Matches to 
- *               quasicodons are shown as either 'F' for quasicodons with 
- *               insertions or 'B' for quasicodons with deletions.  They are
- *               preceded by either a 1 or a 2 indeicating the nuber of 
- *               inserted or deleted quasicodons. 
- *
- * Returns:   <eslOK> on success.
- */
-int 
-p7_tophits_CreateCigarString(P7_TRACE *tr, char **ret_cigar)
-{
-
-  int       z; 
-  int       z1, z2;   
-  int       s, c;
-  int       s_count;
-  int       i_start, i_end;
-  int       cur_cigar_length;
-  int       max_cigar_length;
-  int       status;
-  char     *cigar;  
- 
-  for (z1 = 0; z1 < tr->N; z1++) if (tr->st[z1] == p7T_M) break;            /* find first M state      */
-  if (z1 == tr->N) ESL_XEXCEPTION(eslFAIL, "corrupt trace - no M state");
-
-  for (z2 = z1; z2 < tr->N; z2++) if (tr->st[z2] == p7T_E) break;           /* find the E state  */
-  for (; z2 >= 0;    z2--) if (tr->st[z2] == p7T_M) break;                    /* find prev M state      */
-  if (z2 == -1) ESL_XEXCEPTION(eslFAIL, "corrupt trace - no M state");           /* no M? corrupt trace    */
-
-  cur_cigar_length = 0;
-  max_cigar_length = (z2-z1+2) * 3;
-  ESL_ALLOC(cigar, sizeof(char) * max_cigar_length); 
-  cigar[0] = '\0';
- 
-  s_count = 0;
-  z = z1;
-  while(z <= z2)
-  {
-    s = tr->st[z];
-    c = tr->c[z];
-    switch (s) {
-      case p7T_M:
-        while(s == p7T_M && c == 3) {
-          s_count++;
-          z++;
-          s = tr->st[z];
-          c = tr->c[z];
-        }
-       
-        if (s == p7T_M && c != 3) {
-          s_count++;
-          z++;
-        }
-        
-        cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", s_count, 'M');
-        if      (s == p7T_M && c == 1) 
-		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 2, 'B');
-        else if (s == p7T_M && c == 2)
-		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 1, 'B');
-        else if (s == p7T_M && c == 4)
-		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 1, 'F');
-        else if (s == p7T_M && c == 5)
-		  cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", 2, 'F');
-
-        s_count = 0;
-        break;
-      case p7T_I:
-        while(s == p7T_I) {
-          s_count++;
-          z++;
-          s = tr->st[z];
-        }
-        cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", s_count, 'I');
-
-        s_count = 0;
-        break;
-      case p7T_D:
-        while(s == p7T_D) {
-          s_count++;
-          z++;
-          s = tr->st[z];
-        }
-        cur_cigar_length += sprintf (cigar + cur_cigar_length, "%d%c", s_count, 'D');        
-
-        s_count = 0;
-        break;
-      default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I"); 
-    }
-    if (cur_cigar_length                    < 0)  return eslEWRITE;
-    if (cur_cigar_length > max_cigar_length - 10) return eslEWRITE; 
-  }
-
-  esl_strdup(cigar, cur_cigar_length, ret_cigar);
-  free(cigar); 
-  return eslOK;
-
-ERROR:
-  return status; 
-}
-
-
 /*---------------- end, standard output format ------------------*/
 
 
@@ -1663,7 +1554,6 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int64_t sqto;
   int64_t lowest;
   int64_t highest;
-  char   *cigar = NULL;
 	
   if (show_header)
   {
@@ -1747,8 +1637,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
       }
 
       if(pli->show_cigar) {
-        p7_tophits_CreateCigarString(th->hit[h]->dcl[0].tr, &cigar);
-        if (fprintf(ofp, " %s\n", cigar) < 0)
+        if (fprintf(ofp, " %s\n", th->hit[h]->dcl[0].ad->cigar) < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
       } 
       else {
@@ -1756,8 +1645,6 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
       }
 	   
-      free(cigar);
-      cigar = NULL;
     }
   }
 

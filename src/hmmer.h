@@ -799,6 +799,7 @@ typedef struct p7_alidisplay_s {
 typedef struct p7_dom_s { 
   int64_t        ienv, jenv;
   int64_t        iali, jali;
+  int            ihmm, jhmm;
   float          envsc;    /* Forward score in envelope ienv..jenv; NATS; without null2 correction       */
   float          domcorrection;  /* null2 score when calculating a per-domain score; NATS                      */
   float          dombias;  /* FLogsum(0, log(bg->omega) + domcorrection): null2 score contribution; NATS */
@@ -1356,8 +1357,8 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY* p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
-extern P7_ALIDISPLAY* p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode);
-extern P7_ALIDISPLAY* p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos);
+extern P7_ALIDISPLAY* p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode, int show_cigar);
+extern P7_ALIDISPLAY* p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos, int show_cigar);
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);

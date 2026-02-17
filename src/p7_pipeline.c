@@ -777,8 +777,8 @@ ERROR:
  * Throws:    <eslEMEM> on allocation failure.
  *
  */
-static int 
-p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *dnasq, int complementarity)
+static int
+p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_SQ *windowsq, ESL_GENCODE *gcode, int complementarity)
 {
 
   int              d;
@@ -856,7 +856,12 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
     pli->Z = (float)pli->nres / (float)gm_fs5->max_length;
     if ( exp(dom_lnP) * pli->Z <= pli->E ) 
     { 
-   
+  
+	  dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs5, windowsq, gcode, pli->show_cigar);
+      dom->ad->sqfrom = dom->iali;
+      dom->ad->sqto   = dom->jali;
+      dom->ad->L      = dnasq->L;
+ 	
       p7_tophits_CreateNextHit(hitlist, &hit);
 
       hit->ndom        = 1;
@@ -940,7 +945,7 @@ ERROR:
  */
 
 static int 
-p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity, float nullsc)
+p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, ESL_SQ *windowsq, int complementarity, float nullsc)
 {
 
   int              d;
@@ -961,7 +966,6 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
     ali_len = (dom->jali - dom->iali + 1) / 3;   
     if (ali_len < 4) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
-      p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
       continue; 
     }
@@ -983,9 +987,6 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2; 
     }
-
-    dom->ad->sqfrom = dom->iali;
-    dom->ad->sqto   = dom->jali;
 
     /* Adjust score from env_len to max window length */ 
     bitscore = dom->envsc;
@@ -1020,6 +1021,13 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
       * excessive memmory. */
      if ( exp(dom_lnP) * pli->Z <= pli->E ) 
      { 
+
+	   /*Create the algienment */
+	   dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0], pli->show_cigar);
+       dom->ad->sqfrom = dom->iali;
+       dom->ad->sqto   = dom->jali;
+       dom->ad->L      = dnasq->L;		 
+
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
     
@@ -1031,8 +1039,6 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
 
        ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
        hit->dcl[0] = pli->ddef->dcl[d];
-
-       hit->dcl[0].ad->L = 0;
 
        hit->pre_score = bitscore  / eslCONST_LOG2;
        hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
@@ -1047,13 +1053,11 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
        if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-
      
     } 
-    else { //delete unused P7_ALIDSPLAY
-        p7_alidisplay_Destroy(dom->ad);
-        p7_trace_fs_Destroy(dom->tr);
-    }
+    else 
+      p7_trace_fs_Destroy(dom->tr);
+    
   }
 
   free(pli->ddef->dcl);
@@ -1215,7 +1219,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
     if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
    
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
-    p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, complementarity);
+	p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
 
   } 
   /* If the DNA window did NOT pass pass frameshift forward or did not produced a 
@@ -1243,7 +1247,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
         
         /* Send any hits from the standard pipeline to be further processed */   
-        p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, complementarity, nullsc_orf);
+        p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, dna_window->n, curr_orf, dnasq, pli_tmp->tmpseq, complementarity, nullsc_orf);
       }
     }  
   } 
@@ -1368,7 +1372,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5
     if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
 
-    p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, orf_start, curr_orf, dnasq, complementarity, nullsc);
+    p7_pli_postDomainDef_BATH(pli, om, bg, hitlist, seqidx, orf_start, curr_orf, dnasq, pli_tmp->tmpseq, complementarity, nullsc);
   }
 
   return eslOK;

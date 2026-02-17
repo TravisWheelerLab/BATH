@@ -169,14 +169,12 @@ p7_domaindef_Reuse(P7_DOMAINDEF *ddef)
    */
   if (ddef->dcl == NULL)  
     ESL_ALLOC(ddef->dcl, sizeof(P7_DOMAIN) * ddef->nalloc);
-  else
-    {
-      for (d = 0; d < ddef->ndom; d++) {
-  p7_alidisplay_Destroy(ddef->dcl[d].ad); ddef->dcl[d].ad             = NULL;
-  free(ddef->dcl[d].scores_per_pos);      ddef->dcl[d].scores_per_pos = NULL;
-      }
-      
-    }
+  else {
+    for (d = 0; d < ddef->ndom; d++) {
+      p7_alidisplay_Destroy(ddef->dcl[d].ad); ddef->dcl[d].ad             = NULL;
+      free(ddef->dcl[d].scores_per_pos);      ddef->dcl[d].scores_per_pos = NULL;
+    }    
+  }
   ddef->ndom = 0;
   ddef->L    = 0;
 
@@ -1006,6 +1004,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   double         P;
   int            codon_idx;  
   int            z;
+  int            z1, z2;
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
@@ -1075,7 +1074,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   }
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_fs_Create(ddef->tr, 0, gm_fs5, windowsq, gcode);
+  dom->ad             = NULL;
   dom->scores_per_pos = NULL; 
   
   /* Compute bias correction */
@@ -1141,22 +1140,29 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
   
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
-   
+  
+  
+  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+
   if(windowsq->start < windowsq->end)
   {
-    dom->iali          = dom->ad->sqfrom;
-    dom->jali          = dom->ad->sqto;
+    dom->iali          = ddef->tr->i[z1] - (ddef->tr->c[z1] - 1);
+    dom->jali          = ddef->tr->i[z2];
     dom->ienv          = i;
     dom->jenv          = j;
   }
   else
   {
-    dom->iali          = dom->ad->sqto - 2;
-    dom->jali          = dom->ad->sqfrom;
+    dom->iali          = ddef->tr->i[z2] - (ddef->tr->c[z1] - 1);
+    dom->jali          = ddef->tr->i[z1];
     dom->ienv          = j;
     dom->jenv          = i;
   }
-  
+
+  dom->ihmm          = ddef->tr->k[z1];
+  dom->jhmm          = ddef->tr->k[z2];
+
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
@@ -1221,14 +1227,15 @@ static int
 rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
 {
 
-  P7_DOMAIN     *dom           = NULL;
-  int            Ld            = j-i+1;
-  float          domcorrection = 0.0;
-  float          envsc, oasc, bcksc;
-  int            z;
-  int            pos;
-  float          null2[p7_MAXCODE];
-  int            status;
+  P7_DOMAIN *dom           = NULL;
+  int        Ld            = j-i+1;
+  float      domcorrection = 0.0;
+  float      envsc, oasc, bcksc;
+  int        z;
+  int        z1, z2;
+  int        pos;
+  float      null2[p7_MAXCODE];
+  int        status;
  
   p7_oprofile_ReconfigLength(om, orfsq->n);
   p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
@@ -1264,10 +1271,8 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   else
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
-
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = p7_alidisplay_nonfs_Create(ddef->tr, 0, om, windowsq, orfsq, ddef->tr->sqfrom[0]);
-  
+  dom->ad             = NULL;
   dom->scores_per_pos = NULL;  
 
   if (!null2_is_done) {   
@@ -1280,12 +1285,24 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
     domcorrection   += ddef->n2sc[pos];
 
   dom->domcorrection = domcorrection; /* in units of NATS */
-	
-  dom->iali          = dom->ad->sqfrom;
-  dom->jali          = dom->ad->sqto;
-  dom->ienv          = i; 
-  dom->jenv          = j; 
 
+  /* Use trace to find start and end positions */
+  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+
+  dom->ihmm          = ddef->tr->k[z1];
+  dom->jhmm          = ddef->tr->k[z2];
+  if(windowsq->start < windowsq->end) {
+    dom->iali        = ddef->tr->i[z1] - (ddef->tr->c[z1] - 1);
+    dom->jali        = ddef->tr->i[z2];
+  }
+  else {
+    dom->iali        = ddef->tr->i[z2] - (ddef->tr->c[z1] - 1);
+    dom->jali        = ddef->tr->i[z1];
+  }
+  dom->ienv          = i;
+  dom->jenv          = j;
+    
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;          /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0;           /* gets set later, using bg->omega and dombias */

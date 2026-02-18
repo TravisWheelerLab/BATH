@@ -117,7 +117,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
 
   pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
 
-  /* Set Frameshift Mode */
+   /* Set Alignment Mode */ 
   pli->spliced =  (go ? esl_opt_IsUsed(go, "--splice") : 0); 
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
@@ -952,9 +952,9 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
 	  
     }
-    
-    /* Adjust score from env_len to max window length. Note that the loop and move costs */ 
-    /* Note that loop probabilities are based on amino length but paid based on nucleotide length */
+
+    /* Adjust score from env_len to max window length. Note that the loop and move 
+     * costs are calculated based on amino lengths but paid per nucleotide*/
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / ((env_len/3.)+2));
     bitscore += 2 * log(2. / (gm_fs5->max_length+2));
@@ -982,7 +982,7 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
     if (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) 
     { 
 
-      dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs5, windowsq, gcode);
+      dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs5, windowsq, gcode, pli->show_cigar);
       dom->ad->sqfrom = dom->iali;
       dom->ad->sqto   = dom->jali;
       dom->ad->L      = dnasq->L;   
@@ -1151,7 +1151,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
       
        if(!pli->spliced) {
          
-         dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0]);
+         dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0], pli->show_cigar);
          dom->ad->sqfrom = dom->iali;
          dom->ad->sqto   = dom->jali;
          dom->ad->L      = dnasq->L; 
@@ -1172,7 +1172,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
 
        ESL_ALLOC(hit->dcl, sizeof(P7_DOMAIN) );
        hit->dcl[0] = pli->ddef->dcl[d];
-       
+
        hit->pre_score = bitscore  / eslCONST_LOG2;
        hit->pre_lnP   = esl_exp_logsurv (hit->pre_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
        
@@ -1186,11 +1186,9 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
        if (                       (status  = esl_strdup(dnasq->name, -1, &(hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->acc[0]  != '\0' && (status  = esl_strdup(dnasq->acc,  -1, &(hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
        if (dnasq->desc[0] != '\0' && (status  = esl_strdup(dnasq->desc, -1, &(hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
-
     } 
     else { //delete unused P7_ALIDSPLAY
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
-      p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
     }
   }
@@ -1341,6 +1339,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
+  
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
   
     pli->pos_past_fwd += dna_window->length; 
@@ -1352,9 +1351,9 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
-   
+
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
-    p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
+	p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
 
   } 
   /* If the DNA window did NOT pass pass frameshift forward or did not produced a 

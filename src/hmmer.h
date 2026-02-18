@@ -513,11 +513,12 @@ enum p7s_splice_options_e {
 };
 
 typedef struct p7_trace_s {
+
   int      N;              /* length of traceback                       */
   int      nalloc;         /* allocated length of traceback             */
   char    *st;             /* state type code                   [0..N-1]*/
   int     *k;              /* node index; 1..M if M,D,I; else 0 [0..N-1]*/
-  int     *i;          /* pos emitted in dsq, 1..L; else 0  [0..N-1]*/
+  int     *i;              /* pos emitted in dsq, 1..L; else 0  [0..N-1]*/
   int     *c;              /* codon length for frameshift search        */
   int     *sp;             /* splice option for sliced alignments       */
   float   *pp;             /* posterior prob of x_i; else 0     [0..N-1]*/
@@ -789,7 +790,7 @@ typedef struct p7_alidisplay_s {
   int   hmmfrom;                /* start position on HMM (1..M, or -1)  */
   int   hmmto;                  /* end position on HMM (1..M, or -1)    */
   int   M;                      /* length of model                      */
-  
+
   char *sqname;                 /* name of target sequence              */
   char *orfname;                /* name of ORF within target sequence (assigned by hmmer pipeline)  */
   char *sqacc;                  /* accession of target seq; or [0]='\0' */
@@ -828,6 +829,7 @@ typedef struct p7_dom_s {
   int            ihmm, jhmm;      
 
   float          envsc;          /* Forward score in envelope ienv..jenv; NATS; without null2 correction       */
+
   float          domcorrection;  /* null2 score when calculating a per-domain score; NATS                      */
   float          dombias;        /* FLogsum(0, log(bg->omega) + domcorrection): null2 score contribution; NATS */
   float          oasc;           /* optimal accuracy score (units: expected # residues correctly aligned)      */
@@ -1381,11 +1383,10 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 
 /* p7_alidisplay.c */
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
-extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode);
-extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos); 
+extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode, int show_cigar);
+extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos, int show_cigar); 
 extern P7_ALIDISPLAY *p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt);
 extern P7_ALIDISPLAY *p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt);
-
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);

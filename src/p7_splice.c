@@ -72,10 +72,11 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
   ali_seq = NULL;
   info    = NULL; 
  
+  
   printf("\nQuery %s LENG %d\n",  om->name, om->M);
   fflush(stdout);
 
-
+  
   /* Get the number of threads */
   ncpus = 0;
 #ifdef HMMER_THREADS
@@ -138,7 +139,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
       }
       
       ali_seq = p7_splice_GetSubSequence(seq_file, tophits->hit[i]->name, seq_min, seq_max, revcomp, NULL);
-      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs5, ali_seq, gcode);
+      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs5, ali_seq, gcode, esl_opt_GetBoolean(go, "--cigar"));
       tophits->hit[i]->dcl->ad->exon_cnt = 1;
       tophits->hit[i]->dcl->ad->sqfrom = tophits->hit[i]->dcl->iali;
       tophits->hit[i]->dcl->ad->sqto   = tophits->hit[i]->dcl->jali;  

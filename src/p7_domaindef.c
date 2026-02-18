@@ -168,14 +168,12 @@ p7_domaindef_Reuse(P7_DOMAINDEF *ddef)
    */
   if (ddef->dcl == NULL)  
     ESL_ALLOC(ddef->dcl, sizeof(P7_DOMAIN) * ddef->nalloc);
-  else
-    {
-      for (d = 0; d < ddef->ndom; d++) {
-  p7_alidisplay_Destroy(ddef->dcl[d].ad); ddef->dcl[d].ad             = NULL;
-  free(ddef->dcl[d].scores_per_pos);      ddef->dcl[d].scores_per_pos = NULL;
-      }
-      
-    }
+  else {
+    for (d = 0; d < ddef->ndom; d++) {
+      p7_alidisplay_Destroy(ddef->dcl[d].ad); ddef->dcl[d].ad             = NULL;
+      free(ddef->dcl[d].scores_per_pos);      ddef->dcl[d].scores_per_pos = NULL;
+    }    
+  }
   ddef->ndom = 0;
   ddef->L    = 0;
 
@@ -1129,10 +1127,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
   
+  for (z1 = 0;           z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->N; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
 
-  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break; 
-  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
-  
   if(windowsq->start < windowsq->end)
   {
     dom->iali          = ddef->tr->i[z1] - (ddef->tr->c[z1] - 1);
@@ -1147,7 +1144,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
     dom->ienv          = j;
     dom->jenv          = i;
   }
- 
   dom->ihmm          = ddef->tr->k[z1]; 
   dom->jhmm          = ddef->tr->k[z2]; 
   
@@ -1216,16 +1212,16 @@ static int
 rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
 {
 
-  P7_DOMAIN     *dom           = NULL;
-  int            Ld            = j-i+1;
-  int            z1, z2;
-  float          domcorrection = 0.0;
-  float          envsc, oasc, bcksc;
-  int            z;
-  int            pos;
-  float          null2[p7_MAXCODE];
-  int            status;
-
+  P7_DOMAIN *dom           = NULL;
+  int        Ld            = j-i+1;
+  float      domcorrection = 0.0;
+  float      envsc, oasc, bcksc;
+  int        z;
+  int        z1, z2;
+  int        pos;
+  float      null2[p7_MAXCODE];
+  int        status;
+ 
   p7_oprofile_ReconfigLength(om, orfsq->n);
   p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
   p7_omx_GrowTo(ox2, om->M, orfsq->n, orfsq->n); 
@@ -1253,6 +1249,9 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
     ddef->nalloc *= 2;
   }
+
+  /*Index bewfore converting to get ORF start coords */
+  p7_trace_Index(ddef->tr);
 
   if(orfsq->start < orfsq->end)
     p7_trace_fs_Convert(ddef->tr, orfsq->start, windowsq->start);
@@ -1284,12 +1283,13 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
     domcorrection   += ddef->n2sc[pos];
   dom->domcorrection = ESL_MAX(0.0, domcorrection); /* in units of NATS */
 
-  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
-  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
-  	
+  /* Use trace to find start and end positions */
+  for (z1 = 0;           z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->N; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+
   dom->ihmm          = ddef->tr->k[z1];
   dom->jhmm          = ddef->tr->k[z2];
-  if(windowsq->start < windowsq->end) {  
+  if(windowsq->start < windowsq->end) {
     dom->iali        = ddef->tr->i[z1] - (ddef->tr->c[z1] - 1);
     dom->jali        = ddef->tr->i[z2];
   }
@@ -1297,9 +1297,9 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
     dom->iali        = ddef->tr->i[z2] - (ddef->tr->c[z1] - 1);
     dom->jali        = ddef->tr->i[z1];
   }
-  dom->ienv          = i; 
-  dom->jenv          = j; 
-
+  dom->ienv          = i;
+  dom->jenv          = j;
+    
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;          /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0;           /* gets set later, using bg->omega and dombias */

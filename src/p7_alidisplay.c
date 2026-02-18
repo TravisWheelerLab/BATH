@@ -153,7 +153,7 @@ static char nuc_four(int codon_len, int indel, int c1, int c2, int c3, int c4, c
 
   if(indel == p7P___X)
     n4 = alphaDNA[c1];
-  else if ( indel == p7P___X || indel == p7P_X_X )
+  else if ( indel == p7P_X_X || indel == p7P__XX)
     n4 = alphaDNA[c2];
   else if (codon_len < 3)
     n4 = '-';
@@ -551,12 +551,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   int            orf_namelen; /* used for translated search only */
   int            exact; 
   int            n_count;
-  int            prev_st;
   int            tot_cigar_length;
   int            cur_cigar_length;
   int            cigar_alloc_length;
   char           buffer[26];
-  char           cigar_state;
   int            status;
   char           n1,n2,n3,n4,n5;
 
@@ -706,7 +704,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   exact = 0;
   y = 0;
   n_count = 0;
-  prev_st = tr->st[z1];
   for (z = z1; z <= z2; z++) 
   {
     k = tr->k[z];
@@ -758,7 +755,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         get_codon_index(sq->abc, c, n1, n2, n3, n4, n5, &codon_idx);
         aa = p7P_AMINO(gm_fs, k, codon_idx);
         indel = p7P_INDEL(gm_fs, k, codon_idx);
-        
         ad->ntseq [5*(z-z1)]   = nuc_one(c, indel, n1, alphaDNA);
         ad->ntseq [5*(z-z1)+1] = nuc_two(c, indel, n1, n2, alphaDNA);
         ad->ntseq [5*(z-z1)+2] = nuc_three(c, indel, n1, n2, n3, alphaDNA);
@@ -777,53 +773,51 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           ad->stops++;
         }
 
-		/* If the previous state was not an M record the perivous state in the cigar string */
-		if(show_cigar && prev_st != p7T_M) {
-          cur_cigar_length = sprintf (buffer, "%d%c", n_count, cigar_state);
+        /* Append to cigar string if the next state is another M or er have a frameshift)*/
+        if(show_cigar && (tr->st[z+1] != p7T_M || c != 3)) {
+          
+          if      (c == 3)                                                                           n_count += 3;
+          else if (indel == p7P_XX_ || indel == p7P_XXxX || indel == p7P_XXxxX)                      n_count += 2;
+          else if (indel == p7P_X_X || indel == p7P_X__  || indel == p7P_XxXX || indel == p7P_XxxXX) n_count += 1;
+
+          cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'M');
           if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
             cigar_alloc_length *= 2;
             ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
-          }
-          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
+          }  
+
+          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'M');
           n_count = 0;
-        }
-		/*If this state contains a frameshift record it in the cigar string */
-		if(show_cigar && c != 3) {
-		  if(indel == p7P_XXx || indel == p7P_XXxxX) n_count += 2;
-          if(indel == p7P_XxX || indel == p7P_XxxXX) n_count += 1;		  
-		  cur_cigar_length = sprintf (buffer, "%d%c", n_count, cigar_state);
-          if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
+
+          if(tot_cigar_length + 2 > cigar_alloc_length) {
             cigar_alloc_length *= 2;
             ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
-          }
-		  tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'M'); /*Use 'M' incase this is the first position and cigar_state has nt been set */
-		  if(tot_cigar_length + 2 > cigar_alloc_length) {
-			cigar_alloc_length *= 2;
-		    ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
-          }		  
+          }    
+
           if      (c == 1)
-		    tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'B');
-		  else if (c == 2)
-		    tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'B');
+            tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'B');
+          else if (c == 2)
+            tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'B');
           else if (c == 4)
             tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
-	      else if (c == 5)
-		    tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'F');
+          else if (c == 5)
+            tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'F'); 
 
-		  if(indel == p7P_XXxX || indel == p7P_XXxxX) n_count = 1;
-          if(indel == p7P_XxXX || indel == p7P_XxxXX) n_count = 2;
-		  if(indel == p7P_xXXX || indel == p7P_xxXXX) n_count = 3;
+          if(indel == p7P___X  || indel == p7P_X_X  || indel == p7P_XXxX || indel == p7P_XXxxX) n_count = 1;
+          if(indel == p7P__XX  || indel == p7P_XxXX || indel == p7P_XxxXX)                      n_count = 2;
+          if(indel == p7P_xXXX || indel == p7P_xxXXX)                                           n_count = 3;
 
-		  /* If this is the last position in the trace or the next postion in not an M print the remaining nucleotides now */
-		  if(z == z2 || tr->st[z+1] != p7T_M) { 
-	        tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'M');
-			n_count = 0;
-		  }
-		}
-	    else n_count += 3;
-
-        prev_st = p7T_M;
-        cigar_state = 'M';
+          if(tr->st[z+1] != p7T_M && n_count > 0) {
+            if(tot_cigar_length + 2 > cigar_alloc_length) {
+              cigar_alloc_length *= 2;
+              ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
+            }
+            tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'M');
+            n_count = 0;   
+          } 
+           
+        }
+        else n_count += 3;
 
         break;
 	
@@ -848,18 +842,18 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         ad->ntseq [5*(z-z1)+3] = alphaDNA[sq->dsq[i]];
         ad->ntseq [5*(z-z1)+4] = ' ';
        
-	    if(show_cigar && prev_st != p7T_I) {
-          cur_cigar_length = sprintf (buffer, "%d%c", n_count,  cigar_state);
-          if(tot_cigar_length + cur_cigar_length + 1 > cigar_alloc_length) {
+	    if(show_cigar && tr->st[z+1] != p7T_I) {
+          n_count += 3;
+          cur_cigar_length = sprintf (buffer, "%d%c", n_count,  'I');
+          if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
             cigar_alloc_length *= 2;
             ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
           }
-          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
+          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'I');
           n_count = 0;
         }
-        n_count += 3;
-        prev_st = p7T_I;
-        cigar_state = 'I';	
+        else n_count += 3;
+        
         break;
 	
       case p7T_D:
@@ -873,18 +867,18 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         ad->ntseq [5*(z-z1)+3] = '-';
         ad->ntseq [5*(z-z1)+4] = ' ';
 
-		if(show_cigar && prev_st != p7T_D) {
-          cur_cigar_length = sprintf (buffer, "%d%c", n_count,  cigar_state);
-          if(tot_cigar_length + cur_cigar_length + 1 > cigar_alloc_length) {
+		if(show_cigar && tr->st[z+1] != p7T_D) {
+          n_count += 3;
+          cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'D');
+          if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
             cigar_alloc_length *= 2;
             ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
           }
-          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
+          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'D');
           n_count = 0;
         }
-        n_count += 3;
-        prev_st = p7T_D;
-        cigar_state = 'D';
+        else n_count += 3;
+        
         break;
 
       default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
@@ -899,15 +893,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->N = z2-z1+1;
   ad->pid = ((float) exact / ad->N) * 100;
 
-  if(show_cigar) {
-    cur_cigar_length = sprintf (buffer, "%d%c", n_count,  cigar_state);
-    if(tot_cigar_length + cur_cigar_length + 1 > cigar_alloc_length) {
-      cigar_alloc_length *= 2;
-      ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
-    }
-    tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
+  if(show_cigar) 
     ad->cigar[tot_cigar_length] = '\0';
-  } 
+   
 
   return ad;
 
@@ -960,12 +948,10 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   int            orf_namelen; /* used for translated search only */
   int            exact;
   int            n_count;
-  int            prev_st;
   int            tot_cigar_length;
   int            cur_cigar_length;
   int            cigar_alloc_length;
   char           buffer[26];
-  char           cigar_state;
   int            status;
 
   /* First figure out which piece of the trace (from first match to last match) 
@@ -1107,7 +1093,6 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   y = 0;
   exact = 0;
   n_count = 0;
-  prev_st = tr->st[z1];
   for (z = z1; z <= z2; z++) 
   {
     k = tr->k[z];
@@ -1137,18 +1122,18 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
          ad->mline[z-z1] = ' ';
         orf_pos++;
 
-		if(show_cigar && prev_st != p7T_M) {
-          cur_cigar_length = sprintf (buffer, "%d%c", n_count, cigar_state); 
-		  if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
-			cigar_alloc_length *= 2;
-		    ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
-		  }
-		  tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
-		  n_count = 0;
-		}
-		n_count += 3;
-        prev_st = p7T_M;
-		cigar_state = 'M';
+        if(show_cigar && tr->st[z+1] != p7T_M) {
+          n_count += 3;
+          cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'M');
+          if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
+            cigar_alloc_length *= 2;
+            ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
+          }
+          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'M');
+          n_count = 0;
+        }
+        else n_count += 3;
+		
         break;
 	
       case p7T_I:
@@ -1165,18 +1150,18 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
         ad->mline [z-z1] = ' ';
         orf_pos++; 
 
-		if(show_cigar && prev_st != p7T_I) {
-          cur_cigar_length = sprintf (buffer, "%d%c", n_count,  cigar_state);
-          if(tot_cigar_length + cur_cigar_length + 1 > cigar_alloc_length) {
+        if(show_cigar && tr->st[z+1] != p7T_I) {
+          n_count += 3;
+          cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'I');
+          if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
             cigar_alloc_length *= 2;
             ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
           }
-          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
+          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'I');
           n_count = 0;
         }
-		n_count += 3;
-		prev_st = p7T_I;
-		cigar_state = 'I';
+        else n_count += 3;
+		
         break;
 	
       case p7T_D:
@@ -1190,18 +1175,18 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
         ad->ntseq [5*(z-z1)+3] = '-';
         ad->ntseq [5*(z-z1)+4] = ' ';
 
-		if(show_cigar && prev_st != p7T_D) {
-          cur_cigar_length = sprintf (buffer, "%d%c", n_count,  cigar_state);
-          if(tot_cigar_length + cur_cigar_length + 1 > cigar_alloc_length) {
+        if(show_cigar && tr->st[z+1] != p7T_D) {
+          n_count += 3;
+          cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'D');
+          if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
             cigar_alloc_length *= 2;
             ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
           }
-          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
+          tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'D');
           n_count = 0;
         }
-		n_count += 3;
-		prev_st = p7T_D;
-		cigar_state = 'D';
+        else n_count += 3;
+		
         break;
 
       default: ESL_XEXCEPTION(eslEINVAL, "invalid state in trace: not M,D,I");
@@ -1216,15 +1201,9 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->N = z2-z1+1;
   ad->pid = ((float)exact/ad->N) * 100;
 
- if(show_cigar) {
-    cur_cigar_length = sprintf (buffer, "%d%c", n_count,  cigar_state);
-	if(tot_cigar_length + cur_cigar_length + 1 > cigar_alloc_length) {
-      cigar_alloc_length *= 2;
-	  ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
-	}
-	tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, cigar_state);
-    ad->cigar[tot_cigar_length] = '\0';
-  }
+ if(show_cigar) 
+   ad->cigar[tot_cigar_length] = '\0';
+  
 
   return ad;
 

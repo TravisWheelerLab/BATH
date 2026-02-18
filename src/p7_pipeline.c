@@ -803,7 +803,6 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
     
     if (ali_len < 12)   
     {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
-      p7_alidisplay_Destroy(dom->ad);
       p7_trace_fs_Destroy(dom->tr);
       continue;
     }
@@ -1203,6 +1202,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
    * than the sumed Forward score of the orfs used to costruct that window 
    * then we proceed with the frameshift pipeline
    */
+  
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
     
     pli->pos_past_fwd += dna_window->length; 
@@ -1214,7 +1214,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
     if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
-   
+
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
 	p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
 

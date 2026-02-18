@@ -1142,8 +1142,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
   
   
-  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
-  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+  for (z1 = 0;           z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->N; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
 
   if(windowsq->start < windowsq->end)
   {
@@ -1287,8 +1287,8 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   dom->domcorrection = domcorrection; /* in units of NATS */
 
   /* Use trace to find start and end positions */
-  for (z1 = ddef->tr->tfrom[0]; z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
-  for (z2 = ddef->tr->tto[0];   z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+  for (z1 = 0;           z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->N; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
 
   dom->ihmm          = ddef->tr->k[z1];
   dom->jhmm          = ddef->tr->k[z2];

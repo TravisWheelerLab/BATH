@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-#include <string.h>
 
 #include "easel.h"
 #include "hmmer.h"
@@ -655,11 +654,10 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
-  ad->hmmfrom = tr->k[z1];
-  ad->hmmto   = tr->k[z2];
-  tr->hmmfrom[0] = tr->k[z1];
-  tr->hmmto[0]   = tr->k[z2];
-  ad->M       = gm_fs->M;
+  ad->hmmfrom    = tr->k[z1];
+  ad->hmmto      = tr->k[z2];
+  ad->M          = gm_fs->M;
+
   ad->frameshifts = 0; 
   ad->stops = 0;
   if(sq->start < sq->end) {
@@ -774,7 +772,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
           ad->stops++;
         }
 
-        /* Append to cigar string if the next state is another M this M has a frameshift)*/
+        /* Append to cigar string if the next state is another M or the state has a frameshift)*/
         if(show_cigar && (tr->st[z+1] != p7T_M || c != 3)) {
           
           if      (c == 3)                                                                           n_count += 3;
@@ -890,7 +888,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';
-  ad->ntseq  [5*(z2-z1+1)] = '\0';
+  ad->ntseq [5*(z2-z1+1)] = '\0';
   ad->N = z2-z1+1;
   ad->pid = ((float) exact / ad->N) * 100;
 
@@ -1051,8 +1049,6 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   /* Determine hit coords */
   ad->hmmfrom    = tr->k[z1];
   ad->hmmto      = tr->k[z2];
-  tr->hmmfrom[0] = tr->k[z1];
-  tr->hmmto[0]   = tr->k[z2];
   ad->M          = om->M;
 
   ad->frameshifts = 0; 
@@ -1418,7 +1414,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     for (z = z1; z <= z2; z++) {
       if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->csline[z-z1] = '.';
       else if (tr->st[z] == p7T_A)                        ad->csline[z-z1] = ' ';
-      else                                                ad->csline[z-z1] = om->mm[tr->k[z]];
+      else                                                ad->csline[z-z1] = om->cs[tr->k[z]];
     }
     ad->csline[z-z1] = '\0';
   }
@@ -1446,6 +1442,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   exonN = 0;
   x = y = 0;
   P_A_cnt = 0;
+  prev_i = 0;
   for (z = z1; z <= z2; z++)
   {
     k = tr->k[z];
@@ -1758,8 +1755,9 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   else
     ad->exon_seq_ends[x] = i + target_seq->start - 1;
 
-  ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100; 
- 
+  if(exonN > 0) ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100; 
+  else          ad->exon_pid[x] = 0.;
+  
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';
@@ -1934,8 +1932,6 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   /* Determine hit coords */
   ad->hmmfrom    = tr->k[z1];
   ad->hmmto      = tr->k[z2];
-  tr->hmmfrom[0] = tr->k[z1];
-  tr->hmmto[0]   = tr->k[z2];
   ad->M          = gm_fs5->M;
 
   ad->frameshifts = 0; 
@@ -1993,7 +1989,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
     for (z = z1; z <= z2; z++) {
       if      (tr->st[z] == p7T_I || tr->st[z] == p7T_RI) ad->csline[z-z1] = '.';
       else if (tr->st[z] == p7T_A)                        ad->csline[z-z1] = ' ';
-      else                                                ad->csline[z-z1] = gm_fs5->mm[tr->k[z]];
+      else                                                ad->csline[z-z1] = gm_fs5->cs[tr->k[z]];
     }
     ad->csline[z-z1] = '\0';
   }
@@ -2374,29 +2370,29 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
           else if(c == 2) {
             if     ( p == p7S_AxxyyBC && indel == p7P__XX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'B');
-            else if( p = p7S_ABxxyyC && (indel == p7P__XX || indel == p7P_X_X))
+            else if( p == p7S_ABxxyyC && (indel == p7P__XX || indel == p7P_X_X))
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'B'); 
           }
           else if(c == 4) {
             if     ( p == p7S_AxxyyBC && indel == p7P_xXXX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
-            else if( p = p7S_ABxxyyC && (indel == p7P_XxXX || indel == p7P_xXXX))
+            else if( p == p7S_ABxxyyC && (indel == p7P_XxXX || indel == p7P_xXXX))
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
-            else if( p = p7S_ABCxxyyD)
+            else if( p == p7S_ABCxxyyD)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
           }
           else if(c == 5) {
             if     ( p == p7S_AxxyyBC && indel == p7P_xxXXX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
-            else if( p = p7S_ABxxyyC && indel == p7P_XxxXX)
+            else if( p == p7S_ABxxyyC && indel == p7P_XxxXX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
-            else if( p = p7S_ABxxyyC && indel == p7P_xxXXX)
+            else if( p == p7S_ABxxyyC && indel == p7P_xxXXX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'F');
-            else if( p = p7S_ABCxxyyD && indel == p7P_XXxxX)
+            else if( p == p7S_ABCxxyyD && indel == p7P_XXxxX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
-            else if( p = p7S_ABCxxyyD)
+            else if( p == p7S_ABCxxyyD)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'F');
-            else if( p = p7S_ABCDxxyyE)
+            else if( p == p7S_ABCDxxyyE)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'F');
           }
           
@@ -2534,7 +2530,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
           }
           ad->ntseq [5*(z-z1)+3] = c4;
           nuc_pos += (c-1); 
-          if     (tr->st[z-2] = p7T_RI || rc == 3)
+          if     (tr->st[z-2] == p7T_RI || rc == 3)
             n_count = 2;
           else if(rindel == p7P_XX_ || rindel == p7P_XXxX || rindel == p7P_XXxxX)
             n_count = 1;
@@ -2551,7 +2547,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
           ad->ntseq [5*(z-z1)+3] = c4;
           nuc_pos += (c-2); //move to start of A state
 
-          if     (tr->st[z-2] = p7T_RI || rc == 3)
+          if     (tr->st[z-2] == p7T_RI || rc == 3)
             n_count = 1;
           else if(rindel == p7P___X || rindel == p7P_X_X)
             n_count = 1;
@@ -2674,8 +2670,10 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
     ad->exon_seq_ends[x] = sq->n - nuc_index[nuc_pos-1] + sq->end;
   else
     ad->exon_seq_ends[x] = nuc_index[nuc_pos-1] + sq->start - 1;
-  ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100;
-  
+
+  if(exonN > 0) ad->exon_pid[x] = (ad->exon_pid[x] / exonN) * 100;
+  else          ad->exon_pid[x] = 0.;
+
   ad->model [z2-z1+1] = '\0';
   ad->mline [z2-z1+1] = '\0';
   ad->aseq  [z2-z1+1] = '\0';
@@ -2722,6 +2720,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->ppline = NULL;
   new_obj->N = 0;
   new_obj->pid = 0.0;
+  new_obj->cigar = NULL;
 
   /* Used for splice alignments only */
   new_obj->exon_seq_starts = NULL;
@@ -2863,8 +2862,8 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
 	
       ESL_ALLOC(ad2->exon_seq_starts, sizeof(int64_t) * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_seq_ends,   sizeof(int64_t) * ad->exon_cnt);
-      ESL_ALLOC(ad2->exon_hmm_starts, sizeof(int64_t) * ad->exon_cnt);
-      ESL_ALLOC(ad2->exon_hmm_ends,   sizeof(int64_t) * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_hmm_starts, sizeof(int)     * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_hmm_ends,   sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_score,      sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_pp,         sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_lnP,        sizeof(double)  * ad->exon_cnt);
@@ -2872,16 +2871,16 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ESL_ALLOC(ad2->exon_anchor,     sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_extend,     sizeof(int)     * ad->exon_cnt);
  
-      memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt);
-      memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt); 
-      memcpy(ad2->exon_hmm_starts, ad->exon_hmm_starts, ad->exon_cnt);
-      memcpy(ad2->exon_hmm_ends,   ad->exon_hmm_ends,   ad->exon_cnt);
-      memcpy(ad2->exon_score,      ad->exon_score,      ad->exon_cnt);
-      memcpy(ad2->exon_pp,         ad->exon_pp,         ad->exon_cnt);
-      memcpy(ad2->exon_lnP,        ad->exon_lnP,        ad->exon_cnt);
-      memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt);
-      memcpy(ad2->exon_anchor,     ad->exon_anchor,     ad->exon_cnt);
-      memcpy(ad2->exon_extend,     ad->exon_extend,     ad->exon_cnt);
+      memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt * sizeof(int64_t));
+      memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt * sizeof(int64_t)); 
+      memcpy(ad2->exon_hmm_starts, ad->exon_hmm_starts, ad->exon_cnt * sizeof(int));
+      memcpy(ad2->exon_hmm_ends,   ad->exon_hmm_ends,   ad->exon_cnt * sizeof(int));
+      memcpy(ad2->exon_score,      ad->exon_score,      ad->exon_cnt * sizeof(float));
+      memcpy(ad2->exon_pp,         ad->exon_pp,         ad->exon_cnt * sizeof(float));
+      memcpy(ad2->exon_lnP,        ad->exon_lnP,        ad->exon_cnt * sizeof(double));
+      memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt * sizeof(float));
+      memcpy(ad2->exon_anchor,     ad->exon_anchor,     ad->exon_cnt * sizeof(int));
+      memcpy(ad2->exon_extend,     ad->exon_extend,     ad->exon_cnt * sizeof(int));
       ad2->exon_cnt        = ad->exon_cnt;
    }
 
@@ -2919,7 +2918,7 @@ p7_alidisplay_Sizeof(const P7_ALIDISPLAY *ad)
   if (ad->csline) n += ad->N+1; 
   if (ad->ppline) n += ad->N+1; 
   n += 3 * (ad->N+1);	          /* model, mline, aseq */
-  if (ad->ntseq)  n += (3 * ad->N) + 1;	          /* ntseq */
+  if (ad->ntseq)  n += (5 * ad->N) + 1;	          /* ntseq */
   n += 1 + strlen(ad->hmmname);	  
   n += 1 + strlen(ad->hmmacc);	  /* optional acc, desc fields: when not present, just "" ("\0") */
   n += 1 + strlen(ad->hmmdesc);
@@ -2966,7 +2965,8 @@ p7_alidisplay_Sizeof(const P7_ALIDISPLAY *ad)
  * Throws:    Returns eslEMEM if unable to allocate or re-allocate memory.  Returns eslEINVAL if obj == NULL, n == NULL, or buf == NULL
  *            Returns eslFAIL if one of the internal calculations fails a consistency check.
  */
-int p7_alidisplay_Serialize(const P7_ALIDISPLAY *obj, uint8_t **buf, uint32_t *n, uint32_t *nalloc){
+int p7_alidisplay_Serialize(const P7_ALIDISPLAY *obj, uint8_t **buf, uint32_t *n, uint32_t *nalloc)
+{
 
   int status; // error variable used by ESL_ALLOC
   uint32_t ser_size; // size of the structure when serialized
@@ -3017,7 +3017,7 @@ int p7_alidisplay_Serialize(const P7_ALIDISPLAY *obj, uint8_t **buf, uint32_t *n
 
   if (obj->ntseq){
     presence_flags += NTSEQ_PRESENT;
-    ser_size += (3 * obj->N) + 1;           /* ntseq */
+    ser_size += (5 * obj->N) + 1;           /* ntseq */
   }
 
   if (obj->ppline){
@@ -3047,6 +3047,7 @@ int p7_alidisplay_Serialize(const P7_ALIDISPLAY *obj, uint8_t **buf, uint32_t *n
       orfname_length = strlen(obj->orfname);
       ser_size += 1 + orfname_length;  /* optional field: when not present, just "" ("\0") */
   }
+  else orfname_length = 0;
 
   // Now that we know how big the serialized data structure will be, determine if we have enough buffer space to hold it
   if(*buf == NULL){ // have no buffer, so allocate one
@@ -3155,7 +3156,7 @@ int p7_alidisplay_Serialize(const P7_ALIDISPLAY *obj, uint8_t **buf, uint32_t *n
   // Field 18: ntseq
   if(presence_flags & NTSEQ_PRESENT){
     strcpy((char *) ptr, obj->ntseq);
-    ptr += (3 * obj->N) + 1;
+    ptr += (5 * obj->N) + 1;
   }
 
   // Field 19: PPline
@@ -3189,8 +3190,10 @@ int p7_alidisplay_Serialize(const P7_ALIDISPLAY *obj, uint8_t **buf, uint32_t *n
   ptr += sqdesc_length +1 ;
 
   // Field 26: Orfname
-  strcpy((char *) ptr, obj->orfname);
-  ptr += orfname_length +1 ;
+  if(obj->orfname != NULL ) {
+    strcpy((char *) ptr, obj->orfname);
+    ptr += orfname_length +1 ;
+  }
 
   // sanity-check that we computed the length correctly
   if(ptr != *buf + *n + ser_size){
@@ -3543,15 +3546,15 @@ p7_alidisplay_Deserialize_old(P7_ALIDISPLAY *ad)
   if (ad->model != ad->mem+pos) { free(ad->model); ad->model = ad->mem+pos; }  pos += ad->N+1; 
   if (ad->mline != ad->mem+pos) { free(ad->mline); ad->mline = ad->mem+pos; }  pos += ad->N+1; 
   if (ad->aseq  != ad->mem+pos) { free(ad->aseq);  ad->aseq  = ad->mem+pos; }  pos += ad->N+1; 
-  if (ad->ntseq)  { if (ad->ntseq  != ad->mem+pos) { free(ad->ntseq);  ad->ntseq  = ad->mem+pos; }  pos += (3*ad->N)+1; }
+  if (ad->ntseq)  { if (ad->ntseq  != ad->mem+pos) { free(ad->ntseq);  ad->ntseq  = ad->mem+pos; }  pos += (5*ad->N)+1; }
   if (ad->ppline) { if (ad->ppline != ad->mem+pos) { free(ad->ppline); ad->ppline = ad->mem+pos; }  pos += ad->N+1; }
 
   n = 1 + strlen(ad->hmmname);  if (ad->hmmname != ad->mem+pos) { free(ad->hmmname); ad->hmmname = ad->mem+pos; }  pos += n;
   n = 1 + strlen(ad->hmmacc);   if (ad->hmmacc  != ad->mem+pos) { free(ad->hmmacc);  ad->hmmacc  = ad->mem+pos; }  pos += n;
-  n = 1 + strlen(ad->hmmname);  if (ad->hmmdesc != ad->mem+pos) { free(ad->hmmdesc); ad->hmmdesc = ad->mem+pos; }  pos += n;
+  n = 1 + strlen(ad->hmmdesc);  if (ad->hmmdesc != ad->mem+pos) { free(ad->hmmdesc); ad->hmmdesc = ad->mem+pos; }  pos += n;
   n = 1 + strlen(ad->sqname);   if (ad->sqname  != ad->mem+pos) { free(ad->sqname);  ad->sqname = ad->mem+pos;  }  pos += n;
   n = 1 + strlen(ad->sqacc);    if (ad->sqacc   != ad->mem+pos) { free(ad->sqacc);   ad->sqacc  = ad->mem+pos;  }  pos += n;
-  n = 1 + strlen(ad->sqname);   if (ad->sqdesc  != ad->mem+pos) { free(ad->sqdesc);  ad->sqdesc = ad->mem+pos;  }  pos += n;
+  n = 1 + strlen(ad->sqdesc);   if (ad->sqdesc  != ad->mem+pos) { free(ad->sqdesc);  ad->sqdesc = ad->mem+pos;  }  pos += n;
   return status;
 }
 
@@ -3720,6 +3723,7 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
   char *show_hmmname = NULL;
   char *show_seqname = NULL;
   int  *frameline    = NULL;
+  char *exon_name    = NULL;
   int   namewidth, coordwidth;
   int   max_aliwidth, cur_aliwidth;
   int   frame;
@@ -3736,7 +3740,6 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
   int   exon_cnt;
   int   spliced_ali;
   int   is_splice_line, was_splice_line;
-  char  *exon_name;
 
   show_accessions = pli->show_accessions;
 
@@ -3757,7 +3760,6 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
 	else {
       show_seqname[max_namewidth]   = '.';
       show_seqname[max_namewidth+1] = '.';
-	  show_seqname[max_namewidth+2] = '.';
       show_seqname[max_namewidth+2] = '.';
       show_seqname[max_namewidth+3] = '\0';
 	}
@@ -4036,7 +4038,7 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
 
   ERROR:
     if (buf) free(buf);
-    if(exon_name) free(exon_name);
+    if(exon_name != NULL) free(exon_name);
     if(frameline != NULL) free(frameline);
     return status;
 }
@@ -4248,6 +4250,7 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->orfname = NULL;
   ad->mem     = NULL;
   ad->memsize = 0;
+  ad->cigar           = NULL;
   ad->exon_seq_starts = NULL;
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
@@ -4258,6 +4261,7 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+ 
 
   /* Optional lines are added w/ 50% chance */
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->rfline, sizeof(char) * (N+1));
@@ -4574,8 +4578,8 @@ main(int argc, char **argv)
         for (z = 0; z < tr->N; z++)
           if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
-      ad = p7_alidisplay_fs_Create(tr, 0, gm_fs5, sqDNA, gcode);
-      p7_alidisplay_PrintBATH(stdout, ad, 40, 40, 80, pli);
+      ad = p7_alidisplay_fs_Create(tr, 0, gm_fs5, sqDNA, gcode, FALSE);
+      p7_alidisplay_Print_BATH(stdout, ad, 40, 40, 80, pli);
       p7_alidisplay_Destroy(ad);
     }
       p7_trace_Reuse(tr);
@@ -4703,7 +4707,7 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->ppline, sizeof(char) * (N+1));
   ESL_ALLOC(ad->model, sizeof(char) * (N+1));
   ESL_ALLOC(ad->mline, sizeof(char) * (N+1));
-  ESL_ALLOC(ad->ntseq,  sizeof(char) * ((3 *N)+1));
+  ESL_ALLOC(ad->ntseq,  sizeof(char) * ((5 *N)+1));
   ad->N = N;
 
   esl_strdup("my_hmm", -1, &(ad->hmmname));
@@ -4715,8 +4719,8 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   if (esl_rnd_Roll(rng, 2) == 0) esl_strdup("(sequence description)", -1, &(ad->sqdesc)); else esl_strdup("", -1, &(ad->sqdesc));
 
   esl_strdup("orf1234", -1, &(ad->orfname));
-
-
+  ad->cigar = NULL;
+  
   /* model, seq coords must look valid. */
   ad->hmmfrom = 100;
   ad->hmmto   = ad->hmmfrom + nM + nD - 1;
@@ -4788,7 +4792,7 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->mline[pos] = '\0';
 
   // pad out ntseq to the 3N length it needs
-  for (pos = N; pos <  (3 * N); pos++){
+  for (pos = N; pos <  (5 * N); pos++){
     if(esl_rnd_Roll(rng, 50) == 0) ad->ntseq[pos] = '*';  // dirty aligned sequence up with nasty * stop codons, about 1/(3*50) of the time.
     else                                                     ad->ntseq[pos] = 'A';  // ... they would only be aligned to ' ' on an mline.
   }

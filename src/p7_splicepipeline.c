@@ -56,9 +56,6 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli = NULL;
   ESL_ALLOC(pli, sizeof(SPLICE_PIPELINE));
 
-  pli->frameshift = TRUE;
-  pli->long_targets = FALSE;
-
   if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2 = FALSE;
   else                                           pli->do_null2 = TRUE;           
   
@@ -94,6 +91,8 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
     pli->F1 = pli->F2 = pli->F3 = 1.0;
   }
   
+  pli->show_cigar = (go && esl_opt_GetBoolean(go, "--cigar") ? TRUE : FALSE);  
+
   pli->signal_scores = NULL; 
   ESL_ALLOC(pli->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
   p7_splicepipeline_SignalScores(pli->signal_scores);  

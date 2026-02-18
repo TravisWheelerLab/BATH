@@ -3300,7 +3300,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
       return eslOK;
     }
     
-    hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt);
+    hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt, pli->show_cigar);
 
     p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, FALSE); 
     status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
@@ -3352,7 +3352,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   hit->dcl->domcorrection = ESL_MAX(0.0, domcorrection);
 
 
-  hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt);
+  hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt,  pli->show_cigar);
 
   p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, TRUE);
 

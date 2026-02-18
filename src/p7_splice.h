@@ -133,8 +133,7 @@ typedef struct _splice_pipeline
   int      inc_by_E;
   int      do_null2;
   int      do_biasfilter;
-  int      long_targets;
-  int      frameshift;
+  int      show_cigar; 
 
   double   E;
   double   T;

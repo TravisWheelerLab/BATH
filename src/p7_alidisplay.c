@@ -1673,14 +1673,15 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
           if(revcomp){
             ad->exon_seq_ends[x]     = target_seq->n - (prev_i+2) + target_seq->end;
             ad->exon_seq_starts[x+1] = target_seq->n- i +target_seq->end;
-            n_count = ad->exon_seq_ends[x] - ad->exon_seq_starts[x+1] - 1;
           }
           else {
             ad->exon_seq_ends[x]     = (prev_i+2) + target_seq->start - 1;
             ad->exon_seq_starts[x+1] = i + target_seq->start - 1;
-            n_count = ad->exon_seq_starts[x+1] - ad->exon_seq_ends[x] - 1;
           } 
         }
+
+        if(revcomp) n_count = ad->exon_seq_ends[x] - ad->exon_seq_starts[x+1] - 1;
+        else        n_count = ad->exon_seq_starts[x+1] - ad->exon_seq_ends[x] - 1; 
 
         /* End of exon bookkeeping */
         ad->exon_hmm_ends[x] = k;
@@ -1725,7 +1726,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->mline[z-z1] = ' ';
         ad->aseq[z-z1]  = ' ';
         if(show_cigar) {
-          if( tr->st[z-2] = p7T_R && tr->st[z+1] != p7T_M) {
+          if( tr->st[z-2] == p7T_R && tr->st[z+1] != p7T_M) {
             cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'M');
             if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
               cigar_alloc_length *= 2;
@@ -1734,7 +1735,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
             tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", n_count, 'M');
             n_count = 0;
           }
-          else if(tr->st[z-2] = p7T_RI && tr->st[z+1] != p7T_I) {
+          else if(tr->st[z-2] == p7T_RI && tr->st[z+1] != p7T_I) {
             cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'I');
             if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
               cigar_alloc_length *= 2;
@@ -2311,9 +2312,9 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
           nuc_pos += 3; //move to start of A state
 
           if(indel == p7P_XXxX || indel == p7P_XXxxX)
-            n_count += 2
+            n_count += 2;
           else if(indel == p7P_XxXX || indel == p7P_XxxXX)
-           n_count += 1
+           n_count += 1;
         }
         else if(p == p7S_ABCDxxyyE) {
           ad->codon [z-z1] = 4;
@@ -2382,7 +2383,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
             else if( p = p7S_ABxxyyC && (indel == p7P_XxXX || indel == p7P_xXXX))
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
             else if( p = p7S_ABCxxyyD)
-              ctot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
+              tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
           }
           else if(c == 5) {
             if     ( p == p7S_AxxyyBC && indel == p7P_xxXXX)
@@ -2391,7 +2392,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
             else if( p = p7S_ABxxyyC && indel == p7P_xxXXX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'F');
-            else if( p = p7S_ABCxxyyD && inel == p7P_XXxxX)
+            else if( p = p7S_ABCxxyyD && indel == p7P_XXxxX)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
             else if( p = p7S_ABCxxyyD)
               tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 2, 'F');
@@ -2583,7 +2584,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         ad->ntseq [5*(z-z1)+4] = c5;
 
         if(show_cigar) {
-          if( tr->st[z-2] = p7T_R && (tr->st[z+1] != p7T_M || rc != 3)) {
+          if( tr->st[z-2] == p7T_R && (tr->st[z+1] != p7T_M || rc != 3)) {
             /* append M nucs before non M state or frameshift */
             cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'M');
             if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
@@ -2608,13 +2609,13 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
                 tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'B');
             }
             else if(rc == 2) {
-              if     ( p == p7S_AxxyyBC && (rindel == p7P_XX_ || p7P_X_X)
+              if     ( p == p7S_AxxyyBC && (rindel == p7P_XX_ || rindel == p7P_X_X))
                 tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'B');
               else if( p == p7S_ABxxyyC && rindel == p7P_XX_)
                 tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'B');
             }           
             else if(rc == 4) {
-              if     ( p == p7S_AxxyyBC && (rindel == p7P_XXxX || rindel == p7P_XxXX)
+              if     ( p == p7S_AxxyyBC && (rindel == p7P_XXxX || rindel == p7P_XxXX))
                 tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
               else if( p == p7S_ABxxyyC && rindel == p7P_XXxX)
                 tot_cigar_length += sprintf (ad->cigar + tot_cigar_length, "%d%c", 1, 'F');
@@ -2640,7 +2641,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
             else if( p == p7S_ABxxyyC   &&  rindel == p7P_XxxXX)                                              n_count = 2;
             else if( p == p7S_ABCxxyyD  &&  rindel == p7P_XXxxX)                                              n_count = 1;
             
-            if(tr->st[z+1] != M && n_count > 0) {
+            if(tr->st[z+1] != p7T_M && n_count > 0) {
               if(tot_cigar_length + 2 > cigar_alloc_length) {
                 cigar_alloc_length *= 2;
                 ESL_REALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
@@ -2649,7 +2650,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
               n_count = 0;
             }
           }
-          else if(tr->st[z-2] = p7T_RI && tr->st[z+1] != p7T_I) {
+          else if(tr->st[z-2] == p7T_RI && tr->st[z+1] != p7T_I) {
             cur_cigar_length = sprintf (buffer, "%d%c", n_count, 'I');
             if(tot_cigar_length + cur_cigar_length > cigar_alloc_length) {
               cigar_alloc_length *= 2;

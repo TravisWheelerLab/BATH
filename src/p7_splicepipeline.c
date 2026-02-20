@@ -30,7 +30,7 @@
 void
 p7_splicepipeline_SignalScores(float *f)
 {
-  f[0] = log(0.9919);     /* GT-AG */
+  f[0] = log(0.9921);     /* GT-AG */
   f[1] = log(0.0073);     /* GC-AG */
   f[2] = log(0.0006);     /* AT-AC */
   return;

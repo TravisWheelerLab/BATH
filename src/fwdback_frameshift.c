@@ -214,9 +214,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
       IMX_FS(i,k) = p7_FLogsum(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
                                IMX_FS(i-3,k)        + TSC(p7P_II,k));
 
-      IMX_FS(i,k) = p7_FLogsum(MMX_FS(i-3,k,p7G_C0) + TSC(p7P_MI,k),
-                               IMX_FS(i-3,k)        + TSC(p7P_II,k));
-
       DMX_FS(i,k) = p7_FLogsum(MMX_FS(i,k-1,p7G_C0) + TSC(p7P_MD,k-1),
                                DMX_FS(i,k-1)        + TSC(p7P_DD,k-1));
 

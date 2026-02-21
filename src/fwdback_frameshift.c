@@ -1432,10 +1432,10 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   XMX(L-1,p7G_C) = gm_fs3->xsc[p7P_C][p7P_LOOP] + gm_fs3->xsc[p7P_C][p7P_MOVE];
   for(i = L; i >= L-1; i--) {
     curr = i % PARSER_ROWS_BWD;
-    XMX(i,p7G_J) = XMX(i,p7G_B) = XMX(i,p7G_N) = -eslINFINITY; /* need to enter and exit model */
-    XMX(i,p7G_E) = XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE];    /* E<-C, no tail */
-    MMX(curr,M)  = DMX(curr,M) = XMX(i,p7G_E);                    /* {MD}_M <- E (prob 1.0) */
-    IMX(curr,M)  = -eslINFINITY;                               /* no I_M state        */
+    XMX(i,p7G_J) = XMX(i,p7G_B) = XMX(i,p7G_N) = -eslINFINITY;  /* need to enter and exit model */
+    XMX(i,p7G_E) = XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]; /* E<-C, no tail */
+    MMX(curr,M)  = DMX(curr,M) = XMX(i,p7G_E);                  /* {MD}_M <- E (prob 1.0) */
+    IMX(curr,M)  = -eslINFINITY;                                /* no I_M state        */
 
     for (k = M-1; k >= 1; k--) 
     {
@@ -1451,16 +1451,6 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
   }
   
-  for (k = M-1; k >= 1; k--) 
-  {
-    MMX(curr,k) = p7_FLogsum( XMX(L-1,p7G_E) + esc,
-                              DMX(curr, k+1) + TSC(p7P_MD,k));
-
-    DMX(curr,k) = p7_FLogsum( XMX(L-1,p7G_E)    + esc,
-                              DMX(curr, k+1)  + TSC(p7P_DD,k));
-
-    IMX(curr,k) = -eslINFINITY;
-  }
   /* Check for degenerate nucleotides */
 
   /* Initialization of row L-2  */

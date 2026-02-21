@@ -1127,7 +1127,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     sub_k = k_start + M -1;
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
                   ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
-                          DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1)))+ p7P_MSC_CODON(gm_tr, sub_k, c3);
+                  ESL_MAX(DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1),
+                          XMX_SP(i-3,p7G_B)))) + p7P_MSC_CODON(gm_tr, sub_k, c3);
 
     IMX_SP(i,M) = -eslINFINITY;
 
@@ -1217,7 +1218,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
                   ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
                   ESL_MAX(DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1),
-                          PMX_SP(i-3,M-1) + TSC_P)))         + p7P_MSC_CODON(gm_tr, sub_k, c3);
+                  ESL_MAX(XMX_SP(i-3,p7G_B),
+                          PMX_SP(i-3,M-1) + TSC_P)))) + p7P_MSC_CODON(gm_tr, sub_k, c3);
 
     IMX_SP(i,M) = -eslINFINITY;
 

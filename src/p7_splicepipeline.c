@@ -237,7 +237,7 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 SPLICE_SITE_IDX*
 p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint)
 {
-  int i,k;
+  int i;
   SPLICE_SITE_IDX *signal_sites;
   int status;
 
@@ -245,14 +245,14 @@ p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint)
   ESL_ALLOC(signal_sites, sizeof(SPLICE_SITE_IDX));
 
   ESL_ALLOC(signal_sites->index_mem, sizeof(int)  * M_hint * SIGNAL_MEM_SIZE);
-  ESL_ALLOC(signal_sites->index,     sizeof(int*) * M_hint);
+  ESL_ALLOC(signal_sites->index,     sizeof(int*) * SIGNAL_MEM_SIZE);
 
   ESL_ALLOC(signal_sites->score_mem, sizeof(float)  * M_hint * SIGNAL_MEM_SIZE);
-  ESL_ALLOC(signal_sites->score,     sizeof(float*) * M_hint);
+  ESL_ALLOC(signal_sites->score,     sizeof(float*) * SIGNAL_MEM_SIZE);
 
-  for(k = 0; k < M_hint; k++) {
-    signal_sites->index[k] = signal_sites->index_mem + (k * SIGNAL_MEM_SIZE);
-    signal_sites->score[k] = signal_sites->score_mem + (k * SIGNAL_MEM_SIZE);  
+  for(i = 0; i < SIGNAL_MEM_SIZE; i++) {
+    signal_sites->index[i] = signal_sites->index_mem + (i * M_hint);
+    signal_sites->score[i] = signal_sites->score_mem + (i * M_hint);  
   }
 
   ESL_ALLOC(signal_sites->lookback_mem, sizeof(int)  * L_hint * M_hint);
@@ -286,70 +286,48 @@ p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint)
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int mode)
+p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L)
 {
 
   int i, k;
   int status;
 
-  if(mode == ALIGNMENT_MODE && M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_L) return eslOK;
-  if(mode == PARSER_MODE && M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_Lx) return eslOK;
+  if(M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_L) return eslOK;
 
   if( M > signal_sites->alloc_M) {
 
-    ESL_REALLOC(signal_sites->index_mem, sizeof(int)  * M * SIGNAL_MEM_SIZE);
-    ESL_REALLOC(signal_sites->index,     sizeof(int*) * M);
+    ESL_REALLOC(signal_sites->index_mem, sizeof(int)   * M * SIGNAL_MEM_SIZE);
+    ESL_REALLOC(signal_sites->score_mem, sizeof(float) * M * SIGNAL_MEM_SIZE);
 
-    ESL_REALLOC(signal_sites->score_mem, sizeof(float)  * M * SIGNAL_MEM_SIZE);
-    ESL_REALLOC(signal_sites->score,     sizeof(float*) * M);  
-
-    for(k = 0; k < M; k++) {
-      signal_sites->index[k] = signal_sites->index_mem + (k * SIGNAL_MEM_SIZE);
-      signal_sites->score[k] = signal_sites->score_mem + (k * SIGNAL_MEM_SIZE);
+    for(i = 0; i < SIGNAL_MEM_SIZE; i++) {
+      signal_sites->index[i] = signal_sites->index_mem + (i * M);
+      signal_sites->score[i] = signal_sites->score_mem + (i * M);
     }
   }
 
-  if(mode == ALIGNMENT_MODE ) {
-
-    if( (L+1) > signal_sites->alloc_L && M > signal_sites->alloc_M )  {
-      ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * M);
-      ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
-   
-      for(i = 0; i < L+1; i++)
-        signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
-    }
-    else if( (L+1) > signal_sites->alloc_L) {
-      ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * signal_sites->alloc_M);    
-      ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
-  
-      for(i = 0; i < L+1; i++)
-        signal_sites->lookback[i] = signal_sites->lookback_mem + (i * signal_sites->alloc_M);
-    }
-    else if( M > signal_sites->alloc_M )  {
-      ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * signal_sites->alloc_L * M);
-  
-      for(i = 0; i < signal_sites->alloc_L; i++)
-        signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
-    }
-  
-    signal_sites->alloc_M = ESL_MAX(M, signal_sites->alloc_M);
-    signal_sites->alloc_L = ESL_MAX((L+1), signal_sites->alloc_L);
-  
+  if( (L+1) > signal_sites->alloc_L && M > signal_sites->alloc_M )  {
+    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * M);
+    ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
+ 
+    for(i = 0; i < L+1; i++)
+      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
   }
-  else {
+  else if( (L+1) > signal_sites->alloc_L) {
+    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * signal_sites->alloc_M);    
+    ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
 
-    if(M > signal_sites->alloc_M) {
-      ESL_REALLOC(signal_sites->lookback_mem, sizeof(int) * signal_sites->alloc_L * M);
-
-      for(i = 0; i < signal_sites->alloc_L; i++)
-        signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
-    }
-    if( (L+1) > signal_sites->alloc_Lx) {
-      ESL_REALLOC(signal_sites->parser_index,  sizeof(int)   * (L+1) * p7S_PARSE_INDEX);
-      ESL_REALLOC(signal_sites->parser_scores, sizeof(float) * (L+1) * p7S_PARSE_SCORE);
-      signal_sites->alloc_Lx = L+1;
-    }
+    for(i = 0; i < L+1; i++)
+      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * signal_sites->alloc_M);
   }
+  else if( M > signal_sites->alloc_M )  {
+    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * signal_sites->alloc_L * M);
+
+    for(i = 0; i < signal_sites->alloc_L; i++)
+      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
+  }
+
+  signal_sites->alloc_M = ESL_MAX(M, signal_sites->alloc_M);
+  signal_sites->alloc_L = ESL_MAX((L+1), signal_sites->alloc_L);
 
   return eslOK;
 

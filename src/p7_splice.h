@@ -197,18 +197,18 @@ typedef struct _splice_info
 /* MACROS for the SPLICE_SITE_IDX */
 
 
-#define SIX0(k, signal)             (index[(k)][(signal)])                                                       //xxxxXXX
-#define SIX1(k, signal, nuc1)       (index[(k)][SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + signal])           //XxxxxXX
-#define SIX2(k, signal, nuc1, nuc2) (index[(k)][SPLICE_OFFSET_2 + (4*nuc1+nuc2) * p7S_SPLICE_SIGNALS + signal]) //XXxxxxX
+#define SIX0(k, signal)             (index[(signal)][(k)])                                                            //xxxxXXX
+#define SIX1(k, signal, nuc1)       (index[SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)][(k)])            //XxxxxXX
+#define SIX2(k, signal, nuc1, nuc2) (index[SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)][(k)]) //XXxxxxX
  
-#define SSX0(k, signal)             (score[(k)][signal])                                                        //xxxxXXX
-#define SSX1(k, signal, nuc1)       (score[(k)][SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + signal])          //XxxxxXX
-#define SSX2(k, signal, nuc1, nuc2) (score[(k)][SPLICE_OFFSET_2 + (4*nuc1+nuc2) * p7S_SPLICE_SIGNALS + signal]) //XXxxxxX
+#define SSX0(k, signal)             (score[(signal)][(k)])                                                            //xxxxXXX
+#define SSX1(k, signal, nuc1)       (score[SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)][(k)])            //XxxxxXX
+#define SSX2(k, signal, nuc1, nuc2) (score[SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)][(k)]) //XXxxxxX
 
-#define SIGNAL(nuc1, nuc2)           (4*nuc1+nuc2)
+#define SIGNAL(nuc1, nuc2)           (4*(nuc1)+(nuc2))
 
-#define PI(i,s)  (parser_index[(i)*p7S_PARSE_INDEX+s])
-#define PS(i,s)  (parser_scores[(i)*p7S_PARSE_SCORE+s])
+#define PI(i,s)  (parser_index[(i)*p7S_PARSE_INDEX+(s)])
+#define PS(i,s)  (parser_scores[(i)*p7S_PARSE_SCORE+(s)])
 
 #define DONOR_GT                  11
 #define DONOR_GC                  9
@@ -234,10 +234,6 @@ typedef struct _splice_info
 #define MAX_EXT_AMINO_GAP         25       /*maximum amino gap fpr extention edges */
 #define MIN_AMINO_OVERLAP         10       /*amino acid splice site window */   
 #define ALIGNMENT_EXT             30       /*extention at start and end of path seq for final alignment */
-
-/* SPLICE_SITE_IDX modes */
-#define PARSER_MODE    0
-#define ALIGNMENT_MODE 1
 
 enum p7_splice_success_e {
   p7_SPLICE_SUCCESS = 0,
@@ -299,7 +295,7 @@ extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hi
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
 extern SPLICE_SITE_IDX* p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint);
-extern int p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L, int Lx);
+extern int p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L);
 extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 
 

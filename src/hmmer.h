@@ -286,7 +286,7 @@ enum p7p_ivx_codon {
 #define p7P_DEGEN5_QC2     1366    /* index for degnerate quasicodons with two indels (5 codon lengths) */
 #define p7P_DEGEN3_C       336     /* index for degnerate codon (3 codon lengths)*/
 #define p7P_DEGEN3_QC1     337     /* index for degnerate quasicodons with one indel (3 codon lengths) */
-#define p7P_DEGEN1_C      64      /* index for degnerate codon (1 codon length)*/
+#define p7P_DEGEN1_C       64      /* index for degnerate codon (1 codon length)*/
 
 /* Index offsets for the p7P_CODON macros bellow */
 #define p7P_NUC1_FS5       341     

@@ -82,10 +82,10 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
     }
   }
 
-  for(k = 0; k <  M; k++) {
-    for(s = 0; s < SIGNAL_MEM_SIZE; s++) {
-      index[k][s] = -1;
-      score[k][s] = -eslINFINITY;
+  for(s = 0; s < SIGNAL_MEM_SIZE; s++) {
+    for(k = 0; k <  M; k++) {
+      index[s][k] = -1;
+      score[s][k] = -eslINFINITY;
     }
   }
   
@@ -553,10 +553,10 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     }
   }
 
-  for(k = 0; k <  M; k++) {
-    for(s = 0; s < SIGNAL_MEM_SIZE; s++) {
-      index[k][s] = -1;
-      score[k][s] = -eslINFINITY;
+  for(s = 0; s < SIGNAL_MEM_SIZE; s++) {
+    for(k = 0; k <  M; k++) {
+      index[s][k] = -1;
+      score[s][k] = -eslINFINITY;
     }
   }
 
@@ -1038,10 +1038,10 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     }
   }
 
-  for(k = 0; k <  M; k++) {
-    for(s = 0; s < SIGNAL_MEM_SIZE; s++) {
-      index[k][s] = -1;
-      score[k][s] = -eslINFINITY;
+  for(s = 0; s < SIGNAL_MEM_SIZE; s++) {
+    for(k = 0; k <  M; k++) {
+      index[s][k] = -1;
+      score[s][k] = -eslINFINITY;
     }
   }
 

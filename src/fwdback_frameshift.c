@@ -714,7 +714,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   
   c1 = p7P_CODON1_FS5(x);
   c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-  for (k = 1; k < M; k++) {
+  for (k = 1; k <= M; k++) {
     IVX5(1,k) = XMX(0,p7G_B) + TSC(p7P_BM,k-1);  
 	MMX(1,k)  = IVX5(1,k) + p7P_MSC_CODON(gm_fs5, k, c1);
 	IMX(1,k)  = -eslINFINITY;
@@ -746,7 +746,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   c2 = p7P_CODON2_FS5(w, x);
   c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-  for (k = 1; k < M; k++) {
+  for (k = 1; k <= M; k++) {
     IVX5(2,k) = XMX(1,p7G_B) + TSC(p7P_BM,k-1);  
 	MMX(2,k)  = IVX5(2,k) + p7P_MSC_CODON(gm_fs5, k, c1);
 	MMX(2,k)  = p7_FLogsum(MMX(2,k), IVX5(1,k) + p7P_MSC_CODON(gm_fs5, k, c2)); //IVX5(1,k) now holds the i-2 transtion

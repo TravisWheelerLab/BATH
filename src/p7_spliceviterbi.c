@@ -307,11 +307,11 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
     }
 
     if(AGXX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3_FS1(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        c2 = p7P_CODON3_FS1(nuc1, w, x);
+        c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+        for (k = 2; k < M; k++) {
+          sub_k = k_start + k -1;
           TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_tr, sub_k, c2);
 
           if(TMP_SC > PMX_SP(i,k)) {
@@ -328,11 +328,11 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
       }
     }
     else if(ACXX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3_FS1(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        c2 = p7P_CODON3_FS1(nuc1, w, x);
+        c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+        for (k = 2; k < M; k++) {
+          sub_k = k_start + k -1;
 
           TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_tr, sub_k, c2);
           if(TMP_SC > PMX_SP(i,k)) {
@@ -343,12 +343,12 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
       }
     }
     if(AGX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        for(nuc2 = 0; nuc2 < 4; nuc2++) {
+          c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
+          c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+          for (k = 2; k < M; k++) {
+            sub_k = k_start + k -1;
 
             TMP_SC = SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_tr, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -366,12 +366,12 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
       }
     }
     else if(ACX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        for(nuc2 = 0; nuc2 < 4; nuc2++) {
+          c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
+          c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+          for (k = 2; k < M; k++) {
+            sub_k = k_start + k -1;
 
             TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_tr, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -799,12 +799,11 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     }
 
     if(AGXX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3_FS1(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
-
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        c2 = p7P_CODON3_FS1(nuc1, w, x);
+        c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+        for (k = 2; k < M; k++) {
+          sub_k = k_start + k -1;
           TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_tr, sub_k, c2);
 
           if(TMP_SC > PMX_SP(i,k)) {
@@ -821,11 +820,11 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
       }
     }
     else if(ACXX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3_FS1(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        c2 = p7P_CODON3_FS1(nuc1, w, x);
+        c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+        for (k = 2; k < M; k++) {
+          sub_k = k_start + k -1;
 
           TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_tr, sub_k, c2);
           if(TMP_SC > PMX_SP(i,k)) {
@@ -836,12 +835,12 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
       }
     }
     if(AGX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        for(nuc2 = 0; nuc2 < 4; nuc2++) {
+          c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
+          c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+          for (k = 2; k < M; k++) {
+            sub_k = k_start + k -1;
 
             TMP_SC = SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_tr, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -859,12 +858,12 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
       }
     }
     else if(ACX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        for(nuc2 = 0; nuc2 < 4; nuc2++) {
+          c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
+          c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+          for (k = 2; k < M; k++) {
+            sub_k = k_start + k -1;
 
             TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_tr, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -1258,12 +1257,11 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     }
 
     if(AGXX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3_FS1(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
-
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        c2 = p7P_CODON3_FS1(nuc1, w, x);
+        c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+        for (k = 2; k < M; k++) {
+          sub_k = k_start + k -1;
           TMP_SC = SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_tr, sub_k, c2);
 
           if(TMP_SC > PMX_SP(i,k)) {
@@ -1280,11 +1278,11 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
       }
     }
     else if(ACXX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          c2 = p7P_CODON3_FS1(nuc1, w, x);
-          c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        c2 = p7P_CODON3_FS1(nuc1, w, x);
+        c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+        for (k = 2; k < M; k++) {
+          sub_k = k_start + k -1;
 
           TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_tr, sub_k, c2);
           if(TMP_SC > PMX_SP(i,k)) {
@@ -1295,12 +1293,12 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
       }
     }
     if(AGX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        for(nuc2 = 0; nuc2 < 4; nuc2++) {
+          c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
+          c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+          for (k = 2; k < M; k++) {
+            sub_k = k_start + k -1;
 
             TMP_SC = SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG] + p7P_MSC_CODON(gm_tr, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {
@@ -1318,12 +1316,12 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
       }
     }
     else if(ACX) {
-      for (k = 2; k < M; k++) {
-        sub_k = k_start + k -1;
-        for(nuc1 = 0; nuc1 < 4; nuc1++) {
-          for(nuc2 = 0; nuc2 < 4; nuc2++) {
-            c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
-            c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+      for(nuc1 = 0; nuc1 < 4; nuc1++) {
+        for(nuc2 = 0; nuc2 < 4; nuc2++) {
+          c1 = p7P_CODON3_FS1(nuc1, nuc2, x);
+          c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+          for (k = 2; k < M; k++) {
+            sub_k = k_start + k -1;
 
             TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + p7P_MSC_CODON(gm_tr, sub_k, c1);
             if(TMP_SC > PMX_SP(i,k)) {

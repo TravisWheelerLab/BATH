@@ -37,8 +37,7 @@ typedef struct _splice_edge {
   int next_i_start;
   int next_k_start;
 
-  float splice_score;
-  float signal_score;
+  float edge_score;
 
 
 } SPLICE_EDGE;

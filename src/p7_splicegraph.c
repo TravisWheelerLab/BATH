@@ -320,7 +320,7 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int down_node)
 
   ret_edge->jump_edge = FALSE;
   
-  ret_edge->splice_score = 0.;
+  ret_edge->edge_score = 0.;
 
   return ret_edge;
 
@@ -353,7 +353,7 @@ p7_splicegraph_EdgeExists(SPLICE_GRAPH* graph, int up_node, int down_node)
   
   for(i = 0; i < graph->num_edges[up_node]; i++) {
     if(graph->edges[up_node][i].downstream_node_id == down_node) {  
-       if(graph->edges[up_node][i].splice_score != -eslINFINITY) return TRUE;
+       if(graph->edges[up_node][i].edge_score != -eslINFINITY) return TRUE;
        else return FALSE;
     }
   }
@@ -421,7 +421,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
   overlap_len   = overlap_end - overlap_start + 1;
 
   if(overlap_len < 1) {
-    edge->splice_score = -eslINFINITY;
+    edge->edge_score = -eslINFINITY;
     return eslOK;
   }
 
@@ -514,7 +514,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
   }
   min_lost_sc = ESL_MIN(min_lost_sc, downstream_prefix_sum[overlap_len-1]);
 
-  edge->splice_score -= (min_lost_sc + upstream_lost + downstream_lost);
+  edge->edge_score -= (min_lost_sc + upstream_lost + downstream_lost);
 
   if(upstream_suffix_sum   != NULL) free(upstream_suffix_sum);
   if(downstream_prefix_sum != NULL) free(downstream_prefix_sum);
@@ -783,7 +783,7 @@ p7_splicegraph_DumpGraph(FILE *fp, SPLICE_GRAPH *graph)
     for(j = 0; j < graph->num_edges[i]; j++) {
       tmp_edge = &(graph->edges[i][j]);
       if(tmp_edge->downstream_node_id >= 0)
-      edge_scores[tmp_edge->downstream_node_id] = tmp_edge->splice_score;
+      edge_scores[tmp_edge->downstream_node_id] = tmp_edge->edge_score;
     }
 
     for(j = 0; j < graph->num_nodes; j++ ) { 

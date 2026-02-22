@@ -791,7 +791,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr)
         /* If hits are upstream/ downstream on the sequence but are the opposite on th modle create a jump edge to prevent paths from skipping over other nodes */
         if( up < graph->anchor_N && down < graph->anchor_N) {
           edge = p7_splicegraph_AddEdge(graph, up, down);
-          edge->splice_score   = (th->hit[up]->dcl->aliscore + th->hit[down]->dcl->aliscore) * -1; 
+          edge->edge_score   = (th->hit[up]->dcl->aliscore + th->hit[down]->dcl->aliscore) * -1; 
        
           edge->jump_edge      = TRUE;
           edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
@@ -816,7 +816,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr)
 
         /* If the edge has an hmm overlap and cost of eliminating that overlap is greater than the B->M entry 
          * for the downstream hit then these hits are better off seperate and we will remove the edge */
-        if(edge->splice_score < -eslCONST_LOG2 + p7P_TSC(gm_tr, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
+        if(edge->edge_score < -eslCONST_LOG2 + p7P_TSC(gm_tr, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
           graph->num_edges[up]--;
         }
       }   
@@ -943,7 +943,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
       edge->downstream_amino_start = tmp_edge->downstream_amino_start;
       edge->upstream_nuc_end       = tmp_edge->upstream_nuc_end;
       edge->downstream_nuc_start   = tmp_edge->downstream_nuc_start;
-      edge->splice_score           = tmp_edge->splice_score;
+      edge->edge_score             = tmp_edge->edge_score;
   
       p7_splicepath_Insert(spliced_path, 0); 
       spliced_path->node_id[0]   = graph->num_nodes-1; 
@@ -964,7 +964,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
         edge->downstream_amino_start = tmp_edge->downstream_amino_start;
         edge->upstream_nuc_end       = tmp_edge->upstream_nuc_end;
         edge->downstream_nuc_start   = tmp_edge->downstream_nuc_start;
-        edge->splice_score           = tmp_edge->splice_score;
+        edge->edge_score             = tmp_edge->edge_score;
       }
 
       p7_splicepath_Insert(spliced_path, 0); 
@@ -1074,7 +1074,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
       edge->downstream_amino_start = tmp_edge->downstream_amino_start;
       edge->upstream_nuc_end       = tmp_edge->upstream_nuc_end;
       edge->downstream_nuc_start   = tmp_edge->downstream_nuc_start;
-      edge->splice_score           = tmp_edge->splice_score;
+      edge->edge_score             = tmp_edge->edge_score;
 
       p7_splicepath_Insert(path, path->path_len);
       path->node_id[path->path_len-1]   = graph->num_nodes-1;
@@ -1095,7 +1095,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
         edge->downstream_amino_start = tmp_edge->downstream_amino_start;
         edge->upstream_nuc_end       = tmp_edge->upstream_nuc_end;
         edge->downstream_nuc_start   = tmp_edge->downstream_nuc_start;
-        edge->splice_score           = tmp_edge->splice_score;
+        edge->edge_score             = tmp_edge->edge_score;
       }
 
       p7_splicepath_Insert(spliced_path, spliced_path->path_len);
@@ -1189,7 +1189,7 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension
           edge->next_i_start = orig_edge->next_i_start;
           edge->next_k_start = orig_edge->next_k_start;
         
-          edge->splice_score = orig_edge->splice_score;  
+          edge->edge_score   = orig_edge->edge_score;  
         }
       } 
       else if(!extension_graph->tmp_node[up] && !extension_graph->tmp_node[down])
@@ -1330,7 +1330,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
     /* If the previous search has moved the start positions to after 
        the next steps end postions break the edge and return NULL */
     if(k_end <= k_start || i_sub_end <= i_sub_start) {
-      edge->splice_score = -eslINFINITY;
+      edge->edge_score = -eslINFINITY;
       p7_splicepath_Destroy(ret_path);
       return NULL;
     }
@@ -1341,7 +1341,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
       
       /* refetch edge in in case of realloc */
       edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]); 
-      edge->splice_score = -eslINFINITY;
+      edge->edge_score = -eslINFINITY;
       p7_splicepath_Destroy(ret_path);
       return NULL;
     } 
@@ -1369,7 +1369,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
     if(tmp_path->path_len == 1) {
       if(s != s_end) {
         edge = p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]);
-        edge->splice_score = -eslINFINITY;
+        edge->edge_score = -eslINFINITY;
 
         /*If there is not an edge to the next node we must reject this path */
         if(!p7_splicegraph_EdgeExists(graph, orig_path->node_id[s-1], orig_path->node_id[s+1])) {
@@ -1808,7 +1808,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
 
     /*If up and down merged into one hit beark the edge betwen up and down */
     edge = p7_splicegraph_GetEdge(graph, orig_path->node_id[up], orig_path->node_id[down]);
-    edge->splice_score = -eslINFINITY;
+    edge->edge_score = -eslINFINITY;
   }
   else {
     tmp_path->node_id[0]                    = orig_path->node_id[up];
@@ -1821,7 +1821,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   /*If we have new nodes we need to break the old edges so that the new edges are used in future paths */
   if(tmp_path->path_len > 2) {
     edge = p7_splicegraph_GetEdge(graph, orig_path->node_id[up], orig_path->node_id[down]); 
-    edge->splice_score = -eslINFINITY;   
+    edge->edge_score = -eslINFINITY;   
   }
 
   /* Now that we have node assignments we
@@ -2662,7 +2662,7 @@ p7_splice_EnforceBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_ma
       if( up == down) continue;
 
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
-      if(tmp_edge == NULL || tmp_edge->splice_score == -eslINFINITY) continue;
+      if(tmp_edge == NULL || tmp_edge->edge_score == -eslINFINITY) continue;
 
       up_hit   = th->hit[up];
       down_hit = th->hit[down];
@@ -2676,7 +2676,7 @@ p7_splice_EnforceBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_ma
       overlap_len = overlap_max - overlap_min + 1;
       
       if(overlap_len > 0) {
-        tmp_edge->splice_score = -eslINFINITY;
+        tmp_edge->edge_score = -eslINFINITY;
         tmp_edge->downstream_node_id = -1;
       } 
     }

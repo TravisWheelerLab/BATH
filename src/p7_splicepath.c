@@ -326,7 +326,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
       
       out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
 
-      if(out_edge == NULL || out_edge->splice_score == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "Edge does not exist");
+      if(out_edge == NULL || out_edge->edge_score == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "Edge does not exist");
       if(out_edge->jump_edge) break;  
 
       curr_node = next_node;
@@ -466,8 +466,8 @@ longest_path (SPLICE_GRAPH *graph)
       if (!graph->node_in_graph[up]) continue;
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
         
-      if(tmp_edge != NULL && tmp_edge->splice_score != -eslINFINITY) {
-        step_score = graph->ali_scores[up] + tmp_edge->splice_score + graph->path_scores[down];
+      if(tmp_edge != NULL && tmp_edge->edge_score != -eslINFINITY) {
+        step_score = graph->ali_scores[up] + tmp_edge->edge_score + graph->path_scores[down];
         if(graph->path_scores[up] <= step_score) {
           graph->path_scores[up]   = step_score;
           if(down != graph->num_nodes-1)
@@ -529,7 +529,7 @@ has_out_edge(SPLICE_GRAPH *graph, int node_id)
   
   for(i = 0; i < graph->num_edges[node_id]; i++) {
     if(graph->edges[node_id][i].downstream_node_id >= 0  && 
-       graph->edges[node_id][i].splice_score != -eslINFINITY &&
+       graph->edges[node_id][i].edge_score != -eslINFINITY &&
        graph->node_in_graph[graph->edges[node_id][i].downstream_node_id]) 
       return TRUE;
    
@@ -577,10 +577,10 @@ p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph)
   fprintf(fp, "  %4d %4d %9d %9d %10" PRId64 " %10" PRId64 " %10f %10f\n", 1, path->node_id[0]+1,
       path->ihmm[0], path->jhmm[0], path->iali[0], path->jali[0], path->aliscore[0], -eslINFINITY);
   for(i = 1; i < path->path_len; i++) {
-    //hit_score = th->hit[path->node_id[i]]->dcl->aliscore;
+    
     tmp_edge = p7_splicegraph_GetEdge(graph, path->node_id[i-1], path->node_id[i]);
     if(tmp_edge == NULL) edge_score = 0.0;
-    else                 edge_score =  tmp_edge->splice_score;
+    else                 edge_score =  tmp_edge->edge_score;
     fprintf(fp, "  %4d %4d %9d %9d %10" PRId64 " %10" PRId64 " %10f %10f\n", i+1, path->node_id[i]+1,
       path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i], path->aliscore[i], edge_score);
   }

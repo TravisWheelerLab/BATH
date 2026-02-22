@@ -415,6 +415,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
   overlap_start = ESL_MAX(upstream_dom->ihmm, downstream_dom->ihmm);
   overlap_end   = ESL_MIN(upstream_dom->jhmm, downstream_dom->jhmm);
+  printf("overlap_start %d\n", overlap_start);
   if(overlap_start == upstream_dom->ihmm)   overlap_start++;
   if(overlap_end   == downstream_dom->jhmm) overlap_end--;
 
@@ -433,6 +434,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
   /* Fill the upstream array */
   tr  = upstream_dom->tr;
+  p7_trace_fs_Index(tr);
   spp = upstream_dom->scores_per_pos;
 
   z1 = tr->tfrom[0];
@@ -470,6 +472,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
   /* Fill the downstream array */
   tr  = downstream_dom->tr;
+  p7_trace_fs_Index(tr);
   spp = downstream_dom->scores_per_pos;
 
   z1 = tr->tfrom[0];

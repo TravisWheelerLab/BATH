@@ -119,7 +119,7 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->vit = NULL;
   if ((pli->vit = p7_gmx_sp_Create(M_hint, L_hint*3, L_hint*3)) == NULL) goto ERROR;
   
-  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint*3, L_hint*3);
+  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint*3);
 
   pli->bg = NULL;
 
@@ -235,7 +235,7 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
  * Throws:    <NULL> on allocation error. 
  */
 SPLICE_SITE_IDX*
-p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint)
+p7_splicepipline_CreateIndex(int M_hint, int L_hint)
 {
   int i;
   SPLICE_SITE_IDX *signal_sites;
@@ -263,7 +263,6 @@ p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint)
  
   signal_sites->alloc_M  = M_hint;
   signal_sites->alloc_L  = L_hint;
-  signal_sites->alloc_Lx = Lx_hint;
 
   return signal_sites;
 

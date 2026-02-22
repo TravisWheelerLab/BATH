@@ -257,7 +257,7 @@ extern void p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
-extern SPLICE_SITE_IDX* p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint);
+extern SPLICE_SITE_IDX* p7_splicepipline_CreateIndex(int M_hint, int L_hint);
 extern int p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L);
 extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 

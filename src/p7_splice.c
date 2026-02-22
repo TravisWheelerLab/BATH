@@ -441,15 +441,11 @@ p7_splice_AddAnchors(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOP
     if ((curr_hit->flags & p7_IS_DUPLICATE)) continue;
 	if(!(curr_hit->flags & p7_IS_REPORTED) && exp(curr_hit->sum_lnP) >= info->pli->F3) continue;
 
-    if(curr_hit->flags & p7_IS_REPORTED) graph->reportable[graph->th->N] = TRUE;
-    else                                 graph->reportable[graph->th->N] = FALSE;
-
     graph->node_in_graph[graph->th->N] = TRUE;
     graph->orig_hit_idx[graph->th->N]  = i;
  
     p7_splicegraph_AddNode(graph, curr_hit); 
 
-    graph->split_orig_id[graph->th->N-1] = graph->th->N-1;
   }
 
   graph->anchor_N = graph->th->N;
@@ -874,9 +870,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
   p7_splicegraph_CreateNodes(tmp_graph, 1);  
   p7_splicegraph_AddNode(tmp_graph, first_hit);
 
-  tmp_graph->reportable[0]    = TRUE;
   tmp_graph->orig_hit_idx[0]  = spliced_path->node_id[0];
-  tmp_graph->split_orig_id[0] = 0;
 
   tmp_graph->anchor_N = 1;
  
@@ -887,9 +881,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
     curr_hit = graph->th->hit[path->node_id[s]];
    
     p7_splicegraph_AddNode(tmp_graph, curr_hit);
-    tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
     tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = path->node_id[s];
-    tmp_graph->split_orig_id[tmp_graph->num_nodes-1] = -1;
  
     /* Set tmp_nodes so we don't make new edges for them */
     if(graph->tmp_node[path->node_id[s]]) tmp_graph->tmp_node[tmp_graph->num_nodes-1] = TRUE;
@@ -924,9 +916,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
       if(skip) continue;
 
       p7_splicegraph_AddNode(tmp_graph, curr_hit);
-      tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
       tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = -1;
-      tmp_graph->split_orig_id[tmp_graph->num_nodes-1] = -1;  
     }
   }
 
@@ -1010,9 +1000,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
   p7_splicegraph_CreateNodes(tmp_graph, 1);
   p7_splicegraph_AddNode(tmp_graph, last_hit);
  
-  tmp_graph->reportable[0]    = TRUE;
   tmp_graph->orig_hit_idx[0]  = spliced_path->node_id[spliced_path->path_len-1];
-  tmp_graph->split_orig_id[0] = 0;
 
   tmp_graph->anchor_N = 1;
 
@@ -1023,9 +1011,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
     curr_hit = graph->th->hit[path->node_id[s]];
 
     p7_splicegraph_AddNode(tmp_graph, curr_hit);
-    tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
     tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = path->node_id[s];
-    tmp_graph->split_orig_id[tmp_graph->num_nodes-1] = -1;
 
     /* Set tmp_nodes so we don't make new edges for them */
     if(graph->tmp_node[path->node_id[s]]) tmp_graph->tmp_node[tmp_graph->num_nodes-1] = TRUE;
@@ -1059,9 +1045,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
       if(skip) continue;
 
       p7_splicegraph_AddNode(tmp_graph, curr_hit);
-      tmp_graph->reportable[tmp_graph->num_nodes-1]    = FALSE;
       tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = -1;
-      tmp_graph->split_orig_id[tmp_graph->num_nodes-1] = -1;
     }
   }   
 

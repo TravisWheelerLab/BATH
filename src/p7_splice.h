@@ -57,19 +57,17 @@ typedef struct _splice_graph {
   int64_t      seqidx;      
   char        *seqname;    
 
-  /* Hits and hit info */
+  /* Node info */
   int         *node_in_graph;   /* Is the hit part of the current graph */
-  int         *tmp_node;
-  int         *reportable;      /* For orignal hits, do they pass the repoting threshold */
+  int         *tmp_node;        /* New nodes found durring splicing */
   int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
-  int         *split_orig_id;
 
   /*Edge info */  
   int   *best_out_edge;
   
   /* Scores */
   float *path_scores;  //Path score pulled upstream
-  float *ali_scores;
+  float *ali_scores;   
 
   P7_TOPHITS  *th;  
   SPLICE_EDGE **edges;

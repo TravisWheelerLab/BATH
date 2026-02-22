@@ -261,9 +261,6 @@ p7_splicepipline_CreateIndex(int M_hint, int L_hint, int Lx_hint)
   for(i = 0; i < L_hint; i++) 
     signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M_hint);
  
-  ESL_ALLOC(signal_sites->parser_index,  sizeof(int)   * Lx_hint * p7S_PARSE_INDEX);
-  ESL_ALLOC(signal_sites->parser_scores, sizeof(float) * Lx_hint * p7S_PARSE_SCORE);
-   
   signal_sites->alloc_M  = M_hint;
   signal_sites->alloc_L  = L_hint;
   signal_sites->alloc_Lx = Lx_hint;
@@ -355,9 +352,6 @@ p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites)
 
   if(signal_sites->lookback     != NULL) free(signal_sites->lookback);
   if(signal_sites->lookback_mem != NULL) free(signal_sites->lookback_mem);
-
-  if(signal_sites->parser_index  != NULL) free(signal_sites->parser_index);
-  if(signal_sites->parser_scores != NULL) free(signal_sites->parser_scores);
 
   free(signal_sites);
   signal_sites = NULL;

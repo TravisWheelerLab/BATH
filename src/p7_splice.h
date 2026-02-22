@@ -13,7 +13,6 @@
 
 typedef struct _splice_edge {
 
-  //int frameshift;
   int jump_edge;
 
   int upstream_node_id;
@@ -113,9 +112,6 @@ typedef struct _splice_site_idx
   int **lookback;
   int *lookback_mem;
 
-  int   *parser_index;
-  float *parser_scores;
-
   int alloc_M;    
   int alloc_L;    
   int alloc_Lx;
@@ -205,9 +201,6 @@ typedef struct _splice_info
 
 #define SIGNAL(nuc1, nuc2)           (4*(nuc1)+(nuc2))
 
-#define PI(i,s)  (parser_index[(i)*p7S_PARSE_INDEX+(s)])
-#define PS(i,s)  (parser_scores[(i)*p7S_PARSE_SCORE+(s)])
-
 #define DONOR_GT                  11
 #define DONOR_GC                  9
 #define DONOR_AT                  3
@@ -219,25 +212,11 @@ typedef struct _splice_info
 #define SPLICE_OFFSET_2           15       /* start of XXxxxxX codons  */
 
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node */
-#define MAX_SEARCH_SIZE           2.5e7    /*maximum search size (seq len * model len) */
-#define MAX_INTRON_LENG           2e5      /*maximum intron length */
+#define MAX_INTRON_LENG           200000   /*maximum intron length */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance */
-#define MAX_AMINO_EXT            100
 #define MIN_INTRON_LENG           13       /*minimum intor length */
-#define MIN_INTRON_RMV            1500     /*minimum length of of nucletides to remore from a proported intron region */
-#define MAX_INTRON_INC            1500     /*maximum length on intron to be included in spliced Viterbi search */
 #define MAX_AMINO_GAP             1500     /*max amino gap the spliced viterbi algoritm will try to bridge without searching the full intron */
-#define MAX_SP_AMINO_GAP          10       /*maximum amino gap for spliced edges */
-#define MAX_USP_AMINO_GAP         25       /*maximum amino gap fpr unspliced edges */ 
-#define MAX_EXT_AMINO_GAP         25       /*maximum amino gap fpr extention edges */
-#define MIN_AMINO_OVERLAP         10       /*amino acid splice site window */   
 #define ALIGNMENT_EXT             30       /*extention at start and end of path seq for final alignment */
-
-enum p7_splice_success_e {
-  p7_SPLICE_SUCCESS = 0,
-  p7_SPLICE_FAIL    = 1,
-  p7_SPLICE_REDO    = 2
-};
 
 /* Indices of p7_splice_SignalScores */
 enum p7s_splice_signals_e {
@@ -246,20 +225,6 @@ enum p7s_splice_signals_e {
   p7S_ATAC  = 2,
 };
 #define p7S_SPLICE_SIGNALS 3
-
-enum p7s_parser_index {
-  p7S_PI  = 0,
-  p7S_EK  = 1,
-};
-#define p7S_PARSE_INDEX 2
-
-enum p7s_parser_score {
-  p7S_P  = 0,
-  p7S_M  = 1,
-};
-#define p7S_PARSE_SCORE 3
-
-/* p7_spliceedge.c */
 
 /* p7_splicegraph.c */
 extern SPLICE_GRAPH* p7_splicegraph_Create(void);

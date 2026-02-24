@@ -928,6 +928,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       for(i = 0; i < seed_hits->N; i++) {
         p7_trace_fs_Destroy(seed_hits->unsrt[i].dcl->tr);
         free(seed_hits->unsrt[i].dcl->scores_per_pos);
+        free(seed_hits->unsrt[i].dcl->k_per_pos);
       }
       p7_tophits_Destroy(seed_hits);
 

@@ -707,21 +707,28 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
   int codon_idx;
   int indel;
   int z1, z2;
-  int N;
   ESL_DSQ *nuc_dsq;
   int status;
 
   nuc_dsq   = seq->dsq;
 
   for(z1 = 0;       z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
-  for(z2 = tr->N-1; z2 >= 0;    z2--) if(tr->st[z2] == p7T_M || tr->st[z2] == p7T_D) break;
+  for(z2 = tr->N-1; z2 >= 0;    z2--) if(tr->st[z2] == p7T_M) break;
 
-  N = z2 - z1 + 1;
+  dom->per_pos_len = z2 - z1 + 1;
+
   if(dom->scores_per_pos == NULL)
-    ESL_ALLOC( dom->scores_per_pos, sizeof(float) * N);
+    ESL_ALLOC( dom->scores_per_pos, sizeof(float) * dom->per_pos_len);
   else
-    ESL_REALLOC( dom->scores_per_pos, sizeof(float) * N);
-  for (n=0; n<N; n++)  dom->scores_per_pos[n] = 0.0;
+    ESL_REALLOC( dom->scores_per_pos, sizeof(float) * dom->per_pos_len);
+
+  if(dom->k_per_pos == NULL)
+    ESL_ALLOC( dom->k_per_pos, sizeof(int) * dom->per_pos_len);
+  else
+    ESL_REALLOC( dom->k_per_pos, sizeof(int) * dom->per_pos_len);
+
+  
+  for (n=0; n<dom->per_pos_len; n++)  dom->scores_per_pos[n] = 0.0;
 
   n  = 0;
   while (z1<=z2) {
@@ -784,6 +791,9 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
         dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_IM);
       else if (tr->st[z1-1] == p7T_D)
         dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_DM);
+
+      dom->k_per_pos[n] = k;
+
       k++; z1++; n++;
 
       while(z1 < z2 && tr->st[z1] == p7T_M) {
@@ -838,32 +848,29 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
         }
 
         dom->scores_per_pos[n] = p7P_MSC_CODON(gm_fs, k, codon_idx);
-
         dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_MM);
+        dom->k_per_pos[n] = k;
         k++; z1++; n++;
       }
     }
     else if (tr->st[z1] == p7T_I) {
       
-      if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
-        codon_idx = p7P_CODON3_FS5(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
-      else
-        codon_idx    = p7P_DEGEN5_C;
-
       dom->scores_per_pos[n] = p7P_TSC(gm_fs, k, p7P_MI);
+      dom->k_per_pos[n] = k;
       z1++; n++;
       while (z1 < z2 && tr->st[z1] == p7T_I) {
         dom->scores_per_pos[n] = p7P_TSC(gm_fs, k, p7P_II);
+        dom->k_per_pos[n] = k;
         z1++; n++;
       }
     }
     else if (tr->st[z1] == p7T_D) {
       dom->scores_per_pos[n] = p7P_TSC(gm_fs, k-1, p7P_MD);
+      dom->k_per_pos[n] = k;
       k++; z1++; n++;
       while (z1 < z2 && tr->st[z1] == p7T_D)  {
         dom->scores_per_pos[n] = p7P_TSC(gm_fs, k-1, p7P_DD);
+        dom->k_per_pos[n] = k;
         k++; z1++; n++;
       }
     }
@@ -871,7 +878,7 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
   }
 
   dom->aliscore = 0.0;
-  for (n=0; n<N; n++)  dom->aliscore += dom->scores_per_pos[n];
+  for (n=0; n<dom->per_pos_len; n++)  dom->aliscore += dom->scores_per_pos[n];
 
   return eslOK;
 
@@ -930,6 +937,7 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
     if (ali_len < 12)   
     {// anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+      if(dom->k_per_pos != NULL)      free(dom->k_per_pos);
       p7_trace_fs_Destroy(dom->tr);
       continue;
     }
@@ -1030,6 +1038,7 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
     else  
     {
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+      if(dom->k_per_pos != NULL) free(dom->k_per_pos);
       p7_trace_fs_Destroy(dom->tr);
     }
   }
@@ -1093,10 +1102,11 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
     
     env_len = dom->jenv - dom->ienv + 1;	
     ali_len = (dom->jali - dom->iali + 1) / 3;   
-
+   
     if (ali_len < 4) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+      if(dom->k_per_pos != NULL) free(dom->k_per_pos); 
       p7_trace_fs_Destroy(dom->tr);
       continue; 
     }
@@ -1119,7 +1129,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2; 
     }
-
+    
     /* Adjust score from env_len to max window length */ 
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / (env_len+2));
@@ -1189,6 +1199,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
     } 
     else { //delete unused P7_ALIDSPLAY
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
+      if(dom->k_per_pos != NULL) free(dom->k_per_pos);
       p7_trace_fs_Destroy(dom->tr);
     }
   }

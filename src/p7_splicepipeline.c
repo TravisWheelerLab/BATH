@@ -165,6 +165,8 @@ p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli)
     p7_trace_splice_Destroy(pli->hit->dcl->tr);
     if(pli->hit->dcl->scores_per_pos != NULL)
       free(pli->hit->dcl->scores_per_pos);
+    if(pli->hit->dcl->k_per_pos != NULL)
+      free(pli->hit->dcl->k_per_pos);
   }
   if(pli->hit != NULL) {
     p7_hit_Destroy(pli->hit);
@@ -285,7 +287,7 @@ int
 p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L)
 {
 
-  int i, k;
+  int i;
   int status;
 
   if(M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_L) return eslOK;

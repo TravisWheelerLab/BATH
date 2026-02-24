@@ -838,7 +838,10 @@ typedef struct p7_dom_s {
   double         lnP;            /* log(P-value) of the bitscore                                               */
   int            is_reported;    /* TRUE if domain meets reporting thresholds                                  */
   int            is_included;    /* TRUE if domain meets inclusion thresholds                                  */
+
   float         *scores_per_pos; /* score in BITS that each position in the alignment contributes to an overall viterbi score */
+  int           *k_per_pos;      /* HMM postion for each scores_per_pos */
+  int            per_pos_len;    /* length of the scores_per_pos and k_per_pos */
 
   P7_ALIDISPLAY *ad; 
   P7_TRACE      *tr;  /*used by bathsearch when --fstblout flag is used */
@@ -1385,8 +1388,8 @@ extern int p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MS
 extern P7_ALIDISPLAY *p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *ntsq);
 extern P7_ALIDISPLAY *p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, const ESL_GENCODE *gcode, int show_cigar);
 extern P7_ALIDISPLAY *p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos, int show_cigar); 
-extern P7_ALIDISPLAY *p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt, int show_cigar);
-extern P7_ALIDISPLAY *p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt, int show_cigar);
+extern P7_ALIDISPLAY *p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, int amino_pos, int splice_cnt, int show_cigar);
+extern P7_ALIDISPLAY *p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, int64_t *nuc_index, int nuc_pos, int splice_cnt, int show_cigar);
 extern P7_ALIDISPLAY *p7_alidisplay_Create_empty();
 
 extern P7_ALIDISPLAY *p7_alidisplay_Clone(const P7_ALIDISPLAY *ad);

@@ -1240,7 +1240,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, float *scores_per_pos, int amino_pos, int splice_cnt, int show_cigar)
+p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *target_seq, const ESL_SQ *amino_sq, int amino_pos, int splice_cnt, int show_cigar)
 {
 
   int            z1, z2;
@@ -1804,7 +1804,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, float *scores_per_pos, int64_t *nuc_index, int nuc_pos, int splice_cnt, int show_cigar)
+p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, int64_t *nuc_index, int nuc_pos, int splice_cnt, int show_cigar)
 {
 
   P7_ALIDISPLAY *ad       = NULL;

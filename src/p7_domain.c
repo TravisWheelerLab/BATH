@@ -48,9 +48,13 @@ extern P7_DOMAIN *p7_domain_Create_empty()
   the_domain->lnP = 0.0;
   the_domain->is_reported = 0;
   the_domain->is_included = 0;
-  the_domain->scores_per_pos = NULL;
   the_domain->ad = NULL;
   the_domain->tr = NULL;
+
+
+  the_domain->per_pos_len = 0;
+  the_domain->scores_per_pos = NULL;
+  the_domain->k_per_pos = NULL;
 
   return the_domain;
 
@@ -79,6 +83,9 @@ extern void p7_domain_Destroy(P7_DOMAIN *obj)
   }
   if(obj->scores_per_pos != NULL){
     free(obj->scores_per_pos);
+  }
+  if(obj->k_per_pos != NULL){
+    free(obj->k_per_pos);
   }
   if(obj->ad != NULL){
     p7_alidisplay_Destroy(obj->ad);
@@ -234,7 +241,7 @@ extern int p7_domain_Serialize(const P7_DOMAIN *obj, uint8_t **buf, uint32_t *n,
   }
   else{ // There is a valid scores_per_pos array, and its size should be equal to the N of the enclosed alignment
     int scores_per_pos_length = obj->ad->N;
- 
+
     network_32bit = esl_hton32(scores_per_pos_length); // add length of the array (in floats) to serialized object
     memcpy(ptr, &network_32bit, sizeof(int32_t));
     ptr += sizeof(int32_t);
@@ -245,7 +252,8 @@ extern int p7_domain_Serialize(const P7_DOMAIN *obj, uint8_t **buf, uint32_t *n,
       ptr += sizeof(int32_t);
     }
   }
-
+  
+  
   //sanity check that length of serialized object was what we expected
   if (ser_size != ptr - (*buf + *n)){
     ESL_EXCEPTION(eslFAIL,"Unexpected serialized object length found in p7_domain_Serialize\n");
@@ -449,6 +457,7 @@ extern int p7_domain_TestSample(ESL_RAND64 *rng, P7_DOMAIN **ret_obj)
   the_domain->is_reported = esl_rand64_Roll(rng, 1);
   the_domain->is_included = esl_rand64_Roll(rng, 1);
   the_domain->tr = NULL;
+  the_domain->k_per_pos = NULL;
 
   // sample an alignment with length ranging uniformly from 50-350
   ESL_RANDOMNESS *rng2 = esl_randomness_Create((uint32_t) esl_rand64(rng));  // This is inefficient, but probably the best we can do
@@ -560,8 +569,6 @@ extern int p7_domain_Compare(P7_DOMAIN *first, P7_DOMAIN *second, double atol, d
 /*****************************************************************
  * 3. Unit tests
  *****************************************************************/      
-
-
 
 
 #ifdef p7DOMAIN_TESTDRIVE
@@ -737,6 +744,7 @@ static void utest_Serialize(int ntrials){
       esl_fatal(msg);
     } 
   }
+  esl_rand64_Destroy(rng);
 
   n = 0; // reset to start of buffer
 

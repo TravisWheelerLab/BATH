@@ -170,8 +170,9 @@ p7_domaindef_Reuse(P7_DOMAINDEF *ddef)
     ESL_ALLOC(ddef->dcl, sizeof(P7_DOMAIN) * ddef->nalloc);
   else {
     for (d = 0; d < ddef->ndom; d++) {
-      p7_alidisplay_Destroy(ddef->dcl[d].ad); ddef->dcl[d].ad             = NULL;
-      free(ddef->dcl[d].scores_per_pos);      ddef->dcl[d].scores_per_pos = NULL;
+      p7_alidisplay_Destroy(ddef->dcl[d].ad);                                        ddef->dcl[d].ad             = NULL;
+      if(ddef->dcl[d].scores_per_pos != NULL) { free(ddef->dcl[d].scores_per_pos); } ddef->dcl[d].scores_per_pos = NULL;
+      if(ddef->dcl[d].k_per_pos      != NULL) { free(ddef->dcl[d].k_per_pos); }      ddef->dcl[d].k_per_pos      = NULL;
     }    
   }
   ddef->ndom = 0;
@@ -256,6 +257,7 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
   if (ddef->dcl  != NULL) {
     for (d = 0; d < ddef->ndom; d++) {
       if (ddef->dcl[d].scores_per_pos) free(ddef->dcl[d].scores_per_pos);
+      if (ddef->dcl[d].k_per_pos)      free(ddef->dcl[d].k_per_pos);
       p7_alidisplay_Destroy(ddef->dcl[d].ad);
     }
     free(ddef->dcl);
@@ -1062,6 +1064,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = NULL; 
   dom->scores_per_pos = NULL; 
+  dom->k_per_pos      = NULL;
   dom->aliscore       = 0.0; 
  
   /* Compute bias correction */
@@ -1261,13 +1264,16 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = NULL;
   dom->scores_per_pos = NULL;
+  dom->k_per_pos      = NULL;
   dom->aliscore       = 0.0; 
  
   p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs5); 
 
   if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
     free(dom->scores_per_pos);   
+    free(dom->k_per_pos);
     dom->scores_per_pos = NULL;
+    dom->k_per_pos = NULL;
     p7_trace_Reuse(ddef->tr);    
     return eslFAIL; 
   }
@@ -1311,7 +1317,9 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
 
   if(!ddef->splice) { 
     free(dom->scores_per_pos); 
+    free(dom->k_per_pos);
     dom->scores_per_pos = NULL;
+    dom->k_per_pos = NULL;
   }
 
   ddef->ndom++;

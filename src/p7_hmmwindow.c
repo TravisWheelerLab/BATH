@@ -413,7 +413,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
   last_seqidx = -1;
   last_strand = -1;
   i_start = 0;
- 
+
    /* Find all windows that within MAX_INTRON_LENG upstream or downstram of a top hit */
    for(h = 0; h < th->N; h++) {
 
@@ -573,6 +573,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
     p7_trace_fs_Append(hit->dcl->tr, p7T_T, 0, 0, 0);
 
     hit->dcl->scores_per_pos = NULL;
+    hit->dcl->k_per_pos = NULL;
     p7_pli_computeAliScores_BATH(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs);
  
     last_seqidx = hw->windows[i].id;

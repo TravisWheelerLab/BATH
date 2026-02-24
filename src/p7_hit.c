@@ -117,6 +117,12 @@ extern void p7_hit_Destroy(P7_HIT *the_hit)
       if(the_hit->dcl[i].scores_per_pos != NULL){
         free(the_hit->dcl[i].scores_per_pos);
       }
+      if(the_hit->dcl[i].k_per_pos != NULL){
+        free(the_hit->dcl[i].k_per_pos);
+      }
+      if(the_hit->dcl[i].k_per_pos != NULL){
+        free(the_hit->dcl[i].k_per_pos);
+      }
       if(the_hit->dcl[i].ad != NULL){
         p7_alidisplay_Destroy(the_hit->dcl[i].ad);
       }
@@ -610,6 +616,7 @@ extern int p7_hit_Deserialize(const uint8_t *buf, uint32_t *n, P7_HIT *ret_obj)
 
   for(i = 0; i < ret_obj->ndom; i++){
     ret_obj->dcl[i].scores_per_pos = NULL;  // set internal pointers to known values so that domain_Deserialize does the right thing
+    ret_obj->dcl[i].k_per_pos = NULL;
     ret_obj->dcl[i].ad = NULL;
     int ret_code = p7_domain_Deserialize(buf, n, &(ret_obj->dcl[i]));
     if (ret_code != eslOK){

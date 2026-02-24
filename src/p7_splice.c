@@ -656,7 +656,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //fflush(stdout);
 
     if(spliced_path != NULL) {
-
+            
       /* Add additional nodes to the begining and end of spliced_path */
       p7_splice_ExtendPath(info->seeds, orig_path, spliced_path, graph);
 
@@ -681,7 +681,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //printf("FINAL PATH\n");
 //p7_splicepath_Dump(stdout,spliced_path);
 //fflush(stdout);
-
+ 
       success = FALSE;
 
       if(spliced_path->path_len > 1) {
@@ -692,6 +692,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       }
  
       if(success) {
+          
         /* Break edges that overlap the hit so that paths do not intertwine */
         hit_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
         hit_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
@@ -805,10 +806,10 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr)
               th->hit[up]->dcl->jhmm < th->hit[down]->dcl->jhmm) { 
               
         edge = p7_splicegraph_AddEdge(graph, up, down);
-
+        
         /* If hits overlap, find the minimum lost score to remove the overlap */
         p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
-       
+        
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
         edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
@@ -3248,6 +3249,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   hit->dcl     = p7_domain_Create_empty();
   hit->dcl->tr = NULL;
   hit->dcl->scores_per_pos = NULL;
+  hit->dcl->k_per_pos = NULL;
 
   p7_oprofile_ReconfigUnihit(om, pli->amino_sq->n);
 
@@ -3284,7 +3286,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
       return eslOK;
     }
     
-    hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt, pli->show_cigar);
+    hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt, pli->show_cigar);
 
     p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, FALSE); 
     status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
@@ -3336,7 +3338,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   hit->dcl->domcorrection = ESL_MAX(0.0, domcorrection);
 
 
-  hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, hit->dcl->scores_per_pos, tr->sqfrom[0], splice_cnt,  pli->show_cigar);
+  hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt,  pli->show_cigar);
 
   p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, TRUE);
 

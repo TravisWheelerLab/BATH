@@ -737,6 +737,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   {
     gm_fs5  = NULL;
     gm_fs3  = NULL;
+    gm_tr   = NULL;
     gm      = NULL;
     om      = NULL;       /* optimized query profile                  */
 

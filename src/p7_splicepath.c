@@ -19,9 +19,8 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-static int longest_path (SPLICE_GRAPH *graph);
+static int longest_path (SPLICE_GRAPH *graph, int extend_down);
 static int topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
-static int has_out_edge(SPLICE_GRAPH *graph, int node_id);
 
 /*****************************************************************
  * 1. The SPLICE_PATH structure.
@@ -275,10 +274,11 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
  *
  */
 SPLICE_PATH*
-p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
+p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down)
 {
 
   int          i;
+  int          N;
   int          path_len;
   int          start_node;
   int          curr_node;
@@ -295,13 +295,16 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
   contains_anchor = FALSE;
 
   /* Find best scoring paths */
-  if((status = longest_path(graph)) != eslOK) goto ERROR;
+  if((status = longest_path(graph, extend_down)) != eslOK) goto ERROR;
 
   while(!contains_anchor) {
-    /* Find the best place to start our path */
+    
+    /* Find the best place to start our path - if extending up can start anywhere - otherwise must start at anchor node*/
     best_start_score = -eslINFINITY;
     start_node  = -1;
-    for (i = 0; i < graph->num_nodes; i++) {
+    if(extend_up) N = graph->num_nodes;
+    else          N = graph->anchor_N;
+    for (i = 0; i < N; i++) {
       if(graph->path_scores[i] > best_start_score) {
         best_start_score = graph->path_scores[i];
         start_node  = i;
@@ -378,18 +381,6 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
   path->jhmm[step_cnt-1] = th->hit[curr_node]->dcl->jhmm;
   path->jali[step_cnt-1] = th->hit[curr_node]->dcl->jali;
 
-  step_cnt = 0;
-  while(path->node_id[step_cnt] >= graph->anchor_N) {
-    path->extension[step_cnt] = TRUE;
-    step_cnt++;
-  }
-
-  step_cnt = path_len-1;
-  while(path->node_id[step_cnt] >= graph->anchor_N) {
-    path->extension[step_cnt] = TRUE;
-    step_cnt--;
-  }
-
   return path;
 
   ERROR:
@@ -400,13 +391,14 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph)
 
 
 int
-longest_path (SPLICE_GRAPH *graph)
+longest_path (SPLICE_GRAPH *graph, int extend_down)
 {
 
-  int         i;
+  int         i, e;
   int         up, down;
   int         stack_size;
   float       step_score;
+  int         *reaches_anchor;
   int         *visited;
   int         *stack;
   SPLICE_EDGE *tmp_edge;
@@ -422,76 +414,59 @@ longest_path (SPLICE_GRAPH *graph)
     graph->best_out_edge[i] = -1;
   }
 
-  /* Append source node downstream of all anchor nodes with no outgoing edges*/
-  if((status = p7_splicegraph_Grow(graph)) != eslOK) goto ERROR;
-  graph->ali_scores[graph->num_nodes]  = 0.;
-  graph->edges[graph->num_nodes] = NULL;
-  for(up = 0; up < graph->num_nodes; up++) {
-    
-    if(!graph->node_in_graph[up]) continue;
-    if(has_out_edge(graph, up))   continue;
-    
-    p7_splicegraph_AddEdge(graph, up, graph->num_nodes);
-
-  }
-
-  graph->node_in_graph[graph->num_nodes]  = TRUE;
-  graph->num_edges[graph->num_nodes]      = 0;
-  graph->path_scores[graph->num_nodes]    = 0.;
-  graph->num_nodes++;
-
+  /* Create topological sort of graph */
   ESL_ALLOC(visited, sizeof(int) * graph->num_nodes);
-  esl_vec_ISet(visited,   graph->num_nodes, 0);
+  esl_vec_ISet(visited, graph->num_nodes, 0);
 
   ESL_ALLOC(stack, sizeof(int) * graph->num_nodes);
 
   stack_size = 0;
-
   for(i = 0; i < graph->num_nodes; i++) {
     if (!graph->node_in_graph[i]) continue;
-    if(!visited[i]) 
+    if(!visited[i])
       topological_sort(graph, visited, stack, &stack_size, i);
   }
 
-
-  
+  /* Push scores upstream */
+  ESL_ALLOC(reaches_anchor, sizeof(int) * graph->num_nodes);
+  esl_vec_ISet(reaches_anchor, graph->num_nodes, 0);  
   while(stack_size > 0) {
-    /*pop top of stack */
     down = stack[stack_size-1];
     stack_size--;
-   
-    /* Find nodes with outgoing edge to down*/
-    for(up = 0; up < graph->num_nodes-1; up++) {
+
+    for(up = 0; up < graph->num_nodes; up++) {
       if (up == down) continue;
       if (!graph->node_in_graph[up]) continue;
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
-        
+
       if(tmp_edge != NULL && tmp_edge->edge_score != -eslINFINITY) {
         step_score = graph->ali_scores[up] + tmp_edge->edge_score + graph->path_scores[down];
         if(graph->path_scores[up] <= step_score) {
-          graph->path_scores[up]   = step_score;
-          if(down != graph->num_nodes-1)
+          if(!extend_down) {
+            if(down < graph->anchor_N || reaches_anchor[down]) {
+              reaches_anchor[up] = TRUE;
+              graph->path_scores[up]   = step_score;
+              graph->best_out_edge[up] = down;
+             }
+          }
+          else {
+            graph->path_scores[up]   = step_score;
             graph->best_out_edge[up] = down;
-            
+          }
         }
       }
     }
   }
 
-  /* Erase source node */
-  graph->num_nodes--;
-  for(up = 0; up < graph->num_nodes; up++) {
-    if(!graph->node_in_graph[up]) continue;
-    if(graph->edges[up][graph->num_edges[up]-1].downstream_node_id == graph->num_nodes) graph->num_edges[up]--;
-  }
-
-  if(visited  != NULL) free(visited);
-  if(stack    != NULL) free(stack);
+  if(reaches_anchor != NULL) free(reaches_anchor);
+  if(visited        != NULL) free(visited);
+  if(stack          != NULL) free(stack);
   return eslOK;
 
   ERROR:
-    if(visited  != NULL) free(visited);
-    if(stack    != NULL) free(stack);
+    if(reaches_anchor != NULL) free(reaches_anchor);
+    if(visited        != NULL) free(visited);
+    if(stack          != NULL) free(stack);
     return status;
 }
 
@@ -520,22 +495,6 @@ topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size,
 
 }
 
-
-int
-has_out_edge(SPLICE_GRAPH *graph, int node_id)
-{
-
-  int i;
-  
-  for(i = 0; i < graph->num_edges[node_id]; i++) {
-    if(graph->edges[node_id][i].downstream_node_id >= 0  && 
-       graph->edges[node_id][i].edge_score != -eslINFINITY &&
-       graph->node_in_graph[graph->edges[node_id][i].downstream_node_id]) 
-      return TRUE;
-   
-  }
-  return FALSE;
-}
 
 /*****************************************************************
  * 2. Debugging tools.

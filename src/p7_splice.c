@@ -631,7 +631,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   p7_splice_CreateUnsplicedEdges(graph, gm_tr);
  
   /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
-  orig_path = p7_splicepath_GetBestPath(graph);
+  orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
 
 //p7_splicegraph_DumpGraph(stdout, graph);
 
@@ -642,6 +642,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     seq_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT;
     path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
     
+//p7_splicegraph_DumpHits(stdout, graph);
+//p7_splicegraph_DumpGraph(stdout, graph);
 //printf("FIRST PATH \n");
 //p7_splicepath_Dump(stdout,orig_path);
 //p7_splicepath_DumpScores(stdout,orig_path,graph);
@@ -649,6 +651,9 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
     /* Create dopy of orig_path so orig)path does not get altered by p7_splice_SpliceExons() */
     copy_path = p7_splicepath_Clone(orig_path);
+//TODO remove
+    if(orig_path->node_id[0] >= graph->anchor_N || orig_path->node_id[orig_path->path_len-1] >= graph->anchor_N) ESL_EXCEPTION(eslFAIL, "path starts or ends with seed");
+         
     spliced_path = p7_splice_SpliceExons(info, copy_path, path_seq);
     
 //printf("SPLICED PATH\n");
@@ -667,12 +672,18 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       /* If extension nodes were added, splice them */
       if(spliced_path->extension[0] || spliced_path->extension[spliced_path->path_len-1]) {
         
-        esl_sq_Destroy(path_seq);
   
-        seq_min = ESL_MIN(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) - ALIGNMENT_EXT;
-        seq_max = ESL_MAX(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) + ALIGNMENT_EXT;
-        path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, spliced_path->revcomp, info);
-       
+        path_min = ESL_MIN(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) - ALIGNMENT_EXT;
+        path_max = ESL_MAX(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) + ALIGNMENT_EXT;
+        seq_min  = ESL_MIN(path_seq->start, path_seq->end);        
+        seq_max  = ESL_MAX(path_seq->start, path_seq->end);
+        if(path_min < seq_min || path_max > seq_max) {
+
+          esl_sq_Destroy(path_seq);
+          seq_min = ESL_MIN(seq_min, path_min);
+          seq_max = ESL_MAX(seq_max, path_max);
+          path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, spliced_path->revcomp, info);
+        }
         p7_splice_SpliceExtensions(info, spliced_path, path_seq);
         
       }
@@ -681,7 +692,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //printf("FINAL PATH\n");
 //p7_splicepath_Dump(stdout,spliced_path);
 //fflush(stdout);
- 
+
+//p7_splicegraph_DumpHits(stdout, graph); 
       success = FALSE;
 
       if(spliced_path->path_len > 1) {
@@ -726,7 +738,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     p7_splicepipeline_Reuse(pli);
 
 //p7_splicegraph_DumpHits(stdout, graph);
-    orig_path = p7_splicepath_GetBestPath(graph);
+    orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
 
 //p7_splicegraph_DumpHits(stdout, graph); 
 //p7_splicegraph_DumpGraph(stdout, graph);
@@ -845,22 +857,25 @@ int
 p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph)
 {
   int i,s,n;
+  int up, down, between;
   int skip;
   int seeds_in_graph;
   P7_HIT *first_hit;
   P7_HIT *last_hit; 
   P7_HIT *curr_hit;
+  P7_TOPHITS   *th;
   SPLICE_GRAPH *tmp_graph;
   SPLICE_PATH  *tmp_path;
   SPLICE_EDGE  *tmp_edge; 
   SPLICE_EDGE  *edge;
  
+  th = graph->th;
    
   /************************
   * EXTEND UP
   *************************/
 
-  first_hit = graph->th->hit[spliced_path->node_id[0]];
+  first_hit = th->hit[spliced_path->node_id[0]];
  
   tmp_graph = p7_splicegraph_Create();
   tmp_graph->seqidx  = graph->seqidx;
@@ -875,23 +890,32 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
 
   tmp_graph->anchor_N = 1;
  
-  /* Add any existing upstream extension nodes to the tmp graph */
-  s = 0;
-  while(path->extension[s]) {
+  /* Add any upstream seed nodes from the graph */
+  down = spliced_path->node_id[0];
+  for(up = graph->anchor_N; up < graph->num_nodes; up++) {
+    if(!graph->node_in_graph[up]) continue;
+    if(graph->tmp_node[up]) continue;
+    if(p7_splicegraph_EdgeExists(graph, up, down)) {
+      
+      /* Dont Add if there is another anchor between the seed and the first hit */
+      skip = FALSE;
+      for(between = 0; between < graph->anchor_N; between++) {
+        if(between == down) continue;
+        if(p7_splice_HitBetween(th->hit[up]->dcl, th->hit[between]->dcl, first_hit->dcl, graph->revcomp)) {
+          skip = TRUE;  
+          break;
+        }     
+      }
 
-    curr_hit = graph->th->hit[path->node_id[s]];
-   
-    p7_splicegraph_AddNode(tmp_graph, curr_hit);
-    tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = path->node_id[s];
- 
-    /* Set tmp_nodes so we don't make new edges for them */
-    if(graph->tmp_node[path->node_id[s]]) tmp_graph->tmp_node[tmp_graph->num_nodes-1] = TRUE;
-    s++;
+      if(!skip) {
+        p7_splicegraph_AddNode(tmp_graph, th->hit[up]);
+        tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = up;
+      }
+    }
   }
-
   seeds_in_graph = tmp_graph->num_nodes;
 
-  /* Look for seed his to add to the tmp graph */
+  /* Add any upstream seed nodes from the seed hits */
   for(i = 0; i < seed_hits->N; i++) {
     
     curr_hit = &(seed_hits->unsrt[i]);
@@ -910,8 +934,11 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
       skip = FALSE;
       for(n = 0; n < graph->anchor_N; n++) {
         if(!graph->node_in_graph[n]) continue;
-        if(p7_splice_HitUpstream(curr_hit->dcl, graph->th->hit[n]->dcl, tmp_graph->revcomp)) {
-          if(p7_splice_HitBetween(curr_hit->dcl, graph->th->hit[n]->dcl, first_hit->dcl, tmp_graph->revcomp)) skip = TRUE;
+        if(p7_splice_HitUpstream(curr_hit->dcl, th->hit[n]->dcl, tmp_graph->revcomp)) {
+          if(p7_splice_HitBetween(curr_hit->dcl, th->hit[n]->dcl, first_hit->dcl, tmp_graph->revcomp)) { 
+            skip = TRUE;
+            break;
+         }
         }
       }
       if(skip) continue;
@@ -922,7 +949,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
   }
 
   p7_splice_CreateExtensionEdges(graph, tmp_graph); 
-  tmp_path = p7_splicepath_GetBestPath(tmp_graph); 
+  tmp_path = p7_splicepath_GetBestPath(tmp_graph, TRUE, FALSE); 
 
   /* Set the most upstream hit in the tmp_path to start at the minimum 
    * hmm for all hits in tmp_path and add it to the original path  */
@@ -991,7 +1018,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
   * EXTEND DOWN
   ************************/
 
-  last_hit  = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]];
+  last_hit  = th->hit[spliced_path->node_id[spliced_path->path_len-1]];
 
   tmp_graph = p7_splicegraph_Create();
   tmp_graph->seqidx  = graph->seqidx;
@@ -1005,20 +1032,29 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
 
   tmp_graph->anchor_N = 1;
 
-   /* Add any existing downstream extension nodes to the tmp graph then remove them from the path */
-   s = path->path_len-1;
-  while(path->extension[s]) {
+  /* Add any downstream seed nodes from the graph */
+  up = spliced_path->node_id[spliced_path->path_len-1];
+  for(down = graph->anchor_N; down < graph->num_nodes; down++) {
+    if(!graph->node_in_graph[down]) continue;
+    if(graph->tmp_node[down]) continue;
+    if(p7_splicegraph_EdgeExists(graph, up, down)) {
 
-    curr_hit = graph->th->hit[path->node_id[s]];
+      /* Dont Add if there is another anchor between the seed and the last hit */
+      skip = FALSE;
+      for(between = 0; between < graph->anchor_N; between++) {
+        if(between == down) continue;
+        if(p7_splice_HitBetween(last_hit->dcl, th->hit[between]->dcl, th->hit[down]->dcl, graph->revcomp)) {
+          skip = TRUE;
+          break;
+        }
+      }
 
-    p7_splicegraph_AddNode(tmp_graph, curr_hit);
-    tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1]  = path->node_id[s];
-
-    /* Set tmp_nodes so we don't make new edges for them */
-    if(graph->tmp_node[path->node_id[s]]) tmp_graph->tmp_node[tmp_graph->num_nodes-1] = TRUE;
-    s--;
-  } 
-
+      if(!skip) {
+        p7_splicegraph_AddNode(tmp_graph, th->hit[down]);
+        tmp_graph->orig_hit_idx[tmp_graph->num_nodes-1] = down;
+      }
+    }
+  }
   seeds_in_graph = tmp_graph->num_nodes;
 
   /* Add new node from seed_hits */
@@ -1039,8 +1075,11 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
       skip = FALSE;
       for(n = 0; n < graph->anchor_N; n++) {
         if(!graph->node_in_graph[n]) continue;
-        if(p7_splice_HitUpstream(graph->th->hit[n]->dcl, curr_hit->dcl, tmp_graph->revcomp)) {
-          if(p7_splice_HitBetween(last_hit->dcl, graph->th->hit[n]->dcl, curr_hit->dcl, tmp_graph->revcomp)) skip = TRUE;
+        if(p7_splice_HitUpstream(th->hit[n]->dcl, curr_hit->dcl, tmp_graph->revcomp)) {
+          if(p7_splice_HitBetween(last_hit->dcl, th->hit[n]->dcl, curr_hit->dcl, tmp_graph->revcomp)) {
+            skip = TRUE;
+            break;
+          }
         }
       }
       if(skip) continue;
@@ -1053,7 +1092,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
   p7_splice_CreateExtensionEdges(graph, tmp_graph); 
 
 
-  tmp_path = p7_splicepath_GetBestPath(tmp_graph);
+  tmp_path = p7_splicepath_GetBestPath(tmp_graph, FALSE, TRUE);
 
   /* Set the most downstream hit in the tmp_path to end at the maximum  
    * hmm for all hits in tmp_path and add it to the original path  */
@@ -1217,13 +1256,11 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension
 /*  Function: p7_splice_SpliceExons
  *  Synopsis: Find the best splice site (if any) between each pair of node in the path
  *
- *  Purpose : From the first to the last anchor node in the path, recover 
- *            the splice site by either performing the alignment or by
- *            retreveing the site from a pervious alignment. If no site 
- *            is found or the spliced alignment score is less that the 
- *            combined unspliced alignment sores, break the edge and 
- *            return null. Save all valid splice sites coodinates to 
- *            prevent repeated alignment.
+ *  Purpose : Finde the splice sites, and any missing exons, between 
+ *            each pair of nodes either by performing the alignment or by
+ *            retreveing the sites from a pervious alignment. If no site 
+ *            is found or the break the edge and  return null. Save all 
+ *            valid splice sites coodinates to prevent repeated alignment.
  *
  *
  * Returns:   <SPLICE_PATH> on success and NULL on failure. 
@@ -1234,7 +1271,6 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
 {
 
   int i, s;
-  int s_start, s_end;
   int i_start, i_end;
   int i_sub_start, i_sub_end;
   int k_start, k_end;
@@ -1250,30 +1286,15 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
 
   ret_path   = NULL;
  
-  for(s_start = 0; s_start < orig_path->path_len; s_start++) if(!orig_path->extension[s_start]) break;
-  for(s_end = orig_path->path_len-1; s_end >= 0; s_end--)    if(!orig_path->extension[s_end])   break;
-
-  if (s_start == s_end) {
-    ret_path = p7_splicepath_Create(1);
-
-    ret_path->node_id[0] = orig_path->node_id[s_start];
-
-    ret_path->iali[0] = orig_path->iali[s_start];
-    ret_path->jali[0] = orig_path->jali[s_start];
-    ret_path->ihmm[0] = orig_path->ihmm[s_start];
-    ret_path->jhmm[0] = orig_path->jhmm[s_start];
-
-    ret_path->extension[0] = FALSE;
-
-    ret_path->revcomp    = orig_path->revcomp;
-    ret_path->frameshift = orig_path->frameshift;
-    
+   /* If the original path has only one node, return a copy of thst path */
+  if (orig_path->path_len == 1) {
+    ret_path = p7_splicepath_Clone(orig_path);
     return ret_path;
   }
 
   next_i_start = next_k_start = 0; 
-  /* Splice each pair or nodes from the first to the last anchor */  
-  for(s = s_start+1; s < s_end+1; s++) {
+  /* Splice each pair or nodes*/  
+  for(s = 1; s < orig_path->path_len; s++) {
     
     edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]);
 
@@ -1368,7 +1389,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
 
     /* When hits are merged we need to remove one from the path */
     if(tmp_path->path_len == 1) {
-      if(s != s_end) {
+      if(s != orig_path->path_len-1) {
         edge = p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]);
         edge->edge_score = -eslINFINITY;
 
@@ -1378,9 +1399,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
           p7_splicepath_Destroy(ret_path);
           return NULL;
         }
-  
         p7_splicepath_Remove(orig_path, s);
-        s_end--;
         s--;
 		
       }
@@ -2734,7 +2753,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   pli = info->pli;
   om = info->om;
   seq_file = info->seq_file;
- 
+
   /* Create an amino sequence from the spliced nuc sequece whose coords are in the spliced_path */ 
   p7_splice_CreateSplicedSequnce(info, spliced_path, path_seq);
  
@@ -3170,7 +3189,6 @@ p7_splice_CreateSplicedSequnce(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
       spliced_path->frameshift = TRUE;
   
       p7_splicepath_Dump(stdout, spliced_path); 
-      
       free(nuc_index);
       free(nuc_dsq);
       free(amino_dsq);

@@ -248,7 +248,7 @@ extern SPLICE_PATH* p7_splicepath_Clone(SPLICE_PATH *path);
 extern int p7_splicepath_Insert(SPLICE_PATH *path, int step);
 extern int p7_splicepath_Remove(SPLICE_PATH *path, int step);
 extern void p7_splicepath_Destroy(SPLICE_PATH *path);
-extern SPLICE_PATH* p7_splicepath_GetBestPath(SPLICE_GRAPH *graph);
+extern SPLICE_PATH* p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down);
 extern void p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path);
 extern void p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph);
 

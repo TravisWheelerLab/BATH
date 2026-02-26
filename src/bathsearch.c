@@ -105,41 +105,46 @@ static ESL_OPTIONS options[] = {
   { "-m",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-M",            "ORFs must initiate with AUG only",                                         4 },
   { "-M",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"-m",            "ORFs must start with allowed initiation codon",                            4 },
   { "--strand",       eslARG_STRING, "both",     NULL,        NULL,      NULL,   NULL, NULL,           "translate only forward strand 'plus' or reverse complement strand 'minus'",4 },
-  
+
+  /* Splicing options */
+  { "--min_intron",   eslARG_INT,    "13",       NULL,   "13<=x<=25",   NULL,"--splice", NULL,         "minimum intron length",                                                    5 },  
+  { "--max_intron",   eslARG_INT,    "2e5",      NULL, "1e2<=x1.5e6",   NULL,"--splice", NULL,         "maximum intron length",                                                    5 },  
+  { "--signalmx",     eslARG_INFILE,  NULL,      NULL,        NULL,     NULL,"--splice", NULL,         "read splice signal probabilities from file",                               5 },
+
   /* Control of reporting and inclusion thresholds */
-  { "-E",             eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,   NULL, REPOPTS,        "report sequences <= this E-value threshold in output",                     5 },
-  { "-T",             eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, REPOPTS,        "report sequences >= this score threshold in output",                       5 },
-  { "--incE",         eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,   NULL, INCOPTS,        "consider sequences <= this E-value threshold as significant",              5 },
-  { "--incT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, INCOPTS,        "consider sequences >= this score threshold as significant",                5 },
+  { "-E",             eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,   NULL, REPOPTS,        "report sequences <= this E-value threshold in output",                     6 },
+  { "-T",             eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, REPOPTS,        "report sequences >= this score threshold in output",                       6 },
+  { "--incE",         eslARG_REAL,   "0.01",     NULL,       "x>0",      NULL,   NULL, INCOPTS,        "consider sequences <= this E-value threshold as significant",              6 },
+  { "--incT",         eslARG_REAL,    FALSE,     NULL,        NULL,      NULL,   NULL, INCOPTS,        "consider sequences >= this score threshold as significant",                6 },
 
   /* Control of acceleration pipeline */
-  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3,--F4","turn all heuristic filters off (less speed, more power)",             6 },
-  { "--F1",           eslARG_REAL,   "0.02",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                         6 },
-  { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                         6 },
-  { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         6 },
-  { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,  "--fs","--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                     6 },
-  { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         6 },
-  { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            6 },
+  { "--max",          eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL,"--F1,--F2,--F3,--F4","turn all heuristic filters off (less speed, more power)",             7 },
+  { "--F1",           eslARG_REAL,   "0.02",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 1 (MSV) threshold: promote hits w/ P <= F1",                         7 },
+  { "--F2",           eslARG_REAL,   "1e-3",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 2 (Vit) threshold: promote hits w/ P <= F2",                         7 },
+  { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         7 },
+  { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,  "--fs","--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                     7 },
+  { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         7 },
+  { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            7 },
 
   /* input formats */
-  { "--qformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert query is in format <s> (can be seq or msa format)",                 7 },
-  { "--tformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert target <seqfile> is in format <s>: no autodetection",               7 },
+  { "--qformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert query is in format <s> (can be seq or msa format)",                 8 },
+  { "--tformat",      eslARG_STRING,  NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "assert target <seqfile> is in format <s>: no autodetection",               8 },
 
   /* Control of scoring system */
-  { "--singlemx",     eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "use substitution score matrix w/ single-sequence MSA-format inputs",       8 },
-  { "--popen",        eslARG_REAL,   "0.02",     NULL,       "0<=x<0.5", NULL,   NULL, NULL,           "gap open probability",                                                     8 },
-  { "--pextend",      eslARG_REAL,   "0.4",      NULL,       "0<=x<1",   NULL,   NULL, NULL,           "gap extend probability",                                                   8 },
-  { "--mx",           eslARG_STRING, "BLOSUM62", NULL,        NULL,      NULL,   NULL,"--mxfile",      "substitution score matrix choice (of some built-in matrices)",             8 },
-  { "--mxfile",       eslARG_INFILE,  NULL,      NULL,        NULL,      NULL,   NULL,"--mx",          "read substitution score matrix from file <f>",                             8 },
+  { "--singlemx",     eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "use substitution score matrix w/ single-sequence MSA-format inputs",       9 },
+  { "--popen",        eslARG_REAL,   "0.02",     NULL,       "0<=x<0.5", NULL,   NULL, NULL,           "gap open probability",                                                     9 },
+  { "--pextend",      eslARG_REAL,   "0.4",      NULL,       "0<=x<1",   NULL,   NULL, NULL,           "gap extend probability",                                                   9 },
+  { "--mx",           eslARG_STRING, "BLOSUM62", NULL,        NULL,      NULL,   NULL,"--mxfile",      "substitution score matrix choice (of some built-in matrices)",             9 },
+  { "--mxfile",       eslARG_INFILE,  NULL,      NULL,        NULL,      NULL,   NULL,"--mx",          "read substitution score matrix from file <f>",                             9 },
 
 /* Other options */
-  { "-Z",             eslARG_REAL,    FALSE,     NULL,       "x>=0",     NULL,   NULL, NULL,           "set database size (Megabases) to <x> for E-value calculations",            9 }, 
-  { "--seed",         eslARG_INT,    "42",       NULL,       "n>=0",     NULL,   NULL, NULL,           "set RNG seed to <n> (if 0: one-time arbitrary seed)",                      9 },
-  { "--w_beta",       eslARG_REAL,    NULL,      NULL,       "0>=x<=1",  NULL,   NULL, NULL,           "tail mass at which window length is determined",                           9 },
-  { "--w_length",     eslARG_INT,     NULL,      NULL,       "x>=4",      NULL,   NULL, NULL,           "window length - essentially max expected hit length" ,                    9 },
+  { "-Z",             eslARG_REAL,    FALSE,     NULL,       "x>=0",     NULL,   NULL, NULL,           "set database size (Megabases) to <x> for E-value calculations",           10 }, 
+  { "--seed",         eslARG_INT,    "42",       NULL,       "n>=0",     NULL,   NULL, NULL,           "set RNG seed to <n> (if 0: one-time arbitrary seed)",                     10 },
+  { "--w_beta",       eslARG_REAL,    NULL,      NULL,       "0>=x<=1",  NULL,   NULL, NULL,           "tail mass at which window length is determined",                          10 },
+  { "--w_length",     eslARG_INT,     NULL,      NULL,       "x>=4",      NULL,   NULL, NULL,           "window length - essentially max expected hit length" ,                   10 },
   #ifdef HMMER_THREADS 
-  { "--block_length", eslARG_INT,     NULL,      NULL,       "n>=50000", NULL,   NULL, NULL,           "length of blocks read from target database (threaded) ",                   9 },
-  { "--cpu",          eslARG_INT,     p7_NCPU,  "HMMER_NCPU","n>=0",     NULL,   NULL, CPUOPTS,        "number of parallel CPU workers to use for multithreads",                   9 },
+  { "--block_length", eslARG_INT,     NULL,      NULL,       "n>=50000", NULL,   NULL, NULL,           "length of blocks read from target database (threaded) ",                  10 },
+  { "--cpu",          eslARG_INT,     p7_NCPU,  "HMMER_NCPU","n>=0",     NULL,   NULL, CPUOPTS,        "number of parallel CPU workers to use for multithreads",                  10 },
 #endif
  
   /* Restrict search to subset of database - hidden because these flags are
@@ -209,34 +214,37 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
   if (esl_opt_GetBoolean(go, "-h") == TRUE) 
     {
       esl_usage(stdout, argv[0], usage);
-      if (puts("\nBasic options:")                                           < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nBasic options:")                                          < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 1, 2, 100); /* 1= group; 2 = indentation; 100=textwidth*/
 
-      if (puts("\nAlgorithm options:")                                           < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nAlgorithm options:")                                      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 2, 2, 100);
 
-      if (puts("\nOptions directing output:")                                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nOptions directing output:")                               < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 3, 2, 100); 
 
-      if (puts("\nOptions controlling translation:")                      < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nOptions controlling translation:")                        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 4, 2, 100); 
 
-      if (puts("\nOptions controlling reporting and inclusion thresholds:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 5, 2, 100); 
+      if (puts("\nOptions controlling splicing:")                           < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_opt_DisplayHelp(stdout, go, 5, 2, 100);
 
-      if (puts("\nOptions controlling acceleration heuristics:")             < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nOptions controlling reporting and inclusion thresholds:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 6, 2, 100); 
 
-      if (puts("\nOptions setting input formats:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 7, 2, 100);
+      if (puts("\nOptions controlling acceleration heuristics:")            < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_opt_DisplayHelp(stdout, go, 7, 2, 100); 
 
-      if (puts("\nOptions handling single sequence inputs:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nOptions setting input formats:")                          < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_opt_DisplayHelp(stdout, go, 8, 2, 100);
 
-      if (puts("\nOther expert options:")                                    < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
-      esl_opt_DisplayHelp(stdout, go, 9, 2, 100); 
+      if (puts("\nOptions handling single sequence inputs:")                < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_opt_DisplayHelp(stdout, go, 9, 2, 100);
+
+      if (puts("\nOther expert options:")                                   < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      esl_opt_DisplayHelp(stdout, go, 10, 2, 100); 
       
-      if (puts("\nAvailable NCBI genetic code tables (for --ct <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
+      if (puts("\nAvailable NCBI genetic code tables (for --ct <id>):")     < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
       esl_gencode_DumpAltCodeTable(stdout);
 
 	  exit(0);

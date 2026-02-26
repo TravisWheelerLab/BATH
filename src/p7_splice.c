@@ -3299,6 +3299,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt);
 
     if(splice_cnt == 0) {
+	  p7_trace_splice_Destroy(hit->dcl->tr);
       p7_hit_Destroy(hit);
       p7_trace_Destroy(tr);
       return eslOK;

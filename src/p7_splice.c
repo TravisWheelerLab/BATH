@@ -3480,10 +3480,9 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
     while(spliced_path->node_id[spliced_path->path_len-1] < 0 || spliced_path->node_id[spliced_path->path_len-1] >= graph->anchor_N) { 
       spliced_path->path_len--;
       if(spliced_path->path_len == 1) return eslOK;
-
-      spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
-      spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;
     }
+	spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
+	spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;
     
 
   }

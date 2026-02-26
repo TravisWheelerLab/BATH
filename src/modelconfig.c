@@ -1009,7 +1009,8 @@ p7_ProfileConfig_tr(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
          for (x = 0; x < 4; x++) {
            codon_idx = p7P_CODON3_FS1(v, w, x);
            a = gcode->basic[16 * v + 4 * w + x];
-           p7P_MSC_CODON(gm_tr, k, codon_idx) = p7P_MSC_AMINO1(gm_tr, k, a);
+           if(a == hmm->abc->Kp-2) p7P_MSC_CODON(gm_tr, k, codon_idx) = -eslINFINITY;
+           else                    p7P_MSC_CODON(gm_tr, k, codon_idx) = p7P_MSC_AMINO1(gm_tr, k, a);
            p7P_AMINO(gm_tr, k, codon_idx) = a;
          }
 

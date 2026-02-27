@@ -229,7 +229,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
     /* Add all BATH hits from the correct seqidx and strand as nodes to graph */
     p7_splice_AddAnchors(info, graph, tophits);
-    p7_splice_AddSeeds(graph, seed_hits);
+    p7_splice_AddSeeds(info, graph, seed_hits);
 
     info->graph     = graph;
 	info->thread_id = -1;
@@ -326,7 +326,7 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 	graph = graphs[g];
 
     p7_splice_AddAnchors(info, graph, tophits);
-    p7_splice_AddSeeds(graph, seed_hits);
+    p7_splice_AddSeeds(info, graph, seed_hits);
 
   }
  
@@ -468,7 +468,7 @@ p7_splice_AddAnchors(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOP
  *
  */
 int 
-p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
+p7_splice_AddSeeds(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
 {
 
   int     i;
@@ -499,7 +499,7 @@ p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
        
         if(graph->revcomp) gap_len = curr_hit->dcl->jali - th->hit[h1]->dcl->iali - 1;
         else               gap_len = th->hit[h1]->dcl->iali - curr_hit->dcl->jali - 1;
-        if(gap_len > MAX_INTRON_LENG) continue;
+        if(gap_len > info->pli->max_intron) continue;
        
         for(h2 = 0; h2 < graph->anchor_N; h2++) {
           if(h2 == h1) continue;
@@ -509,7 +509,7 @@ p7_splice_AddSeeds(SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits)
               
              if(graph->revcomp) gap_len = th->hit[h2]->dcl->jali - curr_hit->dcl->iali - 1;
              else               gap_len = curr_hit->dcl->iali - th->hit[h2]->dcl->jali - 1;
-             if(gap_len > MAX_INTRON_LENG) continue;
+             if(gap_len > info->pli->max_intron) continue;
 
              /* Re-purpose domain "is_included" for seed hits added to graph */
              curr_hit->dcl->is_included = TRUE;
@@ -628,7 +628,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //fflush(stdout);
 
   /* Create edges between original and recovered nodes */
-  p7_splice_CreateUnsplicedEdges(graph, gm_tr);
+  p7_splice_CreateUnsplicedEdges(pli, graph, gm_tr);
  
   /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
   orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
@@ -764,7 +764,7 @@ printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, grap
  *
  */
 int
-p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr) 
+p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr) 
 {
   int up, down;
   int seq_gap_len;
@@ -791,7 +791,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr)
       else
         seq_gap_len = th->hit[down]->dcl->iali - th->hit[up]->dcl->jali - 1;        
 
-      if(seq_gap_len > MAX_INTRON_LENG) continue;
+      if(seq_gap_len > pli->max_intron) continue;
 
       amino_gap_len = th->hit[down]->dcl->ihmm - th->hit[up]->dcl->jhmm - 1;
 

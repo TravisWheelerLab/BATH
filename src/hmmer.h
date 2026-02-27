@@ -1557,7 +1557,7 @@ extern int p7_hmmwindow_Merge(P7_HMM_WINDOWLIST *hw1, P7_HMM_WINDOWLIST *hm2);
 extern int p7_hmmwindow_SortByStart(P7_HMM_WINDOWLIST *w);
 extern int p7_hmmwindow_SortBySeq(P7_HMM_WINDOWLIST *w);
 extern int p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3);
-extern P7_TOPHITS* p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3);
+extern P7_TOPHITS* p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3, int max_intron);
 extern void p7_hmwwindow_Dump(FILE *fp, P7_HMM_WINDOWLIST *hw);
 
 /* p7_msvdata.c */

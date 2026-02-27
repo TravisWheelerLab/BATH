@@ -370,7 +370,7 @@ p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3)
  * Throws:    p7_Fail on sequence file read error
  */
 P7_TOPHITS*
-p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3)
+p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3, int max_intron)
 {
 
   int i, h, y, z;
@@ -414,7 +414,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
   last_strand = -1;
   i_start = 0;
 
-   /* Find all windows that within MAX_INTRON_LENG upstream or downstram of a top hit */
+   /* Find all windows that within the max intron len upstream or downstram of a top hit */
    for(h = 0; h < th->N; h++) {
 
     if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
@@ -445,8 +445,8 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
       window_min = hw->windows[i].n;
       window_max = hw->windows[i].n + hw->windows[i].length - 1;
 
-      if(hit_min - window_max > MAX_INTRON_LENG) { i++; continue; }
-      if(window_min - hit_max > MAX_INTRON_LENG) break;
+      if(hit_min - window_max > max_intron) { i++; continue; }
+      if(window_min - hit_max > max_intron) break;
 
       hmm_start = hw->windows[i].k - (hw->windows[i].length/3) + 1;
       hmm_end   = hw->windows[i].k;

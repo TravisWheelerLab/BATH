@@ -107,9 +107,8 @@ static ESL_OPTIONS options[] = {
   { "--strand",       eslARG_STRING, "both",     NULL,        NULL,      NULL,   NULL, NULL,           "translate only forward strand 'plus' or reverse complement strand 'minus'",4 },
 
   /* Splicing options */
-  { "--min_intron",   eslARG_INT,    "13",       NULL,   "13<=x<=25",   NULL,"--splice", NULL,         "minimum intron length",                                                    5 },  
-  { "--max_intron",   eslARG_INT,    "2e5",      NULL, "1e2<=x1.5e6",   NULL,"--splice", NULL,         "maximum intron length",                                                    5 },  
-  { "--signalmx",     eslARG_INFILE,  NULL,      NULL,        NULL,     NULL,"--splice", NULL,         "read splice signal probabilities from file",                               5 },
+  { "--min_intron",   eslARG_INT,    "13",       NULL,   "13<=n<=50",    NULL,"--splice", NULL,         "minimum intron length",                                                    5 },
+  { "--max_intron",   eslARG_INT,    "200000",   NULL, "10000<=n<=125000000",  NULL,"--splice", NULL,   "maximum intron length",                                                    5 },  
 
   /* Control of reporting and inclusion thresholds */
   { "-E",             eslARG_REAL,   "10.0",     NULL,       "x>0",      NULL,   NULL, REPOPTS,        "report sequences <= this E-value threshold in output",                     6 },
@@ -930,7 +929,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 
-      seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm_fs5, dbfp, gcode, pipelinehits_accumulator->F3);
+      seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm_fs5, dbfp, gcode, pipelinehits_accumulator->F3, esl_opt_GetInteger(go, "--max_integer"));
       
       p7_splice_SpliceHits(tophits_accumulator, seed_hits, om, gm, gm_tr, gm_fs5, go, gcode, dbfp, resCnt);
 

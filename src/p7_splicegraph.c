@@ -612,11 +612,9 @@ p7_splicegraph_NodeOverlap(SPLICE_GRAPH *graph, int node_id, SPLICE_PATH *path, 
   int64_t overlap_seq_start;
   int64_t overlap_seq_end;
 
-
   overlap_hmm_start = ESL_MAX(graph->th->hit[node_id]->dcl->ihmm, path->ihmm[step_id]);
   overlap_hmm_end   = ESL_MIN(graph->th->hit[node_id]->dcl->jhmm, path->jhmm[step_id]);
   
-
   if(overlap_hmm_end - overlap_hmm_start + 1 <= 0) return FALSE;
 
   if(graph->revcomp) {
@@ -627,7 +625,7 @@ p7_splicegraph_NodeOverlap(SPLICE_GRAPH *graph, int node_id, SPLICE_PATH *path, 
     overlap_seq_start = ESL_MAX(graph->th->hit[node_id]->dcl->iali, path->iali[step_id]);
     overlap_seq_end   = ESL_MIN(graph->th->hit[node_id]->dcl->jali, path->jali[step_id]);
   }
-
+  
   if(overlap_seq_end - overlap_seq_start + 1 <= 0) return FALSE;
 
   return TRUE;

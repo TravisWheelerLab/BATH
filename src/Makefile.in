@@ -114,6 +114,7 @@ OBJS =  build.o\
     p7_search_builder.o\
 	p7_spensemble.o\
 	p7_splice.o\
+    p7_splicebounds.o\
     p7_splicegraph.o\
     p7_splicepath.o\
     p7_splicepipeline.o\

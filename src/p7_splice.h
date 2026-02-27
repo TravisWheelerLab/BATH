@@ -167,6 +167,20 @@ typedef struct _splice_pipeline
 } SPLICE_PIPELINE;
 
 
+typedef struct _splice_bounds
+{
+
+  int     N;
+  int     allocN;
+
+  int     *bound_hmm_mins;
+  int     *bound_hmm_maxs;
+
+  int64_t *bound_seq_mins;
+  int64_t *bound_seq_maxs;
+
+} SPLICE_BOUNDS;
+
 typedef struct _splice_info
 {
   SPLICE_GRAPH      **graphs;     /* array of graphs to process               */
@@ -226,6 +240,12 @@ enum p7s_splice_signals_e {
 };
 #define p7S_SPLICE_SIGNALS 3
 
+/* p7_splicebounds.c */
+extern SPLICE_BOUNDS* p7_splicebounds_Create(int allocN);
+extern int p7_splicebounds_GorwTo(SPLICE_BOUNDS *bounds, int allocN);
+extern void p7_splicebounds_Destroy(SPLICE_BOUNDS *bounds);
+extern int p7_splicebounds_Add(SPLICE_BOUNDS *bounds, int64_t seq_min, int64_t seq_max, int hmm_min, int hmm_max);
+
 /* p7_splicegraph.c */
 extern SPLICE_GRAPH* p7_splicegraph_Create(void);
 extern int p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes);
@@ -272,7 +292,7 @@ extern int p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);
 extern int p7_splice_AddAnchors(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
 extern int p7_splice_AddSeeds(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
-extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph);
+extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph, SPLICE_BOUNDS *bounds);
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr);
 extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph);
 extern SPLICE_PATH* p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int *next_i_start, int *next_k_start);

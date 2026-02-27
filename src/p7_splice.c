@@ -600,10 +600,15 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   
   int                h, s;
   int                success;
+  int                hit_hmm_min, hit_hmm_max;
+  int                node_hmm_min, node_hmm_max;
+  int                hmm_overlap_start, hmm_overlap_end;
+  int64_t            hit_seq_min, hit_seq_max;
+  int64_t            node_seq_min, node_seq_max;
+  int64_t            seq_overlap_start, seq_overlap_end;
   int64_t            seq_min, seq_max;
-  int64_t            hit_min, hit_max;
-  int64_t            node_min, node_max;
   int64_t            path_min, path_max;
+  SPLICE_BOUNDS     *bounds;
   SPLICE_PATH       *orig_path;
   SPLICE_PATH       *copy_path;
   SPLICE_PATH       *spliced_path;
@@ -613,7 +618,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   P7_FS_PROFILE     *gm_tr;
   ESL_SQFILE        *seq_file;
 
-  path_seq         = NULL;
+  bounds     = NULL;
+  path_seq   = NULL;
 
   graph      = info->graph;
   pli        = info->pli;
@@ -626,6 +632,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 //printf("RECOVER\n");
 //p7_splicegraph_DumpHits(stdout, graph);
 //fflush(stdout);
+
+  bounds = p7_splicebounds_Create(10);
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(pli, graph, gm_tr);
@@ -651,8 +659,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
     /* Create dopy of orig_path so orig)path does not get altered by p7_splice_SpliceExons() */
     copy_path = p7_splicepath_Clone(orig_path);
-//TODO remove
-    if(orig_path->node_id[0] >= graph->anchor_N || orig_path->node_id[orig_path->path_len-1] >= graph->anchor_N) ESL_EXCEPTION(eslFAIL, "path starts or ends with seed");
          
     spliced_path = p7_splice_SpliceExons(info, copy_path, path_seq);
     
@@ -663,7 +669,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     if(spliced_path != NULL) {
             
       /* Add additional nodes to the begining and end of spliced_path */
-      p7_splice_ExtendPath(info->seeds, orig_path, spliced_path, graph);
+      p7_splice_ExtendPath(info->seeds, orig_path, spliced_path, graph, bounds);
 
 //printf("EXTEND PATH\n");
 //p7_splicepath_Dump(stdout,spliced_path);
@@ -672,7 +678,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       /* If extension nodes were added, splice them */
       if(spliced_path->extension[0] || spliced_path->extension[spliced_path->path_len-1]) {
         
-  
         path_min = ESL_MIN(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) - ALIGNMENT_EXT;
         path_max = ESL_MAX(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) + ALIGNMENT_EXT;
         seq_min  = ESL_MIN(path_seq->start, path_seq->end);        
@@ -704,19 +709,33 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       }
  
       if(success) {
-          
+//printf("SUCCESS PATH\n");
+//p7_splicepath_Dump(stdout,spliced_path);          
         /* Break edges that overlap the hit so that paths do not intertwine */
-        hit_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
-        hit_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
-        p7_splice_EnforceBounds(graph, hit_min, hit_max); 
-        pli->hit->dcl = NULL;
-       
-        for(h = 0; h < graph->num_nodes; h++) {
-          node_min = ESL_MIN(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
-          node_max = ESL_MAX(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
+        hit_seq_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
+        hit_seq_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
+        hit_hmm_min = pli->hit->dcl->ihmm;
+        hit_hmm_max = pli->hit->dcl->jhmm;
 
-          if(node_min <= hit_max && node_max >= hit_min)  
-            graph->node_in_graph[h] = FALSE;
+        p7_splice_EnforceBounds(graph, hit_seq_min, hit_seq_max); 
+        pli->hit->dcl = NULL;
+
+        p7_splicebounds_Add(bounds, hit_seq_min, hit_seq_max, hit_hmm_min, hit_hmm_max);
+
+        for(h = 0; h < graph->num_nodes; h++) {
+          node_seq_min = ESL_MIN(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
+          node_seq_max = ESL_MAX(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
+          node_hmm_min = graph->th->hit[h]->dcl->ihmm;
+          node_hmm_max = graph->th->hit[h]->dcl->jhmm;          
+ 
+          seq_overlap_start = ESL_MAX(node_seq_min, hit_seq_min);
+          seq_overlap_end   = ESL_MIN(node_seq_max, hit_seq_max);
+          hmm_overlap_start = ESL_MAX(node_hmm_min, hit_hmm_min);
+          hmm_overlap_end   = ESL_MIN(node_hmm_max, hit_hmm_max);
+          
+          if(seq_overlap_end - seq_overlap_start + 1 > 0)
+            if(hmm_overlap_end - hmm_overlap_start + 1 > 0)  
+              graph->node_in_graph[h] = FALSE;
         }
       }
       else {
@@ -725,6 +744,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
           path_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]);
           path_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]);
           p7_splice_EnforceBounds(graph, path_min, path_max);
+
+          p7_splicebounds_Add(bounds, path_min, path_max, orig_path->ihmm[0], orig_path->jhmm[orig_path->path_len-1]);
         }
         for(s = 0; s < orig_path->path_len; s++) 
           graph->node_in_graph[orig_path->node_id[s]] = FALSE;
@@ -746,6 +767,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   }
 printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);  
+
+  p7_splicebounds_Destroy(bounds);
   return eslOK;
 
 }
@@ -854,9 +877,9 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
  *
  */
 int
-p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph)
+p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph, SPLICE_BOUNDS *bounds)
 {
-  int i,s,n;
+  int i,s,n,b;
   int up, down, between;
   int skip;
   int seeds_in_graph;
@@ -949,6 +972,11 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
   }
 
   p7_splice_CreateExtensionEdges(graph, tmp_graph); 
+
+  /* Prevent the extenstions from extending past the bounds of a previous hit */
+  for(b = 0; b < bounds->N; b++)
+    p7_splice_EnforceBounds(tmp_graph, bounds->bound_seq_mins[b], bounds->bound_seq_maxs[b]); 
+
   tmp_path = p7_splicepath_GetBestPath(tmp_graph, TRUE, FALSE); 
 
   /* Set the most upstream hit in the tmp_path to start at the minimum 
@@ -1091,6 +1119,9 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
 
   p7_splice_CreateExtensionEdges(graph, tmp_graph); 
 
+  /* Prevent the extenstions from extending past the bounds of a previous hit */
+  for(b = 0; b < bounds->N; b++)
+    p7_splice_EnforceBounds(tmp_graph, bounds->bound_seq_mins[b], bounds->bound_seq_maxs[b]);
 
   tmp_path = p7_splicepath_GetBestPath(tmp_graph, FALSE, TRUE);
 
@@ -2725,7 +2756,7 @@ p7_splice_EnforceBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_ma
 int
 p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success)
 {
-  int           i, s;
+  int           i, n, s;
   int           s1, s2;
   int           shift;
   int           orf_len;
@@ -2884,6 +2915,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
     while( spliced_path->node_id[i] >= graph->anchor_N || spliced_path->node_id[i] == -1) {
       pli->hit->dcl->ad->exon_anchor[i] = FALSE;
       pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
+      
       i++;
     }
     pli->hit->dcl->ad->exon_anchor[i] = TRUE;
@@ -2918,12 +2950,26 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
     replace_hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score;
       
     /* Set all other original hits in alignment to unreportable */
-    i++;
-    for(  ; i < spliced_path->path_len; i++) {
+    for(i = 0; i < spliced_path->path_len; i++) {
       remove_node = spliced_path->node_id[i];
       if(remove_node < 0 || remove_node >= graph->anchor_N) {
         pli->hit->dcl->ad->exon_anchor[i] = FALSE;
         pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
+        for(n = 0; n <= graph->anchor_N; n++) {
+          if(graph->th->hit[n]->dcl->ad != NULL) continue;
+          if(graph->th->hit[n]->flags & p7_IS_REPORTED ) {
+            if(p7_splicegraph_NodeOverlap(graph, n, spliced_path, i)) {
+              tophits->nreported--;
+              graph->th->hit[n]->flags &= ~p7_IS_REPORTED;
+              graph->th->hit[n]->dcl->is_reported = FALSE;
+              if(graph->th->hit[n]->flags & p7_IS_INCLUDED) {
+                tophits->nincluded--;
+                graph->th->hit[n]->flags &= ~p7_IS_INCLUDED;
+                graph->th->hit[n]->dcl->is_included = FALSE;
+              }                    
+            }       
+          }
+        }
       }
       else {
         pli->hit->dcl->ad->exon_anchor[i] = TRUE;
@@ -2945,41 +2991,14 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
         }
       }
     }
+    
     *success = TRUE; 
 
+    
 #ifdef HMMER_THREADS
   if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
 #endif /*HMMER_THREADS*/
 
-  }
-
-  /* Check of any nodes that got merged and therefore still need their original hits set to unreported */
-  if(success) {
-    for(s1 = 0; s1 < orig_path->path_len; s1++) {
-      if(orig_path->node_id[s1] >= graph->anchor_N) continue;
-      if(graph->th->hit[orig_path->node_id[s1]]->dcl->ad != NULL) continue; // skip hits that have been replaced with spliced hits 
-      if(graph->th->hit[orig_path->node_id[s1]]->flags & p7_IS_REPORTED ) {
-        for(s2 = 0; s2 < spliced_path->path_len; s2++) {
-          if(spliced_path->node_id[s2] >= graph->anchor_N) continue;
-          if(p7_splicegraph_NodeOverlap(graph, orig_path->node_id[s1], spliced_path, s2)) {
-#ifdef HMMER_THREADS
-if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-#endif /*HMMER_THREADS*/
-            tophits->nreported--;
-            graph->th->hit[orig_path->node_id[s1]]->flags &= ~p7_IS_REPORTED;   
-            graph->th->hit[orig_path->node_id[s1]]->dcl->is_reported = FALSE;
-            if(graph->th->hit[orig_path->node_id[s1]]->flags & p7_IS_INCLUDED) {
-              tophits->nincluded--;
-              graph->th->hit[orig_path->node_id[s1]]->flags &= ~p7_IS_INCLUDED;
-              graph->th->hit[orig_path->node_id[s1]]->dcl->is_included = FALSE;
-           }
-#ifdef HMMER_THREADS
-if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
-#endif /*HMMER_THREADS*/
-          }      
-        }
-      }
-    }
   }
 
   return eslOK;

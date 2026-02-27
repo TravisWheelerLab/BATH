@@ -929,7 +929,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 
-      seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm_fs5, dbfp, gcode, pipelinehits_accumulator->F3, esl_opt_GetInteger(go, "--max_integer"));
+      seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm_fs5, dbfp, gcode, pipelinehits_accumulator->F3, esl_opt_GetInteger(go, "--max_intron"));
       
       p7_splice_SpliceHits(tophits_accumulator, seed_hits, om, gm, gm_tr, gm_fs5, go, gcode, dbfp, resCnt);
 

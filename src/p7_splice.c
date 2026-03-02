@@ -763,7 +763,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
 //p7_splicegraph_DumpHits(stdout, graph); 
 //p7_splicegraph_DumpGraph(stdout, graph);
-    
   }
 printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);  
@@ -2763,6 +2762,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   int           remove_node;
   int           replace_node;
   int           contains_anchor;
+  int           found_in_path;
   int           seq_min, seq_max;
   float         dom_bias;
   float         nullsc;
@@ -2878,7 +2878,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
         }
       }
 
-      /* Shift path to start at frist hits that is in alignment */
+      /* Shift path to start at frist hit that is in alignment */
       for(s = 0; s < shift; s++) 
         p7_splicepath_Remove(spliced_path, 0);
 
@@ -2890,24 +2890,39 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
       spliced_path->jali[spliced_path->path_len-1] = pli->hit->dcl->jali;
       spliced_path->jhmm[spliced_path->path_len-1] = pli->hit->dcl->jhmm;
 
-      /*Make sure path still contains an anchor */
-      contains_anchor = FALSE;
-      for(s = 0; s < spliced_path->path_len; s++) 
-        if(spliced_path->node_id[s] < graph->anchor_N && spliced_path->node_id[s] >= 0) contains_anchor = TRUE;
-
-      if(!contains_anchor) return eslOK;       
-  
     }
 
-    /*Redo node  assignments to maxiimize the number of anchor nodes */
+    contains_anchor = FALSE;
+    /*Redo node assignments to maxiimize the number of anchor nodes */
+    for(i = 0; i < graph->anchor_N; i++) {
+      if(!graph->node_in_graph[i]) continue;
+      found_in_path = FALSE;
+      for(s = 0; s < spliced_path->path_len; s++) {
+        if(spliced_path->node_id[s] == i) {
+          found_in_path   = TRUE;
+          contains_anchor = TRUE;
+        }
+      }
+      if(found_in_path == TRUE) continue;
+      for(s = 0; s < spliced_path->path_len; s++) {
+        if(spliced_path->node_id[s] < 0 || spliced_path->node_id[s] >= graph->anchor_N) {
+          if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s)) {
+            spliced_path->node_id[s] = i;
+            contains_anchor = TRUE;
+          }
+        }
+      }
+    }
+    if(!contains_anchor) return eslOK;
+
     for(i = 0; i < graph->anchor_N; i++) {
       if(!graph->node_in_graph[i]) continue;
       for(s = 0; s < spliced_path->path_len; s++) {
-        if(spliced_path->node_id[s] >= graph->anchor_N) {
-          if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s))
+        if(spliced_path->node_id[s] < 0 || spliced_path->node_id[s] >= graph->anchor_N) {
+          if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s)) 
             spliced_path->node_id[s] = i;
         }
-      }
+      }  
     }
 
     /* Find the first original hit in path to copy info*/
@@ -2952,6 +2967,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
     /* Set all other original hits in alignment to unreportable */
     for(i = 0; i < spliced_path->path_len; i++) {
       remove_node = spliced_path->node_id[i];
+      
       if(remove_node < 0 || remove_node >= graph->anchor_N) {
         pli->hit->dcl->ad->exon_anchor[i] = FALSE;
         pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
@@ -2974,6 +2990,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
       else {
         pli->hit->dcl->ad->exon_anchor[i] = TRUE;
         pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
+     
         if(graph->orig_hit_idx[remove_node] == graph->orig_hit_idx[replace_node])
           continue;   
 

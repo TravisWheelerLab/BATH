@@ -58,6 +58,7 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
 
   pli->min_intron = (go ? esl_opt_GetInteger(go, "--min_intron") : 13);
   pli->max_intron = (go ? esl_opt_GetInteger(go, "--max_intron") : 200000);
+  pli->max_extend = ESL_MIN(pli->max_intron, MAX_INTRON_EXT);
 
   if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2 = FALSE;
   else                                           pli->do_null2 = TRUE;           

@@ -669,7 +669,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     if(spliced_path != NULL) {
             
       /* Add additional nodes to the begining and end of spliced_path */
-      p7_splice_ExtendPath(info->seeds, orig_path, spliced_path, graph, bounds);
+      p7_splice_ExtendPath(pli, info->seeds, orig_path, spliced_path, graph, bounds);
 
 //printf("EXTEND PATH\n");
 //p7_splicepath_Dump(stdout,spliced_path);
@@ -876,7 +876,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
  *
  */
 int
-p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph, SPLICE_BOUNDS *bounds)
+p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph, SPLICE_BOUNDS *bounds)
 {
   int i,s,n,b;
   int up, down, between;
@@ -970,7 +970,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
     }
   }
 
-  p7_splice_CreateExtensionEdges(graph, tmp_graph); 
+  p7_splice_CreateExtensionEdges(pli, graph, tmp_graph); 
 
   /* Prevent the extenstions from extending past the bounds of a previous hit */
   for(b = 0; b < bounds->N; b++)
@@ -1116,7 +1116,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
     }
   }   
 
-  p7_splice_CreateExtensionEdges(graph, tmp_graph); 
+  p7_splice_CreateExtensionEdges(pli, graph, tmp_graph); 
 
   /* Prevent the extenstions from extending past the bounds of a previous hit */
   for(b = 0; b < bounds->N; b++)
@@ -1206,7 +1206,7 @@ p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spli
  *
  */
 int
-p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph) 
+p7_splice_CreateExtensionEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph) 
 {
   int up, down;
   int seq_gap_len;
@@ -1230,7 +1230,7 @@ p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension
       else
         seq_gap_len = th->hit[down]->dcl->iali - th->hit[up]->dcl->jali - 1;        
 
-      if(seq_gap_len > MAX_INTRON_EXT) continue;
+      if(seq_gap_len > pli->max_extend) continue;
 
       amino_gap_len = th->hit[down]->dcl->ihmm - th->hit[up]->dcl->jhmm - 1;
 
@@ -2810,7 +2810,6 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
     }
     else 
       p7_splice_AlignSplicedPath(info, orig_path, spliced_path, path_seq, success);
-
     return eslOK;
     
   } 
@@ -3354,13 +3353,12 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
     p7_hit_Destroy(hit);
     p7_trace_Destroy(tr);
-
     return status;
   }
   
   p7_OptimalAccuracy(om, pli->pp, pli->bwd, &oasc); /* <bwd> is now overwritten with OA scores */
   p7_OATrace        (om, pli->pp, pli->bwd, tr);
-
+  
   p7_trace_Index(tr);
   hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt);
    
@@ -3410,7 +3408,6 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
       p7_hit_Destroy(hit);
       p7_trace_Destroy(tr);
-
       return status; 
 
     }

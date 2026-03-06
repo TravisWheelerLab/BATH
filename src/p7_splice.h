@@ -130,6 +130,7 @@ typedef struct _splice_pipeline
 
   int      min_intron;
   int      max_intron;
+  int      max_extend;
 
   double   E;
   double   T;
@@ -292,9 +293,9 @@ extern int p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);
 extern int p7_splice_AddAnchors(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *tophits);
 extern int p7_splice_AddSeeds(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHITS *seed_hits);
-extern int p7_splice_ExtendPath(P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph, SPLICE_BOUNDS *bounds);
+extern int p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *path, SPLICE_PATH *spliced_path, SPLICE_GRAPH *graph, SPLICE_BOUNDS *bounds);
 extern int p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr);
-extern int p7_splice_CreateExtensionEdges(SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph);
+extern int p7_splice_CreateExtensionEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *orig_graph, SPLICE_GRAPH *extension_graph);
 extern SPLICE_PATH* p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int *next_i_start, int *next_k_start);
 extern SPLICE_PATH* p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int s_end, int i_start, int i_end, int k_start, int k_end, int *next_i_end, int *next_k_end);
 extern SPLICE_PATH* p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int s_start, int i_start, int i_end, int k_start, int k_end);

@@ -819,11 +819,10 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
 
       if(amino_gap_len > MAX_AMINO_GAP) continue;
 
-      if(amino_gap_len > 0 && seq_gap_len < amino_gap_len) continue;
-
       if(th->hit[up]->dcl->ihmm >= th->hit[down]->dcl->jhmm ) { 
 
-        /* If hits are upstream/ downstream on the sequence but are the opposite on th modle create a jump edge to prevent paths from skipping over other nodes */
+        /* If hits are upstream/downstream on the sequence but are the opposite on the model 
+         * create a jump edge to prevent paths from skipping over other nodes */
         if( up < graph->anchor_N && down < graph->anchor_N) {
           edge = p7_splicegraph_AddEdge(graph, up, down);
           edge->edge_score   = (th->hit[up]->dcl->aliscore + th->hit[down]->dcl->aliscore) * -1; 
@@ -1235,9 +1234,6 @@ p7_splice_CreateExtensionEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *orig_graph, S
       amino_gap_len = th->hit[down]->dcl->ihmm - th->hit[up]->dcl->jhmm - 1;
 
       if(amino_gap_len > MAX_AMINO_GAP) continue;
-
-      if(amino_gap_len > 0 && seq_gap_len < amino_gap_len) continue;
-
 
       /* If these nodes alreagy have an edge in the original graph, copy it */
       if(extension_graph->orig_hit_idx[up] >= 0 && extension_graph->orig_hit_idx[down] >= 0) {

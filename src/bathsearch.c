@@ -97,7 +97,7 @@ static ESL_OPTIONS options[] = {
   { "--frameline",    eslARG_NONE,    FALSE,     NULL,        NULL,      NULL, "--fs", NULL,           "include frame of each codon in  alignment",                                3 },
   { "--cigar",        eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,"--tblout", NULL,        "include alignment CIGAR string in table output (with --tblout)",           3 },
   { "--notextw",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--textw",       "unlimit ASCII text output line width",                                     3 },
-  { "--textw",        eslARG_INT,    "150",      NULL,       "n>=150",   NULL,   NULL,"--notextw",     "set max width of ASCII text output lines",                                 3 },
+  { "--textw",        eslARG_INT,    "150",      NULL,       "n>=120",   NULL,   NULL,"--notextw",     "set max width of ASCII text output lines",                                 3 },
 
    /* Translation options */ 
   { "--ct",           eslARG_INT,    "1",        NULL,        NULL,      NULL,   NULL, NULL,           "use alt genetic code of NCBI translation table (see end of help)",         4 },

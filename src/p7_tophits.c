@@ -1772,7 +1772,7 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
   {
 
     if (fprintf(ofp, "#%*s %22s %47s \n", tnamew+qnamew+31+taccw+qaccw, 
-    "",  "------ full hit ------ ", "-------------------------------- this exon --------------------------------") < 0)
+    "",  "------ full hit ------ ", "------------------------- this exon --------------------------") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
     if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %3s %3s %9s %9s %9s %9s %9s %5s",

@@ -161,7 +161,104 @@ p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
 }
 
 /*****************************************************************
- * 2. P7_OMX: a one-row dynamic programming matrix
+ * 2. P7_FS_OPROFILE: an optimized frameshift score profile
+ *****************************************************************/
+
+/* The P7_FS_OPROFILE stores codon emission and transition scores in
+ * SIMD-friendly striped format for use in SIMD-accelerated versions
+ * of the frameshift-aware Forward/Backward algorithms.
+ *
+ * Unlike P7_OPROFILE, only IEEE754 single-precision float (4x) vectors
+ * are stored. The frameshift algorithm has no MSV or Viterbi filter stage,
+ * so no byte (uint8) or word (int16) variants are needed.
+ *
+ * Emission scores are striped [Farrar07] analogously to P7_OPROFILE:
+ *   rfv[c][q] : for codon/quasicodon index c (0..p7P_MAXCODONS3+Kp-1)
+ *               and stripe q (0..allocQ4-1), each __m128 float vector
+ *               holds match emission scores for four model positions:
+ *               k = q+1, q+1+Q4, q+1+2*Q4, q+1+3*Q4  (where Q4 = p7O_NQF(M))
+ *
+ *   For example, the emission layout for an M=14 model (Q4=4, SSE float):
+ *
+ *   rfv[c] : striped blocks of M match emissions, starting with q=0
+ *                 1     11     1      1
+ *              1593   2604   371x   482x
+ *
+ * Transition scores are striped identically to P7_OPROFILE:
+ *   tfv[p7O_NTRANS * allocQ4] : transition scores in stripe-major order.
+ *   Starting at q=0 for all but the three transitions into M (BM, MM, IM, DM),
+ *   which are rotated by -1 and rightshifted. DD transitions follow separately.
+ *
+ * Special state (ENJC) transition costs are stored as scalars in xf[][],
+ * identical to P7_OPROFILE.
+ *
+ * Codon index c ranges over:
+ *   0 .. p7P_MAXCODONS#-1   : codon and quasicodon emission scores
+ *   p7P_MAXCODONS# .. p7P_MAXCODONS#+Kp-1 : amino acid emission scores
+ *                             (used for trace scoring and display)
+ */
+typedef struct p7_fs_oprofile_s {
+  /* Forward/Backward: IEEE754 single-precision floats, 4x __m128 vectors         */
+  __m128  **rfv;          /* match emission scores [c][q]                         */
+                          /* c = 0..p7P_MAXCODONS3+Kp-1 (codon/aa index)          */
+                          /* q = 0..allocQ4-1 (stripe index)                      */
+  __m128   *tfv;          /* transition score blocks [p7O_NTRANS * allocQ4]       */
+  float     xf[p7O_NXSTATES][p7O_NXTRANS]; /* ENJC special state transition costs */
+
+  /* Frameshift-specific parameters                                               */
+  int       codon_lengths; /* number of codon lengths; must be 3 for this variant */
+  float     fs;            /* frameshift penalty (log-odds score)                 */
+
+  /* Raw malloc'd memory before 16-byte alignment                                 */
+  __m128   *rfv_mem;
+  __m128   *tfv_mem;
+
+  /* Disk offset information for fast model retrieval                             */
+  off_t  offs[p7_NOFFSETS]; /* p7_{MFP}OFFSET, or -1                              */
+  off_t  roff;              /* record offset (start of record); -1 if none        */
+  off_t  eoff;              /* offset to last byte of record; -1 if unknown       */
+
+  /* Annotation copied from parent profile (P7_FS_PROFILE / P7_HMM)               */
+  char  *name;              /* unique name of model                               */
+  char  *acc;               /* unique accession of model, or NULL                 */
+  char  *desc;              /* brief (1-line) description of model, or NULL       */
+  char  *rf;                /* reference line           1..M; *rf=0: unused       */
+  char  *mm;                /* modelmask line           1..M; *mm=0: unused       */
+  char  *cs;                /* consensus structure line 1..M; *cs=0: unused       */
+  char  *consensus;         /* consensus residues for alignment display, 1..M     */
+  float  evparam[p7_NEVPARAM]; /* parameters for determining E-values, or UNSET   */
+  float  cutoff[p7_NCUTOFFS];  /* per-seq/per-dom bit score cutoffs, or UNSET     */
+  float  compo[p7_MAXABET];    /* per-model HMM filter composition, or UNSET      */
+  const ESL_ALPHABET *abc;     /* copy of pointer to alphabet information         */
+
+  /* Current configuration, size, and allocation                                  */
+  int    L;                 /* current configured target nucleotide seq length    */
+  int    M;                 /* model length (number of match states)              */
+  int    max_length;        /* upper bound on emitted nucleotide sequence length  */
+  int    allocM;            /* maximum model length currently allocated for       */
+  int    allocQ4;           /* p7O_NQF(allocM): number of float SIMD stripes      */
+  int    mode;              /* alignment mode; currently must be p7_LOCAL         */
+  float  nj;                /* expected # of J-state uses: 0 (unihit) or 1 (multihit) */
+  int    clone;             /* if nonzero, pointers are borrowed; must not be freed   */
+
+} P7_FS_OPROFILE;
+
+/* Retrieve the float match emission score for model position k, codon index c.
+ * Used in display/debugging; performance-critical code uses the striped vectors directly.
+ */
+static inline float
+p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
+{
+  union { __m128 v; float p[4]; } u;
+  int Q = p7O_NQF(om_fs->M);
+  int q = (k-1) % Q;   /* stripe index */
+  int r = (k-1) / Q;   /* lane within the vector */
+  u.v = om_fs->rfv[c][q];
+  return u.p[r];
+}
+
+/*****************************************************************
+ * 3. P7_OMX: a one-row dynamic programming matrix
  *****************************************************************/
 
 enum p7x_scells_e { p7X_M = 0, p7X_D = 1, p7X_I = 2 };
@@ -251,7 +348,7 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
 
 
 /*****************************************************************
- * 3. Declarations of the external API.
+ * 4. Declarations of the external API.
  *****************************************************************/
 
 /* p7_omx.c */
@@ -348,7 +445,7 @@ extern int p7_ViterbiScore (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 
 
 /*****************************************************************
- * 4. Implementation specific initialization
+ * 5. Implementation specific initialization
  *****************************************************************/
 static inline void
 impl_Init(void)

@@ -425,7 +425,7 @@ p7_pli_ExtendAndMergeWindows_BATH(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL
     window_len    = window_end - window_start + 1;
 
     if(((float)(overlap_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap) &&
-      window_len < ( 2 * (om->max_length * 3)))
+      window_len < ( 1.2 * (om->max_length * 3)))
     {
       prev_window->n      = window_start;
       prev_window->length = window_len;
@@ -1095,7 +1095,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
   float            dom_lnP;
   P7_DOMAIN       *dom        = NULL;      /* convenience variable, ptr to current domain  */
   P7_HIT          *hit        = NULL;      /* ptr to the current hit output data           */
- 
+
   for (d = 0; d < pli->ddef->ndom; d++)
   {      
     dom = pli->ddef->dcl + d;
@@ -1273,7 +1273,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
   double           min_P_orf;                  /* lowest p-value produced by an ORF */
 
   subseq = dnasq->dsq + dna_window->n - 1;
-  
+
   pli_tmp->tmpseq->L = dna_window->length;
   pli_tmp->tmpseq->n = dna_window->length;
   pli_tmp->tmpseq->start = dna_window->n;
@@ -1356,7 +1356,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
     pli->pos_past_fwd += dna_window->length; 
     p7_gmx_fs_GrowTo(pli->gxb, gm_fs3->M, PARSER_ROWS_BWD, dna_window->length, 0);
     p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs3, pli->gxb, pli->iv, NULL);
- 
+    
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, gm_fs5, bg, gcode);
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
@@ -1629,7 +1629,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs3, P7_FS
   P7_HMM_WINDOWLIST  post_vit_windowlist; /* list of windows from ORFs that pass viterbi */
   P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;  /* number of nucleotieds passing filters */
   P7_PIPELINE_BATH_OBJS *pli_tmp;   
-
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated

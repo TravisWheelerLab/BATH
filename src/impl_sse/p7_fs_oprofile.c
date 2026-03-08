@@ -198,6 +198,199 @@ p7_fs_oprofile_Clone(const P7_FS_OPROFILE *om_fs)
  * 2. Conversion from generic P7_FS_PROFILE to optimized P7_FS_OPROFILE
  *********************************************************************/
 
+/* fs_fb_conversion()
+ *
+ * Fills the Forward/Backward float vector parts of <om_fs> from the
+ * generic frameshift profile <gm_fs>. Scores are converted from
+ * log-odds (nats) to odds ratios (pspace floats) for use in the
+ * Forward/Backward algorithm.
+ *
+ * Emission scores: all codon/quasicodon rows (0..ncodon_rows-1) are
+ * striped into rfv[c][q], with positions k=1..M distributed across
+ * stripes of 4 in the SSE float vectors.
+ *
+ * Transition scores: striped into tfv[] identically to P7_OPROFILE's
+ * fb_conversion(). BM, MM, IM, DM vectors are rotated by -1 (start
+ * from k=0); MD, MI, II are straight; DD follows at the end.
+ *
+ * Special state (ENJC) transitions: stored as scalar odds ratios in xf[][].
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if <om_fs> is too small to hold the conversion.
+ */
+static int
+fs_fb_conversion(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
+{
+  int     M   = gm_fs->M;          /* number of model nodes                                      */
+  int     nq  = p7O_NQF(M);        /* number of striped float vectors per row                    */
+  int     ncodon_rows;              /* total rows in rfv (codon + amino acid rows)                */
+  int     c;                        /* counter over codon/aa emission rows                        */
+  int     q;                        /* counter over stripes, 0..nq-1                              */
+  int     k;                        /* counter over model nodes, 1..M                             */
+  int     kb;                       /* possibly offset base k for rotated transition vectors      */
+  int     z;                        /* counter within one SIMD float vector (0..3)                */
+  int     t;                        /* counter over transitions p7O_{BM..II}                      */
+  int     tg;                       /* transition index into gm_fs->tsc                           */
+  int     j;                        /* running index into om_fs->tfv                              */
+  union { __m128 v; float x[4]; } tmp; /* for building SIMD vectors element-by-element           */
+
+  if (nq > om_fs->allocQ4) ESL_EXCEPTION(eslEINVAL, "optimized profile is too small to hold conversion");
+
+  if      (om_fs->codon_lengths == 1) ncodon_rows = p7P_MAXCODONS1 + gm_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 3) ncodon_rows = p7P_MAXCODONS3 + gm_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 5) ncodon_rows = p7P_MAXCODONS5 + gm_fs->abc->Kp;
+  else ESL_EXCEPTION(eslEINVAL, "codon_lengths must be 1, 3, or 5");
+
+  /* Striped match emission scores: odds ratios from log-odds scores.
+   * gm_fs->rsc[c][k] is the log-odds emission score for codon row c at position k.
+   * Positions beyond M are set to -inf before exponentiation (-> 0.0).
+   */
+  for (c = 0; c < ncodon_rows; c++)
+    for (k = 1, q = 0; q < nq; q++, k++)
+      {
+        for (z = 0; z < 4; z++) tmp.x[z] = (k + z*nq <= M) ? gm_fs->rsc[c][k + z*nq] : -eslINFINITY;
+        om_fs->rfv[c][q] = esl_sse_expf(tmp.v);
+      }
+
+  /* Transition scores (all but DD), striped and interleaved.
+   * BM, MM, IM, DM are rotated by -1: base index kb = k-1, starting from k=0.
+   * MD, MI, II are straight:          base index kb = k.
+   */
+  for (j = 0, k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (t = p7O_BM; t <= p7O_II; t++)
+        {
+          switch (t) {
+          case p7O_BM: tg = p7P_BM; kb = k-1; break;
+          case p7O_MM: tg = p7P_MM; kb = k-1; break;
+          case p7O_IM: tg = p7P_IM; kb = k-1; break;
+          case p7O_DM: tg = p7P_DM; kb = k-1; break;
+          case p7O_MD: tg = p7P_MD; kb = k;   break;
+          case p7O_MI: tg = p7P_MI; kb = k;   break;
+          case p7O_II: tg = p7P_II; kb = k;   break;
+          default:     tg = 0;      kb = k;   break; /* unreachable; suppresses compiler warning */
+          }
+          for (z = 0; z < 4; z++) tmp.x[z] = (kb + z*nq < M) ? p7P_TSC(gm_fs, kb + z*nq, tg) : -eslINFINITY;
+          om_fs->tfv[j++] = esl_sse_expf(tmp.v);
+        }
+    }
+
+  /* DD transitions follow at the end of tfv (j is already positioned there). */
+  for (k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (z = 0; z < 4; z++) tmp.x[z] = (k + z*nq < M) ? p7P_TSC(gm_fs, k + z*nq, p7P_DD) : -eslINFINITY;
+      om_fs->tfv[j++] = esl_sse_expf(tmp.v);
+    }
+
+  /* Special state (ENJC) transition costs: pspace float odds ratios. */
+  om_fs->xf[p7O_E][p7O_LOOP] = expf(gm_fs->xsc[p7P_E][p7P_LOOP]);
+  om_fs->xf[p7O_E][p7O_MOVE] = expf(gm_fs->xsc[p7P_E][p7P_MOVE]);
+  om_fs->xf[p7O_N][p7O_LOOP] = expf(gm_fs->xsc[p7P_N][p7P_LOOP]);
+  om_fs->xf[p7O_N][p7O_MOVE] = expf(gm_fs->xsc[p7P_N][p7P_MOVE]);
+  om_fs->xf[p7O_C][p7O_LOOP] = expf(gm_fs->xsc[p7P_C][p7P_LOOP]);
+  om_fs->xf[p7O_C][p7O_MOVE] = expf(gm_fs->xsc[p7P_C][p7P_MOVE]);
+  om_fs->xf[p7O_J][p7O_LOOP] = expf(gm_fs->xsc[p7P_J][p7P_LOOP]);
+  om_fs->xf[p7O_J][p7O_MOVE] = expf(gm_fs->xsc[p7P_J][p7P_MOVE]);
+
+  return eslOK;
+}
+
+
+/* Function:  p7_fs_oprofile_Convert()
+ * Synopsis:  Convert a generic frameshift profile to an optimized one.
+ *
+ * Purpose:   Convert a generic frameshift profile <gm_fs> to an optimized
+ *            profile <om_fs>, where <om_fs> has already been allocated for
+ *            at least <gm_fs->M> nodes with the same alphabet and
+ *            <codon_lengths> setting.
+ *
+ *            Sets all emission and transition score vectors, copies all
+ *            metadata annotation fields, and records the model's current
+ *            length and mode configuration.
+ *
+ * Args:      gm_fs - generic frameshift profile to convert
+ *            om_fs - allocated optimized profile to receive the result
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if the two profiles are incompatible (different
+ *            alphabets, or <om_fs> too small for <gm_fs->M> nodes).
+ *            <eslEMEM> on allocation failure (string duplication).
+ */
+int
+p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
+{
+  int status, z;
+
+  if (gm_fs->abc->type != om_fs->abc->type) ESL_EXCEPTION(eslEINVAL, "alphabets of the two profiles don't match");
+  if (gm_fs->M         >  om_fs->allocM)    ESL_EXCEPTION(eslEINVAL, "optimized profile is too small");
+
+  /* Set configuration fields first; fs_fb_conversion() may use them. */
+  om_fs->mode          = gm_fs->mode;
+  om_fs->L             = gm_fs->L;
+  om_fs->M             = gm_fs->M;
+  om_fs->nj            = gm_fs->nj;
+  om_fs->max_length    = gm_fs->max_length;
+  om_fs->codon_lengths = gm_fs->codon_lengths;
+  om_fs->fs            = gm_fs->fs;
+
+  if ((status = fs_fb_conversion(gm_fs, om_fs)) != eslOK) return status;
+
+  if (om_fs->name != NULL) free(om_fs->name);
+  if (om_fs->acc  != NULL) free(om_fs->acc);
+  if (om_fs->desc != NULL) free(om_fs->desc);
+  if ((status = esl_strdup(gm_fs->name, -1, &(om_fs->name))) != eslOK) goto ERROR;
+  if ((status = esl_strdup(gm_fs->acc,  -1, &(om_fs->acc)))  != eslOK) goto ERROR;
+  if ((status = esl_strdup(gm_fs->desc, -1, &(om_fs->desc))) != eslOK) goto ERROR;
+  strcpy(om_fs->rf,        gm_fs->rf);
+  strcpy(om_fs->mm,        gm_fs->mm);
+  strcpy(om_fs->cs,        gm_fs->cs);
+  strcpy(om_fs->consensus, gm_fs->consensus);
+  for (z = 0; z < p7_NEVPARAM; z++) om_fs->evparam[z] = gm_fs->evparam[z];
+  for (z = 0; z < p7_NCUTOFFS; z++) om_fs->cutoff[z]  = gm_fs->cutoff[z];
+  for (z = 0; z < p7_MAXABET;  z++) om_fs->compo[z]   = gm_fs->compo[z];
+
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
+
+/* Function:  p7_fs_oprofile_ReconfigLength()
+ * Synopsis:  Set the target sequence length of an optimized frameshift profile.
+ *
+ * Purpose:   Given an already configured profile <om_fs>, quickly reset its
+ *            expected length distribution for a new mean target sequence
+ *            length of <L>.
+ *
+ *            Updates only the N, C, J special-state loop/move transition
+ *            probabilities in <om_fs->xf>. The E-state transitions are
+ *            length-independent and are left unchanged.
+ *
+ *            This does not affect the null model; call <p7_bg_SetLength()>
+ *            separately to keep them synchronized.
+ *
+ * Args:      om_fs - optimized frameshift profile to reconfigure
+ *            L     - new target sequence length
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L)
+{
+  float pmove, ploop;
+
+  pmove = (2.0f + om_fs->nj) / ((float) L + 2.0f + om_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  ploop = 1.0f - pmove;
+
+  om_fs->xf[p7O_N][p7O_LOOP] = om_fs->xf[p7O_C][p7O_LOOP] = om_fs->xf[p7O_J][p7O_LOOP] = ploop;
+  om_fs->xf[p7O_N][p7O_MOVE] = om_fs->xf[p7O_C][p7O_MOVE] = om_fs->xf[p7O_J][p7O_MOVE] = pmove;
+
+  om_fs->L = L;
+  return eslOK;
+}
+
 /*------------ end, conversions to P7_FS_OPROFILE ------------------*/
 
 /***********************************************************************

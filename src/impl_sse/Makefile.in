@@ -35,6 +35,7 @@ MYINCDIRS      = -I../../${ESLDIR} \
 
 OBJS =  decoding.o\
 	fwdback.o\
+	fwdback_fs.o\
 	io.o\
 	ssvfilter.o\
 	msvfilter.o\
@@ -44,6 +45,7 @@ OBJS =  decoding.o\
 	vitfilter.o\
 	p7_omx.o\
 	p7_oprofile.o\
+	p7_fs_oprofile.o\
 	mpi.o
 
 HDRS =  impl_sse.h

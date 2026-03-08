@@ -924,8 +924,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       splice_watch = esl_stopwatch_Create();
       esl_stopwatch_Start(splice_watch);
 
-      gm_tr = p7_profile_tr_Create (hmm->M, abcAA); 
-      p7_ProfileConfig_tr(hmm, info->bg, gcode, gm_tr, 100, p7_UNILOCAL); 
+      gm_tr = p7_profile_fs_Create (hmm->M, abcAA, 1); 
+      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_tr, 100, p7_UNILOCAL); 
 
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 

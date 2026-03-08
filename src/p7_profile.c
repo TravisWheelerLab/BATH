@@ -158,7 +158,8 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc, int codon_lengths)
 
   if      (codon_lengths == 5) maxcodons = p7P_MAXCODONS5;
   else if (codon_lengths == 3) maxcodons = p7P_MAXCODONS3;
-  else    ESL_XEXCEPTION_SYS(eslEINVAL, "codon_lengths must be 3 or 5");
+  else if (codon_lengths == 1) maxcodons = p7P_MAXCODONS1;
+  else    ESL_XEXCEPTION_SYS(eslEINVAL, "codon_lengths must be 1, 3 or 5");
 
   /* level 0 */
   ESL_ALLOC(gm_fs, sizeof(P7_FS_PROFILE));
@@ -249,119 +250,6 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc, int codon_lengths)
 }
   
 
-/* Function:  p7_profile_tr_Create()
- * Synopsis:  Allocates a translated profile.
- *
- * Purpose:   Allocates a translated profile of up to <M> nodes, 
- *            for digital alphabet <abc>.
- *
- *            We leave much of the model unintialized, including 
- *            scores and length model probabilities. The 
- *            <p7_ProfileConfig_tr()> call is what sets these.
- *
- *            The alignment mode is set to <p7_NO_MODE>.  The
- *            reference pointer <gm->abc> is set to <abc>.
- *
- * Returns:   a pointer to the new profile.
- *
- * Throws:    <NULL> on allocation error.
- *
- * Xref:      STL11/125.
- */
-P7_FS_PROFILE *
-p7_profile_tr_Create(int allocM, const ESL_ALPHABET *abc)
-{
-
-  P7_FS_PROFILE *gm_tr = NULL;
-  int         x;
-  int         status;
-
-  /* level 0 */
-  ESL_ALLOC(gm_tr, sizeof(P7_FS_PROFILE));
-  gm_tr->tsc       = NULL;
-  gm_tr->rsc       = NULL;
-  gm_tr->codons    = NULL;
-  gm_tr->indel_pos = NULL;
-  gm_tr->rf        = NULL;
-  gm_tr->mm        = NULL;
-  gm_tr->cs        = NULL;
-  gm_tr->consensus = NULL;
-
-  /* level 1 */
-  ESL_ALLOC(gm_tr->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
-  ESL_ALLOC(gm_tr->rsc,       sizeof(float *)   * (allocM+1));
-  ESL_ALLOC(gm_tr->codons,    sizeof(ESL_DSQ *) * (allocM+1));
-  ESL_ALLOC(gm_tr->rf,        sizeof(char)      * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
-  ESL_ALLOC(gm_tr->mm,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_tr->cs,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_tr->consensus, sizeof(char)      * (allocM+2));
-  gm_tr->rsc[0]       = NULL;
-  gm_tr->codons[0]    = NULL;
-
-  /* level 2 */
-  ESL_ALLOC(gm_tr->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS1 + abc->Kp));
-
-  for (x = 1; x <= allocM; x++)   
-    gm_tr->rsc[x] = gm_tr->rsc[0] + x * (p7P_MAXCODONS1 + abc->Kp);
-
-  ESL_ALLOC(gm_tr->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS1+1)); /* +1 for trailing \0 */
-
-  for (x = 1; x <= allocM; x++)
-    gm_tr->codons[x] = gm_tr->codons[0] + x * p7P_MAXCODONS1;
-
-  for (x = 1; x <= allocM; x++)
-
-  /* Initialize some edge pieces of memory that are never used,
-   * and are only present for indexing convenience. */
-  esl_vec_FSet(gm_tr->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
-  if (allocM > 1) {
-    p7P_TSC(gm_tr, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
-    p7P_TSC(gm_tr, 1, p7P_DD) = -eslINFINITY;
-  }
-
-  for (x = 0; x < (p7P_MAXCODONS1 + abc->Kp); x++) 
-    p7P_MSC_CODON(gm_tr, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
-  
-  /* Set remaining info  */
-  gm_tr->mode             = p7_NO_MODE;
-  gm_tr->L                = 0;
-  gm_tr->allocM           = allocM;
-  gm_tr->M                = 0;
-  gm_tr->max_length       = -1;
-  gm_tr->nj               = 0.0f;
-  gm_tr->abc              = abc;
-
-  gm_tr->roff             = -1;
-  gm_tr->eoff             = -1;
-  gm_tr->offs[p7_MOFFSET] = -1;
-  gm_tr->offs[p7_FOFFSET] = -1;
-  gm_tr->offs[p7_POFFSET] = -1;
-  
-  gm_tr->codon_lengths    = 1;
-  gm_tr->fs               = 0.;
-
-  gm_tr->name            = NULL;
-  gm_tr->acc             = NULL;
-  gm_tr->desc            = NULL;
-  gm_tr->rf[0]           = 0;     /* RF line is optional annotation; this flags that it's not set yet */
-  gm_tr->mm[0]           = 0;     /* likewise for MM annotation line */
-  gm_tr->cs[0]           = 0;     /* likewise for CS annotation line */
-  gm_tr->consensus[0]    = 0;
-
-  for (x = 0; x < p7_NEVPARAM; x++) gm_tr->evparam[x] = p7_EVPARAM_UNSET;
-  for (x = 0; x < p7_NCUTOFFS; x++) gm_tr->cutoff[x]  = p7_CUTOFF_UNSET;
-  for (x = 0; x < p7_MAXABET;  x++) gm_tr->compo[x]   = p7_COMPO_UNSET;
-
-  return gm_tr;
-
- ERROR:
-  p7_profile_fs_Destroy(gm_tr);
-  return NULL;
-
-
-}
-
-
 
 /* Function:  p7_profile_Copy()
  * Synopsis:  Copy a profile.
@@ -441,7 +329,8 @@ p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
 
   if      (src->codon_lengths == 5) maxcodons = p7P_MAXCODONS5;
   else if (src->codon_lengths == 3) maxcodons = p7P_MAXCODONS3;
-  else    ESL_EXCEPTION(eslEINVAL, "invalid codon_lengths; must be 3 or 5");
+  else if (src->codon_lengths == 1) maxcodons = p7P_MAXCODONS1;
+  else    ESL_EXCEPTION(eslEINVAL, "invalid codon_lengths; must be 1, 3 or 5");
 
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
   for (x = 0; x < (maxcodons + src->abc->Kp); x++) { esl_vec_FCopy( src->rsc[x],      (src->M+1),  dst->rsc[x]);       }
@@ -479,68 +368,6 @@ p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
   for (z = 0; z < p7_MAXABET;  z++) dst->compo[z]   = src->compo[z];
   return eslOK;
 }
-
-
-
-
-
-/* Function:  p7_profile_tr_Copy()
- * Synopsis:  Copy a translated profile.
- *
- * Purpose:   Copies profile <src> to profile <dst>, where <dst>
- *            has already been allocated to be of sufficient size.
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEMEM> on allocation error; <eslEINVAL> if <dst> is too small
- *            to fit <src>.
- */
-int
-p7_profile_tr_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
-{
-  int x,z;
-  int status;
-
-  if (src->M > dst->allocM)       ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
-  if (dst->codon_lengths != 1)    ESL_EXCEPTION(eslEINVAL, "destination proflie not allocated for 1 codon length");
-
-  esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
-  for (x = 0; x <= src->M;      x++) { esl_vec_FCopy( src->rsc[x],       (p7P_MAXCODONS1 + src->abc->Kp), dst->rsc[x]);       }
-  for (x = 0; x < p7P_NXSTATES; x++) { esl_vec_FCopy( src->xsc[x],       p7P_NXTRANS,                    dst->xsc[x]);       }
-  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->codons[x],    p7P_MAXCODONS1,                  dst->codons[x]);    }
-
-  dst->mode        = src->mode;
-  dst->L           = src->L;
-  dst->allocM      = src->allocM;
-  dst->M           = src->M;
-  dst->max_length  = src->max_length;
-  dst->nj          = src->nj;
-  dst->fs          = src->fs;
-
-  dst->roff        = src->roff;
-  dst->eoff        = src->eoff;
-  for (x = 0; x < p7_NOFFSETS; ++x) dst->offs[x] = src->offs[x];
-
-  if (dst->name != NULL) free(dst->name);
-  if (dst->acc  != NULL) free(dst->acc);
-  if (dst->desc != NULL) free(dst->desc);
-
-  if ((status = esl_strdup(src->name,      -1, &(dst->name)))      != eslOK) return status;
-  if ((status = esl_strdup(src->acc,       -1, &(dst->acc)))       != eslOK) return status;
-  if ((status = esl_strdup(src->desc,      -1, &(dst->desc)))      != eslOK) return status;
-
-  strcpy(dst->rf,        src->rf);         /* RF is optional: if it's not set, *rf=0, and strcpy still works fine */
-  strcpy(dst->mm,        src->mm);         /* MM is also optional annotation */
-  strcpy(dst->cs,        src->cs);         /* CS is also optional annotation */
-  strcpy(dst->consensus, src->consensus);  /* consensus though is always present on a valid profile */
-
-  for (z = 0; z < p7_NEVPARAM; z++) dst->evparam[z] = src->evparam[z];
-  for (z = 0; z < p7_NCUTOFFS; z++) dst->cutoff[z]  = src->cutoff[z];
-  for (z = 0; z < p7_MAXABET;  z++) dst->compo[z]   = src->compo[z];
-  return eslOK;
-}
-
-
 
 
 

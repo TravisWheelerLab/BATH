@@ -1357,7 +1357,6 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
-extern int p7_ProfileConfig_tr(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_tr, int L_amino, int mode);
 extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L_amino);
@@ -1599,12 +1598,10 @@ extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
 /* p7_profile.c */
 extern P7_PROFILE    *p7_profile_Create(int M, const ESL_ALPHABET *abc);
 extern P7_FS_PROFILE *p7_profile_fs_Create(int M, const ESL_ALPHABET *abc, int codon_lengths);
-extern P7_FS_PROFILE *p7_profile_tr_Create(int M, const ESL_ALPHABET *abc);
 extern P7_PROFILE    *p7_profile_Clone(const P7_PROFILE *gm);
 extern P7_FS_PROFILE *p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
 extern int         p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
-extern int         p7_profile_tr_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
 extern int         p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
 extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);
 extern int         p7_profile_Reuse(P7_PROFILE *gm);

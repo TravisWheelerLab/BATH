@@ -530,7 +530,6 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     }
   }
   else if (gm_fs->codon_lengths == 3) {
-  {
     for (k = 1; k <= hmm->M; k++) {
       for (x = 0; x < 4; x++) {
         for (w = 0; w < 4; w++) {

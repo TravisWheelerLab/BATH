@@ -1019,6 +1019,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_FS_OPROFILE *om_fs3 = p7_fs_oprofile_Create(M, abcAA, 3); 
   ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA); 
   ESL_DSQ        *dsq    = NULL;
+  P7_TRACE       *tr     = p7_trace_Create();
   P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, L);
   P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, L);
   P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, L, 0);
@@ -1041,9 +1042,8 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   while (N--)
     {
 	  p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
-      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
-	  if(dsq != NULL) free(dsqDNA);
+	  if(dsq != NULL) free(dsq);
       if ((dsq = malloc(sizeof(ESL_DSQ) *(sq->n*3+2))) == NULL)  esl_fatal("malloc failed");
 
 	  j = 1;
@@ -1053,7 +1053,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       }
 
       p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, L, om_fs3, fwd, &fsc3);	  
-	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, gx, iv, &generic_fsc3);
+	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, fgx, iv, &generic_fsc3);
 
       /* non simd Forward scores should approximate simd Forward scores,
        * with tolerance that depends on how logsum.c was compiled
@@ -1073,6 +1073,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   p7_gmx_Destroy(fgx);
   p7_gmx_Destroy(bgx);
   p7_ivx_Destroy(iv);
+  p7_trace_Destroy(tr);
   p7_profile_fs_Destroy(gm_fs3);
   p7_fs_oprofile_Destroy(om_fs3);
 }

@@ -789,15 +789,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (hmm->desc) { if (fprintf(ofp, "Description: %s\n", hmm->desc) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
     /* Convert to an optimized model */
-    gm_fs5 = p7_profile_fs5_Create (hmm->M, abcAA);
-    gm_fs3 = p7_profile_fs3_Create (hmm->M, abcAA);
+    gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
+    gm_fs3 = p7_profile_fs_Create(hmm->M, abcAA, p7P_3CODONS);
     gm = p7_profile_Create (hmm->M, abcAA);
     om = p7_oprofile_Create(hmm->M, abcAA);
     p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       
     p7_oprofile_Convert(gm, om);                                      /* convert <om> to <gm>*/
-    p7_ProfileConfig_fs5(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build framshift aware codon HMM */
-    p7_ProfileConfig_fs3(hmm, info->bg, gcode, gm_fs3, 100, p7_LOCAL);
+    p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build framshift aware codon HMM */
+    p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs3, 100, p7_LOCAL);
       
     /* Create processing pipeline and hit list accumulators */
     tophits_accumulator  = p7_tophits_Create(); 
@@ -924,8 +924,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       splice_watch = esl_stopwatch_Create();
       esl_stopwatch_Start(splice_watch);
 
-      gm_tr = p7_profile_tr_Create (hmm->M, abcAA); 
-      p7_ProfileConfig_tr(hmm, info->bg, gcode, gm_tr, 100, p7_UNILOCAL); 
+      gm_tr = p7_profile_fs_Create (hmm->M, abcAA, 1); 
+      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_tr, 100, p7_UNILOCAL); 
 
 	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
       p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 

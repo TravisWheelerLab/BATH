@@ -53,6 +53,7 @@ HDRS =  impl_sse.h
 UTESTS = @MPI_UTESTS@\
 	decoding_utest\
 	fwdback_utest\
+	fwdback_fs_utest\
 	io_utest\
 	msvfilter_utest\
 	null2_utest\

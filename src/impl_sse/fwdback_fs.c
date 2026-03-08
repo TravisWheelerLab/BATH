@@ -21,10 +21,10 @@
  *
  * Contents:
  *   1. Forward/Backward 
- *   4. Benchmark driver.
- *   5. Unit tests.
- *   6. Test driver.
- *   7. Example.
+ *   2. Benchmark driver.
+ *   3. Unit tests.
+ *   4. Test driver.
+ *   5. Example.
  *
  * SRE, Thu Jul 31 08:43:20 2008 [Janelia]
  */
@@ -542,13 +542,13 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   return status;
 }
 
-/*-------------- end, forward/backward engines  -----------------*/
+/*-------------- end, forward/backward  -----------------*/
 
 
 
 
 /*****************************************************************
- * 4. Benchmark driver.
+ * 2. Benchmark driver.
  *****************************************************************/
 
 
@@ -556,22 +556,137 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
 
 
 /*****************************************************************
- * 5. Unit tests.
+ * 3. Unit tests.
  *****************************************************************/
+#ifdef p7FWDBACKFS_TESTDRIVE
+#include "esl_random.h"
+#include "esl_randomseq.h"
 
+/*
+ * compare to GForward() scores.
+ */
+static void
+utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N)
+{
+  char           *msg    = "forward/backward fs unit test failed";
+  P7_HMM         *hmm    = NULL;
+  P7_FS_PROFILE  *gm_fs3 = p7_profile_fs_Create(M, abcAA, 3);
+  P7_FS_OPROFILE *om_fs3 = p7_fs_oprofile_Create(M, abcAA, 3); 
+  ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, L);
+  P7_GMX         *gx     = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, L, 0);
+  P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS); 
+  float tolerance;
+  float fsc3;
+  float generic_fsc3;
+
+  p7_FLogsumInit();
+  if (p7_FLogsumError(-0.4, -0.5) > 0.0001) tolerance = 1.0;  /* weaker test against GForward()   */
+  else tolerance = 0.0001;   /* stronger test: FLogsum() is in slow exact mode. */
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, L/3, p7_LOCAL);
+  p7_fs_oprofile_Convert(gm_fs3, om_fs3);
+  p7_fs_oprofile_ReconfigLength(om_fs3, L/3);
+
+  while (N--)
+    {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+
+      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, L, om_fs3, fwd, &fsc3);	  
+	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, gx, iv, &generic_fsc3);
+
+      /* non simd Forward scores should approximate simd Forward scores,
+       * with tolerance that depends on how logsum.c was compiled
+       */
+      if (fabs(fsc3-generic_fsc3) > tolerance) esl_fatal(msg);
+    }
+
+  free(dsq);
+  p7_hmm_Destroy(hmm);
+  p7_omx_Destroy(fwd);
+  p7_gmx_Destroy(gx);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs3);
+  p7_fs_oprofile_Destroy(om_fs3);
+}
+#endif /*p7FWDBACKFS_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
 
 
 /*****************************************************************
- * 6. Test driver
+ * 4. Test driver
  *****************************************************************/
+#ifdef p7FWDBACKFS_TESTDRIVE
+/*
+   gcc -g -Wall -msse2 -std=gnu99 -o fwdback_fs_utest -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACKFS_TESTDRIVE fwdback_fs.c -lhmmer -leasel -lm
+   ./fwdback_fs_utest
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-L",        eslARG_INT,    "600", NULL, NULL,  NULL,  NULL, NULL, "size of random sequences to sample",             0 },
+  { "-M",        eslARG_INT,    "145", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
+  { "-N",        eslARG_INT,    "100", NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "test driver for SSE Forward, Backward implementations";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_GENCODE    *gcode  = NULL;
+  ESL_ALPHABET   *abcAA  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  P7_BG          *bgAA   = NULL;
+  P7_BG          *bgDNA  = NULL;
+  int             M      = esl_opt_GetInteger(go, "-M");
+  int             L      = esl_opt_GetInteger(go, "-L");
+  int             N      = esl_opt_GetInteger(go, "-N");
+
+  if ((abcDNA = esl_alphabet_Create(eslDNA)) == NULL)  esl_fatal("failed to create alphabet");
+  if ((bgDNA = p7_bg_Create(abcDNA))         == NULL)  esl_fatal("failed to create null model");
+  if ((abcAA = esl_alphabet_Create(eslAMINO)) == NULL)  esl_fatal("failed to create alphabet");
+  if ((bgAA = p7_bg_Create(abcAA))            == NULL)  esl_fatal("failed to create null model");
+  if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
+   
+  utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N);
+//  utest_fwdback(r, abc, bg, 1, L, 10);
+//  utest_fwdback(r, abc, bg, M, 1, 10);
+
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  p7_bg_Destroy(bgDNA);
+  p7_bg_Destroy(bgAA);
+  esl_gencode_Destroy(gcode);
+
+  esl_getopts_Destroy(go);
+  esl_randomness_Destroy(r);
+  return eslOK;
+}
+#endif /*p7FWDBACKFS_TESTDRIVE*/
+
 
 /*--------------------- end, test driver ------------------------*/
 
 
 
 /*****************************************************************
- * 7. Example
+ * 5. Example
  *****************************************************************/
 

@@ -986,11 +986,13 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   ox->xmx[p7X_E]     = 0.0f;
   ox->xmx[p7X_SCALE] = 1.0f;
 
-  /* Final score: log( N(0) + N(1) + N(2) ) + totscale */
+  /* Final score: log( N(0) + N(1) ) + totscale.
+   * The forward initializes N(0)=N(1)=1 (two starting positions: 0 and 1 leading
+   * nucleotides before the first codon). N(2) is never reached from N(0) or N(1)
+   * via the 3-nt N-loop step, so N_fwd(2)=0 and N_bwd(2) must not be included. */
   {
     float xNtot = xN
-                + xN_buf[1 % PARSER_ROWS_BWD]
-                + xN_buf[2 % PARSER_ROWS_BWD];
+                + xN_buf[1 % PARSER_ROWS_BWD];
 
     if      (isnan(xNtot))           ESL_EXCEPTION(eslERANGE, "backward score is NaN");
     else if (L > 0 && xNtot == 0.0f) ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");

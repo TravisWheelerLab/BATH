@@ -307,11 +307,11 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 
           if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
 
-          gm_fs3 = p7_profile_fs3_Create (hmm->M, hmm->abc);
-          p7_ProfileConfig_fs3(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL); 
+          gm_fs3 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_3CODONS);
+          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL); 
 
-          gm_fs5 = p7_profile_fs5_Create (hmm->M, hmm->abc);
-          p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
+          gm_fs5 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_5CODONS);
+          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
 
           p7_fs_Tau_3codons(r, gm_fs3, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS3] = tau_fs;
@@ -422,11 +422,11 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 
           if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
         
-          gm_fs3 = p7_profile_fs3_Create (hmm->M, hmm->abc); 
-          p7_ProfileConfig_fs3(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL);
+          gm_fs3 = p7_profile_fs_Create(hmm->M, hmm->abc, 3); 
+          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL);
 
-          gm_fs5 = p7_profile_fs5_Create (hmm->M, hmm->abc);
-          p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
+          gm_fs5 = p7_profile_fs_Create(hmm->M, hmm->abc, 5);
+          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
 
           p7_fs_Tau_3codons(r, gm_fs3, gcode, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS3] = tau_fs;

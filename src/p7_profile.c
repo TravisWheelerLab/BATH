@@ -130,236 +130,121 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
   return NULL;
 }
 
-/* Function:  p7_profile_fs5_Create()
- * Synopsis:  Allocates a profile.
+/* Function:  p7_profile_fs_Create()
+ * Synopsis:  Allocates a frameshift-aware profile.
  *
- * Purpose:   Allocates for a 5 codon length frameshift profile of up 
- *            to <M> nodes, for digital alphabet <abc>.
+ * Purpose:   Allocates a frameshift-aware profile of up to <allocM> nodes,
+ *            for digital alphabet <abc>, supporting <codon_lengths> codon
+ *            lengths (must be 3 or 5).
  *
- *            We leave much of the model unintialized, including 
- *            scores and length model probabilities. 
- *            The <p7_ProfileConfig_fs5()> call is what sets these.
- *
- *            The alignment mode is set to <p7_NO_MODE>.  The
- *            reference pointer <gm->abc> is set to <abc>.
- *
- * Returns:   a pointer to the new profile.
- *
- * Throws:    <NULL> on allocation error.
- *
- * p7_profile_fs5_CreateXref:      STL11/125.
- */
-P7_FS_PROFILE *
-p7_profile_fs5_Create(int allocM, const ESL_ALPHABET *abc)
-{
-  P7_FS_PROFILE *gm_fs5 = NULL;
-  int         x;
-  int         status;
-
-  /* level 0 */
-  ESL_ALLOC(gm_fs5, sizeof(P7_FS_PROFILE));
-  gm_fs5->tsc       = NULL;
-  gm_fs5->rsc       = NULL;
-  gm_fs5->codons    = NULL;
-  gm_fs5->indel_pos = NULL;
-  gm_fs5->rf        = NULL;
-  gm_fs5->mm        = NULL;
-  gm_fs5->cs        = NULL;
-  gm_fs5->consensus = NULL;
-
-  /* level 1 */
-  ESL_ALLOC(gm_fs5->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
-  ESL_ALLOC(gm_fs5->rsc,       sizeof(float *)   * (allocM+1));
-  ESL_ALLOC(gm_fs5->codons,    sizeof(ESL_DSQ *) * (allocM+1));
-  ESL_ALLOC(gm_fs5->indel_pos, sizeof(ESL_DSQ *) * (allocM+1));
-  ESL_ALLOC(gm_fs5->rf,        sizeof(char)      * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
-  ESL_ALLOC(gm_fs5->mm,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_fs5->cs,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_fs5->consensus, sizeof(char)      * (allocM+2));
-  gm_fs5->rsc[0]       = NULL;
-  gm_fs5->codons[0]    = NULL;
-  gm_fs5->indel_pos[0] = NULL;
-
-
-  /* level 2 */
-  ESL_ALLOC(gm_fs5->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS5 + abc->Kp));
-
-  for (x = 1; x <= allocM; x++)   
-    gm_fs5->rsc[x] = gm_fs5->rsc[0] + x * (p7P_MAXCODONS5 + abc->Kp);
-
-  ESL_ALLOC(gm_fs5->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS5+1)); /* +1 for trailing \0 */
-
-  for (x = 1; x <= allocM; x++)
-    gm_fs5->codons[x] = gm_fs5->codons[0] + x * p7P_MAXCODONS5;
-
-  ESL_ALLOC(gm_fs5->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS5+1)); /* +1 for trailing \0 */
-
-  for (x = 1; x <= allocM; x++)
-    gm_fs5->indel_pos[x] = gm_fs5->indel_pos[0] + x * p7P_MAXCODONS5;
-
-  /* Initialize some edge pieces of memory that are never used,
-   * and are only present for indexing convenience. */
-  esl_vec_FSet(gm_fs5->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
-  if (allocM > 1) {
-    p7P_TSC(gm_fs5, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
-    p7P_TSC(gm_fs5, 1, p7P_DD) = -eslINFINITY;
-  }
-
-  for (x = 0; x < (p7P_MAXCODONS5 + abc->Kp); x++) 
-    p7P_MSC_CODON(gm_fs5, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
-  
-  /* Set remaining info  */
-  gm_fs5->mode             = p7_NO_MODE;
-  gm_fs5->L                = 0;
-  gm_fs5->allocM           = allocM;
-  gm_fs5->M                = 0;
-  gm_fs5->max_length       = -1;
-  gm_fs5->nj               = 0.0f;
-
-  gm_fs5->roff             = -1;
-  gm_fs5->eoff             = -1;
-  gm_fs5->offs[p7_MOFFSET] = -1;
-  gm_fs5->offs[p7_FOFFSET] = -1;
-  gm_fs5->offs[p7_POFFSET] = -1;
-
-  gm_fs5->codon_lengths = 5;
-
-  gm_fs5->name             = NULL;
-  gm_fs5->acc              = NULL;
-  gm_fs5->desc             = NULL;
-  gm_fs5->rf[0]            = 0;     /* RF line is optional annotation; this flags that it's not set yet */
-  gm_fs5->mm[0]            = 0;     /* likewise for MM annotation line */
-  gm_fs5->cs[0]            = 0;     /* likewise for CS annotation line */
-  gm_fs5->consensus[0]     = 0;
-
-  for (x = 0; x < p7_NEVPARAM; x++) gm_fs5->evparam[x] = p7_EVPARAM_UNSET;
-  for (x = 0; x < p7_NCUTOFFS; x++) gm_fs5->cutoff[x]  = p7_CUTOFF_UNSET;
-  for (x = 0; x < p7_MAXABET;  x++) gm_fs5->compo[x]   = p7_COMPO_UNSET;
-
-  gm_fs5->abc         = abc;
-
-  return gm_fs5;
-
- ERROR:
-  p7_profile_fs_Destroy(gm_fs5);
-  return NULL;
-}
-
-
-
-
-/* Function:  p7_profile_fs3_Create()
- * Synopsis:  Allocates a profile.
- *
- * Purpose:   Allocates for a 3 codon length frameshift profile of up 
- *            to <M> nodes, for digital alphabet <abc>.
- *
- *            We leave much of the model unintialized, including 
- *            scores and length model probabilities. 
- *            The <p7_ProfileConfig_fs5()> call is what sets these.
+ *            We leave much of the model unintialized, including
+ *            scores and length model probabilities.
+ *            The <p7_ProfileConfig_fs()> call is what sets these.
  *
  *            The alignment mode is set to <p7_NO_MODE>.  The
  *            reference pointer <gm->abc> is set to <abc>.
  *
  * Returns:   a pointer to the new profile.
  *
- * Throws:    <NULL> on allocation error.
- *
- * p7_profile_fs5_CreateXref:      STL11/125.
+ * Throws:    <NULL> on allocation error or invalid <codon_lengths>.
  */
 P7_FS_PROFILE *
-p7_profile_fs3_Create(int allocM, const ESL_ALPHABET *abc)
+p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc, int codon_lengths)
 {
-  P7_FS_PROFILE *gm_fs3 = NULL;
-  int         x;
-  int         status;
+  P7_FS_PROFILE *gm_fs = NULL;
+  int            maxcodons;
+  int            x;
+  int            status;
+
+  if      (codon_lengths == 5) maxcodons = p7P_MAXCODONS5;
+  else if (codon_lengths == 3) maxcodons = p7P_MAXCODONS3;
+  else    ESL_XEXCEPTION_SYS(eslEINVAL, "codon_lengths must be 3 or 5");
 
   /* level 0 */
-  ESL_ALLOC(gm_fs3, sizeof(P7_FS_PROFILE));
-  gm_fs3->tsc       = NULL;
-  gm_fs3->rsc       = NULL;
-  gm_fs3->codons    = NULL;
-  gm_fs3->indel_pos = NULL;
-  gm_fs3->rf        = NULL;
-  gm_fs3->mm        = NULL;
-  gm_fs3->cs        = NULL;
-  gm_fs3->consensus = NULL;
+  ESL_ALLOC(gm_fs, sizeof(P7_FS_PROFILE));
+  gm_fs->tsc       = NULL;
+  gm_fs->rsc       = NULL;
+  gm_fs->codons    = NULL;
+  gm_fs->indel_pos = NULL;
+  gm_fs->rf        = NULL;
+  gm_fs->mm        = NULL;
+  gm_fs->cs        = NULL;
+  gm_fs->consensus = NULL;
 
   /* level 1 */
-  ESL_ALLOC(gm_fs3->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
-  ESL_ALLOC(gm_fs3->rsc,       sizeof(float *)   * (allocM+1));
-  ESL_ALLOC(gm_fs3->codons,    sizeof(ESL_DSQ *) * (allocM+1));
-  ESL_ALLOC(gm_fs3->indel_pos, sizeof(ESL_DSQ *) * (allocM+1));
-  ESL_ALLOC(gm_fs3->rf,        sizeof(char)      * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
-  ESL_ALLOC(gm_fs3->mm,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_fs3->cs,        sizeof(char)      * (allocM+2));
-  ESL_ALLOC(gm_fs3->consensus, sizeof(char)      * (allocM+2));
-  gm_fs3->rsc[0]       = NULL;
-  gm_fs3->codons[0]    = NULL;
-  gm_fs3->indel_pos[0] = NULL;
-
+  ESL_ALLOC(gm_fs->tsc,       sizeof(float)     * allocM * p7P_NTRANS);
+  ESL_ALLOC(gm_fs->rsc,       sizeof(float *)   * (maxcodons + abc->Kp));
+  ESL_ALLOC(gm_fs->codons,    sizeof(ESL_DSQ *) * (allocM+1));
+  ESL_ALLOC(gm_fs->indel_pos, sizeof(ESL_DSQ *) * (allocM+1));
+  ESL_ALLOC(gm_fs->rf,        sizeof(char)      * (allocM+2)); /* yes, +2: each is (0)1..M, +trailing \0  */
+  ESL_ALLOC(gm_fs->mm,        sizeof(char)      * (allocM+2));
+  ESL_ALLOC(gm_fs->cs,        sizeof(char)      * (allocM+2));
+  ESL_ALLOC(gm_fs->consensus, sizeof(char)      * (allocM+2));
+  gm_fs->rsc[0]       = NULL;
+  gm_fs->codons[0]    = NULL;
+  gm_fs->indel_pos[0] = NULL;
 
   /* level 2 */
-  ESL_ALLOC(gm_fs3->rsc[0], sizeof(float) * (allocM+1) * (p7P_MAXCODONS3 + abc->Kp));
+  ESL_ALLOC(gm_fs->rsc[0], sizeof(float) * (allocM+1) * (maxcodons + abc->Kp));
 
-  for (x = 1; x <= allocM; x++)   
-    gm_fs3->rsc[x] = gm_fs3->rsc[0] + x * (p7P_MAXCODONS3 + abc->Kp);
+  for (x = 1; x < (maxcodons + abc->Kp); x++)
+    gm_fs->rsc[x] = gm_fs->rsc[0] + x * (allocM+1);
 
-  ESL_ALLOC(gm_fs3->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS3+1)); /* +1 for trailing \0 */
-
-  for (x = 1; x <= allocM; x++)
-    gm_fs3->codons[x] = gm_fs3->codons[0] + x * p7P_MAXCODONS3;
-
-  ESL_ALLOC(gm_fs3->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (p7P_MAXCODONS3+1)); /* +1 for trailing \0 */
+  ESL_ALLOC(gm_fs->codons[0], sizeof(ESL_DSQ) * (allocM+1) * (maxcodons+1)); /* +1 for trailing \0 */
 
   for (x = 1; x <= allocM; x++)
-    gm_fs3->indel_pos[x] = gm_fs3->indel_pos[0] + x * p7P_MAXCODONS3;
+    gm_fs->codons[x] = gm_fs->codons[0] + x * maxcodons;
+
+  ESL_ALLOC(gm_fs->indel_pos[0], sizeof(ESL_DSQ) * (allocM+1) * (maxcodons+1)); /* +1 for trailing \0 */
+
+  for (x = 1; x <= allocM; x++)
+    gm_fs->indel_pos[x] = gm_fs->indel_pos[0] + x * maxcodons;
 
   /* Initialize some edge pieces of memory that are never used,
    * and are only present for indexing convenience. */
-  esl_vec_FSet(gm_fs3->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
+  esl_vec_FSet(gm_fs->tsc, p7P_NTRANS, -eslINFINITY);     /* node 0 nonexistent, has no transitions  */
   if (allocM > 1) {
-    p7P_TSC(gm_fs3, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
-    p7P_TSC(gm_fs3, 1, p7P_DD) = -eslINFINITY;
+    p7P_TSC(gm_fs, 1, p7P_DM) = -eslINFINITY;             /* delete state D_1 is wing-retracted      */
+    p7P_TSC(gm_fs, 1, p7P_DD) = -eslINFINITY;
   }
 
-  for (x = 0; x < (p7P_MAXCODONS3 + abc->Kp); x++) 
-    p7P_MSC_CODON(gm_fs3, 0,      x) = -eslINFINITY;             /* no emissions from nonexistent M_0... */
-  
+  for (x = 0; x < (maxcodons + abc->Kp); x++)
+    p7P_MSC_CODON(gm_fs, 0, x) = -eslINFINITY;            /* no emissions from nonexistent M_0... */
+
   /* Set remaining info  */
-  gm_fs3->mode             = p7_NO_MODE;
-  gm_fs3->L                = 0;
-  gm_fs3->allocM           = allocM;
-  gm_fs3->M                = 0;
-  gm_fs3->max_length       = -1;
-  gm_fs3->nj               = 0.0f;
+  gm_fs->mode             = p7_NO_MODE;
+  gm_fs->L                = 0;
+  gm_fs->allocM           = allocM;
+  gm_fs->M                = 0;
+  gm_fs->max_length       = -1;
+  gm_fs->nj               = 0.0f;
 
-  gm_fs3->roff             = -1;
-  gm_fs3->eoff             = -1;
-  gm_fs3->offs[p7_MOFFSET] = -1;
-  gm_fs3->offs[p7_FOFFSET] = -1;
-  gm_fs3->offs[p7_POFFSET] = -1;
-  
-  gm_fs3->codon_lengths = 3;
+  gm_fs->roff             = -1;
+  gm_fs->eoff             = -1;
+  gm_fs->offs[p7_MOFFSET] = -1;
+  gm_fs->offs[p7_FOFFSET] = -1;
+  gm_fs->offs[p7_POFFSET] = -1;
 
-  gm_fs3->name             = NULL;
-  gm_fs3->acc              = NULL;
-  gm_fs3->desc             = NULL;
-  gm_fs3->rf[0]            = 0;     /* RF line is optional annotation; this flags that it's not set yet */
-  gm_fs3->mm[0]            = 0;     /* likewise for MM annotation line */
-  gm_fs3->cs[0]            = 0;     /* likewise for CS annotation line */
-  gm_fs3->consensus[0]     = 0;
+  gm_fs->codon_lengths = codon_lengths;
 
-  for (x = 0; x < p7_NEVPARAM; x++) gm_fs3->evparam[x] = p7_EVPARAM_UNSET;
-  for (x = 0; x < p7_NCUTOFFS; x++) gm_fs3->cutoff[x]  = p7_CUTOFF_UNSET;
-  for (x = 0; x < p7_MAXABET;  x++) gm_fs3->compo[x]   = p7_COMPO_UNSET;
+  gm_fs->name             = NULL;
+  gm_fs->acc              = NULL;
+  gm_fs->desc             = NULL;
+  gm_fs->rf[0]            = 0;     /* RF line is optional annotation; this flags that it's not set yet */
+  gm_fs->mm[0]            = 0;     /* likewise for MM annotation line */
+  gm_fs->cs[0]            = 0;     /* likewise for CS annotation line */
+  gm_fs->consensus[0]     = 0;
 
-  gm_fs3->abc         = abc;
+  for (x = 0; x < p7_NEVPARAM; x++) gm_fs->evparam[x] = p7_EVPARAM_UNSET;
+  for (x = 0; x < p7_NCUTOFFS; x++) gm_fs->cutoff[x]  = p7_CUTOFF_UNSET;
+  for (x = 0; x < p7_MAXABET;  x++) gm_fs->compo[x]   = p7_COMPO_UNSET;
 
-  return gm_fs3;
+  gm_fs->abc = abc;
+
+  return gm_fs;
 
  ERROR:
-  p7_profile_fs_Destroy(gm_fs3);
+  p7_profile_fs_Destroy(gm_fs);
   return NULL;
 }
 
@@ -419,89 +304,38 @@ p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst)
   return eslOK;
 }
 
-/* Function:  p7_profile_fs5_Copy()
- * Synopsis:  Copy a 5 cocon length frameshift profile.
+/* Function:  p7_profile_fs_Copy()
+ * Synopsis:  Copy a frameshift-aware profile.
  *
  * Purpose:   Copies profile <src> to profile <dst>, where <dst>
  *            has already been allocated to be of sufficient size.
+ *            Uses <src->codon_lengths> to determine the correct
+ *            emission array dimensions.
  *
  * Returns:   <eslOK> on success.
  *
  * Throws:    <eslEMEM> on allocation error; <eslEINVAL> if <dst> is too small
- *            to fit <src>.
+ *            to fit <src>, codon_lengths mismatch, or invalid codon_lengths.
  */
 int
-p7_profile_fs5_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
+p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
 {
+  int maxcodons;
   int x,z;
   int status;
 
-  if (src->M > dst->allocM)       ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
-  if (dst->codon_lengths != 5)    ESL_EXCEPTION(eslEINVAL, "destination proflie not allocated for 5 codon lengths");
+  if (src->M > dst->allocM)                      ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
+  if (dst->codon_lengths != src->codon_lengths)   ESL_EXCEPTION(eslEINVAL, "source and destination profiles have different codon_lengths");
+
+  if      (src->codon_lengths == 5) maxcodons = p7P_MAXCODONS5;
+  else if (src->codon_lengths == 3) maxcodons = p7P_MAXCODONS3;
+  else    ESL_EXCEPTION(eslEINVAL, "invalid codon_lengths; must be 3 or 5");
 
   esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
-  for (x = 0; x <= src->M;      x++) { esl_vec_FCopy( src->rsc[x],       (p7P_MAXCODONS5 + src->abc->Kp), dst->rsc[x]);       }
-  for (x = 0; x < p7P_NXSTATES; x++) { esl_vec_FCopy( src->xsc[x],       p7P_NXTRANS,                    dst->xsc[x]);       }
-  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->codons[x],    p7P_MAXCODONS5,                  dst->codons[x]);    }
-  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS5,                  dst->indel_pos[x]); }
-
-  dst->mode        = src->mode;
-  dst->L           = src->L;
-  dst->allocM      = src->allocM;
-  dst->M           = src->M;
-  dst->max_length  = src->max_length;
-  dst->nj          = src->nj;
-
-  dst->roff        = src->roff;
-  dst->eoff        = src->eoff;
-  for (x = 0; x < p7_NOFFSETS; ++x) dst->offs[x] = src->offs[x];
-
-  if (dst->name != NULL) free(dst->name);
-  if (dst->acc  != NULL) free(dst->acc);
-  if (dst->desc != NULL) free(dst->desc);
-
-  if ((status = esl_strdup(src->name,      -1, &(dst->name)))      != eslOK) return status;
-  if ((status = esl_strdup(src->acc,       -1, &(dst->acc)))       != eslOK) return status;
-  if ((status = esl_strdup(src->desc,      -1, &(dst->desc)))      != eslOK) return status;
-
-  strcpy(dst->rf,        src->rf);         /* RF is optional: if it's not set, *rf=0, and strcpy still works fine */
-  strcpy(dst->mm,        src->mm);         /* MM is also optional annotation */
-  strcpy(dst->cs,        src->cs);         /* CS is also optional annotation */
-  strcpy(dst->consensus, src->consensus);  /* consensus though is always present on a valid profile */
-
-  for (z = 0; z < p7_NEVPARAM; z++) dst->evparam[z] = src->evparam[z];
-  for (z = 0; z < p7_NCUTOFFS; z++) dst->cutoff[z]  = src->cutoff[z];
-  for (z = 0; z < p7_MAXABET;  z++) dst->compo[z]   = src->compo[z];
-  return eslOK;
-}
-
-
-
-/* Function:  p7_profile_fs3_Copy()
- * Synopsis:  Copy a 3 cocon length frameshift profile.
- *
- * Purpose:   Copies profile <src> to profile <dst>, where <dst>
- *            has already been allocated to be of sufficient size.
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEMEM> on allocation error; <eslEINVAL> if <dst> is too small
- *            to fit <src>.
- */
-int
-p7_profile_fs3_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst)
-{
-  int x,z;
-  int status;
-
-  if (src->M > dst->allocM)       ESL_EXCEPTION(eslEINVAL, "destination profile is too small to hold a copy of source profile");
-  if (dst->codon_lengths != 3)    ESL_EXCEPTION(eslEINVAL, "destination proflie not allocated for 3 codon lengths");
-
-  esl_vec_FCopy(src->tsc, src->M*p7P_NTRANS, dst->tsc);
-  for (x = 0; x <= src->M;      x++) { esl_vec_FCopy( src->rsc[x],       (p7P_MAXCODONS3 + src->abc->Kp), dst->rsc[x]);       }
-  for (x = 0; x < p7P_NXSTATES; x++) { esl_vec_FCopy( src->xsc[x],       p7P_NXTRANS,                    dst->xsc[x]);       }
-  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->codons[x],    p7P_MAXCODONS3,                  dst->codons[x]);    }
-  for (x = 0; x <= src->M;      x++) { esl_abc_dsqcpy(src->indel_pos[x], p7P_MAXCODONS3,                  dst->indel_pos[x]); }
+  for (x = 0; x < (maxcodons + src->abc->Kp); x++) { esl_vec_FCopy( src->rsc[x],      (src->M+1),  dst->rsc[x]);       }
+  for (x = 0; x < p7P_NXSTATES;              x++) { esl_vec_FCopy( src->xsc[x],       p7P_NXTRANS, dst->xsc[x]);       }
+  for (x = 0; x <= src->M;                   x++) { esl_abc_dsqcpy(src->codons[x],    maxcodons,   dst->codons[x]);    }
+  for (x = 0; x <= src->M;                   x++) { esl_abc_dsqcpy(src->indel_pos[x], maxcodons,   dst->indel_pos[x]); }
 
   dst->mode        = src->mode;
   dst->L           = src->L;
@@ -570,15 +404,8 @@ p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs)
   P7_FS_PROFILE *g2 = NULL;
   int         status;
 
-  if(gm_fs->codon_lengths == 5) {
-    if ((g2 = p7_profile_fs5_Create(gm_fs->allocM, gm_fs->abc)) == NULL) return NULL;
-    if ((status = p7_profile_fs5_Copy(gm_fs, g2)) != eslOK) goto ERROR;
-  }
-  else if(gm_fs->codon_lengths == 3) {
-    if ((g2 = p7_profile_fs3_Create(gm_fs->allocM, gm_fs->abc)) == NULL) return NULL;
-    if ((status = p7_profile_fs3_Copy(gm_fs, g2)) != eslOK) goto ERROR;
-  }
-  else ESL_XEXCEPTION(eslEINVAL, "invalid number of codon lengths %d (5 and 3 acceppted)", gm_fs->codon_lengths);
+  if ((g2 = p7_profile_fs_Create(gm_fs->allocM, gm_fs->abc, gm_fs->codon_lengths)) == NULL) return NULL;
+  if ((status = p7_profile_fs_Copy(gm_fs, g2)) != eslOK) goto ERROR;
  
   return g2;
 

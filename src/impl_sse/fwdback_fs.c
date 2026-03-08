@@ -1009,13 +1009,16 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
  * compare to GForward() scores.
  */
 static void
-utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N)
+utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_CODONTABLE *codon_table, int M, int L, int N)
 {
+  int  i,j;
   char           *msg    = "forward/backward fs unit test failed";
   P7_HMM         *hmm    = NULL;
+  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
   P7_FS_PROFILE  *gm_fs3 = p7_profile_fs_Create(M, abcAA, 3);
   P7_FS_OPROFILE *om_fs3 = p7_fs_oprofile_Create(M, abcAA, 3); 
-  ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA); 
+  ESL_DSQ        *dsq    = NULL;
   P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, L);
   P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, L);
   P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, L, 0);
@@ -1030,13 +1033,24 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   else tolerance = 0.0001;   /* stronger test: FLogsum() is in slow exact mode. */
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig(hmm, bgAA, gm, L/3, p7_LOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, L/3, p7_LOCAL);
   p7_fs_oprofile_Convert(gm_fs3, om_fs3);
   p7_fs_oprofile_ReconfigLength(om_fs3, L/3);
 
   while (N--)
     {
+	  p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+
+	  if(dsq != NULL) free(dsqDNA);
+      if ((dsq = malloc(sizeof(ESL_DSQ) *(sq->n*3+2))) == NULL)  esl_fatal("malloc failed");
+
+	  j = 1;
+	  for(i = 1; i <= sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq+j);
+        j+=3;
+      }
 
       p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, L, om_fs3, fwd, &fsc3);	  
 	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, gx, iv, &generic_fsc3);
@@ -1107,17 +1121,19 @@ main(int argc, char **argv)
   ESL_ALPHABET   *abcDNA = NULL;
   P7_BG          *bgAA   = NULL;
   P7_BG          *bgDNA  = NULL;
+  P7_CODONTABLE  *ct     = NULL;
   int             M      = esl_opt_GetInteger(go, "-M");
   int             L      = esl_opt_GetInteger(go, "-L");
   int             N      = esl_opt_GetInteger(go, "-N");
 
-  if ((abcDNA = esl_alphabet_Create(eslDNA)) == NULL)  esl_fatal("failed to create alphabet");
-  if ((bgDNA = p7_bg_Create(abcDNA))         == NULL)  esl_fatal("failed to create null model");
-  if ((abcAA = esl_alphabet_Create(eslAMINO)) == NULL)  esl_fatal("failed to create alphabet");
-  if ((bgAA = p7_bg_Create(abcAA))            == NULL)  esl_fatal("failed to create null model");
+  if ((abcDNA = esl_alphabet_Create(eslDNA))      == NULL)  esl_fatal("failed to create alphabet");
+  if ((bgDNA = p7_bg_Create(abcDNA))              == NULL)  esl_fatal("failed to create null model");
+  if ((abcAA = esl_alphabet_Create(eslAMINO))     == NULL)  esl_fatal("failed to create alphabet");
+  if ((bgAA = p7_bg_Create(abcAA))                == NULL)  esl_fatal("failed to create null model");
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
-   
-  utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N);
+  if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
+
+  utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, L, N);
 //  utest_fwdback(r, abc, bg, 1, L, 10);
 //  utest_fwdback(r, abc, bg, M, 1, 10);
 
@@ -1126,6 +1142,7 @@ main(int argc, char **argv)
   p7_bg_Destroy(bgDNA);
   p7_bg_Destroy(bgAA);
   esl_gencode_Destroy(gcode);
+  p7_codontable_Destroy(ct);
 
   esl_getopts_Destroy(go);
   esl_randomness_Destroy(r);

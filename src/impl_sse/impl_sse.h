@@ -173,7 +173,7 @@ p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
  * so no byte (uint8) or word (int16) variants are needed.
  *
  * Emission scores are striped [Farrar07] analogously to P7_OPROFILE:
- *   rfv[c][q] : for codon/quasicodon index c (0..p7P_MAXCODONS3+Kp-1)
+ *   rfv[c][q] : for codon/quasicodon index c (0..p7P_MAXCODONS#+Kp-1)
  *               and stripe q (0..allocQ4-1), each __m128 float vector
  *               holds match emission scores for four model positions:
  *               k = q+1, q+1+Q4, q+1+2*Q4, q+1+3*Q4  (where Q4 = p7O_NQF(M))
@@ -200,13 +200,13 @@ p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
 typedef struct p7_fs_oprofile_s {
   /* Forward/Backward: IEEE754 single-precision floats, 4x __m128 vectors         */
   __m128  **rfv;          /* match emission scores [c][q]                         */
-                          /* c = 0..p7P_MAXCODONS3+Kp-1 (codon/aa index)          */
+                          /* c = 0..p7P_MAXCODONS#+Kp-1 (codon/aa index)          */
                           /* q = 0..allocQ4-1 (stripe index)                      */
   __m128   *tfv;          /* transition score blocks [p7O_NTRANS * allocQ4]       */
   float     xf[p7O_NXSTATES][p7O_NXTRANS]; /* ENJC special state transition costs */
 
   /* Frameshift-specific parameters                                               */
-  int       codon_lengths; /* number of codon lengths; must be 3 for this variant */
+  int       codon_lengths; /* number of codon lengths                             */
   float     fs;            /* frameshift penalty (log-odds score)                 */
 
   /* Raw malloc'd memory before 16-byte alignment                                 */

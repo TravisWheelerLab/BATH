@@ -604,6 +604,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   __m128  *dpc, *dpp2, *dpp3, *dpp4;   /* MDI DP row pointers                             */
   __m128  *tp7;                        /* steps backward through om_fs->tfv (7 per stripe)*/
   __m128  *tp_dd;                      /* steps backward through DD block                 */
+  __m128  *tp_mm;                      /* stripe (q+1)%Q for rotated MM/IM/DM transitions */
   __m128  *ivxf     = NULL;            /* ivx intermediate values [q], recomputed each i  */
   __m128  *ivxf_mem = NULL;            /* unaligned alloc backing ivxf                    */
   int      Q = p7O_NQF(om_fs->M);      /* number of SIMD float stripes                    */
@@ -753,14 +754,19 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   /* MDI: init M=D=xE, I=0 */
   for (q = 0; q < Q; q++) { MMO(dpc,q) = xEv; DMO(dpc,q) = xEv; IMO(dpc,q) = zerov; }
 
-  /* Add ivx[k+1]*MM, ivx[k+1]*IM, ivx[k+1]*DM (backward pass with left-shift carry) */
+  /* Add ivx[k+1]*MM, ivx[k+1]*IM, ivx[k+1]*DM (backward pass with left-shift carry).
+   * MM/IM/DM transitions are stored rotated (kb=k-1, destination-aligned), so for k
+   * in stripe q, TSC(MM,k) is stored at stripe (q+1)%Q, not stripe q. Use tp_mm. */
   ivx_carry = esl_sse_leftshiftz_float(ivxf[0]);
-  tp7 = om_fs->tfv + 7*(Q-1);
+  tp7   = om_fs->tfv + 7*(Q-1);
+  tp_mm = om_fs->tfv;           /* stripe (Q-1+1)%Q = 0 for first iteration q=Q-1 */
   for (q = Q-1; q >= 0; q--)
-    { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp7+1)));  /* MM */
-      IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp7+2)));  /* IM */
-      DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp7+3)));  /* DM */
-      ivx_carry  = ivxf[q]; tp7 -= 7; }
+    { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+1)));  /* MM at stripe (q+1)%Q */
+      IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+2)));  /* IM at stripe (q+1)%Q */
+      DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+3)));  /* DM at stripe (q+1)%Q */
+      ivx_carry  = ivxf[q];
+      tp7   -= 7;
+      tp_mm  = (tp_mm == om_fs->tfv) ? om_fs->tfv + 7*(Q-1) : tp_mm - 7; }
 
   /* DD passes + MD correction (same as init rows) */
   dcv   = esl_sse_leftshiftz_float(DMO(dpc,0));
@@ -872,14 +878,19 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
           tp7 += 7; }
 
       /* Phase 4c: add ivx[k+1]*MM, ivx[k+1]*IM, ivx[k+1]*DM
-       *           backward pass (q=Q-1..0) with left-shift carry for ivx[k+1]          */
+       *           backward pass (q=Q-1..0) with left-shift carry for ivx[k+1].
+       * MM/IM/DM transitions are stored rotated (kb=k-1, destination-aligned), so for k
+       * in stripe q, TSC(MM,k) is stored at stripe (q+1)%Q, not stripe q. Use tp_mm.  */
       ivx_carry = esl_sse_leftshiftz_float(ivxf[0]);
-      tp7 = om_fs->tfv + 7*(Q-1);
+      tp7   = om_fs->tfv + 7*(Q-1);
+      tp_mm = om_fs->tfv;           /* stripe (Q-1+1)%Q = 0 for first iteration q=Q-1 */
       for (q = Q-1; q >= 0; q--)
-        { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp7+1)));  /* MM */
-          IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp7+2)));  /* IM */
-          DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp7+3)));  /* DM */
-          ivx_carry  = ivxf[q]; tp7 -= 7; }
+        { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+1)));  /* MM at stripe (q+1)%Q */
+          IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+2)));  /* IM at stripe (q+1)%Q */
+          DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+3)));  /* DM at stripe (q+1)%Q */
+          ivx_carry  = ivxf[q];
+          tp7   -= 7;
+          tp_mm  = (tp_mm == om_fs->tfv) ? om_fs->tfv + 7*(Q-1) : tp_mm - 7; }
 
       /* Phase 5: DD backward passes — propagate D(i,k+1)*DD into D(i,k)
        *          and then D(i,k+1)*MD into M(i,k)                                       */

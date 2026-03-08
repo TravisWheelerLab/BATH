@@ -4545,8 +4545,8 @@ main(int argc, char **argv)
   abcDNA = esl_alphabet_Create(eslDNA);
   gcode  = esl_gencode_Create(abcDNA, abcAA);
   ct     = p7_codontable_Create(gcode);
-  gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA); 
-  p7_ProfileConfig_fs5(hmm, bg, gcode, gm_fs5, 0, p7_UNIGLOCAL);
+  gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
+  p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, 0, p7_UNIGLOCAL);
 
 
   if (esl_opt_GetBoolean(go, "-p")) tr = p7_trace_fs_CreateWithPP();

@@ -327,10 +327,10 @@ enum p7p_ivx_codon {
 #define p7P_TSC(gm, k, s)        ((gm)->tsc[(k) * p7P_NTRANS + (s)])
 #define p7P_MSC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_MSC])
 #define p7P_ISC(gm, k, x)        ((gm)->rsc[x][(k) * p7P_NR + p7P_ISC])
-#define p7P_MSC_CODON(gm, k ,x)  ((gm)->rsc[(k)][(x)])
-#define p7P_MSC_AMINO5(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS5 + (x)])
-#define p7P_MSC_AMINO3(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS3 + (x)])
-#define p7P_MSC_AMINO1(gm, k ,x)  ((gm)->rsc[(k)][p7P_MAXCODONS1 + (x)])
+#define p7P_MSC_CODON(gm, k ,x)   ((gm)->rsc[(x)][(k)])
+#define p7P_MSC_AMINO5(gm, k ,x)  ((gm)->rsc[p7P_MAXCODONS5 + (x)][(k)])
+#define p7P_MSC_AMINO3(gm, k ,x)  ((gm)->rsc[p7P_MAXCODONS3 + (x)][(k)])
+#define p7P_MSC_AMINO1(gm, k ,x)  ((gm)->rsc[p7P_MAXCODONS1 + (x)][(k)])
 
 typedef struct p7_profile_s {
   float  *tsc;                            /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
@@ -368,7 +368,7 @@ typedef struct p7_profile_s {
 
 typedef struct p7_fs_profile_s {
   float  *tsc;                            /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed           */
-  float **rsc;                            /* codon emissions [p7P_MAXCODONS+Kp][0.1..M], hand-indexed         */
+  float **rsc;                            /* codon emissions [0..p7P_MAXCODONS+Kp-1][0..M], hand-indexed      */
   
   float   xsc[p7P_NXSTATES][p7P_NXTRANS]; /* special transitions [NECJ][LOOP,MOVE]                            */
 
@@ -681,7 +681,6 @@ typedef struct p7_ivx_s {
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
 #define ISC(k)   (rsc[(k) * p7P_NR     + p7P_ISC])
-#define MSC_FS(k,c) (rsc[(k) * p7P_CODONS + (c)])
 
 /* Flags that control P7_GMX debugging dumps */
 #define p7_HIDE_SPECIALS (1<<0)
@@ -1358,9 +1357,8 @@ extern int   p7_ILogsum(int s1, int s2);
 
 /* modelconfig.c */
 extern int p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int mode);
-extern int p7_ProfileConfig_fs5(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs5, int L_amino, int mode);
-extern int p7_ProfileConfig_fs3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs3, int L_amino, int mode);
 extern int p7_ProfileConfig_tr(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_tr, int L_amino, int mode);
+extern int p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode);
 extern int p7_ReconfigLength  (P7_PROFILE *gm, int L);
 extern int p7_fs_ReconfigLength  (P7_FS_PROFILE *gm_fs, int L_amino);
 extern int p7_ReconfigMultihit(P7_PROFILE *gm, int L);
@@ -1600,14 +1598,12 @@ extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
 
 /* p7_profile.c */
 extern P7_PROFILE    *p7_profile_Create(int M, const ESL_ALPHABET *abc);
-extern P7_FS_PROFILE *p7_profile_fs5_Create(int M, const ESL_ALPHABET *abc);
-extern P7_FS_PROFILE *p7_profile_fs3_Create(int M, const ESL_ALPHABET *abc);
+extern P7_FS_PROFILE *p7_profile_fs_Create(int M, const ESL_ALPHABET *abc, int codon_lengths);
 extern P7_FS_PROFILE *p7_profile_tr_Create(int M, const ESL_ALPHABET *abc);
 extern P7_PROFILE    *p7_profile_Clone(const P7_PROFILE *gm);
 extern P7_FS_PROFILE *p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs);
 extern int         p7_profile_Copy(const P7_PROFILE *src, P7_PROFILE *dst);
-extern int         p7_profile_fs5_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
-extern int         p7_profile_fs3_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
+extern int         p7_profile_fs_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
 extern int         p7_profile_tr_Copy(const P7_FS_PROFILE *src, P7_FS_PROFILE *dst);
 extern int         p7_profile_GetFwdEmissionArray(const P7_PROFILE *gm, P7_BG *bg, float *arr);
 extern int         p7_profile_SetNullEmissions(P7_PROFILE *gm);

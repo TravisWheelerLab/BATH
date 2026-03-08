@@ -462,14 +462,14 @@ main(int argc, char **argv)
 
   abcAA  = esl_alphabet_Create(eslAMINO);
   abcDNA = esl_alphabet_Create(eslDNA); 
-  bgAA  = p7_bg_Create(abcAA);                  p7_bg_SetLength(bgAA, L/3);
-  gcode = esl_gencode_Create(abcDNA,abcAA);
-  gm_fs5 = p7_profile_fs5_Create(hmm->M, abcAA);  p7_ProfileConfig_fs5(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL);
-  fwd   = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);  
-  bck   = p7_gmx_fs_Create(gm_fs5->M, L, L, 0);
-  pp    = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
-  iv    = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
-  bgDNA = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
+  bgAA   = p7_bg_Create(abcAA);                  p7_bg_SetLength(bgAA, L/3);
+  gcode  = esl_gencode_Create(abcDNA,abcAA);
+  gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL);
+  fwd    = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);  
+  bck    = p7_gmx_fs_Create(gm_fs5->M, L, L, 0);
+  pp     = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
+  iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
+  bgDNA  = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
   p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, fwd, iv, &fsc);

@@ -1041,7 +1041,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS); 
   float tolerance, generic_tolerance;
   float fsc3, bsc3;
-  float generic_fsc3;
+  float generic_fsc3, generic_bsc3;
 
   p7_FLogsumInit();
   if (p7_FLogsumError(-0.4, -0.5) > 0.001) generic_tolerance = 1.0;  /* weaker test against generic   */
@@ -1084,7 +1084,11 @@ printf("N %d fsc3 %f generic_fsc3 %f\n", N, fsc3, generic_fsc3);
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);   
+	  p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
+
 	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
+	  p7_BachwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
+printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);
 printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);    
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg); 
       

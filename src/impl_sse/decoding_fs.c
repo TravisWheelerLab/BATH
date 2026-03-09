@@ -219,6 +219,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
   float tolerance;
   int status;
 
+    float fsc3, bsc3;
+  float generic_fsc3, generic_bsc3;
   p7_FLogsumInit();
   if (p7_FLogsumError(-0.4, -0.5) > 0.0001) tolerance = 1.0;  /* weaker test against generic   */
   else tolerance = 0.001;   /* stronger test: FLogsum() is in slow exact mode. */  
@@ -253,8 +255,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
 
-      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, NULL);
-      p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, NULL);
+      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, &fsc3);
+      p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &generic_fsc3);
 
       oddef->mocc = oddef->btot = oddef->etot = NULL;
       ESL_ALLOC(oddef->mocc, sizeof(float) * (curr_L+1));
@@ -266,20 +268,20 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
       p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
 
-      p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv, NULL);
-      p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, NULL);
+      p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv, &bsc3);
+      p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
 
       gddef->mocc = gddef->btot = gddef->etot = NULL;
       ESL_ALLOC(gddef->mocc, sizeof(float) * (curr_L+1));
       ESL_ALLOC(gddef->btot, sizeof(float) * (curr_L+1));
       ESL_ALLOC(gddef->etot, sizeof(float) * (curr_L+1));
       p7_DomainDecoding_Frameshift(gm_fs3, fgx, bgx, gddef);
-
+     printf("fsc3 %f generic_fsc3 %f\n", fsc3, generic_fsc3);
+     printf("bsc3 %f generic_bsc3 %f\n", bsc3, generic_bsc3);
       for(i = 0; i <= curr_L; i++) {
- 
+        printf("N %d curr_L %d i %d oddef->mocc[i] %f gddef->mocc[i] %f\n", N , curr_L, i, oddef->mocc[i], gddef->mocc[i]); 
         if(fabs(oddef->mocc[i] - gddef->mocc[i]) > tolerance) esl_fatal("domain def fs unit test failed at mocc");
         if(fabs(oddef->btot[i] - gddef->btot[i]) > tolerance) esl_fatal("domain def fs unit test failed at btot");
-        printf("N %d i %d oddef->etot[i] %f gddef->etot[i] %f\n", N, i, oddef->etot[i], gddef->etot[i]);
         if(fabs(oddef->etot[i] - gddef->etot[i]) > tolerance) esl_fatal("domain def fs unit test failed at etot");
       }
 

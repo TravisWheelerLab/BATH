@@ -1068,11 +1068,10 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, M);
   P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
   P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, M, 0);
-  P7_GMX         *bgx    = p7_gmx_fs_Create(M, PARSER_ROWS_BWD, M, 0);
   P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS); 
   float tolerance, generic_tolerance;
   float fsc3, bsc3;
-  float generic_fsc3, generic_bsc3;
+  float generic_fsc3;
 
   p7_FLogsumInit();
   if (p7_FLogsumError(-0.4, -0.5) > 0.0001) generic_tolerance = 1.0;  /* weaker test against generic   */
@@ -1108,20 +1107,15 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, &fsc3);	  
 	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv, &generic_fsc3);
-printf("N %d fsc3 %f generic_fsc3 %f\n", N, fsc3, generic_fsc3);
+
       /* non simd Forward scores should approximate simd Forward scores,
        * with tolerance that depends on how logsum.c was compiled
        */
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);   
-	  p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
-
-      p7_omx_SetDumpMode(stdout, bwd, TRUE);
 	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
-	  p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
-printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);
-printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);    
+
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg); 
       
 
@@ -1133,7 +1127,6 @@ printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bwd);
   p7_gmx_Destroy(fgx);
-  p7_gmx_Destroy(bgx);
   p7_ivx_Destroy(iv);
   p7_trace_Destroy(tr);
   p7_profile_Destroy(gm);

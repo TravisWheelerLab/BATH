@@ -1090,7 +1090,7 @@ printf("N %d fsc3 %f generic_fsc3 %f\n", N, fsc3, generic_fsc3);
 	  p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
 
 	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
-	  p7_BachwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
+	  p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
 printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);
 printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);    
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg); 

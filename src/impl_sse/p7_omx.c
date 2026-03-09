@@ -616,6 +616,107 @@ ERROR:
   free(v);
   return status;
 }
+
+/* Function:  p7_omx_DumpFBRow_FS()
+ * Synopsis:  Dump one row from float part of a DP matrix.
+ * Incept:    SRE, Wed Jul 30 16:45:16 2008 [Janelia]
+ *
+ * Purpose:   Dump current row of frameshift Forward/Backward (float) 
+ *        part of DP matrix <ox> for diagnostics, and include the 
+ *        values of specials <xE>, etc. The index <rowi> for the 
+ *        current row and <i> is used as a row label. 
+ *
+ *            The output format of the floats is controlled by
+ *	      <width>, <precision>; 8,5 is good for pspace, 5,2 is
+ *	      fine for lspace.
+ * 	       								       
+ * 	      If <i> is 0, print a header first too.			       
+ * 	       								       
+ * 	      If <logify> is TRUE, then scores are printed as log(score); this is 
+ * 	      useful for comparing DP with pspace scores with other DP matrices   
+ * 	      (like generic P7_GMX ones) that use log-odds scores.		       
+ * 	       								       
+ * 	      The output format is coordinated with <p7_gmx_Dump()> to	       
+ * 	      facilitate comparison to a known answer.                            
+ * 
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.  
+ */
+int
+p7_omx_DumpFBRow_FS(P7_OMX *ox, int logify, int i, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC)
+{
+  __m128 *dp;
+  int      M  = ox->M;
+  int      Q  = p7O_NQF(M);
+  float   *v  = NULL;		/* array of uninterleaved, unstriped scores  */
+  int      q,z,k;
+  union { __m128 v; float x[4]; } tmp;
+  int      status;
+
+  dp = (ox->allocR == 1) ? ox->dpf[0] :	ox->dpf[rowi];	  /* must set <dp> before using {MDI}MX macros */
+
+  ESL_ALLOC(v, sizeof(float) * ((Q*4)+1));
+  v[0] = 0.;
+
+  if (i == 0)
+    {
+      fprintf(ox->dfp, "      ");
+      for (k = 0; k <= M;  k++) fprintf(ox->dfp, "%*d ", width, k);
+      fprintf(ox->dfp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
+      fprintf(ox->dfp, "      ");
+      for (k = 0; k <= M+5;  k++) fprintf(ox->dfp, "%*s ", width, "--------");
+      fprintf(ox->dfp, "\n");
+    }
+
+  /* Unpack, unstripe, then print M's. */
+  for (q = 0; q < Q; q++) {
+    tmp.v = MMXo(q);
+    for (z = 0; z < 4; z++) v[q+Q*z+1] = tmp.x[z];
+  }
+  fprintf(ox->dfp, "%3d M ", i);
+  if (logify) for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k] == 0. ? -eslINFINITY : log(v[k]));
+  else        for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k]);
+
+ /* The specials */
+  if (logify) fprintf(ox->dfp, "%*.*f %*.*f %*.*f %*.*f %*.*f\n",
+		      width, precision, xE == 0. ? -eslINFINITY : log(xE),
+		      width, precision, xN == 0. ? -eslINFINITY : log(xN),
+		      width, precision, xJ == 0. ? -eslINFINITY : log(xJ),
+		      width, precision, xB == 0. ? -eslINFINITY : log(xB), 
+		      width, precision, xC == 0. ? -eslINFINITY : log(xC));
+  else        fprintf(ox->dfp, "%*.*f %*.*f %*.*f %*.*f %*.*f\n",
+		      width, precision, xE,   width, precision, xN, width, precision, xJ, 
+		      width, precision, xB,   width, precision, xC);
+
+  /* Unpack, unstripe, then print I's. */
+  for (q = 0; q < Q; q++) {
+    tmp.v = IMXo(q);
+    for (z = 0; z < 4; z++) v[q+Q*z+1] = tmp.x[z];
+  }
+  fprintf(ox->dfp, "%3d I ", i);
+  if (logify) for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k] == 0. ? -eslINFINITY : log(v[k]));
+  else        for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k]);
+  fprintf(ox->dfp, "\n");
+
+  /* Unpack, unstripe, then print D's. */
+  for (q = 0; q < Q; q++) {
+    tmp.v = DMXo(q);
+    for (z = 0; z < 4; z++) v[q+Q*z+1] = tmp.x[z];
+  }
+  fprintf(ox->dfp, "%3d D ", i);
+  if (logify) for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k] == 0. ? -eslINFINITY : log(v[k]));
+  else        for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k]);
+  fprintf(ox->dfp, "\n\n");
+
+  free(v);
+  return eslOK;
+
+ERROR:
+  free(v);
+  return status;
+}
+
 /*------------- end, debugging dumps of P7_OMX ------------------*/
 
 

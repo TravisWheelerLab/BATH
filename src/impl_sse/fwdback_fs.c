@@ -591,6 +591,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   register __m128 sv;                  /* temporary accumulator                           */
   register __m128 dcv;                 /* D(i,k+1) left-shift carry                      */
   register __m128 ivx_carry;           /* ivxf[k+1] left-shift carry                     */
+  __m128   tmmv, timv, tdmv;          /* pre-shifted MM/IM/DM transitions for q=Q-1 iter */
   register __m128 xBv;                 /* accumulates B(i) = sum_k ivxf[k]*BM[k-1]       */
   register __m128 xEv;                 /* splatted E(i)                                   */
   __m128   zerov;                      /* splatted 0.0                                    */
@@ -760,18 +761,23 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   for (q = 0; q < Q; q++) { MMO(dpc,q) = xEv; DMO(dpc,q) = xEv; IMO(dpc,q) = zerov; }
 
   /* Add ivx[k+1]*MM, ivx[k+1]*IM, ivx[k+1]*DM (backward pass with left-shift carry).
-   * MM/IM/DM transitions are stored rotated (kb=k-1, destination-aligned), so for k
-   * in stripe q, TSC(MM,k) is stored at stripe (q+1)%Q, not stripe q. Use tp_mm. */
+   * MM/IM/DM transitions are stored rotated (destination-aligned): for k in stripe q,
+   * TSC(MM,k) is at stripe (q+1)%Q. For the first iter (q=Q-1), the carry crosses a
+   * stripe boundary so transitions at stripe 0 must also be left-shifted to align. */
   ivx_carry = esl_sse_leftshiftz_float(ivxf[0]);
-  tp7   = om_fs->tfv + 7*(Q-1);
-  tp_mm = om_fs->tfv;           /* stripe (Q-1+1)%Q = 0 for first iteration q=Q-1 */
+  tmmv = esl_sse_leftshiftz_float(*(om_fs->tfv+1));  /* pre-shifted MM for first iter */
+  timv = esl_sse_leftshiftz_float(*(om_fs->tfv+2));  /* pre-shifted IM for first iter */
+  tdmv = esl_sse_leftshiftz_float(*(om_fs->tfv+3));  /* pre-shifted DM for first iter */
+  tp_mm = om_fs->tfv;
   for (q = Q-1; q >= 0; q--)
-    { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+1)));  /* MM at stripe (q+1)%Q */
-      IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+2)));  /* IM at stripe (q+1)%Q */
-      DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+3)));  /* DM at stripe (q+1)%Q */
+    { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, tmmv));
+      IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, timv));
+      DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, tdmv));
       ivx_carry  = ivxf[q];
-      tp7   -= 7;
-      tp_mm  = (tp_mm == om_fs->tfv) ? om_fs->tfv + 7*(Q-1) : tp_mm - 7; }
+      tp_mm = (tp_mm == om_fs->tfv) ? om_fs->tfv + 7*(Q-1) : tp_mm - 7;
+      tmmv = *(tp_mm+1);
+      timv = *(tp_mm+2);
+      tdmv = *(tp_mm+3); }
 
   /* DD passes + MD correction (same as init rows) */
   dcv   = esl_sse_leftshiftz_float(DMO(dpc,0));
@@ -887,20 +893,24 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
           IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(IMO(dpp3,q), *(tp7+6)));  /* II */
           tp7 += 7; }
 
-      /* Phase 4c: add ivx[k+1]*MM, ivx[k+1]*IM, ivx[k+1]*DM
-       *           backward pass (q=Q-1..0) with left-shift carry for ivx[k+1].
-       * MM/IM/DM transitions are stored rotated (kb=k-1, destination-aligned), so for k
-       * in stripe q, TSC(MM,k) is stored at stripe (q+1)%Q, not stripe q. Use tp_mm.  */
+      /* Phase 4c: add ivx[k+1]*MM, ivx[k+1]*IM, ivx[k+1]*DM (backward pass).
+       * MM/IM/DM transitions are stored rotated (destination-aligned): for k in stripe q,
+       * TSC(MM,k) is at stripe (q+1)%Q. For the first iter (q=Q-1), the carry crosses a
+       * stripe boundary so transitions at stripe 0 must also be left-shifted to align. */
       ivx_carry = esl_sse_leftshiftz_float(ivxf[0]);
-      tp7   = om_fs->tfv + 7*(Q-1);
-      tp_mm = om_fs->tfv;           /* stripe (Q-1+1)%Q = 0 for first iteration q=Q-1 */
+      tmmv = esl_sse_leftshiftz_float(*(om_fs->tfv+1));  /* pre-shifted MM for first iter */
+      timv = esl_sse_leftshiftz_float(*(om_fs->tfv+2));  /* pre-shifted IM for first iter */
+      tdmv = esl_sse_leftshiftz_float(*(om_fs->tfv+3));  /* pre-shifted DM for first iter */
+      tp_mm = om_fs->tfv;
       for (q = Q-1; q >= 0; q--)
-        { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+1)));  /* MM at stripe (q+1)%Q */
-          IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+2)));  /* IM at stripe (q+1)%Q */
-          DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, *(tp_mm+3)));  /* DM at stripe (q+1)%Q */
+        { MMO(dpc,q) = _mm_add_ps(MMO(dpc,q), _mm_mul_ps(ivx_carry, tmmv));
+          IMO(dpc,q) = _mm_add_ps(IMO(dpc,q), _mm_mul_ps(ivx_carry, timv));
+          DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), _mm_mul_ps(ivx_carry, tdmv));
           ivx_carry  = ivxf[q];
-          tp7   -= 7;
-          tp_mm  = (tp_mm == om_fs->tfv) ? om_fs->tfv + 7*(Q-1) : tp_mm - 7; }
+          tp_mm = (tp_mm == om_fs->tfv) ? om_fs->tfv + 7*(Q-1) : tp_mm - 7;
+          tmmv = *(tp_mm+1);
+          timv = *(tp_mm+2);
+          tdmv = *(tp_mm+3); }
 
       /* Phase 5: DD backward passes — propagate D(i,k+1)*DD into D(i,k)
        *          and then D(i,k+1)*MD into M(i,k)                                       */
@@ -1107,7 +1117,7 @@ printf("N %d fsc3 %f generic_fsc3 %f\n", N, fsc3, generic_fsc3);
       p7_omx_SetDumpMode(stdout, bwd, TRUE);
 	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
 	  p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
-//printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);
+printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);
 printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);    
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg); 
       

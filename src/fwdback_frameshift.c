@@ -1503,6 +1503,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
       IMX(curr,k) = -eslINFINITY;
     }
     MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
+    p7_gmx_fs_ParserDump(stdout, gx, i, curr, 0, M, p7_DEFAULT);
   }
   
   /* Check for degenerate nucleotides */
@@ -1555,7 +1556,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   }
 
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
+p7_gmx_fs_ParserDump(stdout, gx, L-2, curr, 0, M, p7_DEFAULT);
   /* Initialization of rows L-3 and L-4  */
   u = v = p7P_MAXCODONS3; 
   for (i = L-3; i > L-5; i--)
@@ -1637,7 +1638,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     }
 
     MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
+p7_gmx_fs_ParserDump(stdout, gx, i, curr, 0, M, p7_DEFAULT);
   }
 
   /* Main recursion */
@@ -1714,7 +1715,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     }
 
     MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
+p7_gmx_fs_ParserDump(stdout, gx, i, curr, 0, M, p7_DEFAULT);
   }
 
   /* At i=0, only N,B states are reachable. */
@@ -1766,7 +1767,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
 
   for (k = M; k >= 0; k--)
     MMX(0,k) = DMX(0,k) =  IMX(0,k) = -eslINFINITY;           
-
+p7_gmx_fs_ParserDump(stdout, gx, 0, 0, 0, M, p7_DEFAULT);
   if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
                                  p7_FLogsum( XMX(1,p7G_N),
                                              XMX(2,p7G_N)));

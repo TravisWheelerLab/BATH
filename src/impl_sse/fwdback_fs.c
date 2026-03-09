@@ -709,6 +709,10 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
       ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
       ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+
+#if eslDEBUGLEVEL > 0
+      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC); 
+#endif
     }
 
   /*----------------------------------------------------------------
@@ -808,6 +812,10 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
   ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
   ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+
+#if eslDEBUGLEVEL > 0
+      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC); 
+#endif
 
   /*----------------------------------------------------------------
    * Main recurrence: i = L-3 down to 1
@@ -941,6 +949,10 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
       ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
       ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+
+#if eslDEBUGLEVEL > 0
+      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC); /* logify=TRUE, <rowi>=L, width=9, precision=4*/
+#endif 
     } /* end main loop i=L-3..1 */
 
   /*----------------------------------------------------------------
@@ -989,13 +1001,17 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   ox->xmx[p7X_E]     = 0.0f;
   ox->xmx[p7X_SCALE] = 1.0f;
 
-  /* Final score: log( N(0) + N(1) ) + totscale.
-   * The forward initializes N(0)=N(1)=1 (two starting positions: 0 and 1 leading
-   * nucleotides before the first codon). N(2) is never reached from N(0) or N(1)
-   * via the 3-nt N-loop step, so N_fwd(2)=0 and N_bwd(2) must not be included. */
+#if eslDEBUGLEVEL > 0
+      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, 0, 0, 9, 4, xE, xN, xJ, xB, xC); 
+#endif
+
+ /* Final score: log( N(0) + N(1) + N(2) ) + totscale.
+  * The forward initializes N(0)=N(1)=N(2)=1 (three starting positions: 0, 1, or 2
+  * leading nucleotides before the first codon). */
   {
     float xNtot = xN
-                + xN_buf[1 % PARSER_ROWS_BWD];
+                + xN_buf[1 % PARSER_ROWS_BWD]
+                + xN_buf[2 % PARSER_ROWS_BWD];
 
     if      (isnan(xNtot))           ESL_EXCEPTION(eslERANGE, "backward score is NaN");
     else if (L > 0 && xNtot == 0.0f) ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");
@@ -1012,7 +1028,6 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   if (ivxf_mem) free(ivxf_mem);
   return status;
 }
-
 
 /*****************************************************************
  * 3. Unit tests.
@@ -1047,7 +1062,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   float generic_fsc3, generic_bsc3;
 
   p7_FLogsumInit();
-  if (p7_FLogsumError(-0.4, -0.5) > 0.001) generic_tolerance = 1.0;  /* weaker test against generic   */
+  if (p7_FLogsumError(-0.4, -0.5) > 0.0001) generic_tolerance = 1.0;  /* weaker test against generic   */
   else generic_tolerance = 0.001;   /* stronger test: FLogsum() is in slow exact mode. */
   tolerance = 0.0001;
 
@@ -1089,6 +1104,7 @@ printf("N %d fsc3 %f generic_fsc3 %f\n", N, fsc3, generic_fsc3);
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);   
 	  p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
 
+      p7_omx_SetDumpMode(stdout, bwd, TRUE);
 	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
 	  p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
 printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);

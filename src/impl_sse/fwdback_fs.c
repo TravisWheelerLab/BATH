@@ -698,10 +698,11 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
         { float sf = 1.0f / scale;
           xN *= sf; xJ *= sf; xC *= sf; xB *= sf;
           xEv = _mm_set1_ps(sf);
-          for (q = 0; q < Q; q++)
-            { MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
-              DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
-              IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv); }
+          for (r = 0; r < PARSER_ROWS_BWD; r++)
+            for (q = 0; q < Q; q++)
+              { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
+                DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
+                IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
           ox->totscale += log(scale); }
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
@@ -712,7 +713,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
 
 #if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC); 
+      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC);
 #endif
     }
 
@@ -804,10 +805,11 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
     { float sf = 1.0f / scale;
       xN *= sf; xJ *= sf; xC *= sf; xB *= sf;
       xEv = _mm_set1_ps(sf);
-      for (q = 0; q < Q; q++)
-        { MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
-          DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
-          IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv); }
+      for (r = 0; r < PARSER_ROWS_BWD; r++)
+        for (q = 0; q < Q; q++)
+          { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
+            DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
+            IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
       for (r = 0; r < PARSER_ROWS_BWD; r++)
         { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
       ox->totscale += log(scale); }
@@ -820,7 +822,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
 
 #if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC); 
+      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC);
 #endif
 
   /*----------------------------------------------------------------
@@ -945,10 +947,11 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
         { float sf = 1.0f / scale;
           xN *= sf; xJ *= sf; xC *= sf; xB *= sf;
           xEv = _mm_set1_ps(sf);
-          for (q = 0; q < Q; q++)
-            { MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
-              DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
-              IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv); }
+          for (r = 0; r < PARSER_ROWS_BWD; r++)
+            for (q = 0; q < Q; q++)
+              { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
+                DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
+                IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
           ox->totscale += log(scale); }

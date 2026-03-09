@@ -696,7 +696,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
       if (scale > 1.0f)
         { float sf = 1.0f / scale;
-          xN *= sf; xJ *= sf; xC *= sf; xB *= sf;
+          xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
           xEv = _mm_set1_ps(sf);
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             for (q = 0; q < Q; q++)
@@ -803,7 +803,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
   if (scale > 1.0f)
     { float sf = 1.0f / scale;
-      xN *= sf; xJ *= sf; xC *= sf; xB *= sf;
+      xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
       xEv = _mm_set1_ps(sf);
       for (r = 0; r < PARSER_ROWS_BWD; r++)
         for (q = 0; q < Q; q++)
@@ -945,7 +945,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
       if (scale > 1.0f)
         { float sf = 1.0f / scale;
-          xN *= sf; xJ *= sf; xC *= sf; xB *= sf;
+          xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
           xEv = _mm_set1_ps(sf);
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             for (q = 0; q < Q; q++)

@@ -1107,7 +1107,7 @@ printf("N %d fsc3 %f generic_fsc3 %f\n", N, fsc3, generic_fsc3);
       p7_omx_SetDumpMode(stdout, bwd, TRUE);
 	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
 	  p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
-printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);
+//printf("N %d bsc3 %f generic_bsc3 %f\n", N, bsc3, generic_bsc3);
 printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);    
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg); 
       
@@ -1115,6 +1115,7 @@ printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);
     }
 
   free(dsq);
+  esl_sq_Destroy(sq);
   p7_hmm_Destroy(hmm);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bwd);
@@ -1122,6 +1123,7 @@ printf("N %d fsc3 %f bsc3 %f\n", N, fsc3, bsc3);
   p7_gmx_Destroy(bgx);
   p7_ivx_Destroy(iv);
   p7_trace_Destroy(tr);
+  p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_fs3);
   p7_fs_oprofile_Destroy(om_fs3);
 }

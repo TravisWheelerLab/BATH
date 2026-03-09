@@ -674,6 +674,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       for (q = Q-1; q >= 0; q--)
         { sv = _mm_mul_ps(dcv, *tp_dd); tp_dd--;
           DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), sv); dcv = DMO(dpc,q); }
+      dcv = sv;  /* passes 2-4 must extend chain contribution, not full D */
       for (j = 1; j < 4; j++)
         { dcv   = esl_sse_leftshiftz_float(dcv);
           tp_dd = om_fs->tfv + 8*Q - 1;
@@ -774,6 +775,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   for (q = Q-1; q >= 0; q--)
     { sv = _mm_mul_ps(dcv, *tp_dd); tp_dd--;
       DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), sv); dcv = DMO(dpc,q); }
+  dcv = sv;  /* passes 2-4 must extend chain contribution, not full D */
   for (j = 1; j < 4; j++)
     { dcv = esl_sse_leftshiftz_float(dcv); tp_dd = om_fs->tfv + 8*Q - 1;
       for (q = Q-1; q >= 0; q--)
@@ -899,6 +901,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       for (q = Q-1; q >= 0; q--)
         { sv = _mm_mul_ps(dcv, *tp_dd); tp_dd--;
           DMO(dpc,q) = _mm_add_ps(DMO(dpc,q), sv); dcv = DMO(dpc,q); }
+      dcv = sv;  /* passes 2-4 must extend chain contribution, not full D */
       for (j = 1; j < 4; j++)
         { dcv = esl_sse_leftshiftz_float(dcv); tp_dd = om_fs->tfv + 8*Q - 1;
           for (q = Q-1; q >= 0; q--)

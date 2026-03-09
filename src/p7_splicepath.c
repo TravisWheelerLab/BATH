@@ -394,7 +394,7 @@ int
 longest_path (SPLICE_GRAPH *graph, int extend_down)
 {
 
-  int         i, e;
+  int         i;
   int         up, down;
   int         stack_size;
   float       step_score;

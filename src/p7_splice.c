@@ -2752,7 +2752,6 @@ int
 p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success)
 {
   int           i, n, s;
-  int           s1, s2;
   int           shift;
   int           orf_len;
   int           remove_node;

@@ -194,6 +194,123 @@ p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,
 /*****************************************************************
  * 3. Unit tests
  *****************************************************************/
+#ifdef p7DOMDEF_FS_TESTDRIVE
+#include "esl_random.h"
+#include "esl_randomseq.h"
+static void
+utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_CODONTABLE *codon_table, int M, int N)
+{
+  int  i,j;
+  int  curr_L;
+  P7_HMM         *hmm    = NULL;
+  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_fs3 = p7_profile_fs_Create(M, abcAA, 3);
+  P7_FS_OPROFILE *om_fs3 = p7_fs_oprofile_Create(M, abcAA, 3);
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq    = NULL;
+  P7_TRACE       *tr     = p7_trace_Create();
+  P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, M);
+  P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
+  P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, M, 0);
+  P7_GMX         *bgx    = p7_gmx_fs_Create(M, PARSER_ROWS_BWD, M, 0);
+  P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS);
+  P7_DOMAINDEF   *oddef  = NULL; 
+  P7_DOMAINDEF   *gddef  = NULL;
+  float tolerance;
+  int status;
+
+  p7_FLogsumInit();
+  if (p7_FLogsumError(-0.4, -0.5) > 0.0001) tolerance = 1.0;  /* weaker test against generic   */
+  else tolerance = 0.001;   /* stronger test: FLogsum() is in slow exact mode. */  
+
+  ESL_ALLOC(oddef, sizeof(P7_DOMAINDEF));
+  ESL_ALLOC(gddef, sizeof(P7_DOMAINDEF));
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, M, p7_LOCAL);
+  p7_fs_oprofile_Convert(gm_fs3, om_fs3);
+  p7_fs_oprofile_ReconfigLength(om_fs3, M);
+
+    while (N--)
+    {
+
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
+      curr_L = sq->n*3;
+
+      if(dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) *(curr_L+2))) == NULL)  esl_fatal("malloc failed");
+
+      j = 1;
+      for(i = 1; i <= sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq+j);
+        j+=3;
+      }
+
+      p7_fs_oprofile_ReconfigLength(om_fs3, sq->n);
+      p7_fs_ReconfigLength(gm_fs3, sq->n);
+
+      p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
+
+      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, NULL);
+      p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, NULL);
+
+      oddef->mocc = oddef->btot = oddef->etot = NULL;
+      ESL_ALLOC(oddef->mocc, sizeof(float) * (curr_L+1));
+      ESL_ALLOC(oddef->btot, sizeof(float) * (curr_L+1));
+      ESL_ALLOC(oddef->etot, sizeof(float) * (curr_L+1));
+      
+      p7_DomainDecoding_Frameshift_SSE(om_fs3, fwd, bwd, oddef);
+
+      p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
+      p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
+
+      p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv, NULL);
+      p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, NULL);
+
+      gddef->mocc = gddef->btot = gddef->etot = NULL;
+      ESL_ALLOC(gddef->mocc, sizeof(float) * (curr_L+1));
+      ESL_ALLOC(gddef->btot, sizeof(float) * (curr_L+1));
+      ESL_ALLOC(gddef->etot, sizeof(float) * (curr_L+1));
+      p7_DomainDecoding_Frameshift(gm_fs3, fgx, bgx, gddef);
+
+      for(i = 0; i <= curr_L; i++) {
+ 
+        if(fabs(oddef->mocc[i] - gddef->mocc[i]) > tolerance) esl_fatal("domain def fs unit test failed at mocc");
+        if(fabs(oddef->btot[i] - gddef->btot[i]) > tolerance) esl_fatal("domain def fs unit test failed at btot");
+        printf("N %d i %d oddef->etot[i] %f gddef->etot[i] %f\n", N, i, oddef->etot[i], gddef->etot[i]);
+        if(fabs(oddef->etot[i] - gddef->etot[i]) > tolerance) esl_fatal("domain def fs unit test failed at etot");
+      }
+
+      free(oddef->mocc);
+      free(oddef->btot);
+      free(oddef->etot);
+      free(gddef->mocc);
+      free(gddef->btot);
+      free(gddef->etot);
+
+    }
+
+  free(dsq);
+  free(oddef);
+  free(gddef);
+  esl_sq_Destroy(sq);
+  p7_hmm_Destroy(hmm);
+  p7_omx_Destroy(fwd);
+  p7_omx_Destroy(bwd);
+  p7_gmx_Destroy(fgx);
+  p7_gmx_Destroy(bgx);
+  p7_ivx_Destroy(iv);
+  p7_trace_Destroy(tr);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs3);
+  p7_fs_oprofile_Destroy(om_fs3);
+
+ERROR:
+  return;
+}
+#endif /*p7DOMDEF_FS_TESTDRIVE*/
 /*--------------------- end, unit tests -------------------------*/
 
 
@@ -202,6 +319,69 @@ p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,
 /*****************************************************************
  * 4. Test driver
  *****************************************************************/
+#ifdef p7DOMDEF_FS_TESTDRIVE
+/* 
+  gcc -g -Wall -msse2 -std=gnu99 -o domdef_fs_utest -I.. -L.. -I../../easel -L../../easel -Dp7DOMDEF_FS_TESTDRIVE decoding_fs.c -lhmmer -leasel -lm
+ ./domdef_fs_utest
+*/
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-M",        eslARG_INT,    "145", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
+  { "-N",        eslARG_INT,    "100", NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+
+static char usage[]  = "[-options]";
+static char banner[] = "test driver for SSE frameshift domain definition ";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_GENCODE    *gcode  = NULL;
+  ESL_ALPHABET   *abcAA  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  P7_BG          *bgAA   = NULL;
+  P7_BG          *bgDNA  = NULL;
+  P7_CODONTABLE  *ct     = NULL;
+  int             M      = esl_opt_GetInteger(go, "-M");
+  int             N      = esl_opt_GetInteger(go, "-N");
+
+  if ((abcDNA = esl_alphabet_Create(eslDNA))      == NULL)  esl_fatal("failed to create alphabet");
+  if ((bgDNA = p7_bg_Create(abcDNA))              == NULL)  esl_fatal("failed to create null model");
+  if ((abcAA = esl_alphabet_Create(eslAMINO))     == NULL)  esl_fatal("failed to create alphabet");
+  if ((bgAA = p7_bg_Create(abcAA))                == NULL)  esl_fatal("failed to create null model");
+  if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
+  if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
+
+  utest_domdef(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
+
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  p7_bg_Destroy(bgDNA);
+  p7_bg_Destroy(bgAA);
+  esl_gencode_Destroy(gcode);
+  p7_codontable_Destroy(ct);
+
+  esl_getopts_Destroy(go);
+  esl_randomness_Destroy(r);
+  return eslOK;
+}
+
+#endif /*p7DOMDEF_FS_TESTDRIVE*/
 /*-------------------- end, test driver -------------------------*/
 
 

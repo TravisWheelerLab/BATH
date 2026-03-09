@@ -1161,8 +1161,7 @@ static ESL_OPTIONS options[] = {
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-M",        eslARG_INT,    "145", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
-  { "-N",        eslARG_INT,    "100", NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
-  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+
 };
 static char usage[]  = "[-options]";
 static char banner[] = "test driver for SSE Forward, Backward implementations";
@@ -1189,8 +1188,6 @@ main(int argc, char **argv)
   if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
 
   utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
-//  utest_fwdback(r, abc, bg, 1, L, 10);
-//  utest_fwdback(r, abc, bg, M, 1, 10);
 
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);

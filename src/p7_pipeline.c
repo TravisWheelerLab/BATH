@@ -1212,9 +1212,16 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROF
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, gm_fs5, bg, gcode);
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
-    if (pli->ddef->nregions   == 0)  return eslOK; /* score passed threshold but there's no discrete domains here     */
-    if (pli->ddef->nenvelopes == 0)  return eslOK; /* rarer: region was found, stochastic clustered, no envelope found*/
-
+	/* score passed threshold but there's no discrete domains or region was found, stochastic clustered, no envelope found */
+    if (pli->ddef->nregions   == 0 || pli->ddef->nenvelopes == 0) {
+      if(pli_tmp->oxf_holder != NULL)
+      {
+        for(f = 0; f < orf_block->count; f++)
+          p7_omx_Destroy(pli_tmp->oxf_holder[f]);
+      }	  
+	  return eslOK; 
+	}
+	
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
 	p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
 

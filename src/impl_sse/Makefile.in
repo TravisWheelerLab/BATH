@@ -34,6 +34,7 @@ MYINCDIRS      = -I../../${ESLDIR} \
 		 -I${srcdir}/.. 
 
 OBJS =  decoding.o\
+	decoding_fs.o\
 	fwdback.o\
 	fwdback_fs.o\
 	io.o\

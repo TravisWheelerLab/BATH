@@ -64,7 +64,9 @@ p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *b
   int          L    = fwd->L;
   int          M    = gm_fs5->M;
   int          i,k;
-  float        overall_sc = fwd->xmx[p7G_NXCELLS*L + p7G_C] + gm_fs5->xsc[p7P_C][p7P_MOVE];
+  float overall_sc = p7_FLogsum( bck->xmx[0*p7G_NXCELLS+p7G_N],
+                     p7_FLogsum( bck->xmx[1*p7G_NXCELLS+p7G_N],
+                                 bck->xmx[2*p7G_NXCELLS+p7G_N]));
   float        denom, bias_denom;
   float        back_sc; 
   
@@ -374,6 +376,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, con
 
   ddef->mocc[L-1] = 1. - njcp;
 
+  i++;
   njcp = 0.0;
   /*N state */
   njcp += expf(fwd->xmx[(L-3)*p7G_NXCELLS+p7G_N] + bck->xmx[L*p7G_NXCELLS+p7G_N] + gm_fs5->xsc[p7P_N][p7P_LOOP] - overall_logp);

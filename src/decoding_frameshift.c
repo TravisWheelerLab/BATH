@@ -308,10 +308,9 @@ int
 p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef)
 {
   int   L            = fwd->L;
-  float overall_logp = p7_FLogsum( fwd->xmx[(L)*p7G_NXCELLS+p7G_C],
-                       p7_FLogsum( fwd->xmx[(L-1)*p7G_NXCELLS+p7G_C],
-                                   fwd->xmx[(L-2)*p7G_NXCELLS+p7G_C])) +
-                                   gm_fs5->xsc[p7P_C][p7P_MOVE];
+  float overall_logp = p7_FLogsum( bck->xmx[0*p7G_NXCELLS+p7G_N],
+                       p7_FLogsum( bck->xmx[1*p7G_NXCELLS+p7G_N],
+                                   bck->xmx[2*p7G_NXCELLS+p7G_N]));
   float njcp; 
   int   i;
 

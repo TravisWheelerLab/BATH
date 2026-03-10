@@ -705,6 +705,7 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
 
   int i, k, c, n;
   int codon_idx;
+  int amino;
   int indel;
   int z1, z2;
   ESL_DSQ *nuc_dsq;
@@ -785,7 +786,13 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
         tr->fs++;
       }
 
-      dom->scores_per_pos[n] = p7P_MSC_CODON(gm_fs, k, codon_idx);
+      amino = p7P_AMINO(gm_fs, k, codon_idx);
+      if(gm_fs->codon_lengths == 5)
+        dom->scores_per_pos[n] = p7P_MSC_AMINO5(gm_fs, k, amino);
+      else if(gm_fs->codon_lengths == 3)
+        dom->scores_per_pos[n] = p7P_MSC_AMINO3(gm_fs, k, amino);
+      else if(gm_fs->codon_lengths == 1)
+        dom->scores_per_pos[n] = p7P_MSC_AMINO1(gm_fs, k, amino);
 
       if (tr->st[z1-1] == p7T_I)
         dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_IM);
@@ -847,7 +854,14 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
           tr->fs++;
         }
 
-        dom->scores_per_pos[n] = p7P_MSC_CODON(gm_fs, k, codon_idx);
+        amino = p7P_AMINO(gm_fs, k, codon_idx);
+        if(gm_fs->codon_lengths == 5)
+          dom->scores_per_pos[n] = p7P_MSC_AMINO5(gm_fs, k, amino);
+        else if(gm_fs->codon_lengths == 3)
+          dom->scores_per_pos[n] = p7P_MSC_AMINO3(gm_fs, k, amino);
+        else if(gm_fs->codon_lengths == 1)
+          dom->scores_per_pos[n] = p7P_MSC_AMINO1(gm_fs, k, amino);
+
         dom->scores_per_pos[n] += p7P_TSC(gm_fs, k-1, p7P_MM);
         dom->k_per_pos[n] = k;
         k++; z1++; n++;

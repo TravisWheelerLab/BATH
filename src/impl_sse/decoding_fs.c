@@ -275,10 +275,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       ESL_ALLOC(gddef->btot, sizeof(float) * (curr_L+1));
       ESL_ALLOC(gddef->etot, sizeof(float) * (curr_L+1));
       p7_DomainDecoding_Frameshift(gm_fs3, fgx, bgx, gddef);
-     printf("fsc3 %f generic_fsc3 %f\n", fsc3, generic_fsc3);
-     printf("bsc3 %f generic_bsc3 %f\n", bsc3, generic_bsc3);
+     
       for(i = 0; i <= curr_L; i++) {
-        printf("N %d curr_L %d i %d oddef->mocc[i] %f gddef->mocc[i] %f\n", N , curr_L, i, oddef->mocc[i], gddef->mocc[i]); 
         if(fabs(oddef->mocc[i] - gddef->mocc[i]) > tolerance) esl_fatal("domain def fs unit test failed at mocc");
         if(fabs(oddef->btot[i] - gddef->btot[i]) > tolerance) esl_fatal("domain def fs unit test failed at btot");
         if(fabs(oddef->etot[i] - gddef->etot[i]) > tolerance) esl_fatal("domain def fs unit test failed at etot");

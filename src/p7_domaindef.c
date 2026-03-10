@@ -298,7 +298,7 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
  * Throws:    <eslEMEM> on allocation failure. 
  */
 int
-p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_PROFILE *gm_fs5, P7_BG *bg, const ESL_GENCODE *gcode)
+p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_BG *bg, const ESL_GENCODE *gcode)
 {
 
   int i, j;
@@ -312,14 +312,16 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
   int saveL     = gm_fs5->L;     /* Save the length config of <gm_fs5>; will restore upon return */
   int save_mode = gm_fs5->mode;  /* Likewise for the mode. */
   int status;
+  P7_OMX       *oxf  = pli->oxf;
   P7_GMX       *gxf  = pli->gxf;
   P7_GMX       *gxb  = pli->gxb; 
   P7_DOMAINDEF *ddef = pli->ddef;
 
  
   if ((status = p7_domaindef_GrowTo(ddef, windowsq->n))      != eslOK) return status;          /* ddef's btot,etot,mocc now ready for seq of length n            */
-  if ((status = p7_DomainDecoding_Frameshift(gm_fs5, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
-
+  if ((status = p7_DomainDecoding_Frameshift_SSE(om_fs5, pli->oxf, pli->oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
+//  if ((status = p7_DomainDecoding_Frameshift(gm_fs5, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
+  
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */
   p7_fs_ReconfigUnihit(gm_fs5, saveL/3);                                                          /* process each domain in unihit mode, regardless of om->mode     */
@@ -329,10 +331,11 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
   start     = FALSE;
   end       = FALSE;
 
-  for (j = 1; j < gxf->L; j++)
+  for (j = 1; j < oxf->L; j++)
   { 
     if (! triggered)  // no domain start found
     {
+      
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE; // possible domain start found
       d = j;
     }
@@ -356,21 +359,21 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
           } 
         }
       }
-      
+       
       i = ESL_MAX(1, d-3); // one codon wiggle room
       d = j+1;
-
+      
       /* Frameshift aware domain ends must be evident in all three frames */
-      while(d < gxf->L && !end) 
+      while(d < oxf->L && !end) 
       {
         d++;
-        if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2)
+        if(d < oxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2)
         {
           d++;
-          if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
+          if(d < oxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
           {
             d++;
-            if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
+            if(d < oxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
             {
               d++;
               end = TRUE;  
@@ -379,8 +382,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         }
       }
       
-      j = ESL_MIN(gxf->L, d+3); // one codon wiggle room
-
+      j = ESL_MIN(oxf->L, d+3); // one codon wiggle room
+      
       if(j - i + 1 < 12) {
         i     = -1;
         triggered = FALSE;

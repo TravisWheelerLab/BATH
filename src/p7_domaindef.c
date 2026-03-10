@@ -1013,7 +1013,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   if (gm_fs5->codon_lengths != 5) ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
 
   if (Ld < 15) return eslOK;
-  
+ printf("i %d j %d\n", i, j); 
   p7_bg_SetLength(bg, Ld/3);
   p7_bg_fs_FilterScore(bg, windowsq->dsq+i-1, Ld, gcode, pli->do_biasfilter, &filtersc);
  
@@ -1066,7 +1066,18 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   dom->scores_per_pos = NULL; 
   dom->k_per_pos      = NULL;
   dom->aliscore       = 0.0; 
- 
+
+  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs5);
+
+  if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
+    free(dom->scores_per_pos);
+    free(dom->k_per_pos);
+    dom->scores_per_pos = NULL;
+    dom->k_per_pos = NULL;
+    p7_trace_Reuse(ddef->tr);
+    return eslFAIL;
+  }
+
   /* Compute bias correction */
   p7_Null2_fs_ByExpectation(gm_fs5, pp, null2);
 
@@ -1158,6 +1169,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   dom->is_reported   = FALSE; /* gets set later by caller */
   dom->is_included   = FALSE; /* gets set later by caller */
   dom->tr            = p7_trace_fs_Clone(ddef->tr); 
+
+  free(dom->scores_per_pos);
+  free(dom->k_per_pos);
+  dom->scores_per_pos = NULL;
+  dom->k_per_pos = NULL;
 
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);

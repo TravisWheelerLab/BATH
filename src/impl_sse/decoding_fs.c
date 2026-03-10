@@ -72,8 +72,7 @@ p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,
   int    L   = oxf->L;
   float *log_sfwd = NULL;  /* log_sfwd[i] = sum of log(fwd_scale[0..i])        */
   float *log_sbck = NULL;  /* log_sbck[i] = sum of log(bck_scale[i..L])        */
-  float  bck_total;        /* N(0)+N(1)+N(2) from backward (scaled)            */
-  float  log_inv_Z;        /* -log(Z) = -(log(bck_total) + log_sbck[0])       */
+  float  log_inv_Z;        /* -log(Z)                                          */
   float  njcp;
   int    i;
   int    status;
@@ -93,11 +92,15 @@ p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,
   for (i = L; i >= 0; i--)
     log_sbck[i] = log_sbck[i+1] + logf(oxb->xmx[i*p7X_NXCELLS + p7X_SCALE]);
 
-  /* Normalization in log space: log(Z) = log(bck_total) + log_sbck[0] */
-  bck_total = oxb->xmx[0*p7X_NXCELLS + p7X_N]
-            + oxb->xmx[1*p7X_NXCELLS + p7X_N]
-            + oxb->xmx[2*p7X_NXCELLS + p7X_N];
-  log_inv_Z = -(logf(bck_total) + log_sbck[0]);
+  /* Normalization in log space.
+   * The three stored backward N values at rows 0, 1, 2 each carry different
+   * cumulative scale factors (log_sbck[0], log_sbck[1], log_sbck[2]).  We
+   * must restore each to its true magnitude before summing (LogSumExp). */
+  log_inv_Z = -p7_FLogsum(
+                 logf(oxb->xmx[0*p7X_NXCELLS + p7X_N]) + log_sbck[0],
+                 p7_FLogsum(
+                   logf(oxb->xmx[1*p7X_NXCELLS + p7X_N]) + log_sbck[1],
+                   logf(oxb->xmx[2*p7X_NXCELLS + p7X_N]) + log_sbck[2]));
 
   /* Positions 0, 1, 2: no domains can have started or ended yet */
   ddef->btot[0] = 0.;

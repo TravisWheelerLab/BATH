@@ -311,7 +311,6 @@ p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, con
   float overall_logp = p7_FLogsum( bck->xmx[0*p7G_NXCELLS+p7G_N],
                        p7_FLogsum( bck->xmx[1*p7G_NXCELLS+p7G_N],
                                    bck->xmx[2*p7G_NXCELLS+p7G_N]));
-
   float njcp; 
   int   i;
 

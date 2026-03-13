@@ -454,8 +454,10 @@ p7_Decoding_Frameshift_New(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GM
   return eslOK;
 }
 
+
+/* Try puting posteriors in probability space and only using MMX_FS(0,k, p7G_C0) */
 int
-p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck)
+p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
 {
   float      **dp   = fwd->dp;
   float       *xmx  = fwd->xmx;
@@ -465,8 +467,7 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_G
   float overall_sc = p7_FLogsum( bck->xmx[0*p7G_NXCELLS+p7G_N],
                      p7_FLogsum( bck->xmx[1*p7G_NXCELLS+p7G_N],
                                  bck->xmx[2*p7G_NXCELLS+p7G_N]));
-  float        denom, bias_denom;
-  float        back_sc; 
+  float        denom;
   
   XMX_FS(0, p7G_E) = -eslINFINITY;
   XMX_FS(0, p7G_N) = -eslINFINITY;
@@ -475,28 +476,23 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_G
   XMX_FS(0, p7G_C) = -eslINFINITY;
 
   for (k = 0; k <= M; k++)
-    MMX_FS(0,k, p7G_C0) = MMX_FS(0,k, p7G_C1) = MMX_FS(0,k, p7G_C2) = MMX_FS(0,k, p7G_C3) = 
-    MMX_FS(0,k, p7G_C4) = MMX_FS(0,k, p7G_C5) = IMX_FS(0,k) = DMX_FS(0,k) = -eslINFINITY;
+    MMX_FS(0,k,p7G_C0) = IMX_FS(0,k) = DMX_FS(0,k) = -eslINFINITY;
  
   for (i = 1; i <= L; i++)
     {
      denom = 0.0;
      /* 0th position in model */    
-      MMX_FS(i,0, p7G_C0) = MMX_FS(i,0, p7G_C1) = MMX_FS(i,0, p7G_C2) = MMX_FS(i,0, p7G_C3) = 
-      MMX_FS(i,0, p7G_C4) = MMX_FS(i,0, p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
+      MMX_FS(i,0, p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
 
       for (k = 1; k < M; k++)
       {
-        MMX_FS(i,k, p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX_FS(i,k, p7G_C0);
+        MMX_FS(i,k,p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX_FS(i,k, p7G_C0);
 
         IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc); denom += IMX_FS(i,k); 
 
         DMX_FS(i,k) = -eslINFINITY;
       }
 
-      /* final model position - no insert state */
-      back_sc = bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc;
-      
       MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX_FS(i,M, p7G_C0); 
       IMX_FS(i,M) = -eslINFINITY; 
       DMX_FS(i,M) = -eslINFINITY;
@@ -519,7 +515,7 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_G
        }
        else
        {
-         XMX_FS(i,p7G_N) = bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc;
+         XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
          XMX_FS(i,p7G_C) = -eslINFINITY;
          XMX_FS(i,p7G_J) = -eslINFINITY;
          denom += XMX_FS(i,p7G_N);
@@ -527,7 +523,7 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_G
 
         denom = 1.0 / denom;
  
-        for (k = 1; k < M; k++) { MMX_FS(i,M, p7G_C0) *= denom; IMX_FS(i,k) *= denom;}
+        for (k = 1; k < M; k++) { MMX_FS(i,k, p7G_C0) *= denom; IMX_FS(i,k) *= denom;}
         MMX_FS(i,M, p7G_C0) *= denom;
         XMX_FS(i,p7G_N) *= denom;
         XMX_FS(i,p7G_C) *= denom;

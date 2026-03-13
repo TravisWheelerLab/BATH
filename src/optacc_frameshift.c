@@ -378,7 +378,7 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
          ESL_MAX( TSCDELTA2(p7P_DM, M-1) * DMX(1,M-1),
                   TSCDELTA2(p7P_BM, M-1) * XMX(1,p7G_B))));
 
-  max2 = TSCDELTA(p7P_BM, M-1) + XMX(0,p7G_B);
+  max2 = TSCDELTA2(p7P_BM, M-1) * XMX(0,p7G_B);
 
   MMX(2,M)  = ESL_MAX( max1, max2);
 
@@ -446,7 +446,7 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
            ESL_MAX( TSCDELTA2(p7P_DM, M-1) * DMX(i-2,M-1),
                     TSCDELTA2(p7P_BM, M-1) * XMX(i-2,p7G_B))));
 
-    max2 = ESL_MAX( TSCDELTA2(p7P_MM, M-1) * MMX(i-3,M-1),
+    max3 = ESL_MAX( TSCDELTA2(p7P_MM, M-1) * MMX(i-3,M-1),
            ESL_MAX( TSCDELTA2(p7P_IM, M-1) * IMX(i-3,M-1),
            ESL_MAX( TSCDELTA2(p7P_DM, M-1) * DMX(i-3,M-1),
                     TSCDELTA2(p7P_BM, M-1) * XMX(i-3,p7G_B))));
@@ -455,7 +455,10 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
       max4 = TSCDELTA2(p7P_BM, M-1) * XMX(0,p7G_B);
     else
       max4 = -eslINFINITY;   
- 
+
+    MMX(i,M)  = ESL_MAX( ESL_MAX( max1, max2),
+                         ESL_MAX( max3, max4)),	
+
     MMX(i,M)  = (MMX(i,M)  != -eslINFINITY ? MMX(i,M) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M] : -eslINFINITY);
 
     IMX(i,M)  = -eslINFINITY; 
@@ -518,7 +521,8 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
 
 	  IMX(i,k)  = (IMX(i,k) != -eslINFINITY ? IMX(i,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I] : -eslINFINITY);
 
-      DMX(i,k)  = ESL_MAX( TSCDELTA2(p7P_MD, k-1) * MMX(i,k-1), TSCDELTA(p7P_DD, k-1) + DMX(i,k-1));
+      DMX(i,k)  = ESL_MAX( TSCDELTA2(p7P_MD, k-1) * MMX(i,k-1), 
+					       TSCDELTA2(p7P_DD, k-1) * DMX(i,k-1));
 
       XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), esc * MMX(i,k));  
     } 
@@ -565,9 +569,9 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
     XMX(i,p7G_C) = ESL_MAX( cc * (XMX(i-3,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
                             ec * XMX(i,  p7G_E));
 
-    XMX(i,p7G_N) = nn +  (XMX(i-3,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
+    XMX(i,p7G_N) = nn * (XMX(i-3,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
 
-    XMX(i,p7G_B) = ESL_MAX( nb * XMX(i,  p7G_N), jb + XMX(i,  p7G_J));
+    XMX(i,p7G_B) = ESL_MAX( nb * XMX(i,  p7G_N), jb * XMX(i,  p7G_J));
                             
   }
   *ret_e = XMX(L,  p7G_C) +

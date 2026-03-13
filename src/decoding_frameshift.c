@@ -461,6 +461,9 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
 {
   float      **dp   = fwd->dp;
   float       *xmx  = fwd->xmx;
+  float        N0, N1, N2, N3;
+  float        J0, J1, J2, J3;
+  float        C0, C1, C2, C3;
   int          L    = fwd->L;
   int          M    = gm_fs5->M;
   int          i,k;
@@ -469,19 +472,34 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
                                  bck->xmx[2*p7G_NXCELLS+p7G_N]));
   float        denom;
   
+  N0 = fwd->xmx[p7G_NXCELLS*0 + p7G_N];
+  J0 = fwd->xmx[p7G_NXCELLS*0 + p7G_J];
+  C0 = fwd->xmx[p7G_NXCELLS*0 + p7G_C];
+
+  N1 = N2 = N3 = -eslINFINITY;
+  J1 = J2 = J3 = -eslINFINITY;
+  C1 = C2 = C3 = -eslINFINITY;
+
   XMX_FS(0, p7G_E) = -eslINFINITY;
   XMX_FS(0, p7G_N) = -eslINFINITY;
   XMX_FS(0, p7G_J) = -eslINFINITY;    
   XMX_FS(0, p7G_B) = -eslINFINITY;
   XMX_FS(0, p7G_C) = -eslINFINITY;
 
-  for (k = 0; k <= M; k++)
+  for (k = 0; k <= M; k++) {
+    MMX_FS(0,k,p7G_C1) = MMX_FS(0,k,p7G_C2) = MMX_FS(0,k,p7G_C3) = MMX_FS(0,k,p7G_C4) = MMX_FS(0,k,p7G_C5) = -eslINFINITY;
     MMX_FS(0,k,p7G_C0) = IMX_FS(0,k) = DMX_FS(0,k) = -eslINFINITY;
- 
+  }
+
   for (i = 1; i <= L; i++)
     {
+	 N3 = N2; N2 = N1; N1 = N0;
+     J3 = J2; J2 = J1; J1 = J0;
+	 C3 = C2; C2 = C1; C1 = C0;
+
      denom = 0.0;
      /* 0th position in model */    
+	  MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = -eslINFINITY;
       MMX_FS(i,0, p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
 
       for (k = 1; k < M; k++)
@@ -513,24 +531,26 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
       XMX_FS(i,p7G_B)  = -eslINFINITY;  
 
       /* probaility from N, J and C states */
-       if(i > 2)
-       {
-         XMX_FS(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_N] +  gm_fs5->xsc[p7P_N][p7P_LOOP] +
-                                bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
-         XMX_FS(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_C] +  gm_fs5->xsc[p7P_C][p7P_LOOP] +
-                                bck->xmx[p7G_NXCELLS*i + p7G_C]     -  overall_sc);
+	  N0 = fwd->xmx[p7G_NXCELLS*i + p7G_N];
+	  J0 = fwd->xmx[p7G_NXCELLS*i + p7G_J];
+	  C0 = fwd->xmx[p7G_NXCELLS*i + p7G_C];
+      if(i > 2)
+      {
+         XMX_FS(i,p7G_N) = expf(N3 + bck->xmx[p7G_NXCELLS*i + p7G_N] + gm_fs5->xsc[p7P_N][p7P_LOOP] - overall_sc);
+
+         XMX_FS(i,p7G_C) = expf(C3 + bck->xmx[p7G_NXCELLS*i + p7G_C] + gm_fs5->xsc[p7P_C][p7P_LOOP] - overall_sc);
          
-         XMX_FS(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-3) + p7G_J] +  gm_fs5->xsc[p7P_J][p7P_LOOP] +
-                                bck->xmx[p7G_NXCELLS*i + p7G_J]     -  overall_sc);
+         XMX_FS(i,p7G_J) = expf(J3 + bck->xmx[p7G_NXCELLS*i + p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_sc);
+
          denom += XMX_FS(i,p7G_N) + XMX_FS(i,p7G_J) + XMX_FS(i,p7G_C);
-       }
-       else
-       {
-         XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N]     -  overall_sc);
+      }
+      else
+      {
+         XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] - overall_sc);
          XMX_FS(i,p7G_C) = -eslINFINITY;
          XMX_FS(i,p7G_J) = -eslINFINITY;
          denom += XMX_FS(i,p7G_N);
-        }
+      }
 
         denom = 1.0 / denom;
  

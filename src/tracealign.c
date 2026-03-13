@@ -308,11 +308,11 @@ p7_tracealign_computeTraces(P7_HMM *hmm, ESL_SQ  **sq, int offset, int N, P7_TRA
          * The workaround is to detect the overflow and fail over to
          * slow generic routines.
          */
-        if (gxf == NULL) gxf = p7_gmx_Create(hmm->M, sq[idx]->n);
-        else             p7_gmx_GrowTo(gxf,  hmm->M, sq[idx]->n);
+        if (gxf == NULL) gxf = p7_gmx_Create(hmm->M, sq[idx]->n, sq[idx]->n, p7G_NSCELLS);
+        else             p7_gmx_GrowTo(gxf,  hmm->M, sq[idx]->n, sq[idx]->n, p7G_NSCELLS);
 
-        if (gxb == NULL) gxb = p7_gmx_Create(hmm->M, sq[idx]->n);
-        else             p7_gmx_GrowTo(gxb,  hmm->M, sq[idx]->n);
+        if (gxb == NULL) gxb = p7_gmx_Create(hmm->M, sq[idx]->n, sq[idx]->n, p7G_NSCELLS);
+        else             p7_gmx_GrowTo(gxb,  hmm->M, sq[idx]->n, sq[idx]->n, p7G_NSCELLS);
 
         p7_ReconfigLength(gm, sq[idx]->n);
 

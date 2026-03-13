@@ -553,7 +553,7 @@ scoring_comparison(ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX *gx, P7_GMXCHK *g
   float fsc1, fsc2;
   float bsc1, bsc2;
 
-  if ( p7_gmx_GrowTo(gx, gm->M, L)                      != eslOK) esl_fatal(msg);
+  if ( p7_gmx_GrowTo(gx, gm->M, L, L, p7G_NSCELLS)      != eslOK) esl_fatal(msg);
   if ( p7_gmxchk_GrowTo(gxc, gm->M, L)                  != eslOK) esl_fatal(msg);
 
   if ( p7_GForward(dsq, L, gm, gx, &fsc1)                    != eslOK) esl_fatal(msg);
@@ -769,8 +769,8 @@ main(int argc, char **argv)
       else if (status != eslOK)      p7_Fail("Unexpected error %d reading sequence file %s", status, sqfp->filename);
 
       /* Resize the DP matrices if necessary */
-      p7_gmx_GrowTo   (fwd, gm->M, sq->n);
-      p7_gmx_GrowTo   (bck, gm->M, sq->n);
+      p7_gmx_GrowTo   (fwd, gm->M, sq->n, sq->n, p7G_NSCELLS);
+      p7_gmx_GrowTo   (bck, gm->M, sq->n, sq->n, p7G_NSCELLS);
       p7_gmxchk_GrowTo(gxc, gm->M, sq->n);
 
       //printf("Allocation: %ld\n", p7_gmxchk_Sizeof(fwdc));

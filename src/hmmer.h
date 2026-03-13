@@ -643,8 +643,7 @@ typedef struct p7_gmx_s {
   int      allocR;      /* current allocated # of rows : L+1 <= validR <= allocR                */
   int      validR;      /* # of rows actually pointing at DP memory                             */
   int      allocW;      /* current set row width :  M+1 <= allocW                               */
-  int      allocC;
- 
+  int      nscells;     /* which p7G_NSCELLS macro was used to allocate this matrix             */
   uint64_t ncells;      /* total # of allocated cells in 2D matrix : ncells >= (validR)(allocW) */
 
   float **dp;           /* logically [0.1..L][0.1..M][0..p7G_NSCELLS-1]; indexed [i][k*p7G_NSCELLS+s] */
@@ -1476,8 +1475,8 @@ extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, 
 extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef);
 
 /* p7_gmx.c */
-extern P7_GMX *p7_gmx_Create (int allocM, int allocL);
-extern int     p7_gmx_GrowTo (P7_GMX *gx, int allocM, int allocL);
+extern P7_GMX *p7_gmx_Create (int allocM, int allocL, int allocLx, int nscells);
+extern int     p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx, int ns); 
 extern size_t  p7_gmx_Sizeof (P7_GMX *gx);
 extern int     p7_gmx_Reuse  (P7_GMX *gx);
 extern void    p7_gmx_Destroy(P7_GMX *gx);

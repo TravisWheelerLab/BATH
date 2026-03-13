@@ -433,8 +433,8 @@ main(int argc, char **argv)
   p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  gx1 = p7_gmx_Create(gm->M, L);
-  gx2 = p7_gmx_Create(gm->M, L);
+  gx1 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  gx2 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
   tr  = p7_trace_CreateWithPP();
 
   esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
@@ -569,8 +569,8 @@ main(int argc, char **argv)
   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL); /* multihit local: H3 default */
   
   /* Allocations */
-  gx1 = p7_gmx_Create(gm->M, sq->n);
-  gx2 = p7_gmx_Create(gm->M, sq->n);
+  gx1 = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
+  gx2 = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
   tr  = p7_trace_CreateWithPP();
   p7_FLogsumInit();
 

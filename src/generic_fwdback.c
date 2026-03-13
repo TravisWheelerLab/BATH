@@ -384,8 +384,8 @@ main(int argc, char **argv)
   p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  fwd = p7_gmx_Create(gm->M, L);
-  bck = p7_gmx_Create(gm->M, L);
+  fwd = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  bck = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
@@ -459,8 +459,8 @@ utest_forward(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, 
   float     vsc, nullsc;
 
   if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2))) == NULL)  esl_fatal("malloc failed");
-  if ((fwd    = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
-  if ((bck    = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd    = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))        == NULL)  esl_fatal("matrix creation failed");
+  if ((bck    = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))        == NULL)  esl_fatal("matrix creation failed");
 
   avg_sc = 0.;
   for (idx = 0; idx < nseq; idx++)
@@ -499,7 +499,7 @@ utest_generation(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc,
 		 P7_PROFILE *gm, P7_HMM *hmm, P7_BG *bg, int nseq)
 {
   ESL_SQ   *sq = esl_sq_CreateDigital(abc);
-  P7_GMX   *gx = p7_gmx_Create(gm->M, 100);
+  P7_GMX   *gx = p7_gmx_Create(gm->M, 100, 100, p7G_NSCELLS);
   P7_TRACE *tr = p7_trace_Create();
   float     vsc, fsc, nullsc, tracesc;
   float     avg_fsc;
@@ -510,11 +510,11 @@ utest_generation(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc,
     {
       if (p7_ProfileEmit(r, hmm, gm, bg, sq, tr)     != eslOK) esl_fatal("profile emission failed");
 
-      if (p7_gmx_GrowTo(gx, gm->M, sq->n)            != eslOK) esl_fatal("failed to reallocate gmx");
-      if (p7_GViterbi(sq->dsq, sq->n, gm, gx, &vsc)  != eslOK) esl_fatal("viterbi failed");
-      if (p7_GForward(sq->dsq, sq->n, gm, gx, &fsc)  != eslOK) esl_fatal("forward failed");
-      if (p7_trace_Score(tr, sq->dsq, gm, &tracesc)  != eslOK) esl_fatal("trace score failed");
-      if (p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc) != eslOK) esl_fatal("null score failed");
+      if (p7_gmx_GrowTo(gx, gm->M, sq->n, sq->n, p7G_NSCELLS) != eslOK) esl_fatal("failed to reallocate gmx");
+      if (p7_GViterbi(sq->dsq, sq->n, gm, gx, &vsc)           != eslOK) esl_fatal("viterbi failed");
+      if (p7_GForward(sq->dsq, sq->n, gm, gx, &fsc)           != eslOK) esl_fatal("forward failed");
+      if (p7_trace_Score(tr, sq->dsq, gm, &tracesc)           != eslOK) esl_fatal("trace score failed");
+      if (p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc)          != eslOK) esl_fatal("null score failed");
 
       if (vsc < tracesc) esl_fatal("viterbi score is less than trace");
       if (fsc < tracesc) esl_fatal("forward score is less than trace");
@@ -573,7 +573,7 @@ utest_enumeration(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, int M)
 
   if (  (dsq = malloc(sizeof(ESL_DSQ) * (M+3)))     == NULL)  esl_fatal("allocation failed");
   if (  (seq = malloc(sizeof(char)    * (M+2)))     == NULL)  esl_fatal("allocation failed");
-  if ((gx     = p7_gmx_Create(hmm->M, M+3))         == NULL)  esl_fatal("matrix creation failed");
+  if ((gx     = p7_gmx_Create(hmm->M, M+3, M+3, p7G_NSCELLS))         == NULL)  esl_fatal("matrix creation failed");
 
   /* Enumerate all sequences of length L <= M
    */
@@ -769,8 +769,8 @@ main(int argc, char **argv)
   else if (esl_opt_GetBoolean(go, "--s"))   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_UNIGLOCAL);
   
   /* Allocate matrices */
-  fwd = p7_gmx_Create(gm->M, sq->n);
-  bck = p7_gmx_Create(gm->M, sq->n);
+  fwd = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
+  bck = p7_gmx_Create(gm->M, sq->n, sq->n. p7G_NSCELLS);
 
   printf("%-30s   %-10s %-10s   %-10s %-10s\n", "# seq name",      "fwd (raw)",   "bck (raw) ",  "fwd (bits)",  "bck (bits)");
   printf("%-30s   %10s %10s   %10s %10s\n",     "#--------------", "----------",  "----------",  "----------",  "----------");
@@ -781,8 +781,8 @@ main(int argc, char **argv)
       else if (status != eslOK)      p7_Fail("Unexpected error %d reading sequence file %s", status, sqfp->filename);
 
       /* Resize the DP matrices if necessary */
-      p7_gmx_GrowTo(fwd, gm->M, sq->n);
-      p7_gmx_GrowTo(bck, gm->M, sq->n);
+      p7_gmx_GrowTo(fwd, gm->M, sq->n, sq->n, p7G_NSCELLS);
+      p7_gmx_GrowTo(bck, gm->M, sq->n, sq->n, p7G_NSCELLS);
 
       /* Set the profile and null model's target length models */
       p7_bg_SetLength(bg,   sq->n);

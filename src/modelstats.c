@@ -104,7 +104,7 @@ p7_MeanForwardScore(const P7_HMM *hmm, const P7_BG *bg)
   int             L   = 350;
   int             N   = 100;
   P7_PROFILE     *gm  = p7_profile_Create(hmm->M, hmm->abc);
-  P7_GMX         *gx  = p7_gmx_Create(gm->M, L);
+  P7_GMX         *gx  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
   ESL_SQ         *sq  = esl_sq_CreateDigital(hmm->abc);
   ESL_RANDOMNESS *r   = esl_randomness_CreateFast(0);
   float           fsc;
@@ -119,7 +119,7 @@ p7_MeanForwardScore(const P7_HMM *hmm, const P7_BG *bg)
       if (p7_ReconfigLength(gm, L)                        != eslOK) p7_Die("failed to reconfig profile length");
       if (p7_ProfileEmit(r, hmm, gm, bg, sq, NULL)        != eslOK) p7_Die("failed to emit sequence");
       if (p7_ReconfigLength(gm, sq->n)                    != eslOK) p7_Die("failed to reconfig profile length");
-      if (p7_gmx_GrowTo(gx, gm->M, sq->n)                 != eslOK) p7_Die("failed to grow the matrix");
+      if (p7_gmx_GrowTo(gx, gm->M, sq->n, sq->n, p7G_NSCELLS) != eslOK) p7_Die("failed to grow the matrix");
       if (p7_GForward(sq->dsq, sq->n, gm, gx, &fsc)       != eslOK) p7_Die("failed to run Forward");
       if (p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc)      != eslOK) p7_Die("failed to run bg_NullOne()");
       bitscore = (fsc - nullsc) / eslCONST_LOG2;

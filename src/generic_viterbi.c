@@ -379,7 +379,7 @@ main(int argc, char **argv)
   p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
@@ -463,7 +463,7 @@ utest_basic(ESL_GETOPTS *go)
   if (p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL)!= eslOK) esl_fatal("failed to config profile");
   if (p7_profile_Validate(gm, NULL, 0.0001)        != eslOK) esl_fatal("whoops, profile is bad!");
   if (esl_abc_CreateDsq(abc, targ, &dsq)           != eslOK) esl_fatal("failed to create GAATTC digital sequence");
-  if ((gx = p7_gmx_Create(gm->M, L))               == NULL)  esl_fatal("failed to create DP matrix");
+  if ((gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS)) == NULL)  esl_fatal("failed to create DP matrix");
   if ((tr = p7_trace_Create())                     == NULL)  esl_fatal("trace creation failed");
 
   p7_GViterbi   (dsq, L, gm, gx, &vsc);
@@ -512,7 +512,7 @@ utest_viterbi(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, 
 
   if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2))) == NULL)  esl_fatal("malloc failed");
   if ((tr     = p7_trace_Create())              == NULL)  esl_fatal("trace creation failed");
-  if ((gx     = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
+  if ((gx     = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS)) == NULL)  esl_fatal("matrix creation failed");
 
   for (idx = 0; idx < nseq; idx++)
     {
@@ -678,7 +678,7 @@ main(int argc, char **argv)
   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL);
   
   /* Allocate matrix and a trace */
-  fwd = p7_gmx_Create(gm->M, sq->n);
+  fwd = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
   tr  = p7_trace_Create();
 
   /* Run Viterbi; do traceback */

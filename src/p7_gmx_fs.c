@@ -84,6 +84,79 @@ p7_gmx_fs_Create(int allocM, int allocL, int allocLx, int allocC)
   return NULL;
 }
 
+/* Function:  p7_gmx_fr_Create()
+ * Synopsis:  Allocate a new <P7_GMX>.
+ *
+ * Purpose:   Allocate a reusable, resizeable <P7_GMX> for models up to
+ *            size <allocM> and sequences up to length <allocL> with 
+ *            cells for <allocC> quasi-codons
+ *            
+ *            We've set this up so it should be easy to allocate
+ *            aligned memory, though we're not doing this yet.
+ *
+ * Returns:   a pointer to the new <P7_GMX>.
+ *
+ * Throws:    <NULL> on allocation error.
+ */
+P7_GMX *
+p7_gmx_fr_Create(int allocM, int allocL, int allocLx)
+{
+  int     status;
+  P7_GMX *gx = NULL;
+  int     i,c;
+
+  /* don't try to make large allocs on 32-bit systems */
+  if ( (uint64_t) (allocM+1) * (uint64_t) (allocLx+1) * sizeof(float) * p7G_NSCELLS_FR > SIZE_MAX / 2)
+    return NULL;
+
+  /* level 1: the structure itself */
+  ESL_ALLOC(gx, sizeof(P7_GMX));
+  gx->dp     = NULL;
+  gx->xmx    = NULL;
+  gx->dp_mem = NULL;
+
+  /* level 2: row pointers, 0.1..L; and dp cell memory  */
+  ESL_ALLOC(gx->dp,      sizeof(float *) * (allocL+1));
+  ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocLx+1) * p7G_NXCELLS);
+  ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+1) * (allocM+1) *  p7G_NSCELLS_FR);
+  
+  /* Set the row pointers. */
+  for (i = 0; i <= allocL; i++)  
+    gx->dp[i] = gx->dp_mem + i * (allocM+1) * p7G_NSCELLS_FR;
+   
+  /* Initialize memory that's allocated but unused, only to keep
+   * valgrind and friends happy.
+   */
+  for (i = 0; i <= allocL; i++) 
+    { 
+      gx->dp[i][0      * p7G_NSCELLS + allocC) + p7G_M] = -eslINFINITY; 
+      for(c = p7G_C1; c < allocC + p7G_C1; c++) {
+        gx->dp[i][0      * p7G_NSCELLS + allocC) + p7G_M + c] = -eslINFINITY; 
+      } 
+      gx->dp[i][0      * p7G_NSCELLS_FR + p7G_I] = -eslINFINITY; /* I_0 */      
+      gx->dp[i][0      * p7G_NSCELLS_FR + p7G_D] = -eslINFINITY; /* D_0 */
+      gx->dp[i][1      * p7G_NSCELLS_FR + p7G_D] = -eslINFINITY; /* D_1 */
+      gx->dp[i][allocM * p7G_NSCELLS_FR + p7G_I] = -eslINFINITY; /* I_M */
+    }
+ 
+  gx->M      = 0;
+  gx->L      = 0;
+  gx->allocW = allocM+1;
+  gx->allocR = allocLx+1;
+  gx->validR = allocL+1;
+  gx->allocC = 0;
+  gx->ncells = (uint64_t) (allocM+1)* (uint64_t) (allocLx+1);
+
+  return gx;
+
+ ERROR:
+  if (gx != NULL) p7_gmx_Destroy(gx);
+  return NULL;
+}
+
+
+
+
 /* Function:  p7_gmx_sp_Create()
  * Synopsis:  Allocate a new <P7_GMX>.
  *
@@ -234,6 +307,87 @@ p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx, int C)
  ERROR:
   return status;
 }
+
+/* Function:  p7_gmx_fr_GrowTo()
+ * Synopsis:  Assure that DP matrix is big enough.
+ *
+ * Purpose:   Assures that a DP matrix <gx> is allocated
+ *            for a model of size up to <M> and a sequence of
+ *            length up to <L> reallocates if necessary.
+ *            
+ *            This function does not respect the configured
+ *            <RAMLIMIT>; it will allocate what it's told to
+ *            allocate. 
+ *
+ * Returns:   <eslOK> on success, and <gx> may be reallocated upon
+ *            return; any data that may have been in <gx> must be 
+ *            assumed to be invalidated.
+ *
+ * Throws:    <eslEMEM> on allocation failure, and any data that may
+ *            have been in <gx> must be assumed to be invalidated.
+ */
+int
+p7_gmx_fs_GrowTo(P7_GMX *gx, int M, int L, int Lx)
+{
+  int      status;
+  void    *p;
+  uint64_t  i;
+  uint64_t ncells;
+  int      do_reset = FALSE;
+
+  M  = ESL_MAX(M,  gx->allocW-1);
+  L  = ESL_MAX(L,  gx->validR-1);
+  Lx = ESL_MAX(Lx, gx->allocR-1);
+ 
+  if (M < gx->allocW && L < gx->validR && Lx < gx->allocR) return eslOK;
+
+  if ( (uint64_t) (M+1) * (uint64_t) (Lx+1) * sizeof(float) * p7G_NSCELLS_FR > SIZE_MAX / 2) return eslEMEM;
+
+  /* must we realloc the 2D matrices? (or can we get away with just
+   * jiggering the row pointers, if we are growing in one dimension
+   * while shrinking in another?)
+   */
+  ncells = (uint64_t) (M+1) * (uint64_t) (Lx+1);
+
+  if (ncells > gx->ncells) 
+  {
+    ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * p7G_NSCELLS_FR);
+    gx->ncells = ncells;
+    do_reset   = TRUE;
+  }
+  /* must we reallocate the row pointers? */
+  if (Lx >= gx->allocR)
+  {
+    ESL_RALLOC(gx->xmx, p, sizeof(float)   * (Lx+1) * p7G_NXCELLS);
+    gx->allocR = Lx+1;		/* allocW will also get set, in the do_reset block */
+  }
+  
+  if(L >= gx->validR)
+  {
+    ESL_RALLOC(gx->dp,  p, sizeof(float *) * (L+1));
+    gx->validR= L+1;
+    do_reset   = TRUE;
+  } 
+
+  /* must we widen the rows? */
+  if (M >= gx->allocW) do_reset = TRUE; 
+  /* resize the rows and reset all the valid row pointers.*/
+  if (do_reset)
+  {
+    gx->allocW = M+1;
+    for (i = 0; i < gx->validR; i++) 
+	  gx->dp[i] = gx->dp_mem + i * (gx->allocW) * p7G_NSCELLS_FR;
+  }
+
+  gx->M      = 0;
+  gx->L      = 0;
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
+
 
 
 /* Function:  p7_gmx_sp_GrowTo()

@@ -252,7 +252,7 @@ main(int argc, char **argv)
   p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  fwd = p7_gmx_Create(gm->M, L);
+  fwd = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
   tr  = p7_trace_Create();
   esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
 
@@ -309,7 +309,7 @@ utest_stotrace(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_PROFILE
   float     maxsc = -eslINFINITY;
   float     vsc, sc;
 
-  if ((gx     = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
+  if ((gx     = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))        == NULL)  esl_fatal("matrix creation failed");
   if ((tr     = p7_trace_Create())              == NULL)  esl_fatal("trace creation failed");
     
   if (p7_GViterbi(dsq, L, gm, gx, &vsc)         != eslOK) esl_fatal("viterbi failed");
@@ -483,7 +483,7 @@ main(int argc, char **argv)
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL);
 
-  fwd = p7_gmx_Create(gm->M, sq->n);
+  fwd = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
   tr  = p7_trace_Create();
 
   p7_GViterbi(sq->dsq, sq->n, gm, fwd,  &vsc);

@@ -1140,7 +1140,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
                    pos++;  break;
     }
     t = u;
-    u = w;
+    u = v;
     v = w;
     w = x;
   } 

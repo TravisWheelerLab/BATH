@@ -1045,12 +1045,18 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs5, gx2, iv, NULL);
 
   /* Posterior Probabilities */
-  p7_gmx_fs_GrowTo(pp,  gm_fs5->M, Ld, Ld, p7P_5CODONS);
-  p7_Decoding_Frameshift(gm_fs5, gx1, gx2, pp);      
+  //p7_gmx_fs_GrowTo(pp,  gm_fs5->M, Ld, Ld, p7P_5CODONS);
+  //p7_Decoding_Frameshift(gm_fs5, gx1, gx2, pp);      
+ // p7_Decoding_Frameshift_New(gm_fs5, gx1, gx2);
+  p7_Decoding_Frameshift_New2(gm_fs5, gx1, gx2);
 
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(gm_fs5, pp, gx2, &oasc);      
-  p7_OATrace_Frameshift(gm_fs5, pp, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  //p7_OptimalAccuracy_Frameshift(gm_fs5, gx1, gx2, &oasc);
+  p7_OptimalAccuracy_Frameshift_New2(gm_fs5, gx1, gx2, &oasc);
+
+  //p7_OATrace_Frameshift(gm_fs5, pp, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  //p7_OATrace_Frameshift_New(gm_fs5, gx1, gx2, ddef->tr);
+  p7_OATrace_Frameshift_New2(gm_fs5, gx1, gx2, ddef->tr);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1082,7 +1088,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   }
 
   /* Compute bias correction */
-  p7_Null2_fs_ByExpectation(gm_fs5, pp, null2);
+  p7_Null2_fs_ByExpectation(gm_fs5, gx1, null2);
 
   t = u = v = w = x = -1;
   z = 0;

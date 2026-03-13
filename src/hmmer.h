@@ -1258,9 +1258,9 @@ extern int p7_GDecoding      (const P7_PROFILE *gm, const P7_GMX *fwd,       P7_
 extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /*decoding_frameshift*/
-extern int p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
-extern int p7_Decoding_Frameshift_New(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck);
-extern int p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck);
+extern int p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
+extern int p7_Decoding_Frameshift_New(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck);
+extern int p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck);
 extern int p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_fwdback.c */
@@ -1727,8 +1727,8 @@ extern int  p7_trace_Append(P7_TRACE *tr, char st, int k, int i);
 extern int  p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i, int c);
 extern int  p7_trace_AppendWithPP(P7_TRACE *tr, char st, int k, int i, float pp);
 extern int  p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, float pp);
-extern int  p7_trace_fs_AppendWithPP_New2(P7_TRACE *tr, char st, int k, int i, int c, float pp);
 extern int  p7_trace_splice_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, int sp, float pp);
+extern int  p7_trace_fs_AppendWithPP_New2(P7_TRACE *tr, char st, int k, int i, int c, float pp);
 extern int  p7_trace_Reverse(P7_TRACE *tr);
 extern int  p7_trace_fs_Reverse(P7_TRACE *tr);
 extern int  p7_trace_Index(P7_TRACE *tr);

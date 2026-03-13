@@ -319,11 +319,11 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
   ec = ((gm_fs5->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
  
   /* Initialization of the zero row (i=0; no residues to account for.  */
-  XMX(0,p7G_N) = 0.;                                                /* S->N, p=1            */
-  XMX(0,p7G_B) = 0.;                                                /* S->N->B, no N-tail   */
-  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;        /* need seq to get here */
+  XMX(0,p7G_N) = 0.;                                         /* S->N, p=1            */
+  XMX(0,p7G_B) = 0.;                                         /* S->N->B, no N-tail   */
+  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY; /* need seq to get here */
   for (k = 0; k <= M; k++)
-    MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;                  /* need seq to get here */
+    MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;           /* need seq to get here */
 
   /* Initialization of row 1 */
   MMX(1,0) = IMX(1,0) = DMX(1,0) = XMX(1,p7G_E) = -eslINFINITY;
@@ -338,7 +338,7 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
     XMX(1,p7G_E) = ESL_MAX(XMX(1,p7G_E), esc * MMX(1,k));
   }
   
-  MMX(1,M)  = TSCDELTA2(p7P_BM, M-1) * pp->dp[1][M*p7G_NSCELLS_FS + p7G_M + p7G_C0];
+  MMX(1,M)  = TSCDELTA2(p7P_BM, M-1) * pp->dp[1][M*p7G_NSCELLS_FS + p7G_M + p7G_C1];
   IMX(1,M)  = -eslINFINITY;
   DMX(1,M)  = ESL_MAX( TSCDELTA2(p7P_MD, M-1) * MMX(1,M-1),
                        TSCDELTA2(p7P_DD, M-1) * DMX(1,M-1));
@@ -418,7 +418,7 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
          max4 = -eslINFINITY;
 
       MMX(i,k)  = ESL_MAX( ESL_MAX( max1, max2),
-                           ESL_MAX( max3, max4)),
+                           ESL_MAX( max3, max4));
 
       IMX(i,k)  = ESL_MAX( TSCDELTA2(p7P_MI, k) * (MMX(i-3,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I]),
                            TSCDELTA2(p7P_II, k) * (IMX(i-3,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I]));
@@ -450,7 +450,7 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
       max4 = -eslINFINITY;   
 
     MMX(i,M)  = ESL_MAX( ESL_MAX( max1, max2),
-                         ESL_MAX( max3, max4)),	
+                         ESL_MAX( max3, max4));	
 
     IMX(i,M)  = -eslINFINITY; 
     DMX(i,M)  = ESL_MAX( TSCDELTA2(p7P_MD, M-1) * MMX(i,M-1),
@@ -751,8 +751,8 @@ p7_OATrace_Frameshift_New(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P
 int
 p7_OATrace_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr)
 {
-  int          i   = gx->L;  /* position in seq (1..L)         */
-  int          k   = 0;  /* position in model (1..M)       */
+  int          i   = gx->L; /* position in seq (1..L)         */
+  int          k   = 0;     /* position in model (1..M)       */
   int          c   = 0;
   float        postprob;
   int          sprv, scur;

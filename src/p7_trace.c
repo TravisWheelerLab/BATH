@@ -2171,6 +2171,55 @@ p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, float pp)
 }
 
 
+
+int
+p7_trace_fs_AppendWithPP_New2(P7_TRACE *tr, char st, int k, int i, int c, float pp)
+{
+  int status;
+
+  if ((status = p7_trace_fs_Grow(tr)) != eslOK) return status;
+
+  /* update codon length for previous state */
+  tr->c[tr->N-1] = c;
+
+  switch (st) {
+    /* Emit-on-transition states: */
+  case p7T_N:
+  case p7T_C:
+  case p7T_J:
+    if (tr->st[tr->N-1] == st)
+      {
+    tr->i[tr->N]  = i;
+    tr->pp[tr->N] = pp;
+      }
+    else
+      {
+    tr->i[tr->N]  = 0;
+    tr->pp[tr->N] = 0.0;
+      }
+    tr->k[tr->N] = 0;
+    tr->c[tr->N] = 0;
+    break;
+    /* Nonemitting states, outside main model: */
+  case p7T_X:
+  case p7T_S:
+  case p7T_B:
+  case p7T_E:
+  case p7T_T: tr->i[tr->N] = 0; tr->pp[tr->N] = 0.0; tr->k[tr->N] = 0; tr->c[tr->N] = 0; break;
+    /* Nonemitting, but in main model (k valid) */
+  case p7T_D: tr->i[tr->N] = 0; tr->pp[tr->N] = 0.0; tr->k[tr->N] = k; tr->c[tr->N] = 0; break;
+    /* Emitting states, with valid k position in model: */
+  case p7T_M: tr->i[tr->N] = i; tr->pp[tr->N] = pp;  tr->k[tr->N] = k; tr->c[tr->N] = 0; break;
+  case p7T_I: tr->i[tr->N] = i; tr->pp[tr->N] = pp;  tr->k[tr->N] = k; tr->c[tr->N] = 0; break;
+  default:    ESL_EXCEPTION(eslEINVAL, "no such state; can't append");
+  }
+
+  tr->st[tr->N] = st;
+  tr->N++;
+  return eslOK;
+}
+
+
 /* Function:  p7_trace_splice_AppendWithPP()
  * Synopsis:  Add element to growing trace, with posterior probability.
  *

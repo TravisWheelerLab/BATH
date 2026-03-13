@@ -1259,6 +1259,8 @@ extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_
 
 /*decoding_frameshift*/
 extern int p7_Decoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp);
+extern int p7_Decoding_Frameshift_New(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck);
+extern int p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, P7_GMX *bck);
 extern int p7_DomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_fwdback.c */
@@ -1268,6 +1270,7 @@ extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 
 /* fwdback_frameshift.c */
 extern int p7_Forward_Frameshift     (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_Forward_Frameshift_New  (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
@@ -1289,7 +1292,10 @@ extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_
 
 /* optacc_frameshift.c */
 extern int p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
+extern int p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
 extern int p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, const P7_GMX *probs, P7_TRACE *tr);
+extern int p7_OATrace_Frameshift_New(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_OATrace_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_stotrace.c */
 extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);
@@ -1721,6 +1727,7 @@ extern int  p7_trace_Append(P7_TRACE *tr, char st, int k, int i);
 extern int  p7_trace_fs_Append(P7_TRACE *tr, char st, int k, int i, int c);
 extern int  p7_trace_AppendWithPP(P7_TRACE *tr, char st, int k, int i, float pp);
 extern int  p7_trace_fs_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, float pp);
+extern int  p7_trace_fs_AppendWithPP_New2(P7_TRACE *tr, char st, int k, int i, int c, float pp);
 extern int  p7_trace_splice_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, int sp, float pp);
 extern int  p7_trace_Reverse(P7_TRACE *tr);
 extern int  p7_trace_fs_Reverse(P7_TRACE *tr);

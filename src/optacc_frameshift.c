@@ -903,7 +903,7 @@ select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int *
   codon[2] = TSCDELTA2(p7P_DM, k-1) * DMX(i-3,k-1);
   if(i>3)
   codon[3] = TSCDELTA2(p7P_DM, k-1) * DMX(i-4,k-1);
-  if(i>5)
+  if(i>4)
   codon[4] = TSCDELTA2(p7P_DM, k-1) * DMX(i-5,k-1);
 
   c_len[2] = esl_vec_FArgMax(codon, 5);

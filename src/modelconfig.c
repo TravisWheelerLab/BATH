@@ -675,7 +675,9 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
     }	  
   }
 
-  
+  gm_fs->fs = hmm->fs;
+  gm_fs->fsprob = hmm->fs_prob;
+    
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
   if ((status = p7_fs_ReconfigLength(gm_fs, L_amino)) != eslOK) goto ERROR;

@@ -379,7 +379,9 @@ typedef struct p7_fs_profile_s {
   int     M;                              /* number of nodes in the model                                     */
   int     max_length;                     /* calculated upper bound on emitted seq length                     */
   float   nj;                             /* expected # of uses of J; precalculated from loop config          */
-  float   fs;
+  int   fs;
+
+  float fsprob;
 
   /* Info, most of which is a copy from parent HMM:                                                           */
   char  *name;                            /* unique name of model                                             */
@@ -613,12 +615,19 @@ enum p7g_codons_e {
 };
 #define p7G_NSCELLS_FS 8
 
+enum p7g_frames_e {
+  p7G_DF = 0,
+  p7G_IF = 1,
+  p7G_MF = 2,
+};
+#define p7G_NSCELLS_FR 5
+
 enum p7g_xcells_e {
   p7G_E  = 0,
   p7G_N  = 1,
   p7G_J  = 2,
   p7G_B  = 3,
-  p7G_C  = 4
+  p7G_C  = 4,
 };
 #define p7G_NXCELLS 5
 
@@ -666,10 +675,17 @@ typedef struct p7_ivx_s {
 #define XMX(i,s) (xmx[(i) * p7G_NXCELLS + (s)])
 
 /* frameshift matrix */
-#define MMX_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M   + (c)])
+#define MMX_FS(i,k,c) (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M + (c)])
 #define IMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_I])
 #define DMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
 #define XMX_FS(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
+
+/* frame matrix */
+#define MMX_FR(i,k,f) (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_MF + (f)])
+#define IMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_IF])
+#define DMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_DF])
+#define XMX_FR(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
+
 
 /* splice matrix */
 #define MMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_M])
@@ -1274,6 +1290,7 @@ extern int p7_Forward_Frameshift_New  (const ESL_DSQ *dsq, const ESL_GENCODE *gc
 extern int p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_Backward_Frameshift_New2(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 

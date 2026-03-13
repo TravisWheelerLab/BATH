@@ -773,7 +773,6 @@ p7_OATrace_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const 
   float        postprob;
   int          sprv, scur;
   int          status;
-  float match_codon[5];
 
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");

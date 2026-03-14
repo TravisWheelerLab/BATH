@@ -348,7 +348,7 @@ static inline int select_c(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const 
 static inline int select_j(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i);
 static inline int select_e(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int *ret_k);
 static inline int select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i);
-static inline int select_codon(const P7_GMX *gx, int i, int k);
+static inline int select_codon(const P7_GMX *pp, int i, int k);
 
 /* Function:  p7_OATrace_Frameshift()
  * Synopsis:  Optimal accuracy decoding: traceback.
@@ -414,7 +414,7 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GM
 
       postprob = get_postprob(pp, scur, sprv, k, i);
 
-      if(scur == p7T_M) c = select_codon(gx, i, k);
+      if(scur == p7T_M) c = select_codon(pp, i, k);
       else              c = 0;
 
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
@@ -579,9 +579,9 @@ select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i)
 }
 
 static inline int
-select_codon(const P7_GMX *gx, int i, int k) 
+select_codon(const P7_GMX *pp, int i, int k) 
 {
-  float **dp   = gx->dp;
+  float **dp   = pp->dp;
   float codon[5];
 
   codon[0] = MMX_FS(i,k,p7G_C1);

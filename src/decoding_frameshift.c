@@ -455,17 +455,7 @@ p7_Decoding_Frameshift_New(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck
 }
 
 
-/* Posterior decoding using frame-specific backward matrix from p7_Backward_Frameshift_New2.
- * The backward matrix bck must have been filled by p7_Backward_Frameshift_New2(), which
- * stores three frame-specific M values per (i,k) using p7G_NSCELLS_FR layout.
- *
- * For each codon Cc of length c, the backward value is selected by reading frame shift c%3:
- *   C3       (c%3=0): bck MMX_FR(i,k,0) -- frame preserved, high in correct reading frame
- *   C1, C4   (c%3=1): bck MMX_FR(i,k,1) -- frame shifted +1, lower in correct reading frame
- *   C2, C5   (c%3=2): bck MMX_FR(i,k,2) -- frame shifted +2, lower in correct reading frame
- * This discriminates against quasi-codons whose frame shifts are inconsistent with the
- * dominant reading frame.
- */
+/* Try puting posteriors in probability space and only using MMX_FS(0,k, p7G_C0) */
 int
 p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
 {
@@ -476,13 +466,12 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
   float        C0, C1, C2, C3;
   int          L    = fwd->L;
   int          M    = gm_fs5->M;
-  int          i, k;
+  int          i,k;
   float overall_sc = p7_FLogsum( bck->xmx[0*p7G_NXCELLS+p7G_N],
                      p7_FLogsum( bck->xmx[1*p7G_NXCELLS+p7G_N],
                                  bck->xmx[2*p7G_NXCELLS+p7G_N]));
   float        denom;
-  float        back_C3, back_C14, back_C25, back_I;
-
+  
   N0 = fwd->xmx[p7G_NXCELLS*0 + p7G_N];
   J0 = fwd->xmx[p7G_NXCELLS*0 + p7G_J];
   C0 = fwd->xmx[p7G_NXCELLS*0 + p7G_C];
@@ -493,7 +482,7 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
 
   XMX_FS(0, p7G_E) = -eslINFINITY;
   XMX_FS(0, p7G_N) = -eslINFINITY;
-  XMX_FS(0, p7G_J) = -eslINFINITY;
+  XMX_FS(0, p7G_J) = -eslINFINITY;    
   XMX_FS(0, p7G_B) = -eslINFINITY;
   XMX_FS(0, p7G_C) = -eslINFINITY;
 
@@ -504,100 +493,89 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
 
   for (i = 1; i <= L; i++)
     {
-      N3 = N2; N2 = N1; N1 = N0;
-      J3 = J2; J2 = J1; J1 = J0;
-      C3 = C2; C2 = C1; C1 = C0;
+	 N3 = N2; N2 = N1; N1 = N0;
+     J3 = J2; J2 = J1; J1 = J0;
+	 C3 = C2; C2 = C1; C1 = C0;
 
-      denom = 0.0;
-
-      /* 0th position in model */
-      MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = -eslINFINITY;
-      MMX_FS(i,0,p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
+     denom = 0.0;
+     /* 0th position in model */    
+	  MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = -eslINFINITY;
+      MMX_FS(i,0, p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
 
       for (k = 1; k < M; k++)
       {
-        /* Frame-specific backward values: frame = codon_length % 3 */
-        back_C3  = bck->dp[i][k*p7G_NSCELLS_FR + p7G_M + p7G_F1] - overall_sc;  /* C3:    frame 0 */
-        back_C14 = bck->dp[i][k*p7G_NSCELLS_FR + p7G_M + p7G_F2] - overall_sc;  /* C1,C4: frame 1 */
-        back_C25 = bck->dp[i][k*p7G_NSCELLS_FR + p7G_M + p7G_F3] - overall_sc;  /* C2,C5: frame 2 */
-        back_I   = bck->dp[i][k*p7G_NSCELLS_FR + p7G_I]     - overall_sc;
+        MMX_FS(i,k,p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX_FS(i,k, p7G_C0);
+        MMX_FS(i,k,p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); 
+        MMX_FS(i,k,p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
+        MMX_FS(i,k,p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
+        MMX_FS(i,k,p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
+        MMX_FS(i,k,p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);        
 
-        MMX_FS(i,k,p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_C14);
-        MMX_FS(i,k,p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_C25);
-        MMX_FS(i,k,p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_C3);
-        MMX_FS(i,k,p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_C14);
-        MMX_FS(i,k,p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_C25);
-        MMX_FS(i,k,p7G_C0) = MMX_FS(i,k,p7G_C1) + MMX_FS(i,k,p7G_C2) + MMX_FS(i,k,p7G_C3)
-                                                 + MMX_FS(i,k,p7G_C4) + MMX_FS(i,k,p7G_C5);
-        denom += MMX_FS(i,k,p7G_C0);
-
-        IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + back_I);
-        denom += IMX_FS(i,k);
+        IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc); denom += IMX_FS(i,k); 
 
         DMX_FS(i,k) = -eslINFINITY;
       }
 
-      /* Final model position - no insert state */
-      back_C3  = bck->dp[i][M*p7G_NSCELLS_FR + p7G_M + p7G_F1] - overall_sc;
-      back_C14 = bck->dp[i][M*p7G_NSCELLS_FR + p7G_M + p7G_F2] - overall_sc;
-      back_C25 = bck->dp[i][M*p7G_NSCELLS_FR + p7G_M + p7G_F3] - overall_sc;
-
-      MMX_FS(i,M,p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_C14);
-      MMX_FS(i,M,p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_C25);
-      MMX_FS(i,M,p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] + back_C3);
-      MMX_FS(i,M,p7G_C4) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] + back_C14);
-      MMX_FS(i,M,p7G_C5) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] + back_C25);
-      MMX_FS(i,M,p7G_C0) = MMX_FS(i,M,p7G_C1) + MMX_FS(i,M,p7G_C2) + MMX_FS(i,M,p7G_C3)
-                                              + MMX_FS(i,M,p7G_C4) + MMX_FS(i,M,p7G_C5);
-      denom += MMX_FS(i,M,p7G_C0);
-
-      IMX_FS(i,M) = -eslINFINITY;
+      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX_FS(i,M, p7G_C0); 
+      MMX_FS(i,M, p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
+      MMX_FS(i,M, p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
+      MMX_FS(i,M, p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
+      MMX_FS(i,M, p7G_C4) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
+      MMX_FS(i,M, p7G_C5) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
+                       
+      IMX_FS(i,M) = -eslINFINITY; 
       DMX_FS(i,M) = -eslINFINITY;
 
-      /* No emission from E or B states */
-      XMX_FS(i,p7G_E) = -eslINFINITY;
-      XMX_FS(i,p7G_B) = -eslINFINITY;
+      /* no emission from E or B states */
+      XMX_FS(i,p7G_E)  = -eslINFINITY;
+      XMX_FS(i,p7G_B)  = -eslINFINITY;  
 
-      /* Probability from N, J and C states */
-      N0 = fwd->xmx[p7G_NXCELLS*i + p7G_N];
-      J0 = fwd->xmx[p7G_NXCELLS*i + p7G_J];
-      C0 = fwd->xmx[p7G_NXCELLS*i + p7G_C];
-      if (i > 2)
+      /* probaility from N, J and C states */
+	  N0 = fwd->xmx[p7G_NXCELLS*i + p7G_N];
+	  J0 = fwd->xmx[p7G_NXCELLS*i + p7G_J];
+	  C0 = fwd->xmx[p7G_NXCELLS*i + p7G_C];
+      if(i > 2)
       {
-        XMX_FS(i,p7G_N) = expf(N3 + bck->xmx[p7G_NXCELLS*i + p7G_N] + gm_fs5->xsc[p7P_N][p7P_LOOP] - overall_sc);
-        XMX_FS(i,p7G_C) = expf(C3 + bck->xmx[p7G_NXCELLS*i + p7G_C] + gm_fs5->xsc[p7P_C][p7P_LOOP] - overall_sc);
-        XMX_FS(i,p7G_J) = expf(J3 + bck->xmx[p7G_NXCELLS*i + p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_sc);
-        denom += XMX_FS(i,p7G_N) + XMX_FS(i,p7G_J) + XMX_FS(i,p7G_C);
+         XMX_FS(i,p7G_N) = expf(N3 + bck->xmx[p7G_NXCELLS*i + p7G_N] + gm_fs5->xsc[p7P_N][p7P_LOOP] - overall_sc);
+
+         XMX_FS(i,p7G_C) = expf(C3 + bck->xmx[p7G_NXCELLS*i + p7G_C] + gm_fs5->xsc[p7P_C][p7P_LOOP] - overall_sc);
+         
+         XMX_FS(i,p7G_J) = expf(J3 + bck->xmx[p7G_NXCELLS*i + p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_sc);
+
+         denom += XMX_FS(i,p7G_N) + XMX_FS(i,p7G_J) + XMX_FS(i,p7G_C);
       }
       else
       {
-        XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] - overall_sc);
-        XMX_FS(i,p7G_C) = -eslINFINITY;
-        XMX_FS(i,p7G_J) = -eslINFINITY;
-        denom += XMX_FS(i,p7G_N);
+         XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] - overall_sc);
+         XMX_FS(i,p7G_C) = -eslINFINITY;
+         XMX_FS(i,p7G_J) = -eslINFINITY;
+         denom += XMX_FS(i,p7G_N);
       }
 
-      denom = 1.0 / denom;
+        denom = 1.0 / denom;
+ 
+        for (k = 1; k < M; k++) { 
+          MMX_FS(i,k, p7G_C0) *= denom; 
+          MMX_FS(i,k, p7G_C1) *= denom;
+          MMX_FS(i,k, p7G_C2) *= denom;
+          MMX_FS(i,k, p7G_C3) *= denom;
+          MMX_FS(i,k, p7G_C4) *= denom;
+          MMX_FS(i,k, p7G_C5) *= denom;
 
-      for (k = 1; k < M; k++) {
-        MMX_FS(i,k,p7G_C0) *= denom;
-        MMX_FS(i,k,p7G_C1) *= denom;
-        MMX_FS(i,k,p7G_C2) *= denom;
-        MMX_FS(i,k,p7G_C3) *= denom;
-        MMX_FS(i,k,p7G_C4) *= denom;
-        MMX_FS(i,k,p7G_C5) *= denom;
-        IMX_FS(i,k) *= denom;
-      }
-      MMX_FS(i,M,p7G_C0) *= denom;
-      MMX_FS(i,M,p7G_C1) *= denom;
-      MMX_FS(i,M,p7G_C2) *= denom;
-      MMX_FS(i,M,p7G_C3) *= denom;
-      MMX_FS(i,M,p7G_C4) *= denom;
-      MMX_FS(i,M,p7G_C5) *= denom;
-      XMX_FS(i,p7G_N) *= denom;
-      XMX_FS(i,p7G_C) *= denom;
-      XMX_FS(i,p7G_J) *= denom;
+          IMX_FS(i,k) *= denom;
+        }
+        MMX_FS(i,M, p7G_C0) *= denom;
+        MMX_FS(i,M, p7G_C1) *= denom;
+        MMX_FS(i,M, p7G_C2) *= denom;
+        MMX_FS(i,M, p7G_C3) *= denom;
+        MMX_FS(i,M, p7G_C4) *= denom;
+        MMX_FS(i,M, p7G_C5) *= denom;
+
+        XMX_FS(i,p7G_N) *= denom;
+        XMX_FS(i,p7G_C) *= denom;
+        XMX_FS(i,p7G_J) *= denom;
     }
+
 
   return eslOK;
 }

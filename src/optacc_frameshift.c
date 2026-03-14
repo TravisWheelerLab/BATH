@@ -778,7 +778,7 @@ p7_OATrace_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const 
     {
 
      switch (sprv) {
-      case p7T_M: scur = select_m_new2(gm_fs5,     gx, i,  k,); k--;  break;
+      case p7T_M: scur = select_m_new2(gm_fs5,     gx, i,  k); k--;  break;
       case p7T_D: scur = select_d_new2(gm_fs5,     gx, i,  k);    k--;  break;
       case p7T_I: scur = select_i_new2(gm_fs5,     gx, i,  k);    i-=3; break;
       case p7T_N: scur = select_n(                     i);              break;

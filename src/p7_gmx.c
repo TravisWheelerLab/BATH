@@ -241,13 +241,13 @@ p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance)
   if (gx1->M != gx2->M) return eslFAIL;
   if (gx1->L != gx2->L) return eslFAIL;
 
-  if (gx1-nscells != gx2-nscells) return eslFAIL;
+  if (gx1->nscells != gx2->nscells) return eslFAIL;
 
   for (i = 0; i <= gx1->L; i++)
   {
       for (k = 1; k <= gx1->M; k++) /* k=0 is a boundary; doesn't need to be checked */
       {
-		for(s = 0, s < gx1->nscells; s++)
+		for(s = 0; s < gx1->nscells; s++)
           if (esl_FCompare_old(gx1->dp[i][k * gx1->nscells + s],  gx2->dp[i][k * gx2->nscells + s], tolerance) != eslOK) return eslFAIL;
       }
       for (x = 0; x < p7G_NXCELLS; x++)
@@ -294,7 +294,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
 {
   int   width     = 9;
   int   precision = 5;
-  int   i, k, x;
+  int   i, k, c, f, x;
   float val;
 
   /* Header */
@@ -310,28 +310,91 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
   /* DP matrix data */
   for (i = istart; i <= iend; i++)
   {
+    if(gx->nscells == p7G_NSCELLS) {
       fprintf(ofp, "%3d M ", i);
       for (k = kstart; k <= kend;        k++)  
-	{
-	  val = gx->dp[i][k * p7G_NSCELLS + p7G_M];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f ", width, precision, val);
-	}
+	  {
+	    val = gx->dp[i][k * p7G_NSCELLS + p7G_M];
+	    if (flags & p7_SHOW_LOG) val = log(val);
+	    fprintf(ofp, "%*.*f ", width, precision, val);
+	  } 
       if (! (flags & p7_HIDE_SPECIALS))
-	{
-    	  for (x = 0;  x <  p7G_NXCELLS; x++) 
-	    {
-	      val = gx->xmx[  i * p7G_NXCELLS + x];
-	      if (flags & p7_SHOW_LOG) val = log(val);
-	      fprintf(ofp, "%*.*f ", width, precision, val);
-	    }
-	}
+      {
+        for (x = 0;  x <  p7G_NXCELLS; x++)
+        {
+          val = gx->xmx[  i * p7G_NXCELLS + x];
+          if (flags & p7_SHOW_LOG) val = log(val);
+          fprintf(ofp, "%*.*f ", width, precision, val);
+        }
+      }
       fprintf(ofp, "\n");
+    }
+    else if(gx->nscells == p7G_NSCELLS_FS) {
+      for(c < p7G_C0; c <= p7G_C5; c++) {
+        fprintf(ofp, "%3d M%d ", i, c);
+        for (k = kstart; k <= kend;        k++)
+        {
+          val = gx->dp[i][k * p7G_NSCELLS_FS + p7G_M + c];
+          if (flags & p7_SHOW_LOG) val = log(val);
+          fprintf(ofp, "%*.*f ", width, precision, val);
+        }
+        if (c == p7G_C0 && ! (flags & p7_HIDE_SPECIALS))
+        {
+          for (x = 0;  x <  p7G_NXCELLS; x++)
+          {
+            val = gx->xmx[  i * p7G_NXCELLS + x];
+            if (flags & p7_SHOW_LOG) val = log(val);
+            fprintf(ofp, "%*.*f ", width, precision, val);
+          }
+        }
+        fprintf(ofp, "\n");
+      }
+    }
+    else if(gx->nscells == p7G_NSCELLS_FR) {
+      for (f = p7G_F1; f < p7G_F3; f++) {
+        fprintf(ofp, "%3d M F%d ", i, f+1);
+        for (k = kstart; k <= kend;        k++)
+        {
+          val = gx->dp[i][k * p7G_NSCELLS_FR + p7G_M + f];
+          if (flags & p7_SHOW_LOG) val = log(val);
+          fprintf(ofp, "%*.*f ", width, precision, val);
+        }
+        if (f == p7G_F1 && ! (flags & p7_HIDE_SPECIALS))
+        {
+          for (x = 0;  x <  p7G_NXCELLS; x++)
+          {
+            val = gx->xmx[  i * p7G_NXCELLS + x];
+            if (flags & p7_SHOW_LOG) val = log(val);
+            fprintf(ofp, "%*.*f ", width, precision, val);
+          }
+        }
+        fprintf(ofp, "\n");
+      }
+    }
+    else if(gx->nscells == p7G_NSCELLS_SP) {
+      fprintf(ofp, "%3d M ", i);
+      for (k = kstart; k <= kend;        k++)
+      {
+        val = gx->dp[i][k * p7G_NSCELLS_SP + p7G_M];
+        if (flags & p7_SHOW_LOG) val = log(val);
+        fprintf(ofp, "%*.*f ", width, precision, val);
+      }
+      if (! (flags & p7_HIDE_SPECIALS))
+      {
+        for (x = 0;  x <  p7G_NXCELLS; x++)
+        {
+          val = gx->xmx[  i * p7G_NXCELLS + x];
+          if (flags & p7_SHOW_LOG) val = log(val);
+          fprintf(ofp, "%*.*f ", width, precision, val);
+        }
+      }
+      fprintf(ofp, "\n");
+    }
 
-      fprintf(ofp, "%3d I ", i);
-      for (k = kstart; k <= kend;        k++) 
+    fprintf(ofp, "%3d I ", i);
+    for (k = kstart; k <= kend;        k++) 
 	{
-	  val = gx->dp[i][k * p7G_NSCELLS + p7G_I];
+	  val = gx->dp[i][k * gx->nscells + p7G_I];
 	  if (flags & p7_SHOW_LOG) val = log(val);
 	  fprintf(ofp, "%*.*f ", width, precision, val);
 	}
@@ -340,10 +403,22 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
       fprintf(ofp, "%3d D ", i);
       for (k = kstart; k <= kend;        k++) 
 	{
-	  val =  gx->dp[i][k * p7G_NSCELLS + p7G_D];
+	  val =  gx->dp[i][k * gx->nscells + p7G_D];
 	  if (flags & p7_SHOW_LOG) val = log(val);
 	  fprintf(ofp, "%*.*f ", width, precision, val);
 	}
+    if(gx->nscells == p7G_NSCELLS_SP) {
+      fprintf(ofp, "%3d P ", i);
+      for (k = kstart; k <= kend;        k++)
+      {
+        val = gx->dp[i][k * gx->nscells + p7G_P];
+        if (flags & p7_SHOW_LOG) val = log(val);
+        fprintf(ofp, "%*.*f ", width, precision, val);
+      }
+      fprintf(ofp, "\n");
+
+    }
+
       fprintf(ofp, "\n\n");
   }
   return eslOK;

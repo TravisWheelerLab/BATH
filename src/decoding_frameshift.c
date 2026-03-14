@@ -517,10 +517,10 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
       for (k = 1; k < M; k++)
       {
         /* Frame-specific backward values: frame = codon_length % 3 */
-        back_C3  = bck->dp[i][k*p7G_NSCELLS_FR + p7G_MF + 0] - overall_sc;  /* C3:    frame 0 */
-        back_C14 = bck->dp[i][k*p7G_NSCELLS_FR + p7G_MF + 1] - overall_sc;  /* C1,C4: frame 1 */
-        back_C25 = bck->dp[i][k*p7G_NSCELLS_FR + p7G_MF + 2] - overall_sc;  /* C2,C5: frame 2 */
-        back_I   = bck->dp[i][k*p7G_NSCELLS_FR + p7G_IF]     - overall_sc;
+        back_C3  = bck->dp[i][k*p7G_NSCELLS_FR + p7G_M + p7G_F1] - overall_sc;  /* C3:    frame 0 */
+        back_C14 = bck->dp[i][k*p7G_NSCELLS_FR + p7G_M + p7G_F2] - overall_sc;  /* C1,C4: frame 1 */
+        back_C25 = bck->dp[i][k*p7G_NSCELLS_FR + p7G_M + p7G_F3] - overall_sc;  /* C2,C5: frame 2 */
+        back_I   = bck->dp[i][k*p7G_NSCELLS_FR + p7G_I]     - overall_sc;
 
         MMX_FS(i,k,p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_C14);
         MMX_FS(i,k,p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_C25);
@@ -538,9 +538,9 @@ p7_Decoding_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bc
       }
 
       /* Final model position - no insert state */
-      back_C3  = bck->dp[i][M*p7G_NSCELLS_FR + p7G_MF + 0] - overall_sc;
-      back_C14 = bck->dp[i][M*p7G_NSCELLS_FR + p7G_MF + 1] - overall_sc;
-      back_C25 = bck->dp[i][M*p7G_NSCELLS_FR + p7G_MF + 2] - overall_sc;
+      back_C3  = bck->dp[i][M*p7G_NSCELLS_FR + p7G_M + p7G_F1] - overall_sc;
+      back_C14 = bck->dp[i][M*p7G_NSCELLS_FR + p7G_M + p7G_F2] - overall_sc;
+      back_C25 = bck->dp[i][M*p7G_NSCELLS_FR + p7G_M + p7G_F3] - overall_sc;
 
       MMX_FS(i,M,p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + back_C14);
       MMX_FS(i,M,p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + back_C25);

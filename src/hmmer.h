@@ -599,26 +599,26 @@ typedef struct p7_hmmfile_s {
  * 6. P7_GMX: a "generic" dynamic programming matrix
  *****************************************************************/
 enum p7g_scells_e {
-  p7G_M = 0,
+  p7G_D = 0,
   p7G_I = 1,
-  p7G_D = 2,
+  p7G_M = 2,
 };
 #define p7G_NSCELLS 3
 
 enum p7g_codons_e {
   p7G_C0 = 0,
-  p7G_C1 = 3,
-  p7G_C2 = 4,
-  p7G_C3 = 5,
-  p7G_C4 = 6,
-  p7G_C5 = 7,
+  p7G_C1 = 1,
+  p7G_C2 = 2,
+  p7G_C3 = 3,
+  p7G_C4 = 4,
+  p7G_C5 = 5,
 };
 #define p7G_NSCELLS_FS 8
 
 enum p7g_frames_e {
-  p7G_DF = 0,
-  p7G_IF = 1,
-  p7G_MF = 2,
+  p7G_F1 = 0,
+  p7G_F2 = 1,
+  p7G_F3 = 2,
 };
 #define p7G_NSCELLS_FR 5
 
@@ -643,6 +643,7 @@ typedef struct p7_gmx_s {
   int      allocR;      /* current allocated # of rows : L+1 <= validR <= allocR                */
   int      validR;      /* # of rows actually pointing at DP memory                             */
   int      allocW;      /* current set row width :  M+1 <= allocW                               */
+  int      allocC; //TODO remove
   int      nscells;     /* which p7G_NSCELLS macro was used to allocate this matrix             */
   uint64_t ncells;      /* total # of allocated cells in 2D matrix : ncells >= (validR)(allocW) */
 
@@ -680,9 +681,9 @@ typedef struct p7_ivx_s {
 #define XMX_FS(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
 
 /* frame matrix */
-#define MMX_FR(i,k,f) (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_MF + (f)])
-#define IMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_IF])
-#define DMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_DF])
+#define MMX_FR(i,k,f) (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_M + (f)])
+#define IMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_I])
+#define DMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_D])
 #define XMX_FR(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
 
 

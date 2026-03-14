@@ -120,8 +120,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_
                 ESL_MAX( TSCDELTA(p7P_DM, k-1) + DMX(2-c,k-1),
                          TSCDELTA(p7P_BM, k-1) + XMX(2-c,p7G_B))));
 
-    /* c+2 turns the codon length into the correct matrix index */
-    MMX(2,k)  = (MMX(2,k)  != -eslINFINITY ?  p7_FLogsum(MMX(2,k), pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + (c+2)]) : -eslINFINITY);
+    MMX(2,k)  = (MMX(2,k)  != -eslINFINITY ?  p7_FLogsum(MMX(2,k), pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + c]) : -eslINFINITY);
     IMX(2,k)  = -eslINFINITY;  
     DMX(2,k)  = ESL_MAX( TSCDELTA(p7P_MD, k-1) + MMX(2,k-1),
                          TSCDELTA(p7P_DD, k-1) + DMX(2,k-1));
@@ -140,8 +139,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_
               ESL_MAX( TSCDELTA(p7P_DM, M-1) + DMX(2-c,M-1),
                        TSCDELTA(p7P_BM, M-1) + XMX(2-c,p7G_B))));
 
-  /* c+2 turns the codon length into the correct matrix index */
-  MMX(2,M)  = (MMX(2,M)  != -eslINFINITY ?  p7_FLogsum(MMX(2,M), pp->dp[2][M*p7G_NSCELLS_FS + p7G_M + (c+2)]) : -eslINFINITY);
+  MMX(2,M)  = (MMX(2,M)  != -eslINFINITY ?  p7_FLogsum(MMX(2,M), pp->dp[2][M*p7G_NSCELLS_FS + p7G_M + c]) : -eslINFINITY);
   IMX(2,M)  = -eslINFINITY;
   DMX(2,M)  = ESL_MAX( TSCDELTA(p7P_MD, M-1) + MMX(2,M-1),
                        TSCDELTA(p7P_DD, M-1) + DMX(2,M-1));
@@ -173,8 +171,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_
                   ESL_MAX( TSCDELTA(p7P_DM, k-1) + DMX(i-c,k-1),
                            TSCDELTA(p7P_BM, k-1) + XMX(i-c,p7G_B))));
 
-      /* c+2 turns the codon length into the correct matrix index */
-      MMX(i,k)  = (MMX(i,k)  != -eslINFINITY ?  p7_FLogsum(MMX(i,k), pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + (c+2)]) : -eslINFINITY);
+      MMX(i,k)  = (MMX(i,k)  != -eslINFINITY ?  p7_FLogsum(MMX(i,k), pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + c]) : -eslINFINITY);
  
       IMX(i,k)  = ESL_MAX( TSCDELTA(p7P_MI, k) + MMX(i-3,k),
                            TSCDELTA(p7P_II, k) + IMX(i-3,k));
@@ -199,8 +196,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_
                 ESL_MAX( TSCDELTA(p7P_DM, M-1) + DMX(i-c,M-1),
                          TSCDELTA(p7P_BM, M-1) + XMX(i-c,p7G_B))));
 
-    /* c+2 turns the codon length into the correct matrix index */
-    MMX(i,M)  = (MMX(i,M)  != -eslINFINITY ?  p7_FLogsum(MMX(i,M), pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + (c+2)]) : -eslINFINITY);
+    MMX(i,M)  = (MMX(i,M)  != -eslINFINITY ?  p7_FLogsum(MMX(i,M), pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + c]) : -eslINFINITY);
 
     IMX(i,M)  = -eslINFINITY; 
     DMX(i,M)  = ESL_MAX( TSCDELTA(p7P_MD, M-1) + MMX(i,M-1),
@@ -239,8 +235,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_
                   ESL_MAX( TSCDELTA(p7P_DM, k-1) + DMX(i-c,k-1),
                            TSCDELTA(p7P_BM, k-1) + XMX(i-c,p7G_B))));
 
-      /* c+2 turns the codon length into the correct matrix index */
-      MMX(i,k)  = (MMX(i,k)  != -eslINFINITY ?  p7_FLogsum(MMX(i,k), pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + (c+2)]) : -eslINFINITY);
+      MMX(i,k)  = (MMX(i,k)  != -eslINFINITY ?  p7_FLogsum(MMX(i,k), pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + c]) : -eslINFINITY);
 
       IMX(i,k)  = ESL_MAX( TSCDELTA(p7P_MI, k) + MMX(i-3,k), 
                            TSCDELTA(p7P_II, k) + IMX(i-3,k));
@@ -266,8 +261,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_
                 ESL_MAX( TSCDELTA(p7P_DM, M-1) + DMX(i-c,M-1),
                          TSCDELTA(p7P_BM, M-1) + XMX(i-c,p7G_B))));
 
-    /* c+2 turns the codon length into the correct matrix index */
-    MMX(i,M)  = (MMX(i,M)  != -eslINFINITY ?  p7_FLogsum(MMX(i,M), pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + (c+2)]) : -eslINFINITY);
+    MMX(i,M)  = (MMX(i,M)  != -eslINFINITY ?  p7_FLogsum(MMX(i,M), pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + c]) : -eslINFINITY);
 
     IMX(i,M)     = -eslINFINITY;
     DMX(i,M)     = ESL_MAX( TSCDELTA(p7P_MD, M-1) + MMX(i,M-1), TSCDELTA(p7P_DD, M-1) + DMX(i,M-1));

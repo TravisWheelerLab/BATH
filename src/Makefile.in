@@ -1,4 +1,4 @@
-# VPATH and shell configuration
+# VPATH and shell configuratio
 top_srcdir = @top_srcdir@
 srcdir     = @srcdir@
 VPATH      = @srcdir@ 
@@ -104,6 +104,7 @@ OBJS =  build.o\
 	p7_gmxb.o\
 	p7_gmxchk.o\
 	p7_gmx_fs.o\
+    p7_ivx.o\
 	p7_hit.o\
 	p7_hmm.o\
 	p7_hmmfile.o\

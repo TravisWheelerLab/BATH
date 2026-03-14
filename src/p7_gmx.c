@@ -330,7 +330,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
       fprintf(ofp, "\n");
     }
     else if(gx->nscells == p7G_NSCELLS_FS) {
-      for(c < p7G_C0; c <= p7G_C5; c++) {
+      for(c = p7G_C0; c <= p7G_C5; c++) {
         fprintf(ofp, "%3d M%d ", i, c);
         for (k = kstart; k <= kend;        k++)
         {

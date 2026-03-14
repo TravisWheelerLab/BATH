@@ -230,9 +230,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float   *tp;
   float    sc[p7_MAXCODE];
   float    Z;
-  float    one_indel = 0.f; 
-  float    two_indel = 0.f;
-  float    no_indel  = 0.f;
+  float    one_indel  = 0.f; 
+  float    two_indel  = 0.f;
+  float    no_indel   = 0.f;
+  float    stop_codon = 0.f;
 
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
@@ -240,13 +241,15 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   if (! (hmm->flags & p7H_CONS))          ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
 
   if (gm_fs->codon_lengths == 5) {
-    maxcodons = p7P_MAXCODONS5;
-	one_indel = log(hmm->fsprob);
-    two_indel = log(hmm->fsprob / 2.);
-    no_indel  = log(1. - hmm->fsprob * 4.);
+    maxcodons  = p7P_MAXCODONS5;
+	one_indel  = log(hmm->fsprob);
+    two_indel  = log(hmm->fsprob / 2.);
+    stop_codon = log(hmm->fsprob);
+    no_indel   = log(1.- hmm->fsprob * 4.);
   } else if (gm_fs->codon_lengths == 3) {
     maxcodons = p7P_MAXCODONS3;
-	one_indel = log(hmm->fsprob);
+	one_indel  = log(hmm->fsprob);
+    stop_codon = log(hmm->fsprob);
     no_indel  = log(1. - hmm->fsprob * 3.);
   } else if (gm_fs->codon_lengths == 1) {
     maxcodons = p7P_MAXCODONS1;
@@ -502,7 +505,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 		    codon_idx = p7P_CODON3_FS5(v, w, x);
 			codon = 16 * v + 4 * w + x;
 			a = gcode->basic[codon];
-			p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? one_indel : no_indel;
+			p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? stop_codon : no_indel;
 			for (u = 0; u < 4; u++) {
 			  codon_idx = p7P_CODON4_FS5(u, v, w, x);
 			  p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
@@ -635,7 +638,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
             codon_idx = p7P_CODON3_FS3(v, w, x);
             codon = 16 * v + 4 * w + x;
             a = gcode->basic[codon];
-            p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? one_indel : no_indel;
+            p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? stop_codon : no_indel;
             for (u = 0; u < 4; u++) {
               codon_idx = p7P_CODON4_FS3(u, v, w, x);
               p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;

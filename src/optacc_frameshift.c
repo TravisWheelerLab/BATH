@@ -479,7 +479,7 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
  
   for (i = 5; i <= L; i++) {
     MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = -eslINFINITY;
-    MMX_FS(i,0,p7G_C1) = IMX_FS(i,0) = DMX_FS(i,0) = XMX_FS(i,p7G_E) = -eslINFINITY;
+    MMX_FS(i,0,p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = XMX_FS(i,p7G_E) = -eslINFINITY;
    
     for (k = 1; k < M; k++) {
 

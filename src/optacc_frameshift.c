@@ -583,7 +583,7 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
 static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
 static inline float get_postprob_new(const P7_GMX *pp, int scur, int sprv, int k, int i);
 static inline int select_m(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
-static inline int select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int *ret_c);
+static inline int select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int c);
 static inline int select_d(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
 static inline int select_d_new2(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
 static inline int select_i(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
@@ -597,7 +597,7 @@ static inline int select_e(const P7_FS_PROFILE *gm_fs5,                   const 
 static inline int select_e_new2(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int *ret_k);
 static inline int select_b(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i);
 static inline int select_b_new2(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i);
-
+static inline int select_codon(const P7_GMX *gx, int i, int k);
 
 /* Function:  p7_OATrace_Frameshift()
  * Synopsis:  Optimal accuracy decoding: traceback.
@@ -778,26 +778,29 @@ p7_OATrace_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const 
     {
 
      switch (sprv) {
-      case p7T_M: scur = select_m_new2(gm_fs5,     gx, i,  k, &c); i-=c; k--;  break;
-      case p7T_D: scur = select_d_new2(gm_fs5,     gx, i,  k);          k--;  break;
-      case p7T_I: scur = select_i_new2(gm_fs5,     gx, i,  k); i -= 3;        break;
+      case p7T_M: scur = select_m_new2(gm_fs5,     gx, i,  k, c); k--;  break;
+      case p7T_D: scur = select_d_new2(gm_fs5,     gx, i,  k);    k--;  break;
+      case p7T_I: scur = select_i_new2(gm_fs5,     gx, i,  k);    i-=3; break;
       case p7T_N: scur = select_n(               i);                    break;
-      case p7T_C: scur = select_c_new2(gm_fs5, pp, gx, i);                    break;
-      case p7T_J: scur = select_j_new2(gm_fs5, pp, gx, i);                    break;
-      case p7T_E: scur = select_e_new2(gm_fs5,     gx, i, &k);                break;
-      case p7T_B: scur = select_b_new2(gm_fs5,     gx, i);                    break;
+      case p7T_C: scur = select_c_new2(gm_fs5, pp, gx, i);              break;
+      case p7T_J: scur = select_j_new2(gm_fs5, pp, gx, i);              break;
+      case p7T_E: scur = select_e_new2(gm_fs5,     gx, i, &k);          break;
+      case p7T_B: scur = select_b_new2(gm_fs5,     gx, i);              break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
 
       postprob = get_postprob(pp, scur, sprv, k, i);
 
+      if(scur == p7T_M) c = select_codon(gx, i, k);
+      else              c = 0;
+
       if ((status = p7_trace_fs_AppendWithPP_New2(tr, scur, k, i, c, postprob)) != eslOK) return status;
 
       /* For NCJ, we had to defer i decrement. */
       if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
       sprv = scur;
-      c = 0;
+      i -= c;
     }
   tr->M = gm_fs5->M;
   tr->L = gx->L;
@@ -861,80 +864,20 @@ select_m(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
 
 
 static inline int
-select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int *c)
+select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int c)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float       *xmx  = gx->xmx; /* so XMX() macro works           */
   float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
-  float codon[5];
   float path[4];
-  int   max_p;
-  int   c_len[4];
   int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
 
-  esl_vec_FSet(codon, 5, -eslINFINITY); 
+  path[0] = TSCDELTA2(p7P_MM, k-1) * MMX_FS(i-c,k-1,p7G_C0);
+  path[1] = TSCDELTA2(p7P_IM, k-1) * IMX_FS(i-c,k-1);
+  path[2] = TSCDELTA2(p7P_DM, k-1) * DMX_FS(i-c,k-1); 
+  path[3] = TSCDELTA2(p7P_BM, k-1) * XMX_FS(i-c,p7G_B);
 
-  codon[0] = TSCDELTA2(p7P_MM, k-1) * MMX(i-1,k-1);
-  if(i>1)
-  codon[1] = TSCDELTA2(p7P_MM, k-1) * MMX(i-2,k-1);
-  if(i>2)
-  codon[2] = TSCDELTA2(p7P_MM, k-1) * MMX(i-3,k-1);
-  if(i>3)
-  codon[3] = TSCDELTA2(p7P_MM, k-1) * MMX(i-4,k-1);
-  if(i>4)
-  codon[4] = TSCDELTA2(p7P_MM, k-1) * MMX(i-5,k-1);
-
-  c_len[0] = esl_vec_FArgMax(codon, 5);
-  path[0]  = codon[c_len[0]];
-
-  esl_vec_FSet(codon, 5, -eslINFINITY); 
-
-  codon[0] = TSCDELTA2(p7P_IM, k-1) * IMX(i-1,k-1);
-  if(i>1)
-  codon[1] = TSCDELTA2(p7P_IM, k-1) * IMX(i-2,k-1);
-  if(i>2)
-  codon[2] = TSCDELTA2(p7P_IM, k-1) * IMX(i-3,k-1);
-  if(i>3)
-  codon[3] = TSCDELTA2(p7P_IM, k-1) * IMX(i-4,k-1);
-  if(i>4)
-  codon[4] = TSCDELTA2(p7P_IM, k-1) * IMX(i-5,k-1);
-
-  c_len[1] = esl_vec_FArgMax(codon, 5);
-  path[1]  = codon[c_len[1]];
-
-  esl_vec_FSet(codon, 5, -eslINFINITY); 
-
-  codon[0] = TSCDELTA2(p7P_DM, k-1) * DMX(i-1,k-1);
-  if(i>1)
-  codon[1] = TSCDELTA2(p7P_DM, k-1) * DMX(i-2,k-1);
-  if(i>2)
-  codon[2] = TSCDELTA2(p7P_DM, k-1) * DMX(i-3,k-1);
-  if(i>3)
-  codon[3] = TSCDELTA2(p7P_DM, k-1) * DMX(i-4,k-1);
-  if(i>4)
-  codon[4] = TSCDELTA2(p7P_DM, k-1) * DMX(i-5,k-1);
-
-  c_len[2] = esl_vec_FArgMax(codon, 5);
-  path[2]  = codon[c_len[2]];
-
-  esl_vec_FSet(codon, 5, -eslINFINITY);
-
-  codon[0] = TSCDELTA2(p7P_BM, k-1) * XMX(i-1,p7G_B);
-  if(i>1)
-  codon[1] = TSCDELTA2(p7P_BM, k-1) * XMX(i-2,p7G_B);
-  if(i>2)
-  codon[2] = TSCDELTA2(p7P_BM, k-1) * XMX(i-3,p7G_B);
-  if(i>3)
-  codon[3] = TSCDELTA2(p7P_BM, k-1) * XMX(i-4,p7G_B);
-  if(i>4)
-  codon[4] = TSCDELTA2(p7P_BM, k-1) * XMX(i-5,p7G_B);
-
-  c_len[3] = esl_vec_FArgMax(codon, 5);
-  path[3]  = codon[c_len[3]];
-
-  max_p = esl_vec_FArgMax(path, 4);
-  *c = c_len[max_p] + 1;
-  return state[max_p];
+  return state[esl_vec_FArgMax(path, 4)];
 
 }
 
@@ -957,8 +900,8 @@ select_d_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
   float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
   float        path[2];
 
-  path[0] = TSCDELTA2(p7P_MD, k-1) * MMX(i, k-1);
-  path[1] = TSCDELTA2(p7P_DD, k-1) * DMX(i, k-1);
+  path[0] = TSCDELTA2(p7P_MD, k-1) * MMX_FS(i, k-1,p7G_C0);
+  path[1] = TSCDELTA2(p7P_DD, k-1) * DMX_FS(i, k-1);
   return ((path[0] >= path[1]) ? p7T_M : p7T_D);
 }
  
@@ -983,8 +926,8 @@ select_i_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
   float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA2() macro works */
   float        path[2];
 
-  path[0] = TSCDELTA2(p7P_MI, k) * MMX(i-3,k);
-  path[1] = TSCDELTA2(p7P_II, k) * IMX(i-3,k);
+  path[0] = TSCDELTA2(p7P_MI, k) * MMX_FS(i-3,k,p7G_C0);
+  path[1] = TSCDELTA2(p7P_II, k) * IMX_FS(i-3,k);
 
   return ((path[0] >= path[1]) ? p7T_M : p7T_I);
 }
@@ -1036,16 +979,15 @@ select_c_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, i
   if(i < 4)                                                           return p7T_E;
 
   /* Possible paths include any of the three C state frames or moving to the E state at the current index */
-  path[0] = t1 * (XMX(i-3, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
-  if(i < gx->L)
-    path[1] = t1 * (XMX(i-2, p7G_C) + pp->xmx[(i+1)*p7G_NXCELLS + p7G_C]);
-  else
-    path[1] = FLT_MIN;
-  if(i < gx->L-1)
-    path[2] = t1 * (XMX(i-1, p7G_C) + pp->xmx[(i+2)*p7G_NXCELLS + p7G_C]);
-  else
-    path[2] = FLT_MIN;
-  path[3] = t2 * XMX(i,p7G_E);
+  path[0] = t1 * (XMX_FS(i-3, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
+
+  if(i < gx->L) path[1] = t1 * (XMX_FS(i-2, p7G_C) + pp->xmx[(i+1)*p7G_NXCELLS + p7G_C]);
+  else          path[1] = FLT_MIN;
+
+  if(i < gx->L-1) path[2] = t1 * (XMX_FS(i-1, p7G_C) + pp->xmx[(i+2)*p7G_NXCELLS + p7G_C]);
+  else            path[2] = FLT_MIN;
+
+  path[3] = t2 * XMX_FS(i,p7G_E);
 
   return state[esl_vec_FArgMax(path, 4)];
 }
@@ -1077,8 +1019,8 @@ select_j_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, i
 
   if(i <= 5) return p7T_E;
 
-  path[0] = t1 * (XMX(i,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]);
-  path[1] = t2 * XMX(i,p7G_E);
+  path[0] = t1 * (XMX_FS(i,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]);
+  path[1] = t2 *  XMX_FS(i,p7G_E);
   return state[esl_vec_FArgMax(path, 2)];
 }
 
@@ -1119,13 +1061,13 @@ select_e_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int *ret_k)
   if (! p7_fs_profile_IsLocal(gm_fs5)) /* glocal/global is easier */
     {
       *ret_k = gm_fs5->M;
-      return (MMX(i,gm_fs5->M) >= DMX(i,gm_fs5->M)) ? p7T_M : p7T_D;
+      return (MMX_FS(i,gm_fs5->M,p7G_C0) >= DMX_FS(i,gm_fs5->M)) ? p7T_M : p7T_D;
     }
 
   for (k = 1; k <= gm_fs5->M; k++)
     {
-      if (MMX(i,k) >  max) { max = MMX(i,k); smax = p7T_M; kmax = k; }
-      if (DMX(i,k) >  max) { max = DMX(i,k); smax = p7T_D; kmax = k; }
+      if (MMX_FS(i,k,p7G_C0) >  max) { max = MMX_FS(i,k,p7G_C0); smax = p7T_M; kmax = k; }
+      if (DMX_FS(i,k)        >  max) { max = DMX_FS(i,k);        smax = p7T_D; kmax = k; }
     }
   *ret_k = kmax;
 
@@ -1152,13 +1094,29 @@ select_b_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i)
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float path[2];
 
-  path[0] = XMX(i, p7G_N);
-  path[1] = gm_fs5->nj * XMX(i, p7G_J);
+  path[0] = XMX_FS(i, p7G_N);
+  path[1] = gm_fs5->nj * XMX_FS(i, p7G_J);
 
   return  ((path[0] > path[1]) ? p7T_N : p7T_J);
 
 }
 
+static inline int
+select_codon(const P7_GMX *gx, int i, int k) 
+{
+  float **dp   = gx->dp;
+  float codon[5];
+
+  codon[0] = MMX_FS(i,k,p7G_C1);
+  codon[1] = MMX_FS(i,k,p7G_C2);
+  codon[2] = MMX_FS(i,k,p7G_C3);
+  codon[3] = MMX_FS(i,k,p7G_C4);
+  codon[4] = MMX_FS(i,k,p7G_C5);
+
+  return esl_vec_FArgMax(codon, 5) + 1; 
+
+
+}
 /*------------------------ end, oa traceback --------------------*/
 
 

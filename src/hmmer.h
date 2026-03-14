@@ -1290,7 +1290,6 @@ extern int p7_Forward_Frameshift_New  (const ESL_DSQ *dsq, const ESL_GENCODE *gc
 extern int p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
 extern int p7_Backward_Frameshift    (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_Backward_Frameshift_New2(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 

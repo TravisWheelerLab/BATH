@@ -542,17 +542,6 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   return status;
 }
 
-/*-------------- end, forward/backward  -----------------*/
-
-
-
-
-/*****************************************************************
- * 2. Benchmark driver.
- *****************************************************************/
-
-
-/*------------------- end, benchmark driver ---------------------*/
 
 
 /* Function:  p7_BackwardParser_Frameshift_3Codons_SSE()
@@ -1041,6 +1030,10 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   if (ivxf_mem) free(ivxf_mem);
   return status;
 }
+
+
+
+/*-------------- end, forward/backward  -----------------*/
 
 /*****************************************************************
  * 3. Unit tests.

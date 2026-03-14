@@ -157,6 +157,11 @@ p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
   return u.p[r];
 }
 
+typedef struct p7_fs_oprofile_s {
+
+} P7_FS_OPROFILE;
+
+
 /*****************************************************************
  * 2. P7_OMX: a one-row dynamic programming matrix
  *****************************************************************/
@@ -296,15 +301,33 @@ extern int          p7_oprofile_GetSSVEmissionScoreArray(const P7_OPROFILE *om, 
 extern int          p7_oprofile_GetFwdEmissionScoreArray(const P7_OPROFILE *om, float *arr );
 extern int          p7_oprofile_GetFwdEmissionArray(const P7_OPROFILE *om, P7_BG *bg, float *arr );
 
+/* p7_fs_oprofile.c */
+extern P7_FS_OPROFILE *p7_fs_oprofile_Create(int M, const ESL_ALPHABET *abc, int codon_lengths);
+extern int             p7_fs_oprofile_IsLocal(const P7_FS_OPROFILE *om_fs);
+extern void            p7_fs_oprofile_Destroy(P7_FS_OPROFILE *om_fs);
+extern P7_FS_OPROFILE *p7_fs_oprofile_Clone(const P7_FS_OPROFILE *om_fs);
+
+extern int             p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L);
+
+
 /* decoding.c */
 extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);
 extern int p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
+
+/* decoding_fs.c */
+extern int p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 
 /* fwdback.c */
 extern int p7_Forward       (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
 extern int p7_ForwardParser (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
 extern int p7_Backward      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+
+/* fwdback_fs.c */
+extern int p7_ForwardParser_Frameshift_3Codons_SSE (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
+extern int p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+
 
 /* io.c */
 extern int p7_oprofile_Write(FILE *ffp, FILE *pfp, P7_OPROFILE *om);

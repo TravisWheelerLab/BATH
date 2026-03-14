@@ -583,9 +583,9 @@ p7_OptimalAccuracy_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp
 static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
 static inline float get_postprob_new(const P7_GMX *pp, int scur, int sprv, int k, int i);
 static inline int select_m(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
-static inline int select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int c);
-static inline int select_d(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
-static inline int select_d_new2(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
+static inline int select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k);
+static inline int select_d(const P7_FS_PROFILE *gm_fs5,      const P7_GMX *gx, int i, int k);
+static inline int select_d_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k);
 static inline int select_i(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
 static inline int select_i_new2(const P7_FS_PROFILE *gm_fs5,                   const P7_GMX *gx, int i, int k);
 static inline int select_n(int i);
@@ -778,10 +778,10 @@ p7_OATrace_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const 
     {
 
      switch (sprv) {
-      case p7T_M: scur = select_m_new2(gm_fs5,     gx, i,  k, c); k--;  break;
+      case p7T_M: scur = select_m_new2(gm_fs5,     gx, i,  k,); k--;  break;
       case p7T_D: scur = select_d_new2(gm_fs5,     gx, i,  k);    k--;  break;
       case p7T_I: scur = select_i_new2(gm_fs5,     gx, i,  k);    i-=3; break;
-      case p7T_N: scur = select_n(               i);                    break;
+      case p7T_N: scur = select_n(                     i);              break;
       case p7T_C: scur = select_c_new2(gm_fs5, pp, gx, i);              break;
       case p7T_J: scur = select_j_new2(gm_fs5, pp, gx, i);              break;
       case p7T_E: scur = select_e_new2(gm_fs5,     gx, i, &k);          break;
@@ -795,7 +795,7 @@ p7_OATrace_Frameshift_New2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const 
       if(scur == p7T_M) c = select_codon(gx, i, k);
       else              c = 0;
 
-      if ((status = p7_trace_fs_AppendWithPP_New2(tr, scur, k, i, c, postprob)) != eslOK) return status;
+      if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
 
       /* For NCJ, we had to defer i decrement. */
       if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
@@ -864,7 +864,7 @@ select_m(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
 
 
 static inline int
-select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int c)
+select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
 {
   float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
   float       *xmx  = gx->xmx; /* so XMX() macro works           */
@@ -872,10 +872,10 @@ select_m_new2(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k, int c
   float path[4];
   int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
 
-  path[0] = TSCDELTA2(p7P_MM, k-1) * MMX_FS(i-c,k-1,p7G_C0);
-  path[1] = TSCDELTA2(p7P_IM, k-1) * IMX_FS(i-c,k-1);
-  path[2] = TSCDELTA2(p7P_DM, k-1) * DMX_FS(i-c,k-1); 
-  path[3] = TSCDELTA2(p7P_BM, k-1) * XMX_FS(i-c,p7G_B);
+  path[0] = TSCDELTA2(p7P_MM, k-1) * MMX_FS(i,k-1,p7G_C0);
+  path[1] = TSCDELTA2(p7P_IM, k-1) * IMX_FS(i,k-1);
+  path[2] = TSCDELTA2(p7P_DM, k-1) * DMX_FS(i,k-1); 
+  path[3] = TSCDELTA2(p7P_BM, k-1) * XMX_FS(i,p7G_B);
 
   return state[esl_vec_FArgMax(path, 4)];
 

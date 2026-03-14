@@ -282,7 +282,7 @@ main(int argc, char **argv)
   p7_bg_SetLength(bgDNA, L/3);
   gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, 5);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
-  fwd = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
+  fwd = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
   iv  = p7_ivx_Create(gm_fs5->M, p7P_5CODONS); 
   tr  = p7_trace_fs_Create();
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);

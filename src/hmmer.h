@@ -1485,6 +1485,7 @@ extern int     p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance);
 extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
+/* p7_ivx.c */
 extern P7_IVX *p7_ivx_Create(int allocM, int allocC);
 extern int     p7_ivx_GrowTo(P7_IVX *iv, int M, int C);
 extern void    p7_ivx_Destroy(P7_IVX *iv);

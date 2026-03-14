@@ -137,15 +137,15 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   /* Create sparce memeory forward and backward generic frameshift aware matricies 
    * for use in the frameshift pipeline filters
    */  
-   if ((pli->gxf  = p7_gmx_fs_Create(M_hint, PARSER_ROWS_FWD, L_hint, 0)) == NULL) goto ERROR;
-   if ((pli->gxb  = p7_gmx_fs_Create(M_hint, PARSER_ROWS_BWD, L_hint, 0)) == NULL) goto ERROR;   
+   if ((pli->gxf  = p7_gmx_Create(M_hint, PARSER_ROWS_FWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
+   if ((pli->gxb  = p7_gmx_Create(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;   
 
   /* Create full memeory forward, backward and posterior generic frameshift aware matricies
    * for use in the frameshift pipeline alignment
    */ 
-   if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_5CODONS)) == NULL) goto ERROR;
-   if ((pli->gbck = p7_gmx_fs_Create(M_hint, L_hint, L_hint,  0))          == NULL) goto ERROR;
-   if ((pli->pp   = p7_gmx_fs_Create(M_hint, L_hint, L_hint, p7P_5CODONS)) == NULL) goto ERROR;
+   if ((pli->gfwd = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
+   if ((pli->gbck = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FR))          == NULL) goto ERROR;
+   if ((pli->pp   = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
 
   /* Create intermediate values matrix */
    if ((pli->iv  = p7_ivx_Create(M_hint, p7P_3CODONS)) == NULL) goto ERROR;
@@ -1355,11 +1355,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
 
     p7_ForwardParser_Frameshift_3Codons_SSE(subseq, gcode, dna_window->length, om_fs3, pli->oxf, &fwdsc_fs);
     
-    //p7_gmx_fs_GrowTo(pli->gxf, gm_fs3->M, PARSER_ROWS_FWD, dna_window->length, 0);
-	//p7_ivx_GrowTo(pli->iv, gm_fs3->M, p7P_3CODONS);
-    //p7_fs_ReconfigLength(gm_fs3, dna_window->length/3);
-     
-    //p7_ForwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs3, pli->gxf, pli->iv, &fwdsc_fs);
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
     P_fs = esl_exp_surv(seqscore_fs,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]);
     P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]); 
@@ -1376,9 +1371,6 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     p7_omx_GrowTo(pli->oxb, om->M, PARSER_ROWS_BWD, dna_window->length);
     p7_BackwardParser_Frameshift_3Codons_SSE(subseq, gcode, dna_window->length, om_fs3, pli->oxf, pli->oxb, NULL);
 
-//    p7_gmx_fs_GrowTo(pli->gxb, gm_fs3->M, PARSER_ROWS_BWD, dna_window->length, 0);
-//    p7_BackwardParser_Frameshift_3Codons(subseq, gcode, dna_window->length, gm_fs3, pli->gxb, pli->iv, NULL);
-    
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs3, gm_fs5, bg, gcode);
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 

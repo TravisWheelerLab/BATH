@@ -606,7 +606,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
 
   p7_FLogsumInit(); 
 
-  gx = p7_gmx_fs_Create(gm_fs3->M, p7P_3CODONS, L*3, p7P_3CODONS);     
+  gx = p7_gmx_Create(gm_fs3->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS_FS);     
   iv = p7_ivx_Create(gm_fs3->M, p7P_3CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
@@ -703,7 +703,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, 
 
   p7_FLogsumInit(); 
 
-  gx = p7_gmx_fs_Create(gm_fs5->M, 3, L*3, p7P_5CODONS);     /* DP matrix: for ForwardParser,  L rows */
+  gx = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS_FS);     /* DP matrix: for ForwardParser,  L rows */
   iv = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));

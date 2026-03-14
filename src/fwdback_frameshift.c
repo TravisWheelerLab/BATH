@@ -2661,10 +2661,10 @@ main(int argc, char **argv)
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, L/3, p7_UNILOCAL);
 
-  fwd_p = p7_gmx_fs_Create(gm_fs5->M, PARSER_ROWS_FWD, L, 0);
-  bck_p = p7_gmx_fs_Create(gm_fs5->M, PARSER_ROWS_BWD, L, 0);
-  fwd   = p7_gmx_fs_Create(gm_fs5->M, L, L, p7P_5CODONS);
-  bck   = p7_gmx_fs_Create(gm_fs5->M, L, L, 0);
+  fwd_p = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_FWD, L, p7G_NSCELLS);
+  bck_p = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_BWD, L, p7G_NSCELLS);
+  fwd   = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
+  bck   = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FR);
   iv    = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
 
   /* Baseline time. */
@@ -2763,11 +2763,11 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
   if ((sq     = esl_sq_CreateDigital(abcAA))                                 == NULL)  esl_fatal("sequence creation failed");
   if ((dsqAA  = malloc(sizeof(ESL_DSQ) *((L/3)+2)))                          == NULL)  esl_fatal("malloc failed");
   if ((dsqDNA = malloc(sizeof(ESL_DSQ) *(L+2)))                              == NULL)  esl_fatal("malloc failed");
-  if ((fwd_p  = p7_gmx_fs_Create(gm_fs5->M, PARSER_ROWS_FWD, L, 0))           == NULL)  esl_fatal("matrix creation failed");
-  if ((bck_p  = p7_gmx_fs_Create(gm_fs5->M, PARSER_ROWS_BWD, L, 0))           == NULL)  esl_fatal("matrix creation failed");
-  if ((fwd    = p7_gmx_fs_Create(gm_fs5->M, L,               L, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
-  if ((bck    = p7_gmx_fs_Create(gm_fs5->M, L,               L, 0))           == NULL)  esl_fatal("matrix creation failed");
-  if ((vit    = p7_gmx_fs_Create(gm_fs5->M, L,               L, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd_p  = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_FWD, L, p7G_NSCELLS))           == NULL)  esl_fatal("matrix creation failed");
+  if ((bck_p  = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_BWD, L, p7G_NSCELLS))           == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd    = p7_gmx_Create(gm_fs5->M, L,               L, p7G_NSCELLS_FS)) == NULL)  esl_fatal("matrix creation failed");
+  if ((bck    = p7_gmx_Create(gm_fs5->M, L,               L, p7G_NSCELLS_FR))           == NULL)  esl_fatal("matrix creation failed");
+  if ((vit    = p7_gmx_reate(gm_fs5->M, L,               L, p7P_5CODONS)) == NULL)  esl_fatal("matrix creation failed");
   if ((tr     = p7_trace_Create())                                           == NULL)  esl_fatal("trace creation failed");
   if ((iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS))                        == NULL)  esl_fatal("ivx creation failed");
 
@@ -2839,7 +2839,7 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
       }
       p7_ReconfigLength(gm, sq->n);
 
-	  p7_gmx_fs_GrowTo(fwd, gm->M, (sq->n*3), (sq->n*3), p7P_5CODONS);
+	  p7_gmx_GrowTo(fwd, gm->M, (sq->n*3), (sq->n*3), p7G_NSCELLS_FS);
 
 	  if (p7_Forward_Frameshift(dsqDNA, gcode, (sq->n*3), gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
 

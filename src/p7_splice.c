@@ -1710,7 +1710,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   ret_path = NULL;
   tmp_path = NULL;
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L, p7G_NSCELLS_SP);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L/3);
    
@@ -2016,7 +2016,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   gm_tr = info->gm_tr;
   gcode = info->gcode;  
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L, p7G_NSCELLS_SP);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L/3);
   
@@ -2288,7 +2288,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   gm_tr = info->gm_tr;
   gcode = info->gcode;
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L, p7G_NSCELLS_SP);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L);
   
@@ -2551,7 +2551,7 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   gm_tr = info->gm_tr;
   gcode = info->gcode;
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L, p7G_NSCELLS_SP);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L);
   
@@ -3319,7 +3319,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
      * If we can find the offending exon and cut the path in two at that point then we can 
      * save the good exons, but to do that we need an alignment so we create one with Viterbi */
     
-    p7_gmx_fs_GrowTo(pli->gfwd, gm->M, pli->amino_sq->n, pli->amino_sq->n, p7P_5CODONS);
+    p7_gmx_GrowTo(pli->gfwd, gm->M, pli->amino_sq->n, pli->amino_sq->n, p7G_NSCELLS_FS);
     p7_ReconfigUnihit(gm, pli->amino_sq->n); 
 
     p7_GViterbi(pli->amino_sq->dsq, pli->amino_sq->n, gm, pli->gfwd, NULL);

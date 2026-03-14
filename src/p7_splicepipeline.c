@@ -116,12 +116,12 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->gfwd = NULL;
   pli->gbwd = NULL;
   pli->gpp  = NULL;
-  if ((pli->gfwd = p7_gmx_fs_Create(M_hint, L_hint*3, L_hint*3, p7P_5CODONS)) == NULL) goto ERROR;
-  if ((pli->gbwd = p7_gmx_fs_Create(M_hint, L_hint*3, L_hint*3, 0         )) == NULL) goto ERROR;
-  if ((pli->gpp  = p7_gmx_fs_Create(M_hint, L_hint*3, L_hint*3, p7P_5CODONS)) == NULL) goto ERROR;
+  if ((pli->gfwd = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS_FS)) == NULL) goto ERROR;
+  if ((pli->gbwd = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS   )) == NULL) goto ERROR;
+  if ((pli->gpp  = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS_FS)) == NULL) goto ERROR;
 
   pli->vit = NULL;
-  if ((pli->vit = p7_gmx_sp_Create(M_hint, L_hint*3, L_hint*3)) == NULL) goto ERROR;
+  if ((pli->vit = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS_SP)) == NULL) goto ERROR;
   
   pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint*3);
 

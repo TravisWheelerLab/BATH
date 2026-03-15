@@ -450,7 +450,10 @@ gmx_testpattern(P7_GMX *gx, int M, int L)
 	}
   
   /* Reading it back via the dp_mem vector itself ought to be the same */
-  if (gx->allocR == gx->validR && gx->ncells == (int64_t) gx->validR * (int64_t) gx->allocW && gx->allocW == (int64_t)(M+1))
+  if (gx->allocR == gx->validR
+      && gx->ncells == (int64_t) gx->validR * (int64_t) gx->allocW
+      && gx->allocW == (int64_t)(M+1)
+      && gx->validR == (int64_t)(L+1))
     {
       n2 = 0;
       for (i = start_row * gx->allocW; i < gx->ncells; i++)

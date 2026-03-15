@@ -1038,7 +1038,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
 /*****************************************************************
  * 3. Unit tests.
  *****************************************************************/
-#ifdef p7FWDBACKFS_TESTDRIVE
+#ifdef p7FWDBACK_FS_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
@@ -1126,7 +1126,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   p7_profile_fs_Destroy(gm_fs3);
   p7_fs_oprofile_Destroy(om_fs3);
 }
-#endif /*p7FWDBACKFS_TESTDRIVE*/
+#endif /*p7FWDBACK_FS_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
 
@@ -1134,9 +1134,9 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 /*****************************************************************
  * 4. Test driver
  *****************************************************************/
-#ifdef p7FWDBACKFS_TESTDRIVE
+#ifdef p7FWDBACK_FS_TESTDRIVE
 /*
-   gcc -g -Wall -msse2 -std=gnu99 -o fwdback_fs_utest -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACKFS_TESTDRIVE fwdback_fs.c -lhmmer -leasel -lm
+   gcc -g -Wall -msse2 -std=gnu99 -o fwdback_fs_utest -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACK_FS_TESTDRIVE fwdback_fs.c -lhmmer -leasel -lm
    ./fwdback_fs_utest
  */
 #include "p7_config.h"
@@ -1194,7 +1194,7 @@ main(int argc, char **argv)
   esl_randomness_Destroy(r);
   return eslOK;
 }
-#endif /*p7FWDBACKFS_TESTDRIVE*/
+#endif /*p7FWDBACK_FS_TESTDRIVE*/
 
 
 /*--------------------- end, test driver ------------------------*/

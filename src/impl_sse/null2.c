@@ -386,9 +386,9 @@ utest_null2_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, 
   P7_OMX      *fwd  = p7_omx_Create(M, L, L);
   P7_OMX      *bck  = p7_omx_Create(M, L, L);
   P7_OMX      *pp   = p7_omx_Create(M, L, L);
-  P7_GMX      *gxf  = p7_gmx_Create(M, L);
-  P7_GMX      *gxb  = p7_gmx_Create(M, L);
-  P7_GMX      *gpp  = p7_gmx_Create(M, L);
+  P7_GMX      *gxf  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX      *gxb  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX      *gpp  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   float       *on2  = malloc(sizeof(float) * abc->Kp);
   float       *gn2  = malloc(sizeof(float) * abc->Kp);
   float fsc1, fsc2;

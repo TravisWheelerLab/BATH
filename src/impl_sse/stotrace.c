@@ -354,7 +354,7 @@ main(int argc, char **argv)
   om = p7_oprofile_Create(gm->M, abc);   p7_oprofile_Convert(gm, om);
 
   fwd = p7_omx_Create(gm->M, L, L);
-  gx  = p7_gmx_Create(gm->M, L);
+  gx  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
   tr  = p7_trace_Create();
   esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
 
@@ -420,14 +420,14 @@ utest_stotrace(ESL_GETOPTS *go, ESL_RANDOMNESS *rng, ESL_ALPHABET *abc, P7_PROFI
   float     maxsc = -eslINFINITY;
   float     vsc, sc;
 
-  if ((gx     = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("generic DP matrix creation failed");
-  if ((ox     = p7_omx_Create(gm->M, L, L))     == NULL)  esl_fatal("optimized DP matrix create failed");
-  if ((tr     = p7_trace_Create())              == NULL)  esl_fatal("trace creation failed");
-  if ((vtr    = p7_trace_Create())              == NULL)  esl_fatal("trace creation failed");
+  if ((gx     = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS)) == NULL)  esl_fatal("generic DP matrix creation failed");
+  if ((ox     = p7_omx_Create(gm->M, L, L))              == NULL)  esl_fatal("optimized DP matrix create failed");
+  if ((tr     = p7_trace_Create())                       == NULL)  esl_fatal("trace creation failed");
+  if ((vtr    = p7_trace_Create())                       == NULL)  esl_fatal("trace creation failed");
 
-  if (p7_GViterbi(dsq, L, gm, gx, &vsc)         != eslOK) esl_fatal("viterbi failed");
-  if (p7_GTrace  (dsq, L, gm, gx, vtr)          != eslOK) esl_fatal("viterbi trace failed");
-  if (p7_Forward (dsq, L, om, ox, NULL)         != eslOK) esl_fatal("forward failed");
+  if (p7_GViterbi(dsq, L, gm, gx, &vsc) != eslOK) esl_fatal("viterbi failed");
+  if (p7_GTrace  (dsq, L, gm, gx, vtr)  != eslOK) esl_fatal("viterbi trace failed");
+  if (p7_Forward (dsq, L, om, ox, NULL) != eslOK) esl_fatal("forward failed");
 
   for (idx = 0; idx < ntrace; idx++)
     {
@@ -607,7 +607,7 @@ main(int argc, char **argv)
   if (esl_opt_GetBoolean(go, "-p")) p7_oprofile_Dump(stdout, om);  
 
   fwd = p7_omx_Create(gm->M, sq->n, sq->n);
-  gx  = p7_gmx_Create(gm->M, sq->n);
+  gx  = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
   tr  = p7_trace_Create();
 
   if (esl_opt_GetBoolean(go, "-m") == TRUE) p7_omx_SetDumpMode(stdout, fwd, TRUE); 

@@ -294,7 +294,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
 {
   int   width     = 9;
   int   precision = 5;
-  int   i, k, c, f, x;
+  int   i, k, c, x;
   float val;
 
   /* Header */
@@ -450,7 +450,7 @@ gmx_testpattern(P7_GMX *gx, int M, int L)
 	}
   
   /* Reading it back via the dp_mem vector itself ought to be the same */
-  if (gx->allocR == gx->validR && gx->ncells == (int64_t) gx->validR * (int64_t) gx->allocW)
+  if (gx->allocR == gx->validR && gx->ncells == (int64_t) gx->validR * (int64_t) gx->allocW && gx->allocW == (int64_t)(M+1))
     {
       n2 = 0;
       for (i = start_row * gx->allocW; i < gx->ncells; i++)

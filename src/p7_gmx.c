@@ -475,17 +475,17 @@ utest_GrowTo(void)
   int64_t nbytes;
 
   M = 20;    L = 20;    gx= p7_gmx_Create(M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);
-  M = 40;    L = 20;    p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);  /* grow in M, not L */
-  M = 40;    L = 40;    p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);  /* grow in L, not M */
-  M = 80;    L = 10;    p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);  /* grow in M, but with enough ncells */
-  M = 10;    L = 80;    p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);  /* grow in L, but with enough ncells */
-  M = 100;   L = 100;   p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);  /* grow in both L and M */
+  M = 40;    L = 20;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in M, not L */
+  M = 40;    L = 40;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in L, not M */
+  M = 80;    L = 10;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in M, but with enough ncells */
+  M = 10;    L = 80;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in L, but with enough ncells */
+  M = 100;   L = 100;   p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in both L and M */
 
  /* The next two calls are carefully constructed to exercise bug #h79. 
   * GrowTo() must shrink allocW, if M shrinks and L grows enough to force increase in allocR, with sufficient ncells.
   */
-  M = 179;   L = 55;    p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);
-  M = 87;    L = 57;    p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);
+  M = 179;   L = 55;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);
+  M = 87;    L = 57;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);
 
   /* and this exercises iss#176. Only do this on 64-bit systems, and only if a large alloc is possible (we need 8.6G to exercise the bug!) */
   M = 71582; L = 10000;
@@ -496,7 +496,7 @@ utest_GrowTo(void)
       if (p != NULL)
 	{
 	  free(p);
-	  p7_gmx_GrowTo(gx, M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);
+	  p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);
 	}
     }
 
@@ -514,7 +514,7 @@ utest_Compare(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_BG *bg, int L, float toleran
 
   if (!r || !gm || !dsq || !gx1 || !gx2 )                   esl_fatal(msg);
   if (esl_rsq_xfIID(r, bg->f, gm->abc->K, L, dsq)  != eslOK) esl_fatal(msg);
-  if (p7_gmx_GrowTo(gx2, gm->M, L, L, p7G_NSCELLS) != eslOK) esl_fatal(msg);
+  if (p7_gmx_GrowTo(gx2, gm->M, L, L) != eslOK) esl_fatal(msg);
   if (p7_GForward(dsq, L, gm, gx1, &fsc)           != eslOK) esl_fatal(msg);
   if (p7_GForward(dsq, L, gm, gx2, &fsc)           != eslOK) esl_fatal(msg);
   if (p7_gmx_Compare(gx1, gx2, tolerance)          != eslOK) esl_fatal(msg);   

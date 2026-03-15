@@ -410,7 +410,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         * works
         */
         p7_ivx_GrowTo(pli->iv, gm_fs5->M, p7P_5CODONS); 
-        p7_gmx_GrowTo(pli->gfwd, gm_fs5->M, j-i+1, j-i+1, p7G_NSCELLS_FS);
+        p7_gmx_GrowTo(pli->gfwd, gm_fs5->M, j-i+1, j-i+1);
         p7_fs_ReconfigMultihit(gm_fs5, saveL/3);
 
         p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs5, pli->gfwd, pli->iv, NULL);
@@ -1022,7 +1022,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   /* Forward */ 
   p7_fs_ReconfigLength(gm_fs5, Ld/3);
   p7_ivx_GrowTo(iv, gm_fs5->M, p7P_5CODONS); 
-  p7_gmx_GrowTo(gx1, gm_fs5->M, Ld, Ld, p7G_NSCELLS_FS);
+  p7_gmx_GrowTo(gx1, gm_fs5->M, Ld, Ld);
   p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs5, gx1, iv, &envsc);
 
   seqscore = (envsc-filtersc) / eslCONST_LOG2; 
@@ -1040,7 +1040,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   }
 
   /* Backward */
-  p7_gmx_GrowTo(gx2, gm_fs5->M, Ld, Ld, p7G_NSCELLS);
+  p7_gmx_GrowTo(gx2, gm_fs5->M, Ld, Ld);
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs5, gx2, iv, NULL);
 
   /* Posterior Probabilities */

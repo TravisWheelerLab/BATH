@@ -622,8 +622,8 @@ utest_optacc(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, i
 
       if (p7_omx_GrowTo(ox1, M, sq->n, sq->n)              != eslOK) esl_fatal(msg);
       if (p7_omx_GrowTo(ox2, M, sq->n, sq->n)              != eslOK) esl_fatal(msg);
-      if (p7_gmx_GrowTo(gx1, M, sq->n, sq->n, p7G_NSCELLS) != eslOK) esl_fatal(msg);
-      if (p7_gmx_GrowTo(gx2, M, sq->n, sq->n, p7G_NSCELLS) != eslOK) esl_fatal(msg);
+      if (p7_gmx_GrowTo(gx1, M, sq->n, sq->n) != eslOK) esl_fatal(msg);
+      if (p7_gmx_GrowTo(gx2, M, sq->n, sq->n) != eslOK) esl_fatal(msg);
 
       if (p7_Forward (sq->dsq, sq->n, om, ox1,      &fsc) != eslOK) esl_fatal(msg);
       if (p7_Backward(sq->dsq, sq->n, om, ox1, ox2, &bsc) != eslOK) esl_fatal(msg);

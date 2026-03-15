@@ -1131,7 +1131,7 @@ main(int argc, char **argv)
       p7_bg_SetLength(bg,            sq->n);
       p7_omx_GrowTo(fwd, om->M, 0,   sq->n); 
       p7_omx_GrowTo(bck, om->M, 0,   sq->n); 
-      p7_gmx_GrowTo(gx,  gm->M,      sq->n, sq->n, p7G_NSCELLS); 
+      p7_gmx_GrowTo(gx,  gm->M,      sq->n, sq->n);
 
       p7_bg_NullOne  (bg, sq->dsq, sq->n, &nullsc);
     

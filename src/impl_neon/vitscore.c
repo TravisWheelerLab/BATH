@@ -287,7 +287,7 @@ main(int argc, char **argv)
   p7_oprofile_Logify(om);
 
   ox = p7_omx_Create(gm->M, 0, 0);
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Get a baseline time: how long it takes just to generate the sequences */
   esl_stopwatch_Start(w);
@@ -356,7 +356,7 @@ utest_viterbi_score(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int 
   P7_OPROFILE *om  = NULL;
   ESL_DSQ     *dsq = malloc(sizeof(ESL_DSQ) * (L+2));
   P7_OMX      *ox  = p7_omx_Create(M, 0, 0);
-  P7_GMX      *gx  = p7_gmx_Create(M, L);
+  P7_GMX      *gx  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   float sc1, sc2;
 
   p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
@@ -511,7 +511,7 @@ main(int argc, char **argv)
 
   /* allocate DP matrices, both a generic and an optimized one */
   ox = p7_omx_Create(gm->M, 0, sq->n);
-  gx = p7_gmx_Create(gm->M, sq->n);
+  gx = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
 
   /* Useful to place and compile in for debugging:
      p7_oprofile_Dump(stdout, om);         dumps the optimized profile

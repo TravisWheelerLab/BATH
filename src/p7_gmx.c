@@ -101,7 +101,7 @@ p7_gmx_Create (int allocM, int allocL, int allocLx, int nscells)
  *            have been in <gx> must be assumed to be invalidated.
  */
 int
-p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx, int ns)
+p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx)
 {
   int      status;
   void    *p;
@@ -109,15 +109,14 @@ p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx, int ns)
   uint64_t ncells;
   int      do_reset = FALSE;
 
-  if (M < gx->allocW && L < gx->validR && Lx < gx->allocR && ns == gx->nscells) return eslOK;
-  if (ns != gx->nscells) ESL_XEXCEPTION(eslFAIL, "Cannot change number of states in P7_GMX");
+  if (M < gx->allocW && L < gx->validR && Lx < gx->allocR) return eslOK;
 
   M  = ESL_MAX(M,  gx->allocW-1);
   L  = ESL_MAX(L,  gx->validR-1);
   Lx = ESL_MAX(Lx, gx->allocR-1);
 
   /* don't try to make large allocs on 32-bit systems */
-  if ( (uint64_t) (M+1) * (uint64_t) (L+1) * sizeof(float) * ns > SIZE_MAX / 2) return eslEMEM;
+  if ( (uint64_t) (M+1) * (uint64_t) (L+1) * sizeof(float) * gx->nscells > SIZE_MAX / 2) return eslEMEM;
 
   /* must we realloc the 2D matrices? (or can we get away with just
    * jiggering the row pointers, if we are growing in one dimension
@@ -126,7 +125,7 @@ p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx, int ns)
   ncells = (uint64_t) (M+1) * (uint64_t) (L+1);
   if (ncells > gx->ncells) 
     {
-      ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * ns);
+      ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * gx->nscells);
       gx->ncells = ncells;
       do_reset   = TRUE;
     }
@@ -156,7 +155,7 @@ p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx, int ns)
   if (do_reset) {
     gx->validR = ESL_MIN(gx->ncells / gx->allocW, gx->allocR);
     for (i = 0; i < gx->validR; i++) 
-	  gx->dp[i] = gx->dp_mem + (ptrdiff_t) i * (ptrdiff_t) (gx->allocW) * (ptrdiff_t) ns;
+	  gx->dp[i] = gx->dp_mem + (ptrdiff_t) i * (ptrdiff_t) (gx->allocW) * (ptrdiff_t) gx->nscells;
   }
 
   gx->M      = 0;

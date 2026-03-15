@@ -1457,7 +1457,7 @@ extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ES
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL, int allocLx, int nscells);
-extern int     p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx, int ns); 
+extern int     p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx); 
 extern size_t  p7_gmx_Sizeof (P7_GMX *gx);
 extern int     p7_gmx_Reuse  (P7_GMX *gx);
 extern void    p7_gmx_Destroy(P7_GMX *gx);

@@ -144,7 +144,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    * for use in the frameshift pipeline alignment
    */ 
    if ((pli->gfwd = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-   if ((pli->gbck = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FS))          == NULL) goto ERROR;
+   if ((pli->gbck = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS))          == NULL) goto ERROR;
    if ((pli->pp   = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
 
   /* Create intermediate values matrix */

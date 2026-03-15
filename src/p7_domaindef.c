@@ -1040,7 +1040,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   }
 
   /* Backward */
-  p7_gmx_GrowTo(gx2, gm_fs5->M, Ld, Ld, p7G_NSCELLS_FS);
+  p7_gmx_GrowTo(gx2, gm_fs5->M, Ld, Ld, p7G_NSCELLS);
   p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs5, gx2, iv, NULL);
 
   /* Posterior Probabilities */

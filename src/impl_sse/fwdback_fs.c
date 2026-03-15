@@ -2141,12 +2141,12 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       /* 3-codon SSE vs scalar */
       p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, &fsc3);
 	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
-      printf("fsc3 %f generic_fsc3 %f\n", fsc3, generic_fsc3);
+   
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
 	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
-      printf("fsc3 %f bsc3 %f\n", fsc3, bsc3);
+  
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg);
 
       /* 5-codon SSE vs scalar */
@@ -2155,12 +2155,12 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       p7_ForwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, fwd, &fsc5);
       p7_ForwardParser_Frameshift_5Codons(dsq, gcode, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
-      printf("fsc5 %f generic_fsc5 %f\n", fsc5, generic_fsc5); 
+ 
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
       p7_BackwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, fwd, bwd, &bsc5);
-      printf("fsc5 %f bsc5 %f\n", fsc5, bsc5); 
+
       if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
     }
 

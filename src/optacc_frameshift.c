@@ -410,7 +410,7 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GM
       case p7T_B: scur = select_b(gm_fs5,     gx, i);           break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
-      if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
+      if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed %s", gm_fs5->name);
 
       postprob = get_postprob(pp, scur, sprv, k, i);
 
@@ -568,12 +568,13 @@ select_e(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int *ret_k)
 static inline int
 select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i)
 {
+  float t1 = ( (gm_fs5->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float t2 = ( (gm_fs5->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;  /* so XMX() macro works           */
   float path[2];
 
-  path[0] = XMX_FS(i, p7G_N);
-  path[1] = gm_fs5->nj * XMX_FS(i, p7G_J);
-
+  path[0] = t1 * XMX_FS(i, p7G_N);
+  path[1] = t2 * XMX_FS(i, p7G_J);
   return  ((path[0] > path[1]) ? p7T_N : p7T_J);
 
 }

@@ -423,6 +423,8 @@ extern int p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 /* fwdback_fs.c */
 extern int p7_ForwardParser_Frameshift_3Codons_SSE (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
 extern int p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_ForwardParser_Frameshift_5Codons_SSE (const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
+extern int p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 
 /* io.c */
 extern int p7_oprofile_Write(FILE *ffp, FILE *pfp, P7_OPROFILE *om);

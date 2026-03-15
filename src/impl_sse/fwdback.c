@@ -824,7 +824,7 @@ main(int argc, char **argv)
     fwd = p7_omx_Create(gm->M, L, L);
     bck = p7_omx_Create(gm->M, L, L);
   }
-  gx  = p7_gmx_Create(gm->M, L);
+  gx  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Get a baseline time: how long it takes just to generate the sequences */
   esl_stopwatch_Start(w);
@@ -902,7 +902,7 @@ utest_fwdback(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   P7_OMX      *bck = p7_omx_Create(M, 0, L);
   P7_OMX      *oxf = p7_omx_Create(M, L, L);
   P7_OMX      *oxb = p7_omx_Create(M, L, L);
-  P7_GMX      *gx  = p7_gmx_Create(M, L);
+  P7_GMX      *gx  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   float tolerance;
   float fsc1, fsc2;
   float bsc1, bsc2;
@@ -1115,7 +1115,7 @@ main(int argc, char **argv)
   /* allocate DP matrices for O(M+L) parsers */
   fwd = p7_omx_Create(gm->M, 0, sq->n);
   bck = p7_omx_Create(gm->M, 0, sq->n);
-  gx  = p7_gmx_Create(gm->M,    sq->n);
+  gx  = p7_gmx_Create(gm->M,    sq->n, sq->n, p7G_NSCELLS);
 
   /* allocate DP matrices for O(ML) fills */
   /* fwd = p7_omx_Create(gm->M, sq->n, sq->n); */
@@ -1131,7 +1131,7 @@ main(int argc, char **argv)
       p7_bg_SetLength(bg,            sq->n);
       p7_omx_GrowTo(fwd, om->M, 0,   sq->n); 
       p7_omx_GrowTo(bck, om->M, 0,   sq->n); 
-      p7_gmx_GrowTo(gx,  gm->M,      sq->n); 
+      p7_gmx_GrowTo(gx,  gm->M,      sq->n, sq->n, p7G_NSCELLS); 
 
       p7_bg_NullOne  (bg, sq->dsq, sq->n, &nullsc);
     

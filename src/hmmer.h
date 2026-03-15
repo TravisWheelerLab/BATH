@@ -615,13 +615,6 @@ enum p7g_codons_e {
 };
 #define p7G_NSCELLS_FS 8
 
-enum p7g_frames_e {
-  p7G_F1 = 0,
-  p7G_F2 = 1,
-  p7G_F3 = 2,
-};
-#define p7G_NSCELLS_FR 5
-
 enum p7g_xcells_e {
   p7G_E  = 0,
   p7G_N  = 1,
@@ -679,13 +672,6 @@ typedef struct p7_ivx_s {
 #define IMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_I])
 #define DMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
 #define XMX_FS(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
-
-/* frame matrix */
-#define MMX_FR(i,k,f) (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_M + (f)])
-#define IMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_I])
-#define DMX_FR(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FR + p7G_D])
-#define XMX_FR(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
-
 
 /* splice matrix */
 #define MMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_M])

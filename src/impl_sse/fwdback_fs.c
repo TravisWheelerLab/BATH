@@ -1175,9 +1175,9 @@ main(int argc, char **argv)
   int             N      = esl_opt_GetInteger(go, "-N");
 
   if ((abcDNA = esl_alphabet_Create(eslDNA))      == NULL)  esl_fatal("failed to create alphabet");
-  if ((bgDNA = p7_bg_Create(abcDNA))              == NULL)  esl_fatal("failed to create null model");
-  if ((abcAA = esl_alphabet_Create(eslAMINO))     == NULL)  esl_fatal("failed to create alphabet");
-  if ((bgAA = p7_bg_Create(abcAA))                == NULL)  esl_fatal("failed to create null model");
+  if ((bgDNA  = p7_bg_Create(abcDNA))             == NULL)  esl_fatal("failed to create null model");
+  if ((abcAA  = esl_alphabet_Create(eslAMINO))    == NULL)  esl_fatal("failed to create alphabet");
+  if ((bgAA   = p7_bg_Create(abcAA))              == NULL)  esl_fatal("failed to create null model");
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
   if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
 

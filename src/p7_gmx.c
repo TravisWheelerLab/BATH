@@ -350,27 +350,6 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
         fprintf(ofp, "\n");
       }
     }
-    else if(gx->nscells == p7G_NSCELLS_FR) {
-      for (f = p7G_F1; f < p7G_F3; f++) {
-        fprintf(ofp, "%3d M F%d ", i, f+1);
-        for (k = kstart; k <= kend;        k++)
-        {
-          val = gx->dp[i][k * p7G_NSCELLS_FR + p7G_M + f];
-          if (flags & p7_SHOW_LOG) val = log(val);
-          fprintf(ofp, "%*.*f ", width, precision, val);
-        }
-        if (f == p7G_F1 && ! (flags & p7_HIDE_SPECIALS))
-        {
-          for (x = 0;  x <  p7G_NXCELLS; x++)
-          {
-            val = gx->xmx[  i * p7G_NXCELLS + x];
-            if (flags & p7_SHOW_LOG) val = log(val);
-            fprintf(ofp, "%*.*f ", width, precision, val);
-          }
-        }
-        fprintf(ofp, "\n");
-      }
-    }
     else if(gx->nscells == p7G_NSCELLS_SP) {
       fprintf(ofp, "%3d M ", i);
       for (k = kstart; k <= kend;        k++)
@@ -390,6 +369,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
       }
       fprintf(ofp, "\n");
     }
+    else ESL_EXCEPTION(eslFAIL, "Unrecognized number of states in P7_GMX"); 
 
     fprintf(ofp, "%3d I ", i);
     for (k = kstart; k <= kend;        k++) 
@@ -526,8 +506,8 @@ utest_Compare(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_BG *bg, int L, float toleran
 {
   char         *msg = "gmx_Compare unit test failure";
   ESL_DSQ      *dsq = malloc(sizeof(ESL_DSQ) *(L+2));
-  P7_GMX       *gx1 = p7_gmx_Create(gm->M, L);
-  P7_GMX       *gx2 = p7_gmx_Create(5, 4);
+  P7_GMX       *gx1 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  P7_GMX       *gx2 = p7_gmx_Create(5, 4, 4, p7G_NSCELLS);
   float         fsc;
 
   if (!r || !gm || !dsq || !gx1 || !gx2 )                   esl_fatal(msg);

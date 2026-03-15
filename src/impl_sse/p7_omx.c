@@ -74,6 +74,7 @@ p7_omx_Create(int allocM, int allocL, int allocXL)
   ox->x_mem  = NULL;
 
   /* DP matrix will be allocated for allocL+1 rows 0,1..L; allocQ4*p7X_NSCELLS columns */
+  ox->nscells  = p7X_NSCELLS;
   ox->allocR   = allocL+1;
   ox->validR   = ox->allocR;
   ox->allocQ4  = p7O_NQF(allocM);
@@ -214,6 +215,136 @@ p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
  ERROR:
   return status;
 }  
+
+/* Function:  p7_omx_Create_FS()
+ * Synopsis:  Create a DP matrix for the frameshift full-matrix algorithms.
+ *
+ * Purpose:   Like <p7_omx_Create()>, but allocates with <p7X_NSCELLS_FS = 8>
+ *            vectors per stripe position (D, I, M_C0..M_C5) rather than 3,
+ *            to hold all six per-codon-length match values needed by
+ *            <p7_Forward_Frameshift_SSE()> and <p7_Backward_Frameshift_SSE()>.
+ *
+ *            Only <dpf> (float) rows are allocated; <dpw> and <dpb> are not
+ *            needed for these float-only algorithms.
+ *
+ *            <ox->nscells> is set to <p7X_NSCELLS_FS>.  All other fields have
+ *            the same semantics as in <p7_omx_Create()>.
+ *
+ * Returns:   pointer to new <P7_OMX> on success, or <NULL> on allocation failure.
+ */
+P7_OMX *
+p7_omx_Create_FS(int allocM, int allocL, int allocXL)
+{
+  P7_OMX *ox     = NULL;
+  int     i;
+  int     status;
+
+  ESL_ALLOC(ox, sizeof(P7_OMX));
+  ox->dp_mem = NULL;
+  ox->dpb    = NULL;
+  ox->dpw    = NULL;
+  ox->dpf    = NULL;
+  ox->xmx    = NULL;
+  ox->x_mem  = NULL;
+
+  ox->nscells  = p7X_NSCELLS_FS;
+  ox->allocR   = allocL + 1;
+  ox->validR   = ox->allocR;
+  ox->allocQ4  = p7O_NQF(allocM);
+  ox->allocQ8  = 0;   /* not used */
+  ox->allocQ16 = 0;   /* not used */
+  ox->ncells   = ox->allocR * ox->allocQ4 * 4;
+
+  ESL_ALLOC(ox->dp_mem, sizeof(__m128) * ox->allocR * ox->allocQ4 * p7X_NSCELLS_FS + 15);
+  ESL_ALLOC(ox->dpf,    sizeof(__m128 *) * ox->allocR);
+
+  ox->dpf[0] = (__m128 *) ( ( (unsigned long int) ((char *) ox->dp_mem + 15) & (~0xf)));
+  for (i = 1; i <= allocL; i++)
+    ox->dpf[i] = ox->dpf[0] + i * ox->allocQ4 * p7X_NSCELLS_FS;
+
+  ox->allocXR = allocXL + 1;
+  ESL_ALLOC(ox->x_mem, sizeof(float) * ox->allocXR * p7X_NXCELLS + 15);
+  ox->xmx = (float *) ( ( (unsigned long int) ((char *) ox->x_mem + 15) & (~0xf)));
+
+  ox->M              = 0;
+  ox->L              = 0;
+  ox->totscale       = 0.0;
+  ox->has_own_scales = TRUE;
+#if eslDEBUGLEVEL > 0
+  ox->debugging = FALSE;
+  ox->dfp       = NULL;
+#endif
+  return ox;
+
+ ERROR:
+  p7_omx_Destroy(ox);
+  return NULL;
+}
+
+
+/* Function:  p7_omx_GrowTo_FS()
+ * Synopsis:  Assure a frameshift full-matrix DP matrix is large enough.
+ *
+ * Purpose:   Like <p7_omx_GrowTo()>, but for matrices created with
+ *            <p7_omx_Create_FS()>.  Uses <p7X_NSCELLS_FS = 8> as the
+ *            per-stripe cell count.  <dpw> and <dpb> are not touched.
+ *
+ * Returns:   <eslOK> on success.  Any previous data in <ox> is invalidated.
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_omx_GrowTo_FS(P7_OMX *ox, int allocM, int allocL, int allocXL)
+{
+  void  *p;
+  int    nqf    = p7O_NQF(allocM);
+  size_t ncells = (allocL + 1) * nqf * 4;
+  int    reset_row_pointers = FALSE;
+  int    i;
+  int    status;
+
+  if (ox->allocQ4 * 4 >= allocM && ox->validR > allocL && ox->allocXR >= allocXL + 1) return eslOK;
+
+  if (ncells > ox->ncells)
+    {
+      ESL_RALLOC(ox->dp_mem, p, sizeof(__m128) * (allocL + 1) * nqf * p7X_NSCELLS_FS + 15);
+      ox->ncells = ncells;
+      reset_row_pointers = TRUE;
+    }
+
+  if (allocXL + 1 >= ox->allocXR)
+    {
+      ESL_RALLOC(ox->x_mem, p, sizeof(float) * (allocXL + 1) * p7X_NXCELLS + 15);
+      ox->allocXR = allocXL + 1;
+      ox->xmx     = (float *) ( ( (unsigned long int) ((char *) ox->x_mem + 15) & (~0xf)));
+    }
+
+  if (allocL >= ox->allocR)
+    {
+      ESL_RALLOC(ox->dpf, p, sizeof(__m128 *) * (allocL + 1));
+      ox->allocR         = allocL + 1;
+      reset_row_pointers = TRUE;
+    }
+
+  if (allocM > ox->allocQ4 * 4) reset_row_pointers = TRUE;
+  if (allocL >= ox->validR)     reset_row_pointers = TRUE;
+
+  if (reset_row_pointers)
+    {
+      ox->dpf[0] = (__m128 *) ( ( (unsigned long int) ((char *) ox->dp_mem + 15) & (~0xf)));
+      ox->validR = ESL_MIN(ox->ncells / (nqf * 4), ox->allocR);
+      for (i = 1; i < ox->validR; i++)
+        ox->dpf[i] = ox->dpf[0] + i * nqf * p7X_NSCELLS_FS;
+      ox->allocQ4 = nqf;
+    }
+
+  ox->M = 0;
+  ox->L = 0;
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
 
 /* Function:  p7_omx_FDeconvert()
  * Synopsis:  Convert an optimized DP matrix to generic one.

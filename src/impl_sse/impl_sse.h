@@ -264,22 +264,38 @@ p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
 enum p7x_scells_e { p7X_M = 0, p7X_D = 1, p7X_I = 2 };
 #define p7X_NSCELLS 3
 
+/* Frameshift full-matrix cell layout: D, I, M_C0..M_C5 (8 cells per stripe position).
+ * Mirrors p7G_NSCELLS_FS / p7g_codons_e in the generic (scalar) matrix.
+ * p7X_FS_M is the base offset for match cells; codon c adds to it (c=0..5).
+ */
+enum p7x_fscells_e { p7X_FS_D = 0, p7X_FS_I = 1, p7X_FS_M = 2 };
+enum p7x_fscodons_e {
+  p7X_FS_C0 = 0,   /* total match (sum over all codon lengths)  */
+  p7X_FS_C1 = 1,   /* 1-nt codon match                          */
+  p7X_FS_C2 = 2,   /* 2-nt codon match                          */
+  p7X_FS_C3 = 3,   /* 3-nt codon match                          */
+  p7X_FS_C4 = 4,   /* 4-nt codon match                          */
+  p7X_FS_C5 = 5,   /* 5-nt codon match                          */
+};
+#define p7X_NSCELLS_FS 8   /* D + I + M_C0..M_C5 */
+
 /* Besides ENJBC states, we may also store a rescaling factor on each row  */
-enum p7x_xcells_e { p7X_E = 0, p7X_N = 1, p7X_J = 2, p7X_B = 3, p7X_C = 4, p7X_SCALE = 5 }; 
+enum p7x_xcells_e { p7X_E = 0, p7X_N = 1, p7X_J = 2, p7X_B = 3, p7X_C = 4, p7X_SCALE = 5 };
 #define p7X_NXCELLS 6
 
-/* 
- * 
- * dpf[][] 
+/*
+ *
+ * dpf[][]
  *    to access M(i,k) for i=0,1..L; k=1..M:  dpf[i][(k-1)/4 + p7X_M].element[(k-1)%4]
- * 
+ *
  * xmx[] arrays for individual special states:
  *    xmx[ENJBC] = [0 1 2 3][4 5 6 7]..[L-2 L-1 L x]     XRQ >= (L/4)+1
  *    to access B[i] for example, for i=0..L:   xmx[B][i/4].x[i%4]  (quad i/4; element i%4).
- */  
+ */
 typedef struct p7_omx_s {
   int       M;      /* current actual model dimension                              */
   int       L;      /* current actual sequence dimension                           */
+  int       nscells;   /* p7X_NSCELLS (3) for standard, p7X_NSCELLS_FS (8) for FS full matrix */
 
   /* The main dynamic programming matrix for M,D,I states                                      */
   __m128  **dpf;    /* striped DP matrix for [0,1..L][0..Q-1][MDI], float vectors  */
@@ -316,9 +332,16 @@ typedef struct p7_omx_s {
 #define XMXo(i,s) (xmx[(i) * p7X_NXCELLS + s])
 
 /* and this version works with a ptr to the approp DP row. */
-#define MMO(dp,q) ((dp)[(q) * p7X_NSCELLS + p7X_M])
-#define DMO(dp,q) ((dp)[(q) * p7X_NSCELLS + p7X_D])
-#define IMO(dp,q) ((dp)[(q) * p7X_NSCELLS + p7X_I])
+#define MMO(dp,q)      ((dp)[(q) * p7X_NSCELLS    + p7X_M])
+#define DMO(dp,q)      ((dp)[(q) * p7X_NSCELLS    + p7X_D])
+#define IMO(dp,q)      ((dp)[(q) * p7X_NSCELLS    + p7X_I])
+
+/* Frameshift full-matrix row access (p7X_NSCELLS_FS = 8 cells per stripe position).
+ * MMO_FS(dp,q,c): match for codon-length class c (p7X_FS_C0..p7X_FS_C5).
+ */
+#define MMO_FS(dp,q,c) ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_M + (c)])
+#define DMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_D])
+#define IMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_I])
 
 static inline float
 p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k)
@@ -352,8 +375,10 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
  *****************************************************************/
 
 /* p7_omx.c */
-extern P7_OMX      *p7_omx_Create(int allocM, int allocL, int allocXL);
-extern int          p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL);
+extern P7_OMX      *p7_omx_Create   (int allocM, int allocL, int allocXL);
+extern int          p7_omx_GrowTo   (P7_OMX *ox, int allocM, int allocL, int allocXL);
+extern P7_OMX      *p7_omx_Create_FS(int allocM, int allocL, int allocXL);
+extern int          p7_omx_GrowTo_FS(P7_OMX *ox, int allocM, int allocL, int allocXL);
 extern int          p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx);
 extern int          p7_omx_Reuse  (P7_OMX *ox);
 extern void         p7_omx_Destroy(P7_OMX *ox);

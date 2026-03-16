@@ -368,8 +368,8 @@ main(int argc, char **argv)
   bgDNA  = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, fwd, iv, &fsc);
-  p7_Backward_Frameshift(dsq, gcode, L, gm_fs5, bck, iv, &bsc);
+  p7_Forward_Frameshift(dsq, L, gm_fs5, fwd, iv, &fsc);
+  p7_Backward_Frameshift(dsq, L, gm_fs5, bck, iv, &bsc);
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++) 

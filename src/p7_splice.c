@@ -139,7 +139,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
       }
       
       ali_seq = p7_splice_GetSubSequence(seq_file, tophits->hit[i]->name, seq_min, seq_max, revcomp, NULL);
-      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs5, ali_seq, gcode, esl_opt_GetBoolean(go, "--cigar"));
+      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs5, ali_seq, esl_opt_GetBoolean(go, "--cigar"));
       tophits->hit[i]->dcl->ad->exon_cnt = 1;
       tophits->hit[i]->dcl->ad->sqfrom = tophits->hit[i]->dcl->iali;
       tophits->hit[i]->dcl->ad->sqto   = tophits->hit[i]->dcl->jali;  
@@ -1697,13 +1697,11 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
   P7_FS_PROFILE *gm_tr;
-  ESL_GENCODE *gcode;
   P7_HIT      *hit;
 
   graph = info->graph;
   pli   = info->pli;
   gm_tr = info->gm_tr;
-  gcode = info->gcode;
 
   gx = pli->vit;
 
@@ -1714,14 +1712,14 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L/3);
    
-  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   /* If the hits were in different frames and no splice site was able to pull score 
    * from the upstream frame to the downstream frame the spliceing is a failure */
   if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2009,21 +2007,19 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
   P7_FS_PROFILE *gm_tr;
-  ESL_GENCODE *gcode;
 
   graph = info->graph;
   pli   = info->pli;
   gm_tr = info->gm_tr;
-  gcode = info->gcode;  
 
   p7_gmx_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L/3);
   
-   p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+   p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
@@ -2281,21 +2277,19 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
   P7_FS_PROFILE *gm_tr;
-  ESL_GENCODE *gcode;
 
   graph = info->graph;
   pli   = info->pli;
   gm_tr = info->gm_tr;
-  gcode = info->gcode;
 
   p7_gmx_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L);
   
-  p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */
@@ -2545,20 +2539,18 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   SPLICE_PATH *ret_path;
   SPLICE_PIPELINE *pli;
   P7_FS_PROFILE *gm_tr;
-  ESL_GENCODE *gcode;
 
   pli   = info->pli;
   gm_tr = info->gm_tr;
-  gcode = info->gcode;
 
   p7_gmx_GrowTo(pli->vit, M, L, L);
   p7_splicepipline_GrowIndex(pli->sig_idx, M, L);
   p7_fs_ReconfigLength(gm_tr, L);
   
-  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gcode, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+  p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gcode, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_splicevitebi_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 
   /* Find number of introns in trace */

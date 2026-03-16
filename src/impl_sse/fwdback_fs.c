@@ -82,7 +82,6 @@
  *            (ox->allocXR > L).
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            gcode  - genetic code table (for nucleotide alphabet)
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths must be 3)
  *            ox     - DP matrix with PARSER_ROWS_FWD MDI rows and L X rows
@@ -95,8 +94,7 @@
  *            In either case, <*opt_sc> is undefined.
  */
 int
-p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
-                                         const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
+p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
 {
   register __m128 mpv2, dpv2, ipv2;   /* right-shifted prev2 row MDI for BM/MM/IM/DM   */
   register __m128 sv;                 /* temporary IVX accumulator                      */
@@ -556,15 +554,14 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
  *            space with sparse rescaling, using scale factors from the filled
  *            Forward matrix <fwd>.
  *
- *            Caller must allocate <ox> with at least PARSER_ROWS_BWD valid MDI
- *            rows (ox->validR >= PARSER_ROWS_BWD) and L+1 X-rows.
+ *            Caller must allocate <bck> with at least PARSER_ROWS_BWD valid MDI
+ *            rows (bck->validR >= PARSER_ROWS_BWD) and L+1 X-rows.
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            gcode  - genetic code table (for nucleotide alphabet)
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths must be 3)
  *            fwd    - filled Forward DP matrix, for sparse scale factors
- *            ox     - RETURN: Backward DP matrix (PARSER_ROWS_BWD MDI rows, L X rows)
+ *            bck    - RETURN: Backward DP matrix (PARSER_ROWS_BWD MDI rows, L X rows)
  *            opt_sc - optRETURN: Backward score in nats
  *
  * Returns:   <eslOK> on success.
@@ -573,9 +570,7 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
  *            <eslERANGE> if score overflows or underflows.
  */
 int
-p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
-                                          const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd,
-                                          P7_OMX *ox, float *opt_sc)
+p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
   register __m128 sv;                  /* temporary accumulator                           */
   register __m128 dcv;                 /* D(i,k+1) left-shift carry                      */
@@ -607,20 +602,20 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   if (om_fs->codon_lengths != 3)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 3 codon lengths");
 #if eslDEBUGLEVEL > 0
-  if (om_fs->M > ox->allocQ4*4)
+  if (om_fs->M > bck->allocQ4*4)
     ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
-  if (ox->validR < PARSER_ROWS_BWD)
+  if (bck->validR < PARSER_ROWS_BWD)
     ESL_EXCEPTION(eslEINVAL, "DP matrix needs at least PARSER_ROWS_BWD MDI rows");
-  if (L >= ox->allocXR)
+  if (L >= bck->allocXR)
     ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
   if (! p7_fs_oprofile_IsLocal(om_fs))
     ESL_EXCEPTION(eslEINVAL, "Backward implementation assumes local alignment mode");
 #endif
 
-  ox->M              = om_fs->M;
-  ox->L              = L;
-  ox->has_own_scales = FALSE;
-  ox->totscale       = 0.0;
+  bck->M              = om_fs->M;
+  bck->L              = L;
+  bck->has_own_scales = FALSE;
+  bck->totscale       = 0.0;
   zerov = _mm_setzero_ps();
 
   /* Allocate and align ivxf: Q stripes (recomputed at each position i) */
@@ -630,7 +625,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   /* Zero-initialize all PARSER_ROWS_BWD MDI rows */
   for (r = 0; r < PARSER_ROWS_BWD; r++)
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = zerov;
+      MMO(bck->dpf[r],q) = IMO(bck->dpf[r],q) = DMO(bck->dpf[r],q) = zerov;
 
   /* Zero-initialize all circular special-state buffers */
   for (r = 0; r < PARSER_ROWS_BWD; r++)
@@ -654,7 +649,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       xE = xC * om_fs->xf[p7O_E][p7O_MOVE];
       xEv = _mm_set1_ps(xE);
 
-      dpc = ox->dpf[curr];
+      dpc = bck->dpf[curr];
       for (q = 0; q < Q; q++)
         { MMO(dpc,q) = xEv; DMO(dpc,q) = xEv; IMO(dpc,q) = zerov; }
 
@@ -682,27 +677,27 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
 
       /* Rescale using fwd scale factor */
       scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
+      bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
       if (scale > 1.0f)
         { float sf = 1.0f / scale;
           xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
           xEv = _mm_set1_ps(sf);
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             for (q = 0; q < Q; q++)
-              { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
-                DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
-                IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
-          ox->totscale += log(scale); }
+              { MMO(bck->dpf[r],q) = _mm_mul_ps(MMO(bck->dpf[r],q), xEv);
+                DMO(bck->dpf[r],q) = _mm_mul_ps(DMO(bck->dpf[r],q), xEv);
+                IMO(bck->dpf[r],q) = _mm_mul_ps(IMO(bck->dpf[r],q), xEv); }
+          bck->totscale += log(scale); }
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-      ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+      bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
+      bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
+      bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+      bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
+      bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
 
 #if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC);
+      if (bck->debugging) p7_omx_DumpFBRow_FS(bck, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC);
 #endif
     }
 
@@ -726,8 +721,8 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
 
   c2 = p7P_CODON2_FS3(x, w); c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
 
-  dpc  = ox->dpf[curr];
-  dpp2 = ox->dpf[prev2];
+  dpc  = bck->dpf[curr];
+  dpp2 = bck->dpf[prev2];
 
   /* ivxf[q] = M(i+2=L, q) * R2 */
   for (q = 0; q < Q; q++)
@@ -789,29 +784,29 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       dcv = DMO(dpc,q); }
 
   scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-  ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
+  bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
   if (scale > 1.0f)
     { float sf = 1.0f / scale;
       xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
       xEv = _mm_set1_ps(sf);
       for (r = 0; r < PARSER_ROWS_BWD; r++)
         for (q = 0; q < Q; q++)
-          { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
-            DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
-            IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
+          { MMO(bck->dpf[r],q) = _mm_mul_ps(MMO(bck->dpf[r],q), xEv);
+            DMO(bck->dpf[r],q) = _mm_mul_ps(DMO(bck->dpf[r],q), xEv);
+            IMO(bck->dpf[r],q) = _mm_mul_ps(IMO(bck->dpf[r],q), xEv); }
       for (r = 0; r < PARSER_ROWS_BWD; r++)
         { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
-      ox->totscale += log(scale); }
+      bck->totscale += log(scale); }
 
   xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-  ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-  ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-  ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-  ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-  ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+  bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
+  bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
+  bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+  bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
+  bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
 
 #if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC);
+      if (bck->debugging) p7_omx_DumpFBRow_FS(bck, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC);
 #endif
 
   /*----------------------------------------------------------------
@@ -846,10 +841,10 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       b     =  i       % PARSER_ROWS_BWD;
       b3    = (i+3)    % PARSER_ROWS_BWD;
 
-      dpc  = ox->dpf[curr];
-      dpp2 = ox->dpf[prev2];
-      dpp3 = ox->dpf[prev3];
-      dpp4 = ox->dpf[prev4];
+      dpc  = bck->dpf[curr];
+      dpp2 = bck->dpf[prev2];
+      dpp3 = bck->dpf[prev3];
+      dpp4 = bck->dpf[prev4];
 
       /* Phase 1: pre-compute ivxf[q] = M(i+2)*R2 + M(i+3)*R3 + M(i+4)*R4 */
       for (q = 0; q < Q; q++)
@@ -926,34 +921,34 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
           dcv = DMO(dpc,q); }
 
       /* Phase 7: sparse rescaling using fwd scale factor at row i */
-      if (xB > 1.0e16f) ox->has_own_scales = TRUE;
+      if (xB > 1.0e16f) bck->has_own_scales = TRUE;
 
-      if (ox->has_own_scales) scale = (xB > 1.0e4f) ? xB : 1.0f;
+      if (bck->has_own_scales) scale = (xB > 1.0e4f) ? xB : 1.0f;
       else                    scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
 
-      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
+      bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
       if (scale > 1.0f)
         { float sf = 1.0f / scale;
           xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
           xEv = _mm_set1_ps(sf);
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             for (q = 0; q < Q; q++)
-              { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
-                DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
-                IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
+              { MMO(bck->dpf[r],q) = _mm_mul_ps(MMO(bck->dpf[r],q), xEv);
+                DMO(bck->dpf[r],q) = _mm_mul_ps(DMO(bck->dpf[r],q), xEv);
+                IMO(bck->dpf[r],q) = _mm_mul_ps(IMO(bck->dpf[r],q), xEv); }
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
-          ox->totscale += log(scale); }
+          bck->totscale += log(scale); }
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-      ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+      bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
+      bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
+      bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+      bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
+      bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
 
 #if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC); /* logify=TRUE, <rowi>=L, width=9, precision=4*/
+      if (bck->debugging) p7_omx_DumpFBRow_FS(bck, TRUE, i, curr, 9, 4, xE, xN, xJ, xB, xC); /* logify=TRUE, <rowi>=L, width=9, precision=4*/
 #endif 
     } /* end main loop i=L-3..1 */
 
@@ -976,9 +971,9 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   prev3 = 3 % PARSER_ROWS_BWD;
   prev4 = 4 % PARSER_ROWS_BWD;
 
-  dpp2 = ox->dpf[prev2];
-  dpp3 = ox->dpf[prev3];
-  dpp4 = ox->dpf[prev4];
+  dpp2 = bck->dpf[prev2];
+  dpp3 = bck->dpf[prev3];
+  dpp4 = bck->dpf[prev4];
 
   for (q = 0; q < Q; q++)
     ivxf[q] = _mm_add_ps(_mm_add_ps(
@@ -996,15 +991,15 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   xN = xN_buf[3 % PARSER_ROWS_BWD] * om_fs->xf[p7O_N][p7O_LOOP]
      + xB                           * om_fs->xf[p7O_N][p7O_MOVE];
 
-  ox->xmx[p7X_B]     = xB;
-  ox->xmx[p7X_N]     = xN;
-  ox->xmx[p7X_J]     = 0.0f;
-  ox->xmx[p7X_C]     = 0.0f;
-  ox->xmx[p7X_E]     = 0.0f;
-  ox->xmx[p7X_SCALE] = 1.0f;
+  bck->xmx[p7X_B]     = xB;
+  bck->xmx[p7X_N]     = xN;
+  bck->xmx[p7X_J]     = 0.0f;
+  bck->xmx[p7X_C]     = 0.0f;
+  bck->xmx[p7X_E]     = 0.0f;
+  bck->xmx[p7X_SCALE] = 1.0f;
 
 #if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFBRow_FS(ox, TRUE, 0, 0, 9, 4, xE, xN, xJ, xB, xC); 
+      if (bck->debugging) p7_omx_DumpFBRow_FS(bck, TRUE, 0, 0, 9, 4, xE, xN, xJ, xB, xC); 
 #endif
 
  /* Final score: log( N(0) + N(1) + N(2) ) + totscale.
@@ -1020,7 +1015,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
 
     if (opt_sc != NULL)
-      *opt_sc = ox->totscale + logf(xNtot);
+      *opt_sc = bck->totscale + logf(xNtot);
   }
 
   free(ivxf_mem);
@@ -1044,7 +1039,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
  *
  *            Given a digital nucleotide sequence <dsq> of length <L>, an
  *            optimized frameshift profile <om_fs> (codon_lengths == 5), and a
- *            DP matrix <ox> allocated for at least PARSER_ROWS_FWD MDI rows
+ *            DP matrix <fwd> allocated for at least PARSER_ROWS_FWD MDI rows
  *            and L special-state rows, computes the Forward probability of the
  *            sequence given the model and returns the Forward score in nats in
  *            <*opt_sc>.
@@ -1054,15 +1049,14 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
  *
  *            The intermediate value matrix (IVX) is allocated locally as
  *            p7P_5CODONS circular rows of Q SIMD vectors each. MDI rows in
- *            <ox> are used in a circular fashion (PARSER_ROWS_FWD = 4 rows).
+ *            <fwd> are used in a circular fashion (PARSER_ROWS_FWD = 4 rows).
  *            Special states are maintained in scalar circular buffers of size
  *            PARSER_ROWS_FWD.
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            gcode  - genetic code table (for nucleotide alphabet)
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths must be 5)
- *            ox     - DP matrix with PARSER_ROWS_FWD MDI rows and L X rows
+ *            fwd     - DP matrix with PARSER_ROWS_FWD MDI rows and L X rows
  *            opt_sc - optRETURN: Forward score in nats
  *
  * Returns:   <eslOK> on success.
@@ -1072,8 +1066,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
  *            In either case, <*opt_sc> is undefined.
  */
 int
-p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
-                                         const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
+p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
 {
   register __m128 mpv1, dpv1, ipv1;   /* right-shifted prev1 row MDI for BM/MM/IM/DM    */
   register __m128 sv;                  /* temporary IVX accumulator                      */
@@ -1104,16 +1097,16 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
 #if eslDEBUGLEVEL > 0
-  if (om_fs->M > ox->allocQ4*4)        ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
-  if (ox->validR < PARSER_ROWS_FWD)    ESL_EXCEPTION(eslEINVAL, "DP matrix needs at least PARSER_ROWS_FWD MDI rows");
-  if (L >= ox->allocXR)                ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
+  if (om_fs->M > fwd->allocQ4*4)        ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
+  if (fwd->validR < PARSER_ROWS_FWD)    ESL_EXCEPTION(eslEINVAL, "DP matrix needs at least PARSER_ROWS_FWD MDI rows");
+  if (L >= fwd->allocXR)                ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
   if (! p7_fs_oprofile_IsLocal(om_fs)) ESL_EXCEPTION(eslEINVAL, "Forward implementation assumes local alignment mode");
 #endif
 
-  ox->M  = om_fs->M;
-  ox->L  = L;
-  ox->has_own_scales = TRUE;
-  ox->totscale       = 0.0;
+  fwd->M  = om_fs->M;
+  fwd->L  = L;
+  fwd->has_own_scales = TRUE;
+  fwd->totscale       = 0.0;
   zerov = _mm_setzero_ps();
 
   /* Allocate and align IVX: p7P_5CODONS circular rows x Q stripes */
@@ -1123,7 +1116,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   /* Zero-initialize all PARSER_ROWS_FWD MDI rows */
   for (r = 0; r < PARSER_ROWS_FWD; r++)
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = zerov;
+      MMO(fwd->dpf[r],q) = IMO(fwd->dpf[r],q) = DMO(fwd->dpf[r],q) = zerov;
 
   /* Zero-initialize all p7P_5CODONS IVX rows */
   for (r = 0; r < p7P_5CODONS; r++)
@@ -1139,15 +1132,15 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   xN_buf[0] = xN_buf[1] = xN_buf[2] = 1.0f;
   xB_buf[0] = xB_buf[1] = xB_buf[2] = om_fs->xf[p7O_N][p7O_MOVE];
 
-  /* Write rows 0, 1, 2 specials to ox->xmx (E=J=C=0, no codon ends before i=1) */
+  /* Write rows 0, 1, 2 specials to fwd->xmx (E=J=C=0, no codon ends before i=1) */
   for (r = 0; r < 3; r++)
     {
-      ox->xmx[r*p7X_NXCELLS+p7X_SCALE] = 1.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_E]     = 0.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_N]     = 1.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_J]     = 0.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_B]     = om_fs->xf[p7O_N][p7O_MOVE];
-      ox->xmx[r*p7X_NXCELLS+p7X_C]     = 0.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_E]     = 0.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_N]     = 1.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_J]     = 0.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_B]     = om_fs->xf[p7O_N][p7O_MOVE];
+      fwd->xmx[r*p7X_NXCELLS+p7X_C]     = 0.0f;
     }
 
   /* Initialize nucleotide rolling window.
@@ -1172,9 +1165,9 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   prev3 = 2;  /* (i-3+PARSER_ROWS_FWD) % PARSER_ROWS_FWD; all zeros */
   ivx_1 = 1;  /* i % p7P_5CODONS */
 
-  dpc  = ox->dpf[curr];
-  dpp1 = ox->dpf[prev1];  /* all zeros */
-  dpp3 = ox->dpf[prev3];  /* all zeros */
+  dpc  = fwd->dpf[curr];
+  dpp1 = fwd->dpf[prev1];  /* all zeros */
+  dpp3 = fwd->dpf[prev3];  /* all zeros */
 
   xBv1 = _mm_set1_ps(xB_buf[0]);   /* B(0) */
   tp   = om_fs->tfv;
@@ -1267,9 +1260,9 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
       for (r = 0; r < PARSER_ROWS_FWD; r++)
         for (q = 0; q < Q; q++)
           {
-            MMO(ox->dpf[r], q) = _mm_mul_ps(MMO(ox->dpf[r], q), xEv);
-            DMO(ox->dpf[r], q) = _mm_mul_ps(DMO(ox->dpf[r], q), xEv);
-            IMO(ox->dpf[r], q) = _mm_mul_ps(IMO(ox->dpf[r], q), xEv);
+            MMO(fwd->dpf[r], q) = _mm_mul_ps(MMO(fwd->dpf[r], q), xEv);
+            DMO(fwd->dpf[r], q) = _mm_mul_ps(DMO(fwd->dpf[r], q), xEv);
+            IMO(fwd->dpf[r], q) = _mm_mul_ps(IMO(fwd->dpf[r], q), xEv);
           }
       for (r = 0; r < p7P_5CODONS; r++)
         for (q = 0; q < Q; q++)
@@ -1279,19 +1272,19 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
           xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
           xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
         }
-      ox->xmx[1*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
+      fwd->xmx[1*p7X_NXCELLS+p7X_SCALE] = xE;
+      fwd->totscale += log(xE);
       xE = 1.0f;
     }
-  else ox->xmx[1*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  else fwd->xmx[1*p7X_NXCELLS+p7X_SCALE] = 1.0f;
 
-  /* Store i=1 specials to circular buffers and ox->xmx */
+  /* Store i=1 specials to circular buffers and fwd->xmx */
   xN_buf[1] = xN; xB_buf[1] = xB; xJ_buf[1] = xJ; xC_buf[1] = xC;
-  ox->xmx[1*p7X_NXCELLS+p7X_E] = xE;
-  ox->xmx[1*p7X_NXCELLS+p7X_N] = xN;
-  ox->xmx[1*p7X_NXCELLS+p7X_J] = xJ;
-  ox->xmx[1*p7X_NXCELLS+p7X_B] = xB;
-  ox->xmx[1*p7X_NXCELLS+p7X_C] = xC;
+  fwd->xmx[1*p7X_NXCELLS+p7X_E] = xE;
+  fwd->xmx[1*p7X_NXCELLS+p7X_N] = xN;
+  fwd->xmx[1*p7X_NXCELLS+p7X_J] = xJ;
+  fwd->xmx[1*p7X_NXCELLS+p7X_B] = xB;
+  fwd->xmx[1*p7X_NXCELLS+p7X_C] = xC;
 
   /*----------------------------------------------------------------
    * Initialization: i=2
@@ -1313,9 +1306,9 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   ivx_1 = 2;  /* i % p7P_5CODONS */
   ivx_2 = 1;  /* (i-1) % p7P_5CODONS */
 
-  dpc  = ox->dpf[curr];
-  dpp1 = ox->dpf[prev1];
-  dpp3 = ox->dpf[prev3];  /* all zeros */
+  dpc  = fwd->dpf[curr];
+  dpp1 = fwd->dpf[prev1];
+  dpp3 = fwd->dpf[prev3];  /* all zeros */
 
   xBv1 = _mm_set1_ps(xB_buf[1]);   /* B(1) */
   tp   = om_fs->tfv;
@@ -1416,9 +1409,9 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
       for (r = 0; r < PARSER_ROWS_FWD; r++)
         for (q = 0; q < Q; q++)
           {
-            MMO(ox->dpf[r], q) = _mm_mul_ps(MMO(ox->dpf[r], q), xEv);
-            DMO(ox->dpf[r], q) = _mm_mul_ps(DMO(ox->dpf[r], q), xEv);
-            IMO(ox->dpf[r], q) = _mm_mul_ps(IMO(ox->dpf[r], q), xEv);
+            MMO(fwd->dpf[r], q) = _mm_mul_ps(MMO(fwd->dpf[r], q), xEv);
+            DMO(fwd->dpf[r], q) = _mm_mul_ps(DMO(fwd->dpf[r], q), xEv);
+            IMO(fwd->dpf[r], q) = _mm_mul_ps(IMO(fwd->dpf[r], q), xEv);
           }
       for (r = 0; r < p7P_5CODONS; r++)
         for (q = 0; q < Q; q++)
@@ -1428,19 +1421,19 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
           xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
           xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
         }
-      ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
+      fwd->xmx[2*p7X_NXCELLS+p7X_SCALE] = xE;
+      fwd->totscale += log(xE);
       xE = 1.0f;
     }
-  else ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  else fwd->xmx[2*p7X_NXCELLS+p7X_SCALE] = 1.0f;
 
   /* Store i=2 specials */
   xN_buf[2] = xN; xB_buf[2] = xB; xJ_buf[2] = xJ; xC_buf[2] = xC;
-  ox->xmx[2*p7X_NXCELLS+p7X_E] = xE;
-  ox->xmx[2*p7X_NXCELLS+p7X_N] = xN;
-  ox->xmx[2*p7X_NXCELLS+p7X_J] = xJ;
-  ox->xmx[2*p7X_NXCELLS+p7X_B] = xB;
-  ox->xmx[2*p7X_NXCELLS+p7X_C] = xC;
+  fwd->xmx[2*p7X_NXCELLS+p7X_E] = xE;
+  fwd->xmx[2*p7X_NXCELLS+p7X_N] = xN;
+  fwd->xmx[2*p7X_NXCELLS+p7X_J] = xJ;
+  fwd->xmx[2*p7X_NXCELLS+p7X_B] = xB;
+  fwd->xmx[2*p7X_NXCELLS+p7X_C] = xC;
 
   /*----------------------------------------------------------------
    * Main recurrence: i = 3..L
@@ -1499,9 +1492,9 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
       b1 = ((i-1) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD;
       b3 = ((i-3) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD;
 
-      dpc  = ox->dpf[curr];
-      dpp1 = ox->dpf[prev1];
-      dpp3 = ox->dpf[prev3];
+      dpc  = fwd->dpf[curr];
+      dpp1 = fwd->dpf[prev1];
+      dpp3 = fwd->dpf[prev3];
 
       /* Right-shift prev1 MDI for (k-1) indexing in BM/MM/IM/DM transitions */
       mpv1 = esl_sse_rightshiftz_float(MMO(dpp1, Q-1));
@@ -1610,9 +1603,9 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
           for (r = 0; r < PARSER_ROWS_FWD; r++)
             for (q = 0; q < Q; q++)
               {
-                MMO(ox->dpf[r], q) = _mm_mul_ps(MMO(ox->dpf[r], q), xEv);
-                DMO(ox->dpf[r], q) = _mm_mul_ps(DMO(ox->dpf[r], q), xEv);
-                IMO(ox->dpf[r], q) = _mm_mul_ps(IMO(ox->dpf[r], q), xEv);
+                MMO(fwd->dpf[r], q) = _mm_mul_ps(MMO(fwd->dpf[r], q), xEv);
+                DMO(fwd->dpf[r], q) = _mm_mul_ps(DMO(fwd->dpf[r], q), xEv);
+                IMO(fwd->dpf[r], q) = _mm_mul_ps(IMO(fwd->dpf[r], q), xEv);
               }
           for (r = 0; r < p7P_5CODONS; r++)
             for (q = 0; q < Q; q++)
@@ -1622,19 +1615,19 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
               xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
               xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
             }
-          ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
-          ox->totscale += log(xE);
+          fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
+          fwd->totscale += log(xE);
           xE = 1.0f;
         }
-      else ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+      else fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
 
-      /* Store specials to circular buffers and ox->xmx */
+      /* Store specials to circular buffers and fwd->xmx */
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-      ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+      fwd->xmx[i*p7X_NXCELLS+p7X_E] = xE;
+      fwd->xmx[i*p7X_NXCELLS+p7X_N] = xN;
+      fwd->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+      fwd->xmx[i*p7X_NXCELLS+p7X_B] = xB;
+      fwd->xmx[i*p7X_NXCELLS+p7X_C] = xC;
     } /* end main loop i=3..L */
 
   /* Final score: C->T transition.
@@ -1653,7 +1646,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
 
     if (opt_sc != NULL)
-      *opt_sc = ox->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
+      *opt_sc = fwd->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
   }
 
   free(ivxf_mem);
@@ -1678,15 +1671,14 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
  *            space with sparse rescaling, using scale factors from the filled
  *            Forward matrix <fwd>.
  *
- *            Caller must allocate <ox> with at least PARSER_ROWS_BWD valid MDI
- *            rows (ox->validR >= PARSER_ROWS_BWD) and L+1 X-rows.
+ *            Caller must allocate <bck> with at least PARSER_ROWS_BWD valid MDI
+ *            rows (bck->validR >= PARSER_ROWS_BWD) and L+1 X-rows.
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            gcode  - genetic code table (for nucleotide alphabet)
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths must be 5)
  *            fwd    - filled Forward DP matrix, for sparse scale factors
- *            ox     - RETURN: Backward DP matrix (PARSER_ROWS_BWD MDI rows, L X rows)
+ *            bck     - RETURN: Backward DP matrix (PARSER_ROWS_BWD MDI rows, L X rows)
  *            opt_sc - optRETURN: Backward score in nats
  *
  * Returns:   <eslOK> on success.
@@ -1695,9 +1687,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
  *            <eslERANGE> if score overflows or underflows.
  */
 int
-p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
-                                          const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd,
-                                          P7_OMX *ox, float *opt_sc)
+p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
   register __m128 sv;                  /* temporary accumulator                           */
   register __m128 dcv;                 /* D(i,k+1) left-shift carry                      */
@@ -1729,20 +1719,20 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   if (om_fs->codon_lengths != 5)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 #if eslDEBUGLEVEL > 0
-  if (om_fs->M > ox->allocQ4*4)
+  if (om_fs->M > bck->allocQ4*4)
     ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
-  if (ox->validR < PARSER_ROWS_BWD)
+  if (bck->validR < PARSER_ROWS_BWD)
     ESL_EXCEPTION(eslEINVAL, "DP matrix needs at least PARSER_ROWS_BWD MDI rows");
-  if (L >= ox->allocXR)
+  if (L >= bck->allocXR)
     ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
   if (! p7_fs_oprofile_IsLocal(om_fs))
     ESL_EXCEPTION(eslEINVAL, "Backward implementation assumes local alignment mode");
 #endif
 
-  ox->M              = om_fs->M;
-  ox->L              = L;
-  ox->has_own_scales = FALSE;
-  ox->totscale       = 0.0;
+  bck->M              = om_fs->M;
+  bck->L              = L;
+  bck->has_own_scales = FALSE;
+  bck->totscale       = 0.0;
   zerov = _mm_setzero_ps();
 
   /* Allocate and align ivxf: Q stripes (recomputed at each position i) */
@@ -1752,7 +1742,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   /* Zero-initialize all PARSER_ROWS_BWD MDI rows */
   for (r = 0; r < PARSER_ROWS_BWD; r++)
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = zerov;
+      MMO(bck->dpf[r],q) = IMO(bck->dpf[r],q) = DMO(bck->dpf[r],q) = zerov;
 
   /* Zero-initialize all circular special-state buffers */
   for (r = 0; r < PARSER_ROWS_BWD; r++)
@@ -1778,7 +1768,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   xE = xC * om_fs->xf[p7O_E][p7O_MOVE];
   xEv = _mm_set1_ps(xE);
 
-  dpc = ox->dpf[curr];
+  dpc = bck->dpf[curr];
   for (q = 0; q < Q; q++)
     { MMO(dpc,q) = xEv; DMO(dpc,q) = xEv; IMO(dpc,q) = zerov; }
 
@@ -1806,24 +1796,24 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
 
   /* Rescale using fwd scale factor */
   scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-  ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
+  bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
   if (scale > 1.0f)
     { float sf = 1.0f / scale;
       xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
       xEv = _mm_set1_ps(sf);
       for (r = 0; r < PARSER_ROWS_BWD; r++)
         for (q = 0; q < Q; q++)
-          { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
-            DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
-            IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
-      ox->totscale += log(scale); }
+          { MMO(bck->dpf[r],q) = _mm_mul_ps(MMO(bck->dpf[r],q), xEv);
+            DMO(bck->dpf[r],q) = _mm_mul_ps(DMO(bck->dpf[r],q), xEv);
+            IMO(bck->dpf[r],q) = _mm_mul_ps(IMO(bck->dpf[r],q), xEv); }
+      bck->totscale += log(scale); }
 
   xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-  ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-  ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-  ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-  ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-  ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+  bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
+  bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
+  bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+  bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
+  bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
 
   /*----------------------------------------------------------------
    * Main recurrence: i = L-1 down to 1
@@ -1872,12 +1862,12 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
       b     =  i       % PARSER_ROWS_BWD;
       b3    = (i+3)    % PARSER_ROWS_BWD;
 
-      dpc  = ox->dpf[curr];
-      dpp1 = ox->dpf[prev1];
-      dpp2 = ox->dpf[prev2];
-      dpp3 = ox->dpf[prev3];
-      dpp4 = ox->dpf[prev4];
-      dpp5 = ox->dpf[prev5];
+      dpc  = bck->dpf[curr];
+      dpp1 = bck->dpf[prev1];
+      dpp2 = bck->dpf[prev2];
+      dpp3 = bck->dpf[prev3];
+      dpp4 = bck->dpf[prev4];
+      dpp5 = bck->dpf[prev5];
 
       /* Phase 1: pre-compute ivxf[q] = M(i+1)*R1 + M(i+2)*R2 + M(i+3)*R3
        *                               + M(i+4)*R4 + M(i+5)*R5 */
@@ -1954,31 +1944,31 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
           dcv = DMO(dpc,q); }
 
       /* Phase 7: sparse rescaling */
-      if (xB > 1.0e16f) ox->has_own_scales = TRUE;
+      if (xB > 1.0e16f) bck->has_own_scales = TRUE;
 
-      if (ox->has_own_scales) scale = (xB > 1.0e4f) ? xB : 1.0f;
+      if (bck->has_own_scales) scale = (xB > 1.0e4f) ? xB : 1.0f;
       else                    scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
 
-      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
+      bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
       if (scale > 1.0f)
         { float sf = 1.0f / scale;
           xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
           xEv = _mm_set1_ps(sf);
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             for (q = 0; q < Q; q++)
-              { MMO(ox->dpf[r],q) = _mm_mul_ps(MMO(ox->dpf[r],q), xEv);
-                DMO(ox->dpf[r],q) = _mm_mul_ps(DMO(ox->dpf[r],q), xEv);
-                IMO(ox->dpf[r],q) = _mm_mul_ps(IMO(ox->dpf[r],q), xEv); }
+              { MMO(bck->dpf[r],q) = _mm_mul_ps(MMO(bck->dpf[r],q), xEv);
+                DMO(bck->dpf[r],q) = _mm_mul_ps(DMO(bck->dpf[r],q), xEv);
+                IMO(bck->dpf[r],q) = _mm_mul_ps(IMO(bck->dpf[r],q), xEv); }
           for (r = 0; r < PARSER_ROWS_BWD; r++)
             { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
-          ox->totscale += log(scale); }
+          bck->totscale += log(scale); }
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-      ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+      bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
+      bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
+      bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+      bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
+      bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
     } /* end main loop i=L-1..1 */
 
   /*----------------------------------------------------------------
@@ -2007,11 +1997,11 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   prev4 = 4 % PARSER_ROWS_BWD;
   prev5 = 5 % PARSER_ROWS_BWD;
 
-  dpp1 = ox->dpf[prev1];
-  dpp2 = ox->dpf[prev2];
-  dpp3 = ox->dpf[prev3];
-  dpp4 = ox->dpf[prev4];
-  dpp5 = ox->dpf[prev5];
+  dpp1 = bck->dpf[prev1];
+  dpp2 = bck->dpf[prev2];
+  dpp3 = bck->dpf[prev3];
+  dpp4 = bck->dpf[prev4];
+  dpp5 = bck->dpf[prev5];
 
   for (q = 0; q < Q; q++)
     ivxf[q] = _mm_add_ps(
@@ -2032,12 +2022,12 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   xN = xN_buf[3 % PARSER_ROWS_BWD] * om_fs->xf[p7O_N][p7O_LOOP]
      + xB                           * om_fs->xf[p7O_N][p7O_MOVE];
 
-  ox->xmx[p7X_B]     = xB;
-  ox->xmx[p7X_N]     = xN;
-  ox->xmx[p7X_J]     = 0.0f;
-  ox->xmx[p7X_C]     = 0.0f;
-  ox->xmx[p7X_E]     = 0.0f;
-  ox->xmx[p7X_SCALE] = 1.0f;
+  bck->xmx[p7X_B]     = xB;
+  bck->xmx[p7X_N]     = xN;
+  bck->xmx[p7X_J]     = 0.0f;
+  bck->xmx[p7X_C]     = 0.0f;
+  bck->xmx[p7X_E]     = 0.0f;
+  bck->xmx[p7X_SCALE] = 1.0f;
 
   /* Final score: log( N(0) + N(1) + N(2) ) + totscale (matches scalar). */
   {
@@ -2050,7 +2040,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
 
     if (opt_sc != NULL)
-      *opt_sc = ox->totscale + logf(xNtot);
+      *opt_sc = bck->totscale + logf(xNtot);
   }
 
   free(ivxf_mem);
@@ -2072,26 +2062,24 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
  *            rescaling.
  *
  *            Like <p7_ForwardParser_Frameshift_5Codons_SSE()> but stores every
- *            DP row in <ox> so that posterior decoding or stochastic traceback can
- *            be performed afterward.  <ox> must be created with <p7_omx_Create_dpf()>
+ *            DP row in <fwd> so that posterior decoding or stochastic traceback can
+ *            be performed afterward.  <fwd> must be created with <p7_omx_Create_dpf()>
  *            using <p7X_NSCELLS_FS> (8 cells per stripe: D, I, M_C0..M_C5).
  *
- *            Scale factors at each row are written to <ox->xmx[i*p7X_NXCELLS+p7X_SCALE]>
+ *            Scale factors at each row are written to <fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]>
  *            so that the backward pass can apply the same cumulative rescaling.
  *
  * Args:      dsq    - nucleotide sequence, 1..L
- *            gcode  - genetic code table
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths == 5)
- *            ox     - DP matrix, created with p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS)
+ *            fwd     - DP matrix, created with p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS)
  *            opt_sc - optRETURN: Forward score in nats
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> on score overflow/underflow.
  */
 int
-p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
-                           const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
+p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
 {
   register __m128 mpv1, dpv1, ipv1;     /* right-shifted prev1 MDI for BM/MM/IM/DM       */
   register __m128 sv;                    /* temporary IVX accumulator                      */
@@ -2120,10 +2108,10 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
 
   if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
-  ox->M              = om_fs->M;
-  ox->L              = L;
-  ox->has_own_scales = TRUE;
-  ox->totscale       = 0.0;
+  fwd->M              = om_fs->M;
+  fwd->L              = L;
+  fwd->has_own_scales = TRUE;
+  fwd->totscale       = 0.0;
   zerov = _mm_setzero_ps();
 
   /* Allocate IVX: p7P_5CODONS circular rows x Q stripes */
@@ -2133,10 +2121,10 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   /* Zero-initialize rows 0..L of the full DP matrix */
   for (r = 0; r <= L; r++)
     for (q = 0; q < Q; q++)
-      MMO_FS(ox->dpf[r],q,p7X_FS_C0) = MMO_FS(ox->dpf[r],q,p7X_FS_C1) =
-      MMO_FS(ox->dpf[r],q,p7X_FS_C2) = MMO_FS(ox->dpf[r],q,p7X_FS_C3) =
-      MMO_FS(ox->dpf[r],q,p7X_FS_C4) = MMO_FS(ox->dpf[r],q,p7X_FS_C5) =
-      DMO_FS(ox->dpf[r],q)            = IMO_FS(ox->dpf[r],q)            = zerov;
+      MMO_FS(fwd->dpf[r],q,p7X_FS_C0) = MMO_FS(fwd->dpf[r],q,p7X_FS_C1) =
+      MMO_FS(fwd->dpf[r],q,p7X_FS_C2) = MMO_FS(fwd->dpf[r],q,p7X_FS_C3) =
+      MMO_FS(fwd->dpf[r],q,p7X_FS_C4) = MMO_FS(fwd->dpf[r],q,p7X_FS_C5) =
+      DMO_FS(fwd->dpf[r],q)            = IMO_FS(fwd->dpf[r],q)            = zerov;
 
   /* Zero-initialize all IVX rows */
   for (r = 0; r < p7P_5CODONS; r++)
@@ -2150,15 +2138,15 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   xN_buf[0] = xN_buf[1] = xN_buf[2] = 1.0f;
   xB_buf[0] = xB_buf[1] = xB_buf[2] = om_fs->xf[p7O_N][p7O_MOVE];
 
-  /* Write rows 0, 1, 2 specials to ox->xmx */
+  /* Write rows 0, 1, 2 specials to fwd->xmx */
   for (r = 0; r < 3; r++)
     {
-      ox->xmx[r*p7X_NXCELLS+p7X_SCALE] = 1.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_E]     = 0.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_N]     = 1.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_J]     = 0.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_B]     = om_fs->xf[p7O_N][p7O_MOVE];
-      ox->xmx[r*p7X_NXCELLS+p7X_C]     = 0.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_E]     = 0.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_N]     = 1.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_J]     = 0.0f;
+      fwd->xmx[r*p7X_NXCELLS+p7X_B]     = om_fs->xf[p7O_N][p7O_MOVE];
+      fwd->xmx[r*p7X_NXCELLS+p7X_C]     = 0.0f;
     }
 
   /* Initialize nucleotide rolling window */
@@ -2173,8 +2161,8 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
 
   ivx_1 = 1;  /* i % p7P_5CODONS */
 
-  dpc  = ox->dpf[1];
-  dpp1 = ox->dpf[0];  /* all zeros */
+  dpc  = fwd->dpf[1];
+  dpp1 = fwd->dpf[0];  /* all zeros */
 
   xBv1 = _mm_set1_ps(xB_buf[0]);
   tp   = om_fs->tfv;
@@ -2287,18 +2275,18 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
           xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
           xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
         }
-      ox->xmx[1*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
+      fwd->xmx[1*p7X_NXCELLS+p7X_SCALE] = xE;
+      fwd->totscale += log(xE);
       xE = 1.0f;
     }
-  else ox->xmx[1*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  else fwd->xmx[1*p7X_NXCELLS+p7X_SCALE] = 1.0f;
 
   xN_buf[1] = xN; xB_buf[1] = xB; xJ_buf[1] = xJ; xC_buf[1] = xC;
-  ox->xmx[1*p7X_NXCELLS+p7X_E] = xE;
-  ox->xmx[1*p7X_NXCELLS+p7X_N] = xN;
-  ox->xmx[1*p7X_NXCELLS+p7X_J] = xJ;
-  ox->xmx[1*p7X_NXCELLS+p7X_B] = xB;
-  ox->xmx[1*p7X_NXCELLS+p7X_C] = xC;
+  fwd->xmx[1*p7X_NXCELLS+p7X_E] = xE;
+  fwd->xmx[1*p7X_NXCELLS+p7X_N] = xN;
+  fwd->xmx[1*p7X_NXCELLS+p7X_J] = xJ;
+  fwd->xmx[1*p7X_NXCELLS+p7X_B] = xB;
+  fwd->xmx[1*p7X_NXCELLS+p7X_C] = xC;
 
   /*----------------------------------------------------------------
    * Initialization: i=2 (1-nt and 2-nt codons)
@@ -2314,8 +2302,8 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   ivx_1 = 2;  /* i % p7P_5CODONS */
   ivx_2 = 1;  /* (i-1) % p7P_5CODONS */
 
-  dpc  = ox->dpf[2];
-  dpp1 = ox->dpf[1];
+  dpc  = fwd->dpf[2];
+  dpp1 = fwd->dpf[1];
 
   xBv1 = _mm_set1_ps(xB_buf[1]);
   tp   = om_fs->tfv;
@@ -2436,18 +2424,18 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
           xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
           xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
         }
-      ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
+      fwd->xmx[2*p7X_NXCELLS+p7X_SCALE] = xE;
+      fwd->totscale += log(xE);
       xE = 1.0f;
     }
-  else ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  else fwd->xmx[2*p7X_NXCELLS+p7X_SCALE] = 1.0f;
 
   xN_buf[2] = xN; xB_buf[2] = xB; xJ_buf[2] = xJ; xC_buf[2] = xC;
-  ox->xmx[2*p7X_NXCELLS+p7X_E] = xE;
-  ox->xmx[2*p7X_NXCELLS+p7X_N] = xN;
-  ox->xmx[2*p7X_NXCELLS+p7X_J] = xJ;
-  ox->xmx[2*p7X_NXCELLS+p7X_B] = xB;
-  ox->xmx[2*p7X_NXCELLS+p7X_C] = xC;
+  fwd->xmx[2*p7X_NXCELLS+p7X_E] = xE;
+  fwd->xmx[2*p7X_NXCELLS+p7X_N] = xN;
+  fwd->xmx[2*p7X_NXCELLS+p7X_J] = xJ;
+  fwd->xmx[2*p7X_NXCELLS+p7X_B] = xB;
+  fwd->xmx[2*p7X_NXCELLS+p7X_C] = xC;
 
   /*----------------------------------------------------------------
    * Main recurrence: i = 3..L
@@ -2482,15 +2470,15 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
       b3 = ((i-3) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD;
 
       /* Full-matrix row pointers: direct indexing */
-      dpc  = ox->dpf[i];
-      dpp1 = ox->dpf[i-1];
-      dpp3 = ox->dpf[i-3];
+      dpc  = fwd->dpf[i];
+      dpp1 = fwd->dpf[i-1];
+      dpp3 = fwd->dpf[i-3];
 
       /* insert_adj: dpp3 was committed at scale S[i-3]; running scale now = S[i-1].
        * Correction factor = 1.0 / (S[i-2] * S[i-1]) where S[j] = xmx[j*..+SCALE]. */
       insert_adj = 1.0f
-                 / (ox->xmx[(i-2)*p7X_NXCELLS+p7X_SCALE]
-                 *  ox->xmx[(i-1)*p7X_NXCELLS+p7X_SCALE]);
+                 / (fwd->xmx[(i-2)*p7X_NXCELLS+p7X_SCALE]
+                 *  fwd->xmx[(i-1)*p7X_NXCELLS+p7X_SCALE]);
 
       mpv1 = esl_sse_rightshiftz_float(MMO_FS(dpp1, Q-1, p7X_FS_C0));
       dpv1 = esl_sse_rightshiftz_float(DMO_FS(dpp1, Q-1));
@@ -2615,18 +2603,18 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
               xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
               xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
             }
-          ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
-          ox->totscale += log(xE);
+          fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
+          fwd->totscale += log(xE);
           xE = 1.0f;
         }
-      else ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+      else fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-      ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+      fwd->xmx[i*p7X_NXCELLS+p7X_E] = xE;
+      fwd->xmx[i*p7X_NXCELLS+p7X_N] = xN;
+      fwd->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+      fwd->xmx[i*p7X_NXCELLS+p7X_B] = xB;
+      fwd->xmx[i*p7X_NXCELLS+p7X_C] = xC;
     } /* end main loop i=3..L */
 
   /* Final score: same as parser */
@@ -2643,7 +2631,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
 
     if (opt_sc != NULL)
-      *opt_sc = ox->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
+      *opt_sc = fwd->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
   }
 
   free(ivxf_mem);
@@ -2669,7 +2657,6 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
  *            codon contributions into a single M value per model position.
  *
  * Args:      dsq    - nucleotide sequence, 1..L
- *            gcode  - genetic code table
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths == 5)
  *            fwd    - forward matrix from p7_Forward_Frameshift_SSE()
@@ -2680,9 +2667,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
  * Throws:    <eslEINVAL>, <eslERANGE> on error.
  */
 int
-p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
-                            const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd,
-                            P7_OMX *bck, float *opt_sc)
+p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
   register __m128 sv;
   register __m128 dcv;
@@ -3064,7 +3049,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_OMX         *oxb    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
   P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
   P7_OMX         *bck    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
-  P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, M, 0);
+  P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, M, p7X_NSCELLS);
   P7_IVX         *iv3    = p7_ivx_Create(M, p7P_3CODONS);
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
   float tolerance, generic_tolerance;
@@ -3109,40 +3094,40 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_fs_ReconfigLength(gm_fs5, sq->n);
 
       p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
-      p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
+      p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
       /* 3-codon SSE vs scalar */
-      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, oxf, &fsc3);
-	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
+      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, oxf, &fsc3);
+	  p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
    
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, oxf, oxb, &bsc3);
+	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, oxf, oxb, &bsc3);
   
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg);
 
       /* 5-codon SSE vs scalar */
       p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
-      p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
+      p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
-      p7_ForwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, oxf, &fsc5);
-      p7_ForwardParser_Frameshift_5Codons(dsq, gcode, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
+      p7_ForwardParser_Frameshift_5Codons_SSE(dsq, curr_L, om_fs5, oxf, &fsc5);
+      p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
  
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-      p7_BackwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, oxf, oxb, &bsc5);
+      p7_BackwardParser_Frameshift_5Codons_SSE(dsq, curr_L, om_fs5, oxf, oxb, &bsc5);
 
       if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      p7_Forward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, &full_fsc);
+      p7_Forward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, &full_fsc);
 
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
       
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
-      p7_Backward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, bck, &full_bsc);
+      p7_Backward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, bck, &full_bsc);
 
       if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);     
     }

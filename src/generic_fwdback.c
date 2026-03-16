@@ -510,11 +510,11 @@ utest_generation(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc,
     {
       if (p7_ProfileEmit(r, hmm, gm, bg, sq, tr)     != eslOK) esl_fatal("profile emission failed");
 
-      if (p7_gmx_GrowTo(gx, gm->M, sq->n, sq->n, p7G_NSCELLS) != eslOK) esl_fatal("failed to reallocate gmx");
-      if (p7_GViterbi(sq->dsq, sq->n, gm, gx, &vsc)           != eslOK) esl_fatal("viterbi failed");
-      if (p7_GForward(sq->dsq, sq->n, gm, gx, &fsc)           != eslOK) esl_fatal("forward failed");
-      if (p7_trace_Score(tr, sq->dsq, gm, &tracesc)           != eslOK) esl_fatal("trace score failed");
-      if (p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc)          != eslOK) esl_fatal("null score failed");
+      if (p7_gmx_GrowTo(gx, gm->M, sq->n, sq->n)     != eslOK) esl_fatal("failed to reallocate gmx");
+      if (p7_GViterbi(sq->dsq, sq->n, gm, gx, &vsc)  != eslOK) esl_fatal("viterbi failed");
+      if (p7_GForward(sq->dsq, sq->n, gm, gx, &fsc)  != eslOK) esl_fatal("forward failed");
+      if (p7_trace_Score(tr, sq->dsq, gm, &tracesc)  != eslOK) esl_fatal("trace score failed");
+      if (p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc) != eslOK) esl_fatal("null score failed");
 
       if (vsc < tracesc) esl_fatal("viterbi score is less than trace");
       if (fsc < tracesc) esl_fatal("forward score is less than trace");
@@ -781,8 +781,8 @@ main(int argc, char **argv)
       else if (status != eslOK)      p7_Fail("Unexpected error %d reading sequence file %s", status, sqfp->filename);
 
       /* Resize the DP matrices if necessary */
-      p7_gmx_GrowTo(fwd, gm->M, sq->n, sq->n, p7G_NSCELLS);
-      p7_gmx_GrowTo(bck, gm->M, sq->n, sq->n, p7G_NSCELLS);
+      p7_gmx_GrowTo(fwd, gm->M, sq->n, sq->n);
+      p7_gmx_GrowTo(bck, gm->M, sq->n, sq->n);
 
       /* Set the profile and null model's target length models */
       p7_bg_SetLength(bg,   sq->n);

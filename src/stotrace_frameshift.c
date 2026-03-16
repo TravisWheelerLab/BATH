@@ -287,7 +287,7 @@ main(int argc, char **argv)
   tr  = p7_trace_fs_Create();
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
-  p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, fwd, iv, &fsc);
+  p7_Forward_Frameshift(dsq, L, gm_fs5, fwd, iv, &fsc);
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)

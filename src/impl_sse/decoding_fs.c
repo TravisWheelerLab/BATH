@@ -369,7 +369,7 @@ p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,
 /*****************************************************************
  * 3. Unit tests
  *****************************************************************/
-#ifdef p7DOMDEF_FS_TESTDRIVE
+#ifdef p7DECODING_FS_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
@@ -433,16 +433,16 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       p7_gmx_GrowTo(gxpp, M, curr_L, curr_L);
       p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
 
-      p7_Forward_Frameshift (dsq, gcode, curr_L, gm_fs5, gx1, iv5, &fsc);
-      p7_Backward_Frameshift(dsq, gcode, curr_L, gm_fs5, gx2, iv5, &bsc);
+      p7_Forward_Frameshift (dsq, curr_L, gm_fs5, gx1, iv5, &fsc);
+      p7_Backward_Frameshift(dsq, curr_L, gm_fs5, gx2, iv5, &bsc);
       p7_Decoding_Frameshift(gm_fs5, gx1, gx2);   /* gx1 is now the PP matrix */
 
       /*  simd under test: p7_Decoding_Frameshift_SSE overwrites fwd with PP  */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
 
-      p7_Forward_Frameshift_SSE (dsq, gcode, curr_L, om_fs5, fwd, &fsc);
-      p7_Backward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, bck, &bsc);
+      p7_Forward_Frameshift_SSE (dsq, curr_L, om_fs5, fwd, &fsc);
+      p7_Backward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, bck, &bsc);
       p7_Decoding_Frameshift_SSE(om_fs5, fwd, bck);  /* fwd is now the PP matrix */
 
       /* --- Deconvert SSE PP to generic layout and compare --- */
@@ -522,8 +522,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
 
-      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, &fsc3);
-      p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &generic_fsc3);
+      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, fwd, &fsc3);
+      p7_BackwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, fwd, bwd, &generic_fsc3);
 
       oddef->mocc = oddef->btot = oddef->etot = NULL;
       ESL_ALLOC(oddef->mocc, sizeof(float) * (curr_L+1));
@@ -535,8 +535,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
       p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
 
-      p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv, &bsc3);
-      p7_BackwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
+      p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv, &bsc3);
+      p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
 
       gddef->mocc = gddef->btot = gddef->etot = NULL;
       ESL_ALLOC(gddef->mocc, sizeof(float) * (curr_L+1));
@@ -577,7 +577,7 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
 ERROR:
   return;
 }
-#endif /*p7DOMDEF_FS_TESTDRIVE*/
+#endif /*p7DECODING_FS_TESTDRIVE*/
 
 
 /*--------------------- end, unit tests -------------------------*/
@@ -588,10 +588,10 @@ ERROR:
 /*****************************************************************
  * 4. Test driver
  *****************************************************************/
-#ifdef p7DOMDEF_FS_TESTDRIVE
+#ifdef p7DECODING_FS_TESTDRIVE
 /* 
-  gcc -g -Wall -msse2 -std=gnu99 -o domdef_fs_utest -I.. -L.. -I../../easel -L../../easel -Dp7DOMDEF_FS_TESTDRIVE decoding_fs.c -lhmmer -leasel -lm
- ./domdef_fs_utest
+  gcc -g -Wall -msse2 -std=gnu99 -o decoding_fs_utest -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_FS_TESTDRIVE decoding_fs.c -lhmmer -leasel -lm
+ ./decoding_fs_utest
 */
 #include "p7_config.h"
 
@@ -653,7 +653,7 @@ main(int argc, char **argv)
   return eslOK;
 }
 
-#endif /*p7DOMDEF_FS_TESTDRIVE*/
+#endif /*p7DECODING_FS_TESTDRIVE*/
 /*-------------------- end, test driver -------------------------*/
 
 

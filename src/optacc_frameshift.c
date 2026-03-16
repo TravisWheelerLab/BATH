@@ -665,8 +665,8 @@ main(int argc, char **argv)
   tr  = p7_trace_fs_CreateWithPP();
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_Forward_Frameshift(dsq, gcode, L, gm_fs5, gx1, iv, &fsc);
-  p7_Backward_Frameshift(dsq, gcode, L, gm_fs5, gx2, iv, &bsc);
+  p7_Forward_Frameshift(dsq, L, gm_fs5, gx1, iv, &fsc);
+  p7_Backward_Frameshift(dsq, L, gm_fs5, gx2, iv, &bsc);
   p7_Decoding_Frameshift(gm_fs5, gx1, gx2);
 
   esl_stopwatch_Start(w);

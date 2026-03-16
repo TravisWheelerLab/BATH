@@ -130,8 +130,8 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
       if  ( (gm_fs3  = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_3CODONS))                  == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
       if  ( (status  = p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, EvL, p7_LOCAL)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure profile");
     }
-    if ((status = p7_fs_Tau_3codons (r, gm_fs3, gcode, ct, bg, EfL, EfN, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
-    if ((status = p7_fs_Tau_5codons (r, gm_fs5, gcode, ct, bg, EfL, EfN, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+    if ((status = p7_fs_Tau_3codons (r, gm_fs3, ct, bg, EfL, EfN, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+    if ((status = p7_fs_Tau_5codons (r, gm_fs5, ct, bg, EfL, EfN, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
   }
  
 
@@ -591,7 +591,7 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
   P7_GMX  *gx      = NULL; 
@@ -630,7 +630,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
 		j+=3;
 	  } 
 
-     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, gcode, L*3, gm_fs3, gx, iv, &fsc))      != eslOK) goto ERROR;
+     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, L*3, gm_fs3, gx, iv, &fsc))      != eslOK) goto ERROR;
 
       if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
@@ -688,7 +688,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
   P7_GMX  *gx      = NULL; 
@@ -726,7 +726,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, 
         j+=3;
       }
 
-      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, gcode, L*3, gm_fs5, gx, iv, &fsc))      != eslOK) goto ERROR; 
+      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, L*3, gm_fs5, gx, iv, &fsc))      != eslOK) goto ERROR; 
        
       if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
@@ -889,8 +889,8 @@ main(int argc, char **argv)
 	  if (do_vit)  p7_ViterbiMu (r, om, bg, EvL, EvN, lambda,       &vmu);
 	  if (do_fwd)  p7_Tau       (r, om, bg, EfL, EfN, lambda, Eft,  &ftau);
       if(abc->type == eslAMINO) {
-        if (do_fwd3) p7_fs_Tau_3codons(r, gm_fs3, gcode, ct, bg, EfL, EfN, lambda, Eft, &ftau3) 
-        if (do_fwd5) p7_fs_Tau_5codons(r, gm_fs5, gcode, ct, bg, EfL, EfN, lambda, Eft, &ftau5)
+        if (do_fwd3) p7_fs_Tau_3codons(r, gm_fs3, ct, bg, EfL, EfN, lambda, Eft, &ftau3) 
+        if (do_fwd5) p7_fs_Tau_5codons(r, gm_fs5, ct, bg, EfL, EfN, lambda, Eft, &ftau5)
       }
 	  printf("%s %.4f %.4f %.4f %.4f", hmm->name, lambda, mmu, vmu, ftau);
       if (abc->type == eslAMINO)  printf(" %.4f %.4f\n", ftau3, ftau5);

@@ -925,7 +925,7 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
  *
  */
 static int 
-p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_SQ *windowsq, ESL_GENCODE *gcode, int complementarity)
+p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *dnasq, ESL_SQ *windowsq, int complementarity)
 {
 
   int              d;
@@ -1004,7 +1004,7 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
     if (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) 
     { 
 
-      dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs5, windowsq, gcode, pli->show_cigar);
+      dom->ad = p7_alidisplay_fs_Create(dom->tr, 0, gm_fs5, windowsq, pli->show_cigar);
       dom->ad->sqfrom = dom->iali;
       dom->ad->sqto   = dom->jali;
       dom->ad->L      = dnasq->L;   
@@ -1353,7 +1353,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     p7_omx_GrowTo(pli->oxf, om->M, PARSER_ROWS_FWD, dna_window->length); 
     p7_fs_oprofile_ReconfigLength(om_fs3, dna_window->length/3);
 
-    p7_ForwardParser_Frameshift_3Codons_SSE(subseq, gcode, dna_window->length, om_fs3, pli->oxf, &fwdsc_fs);
+    p7_ForwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf, &fwdsc_fs);
     
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
     P_fs = esl_exp_surv(seqscore_fs,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]);
@@ -1369,7 +1369,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
      
     pli->pos_past_fwd += dna_window->length; 
     p7_omx_GrowTo(pli->oxb, om->M, PARSER_ROWS_BWD, dna_window->length);
-    p7_BackwardParser_Frameshift_3Codons_SSE(subseq, gcode, dna_window->length, om_fs3, pli->oxf, pli->oxb, NULL);
+    p7_BackwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf, pli->oxb, NULL);
 
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs3, gm_fs5, bg, gcode);
 
@@ -1385,7 +1385,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     }
 
     /* Send any hits from the Frameshift aware pipeline to be further processed */ 
-	p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, gcode, complementarity);
+	p7_pli_postDomainDef_Frameshift_BATH(pli, gm_fs5, bg, hitlist, seqidx, dna_window->n, dnasq, pli_tmp->tmpseq, complementarity);
 
   } 
   /* If the DNA window did NOT pass pass frameshift forward or did not produced a 
@@ -1406,7 +1406,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
         
         p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], pli->oxb, NULL);
         
-        status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm_fs5, pli_tmp->oxf_holder[f], pli->oxb, pli->fwd, pli->bck, pli->ddef);
+        status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, om, gm_fs5, pli_tmp->oxf_holder[f], pli->oxb, pli->fwd, pli->bck, pli->ddef);
 
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
@@ -1468,7 +1468,6 @@ ERROR:
  *            dna_window      - a window obeject with the start and length 
  *                              of the window and all associated orfs
  *            dnasq           - the target dna sequence
- *            gcode           - genetic code information for codon translation
  *            pli_tmp         - frameshift pipeline object for use in domain definition 
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
  * Returns:   <eslOK> on success. If a significant hit is obtained,
@@ -1484,7 +1483,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_SCOREDATA *data, P7_HMM_WINDOWLIST *splcing_windows, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_SCOREDATA *data, P7_HMM_WINDOWLIST *splcing_windows, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
   int              f, w;
@@ -1560,7 +1559,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5
 
     p7_BackwardParser(curr_orf->dsq, curr_orf->n, om, pli->oxf, pli->oxb, NULL);
 
-    status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, gcode, om, gm_fs5, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef);
+    status = p7_domaindef_ByPosteriorHeuristics_BATH(curr_orf, pli_tmp->tmpseq, dnasq->n, om, gm_fs5, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->ddef);
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
     if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
     if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/
@@ -1761,7 +1760,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
 
   if(!pli->fs_pipe) { /* not using frameshift algorithms */
 
-    p7_pli_postViterbi_BATH(pli, om, gm_fs5, bg, hitlist, seqidx, post_vit_orf_block, dnasq, gcode, data, splcing_windows, pli_tmp, complementarity);
+    p7_pli_postViterbi_BATH(pli, om, gm_fs5, bg, hitlist, seqidx, post_vit_orf_block, dnasq, data, splcing_windows, pli_tmp, complementarity);
 
   }
   else if(post_vit_orf_block->count > 0)  { /* For frameshift search - create DNA widnows for ORFs that pass viterbi */

@@ -53,7 +53,6 @@
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gcode  - genetic code table 
  *            gm_fs5  - a frameshift-aware codon profile. 
  *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value matrix 
@@ -62,7 +61,7 @@
  * Return:    <eslOK> on success.
  */
 int
-p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 { 
 
   float const *tsc  = gm_fs5->tsc;
@@ -419,44 +418,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
  *            aware translated comparison between a dna sequence and an
- *            frameshift aware codon HMM, using three codon lengths,
- *            with a minimal sized DP matrix.
- *
- *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm_fs5>, and DP matrix <gx> allocated with <L> cells for
- *            all 5 special states <N,B,E,J,C>, and at least 2 by
- *            <gm_fs5->M> cells for all core model states <M,I,D>;
- *            calculate the probability of the sequence given the model
- *            and 3 permissible codon lengths using the Forward algorithm -
- *            reusing the rows in the core matrix; use the intermdiate
- *            value matrix <iv> to store partial calculations; return the
- *            Forward matrix in <gx>, and the Forward score in <ret_sc>.
- *
- *            The Forward score is in lod score form. To convert to a
- *            bitscore, the caller needs to subtract a null model lod
- *            score, then convert to bits.
- *
- *            Caller must have initialized the log-sum calculation
- *            with a call to <p7_FLogsumInit()>.
- *
- * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            L      - length of dsq
- *            gcode  - genetic code table
- *            gm_fs5  - framshift-aware codon profile.
- *            gx     - DP matrix
- *            iv     - intermedite value matrix
- *            opt_sc - optRETURN: Forward lod score in nats
- *
- * Return:    <eslOK> on success.
- */
-
-
-
-/* Function:  p7_ForwardParser_Frameshift_3Codons()
- * Synopsis:  The frameshift-aware Forward algorithm using 3 codon lengths - low memory.
- *
- * Purpose:   The Forward dynamic programming algorithm for frameshift
- *            aware translated comparison between a dna sequence and an
  *            frameshift aware codon HMM, using three codon lengths, 
  *            with a minimal sized DP matrix. 
  *
@@ -479,7 +440,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gcode  - genetic code table
  *            gm_fs3 - framshift-aware codon profile. 
  *            gx     - DP matrix 
  *            iv     - intermedite value matrix 
@@ -488,7 +448,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
  * Return:    <eslOK> on success.
  */
 int
-p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 { 
 
   float const *tsc  = gm_fs3->tsc;
@@ -688,7 +648,6 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gcode  - genetic code table
  *            gm_fs5  - framshift aware codon profile. 
  *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value martix
@@ -697,7 +656,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
  * Return:    <eslOK> on success.
  */
 int
-p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 { 
 
   float const *tsc  = gm_fs5->tsc;
@@ -1065,7 +1024,6 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gcode  - genetic code table
  *            gm_fs5  - framshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value martix
@@ -1074,7 +1032,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
  * Return:    <eslOK> on success.
  */
 int
-p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
 
   float const *tsc  = gm_fs5->tsc;
@@ -1453,7 +1411,6 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gcode  - genetic code table
  *            gm_fs3  - framshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value martix
@@ -1462,7 +1419,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
  * Return:    <eslOK> on success.
  */
 int
-p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
 
   float const *tsc  = gm_fs3->tsc;
@@ -1798,7 +1755,6 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gcode  - genetic code table
  *            gm_fs5  - framshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value martix
@@ -1807,7 +1763,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
  * Return:    <eslOK> on success.
  */
 int
-p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
 
   float const *tsc  = gm_fs5->tsc;
@@ -2287,14 +2243,14 @@ main(int argc, char **argv)
   {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
       if (! esl_opt_GetBoolean(go, "-B"))  {
-        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Forward_Frameshift (dsq, gcode, L, gm_fs5, fwd, iv, &sc);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T")) p7_ForwardParser_Frameshift_5Codons(dsq, gcode, L, gm_fs5, fwd_p, iv, &sc);
+        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Forward_Frameshift (dsq, L, gm_fs5, fwd, iv, &sc);
+        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T")) p7_ForwardParser_Frameshift_5Codons(dsq, L, gm_fs5, fwd_p, iv, &sc);
         p7_gmx_Reuse(fwd_p);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V")) p7_ForwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, fwd_p, iv, &sc);
+        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V")) p7_ForwardParser_Frameshift_3Codons(dsq, L, gm_fs3, fwd_p, iv, &sc);
       } 
       if (! esl_opt_GetBoolean(go, "-F"))  {
-        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Backward_Frameshift(dsq, gcode, L, gm_fs5, bck, iv, NULL); 
-        if (! esl_opt_GetBoolean(go, "-U"))                                   p7_BackwardParser_Frameshift_3Codons(dsq, gcode, L, gm_fs3, bck_p, iv, NULL);
+        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_Backward_Frameshift(dsq, L, gm_fs5, bck, iv, NULL); 
+        if (! esl_opt_GetBoolean(go, "-U"))                                   p7_BackwardParser_Frameshift_3Codons(dsq, L, gm_fs3, bck_p, iv, NULL);
      }
 
      p7_gmx_Reuse(fwd_p);
@@ -2346,7 +2302,7 @@ main(int argc, char **argv)
 #include "esl_randomseq.h"
 
 static void
-utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GENCODE *gcode, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_HMM *hmm, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, int nseq, int L)
+utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_HMM *hmm, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, int nseq, int L)
 {
   int         i,j;
   float       avg_sc_rnd;
@@ -2390,9 +2346,9 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
         p7_codontable_GetCodon(codon_table, r, dsqAA[i], dsqDNA+j);
         j+=3;
 	  }
-      if (p7_Viterbi_Frameshift(dsqDNA, gcode, L, gm_fs5, vit, iv, &vsc)      != eslOK) esl_fatal("viterbi failed");
-      if (p7_Forward_Frameshift(dsqDNA, gcode, L, gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
-      if (p7_Backward_Frameshift(dsqDNA, gcode, L, gm_fs5, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
+      if (p7_Viterbi_Frameshift(dsqDNA, L, gm_fs5, vit, iv, &vsc)      != eslOK) esl_fatal("viterbi failed");
+      if (p7_Forward_Frameshift(dsqDNA, L, gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+      if (p7_Backward_Frameshift(dsqDNA, L, gm_fs5, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
      
       if (fsc < vsc)             esl_fatal("Forward score can't be less than Viterbi score"); 
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
@@ -2401,19 +2357,19 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
    
       avg_sc_rnd += fsc - nullsc;
 
-      if (p7_ForwardParser_Frameshift_5Codons(dsqDNA, gcode, L, gm_fs5, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 5 failed");
+      if (p7_ForwardParser_Frameshift_5Codons(dsqDNA, L, gm_fs5, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 5 failed");
 
       if (fabs(fsc-fsc_p) > 0.001) esl_fatal("Forward/Forward Parser failed: %f %f\n", fsc, fsc_p);
 
-      if (p7_BackwardParser_Frameshift_5Codons(dsqDNA, gcode, L, gm_fs5, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser 5 failed");
+      if (p7_BackwardParser_Frameshift_5Codons(dsqDNA, L, gm_fs5, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser 5 failed");
 
       if (fabs(bsc-bsc_p) > 0.001) esl_fatal("Backward/Backward Parser failed: %f %f\n", bsc, bsc_p);
       if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser 5 /Backward Parser 5 failed: %f %f\n", fsc_p, bsc_p);
 
 	  p7_gmx_Reuse(fwd_p);
 	  p7_gmx_Reuse(bck_p);
-      if (p7_ForwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs3, fwd_p, iv, &fsc_p) != eslOK)  esl_fatal("forward parser 3 failed");
-      if (p7_BackwardParser_Frameshift_3Codons(dsqDNA, gcode, L, gm_fs3, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser 3 failed");
+      if (p7_ForwardParser_Frameshift_3Codons(dsqDNA, L, gm_fs3, fwd_p, iv, &fsc_p) != eslOK)  esl_fatal("forward parser 3 failed");
+      if (p7_BackwardParser_Frameshift_3Codons(dsqDNA, L, gm_fs3, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser 3 failed");
        
       if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser 3 /Backward Parser 3 failed: %f %f\n", fsc_p, bsc_p);
 
@@ -2447,9 +2403,9 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GE
       }
       p7_ReconfigLength(gm, sq->n);
 
-	  p7_gmx_GrowTo(fwd, gm->M, (sq->n*3), (sq->n*3), p7G_NSCELLS_FS);
+	  p7_gmx_GrowTo(fwd, gm->M, (sq->n*3), (sq->n*3));
 
-	  if (p7_Forward_Frameshift(dsqDNA, gcode, (sq->n*3), gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+	  if (p7_Forward_Frameshift(dsqDNA, (sq->n*3), gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
 
 	  p7_bg_SetLength(bgAA,  sq->n);
 
@@ -2547,7 +2503,7 @@ main(int argc, char **argv)
   if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, L/3, p7_LOCAL) != eslOK) esl_fatal("failed to config profile");
   if (p7_hmm_Validate    (hmm, errbuf, 0.0001)      != eslOK) esl_fatal("whoops, HMM is bad!: %s", errbuf);
 
-  utest_forward_fs    (go, r, abcAA, gcode, ct, bgAA, hmm, gm, gm_fs3, gm_fs5, nseq, L);
+  utest_forward_fs    (go, r, abcAA, ct, bgAA, hmm, gm, gm_fs3, gm_fs5, nseq, L);
 
   p7_profile_fs_Destroy(gm_fs5);
   p7_profile_fs_Destroy(gm_fs3);

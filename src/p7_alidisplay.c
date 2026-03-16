@@ -526,7 +526,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            which    - domain number, 0..tr->ndom-1
  *            gm_fs    - frameshift codon profile (query)
  *            sq       - digital nucleotide sequence (target)
- *            gcode    - genetic code for tranlsation codons 
  *
  * Returns:   <eslOK> on success.
  *
@@ -534,7 +533,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, const ESL_GENCODE *gcode, int show_cigar)
+p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs, const ESL_SQ *sq, int show_cigar)
 {
 
   P7_ALIDISPLAY *ad       = NULL;
@@ -830,9 +829,9 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
         if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
           ad->codon[y] = 6;
           ad->stops++;
+          aa = 27;
         }
-
-        aa = esl_gencode_GetTranslation(gcode, &sq->dsq[i-2]);
+        else aa = p7P_AMINO(gm_fs, k, codon_idx);
 
 	    ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
         ad->ntseq [5*(z-z1)] = ' ';
@@ -1796,7 +1795,6 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
  *            which    - domain number, 0..tr->ndom-1
  *            gm_fs    - frameshift codon profile (query)
  *            sq       - digital nucleotide sequence (target)
- *            gcode    - genetic code for tranlsation codons 
  *
  * Returns:   <eslOK> on success.
  *
@@ -1804,7 +1802,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, const ESL_GENCODE *gcode, int64_t *nuc_index, int nuc_pos, int splice_cnt, int show_cigar)
+p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_fs5, const ESL_SQ *sq, ESL_DSQ *nuc_dsq, int64_t *nuc_index, int nuc_pos, int splice_cnt, int show_cigar)
 {
 
   P7_ALIDISPLAY *ad       = NULL;
@@ -2176,9 +2174,9 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
           ad->codon[y] = 6;
           ad->stops++;
+          aa = 27;
         }
- 
-        aa = esl_gencode_GetTranslation(gcode, &nuc_dsq[nuc_pos]);
+        else aa = p7P_AMINO(gm_fs5, k, codon_idx); 
         
 	    ad->aseq  [z-z1] = tolower(alphaAmino[aa]);
         ad->ntseq [5*(z-z1)] = ' ';
@@ -2428,9 +2426,9 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) {
           ad->codon[y] = 6;
           ad->stops++;
+          aa = 27;
         }
-
-        aa = esl_gencode_GetTranslation(gcode, &nuc_dsq[nuc_pos]);
+        else  aa = p7P_AMINO(gm_fs5, k, codon_idx); 
 
         ad->ntseq [5*(z-z1)]   = ' ';
         ad->ntseq [5*(z-z1)+1] = alphaDNA[n1];

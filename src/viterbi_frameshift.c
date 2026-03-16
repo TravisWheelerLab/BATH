@@ -31,7 +31,6 @@
  *            to bits.
  *           
  * Args:      dsq    - sequence in digitized form, 1..L
- *            gcode  - genetic code for translation
  *            L      - length of dsq
  *            gm_fs5  - profile. 
  *            gx     - DP matrix with room for an MxL alignment
@@ -41,7 +40,7 @@
  * Return:   <eslOK> on success.
  */
 int
-p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
   float const *tsc  = gm_fs5->tsc;
   float      **dp   = gx->dp;

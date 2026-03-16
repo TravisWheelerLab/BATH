@@ -103,7 +103,6 @@ OBJS =  build.o\
 	p7_gmx.o\
 	p7_gmxb.o\
 	p7_gmxchk.o\
-	p7_gmx_fs.o\
     p7_ivx.o\
 	p7_hit.o\
 	p7_hmm.o\
@@ -160,7 +159,6 @@ UTESTS =\
 	p7_bg_utest\
 	p7_domain_utest\
 	p7_gmx_utest\
-    p7_gmx_fs_utest\
 	p7_gmxchk_utest\
 	p7_hit_utest\
 	p7_hmm_utest\

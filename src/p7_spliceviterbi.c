@@ -35,7 +35,6 @@
  *
  * Args:      pli     - splicing pipeline containing the splice site matricies and scores
  *            sub_dsq - nucleotide sequence 
- *            gcode   - genetic code table
  *            gm_tr   - a codon profile.
  *            gx      - DP matrix with room for an MxL alignment
  *            i_start - start poition on the <sub_dsq>
@@ -46,7 +45,7 @@
  * Return:    <eslOK> on success.
  */
 int
-p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   
   float const *tsc  = gm_tr->tsc;
@@ -507,7 +506,6 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
  *
  * Args:      pli     - splicing pipeline containing the splice site matricies and scores
  *            sub_dsq - nucleotide sequence 
- *            gcode   - genetic code table
  *            gm_tr   - a codon profile.
  *            gx      - DP matrix with room for an MxL alignment
  *            i_start - start poition on the <sub_dsq>
@@ -518,7 +516,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
  * Return:    <eslOK> on success.
  */
 int
-p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
@@ -994,7 +992,6 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
  *
  * Args:      pli     - splicing pipeline containing the splice site matricies and scores
  *            sub_dsq - nucleotide sequence
- *            gcode   - genetic code table
  *            gm_tr   - a codon profile.
  *            gx      - DP matrix with room for an MxL alignment
  *            i_start - start poition on the <sub_dsq>
@@ -1005,7 +1002,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
  * Return:    <eslOK> on success.
  */
 int
-p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
@@ -1442,7 +1439,6 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
  *
  * Args:      pli       - splicing pipeline containing the splice site matricies and scores
  *            sub_dsq   - nucleotide sequence
- *            gcode     - genetic code table
  *            gm_tr     - a codon profile.
  *            gx        - filled spliced viterbi DP matrix
  *            tr        - trace to fil
@@ -1457,7 +1453,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
  *
  */            
 int
-p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
+p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
 {
   int          M   = k_end - k_start + 1;
   int          L   = i_end - i_start + 1;

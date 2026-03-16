@@ -280,7 +280,7 @@ enum p7x_fscodons_e {
 #define p7X_NSCELLS_FS 8   /* D + I + M_C0..M_C5 */
 
 enum p7x_spcells_e {
-  p7G_P = 3
+  p7X_P = 3
 };
 #define p7X_NSCELLS_SP 4
 

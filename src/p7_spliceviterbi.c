@@ -11,7 +11,6 @@
 #include "p7_splice.h"
 
 #define TSC_P -10.0
-#define MAX_NUC 4
 
 /* Function:  p7_spliceviterbi_TranslatedGlobal()
  * Synopsis:  Fully global translated spliced Viterbi algorithm
@@ -104,8 +103,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
     w = x;
     sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
-    else                         x = p7P_MAXCODONS1;
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
+    else                            x = p7P_MAXCODONS1;
 
     XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
 
@@ -125,8 +124,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
     v = w;
     w = x;
     sub_i = i_start + i - 1;
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
-    else                         x = p7P_MAXCODONS1; 
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
+    else                            x = p7P_MAXCODONS1; 
 
     c3 = p7P_CODON3_FS1(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
@@ -207,8 +206,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
     v = w;
     w = x;
 
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
-    else                         x = p7P_MAXCODONS1;
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
+    else                            x = p7P_MAXCODONS1;
 
     c3 = p7P_CODON3_FS1(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
@@ -386,7 +385,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
 
     /* Record best scoring donor sites*/
   
-    if(XXGT && t < MAX_NUC && u < MAX_NUC)  {
+    if(XXGT && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_GTAG, t, u)) {
@@ -395,7 +394,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
         }
       }
     } 
-    else if(XXGC && t < MAX_NUC && u < MAX_NUC)  {
+    else if(XXGC && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_GCAG, t, u)) {
@@ -404,7 +403,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
         }
       }
     }
-    else if(XXAT && t < MAX_NUC && u < MAX_NUC)  {
+    else if(XXAT && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_ATAC, t, u)) {
@@ -414,7 +413,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
       }
     }
 
-    if(XGT && t < MAX_NUC)  {
+    if(XGT && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_GTAG, t)) {
@@ -423,7 +422,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
         }
       }
     }
-    else if(XGC && t < MAX_NUC)  {
+    else if(XGC && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_GCAG, t)) {
@@ -432,7 +431,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
         }
       }
     }
-    else if(XAT && t < MAX_NUC)  {
+    else if(XAT && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_ATAC, t)) {
@@ -576,7 +575,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     w = x;
     sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
     else                         x = p7P_MAXCODONS1;
 
     XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
@@ -596,7 +595,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     v = w;
     w = x;
     sub_i = i_start + i - 1;
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
     else                         x = p7P_MAXCODONS1;
 
     c3 = p7P_CODON3_FS1(v, w, x);
@@ -690,7 +689,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     v = w;
     w = x;
 
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
     else                         x = p7P_MAXCODONS1;
 
     c3 = p7P_CODON3_FS1(v, w, x);
@@ -878,7 +877,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
     }
 
     /* Record best scoring donor sites*/
-    if(XXGT && t < MAX_NUC && u < MAX_NUC)  {
+    if(XXGT && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_GTAG, t, u)) {
@@ -887,7 +886,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         }
       }
     } 
-    else if(XXGC && t < MAX_NUC && u < MAX_NUC)  {
+    else if(XXGC && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_GCAG, t, u)) {
@@ -896,7 +895,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         }
       }
     }
-    else if(XXAT && t < MAX_NUC && u < MAX_NUC)  {
+    else if(XXAT && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_ATAC, t, u)) {
@@ -906,7 +905,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
       }
     }
 
-    if(XGT && t < MAX_NUC)  {
+    if(XGT && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_GTAG, t)) {
@@ -915,7 +914,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         }
       }
     }
-    else if(XGC && t < MAX_NUC)  {
+    else if(XGC && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_GCAG, t)) {
@@ -924,7 +923,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         }
       }
     }
-    else if(XAT && t < MAX_NUC)  {
+    else if(XAT && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_ATAC, t)) {
@@ -1062,7 +1061,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     w = x;
     sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
     else                         x = p7P_MAXCODONS1;
     
     XMX_SP(i,p7G_N) =  0;
@@ -1085,7 +1084,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     v = w;
     w = x;
     sub_i = i_start + i - 1;
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
     else                         x = p7P_MAXCODONS1;
 
     c3 = p7P_CODON3_FS1(v, w, x);
@@ -1156,7 +1155,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     w = x;
 
     sub_i = i_start + i - 1;
-    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
     else                         x = p7P_MAXCODONS1;
     c3 = p7P_CODON3_FS1(v, w, x);
     c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
@@ -1337,7 +1336,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
     }
 
     /* Record best scoring donor sites*/
-    if(XXGT && t < MAX_NUC && u < MAX_NUC)  {
+    if(XXGT && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_GTAG, t, u)) {
@@ -1346,7 +1345,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         }
       }
     } 
-    else if(XXGC && t < MAX_NUC && u < MAX_NUC)  {
+    else if(XXGC && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_GCAG, t, u)) {
@@ -1355,7 +1354,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         }
       }
     }
-    else if(XXAT && t < MAX_NUC && u < MAX_NUC)  {
+    else if(XXAT && t < p7P_MAXNUC && u < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX2(k, p7S_ATAC, t, u)) {
@@ -1365,7 +1364,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
       }
     }
 
-    if(XGT && t < MAX_NUC)  {
+    if(XGT && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_GTAG, t)) {
@@ -1374,7 +1373,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         }
       }
     }
-    else if(XGC && t < MAX_NUC)  {
+    else if(XGC && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_GCAG, t)) {
@@ -1383,7 +1382,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         }
       }
     }
-    else if(XAT && t < MAX_NUC)  {
+    else if(XAT && t < p7P_MAXNUC)  {
       for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
         if(TMP_SC > SSX1(k, p7S_ATAC, t)) {
@@ -1515,11 +1514,11 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
      
       sub_i = i_start + i - 1; 
       
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-2])) v = sub_dsq[sub_i-2];
+      if(sub_dsq[sub_i-2] < p7P_MAXNUC) v = sub_dsq[sub_i-2];
       else                                                      v = p7P_MAXCODONS1;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-1])) w = sub_dsq[sub_i-1];
+      if(sub_dsq[sub_i-1] < p7P_MAXNUC) w = sub_dsq[sub_i-1];
       else                                                      w = p7P_MAXCODONS1;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i]))   x = sub_dsq[sub_i];
+      if(sub_dsq[sub_i] < p7P_MAXNUC)   x = sub_dsq[sub_i];
       else                                                      x = p7P_MAXCODONS1; 
 
       c3 = p7P_CODON3_FS1(v, w, x);
@@ -1587,19 +1586,19 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
        
       /* nucleotides upstream of donor */
       sub_d = i_start + donor_idx - 1;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_d-3])) t = sub_dsq[sub_d-3];
-      else                                                      t = p7P_MAXCODONS1;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_d-2])) u = sub_dsq[sub_d-2];
-      else                                                      u = p7P_MAXCODONS1;
+      if(sub_dsq[sub_d-3] < p7P_MAXNUC) t = sub_dsq[sub_d-3];
+      else                              t = p7P_MAXCODONS1;
+      if(sub_dsq[sub_d-2] < p7P_MAXNUC) u = sub_dsq[sub_d-2];
+      else                              u = p7P_MAXCODONS1;
 
       sub_i = i_start + i - 1;
       /* nucleotides upstream of acceptor */
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-2])) v = sub_dsq[sub_i-2];
-      else                                                      v = p7P_MAXCODONS1;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i-1])) w = sub_dsq[sub_i-1];
-      else                                                      w = p7P_MAXCODONS1;
-      if(esl_abc_XIsCanonical(gcode->nt_abc, sub_dsq[sub_i]))   x = sub_dsq[sub_i];
-      else                                                      x = p7P_MAXCODONS1; 
+      if(sub_dsq[sub_i-2] < p7P_MAXNUC) v = sub_dsq[sub_i-2];
+      else                              v = p7P_MAXCODONS1;
+      if(sub_dsq[sub_i-1] < p7P_MAXNUC) w = sub_dsq[sub_i-1];
+      else                              w = p7P_MAXCODONS1;
+      if(sub_dsq[sub_i]   < p7P_MAXNUC) x = sub_dsq[sub_i];
+      else                              x = p7P_MAXCODONS1; 
      
       sub_k = k_start + k - 1;
       c0 = p7P_CODON3_FS1(v, w, x);

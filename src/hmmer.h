@@ -278,6 +278,7 @@ enum p7p_ivx_codon {
 
 
 /* Indexing variables for codons and quasicodons */
+#define p7P_MAXNUC         4      
 #define p7P_MAXCODONS5     1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 (final 3 for codons with non-cononcial nucleotides) */ 
 #define p7P_MAXCODONS3     338     /* 4^2 + 4^3 + 4^4 + 2 (final 2 for codons with non-cononcial nucleotides)*/
 #define p7P_MAXCODONS1     65      /* 4^3 + 1 */

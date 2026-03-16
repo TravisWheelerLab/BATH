@@ -72,7 +72,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   MMX_FS(1,0,p7G_C1) = MMX_FS(1,0,p7G_C2) = MMX_FS(1,0,p7G_C3) = MMX_FS(1,0,p7G_C4) = MMX_FS(1,0,p7G_C5) = -eslINFINITY;
   MMX_FS(1,0,p7G_C0) = IMX_FS(1,0) = DMX_FS(1,0) = -eslINFINITY;
 
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+  if(dsq[1] < p7P_MAXNUC) x = dsq[1];
   else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);
@@ -106,7 +106,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   MMX_FS(2,0,p7G_C0) = IMX_FS(2,0) = DMX_FS(2,0) = -eslINFINITY;
 
   w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
+  if(dsq[2] < p7P_MAXNUC) x = dsq[2];
   else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);
@@ -144,7 +144,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
     else                                            x = p7P_MAXCODONS5;
 
     /* find correct index for looking up scores of codons and quasicodons */
@@ -258,7 +258,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
     else                                            x = p7P_MAXCODONS5;
 
     /* find correct index for looking up scores of codons and quasicodons */

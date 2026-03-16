@@ -100,7 +100,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   MMX_FS(1,0,p7G_C1) = MMX_FS(1,0,p7G_C2) = MMX_FS(1,0,p7G_C3) = MMX_FS(1,0,p7G_C4) = MMX_FS(1,0,p7G_C5) = -eslINFINITY;
   MMX_FS(1,0,p7G_C0) = IMX_FS(1,0) = DMX_FS(1,0) = -eslINFINITY;
   
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+  if(dsq[1] < p7P_MAXNUC) x = dsq[1];
   else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1_FS5(x);
@@ -136,7 +136,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
   MMX_FS(2,0,p7G_C0) = IMX_FS(2,0) = DMX_FS(2,0) = -eslINFINITY;
   
   w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
+  if(dsq[2] < p7P_MAXNUC) x = dsq[2];
   else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1_FS5(x);
@@ -176,7 +176,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -294,7 +294,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, const
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -524,10 +524,10 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   /* Initialization of row 2 */
   u = v = p7P_MAXCODONS3;
   
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) w = dsq[1];
+  if(dsq[1] < p7P_MAXNUC) w = dsq[1];
   else                                            w = p7P_MAXCODONS3;
 
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
+  if(dsq[2] < p7P_MAXNUC) x = dsq[2];
   else                                            x = p7P_MAXCODONS3;
 
   /* Length 2 quasi-codon */
@@ -564,7 +564,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     w = x;
 	
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
     else                                            x = p7P_MAXCODONS3;
 
 	/* Length 2 quasi-codon */
@@ -734,7 +734,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   XMX(1,p7G_E) = -eslINFINITY;
   MMX(1,0) = IMX(1,0) = DMX(1,0) = -eslINFINITY;
   
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+  if(dsq[1] < p7P_MAXNUC) x = dsq[1];
   else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1_FS5(x);
@@ -773,7 +773,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
   MMX(2,0) = IMX(2,0) = DMX(2,0) = -eslINFINITY;
   
   w = x;
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2];
+  if(dsq[2] < p7P_MAXNUC) x = dsq[2];
   else                                            x = p7P_MAXCODONS5;
   
   c1 = p7P_CODON1_FS5(x);
@@ -820,7 +820,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -936,7 +936,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcode
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i];
+    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
     else                                            x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -1116,7 +1116,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   MMX(L,0) = IMX(L,0) = DMX(L,0)  = -eslINFINITY;
 
   /* Initialization of row L - 1  */
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) x = dsq[L];
+  if(dsq[L] < p7P_MAXNUC) x = dsq[L];
   else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);
@@ -1157,7 +1157,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
   /* Initialization of row L - 2  */
   w = x;
 
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
+  if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
   else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);
@@ -1210,7 +1210,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -1292,7 +1292,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -1371,7 +1371,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L, cons
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+    if(dsq[1] < p7P_MAXNUC) x = dsq[1];
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -1510,10 +1510,10 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   /* Check for degenerate nucleotides */
 
   /* Initialization of row L-2  */
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) w = dsq[L];
+  if(dsq[L] < p7P_MAXNUC) w = dsq[L];
   else                                              w = p7P_MAXCODONS3;
 
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
+  if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
   else                                              x = p7P_MAXCODONS3;
   
   
@@ -1567,7 +1567,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS3; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -1650,7 +1650,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS3; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -1725,7 +1725,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   w = x;
 
   /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+  if(dsq[1] < p7P_MAXNUC) x = dsq[1];
   else                                            x = p7P_MAXCODONS3; 
   
   /* find correct index for looking up scores of codons and quasicodons */ 
@@ -1849,7 +1849,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
 
   /* Initialization of row L - 1  */
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L])) x = dsq[L];
+  if(dsq[L] < p7P_MAXNUC) x = dsq[L];
   else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);
@@ -1893,7 +1893,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
   /* Initialization of row L - 2  */
   w = x;
 
-  if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1];
+  if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
   else                                            x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);
@@ -1949,7 +1949,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -2037,7 +2037,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1];
+    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 
@@ -2123,7 +2123,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, const ESL_GENCODE *gcod
     w = x;
 
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1];
+    if(dsq[1] < p7P_MAXNUC) x = dsq[1];
     else                                              x = p7P_MAXCODONS5; 
   
     /* find correct index for looking up scores of codons and quasicodons */ 

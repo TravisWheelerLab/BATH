@@ -182,8 +182,8 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
    * w=dsq[1], x=dsq[2] for the i=2 initialization.
    */
   u = v = p7P_MAXCODONS3;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) w = dsq[1]; else w = p7P_MAXCODONS3;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2]; else x = p7P_MAXCODONS3;
+  if (dsq[1] < p7P_MAXNUC) w = dsq[1]; else w = p7P_MAXCODONS3;
+  if (dsq[2] < p7P_MAXNUC) x = dsq[2]; else x = p7P_MAXCODONS3;
 
   /*----------------------------------------------------------------
    * Initialization: i=2
@@ -349,7 +349,7 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
     {
       /* Advance nucleotide window */
       u = v; v = w; w = x;
-      if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i]; else x = p7P_MAXCODONS3;
+      if (dsq[i] < p7P_MAXNUC) x = dsq[i]; else x = p7P_MAXCODONS3;
 
       /* Look up codon emission table indices */
       c2 = p7P_CODON2_FS3(w, x); c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
@@ -716,8 +716,8 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
    * The backward algorithm reads dsq[i+1..i+4]: u=dsq[i+4], v=dsq[i+3], w=dsq[i+2], x=dsq[i+1].
    * At i=L-2: i+1=L-1, i+2=L, i+3=L+1 (beyond), i+4=L+2 (beyond). */
   u = v = p7P_MAXCODONS3;  /* placeholders for positions beyond L */
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[L]))   w = dsq[L];   else w = p7P_MAXCODONS3;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[L-1])) x = dsq[L-1]; else x = p7P_MAXCODONS3;
+  if (dsq[L] < p7P_MAXNUC)   w = dsq[L];   else w = p7P_MAXCODONS3;
+  if (dsq[L-1] < p7P_MAXNUC) x = dsq[L-1]; else x = p7P_MAXCODONS3;
 
   i    = L-2;
   b    = i % PARSER_ROWS_BWD;
@@ -833,7 +833,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
   for (i = L-3; i >= 1; i--)
     {
       u = v; v = w; w = x;
-      if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1]; else x = p7P_MAXCODONS3;
+      if (dsq[i+1] < p7P_MAXNUC) x = dsq[i+1]; else x = p7P_MAXCODONS3;
 
       c2 = p7P_CODON2_FS3(x, w); c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
       c3 = p7P_CODON3_FS3(x, w, v); c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
@@ -966,7 +966,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
    * Final score = N(0) + N(1) + N(2)   (probability space, all on same scale)
    *----------------------------------------------------------------*/
   u = v; v = w; w = x;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1]; else x = p7P_MAXCODONS3;
+  if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS3;
 
   c2 = p7P_CODON2_FS3(x, w); c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
   c3 = p7P_CODON3_FS3(x, w, v); c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
@@ -1155,7 +1155,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
    * x=dsq[1] for the i=1 initialization.
    */
   t = u = v = w = p7P_MAXCODONS5;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1]; else x = p7P_MAXCODONS5;
+  if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS5;
 
   /*----------------------------------------------------------------
    * Initialization: i=1
@@ -1302,7 +1302,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
   i = 2;
   t = u = v = p7P_MAXCODONS5;
   w = x;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2]; else x = p7P_MAXCODONS5;
+  if (dsq[2] < p7P_MAXNUC) x = dsq[2]; else x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   c2 = p7P_CODON2_FS5(w, x); c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
@@ -1467,7 +1467,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *g
     {
       /* Advance nucleotide window */
       t = u; u = v; v = w; w = x;
-      if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i]; else x = p7P_MAXCODONS5;
+      if (dsq[i] < p7P_MAXNUC) x = dsq[i]; else x = p7P_MAXCODONS5;
 
       /* Codon emission table indices */
       c1 = p7P_CODON1_FS5(x);           c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
@@ -1855,7 +1855,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
     {
       /* Advance nucleotide window: as i decreases by 1, shift all one step toward future */
       t = u; u = v; v = w; w = x;
-      if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1]; else x = p7P_MAXCODONS5;
+      if (dsq[i+1] < p7P_MAXNUC) x = dsq[i+1]; else x = p7P_MAXCODONS5;
 
       c1 = p7P_CODON1_FS5(x);           c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
       c2 = p7P_CODON2_FS5(x, w);        c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
@@ -1989,11 +1989,11 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
    * Final score = N(0) + N(1) + N(2)   (matches scalar)
    *----------------------------------------------------------------*/
   /* Rebuild nucleotide window for i=0: x=dsq[1], w=dsq[2], v=dsq[3], u=dsq[4], t=dsq[5] */
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1]; else x = p7P_MAXCODONS5;
-  if (L >= 2 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) w = dsq[2]; else w = p7P_MAXCODONS5;
-  if (L >= 3 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[3])) v = dsq[3]; else v = p7P_MAXCODONS5;
-  if (L >= 4 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[4])) u = dsq[4]; else u = p7P_MAXCODONS5;
-  if (L >= 5 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[5])) t = dsq[5]; else t = p7P_MAXCODONS5;
+  if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS5;
+  if (L >= 2 && dsq[2] < p7P_MAXNUC) w = dsq[2]; else w = p7P_MAXCODONS5;
+  if (L >= 3 && dsq[3] < p7P_MAXNUC) v = dsq[3]; else v = p7P_MAXCODONS5;
+  if (L >= 4 && dsq[4] < p7P_MAXNUC) u = dsq[4]; else u = p7P_MAXCODONS5;
+  if (L >= 5 && dsq[5] < p7P_MAXNUC) t = dsq[5]; else t = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);           c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   c2 = p7P_CODON2_FS5(x, w);        c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
@@ -2163,7 +2163,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
 
   /* Initialize nucleotide rolling window */
   t = u = v = w = p7P_MAXCODONS5;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1]; else x = p7P_MAXCODONS5;
+  if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS5;
 
   /*----------------------------------------------------------------
    * Initialization: i=1 (only 1-nt codon c1)
@@ -2306,7 +2306,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   i = 2;
   t = u = v = p7P_MAXCODONS5;
   w = x;
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) x = dsq[2]; else x = p7P_MAXCODONS5;
+  if (dsq[2] < p7P_MAXNUC) x = dsq[2]; else x = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   c2 = p7P_CODON2_FS5(w, x); c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
@@ -2463,7 +2463,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   for (i = 3; i <= L; i++)
     {
       t = u; u = v; v = w; w = x;
-      if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[i])) x = dsq[i]; else x = p7P_MAXCODONS5;
+      if (dsq[i] < p7P_MAXNUC) x = dsq[i]; else x = p7P_MAXCODONS5;
 
       c1 = p7P_CODON1_FS5(x);           c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
       c2 = p7P_CODON2_FS5(w, x);        c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
@@ -2812,7 +2812,7 @@ p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   for (i = L-1; i >= 1; i--)
     {
       t = u; u = v; v = w; w = x;
-      if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[i+1])) x = dsq[i+1]; else x = p7P_MAXCODONS5;
+      if (dsq[i+1] < p7P_MAXNUC) x = dsq[i+1]; else x = p7P_MAXCODONS5;
 
       c1 = p7P_CODON1_FS5(x);              c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
       c2 = p7P_CODON2_FS5(x, w);           c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
@@ -2949,11 +2949,11 @@ p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   /*----------------------------------------------------------------
    * Termination: i=0
    *----------------------------------------------------------------*/
-  if (esl_abc_XIsCanonical(gcode->nt_abc, dsq[1])) x = dsq[1]; else x = p7P_MAXCODONS5;
-  if (L >= 2 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[2])) w = dsq[2]; else w = p7P_MAXCODONS5;
-  if (L >= 3 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[3])) v = dsq[3]; else v = p7P_MAXCODONS5;
-  if (L >= 4 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[4])) u = dsq[4]; else u = p7P_MAXCODONS5;
-  if (L >= 5 && esl_abc_XIsCanonical(gcode->nt_abc, dsq[5])) t = dsq[5]; else t = p7P_MAXCODONS5;
+  if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS5;
+  if (L >= 2 && dsq[2] < p7P_MAXNUC) w = dsq[2]; else w = p7P_MAXCODONS5;
+  if (L >= 3 && dsq[3] < p7P_MAXNUC) v = dsq[3]; else v = p7P_MAXCODONS5;
+  if (L >= 4 && dsq[4] < p7P_MAXNUC) u = dsq[4]; else u = p7P_MAXCODONS5;
+  if (L >= 5 && dsq[5] < p7P_MAXNUC) t = dsq[5]; else t = p7P_MAXCODONS5;
 
   c1 = p7P_CODON1_FS5(x);             c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   c2 = p7P_CODON2_FS5(x, w);          c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);

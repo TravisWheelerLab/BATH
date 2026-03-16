@@ -739,24 +739,24 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
 
     if (tr->st[z1] == p7T_M) {
       if(c == 1) {
-        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+        if(nuc_dsq[i] < p7P_MAXNUC)
           codon_idx = p7P_CODON1_FS5(nuc_dsq[i]);
         else
           codon_idx    = p7P_DEGEN5_QC2;
         tr->fs++;
       }
       else if(c == 2) {
-        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+        if(nuc_dsq[i-1] < p7P_MAXNUC &&
+         nuc_dsq[i] < p7P_MAXNUC)
           codon_idx = p7P_CODON2_FS5(nuc_dsq[i-1], nuc_dsq[i]);
         else
           codon_idx    = p7P_DEGEN5_QC1;
         tr->fs++;
       }
       else if(c == 3) {
-        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+        if(nuc_dsq[i-2] < p7P_MAXNUC &&
+         nuc_dsq[i-1] < p7P_MAXNUC &&
+         nuc_dsq[i] < p7P_MAXNUC)
           codon_idx = p7P_CODON3_FS5(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
         else
           codon_idx    = p7P_DEGEN5_C;
@@ -765,21 +765,21 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
         if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) tr->fs++;
       }
       else if(c == 4) {
-        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+        if(nuc_dsq[i-3] < p7P_MAXNUC &&
+         nuc_dsq[i-2] < p7P_MAXNUC &&
+         nuc_dsq[i-1] < p7P_MAXNUC &&
+         nuc_dsq[i] < p7P_MAXNUC)
           codon_idx = p7P_CODON4_FS5(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
         else
           codon_idx    = p7P_DEGEN5_QC1;
         tr->fs++;
       }
       else if(c == 5) {
-        if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-4]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-         esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+        if(nuc_dsq[i-4] < p7P_MAXNUC &&
+         nuc_dsq[i-3] < p7P_MAXNUC &&
+         nuc_dsq[i-2] < p7P_MAXNUC &&
+         nuc_dsq[i-1] < p7P_MAXNUC &&
+         nuc_dsq[i] < p7P_MAXNUC)
           codon_idx = p7P_CODON5_FS5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
         else
           codon_idx    = p7P_DEGEN5_QC2;
@@ -808,24 +808,24 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
         i = tr->i[z1];
 
         if(c == 1) {
-          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          if(nuc_dsq[i] < p7P_MAXNUC)
             codon_idx = p7P_CODON1_FS5(nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN5_QC2;
           tr->fs++;
         }
         else if(c == 2) {
-          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          if(nuc_dsq[i-1] < p7P_MAXNUC &&
+           nuc_dsq[i] < p7P_MAXNUC)
             codon_idx = p7P_CODON2_FS5(nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN5_QC1;
           tr->fs++;
         }
         else if(c == 3) {
-          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          if(nuc_dsq[i-2] < p7P_MAXNUC &&
+           nuc_dsq[i-1] < p7P_MAXNUC &&
+           nuc_dsq[i] < p7P_MAXNUC)
             codon_idx = p7P_CODON3_FS5(nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN5_C;
@@ -833,21 +833,21 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
           if(indel == p7P_XXx || indel == p7P_XxX || indel == p7P_xXX) tr->fs++;
         }
         else if(c == 4) {
-          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          if(nuc_dsq[i-3] < p7P_MAXNUC &&
+           nuc_dsq[i-2] < p7P_MAXNUC &&
+           nuc_dsq[i-1] < p7P_MAXNUC &&
+           nuc_dsq[i] < p7P_MAXNUC)
             codon_idx = p7P_CODON4_FS5(nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN5_QC1;
           tr->fs++;
         }
         else if(c == 5) {
-          if(esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-4]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-3]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-2]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i-1]) &&
-           esl_abc_XIsCanonical(seq->abc, nuc_dsq[i]))
+          if(nuc_dsq[i-4] < p7P_MAXNUC &&
+           nuc_dsq[i-3] < p7P_MAXNUC &&
+           nuc_dsq[i-2] < p7P_MAXNUC &&
+           nuc_dsq[i-1] < p7P_MAXNUC &&
+           nuc_dsq[i] < p7P_MAXNUC)
             codon_idx = p7P_CODON5_FS5(nuc_dsq[i-4], nuc_dsq[i-3], nuc_dsq[i-2], nuc_dsq[i-1], nuc_dsq[i]);
           else
             codon_idx    = p7P_DEGEN5_QC2;

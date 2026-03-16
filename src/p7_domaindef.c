@@ -1088,13 +1088,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
 
   while(pos <= j)
   {
-    if(esl_abc_XIsCanonical(windowsq->abc, windowsq->dsq[pos])) x = windowsq->dsq[pos];
-    else if(esl_abc_XIsDegenerate(windowsq->abc, windowsq->dsq[pos]))
-    {
-      for(x = 0; x < windowsq->abc->K; x++)
-        if(windowsq->abc->degen[windowsq->dsq[pos]][x]) break;
-    }      
-    
+    if(windowsq->dsq[pos] < p7P_MAXNUC) x = windowsq->dsq[pos];
+	else                                x = p7P_MAXCODONS5; 
+
     switch (ddef->tr->st[z]) {
       case p7T_N:
       case p7T_C:

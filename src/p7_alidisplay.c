@@ -36,41 +36,41 @@ static int get_codon_index(const ESL_ALPHABET *abc, int codon_len, int c1, int c
 
   switch (codon_len) {  
     case 1: 
-      if(esl_abc_XIsCanonical(abc, c1))
+      if(c1 < p7P_MAXNUC)
         codon_idx = p7P_CODON1_FS5(c1);
       else
         codon_idx = p7P_DEGEN5_QC2;
       break;
     case 2:
-      if(esl_abc_XIsCanonical(abc, c1) &&
-         esl_abc_XIsCanonical(abc, c2))
+      if(c1 < p7P_MAXNUC &&
+         c2 < p7P_MAXNUC)
         codon_idx = p7P_CODON2_FS5(c1, c2);
       else
         codon_idx = p7P_DEGEN5_QC1;
       break;
     case 3:
-      if(esl_abc_XIsCanonical(abc, c1) &&
-         esl_abc_XIsCanonical(abc, c2) &&
-         esl_abc_XIsCanonical(abc, c3))
+      if(c1 < p7P_MAXNUC &&
+         c2 < p7P_MAXNUC &&
+         c3 < p7P_MAXNUC)
         codon_idx = p7P_CODON3_FS5(c1, c2, c3);
       else
         codon_idx    = p7P_DEGEN5_C;
        break;
     case 4:
-      if(esl_abc_XIsCanonical(abc, c1) &&
-         esl_abc_XIsCanonical(abc, c2) &&
-         esl_abc_XIsCanonical(abc, c3) &&
-         esl_abc_XIsCanonical(abc, c4))
+      if(c1 < p7P_MAXNUC &&
+         c2 < p7P_MAXNUC &&
+         c3 < p7P_MAXNUC &&
+         c4 < p7P_MAXNUC)
         codon_idx = p7P_CODON4_FS5(c1, c2, c3, c4);
       else
         codon_idx = p7P_DEGEN5_QC1;
       break;
     case 5: 
-      if(esl_abc_XIsCanonical(abc, c1) &&
-         esl_abc_XIsCanonical(abc, c2) &&
-         esl_abc_XIsCanonical(abc, c3) &&
-         esl_abc_XIsCanonical(abc, c4) &&
-         esl_abc_XIsCanonical(abc, c5))
+      if(c1 < p7P_MAXNUC &&
+         c2 < p7P_MAXNUC &&
+         c3 < p7P_MAXNUC &&
+         c4 < p7P_MAXNUC &&
+         c5 < p7P_MAXNUC)
         codon_idx = p7P_CODON5_FS5(c1, c2, c3, c4, c5);
       else
         codon_idx = p7P_DEGEN5_QC2;

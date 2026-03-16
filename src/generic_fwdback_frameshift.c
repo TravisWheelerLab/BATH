@@ -27,7 +27,7 @@
  * 1. Forward, Backward, implementations.
  *****************************************************************/
 
-/* Function:  p7_Forward_Frameshift()
+/* Function:  p7_GForward_Frameshift()
  * Synopsis:  The Frameshift Aware Forward algorithm.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
@@ -413,7 +413,7 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
 }
 
 
-/* Function:  p7_ForwardParser_Frameshift_3Codons()
+/* Function:  p7_GForwardParser_Frameshift_3Codons()
  * Synopsis:  The frameshift-aware Forward algorithm using 3 codon lengths - low memory.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
@@ -622,7 +622,7 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
 }
 
 
-/* Function:  p7_ForwardParser_Frameshift_5Codons()
+/* Function:  p7_GForwardParser_Frameshift_5Codons()
  * Synopsis:  The frameshift-aware Forward algorithm using 5 codon lengths - low memory.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
@@ -1002,7 +1002,7 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
 
 }
 
-/* Function:  p7_Backward_Frameshift()
+/* Function:  p7_GBackward_Frameshift()
  * Synopsis:  The Backward algorithm.
  *
  * Purpose:   The Frameshift Aware Backward dynamic programming algorithm.
@@ -1392,7 +1392,7 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
 }
 
 
-/* Function:  p7_BackwardPraser_Frameshift_3Codons()
+/* Function:  p7_GBackwardPraser_Frameshift_3Codons()
  * Synopsis:  The Backward algorithm.
  *
  * Purpose:   The Backward dynamic programming algorithm - low memeory, 3 codon lengths.
@@ -1736,7 +1736,7 @@ p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
 
 }
 
-/* Function:  p7_BackwardPraser_Frameshift_5Codons()
+/* Function:  p7_GBackwardPraser_Frameshift_5Codons()
  * Synopsis:  The Backward algorithm.
  *
  * Purpose:   The Backward dynamic programming algorithm - low memeory, 5 codon lengths.

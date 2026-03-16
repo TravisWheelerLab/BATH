@@ -14,7 +14,7 @@
  * 1. Posterior decoding algorithms.
  *****************************************************************/
 
-/* Function:  p7_Decoding_Frameshift() - BATH
+/* Function:  p7_GDecoding_Frameshift() - BATH
  * Synopsis:  Posterior decoding of residue assignments.
  *
  * Purpose:   Calculates a posterior decoding of the residues and 
@@ -158,7 +158,7 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
 
 
 
-/* Function:  p7_DomainDecoding_Frameshift
+/* Function:  p7_GDomainDecoding_Frameshift
  * Synopsis:  Posterior decoding of domain location for frameshift aware alignments.
  *
  * Purpose:   The caller has calculated Forward and Backward matrices

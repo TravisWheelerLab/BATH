@@ -161,7 +161,6 @@ main(int argc, char **argv)
   P7_FS_PROFILE  *gm_fs5   = NULL;
   P7_GMX         *gx1     = NULL;
   P7_GMX         *gx2     = NULL;
-  P7_GMX         *pp      = NULL;
   P7_IVX         *iv      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
@@ -180,18 +179,17 @@ main(int argc, char **argv)
   bgAA   = p7_bg_Create(abcAA);                 p7_bg_SetLength(bgAA, L/3);
   gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS); p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL);
   gx1    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);  
-  gx2    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FR);
-  pp     = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
+  gx2    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS);
   iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_Forward_Frameshift (dsq, L, gm_fs5, gx1, iv, &fsc);
-  p7_Backward_Frameshift(dsq, L, gm_fs5, gx2, iv, &bsc);
-  p7_Decoding_Frameshift(gm_fs5, gx1, gx2, pp);   
+  p7_GForward_Frameshift (dsq, L, gm_fs5, gx1, iv, &fsc);
+  p7_GBackward_Frameshift(dsq, L, gm_fs5, gx2, iv, &bsc);
+  p7_GDecoding_Frameshift(gm_fs5, gx1, gx2);   
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++) 
-    p7_Null2_fs_ByExpectation(gm_fs5, pp, null2);   
+    p7_Null2_fs_ByExpectation(gm_fs5, gx1, null2);   
   esl_stopwatch_Stop(w);
 
   Mcs  = (double) N * (double) L * (double) gm_fs5->M * 1e-6 / w->user;
@@ -202,7 +200,6 @@ main(int argc, char **argv)
   free(dsq);
   p7_gmx_Destroy(gx1);
   p7_gmx_Destroy(gx2);
-  p7_gmx_Destroy(pp);
   p7_ivx_Destroy(iv);
   p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgAA);

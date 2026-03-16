@@ -320,7 +320,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  
   if ((status = p7_domaindef_GrowTo(ddef, windowsq->n))      != eslOK) return status;          /* ddef's btot,etot,mocc now ready for seq of length n            */
   if ((status = p7_DomainDecoding_Frameshift_SSE(om_fs5, pli->oxf, pli->oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
-//  if ((status = p7_DomainDecoding_Frameshift(gm_fs5, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
   
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */

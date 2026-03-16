@@ -348,7 +348,7 @@ static inline int select_codon(const P7_GMX *pp, int i, int k);
  *            accuracy decoding algorithm
  *            
  *            Caller provides the OA DP matrix <gx> that was just
- *            calculated by <p7_OptimalAccuracy_Frameshift()>, as 
+ *            calculated by <p7_GOptimalAccuracy_Frameshift()>, as 
  *            well as the posterior decoding matricies <pp>, and 
  *            <probs> which were calculated by Forward/Backward on 
  *            a target sequence of length <L> using the query model 

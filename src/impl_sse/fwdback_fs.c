@@ -2250,12 +2250,9 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
           if (! _mm_movemask_ps(cv)) break;
         }
     }
-  /* Add D to M_C0 and to xEv */
+  /* Add D to xEv (M was already added in inner loop; M_C0 stays as pure M) */
   for (q = 0; q < Q; q++)
-    {
-      MMO_FS(dpc, q, p7X_FS_C0) = _mm_add_ps(MMO_FS(dpc, q, p7X_FS_C0), DMO_FS(dpc, q));
-      xEv = _mm_add_ps(DMO_FS(dpc, q), xEv);
-    }
+    xEv = _mm_add_ps(DMO_FS(dpc, q), xEv);
   xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(0,3,2,1)));
   xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(1,0,3,2)));
   _mm_store_ss(&xE, xEv);
@@ -2402,10 +2399,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
         }
     }
   for (q = 0; q < Q; q++)
-    {
-      MMO_FS(dpc, q, p7X_FS_C0) = _mm_add_ps(MMO_FS(dpc, q, p7X_FS_C0), DMO_FS(dpc, q));
-      xEv = _mm_add_ps(DMO_FS(dpc, q), xEv);
-    }
+    xEv = _mm_add_ps(DMO_FS(dpc, q), xEv);
   xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(0,3,2,1)));
   xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(1,0,3,2)));
   _mm_store_ss(&xE, xEv);
@@ -2431,20 +2425,9 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
           DMO_FS(dpc,q)            = _mm_mul_ps(DMO_FS(dpc,q),            xEv);
           IMO_FS(dpc,q)            = _mm_mul_ps(IMO_FS(dpc,q),            xEv);
         }
-      /* Also rescale previously committed rows 0..1: their IVX entries are already scaled,
-       * but dpc rows 0,1 were committed at a lower scale; re-scale them here. */
-      for (r = 0; r <= 1; r++)
-        for (q = 0; q < Q; q++)
-          {
-            MMO_FS(ox->dpf[r],q,p7X_FS_C0) = _mm_mul_ps(MMO_FS(ox->dpf[r],q,p7X_FS_C0), xEv);
-            MMO_FS(ox->dpf[r],q,p7X_FS_C1) = _mm_mul_ps(MMO_FS(ox->dpf[r],q,p7X_FS_C1), xEv);
-            MMO_FS(ox->dpf[r],q,p7X_FS_C2) = _mm_mul_ps(MMO_FS(ox->dpf[r],q,p7X_FS_C2), xEv);
-            MMO_FS(ox->dpf[r],q,p7X_FS_C3) = _mm_mul_ps(MMO_FS(ox->dpf[r],q,p7X_FS_C3), xEv);
-            MMO_FS(ox->dpf[r],q,p7X_FS_C4) = _mm_mul_ps(MMO_FS(ox->dpf[r],q,p7X_FS_C4), xEv);
-            MMO_FS(ox->dpf[r],q,p7X_FS_C5) = _mm_mul_ps(MMO_FS(ox->dpf[r],q,p7X_FS_C5), xEv);
-            DMO_FS(ox->dpf[r],q)            = _mm_mul_ps(DMO_FS(ox->dpf[r],q),            xEv);
-            IMO_FS(ox->dpf[r],q)            = _mm_mul_ps(IMO_FS(ox->dpf[r],q),            xEv);
-          }
+      /* Rows 0 and 1 are committed; do not retroactively scale them.
+       * The insert_adj correction handles any scale difference when they
+       * are read as dpp3 at i=3 and i=4 respectively. */
       for (r = 0; r < p7P_5CODONS; r++)
         for (q = 0; q < Q; q++)
           IVX(r, q) = _mm_mul_ps(IVX(r, q), xEv);
@@ -2453,10 +2436,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
           xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
           xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
         }
-      /* Retroactively update scale records for rows 0,1 */
-      ox->xmx[0*p7X_NXCELLS+p7X_SCALE] *= xE;
-      ox->xmx[1*p7X_NXCELLS+p7X_SCALE] *= xE;
-      ox->xmx[2*p7X_NXCELLS+p7X_SCALE]  = xE;
+      ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = xE;
       ox->totscale += log(xE);
       xE = 1.0f;
     }
@@ -2472,7 +2452,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   /*----------------------------------------------------------------
    * Main recurrence: i = 3..L
    * M_Cn(i,k) = IVX(i-n+1, k) * Rn(k)  for n=1..5
-   * M_C0(i,k) = M_C1 + M_C2 + M_C3 + M_C4 + M_C5 + D (total for E-sum)
+   * M_C0(i,k) = M_C1 + M_C2 + M_C3 + M_C4 + M_C5   (pure match total; D kept separate)
    * I(i,k)    = M(i-3,k)*MI + I(i-3,k)*II
    * D(i,k)    = M(i,k-1)*MD + D(i,k-1)*DD
    *
@@ -2600,10 +2580,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
         }
 
       for (q = 0; q < Q; q++)
-        {
-          MMO_FS(dpc, q, p7X_FS_C0) = _mm_add_ps(MMO_FS(dpc, q, p7X_FS_C0), DMO_FS(dpc, q));
-          xEv = _mm_add_ps(DMO_FS(dpc, q), xEv);
-        }
+        xEv = _mm_add_ps(DMO_FS(dpc, q), xEv);
       xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(0,3,2,1)));
       xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(1,0,3,2)));
       _mm_store_ss(&xE, xEv);

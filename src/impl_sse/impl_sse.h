@@ -279,6 +279,11 @@ enum p7x_fscodons_e {
 };
 #define p7X_NSCELLS_FS 8   /* D + I + M_C0..M_C5 */
 
+enum p7x_spcells_e {
+  p7G_P = 3
+};
+#define p7X_NSCELLS_SP 4
+
 /* Besides ENJBC states, we may also store a rescaling factor on each row  */
 enum p7x_xcells_e { p7X_E = 0, p7X_N = 1, p7X_J = 2, p7X_B = 3, p7X_C = 4, p7X_SCALE = 5 };
 #define p7X_NXCELLS 6

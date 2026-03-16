@@ -3077,14 +3077,17 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
   ESL_DSQ        *dsq    = NULL;
   P7_TRACE       *tr     = p7_trace_Create();
-  P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, M);
-  P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
+  P7_OMX         *oxf    = p7_omx_Create(M, PARSER_ROWS_FWD, M);
+  P7_OMX         *oxb    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
+  P7_OMX         *fwd    = p7_omx_Create_FS(M, M, M);
+  P7_OMX         *bck    = p7_omx_Create(M, M, M);
   P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, M, 0);
   P7_IVX         *iv3    = p7_ivx_Create(M, p7P_3CODONS);
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
   float tolerance, generic_tolerance;
   float fsc3, bsc3;
   float fsc5, bsc5;
+  float full_fsc, full_bsc;
   float generic_fsc3;
   float generic_fsc5;
 
@@ -3122,40 +3125,52 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_fs_oprofile_ReconfigLength(om_fs5, sq->n);
       p7_fs_ReconfigLength(gm_fs5, sq->n);
 
-      p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
       p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
 
       /* 3-codon SSE vs scalar */
-      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, &fsc3);
+      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, oxf, &fsc3);
 	  p7_ForwardParser_Frameshift_3Codons(dsq, gcode, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
    
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
-      p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
-	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, fwd, bwd, &bsc3);
+      p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
+	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, gcode, curr_L, om_fs3, oxf, oxb, &bsc3);
   
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg);
 
       /* 5-codon SSE vs scalar */
-      p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
       p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
 
-      p7_ForwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, fwd, &fsc5);
+      p7_ForwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, oxf, &fsc5);
       p7_ForwardParser_Frameshift_5Codons(dsq, gcode, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
  
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
-      p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
-      p7_BackwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, fwd, bwd, &bsc5);
+      p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
+      p7_BackwardParser_Frameshift_5Codons_SSE(dsq, gcode, curr_L, om_fs5, oxf, oxb, &bsc5);
 
       if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
+
+      p7_omx_GrowTo_FS(fwd, M, curr_L, curr_L);
+      p7_Forward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, &full_fsc);
+      printf("fsc5 %f full_fsc %f\n", fsc5, full_fsc);
+      if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
+      
+      p7_omx_GrowTo(bck, M, curr_L, curr_L);
+      p7_Backward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, bck, &full_bsc);
+      printf("fsc5 %f full_fsc %f\n", bsc5, full_bsc);
+      if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);     
     }
 
   free(dsq);
   esl_sq_Destroy(sq);
   p7_hmm_Destroy(hmm);
+  p7_omx_Destroy(oxf);
+  p7_omx_Destroy(oxb);
   p7_omx_Destroy(fwd);
-  p7_omx_Destroy(bwd);
+  p7_omx_Destroy(bck);
   p7_gmx_Destroy(fgx);
   p7_ivx_Destroy(iv3);
   p7_ivx_Destroy(iv5);

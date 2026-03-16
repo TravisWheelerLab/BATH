@@ -401,7 +401,6 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GM
       case p7T_B: scur = select_b(gm_fs5,     gx, i);           break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
-      printf("sprv %d scur %d i %d k %d\n", sprv, scur, i, k);
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed %s", gm_fs5->name);
 
       postprob = get_postprob(pp, scur, sprv, k, i);

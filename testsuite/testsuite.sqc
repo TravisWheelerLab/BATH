@@ -53,6 +53,7 @@
 1 exercise io                 @src/impl/io_utest@
 1 exercise msvfilter          @src/impl/msvfilter_utest@
 1 exercise null2              @src/impl/null2_utest@
+1 exercise null2_fs           @src/impl/null2_fs_utest@
 1 exercise optacc             @src/impl/optacc_utest@
 1 exercise optacc_fs          @src/impl/optacc_fs_utest@
 1 exercise stotrace           @src/impl/stotrace_utest@

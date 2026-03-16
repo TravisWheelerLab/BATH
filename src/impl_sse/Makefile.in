@@ -61,6 +61,7 @@ UTESTS = @MPI_UTESTS@\
 	io_utest\
 	msvfilter_utest\
 	null2_utest\
+    null2_fs_utest\
 	optacc_utest\
     optacc_fs_utest\
 	stotrace_utest\

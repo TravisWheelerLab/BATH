@@ -1709,7 +1709,8 @@ extern int  p7_trace_GetStateUseCounts(const P7_TRACE *tr, int *counts);
 extern int  p7_trace_GetDomainCoords  (const P7_TRACE *tr, int which, int *ret_i1, int *ret_i2,
                int *ret_k1, int *ret_k2);
 
-extern int   p7_trace_Validate(const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *dsq, char *errbuf);
+extern int   p7_trace_Validate   (const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *dsq, char *errbuf);
+extern int   p7_trace_fs_Validate(const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *dsq, char *errbuf);
 extern int   p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ *dsq);
 extern int   p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc);
 extern int   p7_trace_fs_scores_Dump(FILE *fp, const P7_TRACE *tr, const float *scores_per_pos);

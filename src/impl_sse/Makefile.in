@@ -66,6 +66,7 @@ UTESTS = @MPI_UTESTS@\
 	optacc_utest\
     optacc_fs_utest\
 	stotrace_utest\
+	stotrace_fs_utest\
 	vitfilter_utest
 
 BENCHMARKS = @MPI_BENCHMARKS@\

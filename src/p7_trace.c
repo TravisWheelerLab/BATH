@@ -1391,6 +1391,175 @@ p7_trace_Validate(const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *ds
 }
 
 
+/* Function:  p7_trace_fs_Validate()
+ * Synopsis:  Validate a frameshift-aware profile trace.
+ *
+ * Purpose:   Validate the internal data in a frameshift trace <tr>
+ *            representing an alignment of a frameshift-aware HMM to a
+ *            digital nucleotide sequence <dsq> of length <tr->L>.
+ *
+ *            FS traces differ from standard traces in two ways:
+ *              1. M states emit codons of length 1..5 (stored in tr->c[]).
+ *                 tr->i[] for M stores the END position of the codon, not
+ *                 the start.  A codon of length c ending at position e
+ *                 spans positions e-c+1 .. e.
+ *              2. I states emit 3-nucleotide codons (tr->c[] == 0; the
+ *                 length is implicit).  tr->i[] for I likewise stores
+ *                 the end position of the 3-nt codon.
+ *              3. N, J, C states emit one nucleotide per emit-on-transition
+ *                 step, same as in standard profile traces.
+ *              4. D states store a positional context in tr->i[] (not an
+ *                 emission); the value is not validated here.
+ *
+ *            Only profile traces (first state S, last state T) are handled.
+ *
+ * Args:      tr     - trace to validate
+ *            abc    - DNA alphabet (used for residue type checks; may be NULL)
+ *            dsq    - digital nucleotide sequence, 1..L (may be NULL)
+ *            errbuf - NULL, or caller-allocated buffer of >= eslERRBUFSIZE
+ *
+ * Returns:   <eslOK> if trace appears valid.
+ *            <eslFAIL> on any inconsistency; errbuf (if non-NULL) describes
+ *            the problem.
+ */
+int
+p7_trace_fs_Validate(const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *dsq, char *errbuf)
+{
+  int  z;
+  int  i;      /* sequential counter: start of next codon/nt to be emitted */
+  int  k;      /* position in model */
+  int  c;      /* codon length from tr->c[z] */
+  char prv;    /* previous state type */
+
+  if (tr->N < 3)          ESL_FAIL(eslFAIL, errbuf, "trace is too short");
+  if (tr->N > tr->nalloc) ESL_FAIL(eslFAIL, errbuf, "N of %d is not sensible", tr->N);
+
+  /* FS traces are always profile traces. */
+  if (tr->st[0]       != p7T_S) ESL_FAIL(eslFAIL, errbuf, "first state must be S");
+  if (tr->st[tr->N-1] != p7T_T) ESL_FAIL(eslFAIL, errbuf, "last state must be T");
+  if (tr->k[0]        != 0)     ESL_FAIL(eslFAIL, errbuf, "first state shouldn't have k set");
+  if (tr->i[0]        != 0)     ESL_FAIL(eslFAIL, errbuf, "first state shouldn't have i set");
+  if (tr->k[tr->N-1]  != 0)     ESL_FAIL(eslFAIL, errbuf, "last state shouldn't have k set");
+  if (tr->i[tr->N-1]  != 0)     ESL_FAIL(eslFAIL, errbuf, "last state shouldn't have i set");
+
+  k = 0;
+  i = 1;
+  for (z = 1; z < tr->N-1; z++)
+    {
+      prv = (tr->st[z-1] == p7T_X) ? tr->st[z-2] : tr->st[z-1];
+
+      switch (tr->st[z]) {
+      case p7T_S:
+        ESL_FAIL(eslFAIL, errbuf, "S must be first state");
+        break;
+
+      case p7T_N:
+        if (tr->k[z] != 0) ESL_FAIL(eslFAIL, errbuf, "N shouldn't have k set");
+        if (tr->c[z] != 0) ESL_FAIL(eslFAIL, errbuf, "N shouldn't have c set");
+        if (prv == p7T_S) {
+          if (tr->i[z] != 0) ESL_FAIL(eslFAIL, errbuf, "first N shouldn't have i set");
+        } else if (prv == p7T_N) {
+          if (tr->i[z] != i) ESL_FAIL(eslFAIL, errbuf, "N: expected i=%d, got %d", i, tr->i[z]);
+          i++;
+        } else ESL_FAIL(eslFAIL, errbuf, "bad transition to N; expected {S,N}->N");
+        break;
+
+      case p7T_B:
+        if (tr->k[z] != 0) ESL_FAIL(eslFAIL, errbuf, "B shouldn't have k set");
+        if (tr->i[z] != 0) ESL_FAIL(eslFAIL, errbuf, "B shouldn't have i set");
+        if (tr->c[z] != 0) ESL_FAIL(eslFAIL, errbuf, "B shouldn't have c set");
+        if (prv != p7T_N && prv != p7T_J)
+          ESL_FAIL(eslFAIL, errbuf, "bad transition to B; expected {N,J}->B");
+        break;
+
+      case p7T_M:
+        c = tr->c[z];
+        if (c < 1 || c > 5)
+          ESL_FAIL(eslFAIL, errbuf, "M(k=%d): codon length c=%d not in 1..5", tr->k[z], c);
+        if (prv == p7T_B) k = tr->k[z]; else k++;
+        if (tr->k[z] != k)
+          ESL_FAIL(eslFAIL, errbuf, "M: expected k=%d, got %d", k, tr->k[z]);
+        /* tr->i[z] is the END of the codon; codon spans i .. i+c-1 */
+        if (tr->i[z] != i + c - 1)
+          ESL_FAIL(eslFAIL, errbuf, "M(k=%d,c=%d): expected end-of-codon i=%d (start=%d), got %d",
+                   k, c, i+c-1, i, tr->i[z]);
+        if (prv != p7T_B && prv != p7T_M && prv != p7T_D && prv != p7T_I)
+          ESL_FAIL(eslFAIL, errbuf, "bad transition to M; expected {B,M,D,I}->M");
+        i += c;
+        break;
+
+      case p7T_D:
+        k++;
+        if (tr->k[z] != k)
+          ESL_FAIL(eslFAIL, errbuf, "D: expected k=%d, got %d", k, tr->k[z]);
+        if (tr->c[z] != 0)
+          ESL_FAIL(eslFAIL, errbuf, "D shouldn't have c set");
+        if (prv != p7T_M && prv != p7T_D)
+          ESL_FAIL(eslFAIL, errbuf, "bad transition to D; expected {M,D}->D");
+        /* D stores positional context in tr->i[]; not validated here */
+        break;
+
+      case p7T_I:
+        if (tr->k[z] != k)
+          ESL_FAIL(eslFAIL, errbuf, "I: expected k=%d, got %d", k, tr->k[z]);
+        if (tr->c[z] != 0)
+          ESL_FAIL(eslFAIL, errbuf, "I shouldn't have c set (3-nt codon is implicit)");
+        /* tr->i[z] is the END of the 3-nt insert codon; codon spans i .. i+2 */
+        if (tr->i[z] != i + 2)
+          ESL_FAIL(eslFAIL, errbuf, "I(k=%d): expected end-of-codon i=%d (start=%d), got %d",
+                   k, i+2, i, tr->i[z]);
+        if (prv != p7T_M && prv != p7T_I)
+          ESL_FAIL(eslFAIL, errbuf, "bad transition to I; expected {M,I}->I");
+        i += 3;
+        break;
+
+      case p7T_E:
+        if (tr->k[z] != 0) ESL_FAIL(eslFAIL, errbuf, "E shouldn't have k set");
+        if (tr->i[z] != 0) ESL_FAIL(eslFAIL, errbuf, "E shouldn't have i set");
+        if (tr->c[z] != 0) ESL_FAIL(eslFAIL, errbuf, "E shouldn't have c set");
+        if (prv != p7T_M && prv != p7T_D)
+          ESL_FAIL(eslFAIL, errbuf, "bad transition to E; expected {M,D}->E");
+        break;
+
+      case p7T_J:
+        if (tr->k[z] != 0) ESL_FAIL(eslFAIL, errbuf, "J shouldn't have k set");
+        if (tr->c[z] != 0) ESL_FAIL(eslFAIL, errbuf, "J shouldn't have c set");
+        if (prv == p7T_E) {
+          if (tr->i[z] != 0) ESL_FAIL(eslFAIL, errbuf, "first J shouldn't have i set");
+        } else if (prv == p7T_J) {
+          if (tr->i[z] != i) ESL_FAIL(eslFAIL, errbuf, "J: expected i=%d, got %d", i, tr->i[z]);
+          i++;
+        } else ESL_FAIL(eslFAIL, errbuf, "bad transition to J; expected {E,J}->J");
+        break;
+
+      case p7T_C:
+        if (tr->k[z] != 0) ESL_FAIL(eslFAIL, errbuf, "C shouldn't have k set");
+        if (tr->c[z] != 0) ESL_FAIL(eslFAIL, errbuf, "C shouldn't have c set");
+        if (prv == p7T_E) {
+          if (tr->i[z] != 0) ESL_FAIL(eslFAIL, errbuf, "first C shouldn't have i set");
+        } else if (prv == p7T_C) {
+          if (tr->i[z] != i) ESL_FAIL(eslFAIL, errbuf, "C: expected i=%d, got %d", i, tr->i[z]);
+          i++;
+        } else ESL_FAIL(eslFAIL, errbuf, "bad transition to C; expected {E,C}->C");
+        break;
+
+      case p7T_T:
+        ESL_FAIL(eslFAIL, errbuf, "T must be last state");
+        break;
+      }
+    }
+
+  /* All nucleotides must be accounted for. */
+  if (i - 1 != tr->L)
+    ESL_FAIL(eslFAIL, errbuf, "trace accounts for %d nucleotides but L=%d", i-1, tr->L);
+
+  if (k > tr->M)
+    ESL_FAIL(eslFAIL, errbuf, "M=%d but k reached %d", tr->M, k);
+
+  return eslOK;
+}
+
+
 /* Function:  p7_trace_Dump()
  * Incept:    SRE, Fri Jan  5 09:26:04 2007 [Janelia]
  *

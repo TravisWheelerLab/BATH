@@ -677,7 +677,6 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
 
   while (N--)
     {
-      printf("N %d\n", N);
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, seq_L, dsq);
       
       /* SSE pipeline: Forward -> Backward -> Decoding (in-place into ox_fwd) -> OA -> Trace */
@@ -697,18 +696,10 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       /* Convert SSE OA to scalar GMX for matrix-level comparison */
       if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                    != eslOK) esl_fatal(msg);
       
-      printf("111111\n");
       if (esl_FCompare_old(accscore_sse, accscore_ref, tol) != eslOK) esl_fatal(msg);
-      printf("2222222\n");
-     // p7_gmx_Dump(stdout, gx_oa, p7_DEFAULT);
-     // p7_gmx_Dump(stdout, gx_oa2, p7_DEFAULT);
-
       if (p7_gmx_Compare(gx_oa, gx_oa2, tol)               != eslOK) esl_fatal(msg);
-      printf("3333333\n");
-      p7_trace_fs_Dump(stdout, tr_sse, gm_fs, dsq, abcDNA);
-      p7_trace_fs_Dump(stdout, tr_ref, gm_fs, dsq, abcDNA);
       if (p7_trace_Compare(tr_sse, tr_ref, pptol)           != eslOK) esl_fatal(msg);
-      printf("444444444\n");
+      
       if (esl_opt_GetBoolean(go, "--traces"))
         {
           p7_trace_fs_Dump(stdout, tr_sse, gm_fs, dsq, abcDNA);

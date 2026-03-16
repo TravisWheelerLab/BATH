@@ -2829,11 +2829,13 @@ p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
       dpp5 = (i+5 <= L) ? bck->dpf[i+5] : zero_row;
 
       /* adj corrections for scale differences between committed rows i+2..i+5
-       * and the current running scale (which tracks fwd cumulative scale at i+1). */
-      adj2 = (i+2 <= L) ? 1.0f / fwd->xmx[(i+2)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-      adj3 = (i+3 <= L) ? adj2 / fwd->xmx[(i+3)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-      adj4 = (i+4 <= L) ? adj3 / fwd->xmx[(i+4)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-      adj5 = (i+5 <= L) ? adj4 / fwd->xmx[(i+5)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+       * and the current running scale (cumscale_bck(i+1)).
+       * bck->dpf[i+n] is stored at cumscale_bck(i+n); to reach cumscale_bck(i+1)
+       * multiply by 1/(S_fwd[i+1] * ... * S_fwd[i+n-1]). */
+      adj2 = (i+2 <= L) ? 1.0f / fwd->xmx[(i+1)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+      adj3 = (i+3 <= L) ? adj2 / fwd->xmx[(i+2)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+      adj4 = (i+4 <= L) ? adj3 / fwd->xmx[(i+3)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+      adj5 = (i+5 <= L) ? adj4 / fwd->xmx[(i+4)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
 
       register __m128 adj2v = _mm_set1_ps(adj2);
       register __m128 adj3v = _mm_set1_ps(adj3);
@@ -2963,10 +2965,12 @@ p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   dpp4 = (L >= 4) ? bck->dpf[4] : zero_row;
   dpp5 = (L >= 5) ? bck->dpf[5] : zero_row;
 
-  adj2 = (L >= 2) ? 1.0f / fwd->xmx[2*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-  adj3 = (L >= 3) ? adj2 / fwd->xmx[3*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-  adj4 = (L >= 4) ? adj3 / fwd->xmx[4*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-  adj5 = (L >= 5) ? adj4 / fwd->xmx[5*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+  /* At i=0, running scale = cumscale_bck(1). bck->dpf[n] at cumscale_bck(n).
+   * adj_n = 1/(S_fwd[1] * ... * S_fwd[n-1]). */
+  adj2 = (L >= 2) ? 1.0f / fwd->xmx[1*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+  adj3 = (L >= 3) ? adj2 / fwd->xmx[2*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+  adj4 = (L >= 4) ? adj3 / fwd->xmx[3*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+  adj5 = (L >= 5) ? adj4 / fwd->xmx[4*p7X_NXCELLS+p7X_SCALE] : 1.0f;
 
   {
     register __m128 adj2v = _mm_set1_ps(adj2);
@@ -3137,7 +3141,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       
       p7_omx_GrowTo(bck, M, curr_L, curr_L);
       p7_Backward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, bck, &full_bsc);
-      printf("fsc5 %f full_fsc %f\n", bsc5, full_bsc);
+      printf("bsc5 %f full_bsc %f\n", bsc5, full_bsc);
       if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);     
     }
 

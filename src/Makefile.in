@@ -82,6 +82,7 @@ OBJS =  build.o\
 	generic_null2.o\
 	generic_msv.o\
 	generic_optacc.o\
+    generic_optacc_frameshift.o\
 	generic_stotrace.o\
 	generic_viterbi.o\
 	generic_vtrace.o\

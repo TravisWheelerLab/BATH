@@ -1,0 +1,715 @@
+/* Optimal accuracy alignment; frameshift version.
+ * 
+ * Contents:
+ *   1. Optimal alignment accuracy fill.
+ *   2. Optimal alignment accuracy traceback.
+ *   3. Benchmark driver
+ * 
+ */
+#include "p7_config.h"
+
+#include <float.h>
+
+#include "easel.h"
+#include "esl_vectorops.h"
+
+#include "hmmer.h"
+
+/*****************************************************************
+ * 1. Optimal alignment fill and traceback.
+ *****************************************************************/
+#define TSCDELTA(s,k) ( (tsc[(k) * p7P_NTRANS + (s)] == -eslINFINITY) ? FLT_MIN : 1.0)
+/* The TSCDELTA is used to make impossible paths impossible in the
+ * optimal accuracy decoding algorithm;
+ */
+
+
+/* Function:  p7_GOptimalAccuracy_Frameshift()
+ * Synopsis:  Optimal accuracy decoding for frameshift aware alignments: fill. 
+ *
+ * Purpose:   Calculates the fill step of the optimal accuracy decoding
+ *            algorithm.
+ *            
+ *            Caller provides the posterior decoding matrix <pp>,
+ *            which was calculated by Forward/Backward on a target sequence
+ *            of length <L> using the query model <gm_fs5>.
+ *            
+ *            Caller also provides a DP matrix <gx>, allocated for the
+ *            <gm_fs5->M> by <pp->L> comparison. The routine fills this in
+ *            with OA scores.
+ *
+ * Args:      gm_fs5 - query profile      
+ *            pp    - posterior decoding matrix created by <p7_GPosteriorDecoding()>
+ *            gx    - RESULT: caller provided DP matrix for <gm->M> by <L> 
+ *            ret_e - RETURN: expected number of correctly decoded positions 
+ *
+ * Returns:   <eslOK> on success, and <*ret_e> contains the final OA
+ *            score, which is the expected number of correctly decoded
+ *            positions in the target sequence (up to <L>).
+ *
+ * Throws:    (no abnormal error conditions)
+ */
+int
+p7_GOptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e)
+{
+  int          L    = pp->L;
+  float      **dp   = gx->dp;
+  float       *xmx  = gx->xmx;
+  float const *tsc  = gm_fs5->tsc;
+  int          i,k;
+  int          M    = gm_fs5->M;
+  float        esc  = p7_fs_profile_IsLocal(gm_fs5) ? 1.0 : 0.0;
+  float        nn, jj, cc;
+  float        nb, jb, ej, ec;
+  float        max1, max2, max3, max4, max5;
+
+  gx->M = M;
+  gx->L = L;
+
+  nn = ((gm_fs5->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  jj = ((gm_fs5->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  cc = ((gm_fs5->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  nb = ((gm_fs5->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  jb = ((gm_fs5->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  ej = ((gm_fs5->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0); 
+  ec = ((gm_fs5->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+ 
+  /* Initialization of the zero row (i=0; no residues to account for.  */
+  XMX(0,p7G_N) = 0.;                                         /* S->N, p=1            */
+  XMX(0,p7G_B) = 0.;                                         /* S->N->B, no N-tail   */
+  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY; /* need seq to get here */
+  for (k = 0; k <= M; k++) {
+    MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;           /* need seq to get here */
+  }
+  /* Initialization of row 1 */
+  MMX(1,0) = IMX(1,0) = DMX(1,0) = XMX(1,p7G_E) = -eslINFINITY;
+  for (k = 1; k < M; k++) {
+    MMX(1,k)  = TSCDELTA(p7P_BM,k-1) * pp->dp[1][k*p7G_NSCELLS_FS + p7G_M + p7G_C1];
+
+    IMX(1,k)  = -eslINFINITY;  
+
+    DMX(1,k)  = ESL_MAX( TSCDELTA(p7P_MD, k-1) * MMX(1,k-1),
+                         TSCDELTA(p7P_DD, k-1) * DMX(1,k-1));
+
+    XMX(1,p7G_E) = ESL_MAX(XMX(1,p7G_E), esc * MMX(1,k));
+  }
+  
+  MMX(1,M) = TSCDELTA(p7P_BM, M-1) * pp->dp[1][M*p7G_NSCELLS_FS + p7G_M + p7G_C1];
+
+  IMX(1,M)  = -eslINFINITY;
+  DMX(1,M)  = ESL_MAX( TSCDELTA(p7P_MD, M-1) * MMX(1,M-1),
+                       TSCDELTA(p7P_DD, M-1) * DMX(1,M-1));
+
+  XMX(1,p7G_E) = ESL_MAX(XMX(1,p7G_E), ESL_MAX(MMX(1,M), DMX(1, M)));
+
+  XMX(1,p7G_J) = ej * XMX(1,p7G_E);
+  XMX(1,p7G_C) = ec * XMX(1,p7G_E);
+  XMX(1,p7G_N) = nn * pp->xmx[1*p7G_NXCELLS + p7G_N];
+  XMX(1,p7G_B) = ESL_MAX(nb * XMX(1,p7G_N), jb * XMX(1,p7G_J));
+  
+  /* Initialization of row 2 */
+  MMX(2,0) = IMX(2,0) = DMX(2,0) = XMX(2,p7G_E) = -eslINFINITY;  
+  for (k = 1; k < M; k++) {
+
+    max1 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(1,k-1)   + pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+           ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(1,k-1)   + pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+           ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(1,k-1)   + pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+                    TSCDELTA(p7P_BM, k-1) * (XMX(1,p7G_B) + pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]))));
+ 
+    max2 = TSCDELTA(p7P_BM, k-1) * (XMX(0,p7G_B) + pp->dp[2][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]);
+
+    MMX(2,k)  = ESL_MAX( max1, max2); 
+
+    IMX(2,k)  = -eslINFINITY;  
+    DMX(2,k)  = ESL_MAX( TSCDELTA(p7P_MD, k-1) * MMX(2,k-1),
+                         TSCDELTA(p7P_DD, k-1) * DMX(2,k-1));
+           
+    XMX(2,p7G_E) = ESL_MAX(XMX(2,p7G_E), esc * MMX(2,k));
+
+  }
+
+  max1 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(1,M-1)   + pp->dp[2][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+         ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(1,M-1)   + pp->dp[2][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+         ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(1,M-1)   + pp->dp[2][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+                  TSCDELTA(p7P_BM, M-1) * (XMX(1,p7G_B) + pp->dp[2][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]))));
+
+  max2 = TSCDELTA(p7P_BM, M-1) * (XMX(0,p7G_B) + pp->dp[2][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]);
+
+  MMX(2,M)  = ESL_MAX( max1, max2); 
+
+  IMX(2,M)  = -eslINFINITY;
+  DMX(2,M)  = ESL_MAX( TSCDELTA(p7P_MD, M-1) * MMX(2,M-1),
+                       TSCDELTA(p7P_DD, M-1) * DMX(2,M-1));
+
+  XMX(2,p7G_E) = ESL_MAX(XMX(2,p7G_E), ESL_MAX(MMX(2,M), DMX(2, M)));
+
+  XMX(2,p7G_J) = ej * XMX(2,p7G_E);
+  XMX(2,p7G_C) = ec * XMX(2,p7G_E);
+  XMX(2,p7G_N) = nn * pp->xmx[2*p7G_NXCELLS + p7G_N];
+  XMX(2,p7G_B) = ESL_MAX(nb * XMX(2,p7G_N), jb * XMX(2,p7G_J));
+
+  /* Initialization of row 3-4 */
+  for (i = 3; i < 5; i++)
+  {
+    MMX(i,0) = IMX(i,0) = DMX(i,0) = XMX(i,p7G_E) = -eslINFINITY;
+    for (k = 1; k < M; k++) {
+
+      max1 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-1,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-1,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-1,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-1,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]))));
+
+      max2 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-2,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-2,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-2,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-2,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]))));
+
+      max3 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-3,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-3,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-3,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-3,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]))));
+
+       if(i == 4) 
+         max4 = TSCDELTA(p7P_BM, k-1) * (XMX(0,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4]); 
+       else
+         max4 = -eslINFINITY;
+
+      MMX(i,k)  = ESL_MAX( ESL_MAX( max1, max2),
+                           ESL_MAX( max3, max4));
+
+      IMX(i,k)  = ESL_MAX( TSCDELTA(p7P_MI, k) * (MMX(i-3,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I]),
+                           TSCDELTA(p7P_II, k) * (IMX(i-3,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I]));
+
+      DMX(i,k)  = ESL_MAX( TSCDELTA(p7P_MD, k-1) * MMX(i,k-1),
+                           TSCDELTA(p7P_DD, k-1) * DMX(i,k-1)); 
+
+      XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), esc * MMX(i,k));    
+    }
+
+    max1 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-1,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-1,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-1,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-1,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]))));
+
+    max2 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-2,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-2,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-2,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-2,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]))));
+
+    max3 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-3,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-3,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-3,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-3,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]))));
+
+    if(i == 4)
+      max4 = TSCDELTA(p7P_BM, M-1) * (XMX(0,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4]);
+    else
+      max4 = -eslINFINITY;   
+
+    MMX(i,M) = ESL_MAX( ESL_MAX( max1, max2),
+                        ESL_MAX( max3, max4));	
+
+    IMX(i,M)  = -eslINFINITY; 
+    DMX(i,M)  = ESL_MAX( TSCDELTA(p7P_MD, M-1) * MMX(i,M-1),
+                         TSCDELTA(p7P_DD, M-1) * DMX(i,M-1));
+
+    XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX(i,M), DMX(i, M))); 
+        
+    XMX(i, p7G_J) = ESL_MAX( jj * (XMX(i-3,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]),
+                             ej *  XMX(i,  p7G_E));
+  
+    XMX(i,p7G_C) = ESL_MAX( cc * (XMX(i-3,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
+                            ec *  XMX(i,  p7G_E));
+  
+    XMX(i,p7G_N) = nn * (XMX(i-3,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);  
+     
+    XMX(i,p7G_B) = ESL_MAX( nb * XMX(i,  p7G_N), jb * XMX(i,  p7G_J)); 
+
+  }
+ 
+  for (i = 5; i <= L; i++) {
+    MMX(i,0) = IMX(i,0) = DMX(i,0) = XMX(i,p7G_E) = -eslINFINITY;
+   
+    for (k = 1; k < M; k++) {
+
+      max1 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-1,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-1,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-1,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-1,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1]))));
+
+      max2 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-2,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-2,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-2,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-2,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2]))));
+
+      max3 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-3,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-3,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-3,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-3,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3]))));
+
+      max4 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-4,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-4,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-4,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-4,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4]))));
+
+      max5 = ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX(i-5,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]),
+             ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX(i-5,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]),
+             ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX(i-5,k-1)   + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]),
+                      TSCDELTA(p7P_BM, k-1) * (XMX(i-5,p7G_B) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5]))));
+
+      MMX(i,k)  = ESL_MAX(ESL_MAX(max1, max2),
+                  ESL_MAX(ESL_MAX(max3, max4),max5));
+
+                           
+
+      IMX(i,k)  = ESL_MAX( TSCDELTA(p7P_MI, k) * (MMX(i-3,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I]),
+                           TSCDELTA(p7P_II, k) * (IMX(i-3,k) + pp->dp[i][k*p7G_NSCELLS_FS + p7G_I]));
+
+      DMX(i,k)  = ESL_MAX( TSCDELTA(p7P_MD, k-1) * MMX(i,k-1), 
+					       TSCDELTA(p7P_DD, k-1) * DMX(i,k-1));
+
+      XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), esc * MMX(i,k));  
+    } 
+
+    max1 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-1,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-1,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-1,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-1,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1]))));
+
+    max2 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-2,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-2,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-2,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-2,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2]))));
+
+    max3 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-3,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-3,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-3,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-3,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3]))));
+
+    max4 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-4,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-4,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-4,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-4,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4]))));
+
+    max5 = ESL_MAX( TSCDELTA(p7P_MM, M-1) * (MMX(i-5,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5]),
+           ESL_MAX( TSCDELTA(p7P_IM, M-1) * (IMX(i-5,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5]),
+           ESL_MAX( TSCDELTA(p7P_DM, M-1) * (DMX(i-5,M-1)   + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5]),
+                    TSCDELTA(p7P_BM, M-1) * (XMX(i-5,p7G_B) + pp->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5]))));
+
+    MMX(i,M) = ESL_MAX(ESL_MAX(max1, max2),
+               ESL_MAX(ESL_MAX(max3, max4), max5));
+
+    IMX(i,M)     = -eslINFINITY;
+    DMX(i,M)     = ESL_MAX( TSCDELTA(p7P_MD, M-1) * MMX(i,M-1), 
+                            TSCDELTA(p7P_DD, M-1) * DMX(i,M-1));
+
+    XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX(i,M), DMX(i, M)));
+
+    XMX(i,p7G_J) = ESL_MAX( jj * (XMX(i-3,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]),
+                            ej * XMX(i,  p7G_E));
+
+    XMX(i,p7G_C) = ESL_MAX( cc * (XMX(i-3,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
+                            ec * XMX(i,  p7G_E));
+
+    XMX(i,p7G_N) = nn * (XMX(i-3,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
+
+    XMX(i,p7G_B) = ESL_MAX( nb * XMX(i,  p7G_N), jb * XMX(i,  p7G_J));
+                            
+  }
+  *ret_e = XMX(L,  p7G_C) +
+           XMX(L-1,p7G_C) +
+           XMX(L-2,p7G_C);
+
+  return eslOK;
+}
+
+   
+/*---------------------- end, oa fill ---------------------------*/
+
+/*****************************************************************
+ * 2. Optimal alignment accuracy, traceback
+ *****************************************************************/
+
+static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
+static inline int select_m(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k);
+static inline int select_d(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k);
+static inline int select_i(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k);
+static inline int select_n(int i);
+static inline int select_c(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i);
+static inline int select_j(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i);
+static inline int select_e(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int *ret_k);
+static inline int select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i);
+static inline int select_codon(const P7_GMX *pp, int i, int k);
+
+/* Function:  p7_GOATrace_Frameshift()
+ * Synopsis:  Optimal accuracy decoding: traceback.
+ *
+ * Purpose:   The traceback stage of the frameshift aware optimal 
+ *            accuracy decoding algorithm
+ *            
+ *            Caller provides the OA DP matrix <gx> that was just
+ *            calculated by <p7_OptimalAccuracy_Frameshift()>, as 
+ *            well as the posterior decoding matricies <pp>, and 
+ *            <probs> which were calculated by Forward/Backward on 
+ *            a target sequence of length <L> using the query model 
+ *           <gm_fs5>.
+ *            
+ *            Caller provides an empty traceback structure <tr> to
+ *            hold the result, allocated to hold optional posterior
+ *            probability annotation on residues (with
+ *            <p7_trace_fs_CreateWithPP()>).  This will be
+ *            internally reallocated as needed for larger traces.
+ *
+ * Args:      gm_fs5 - query profile      
+ *            pp    - posterior decoding (i normalized accross all codons containing i)
+ *            gx    - OA DP matrix calculated by  <p7_OptimalAccuracyDP()>
+ *            tr    - RESULT: OA traceback, allocated with posterior probs
+ *
+ * Returns:   <eslOK> on success, and <tr> contains the OA traceback.
+ *
+ * Throws:    <eslEMEM> on allocation error.
+ */
+int
+p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr)
+{
+  int          i   = gx->L; /* position in seq (1..L)         */
+  int          k   = 0;     /* position in model (1..M)       */
+  int          c   = 0;
+  float        postprob;
+  int          sprv, scur;
+  int          status;
+
+#if eslDEBUGLEVEL > 0
+  if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
+#endif
+
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) return status;
+
+  sprv = p7T_C;
+  while (sprv != p7T_S)
+    {
+
+     switch (sprv) {
+      case p7T_M: scur = select_m(gm_fs5,     gx, i,  k); k--;  break;
+      case p7T_D: scur = select_d(gm_fs5,     gx, i,  k); k--;  break;
+      case p7T_I: scur = select_i(gm_fs5,     gx, i,  k); i-=3; break;
+      case p7T_N: scur = select_n(                i);           break;
+      case p7T_C: scur = select_c(gm_fs5, pp, gx, i);           break;
+      case p7T_J: scur = select_j(gm_fs5, pp, gx, i);           break;
+      case p7T_E: scur = select_e(gm_fs5,     gx, i, &k);       break;
+      case p7T_B: scur = select_b(gm_fs5,     gx, i);           break;
+      default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
+      }
+      if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed %s", gm_fs5->name);
+
+      postprob = get_postprob(pp, scur, sprv, k, i);
+
+      if(scur == p7T_M) c = select_codon(pp, i, k);
+      else              c = 0;
+
+      if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
+
+      /* For NCJ, we had to defer i decrement. */
+      if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
+      sprv = scur;
+      i -= c;
+    }
+  tr->M = gm_fs5->M;
+  tr->L = gx->L;
+  return p7_trace_fs_Reverse(tr);
+}
+
+
+static inline float
+get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
+{
+  float **dp  = pp->dp;
+  float  *xmx = pp->xmx;
+  
+  switch (scur) {
+  case p7T_M: return MMX_FS(i,k,p7G_C0);
+  case p7T_I: return IMX_FS(i,k);
+  case p7T_N: if (sprv == scur) return XMX_FS(i,p7G_N);
+  case p7T_C: if (sprv == scur) return XMX_FS(i,p7G_C); 
+  case p7T_J: if (sprv == scur) return XMX_FS(i,p7G_J); 
+  default:    return 0.0;
+  }
+}
+
+static inline int
+select_m(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
+{
+  float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
+  float       *xmx  = gx->xmx; /* so XMX() macro works           */
+  float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
+  float path[4];
+  int   state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
+
+  path[0] = TSCDELTA(p7P_MM, k-1) * MMX(i,k-1);
+  path[1] = TSCDELTA(p7P_IM, k-1) * IMX(i,k-1);
+  path[2] = TSCDELTA(p7P_DM, k-1) * DMX(i,k-1); 
+  path[3] = TSCDELTA(p7P_BM, k-1) * XMX(i,p7G_B);
+
+  return state[esl_vec_FArgMax(path, 4)];
+
+}
+
+static inline int
+select_d(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
+{
+  float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
+  float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
+  float        path[2];
+
+  path[0] = TSCDELTA(p7P_MD, k-1) * MMX(i, k-1);
+  path[1] = TSCDELTA(p7P_DD, k-1) * DMX(i, k-1);
+  return ((path[0] >= path[1]) ? p7T_M : p7T_D);
+}
+ 
+  
+static inline int
+select_i(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int k)
+{
+  float      **dp   = gx->dp;  /* so {MDI}MX() macros work       */
+  float const *tsc  = gm_fs5->tsc;  /* so TSCDELTA() macro works */
+  float        path[2];
+
+  path[0] = TSCDELTA(p7P_MI, k) * MMX(i-3,k);
+  path[1] = TSCDELTA(p7P_II, k) * IMX(i-3,k);
+
+  return ((path[0] >= path[1]) ? p7T_M : p7T_I);
+}
+
+
+static inline int
+select_n(int i)
+{
+  return ((i==0) ? p7T_S : p7T_N);
+}
+
+static inline int
+select_c(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i)
+{
+  float  t1   =  ( (gm_fs5->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t2   =  ( (gm_fs5->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float *xmx  = gx->xmx;  /* so XMX() macro works           */
+  float  path[4];
+  int    state[4] = { p7T_C, p7T_C, p7T_C, p7T_E };
+
+  /* If we have gotten all the way up to the last possible codon enter the model */
+  if(i < 4)                                                           return p7T_E;
+
+  /* Possible paths include any of the three C state frames or moving to the E state at the current index */
+  path[0] = t1 * (XMX(i-3, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
+
+  if(i < gx->L) path[1] = t1 * (XMX(i-2, p7G_C) + pp->xmx[(i+1)*p7G_NXCELLS + p7G_C]);
+  else          path[1] = FLT_MIN;
+
+  if(i < gx->L-1) path[2] = t1 * (XMX(i-1, p7G_C) + pp->xmx[(i+2)*p7G_NXCELLS + p7G_C]);
+  else            path[2] = FLT_MIN;
+
+  path[3] = t2 * XMX(i,p7G_E);
+
+  return state[esl_vec_FArgMax(path, 4)];
+}
+
+static inline int
+select_j(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i)
+{
+  float  t1   = ( (gm_fs5->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float  t2   = ( (gm_fs5->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float *xmx  = gx->xmx;  /* so XMX() macro works           */
+  float  path[2];
+  int    state[2] = { p7T_J, p7T_E };
+
+  if(i <= 5) return p7T_E;
+
+  path[0] = t1 * (XMX(i,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]);
+  path[1] = t2 *  XMX(i,p7G_E);
+  return state[esl_vec_FArgMax(path, 2)];
+}
+
+static inline int
+select_e(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int *ret_k)
+{
+  float **dp   = gx->dp;  /* so {MDI}MX() macros work       */
+  float   max  = -eslINFINITY;
+  int     smax = -1;    /* will be returned as "error code" if no max found */
+  int     kmax = -1;
+  int     k;
+
+  if (! p7_fs_profile_IsLocal(gm_fs5)) /* glocal/global is easier */
+    {
+      *ret_k = gm_fs5->M;
+      return (MMX(i,gm_fs5->M) >= DMX(i,gm_fs5->M)) ? p7T_M : p7T_D;
+    }
+
+  for (k = 1; k <= gm_fs5->M; k++)
+    {
+      if (MMX(i,k) >  max) { max = MMX(i,k); smax = p7T_M; kmax = k; }
+      if (DMX(i,k) >  max) { max = DMX(i,k); smax = p7T_D; kmax = k; }
+    }
+  *ret_k = kmax;
+
+  return smax;
+}
+
+
+static inline int
+select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i)
+{
+  float t1 = ( (gm_fs5->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float t2 = ( (gm_fs5->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  float *xmx  = gx->xmx;  /* so XMX() macro works           */
+  float path[2];
+
+  path[0] = t1 * XMX(i, p7G_N);
+  path[1] = t2 * XMX(i, p7G_J);
+  return  ((path[0] > path[1]) ? p7T_N : p7T_J);
+
+}
+
+static inline int
+select_codon(const P7_GMX *pp, int i, int k) 
+{
+  float **dp   = pp->dp;
+  float codon[5];
+
+  codon[0] = MMX_FS(i,k,p7G_C1);
+  codon[1] = MMX_FS(i,k,p7G_C2);
+  codon[2] = MMX_FS(i,k,p7G_C3);
+  codon[3] = MMX_FS(i,k,p7G_C4);
+  codon[4] = MMX_FS(i,k,p7G_C5);
+
+  return esl_vec_FArgMax(codon, 5) + 1; 
+
+
+}
+/*------------------------ end, oa traceback --------------------*/
+
+
+
+
+/*****************************************************************
+ * 3. Benchmark driver
+ *****************************************************************/
+#ifdef p7OPTACC_FRAMESHIFT_BENCHMARK
+/*
+    gcc -g -O2      -o optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7OPTACC_FRAMESHIFT_BENCHMARK optacc_frameshift.c -lhmmer -leasel -lm
+
+   icc -O3 -static -o optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7OPTACC_FRAMESHIFT_BENCHMARK optacc_frameshift.c -lhmmer -leasel -lm
+   ./optacc_frameshift_benchmark <hmmfile>
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
+  { "-N",        eslARG_INT,   "5000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "--notrace", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark the DP fill stage",               0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for optimal accuracy alignment, frameshift version";
+
+int 
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_GENCODE    *gcode   = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_FS_PROFILE  *gm_fs5   = NULL;
+  P7_GMX         *gx1     = NULL;
+  P7_GMX         *gx2     = NULL;
+  P7_IVX         *iv      = NULL;
+  P7_TRACE       *tr      = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           fsc, bsc, accscore;
+  double          Mcs;
+
+  p7_FLogsumInit();
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode = esl_gencode_Create(abcDNA, abcAA);
+  bgAA  = p7_bg_Create(abcAA);
+  bgDNA = p7_bg_Create(abcDNA);
+  p7_bg_SetLength(bgAA, L/3);
+  p7_bg_SetLength(bgDNA, L);
+  gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L, p7_UNILOCAL);
+  gx1 = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
+  gx2 = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS);
+  iv  = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
+  tr  = p7_trace_fs_CreateWithPP();
+
+  esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  p7_GForward_Frameshift(dsq, L, gm_fs5, gx1, iv, &fsc);
+  p7_GBackward_Frameshift(dsq, L, gm_fs5, gx2, iv, &bsc);
+  p7_GDecoding_Frameshift(gm_fs5, gx1, gx2);
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+  {
+    p7_GOptimalAccuracy_Frameshift(gm_fs5, pp, gx2, &accscore);
+    if (! esl_opt_GetBoolean(go, "--notrace"))
+    {
+      p7_GOATrace_Frameshift(gm_fs5, gx1, gx2, tr);
+      p7_trace_Reuse(tr);
+    }  
+
+  }
+   
+  esl_stopwatch_Stop(w);
+  Mcs        = (double) N * (double) L * (double) gm_fs5->M * 1e-6 / w->user;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n", gm_fs5->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_trace_fs_Destroy(tr);
+  p7_gmx_Destroy(gx1);
+  p7_gmx_Destroy(gx2);
+  p7_gmx_Destroy(pp);
+  p7_ivx_Destroy(iv);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_bg_Destroy(bgAA);
+  p7_bg_Destroy(bgDNA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_gencode_Destroy(gcode);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7OPTACC_FRAMESHIFT_BENCHMARK*/
+/*---------------- end, benchmark driver ------------------------*/
+
+

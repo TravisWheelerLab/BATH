@@ -75,6 +75,7 @@ OBJS =  build.o\
     viterbi_frameshift.o\
 	generic_decoding.o\
 	generic_fwdback.o\
+	generic_fwdback_frameshift.o\
 	generic_fwdback_chk.o\
 	generic_fwdback_banded.o\
 	generic_null2.o\

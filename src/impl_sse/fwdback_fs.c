@@ -3098,7 +3098,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       /* 3-codon SSE vs scalar */
       p7_ForwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, oxf, &fsc3);
-	  p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
+	  p7_GForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
    
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
@@ -3112,7 +3112,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
       p7_ForwardParser_Frameshift_5Codons_SSE(dsq, curr_L, om_fs5, oxf, &fsc5);
-      p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
+      p7_GForwardParser_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
  
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 

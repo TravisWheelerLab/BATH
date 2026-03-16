@@ -433,9 +433,9 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       p7_gmx_GrowTo(gxpp, M, curr_L, curr_L);
       p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
 
-      p7_Forward_Frameshift (dsq, curr_L, gm_fs5, gx1, iv5, &fsc);
-      p7_Backward_Frameshift(dsq, curr_L, gm_fs5, gx2, iv5, &bsc);
-      p7_Decoding_Frameshift(gm_fs5, gx1, gx2);   /* gx1 is now the PP matrix */
+      p7_GForward_Frameshift (dsq, curr_L, gm_fs5, gx1, iv5, &fsc);
+      p7_GBackward_Frameshift(dsq, curr_L, gm_fs5, gx2, iv5, &bsc);
+      p7_GDecoding_Frameshift(gm_fs5, gx1, gx2);   /* gx1 is now the PP matrix */
 
       /*  simd under test: p7_Decoding_Frameshift_SSE overwrites fwd with PP  */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
@@ -478,8 +478,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
   P7_TRACE       *tr     = p7_trace_Create();
   P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, M);
   P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
-  P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, M, 0);
-  P7_GMX         *bgx    = p7_gmx_fs_Create(M, PARSER_ROWS_BWD, M, 0);
+  P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, M, p7G_NSCELLS);
+  P7_GMX         *bgx    = p7_gmx_Create(M, PARSER_ROWS_BWD, M, p7G_NSCELLS);
   P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS);
   P7_DOMAINDEF   *oddef  = NULL; 
   P7_DOMAINDEF   *gddef  = NULL;
@@ -532,17 +532,17 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       
       p7_DomainDecoding_Frameshift_SSE(om_fs3, fwd, bwd, oddef);
 
-      p7_gmx_fs_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L, 0);
-      p7_gmx_fs_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L, 0);
+      p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
+      p7_gmx_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L);
 
-      p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv, &bsc3);
-      p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
+      p7_GForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv, &bsc3);
+      p7_GBackwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
 
       gddef->mocc = gddef->btot = gddef->etot = NULL;
       ESL_ALLOC(gddef->mocc, sizeof(float) * (curr_L+1));
       ESL_ALLOC(gddef->btot, sizeof(float) * (curr_L+1));
       ESL_ALLOC(gddef->etot, sizeof(float) * (curr_L+1));
-      p7_DomainDecoding_Frameshift(gm_fs3, fgx, bgx, gddef);
+      p7_GDomainDecoding_Frameshift(gm_fs3, fgx, bgx, gddef);
      
       for(i = 0; i <= curr_L; i++) {
         if(fabs(oddef->mocc[i] - gddef->mocc[i]) > tolerance) esl_fatal("domain def fs unit test failed at mocc");

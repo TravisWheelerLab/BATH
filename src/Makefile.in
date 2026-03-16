@@ -66,12 +66,10 @@ HDRS =  hmmer.h \
 	p7_gmxchk.h 
 
 OBJS =  build.o\
-	decoding_frameshift.o\
 	emit.o\
 	errors.o\
 	evalues.o\
 	eweight.o\
-	fwdback_frameshift.o\
     viterbi_frameshift.o\
 	generic_decoding.o\
 	generic_decoding_frameshift.o\
@@ -93,7 +91,6 @@ OBJS =  build.o\
 	modelconfig.o\
 	modelstats.o\
     null2_frameshift.o\
-	optacc_frameshift.o\
 	seqmodel.o\
 	stotrace_frameshift.o\
 	tracealign.o\

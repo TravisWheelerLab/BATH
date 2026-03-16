@@ -413,7 +413,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         p7_gmx_GrowTo(pli->gfwd, gm_fs5->M, j-i+1, j-i+1);
         p7_fs_ReconfigMultihit(gm_fs5, saveL/3);
 
-        p7_Forward_Frameshift(windowsq->dsq+i-1, j-i+1, gm_fs5, pli->gfwd, pli->iv, NULL);
+        p7_GForward_Frameshift(windowsq->dsq+i-1, j-i+1, gm_fs5, pli->gfwd, pli->iv, NULL);
 
         region_trace_ensemble_frameshift(ddef, gm_fs5, windowsq->dsq, windowsq->abc, i, j, pli->gfwd, &nc);
 
@@ -1023,7 +1023,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   p7_fs_ReconfigLength(gm_fs5, Ld/3);
   p7_ivx_GrowTo(iv, gm_fs5->M, p7P_5CODONS); 
   p7_gmx_GrowTo(gx1, gm_fs5->M, Ld, Ld);
-  p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, gm_fs5, gx1, iv, &envsc);
+  p7_GForward_Frameshift(windowsq->dsq+i-1, Ld, gm_fs5, gx1, iv, &envsc);
 
   seqscore = (envsc-filtersc) / eslCONST_LOG2; 
   P = esl_exp_surv(seqscore,  gm_fs5->evparam[p7_FTAUFS5],  gm_fs5->evparam[p7_FLAMBDA]);   
@@ -1041,14 +1041,14 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
 
   /* Backward */
   p7_gmx_GrowTo(gx2, gm_fs5->M, Ld, Ld);
-  p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, gm_fs5, gx2, iv, NULL);
+  p7_GBackward_Frameshift(windowsq->dsq+i-1, Ld, gm_fs5, gx2, iv, NULL);
 
   /* Posterior Probabilities */
-  p7_Decoding_Frameshift(gm_fs5, gx1, gx2);
+  p7_GDecoding_Frameshift(gm_fs5, gx1, gx2);
 
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(gm_fs5, gx1, gx2, &oasc);
-  p7_OATrace_Frameshift(gm_fs5, gx1, gx2, ddef->tr);
+  p7_GOptimalAccuracy_Frameshift(gm_fs5, gx1, gx2, &oasc);
+  p7_GOATrace_Frameshift(gm_fs5, gx1, gx2, ddef->tr);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    

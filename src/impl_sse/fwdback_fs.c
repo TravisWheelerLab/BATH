@@ -3138,12 +3138,12 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       p7_omx_GrowTo_FS(fwd, M, curr_L, curr_L);
       p7_Forward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, &full_fsc);
-      printf("fsc5 %f full_fsc %f\n", fsc5, full_fsc);
+
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
       
       p7_omx_GrowTo(bck, M, curr_L, curr_L);
       p7_Backward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, bck, &full_bsc);
-      printf("bsc5 %f full_bsc %f\n", bsc5, full_bsc);
+
       if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);     
     }
 

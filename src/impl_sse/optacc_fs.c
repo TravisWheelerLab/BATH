@@ -57,6 +57,8 @@ p7_OptimalAccuracy_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   int    L   = pp->L;
   int    Q   = p7O_NQF(M);
   int    i, q, j;
+  int    qM  = (M-1) % Q;   /* stripe containing k=M */
+  int    rM  = (M-1) / Q;   /* lane  containing k=M */
   float  xN, xE, xB, xJ, xC;
   float  t1, t2;
   register __m128 mpv1, dpv1, ipv1;   /* right-shifted prev row i-1, then updated to current q */
@@ -74,6 +76,7 @@ p7_OptimalAccuracy_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   __m128 *ppc;                         /* current pp row (8-cell FS layout)  */
   __m128  zerov = _mm_setzero_ps();
   __m128  infv  = _mm_set1_ps(-eslINFINITY);
+  union { __m128 v; float p[4]; } imfix;   /* for I(i,M) = -inf fixup */
 
   ox->M = M;
   ox->L = L;
@@ -200,6 +203,13 @@ p7_OptimalAccuracy_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
           sv  = _mm_max_ps(sv, _mm_and_ps(ii, ipv3));
           IMO(dpc, q) = _mm_add_ps(sv, IMO_FS(ppc, q));
         }
+
+      /* I(i,M) has no I state; MI/II transitions stored as 0 cause AND(-inf)=0.
+       * The scalar explicitly sets IMX(i,M)=-inf; replicate that here.
+       */
+      imfix.v      = IMO(dpc, qM);
+      imfix.p[rM]  = -eslINFINITY;
+      IMO(dpc, qM) = imfix.v;
 
       /* DD propagation: first pass (includes M->D carry from main loop) */
       dcv = esl_sse_rightshift_ps(dcv, infv);

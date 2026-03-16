@@ -63,6 +63,9 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_
   float        nb, jb, ej, ec;
   float        max1, max2, max3, max4, max5;
 
+  gx->M = M;
+  gx->L = L;
+
   nn = ((gm_fs5->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   jj = ((gm_fs5->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   cc = ((gm_fs5->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
@@ -398,6 +401,7 @@ p7_OATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GM
       case p7T_B: scur = select_b(gm_fs5,     gx, i);           break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
+      printf("sprv %d scur %d i %d k %d\n", sprv, scur, i, k);
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed %s", gm_fs5->name);
 
       postprob = get_postprob(pp, scur, sprv, k, i);

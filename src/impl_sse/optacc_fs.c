@@ -671,7 +671,7 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       /* ox_fwd now holds the SSE posterior probability matrix */
       if (p7_OptimalAccuracy_Frameshift_SSE(om_fs, ox_fwd, ox_bck, &accscore_sse) != eslOK) esl_fatal(msg);
       if (p7_OATrace_Frameshift_SSE(om_fs, ox_fwd, ox_bck, tr_sse)              != eslOK) esl_fatal(msg);
-
+       p7_trace_fs_Dump(stdout, tr_sse, gm_fs, dsq, abcDNA);
       /* Reference: convert SSE pp to scalar GMX, run scalar OA and trace */
       if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                    != eslOK) esl_fatal(msg);
       if (p7_OptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_oa, &accscore_ref)   != eslOK) esl_fatal(msg);

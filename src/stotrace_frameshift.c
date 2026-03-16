@@ -102,10 +102,11 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
       }
       break;
 
-      /* M connects from {MDI} i-1,k-1, or B */
+      /* M connects from {MDI} i,k-1, or B (all at same row i; i has already
+       * been decremented by this M's codon length c from the previous iteration,
+       * so i now points to the predecessor row, which is correct for the lookups
+       * below.  A validity check on MMX_FS(i,k) here would test the wrong cell.) */
       case p7T_M:
-       if (MMX_FS(i,k,p7G_C0) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
-       
        sc[0] = XMX_FS(i,p7G_B)          + TSC(p7P_BM, k-1);
        sc[1] = MMX_FS(i,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
        sc[2] = IMX_FS(i,k-1)         + TSC(p7P_IM, k-1);

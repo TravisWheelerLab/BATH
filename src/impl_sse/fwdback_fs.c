@@ -2723,9 +2723,11 @@ p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
   ESL_ALLOC(ivxf_mem, sizeof(__m128) * Q + 15);
   ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
-  ESL_ALLOC(zero_mem, sizeof(__m128) * Q + 15);
+  /* zero_row is used via MMO/DMO/IMO macros which stride by p7X_NSCELLS=3,
+   * so it needs Q*p7X_NSCELLS entries, not just Q. */
+  ESL_ALLOC(zero_mem, sizeof(__m128) * Q * p7X_NSCELLS + 15);
   zero_row = (__m128 *) (((unsigned long int) zero_mem + 15) & (~0xf));
-  for (q = 0; q < Q; q++) zero_row[q] = zerov;
+  for (q = 0; q < Q * p7X_NSCELLS; q++) zero_row[q] = zerov;
 
   /* Zero-initialize all rows 0..L of the backward matrix */
   for (r = 0; r <= L; r++)

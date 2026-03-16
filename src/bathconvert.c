@@ -80,6 +80,8 @@ main(int argc, char **argv)
   ESL_RANDOMNESS *r      = NULL;
   P7_FS_PROFILE  *gm_fs5 = NULL;
   P7_FS_PROFILE  *gm_fs3 = NULL;
+  P7_FS_OPROFILE *om_fs5 = NULL;
+  P7_FS_OPROFILE *om_fs3 = NULL;
   ESL_GENCODE    *gcode  = NULL;
   ESL_ALPHABET   *abcDNA = NULL;
   P7_CODONTABLE  *codon_tbl = NULL;
@@ -141,16 +143,20 @@ main(int argc, char **argv)
 
           if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
  
+          om_fs3 = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_3CODONS);
           gm_fs3 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_3CODONS);
           p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL);
+          p7_fs_oprofile_Convert(gm_fs3, om_fs3);
 
+          om_fs5 = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_5CODONS);
           gm_fs5 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_5CODONS);
           p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
+          p7_fs_oprofile_Convert(gm_fs5, om_fs5);
 
-          p7_fs_Tau_3codons(r, gm_fs3, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          p7_fs_Tau_3codons(r, om_fs3, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS3] = tau_fs;
 
-          p7_fs_Tau_5codons(r, gm_fs5, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+          p7_fs_Tau_5codons(r, om_fs5, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS5] = tau_fs; 
         }
       }
@@ -171,6 +177,8 @@ main(int argc, char **argv)
       p7_hmm_Destroy(hmm);
       p7_profile_fs_Destroy(gm_fs5);
       p7_profile_fs_Destroy(gm_fs3);
+      p7_fs_oprofile_Destroy(om_fs5);
+      p7_fs_oprofile_Destroy(om_fs3);
     }
   if      (status == eslEFORMAT)   p7_Fail("bad file format in HMM file %s",             hmmfile_in);
   else if (status == eslEINCOMPAT) p7_Fail("HMM file %s contains different alphabets",   hmmfile_in);
@@ -196,6 +204,8 @@ main(int argc, char **argv)
   if(bg != NULL)    p7_bg_Destroy(bg);
   if(gm_fs5 != NULL) p7_profile_fs_Destroy(gm_fs5);
   if(gm_fs3 != NULL) p7_profile_fs_Destroy(gm_fs3);
+  if(om_fs5 != NULL) p7_fs_oprofile_Destroy(om_fs5);
+  if(om_fs3 != NULL) p7_fs_oprofile_Destroy(om_fs3);
   if(r != NULL)     esl_randomness_Destroy(r);
   if(ofp) fclose(ofp);
   if(hfp) p7_hmmfile_Close(hfp);

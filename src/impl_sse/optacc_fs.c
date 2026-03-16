@@ -626,7 +626,6 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   P7_GMX          *gx_oa2 = NULL;   /* SSE OA deconverted    */
   P7_OMX          *ox_fwd = NULL;   /* SSE forward/pp (8-cell FS) */
   P7_OMX          *ox_bck = NULL;   /* SSE backward (8-cell FS)   */
-  P7_OMX          *ox_oa  = NULL;   /* SSE OA (3-cell standard)   */
   P7_TRACE        *tr_sse = NULL;   /* SSE OA traceback           */
   P7_TRACE        *tr_ref = NULL;   /* scalar OA traceback        */
   ESL_DSQ         *dsq    = NULL;
@@ -650,8 +649,7 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
 
   /* SSE: forward/backward use 8-cell FS layout; OA uses standard 3-cell */
   ox_fwd = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
-  ox_bck = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
-  ox_oa  = p7_omx_Create    (hmm->M, seq_L, seq_L);
+  ox_bck = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS);
 
   /* Scalar: pp uses 8-cell FS layout; OA matrices use standard 3-cell */
   gx_pp  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
@@ -668,11 +666,11 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       /* SSE pipeline: Forward -> Backward -> Decoding (in-place into ox_fwd) -> OA -> Trace */
       if (p7_Forward_Frameshift_SSE (dsq, seq_L, om_fs,         ox_fwd, &fsc) != eslOK) esl_fatal(msg);
       if (p7_Backward_Frameshift_SSE(dsq, seq_L, om_fs, ox_fwd, ox_bck, &bsc) != eslOK) esl_fatal(msg);
-      if (esl_FCompare_old(fsc, bsc, tol)                                       != eslOK) esl_fatal(msg);
+      if (esl_FCompare_old(fsc, bsc, tol)                                      != eslOK) esl_fatal(msg);
       if (p7_Decoding_Frameshift_SSE(om_fs, ox_fwd, ox_bck)                    != eslOK) esl_fatal(msg);
       /* ox_fwd now holds the SSE posterior probability matrix */
-      if (p7_OptimalAccuracy_Frameshift_SSE(om_fs, ox_fwd, ox_oa, &accscore_sse) != eslOK) esl_fatal(msg);
-      if (p7_OATrace_Frameshift_SSE(om_fs, ox_fwd, ox_oa, tr_sse)              != eslOK) esl_fatal(msg);
+      if (p7_OptimalAccuracy_Frameshift_SSE(om_fs, ox_fwd, ox_bck, &accscore_sse) != eslOK) esl_fatal(msg);
+      if (p7_OATrace_Frameshift_SSE(om_fs, ox_fwd, ox_bck, tr_sse)              != eslOK) esl_fatal(msg);
 
       /* Reference: convert SSE pp to scalar GMX, run scalar OA and trace */
       if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                    != eslOK) esl_fatal(msg);
@@ -680,7 +678,7 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       if (p7_OATrace_Frameshift(gm_fs, gx_pp, gx_oa, tr_ref)                  != eslOK) esl_fatal(msg);
 
       /* Convert SSE OA to scalar GMX for matrix-level comparison */
-      if (p7_omx_FDeconvert(ox_oa, gx_oa2)                                    != eslOK) esl_fatal(msg);
+      if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                    != eslOK) esl_fatal(msg);
 
       if (esl_FCompare_old(accscore_sse, accscore_ref, tol) != eslOK) esl_fatal(msg);
       if (p7_gmx_Compare(gx_oa, gx_oa2, tol)               != eslOK) esl_fatal(msg);
@@ -701,7 +699,6 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   p7_trace_fs_Destroy(tr_ref);
   p7_omx_Destroy(ox_fwd);
   p7_omx_Destroy(ox_bck);
-  p7_omx_Destroy(ox_oa);
   p7_gmx_Destroy(gx_pp);
   p7_gmx_Destroy(gx_oa);
   p7_gmx_Destroy(gx_oa2);

@@ -41,6 +41,7 @@ OBJS =  decoding.o\
 	ssvfilter.o\
 	msvfilter.o\
 	null2.o\
+	null2_fs.o\
 	optacc.o\
 	optacc_fs.o\
 	stotrace.o\

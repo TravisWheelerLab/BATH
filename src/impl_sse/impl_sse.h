@@ -437,7 +437,8 @@ extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_
 extern int p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 
 /* decoding_fs.c */
-extern int p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
+extern int p7_DomainDecoding_Frameshift_Full_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd,  const P7_OMX *bck,  P7_DOMAINDEF *ddef);
+extern int p7_DomainDecoding_Frameshift_SSE     (const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,  const P7_OMX *oxb,  P7_DOMAINDEF *ddef);
 
 /* fwdback.c */
 extern int p7_Forward       (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);

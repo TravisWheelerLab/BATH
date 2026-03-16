@@ -24,6 +24,128 @@
  * 1. Posterior decoding algorithms.
  *****************************************************************/
 
+/* Function:  p7_DomainDecoding_Frameshift_Full_SSE()
+ * Synopsis:  SSE posterior decoding of domain location; full O(ML) matrix version.
+ *
+ * Purpose:   Identical in computation to <p7_DomainDecoding_Frameshift_SSE()>
+ *            but intended for use with the full O(ML) DP matrices produced by
+ *            <p7_Forward_Frameshift_SSE()> and <p7_Backward_Frameshift_SSE()>.
+ *            Domain decoding reads only from the special-state rows <xmx> (N, B,
+ *            E, J, C, SCALE), which are written identically by both parser and
+ *            full-matrix passes.  The MDI rows in <fwd> (8-cell layout from
+ *            <p7_omx_Create_FS()>) and <bck> (3-cell layout) are not accessed.
+ *
+ *            Fills <ddef->btot[i]>, <ddef->etot[i]>, <ddef->mocc[i]> for
+ *            i = 0..L, then sets <ddef->L>.
+ *
+ *            Scale factors are handled using precomputed cumulative log products
+ *            log_sfwd[i] and log_sbck[i], exactly as in the parser-mode version.
+ *
+ * Args:      om_fs - optimized frameshift profile (for N/J/C transition odds ratios)
+ *            fwd   - filled Forward DP matrix from p7_Forward_Frameshift_SSE()
+ *            bck   - filled Backward DP matrix from p7_Backward_Frameshift_SSE()
+ *            ddef  - container for the results
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_DomainDecoding_Frameshift_Full_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, const P7_OMX *bck,
+                                       P7_DOMAINDEF *ddef)
+{
+  int    L   = fwd->L;
+  float *log_sfwd = NULL;
+  float *log_sbck = NULL;
+  float  log_inv_Z;
+  float  njcp;
+  int    i;
+  int    status;
+
+  ESL_ALLOC(log_sfwd, sizeof(float) * (L+2));
+  ESL_ALLOC(log_sbck, sizeof(float) * (L+2));
+
+  log_sfwd[0] = logf(fwd->xmx[0*p7X_NXCELLS + p7X_SCALE]);
+  for (i = 1; i <= L; i++)
+    log_sfwd[i] = log_sfwd[i-1] + logf(fwd->xmx[i*p7X_NXCELLS + p7X_SCALE]);
+
+  log_sbck[L+1] = 0.0f;
+  for (i = L; i >= 0; i--)
+    log_sbck[i] = log_sbck[i+1] + logf(bck->xmx[i*p7X_NXCELLS + p7X_SCALE]);
+
+  log_inv_Z = -p7_FLogsum(
+                 logf(bck->xmx[0*p7X_NXCELLS + p7X_N]) + log_sbck[0],
+                 p7_FLogsum(
+                   logf(bck->xmx[1*p7X_NXCELLS + p7X_N]) + log_sbck[1],
+                   logf(bck->xmx[2*p7X_NXCELLS + p7X_N]) + log_sbck[2]));
+
+  ddef->btot[0] = 0.;
+  ddef->btot[1] = 0.;
+  ddef->btot[2] = 0.;
+  ddef->etot[0] = 0.;
+  ddef->etot[1] = 0.;
+  ddef->etot[2] = 0.;
+  ddef->mocc[0] = 0.;
+  ddef->mocc[1] = 0.;
+  ddef->mocc[2] = 0.;
+
+  for (i = 3; i <= L; i++)
+    {
+      ddef->btot[i] = ddef->btot[i-3]
+        + fwd->xmx[(i-3)*p7X_NXCELLS + p7X_B] * bck->xmx[(i-3)*p7X_NXCELLS + p7X_B]
+          * expf(log_sfwd[i-3] + log_sbck[i-3] + log_inv_Z);
+
+      ddef->etot[i] = ddef->etot[i-3]
+        + fwd->xmx[i*p7X_NXCELLS + p7X_E] * bck->xmx[i*p7X_NXCELLS + p7X_E]
+          * expf(log_sfwd[i] + log_sbck[i] + log_inv_Z);
+
+      njcp = 0.;
+
+      /* N state */
+      njcp += fwd->xmx[(i-3)*p7X_NXCELLS + p7X_N] * bck->xmx[i*p7X_NXCELLS + p7X_N]
+              * om_fs->xf[p7O_N][p7O_LOOP] * expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
+      if (i < L)
+        njcp += fwd->xmx[(i-2)*p7X_NXCELLS + p7X_N] * bck->xmx[(i+1)*p7X_NXCELLS + p7X_N]
+                * om_fs->xf[p7O_N][p7O_LOOP] * expf(log_sfwd[i-2] + log_sbck[i+1] + log_inv_Z);
+      if (i < L-1)
+        njcp += fwd->xmx[(i-1)*p7X_NXCELLS + p7X_N] * bck->xmx[(i+2)*p7X_NXCELLS + p7X_N]
+                * om_fs->xf[p7O_N][p7O_LOOP] * expf(log_sfwd[i-1] + log_sbck[i+2] + log_inv_Z);
+
+      /* J state */
+      njcp += fwd->xmx[(i-3)*p7X_NXCELLS + p7X_J] * bck->xmx[i*p7X_NXCELLS + p7X_J]
+              * om_fs->xf[p7O_J][p7O_LOOP] * expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
+      if (i < L)
+        njcp += fwd->xmx[(i-2)*p7X_NXCELLS + p7X_J] * bck->xmx[(i+1)*p7X_NXCELLS + p7X_J]
+                * om_fs->xf[p7O_J][p7O_LOOP] * expf(log_sfwd[i-2] + log_sbck[i+1] + log_inv_Z);
+      if (i < L-1)
+        njcp += fwd->xmx[(i-1)*p7X_NXCELLS + p7X_J] * bck->xmx[(i+2)*p7X_NXCELLS + p7X_J]
+                * om_fs->xf[p7O_J][p7O_LOOP] * expf(log_sfwd[i-1] + log_sbck[i+2] + log_inv_Z);
+
+      /* C state */
+      njcp += fwd->xmx[(i-3)*p7X_NXCELLS + p7X_C] * bck->xmx[i*p7X_NXCELLS + p7X_C]
+              * om_fs->xf[p7O_C][p7O_LOOP] * expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
+      if (i < L)
+        njcp += fwd->xmx[(i-2)*p7X_NXCELLS + p7X_C] * bck->xmx[(i+1)*p7X_NXCELLS + p7X_C]
+                * om_fs->xf[p7O_C][p7O_LOOP] * expf(log_sfwd[i-2] + log_sbck[i+1] + log_inv_Z);
+      if (i < L-1)
+        njcp += fwd->xmx[(i-1)*p7X_NXCELLS + p7X_C] * bck->xmx[(i+2)*p7X_NXCELLS + p7X_C]
+                * om_fs->xf[p7O_C][p7O_LOOP] * expf(log_sfwd[i-1] + log_sbck[i+2] + log_inv_Z);
+
+      ddef->mocc[i] = 1. - njcp;
+    }
+
+  ddef->L = L;
+  free(log_sfwd);
+  free(log_sbck);
+  return eslOK;
+
+ ERROR:
+  if (log_sfwd) free(log_sfwd);
+  if (log_sbck) free(log_sbck);
+  return status;
+}
+
+
 /* Function:  p7_DomainDecoding_Frameshift_SSE()
  * Synopsis:  SSE posterior decoding of domain location for frameshift-aware alignments.
  *

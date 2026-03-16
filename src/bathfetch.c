@@ -298,6 +298,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
         if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
            (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
 
+          hmm->fsprob = 0.01;
           hmm->fs = TRUE;
           hmm->ct = ct;
 
@@ -424,6 +425,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
         if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
            (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
 
+          hmm->fsprob = 0.01;
           hmm->fs = TRUE;
           hmm->ct = ct;
 
@@ -441,7 +443,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
           om_fs5 = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_5CODONS);
           gm_fs5 = p7_profile_fs_Create(hmm->M, hmm->abc, 5);
           p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
-          p7_fs_oprofile_Convert(gm_fs3, om_fs3);
+          p7_fs_oprofile_Convert(gm_fs5, om_fs5);
 
           p7_fs_Tau_3codons(r, om_fs3, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
           hmm->evparam[p7_FTAUFS3] = tau_fs;

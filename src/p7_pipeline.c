@@ -137,18 +137,14 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   /* Create sparce memeory forward and backward generic frameshift aware matricies 
    * for use in the frameshift pipeline filters
    */  
-   if ((pli->gxf  = p7_gmx_Create(M_hint, PARSER_ROWS_FWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
-   if ((pli->gxb  = p7_gmx_Create(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;   
+    if ((pli->oxf_fs  = p7_omx_Create_dpf(M_hint, PARSER_ROWS_FWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
+    if ((pli->oxb_fs  = p7_omx_Create_dpf(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
 
   /* Create full memeory forward, backward and posterior generic frameshift aware matricies
    * for use in the frameshift pipeline alignment
    */ 
-   if ((pli->gfwd = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-   if ((pli->gbck = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS))          == NULL) goto ERROR;
-   if ((pli->pp   = p7_gmx_Create(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-
-  /* Create intermediate values matrix */
-   if ((pli->iv  = p7_ivx_Create(M_hint, p7P_3CODONS)) == NULL) goto ERROR;
+   if ((pli->fwd_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
+   if ((pli->bck_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS))    == NULL) goto ERROR;
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
    * about to collect a stochastic trace ensemble. This eliminates run-to-run
@@ -267,11 +263,10 @@ ERROR:
 int
 p7_pipeline_Reuse_BATH(P7_PIPELINE *pli)
 {
-  p7_gmx_Reuse(pli->gxf);
-  p7_gmx_Reuse(pli->gxb);
-  p7_gmx_Reuse(pli->gfwd);
-  p7_gmx_Reuse(pli->gbck);
-  p7_gmx_Reuse(pli->pp);
+  p7_omx_Reuse(pli->oxf_fs);
+  p7_omx_Reuse(pli->oxb_fs);
+  p7_omx_Reuse(pli->fwd_fs);
+  p7_omx_Reuse(pli->bck_fs);
   p7_omx_Reuse(pli->oxf);
   p7_omx_Reuse(pli->oxb);
   p7_omx_Reuse(pli->fwd);
@@ -289,16 +284,14 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
 {
   if (pli == NULL) return;
  
-  p7_gmx_Destroy(pli->gxf);
-  p7_gmx_Destroy(pli->gxb);
-  p7_gmx_Destroy(pli->gfwd);
-  p7_gmx_Destroy(pli->gbck);
-  p7_gmx_Destroy(pli->pp);
+  p7_omx_Destroy(pli->oxf_fs);
+  p7_omx_Destroy(pli->oxb_fs);
+  p7_omx_Destroy(pli->fwd_fs);
+  p7_omx_Destroy(pli->bck_fs);
   p7_omx_Destroy(pli->oxf);
   p7_omx_Destroy(pli->oxb);
   p7_omx_Destroy(pli->fwd);
   p7_omx_Destroy(pli->bck);
-  p7_ivx_Destroy(pli->iv);
   esl_randomness_Destroy(pli->r);
   p7_domaindef_Destroy_BATH(pli->ddef);
   free(pli);
@@ -1350,10 +1343,10 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     p7_bg_SetLength(bg, dna_window->length/3);
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, pli->do_biasfilter, &filtersc_fs);
 
-    p7_omx_GrowTo(pli->oxf, om->M, PARSER_ROWS_FWD, dna_window->length); 
+    p7_omx_GrowTo_dpf(pli->oxf, om->M, PARSER_ROWS_FWD, dna_window->length); 
     p7_fs_oprofile_ReconfigLength(om_fs3, dna_window->length/3);
 
-    p7_ForwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf, &fwdsc_fs);
+    p7_ForwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf_fs, &fwdsc_fs);
     
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
     P_fs = esl_exp_surv(seqscore_fs,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]);
@@ -1368,8 +1361,8 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
      
     pli->pos_past_fwd += dna_window->length; 
-    p7_omx_GrowTo(pli->oxb, om->M, PARSER_ROWS_BWD, dna_window->length);
-    p7_BackwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf, pli->oxb, NULL);
+    p7_omx_GrowTo_dpf(pli->oxb, om->M, PARSER_ROWS_BWD, dna_window->length);
+    p7_BackwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf_fs, pli->oxb_fs, NULL);
 
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs3, gm_fs5, bg, gcode);
 

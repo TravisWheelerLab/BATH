@@ -1071,17 +1071,15 @@ enum p7_zsetby_e    { p7_ZSETBY_NTARGETS = 0, p7_ZSETBY_OPTION = 1, p7_ZSETBY_FI
 enum p7_complementarity_e { p7_NOCOMPLEMENT    = 0, p7_COMPLEMENT   = 1 };
 
 typedef struct p7_pipeline_s {
-  /* Dynamic programming matrices                                             */
-  P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe                   */
-  P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe                  */
-  P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes                 */
-  P7_OMX     *bck;    /* full Bck matrix for domain envelopes                 */
-  P7_GMX     *gxf;    /* three-row generic Forward matrix for frameshift      */
-  P7_GMX     *gxb;    /* five-row generic Backward matrix for frameshifts     */
-  P7_GMX     *gfwd;   /* full Fwd generic matrix for domain envelopes         */
-  P7_GMX     *gbck;   /* full Bwd generic matrix for domain envelopes         */
-  P7_GMX     *pp;     /* full posterior  matrix for domain envelopes          */
-  P7_IVX     *iv;     /* intermediate values matrix for frameshift algorithms */ 
+  /* Dynamic programming matrices                                              */
+  P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe                    */
+  P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe                   */
+  P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes                  */
+  P7_OMX     *bck;    /* full Bck matrix for domain envelopes                  */
+  P7_OMX     *oxf_fs; /* three-row Forward matrix for frameshift forward only  */
+  P7_OMX     *oxb_fs; /* five-row Backward matrix for frameshift backward only */
+  P7_OMX     *fwd_fs; /* full frameshift Fwd matrix for domain envelopes       */
+  P7_OMX     *bck_fs; /* full frameshift Bwd matrix for domain envelopes       */
 
   /* Domain postprocessing                                                  */
   ESL_RANDOMNESS *r;                       /* random number generator                  */

@@ -295,12 +295,12 @@ p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, co
 /*****************************************************************
  * 2. Benchmark driver
  *****************************************************************/
-#ifdef p7DECODING_FRAMESHIFT_BENCHMARK
+#ifdef p7GENERIC_DECODING_FRAMESHIFT_BENCHMARK
 /*
-   gcc -g -O2      -o decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7DECODING_FRAMESHIFT_BENCHMARK decoding_frameshift.c -lhmmer -leasel -lm
+   gcc -g -O2      -o generic_decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_FRAMESHIFT_BENCHMARK generic_decoding_frameshift.c -lhmmer -leasel -lm
 
-   icc -O3 -static -o decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7DECODING_FRAMESHIFT_BENCHMARK decoding_frameshift.c -lhmmer -leasel -lm
-   ./benchmark_decoding_frameshift <hmmfile>
+   icc -O3 -static -o generic_decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_FRAMESHIFT_BENCHMARK generic_decoding_frameshift.c -lhmmer -leasel -lm
+   ./generic_benchmark_decoding_frameshift <hmmfile>
    
  */
 #include "p7_config.h"
@@ -399,7 +399,7 @@ main(int argc, char **argv)
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7DECODING_FRAMESHIFT_BENCHMARK*/
+#endif /*p7GENERIC_DECODING_FRAMESHIFT_BENCHMARK*/
 /*------------------ end, benchmark driver ----------------------*/
 
 

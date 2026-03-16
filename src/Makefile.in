@@ -70,7 +70,6 @@ OBJS =  build.o\
 	errors.o\
 	evalues.o\
 	eweight.o\
-    viterbi_frameshift.o\
 	generic_decoding.o\
 	generic_decoding_frameshift.o\
 	generic_fwdback.o\
@@ -83,6 +82,7 @@ OBJS =  build.o\
     generic_optacc_frameshift.o\
 	generic_stotrace.o\
 	generic_viterbi.o\
+    generic_viterbi_frameshift.o\
 	generic_vtrace.o\
 	h2_io.o\
 	heatmap.o\
@@ -130,15 +130,15 @@ BENCHMARKS = \
 	evalues_benchmark\
 	logsum_benchmark\
 	generic_decoding_benchmark\
-	decoding_frameshift_benchmark\
+	generic_decoding_frameshift_benchmark\
 	generic_fwdback_benchmark\
 	generic_fwdback_chk_benchmark\
-    fwdback_frameshift_benchmark\
+    generic_fwdback_frameshift_benchmark\
     generic_msv_benchmark\
 	generic_null2_benchmark\
     null2_frameshift_benchmark\
 	generic_optacc_benchmark\
-    optacc_frameshift_benchmark\
+    generic_optacc_frameshift_benchmark\
 	generic_stotrace_benchmark\
     stotrace_frameshift_benchmark\
 	generic_viterbi_benchmark 
@@ -147,7 +147,7 @@ UTESTS =\
 	build_utest\
 	generic_fwdback_utest\
 	generic_fwdback_chk_utest\
-    fwdback_frameshift_utest\
+    generic_fwdback_frameshift_utest\
     generic_msv_utest\
 	generic_stotrace_utest\
 	generic_viterbi_utest\

@@ -29,7 +29,7 @@
 1 exercise generic_msv        @src/generic_msv_utest@
 1 exercise generic_stotrace   @src/generic_stotrace_utest@
 1 exercise generic_viterbi    @src/generic_viterbi_utest@
-1 exercise fwdback_frameshift @src/fwdback_frameshift_utest@
+1 exercise fwdback_frameshift @src/generic_fwdback_frameshift_utest@
 1 exercise logsum             @src/logsum_utest@
 1 exercise modelconfig        @src/modelconfig_utest@
 1 exercise seqmodel           @src/seqmodel_utest@
@@ -47,11 +47,14 @@
 
 
 1 exercise decoding           @src/impl/decoding_utest@
+1 exercise decoding_fs        @src/impl/decoding_fs_utest@
 1 exercise fwdback            @src/impl/fwdback_utest@
+1 exercise fwdback_fs         @src/impl/fwdback_fs_utest@
 1 exercise io                 @src/impl/io_utest@
 1 exercise msvfilter          @src/impl/msvfilter_utest@
 1 exercise null2              @src/impl/null2_utest@
 1 exercise optacc             @src/impl/optacc_utest@
+1 exercise optacc_fs          @src/impl/optacc_fs_utest@
 1 exercise stotrace           @src/impl/stotrace_utest@
 
 ################################################################

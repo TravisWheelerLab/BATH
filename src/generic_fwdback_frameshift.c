@@ -2151,11 +2151,11 @@ p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
 /*****************************************************************
  * 2. Benchmark driver.
  *****************************************************************/
-#ifdef p7FWDBACK_FRAMESHIFT_BENCHMARK
+#ifdef p7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK
 /*
-   gcc -g -O2      -o fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7FWDBACK_FRAMESHIFT_BENCHMARK fwdback_frameshift.c -lhmmer -leasel -lm
-   icc -O3 -static -o fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7FWDBACK_FRAMESHIFT_BENCHMARK fwdback_frameshift.c -lhmmer -leasel -lm
-   ./fwdback_frameshift_benchmark <hmmfile>
+   gcc -g -O2      -o generic_fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK generic_fwdback_frameshift.c -lhmmer -leasel -lm
+   icc -O3 -static -o generic_fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK generic_fwdback_frameshift.c -lhmmer -leasel -lm
+   ./generic_fwdback_frameshift_benchmark <hmmfile>
  */
 #include "p7_config.h"
 
@@ -2286,7 +2286,7 @@ main(int argc, char **argv)
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7FWDBACK_FRAMESHIFT_BENCHMARK*/
+#endif /*p7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK*/
 /*----------------- end, benchmark ------------------------------*/
 
 
@@ -2295,7 +2295,7 @@ main(int argc, char **argv)
 /*****************************************************************
  * 3. Unit tests
  *****************************************************************/
-#ifdef p7FWDBACK_FRAMESHIFT_TESTDRIVE
+#ifdef p7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE
 #include <string.h>
 #include "esl_getopts.h"
 #include "esl_random.h"
@@ -2436,16 +2436,16 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
 
 
 
-#endif /*p7FWDBACK_FRAMESHIFT_TESTDRIVE*/
+#endif /*p7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE*/
 /*------------------------- end, unit tests ---------------------*/
 
 /*****************************************************************
  * 4. Test driver.
  *****************************************************************/
 
-/* gcc -g -Wall -Dp7FWDBACK_FRAMESHIFT_TESTDRIVE -I. -I../easel -L. -L../easel -o fwdback_frameshift_utest fwdback_frameshift.c -lhmmer -leasel -lm
+/* gcc -g -Wall -Dp7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE -I. -I../easel -L. -L../easel -o generic_fwdback_frameshift_utest generic_fwdback_frameshift.c -lhmmer -leasel -lm
  */
-#ifdef p7FWDBACK_FRAMESHIFT_TESTDRIVE
+#ifdef p7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE
 #include "easel.h"
 #include "esl_getopts.h"
 #include "esl_msa.h"
@@ -2519,7 +2519,7 @@ main(int argc, char **argv)
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7FWDBACK_FRAMESHIFT_TESTDRIVE*/
+#endif /*p7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE*/
 /*-------------------- end, test driver -------------------------*/
 
 

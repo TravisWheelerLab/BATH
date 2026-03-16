@@ -377,8 +377,8 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
 /* p7_omx.c */
 extern P7_OMX      *p7_omx_Create   (int allocM, int allocL, int allocXL);
 extern int          p7_omx_GrowTo   (P7_OMX *ox, int allocM, int allocL, int allocXL);
-extern P7_OMX      *p7_omx_Create_FS(int allocM, int allocL, int allocXL);
-extern int          p7_omx_GrowTo_FS(P7_OMX *ox, int allocM, int allocL, int allocXL);
+extern P7_OMX      *p7_omx_Create_dpf(int allocM, int allocL, int allocXL, int nscells);
+extern int          p7_omx_GrowTo_dpf (P7_OMX *ox, int allocM, int allocL, int allocXL);
 extern int          p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx);
 extern int          p7_omx_Reuse  (P7_OMX *ox);
 extern void         p7_omx_Destroy(P7_OMX *ox);

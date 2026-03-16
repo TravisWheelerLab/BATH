@@ -2073,8 +2073,8 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
  *
  *            Like <p7_ForwardParser_Frameshift_5Codons_SSE()> but stores every
  *            DP row in <ox> so that posterior decoding or stochastic traceback can
- *            be performed afterward.  <ox> must be created with <p7_omx_Create_FS()>
- *            (8 cells per stripe: D, I, M_C0..M_C5).
+ *            be performed afterward.  <ox> must be created with <p7_omx_Create_dpf()>
+ *            using <p7X_NSCELLS_FS> (8 cells per stripe: D, I, M_C0..M_C5).
  *
  *            Scale factors at each row are written to <ox->xmx[i*p7X_NXCELLS+p7X_SCALE]>
  *            so that the backward pass can apply the same cumulative rescaling.
@@ -2083,7 +2083,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *
  *            gcode  - genetic code table
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths == 5)
- *            ox     - DP matrix, created with p7_omx_Create_FS(M, L, L)
+ *            ox     - DP matrix, created with p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS)
  *            opt_sc - optRETURN: Forward score in nats
  *
  * Returns:   <eslOK> on success.
@@ -2660,7 +2660,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, const ESL_GENCODE *gcode, int L,
  * Synopsis:  SSE-accelerated frameshift-aware Backward algorithm, 5 codon lengths, full matrix.
  *
  * Purpose:   Full O(ML) Backward algorithm paired with <p7_Forward_Frameshift_SSE()>.
- *            Uses the forward matrix <fwd> (created with <p7_omx_Create_FS()>) to
+ *            Uses the forward matrix <fwd> (created with <p7_omx_Create_dpf()>) to
  *            obtain per-row scale factors, so that the backward and forward matrices
  *            share compatible cumulative scales for posterior decoding.
  *
@@ -3062,8 +3062,8 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_TRACE       *tr     = p7_trace_Create();
   P7_OMX         *oxf    = p7_omx_Create(M, PARSER_ROWS_FWD, M);
   P7_OMX         *oxb    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
-  P7_OMX         *fwd    = p7_omx_Create_FS(M, M, M);
-  P7_OMX         *bck    = p7_omx_Create(M, M, M);
+  P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
+  P7_OMX         *bck    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
   P7_GMX         *fgx    = p7_gmx_fs_Create(M, PARSER_ROWS_FWD, M, 0);
   P7_IVX         *iv3    = p7_ivx_Create(M, p7P_3CODONS);
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
@@ -3136,12 +3136,12 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
 
-      p7_omx_GrowTo_FS(fwd, M, curr_L, curr_L);
+      p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_Forward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, &full_fsc);
 
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
       
-      p7_omx_GrowTo(bck, M, curr_L, curr_L);
+      p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
       p7_Backward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, bck, &full_bsc);
 
       if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);     

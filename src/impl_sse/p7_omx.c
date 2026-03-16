@@ -216,24 +216,23 @@ p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
   return status;
 }  
 
-/* Function:  p7_omx_Create_FS()
- * Synopsis:  Create a DP matrix for the frameshift full-matrix algorithms.
+/* Function:  p7_omx_Create_dpf()
+ * Synopsis:  Create a dpf-only DP matrix with a configurable cell stride.
  *
- * Purpose:   Like <p7_omx_Create()>, but allocates with <p7X_NSCELLS_FS = 8>
- *            vectors per stripe position (D, I, M_C0..M_C5) rather than 3,
- *            to hold all six per-codon-length match values needed by
- *            <p7_Forward_Frameshift_SSE()> and <p7_Backward_Frameshift_SSE()>.
+ * Purpose:   Like <p7_omx_Create()>, but allocates only <dpf> (float) rows
+ *            with <nscells> vectors per stripe position.  Pass one of:
+ *              <p7X_NSCELLS>    (3) for standard 3-cell layout,
+ *              <p7X_NSCELLS_FS> (8) for frameshift 8-cell layout,
+ *              <p7X_NSCELLS_SP>     for splice-pipeline layout.
  *
- *            Only <dpf> (float) rows are allocated; <dpw> and <dpb> are not
- *            needed for these float-only algorithms.
- *
- *            <ox->nscells> is set to <p7X_NSCELLS_FS>.  All other fields have
- *            the same semantics as in <p7_omx_Create()>.
+ *            <dpw> and <dpb> are not allocated.  <ox->nscells> is set to
+ *            <nscells>.  All other fields have the same semantics as in
+ *            <p7_omx_Create()>.
  *
  * Returns:   pointer to new <P7_OMX> on success, or <NULL> on allocation failure.
  */
 P7_OMX *
-p7_omx_Create_FS(int allocM, int allocL, int allocXL)
+p7_omx_Create_dpf(int allocM, int allocL, int allocXL, int nscells)
 {
   P7_OMX *ox     = NULL;
   int     i;
@@ -247,7 +246,7 @@ p7_omx_Create_FS(int allocM, int allocL, int allocXL)
   ox->xmx    = NULL;
   ox->x_mem  = NULL;
 
-  ox->nscells  = p7X_NSCELLS_FS;
+  ox->nscells  = nscells;
   ox->allocR   = allocL + 1;
   ox->validR   = ox->allocR;
   ox->allocQ4  = p7O_NQF(allocM);
@@ -255,12 +254,12 @@ p7_omx_Create_FS(int allocM, int allocL, int allocXL)
   ox->allocQ16 = 0;   /* not used */
   ox->ncells   = ox->allocR * ox->allocQ4 * 4;
 
-  ESL_ALLOC(ox->dp_mem, sizeof(__m128) * ox->allocR * ox->allocQ4 * p7X_NSCELLS_FS + 15);
+  ESL_ALLOC(ox->dp_mem, sizeof(__m128) * ox->allocR * ox->allocQ4 * nscells + 15);
   ESL_ALLOC(ox->dpf,    sizeof(__m128 *) * ox->allocR);
 
   ox->dpf[0] = (__m128 *) ( ( (unsigned long int) ((char *) ox->dp_mem + 15) & (~0xf)));
   for (i = 1; i <= allocL; i++)
-    ox->dpf[i] = ox->dpf[0] + i * ox->allocQ4 * p7X_NSCELLS_FS;
+    ox->dpf[i] = ox->dpf[0] + i * ox->allocQ4 * nscells;
 
   ox->allocXR = allocXL + 1;
   ESL_ALLOC(ox->x_mem, sizeof(float) * ox->allocXR * p7X_NXCELLS + 15);
@@ -282,18 +281,18 @@ p7_omx_Create_FS(int allocM, int allocL, int allocXL)
 }
 
 
-/* Function:  p7_omx_GrowTo_FS()
- * Synopsis:  Assure a frameshift full-matrix DP matrix is large enough.
+/* Function:  p7_omx_GrowTo_dpf()
+ * Synopsis:  Assure a dpf-only DP matrix is large enough.
  *
  * Purpose:   Like <p7_omx_GrowTo()>, but for matrices created with
- *            <p7_omx_Create_FS()>.  Uses <p7X_NSCELLS_FS = 8> as the
- *            per-stripe cell count.  <dpw> and <dpb> are not touched.
+ *            <p7_omx_Create_dpf()>.  Uses <ox->nscells> as the per-stripe
+ *            cell count.  <dpw> and <dpb> are not touched.
  *
  * Returns:   <eslOK> on success.  Any previous data in <ox> is invalidated.
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_omx_GrowTo_FS(P7_OMX *ox, int allocM, int allocL, int allocXL)
+p7_omx_GrowTo_dpf(P7_OMX *ox, int allocM, int allocL, int allocXL)
 {
   void  *p;
   int    nqf    = p7O_NQF(allocM);
@@ -306,7 +305,7 @@ p7_omx_GrowTo_FS(P7_OMX *ox, int allocM, int allocL, int allocXL)
 
   if (ncells > ox->ncells)
     {
-      ESL_RALLOC(ox->dp_mem, p, sizeof(__m128) * (allocL + 1) * nqf * p7X_NSCELLS_FS + 15);
+      ESL_RALLOC(ox->dp_mem, p, sizeof(__m128) * (allocL + 1) * nqf * ox->nscells + 15);
       ox->ncells = ncells;
       reset_row_pointers = TRUE;
     }
@@ -333,7 +332,7 @@ p7_omx_GrowTo_FS(P7_OMX *ox, int allocM, int allocL, int allocXL)
       ox->dpf[0] = (__m128 *) ( ( (unsigned long int) ((char *) ox->dp_mem + 15) & (~0xf)));
       ox->validR = ESL_MIN(ox->ncells / (nqf * 4), ox->allocR);
       for (i = 1; i < ox->validR; i++)
-        ox->dpf[i] = ox->dpf[0] + i * nqf * p7X_NSCELLS_FS;
+        ox->dpf[i] = ox->dpf[0] + i * nqf * ox->nscells;
       ox->allocQ4 = nqf;
     }
 

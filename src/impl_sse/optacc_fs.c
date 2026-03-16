@@ -336,15 +336,17 @@ select_m_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   int     state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
   __m128  mpv, dpv, ipv;
 
-  /* Source M/I/D at row i, column k-1 (right-shift if k-1 crosses stripe boundary) */
+  /* Source M/I/D at row i, column k-1 (right-shift if k-1 crosses stripe boundary).
+   * Use -inf fill (not zero) so k=0 boundary values behave like MMX(i,0)=-inf (scalar). */
   if (q > 0) {
     mpv = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_M];
     dpv = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_D];
     ipv = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_I];
   } else {
-    mpv = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_M]);
-    dpv = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_D]);
-    ipv = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_I]);
+    __m128 neg_inf = _mm_set1_ps(-eslINFINITY);
+    mpv = esl_sse_rightshift_ps(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_M], neg_inf);
+    dpv = esl_sse_rightshift_ps(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_D], neg_inf);
+    ipv = esl_sse_rightshift_ps(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_I], neg_inf);
   }
 
   /* tp[0]=BM, tp[1]=MM, tp[2]=IM, tp[3]=DM; ordered so M beats I beats D beats B in ties */
@@ -373,8 +375,10 @@ select_d_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
     tmdv.v = om_fs->tfv[7*(q-1) + p7O_MD];
     tddv.v = om_fs->tfv[7*Q     + (q-1)];   /* DD block starts at 7*Q */
   } else {
-    mpv.v  = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_M]);
-    dpv.v  = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_D]);
+    /* Use -inf fill so k=0 boundary gives -inf (matching scalar DMX(i,0)=-inf). */
+    __m128 neg_inf = _mm_set1_ps(-eslINFINITY);
+    mpv.v  = esl_sse_rightshift_ps(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_M], neg_inf);
+    dpv.v  = esl_sse_rightshift_ps(ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_D], neg_inf);
     tmdv.v = esl_sse_rightshiftz_float(om_fs->tfv[7*(Q-1) + p7O_MD]);
     tddv.v = esl_sse_rightshiftz_float(om_fs->tfv[8*Q - 1]);
   }
@@ -458,23 +462,25 @@ select_j_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox,
 
 /* select_e_fs_sse:
  *   E(i) is reached from M(i,k) or D(i,k) for any k=1..M.
- *   Scan all stripes to find the argmax; M beats D in ties.
+ *   Iterate in sequential k=1..M order with strict >, matching the scalar
+ *   select_e() tie-breaking (first/lowest k with the max value wins).
  */
 static inline int
 select_e_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
 {
   int    Q    = p7O_NQF(ox->M);
-  __m128 *dp  = ox->dpf[i];
   union { __m128 v; float p[4]; } u;
   float  max  = -eslINFINITY;
   int    smax = p7T_M, kmax = 1;
-  int    q, r;
+  int    k, q, r;
 
-  for (q = 0; q < Q; q++) {
-    u.v = *dp; dp++;    /* M */
-    for (r = 0; r < 4; r++) if (u.p[r] >= max && r*Q+q+1 <= ox->M) { max = u.p[r]; smax = p7T_M; kmax = r*Q+q+1; }
-    u.v = *dp; dp += 2; /* D (skip I) */
-    for (r = 0; r < 4; r++) if (u.p[r] >  max && r*Q+q+1 <= ox->M) { max = u.p[r]; smax = p7T_D; kmax = r*Q+q+1; }
+  for (k = 1; k <= ox->M; k++) {
+    q = (k-1) % Q;
+    r = (k-1) / Q;
+    u.v = ox->dpf[i][q * p7X_NSCELLS + p7X_M];
+    if (u.p[r] > max) { max = u.p[r]; smax = p7T_M; kmax = k; }
+    u.v = ox->dpf[i][q * p7X_NSCELLS + p7X_D];
+    if (u.p[r] > max) { max = u.p[r]; smax = p7T_D; kmax = k; }
   }
   *ret_k = kmax;
   return smax;

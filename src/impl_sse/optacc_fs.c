@@ -671,8 +671,9 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
 
   while (N--)
     {
-      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, seq_L, dsq);
       printf("N %d\n", N);
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, seq_L, dsq);
+      
       /* SSE pipeline: Forward -> Backward -> Decoding (in-place into ox_fwd) -> OA -> Trace */
       if (p7_Forward_Frameshift_SSE (dsq, seq_L, om_fs,         ox_fwd, &fsc) != eslOK) esl_fatal(msg);
       if (p7_Backward_Frameshift_SSE(dsq, seq_L, om_fs, ox_fwd, ox_bck, &bsc) != eslOK) esl_fatal(msg);
@@ -681,25 +682,27 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       /* ox_fwd now holds the SSE posterior probability matrix */
       if (p7_OptimalAccuracy_Frameshift_SSE(om_fs, ox_fwd, ox_bck, &accscore_sse) != eslOK) esl_fatal(msg);
       if (p7_OATrace_Frameshift_SSE(om_fs, ox_fwd, ox_bck, tr_sse)              != eslOK) esl_fatal(msg);
-//       p7_trace_fs_Dump(stdout, tr_sse, gm_fs, dsq, abcDNA);
+
       /* Reference: convert SSE pp to scalar GMX, run scalar OA and trace */
       if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                    != eslOK) esl_fatal(msg);
       if (p7_OptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_oa, &accscore_ref)   != eslOK) esl_fatal(msg);
       if (p7_OATrace_Frameshift(gm_fs, gx_pp, gx_oa, tr_ref)                  != eslOK) esl_fatal(msg);
-//      p7_trace_fs_Dump(stdout, tr_ref, gm_fs, dsq, abcDNA);
+
       /* Convert SSE OA to scalar GMX for matrix-level comparison */
       if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                    != eslOK) esl_fatal(msg);
       
       printf("111111\n");
       if (esl_FCompare_old(accscore_sse, accscore_ref, tol) != eslOK) esl_fatal(msg);
       printf("2222222\n");
-      p7_gmx_Dump(stdout, gx_oa, p7_DEFAULT);
-      p7_gmx_Dump(stdout, gx_oa2, p7_DEFAULT);
+     // p7_gmx_Dump(stdout, gx_oa, p7_DEFAULT);
+     // p7_gmx_Dump(stdout, gx_oa2, p7_DEFAULT);
 
       if (p7_gmx_Compare(gx_oa, gx_oa2, tol)               != eslOK) esl_fatal(msg);
       printf("3333333\n");
+      p7_trace_fs_Dump(stdout, tr_sse, gm_fs, dsq, abcDNA);
+      p7_trace_fs_Dump(stdout, tr_ref, gm_fs, dsq, abcDNA);
       if (p7_trace_Compare(tr_sse, tr_ref, pptol)           != eslOK) esl_fatal(msg);
-
+      printf("444444444\n");
       if (esl_opt_GetBoolean(go, "--traces"))
         {
           p7_trace_fs_Dump(stdout, tr_sse, gm_fs, dsq, abcDNA);

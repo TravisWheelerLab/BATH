@@ -24,48 +24,64 @@
  * 1. Posterior decoding algorithms.
  *****************************************************************/
 
-/* Function:  p7_DomainDecoding_Frameshift_Full_SSE()
- * Synopsis:  SSE posterior decoding of domain location; full O(ML) matrix version.
+/* Function:  p7_Decoding_Frameshift_SSE()
+ * Synopsis:  SSE posterior decoding of residue assignments; frameshift full-matrix version.
  *
- * Purpose:   Identical in computation to <p7_DomainDecoding_Frameshift_SSE()>
- *            but intended for use with the full O(ML) DP matrices produced by
- *            <p7_Forward_Frameshift_SSE()> and <p7_Backward_Frameshift_SSE()>.
- *            Domain decoding reads only from the special-state rows <xmx> (N, B,
- *            E, J, C, SCALE), which are written identically by both parser and
- *            full-matrix passes.  The MDI rows in <fwd> (8-cell layout from
- *            <p7_omx_Create_FS()>) and <bck> (3-cell layout) are not accessed.
+ * Purpose:   SSE equivalent of <p7_Decoding_Frameshift()>.  Given filled forward
+ *            matrix <fwd> (8-cell FS layout, from <p7_Forward_Frameshift_SSE()>)
+ *            and backward matrix <bck> (3-cell layout, from
+ *            <p7_Backward_Frameshift_SSE()>), overwrites <fwd> with the posterior
+ *            decoding matrix.
  *
- *            Fills <ddef->btot[i]>, <ddef->etot[i]>, <ddef->mocc[i]> for
- *            i = 0..L, then sets <ddef->L>.
+ *            At each row i, all posterior probabilities (M_C0..M_C5, I, N, J, C)
+ *            are normalized to sum to 1 using a per-row denominator, exactly as in
+ *            the generic <p7_Decoding_Frameshift()>.  Only M_C0 and I contribute
+ *            to the denominator (D states are zero; M_C1..C5 are normalized but do
+ *            not add to the denominator).
  *
- *            Scale factors are handled using precomputed cumulative log products
- *            log_sfwd[i] and log_sbck[i], exactly as in the parser-mode version.
+ *            Scale factors are handled via precomputed cumulative log products
+ *            log_sfwd[i] and log_sbck[i].  N/J/C cross-row contributions
+ *            (fwd[i-3] * bck[i]) are adjusted by factor_njc to bring them to the
+ *            same scale as the same-row M/I products.
  *
- * Args:      om_fs - optimized frameshift profile (for N/J/C transition odds ratios)
- *            fwd   - filled Forward DP matrix from p7_Forward_Frameshift_SSE()
- *            bck   - filled Backward DP matrix from p7_Backward_Frameshift_SSE()
- *            ddef  - container for the results
+ * Args:      om_fs - optimized frameshift profile (N/J/C transition odds ratios)
+ *            fwd   - filled Forward matrix (OVERWRITTEN with PP on return)
+ *            bck   - filled Backward matrix (read-only)
  *
  * Returns:   <eslOK> on success.
- *
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_DomainDecoding_Frameshift_Full_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, const P7_OMX *bck,
-                                       P7_DOMAINDEF *ddef)
+p7_Decoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck)
 {
-  int    L   = fwd->L;
+  int    L = fwd->L;
+  int    M = om_fs->M;
+  int    Q = p7O_NQF(M);
+  int    i, q, c;
   float *log_sfwd = NULL;
   float *log_sbck = NULL;
   float  log_inv_Z;
-  float  njcp;
-  int    i;
+  float  factor_mdi, factor_njc;
+  __m128 scv, dv;
+  __m128 zerov    = _mm_setzero_ps();
+  float  raw_denom;
+  __m128 *dpc, *dbv;
+  __m128  fI, fC[6], bM, bI;
+  /* Circular lag buffer depth 4: nlag[i%4] = fwd_N(i) saved before overwrite */
+  float  nlag[4], jlag[4], clag[4];
+  float  fN3, fJ3, fC3;
+  float  bck_N, bck_J, bck_C;
+  float  N_odds = om_fs->xf[p7O_N][p7O_LOOP];
+  float  J_odds = om_fs->xf[p7O_J][p7O_LOOP];
+  float  C_odds = om_fs->xf[p7O_C][p7O_LOOP];
+  float  N_pp, J_pp, C_pp, inv_denom;
   int    status;
 
-  ESL_ALLOC(log_sfwd, sizeof(float) * (L+2));
-  ESL_ALLOC(log_sbck, sizeof(float) * (L+2));
+  ESL_ALLOC(log_sfwd, sizeof(float) * (L + 2));
+  ESL_ALLOC(log_sbck, sizeof(float) * (L + 2));
 
-  log_sfwd[0] = logf(fwd->xmx[0*p7X_NXCELLS + p7X_SCALE]);
+  /* Cumulative log scale products */
+  log_sfwd[0] = logf(fwd->xmx[p7X_SCALE]);
   for (i = 1; i <= L; i++)
     log_sfwd[i] = log_sfwd[i-1] + logf(fwd->xmx[i*p7X_NXCELLS + p7X_SCALE]);
 
@@ -74,67 +90,102 @@ p7_DomainDecoding_Frameshift_Full_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX 
     log_sbck[i] = log_sbck[i+1] + logf(bck->xmx[i*p7X_NXCELLS + p7X_SCALE]);
 
   log_inv_Z = -p7_FLogsum(
-                 logf(bck->xmx[0*p7X_NXCELLS + p7X_N]) + log_sbck[0],
+                 logf(bck->xmx[p7X_N]) + log_sbck[0],
                  p7_FLogsum(
                    logf(bck->xmx[1*p7X_NXCELLS + p7X_N]) + log_sbck[1],
                    logf(bck->xmx[2*p7X_NXCELLS + p7X_N]) + log_sbck[2]));
 
-  ddef->btot[0] = 0.;
-  ddef->btot[1] = 0.;
-  ddef->btot[2] = 0.;
-  ddef->etot[0] = 0.;
-  ddef->etot[1] = 0.;
-  ddef->etot[2] = 0.;
-  ddef->mocc[0] = 0.;
-  ddef->mocc[1] = 0.;
-  ddef->mocc[2] = 0.;
+  /* Save fwd row 0 special states before zeroing row 0 */
+  nlag[0] = fwd->xmx[p7X_N];
+  jlag[0] = fwd->xmx[p7X_J];
+  clag[0] = fwd->xmx[p7X_C];
+  nlag[1] = nlag[2] = nlag[3] = 0.0f;
+  jlag[1] = jlag[2] = jlag[3] = 0.0f;
+  clag[1] = clag[2] = clag[3] = 0.0f;
 
-  for (i = 3; i <= L; i++)
+  /* Zero row 0 of the output PP matrix */
+  dpc = fwd->dpf[0];
+  for (q = 0; q < Q * p7X_NSCELLS_FS; q++) dpc[q] = zerov;
+  fwd->xmx[p7X_E] = fwd->xmx[p7X_N] = fwd->xmx[p7X_J] = fwd->xmx[p7X_B] = fwd->xmx[p7X_C] = 0.0f;
+
+  for (i = 1; i <= L; i++)
     {
-      ddef->btot[i] = ddef->btot[i-3]
-        + fwd->xmx[(i-3)*p7X_NXCELLS + p7X_B] * bck->xmx[(i-3)*p7X_NXCELLS + p7X_B]
-          * expf(log_sfwd[i-3] + log_sbck[i-3] + log_inv_Z);
+      /* Save current fwd special states into lag buffer before overwriting */
+      nlag[i % 4] = fwd->xmx[i*p7X_NXCELLS + p7X_N];
+      jlag[i % 4] = fwd->xmx[i*p7X_NXCELLS + p7X_J];
+      clag[i % 4] = fwd->xmx[i*p7X_NXCELLS + p7X_C];
 
-      ddef->etot[i] = ddef->etot[i-3]
-        + fwd->xmx[i*p7X_NXCELLS + p7X_E] * bck->xmx[i*p7X_NXCELLS + p7X_E]
-          * expf(log_sfwd[i] + log_sbck[i] + log_inv_Z);
+      /* fwd special states 3 rows back: (i-3+4)%4 == (i+1)%4 */
+      fN3 = nlag[(i + 1) % 4];
+      fJ3 = jlag[(i + 1) % 4];
+      fC3 = clag[(i + 1) % 4];
 
-      njcp = 0.;
+      /* Backward special states at row i */
+      bck_N = bck->xmx[i*p7X_NXCELLS + p7X_N];
+      bck_J = bck->xmx[i*p7X_NXCELLS + p7X_J];
+      bck_C = bck->xmx[i*p7X_NXCELLS + p7X_C];
 
-      /* N state */
-      njcp += fwd->xmx[(i-3)*p7X_NXCELLS + p7X_N] * bck->xmx[i*p7X_NXCELLS + p7X_N]
-              * om_fs->xf[p7O_N][p7O_LOOP] * expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
-      if (i < L)
-        njcp += fwd->xmx[(i-2)*p7X_NXCELLS + p7X_N] * bck->xmx[(i+1)*p7X_NXCELLS + p7X_N]
-                * om_fs->xf[p7O_N][p7O_LOOP] * expf(log_sfwd[i-2] + log_sbck[i+1] + log_inv_Z);
-      if (i < L-1)
-        njcp += fwd->xmx[(i-1)*p7X_NXCELLS + p7X_N] * bck->xmx[(i+2)*p7X_NXCELLS + p7X_N]
-                * om_fs->xf[p7O_N][p7O_LOOP] * expf(log_sfwd[i-1] + log_sbck[i+2] + log_inv_Z);
+      /* Scale factor for same-row M/I products */
+      factor_mdi = expf(log_sfwd[i] + log_sbck[i] + log_inv_Z);
 
-      /* J state */
-      njcp += fwd->xmx[(i-3)*p7X_NXCELLS + p7X_J] * bck->xmx[i*p7X_NXCELLS + p7X_J]
-              * om_fs->xf[p7O_J][p7O_LOOP] * expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
-      if (i < L)
-        njcp += fwd->xmx[(i-2)*p7X_NXCELLS + p7X_J] * bck->xmx[(i+1)*p7X_NXCELLS + p7X_J]
-                * om_fs->xf[p7O_J][p7O_LOOP] * expf(log_sfwd[i-2] + log_sbck[i+1] + log_inv_Z);
-      if (i < L-1)
-        njcp += fwd->xmx[(i-1)*p7X_NXCELLS + p7X_J] * bck->xmx[(i+2)*p7X_NXCELLS + p7X_J]
-                * om_fs->xf[p7O_J][p7O_LOOP] * expf(log_sfwd[i-1] + log_sbck[i+2] + log_inv_Z);
+      /* ------- Pass 1: compute raw M/I products, accumulate denom ------- */
+      dv  = zerov;
+      dpc = fwd->dpf[i];
+      dbv = bck->dpf[i];
 
-      /* C state */
-      njcp += fwd->xmx[(i-3)*p7X_NXCELLS + p7X_C] * bck->xmx[i*p7X_NXCELLS + p7X_C]
-              * om_fs->xf[p7O_C][p7O_LOOP] * expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
-      if (i < L)
-        njcp += fwd->xmx[(i-2)*p7X_NXCELLS + p7X_C] * bck->xmx[(i+1)*p7X_NXCELLS + p7X_C]
-                * om_fs->xf[p7O_C][p7O_LOOP] * expf(log_sfwd[i-2] + log_sbck[i+1] + log_inv_Z);
-      if (i < L-1)
-        njcp += fwd->xmx[(i-1)*p7X_NXCELLS + p7X_C] * bck->xmx[(i+2)*p7X_NXCELLS + p7X_C]
-                * om_fs->xf[p7O_C][p7O_LOOP] * expf(log_sfwd[i-1] + log_sbck[i+2] + log_inv_Z);
+      for (q = 0; q < Q; q++)
+        {
+          bM = dbv[q * p7X_NSCELLS + p7X_M];
+          bI = dbv[q * p7X_NSCELLS + p7X_I];
 
-      ddef->mocc[i] = 1. - njcp;
+          fI = dpc[q * p7X_NSCELLS_FS + p7X_FS_I];
+          for (c = 0; c < 6; c++)
+            fC[c] = dpc[q * p7X_NSCELLS_FS + p7X_FS_M + c];
+
+          dpc[q * p7X_NSCELLS_FS + p7X_FS_D] = zerov;
+          dpc[q * p7X_NSCELLS_FS + p7X_FS_I] = _mm_mul_ps(fI, bI);
+          for (c = 0; c < 6; c++)
+            dpc[q * p7X_NSCELLS_FS + p7X_FS_M + c] = _mm_mul_ps(fC[c], bM);
+
+          /* Only C0 and I contribute to the per-row normalization denominator */
+          dv = _mm_add_ps(dv, _mm_add_ps(dpc[q * p7X_NSCELLS_FS + p7X_FS_M],
+                                          dpc[q * p7X_NSCELLS_FS + p7X_FS_I]));
+        }
+
+      /* Horizontal sum of dv to get scalar raw MDI denom */
+      dv = _mm_add_ps(dv, _mm_movehl_ps(dv, dv));
+      dv = _mm_add_ss(dv, _mm_shuffle_ps(dv, dv, _MM_SHUFFLE(0,0,0,1)));
+      raw_denom = _mm_cvtss_f32(dv);
+
+      /* N, J, C contributions to denominator */
+      if (i > 2) {
+        factor_njc = expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
+        N_pp = fN3 * bck_N * N_odds * factor_njc;
+        J_pp = fJ3 * bck_J * J_odds * factor_njc;
+        C_pp = fC3 * bck_C * C_odds * factor_njc;
+      } else {
+        float factor_nsmall = expf(log_sbck[i] + log_inv_Z);
+        N_pp = bck_N * factor_nsmall;
+        J_pp = 0.0f;
+        C_pp = 0.0f;
+      }
+
+      inv_denom = 1.0f / (raw_denom * factor_mdi + N_pp + J_pp + C_pp);
+
+      /* ------- Pass 2: normalize all M/I vectors ------- */
+      scv = _mm_set1_ps(factor_mdi * inv_denom);
+      for (q = 0; q < Q; q++)
+        for (c = 0; c < p7X_NSCELLS_FS; c++)
+          fwd->dpf[i][q * p7X_NSCELLS_FS + c] = _mm_mul_ps(fwd->dpf[i][q * p7X_NSCELLS_FS + c], scv);
+
+      /* Normalized special states */
+      fwd->xmx[i*p7X_NXCELLS + p7X_E] = 0.0f;
+      fwd->xmx[i*p7X_NXCELLS + p7X_B] = 0.0f;
+      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp * inv_denom;
+      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp * inv_denom;
+      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp * inv_denom;
     }
 
-  ddef->L = L;
   free(log_sfwd);
   free(log_sbck);
   return eslOK;
@@ -321,6 +372,102 @@ p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,
 #ifdef p7DOMDEF_FS_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
+
+/* utest_decoding_fs()
+ * Compare p7_Decoding_Frameshift_SSE() against the generic p7_Decoding_Frameshift().
+ * Both are given the same sequence and profile.  We run the generic full-matrix
+ * forward/backward to produce a generic PP matrix (gx1), and the SSE full-matrix
+ * forward/backward to produce an SSE PP matrix (fwd).  We compare the special-state
+ * posteriors (N, J, C per row) between the two.
+ */
+static void
+utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_CODONTABLE *codon_table, int M, int N)
+{
+  int  i, j;
+  int  curr_L;
+  char           *msg    = "decoding fs SSE unit test failed";
+  P7_HMM         *hmm    = NULL;
+  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_fs5 = p7_profile_fs_Create(M, abcAA, 5);
+  P7_FS_OPROFILE *om_fs5 = p7_fs_oprofile_Create(M, abcAA, 5);
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq    = NULL;
+  P7_TRACE       *tr     = p7_trace_Create();
+  /* Generic full-matrix matrices (reference) */
+  P7_GMX         *gx1    = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
+  P7_GMX         *gx2    = p7_gmx_Create(M, M, M, p7G_NSCELLS);
+  P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  /* SSE full-matrix matrices (under test) */
+  P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
+  P7_OMX         *bck    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
+  /* Deconverted SSE PP matrix for comparison with generic */
+  P7_GMX         *gxpp   = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
+  float           fsc, bsc;
+  float           tolerance;
+
+  p7_FLogsumInit();
+  tolerance = (p7_FLogsumError(-0.4, -0.5) > 0.0001) ? 0.01f : 0.001f;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, M, p7_LOCAL);
+  p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+  p7_fs_oprofile_ReconfigLength(om_fs5, M);
+
+  while (N--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
+      curr_L = sq->n * 3;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (curr_L + 2))) == NULL) esl_fatal("malloc failed");
+
+      j = 1;
+      for (i = 1; i <= sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      p7_fs_oprofile_ReconfigLength(om_fs5, sq->n);
+      p7_fs_ReconfigLength(gm_fs5, sq->n);
+
+      /* --- Generic reference: p7_Decoding_Frameshift overwrites gx1 with PP --- */
+      p7_gmx_GrowTo(gx1, M, curr_L, curr_L);
+      p7_gmx_GrowTo(gx2, M, curr_L, curr_L);
+      p7_gmx_GrowTo(gxpp, M, curr_L, curr_L);
+      p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
+
+      p7_Forward_Frameshift (dsq, gcode, curr_L, gm_fs5, gx1, iv5, &fsc);
+      p7_Backward_Frameshift(dsq, gcode, curr_L, gm_fs5, gx2, iv5, &bsc);
+      p7_Decoding_Frameshift(gm_fs5, gx1, gx2);   /* gx1 is now the PP matrix */
+
+      /* --- SSE under test: p7_Decoding_Frameshift_SSE overwrites fwd with PP --- */
+      p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
+      p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
+
+      p7_Forward_Frameshift_SSE (dsq, gcode, curr_L, om_fs5, fwd, &fsc);
+      p7_Backward_Frameshift_SSE(dsq, gcode, curr_L, om_fs5, fwd, bck, &bsc);
+      p7_Decoding_Frameshift_SSE(om_fs5, fwd, bck);  /* fwd is now the PP matrix */
+
+      /* --- Deconvert SSE PP to generic layout and compare --- */
+      p7_omx_FDeconvert(fwd, gxpp);
+      if (p7_gmx_Compare(gxpp, gx1, tolerance) != eslOK) esl_fatal(msg);
+    }
+
+  free(dsq);
+  esl_sq_Destroy(sq);
+  p7_hmm_Destroy(hmm);
+  p7_gmx_Destroy(gx1);
+  p7_gmx_Destroy(gx2);
+  p7_ivx_Destroy(iv5);
+  p7_omx_Destroy(fwd);
+  p7_omx_Destroy(bck);
+  p7_trace_Destroy(tr);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_fs_oprofile_Destroy(om_fs5);
+}
+
 static void
 utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_CODONTABLE *codon_table, int M, int N)
 {
@@ -435,6 +582,8 @@ ERROR:
   return;
 }
 #endif /*p7DOMDEF_FS_TESTDRIVE*/
+
+
 /*--------------------- end, unit tests -------------------------*/
 
 
@@ -491,7 +640,8 @@ main(int argc, char **argv)
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
   if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
 
-  utest_domdef(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
+  utest_domdef      (r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
+  utest_decoding_fs (r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
 
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);

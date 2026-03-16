@@ -352,34 +352,68 @@ p7_omx_GrowTo_dpf(P7_OMX *ox, int allocM, int allocL, int allocXL)
  * Purpose:   Convert the 32-bit float values in optimized DP matrix
  *            <ox> to a generic one <gx>. Caller provides <gx> with sufficient
  *            space to hold the <ox->M> by <ox->L> matrix.
- *            
- *            This function is used to gain access to the
- *            somewhat more powerful debugging and display
- *            tools available for generic DP matrices.
+ *
+ *            If <ox->nscells == p7X_NSCELLS_FS> (8-cell frameshift layout),
+ *            <gx> must have been created with <p7G_NSCELLS_FS> and the full
+ *            D, I, M_C0..M_C5 per-position values are extracted.  Otherwise
+ *            the standard 3-cell (M, D, I) path is used and <gx> must have
+ *            been created with <p7G_NSCELLS>.
+ *
+ *            This function is used to gain access to the somewhat more powerful
+ *            debugging and display tools available for generic DP matrices.
  */
 int
 p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx)
 {
   int Q = p7O_NQF(ox->M);
-  int i, q, r, k;
+  int i, q, r, k, c;
   union { __m128 v; float p[4]; } u;
   float      **dp   = gx->dp;
-  float       *xmx  = gx->xmx; 			    
+  float       *xmx  = gx->xmx;
 
-  for (i = 0; i <= ox->L; i++)
+  if (ox->nscells == p7X_NSCELLS_FS)
     {
-      MMX(i,0) = DMX(i,0) = IMX(i,0) = -eslINFINITY;
-      for (q = 0; q < Q; q++)
-	{
-	  u.v = MMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) MMX(i, (Q*r)+q+1) = u.p[r]; }
-	  u.v = DMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) DMX(i, (Q*r)+q+1) = u.p[r]; }
-	  u.v = IMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) IMX(i, (Q*r)+q+1) = u.p[r]; }
-	}
-      XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
-      XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
-      XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
-      XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
-      XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+      /* 8-cell FS layout: D=0, I=1, M+C0..M+C5=2..7 per stripe.
+       * Generic FS layout is identical (p7G_D=0, p7G_I=1, p7G_M+c=2..7). */
+      for (i = 0; i <= ox->L; i++)
+        {
+          for (c = 0; c < 6; c++) MMX_FS(i,0,c) = -eslINFINITY;
+          IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
+          for (q = 0; q < Q; q++)
+            {
+              u.v = DMO_FS(ox->dpf[i],q);
+              for (r = 0; r < 4; r++) { k = Q*r+q+1; if (k <= ox->M) DMX_FS(i,k)   = u.p[r]; }
+              u.v = IMO_FS(ox->dpf[i],q);
+              for (r = 0; r < 4; r++) { k = Q*r+q+1; if (k <= ox->M) IMX_FS(i,k)   = u.p[r]; }
+              for (c = 0; c < 6; c++) {
+                u.v = MMO_FS(ox->dpf[i],q,c);
+                for (r = 0; r < 4; r++) { k = Q*r+q+1; if (k <= ox->M) MMX_FS(i,k,c) = u.p[r]; }
+              }
+            }
+          XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
+          XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
+          XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
+          XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
+          XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+        }
+    }
+  else
+    {
+      for (i = 0; i <= ox->L; i++)
+        {
+          MMX(i,0) = DMX(i,0) = IMX(i,0) = -eslINFINITY;
+          for (q = 0; q < Q; q++)
+            {
+              u.v = MMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) MMX(i, (Q*r)+q+1) = u.p[r]; }
+              u.v = DMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) DMX(i, (Q*r)+q+1) = u.p[r]; }
+              u.v = IMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) IMX(i, (Q*r)+q+1) = u.p[r]; }
+            }
+          XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
+          XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
+          XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
+          XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
+          XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+        }
     }
   gx->L = ox->L;
   gx->M = ox->M;

@@ -45,6 +45,7 @@ OBJS =  decoding.o\
 	optacc.o\
 	optacc_fs.o\
 	stotrace.o\
+	stotrace_fs.o\
 	vitfilter.o\
 	p7_omx.o\
 	p7_oprofile.o\

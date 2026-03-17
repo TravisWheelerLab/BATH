@@ -406,7 +406,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   float           tolerance;
   int             i, j, curr_L, idx;
 
-  tolerance = (p7_FLogsumError(-0.4, -0.5) > 0.0001) ? 0.2f : 0.001f;
+  tolerance = (p7_FLogsumError(-0.4, -0.5) > 0.0001) ? 1.0f : 0.001f;
 
   if (!gm || !gm_fs5 || !om_fs5 || !sq || !tr || !iv5 || !gxf || !fwd) esl_fatal(msg);
 

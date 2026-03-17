@@ -1262,7 +1262,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
 {
 
   int              f;
@@ -1349,8 +1349,8 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     p7_ForwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf_fs, &fwdsc_fs);
     
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
-    P_fs = esl_exp_surv(seqscore_fs,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]);
-    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  gm_fs3->evparam[p7_FTAUFS3],  gm_fs3->evparam[p7_FLAMBDA]); 
+    P_fs = esl_exp_surv(seqscore_fs,  om_fs3->evparam[p7_FTAUFS3],  om_fs3->evparam[p7_FLAMBDA]);
+    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  om_fs3->evparam[p7_FTAUFS3],  om_fs3->evparam[p7_FLAMBDA]); 
   }
 
   /* If the DNA window passed frameshift forward AND produced a lower P-value 
@@ -1364,7 +1364,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     p7_omx_GrowTo_dpf(pli->oxb_fs, om->M, PARSER_ROWS_BWD, dna_window->length);
     p7_BackwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf_fs, pli->oxb_fs, NULL);
 
-    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs3, gm_fs5, bg, gcode);
+    status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs5, gm_fs5, bg, gcode);
 
     if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); 
 	/* score passed threshold but there's no discrete domains or region was found, stochastic clustered, no envelope found */
@@ -1625,7 +1625,7 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *splcing_windows, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *splcing_windows, int complementarity)
 {
 
   int                i;
@@ -1772,7 +1772,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
 
     for(i = 0; i < post_vit_windowlist.count; i++)
     {
-      p7_pli_postViterbi_Frameshift_BATH(pli, om, om_fs3, gm_fs3, gm_fs5, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), i, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
+      p7_pli_postViterbi_Frameshift_BATH(pli, om, om_fs3, om_fs5, gm_fs5, bg, hitlist, seqidx, &(post_vit_windowlist.windows[i]), i, post_vit_orf_block, dnasq, gcode, pli_tmp, complementarity);
     }
   }
 

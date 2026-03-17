@@ -411,9 +411,10 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         
         p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL); 
         p7_omx_GrowTo_dpf(pli->fwd_fs, om_fs5->M, j-i+1, j-i+1);
-        p7_Forward_Frameshift(windowsq->dsq+i-1, j-i+1, om_fs5, pli->fwd_fs, NULL);
-
-        region_trace_ensemble_frameshift(ddef, om_fs5, windowsq->dsq, windowsq->abc, i, j, pli->fwd_fs, &nc);
+        if (p7_Forward_Frameshift(windowsq->dsq+i-1, j-i+1, om_fs5, pli->fwd_fs, NULL) == eslERANGE)
+          nc = 0; /* forward underflow; no valid traces for this region */
+        else
+          region_trace_ensemble_frameshift(ddef, om_fs5, windowsq->dsq, windowsq->abc, i, j, pli->fwd_fs, &nc);
 
         p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL);
        
@@ -1016,10 +1017,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   p7_bg_SetLength(bg, Ld/3);
   p7_bg_fs_FilterScore(bg, windowsq->dsq+i-1, Ld, gcode, pli->do_biasfilter, &filtersc);
  
-  /* Forward */ 
+  /* Forward */
   p7_fs_oprofile_ReconfigLength(om_fs5, Ld/3);
   p7_omx_GrowTo_dpf(ox1, om_fs5->M, Ld, Ld);
-  p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, &envsc);
+  if ((status = p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, &envsc)) == eslERANGE) return eslOK;
+  if (status != eslOK) ESL_XEXCEPTION(status, "forward frameshift failed");
 
   seqscore = (envsc-filtersc) / eslCONST_LOG2; 
   P = esl_exp_surv(seqscore,  om_fs5->evparam[p7_FTAUFS5],  om_fs5->evparam[p7_FLAMBDA]);   
@@ -1038,7 +1040,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
 
   /* Backward */
   p7_omx_GrowTo_dpf(ox2, om_fs5->M, Ld, Ld);
-  p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, NULL);
+  if ((status = p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, NULL)) == eslERANGE) return eslOK;
+  if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
 
   /* Posterior Probabilities */
   p7_Decoding_Frameshift(om_fs5, ox1, ox2);

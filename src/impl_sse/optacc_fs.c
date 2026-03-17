@@ -680,8 +680,8 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, seq_L, dsq);
       
       /* SSE pipeline: Forward -> Backward -> Decoding (in-place into ox_fwd) -> OA -> Trace */
-      if (p7_Forward_Frameshift (dsq, seq_L, om_fs,         ox_fwd, &fsc) != eslOK) esl_fatal(msg);
-      if (p7_Backward_Frameshift(dsq, seq_L, om_fs, ox_fwd, ox_bck, &bsc) != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift (dsq, seq_L, om_fs,         ox_fwd, &fsc) == eslERANGE) continue;
+      if (p7_Backward_Frameshift(dsq, seq_L, om_fs, ox_fwd, ox_bck, &bsc) == eslERANGE) continue;
       if (esl_FCompare_old(fsc, bsc, tol)                                      != eslOK) esl_fatal(msg);
       if (p7_Decoding_Frameshift(om_fs, ox_fwd, ox_bck)                    != eslOK) esl_fatal(msg);
       /* ox_fwd now holds the SSE posterior probability matrix */

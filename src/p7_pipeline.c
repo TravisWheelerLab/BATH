@@ -1350,8 +1350,9 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     p7_omx_GrowTo_dpf(pli->oxf_fs, om->M, PARSER_ROWS_FWD, dna_window->length); 
     p7_fs_oprofile_ReconfigLength(om_fs3, dna_window->length/3);
 
-    p7_ForwardParser_Frameshift_3Codons(subseq, dna_window->length, om_fs3, pli->oxf_fs, &fwdsc_fs);
-    
+    status = p7_ForwardParser_Frameshift_3Codons(subseq, dna_window->length, om_fs3, pli->oxf_fs, &fwdsc_fs);
+    if (status != eslOK && status != eslERANGE) ESL_FAIL(status, pli->errbuf, "frameshift forward filter failed");
+
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
     P_fs = esl_exp_surv(seqscore_fs,  om_fs3->evparam[p7_FTAUFS3],  om_fs3->evparam[p7_FLAMBDA]);
     P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  om_fs3->evparam[p7_FTAUFS3],  om_fs3->evparam[p7_FLAMBDA]); 
@@ -1366,7 +1367,9 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
      
     pli->pos_past_fwd += dna_window->length; 
     p7_omx_GrowTo_dpf(pli->oxb_fs, om->M, PARSER_ROWS_BWD, dna_window->length);
-    p7_BackwardParser_Frameshift_3Codons(subseq, dna_window->length, om_fs3, pli->oxf_fs, pli->oxb_fs, NULL);
+    status = p7_BackwardParser_Frameshift_3Codons(subseq, dna_window->length, om_fs3, pli->oxf_fs, pli->oxb_fs, NULL);
+    if (status == eslERANGE) return eslOK; /* backward underflow; skip domain definition for this window */
+    if (status != eslOK) ESL_FAIL(status, pli->errbuf, "frameshift backward filter failed");
 
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs5, gm_fs5, bg, gcode);
 

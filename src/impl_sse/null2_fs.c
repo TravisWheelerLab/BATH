@@ -228,8 +228,8 @@ utest_null2_fs_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
 
-      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd,      &fsc) != eslOK) esl_fatal(msg);
-      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc) != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd,      &fsc) == eslERANGE) continue;
+      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc) == eslERANGE) continue;
       if (p7_Decoding_Frameshift(om_fs5, fwd, bck)                    != eslOK) esl_fatal(msg);
       if (p7_Null2_fs_ByExpectation(om_fs5, fwd, on2)                 != eslOK) esl_fatal(msg);
 

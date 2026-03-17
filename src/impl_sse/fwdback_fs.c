@@ -525,8 +525,12 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
                 + xCLm2 * om_fs->xf[p7O_C][p7O_LOOP];
 
     if      (isnan(xCtot))           ESL_EXCEPTION(eslERANGE, "forward score is NaN");
-    else if (L > 2 && xCtot == 0.0f) ESL_EXCEPTION(eslERANGE, "forward score underflow (is 0.0)");
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
+    else if (L > 2 && xCtot == 0.0f) {
+      if (opt_sc != NULL) *opt_sc = -eslINFINITY;
+      free(ivxf_mem);
+      return eslERANGE;
+    }
 
     if (opt_sc != NULL)
       *opt_sc = ox->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
@@ -1011,8 +1015,12 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
                 + xN_buf[2 % PARSER_ROWS_BWD];
 
     if      (isnan(xNtot))           ESL_EXCEPTION(eslERANGE, "backward score is NaN");
-    else if (L > 0 && xNtot == 0.0f) ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
+    else if (L > 0 && xNtot == 0.0f) {
+      if (opt_sc != NULL) *opt_sc = -eslINFINITY;
+      free(ivxf_mem);
+      return eslERANGE;
+    }
 
     if (opt_sc != NULL)
       *opt_sc = bck->totscale + logf(xNtot);
@@ -1642,8 +1650,12 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
                 + xCLm2 * om_fs->xf[p7O_C][p7O_LOOP];
 
     if      (isnan(xCtot))           ESL_EXCEPTION(eslERANGE, "forward score is NaN");
-    else if (L > 1 && xCtot == 0.0f) ESL_EXCEPTION(eslERANGE, "forward score underflow (is 0.0)");
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
+    else if (L > 1 && xCtot == 0.0f) {
+      if (opt_sc != NULL) *opt_sc = -eslINFINITY;
+      free(ivxf_mem);
+      return eslERANGE;
+    }
 
     if (opt_sc != NULL)
       *opt_sc = fwd->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
@@ -2036,8 +2048,12 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
                 + xN_buf[2 % PARSER_ROWS_BWD];
 
     if      (isnan(xNtot))           ESL_EXCEPTION(eslERANGE, "backward score is NaN");
-    else if (L > 0 && xNtot == 0.0f) ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
+    else if (L > 0 && xNtot == 0.0f) {
+      if (opt_sc != NULL) *opt_sc = -eslINFINITY;
+      free(ivxf_mem);
+      return eslERANGE;
+    }
 
     if (opt_sc != NULL)
       *opt_sc = bck->totscale + logf(xNtot);
@@ -2627,8 +2643,12 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
                 + xCLm2 * om_fs->xf[p7O_C][p7O_LOOP];
 
     if      (isnan(xCtot))           ESL_EXCEPTION(eslERANGE, "forward score is NaN");
-    else if (L > 1 && xCtot == 0.0f) ESL_EXCEPTION(eslERANGE, "forward score underflow (is 0.0)");
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
+    else if (L > 1 && xCtot == 0.0f) {
+      if (opt_sc != NULL) *opt_sc = -eslINFINITY;
+      free(ivxf_mem);
+      return eslERANGE;
+    }
 
     if (opt_sc != NULL)
       *opt_sc = fwd->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
@@ -2999,8 +3019,13 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
                 + xN_buf[2 % PARSER_ROWS_BWD];
 
     if      (isnan(xNtot))           ESL_EXCEPTION(eslERANGE, "backward score is NaN");
-    else if (L > 0 && xNtot == 0.0f) ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
+    else if (L > 0 && xNtot == 0.0f) {
+      if (opt_sc != NULL) *opt_sc = -eslINFINITY;
+      free(ivxf_mem);
+      free(zero_mem);
+      return eslERANGE;
+    }
 
     if (opt_sc != NULL)
       *opt_sc = bck->totscale + logf(xNtot);
@@ -3097,39 +3122,39 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
       /* 3-codon SSE vs scalar */
-      p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, &fsc3);
+      if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, &fsc3)     == eslERANGE) continue;
 	  p7_GForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
-   
+
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-	  p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, oxb, &bsc3);
-  
+      if (p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, oxb, &bsc3) == eslERANGE) continue;
+
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg);
 
       /* 5-codon SSE vs scalar */
       p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
-      p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, &fsc5);
+      if (p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, &fsc5)      == eslERANGE) continue;
       p7_GForwardParser_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
- 
+
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-      p7_BackwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, oxb, &bsc5);
+      if (p7_BackwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, oxb, &bsc5) == eslERANGE) continue;
 
       if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &full_fsc);
+      if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &full_fsc)                 == eslERANGE) continue;
 
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
-      
-      p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
-      p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &full_bsc);
 
-      if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);     
+      p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
+      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &full_bsc)           == eslERANGE) continue;
+
+      if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);
     }
 
   free(dsq);

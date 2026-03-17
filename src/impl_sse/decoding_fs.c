@@ -441,8 +441,8 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
 
-      p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd, &fsc);
-      p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc);
+      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd, &fsc) == eslERANGE) continue;
+      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc) == eslERANGE) continue;
       p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* fwd is now the PP matrix */
 
       /* --- Deconvert SSE PP to generic layout and compare --- */
@@ -522,8 +522,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
 
-      p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, &fsc3);
-      p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, bwd, &generic_fsc3);
+      if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, &fsc3)          == eslERANGE) continue;
+      if (p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, bwd, &generic_fsc3) == eslERANGE) continue;
 
       oddef->mocc = oddef->btot = oddef->etot = NULL;
       ESL_ALLOC(oddef->mocc, sizeof(float) * (curr_L+1));

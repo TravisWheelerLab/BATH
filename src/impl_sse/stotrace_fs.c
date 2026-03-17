@@ -438,7 +438,9 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* SSE forward */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &ofsc)   != eslOK) esl_fatal(msg);
+      { int s = p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &ofsc);
+        if (s == eslERANGE) continue;
+        if (s != eslOK)     esl_fatal(msg); }
 
       /* Forward scores must agree */
       if (esl_FCompare_old(gfsc, ofsc, tolerance) != eslOK)

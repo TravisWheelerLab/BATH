@@ -184,7 +184,7 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
        sc[4] = MMX_FS(i,k,p7G_C5);
        esl_vec_FLogNorm(sc, 5);
        c = esl_rnd_FChoose(r, sc, 5) + 1;
-       if(i - c < 1) scur = p7T_B;
+       if(i - c < 0) scur = p7T_B;
       }
       else c = 0; 
       /* Append this state and the current i,k to be explained to the growing trace */

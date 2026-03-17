@@ -104,7 +104,7 @@ p7_StochasticTrace_Frameshift_SSE(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L
        */
       if (s1 == p7T_M) {
         c = select_codon_len_fs(rng, ox, i, k, Q);
-        if (i - c < 1) s1 = p7T_B;
+        if (i - c < 0) s1 = p7T_B;  /* codon would start before position 1 */
       } else {
         c = 0;
       }

@@ -3139,7 +3139,17 @@ main(int argc, char **argv)
 
   /* Baseline: time to generate sequences alone */
   esl_stopwatch_Start(w);
-  for (i = 0; i < N; i++) esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  for (i = 0; i < N; i++) {
+    esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+    if(esl_opt_GetBoolean(go, "-B")) {
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
+        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, &sc);
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
+        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, &sc);
+      if (! esl_opt_GetBoolean(go, "-P"))
+        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, &sc);
+	}
+  }
   esl_stopwatch_Stop(w);
   base_time = w->user;
 
@@ -3149,14 +3159,12 @@ main(int argc, char **argv)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
-      if (! esl_opt_GetBoolean(go, "-B")) {
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
-          p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, &sc);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
-          p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, &sc);
-        if (! esl_opt_GetBoolean(go, "-P"))
-          p7_Forward_Frameshift(dsq, L, om_fs5, fwd, &sc);
-      }
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
+        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, &sc);
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
+        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, &sc);
+      if (! esl_opt_GetBoolean(go, "-P"))
+        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, &sc);
 
       if (! esl_opt_GetBoolean(go, "-F")) {
         if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))

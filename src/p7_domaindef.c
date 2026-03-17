@@ -392,7 +392,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
 
       /* We have a region i..j to evaluate. */
       ddef->nregions++;
-
+      pli->was_region++;
       if (is_multidomain_region_frameshift(ddef, i, j))
       {
 	 	

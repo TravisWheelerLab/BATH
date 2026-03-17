@@ -896,11 +896,13 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
 
     //TODO
+    int was_region = 0;
     int was_multi = 0;
     int num_clust = 0;
     /* merge the results of the search results */
     for (i = 0; i < infocnt; ++i)
     {
+      was_region += info[i].pli->was_region;
       was_multi += info[i].pli->was_multi;
       num_clust += info[i].pli->num_clust;
       p7_tophits_Merge(tophits_accumulator, info[i].th);
@@ -924,7 +926,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       }
     }
 
-    printf("%d %d\n", was_multi, num_clust);
+    printf("%d %d %d\n", was_region, was_multi, num_clust);
 
     /* Sort and remove duplicates */
     p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
@@ -965,7 +967,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	  p7_tophits_SortBySortkey(tophits_accumulator);
     
       esl_stopwatch_Stop(splice_watch);
-      esl_stopwatch_Display(stdout, splice_watch, "# splice time:");
+      //esl_stopwatch_Display(stdout, splice_watch, "# splice time:");
       esl_stopwatch_Destroy(splice_watch); 
     }
     
@@ -988,7 +990,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,   hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
 
     esl_stopwatch_Stop(watch);
-    esl_stopwatch_Display(stdout, watch, "# total time:");
+    //esl_stopwatch_Display(stdout, watch, "# total time:");
     p7_pli_Statistics(ofp, pipelinehits_accumulator, watch);
     if (fprintf(ofp, "//\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 

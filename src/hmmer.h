@@ -1154,6 +1154,7 @@ typedef struct p7_pipeline_s {
 
 
   //TODO
+  int was_region;
   int was_multi;
   int num_clust;
 } P7_PIPELINE;

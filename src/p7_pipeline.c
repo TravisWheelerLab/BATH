@@ -1343,7 +1343,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     p7_bg_SetLength(bg, dna_window->length/3);
     p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, pli->do_biasfilter, &filtersc_fs);
 
-    p7_omx_GrowTo_dpf(pli->oxf, om->M, PARSER_ROWS_FWD, dna_window->length); 
+    p7_omx_GrowTo_dpf(pli->oxf_fs, om->M, PARSER_ROWS_FWD, dna_window->length); 
     p7_fs_oprofile_ReconfigLength(om_fs3, dna_window->length/3);
 
     p7_ForwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf_fs, &fwdsc_fs);
@@ -1361,7 +1361,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
   if(P_fs <= pli->F3 && (P_fs_nobias < tot_orf_P || min_P_orf > pli->F3)) { 
      
     pli->pos_past_fwd += dna_window->length; 
-    p7_omx_GrowTo_dpf(pli->oxb, om->M, PARSER_ROWS_BWD, dna_window->length);
+    p7_omx_GrowTo_dpf(pli->oxb_fs, om->M, PARSER_ROWS_BWD, dna_window->length);
     p7_BackwardParser_Frameshift_3Codons_SSE(subseq, dna_window->length, om_fs3, pli->oxf_fs, pli->oxb_fs, NULL);
 
     status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs3, gm_fs5, bg, gcode);

@@ -18,7 +18,7 @@
  * 1. Stochastic traceback implementation.
  *****************************************************************/
 
-/* Function:  p7_StochasticTrace_Frameshift()
+/* Function:  p7_GStochasticTrace_Frameshift()
  * Synopsis:  Stochastic traceback of a frameshift-aware Forward matrix.
  *
  * Purpose:   Stochastic traceback of Forward matrix <gx> to
@@ -39,7 +39,7 @@
  * Returns:   <eslOK> on success.
  */
 int
-p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr)
+p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr)
 {
   int     status;
   int     i;      /* position in seq (1..L) */
@@ -219,11 +219,11 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, cons
 /*****************************************************************
  * 2. Benchmark driver
  *****************************************************************/
-#ifdef p7STOTRACE_FRAMESHIFT_BENCHMARK
+#ifdef p7GENERIC_STOTRACE_FRAMESHIFT_BENCHMARK
 /*
-   gcc -g -O2      -o stotrace_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7STOTRACE_FRAMESHIFT_BENCHMARK stotrace_frameshift.c -lhmmer -leasel -lm
-   icc -O3 -static -o stotrace_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7STOTRACE_FRAMESHIFT_BENCHMARK stotrace_frameshift.c -lhmmer -leasel -lm
-   ./stotrace_frameshift_benchmark <hmmfile>
+   gcc -g -O2      -o generic_stotrace_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_STOTRACE_FRAMESHIFT_BENCHMARK generic_stotrace_frameshift.c -lhmmer -leasel -lm
+   icc -O3 -static -o generic_stotrace_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_STOTRACE_FRAMESHIFT_BENCHMARK generic_stotrace_frameshift.c -lhmmer -leasel -lm
+   ./generic_stotrace_frameshift_benchmark <hmmfile>
  */
 #include "p7_config.h"
 
@@ -293,7 +293,7 @@ main(int argc, char **argv)
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
-      p7_StochasticTrace_Frameshift(r, dsq, L, gm_fs5, fwd, tr);
+      p7_GStochasticTrace_Frameshift(r, dsq, L, gm_fs5, fwd, tr);
       p7_trace_Reuse(tr);
     }
   esl_stopwatch_Stop(w);
@@ -316,7 +316,7 @@ main(int argc, char **argv)
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7STOTRACE_FRAMESHIFT_BENCHMARK*/
+#endif /*p7GENERIC_STOTRACE_FRAMESHIFT_BENCHMARK*/
 /*---------------------- end, benchmark -------------------------*/
 
 

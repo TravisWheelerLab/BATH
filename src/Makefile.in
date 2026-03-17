@@ -77,10 +77,12 @@ OBJS =  build.o\
 	generic_fwdback_chk.o\
 	generic_fwdback_banded.o\
 	generic_null2.o\
+    generic_null2_frameshift.o\
 	generic_msv.o\
 	generic_optacc.o\
     generic_optacc_frameshift.o\
 	generic_stotrace.o\
+    generic_stotrace_frameshift.o\
 	generic_viterbi.o\
     generic_viterbi_frameshift.o\
 	generic_vtrace.o\
@@ -90,9 +92,7 @@ OBJS =  build.o\
 	logsum.o\
 	modelconfig.o\
 	modelstats.o\
-    null2_frameshift.o\
 	seqmodel.o\
-	stotrace_frameshift.o\
 	tracealign.o\
 	p7_alidisplay.o\
 	p7_bg.o\
@@ -136,11 +136,11 @@ BENCHMARKS = \
     generic_fwdback_frameshift_benchmark\
     generic_msv_benchmark\
 	generic_null2_benchmark\
-    null2_frameshift_benchmark\
+    generic_null2_frameshift_benchmark\
 	generic_optacc_benchmark\
     generic_optacc_frameshift_benchmark\
 	generic_stotrace_benchmark\
-    stotrace_frameshift_benchmark\
+    generic_stotrace_frameshift_benchmark\
 	generic_viterbi_benchmark 
 
 UTESTS =\

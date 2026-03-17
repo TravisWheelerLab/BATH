@@ -16,7 +16,7 @@
  * 1. Null2 estimation algorithms.
  *****************************************************************/
 
-/* Function:  p7_Null2_fs_ByExpectation()
+/* Function:  p7_GNull2_fs_ByExpectation()
  * Synopsis:  Calculate null2 model from posterior probabilities.
  *
  * Purpose:   Calculate the "null2" model for the envelope encompassed
@@ -43,7 +43,7 @@
  * Throws:    (no abnormal error conditions)
  */
 int
-p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2)
+p7_GNull2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2)
 {
   int      M      = gm_fs5->M;
   int      Ld     = pp->L;
@@ -116,11 +116,11 @@ p7_Null2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2)
 /*****************************************************************
  * 2. Benchmark driver
  *****************************************************************/
-#ifdef p7NULL2_FRAMESHIFT_BENCHMARK
+#ifdef p7GENERIC_NULL2_FRAMESHIFT_BENCHMARK
 /*
-    gcc -g -O2      -o null2_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7NULL2_FRAMESHIFT_BENCHMARK null2_frameshift.c -lhmmer -leasel -lm
-   icc -O3 -static -o null2_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7NULL2_FRAMESHIFT_BENCHMARK null2_frameshift.c -lhmmer -leasel -lm
-   ./null2_frameshift_benchmark <hmmfile>
+    gcc -g -O2      -o generic_null2_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_NULL2_FRAMESHIFT_BENCHMARK generic_null2_frameshift.c -lhmmer -leasel -lm
+   icc -O3 -static -o generic_null2_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_NULL2_FRAMESHIFT_BENCHMARK generic_null2_frameshift.c -lhmmer -leasel -lm
+   ./generic_null2_frameshift_benchmark <hmmfile>
  */
 #include "p7_config.h"
 
@@ -189,7 +189,7 @@ main(int argc, char **argv)
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++) 
-    p7_Null2_fs_ByExpectation(gm_fs5, gx1, null2);   
+    p7_GNull2_fs_ByExpectation(gm_fs5, gx1, null2);   
   esl_stopwatch_Stop(w);
 
   Mcs  = (double) N * (double) L * (double) gm_fs5->M * 1e-6 / w->user;
@@ -214,7 +214,7 @@ main(int argc, char **argv)
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7NULL2_FRAMESHIFT_BENCHMARK*/
+#endif /*p7GENERIC_NULL2_FRAMESHIFT_BENCHMARK*/
 /*------------------ end, benchmark driver ----------------------*/
 
 

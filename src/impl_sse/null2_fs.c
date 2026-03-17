@@ -32,7 +32,7 @@
  * Purpose:   Identical to <p7_Null2_fs_ByExpectation()> except that
  *            <om_fs>, <pp> are SSE optimized versions of the frameshift
  *            profile and the residue posterior probability matrix. See
- *            <p7_Null2_fs_ByExpectation()> documentation.
+ *            <p7_GNull2_fs_ByExpectation()> documentation.
  *
  *            The posterior matrix <pp> must have been computed by
  *            <p7_Decoding_Frameshift_SSE()> and uses the 8-cell FS
@@ -157,7 +157,7 @@ p7_Null2_fs_ByExpectation_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *nu
 
 /* utest_null2_fs_expectation()
  * Compare p7_Null2_fs_ByExpectation_SSE() against the generic
- * p7_Null2_fs_ByExpectation(). For each sampled sequence, run the full
+ * p7_GNull2_fs_ByExpectation(). For each sampled sequence, run the full
  * pipeline on both paths and compare the resulting null2 odds vectors.
  *
  * The generic path works in log space (using p7_FLogsum); the SSE path
@@ -222,7 +222,7 @@ utest_null2_fs_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       if (p7_GForward_Frameshift (dsq, curr_L, gm_fs5, gxf, iv5, &fsc) != eslOK) esl_fatal(msg);
       if (p7_GBackward_Frameshift(dsq, curr_L, gm_fs5, gxb, iv5, &bsc) != eslOK) esl_fatal(msg);
       if (p7_GDecoding_Frameshift(gm_fs5, gxf, gxb)                    != eslOK) esl_fatal(msg);
-      if (p7_Null2_fs_ByExpectation(gm_fs5, gxf, gn2)                  != eslOK) esl_fatal(msg);
+      if (p7_GNull2_fs_ByExpectation(gm_fs5, gxf, gn2)                  != eslOK) esl_fatal(msg);
 
       /* SSE path under test: forward -> backward -> decoding -> null2_fs_SSE */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);

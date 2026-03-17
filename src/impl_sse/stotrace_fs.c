@@ -1,5 +1,5 @@
 /* SSE implementation of frameshift stochastic backtrace of a Forward matrix.
- * (Compare generic version, p7_StochasticTrace_Frameshift().)
+ * (Compare generic version, p7_GStochasticTrace_Frameshift().)
  *
  * Contents:
  *    1. Stochastic trace implementation.
@@ -43,9 +43,9 @@ static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const P7_OMX *ox, int
 /* Function:  p7_StochasticTrace_Frameshift_SSE()
  * Synopsis:  Sample a traceback from a frameshift-aware Forward matrix; SSE version.
  *
- * Purpose:   Identical to <p7_StochasticTrace_Frameshift()> except that
+ * Purpose:   Identical to <p7_GStochasticTrace_Frameshift()> except that
  *            <om_fs>, <ox> are SSE optimized versions of the frameshift
- *            profile and Forward matrix. See <p7_StochasticTrace_Frameshift()>
+ *            profile and Forward matrix. See <p7_GStochasticTrace_Frameshift()>
  *            documentation.
  *
  *            The Forward matrix <ox> must have been computed by
@@ -456,7 +456,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         }
 
       /* Verify generic stochastic trace also runs cleanly */
-      if (p7_StochasticTrace_Frameshift(r, dsq, curr_L, gm_fs5, gxf, tr) != eslOK)
+      if (p7_GStochasticTrace_Frameshift(r, dsq, curr_L, gm_fs5, gxf, tr) != eslOK)
         esl_fatal("%s: generic stochastic trace failed", msg);
       p7_trace_Reuse(tr);
     }

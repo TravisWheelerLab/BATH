@@ -51,7 +51,7 @@
  * 1. Forward/Backward
  *****************************************************************/
 
-/* Function:  p7_ForwardParser_Frameshift_3Codons_SSE()
+/* Function:  p7_ForwardParser_Frameshift_3Codons()
  * Synopsis:  SSE-accelerated frameshift-aware Forward algorithm, 3 codon lengths, linear memory.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift-aware
@@ -94,7 +94,7 @@
  *            In either case, <*opt_sc> is undefined.
  */
 int
-p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
+p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
 {
   register __m128 mpv2, dpv2, ipv2;   /* right-shifted prev2 row MDI for BM/MM/IM/DM   */
   register __m128 sv;                 /* temporary IVX accumulator                      */
@@ -542,7 +542,7 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_O
 
 
 
-/* Function:  p7_BackwardParser_Frameshift_3Codons_SSE()
+/* Function:  p7_BackwardParser_Frameshift_3Codons()
  * Synopsis:  SSE-accelerated frameshift-aware Backward algorithm, 3 codon lengths, linear memory.
  *
  * Purpose:   The Backward dynamic programming algorithm for frameshift-aware
@@ -570,7 +570,7 @@ p7_ForwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_O
  *            <eslERANGE> if score overflows or underflows.
  */
 int
-p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
   register __m128 sv;                  /* temporary accumulator                           */
   register __m128 dcv;                 /* D(i,k+1) left-shift carry                      */
@@ -1028,7 +1028,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_
 
 
 
-/* Function:  p7_ForwardParser_Frameshift_5Codons_SSE()
+/* Function:  p7_ForwardParser_Frameshift_5Codons()
  * Synopsis:  SSE-accelerated frameshift-aware Forward algorithm, 5 codon lengths, linear memory.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift-aware
@@ -1066,7 +1066,7 @@ p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_
  *            In either case, <*opt_sc> is undefined.
  */
 int
-p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
+p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
 {
   register __m128 mpv1, dpv1, ipv1;   /* right-shifted prev1 row MDI for BM/MM/IM/DM    */
   register __m128 sv;                  /* temporary IVX accumulator                      */
@@ -1659,7 +1659,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_O
 
 
 
-/* Function:  p7_BackwardParser_Frameshift_5Codons_SSE()
+/* Function:  p7_BackwardParser_Frameshift_5Codons()
  * Synopsis:  SSE-accelerated frameshift-aware Backward algorithm, 5 codon lengths, linear memory.
  *
  * Purpose:   The Backward dynamic programming algorithm for frameshift-aware
@@ -1687,7 +1687,7 @@ p7_ForwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_O
  *            <eslERANGE> if score overflows or underflows.
  */
 int
-p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
   register __m128 sv;                  /* temporary accumulator                           */
   register __m128 dcv;                 /* D(i,k+1) left-shift carry                      */
@@ -2053,7 +2053,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_
 
 
 
-/* Function:  p7_Forward_Frameshift_SSE()
+/* Function:  p7_Forward_Frameshift()
  * Synopsis:  SSE-accelerated frameshift-aware Forward algorithm, 5 codon lengths, full matrix.
  *
  * Purpose:   Full O(ML) Forward algorithm for frameshift-aware translated comparison
@@ -2061,7 +2061,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_
  *            five codon lengths (1–5 nucleotides), with SIMD parallelism and sparse
  *            rescaling.
  *
- *            Like <p7_ForwardParser_Frameshift_5Codons_SSE()> but stores every
+ *            Like <p7_ForwardParser_Frameshift_5Codons()> but stores every
  *            DP row in <fwd> so that posterior decoding or stochastic traceback can
  *            be performed afterward.  <fwd> must be created with <p7_omx_Create_dpf()>
  *            using <p7X_NSCELLS_FS> (8 cells per stripe: D, I, M_C0..M_C5).
@@ -2079,7 +2079,7 @@ p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_
  * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> on score overflow/underflow.
  */
 int
-p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
+p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
 {
   register __m128 mpv1, dpv1, ipv1;     /* right-shifted prev1 MDI for BM/MM/IM/DM       */
   register __m128 sv;                    /* temporary IVX accumulator                      */
@@ -2644,10 +2644,10 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
 
 
 
-/* Function:  p7_Backward_Frameshift_SSE()
+/* Function:  p7_Backward_Frameshift()
  * Synopsis:  SSE-accelerated frameshift-aware Backward algorithm, 5 codon lengths, full matrix.
  *
- * Purpose:   Full O(ML) Backward algorithm paired with <p7_Forward_Frameshift_SSE()>.
+ * Purpose:   Full O(ML) Backward algorithm paired with <p7_Forward_Frameshift()>.
  *            Uses the forward matrix <fwd> (created with <p7_omx_Create_dpf()>) to
  *            obtain per-row scale factors, so that the backward and forward matrices
  *            share compatible cumulative scales for posterior decoding.
@@ -2659,7 +2659,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
  * Args:      dsq    - nucleotide sequence, 1..L
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths == 5)
- *            fwd    - forward matrix from p7_Forward_Frameshift_SSE()
+ *            fwd    - forward matrix from p7_Forward_Frameshift()
  *            bck    - RETURN: backward DP matrix (standard P7_OMX, 3-cell)
  *            opt_sc - optRETURN: Backward score in nats
  *
@@ -2667,7 +2667,7 @@ p7_Forward_Frameshift_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
  * Throws:    <eslEINVAL>, <eslERANGE> on error.
  */
 int
-p7_Backward_Frameshift_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
   register __m128 sv;
   register __m128 dcv;
@@ -3097,13 +3097,13 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
       /* 3-codon SSE vs scalar */
-      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, oxf, &fsc3);
+      p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, &fsc3);
 	  p7_GForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
    
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-	  p7_BackwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, oxf, oxb, &bsc3);
+	  p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, oxb, &bsc3);
   
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg);
 
@@ -3111,23 +3111,23 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
-      p7_ForwardParser_Frameshift_5Codons_SSE(dsq, curr_L, om_fs5, oxf, &fsc5);
+      p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, &fsc5);
       p7_GForwardParser_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
  
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-      p7_BackwardParser_Frameshift_5Codons_SSE(dsq, curr_L, om_fs5, oxf, oxb, &bsc5);
+      p7_BackwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, oxb, &bsc5);
 
       if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      p7_Forward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, &full_fsc);
+      p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &full_fsc);
 
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
       
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
-      p7_Backward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, bck, &full_bsc);
+      p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &full_bsc);
 
       if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);     
     }

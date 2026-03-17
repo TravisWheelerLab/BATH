@@ -40,7 +40,7 @@ static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const P7_OMX *ox, int
  * 1. Stochastic trace implementation.
  *****************************************************************/
 
-/* Function:  p7_StochasticTrace_Frameshift_SSE()
+/* Function:  p7_StochasticTrace_Frameshift()
  * Synopsis:  Sample a traceback from a frameshift-aware Forward matrix; SSE version.
  *
  * Purpose:   Identical to <p7_GStochasticTrace_Frameshift()> except that
@@ -49,7 +49,7 @@ static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const P7_OMX *ox, int
  *            documentation.
  *
  *            The Forward matrix <ox> must have been computed by
- *            <p7_Forward_Frameshift_SSE()> and uses the 8-cell FS layout
+ *            <p7_Forward_Frameshift()> and uses the 8-cell FS layout
  *            (p7X_NSCELLS_FS=8: D, I, M_C0..M_C5 per stripe).
  *
  *            Scale factors stored in ox->xmx[i*p7X_NXCELLS + p7X_SCALE] are
@@ -69,7 +69,7 @@ static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const P7_OMX *ox, int
  *            bogus state in traceback).
  */
 int
-p7_StochasticTrace_Frameshift_SSE(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L,
+p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L,
                                    const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
                                    P7_TRACE *tr)
 {
@@ -438,7 +438,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* SSE forward */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      if (p7_Forward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, &ofsc)   != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &ofsc)   != eslOK) esl_fatal(msg);
 
       /* Forward scores must agree */
       if (esl_FCompare_old(gfsc, ofsc, tolerance) != eslOK)
@@ -448,7 +448,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       for (idx = 0; idx < 10; idx++)
         {
           char errbuf[eslERRBUFSIZE];
-          if (p7_StochasticTrace_Frameshift_SSE(r, dsq, curr_L, om_fs5, fwd, tr) != eslOK)
+          if (p7_StochasticTrace_Frameshift(r, dsq, curr_L, om_fs5, fwd, tr) != eslOK)
             esl_fatal("%s: SSE stochastic trace failed", msg);
           if (p7_trace_fs_Validate(tr, abcDNA, dsq, errbuf) != eslOK)
             esl_fatal("%s: SSE trace invalid: %s", msg, errbuf);

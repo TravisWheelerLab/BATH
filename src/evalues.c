@@ -640,7 +640,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs3, P7_CODONTABLE *ct, 
 		j+=3;
 	  } 
      
-     if ((status = p7_ForwardParser_Frameshift_3Codons_SSE(dna_dsq, L*3, om_fs3, ox, &fsc))      != eslOK) goto ERROR;
+     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, L*3, om_fs3, ox, &fsc))      != eslOK) goto ERROR;
      
      if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
@@ -730,7 +730,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs5, P7_CODONTABLE *ct, 
         j+=3;
       }
 
-      if ((status = p7_ForwardParser_Frameshift_5Codons_SSE(dna_dsq, L*3, om_fs5, ox, &fsc))      != eslOK) goto ERROR;
+      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, L*3, om_fs5, ox, &fsc))      != eslOK) goto ERROR;
        
       if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;

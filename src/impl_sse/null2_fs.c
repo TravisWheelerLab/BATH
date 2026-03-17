@@ -26,7 +26,7 @@
  * 1. Null2 estimation algorithms.
  *****************************************************************/
 
-/* Function:  p7_Null2_fs_ByExpectation_SSE()
+/* Function:  p7_Null2_fs_ByExpectation()
  * Synopsis:  Calculate null2 model from posterior probabilities; frameshift SSE version.
  *
  * Purpose:   Identical to <p7_Null2_fs_ByExpectation()> except that
@@ -35,7 +35,7 @@
  *            <p7_GNull2_fs_ByExpectation()> documentation.
  *
  *            The posterior matrix <pp> must have been computed by
- *            <p7_Decoding_Frameshift_SSE()> and uses the 8-cell FS
+ *            <p7_Decoding_Frameshift()> and uses the 8-cell FS
  *            layout (p7X_NSCELLS_FS=8: D, I, M_C0..M_C5 per stripe).
  *            Only the M_C0 (total match) and I cells are used here.
  *
@@ -50,7 +50,7 @@
  * Throws:    <eslEINVAL> if <om_fs->codon_lengths> is not 1, 3, or 5.
  */
 int
-p7_Null2_fs_ByExpectation_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
+p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
 {
   int      M    = om_fs->M;
   int      Ld   = pp->L;
@@ -156,7 +156,7 @@ p7_Null2_fs_ByExpectation_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *nu
 #include "esl_vectorops.h"
 
 /* utest_null2_fs_expectation()
- * Compare p7_Null2_fs_ByExpectation_SSE() against the generic
+ * Compare p7_Null2_fs_ByExpectation() against the generic
  * p7_GNull2_fs_ByExpectation(). For each sampled sequence, run the full
  * pipeline on both paths and compare the resulting null2 odds vectors.
  *
@@ -224,14 +224,14 @@ utest_null2_fs_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       if (p7_GDecoding_Frameshift(gm_fs5, gxf, gxb)                    != eslOK) esl_fatal(msg);
       if (p7_GNull2_fs_ByExpectation(gm_fs5, gxf, gn2)                  != eslOK) esl_fatal(msg);
 
-      /* SSE path under test: forward -> backward -> decoding -> null2_fs_SSE */
+      /* SSE path under test: forward -> backward -> decoding -> null2_fs */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
 
-      if (p7_Forward_Frameshift_SSE (dsq, curr_L, om_fs5, fwd,      &fsc) != eslOK) esl_fatal(msg);
-      if (p7_Backward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, bck, &bsc) != eslOK) esl_fatal(msg);
-      if (p7_Decoding_Frameshift_SSE(om_fs5, fwd, bck)                    != eslOK) esl_fatal(msg);
-      if (p7_Null2_fs_ByExpectation_SSE(om_fs5, fwd, on2)                 != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd,      &fsc) != eslOK) esl_fatal(msg);
+      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc) != eslOK) esl_fatal(msg);
+      if (p7_Decoding_Frameshift(om_fs5, fwd, bck)                    != eslOK) esl_fatal(msg);
+      if (p7_Null2_fs_ByExpectation(om_fs5, fwd, on2)                 != eslOK) esl_fatal(msg);
 
       if (esl_vec_FCompare(gn2, on2, abcAA->Kp, tolerance) != eslOK) esl_fatal(msg);
     }

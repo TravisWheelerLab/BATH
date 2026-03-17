@@ -26,7 +26,7 @@
  * 1. Optimal accuracy alignment, DP fill
  *****************************************************************/
 
-/* Function:  p7_OptimalAccuracy_Frameshift_SSE()
+/* Function:  p7_OptimalAccuracy_Frameshift()
  * Synopsis:  DP fill of optimal accuracy alignment, frameshift SSE version.
  *
  * Purpose:   Calculates the fill step of the optimal accuracy decoding
@@ -34,7 +34,7 @@
  *            parallelism over model positions.
  *
  *            The posterior decoding matrix <pp> must have the 8-cell FS
- *            layout (p7X_NSCELLS_FS=8; from p7_Decoding_Frameshift_SSE).
+ *            layout (p7X_NSCELLS_FS=8; from p7_Decoding_Frameshift).
  *            The OA result matrix <ox> uses the standard 3-cell layout
  *            (p7X_NSCELLS=3; M, D, I per stripe position).
  *
@@ -50,7 +50,7 @@
  * Returns:   eslOK on success.
  */
 int
-p7_OptimalAccuracy_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
                                    P7_OMX *ox, float *ret_e)
 {
   int    M   = om_fs->M;
@@ -518,11 +518,11 @@ select_codon_fs_sse(const P7_OMX *pp, int i, int k)
 }
 
 
-/* Function:  p7_OATrace_Frameshift_SSE()
+/* Function:  p7_OATrace_Frameshift()
  * Synopsis:  Optimal accuracy decoding traceback, frameshift SSE version.
  *
  * Purpose:   Traceback through the OA DP matrix <ox> filled by
- *            <p7_OptimalAccuracy_Frameshift_SSE>, annotated with
+ *            <p7_OptimalAccuracy_Frameshift>, annotated with
  *            posterior probabilities from the FS decoding matrix <pp>.
  *
  *            The OA matrix <ox> uses standard 3-cell layout; the pp matrix
@@ -533,7 +533,7 @@ select_codon_fs_sse(const P7_OMX *pp, int i, int k)
  *
  * Args:      om_fs - optimized frameshift profile
  *            pp    - posterior decoding matrix (8-cell FS layout)
- *            ox    - OA DP matrix (3-cell standard layout, from p7_OptimalAccuracy_Frameshift_SSE)
+ *            ox    - OA DP matrix (3-cell standard layout, from p7_OptimalAccuracy_Frameshift)
  *            tr    - RESULT: OA traceback (must be empty; allocated with p7_trace_fs_CreateWithPP)
  *
  * Returns:   eslOK on success.
@@ -542,7 +542,7 @@ select_codon_fs_sse(const P7_OMX *pp, int i, int k)
  *            eslEMEM on allocation error.
  */
 int
-p7_OATrace_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
                            const P7_OMX *ox, P7_TRACE *tr)
 {
   int   i    = ox->L;
@@ -617,7 +617,7 @@ p7_OATrace_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
 #include "esl_randomseq.h"
 
 /* utest_optacc_fs:
- *   Compare p7_OptimalAccuracy_Frameshift_SSE and p7_OATrace_Frameshift_SSE
+ *   Compare p7_OptimalAccuracy_Frameshift and p7_OATrace_Frameshift
  *   against their scalar counterparts.
  *
  *   Strategy: run the full SSE pipeline (Forward->Backward->Decoding->OA->Trace)
@@ -680,13 +680,13 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, seq_L, dsq);
       
       /* SSE pipeline: Forward -> Backward -> Decoding (in-place into ox_fwd) -> OA -> Trace */
-      if (p7_Forward_Frameshift_SSE (dsq, seq_L, om_fs,         ox_fwd, &fsc) != eslOK) esl_fatal(msg);
-      if (p7_Backward_Frameshift_SSE(dsq, seq_L, om_fs, ox_fwd, ox_bck, &bsc) != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift (dsq, seq_L, om_fs,         ox_fwd, &fsc) != eslOK) esl_fatal(msg);
+      if (p7_Backward_Frameshift(dsq, seq_L, om_fs, ox_fwd, ox_bck, &bsc) != eslOK) esl_fatal(msg);
       if (esl_FCompare_old(fsc, bsc, tol)                                      != eslOK) esl_fatal(msg);
-      if (p7_Decoding_Frameshift_SSE(om_fs, ox_fwd, ox_bck)                    != eslOK) esl_fatal(msg);
+      if (p7_Decoding_Frameshift(om_fs, ox_fwd, ox_bck)                    != eslOK) esl_fatal(msg);
       /* ox_fwd now holds the SSE posterior probability matrix */
-      if (p7_OptimalAccuracy_Frameshift_SSE(om_fs, ox_fwd, ox_bck, &accscore_sse) != eslOK) esl_fatal(msg);
-      if (p7_OATrace_Frameshift_SSE(om_fs, ox_fwd, ox_bck, tr_sse)              != eslOK) esl_fatal(msg);
+      if (p7_OptimalAccuracy_Frameshift(om_fs, ox_fwd, ox_bck, &accscore_sse) != eslOK) esl_fatal(msg);
+      if (p7_OATrace_Frameshift(om_fs, ox_fwd, ox_bck, tr_sse)              != eslOK) esl_fatal(msg);
 
       /* Reference: convert SSE pp to scalar GMX, run scalar OA and trace */
       if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                    != eslOK) esl_fatal(msg);

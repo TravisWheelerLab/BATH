@@ -24,13 +24,13 @@
  * 1. Posterior decoding algorithms.
  *****************************************************************/
 
-/* Function:  p7_Decoding_Frameshift_SSE()
+/* Function:  p7_Decoding_Frameshift()
  * Synopsis:  SSE posterior decoding of residue assignments; frameshift full-matrix version.
  *
  * Purpose:   SSE equivalent of <p7_Decoding_Frameshift()>.  Given filled forward
- *            matrix <fwd> (8-cell FS layout, from <p7_Forward_Frameshift_SSE()>)
+ *            matrix <fwd> (8-cell FS layout, from <p7_Forward_Frameshift()>)
  *            and backward matrix <bck> (3-cell layout, from
- *            <p7_Backward_Frameshift_SSE()>), overwrites <fwd> with the posterior
+ *            <p7_Backward_Frameshift()>), overwrites <fwd> with the posterior
  *            decoding matrix.
  *
  *            At each row i, all posterior probabilities (M_C0..M_C5, I, N, J, C)
@@ -52,7 +52,7 @@
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_Decoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck)
+p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck)
 {
   int    L = fwd->L;
   int    M = om_fs->M;
@@ -197,7 +197,7 @@ p7_Decoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
 }
 
 
-/* Function:  p7_DomainDecoding_Frameshift_SSE()
+/* Function:  p7_DomainDecoding_Frameshift()
  * Synopsis:  SSE posterior decoding of domain location for frameshift-aware alignments.
  *
  * Purpose:   Identical to <p7_DomainDecoding_Frameshift()> except that <om_fs>,
@@ -239,7 +239,7 @@ p7_Decoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb,
+p7_DomainDecoding_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb,
                                   P7_DOMAINDEF *ddef)
 {
   int    L   = oxf->L;
@@ -374,7 +374,7 @@ p7_DomainDecoding_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,
 #include "esl_randomseq.h"
 
 /* utest_decoding_fs()
- * Compare p7_Decoding_Frameshift_SSE() against the generic p7_Decoding_Frameshift().
+ * Compare p7_Decoding_Frameshift() against the generic p7_Decoding_Frameshift().
  * Both are given the same sequence and profile.  We run the generic full-matrix
  * forward/backward to produce a generic PP matrix (gx1), and the SSE full-matrix
  * forward/backward to produce an SSE PP matrix (fwd).  We compare the special-state
@@ -437,13 +437,13 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       p7_GBackward_Frameshift(dsq, curr_L, gm_fs5, gx2, iv5, &bsc);
       p7_GDecoding_Frameshift(gm_fs5, gx1, gx2);   /* gx1 is now the PP matrix */
 
-      /*  simd under test: p7_Decoding_Frameshift_SSE overwrites fwd with PP  */
+      /*  simd under test: p7_Decoding_Frameshift overwrites fwd with PP  */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
 
-      p7_Forward_Frameshift_SSE (dsq, curr_L, om_fs5, fwd, &fsc);
-      p7_Backward_Frameshift_SSE(dsq, curr_L, om_fs5, fwd, bck, &bsc);
-      p7_Decoding_Frameshift_SSE(om_fs5, fwd, bck);  /* fwd is now the PP matrix */
+      p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd, &fsc);
+      p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc);
+      p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* fwd is now the PP matrix */
 
       /* --- Deconvert SSE PP to generic layout and compare --- */
       p7_omx_FDeconvert(fwd, gxpp);
@@ -522,15 +522,15 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
 
-      p7_ForwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, fwd, &fsc3);
-      p7_BackwardParser_Frameshift_3Codons_SSE(dsq, curr_L, om_fs3, fwd, bwd, &generic_fsc3);
+      p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, &fsc3);
+      p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, bwd, &generic_fsc3);
 
       oddef->mocc = oddef->btot = oddef->etot = NULL;
       ESL_ALLOC(oddef->mocc, sizeof(float) * (curr_L+1));
       ESL_ALLOC(oddef->btot, sizeof(float) * (curr_L+1));
       ESL_ALLOC(oddef->etot, sizeof(float) * (curr_L+1));
       
-      p7_DomainDecoding_Frameshift_SSE(om_fs3, fwd, bwd, oddef);
+      p7_DomainDecoding_Frameshift(om_fs3, fwd, bwd, oddef);
 
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
       p7_gmx_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L);

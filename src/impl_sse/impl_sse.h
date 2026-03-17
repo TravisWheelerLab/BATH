@@ -443,8 +443,8 @@ extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_
 extern int p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 
 /* decoding_fs.c */
-extern int p7_Decoding_Frameshift_SSE            (const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck);
-extern int p7_DomainDecoding_Frameshift_SSE     (const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,  const P7_OMX *oxb,  P7_DOMAINDEF *ddef);
+extern int p7_Decoding_FrameshiftE            (const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck);
+extern int p7_DomainDecoding_Frameshift     (const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,  const P7_OMX *oxb,  P7_DOMAINDEF *ddef);
 
 /* fwdback.c */
 extern int p7_Forward       (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
@@ -453,12 +453,12 @@ extern int p7_Backward      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 extern int p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 
 /* fwdback_fs.c */
-extern int p7_ForwardParser_Frameshift_3Codons_SSE (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
-extern int p7_BackwardParser_Frameshift_3Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
-extern int p7_ForwardParser_Frameshift_5Codons_SSE (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
-extern int p7_BackwardParser_Frameshift_5Codons_SSE(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
-extern int p7_Forward_Frameshift_SSE               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
-extern int p7_Backward_Frameshift_SSE              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_ForwardParser_Frameshift_3Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
+extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_ForwardParser_Frameshift_5Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
+extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_Forward_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
+extern int p7_Backward_Frameshift              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 
 /* io.c */
 extern int p7_oprofile_Write(FILE *ffp, FILE *pfp, P7_OPROFILE *om);
@@ -484,21 +484,21 @@ extern int p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float
 extern int p7_Null2_ByTrace      (const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 
 /* null2_fs.c */
-extern int p7_Null2_fs_ByExpectation_SSE(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);
+extern int p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);
 
 /* optacc.c */
 extern int p7_OptimalAccuracy(const P7_OPROFILE *om, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
 extern int p7_OATrace        (const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
 
 /* optacc_fs.c */
-extern int p7_OptimalAccuracy_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
-extern int p7_OATrace_Frameshift_SSE(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
+extern int p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
 
 /* stotrace.c */
 extern int p7_StochasticTrace(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
 
 /* stotrace_fs.c */
-extern int p7_StochasticTrace_Frameshift_SSE(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
 
 /* vitfilter.c */
 extern int p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);

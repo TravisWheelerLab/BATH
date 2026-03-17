@@ -342,7 +342,6 @@ main(int argc, char **argv)
   P7_FS_PROFILE  *gm_fs5   = NULL;
   P7_GMX         *fwd     = NULL;
   P7_GMX         *bck     = NULL;
-  P7_GMX         *pp      = NULL;
   P7_IVX         *iv      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
@@ -363,7 +362,6 @@ main(int argc, char **argv)
   gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL);
   fwd    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);  
   bck    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS);
-  pp     = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
   iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
   bgDNA  = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
 
@@ -373,7 +371,7 @@ main(int argc, char **argv)
 
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++) 
-    p7_GDecoding_Frameshift(gm_fs5, fwd, bck, pp);
+    p7_GDecoding_Frameshift(gm_fs5, fwd, bck);
   esl_stopwatch_Stop(w);
 
   Mcs  = (double) N * (double) L * (double) gm_fs5->M * 1e-6 / w->user;
@@ -382,7 +380,6 @@ main(int argc, char **argv)
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
-  p7_gmx_Destroy(pp);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(bck);
   p7_ivx_Destroy(iv);

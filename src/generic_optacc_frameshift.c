@@ -675,7 +675,7 @@ main(int argc, char **argv)
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
   {
-    p7_GOptimalAccuracy_Frameshift(gm_fs5, pp, gx2, &accscore);
+    p7_GOptimalAccuracy_Frameshift(gm_fs5, gx1, gx2, &accscore);
     if (! esl_opt_GetBoolean(go, "--notrace"))
     {
       p7_GOATrace_Frameshift(gm_fs5, gx1, gx2, tr);
@@ -694,7 +694,6 @@ main(int argc, char **argv)
   p7_trace_fs_Destroy(tr);
   p7_gmx_Destroy(gx1);
   p7_gmx_Destroy(gx2);
-  p7_gmx_Destroy(pp);
   p7_ivx_Destroy(iv);
   p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgAA);

@@ -360,7 +360,130 @@ p7_DomainDecoding_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, con
 /*****************************************************************
  * 2. Benchmark driver
  *****************************************************************/
+#ifdef p7DECODING_FS_BENCHMARK
+/*
+   gcc -g -O2      -o decoding_fs_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_FS_BENCHMARK decoding_fs.c -lhmmer -leasel -lm
+   icc -O3 -static -o decoding_fs_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_FS_BENCHMARK decoding_fs.c -lhmmer -leasel -lm
+   ./decoding_fs_benchmark <hmmfile>
 
+   Because p7_Decoding_Frameshift() overwrites the forward matrix in-place with
+   posterior probabilities, we cannot pre-fill fwd/bck once and loop over
+   Decoding alone.  Instead we time a baseline loop (Forward+Backward only) and
+   a benchmark loop (Forward+Backward+Decoding), then subtract to isolate the
+   decoding cost.
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs (nucleotides)",       0 },
+  { "-N",        eslARG_INT,   "5000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for posterior residue decoding, SSE frameshift version";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  ESL_GENCODE    *gcode   = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_FS_PROFILE  *gm_fs5  = NULL;
+  P7_FS_OPROFILE *om_fs5  = NULL;
+  P7_OMX         *fwd     = NULL;
+  P7_OMX         *bck     = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           fsc, bsc;
+  double          base_time, bench_time, Mcs;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
+
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgAA   = p7_bg_Create(abcAA);                 p7_bg_SetLength(bgAA, L/3);
+  bgDNA  = p7_bg_Create(abcDNA);                p7_bg_SetLength(bgDNA, L);
+
+  gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
+
+  om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
+  p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+  p7_fs_oprofile_ReconfigLength(om_fs5, L/3);
+
+  fwd = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
+  bck = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
+
+  /* Baseline: time Forward+Backward alone */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+      p7_Forward_Frameshift (dsq, L, om_fs5, fwd, &fsc);
+      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, &bsc);
+    }
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  /* Benchmark: Forward+Backward+Decoding */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+      p7_Forward_Frameshift (dsq, L, om_fs5, fwd, &fsc);
+      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, &bsc);
+      p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* overwrites fwd in-place */
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+
+  Mcs = (double) N * (double) L * (double) hmm->M * 1e-6 / bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n",   hmm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_omx_Destroy(bck);
+  p7_omx_Destroy(fwd);
+  p7_fs_oprofile_Destroy(om_fs5);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_bg_Destroy(bgDNA);
+  p7_bg_Destroy(bgAA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7DECODING_FS_BENCHMARK*/
 /*------------------ end, benchmark driver ----------------------*/
 
 

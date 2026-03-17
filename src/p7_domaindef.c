@@ -21,7 +21,7 @@
 static int is_multidomain_region  (P7_DOMAINDEF *ddef, int i, int j);
 static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
-static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, int *ret_nc);
+static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg,  const ESL_GENCODE *gcode);
 static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done);
 
@@ -391,74 +391,71 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
 
       /* We have a region i..j to evaluate. */
       ddef->nregions++;
-//TODO
-//      if (is_multidomain_region_frameshift(ddef, i, j))
-//      {
-//	 	
-//        /* This region appears to contain more than one domain, so we have to
-//        * resolve it by cluster analysis of posterior trace samples, to define
-//        * one or more domain envelopes.
-//        */
-//        ddef->nclustered++;
-//       
-//       /* Resolve the region into domains by stochastic trace
-//        * clustering; assign position-specific null2 model by
-//        * stochastic trace clustering; there is redundancy
-//        * here; we will consolidate later if null2 strategy
-//        * works
-//        */
-//        
-//        p7_ivx_GrowTo(pli->iv, gm_fs5->M, p7P_5CODONS); 
-//        p7_gmx_GrowTo(pli->gfwd, gm_fs5->M, j-i+1, j-i+1);
-//        p7_fs_ReconfigMultihit(gm_fs5, saveL/3);
-//
-//        p7_GForward_Frameshift(windowsq->dsq+i-1, j-i+1, gm_fs5, pli->gfwd, pli->iv, NULL);
-//
-//        region_trace_ensemble_frameshift(ddef, gm_fs5, windowsq->dsq, windowsq->abc, i, j, pli->gfwd, &nc);
-//
-//        p7_fs_ReconfigUnihit(gm_fs5, saveL/3);
-//       
-//        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
-//        last_j2 = 0;
-//        
-//        for (d = 0; d < nc; d++) {
-//         
-//          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
-//         if (i2 <= last_j2) ddef->noverlaps++;
-//
-//         /* Note that k..m coords on model are available, but
-//          * we're currently ignoring them.  This leads to a
-//          * rare clustering bug that we eventually need to fix
-//          * properly [xref J3/32]: two different regions in one
-//          * profile HMM might have hit same seq domain, and
-//          * when we now go to calculate an OA trace, nothing
-//          * constrains us to find the two different alignments
-//          * to the HMM; in fact, because OA is optimal, we'll
-//          * find one and the *same* alignment, leading to an
-//          * apparent duplicate alignment in the output.
-//          *
-//          * Registered as #h74, Dec 2009, after EBI finds and
-//          * reports it.  #h74 is worked around in p7_tophits.c
-//          * by hiding all but one envelope with an identical
-//          * alignment, in the rare event that this
-//          * happens. [xref J5/130].
-//          */
-//          ddef->nenvelopes++;         
-//         
-//         i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
-//
-//          ddef->nenvelopes++;
-//         if (rescore_isolated_domain_frameshift(ddef, pli, om_fs5, gm_fs5, windowsq, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
-//        }
-//
-//        p7_spensemble_Reuse(ddef->sp);
-//        p7_trace_Reuse(ddef->tr);
-//
-//     } else {
+
+      if (is_multidomain_region_frameshift(ddef, i, j))
+      {
+	 	
+        /* This region appears to contain more than one domain, so we have to
+        * resolve it by cluster analysis of posterior trace samples, to define
+        * one or more domain envelopes.
+        */
+        ddef->nclustered++;
+       
+       /* Resolve the region into domains by stochastic trace
+        * clustering; assign position-specific null2 model by
+        * stochastic trace clustering; there is redundancy
+        * here; we will consolidate later if null2 strategy
+        * works
+        */
+        
+        p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL/3); 
+        p7_Forward_Frameshift_SSE(windowsq->dsq+i-1, j-i+1, om_fs5, pli->fwd_fs, NULL);
+
+        region_trace_ensemble_frameshift(ddef, om_fs5, windowsq->dsq, windowsq->abc, i, j, pli->fwd_fs, &nc);
+
+        p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL/3);
+       
+        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
+        last_j2 = 0;
+        
+        for (d = 0; d < nc; d++) {
+         
+          p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
+         if (i2 <= last_j2) ddef->noverlaps++;
+
+         /* Note that k..m coords on model are available, but
+          * we're currently ignoring them.  This leads to a
+          * rare clustering bug that we eventually need to fix
+          * properly [xref J3/32]: two different regions in one
+          * profile HMM might have hit same seq domain, and
+          * when we now go to calculate an OA trace, nothing
+          * constrains us to find the two different alignments
+          * to the HMM; in fact, because OA is optimal, we'll
+          * find one and the *same* alignment, leading to an
+          * apparent duplicate alignment in the output.
+          *
+          * Registered as #h74, Dec 2009, after EBI finds and
+          * reports it.  #h74 is worked around in p7_tophits.c
+          * by hiding all but one envelope with an identical
+          * alignment, in the rare event that this
+          * happens. [xref J5/130].
+          */
+          ddef->nenvelopes++;         
+         
+         i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
+
+          ddef->nenvelopes++;
+         if (rescore_isolated_domain_frameshift(ddef, pli, om_fs5, gm_fs5, windowsq, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
+        }
+
+        p7_spensemble_Reuse(ddef->sp);
+        p7_trace_Reuse(ddef->tr);
+
+     } else {
 	
       ddef->nenvelopes++;
       rescore_isolated_domain_frameshift(ddef, pli, om_fs5, gm_fs5, windowsq, i, j, bg, gcode);
-//    }
+    }
     i     = -1;
     triggered = FALSE;
     start     = FALSE;
@@ -854,7 +851,7 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
  * tracebacks to sort it out.
  * 
  * Caller provides a filled Forward matrix in <fwd> for the sequence
- * region <dsq+ireg-1>, length <jreg-ireg+1>, for the model <gm_fs5>
+ * region <dsq+ireg-1>, length <jreg-ireg+1>, for the model <om_fs5>
  * configured in multihit mode with its target length distribution
  * set to the total length of <dsq>: i.e., the same model
  * configuration used to score the complete sequence (if it weren't
@@ -889,7 +886,7 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
  *    
  */
 static int
-region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs5, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, int *ret_nc)
+region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs5, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc)
 {
   int    Lr  = jreg-ireg+1;
   int    t, d, d2;
@@ -908,7 +905,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs5
   for (t = 0; t < ddef->nsamples; t++)
     {
 
-      p7_StochasticTrace_Frameshift(ddef->r, dsq+ireg-1, Lr, gm_fs5, fwd, ddef->tr);
+      p7_StochasticTrace_Frameshift_SSE(ddef->r, dsq+ireg-1, Lr, om_fs5, fwd, ddef->tr);
 
       p7_trace_fs_Index(ddef->tr);
  

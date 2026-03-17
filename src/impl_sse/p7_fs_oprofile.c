@@ -391,6 +391,58 @@ p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L)
   return eslOK;
 }
 
+
+/* Function:  p7_fs_oprofile_ReconfigMultihit()
+ * Synopsis:  Quickly reconfig model into multihit mode for target length <L>.
+ *
+ * Purpose:   Given a profile <om_fs> that's already been configured once,
+ *            quickly reconfigure it into a multihit mode for target 
+ *            length <L>. 
+ *            
+ *            This gets called in domain definition, when we need to
+ *            flip the model in and out of unihit mode to
+ *            process individual domains.
+ *            
+ * Note:      You can't just flip uni/multi mode alone, because that
+ *            parameterization also affects target length
+ *            modeling. You need to make sure uni vs. multi choice is
+ *            made before the length model is set, and you need to
+ *            make sure the length model is recalculated if you change
+ *            the uni/multi mode. Hence, these functions call
+ *            <p7_fs_oprofile_ReconfigLength()>.
+ */
+int
+p7_fs_oprofile_ReconfigMultihit(P7_FS_OPROFILE *om_fs, int L)
+{
+  om_fs->xf[p7O_E][p7O_MOVE] = 0.5;
+  om_fs->xf[p7O_E][p7O_LOOP] = 0.5;
+  om_fs->nj = 1.0f;
+
+  return p7_fs_oprofile_ReconfigLength(om_fs, L);
+}
+
+/* Function:  p7_fs_oprofile_ReconfigUnihit()
+ * Synopsis:  Quickly reconfig model into unihit mode for target length <L>.
+ *
+ * Purpose:   Given a profile <om_fs> that's already been configured once,
+ *            quickly reconfigure it into a unihit mode for target 
+ *            length <L>. 
+ *            
+ *            This gets called in domain definition, when we need to
+ *            flip the model in and out of unihit <L=0> mode to
+ *            process individual domains.
+ */
+int
+p7_fs_oprofile_ReconfigUnihit(P7_FS_OPROFILE *om_fs, int L)
+{
+  om_fs->xf[p7O_E][p7O_MOVE] = 1.0f;
+  om_fs->xf[p7O_E][p7O_LOOP] = 0.0f;
+  om_fs->nj = 0.0f;
+
+  return p7_fs_oprofile_ReconfigLength(om_fs, L);
+}
+
+
 /*------------ end, conversions to P7_FS_OPROFILE ------------------*/
 
 /***********************************************************************

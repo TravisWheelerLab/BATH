@@ -57,6 +57,7 @@
 1 exercise optacc             @src/impl/optacc_utest@
 1 exercise optacc_fs          @src/impl/optacc_fs_utest@
 1 exercise stotrace           @src/impl/stotrace_utest@
+1 exercise stotrace_fs        @src/impl/stotrace_fs_utest@
 
 ################################################################
 # Option tests 

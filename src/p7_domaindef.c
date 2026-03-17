@@ -322,6 +322,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */
   p7_fs_ReconfigUnihit(gm_fs5, saveL/3);                                                          /* process each domain in unihit mode, regardless of om->mode     */
+ p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL/3);
 
   i         = -1;
   triggered = FALSE;
@@ -400,7 +401,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         * one or more domain envelopes.
         */
         ddef->nclustered++;
-       
+        pli->was_multi++; 
        /* Resolve the region into domains by stochastic trace
         * clustering; assign position-specific null2 model by
         * stochastic trace clustering; there is redundancy
@@ -408,18 +409,19 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         * works
         */
         
-        p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL/3); 
+        p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL); 
+        p7_omx_GrowTo_dpf(pli->fwd_fs, om_fs5->M, j-i+1, j-i+1);
         p7_Forward_Frameshift_SSE(windowsq->dsq+i-1, j-i+1, om_fs5, pli->fwd_fs, NULL);
 
         region_trace_ensemble_frameshift(ddef, om_fs5, windowsq->dsq, windowsq->abc, i, j, pli->fwd_fs, &nc);
 
-        p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL/3);
+        p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL);
        
         /* ddef->n2sc is now set on i..j by the traceback-dependent method */
         last_j2 = 0;
         
         for (d = 0; d < nc; d++) {
-         
+          pli->num_clust++;
           p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
          if (i2 <= last_j2) ddef->noverlaps++;
 

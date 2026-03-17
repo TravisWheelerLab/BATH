@@ -894,9 +894,15 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     for (i = 0; i < infocnt; ++i)
       p7_tophits_ComputeEvalues_BATH(info[i].th, resCnt, info[i].om->max_length*3);
 
+
+    //TODO
+    int was_multi = 0;
+    int num_clust = 0;
     /* merge the results of the search results */
     for (i = 0; i < infocnt; ++i)
     {
+      was_multi += info[i].pli->was_multi;
+      num_clust += info[i].pli->num_clust;
       p7_tophits_Merge(tophits_accumulator, info[i].th);
       p7_pipeline_Merge(pipelinehits_accumulator, info[i].pli);
       if (esl_opt_IsUsed(go, "--splice"))  
@@ -917,6 +923,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         esl_gencode_WorkstateDestroy(info[i].wrk);
       }
     }
+
+    printf("%d %d\n", was_multi, num_clust);
 
     /* Sort and remove duplicates */
     p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);

@@ -90,7 +90,7 @@ p7_fs_oprofile_Create(int allocM, const ESL_ALPHABET *abc, int codon_lengths)
 
   /* Frameshift-specific initializations */
   om_fs->codon_lengths = codon_lengths;
-  om_fs->fs            = 0.0f;
+  om_fs->fsprob        = 0.0f;
 
   for (c = 0; c < p7_NOFFSETS; c++) om_fs->offs[c]    = -1;
   for (c = 0; c < p7_NEVPARAM; c++) om_fs->evparam[c] = p7_EVPARAM_UNSET;
@@ -332,7 +332,7 @@ p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
   om_fs->nj            = gm_fs->nj;
   om_fs->max_length    = gm_fs->max_length;
   om_fs->codon_lengths = gm_fs->codon_lengths;
-  om_fs->fs            = gm_fs->fs;
+  om_fs->fsprob        = gm_fs->fsprob;
 
   if ((status = fs_fb_conversion(gm_fs, om_fs)) != eslOK) return status;
 

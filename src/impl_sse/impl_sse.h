@@ -207,7 +207,7 @@ typedef struct p7_fs_oprofile_s {
 
   /* Frameshift-specific parameters                                               */
   int       codon_lengths; /* number of codon lengths                             */
-  float     fs;            /* frameshift penalty (log-odds score)                 */
+  float     fsprob;        /* frameshift penalty (log-odds score)                 */
 
   /* Raw malloc'd memory before 16-byte alignment                                 */
   __m128   *rfv_mem;

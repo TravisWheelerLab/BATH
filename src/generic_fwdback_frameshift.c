@@ -2228,7 +2228,7 @@ main(int argc, char **argv)
   fwd_p = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_FWD, L, p7G_NSCELLS);
   bck_p = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_BWD, L, p7G_NSCELLS);
   fwd   = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
-  bck   = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FR);
+  bck   = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS);
   iv    = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
 
   /* Baseline time. */

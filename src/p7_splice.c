@@ -1709,7 +1709,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   tmp_path = NULL;
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
-  p7_splicepipline_GrowScores(pli, M);
+  p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L/3);
    
   p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
@@ -2013,7 +2013,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   gm_tr = info->gm_tr;
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
-  p7_splicepipline_GrowScores(pli, M);
+  p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L/3);
   
   p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
@@ -2282,7 +2282,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   gm_tr = info->gm_tr;
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
-  p7_splicepipline_GrowScores(pli, M);
+  p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L);
   
   p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
@@ -2542,7 +2542,7 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   gm_tr = info->gm_tr;
 
   p7_gmx_sp_GrowTo(pli->vit, M, L, L);
-  p7_splicepipline_GrowScores(pli, M);
+  p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L);
   
   p7_spliceviterbi_TranslatedGlobal(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);

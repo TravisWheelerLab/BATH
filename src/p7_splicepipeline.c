@@ -18,141 +18,6 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-/* Splice singal probabilities taken from
- * "Comprehensive splice-site analysis using comparative genomics",
- * Nihar Sheth et al., 2006
- */
-void
-p7_splicepipeline_SignalScores(float *f)
-{
-  f[0] = log(0.9921);     /* GT-AG */
-  f[1] = log(0.0073);     /* GC-AG */
-  f[2] = log(0.0006);     /* AT-AC */
-  return;
-}
-
-void
-p7_splicepipeline_DonorGT(float *f)
-{
-  /* G = 2; T = 3; */
-  /* x*4 + y */
-  f[0]  = -eslINFINITY;
-  f[1]  = -eslINFINITY;
-  f[2]  = -eslINFINITY;
-  f[3]  = -eslINFINITY;
-  f[4]  = -eslINFINITY;
-  f[5]  = -eslINFINITY;
-  f[6]  = -eslINFINITY;
-  f[7]  = -eslINFINITY;
-  f[8]  = -eslINFINITY;
-  f[9]  = -eslINFINITY;
-  f[10] = -eslINFINITY;
-  f[11] = 0.0f;
-  f[12] = -eslINFINITY;
-  f[13] = -eslINFINITY;
-  f[14] = -eslINFINITY;
-  f[15] = -eslINFINITY;
-  return;
-}
-
-void
-p7_splicepipeline_DonorGC(float *f)
-{
-  /* G = 2; C = 1; */
-  /* x*4 + y */
-  f[0]  = -eslINFINITY;
-  f[1]  = -eslINFINITY;
-  f[2]  = -eslINFINITY;
-  f[3]  = -eslINFINITY;
-  f[4]  = -eslINFINITY;
-  f[5]  = -eslINFINITY;
-  f[6]  = -eslINFINITY;
-  f[7]  = -eslINFINITY;
-  f[8]  = -eslINFINITY;
-  f[9]  = 0.0f;
-  f[10] = -eslINFINITY;
-  f[11] = -eslINFINITY;
-  f[12] = -eslINFINITY;
-  f[13] = -eslINFINITY;
-  f[14] = -eslINFINITY;
-  f[15] = -eslINFINITY;
-  return;
-}
-
-void
-p7_splicepipeline_DonorAT(float *f)
-{
-  /* A = 0; T = 3; */
-  /* x*4 + y */
-  f[0]  = -eslINFINITY;
-  f[1]  = -eslINFINITY;
-  f[2]  = -eslINFINITY;
-  f[3]  = 0.0f;
-  f[4]  = -eslINFINITY;
-  f[5]  = -eslINFINITY;
-  f[6]  = -eslINFINITY;
-  f[7]  = -eslINFINITY;
-  f[8]  = -eslINFINITY;
-  f[9]  = -eslINFINITY;
-  f[10] = -eslINFINITY;
-  f[11] = -eslINFINITY;
-  f[12] = -eslINFINITY;
-  f[13] = -eslINFINITY;
-  f[14] = -eslINFINITY;
-  f[15] = -eslINFINITY;
-  return;
-}
-
-void
-p7_splicepipeline_AcceptorAG(float *f)
-{
-  /* A = 0; G = 2; */
-  /* x*4 + y */	
-  f[0]  = -eslINFINITY;      
-  f[1]  = -eslINFINITY;
-  f[2]  = 0.0f;
-  f[3]  = -eslINFINITY;
-  f[4]  = -eslINFINITY;
-  f[5]  = -eslINFINITY;
-  f[6]  = -eslINFINITY;
-  f[7]  = -eslINFINITY;
-  f[8]  = -eslINFINITY;
-  f[9]  = -eslINFINITY;
-  f[10] = -eslINFINITY;
-  f[11] = -eslINFINITY;
-  f[12] = -eslINFINITY;
-  f[13] = -eslINFINITY;
-  f[14] = -eslINFINITY;
-  f[15] = -eslINFINITY;
-  return;
-}
-
-void
-p7_splicepipeline_AcceptorAC(float *f)
-{
-  /* A = 0; C = 1 */
-  /* x*4 + y */
-  f[0]  = -eslINFINITY;
-  f[1]  = 0.0f;
-  f[2]  = -eslINFINITY;
-  f[3]  = -eslINFINITY;
-  f[4]  = -eslINFINITY;
-  f[5]  = -eslINFINITY;
-  f[6]  = -eslINFINITY;
-  f[7]  = -eslINFINITY;
-  f[8]  = -eslINFINITY;
-  f[9]  = -eslINFINITY;
-  f[10] = -eslINFINITY;
-  f[11] = -eslINFINITY;
-  f[12] = -eslINFINITY;
-  f[13] = -eslINFINITY;
-  f[14] = -eslINFINITY;
-  f[15] = -eslINFINITY;
-  return;
-}
-
-
-
 
 /*****************************************************************
  * 1. The SPLICE_PIPELINE structure.
@@ -179,8 +44,6 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
  
   pli = NULL;
   ESL_ALLOC(pli, sizeof(SPLICE_PIPELINE));
-
-  pli->allocM = M_hint;
 
   pli->min_intron = (go ? esl_opt_GetInteger(go, "--min_intron") : 13);
   pli->max_intron = (go ? esl_opt_GetInteger(go, "--max_intron") : 200000);
@@ -223,34 +86,8 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   
   pli->show_cigar = (go && esl_opt_GetBoolean(go, "--cigar") ? TRUE : FALSE);  
 
-  pli->score_mem = NULL;
-  pli->score = NULL;
-  ESL_ALLOC(pli->score_mem, sizeof(float)  * M_hint * SIGNAL_MEM_SIZE);
-  ESL_ALLOC(pli->score,     sizeof(float*) * SIGNAL_MEM_SIZE);
-
-  for(i = 0; i < SIGNAL_MEM_SIZE; i++) 
-    pli->score[i] = pli->score_mem + (i * M_hint);
-  
-  pli->signal_scores = NULL; 
-  ESL_ALLOC(pli->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
-  p7_splicepipeline_SignalScores(pli->signal_scores);  
-
-  pli->donor_GT = pli->donor_GC = pli->donor_AT = NULL;
-  pli->acceptor_AG  = pli->acceptor_AC = NULL;
-
-  ESL_ALLOC(pli->donor_GT, sizeof(float) * 16);
-  ESL_ALLOC(pli->donor_GC, sizeof(float) * 16);
-  ESL_ALLOC(pli->donor_AT, sizeof(float) * 16);
-
-  ESL_ALLOC(pli->acceptor_AG, sizeof(float) * 16);
-  ESL_ALLOC(pli->acceptor_AC, sizeof(float) * 16);
-
-  p7_splicepipeline_DonorGT(pli->donor_GT);
-  p7_splicepipeline_DonorGC(pli->donor_GC);
-  p7_splicepipeline_DonorAT(pli->donor_AT);
-
-  p7_splicepipeline_AcceptorAG(pli->acceptor_AG);
-  p7_splicepipeline_AcceptorAC(pli->acceptor_AC);
+  pli->splice_scores = NULL;
+  pli->splice_scores = p7_splicescores_Create(M_hint);
 
   pli->nuc_sq   = NULL;
   pli->amino_sq = NULL;
@@ -285,37 +122,6 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
     return NULL;
 
 }
-
-/* Function:  p7_splicepipline_GrowScores() 
- * Synopsis:  Grow P state score stroage
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEMEM> on allocation error.
- */
-int
-p7_splicepipline_GrowScores(SPLICE_PIPELINE *pli, int M)
-{
-
-  int i;
-  int status;
-
-  if(M <= pli->allocM) return eslOK;
-
-  ESL_REALLOC(pli->score_mem, sizeof(float) * M * SIGNAL_MEM_SIZE);
-
-  for(i = 0; i < SIGNAL_MEM_SIZE; i++) 
-    pli->score[i] = pli->score_mem + (i * M);
-
-  pli->allocM = M; 
-
-  return eslOK;
-
-  ERROR:
-  p7_splicepipeline_Destroy(pli);
-  return status;
-}
-
 
 /* Function:  p7_splicepipeline_Reuse()
  *
@@ -375,19 +181,9 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   esl_sq_Destroy(pli->nuc_sq);
   esl_sq_Destroy(pli->amino_sq);
 
-  if(pli->score         != NULL) free(pli->score);
-  if(pli->score_mem     != NULL) free(pli->score_mem);
-
-  if(pli->signal_scores != NULL) free(pli->signal_scores); 
-
-  if(pli->donor_GT      != NULL) free(pli->donor_GT);
-  if(pli->donor_GC      != NULL) free(pli->donor_GC);
-  if(pli->donor_AT      != NULL) free(pli->donor_AT);
-
-  if(pli->acceptor_AG   != NULL) free(pli->acceptor_AG);
-  if(pli->acceptor_AC   != NULL) free(pli->acceptor_AC);
-
   if(pli->orig_nuc_idx != NULL) free(pli->orig_nuc_idx);
+
+  p7_splicescores_Destroy(pli->splice_scores);
 
   p7_omx_Destroy(pli->fwd);
   p7_omx_Destroy(pli->bwd);

@@ -99,6 +99,25 @@ typedef struct _splice_path {
 } SPLICE_PATH;
 
 
+typedef struct _splice_scores
+{
+  int allocM;
+
+  float **score;
+  float *score_mem;
+
+  float *signal_scores;
+
+  float *acceptor_AG;
+  float *acceptor_AC;
+
+  float *donor_GT;
+  float *donor_GC;
+  float *donor_AT;
+
+} SPLICE_SCORES;
+
+
 typedef struct _splice_pipeline 
 {
   
@@ -112,8 +131,6 @@ typedef struct _splice_pipeline
   int max_intron;
   int max_extend;
 
-  int allocM;
-
   double E;
   double T;
   double Z;
@@ -122,18 +139,6 @@ typedef struct _splice_pipeline
   double F3;
   double incE;
   double incT;
-
-  float **score;
-  float *score_mem;
-
-  float *signal_scores;
-
-  float *acceptor_AG;
-  float *acceptor_AC;
-
-  float *donor_GT;
-  float *donor_GC;
-  float *donor_AT;
 
   int64_t *orig_nuc_idx;
 
@@ -154,8 +159,9 @@ typedef struct _splice_pipeline
 
   P7_HIT  *hit;
 
-} SPLICE_PIPELINE;
+  SPLICE_SCORES *splice_scores;
 
+} SPLICE_PIPELINE;
 
 typedef struct _splice_bounds
 {
@@ -259,10 +265,13 @@ extern void p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *
 
 /* p7_splicepipeline.c */
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
-extern int p7_splicepipline_GrowScores(SPLICE_PIPELINE *pli, int M);
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
 
+/* p7_splicescores.c */
+SPLICE_SCORES* p7_splicescores_Create(int M_hint);
+extern int p7_splicescores_GrowTo(SPLICE_SCORES* splice_scores, int M);
+extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
 
 /* p7_spliceviterbi.c */
 extern int p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);

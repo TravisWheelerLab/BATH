@@ -348,6 +348,12 @@ typedef struct p7_omx_s {
 #define DMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_D])
 #define IMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_I])
 
+/* Splice full-matrix row access (p7X_NSCELLS_SP = 4 cells per stripe: M, D, I, P) */
+#define MMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_M])
+#define DMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_D])
+#define IMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_I])
+#define PMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_P])
+
 static inline float
 p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k)
 {

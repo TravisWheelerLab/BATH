@@ -160,6 +160,7 @@ typedef struct _splice_pipeline
   P7_HIT  *hit;
 
   SPLICE_SCORES *splice_scores;
+  OSPLICE_SCORES *osplice_scores;
 
 } SPLICE_PIPELINE;
 

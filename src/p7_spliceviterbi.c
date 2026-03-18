@@ -482,6 +482,365 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
   return eslOK;
 }
 
+int
+p7_spliceviterbi_TranslatedGlobal_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+{
+  
+  float const *tsc  = gm_tr->tsc;
+  float      **dp   = gx->dp;
+  float       *xmx  = gx->xmx;
+  float      **score = pli->sig_idx->score;
+  float       *signal_scores = pli->signal_scores;
+  float       *acceptor_AG = pli->acceptor_AG;
+  float       *acceptor_AC = pli->acceptor_AC;
+  float       *donor_GT = pli->donor_GT;
+  float       *donor_GC = pli->donor_GC;
+  float       *donor_AT = pli->donor_AT;
+  int          min_intron = pli->min_intron;
+  int          L = (i_end - i_start + 1);
+  int          M = (k_end - k_start + 1);
+  int          C2[16];
+  int          C1[4];
+  int          C0;		  
+  int          i,k;
+  int          tmp_r, tmp_s;
+  int          r, s, t, u;
+  int          v, w, x;
+  int          nuc1, nuc2;
+  int          loop_end;
+  int          sub_i,sub_k;
+  float        TMP_SC;
+  float        AG0, AG1, AG2;
+  float        AC0, AC1, AC2;
+  float        GT0, GT1, GT2;
+  float        GC0, GC1, GC2;
+  float        AT0, AT1, AT2;
+
+  if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length"); 
+
+  /* Note on variable names 
+   * ..0 are for splice codons where zero nucleortides come from before the donor,
+   * ..1 are for splice codons where one nucleortide comes from before the donor,
+   * ..2 are for splice codons where two nucleortides come from before the donor,
+   */
+
+  AG0 = AG1 = AG2 = -eslINFINITY;
+  AC0 = AC1 = AC2 = -eslINFINITY;
+  GT0 = GT1 = GT2 = -eslINFINITY;
+  GC0 = GC1 = GC2 = -eslINFINITY;
+  AT0 = AT1 = AT2 = -eslINFINITY;
+
+  /* Reset splice site score storage */
+  for(i = 0; i < SIGNAL_MEM_SIZE; i++) {
+    for(k = 0; k <  M; k++) 
+      score[i][k] = -eslINFINITY;
+  }
+  
+  /* Initialization of the zero row.  */
+  XMX_SP(0,p7G_N) = 0.;                                     /* S->N, p=1            */
+  XMX_SP(0,p7G_B) = gm_tr->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */
+  XMX_SP(0,p7G_E) = XMX_SP(0,p7G_C) = XMX_SP(0,p7G_J) = -eslINFINITY;
+  for (k = 0; k <= M; k++)
+    MMX_SP(0,k) = DMX_SP(0,k) = IMX_SP(0,k) = PMX_SP(0,k) = -eslINFINITY;
+
+  /*Special cases for the first 2 rows (no codons yet)*/
+  t = u = v = w = x = -1;
+  for(i = 1; i <= 2; i++)
+  {
+    w = x;
+    sub_i = i_start + i - 1;
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
+
+    for (k = 0; k <= M; k++)
+      MMX_SP(i,k) = DMX_SP(i,k) = IMX_SP(i,k) = PMX_SP(i,k) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
+  }
+
+  /*Special cases for the rows 3-min_intron+2 (no donor site look backs)*/
+  loop_end = ESL_MIN(L, min_intron+2);
+  for (i = 3; i <= loop_end; i++)
+  {
+    v = w;
+    w = x;
+    sub_i = i_start + i - 1;
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1; 
+
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+
+	/* get acceptor site */
+    AG0 = AG1;
+    AG1 = AG2;
+
+    AC0 = AC1;
+    AC1 = AC2;
+
+    if(v >= MAX_NUC || w >= MAX_NUC)
+      AG2 = AC2 = -eslINFINITY;
+    else {
+      AG2 = acceptor_AG[v*4+w];
+      AC2 = acceptor_AC[v*4+w];
+    }
+
+    XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
+
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
+
+	/* Global model entry at i = 3, k = 1 */
+    sub_k = k_start;
+	if(i == 3) MMX_SP(i,1) = XMX_SP(i-3,p7G_B) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+	else       MMX_SP(i,1) = -eslINFINITY;
+
+	IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,sub_k),
+                          IMX_SP(i-3,1) + TSC(p7P_II,sub_k));
+
+	/* No I state for stop codons */
+	if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,1) = -eslINFINITY;
+
+    DMX_SP(i,1) = PMX_SP(i,1) = -eslINFINITY;
+
+    for (k = 2; k < M; k++) {
+      sub_k = k_start + k -1;
+
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                            DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+       
+	  IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+
+	  /* No I state for stop codons */
+      if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+      PMX_SP(i,k) = -eslINFINITY;
+    }
+
+    sub_k = k_start + M -1;
+    
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                          DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1)))+ p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+    PMX_SP(i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
+
+  }
+
+
+  /* Example Indexing for r, s, t, u:
+   * i_start = 5;
+   * min_intron = 13;
+   * s = sub_dsq[5];
+   * t = sub_dsq[6];
+   * u = sub_dsq[7];
+   * ...
+   * i = min_intron+3;        // 16; 
+   * sub_i = i_start + i - 1; // 20;
+   * r = s;                   // sub_dsq[5];
+   * s = t;                   // sub_dsq[6];
+   * t = u;                   // sub_dsq[7];
+   * u = sub_dsq[sub_i-min_intron+1]; // sub_dsq[8];
+   */
+
+  s = sub_dsq[i_start];   
+  t = sub_dsq[i_start+1];
+  u = sub_dsq[i_start+2];
+
+  /* Main DP recursion */
+  for (i = min_intron+3; i <= L; i++)
+  {
+    /* get nucleotides and codon */
+    sub_i = i_start + i - 1;
+
+	r = s;
+    s = t;
+    t = u;
+    u = sub_dsq[sub_i-min_intron+1];
+ 
+    v = w;
+    w = x;
+
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+	/* Codon indexing */
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+
+	for (nuc1 = 0; nuc1 < 4; nuc1++) {
+	  C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+	  for (nuc2 = 0; nuc2 < 4; nuc2++)
+	    C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+	}
+
+    /* get acceptor site - prevent out of bounds for non A,C,G,T nucleotides*/
+	AG0 = AG1;
+	AG1 = AG2;
+
+	AC0 = AC1;
+    AC1 = AC2;
+
+    if(v >= MAX_NUC || w >= MAX_NUC) 
+	  AG2 = AC2 = -eslINFINITY;
+	else {
+	  AG2 = acceptor_AG[v*4+w];
+	  AC2 = acceptor_AC[v*4+w];
+	}
+
+    /* get donor site - - prevent out of bounds for non-A,C,G,T nucleotides*/
+    if(r >= MAX_NUC || s >= MAX_NUC) {
+	  GT2 = GC2 = AT2 = -eslINFINITY;
+	  GT1 = GC1 = AT1 = -eslINFINITY;
+	  GT0 = GC0 = AT0 = -eslINFINITY;
+    }	
+	else if(t >= MAX_NUC) {
+	  GT2 = GC2 = AT2 = -eslINFINITY;
+	  GT1 = GC1 = AT1 = -eslINFINITY;
+
+	  GT0 = donor_GT[r*4+s];
+	  GC0 = donor_GC[r*4+s];
+	  AT0 = donor_AT[r*4+s];
+    }
+	else if( u >= MAX_NUC) {
+	  GT2 = GC2 = AT2 = -eslINFINITY;
+
+	  GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+
+      GT1 = donor_GT[s*4+t];
+      GC1 = donor_GC[s*4+t];
+      AT1 = donor_AT[s*4+t];
+	}
+    else {
+      GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+
+      GT1 = donor_GT[s*4+t];
+      GC1 = donor_GC[s*4+t];
+      AT1 = donor_AT[s*4+t];
+
+	  GT2 = donor_GT[t*4+u];
+	  GC2 = donor_GC[t*4+u];
+	  AT2 = donor_AT[t*4+u];
+	}
+
+	/* Prevent out of bounds indexing for donor site.
+	 * GT#,GC#,AT# will pervent overwiting the wronge SSX */
+	tmp_r = ESL_MIN(r, MAX_NUC-1);
+    tmp_s = ESL_MIN(s, MAX_NUC-1);
+
+    XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
+
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
+
+    for (k = 1; k < M; k++) {
+
+      sub_k = k_start + k -1;
+
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                    ESL_MAX(DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1),
+                            PMX_SP(i-3,k-1) + TSC_P))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+      
+	  IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+
+	  /* No I state for stop codons */
+	  if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+	  /* P state scoring */
+      PMX_SP(i,k) = -eslINFINITY;
+
+      TMP_SC = ESL_MAX(SSX0(k, p7S_GTAG) + AG0 + signal_scores[p7S_GTAG],
+			   ESL_MAX(SSX0(k, p7S_GCAG) + AG0 + signal_scores[p7S_GCAG],
+					   SSX0(k, p7S_ATAC) + AC0 + signal_scores[p7S_ATAC])) 
+			           + p7P_MSC_CODON(gm_tr, sub_k, C0);
+    
+      PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+
+	  for (nuc1 = 0; nuc1 < 4; nuc1++) {
+	    TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + AG1 + signal_scores[p7S_GTAG],
+                 ESL_MAX(SSX1(k, p7S_GCAG, nuc1) + AG1 + signal_scores[p7S_GCAG],
+                         SSX1(k, p7S_ATAC, nuc1) + AC1 + signal_scores[p7S_ATAC]))
+                         + p7P_MSC_CODON(gm_tr, sub_k, C1[nuc1]);
+
+		PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+	  
+	    for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc1, nuc2) + AG2 + signal_scores[p7S_GTAG],
+                   ESL_MAX(SSX2(k, p7S_GCAG, nuc1, nuc2) + AG2 + signal_scores[p7S_GCAG],
+                           SSX2(k, p7S_ATAC, nuc1, nuc2) + AC2 + signal_scores[p7S_ATAC]))
+                           + p7P_MSC_CODON(gm_tr, sub_k, C2[nuc1*4+nuc2]);
+
+		  PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+        }
+	  }
+
+	  /* Donor Site Look Back */
+	  TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1)); 
+
+      SSX2(k, p7S_GTAG, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_GTAG, tmp_r, tmp_s), TMP_SC + GT2);
+	  SSX2(k, p7S_GCAG, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_GCAG, tmp_r, tmp_s), TMP_SC + GC2);
+	  SSX2(k, p7S_ATAC, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_ATAC, tmp_r, tmp_s), TMP_SC + AT2);	 			                            
+      SSX1(k, p7S_GTAG, tmp_r) = ESL_MAX(SSX1(k, p7S_GTAG, tmp_r), TMP_SC + GT1);	  
+	  SSX1(k, p7S_GCAG, tmp_r) = ESL_MAX(SSX1(k, p7S_GCAG, tmp_r), TMP_SC + GC1);
+	  SSX1(k, p7S_ATAC, tmp_r) = ESL_MAX(SSX1(k, p7S_ATAC, tmp_r), TMP_SC + AT1);
+
+      SSX0(k, p7S_GTAG) = ESL_MAX(SSX0(k, p7S_GTAG), TMP_SC + GT0);
+	  SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC + GC0);
+	  SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC + AT0);
+
+    } // end k loop
+
+    sub_k = k_start + M -1;
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                  ESL_MAX(DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1),
+                          PMX_SP(i-3,M-1) + TSC_P)))         + p7P_MSC_CODON(gm_tr, sub_k, C0);
+    
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+    PMX_SP(i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
+
+   
+  } // end loop over L
+
+  /*exit from last i and k */
+  XMX_SP(L,p7G_E) = ESL_MAX(MMX_SP(L,M), DMX_SP(L,M));
+  XMX_SP(L,p7G_C) = XMX_SP(L,p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE];
+
+  gx->M = M;
+  gx->L = L;
+
+  return eslOK;
+}
+
+
 
 /* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendDown()
  * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
@@ -970,6 +1329,385 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
 
 }
 
+
+/* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendDown_New()
+ * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
+ *
+ * Purpose:   Equivalent to p7_spliceviterbi_TranslatedSemiGlobalExtendDown()
+ *            but uses floating point donor/acceptor validity scores in place
+ *            of the SIGNAL() boolean flags and eliminates the lookback matrix.
+ *            Donor site scores are accumulated inline within the single k loop
+ *            rather than in separate passes.
+ *
+ * Args:      pli     - splicing pipeline containing the splice site matricies and scores
+ *            sub_dsq - nucleotide sequence
+ *            gm_tr   - a codon profile.
+ *            gx      - DP matrix with room for an MxL alignment
+ *            i_start - start poition on the <sub_dsq>
+ *            i_end   - end poition on the <sub_dsq>
+ *            k_start - start poition on the <gm_tr>
+ *            k_end   - end poition on the <gm_tr>
+ *
+ * Return:    <eslOK> on success.
+ */
+int
+p7_spliceviterbi_TranslatedSemiGlobalExtendDown_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+{
+  float const *tsc  = gm_tr->tsc;
+  float      **dp   = gx->dp;
+  float       *xmx  = gx->xmx;
+  float      **score = pli->sig_idx->score;
+  float       *signal_scores = pli->signal_scores;
+  float       *acceptor_AG = pli->acceptor_AG;
+  float       *acceptor_AC = pli->acceptor_AC;
+  float       *donor_GT = pli->donor_GT;
+  float       *donor_GC = pli->donor_GC;
+  float       *donor_AT = pli->donor_AT;
+  int          min_intron = pli->min_intron;
+  int          L = (i_end - i_start + 1);
+  int          M = (k_end - k_start + 1);
+  int          C2[16];
+  int          C1[4];
+  int          C0;
+  int          i,k;
+  int          tmp_r, tmp_s;
+  int          r, s, t, u;
+  int          v, w, x;
+  int          nuc1, nuc2;
+  int          loop_end;
+  int          sub_i,sub_k;
+  float        TMP_SC;
+  float        AG0, AG1, AG2;
+  float        AC0, AC1, AC2;
+  float        GT0, GT1, GT2;
+  float        GC0, GC1, GC2;
+  float        AT0, AT1, AT2;
+
+  if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
+
+  /* Note on variable names
+   * ..0 are for splice codons where zero nucleortides come from before the donor,
+   * ..1 are for splice codons where one nucleortide comes from before the donor,
+   * ..2 are for splice codons where two nucleortides come from before the donor,
+   */
+
+  AG0 = AG1 = AG2 = -eslINFINITY;
+  AC0 = AC1 = AC2 = -eslINFINITY;
+  GT0 = GT1 = GT2 = -eslINFINITY;
+  GC0 = GC1 = GC2 = -eslINFINITY;
+  AT0 = AT1 = AT2 = -eslINFINITY;
+
+  /* Reset splice site score storage */
+  for(i = 0; i < SIGNAL_MEM_SIZE; i++) {
+    for(k = 0; k <  M; k++)
+      score[i][k] = -eslINFINITY;
+  }
+
+  /* Initialization of the zero row.  */
+  XMX_SP(0,p7G_N) = 0.;                                     /* S->N, p=1            */
+  XMX_SP(0,p7G_B) = gm_tr->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */
+  XMX_SP(0,p7G_E) = XMX_SP(0,p7G_C) = XMX_SP(0,p7G_J) = -eslINFINITY;
+  for (k = 0; k <= M; k++)
+    MMX_SP(0,k) = DMX_SP(0,k) = IMX_SP(0,k) = PMX_SP(0,k) = -eslINFINITY;
+
+  /*Special cases for the first 2 rows (no codons yet) */
+  t = u = v = w = x = -1;
+  for(i = 1; i <= 2; i++)
+  {
+    w = x;
+    sub_i = i_start + i - 1;
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
+
+    for (k = 0; k <= M; k++)
+      MMX_SP(i,k) = DMX_SP(i,k) = IMX_SP(i,k) = PMX_SP(i,k) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
+  }
+
+  /*Special cases for the rows 3-min_intron+2 (no donor site look backs) */
+  loop_end = ESL_MIN(L, min_intron+2);
+  for (i = 3; i <= loop_end; i++)
+  {
+    v = w;
+    w = x;
+    sub_i = i_start + i - 1;
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+
+    /* get acceptor site */
+    AG0 = AG1;
+    AG1 = AG2;
+    AC0 = AC1;
+    AC1 = AC2;
+
+    if(v >= MAX_NUC || w >= MAX_NUC)
+      AG2 = AC2 = -eslINFINITY;
+    else {
+      AG2 = acceptor_AG[v*4+w];
+      AC2 = acceptor_AC[v*4+w];
+    }
+
+    XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
+
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = -eslINFINITY;
+
+    sub_k = k_start;
+
+    /* Global entry at i = 3, k = 1 */
+	if (i == 3) MMX_SP(i,1) = XMX_SP(i-3,p7G_B) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+    else        MMX_SP(i,1) = -eslINFINITY;
+
+    IMX_SP(i,1) = ESL_MAX(MMX_SP(i-3,1) + TSC(p7P_MI,sub_k),
+                          IMX_SP(i-3,1) + TSC(p7P_II,sub_k));
+
+    /* No I state for stop codons */
+    if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,1) = -eslINFINITY;
+
+    DMX_SP(i,1) = PMX_SP(i,1) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E), MMX_SP(i,1));
+
+    for (k = 2; k < M; k++) {
+      sub_k = k_start + k -1;
+
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                            DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+      IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+
+      /* No I state for stop codons */
+      if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+      PMX_SP(i,k) = -eslINFINITY;
+
+      XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E),
+                        ESL_MAX(MMX_SP(i,k), DMX_SP(i,k)));
+    }
+
+    sub_k = k_start + M -1;
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                          DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+    PMX_SP(i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E),
+                      ESL_MAX(MMX_SP(i,M), DMX_SP(i,M)));
+
+    XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP],
+                              XMX_SP(i,p7G_E)   + gm_tr->xsc[p7P_E][p7P_MOVE]);
+
+    XMX_SP(i,p7G_J) = -eslINFINITY;
+
+  }
+
+  s = sub_dsq[i_start];
+  t = sub_dsq[i_start+1];
+  u = sub_dsq[i_start+2];
+
+  /* Main DP recursion */
+  for (i = min_intron+3; i <= L; i++)
+  {
+    sub_i = i_start + i - 1;
+
+    r = s;
+    s = t;
+    t = u;
+    u = sub_dsq[sub_i-min_intron+1];
+
+    v = w;
+    w = x;
+
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    /* Codon indexing */
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+    }
+
+    /* get acceptor site - prevent out of bounds for non A,C,G,T nucleotides */
+    AG0 = AG1;
+    AG1 = AG2;
+    AC0 = AC1;
+    AC1 = AC2;
+
+    if(v >= MAX_NUC || w >= MAX_NUC)
+      AG2 = AC2 = -eslINFINITY;
+    else {
+      AG2 = acceptor_AG[v*4+w];
+      AC2 = acceptor_AC[v*4+w];
+    }
+
+    /* get donor site - prevent out of bounds for non-A,C,G,T nucleotides */
+    if(r >= MAX_NUC || s >= MAX_NUC) {
+      GT2 = GC2 = AT2 = -eslINFINITY;
+      GT1 = GC1 = AT1 = -eslINFINITY;
+      GT0 = GC0 = AT0 = -eslINFINITY;
+    }
+    else if(t >= MAX_NUC) {
+      GT2 = GC2 = AT2 = -eslINFINITY;
+      GT1 = GC1 = AT1 = -eslINFINITY;
+
+      GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+    }
+    else if(u >= MAX_NUC) {
+      GT2 = GC2 = AT2 = -eslINFINITY;
+
+      GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+
+      GT1 = donor_GT[s*4+t];
+      GC1 = donor_GC[s*4+t];
+      AT1 = donor_AT[s*4+t];
+    }
+    else {
+      GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+
+      GT1 = donor_GT[s*4+t];
+      GC1 = donor_GC[s*4+t];
+      AT1 = donor_AT[s*4+t];
+
+      GT2 = donor_GT[t*4+u];
+      GC2 = donor_GC[t*4+u];
+      AT2 = donor_AT[t*4+u];
+    }
+
+    /* Prevent out of bounds indexing for donor site.
+     * GT#,GC#,AT# will prevent overwriting the wrong SSX */
+    tmp_r = ESL_MIN(r, MAX_NUC-1);
+    tmp_s = ESL_MIN(s, MAX_NUC-1);
+
+    XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
+
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = -eslINFINITY;
+
+    for (k = 1; k < M; k++) {
+
+      sub_k = k_start + k -1;
+
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                    ESL_MAX(DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1),
+                            PMX_SP(i-3,k-1) + TSC_P))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+      IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+
+      /* No I state for stop codons */
+      if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+      /* P state scoring */
+      PMX_SP(i,k) = -eslINFINITY;
+
+      TMP_SC = ESL_MAX(SSX0(k, p7S_GTAG) + AG0 + signal_scores[p7S_GTAG],
+               ESL_MAX(SSX0(k, p7S_GCAG) + AG0 + signal_scores[p7S_GCAG],
+                       SSX0(k, p7S_ATAC) + AC0 + signal_scores[p7S_ATAC]))
+                       + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+      PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + AG1 + signal_scores[p7S_GTAG],
+                 ESL_MAX(SSX1(k, p7S_GCAG, nuc1) + AG1 + signal_scores[p7S_GCAG],
+                         SSX1(k, p7S_ATAC, nuc1) + AC1 + signal_scores[p7S_ATAC]))
+                         + p7P_MSC_CODON(gm_tr, sub_k, C1[nuc1]);
+
+        PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+
+        for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc1, nuc2) + AG2 + signal_scores[p7S_GTAG],
+                   ESL_MAX(SSX2(k, p7S_GCAG, nuc1, nuc2) + AG2 + signal_scores[p7S_GCAG],
+                           SSX2(k, p7S_ATAC, nuc1, nuc2) + AC2 + signal_scores[p7S_ATAC]))
+                           + p7P_MSC_CODON(gm_tr, sub_k, C2[nuc1*4+nuc2]);
+
+          PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+        }
+      }
+
+      /* Donor Site Look Back */
+      TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+
+      SSX2(k, p7S_GTAG, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_GTAG, tmp_r, tmp_s), TMP_SC + GT2);
+      SSX2(k, p7S_GCAG, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_GCAG, tmp_r, tmp_s), TMP_SC + GC2);
+      SSX2(k, p7S_ATAC, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_ATAC, tmp_r, tmp_s), TMP_SC + AT2);
+      SSX1(k, p7S_GTAG, tmp_r) = ESL_MAX(SSX1(k, p7S_GTAG, tmp_r), TMP_SC + GT1);
+      SSX1(k, p7S_GCAG, tmp_r) = ESL_MAX(SSX1(k, p7S_GCAG, tmp_r), TMP_SC + GC1);
+      SSX1(k, p7S_ATAC, tmp_r) = ESL_MAX(SSX1(k, p7S_ATAC, tmp_r), TMP_SC + AT1);
+
+      SSX0(k, p7S_GTAG) = ESL_MAX(SSX0(k, p7S_GTAG), TMP_SC + GT0);
+      SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC + GC0);
+      SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC + AT0);
+
+      XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E),
+                        ESL_MAX(MMX_SP(i,k), DMX_SP(i,k)));
+
+    } // end k loop
+
+    sub_k = k_start + M -1;
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                  ESL_MAX(DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1),
+                          PMX_SP(i-3,M-1) + TSC_P)))         + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+    PMX_SP(i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E),
+                      ESL_MAX(MMX_SP(i,M), DMX_SP(i,M)));
+
+    XMX_SP(i,p7G_C) = ESL_MAX(XMX_SP(i-3,p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP],
+                              XMX_SP(i,p7G_E)   + gm_tr->xsc[p7P_E][p7P_MOVE]);
+
+    XMX_SP(i,p7G_J) = -eslINFINITY;
+
+  } // end loop over L
+
+  gx->M = M;
+  gx->L = L;
+
+  return eslOK;
+
+}
+
+
 /* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendUP()
  * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
  *
@@ -1434,6 +2172,359 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
 
 }
 
+
+/* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendUp_New()
+ * Synopsis:  Semi global translated spliced Viterbi algorithm (semi-global entry)
+ *
+ * Purpose:   Equivalent to p7_spliceviterbi_TranslatedSemiGlobalExtendUp()
+ *            but uses floating point donor/acceptor validity scores in place
+ *            of the SIGNAL() boolean flags and eliminates the lookback matrix.
+ *            Donor site scores are accumulated inline within the single k loop
+ *            rather than in separate passes.
+ *
+ * Args:      pli     - splicing pipeline containing the splice site matricies and scores
+ *            sub_dsq - nucleotide sequence
+ *            gm_tr   - a codon profile.
+ *            gx      - DP matrix with room for an MxL alignment
+ *            i_start - start poition on the <sub_dsq>
+ *            i_end   - end poition on the <sub_dsq>
+ *            k_start - start poition on the <gm_tr>
+ *            k_end   - end poition on the <gm_tr>
+ *
+ * Return:    <eslOK> on success.
+ */
+int
+p7_spliceviterbi_TranslatedSemiGlobalExtendUp_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+{
+  float const *tsc  = gm_tr->tsc;
+  float      **dp   = gx->dp;
+  float       *xmx  = gx->xmx;
+  float      **score = pli->sig_idx->score;
+  float       *signal_scores = pli->signal_scores;
+  float       *acceptor_AG = pli->acceptor_AG;
+  float       *acceptor_AC = pli->acceptor_AC;
+  float       *donor_GT = pli->donor_GT;
+  float       *donor_GC = pli->donor_GC;
+  float       *donor_AT = pli->donor_AT;
+  int          min_intron = pli->min_intron;
+  int          L = (i_end - i_start + 1);
+  int          M = (k_end - k_start + 1);
+  int          C2[16];
+  int          C1[4];
+  int          C0;
+  int          i,k;
+  int          tmp_r, tmp_s;
+  int          r, s, t, u;
+  int          v, w, x;
+  int          nuc1, nuc2;
+  int          loop_end;
+  int          sub_i,sub_k;
+  float        TMP_SC;
+  float        AG0, AG1, AG2;
+  float        AC0, AC1, AC2;
+  float        GT0, GT1, GT2;
+  float        GC0, GC1, GC2;
+  float        AT0, AT1, AT2;
+
+  if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
+
+  /* Note on variable names
+   * ..0 are for splice codons where zero nucleortides come from before the donor,
+   * ..1 are for splice codons where one nucleortide comes from before the donor,
+   * ..2 are for splice codons where two nucleortides come from before the donor,
+   */
+
+  AG0 = AG1 = AG2 = -eslINFINITY;
+  AC0 = AC1 = AC2 = -eslINFINITY;
+  GT0 = GT1 = GT2 = -eslINFINITY;
+  GC0 = GC1 = GC2 = -eslINFINITY;
+  AT0 = AT1 = AT2 = -eslINFINITY;
+
+  /* Reset splice site score storage */
+  for(i = 0; i < SIGNAL_MEM_SIZE; i++) {
+    for(k = 0; k <  M; k++)
+      score[i][k] = -eslINFINITY;
+  }
+
+  /* Initialization of the zero row.  */
+  XMX_SP(0,p7G_N) = 0.;                                     /* S->N, p=1            */
+  XMX_SP(0,p7G_B) = gm_tr->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */
+  XMX_SP(0,p7G_E) = XMX_SP(0,p7G_C) = XMX_SP(0,p7G_J) = -eslINFINITY;
+  for (k = 0; k <= M; k++)
+    MMX_SP(0,k) = DMX_SP(0,k) = IMX_SP(0,k) = PMX_SP(0,k) = -eslINFINITY;
+
+  /*Special cases for the first 2 rows */
+  t = u = v = w = x = -1;
+  for(i = 1; i <= 2; i++)
+  {
+    w = x;
+    sub_i = i_start + i - 1;
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    XMX_SP(i,p7G_N) =  0;
+    XMX_SP(i,p7G_B) =  gm_tr->xsc[p7P_N][p7P_MOVE];
+    XMX_SP(i,p7G_J) = -eslINFINITY;
+
+    for (k = 0; k <= M; k++)
+      MMX_SP(i,k) = DMX_SP(i,k) = IMX_SP(i,k) = PMX_SP(i,k) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = -eslINFINITY;
+  }
+
+  /*Special cases for the rows 3-min_intron+2 (no donor site look backs) */
+  loop_end = ESL_MIN(L, min_intron+2);
+  for (i = 3; i <= loop_end; i++)
+  {
+    v = w;
+    w = x;
+    sub_i = i_start + i - 1;
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+
+    /* get acceptor site */
+    AG0 = AG1;
+    AG1 = AG2;
+    AC0 = AC1;
+    AC1 = AC2;
+
+    if(v >= MAX_NUC || w >= MAX_NUC)
+      AG2 = AC2 = -eslINFINITY;
+    else {
+      AG2 = acceptor_AG[v*4+w];
+      AC2 = acceptor_AC[v*4+w];
+    }
+
+    XMX_SP(i,p7G_N) = XMX_SP(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
+    XMX_SP(i,p7G_B) = XMX_SP(i,p7G_N)   + gm_tr->xsc[p7P_N][p7P_MOVE];
+
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
+
+    for (k = 1; k < M; k++) {
+      sub_k = k_start + k -1;
+
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                    ESL_MAX(DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1),
+                            XMX_SP(i-3,p7G_B)))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+      IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+
+      /* No I state for stop codons */
+      if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+      PMX_SP(i,k) = -eslINFINITY;
+    }
+
+    sub_k = k_start + M -1;
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                  ESL_MAX(DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1),
+                          XMX_SP(i-3,p7G_B)))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+    PMX_SP(i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
+
+  }
+
+  s = sub_dsq[i_start];
+  t = sub_dsq[i_start+1];
+  u = sub_dsq[i_start+2];
+
+  /* Main DP recursion */
+  for (i = min_intron+3; i <= L; i++)
+  {
+    sub_i = i_start + i - 1;
+
+    r = s;
+    s = t;
+    t = u;
+    u = sub_dsq[sub_i-min_intron+1];
+
+    v = w;
+    w = x;
+
+    if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    /* Codon indexing */
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+    }
+
+    /* get acceptor site - prevent out of bounds for non A,C,G,T nucleotides */
+    AG0 = AG1;
+    AG1 = AG2;
+    AC0 = AC1;
+    AC1 = AC2;
+
+    if(v >= MAX_NUC || w >= MAX_NUC)
+      AG2 = AC2 = -eslINFINITY;
+    else {
+      AG2 = acceptor_AG[v*4+w];
+      AC2 = acceptor_AC[v*4+w];
+    }
+
+    /* get donor site - prevent out of bounds for non-A,C,G,T nucleotides */
+    if(r >= MAX_NUC || s >= MAX_NUC) {
+      GT2 = GC2 = AT2 = -eslINFINITY;
+      GT1 = GC1 = AT1 = -eslINFINITY;
+      GT0 = GC0 = AT0 = -eslINFINITY;
+    }
+    else if(t >= MAX_NUC) {
+      GT2 = GC2 = AT2 = -eslINFINITY;
+      GT1 = GC1 = AT1 = -eslINFINITY;
+
+      GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+    }
+    else if(u >= MAX_NUC) {
+      GT2 = GC2 = AT2 = -eslINFINITY;
+
+      GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+
+      GT1 = donor_GT[s*4+t];
+      GC1 = donor_GC[s*4+t];
+      AT1 = donor_AT[s*4+t];
+    }
+    else {
+      GT0 = donor_GT[r*4+s];
+      GC0 = donor_GC[r*4+s];
+      AT0 = donor_AT[r*4+s];
+
+      GT1 = donor_GT[s*4+t];
+      GC1 = donor_GC[s*4+t];
+      AT1 = donor_AT[s*4+t];
+
+      GT2 = donor_GT[t*4+u];
+      GC2 = donor_GC[t*4+u];
+      AT2 = donor_AT[t*4+u];
+    }
+
+    /* Prevent out of bounds indexing for donor site.
+     * GT#,GC#,AT# will prevent overwriting the wrong SSX */
+    tmp_r = ESL_MIN(r, MAX_NUC-1);
+    tmp_s = ESL_MIN(s, MAX_NUC-1);
+
+    XMX_SP(i,p7G_N) = XMX_SP(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
+    XMX_SP(i,p7G_B) = XMX_SP(i,p7G_N)   + gm_tr->xsc[p7P_N][p7P_MOVE];
+
+    MMX_SP(i,0) = IMX_SP(i,0) = DMX_SP(i,0) = PMX_SP(i,0) = -eslINFINITY;
+
+    for (k = 1; k < M; k++) {
+
+      sub_k = k_start + k -1;
+
+      MMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX_SP(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                    ESL_MAX(DMX_SP(i-3,k-1) + TSC(p7P_DM,sub_k-1),
+                    ESL_MAX(XMX_SP(i-3,p7G_B),
+                            PMX_SP(i-3,k-1) + TSC_P)))) + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+      IMX_SP(i,k) = ESL_MAX(MMX_SP(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX_SP(i-3,k) + TSC(p7P_II,sub_k));
+
+      /* No I state for stop codons */
+      if(p7P_MSC_CODON(gm_tr, sub_k, C0) == -eslINFINITY) IMX_SP(i,k) = -eslINFINITY;
+
+      DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+      /* P state scoring */
+      PMX_SP(i,k) = -eslINFINITY;
+
+      TMP_SC = ESL_MAX(SSX0(k, p7S_GTAG) + AG0 + signal_scores[p7S_GTAG],
+               ESL_MAX(SSX0(k, p7S_GCAG) + AG0 + signal_scores[p7S_GCAG],
+                       SSX0(k, p7S_ATAC) + AC0 + signal_scores[p7S_ATAC]))
+                       + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+      PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + AG1 + signal_scores[p7S_GTAG],
+                 ESL_MAX(SSX1(k, p7S_GCAG, nuc1) + AG1 + signal_scores[p7S_GCAG],
+                         SSX1(k, p7S_ATAC, nuc1) + AC1 + signal_scores[p7S_ATAC]))
+                         + p7P_MSC_CODON(gm_tr, sub_k, C1[nuc1]);
+
+        PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+
+        for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc1, nuc2) + AG2 + signal_scores[p7S_GTAG],
+                   ESL_MAX(SSX2(k, p7S_GCAG, nuc1, nuc2) + AG2 + signal_scores[p7S_GCAG],
+                           SSX2(k, p7S_ATAC, nuc1, nuc2) + AC2 + signal_scores[p7S_ATAC]))
+                           + p7P_MSC_CODON(gm_tr, sub_k, C2[nuc1*4+nuc2]);
+
+          PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
+        }
+      }
+
+      /* Donor Site Look Back */
+      TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+
+      SSX2(k, p7S_GTAG, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_GTAG, tmp_r, tmp_s), TMP_SC + GT2);
+      SSX2(k, p7S_GCAG, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_GCAG, tmp_r, tmp_s), TMP_SC + GC2);
+      SSX2(k, p7S_ATAC, tmp_r, tmp_s) = ESL_MAX(SSX2(k, p7S_ATAC, tmp_r, tmp_s), TMP_SC + AT2);
+      SSX1(k, p7S_GTAG, tmp_r) = ESL_MAX(SSX1(k, p7S_GTAG, tmp_r), TMP_SC + GT1);
+      SSX1(k, p7S_GCAG, tmp_r) = ESL_MAX(SSX1(k, p7S_GCAG, tmp_r), TMP_SC + GC1);
+      SSX1(k, p7S_ATAC, tmp_r) = ESL_MAX(SSX1(k, p7S_ATAC, tmp_r), TMP_SC + AT1);
+
+      SSX0(k, p7S_GTAG) = ESL_MAX(SSX0(k, p7S_GTAG), TMP_SC + GT0);
+      SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC + GC0);
+      SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC + AT0);
+
+    } // end k loop
+
+    sub_k = k_start + M -1;
+    MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                  ESL_MAX(DMX_SP(i-3,M-1) + TSC(p7P_DM,sub_k-1),
+                  ESL_MAX(XMX_SP(i-3,p7G_B),
+                          PMX_SP(i-3,M-1) + TSC_P))))         + p7P_MSC_CODON(gm_tr, sub_k, C0);
+
+    IMX_SP(i,M) = -eslINFINITY;
+
+    DMX_SP(i,M) = ESL_MAX(MMX_SP(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX_SP(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+    PMX_SP(i,M) = -eslINFINITY;
+
+    XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
+
+  } // end loop over L
+
+  /*Global exit from last i and k */
+  XMX_SP(L,p7G_E) = ESL_MAX(MMX_SP(L,M), DMX_SP(L,M));
+  XMX_SP(L,p7G_C) = XMX_SP(L,p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE];
+
+  gx->M = M;
+  gx->L = L;
+
+  return eslOK;
+
+}
+
+
 /* Function:  p7_splicevitebi_TranslatedTrace()
  * Synopsis:  Create a trace fot any of the translted spliced vitebi algorithms
  *
@@ -1458,7 +2549,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
  *
  */            
 int
-p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
+p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
 {
   int          M   = k_end - k_start + 1;
   int          L   = i_end - i_start + 1;
@@ -1662,5 +2753,214 @@ p7_splicevitebi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, co
   return p7_trace_fs_Reverse(tr);
 }
 
+
+int
+p7_spliceviterbi_TranslatedTrace_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
+{
+
+  float const *tsc = gm_tr->tsc;
+  float      **dp  = gx->dp;              /* so {MDI}MX() macros work       */
+  float       *xmx = gx->xmx;             /* so XMX() macro works           */
+  float        tol = 1e-5;                /* floating point "equality" test */
+  int          min_intron = pli->min_intron;		
+  int          M   = k_end - k_start + 1; /* sub model length               */
+  int          L   = i_end - i_start + 1; /* sub seq length                 */
+  int          i   = L;                   /* position in seq (1..L)         */
+  int          k   = 0;                   /* position in model (1..M)       */
+  int          j;
+  int          t,u,v,w,x;
+  int          c, c0, c1, c2, c3;
+  int          sprv,scur,snxt;
+  int          sub_i, sub_d, sub_k;
+  float        emit, emit0, emit1, emit2;
+  int          status;
+
+  if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
+
+#if eslDEBUGLEVEL > 0
+  if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
+#endif
+
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i+i_start-1, 0)) != eslOK) return status;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i+i_start-1, 0)) != eslOK) return status;
+
+  snxt = p7T_X; 
+  sprv = p7T_C;
+ 
+  while (sprv != p7T_S) {
+    switch (sprv) {
+    case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
+      
+      if      (XMX_SP(i, p7G_C) < XMX_SP(i-2, p7G_C) || XMX_SP(i, p7G_C) < XMX_SP(i-1, p7G_C))                     scur = p7T_C; 
+      else if (XMX_SP(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      else if (esl_FCompare_old(XMX_SP(i, p7G_C), XMX_SP(i-3, p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare_old(XMX_SP(i, p7G_C), XMX_SP(i,   p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
+      else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
+
+      break;
+
+    case p7T_E:     /* E connects from any M state. k set here */
+      if (XMX_SP(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+      for (k = M; k >= 1; k--) {
+        if (esl_FCompare_old(XMX_SP(i, p7G_E), MMX_SP(i,k), tol) == eslOK) { scur = p7T_M; break; }
+        if (esl_FCompare_old(XMX_SP(i, p7G_E), DMX_SP(i,k), tol) == eslOK) { scur = p7T_D; break; }
+      }
+      if (k == 0) ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
+ 
+      break;
+
+    case p7T_M:         /* M connects from i-1,k-1, or B */
+      if (MMX_SP(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
+     
+      sub_i = i_start + i - 1; 
+      
+      if(sub_dsq[sub_i-2] < MAX_NUC) v = sub_dsq[sub_i-2];
+      else                           v = p7P_MAXCODONS1;
+
+      if(sub_dsq[sub_i-1] < MAX_NUC) w = sub_dsq[sub_i-1];
+      else                           w = p7P_MAXCODONS1;
+
+      if(sub_dsq[sub_i]   < MAX_NUC) x = sub_dsq[sub_i];
+      else                           x = p7P_MAXCODONS1;
+
+      c3 = p7P_CODON3_FS1(v, w, x);
+      c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
+
+      sub_k  = k_start + k - 1;
+      emit = p7P_MSC_CODON(gm_tr, sub_k, c3);
+      
+      if      (esl_FCompare_old(MMX_SP(i,k), MMX_SP(i-3, k-1) + TSC(p7P_MM, sub_k-1) + emit, tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(MMX_SP(i,k), IMX_SP(i-3, k-1) + TSC(p7P_IM, sub_k-1) + emit, tol) == eslOK) scur = p7T_I;
+      else if (esl_FCompare_old(MMX_SP(i,k), DMX_SP(i-3, k-1) + TSC(p7P_DM, sub_k-1) + emit, tol) == eslOK) scur = p7T_D;      
+      else if (esl_FCompare_old(MMX_SP(i,k), XMX_SP(i-3, p7G_B)                      + emit, tol) == eslOK) scur = p7T_B;
+      else if (esl_FCompare_old(MMX_SP(i,k), PMX_SP(i-3, k-1) + TSC_P                + emit, tol) == eslOK) scur = p7T_P;
+      else ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);  
+      
+      k--; i-=3;
+      break;
+
+    case p7T_D:         /* D connects from M,D at i,k-1 */
+      if (DMX_SP(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
+     
+      sub_k  = k_start + k - 1; 
+      if      (esl_FCompare_old(DMX_SP(i,k), MMX_SP(i, k-1) + TSC(p7P_MD, sub_k-1), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(DMX_SP(i,k), DMX_SP(i, k-1) + TSC(p7P_DD, sub_k-1), tol) == eslOK) scur = p7T_D;
+      else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
+      k--;
+      break;
+
+    case p7T_I:         /* I connects from M,I at i-1,k*/
+      if (IMX_SP(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
+
+      sub_k  = k_start + k - 1;
+      if      (esl_FCompare_old(IMX_SP(i,k), MMX_SP(i-3,k) + TSC(p7P_MI, sub_k), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(IMX_SP(i,k), IMX_SP(i-3,k) + TSC(p7P_II, sub_k), tol) == eslOK) scur = p7T_I;
+      else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k,i);
+      i-=3;
+      break;
+
+    case p7T_P:
+      scur = snxt;
+      k--; i = j - c - 2;
+      break;
+
+    case p7T_N:         /* N connects from S, N */
+      if (XMX_SP(i, p7G_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
+      scur = ( (i == 0) ? p7T_S : p7T_N);
+      break;
+
+    case p7T_B:         /* B connects from N, J */
+      if (XMX_SP(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+      if      (esl_FCompare_old(XMX_SP(i,p7G_B), XMX_SP(i, p7G_N) + gm_tr->xsc[p7P_N][p7P_MOVE], tol) == eslOK) scur = p7T_N;
+      else  ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
+      break;
+
+      default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
+    } /* end switch over statetype[tpos-1] */
+
+
+    /* Find donor site */
+    if (scur == p7T_P) {
+      if (PMX_SP(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible P reached at k=%d,i=%d", k,i);
+
+	  sub_i = i_start + i - 1;
+	  sub_k = k_start + k - 1;
+
+	  if(sub_dsq[sub_i-2] < MAX_NUC) v = sub_dsq[sub_i-2];
+      else                           v = p7P_MAXCODONS1;
+
+	  if(sub_dsq[sub_i-1] < MAX_NUC) w = sub_dsq[sub_i-1];
+      else                           w = p7P_MAXCODONS1;
+
+	  if(sub_dsq[sub_i]   < MAX_NUC) x = sub_dsq[sub_i];
+      else                           x = p7P_MAXCODONS1;
+
+
+      c0 = p7P_CODON3_FS1(v, w, x);
+      c0 = p7P_MINIDX(c0, p7P_DEGEN1_C);
+      emit0 = p7P_MSC_CODON(gm_tr, sub_k, c0);
+
+	  for (j = i-min_intron+1; j > 0; j--)
+	  { 
+	    sub_d = i_start + j - 1;
+        
+		if(sub_dsq[sub_d-3]   < MAX_NUC) t = sub_dsq[sub_d-3];
+        else                           t = p7P_MAXCODONS1;
+
+		if(sub_dsq[sub_d-2] < MAX_NUC) u = sub_dsq[sub_d-2];
+        else                           u = p7P_MAXCODONS1;
+
+        c1 = p7P_CODON3_FS1(u, w, x);
+        c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+        emit1 = p7P_MSC_CODON(gm_tr, sub_k, c1);
+
+        c2 = p7P_CODON3_FS1(t, u, x);
+        c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+        emit2 = p7P_MSC_CODON(gm_tr, sub_k, c2);
+
+        if(SIGNAL(sub_dsq[sub_d-1], sub_dsq[sub_d]) == DONOR_GT) {
+          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + pli->signal_scores[p7S_GTAG] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + pli->signal_scores[p7S_GTAG] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + pli->signal_scores[p7S_GTAG] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + pli->signal_scores[p7S_GTAG] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + pli->signal_scores[p7S_GTAG] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + pli->signal_scores[p7S_GTAG] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
+        }
+        else if (SIGNAL(sub_dsq[sub_d-1], sub_dsq[sub_d]) == DONOR_GC) {
+          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + pli->signal_scores[p7S_GCAG] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + pli->signal_scores[p7S_GCAG] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + pli->signal_scores[p7S_GCAG] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + pli->signal_scores[p7S_GCAG] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + pli->signal_scores[p7S_GCAG] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + pli->signal_scores[p7S_GCAG] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
+        }
+        else if (SIGNAL(sub_dsq[sub_d-1], sub_dsq[sub_d]) == DONOR_AT) {
+          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + pli->signal_scores[p7S_ATAC] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + pli->signal_scores[p7S_ATAC] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + pli->signal_scores[p7S_ATAC] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + pli->signal_scores[p7S_ATAC] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + pli->signal_scores[p7S_ATAC] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + pli->signal_scores[p7S_ATAC] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
+        }
+      }
+	  if (j == 0) ESL_EXCEPTION(eslFAIL, "P at k=%d,i=%d couldn't be traced", k,i);
+    } 
+
+    if      (scur == p7T_M) c = 3;
+    else if (scur != p7T_P) c = 0;
+
+    if ((status = p7_trace_fs_Append(tr, scur, k_start+k-1, i_start+i-1, c)) != eslOK) return status;
+    
+    /* For NC, we had to defer i decrement. */
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
+   
+    sprv = scur;
+  } /* end traceback, at S state */
+
+  tr->M = M;
+  tr->L = L;
+
+  return p7_trace_fs_Reverse(tr);
+}
 
 

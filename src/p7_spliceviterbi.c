@@ -52,13 +52,13 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->score;
-  float       *signal_scores = pli->signal_scores;
-  float       *acceptor_AG = pli->acceptor_AG;
-  float       *acceptor_AC = pli->acceptor_AC;
-  float       *donor_GT = pli->donor_GT;
-  float       *donor_GC = pli->donor_GC;
-  float       *donor_AT = pli->donor_AT;
+  float      **score = pli->splice_scores->score;
+  float       *signal_scores = pli->splice_scores->signal_scores;
+  float       *acceptor_AG = pli->splice_scores->acceptor_AG;
+  float       *acceptor_AC = pli->splice_scores->acceptor_AC;
+  float       *donor_GT = pli->splice_scores->donor_GT;
+  float       *donor_GC = pli->splice_scores->donor_GC;
+  float       *donor_AT = pli->splice_scores->donor_AT;
   int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
@@ -445,13 +445,13 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->score;
-  float       *signal_scores = pli->signal_scores;
-  float       *acceptor_AG = pli->acceptor_AG;
-  float       *acceptor_AC = pli->acceptor_AC;
-  float       *donor_GT = pli->donor_GT;
-  float       *donor_GC = pli->donor_GC;
-  float       *donor_AT = pli->donor_AT;
+  float      **score = pli->splice_scores->score;
+  float       *signal_scores = pli->splice_scores->signal_scores;
+  float       *acceptor_AG = pli->splice_scores->acceptor_AG;
+  float       *acceptor_AC = pli->splice_scores->acceptor_AC;
+  float       *donor_GT = pli->splice_scores->donor_GT;
+  float       *donor_GC = pli->splice_scores->donor_GC;
+  float       *donor_AT = pli->splice_scores->donor_AT;
   int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
@@ -837,13 +837,13 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->score;
-  float       *signal_scores = pli->signal_scores;
-  float       *acceptor_AG = pli->acceptor_AG;
-  float       *acceptor_AC = pli->acceptor_AC;
-  float       *donor_GT = pli->donor_GT;
-  float       *donor_GC = pli->donor_GC;
-  float       *donor_AT = pli->donor_AT;
+  float      **score = pli->splice_scores->score;
+  float       *signal_scores = pli->splice_scores->signal_scores;
+  float       *acceptor_AG = pli->splice_scores->acceptor_AG;
+  float       *acceptor_AC = pli->splice_scores->acceptor_AC;
+  float       *donor_GT = pli->splice_scores->donor_GT;
+  float       *donor_GC = pli->splice_scores->donor_GC;
+  float       *donor_AT = pli->splice_scores->donor_AT;
   int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
@@ -1193,6 +1193,7 @@ p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, c
   float      **dp  = gx->dp;              /* so {MDI}MX() macros work       */
   float       *xmx = gx->xmx;             /* so XMX() macro works           */
   float        tol = 1e-5;                /* floating point "equality" test */
+  float       *signal_scores = pli->splice_scores->signal_scores;
   int          min_intron = pli->min_intron;		
   int          M   = k_end - k_start + 1; /* sub model length               */
   int          L   = i_end - i_start + 1; /* sub seq length                 */
@@ -1350,28 +1351,28 @@ p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, c
         emit2 = p7P_MSC_CODON(gm_tr, sub_k, c2);
 
         if(SIGNAL(sub_dsq[sub_d-1], sub_dsq[sub_d]) == DONOR_GT) {
-          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + pli->signal_scores[p7S_GTAG] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + pli->signal_scores[p7S_GTAG] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + pli->signal_scores[p7S_GTAG] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + pli->signal_scores[p7S_GTAG] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + pli->signal_scores[p7S_GTAG] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + pli->signal_scores[p7S_GTAG] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
+          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + signal_scores[p7S_GTAG] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + signal_scores[p7S_GTAG] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + signal_scores[p7S_GTAG] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + signal_scores[p7S_GTAG] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + signal_scores[p7S_GTAG] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + signal_scores[p7S_GTAG] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
         }
         else if (SIGNAL(sub_dsq[sub_d-1], sub_dsq[sub_d]) == DONOR_GC) {
-          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + pli->signal_scores[p7S_GCAG] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + pli->signal_scores[p7S_GCAG] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + pli->signal_scores[p7S_GCAG] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + pli->signal_scores[p7S_GCAG] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + pli->signal_scores[p7S_GCAG] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + pli->signal_scores[p7S_GCAG] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
+          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + signal_scores[p7S_GCAG] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + signal_scores[p7S_GCAG] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + signal_scores[p7S_GCAG] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + signal_scores[p7S_GCAG] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + signal_scores[p7S_GCAG] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + signal_scores[p7S_GCAG] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
         }
         else if (SIGNAL(sub_dsq[sub_d-1], sub_dsq[sub_d]) == DONOR_AT) {
-          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + pli->signal_scores[p7S_ATAC] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + pli->signal_scores[p7S_ATAC] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + pli->signal_scores[p7S_ATAC] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + pli->signal_scores[p7S_ATAC] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + pli->signal_scores[p7S_ATAC] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
-          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + pli->signal_scores[p7S_ATAC] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
+          if      (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-2,k-1) + signal_scores[p7S_ATAC] + emit0, tol) == eslOK) { snxt = p7T_M; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-2,k-1) + signal_scores[p7S_ATAC] + emit0, tol) == eslOK) { snxt = p7T_D; c = 0; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-3,k-1) + signal_scores[p7S_ATAC] + emit1, tol) == eslOK) { snxt = p7T_M; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-3,k-1) + signal_scores[p7S_ATAC] + emit1, tol) == eslOK) { snxt = p7T_D; c = 1; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), MMX_SP(j-4,k-1) + signal_scores[p7S_ATAC] + emit2, tol) == eslOK) { snxt = p7T_M; c = 2; break; }
+          else if (esl_FCompare_old(PMX_SP(i,k), DMX_SP(j-4,k-1) + signal_scores[p7S_ATAC] + emit2, tol) == eslOK) { snxt = p7T_D; c = 2; break; }
         }
       }
 	  if (j == 0) ESL_EXCEPTION(eslFAIL, "P at k=%d,i=%d couldn't be traced", k,i);

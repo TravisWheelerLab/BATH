@@ -36,6 +36,127 @@ p7_splicepipeline_SignalScores(float *f)
   return;
 }
 
+void
+p7_splicepipeline_DonorGT(float *f)
+{
+  /* G = 2; T = 3; */
+  /* x*4 + y */
+  f[0]  = -eslINFINITY;
+  f[1]  = -eslINFINITY;
+  f[2]  = -eslINFINITY;
+  f[3]  = -eslINFINITY;
+  f[4]  = -eslINFINITY;
+  f[5]  = -eslINFINITY;
+  f[6]  = -eslINFINITY;
+  f[7]  = -eslINFINITY;
+  f[8]  = -eslINFINITY;
+  f[9]  = -eslINFINITY;
+  f[10] = -eslINFINITY;
+  f[11] = 0.0f;
+  f[12] = -eslINFINITY;
+  f[13] = -eslINFINITY;
+  f[14] = -eslINFINITY;
+  f[15] = -eslINFINITY;
+  return;
+}
+
+void
+p7_splicepipeline_DonorGC(float *f)
+{
+  /* G = 2; C = 1; */
+  /* x*4 + y */
+  f[0]  = -eslINFINITY;
+  f[1]  = -eslINFINITY;
+  f[2]  = -eslINFINITY;
+  f[3]  = -eslINFINITY;
+  f[4]  = -eslINFINITY;
+  f[5]  = -eslINFINITY;
+  f[6]  = -eslINFINITY;
+  f[7]  = -eslINFINITY;
+  f[8]  = -eslINFINITY;
+  f[9]  = 0.0f;
+  f[10] = -eslINFINITY;
+  f[11] = -eslINFINITY;
+  f[12] = -eslINFINITY;
+  f[13] = -eslINFINITY;
+  f[14] = -eslINFINITY;
+  f[15] = -eslINFINITY;
+  return;
+}
+
+void
+p7_splicepipeline_DonorAT(float *f)
+{
+  /* A = 0; T = 3; */
+  /* x*4 + y */
+  f[0]  = -eslINFINITY;
+  f[1]  = -eslINFINITY;
+  f[2]  = -eslINFINITY;
+  f[3]  = 0.0f;
+  f[4]  = -eslINFINITY;
+  f[5]  = -eslINFINITY;
+  f[6]  = -eslINFINITY;
+  f[7]  = -eslINFINITY;
+  f[8]  = -eslINFINITY;
+  f[9]  = -eslINFINITY;
+  f[10] = -eslINFINITY;
+  f[11] = -eslINFINITY;
+  f[12] = -eslINFINITY;
+  f[13] = -eslINFINITY;
+  f[14] = -eslINFINITY;
+  f[15] = -eslINFINITY;
+  return;
+}
+
+void
+p7_splicepipeline_AcceptorAG(float *f)
+{
+  /* A = 0; G = 2; */
+  /* x*4 + y */	
+  f[0]  = -eslINFINITY;      
+  f[1]  = -eslINFINITY;
+  f[2]  = 0.0f;
+  f[3]  = -eslINFINITY;
+  f[4]  = -eslINFINITY;
+  f[5]  = -eslINFINITY;
+  f[6]  = -eslINFINITY;
+  f[7]  = -eslINFINITY;
+  f[8]  = -eslINFINITY;
+  f[9]  = -eslINFINITY;
+  f[10] = -eslINFINITY;
+  f[11] = -eslINFINITY;
+  f[12] = -eslINFINITY;
+  f[13] = -eslINFINITY;
+  f[14] = -eslINFINITY;
+  f[15] = -eslINFINITY;
+  return;
+}
+
+void
+p7_splicepipeline_AcceptorAC(float *f)
+{
+  /* A = 0; C = 1 */
+  /* x*4 + y */
+  f[0]  = -eslINFINITY;
+  f[1]  = 0.0f;
+  f[2]  = -eslINFINITY;
+  f[3]  = -eslINFINITY;
+  f[4]  = -eslINFINITY;
+  f[5]  = -eslINFINITY;
+  f[6]  = -eslINFINITY;
+  f[7]  = -eslINFINITY;
+  f[8]  = -eslINFINITY;
+  f[9]  = -eslINFINITY;
+  f[10] = -eslINFINITY;
+  f[11] = -eslINFINITY;
+  f[12] = -eslINFINITY;
+  f[13] = -eslINFINITY;
+  f[14] = -eslINFINITY;
+  f[15] = -eslINFINITY;
+  return;
+}
+
+
 /* Function:  p7_splicepipeline_Create()
  *
  * Purpose:   Allocates a splice pipeline and set all relevant 
@@ -100,6 +221,23 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->signal_scores = NULL; 
   ESL_ALLOC(pli->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
   p7_splicepipeline_SignalScores(pli->signal_scores);  
+
+  pli->donor_GT = pli->donor_GC = pli->donor_AT = NULL;
+  pli->acceptor_AG  = pli->acceptor_AC = NULL;
+
+  ESL_ALLOC(pli->donor_GT, sizeof(float) * 16);
+  ESL_ALLOC(pli->donor_GC, sizeof(float) * 16);
+  ESL_ALLOC(pli->donor_AT, sizeof(float) * 16);
+
+  ESL_ALLOC(pli->acceptor_AG, sizeof(float) * 16);
+  ESL_ALLOC(pli->acceptor_AC, sizeof(float) * 16);
+
+  p7_splicepipeline_DonorGT(pli->donor_GT);
+  p7_splicepipeline_DonorGC(pli->donor_GC);
+  p7_splicepipeline_DonorAT(pli->donor_AT);
+
+  p7_splicepipeline_AcceptorAG(pli->acceptor_AG);
+  p7_splicepipeline_AcceptorAC(pli->acceptor_AC);
 
   pli->nuc_sq   = NULL;
   pli->amino_sq = NULL;
@@ -196,6 +334,14 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   esl_sq_Destroy(pli->amino_sq);
 
   if(pli->signal_scores != NULL) free(pli->signal_scores); 
+
+  if(pli->donor_GT      != NULL) free(pli->donor_GT);
+  if(pli->donor_GC      != NULL) free(pli->donor_GC);
+  if(pli->donor_AT      != NULL) free(pli->donor_AT);
+
+  if(pli->acceptor_AG   != NULL) free(pli->acceptor_AG);
+  if(pli->acceptor_AC   != NULL) free(pli->acceptor_AC);
+
   if(pli->orig_nuc_idx != NULL) free(pli->orig_nuc_idx);
 
   p7_omx_Destroy(pli->fwd);
@@ -266,8 +412,8 @@ p7_splicepipline_CreateIndex(int M_hint, int L_hint)
 
   for(i = 0; i < L_hint; i++) 
     signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M_hint);
- 
-  signal_sites->alloc_M  = M_hint;
+
+    signal_sites->alloc_M  = M_hint;
   signal_sites->alloc_L  = L_hint;
 
   return signal_sites;

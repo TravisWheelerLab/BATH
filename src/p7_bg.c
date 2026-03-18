@@ -543,7 +543,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_DSQ *dna_dsq, int L, const ESL_GENCODE *gcod
     sum_nullsc = -eslINFINITY;
     for(f = 1; f <= 3; f++) {
       j = 1;
-      for (i = f; i < L-2; i+=3) {
+      for (i = f; i <= L-2; i+=3) {
         amino = esl_gencode_GetTranslation(gcode,&dna_dsq[i]);
         if(esl_abc_XIsCanonical(gcode->aa_abc, amino)) {
           orf_dsq[j] = amino;
@@ -559,6 +559,7 @@ p7_bg_fs_FilterScore(P7_BG *bg, ESL_DSQ *dna_dsq, int L, const ESL_GENCODE *gcod
       sum_nullsc = p7_FLogsum(sum_nullsc, nullsc);
     }
   }
+  else sum_nullsc = 0.;
 
   *ret_sc = sum_nullsc + ((float) (L/3) * logf(bg->p1) + logf(1.-bg->p1) + log(3.0));
 

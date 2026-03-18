@@ -122,6 +122,7 @@ p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
         }
       esl_sse_hsum_ps(sv, &(null2[x]));
       null2[x] += xfactor;
+      printf("x %d null %f\n", x,  null2[x]);
     }
   /* now null2[x] = \frac{f_d(x)}{f_0(x)} for all x in alphabet,
    * 0..K-1, where f_d(x) are the ad hoc "null2" residue frequencies

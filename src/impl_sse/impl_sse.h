@@ -382,6 +382,28 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
 
 
 /*****************************************************************
+ * 4. OSPLICE_SCORES: probability-space splice signal scores
+ *****************************************************************/
+
+typedef struct _osplice_scores {
+  int allocM;
+
+  float **score;      /* [SIGNAL_MEM_SIZE][M]: P-state accumulation (probability space) */
+  float  *score_mem;  /* flat backing store for score */
+
+  float  *signal_scores;  /* {0.9921, 0.0073, 0.0006} */
+
+  float  *acceptor_AG;    /* 1.0 (valid) or 0.0 (invalid) */
+  float  *acceptor_AC;
+
+  float  *donor_GT;
+  float  *donor_GC;
+  float  *donor_AT;
+
+} OSPLICE_SCORES;
+
+
+/*****************************************************************
  * 4. Declarations of the external API.
  *****************************************************************/
 
@@ -443,6 +465,12 @@ extern int             p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_
 extern int             p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigUnihit    (P7_FS_OPROFILE *om_fs, int L);
+
+/* p7_osplicescores.c */
+extern OSPLICE_SCORES *p7_osplicescores_Create (int M_hint);
+extern int             p7_osplicescores_GrowTo (OSPLICE_SCORES *ss, int M);
+extern void            p7_osplicescores_Destroy(OSPLICE_SCORES *ss);
+
 
 /* decoding.c */
 extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);

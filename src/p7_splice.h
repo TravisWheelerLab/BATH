@@ -292,15 +292,10 @@ extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 
 
 /* p7_spliceviterbi.c */
-extern int p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end); 
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
-
-extern int p7_spliceviterbi_TranslatedGlobal_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendUp_New(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendDown_New(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedTrace_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
 
 
 /* p7_splice.c */

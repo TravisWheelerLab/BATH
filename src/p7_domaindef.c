@@ -1111,6 +1111,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
                      else if(ddef->tr->c[z] == 4) { codon_idx = p7P_CODON4_FS5(u, v, w, x);    codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC1); }
                      else if(ddef->tr->c[z] == 5) { codon_idx = p7P_CODON5_FS5(t, u, v, w, x); codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC2); }
                      ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs5, ddef->tr->k[z], codon_idx)]);
+                     printf("ddef->n2sc[pos] %f p7P_AMINO(gm_fs5, ddef->tr->k[z], codon_idx) %d codon_idx %d\n", ddef->n2sc[pos], p7P_AMINO(gm_fs5, ddef->tr->k[z], codon_idx), codon_idx);
                      if(ddef->n2sc[pos] == -eslINFINITY) ddef->n2sc[pos] = 0.0; // work around for stop codons
                      z++; 
                    }
@@ -1136,8 +1137,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   } 
  
 
-  for (pos = i; pos <= j; pos++) 
+  for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
+ 
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
   
   for (z1 = 0;             z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;

@@ -269,7 +269,7 @@ extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
 
 /* p7_splicescores.c */
-SPLICE_SCORES* p7_splicescores_Create(int M_hint);
+extern SPLICE_SCORES* p7_splicescores_Create(int M_hint);
 extern int p7_splicescores_GrowTo(SPLICE_SCORES* splice_scores, int M);
 extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
 

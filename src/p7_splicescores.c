@@ -25,7 +25,7 @@
  * Nihar Sheth et al., 2006
  */
 void
-p7_splicepipeline_SignalScores(float *f)
+p7_splicescores_SignalScores(float *f)
 {
   f[0] = log(0.9921);     /* GT-AG */
   f[1] = log(0.0073);     /* GC-AG */
@@ -34,7 +34,7 @@ p7_splicepipeline_SignalScores(float *f)
 }
 
 void
-p7_splicepipeline_DonorGT(float *f)
+p7_splicescores_DonorGT(float *f)
 {
   /* G = 2; T = 3; */
   /* x*4 + y */
@@ -58,7 +58,7 @@ p7_splicepipeline_DonorGT(float *f)
 }
 
 void
-p7_splicepipeline_DonorGC(float *f)
+p7_splicescores_DonorGC(float *f)
 {
   /* G = 2; C = 1; */
   /* x*4 + y */
@@ -82,7 +82,7 @@ p7_splicepipeline_DonorGC(float *f)
 }
 
 void
-p7_splicepipeline_DonorAT(float *f)
+p7_splicescores_DonorAT(float *f)
 {
   /* A = 0; T = 3; */
   /* x*4 + y */
@@ -106,7 +106,7 @@ p7_splicepipeline_DonorAT(float *f)
 }
 
 void
-p7_splicepipeline_AcceptorAG(float *f)
+p7_splicescores_AcceptorAG(float *f)
 {
   /* A = 0; G = 2; */
   /* x*4 + y */	
@@ -130,7 +130,7 @@ p7_splicepipeline_AcceptorAG(float *f)
 }
 
 void
-p7_splicepipeline_AcceptorAC(float *f)
+p7_splicescores_AcceptorAC(float *f)
 {
   /* A = 0; C = 1 */
   /* x*4 + y */
@@ -194,7 +194,7 @@ p7_splicescores_Create(int M_hint)
   
   splice_scores->signal_scores = NULL; 
   ESL_ALLOC(splice_scores->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
-  p7_splicepipeline_SignalScores(splice_scores->signal_scores);  
+  p7_splicescores_SignalScores(splice_scores->signal_scores);  
 
   splice_scores->donor_GT = splice_scores->donor_GC = splice_scores->donor_AT = NULL;
   splice_scores->acceptor_AG  = splice_scores->acceptor_AC = NULL;
@@ -206,12 +206,12 @@ p7_splicescores_Create(int M_hint)
   ESL_ALLOC(splice_scores->acceptor_AG, sizeof(float) * 16);
   ESL_ALLOC(splice_scores->acceptor_AC, sizeof(float) * 16);
 
-  p7_splicepipeline_DonorGT(splice_scores->donor_GT);
-  p7_splicepipeline_DonorGC(splice_scores->donor_GC);
-  p7_splicepipeline_DonorAT(splice_scores->donor_AT);
+  p7_splicescores_DonorGT(splice_scores->donor_GT);
+  p7_splicescores_DonorGC(splice_scores->donor_GC);
+  p7_splicescores_DonorAT(splice_scores->donor_AT);
 
-  p7_splicepipeline_AcceptorAG(splice_scores->acceptor_AG);
-  p7_splicepipeline_AcceptorAC(splice_scores->acceptor_AC);
+  p7_splicescores_AcceptorAG(splice_scores->acceptor_AG);
+  p7_splicescores_AcceptorAC(splice_scores->acceptor_AC);
 
   return splice_scores;
 

@@ -128,6 +128,13 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
       /* Scale factor for same-row M/I products */
       factor_mdi = expf(log_sfwd[i] + log_sbck[i] + log_inv_Z);
 
+      /* Guard against factor_mdi overflow: bck_N values can underflow to
+       * subnormal floats (< FLT_MIN) when Z_true << prod(fwd_scales), making
+       * log_inv_Z very large positive and factor_mdi = +inf.  The backward
+       * underflow check (xNtot == 0.0f) does not catch subnormals.
+       * Return eslERANGE so the caller can discard the domain. */
+      if (!isfinite(factor_mdi)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
+
       /* ------- Pass 1: compute raw M/I products, accumulate denom ------- */
       dv  = zerov;
       dpc = fwd->dpf[i];

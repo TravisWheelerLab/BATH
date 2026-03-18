@@ -1044,7 +1044,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
 
   /* Posterior Probabilities */
-  p7_Decoding_Frameshift(om_fs5, ox1, ox2);
+  status = p7_Decoding_Frameshift(om_fs5, ox1, ox2);
+  if (status == eslERANGE) return eslFAIL; /* numeric overflow; domain treated as garbage [J3/119-121] */
 
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy_Frameshift(om_fs5, ox1, ox2, &oasc);

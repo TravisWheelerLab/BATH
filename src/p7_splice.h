@@ -99,49 +99,34 @@ typedef struct _splice_path {
 } SPLICE_PATH;
 
 
-
-typedef struct _splice_site_idx
-{
-  int **index;
-  int *index_mem;
-
-  float **score;
-  float *score_mem; 
-
-  int **lookback;
-  int *lookback_mem;
-
-  int alloc_M;    
-  int alloc_L;    
-  int alloc_Lx;
-
-} SPLICE_SITE_IDX;
-
-
-
 typedef struct _splice_pipeline 
 {
   
-  int      by_E;
-  int      inc_by_E;
-  int      do_null2;
-  int      do_biasfilter;
-  int      show_cigar; 
+  int by_E;
+  int inc_by_E;
+  int do_null2;
+  int do_biasfilter;
+  int show_cigar; 
 
-  int      min_intron;
-  int      max_intron;
-  int      max_extend;
+  int min_intron;
+  int max_intron;
+  int max_extend;
 
-  double   E;
-  double   T;
-  double   Z;
-  double   F1;  
-  double   F2;
-  double   F3;
-  double   incE;
-  double   incT;
+  int allocM;
 
-  float   *signal_scores;
+  double E;
+  double T;
+  double Z;
+  double F1;  
+  double F2;
+  double F3;
+  double incE;
+  double incT;
+
+  float **score;
+  float *score_mem;
+
+  float *signal_scores;
 
   float *acceptor_AG;
   float *acceptor_AC;
@@ -149,7 +134,6 @@ typedef struct _splice_pipeline
   float *donor_GT;
   float *donor_GC;
   float *donor_AT;
-
 
   int64_t *orig_nuc_idx;
 
@@ -169,9 +153,6 @@ typedef struct _splice_pipeline
   P7_BG   *bg;
 
   P7_HIT  *hit;
-
-  SPLICE_SITE_IDX *sig_idx;  
-  
 
 } SPLICE_PIPELINE;
 
@@ -213,13 +194,7 @@ typedef struct _splice_info
 
 
 
-/* MACROS for the SPLICE_SITE_IDX */
-
-
-#define SIX0(k, signal)             (index[(signal)][(k)])                                                            //xxxxXXX
-#define SIX1(k, signal, nuc1)       (index[SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)][(k)])            //XxxxxXX
-#define SIX2(k, signal, nuc1, nuc2) (index[SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)][(k)]) //XXxxxxX
- 
+/* MACROS for the P state score storage */
 #define SSX0(k, signal)             (score[(signal)][(k)])                                                            //xxxxXXX
 #define SSX1(k, signal, nuc1)       (score[SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)][(k)])            //XxxxxXX
 #define SSX2(k, signal, nuc1, nuc2) (score[SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)][(k)]) //XXxxxxX
@@ -284,23 +259,16 @@ extern void p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *
 
 /* p7_splicepipeline.c */
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
+extern int p7_splicepipline_GrowScores(SPLICE_PIPELINE *pli, int M);
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
 extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
-extern SPLICE_SITE_IDX* p7_splicepipline_CreateIndex(int M_hint, int L_hint);
-extern int p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L);
-extern void p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites);
 
 
 /* p7_spliceviterbi.c */
-extern int p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end); 
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const ESL_GENCODE *gcode, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
-
-extern int p7_spliceviterbi_TranslatedGlobal_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendUp_New(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedSemiGlobalExtendDown_New(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_spliceviterbi_TranslatedTrace_New(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
+extern int p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
 
 
 /* p7_splice.c */

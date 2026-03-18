@@ -176,8 +176,9 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
         J_pp = 0.0f;
         C_pp = 0.0f;
       }
+      inv_denom = 1.0f / (raw_denom * factor_mdi + N_pp + J_pp + C_pp); 
 
-      inv_denom = 1.0f / (raw_denom * factor_mdi + N_pp + J_pp + C_pp);
+      if(isinf(inv_denom)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
 
       /* ------- Pass 2: normalize all M/I vectors ------- */
       scv = _mm_set1_ps(factor_mdi * inv_denom);

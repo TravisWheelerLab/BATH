@@ -1031,7 +1031,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
    * throw away any domains already bellow the reporting threshold before 
    * we do any further calculations */
 
-//TODO - maybe don't need now that we have simd
   pli->Z = (float)pli->nres / (float)gm_fs5->max_length;
   if (pli->inc_by_E  && P * pli->Z > pli->E) {
     p7_omx_Reuse(ox1);
@@ -1140,7 +1139,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
 
   for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
-  printf("i %d domcorrection %f\n", i, domcorrection);
+
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
    
   for (z1 = 0;             z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;

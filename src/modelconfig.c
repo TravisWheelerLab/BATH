@@ -672,6 +672,12 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 		  }
 		}
 	  }
+      /* degenerate nucleotide placeholders */
+      a = hmm->abc->Kp-3;
+      codon_idx = p7P_DEGEN1_C;
+      p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO1(gm_fs, k, a);
+      p7P_AMINO(gm_fs, k, codon_idx) = a;
+      p7P_INDEL(gm_fs, k, codon_idx) = p7P_xxx;
     }	  
   }
 

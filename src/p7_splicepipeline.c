@@ -2,7 +2,6 @@
  *
  * Contents:
  *    1. The SPLICE_PIPELINE object.
- *    2. The SPLICE_SITE_IDX object.
  *
  */
 
@@ -18,10 +17,6 @@
 
 #include "hmmer.h"
 #include "p7_splice.h"
-
-/*****************************************************************
- * 1. The SPLICE_PIPELINE structure.
- *****************************************************************/
 
 /* Splice singal probabilities taken from
  * "Comprehensive splice-site analysis using comparative genomics",
@@ -157,6 +152,13 @@ p7_splicepipeline_AcceptorAC(float *f)
 }
 
 
+
+
+/*****************************************************************
+ * 1. The SPLICE_PIPELINE structure.
+ *****************************************************************/
+
+
 /* Function:  p7_splicepipeline_Create()
  *
  * Purpose:   Allocates a splice pipeline and set all relevant 
@@ -171,11 +173,14 @@ p7_splicepipeline_AcceptorAC(float *f)
 SPLICE_PIPELINE* 
 p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
 {
+  int i;
   SPLICE_PIPELINE *pli;
   int              status;
  
   pli = NULL;
   ESL_ALLOC(pli, sizeof(SPLICE_PIPELINE));
+
+  pli->allocM = M_hint;
 
   pli->min_intron = (go ? esl_opt_GetInteger(go, "--min_intron") : 13);
   pli->max_intron = (go ? esl_opt_GetInteger(go, "--max_intron") : 200000);
@@ -218,6 +223,14 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   
   pli->show_cigar = (go && esl_opt_GetBoolean(go, "--cigar") ? TRUE : FALSE);  
 
+  pli->score_mem = NULL;
+  pli->score = NULL;
+  ESL_ALLOC(pli->score_mem, sizeof(float)  * M_hint * SIGNAL_MEM_SIZE);
+  ESL_ALLOC(pli->score,     sizeof(float*) * SIGNAL_MEM_SIZE);
+
+  for(i = 0; i < SIGNAL_MEM_SIZE; i++) 
+    pli->score[i] = pli->score_mem + (i * M_hint);
+  
   pli->signal_scores = NULL; 
   ESL_ALLOC(pli->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
   p7_splicepipeline_SignalScores(pli->signal_scores);  
@@ -261,8 +274,6 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->vit = NULL;
   if ((pli->vit = p7_gmx_sp_Create(M_hint, L_hint*3, L_hint*3)) == NULL) goto ERROR;
   
-  pli->sig_idx = p7_splicepipline_CreateIndex(M_hint, L_hint*3);
-
   pli->bg = NULL;
 
   pli->hit = NULL;
@@ -274,6 +285,37 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
     return NULL;
 
 }
+
+/* Function:  p7_splicepipline_GrowScores() 
+ * Synopsis:  Grow P state score stroage
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation error.
+ */
+int
+p7_splicepipline_GrowScores(SPLICE_PIPELINE *pli, int M)
+{
+
+  int i;
+  int status;
+
+  if(M <= pli->allocM) return eslOK;
+
+  ESL_REALLOC(pli->score_mem, sizeof(float) * M * SIGNAL_MEM_SIZE);
+
+  for(i = 0; i < SIGNAL_MEM_SIZE; i++) 
+    pli->score[i] = pli->score_mem + (i * M);
+
+  pli->allocM = M; 
+
+  return eslOK;
+
+  ERROR:
+  p7_splicepipeline_Destroy(pli);
+  return status;
+}
+
 
 /* Function:  p7_splicepipeline_Reuse()
  *
@@ -333,6 +375,9 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   esl_sq_Destroy(pli->nuc_sq);
   esl_sq_Destroy(pli->amino_sq);
 
+  if(pli->score         != NULL) free(pli->score);
+  if(pli->score_mem     != NULL) free(pli->score_mem);
+
   if(pli->signal_scores != NULL) free(pli->signal_scores); 
 
   if(pli->donor_GT      != NULL) free(pli->donor_GT);
@@ -354,8 +399,6 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 
   p7_gmx_Destroy(pli->vit);
 
-  p7_splicepipeline_DestroyIndex(pli->sig_idx);
-
   p7_bg_Destroy(pli->bg);
 
   if(pli->hit != NULL && pli->hit->dcl != NULL) {
@@ -372,140 +415,3 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 }
 
 
-
-/*****************************************************************
- * 2. The SPLICE_SITE_IDX structure.
- *****************************************************************/
-
-/* Function:  p7_splicepipline_CreateIndex() 
- * Synopsis:  Allocates a splice site idx.
- *
- * Purpose:   Allocates a new <SPLICE_SITE_IDX> 
- *
- * Returns:   <SPLICE_SITE_IDX>  on success.
- *
- * Throws:    <NULL> on allocation error. 
- */
-SPLICE_SITE_IDX*
-p7_splicepipline_CreateIndex(int M_hint, int L_hint)
-{
-  int i;
-  SPLICE_SITE_IDX *signal_sites;
-  int status;
-
-  signal_sites = NULL;
-  ESL_ALLOC(signal_sites, sizeof(SPLICE_SITE_IDX));
-
-  ESL_ALLOC(signal_sites->index_mem, sizeof(int)  * M_hint * SIGNAL_MEM_SIZE);
-  ESL_ALLOC(signal_sites->index,     sizeof(int*) * SIGNAL_MEM_SIZE);
-
-  ESL_ALLOC(signal_sites->score_mem, sizeof(float)  * M_hint * SIGNAL_MEM_SIZE);
-  ESL_ALLOC(signal_sites->score,     sizeof(float*) * SIGNAL_MEM_SIZE);
-
-  for(i = 0; i < SIGNAL_MEM_SIZE; i++) {
-    signal_sites->index[i] = signal_sites->index_mem + (i * M_hint);
-    signal_sites->score[i] = signal_sites->score_mem + (i * M_hint);  
-  }
-
-  ESL_ALLOC(signal_sites->lookback_mem, sizeof(int)  * L_hint * M_hint);
-  ESL_ALLOC(signal_sites->lookback,     sizeof(int*) * L_hint);
-
-  for(i = 0; i < L_hint; i++) 
-    signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M_hint);
-
-    signal_sites->alloc_M  = M_hint;
-  signal_sites->alloc_L  = L_hint;
-
-  return signal_sites;
-
-  ERROR:
-    p7_splicepipeline_DestroyIndex(signal_sites);
-    return NULL;
-
-}
-
-/* Function:  p7_splicepipline_GrowIndex() 
- * Synopsis:  Grow a splice site idx.
- *
- * Purpose:   Allocates a larger <SPLICE_SITE_IDX>
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEMEM> on allocation error.
- */
-int
-p7_splicepipline_GrowIndex(SPLICE_SITE_IDX *signal_sites, int M, int L)
-{
-
-  int i;
-  int status;
-
-  if(M <= signal_sites->alloc_M && L+1 <= signal_sites->alloc_L) return eslOK;
-
-  if( M > signal_sites->alloc_M) {
-
-    ESL_REALLOC(signal_sites->index_mem, sizeof(int)   * M * SIGNAL_MEM_SIZE);
-    ESL_REALLOC(signal_sites->score_mem, sizeof(float) * M * SIGNAL_MEM_SIZE);
-
-    for(i = 0; i < SIGNAL_MEM_SIZE; i++) {
-      signal_sites->index[i] = signal_sites->index_mem + (i * M);
-      signal_sites->score[i] = signal_sites->score_mem + (i * M);
-    }
-  }
-
-  if( (L+1) > signal_sites->alloc_L && M > signal_sites->alloc_M )  {
-    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * M);
-    ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
- 
-    for(i = 0; i < L+1; i++)
-      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
-  }
-  else if( (L+1) > signal_sites->alloc_L) {
-    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * (L+1) * signal_sites->alloc_M);    
-    ESL_REALLOC(signal_sites->lookback,     sizeof(int*) * (L+1));
-
-    for(i = 0; i < L+1; i++)
-      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * signal_sites->alloc_M);
-  }
-  else if( M > signal_sites->alloc_M )  {
-    ESL_REALLOC(signal_sites->lookback_mem, sizeof(int)  * signal_sites->alloc_L * M);
-
-    for(i = 0; i < signal_sites->alloc_L; i++)
-      signal_sites->lookback[i] = signal_sites->lookback_mem + (i * M);
-  }
-
-  signal_sites->alloc_M = ESL_MAX(M, signal_sites->alloc_M);
-  signal_sites->alloc_L = ESL_MAX((L+1), signal_sites->alloc_L);
-
-  return eslOK;
-
-  ERROR:
-    p7_splicepipeline_DestroyIndex(signal_sites);
-    return status;
-}
-
-
-/* Function:  p7_splicesiteidx_Destroy()
- *
-* Purpose:  Frees a <SPLICE_SITE_IDX>
- */
-void
-p7_splicepipeline_DestroyIndex(SPLICE_SITE_IDX *signal_sites)
-{
-
-  if(signal_sites == NULL) return;
-
-  if(signal_sites->index     != NULL) free(signal_sites->index);
-  if(signal_sites->index_mem != NULL) free(signal_sites->index_mem);
-
-  if(signal_sites->score     != NULL) free(signal_sites->score);
-  if(signal_sites->score_mem != NULL) free(signal_sites->score_mem);
-
-  if(signal_sites->lookback     != NULL) free(signal_sites->lookback);
-  if(signal_sites->lookback_mem != NULL) free(signal_sites->lookback_mem);
-
-  free(signal_sites);
-  signal_sites = NULL;
-
-  return;
-}

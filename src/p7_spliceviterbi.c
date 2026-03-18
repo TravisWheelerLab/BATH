@@ -52,7 +52,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->sig_idx->score;
+  float      **score = pli->score;
   float       *signal_scores = pli->signal_scores;
   float       *acceptor_AG = pli->acceptor_AG;
   float       *acceptor_AC = pli->acceptor_AC;
@@ -445,7 +445,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->sig_idx->score;
+  float      **score = pli->score;
   float       *signal_scores = pli->signal_scores;
   float       *acceptor_AG = pli->acceptor_AG;
   float       *acceptor_AC = pli->acceptor_AC;
@@ -837,7 +837,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->sig_idx->score;
+  float      **score = pli->score;
   float       *signal_scores = pli->signal_scores;
   float       *acceptor_AG = pli->acceptor_AG;
   float       *acceptor_AC = pli->acceptor_AC;

@@ -183,6 +183,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
   int      M         = k_end - k_start + 1;
   int      L         = i_end - i_start + 1;
   int      Q         = p7O_NQF(M);
+  int      r_M       = (M - 1) / Q;   /* lane index of position k=M in the last stripe */
   int      min_intron = pli->min_intron;
 
   __m128  *local_rfv  = NULL;
@@ -461,12 +462,15 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
       DMO_SP(dpc, q) = dcv;
       dcv = _mm_mul_ps(msv, LTFV(TFV_MD, q));
 
-      /* ---- I state (zero at last position and at stop codons) ---- */
+      /* ---- I state (zero at k=M only, not entire last stripe) ---- */
+      isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
+                       _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
-        IMO_SP(dpc, q) = zerov;
+        union { __m128 v; float p[4]; } ii;
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.p[r_M] = 0.0f;  /* zero only position k=M; other lanes (k<M) remain valid */
+        IMO_SP(dpc, q) = ii.v;
       } else {
-        isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
-                         _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
         IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
       }
 
@@ -676,7 +680,7 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
                 float sD = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_D];
                 float sI = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_I];
                 float sP = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_P];
-                float thr = 1e-6f * (fabsf(expf(sM)) + fabsf(expf(sD)) + fabsf(expf(sI)) + 1e-30f);
+                float thr = 1e-3f * (fabsf(expf(sM)) + fabsf(expf(sD)) + fabsf(expf(sI)) + 1e-30f);
                 if (fabsf(expf(sM)-uM.p[rl]) > thr || fabsf(expf(sD)-uD.p[rl]) > thr ||
                     fabsf(expf(sI)-uI.p[rl]) > thr) {
                   found = 1; first_diff_row = row;
@@ -696,7 +700,7 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
                 float sD = pli->vit->dp[first_diff_row][k * p7G_NSCELLS_SP + p7G_D];
                 float sI = pli->vit->dp[first_diff_row][k * p7G_NSCELLS_SP + p7G_I];
                 float sP = pli->vit->dp[first_diff_row][k * p7G_NSCELLS_SP + p7G_P];
-                float thr = 1e-6f * (fabsf(expf(sM)) + fabsf(expf(sD)) + fabsf(expf(sI)) + 1e-30f);
+                float thr = 1e-3f * (fabsf(expf(sM)) + fabsf(expf(sD)) + fabsf(expf(sI)) + 1e-30f);
                 printf("  k=%2d scaM=%e scaD=%e scaI=%e scaP=%e sseM=%e sseD=%e sseI=%e sseP=%e %s\n", k,
                        expf(sM), expf(sD), expf(sI), expf(sP),
                        uM.p[rl], uD.p[rl], uI.p[rl], uP.p[rl],

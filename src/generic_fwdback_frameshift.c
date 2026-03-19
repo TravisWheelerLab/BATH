@@ -2153,7 +2153,7 @@ p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
  *****************************************************************/
 #ifdef p7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK
 /*
-   gcc -g -O2      -o generic_fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK generic_fwdback_frameshift.c -lhmmer -leasel -lm
+   gcc -g -O3      -o generic_fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK generic_fwdback_frameshift.c -lhmmer -leasel -lm
    icc -O3 -static -o generic_fwdback_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK generic_fwdback_frameshift.c -lhmmer -leasel -lm
    ./generic_fwdback_frameshift_benchmark <hmmfile>
  */

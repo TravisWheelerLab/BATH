@@ -142,7 +142,8 @@ BENCHMARKS = \
     generic_optacc_frameshift_benchmark\
 	generic_stotrace_benchmark\
     generic_stotrace_frameshift_benchmark\
-	generic_viterbi_benchmark 
+	generic_viterbi_benchmark\
+    spliceviterbi_benchmark	
 
 UTESTS =\
 	build_utest\
@@ -167,7 +168,8 @@ UTESTS =\
 	p7_profile_utest\
 	p7_tophits_utest\
 	p7_trace_utest\
-	p7_scoredata_utest
+	p7_scoredata_utest\
+	spliceviterbi_utest
 
 ITESTS = \
 	itest_brute

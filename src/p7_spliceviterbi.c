@@ -18,8 +18,9 @@
  *    2. p7_spliceviterbi_TranslatedSemiGlobalExtendDown()
  *    3. p7_spliceviterbi_TranslatedSemiGlobalExtendUp()
  *    4. p7_splicevitebi_TranslatedTrace()
- *    5. Unit tests.
- *    6. Test driver.
+ *    5. Benchmark driver.
+ *    6. Unit tests.
+ *    7. Test driver.
  */
 
 #include "p7_config.h"
@@ -1420,7 +1421,115 @@ p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, c
 
 
 /*****************************************************************
- * 5. Unit tests.
+ * 5. Benchmark driver.
+ *****************************************************************/
+#ifdef p7SPLICEVITERBI_BENCHMARK
+/*
+   gcc -g -O2 -Wall -std=gnu99 -o spliceviterbi_benchmark -I. -L. -I../easel -L../easel -Dp7SPLICEVITERBI_BENCHMARK p7_spliceviterbi.c -lhmmer -leasel -lm
+   ./spliceviterbi_benchmark <hmmfile>
+ */
+#include "esl_gencode.h"
+#include "esl_getopts.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+static ESL_OPTIONS benchmark_options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target DNA seqs",               0 },
+  { "-N",        eslARG_INT,    "100", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "-G",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedGlobal",                0 },
+  { "-D",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendDown",  0 },
+  { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendUp",    0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char benchmark_usage[]  = "[-options] <hmmfile>";
+static char benchmark_banner[] = "benchmark driver for spliced Viterbi DP algorithms";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(benchmark_options, 1, argc, argv, benchmark_banner, benchmark_usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = esl_alphabet_Create(eslDNA);
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = p7_bg_Create(abcDNA);
+  P7_FS_PROFILE  *gm_tr   = NULL;
+  ESL_GENCODE    *gcode   = NULL;
+  SPLICE_PIPELINE *pli    = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  int             do_G    = (esl_opt_GetBoolean(go, "-G") || (!esl_opt_GetBoolean(go, "-D") && !esl_opt_GetBoolean(go, "-U")));
+  int             do_D    = (esl_opt_GetBoolean(go, "-D") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-U")));
+  int             do_U    = (esl_opt_GetBoolean(go, "-U") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-D")));
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L + 2));
+  int             i;
+  double          base_time, bench_time, Mcs;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
+
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgAA   = p7_bg_Create(abcAA);
+  gm_tr  = p7_profile_fs_Create(hmm->M, abcAA, 1);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, L / 3, p7_UNILOCAL);
+  p7_fs_ReconfigLength(gm_tr, L / 3);
+
+  pli = p7_splicepipeline_Create(NULL, hmm->M, L);
+  p7_gmx_sp_GrowTo(pli->vit, hmm->M, L, L);
+  p7_splicescores_GrowTo(pli->splice_scores, hmm->M);
+
+  /* Baseline: time to generate sequences alone */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  /* Benchmark */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+      if (do_G) p7_spliceviterbi_TranslatedGlobal          (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
+      if (do_D) p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
+      if (do_U) p7_spliceviterbi_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) hmm->M * 1e-6 / bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n",   hmm->M);
+  printf("# L    = %d\n",   L);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_splicepipeline_Destroy(pli);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_bg_Destroy(bgAA);
+  p7_bg_Destroy(bgDNA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7SPLICEVITERBI_BENCHMARK*/
+/*---------------- end, benchmark driver ----------------*/
+
+
+/*****************************************************************
+ * 6. Unit tests.
  *****************************************************************/
 #ifdef p7SPLICEVITERBI_TESTDRIVE
 #include "esl_random.h"
@@ -1520,7 +1629,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
 
 /*****************************************************************
- * 6. Test driver.
+ * 7. Test driver.
  *****************************************************************/
 #ifdef p7SPLICEVITERBI_TESTDRIVE
 /*

@@ -365,7 +365,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, con
  *****************************************************************/
 #ifdef p7DECODING_FS_BENCHMARK
 /*
-   gcc -g -O2      -o decoding_fs_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_FS_BENCHMARK decoding_fs.c -lhmmer -leasel -lm
+   gcc -g -O3 -msse2 -std=gnu99 -o decoding_fs_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_FS_BENCHMARK decoding_fs.c -lhmmer -leasel -lm
    icc -O3 -static -o decoding_fs_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_FS_BENCHMARK decoding_fs.c -lhmmer -leasel -lm
    ./decoding_fs_benchmark <hmmfile>
 

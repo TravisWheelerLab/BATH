@@ -196,7 +196,8 @@ p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P
  *****************************************************************/
 #ifdef p7DECODING_BENCHMARK
 /*
-   icc  -O3 -static -o decoding_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm 
+   gcc -g -O3 -msse2 -std=gnu99 -o decoding_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm
+   icc  -O3 -static -o decoding_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm
    ./decoding_benchmark <hmmfile>     
                     RRM_1 (M=72)       Caudal_act (M=136)     SMC_N (M=1151)
                  -----------------    ------------------     ---------------

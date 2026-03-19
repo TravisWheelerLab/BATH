@@ -297,7 +297,7 @@ p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, co
  *****************************************************************/
 #ifdef p7GENERIC_DECODING_FRAMESHIFT_BENCHMARK
 /*
-   gcc -g -O2      -o generic_decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_FRAMESHIFT_BENCHMARK generic_decoding_frameshift.c -lhmmer -leasel -lm
+   gcc -g -O3      -o generic_decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_FRAMESHIFT_BENCHMARK generic_decoding_frameshift.c -lhmmer -leasel -lm
 
    icc -O3 -static -o generic_decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_FRAMESHIFT_BENCHMARK generic_decoding_frameshift.c -lhmmer -leasel -lm
    ./generic_benchmark_decoding_frameshift <hmmfile>

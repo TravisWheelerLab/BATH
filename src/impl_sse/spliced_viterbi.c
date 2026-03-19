@@ -54,9 +54,8 @@
  *****************************************************************/
 
 /* build_local_rfv():
- * Allocate and fill a [Q * p7P_MAXCODONS1] emission table.
- * local_rfv[q * p7P_MAXCODONS1 + c] = emission vector for codon c at local stripe q.
- * All codons for a given stripe q are contiguous, fitting in ~16 cache lines.
+ * Allocate and fill a [p7P_MAXCODONS1 * Q] emission table.
+ * local_rfv[c * Q + q] = emission vector for codon c at local stripe q.
  * *raw_out must be free()'d by caller.
  */
 static __m128 *
@@ -73,9 +72,9 @@ build_local_rfv(const P7_FS_OPROFILE *om_fs,
   ESL_ALLOC(*raw_out, sizeof(__m128) * p7P_MAXCODONS1 * Q + 15);
   base = (__m128 *)(((unsigned long int) *raw_out + 15) & (~0xfUL));
 
-  for (q_l = 0; q_l < Q; q_l++) {
-    __m128 *rfv_q = base + q_l * p7P_MAXCODONS1;
-    for (c = 0; c < p7P_MAXCODONS1; c++) {
+  for (c = 0; c < p7P_MAXCODONS1; c++) {
+    __m128 *rfv = base + c * Q;
+    for (q_l = 0; q_l < Q; q_l++) {
       union { __m128 v; float p[4]; } em, tv;
       em.v = _mm_setzero_ps();
       for (r_l = 0; r_l < 4; r_l++) {
@@ -87,7 +86,7 @@ build_local_rfv(const P7_FS_OPROFILE *om_fs,
         tv.v       = om_fs->rfv[c][q_g];
         em.p[r_l]  = tv.p[r_g];
       }
-      rfv_q[c] = em.v;
+      rfv[q_l] = em.v;
     }
   }
   return base;
@@ -98,9 +97,9 @@ build_local_rfv(const P7_FS_OPROFILE *om_fs,
 
 
 /* build_local_tfv():
- * Allocate and fill a [Q * 8] transition table.
- * Slots 1..6 (TFV_MM..TFV_II): base[q * 8 + t].
- * Slot 7 (TFV_DD): base[q * 8 + TFV_DD].
+ * Allocate and fill an [8 * Q] transition table.
+ * Slots 1..6 (TFV_MM..TFV_II): base[t * Q + q].
+ * Slot 7 (TFV_DD): base[7 * Q + q].
  * *raw_out must be free()'d by caller.
  */
 static __m128 *
@@ -117,10 +116,10 @@ build_local_tfv(const P7_FS_OPROFILE *om_fs,
   ESL_ALLOC(*raw_out, sizeof(__m128) * 8 * Q + 15);
   base = (__m128 *)(((unsigned long int) *raw_out + 15) & (~0xfUL));
 
-  /* Zero everything (slot 0 = BM is unused but should be 0) */
-  for (q_l = 0; q_l < Q; q_l++)
-    for (t = 0; t < 8; t++)
-      base[q_l * 8 + t] = _mm_setzero_ps();
+  /* Zero everything (slots 0 = BM is unused but should be 0) */
+  for (t = 0; t < 8; t++)
+    for (q_l = 0; q_l < Q; q_l++)
+      base[t * Q + q_l] = _mm_setzero_ps();
 
   for (q_l = 0; q_l < Q; q_l++) {
     union { __m128 v; float p[4]; } u[8];
@@ -144,8 +143,8 @@ build_local_tfv(const P7_FS_OPROFILE *om_fs,
     }
 
     for (t = TFV_MM; t <= TFV_II; t++)
-      base[q_l * 8 + t] = u[t].v;
-    base[q_l * 8 + TFV_DD] = u[TFV_DD].v;
+      base[t * Q + q_l] = u[t].v;
+    base[TFV_DD * Q + q_l] = u[TFV_DD].v;
   }
   return base;
 
@@ -154,8 +153,8 @@ build_local_tfv(const P7_FS_OPROFILE *om_fs,
 }
 
 /* Accessor macros for local tables */
-#define LRFV(c, q)   (local_rfv[(q) * p7P_MAXCODONS1 + (c)])
-#define LTFV(t, q)   (local_tfv[(q) * 8 + (t)])
+#define LRFV(c, q)   (local_rfv[(c) * Q + (q)])
+#define LTFV(t, q)   (local_tfv[(t) * Q + (q)])
 
 
 /*****************************************************************
@@ -283,6 +282,8 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
 
@@ -299,7 +300,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, local_rfv[q * p7P_MAXCODONS1 + C0]);
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       /* Update k-1 carry */
       mpv3 = MMO_SP(dpp3, q);
@@ -314,7 +315,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
       /* I(i,k) = max(M(i-3,k)*MI, I(i-3,k)*II); zero at stop codons */
       isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
-      IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+      IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
 
       PMO_SP(dpc, q) = zerov;
     }
@@ -324,7 +325,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
      * All other positions got 0 from the zero dpp3 row. */
     if (i == 3) {
       union { __m128 v; float p[4]; } em, mc, md0, d1;
-      em.v    = local_rfv[C0];
+      em.v    = rfv_c0[0];
       mc.v    = MMO_SP(dpc, 0);
       mc.p[0] = xB_0 * em.p[0];
       MMO_SP(dpc, 0) = mc.v;
@@ -396,6 +397,14 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
         C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
     }
 
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+    __m128 *rfv_c1[4];
+    __m128 *rfv_c2[16];
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+    }
 
     /* Shift acceptor window */
     AG0 = AG1;  AG1 = AG2;
@@ -455,7 +464,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, local_rfv[q * p7P_MAXCODONS1 + C0]);
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -471,11 +480,11 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;  /* zero only position k=M; other lanes (k<M) remain valid */
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       /* ---- P state ---- */
@@ -485,14 +494,14 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
       TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
               _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
                          _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C0]));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
       /* C1: 1 nuc from before donor + 2 from acceptor */
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
         TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
                 _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
                            _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C1[nuc1]]));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
       }
 
       /* C2: 2 nucs from before donor + 1 from acceptor */
@@ -501,7 +510,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
           TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
                   _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
                              _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C2[nuc1*4+nuc2]]));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
         }
       }
       PMO_SP(dpc, q) = pv;
@@ -706,6 +715,8 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+
     /* Acceptor window: needed for correct P state when main loop fires early */
     AG0 = AG1;  AG1 = AG2;
     AC0 = AC1;  AC1 = AC2;
@@ -732,7 +743,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, local_rfv[q * p7P_MAXCODONS1 + C0]);
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -747,11 +758,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       PMO_SP(dpc, q) = zerov;
@@ -759,7 +770,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
 
     if (i == 3) {
       union { __m128 v; float p[4]; } em, mc, md0, d1;
-      em.v    = local_rfv[C0];
+      em.v    = rfv_c0[0];
       mc.v    = MMO_SP(dpc, 0);
       mc.p[0] = xB_0 * em.p[0];
       MMO_SP(dpc, 0) = mc.v;
@@ -832,6 +843,14 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
         C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
     }
 
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+    __m128 *rfv_c1[4];
+    __m128 *rfv_c2[16];
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+    }
 
     AG0 = AG1;  AG1 = AG2;
     AC0 = AC1;  AC1 = AC2;
@@ -886,7 +905,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, local_rfv[q * p7P_MAXCODONS1 + C0]);
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -902,11 +921,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       /* ---- P state ---- */
@@ -915,13 +934,13 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
       TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
               _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
                          _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C0]));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
         TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
                 _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
                            _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C1[nuc1]]));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
       }
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
@@ -929,7 +948,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
           TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
                   _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
                              _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C2[nuc1*4+nuc2]]));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
         }
       }
       PMO_SP(dpc, q) = pv;
@@ -1114,6 +1133,8 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+
     /* Acceptor window update */
     AG0 = AG1;  AG1 = AG2;
     AC0 = AC1;  AC1 = AC2;
@@ -1151,7 +1172,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
             _mm_max_ps(xBv,
                        _mm_mul_ps(ppv3, TSC_P_v)))));
-      msv = _mm_mul_ps(msv, local_rfv[q * p7P_MAXCODONS1 + C0]);
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -1166,11 +1187,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       PMO_SP(dpc, q) = zerov;
@@ -1226,6 +1247,14 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
         C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
     }
 
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+    __m128 *rfv_c1[4];
+    __m128 *rfv_c2[16];
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+    }
 
     AG0 = AG1;  AG1 = AG2;
     AC0 = AC1;  AC1 = AC2;
@@ -1291,7 +1320,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
             _mm_max_ps(xBv,
                        _mm_mul_ps(ppv3, TSC_P_v)))));
-      msv = _mm_mul_ps(msv, local_rfv[q * p7P_MAXCODONS1 + C0]);
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -1307,11 +1336,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(local_rfv[q * p7P_MAXCODONS1 + C0], zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       /* ---- P state ---- */
@@ -1320,13 +1349,13 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
       TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
               _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
                          _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C0]));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
         TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
                 _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
                            _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C1[nuc1]]));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
       }
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
@@ -1334,7 +1363,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
           TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
                   _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
                              _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, local_rfv[q * p7P_MAXCODONS1 + C2[nuc1*4+nuc2]]));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
         }
       }
       PMO_SP(dpc, q) = pv;

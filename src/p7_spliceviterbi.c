@@ -1524,7 +1524,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
  *****************************************************************/
 #ifdef p7SPLICEVITERBI_TESTDRIVE
 /*
-   gcc -g -Wall -std=gnu99 -o spliceviterbi_utest -I. -L. -Ieasel -Leasel -Dp7SPLICEVITERBI_TESTDRIVE p7_spliceviterbi.c -lhmmer -leasel -lm
+   gcc -g -Wall -std=gnu99 -o spliceviterbi_utest -I. -L. -I../easel -L../easel -Dp7SPLICEVITERBI_TESTDRIVE p7_spliceviterbi.c -lhmmer -leasel -lm
    ./spliceviterbi_utest
  */
 #include "p7_config.h"

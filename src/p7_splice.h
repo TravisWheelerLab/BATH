@@ -108,13 +108,6 @@ typedef struct _splice_scores
 
   float *signal_scores;
 
-  float *acceptor_AG;
-  float *acceptor_AC;
-
-  float *donor_GT;
-  float *donor_GC;
-  float *donor_AT;
-
 } SPLICE_SCORES;
 
 

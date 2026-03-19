@@ -645,7 +645,22 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       if (scalar_E <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
         if (sse_E > 0.0f) esl_fatal(msg);
       } else {
-        printf("expf(scalar_E) %f sse_E %f\n", expf(scalar_E), sse_E);
+        /* Debug: compare M(L,M) and D(L,M) between scalar and SSE */
+        {
+          int Q   = p7O_NQF(M);
+          int q_M = (M - 1) % Q;
+          int r_M = (M - 1) / Q;
+          union { __m128 v; float p[4]; } uM, uD;
+          float sca_M = pli->vit->dp[L_dna][M * p7G_NSCELLS_SP + p7G_M];
+          float sca_D = pli->vit->dp[L_dna][M * p7G_NSCELLS_SP + p7G_D];
+          uM.v = MMO_SP(ox->dpf[L_dna], q_M);
+          uD.v = DMO_SP(ox->dpf[L_dna], q_M);
+          printf("expf(scalar_E) %f sse_E %f | scaM=%f scaD=%f sseM=%f sseD=%f (M=%d Q=%d q_M=%d r_M=%d)\n",
+                 expf(scalar_E), sse_E,
+                 expf(sca_M), expf(sca_D),
+                 uM.p[r_M], uD.p[r_M],
+                 M, Q, q_M, r_M);
+        }
         if (fabsf(expf(scalar_E) - sse_E) > 0.001f) esl_fatal(msg);
       }
     }

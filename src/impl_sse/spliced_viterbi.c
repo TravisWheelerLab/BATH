@@ -11,8 +11,9 @@
  *    2. p7_ospliceviterbi_TranslatedGlobal()
  *    3. p7_ospliceviterbi_TranslatedSemiGlobalExtendDown()
  *    4. p7_ospliceviterbi_TranslatedSemiGlobalExtendUp()
- *    5. Unit tests.
- *    6. Test driver.
+ *    5. Benchmark driver.
+ *    6. Unit tests.
+ *    7. Test driver.
  */
 
 #include "p7_config.h"
@@ -1405,36 +1406,155 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
 
 
 /*****************************************************************
- * 5. Unit tests.
+ * 5. Benchmark driver.
+ *****************************************************************/
+#ifdef p7SPLICED_VITERBI_BENCHMARK
+/*
+   gcc -g -O2 -Wall -msse2 -std=gnu99 -o spliced_viterbi_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7SPLICED_VITERBI_BENCHMARK spliced_viterbi.c -lhmmer -leasel -lm
+   ./spliced_viterbi_benchmark <hmmfile>
+ */
+#include "esl_gencode.h"
+#include "esl_getopts.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+static ESL_OPTIONS benchmark_options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target DNA seqs",               0 },
+  { "-N",        eslARG_INT,    "100", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "-G",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedGlobal",                0 },
+  { "-D",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendDown",  0 },
+  { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendUp",    0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char benchmark_usage[]  = "[-options] <hmmfile>";
+static char benchmark_banner[] = "benchmark driver for SSE spliced Viterbi DP algorithms";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(benchmark_options, 1, argc, argv, benchmark_banner, benchmark_usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = esl_alphabet_Create(eslDNA);
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_BG          *bgDNA   = p7_bg_Create(abcDNA);
+  P7_FS_PROFILE  *gm_tr   = NULL;
+  P7_FS_OPROFILE *om_fs   = NULL;
+  ESL_GENCODE    *gcode   = NULL;
+  SPLICE_PIPELINE *pli    = NULL;
+  P7_OMX         *ox      = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  int             do_G    = (esl_opt_GetBoolean(go, "-G") || (!esl_opt_GetBoolean(go, "-D") && !esl_opt_GetBoolean(go, "-U")));
+  int             do_D    = (esl_opt_GetBoolean(go, "-D") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-U")));
+  int             do_U    = (esl_opt_GetBoolean(go, "-U") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-D")));
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L + 2));
+  int             i;
+  double          base_time, bench_time, Mcs;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
+
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgAA   = p7_bg_Create(abcAA);
+  gm_tr  = p7_profile_fs_Create(hmm->M, abcAA, 1);
+  om_fs  = p7_fs_oprofile_Create(hmm->M, abcAA, 1);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, L / 3, p7_UNILOCAL);
+  p7_fs_ReconfigLength(gm_tr, L / 3);
+  p7_fs_oprofile_Convert(gm_tr, om_fs);
+  p7_fs_oprofile_ReconfigLength(om_fs, L / 3);
+
+  pli = p7_splicepipeline_Create(NULL, hmm->M, L);
+  ox  = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_SP);
+  p7_omx_GrowTo_dpf      (ox,            hmm->M, L, L);
+  p7_osplicescores_GrowTo(pli->osplice_scores, hmm->M);
+
+  /* Baseline: time to generate sequences alone */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  /* Benchmark */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+      if (do_G) p7_ospliceviterbi_TranslatedGlobal             (pli, pli->osplice_scores, dsq, om_fs, ox, 1, L, 1, hmm->M);
+      if (do_D) p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(pli, pli->osplice_scores, dsq, om_fs, ox, 1, L, 1, hmm->M);
+      if (do_U) p7_ospliceviterbi_TranslatedSemiGlobalExtendUp  (pli, pli->osplice_scores, dsq, om_fs, ox, 1, L, 1, hmm->M);
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) hmm->M * 1e-6 / bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n",   hmm->M);
+  printf("# L    = %d\n",   L);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_omx_Destroy(ox);
+  p7_splicepipeline_Destroy(pli);
+  p7_fs_oprofile_Destroy(om_fs);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_bg_Destroy(bgAA);
+  p7_bg_Destroy(bgDNA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7SPLICED_VITERBI_BENCHMARK*/
+/*---------------- end, benchmark driver ----------------*/
+
+
+/*****************************************************************
+ * 6. Unit tests.
  *****************************************************************/
 #ifdef p7SPLICED_VITERBI_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
-/* utest_global():
- * Compare p7_ospliceviterbi_TranslatedGlobal() (SSE, probability-space)
- * against p7_spliceviterbi_TranslatedGlobal() (scalar, log-space).
- * For each profile-emitted sequence, expf(scalar_E) must equal sse_E
- * within 1% relative tolerance.
+/* utest_sviterbi():
+ * Compare all three SSE spliced-Viterbi implementations against their scalar
+ * (log-space) counterparts using the same profile-emitted sequence each round.
+ * Sequence generation, profile setup, and matrix allocation are done once.
+ * Per-sequence loop runs all three scalar/SSE pairs and checks agreement.
  */
 static void
-utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
-             ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
-             int M, int N)
+utest_sviterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+          ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
+          int M, int N)
 {
-  char           *msg   = "spliced viterbi global unit test failed";
-  P7_HMM         *hmm   = NULL;
-  P7_PROFILE     *gm    = p7_profile_Create(M, abcAA);
-  P7_FS_PROFILE  *gm_tr = p7_profile_fs_Create(M, abcAA, 1);
-  P7_FS_OPROFILE *om_fs = p7_fs_oprofile_Create(M, abcAA, 1);
-  ESL_SQ         *sq    = esl_sq_CreateDigital(abcAA);
-  P7_TRACE       *tr    = p7_trace_Create();
-  ESL_DSQ        *dsq   = NULL;
-  SPLICE_PIPELINE *pli  = NULL;
-  P7_OMX         *ox    = NULL;
+  char           *msg_g  = "spliced viterbi global unit test failed";
+  char           *msg_d  = "spliced viterbi extend_down unit test failed";
+  char           *msg_u  = "spliced viterbi extend_up unit test failed";
+  P7_HMM         *hmm    = NULL;
+  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_tr  = p7_profile_fs_Create(M, abcAA, 1);
+  P7_FS_OPROFILE *om_fs  = p7_fs_oprofile_Create(M, abcAA, 1);
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  P7_TRACE       *tr     = p7_trace_Create();
+  ESL_DSQ        *dsq    = NULL;
+  SPLICE_PIPELINE *pli   = NULL;
+  P7_OMX         *ox     = NULL;
   int             L_dna, L_amino;
   int             i, j;
   float           scalar_E, sse_E;
+  float           scalar_C, sse_C;
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
   p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
@@ -1460,7 +1580,7 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         j += 3;
       }
 
-      p7_fs_ReconfigLength      (gm_tr, L_amino);
+      p7_fs_ReconfigLength         (gm_tr, L_amino);
       p7_fs_oprofile_ReconfigLength(om_fs,  L_amino);
 
       p7_gmx_GrowTo          (pli->vit, M, L_dna, L_dna);
@@ -1468,182 +1588,43 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_splicescores_GrowTo (pli->splice_scores,  M);
       p7_osplicescores_GrowTo(pli->osplice_scores, M);
 
-      /* Scalar reference (log-space) */
+      /* --- Global --- */
       p7_spliceviterbi_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
       scalar_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
 
-      /* SSE implementation (probability-space) */
       p7_ospliceviterbi_TranslatedGlobal(pli, pli->osplice_scores, dsq, om_fs, ox, 1, L_dna, 1, M);
       sse_E = ox->xmx[L_dna * p7X_NXCELLS + p7X_E];
 
-      if (scalar_E <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
-        if (sse_E > 0.0f) esl_fatal(msg);
+      if (scalar_E <= -1e30f) {
+        if (sse_E > 0.0f) esl_fatal(msg_g);
       } else {
-        if (fabsf(expf(scalar_E) - sse_E) > 0.001f) esl_fatal(msg);
-      }
-    }
-
-  if (dsq != NULL) free(dsq);
-  esl_sq_Destroy(sq);
-  p7_trace_Destroy(tr);
-  p7_hmm_Destroy(hmm);
-  p7_profile_Destroy(gm);
-  p7_profile_fs_Destroy(gm_tr);
-  p7_fs_oprofile_Destroy(om_fs);
-  p7_splicepipeline_Destroy(pli);
-  p7_omx_Destroy(ox);
-}
-
-/* utest_extend_down():
- * Compare p7_ospliceviterbi_TranslatedSemiGlobalExtendDown() (SSE, probability-space)
- * against p7_spliceviterbi_TranslatedSemiGlobalExtendDown() (scalar, log-space).
- * For each profile-emitted sequence, expf(scalar_C) must equal sse_C within tolerance.
- */
-static void
-utest_extend_down(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
-                  ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
-                  int M, int N)
-{
-  char           *msg   = "spliced viterbi extend_down unit test failed";
-  P7_HMM         *hmm   = NULL;
-  P7_PROFILE     *gm    = p7_profile_Create(M, abcAA);
-  P7_FS_PROFILE  *gm_tr = p7_profile_fs_Create(M, abcAA, 1);
-  P7_FS_OPROFILE *om_fs = p7_fs_oprofile_Create(M, abcAA, 1);
-  ESL_SQ         *sq    = esl_sq_CreateDigital(abcAA);
-  P7_TRACE       *tr    = p7_trace_Create();
-  ESL_DSQ        *dsq   = NULL;
-  SPLICE_PIPELINE *pli  = NULL;
-  P7_OMX         *ox    = NULL;
-  int             L_dna, L_amino;
-  int             i, j;
-  float           scalar_C, sse_C;
-
-  p7_hmm_Sample(r, M, abcAA, &hmm);
-  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
-  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
-  p7_fs_oprofile_Convert(gm_tr, om_fs);
-
-  pli = p7_splicepipeline_Create(NULL, M, M * 3);
-  ox  = p7_omx_Create_dpf(M, M * 3, M * 3, p7X_NSCELLS_SP);
-
-  while (N--)
-    {
-      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
-      L_amino = sq->n;
-      L_dna   = L_amino * 3;
-
-      if (dsq != NULL) free(dsq);
-      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna + 2))) == NULL) esl_fatal("malloc failed");
-      dsq[0] = dsq[L_dna + 1] = eslDSQ_SENTINEL;
-
-      j = 1;
-      for (i = 1; i <= sq->n; i++) {
-        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
-        j += 3;
+        if (fabsf(expf(scalar_E) - sse_E) > 0.001f) esl_fatal(msg_g);
       }
 
-      p7_fs_ReconfigLength         (gm_tr, L_amino);
-      p7_fs_oprofile_ReconfigLength(om_fs,  L_amino);
-
-      p7_gmx_GrowTo          (pli->vit, M, L_dna, L_dna);
-      p7_omx_GrowTo_dpf      (ox,       M, L_dna, L_dna);
-      p7_splicescores_GrowTo (pli->splice_scores,  M);
-      p7_osplicescores_GrowTo(pli->osplice_scores, M);
-
-      /* Scalar reference (log-space) */
+      /* --- ExtendDown --- */
       p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
       scalar_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
 
-      /* SSE implementation (probability-space) */
       p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(pli, pli->osplice_scores, dsq, om_fs, ox, 1, L_dna, 1, M);
       sse_C = ox->xmx[L_dna * p7X_NXCELLS + p7X_C];
 
-      if (scalar_C <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
-        if (sse_C > 0.0f) esl_fatal(msg);
+      if (scalar_C <= -1e30f) {
+        if (sse_C > 0.0f) esl_fatal(msg_d);
       } else {
-        if (fabsf(expf(scalar_C) - sse_C) > 0.001f) esl_fatal(msg);
-      }
-    }
-
-  if (dsq != NULL) free(dsq);
-  esl_sq_Destroy(sq);
-  p7_trace_Destroy(tr);
-  p7_hmm_Destroy(hmm);
-  p7_profile_Destroy(gm);
-  p7_profile_fs_Destroy(gm_tr);
-  p7_fs_oprofile_Destroy(om_fs);
-  p7_splicepipeline_Destroy(pli);
-  p7_omx_Destroy(ox);
-}
-
-/* utest_extend_up():
- * Compare p7_ospliceviterbi_TranslatedSemiGlobalExtendUp() (SSE, probability-space)
- * against p7_spliceviterbi_TranslatedSemiGlobalExtendUp() (scalar, log-space).
- * For each profile-emitted sequence, expf(scalar_C) must equal sse_C within tolerance.
- */
-static void
-utest_extend_up(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
-                ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
-                int M, int N)
-{
-  char           *msg   = "spliced viterbi extend_up unit test failed";
-  P7_HMM         *hmm   = NULL;
-  P7_PROFILE     *gm    = p7_profile_Create(M, abcAA);
-  P7_FS_PROFILE  *gm_tr = p7_profile_fs_Create(M, abcAA, 1);
-  P7_FS_OPROFILE *om_fs = p7_fs_oprofile_Create(M, abcAA, 1);
-  ESL_SQ         *sq    = esl_sq_CreateDigital(abcAA);
-  P7_TRACE       *tr    = p7_trace_Create();
-  ESL_DSQ        *dsq   = NULL;
-  SPLICE_PIPELINE *pli  = NULL;
-  P7_OMX         *ox    = NULL;
-  int             L_dna, L_amino;
-  int             i, j;
-  float           scalar_C, sse_C;
-
-  p7_hmm_Sample(r, M, abcAA, &hmm);
-  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
-  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
-  p7_fs_oprofile_Convert(gm_tr, om_fs);
-
-  pli = p7_splicepipeline_Create(NULL, M, M * 3);
-  ox  = p7_omx_Create_dpf(M, M * 3, M * 3, p7X_NSCELLS_SP);
-
-  while (N--)
-    {
-      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
-      L_amino = sq->n;
-      L_dna   = L_amino * 3;
-
-      if (dsq != NULL) free(dsq);
-      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna + 2))) == NULL) esl_fatal("malloc failed");
-      dsq[0] = dsq[L_dna + 1] = eslDSQ_SENTINEL;
-
-      j = 1;
-      for (i = 1; i <= sq->n; i++) {
-        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
-        j += 3;
+        if (fabsf(expf(scalar_C) - sse_C) > 0.001f) esl_fatal(msg_d);
       }
 
-      p7_fs_ReconfigLength         (gm_tr, L_amino);
-      p7_fs_oprofile_ReconfigLength(om_fs,  L_amino);
-
-      p7_gmx_GrowTo          (pli->vit, M, L_dna, L_dna);
-      p7_omx_GrowTo_dpf      (ox,       M, L_dna, L_dna);
-      p7_splicescores_GrowTo (pli->splice_scores,  M);
-      p7_osplicescores_GrowTo(pli->osplice_scores, M);
-
-      /* Scalar reference (log-space) */
+      /* --- ExtendUp --- */
       p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
       scalar_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
 
-      /* SSE implementation (probability-space) */
       p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(pli, pli->osplice_scores, dsq, om_fs, ox, 1, L_dna, 1, M);
       sse_C = ox->xmx[L_dna * p7X_NXCELLS + p7X_C];
 
-      if (scalar_C <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
-        if (sse_C > 0.0f) esl_fatal(msg);
+      if (scalar_C <= -1e30f) {
+        if (sse_C > 0.0f) esl_fatal(msg_u);
       } else {
-        if (fabsf(expf(scalar_C) - sse_C) > 0.001f) esl_fatal(msg);
+        if (fabsf(expf(scalar_C) - sse_C) > 0.001f) esl_fatal(msg_u);
       }
     }
 
@@ -1662,7 +1643,7 @@ utest_extend_up(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
 
 /*****************************************************************
- * 5. Test driver.
+ * 7. Test driver.
  *****************************************************************/
 #ifdef p7SPLICED_VITERBI_TESTDRIVE
 /*
@@ -1696,9 +1677,7 @@ main(int argc, char **argv)
   int             M      = esl_opt_GetInteger(go, "-M");
   int             N      = esl_opt_GetInteger(go, "-N");
 
-  utest_global      (r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
-  utest_extend_down (r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
-  utest_extend_up   (r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+  utest_sviterbi(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
 
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);

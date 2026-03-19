@@ -68,6 +68,7 @@ UTESTS = @MPI_UTESTS@\
     optacc_fs_utest\
 	stotrace_utest\
 	stotrace_fs_utest\
+	spliced_viterbi_utest\
 	vitfilter_utest
 
 BENCHMARKS = @MPI_BENCHMARKS@\
@@ -77,6 +78,7 @@ BENCHMARKS = @MPI_BENCHMARKS@\
 	null2_benchmark\
 	optacc_benchmark\
 	stotrace_benchmark\
+	spliced_viterbi_benchmark\
 	vitfilter_benchmark
 
 EXAMPLES =\

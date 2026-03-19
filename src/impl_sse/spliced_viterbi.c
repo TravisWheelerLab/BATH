@@ -390,20 +390,10 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
-    for (nuc1 = 0; nuc1 < 4; nuc1++) {
-      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
-      for (nuc2 = 0; nuc2 < 4; nuc2++)
-        C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
-    }
 
     __m128 *rfv_c0 = local_rfv + C0 * Q;
     __m128 *rfv_c1[4];
     __m128 *rfv_c2[16];
-    for (nuc1 = 0; nuc1 < 4; nuc1++) {
-      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
-      for (nuc2 = 0; nuc2 < 4; nuc2++)
-        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
-    }
 
     /* Shift acceptor window */
     acc0 = acc1;  acc1 = acc2;
@@ -433,21 +423,33 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
     do_pstate = (acc0 >= 0 || acc1 >= 0 || acc2 >= 0);
     do_donor  = (donor0 >= 0 || donor1 >= 0 || donor2 >= 0);
 
-    AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
-    AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
-    AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
-    AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
-    AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
-    AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
-    GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
-    GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
-    AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
-    GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
-    GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
-    AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
-    GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
-    GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
-    AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
+    if (do_pstate) {
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+        rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+        for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+          rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+        }
+      }
+      AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
+      AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
+      AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
+      AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
+      AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
+      AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
+    }
+    if (do_donor) {
+      GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
+      GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
+      AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
+      GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
+      GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
+      AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
+      GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
+      GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
+      AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
+    }
 
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
@@ -846,20 +848,10 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
-    for (nuc1 = 0; nuc1 < 4; nuc1++) {
-      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
-      for (nuc2 = 0; nuc2 < 4; nuc2++)
-        C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
-    }
 
     __m128 *rfv_c0 = local_rfv + C0 * Q;
     __m128 *rfv_c1[4];
     __m128 *rfv_c2[16];
-    for (nuc1 = 0; nuc1 < 4; nuc1++) {
-      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
-      for (nuc2 = 0; nuc2 < 4; nuc2++)
-        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
-    }
 
     acc0 = acc1;  acc1 = acc2;
     if (v < 0 || v >= 4 || w < 0 || w >= 4)      acc2 = -1;
@@ -887,21 +879,33 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
     do_pstate = (acc0 >= 0 || acc1 >= 0 || acc2 >= 0);
     do_donor  = (donor0 >= 0 || donor1 >= 0 || donor2 >= 0);
 
-    AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
-    AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
-    AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
-    AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
-    AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
-    AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
-    GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
-    GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
-    AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
-    GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
-    GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
-    AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
-    GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
-    GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
-    AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
+    if (do_pstate) {
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+        rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+        for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+          rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+        }
+      }
+      AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
+      AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
+      AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
+      AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
+      AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
+      AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
+    }
+    if (do_donor) {
+      GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
+      GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
+      AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
+      GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
+      GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
+      AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
+      GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
+      GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
+      AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
+    }
 
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
@@ -1260,20 +1264,10 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
-    for (nuc1 = 0; nuc1 < 4; nuc1++) {
-      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
-      for (nuc2 = 0; nuc2 < 4; nuc2++)
-        C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
-    }
 
     __m128 *rfv_c0 = local_rfv + C0 * Q;
     __m128 *rfv_c1[4];
     __m128 *rfv_c2[16];
-    for (nuc1 = 0; nuc1 < 4; nuc1++) {
-      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
-      for (nuc2 = 0; nuc2 < 4; nuc2++)
-        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
-    }
 
     acc0 = acc1;  acc1 = acc2;
     if (v < 0 || v >= 4 || w < 0 || w >= 4)      acc2 = -1;
@@ -1301,21 +1295,33 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
     do_pstate = (acc0 >= 0 || acc1 >= 0 || acc2 >= 0);
     do_donor  = (donor0 >= 0 || donor1 >= 0 || donor2 >= 0);
 
-    AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
-    AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
-    AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
-    AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
-    AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
-    AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
-    GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
-    GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
-    AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
-    GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
-    GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
-    AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
-    GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
-    GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
-    AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
+    if (do_pstate) {
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+        rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+        for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+          rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+        }
+      }
+      AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
+      AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
+      AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
+      AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
+      AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
+      AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
+    }
+    if (do_donor) {
+      GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
+      GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
+      AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
+      GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
+      GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
+      AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
+      GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
+      GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
+      AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
+    }
 
     /* N/B: codon-stride recurrence */
     {

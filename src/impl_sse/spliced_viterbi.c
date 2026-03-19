@@ -646,7 +646,7 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         if (sse_E > 0.0f) esl_fatal(msg);
       } else {
         printf("expf(scalar_E) %f sse_E %f\n", expf(scalar_E), sse_E);
-        if (fabsf(expf(scalar_E) - sse_E) > 0.01f * expf(scalar_E)) esl_fatal(msg);
+        if (fabsf(expf(scalar_E) - sse_E) > 0.001f) esl_fatal(msg);
       }
     }
 

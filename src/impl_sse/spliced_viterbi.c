@@ -622,7 +622,7 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_fs_ReconfigLength      (gm_tr, L_amino);
       p7_fs_oprofile_ReconfigLength(om_fs,  L_amino);
 
-      p7_gmx_sp_GrowTo       (pli->vit, M, L_dna, L_dna);
+      p7_gmx_GrowTo          (pli->vit, M, L_dna, L_dna);
       p7_omx_GrowTo_dpf      (ox,       M, L_dna, L_dna);
       p7_splicescores_GrowTo (pli->splice_scores,  M);
       p7_osplicescores_GrowTo(pli->osplice_scores, M);
@@ -638,6 +638,7 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       if (scalar_E <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
         if (sse_E > 0.0f) esl_fatal(msg);
       } else {
+        printf("expf(scalar_E) %f sse_E %f\n", expf(scalar_E), sse_E);
         if (fabsf(expf(scalar_E) - sse_E) > 0.01f * expf(scalar_E)) esl_fatal(msg);
       }
     }

@@ -1482,7 +1482,7 @@ main(int argc, char **argv)
   p7_fs_ReconfigLength(gm_tr, L / 3);
 
   pli = p7_splicepipeline_Create(NULL, hmm->M, L);
-  p7_gmx_sp_GrowTo(pli->vit, hmm->M, L, L);
+  p7_gmx_GrowTo(pli->vit, hmm->M, L, L);
   p7_splicescores_GrowTo(pli->splice_scores, hmm->M);
 
   /* Baseline: time to generate sequences alone */

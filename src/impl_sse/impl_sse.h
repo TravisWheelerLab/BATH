@@ -383,24 +383,38 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
 
 /*****************************************************************
  * 4. OSPLICE_SCORES: probability-space splice signal scores
+ *
+ * P-state accumulation arrays (oscore) are stored as striped __m128
+ * vectors (one vector per SSE stripe q = 0..allocQ-1) for direct
+ * use in the SSE Viterbi inner loop.
  *****************************************************************/
 
 typedef struct _osplice_scores {
-  int allocM;
+  int     allocM;       /* model length this was sized for       */
+  int     allocQ;       /* SSE stripe count = p7O_NQF(allocM)    */
 
-  float **score;      /* [SIGNAL_MEM_SIZE][M]: P-state accumulation (probability space) */
-  float  *score_mem;  /* flat backing store for score */
+  __m128 **oscore;      /* [SIGNAL_MEM_SIZE][allocQ] P-state accumulation vectors */
+  void    *oscore_raw;  /* raw malloc ptr (free this)            */
+  __m128  *oscore_base; /* 16-byte aligned base (= oscore[0])    */
 
-  float  *signal_scores;  /* {0.9921, 0.0073, 0.0006} */
+  float   *signal_scores;  /* {0.9921, 0.0073, 0.0006}          */
 
-  float  *acceptor_AG;    /* 1.0 (valid) or 0.0 (invalid) */
-  float  *acceptor_AC;
+  float   *acceptor_AG;    /* 1.0 (valid) or 0.0 (invalid)      */
+  float   *acceptor_AC;
 
-  float  *donor_GT;
-  float  *donor_GC;
-  float  *donor_AT;
+  float   *donor_GT;
+  float   *donor_GC;
+  float   *donor_AT;
 
 } OSPLICE_SCORES;
+
+/* OSS macros: striped P-state accumulation table access.
+ * Mirror the SSX0/1/2 macros in p7_splice.h, but indexing by
+ * SSE stripe q rather than model position k.
+ */
+#define OSS0(oss,q,sig)          ((oss)->oscore[(sig)][q])
+#define OSS1(oss,q,sig,n1)       ((oss)->oscore[SPLICE_OFFSET_1 + (n1)*p7S_SPLICE_SIGNALS + (sig)][q])
+#define OSS2(oss,q,sig,n1,n2)    ((oss)->oscore[SPLICE_OFFSET_2 + (4*(n1)+(n2))*p7S_SPLICE_SIGNALS + (sig)][q])
 
 
 /*****************************************************************
@@ -470,6 +484,14 @@ extern int             p7_fs_oprofile_ReconfigUnihit    (P7_FS_OPROFILE *om_fs, 
 extern OSPLICE_SCORES *p7_osplicescores_Create (int M_hint);
 extern int             p7_osplicescores_GrowTo (OSPLICE_SCORES *ss, int M);
 extern void            p7_osplicescores_Destroy(OSPLICE_SCORES *ss);
+
+/* spliced_viterbi.c */
+extern int p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
+                                              const ESL_DSQ *sub_dsq,
+                                              const P7_FS_OPROFILE *om_fs,
+                                              P7_OMX *ox,
+                                              int i_start, int i_end,
+                                              int k_start, int k_end);
 
 
 /* decoding.c */

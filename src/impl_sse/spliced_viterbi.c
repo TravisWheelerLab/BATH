@@ -1,0 +1,716 @@
+/* SSE-accelerated spliced Viterbi algorithm.
+ *
+ * Probability-space DP: multiply (_mm_mul_ps) replaces log-space add;
+ * _mm_max_ps replaces ESL_MAX; 0.0 maps to -infinity. Sub-range
+ * k_start..k_end emissions and transitions are re-striped into local
+ * tables at function entry. Donor-site lookback scores accumulate in
+ * OSPLICE_SCORES striped probability-space vectors.
+ *
+ * Contents:
+ *    1. Local table helpers (re-stripe emissions/transitions for sub-range).
+ *    2. p7_ospliceviterbi_TranslatedGlobal()
+ *    3. Unit tests.
+ *    4. Test driver.
+ */
+
+#include "p7_config.h"
+
+#include <stdio.h>
+#include <math.h>
+
+#include <xmmintrin.h>
+#include <emmintrin.h>
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_sse.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
+#include "../p7_splice.h"
+
+/* P→M transition in probability space: exp(-10.0) */
+#define TSC_P_PROB  4.53999298e-5f
+
+/* tfv layout: per-stripe slots 0..6 = BM,MM,IM,DM,MD,MI,II; DD at 7*Q_full+q */
+#define TFV_MM  1
+#define TFV_IM  2
+#define TFV_DM  3
+#define TFV_MD  4
+#define TFV_MI  5
+#define TFV_II  6
+#define TFV_DD  7   /* index into our local table: 7 * Q + q */
+
+
+/*****************************************************************
+ * 1. Local table helpers
+ *
+ * The full-profile tfv/rfv use Q_full = p7O_NQF(om_fs->M) stripes.
+ * We re-pack the sub-range k_start..k_end into Q = p7O_NQF(M_local)
+ * local stripes so the inner loop uses simple 0-based indexing.
+ *****************************************************************/
+
+/* build_local_rfv():
+ * Allocate and fill a [p7P_MAXCODONS1 * Q] emission table.
+ * local_rfv[c * Q + q] = emission vector for codon c at local stripe q.
+ * *raw_out must be free()'d by caller.
+ */
+static __m128 *
+build_local_rfv(const P7_FS_OPROFILE *om_fs,
+                int k_start, int M_local, int Q,
+                void **raw_out)
+{
+  int    Q_full = p7O_NQF(om_fs->M);
+  __m128 *base;
+  int    c, q_l, r_l, k_l, k_g, q_g, r_g;
+  int    status;
+
+  *raw_out = NULL;
+  ESL_ALLOC(*raw_out, sizeof(__m128) * p7P_MAXCODONS1 * Q + 15);
+  base = (__m128 *)(((unsigned long int) *raw_out + 15) & (~0xfUL));
+
+  for (c = 0; c < p7P_MAXCODONS1; c++) {
+    __m128 *rfv = base + c * Q;
+    for (q_l = 0; q_l < Q; q_l++) {
+      union { __m128 v; float p[4]; } em, tv;
+      em.v = _mm_setzero_ps();
+      for (r_l = 0; r_l < 4; r_l++) {
+        k_l = q_l + r_l * Q + 1;
+        if (k_l > M_local) break;
+        k_g = k_start + k_l - 1;
+        q_g = (k_g - 1) % Q_full;
+        r_g = (k_g - 1) / Q_full;
+        tv.v       = om_fs->rfv[c][q_g];
+        em.p[r_l]  = tv.p[r_g];
+      }
+      rfv[q_l] = em.v;
+    }
+  }
+  return base;
+
+  ERROR:
+    return NULL;
+}
+
+
+/* build_local_tfv():
+ * Allocate and fill an [8 * Q] transition table.
+ * Slots 1..6 (TFV_MM..TFV_II): base[t * Q + q].
+ * Slot 7 (TFV_DD): base[7 * Q + q].
+ * *raw_out must be free()'d by caller.
+ */
+static __m128 *
+build_local_tfv(const P7_FS_OPROFILE *om_fs,
+                int k_start, int M_local, int Q,
+                void **raw_out)
+{
+  int    Q_full = p7O_NQF(om_fs->M);
+  __m128 *base;
+  int    q_l, r_l, k_l, k_g, q_g, r_g, t;
+  int    status;
+
+  *raw_out = NULL;
+  ESL_ALLOC(*raw_out, sizeof(__m128) * 8 * Q + 15);
+  base = (__m128 *)(((unsigned long int) *raw_out + 15) & (~0xfUL));
+
+  /* Zero everything (slots 0 = BM is unused but should be 0) */
+  for (t = 0; t < 8; t++)
+    for (q_l = 0; q_l < Q; q_l++)
+      base[t * Q + q_l] = _mm_setzero_ps();
+
+  for (q_l = 0; q_l < Q; q_l++) {
+    union { __m128 v; float p[4]; } u[8];
+    for (t = 0; t < 8; t++) u[t].v = _mm_setzero_ps();
+
+    for (r_l = 0; r_l < 4; r_l++) {
+      union { __m128 v; float p[4]; } tv;
+      k_l = q_l + r_l * Q + 1;
+      if (k_l > M_local) break;
+      k_g = k_start + k_l - 1;
+      q_g = (k_g - 1) % Q_full;
+      r_g = (k_g - 1) / Q_full;
+
+      for (t = TFV_MM; t <= TFV_II; t++) {
+        tv.v         = om_fs->tfv[7 * q_g + t];
+        u[t].p[r_l]  = tv.p[r_g];
+      }
+      /* DD is stored at 7*Q_full + q_g in the full profile */
+      tv.v              = om_fs->tfv[7 * Q_full + q_g];
+      u[TFV_DD].p[r_l]  = tv.p[r_g];
+    }
+
+    for (t = TFV_MM; t <= TFV_II; t++)
+      base[t * Q + q_l] = u[t].v;
+    base[TFV_DD * Q + q_l] = u[TFV_DD].v;
+  }
+  return base;
+
+  ERROR:
+    return NULL;
+}
+
+/* Accessor macros for local tables */
+#define LRFV(c, q)   (local_rfv[(c) * Q + (q)])
+#define LTFV(t, q)   (local_tfv[(t) * Q + (q)])
+
+
+/*****************************************************************
+ * 2. p7_ospliceviterbi_TranslatedGlobal()
+ *****************************************************************/
+
+/* Function:  p7_ospliceviterbi_TranslatedGlobal()
+ * Synopsis:  SSE-accelerated fully global translated spliced Viterbi.
+ *
+ * Purpose:   SSE equivalent of p7_spliceviterbi_TranslatedGlobal().
+ *            Uses probability-space DP (multiply/max) with P7_FS_OPROFILE
+ *            emissions (codon_lengths == 1) and P7_OMX DP matrix
+ *            (nscells = p7X_NSCELLS_SP = 4; validR >= L+1).
+ *
+ *            Donor-site lookback scores accumulate in <oss->oscore>
+ *            (striped __m128 vectors, probability space).
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if profile not codon_lengths==1, <eslEMEM> on alloc.
+ */
+int
+p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
+                                   const ESL_DSQ *sub_dsq,
+                                   const P7_FS_OPROFILE *om_fs,
+                                   P7_OMX *ox,
+                                   int i_start, int i_end,
+                                   int k_start, int k_end)
+{
+  int      M         = k_end - k_start + 1;
+  int      L         = i_end - i_start + 1;
+  int      Q         = p7O_NQF(M);
+  int      min_intron = pli->min_intron;
+
+  __m128  *local_rfv  = NULL;
+  __m128  *local_tfv  = NULL;
+  void    *rfv_raw    = NULL;
+  void    *tfv_raw    = NULL;
+
+  __m128  *dpc, *dpp3, *dplb;
+
+  __m128   zerov     = _mm_setzero_ps();
+  __m128   TSC_P_v   = _mm_set1_ps(TSC_P_PROB);
+
+  /* Carry variables */
+  __m128   mpv3, dpv3, ipv3, ppv3;   /* right-shifted row i-3, for k-1 transition  */
+  __m128   tsv_m, tsv_d;              /* donor lookback right-shifted carry          */
+  __m128   msv, isv, dcv;
+  __m128   sig_GTAG_v, sig_GCAG_v, sig_ATAC_v;
+
+  /* Acceptor/donor validity (probability space: 1.0 valid, 0.0 invalid) */
+  float    AG0, AG1, AG2, AC0, AC1, AC2;
+  float    GT0, GT1, GT2, GC0, GC1, GC2, AT0, AT1, AT2;
+  __m128   AG0v, AG1v, AG2v, AC0v, AC1v, AC2v;
+  __m128   GT0v, GC0v, AT0v, GT1v, GC1v, AT1v, GT2v, GC2v, AT2v;
+
+  /* Codon indices */
+  int      C0, C1[4], C2[16];
+
+  /* Nucleotide windows:
+   *   v, w, x: current codon (positions i-2, i-1, i)
+   *   r, s, t, u: donor-lookback window (positions i-min_intron-2..i-min_intron+1)
+   */
+  int      v, w, x;
+  int      r, s, t, u;
+  int      tmp_r, tmp_s;
+  int      nuc1, nuc2;
+
+  float    xB_0;
+  int      i, q, j, loop_end, sub_i;
+  int      status;
+
+  if (om_fs->codon_lengths != 1)
+    ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
+
+  /* Build local emission and transition tables for sub-range k_start..k_end */
+  local_rfv = build_local_rfv(om_fs, k_start, M, Q, &rfv_raw);
+  local_tfv = build_local_tfv(om_fs, k_start, M, Q, &tfv_raw);
+  if (!local_rfv || !local_tfv) { status = eslEMEM; goto ERROR; }
+
+  sig_GTAG_v = _mm_set1_ps(oss->signal_scores[p7S_GTAG]);
+  sig_GCAG_v = _mm_set1_ps(oss->signal_scores[p7S_GCAG]);
+  sig_ATAC_v = _mm_set1_ps(oss->signal_scores[p7S_ATAC]);
+
+  /* Reset OSS P-state accumulation tables to 0.0 (= -inf in log space) */
+  for (j = 0; j < SIGNAL_MEM_SIZE; j++)
+    for (q = 0; q < Q; q++)
+      oss->oscore[j][q] = zerov;
+
+  /* B(0) in probability space */
+  xB_0 = om_fs->xf[p7O_N][p7O_MOVE];
+
+  /* Zero rows 0, 1, 2 */
+  for (i = 0; i <= 2; i++) {
+    dpc = ox->dpf[i];
+    for (q = 0; q < Q; q++)
+      MMO_SP(dpc,q) = DMO_SP(dpc,q) = IMO_SP(dpc,q) = PMO_SP(dpc,q) = zerov;
+  }
+
+  /* Initialize acceptor/donor rolling window to impossible */
+  AG0 = AG1 = AG2 = 0.0f;
+  AC0 = AC1 = AC2 = 0.0f;
+
+  /* Initialize codon nucleotide window to placeholder (-1 → clamped to degenerate) */
+  v = w = x = -1;
+
+  /* ---------------------------------------------------------------
+   * Rows 1-2: update w,x for the codon window (no DP — rows zeroed).
+   * --------------------------------------------------------------- */
+  for (i = 1; i <= 2; i++) {
+    w = x;
+    sub_i = i_start + i - 1;
+    x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
+  }
+
+  /* ---------------------------------------------------------------
+   * Rows 3 .. min_intron+2: M/I/D recursion only.
+   * No P state (OSS arrays are 0) and no donor lookback yet.
+   * --------------------------------------------------------------- */
+  loop_end = ESL_MIN(L, min_intron + 2);
+
+  for (i = 3; i <= loop_end; i++) {
+    v = w;  w = x;
+    sub_i = i_start + i - 1;
+    x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
+
+    C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+
+    dpc  = ox->dpf[i];
+    dpp3 = ox->dpf[i - 3];
+
+    mpv3 = esl_sse_rightshiftz_float(MMO_SP(dpp3, Q-1));
+    dpv3 = esl_sse_rightshiftz_float(DMO_SP(dpp3, Q-1));
+    ipv3 = esl_sse_rightshiftz_float(IMO_SP(dpp3, Q-1));
+    ppv3 = esl_sse_rightshiftz_float(PMO_SP(dpp3, Q-1));
+    dcv  = zerov;
+
+    for (q = 0; q < Q; q++) {
+      /* M(i,k) = max(M(i-3,k-1)*MM, I(i-3,k-1)*IM, D(i-3,k-1)*DM, P(i-3,k-1)*TSC_P)
+       *          * emission(k, C0) */
+      msv = _mm_max_ps(_mm_mul_ps(mpv3, LTFV(TFV_MM, q)),
+            _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
+            _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
+                       _mm_mul_ps(ppv3, TSC_P_v))));
+      msv = _mm_mul_ps(msv, LRFV(C0, q));
+
+      /* Update k-1 carry */
+      mpv3 = MMO_SP(dpp3, q);
+      dpv3 = DMO_SP(dpp3, q);
+      ipv3 = IMO_SP(dpp3, q);
+      ppv3 = PMO_SP(dpp3, q);
+
+      MMO_SP(dpc, q) = msv;
+      DMO_SP(dpc, q) = dcv;               /* delayed MD carry from stripe q-1 */
+      dcv             = _mm_mul_ps(msv, LTFV(TFV_MD, q));
+
+      /* I(i,k) = max(M(i-3,k)*MI, I(i-3,k)*II); zero at stop codons */
+      isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
+                       _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
+      IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+
+      PMO_SP(dpc, q) = zerov;
+    }
+
+    /* Global entry at i=3, k=1 (local position 1 = stripe q=0, lane r=0):
+     * M(3,1) = B(0) * emission(k_start, C0).
+     * All other positions got 0 from the zero dpp3 row. */
+    if (i == 3) {
+      union { __m128 v; float p[4]; } em, mc;
+      em.v    = LRFV(C0, 0);
+      mc.v    = MMO_SP(dpc, 0);
+      mc.p[0] = xB_0 * em.p[0];
+      MMO_SP(dpc, 0) = mc.v;
+    }
+
+    /* D-state serialization:
+     * After the q loop, dcv holds M(i,Q-1)*MD.  DMO_SP(dpc,q) currently stores
+     * the delayed MD carry from stripe q-1, i.e., DMO_SP(dpc,q)=dcv_q-1.
+     * We finalize D by: for each q, D(q) = max(dcv_from_prev, D(q)); carry DD. */
+    dcv = esl_sse_rightshiftz_float(dcv);
+    DMO_SP(dpc, 0) = zerov;
+    for (q = 0; q < Q; q++) {
+      DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+      dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+    }
+    for (j = 1; j < 4; j++) {
+      dcv = esl_sse_rightshiftz_float(dcv);
+      for (q = 0; q < Q; q++) {
+        DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+        dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+      }
+    }
+  }  /* end early rows */
+
+
+  /* ---------------------------------------------------------------
+   * Initialize donor-lookback nucleotide window (r,s,t,u) for the
+   * main DP.  At the first main-loop iteration i = min_intron+3,
+   * after "r=s; s=t; t=u; u=sub_dsq[sub_i-min_intron+1]" we need:
+   *   r = sub_dsq[i_start], s = sub_dsq[i_start+1],
+   *   t = sub_dsq[i_start+2], u = sub_dsq[i_start+3].
+   * Pre-load the three prior values:
+   * --------------------------------------------------------------- */
+  s = (int)sub_dsq[i_start];
+  t = (int)sub_dsq[i_start + 1];
+  u = (int)sub_dsq[i_start + 2];
+  r = 0;  /* will be overwritten by r=s at loop start */
+
+  /* ---------------------------------------------------------------
+   * Main DP: rows min_intron+3 .. L.
+   * Full M/I/D/P update + donor lookback SSX write.
+   * --------------------------------------------------------------- */
+  for (i = min_intron + 3; i <= L; i++) {
+    __m128 pv, TMP_v;
+
+    sub_i = i_start + i - 1;
+
+    /* Advance donor-lookback window */
+    r = s;  s = t;  t = u;
+    u = (sub_dsq[sub_i - min_intron + 1] < 4)
+        ? (int)sub_dsq[sub_i - min_intron + 1]
+        : p7P_MAXCODONS1;
+
+    /* Advance codon window */
+    v = w;  w = x;
+    x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
+
+    C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+    }
+
+    /* Shift acceptor window */
+    AG0 = AG1;  AG1 = AG2;
+    AC0 = AC1;  AC1 = AC2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
+      AG2 = AC2 = 0.0f;
+    } else {
+      AG2 = oss->acceptor_AG[v*4 + w];
+      AC2 = oss->acceptor_AC[v*4 + w];
+    }
+
+    /* Donor validity for all three codon classes */
+    if (r < 0 || r >= 4 || s < 0 || s >= 4) {
+      GT0 = GC0 = AT0 = GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
+    } else if (t < 0 || t >= 4) {
+      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
+      GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
+    } else if (u < 0 || u >= 4) {
+      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
+      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
+      GT2 = GC2 = AT2 = 0.0f;
+    } else {
+      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
+      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
+      GT2 = oss->donor_GT[t*4+u];  GC2 = oss->donor_GC[t*4+u];  AT2 = oss->donor_AT[t*4+u];
+    }
+
+    tmp_r = ESL_MIN(r, 3);
+    tmp_s = ESL_MIN(s, 3);
+
+    AG0v = _mm_set1_ps(AG0);  AG1v = _mm_set1_ps(AG1);  AG2v = _mm_set1_ps(AG2);
+    AC0v = _mm_set1_ps(AC0);  AC1v = _mm_set1_ps(AC1);  AC2v = _mm_set1_ps(AC2);
+    GT0v = _mm_set1_ps(GT0);  GC0v = _mm_set1_ps(GC0);  AT0v = _mm_set1_ps(AT0);
+    GT1v = _mm_set1_ps(GT1);  GC1v = _mm_set1_ps(GC1);  AT1v = _mm_set1_ps(AT1);
+    GT2v = _mm_set1_ps(GT2);  GC2v = _mm_set1_ps(GC2);  AT2v = _mm_set1_ps(AT2);
+
+    dpc  = ox->dpf[i];
+    dpp3 = ox->dpf[i - 3];
+    dplb = ox->dpf[i - min_intron - 3];
+
+    /* Initialize right-shifted carries for k-1 transitions */
+    mpv3  = esl_sse_rightshiftz_float(MMO_SP(dpp3, Q-1));
+    dpv3  = esl_sse_rightshiftz_float(DMO_SP(dpp3, Q-1));
+    ipv3  = esl_sse_rightshiftz_float(IMO_SP(dpp3, Q-1));
+    ppv3  = esl_sse_rightshiftz_float(PMO_SP(dpp3, Q-1));
+    tsv_m = esl_sse_rightshiftz_float(MMO_SP(dplb, Q-1));
+    tsv_d = esl_sse_rightshiftz_float(DMO_SP(dplb, Q-1));
+    dcv   = zerov;
+
+    /* Main stripe loop: k = 1 .. M-1 (q = 0..Q-2) and k = M (q = Q-1).
+     * The last stripe (k=M) skips I state exit. */
+    for (q = 0; q < Q; q++) {
+      int is_last = (q == Q - 1);
+
+      /* ---- M state ---- */
+      msv = _mm_max_ps(_mm_mul_ps(mpv3, LTFV(TFV_MM, q)),
+            _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
+            _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
+                       _mm_mul_ps(ppv3, TSC_P_v))));
+      msv = _mm_mul_ps(msv, LRFV(C0, q));
+
+      mpv3 = MMO_SP(dpp3, q);
+      dpv3 = DMO_SP(dpp3, q);
+      ipv3 = IMO_SP(dpp3, q);
+      ppv3 = PMO_SP(dpp3, q);
+
+      MMO_SP(dpc, q) = msv;
+      DMO_SP(dpc, q) = dcv;
+      dcv = _mm_mul_ps(msv, LTFV(TFV_MD, q));
+
+      /* ---- I state (zero at last position and at stop codons) ---- */
+      if (is_last) {
+        IMO_SP(dpc, q) = zerov;
+      } else {
+        isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
+                         _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+      }
+
+      /* ---- P state ---- */
+      pv = zerov;
+
+      /* C0: full 3-nt from acceptor */
+      TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
+              _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
+                         _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C0, q)));
+
+      /* C1: 1 nuc from before donor + 2 from acceptor */
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
+                _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
+                           _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C1[nuc1], q)));
+      }
+
+      /* C2: 2 nucs from before donor + 1 from acceptor */
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
+                  _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
+                             _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C2[nuc1*4+nuc2], q)));
+        }
+      }
+      PMO_SP(dpc, q) = pv;
+
+      /* ---- Donor lookback: update OSS at position k from (lb, k-1) ---- */
+      TMP_v = _mm_max_ps(tsv_m, tsv_d);
+
+      OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
+      OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
+      OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
+
+      OSS1(oss,q,p7S_GTAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,tmp_r), _mm_mul_ps(TMP_v, GT1v));
+      OSS1(oss,q,p7S_GCAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,tmp_r), _mm_mul_ps(TMP_v, GC1v));
+      OSS1(oss,q,p7S_ATAC,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,tmp_r), _mm_mul_ps(TMP_v, AT1v));
+
+      OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GT2v));
+      OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GC2v));
+      OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s), _mm_mul_ps(TMP_v, AT2v));
+
+      /* Advance donor lookback carry */
+      tsv_m = MMO_SP(dplb, q);
+      tsv_d = DMO_SP(dplb, q);
+    }
+
+    /* D-state serialization */
+    dcv = esl_sse_rightshiftz_float(dcv);
+    DMO_SP(dpc, 0) = zerov;
+    for (q = 0; q < Q; q++) {
+      DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+      dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+    }
+    for (j = 1; j < 4; j++) {
+      dcv = esl_sse_rightshiftz_float(dcv);
+      for (q = 0; q < Q; q++) {
+        DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+        dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+      }
+    }
+  }  /* end main DP loop */
+
+
+  /* ---------------------------------------------------------------
+   * Exit: E(L) = max(M(L,M), D(L,M)).
+   * Position k=M is at local stripe q_M = (M-1) % Q, lane r_M = (M-1) / Q.
+   * --------------------------------------------------------------- */
+  {
+    int   q_M = (M - 1) % Q;
+    int   r_M = (M - 1) / Q;
+    float e_M, e_D, xE;
+    union { __m128 v; float p[4]; } u;
+
+    dpc = ox->dpf[L];
+
+    u.v = MMO_SP(dpc, q_M);  e_M = u.p[r_M];
+    u.v = DMO_SP(dpc, q_M);  e_D = u.p[r_M];
+    xE  = ESL_MAX(e_M, e_D);
+
+    ox->xmx[L * p7X_NXCELLS + p7X_E] = xE;
+    ox->xmx[L * p7X_NXCELLS + p7X_C] = xE * om_fs->xf[p7O_E][p7O_MOVE];
+  }
+
+  ox->M = M;
+  ox->L = L;
+
+  free(rfv_raw);
+  free(tfv_raw);
+  return eslOK;
+
+  ERROR:
+    if (rfv_raw) free(rfv_raw);
+    if (tfv_raw) free(tfv_raw);
+    return status;
+}
+/*-------------- end, p7_ospliceviterbi_TranslatedGlobal() ------*/
+
+
+/*****************************************************************
+ * 3. Unit tests.
+ *****************************************************************/
+#ifdef p7SPLICED_VITERBI_TESTDRIVE
+#include "esl_random.h"
+#include "esl_randomseq.h"
+
+/* utest_global():
+ * Compare p7_ospliceviterbi_TranslatedGlobal() (SSE, probability-space)
+ * against p7_spliceviterbi_TranslatedGlobal() (scalar, log-space).
+ * For each profile-emitted sequence, expf(scalar_E) must equal sse_E
+ * within 1% relative tolerance.
+ */
+static void
+utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+             ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
+             int M, int N)
+{
+  char           *msg   = "spliced viterbi global unit test failed";
+  P7_HMM         *hmm   = NULL;
+  P7_PROFILE     *gm    = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_tr = p7_profile_fs_Create(M, abcAA, 1);
+  P7_FS_OPROFILE *om_fs = p7_fs_oprofile_Create(M, abcAA, 1);
+  ESL_SQ         *sq    = esl_sq_CreateDigital(abcAA);
+  P7_TRACE       *tr    = p7_trace_Create();
+  ESL_DSQ        *dsq   = NULL;
+  SPLICE_PIPELINE *pli  = NULL;
+  P7_OMX         *ox    = NULL;
+  int             L_dna, L_amino;
+  int             i, j;
+  float           scalar_E, sse_E;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
+  p7_fs_oprofile_Convert(gm_tr, om_fs);
+
+  pli = p7_splicepipeline_Create(NULL, M, M * 3);
+  ox  = p7_omx_Create_dpf(M, M * 3, M * 3, p7X_NSCELLS_SP);
+
+  while (N--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
+      L_amino = sq->n;
+      L_dna   = L_amino * 3;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna + 2))) == NULL) esl_fatal("malloc failed");
+      dsq[0] = dsq[L_dna + 1] = eslDSQ_SENTINEL;
+
+      j = 1;
+      for (i = 1; i <= sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      p7_fs_ReconfigLength      (gm_tr, L_amino);
+      p7_fs_oprofile_ReconfigLength(om_fs,  L_amino);
+
+      p7_gmx_sp_GrowTo       (pli->vit, M, L_dna, L_dna);
+      p7_omx_GrowTo_dpf      (ox,       M, L_dna, L_dna);
+      p7_splicescores_GrowTo (pli->splice_scores,  M);
+      p7_osplicescores_GrowTo(pli->osplice_scores, M);
+
+      /* Scalar reference (log-space) */
+      p7_spliceviterbi_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      scalar_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
+
+      /* SSE implementation (probability-space) */
+      p7_ospliceviterbi_TranslatedGlobal(pli, pli->osplice_scores, dsq, om_fs, ox, 1, L_dna, 1, M);
+      sse_E = ox->xmx[L_dna * p7X_NXCELLS + p7X_E];
+
+      if (scalar_E <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
+        if (sse_E > 0.0f) esl_fatal(msg);
+      } else {
+        if (fabsf(expf(scalar_E) - sse_E) > 0.01f * expf(scalar_E)) esl_fatal(msg);
+      }
+    }
+
+  if (dsq != NULL) free(dsq);
+  esl_sq_Destroy(sq);
+  p7_trace_Destroy(tr);
+  p7_hmm_Destroy(hmm);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_fs_oprofile_Destroy(om_fs);
+  p7_splicepipeline_Destroy(pli);
+  p7_omx_Destroy(ox);
+}
+#endif /*p7SPLICED_VITERBI_TESTDRIVE*/
+/*---------------------- end, unit tests ------------------------*/
+
+
+/*****************************************************************
+ * 4. Test driver.
+ *****************************************************************/
+#ifdef p7SPLICED_VITERBI_TESTDRIVE
+/*
+   gcc -g -Wall -msse2 -std=gnu99 -o spliced_viterbi_utest -I.. -L.. -I../../easel -L../../easel -Dp7SPLICED_VITERBI_TESTDRIVE spliced_viterbi.c -lhmmer -leasel -lm
+   ./spliced_viterbi_utest
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_gencode.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
+#include "../p7_splice.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-M",        eslARG_INT,     "20", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
+  { "-N",        eslARG_INT,     "20", NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "test driver for SSE spliced Viterbi TranslatedGlobal";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA  = esl_alphabet_Create(eslAMINO);
+  ESL_ALPHABET   *abcDNA = esl_alphabet_Create(eslDNA);
+  P7_BG          *bgAA   = p7_bg_Create(abcAA);
+  ESL_GENCODE    *gcode  = esl_gencode_Create(abcDNA, abcAA);
+  P7_CODONTABLE  *ct     = p7_codontable_Create(gcode);
+  int             M      = esl_opt_GetInteger(go, "-M");
+  int             N      = esl_opt_GetInteger(go, "-N");
+
+  utest_global(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  p7_bg_Destroy(bgAA);
+  esl_gencode_Destroy(gcode);
+  p7_codontable_Destroy(ct);
+  esl_getopts_Destroy(go);
+  esl_randomness_Destroy(r);
+  printf("All tests passed.\n");
+  return eslOK;
+}
+#endif /*p7SPLICED_VITERBI_TESTDRIVE*/
+/*--------------------- end, test driver ------------------------*/

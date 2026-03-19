@@ -17,6 +17,7 @@
 #include <pmmintrin.h>   /* DENORMAL_MODE */
 #endif
 #include "hmmer.h"
+#include "p7_splice.h"
 
 /* In calculating Q, the number of vectors we need in a row, we have
  * to make sure there's at least 2, or a striped implementation fails.

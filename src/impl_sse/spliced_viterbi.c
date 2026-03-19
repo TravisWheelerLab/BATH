@@ -649,68 +649,7 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       if (scalar_E <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
         if (sse_E > 0.0f) esl_fatal(msg);
       } else {
-        int Q   = p7O_NQF(M);
-        int q_M = (M - 1) % Q;
-        int r_M = (M - 1) / Q;
-        union { __m128 v; float p[4]; } uM, uD;
-        float sca_M = pli->vit->dp[L_dna][M * p7G_NSCELLS_SP + p7G_M];
-        float sca_D = pli->vit->dp[L_dna][M * p7G_NSCELLS_SP + p7G_D];
-        uM.v = MMO_SP(ox->dpf[L_dna], q_M);
-        uD.v = DMO_SP(ox->dpf[L_dna], q_M);
-        printf("expf(scalar_E) %f sse_E %f | scaM=%f scaD=%f sseM=%f sseD=%f (L_dna=%d M=%d Q=%d)\n",
-               expf(scalar_E), sse_E,
-               expf(sca_M), expf(sca_D),
-               uM.p[r_M], uD.p[r_M],
-               L_dna, M, Q);
-
-        if (fabsf(expf(scalar_E) - sse_E) > 0.001f) {
-          /* Dump all M and D at row i=3 and row i=L_dna to find first divergence */
-          int k, ql, rl;
-          /* Scan all codon rows from first main loop row to find first divergence */
-          {
-            int row, first_diff_row = -1;
-            for (row = 3; row <= L_dna; row += 3) {
-              int found = 0;
-              for (k = 1; k <= M && !found; k++) {
-                union { __m128 v; float p[4]; } uI, uP;
-                ql = (k-1) % Q; rl = (k-1) / Q;
-                uM.v = MMO_SP(ox->dpf[row], ql); uD.v = DMO_SP(ox->dpf[row], ql);
-                uI.v = IMO_SP(ox->dpf[row], ql); uP.v = PMO_SP(ox->dpf[row], ql);
-                float sM = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_M];
-                float sD = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_D];
-                float sI = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_I];
-                float sP = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_P];
-                float thr = 1e-3f * (fabsf(expf(sM)) + fabsf(expf(sD)) + fabsf(expf(sI)) + 1e-30f);
-                if (fabsf(expf(sM)-uM.p[rl]) > thr || fabsf(expf(sD)-uD.p[rl]) > thr ||
-                    fabsf(expf(sI)-uI.p[rl]) > thr) {
-                  found = 1; first_diff_row = row;
-                }
-              }
-              if (found) break;
-            }
-            printf("First divergence at row i=%d\n", first_diff_row);
-            if (first_diff_row >= 0) {
-              printf("ROW i=%d dump:\n", first_diff_row);
-              for (k = 1; k <= M; k++) {
-                union { __m128 v; float p[4]; } uI, uP;
-                ql = (k-1) % Q; rl = (k-1) / Q;
-                uM.v = MMO_SP(ox->dpf[first_diff_row], ql); uD.v = DMO_SP(ox->dpf[first_diff_row], ql);
-                uI.v = IMO_SP(ox->dpf[first_diff_row], ql); uP.v = PMO_SP(ox->dpf[first_diff_row], ql);
-                float sM = pli->vit->dp[first_diff_row][k * p7G_NSCELLS_SP + p7G_M];
-                float sD = pli->vit->dp[first_diff_row][k * p7G_NSCELLS_SP + p7G_D];
-                float sI = pli->vit->dp[first_diff_row][k * p7G_NSCELLS_SP + p7G_I];
-                float sP = pli->vit->dp[first_diff_row][k * p7G_NSCELLS_SP + p7G_P];
-                float thr = 1e-3f * (fabsf(expf(sM)) + fabsf(expf(sD)) + fabsf(expf(sI)) + 1e-30f);
-                printf("  k=%2d scaM=%e scaD=%e scaI=%e scaP=%e sseM=%e sseD=%e sseI=%e sseP=%e %s\n", k,
-                       expf(sM), expf(sD), expf(sI), expf(sP),
-                       uM.p[rl], uD.p[rl], uI.p[rl], uP.p[rl],
-                       (fabsf(expf(sM)-uM.p[rl]) > thr || fabsf(expf(sD)-uD.p[rl]) > thr ||
-                        fabsf(expf(sI)-uI.p[rl]) > thr) ? "DIFF" : "");
-              }
-            }
-          }
-          esl_fatal(msg);
-        }
+        if (fabsf(expf(scalar_E) - sse_E) > 0.001f) esl_fatal(msg);
       }
     }
 

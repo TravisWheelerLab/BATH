@@ -86,7 +86,7 @@ p7_osplicescores_AcceptorAC(float *f)
  * 2. The OSPLICE_SCORES object.
  *****************************************************************/
 
-/* Function:  p7_p7_osplicescores_Create()
+/* Function:  p7_osplicescores_Create()
  *
  * Purpose:   Allocates a <OSPLICE_SCORES>, initializes
  *            probability-space hardcoded data, and allocates space
@@ -97,7 +97,7 @@ p7_osplicescores_AcceptorAC(float *f)
  * Throws:    <NULL> on allocation error.
  */
 OSPLICE_SCORES *
-p7_p7_osplicescores_Create(int M_hint)
+p7_osplicescores_Create(int M_hint)
 {
   OSPLICE_SCORES *ss;
   int i;
@@ -118,7 +118,7 @@ p7_p7_osplicescores_Create(int M_hint)
 
   ss->signal_scores = NULL;
   ESL_ALLOC(ss->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
-  splicescores_sse_SignalScores(ss->signal_scores);
+  p7_osplicescores_SignalScores(ss->signal_scores);
 
   ss->donor_GT = ss->donor_GC = ss->donor_AT = NULL;
   ss->acceptor_AG = ss->acceptor_AC = NULL;
@@ -129,11 +129,11 @@ p7_p7_osplicescores_Create(int M_hint)
   ESL_ALLOC(ss->acceptor_AG, sizeof(float) * 16);
   ESL_ALLOC(ss->acceptor_AC, sizeof(float) * 16);
 
-  splicescores_sse_DonorGT(ss->donor_GT);
-  splicescores_sse_DonorGC(ss->donor_GC);
-  splicescores_sse_DonorAT(ss->donor_AT);
-  splicescores_sse_AcceptorAG(ss->acceptor_AG);
-  splicescores_sse_AcceptorAC(ss->acceptor_AC);
+  p7_osplicescores_DonorGT(ss->donor_GT);
+  p7_osplicescores_DonorGC(ss->donor_GC);
+  p7_osplicescores_DonorAT(ss->donor_AT);
+  p7_osplicescores_AcceptorAG(ss->acceptor_AG);
+  p7_osplicescores_AcceptorAC(ss->acceptor_AC);
 
   return ss;
 

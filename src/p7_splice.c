@@ -1708,7 +1708,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   ret_path = NULL;
   tmp_path = NULL;
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L);
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L/3);
    
@@ -2012,7 +2012,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   pli   = info->pli;
   gm_tr = info->gm_tr;
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L);
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L/3);
   
@@ -2281,7 +2281,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   pli   = info->pli;
   gm_tr = info->gm_tr;
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L);
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L);
   
@@ -2541,7 +2541,7 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   pli   = info->pli;
   gm_tr = info->gm_tr;
 
-  p7_gmx_sp_GrowTo(pli->vit, M, L, L);
+  p7_gmx_GrowTo(pli->vit, M, L, L);
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L);
   

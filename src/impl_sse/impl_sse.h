@@ -17,7 +17,6 @@
 #include <pmmintrin.h>   /* DENORMAL_MODE */
 #endif
 #include "hmmer.h"
-#include "p7_splice.h"
 
 /* In calculating Q, the number of vectors we need in a row, we have
  * to make sure there's at least 2, or a striped implementation fails.
@@ -486,13 +485,6 @@ extern OSPLICE_SCORES *p7_osplicescores_Create (int M_hint);
 extern int             p7_osplicescores_GrowTo (OSPLICE_SCORES *ss, int M);
 extern void            p7_osplicescores_Destroy(OSPLICE_SCORES *ss);
 
-/* spliced_viterbi.c */
-extern int p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
-                                              const ESL_DSQ *sub_dsq,
-                                              const P7_FS_OPROFILE *om_fs,
-                                              P7_OMX *ox,
-                                              int i_start, int i_end,
-                                              int k_start, int k_end);
 
 
 /* decoding.c */

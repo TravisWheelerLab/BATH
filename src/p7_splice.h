@@ -287,6 +287,18 @@ extern int p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCOR
                                               P7_OMX *ox,
                                               int i_start, int i_end,
                                               int k_start, int k_end);
+extern int p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
+                                                             const ESL_DSQ *sub_dsq,
+                                                             const P7_FS_OPROFILE *om_fs,
+                                                             P7_OMX *ox,
+                                                             int i_start, int i_end,
+                                                             int k_start, int k_end);
+extern int p7_ospliceviterbi_TranslatedSemiGlobalExtendUp  (SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
+                                                             const ESL_DSQ *sub_dsq,
+                                                             const P7_FS_OPROFILE *om_fs,
+                                                             P7_OMX *ox,
+                                                             int i_start, int i_end,
+                                                             int k_start, int k_end);
 
 
 /* p7_splice.c */

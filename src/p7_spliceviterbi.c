@@ -1,4 +1,26 @@
-/* Spliced Viterbi algorithm and trace back */
+/* Spliced Viterbi algorithms and traceback.
+ *
+ * Three DP variants are provided, covering the three ways a sub-sequence
+ * region can be aligned relative to the splice graph:
+ *
+ *   TranslatedGlobal          -- global entry (k=1) and exit (k=M)
+ *   TranslatedSemiGlobalExtendDown -- global entry, semi-global exit (any k,i)
+ *   TranslatedSemiGlobalExtendUp   -- semi-global entry (any k,i), global exit
+ *
+ * All three use log-space probability DP and share a common P-state
+ * mechanism: donor-site scores are accumulated in the SPLICE_SCORES
+ * arrays (SSX macros) during the forward pass, and acceptor-site
+ * scores from those arrays are read back to compute P(i,k) at each
+ * position.
+ *
+ * Contents:
+ *    1. p7_spliceviterbi_TranslatedGlobal()
+ *    2. p7_spliceviterbi_TranslatedSemiGlobalExtendDown()
+ *    3. p7_spliceviterbi_TranslatedSemiGlobalExtendUp()
+ *    4. p7_splicevitebi_TranslatedTrace()
+ *    5. Unit tests.
+ *    6. Test driver.
+ */
 
 #include "p7_config.h"
 
@@ -1394,5 +1416,165 @@ p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, c
 
   return p7_trace_fs_Reverse(tr);
 }
+/*----------------- end, p7_splicevitebi_TranslatedTrace() ------*/
+
+
+/*****************************************************************
+ * 5. Unit tests.
+ *****************************************************************/
+#ifdef p7SPLICEVITERBI_TESTDRIVE
+#include "esl_random.h"
+#include "esl_randomseq.h"
+
+/* utest_viterbi():
+ *
+ * Three consistency checks on profile-emitted DNA sequences:
+ *
+ * 1. TranslatedGlobal: E(L) is finite, and C(L) = E(L) + EC_MOVE.
+ *
+ * 2. TranslatedSemiGlobalExtendDown (global entry, semi-global exit)
+ *    vs. TranslatedGlobal: C_ExtendDown(L) >= C_Global(L).
+ *    ExtendDown considers all early-exit paths including the global
+ *    exit at (L, M), so its best score is at least as good.
+ *
+ * 3. TranslatedSemiGlobalExtendUp (semi-global entry, global exit)
+ *    vs. TranslatedGlobal: E_ExtendUp(L) >= E_Global(L).
+ *    ExtendUp considers entry at any (i, k), which includes the
+ *    global entry at (3, 1), so its best score is at least as good.
+ */
+static void
+utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+              ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
+              int M, int N)
+{
+  char           *msg   = "splice viterbi unit test failed";
+  P7_HMM         *hmm   = NULL;
+  P7_PROFILE     *gm    = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_tr = p7_profile_fs_Create(M, abcAA, 1);
+  ESL_SQ         *sq    = esl_sq_CreateDigital(abcAA);
+  P7_TRACE       *tr    = p7_trace_Create();
+  ESL_DSQ        *dsq   = NULL;
+  SPLICE_PIPELINE *pli  = NULL;
+  int             L_dna, L_amino;
+  int             i, j;
+  float           global_E, global_C;
+  float           ext_down_C, ext_up_E;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
+
+  pli = p7_splicepipeline_Create(NULL, M, M * 3);
+
+  while (N--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
+      L_amino = sq->n;
+      L_dna   = L_amino * 3;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna + 2))) == NULL) esl_fatal("malloc failed");
+      dsq[0] = dsq[L_dna + 1] = eslDSQ_SENTINEL;
+
+      j = 1;
+      for (i = 1; i <= sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      p7_fs_ReconfigLength(gm_tr, L_amino);
+      p7_gmx_sp_GrowTo(pli->vit, M, L_dna, L_dna);
+      p7_splicescores_GrowTo(pli->splice_scores, M);
+
+      /* --- Test 1: TranslatedGlobal consistency --- */
+      p7_spliceviterbi_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      global_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
+      global_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
+
+      if (global_E == -eslINFINITY) esl_fatal(msg);   /* must be reachable */
+      if (global_C != global_E + gm_tr->xsc[p7P_E][p7P_MOVE]) esl_fatal(msg);
+
+      /* --- Test 2: ExtendDown C(L) >= Global C(L) --- */
+      p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      ext_down_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
+
+      if (ext_down_C < global_C - 0.001f) esl_fatal(msg);
+
+      /* --- Test 3: ExtendUp E(L) >= Global E(L) --- */
+      p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      ext_up_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
+
+      if (ext_up_E < global_E - 0.001f) esl_fatal(msg);
+    }
+
+  if (dsq != NULL) free(dsq);
+  esl_sq_Destroy(sq);
+  p7_trace_Destroy(tr);
+  p7_hmm_Destroy(hmm);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_splicepipeline_Destroy(pli);
+}
+#endif /*p7SPLICEVITERBI_TESTDRIVE*/
+/*---------------------- end, unit tests ------------------------*/
+
+
+/*****************************************************************
+ * 6. Test driver.
+ *****************************************************************/
+#ifdef p7SPLICEVITERBI_TESTDRIVE
+/*
+   gcc -g -Wall -std=gnu99 -o spliceviterbi_utest -I. -L. -Ieasel -Leasel -Dp7SPLICEVITERBI_TESTDRIVE p7_spliceviterbi.c -lhmmer -leasel -lm
+   ./spliceviterbi_utest
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_gencode.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+
+#include "hmmer.h"
+#include "p7_splice.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-M",        eslARG_INT,     "20", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
+  { "-N",        eslARG_INT,     "20", NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "test driver for spliced Viterbi DP algorithms";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA  = esl_alphabet_Create(eslAMINO);
+  ESL_ALPHABET   *abcDNA = esl_alphabet_Create(eslDNA);
+  P7_BG          *bgAA   = p7_bg_Create(abcAA);
+  ESL_GENCODE    *gcode  = esl_gencode_Create(abcDNA, abcAA);
+  P7_CODONTABLE  *ct     = p7_codontable_Create(gcode);
+  int             M      = esl_opt_GetInteger(go, "-M");
+  int             N      = esl_opt_GetInteger(go, "-N");
+
+  utest_viterbi(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  p7_bg_Destroy(bgAA);
+  esl_gencode_Destroy(gcode);
+  p7_codontable_Destroy(ct);
+  esl_getopts_Destroy(go);
+  esl_randomness_Destroy(r);
+  printf("All tests passed.\n");
+  return eslOK;
+}
+#endif /*p7SPLICEVITERBI_TESTDRIVE*/
+/*--------------------- end, test driver ------------------------*/
 
 

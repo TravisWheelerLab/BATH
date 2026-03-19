@@ -117,14 +117,14 @@ p7_osplicescores_Create(int M_hint)
   ss->oscore_base= NULL;
   ss->oscore     = NULL;
 
-  /* Allocate striped __m128 P-state accumulation: SIGNAL_MEM_SIZE arrays of Q vectors.
+  /* Allocate striped __m128 P-state accumulation: Q arrays of SIGNAL_MEM_SIZE vectors.
    * Use +15 trick for 16-byte alignment. */
-  ESL_ALLOC(ss->oscore_raw, sizeof(__m128) * SIGNAL_MEM_SIZE * Q + 15);
+  ESL_ALLOC(ss->oscore_raw, sizeof(__m128) * Q * SIGNAL_MEM_SIZE + 15);
   ss->oscore_base = (__m128 *)(((unsigned long int) ss->oscore_raw + 15) & (~0xfUL));
 
-  ESL_ALLOC(ss->oscore, sizeof(__m128 *) * SIGNAL_MEM_SIZE);
-  for (i = 0; i < SIGNAL_MEM_SIZE; i++)
-    ss->oscore[i] = ss->oscore_base + i * Q;
+  ESL_ALLOC(ss->oscore, sizeof(__m128 *) * Q);
+  for (i = 0; i < Q; i++)
+    ss->oscore[i] = ss->oscore_base + i * SIGNAL_MEM_SIZE;
 
   ss->signal_scores = NULL;
   ESL_ALLOC(ss->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
@@ -169,13 +169,14 @@ p7_osplicescores_GrowTo(OSPLICE_SCORES *ss, int M)
 
   if (M <= ss->allocM) return eslOK;
 
-  ESL_ALLOC(new_raw, sizeof(__m128) * SIGNAL_MEM_SIZE * Q + 15);
+  ESL_ALLOC(new_raw, sizeof(__m128) * Q * SIGNAL_MEM_SIZE + 15);
   free(ss->oscore_raw);
   ss->oscore_raw  = new_raw;
   ss->oscore_base = (__m128 *)(((unsigned long int) ss->oscore_raw + 15) & (~0xfUL));
 
-  for (i = 0; i < SIGNAL_MEM_SIZE; i++)
-    ss->oscore[i] = ss->oscore_base + i * Q;
+  ESL_REALLOC(ss->oscore, sizeof(__m128 *) * Q);
+  for (i = 0; i < Q; i++)
+    ss->oscore[i] = ss->oscore_base + i * SIGNAL_MEM_SIZE;
 
   ss->allocM = M;
   ss->allocQ = Q;

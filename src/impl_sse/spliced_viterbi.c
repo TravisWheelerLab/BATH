@@ -240,9 +240,9 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
   sig_ATAC_v = _mm_set1_ps(oss->signal_scores[p7S_ATAC]);
 
   /* Reset OSS P-state accumulation tables to 0.0 (= -inf in log space) */
-  for (j = 0; j < SIGNAL_MEM_SIZE; j++)
-    for (q = 0; q < Q; q++)
-      oss->oscore[j][q] = zerov;
+  for (q = 0; q < Q; q++)
+    for (j = 0; j < SIGNAL_MEM_SIZE; j++)
+      oss->oscore[q][j] = zerov;
 
   /* B(0) in probability space */
   xB_0 = om_fs->xf[p7O_N][p7O_MOVE];
@@ -282,6 +282,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
 
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
@@ -299,7 +300,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, LRFV(C0, q));
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       /* Update k-1 carry */
       mpv3 = MMO_SP(dpp3, q);
@@ -314,7 +315,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
       /* I(i,k) = max(M(i-3,k)*MI, I(i-3,k)*II); zero at stop codons */
       isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
-      IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+      IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
 
       PMO_SP(dpc, q) = zerov;
     }
@@ -324,7 +325,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
      * All other positions got 0 from the zero dpp3 row. */
     if (i == 3) {
       union { __m128 v; float p[4]; } em, mc, md0, d1;
-      em.v    = LRFV(C0, 0);
+      em.v    = rfv_c0[0];
       mc.v    = MMO_SP(dpc, 0);
       mc.p[0] = xB_0 * em.p[0];
       MMO_SP(dpc, 0) = mc.v;
@@ -396,6 +397,15 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
         C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
     }
 
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+    __m128 *rfv_c1[4];
+    __m128 *rfv_c2[16];
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+    }
+
     /* Shift acceptor window */
     AG0 = AG1;  AG1 = AG2;
     AC0 = AC1;  AC1 = AC2;
@@ -454,7 +464,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, LRFV(C0, q));
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -470,11 +480,11 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;  /* zero only position k=M; other lanes (k<M) remain valid */
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       /* ---- P state ---- */
@@ -484,14 +494,14 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
       TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
               _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
                          _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C0, q)));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
       /* C1: 1 nuc from before donor + 2 from acceptor */
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
         TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
                 _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
                            _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C1[nuc1], q)));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
       }
 
       /* C2: 2 nucs from before donor + 1 from acceptor */
@@ -500,7 +510,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
           TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
                   _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
                              _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C2[nuc1*4+nuc2], q)));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
         }
       }
       PMO_SP(dpc, q) = pv;
@@ -668,9 +678,9 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
   CC_loop = om_fs->xf[p7O_C][p7O_LOOP];
   EC_move = om_fs->xf[p7O_E][p7O_MOVE];
 
-  for (j = 0; j < SIGNAL_MEM_SIZE; j++)
-    for (q = 0; q < Q; q++)
-      oss->oscore[j][q] = zerov;
+  for (q = 0; q < Q; q++)
+    for (j = 0; j < SIGNAL_MEM_SIZE; j++)
+      oss->oscore[q][j] = zerov;
 
   xB_0 = om_fs->xf[p7O_N][p7O_MOVE];
 
@@ -705,6 +715,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
 
     /* Acceptor window: needed for correct P state when main loop fires early */
     AG0 = AG1;  AG1 = AG2;
@@ -732,7 +743,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, LRFV(C0, q));
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -747,11 +758,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       PMO_SP(dpc, q) = zerov;
@@ -759,7 +770,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
 
     if (i == 3) {
       union { __m128 v; float p[4]; } em, mc, md0, d1;
-      em.v    = LRFV(C0, 0);
+      em.v    = rfv_c0[0];
       mc.v    = MMO_SP(dpc, 0);
       mc.p[0] = xB_0 * em.p[0];
       MMO_SP(dpc, 0) = mc.v;
@@ -832,6 +843,15 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
         C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
     }
 
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+    __m128 *rfv_c1[4];
+    __m128 *rfv_c2[16];
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
+    }
+
     AG0 = AG1;  AG1 = AG2;
     AC0 = AC1;  AC1 = AC2;
     if (v < 0 || v >= 4 || w < 0 || w >= 4) {
@@ -885,7 +905,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
             _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
                        _mm_mul_ps(ppv3, TSC_P_v))));
-      msv = _mm_mul_ps(msv, LRFV(C0, q));
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -901,11 +921,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       /* ---- P state ---- */
@@ -914,13 +934,13 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
       TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
               _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
                          _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C0, q)));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
         TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
                 _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
                            _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C1[nuc1], q)));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
       }
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
@@ -928,7 +948,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
           TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
                   _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
                              _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C2[nuc1*4+nuc2], q)));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
         }
       }
       PMO_SP(dpc, q) = pv;
@@ -1075,9 +1095,9 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
   NB_move = om_fs->xf[p7O_N][p7O_MOVE];
   EC_move = om_fs->xf[p7O_E][p7O_MOVE];
 
-  for (j = 0; j < SIGNAL_MEM_SIZE; j++)
-    for (q = 0; q < Q; q++)
-      oss->oscore[j][q] = zerov;
+  for (q = 0; q < Q; q++)
+    for (j = 0; j < SIGNAL_MEM_SIZE; j++)
+      oss->oscore[q][j] = zerov;
 
   /* Zero rows 0, 1, 2: DP cells.
    * N and B for semi-global entry: N(0..2)=1.0 (exp(0)), B(0..2)=NB_move. */
@@ -1113,6 +1133,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
     x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
 
     /* Acceptor window update */
     AG0 = AG1;  AG1 = AG2;
@@ -1151,7 +1172,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
             _mm_max_ps(xBv,
                        _mm_mul_ps(ppv3, TSC_P_v)))));
-      msv = _mm_mul_ps(msv, LRFV(C0, q));
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -1166,11 +1187,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       PMO_SP(dpc, q) = zerov;
@@ -1224,6 +1245,15 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
       C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
       for (nuc2 = 0; nuc2 < 4; nuc2++)
         C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+    }
+
+    __m128 *rfv_c0 = local_rfv + C0 * Q;
+    __m128 *rfv_c1[4];
+    __m128 *rfv_c2[16];
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      rfv_c1[nuc1] = local_rfv + C1[nuc1] * Q;
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
     }
 
     AG0 = AG1;  AG1 = AG2;
@@ -1290,7 +1320,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
             _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
             _mm_max_ps(xBv,
                        _mm_mul_ps(ppv3, TSC_P_v)))));
-      msv = _mm_mul_ps(msv, LRFV(C0, q));
+      msv = _mm_mul_ps(msv, rfv_c0[q]);
 
       mpv3 = MMO_SP(dpp3, q);
       dpv3 = DMO_SP(dpp3, q);
@@ -1306,11 +1336,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
                        _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
       if (is_last) {
         union { __m128 v; float p[4]; } ii;
-        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
         ii.p[r_M] = 0.0f;
         IMO_SP(dpc, q) = ii.v;
       } else {
-        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(rfv_c0[q], zerov));
       }
 
       /* ---- P state ---- */
@@ -1319,13 +1349,13 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
       TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
               _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
                          _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C0, q)));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
         TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
                 _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
                            _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C1[nuc1], q)));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
       }
 
       for (nuc1 = 0; nuc1 < 4; nuc1++) {
@@ -1333,7 +1363,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
           TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
                   _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
                              _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C2[nuc1*4+nuc2], q)));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
         }
       }
       PMO_SP(dpc, q) = pv;

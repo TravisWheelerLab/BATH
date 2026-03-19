@@ -428,7 +428,8 @@ select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
  *****************************************************************/
 #ifdef p7OPTACC_BENCHMARK
 /* 
-   icc  -O3 -static -o optacc_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm 
+   gcc -g -O3 -msse2 -std=gnu99 -o optacc_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm
+   icc  -O3 -static -o optacc_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm
 
    ./optacc_benchmark <hmmfile>         runs benchmark on optimal accuracy fill and trace
    ./optacc_benchmark -c -N1 <hmmfile>  compare scores of SSE version to generic impl

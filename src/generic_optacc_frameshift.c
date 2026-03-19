@@ -596,7 +596,7 @@ select_codon(const P7_GMX *pp, int i, int k)
  *****************************************************************/
 #ifdef p7GENERIC_OPTACC_FRAMESHIFT_BENCHMARK
 /*
-    gcc -g -O2      -o generic_optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_OPTACC_FRAMESHIFT_BENCHMARK generic_optacc_frameshift.c -lhmmer -leasel -lm
+   gcc -g -O3      -o generic_optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_OPTACC_FRAMESHIFT_BENCHMARK generic_optacc_frameshift.c -lhmmer -leasel -lm
 
    icc -O3 -static -o generic_optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_OPTACC_FRAMESHIFT_BENCHMARK generic_optacc_frameshift.c -lhmmer -leasel -lm
    ./optacc_frameshift_benchmark <hmmfile>

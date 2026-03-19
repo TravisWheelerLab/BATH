@@ -1410,7 +1410,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
  *****************************************************************/
 #ifdef p7SPLICED_VITERBI_BENCHMARK
 /*
-   gcc -g -O2 -Wall -msse2 -std=gnu99 -o spliced_viterbi_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7SPLICED_VITERBI_BENCHMARK spliced_viterbi.c -lhmmer -leasel -lm
+   gcc -g -O3 -Wall -msse2 -std=gnu99 -o spliced_viterbi_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7SPLICED_VITERBI_BENCHMARK spliced_viterbi.c -lhmmer -leasel -lm
    ./spliced_viterbi_benchmark <hmmfile>
  */
 #include "esl_gencode.h"

@@ -1425,7 +1425,7 @@ p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, c
  *****************************************************************/
 #ifdef p7SPLICEVITERBI_BENCHMARK
 /*
-   gcc -g -O2 -Wall -std=gnu99 -o spliceviterbi_benchmark -I. -L. -I../easel -L../easel -Dp7SPLICEVITERBI_BENCHMARK p7_spliceviterbi.c -lhmmer -leasel -lm
+   gcc -g -O3 -Wall -std=gnu99 -o spliceviterbi_benchmark -I. -L. -I../easel -L../easel -Dp7SPLICEVITERBI_BENCHMARK p7_spliceviterbi.c -lhmmer -leasel -lm
    ./spliceviterbi_benchmark <hmmfile>
  */
 #include "esl_gencode.h"

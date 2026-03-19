@@ -30,7 +30,7 @@
 #include "../p7_splice.h"
 
 /* P→M transition in probability space: exp(-10.0) */
-#define TSC_P_PROB  4.53999298e-5f
+#define TSC_P_PROB  4.58e-5f
 
 /* tfv layout: per-stripe slots 0..6 = BM,MM,IM,DM,MD,MI,II; DD at 7*Q_full+q */
 #define TFV_MM  1

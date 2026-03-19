@@ -34,7 +34,7 @@
 #include "p7_splice.h"
 
 #define MAX_NUC 4
-#define TSC_P -10.0
+#define TSC_P log(4.58e-5)
 
 /* Function:  p7_spliceviterbi_TranslatedGlobal()
  * Synopsis:  Fully global translated spliced Viterbi algorithm

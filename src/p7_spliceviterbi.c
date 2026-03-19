@@ -1527,16 +1527,8 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
    gcc -g -Wall -std=gnu99 -o spliceviterbi_utest -I. -L. -I../easel -L../easel -Dp7SPLICEVITERBI_TESTDRIVE p7_spliceviterbi.c -lhmmer -leasel -lm
    ./spliceviterbi_utest
  */
-#include "p7_config.h"
-
-#include "easel.h"
-#include "esl_alphabet.h"
 #include "esl_gencode.h"
 #include "esl_getopts.h"
-#include "esl_random.h"
-
-#include "hmmer.h"
-#include "p7_splice.h"
 
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/

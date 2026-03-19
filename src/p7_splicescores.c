@@ -187,10 +187,10 @@ p7_splicescores_Create(int M_hint)
   splice_scores->score_mem = NULL;
   splice_scores->score = NULL;
   ESL_ALLOC(splice_scores->score_mem, sizeof(float)  * M_hint * SIGNAL_MEM_SIZE);
-  ESL_ALLOC(splice_scores->score,     sizeof(float*) * SIGNAL_MEM_SIZE);
+  ESL_ALLOC(splice_scores->score,     sizeof(float*) * M_hint);
 
-  for(i = 0; i < SIGNAL_MEM_SIZE; i++) 
-    splice_scores->score[i] = splice_scores->score_mem + (i * M_hint);
+  for(i = 0; i < M_hint; i++)
+    splice_scores->score[i] = splice_scores->score_mem + (i * SIGNAL_MEM_SIZE);
   
   splice_scores->signal_scores = NULL; 
   ESL_ALLOC(splice_scores->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
@@ -238,9 +238,10 @@ p7_splicescores_GrowTo(SPLICE_SCORES *splice_scores, int M)
   if(M <= splice_scores->allocM) return eslOK;
 
   ESL_REALLOC(splice_scores->score_mem, sizeof(float) * M * SIGNAL_MEM_SIZE);
+  ESL_REALLOC(splice_scores->score,     sizeof(float*) * M);
 
-  for(i = 0; i < SIGNAL_MEM_SIZE; i++) 
-    splice_scores->score[i] = splice_scores->score_mem + (i * M);
+  for(i = 0; i < M; i++)
+    splice_scores->score[i] = splice_scores->score_mem + (i * SIGNAL_MEM_SIZE);
 
   splice_scores->allocM = M; 
 

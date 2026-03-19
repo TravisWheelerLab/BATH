@@ -202,9 +202,9 @@ typedef struct _splice_info
 
 
 /* MACROS for the P state score storage */
-#define SSX0(k, signal)             (score[(signal)][(k)])                                                            //xxxxXXX
-#define SSX1(k, signal, nuc1)       (score[SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)][(k)])            //XxxxxXX
-#define SSX2(k, signal, nuc1, nuc2) (score[SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)][(k)]) //XXxxxxX
+#define SSX0(k, signal)             (score[(k)][(signal)])                                                            //xxxxXXX
+#define SSX1(k, signal, nuc1)       (score[(k)][SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])            //XxxxxXX
+#define SSX2(k, signal, nuc1, nuc2) (score[(k)][SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX
 
 #define SIGNAL(nuc1, nuc2)           (4*(nuc1)+(nuc2))
 

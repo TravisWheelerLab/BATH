@@ -319,11 +319,18 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
      * M(3,1) = B(0) * emission(k_start, C0).
      * All other positions got 0 from the zero dpp3 row. */
     if (i == 3) {
-      union { __m128 v; float p[4]; } em, mc;
+      union { __m128 v; float p[4]; } em, mc, md0, d1;
       em.v    = LRFV(C0, 0);
       mc.v    = MMO_SP(dpc, 0);
       mc.p[0] = xB_0 * em.p[0];
       MMO_SP(dpc, 0) = mc.v;
+      /* The M loop computed dcv=0 from M(3,1)=0 (before this override), so
+       * DMO_SP(dpc,1).lane[0] = 0, which would leave D(3,2..M)=0 in SSE.
+       * Inject the correct M(3,1)->D(3,2) carry into DMO_SP(dpc,1).lane[0]. */
+      md0.v   = LTFV(TFV_MD, 0);
+      d1.v    = DMO_SP(dpc, 1);
+      d1.p[0] = mc.p[0] * md0.p[0];
+      DMO_SP(dpc, 1) = d1.v;
     }
 
     /* D-state serialization:

@@ -662,23 +662,27 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         if (fabsf(expf(scalar_E) - sse_E) > 0.001f) {
           /* Dump all M and D at row i=3 and row i=L_dna to find first divergence */
           int k, ql, rl;
-          printf("ROW i=3 dump (M=%d Q=%d L_dna=%d):\n", M, Q, L_dna);
-          for (k = 1; k <= M; k++) {
-            ql = (k-1) % Q; rl = (k-1) / Q;
-            uM.v = MMO_SP(ox->dpf[3], ql); uD.v = DMO_SP(ox->dpf[3], ql);
-            printf("  k=%2d scaM=%e scaD=%e sseM=%e sseD=%e\n", k,
-                   expf(pli->vit->dp[3][k * p7G_NSCELLS_SP + p7G_M]),
-                   expf(pli->vit->dp[3][k * p7G_NSCELLS_SP + p7G_D]),
-                   uM.p[rl], uD.p[rl]);
-          }
-          printf("ROW i=%d dump:\n", L_dna);
-          for (k = 1; k <= M; k++) {
-            ql = (k-1) % Q; rl = (k-1) / Q;
-            uM.v = MMO_SP(ox->dpf[L_dna], ql); uD.v = DMO_SP(ox->dpf[L_dna], ql);
-            printf("  k=%2d scaM=%e scaD=%e sseM=%e sseD=%e\n", k,
-                   expf(pli->vit->dp[L_dna][k * p7G_NSCELLS_SP + p7G_M]),
-                   expf(pli->vit->dp[L_dna][k * p7G_NSCELLS_SP + p7G_D]),
-                   uM.p[rl], uD.p[rl]);
+          /* Dump rows to find first divergence */
+          {
+            int rows_to_check[] = {3, L_dna-3, L_dna-6, L_dna};
+            int nrows = 4, ri2;
+            for (ri2 = 0; ri2 < nrows; ri2++) {
+              int row = rows_to_check[ri2];
+              if (row < 0 || row > L_dna) continue;
+              printf("ROW i=%d dump (M=%d Q=%d L_dna=%d):\n", row, M, Q, L_dna);
+              for (k = 1; k <= M; k++) {
+                union { __m128 v; float p[4]; } uP;
+                ql = (k-1) % Q; rl = (k-1) / Q;
+                uM.v = MMO_SP(ox->dpf[row], ql); uD.v = DMO_SP(ox->dpf[row], ql);
+                uP.v = PMO_SP(ox->dpf[row], ql);
+                float sM = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_M];
+                float sD = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_D];
+                float sP = pli->vit->dp[row][k * p7G_NSCELLS_SP + p7G_P];
+                printf("  k=%2d scaM=%e scaD=%e scaP=%e sseM=%e sseD=%e sseP=%e %s\n", k,
+                       expf(sM), expf(sD), expf(sP), uM.p[rl], uD.p[rl], uP.p[rl],
+                       (fabsf(expf(sM)-uM.p[rl]) > 1e-8f || fabsf(expf(sD)-uD.p[rl]) > 1e-8f) ? "DIFF" : "");
+              }
+            }
           }
           esl_fatal(msg);
         }

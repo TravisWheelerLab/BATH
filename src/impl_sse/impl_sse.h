@@ -399,13 +399,6 @@ typedef struct _osplice_scores {
 
   float   *signal_scores;  /* {0.9921, 0.0073, 0.0006}          */
 
-  float   *acceptor_AG;    /* 1.0 (valid) or 0.0 (invalid)      */
-  float   *acceptor_AC;
-
-  float   *donor_GT;
-  float   *donor_GC;
-  float   *donor_AT;
-
 } OSPLICE_SCORES;
 
 /* OSS macros: striped P-state accumulation table access.

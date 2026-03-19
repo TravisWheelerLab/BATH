@@ -206,8 +206,9 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
   __m128   sig_GTAG_v, sig_GCAG_v, sig_ATAC_v;
 
   /* Acceptor/donor validity (probability space: 1.0 valid, 0.0 invalid) */
-  float    AG0, AG1, AG2, AC0, AC1, AC2;
-  float    GT0, GT1, GT2, GC0, GC1, GC2, AT0, AT1, AT2;
+  int      acc0, acc1, acc2;           /* ACCEPT_AG, ACCEPT_AC, or -1 */
+  int      donor0, donor1, donor2;       /* DONOR_GT/GC/AT, or -1       */
+  int      do_pstate, do_donor;
   __m128   AG0v, AG1v, AG2v, AC0v, AC1v, AC2v;
   __m128   GT0v, GC0v, AT0v, GT1v, GC1v, AT1v, GT2v, GC2v, AT2v;
 
@@ -220,7 +221,6 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
    */
   int      v, w, x;
   int      r, s, t, u;
-  int      tmp_r, tmp_s;
   int      nuc1, nuc2;
 
   float    xB_0;
@@ -255,8 +255,7 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
   }
 
   /* Initialize acceptor/donor rolling window to impossible */
-  AG0 = AG1 = AG2 = 0.0f;
-  AC0 = AC1 = AC2 = 0.0f;
+  acc0 = acc1 = acc2 = -1;
 
   /* Initialize codon nucleotide window to placeholder (-1 → clamped to degenerate) */
   v = w = x = -1;
@@ -407,39 +406,48 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
     }
 
     /* Shift acceptor window */
-    AG0 = AG1;  AG1 = AG2;
-    AC0 = AC1;  AC1 = AC2;
-    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
-      AG2 = AC2 = 0.0f;
-    } else {
-      AG2 = oss->acceptor_AG[v*4 + w];
-      AC2 = oss->acceptor_AC[v*4 + w];
-    }
+    acc0 = acc1;  acc1 = acc2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4)      acc2 = -1;
+    else if (SIGNAL(v,w) == ACCEPT_AG)             acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC)             acc2 = ACCEPT_AC;
+    else                                           acc2 = -1;
 
     /* Donor validity for all three codon classes */
-    if (r < 0 || r >= 4 || s < 0 || s >= 4) {
-      GT0 = GC0 = AT0 = GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
-    } else if (t < 0 || t >= 4) {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
-    } else if (u < 0 || u >= 4) {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
-      GT2 = GC2 = AT2 = 0.0f;
-    } else {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
-      GT2 = oss->donor_GT[t*4+u];  GC2 = oss->donor_GC[t*4+u];  AT2 = oss->donor_AT[t*4+u];
+    donor0 = donor1 = donor2 = -1;
+    if (!(r < 0 || r >= 4 || s < 0 || s >= 4)) {
+      if      (SIGNAL(r,s) == DONOR_GT) donor0 = DONOR_GT;
+      else if (SIGNAL(r,s) == DONOR_GC) donor0 = DONOR_GC;
+      else if (SIGNAL(r,s) == DONOR_AT) donor0 = DONOR_AT;
+      if (!(t < 0 || t >= 4)) {
+        if      (SIGNAL(s,t) == DONOR_GT) donor1 = DONOR_GT;
+        else if (SIGNAL(s,t) == DONOR_GC) donor1 = DONOR_GC;
+        else if (SIGNAL(s,t) == DONOR_AT) donor1 = DONOR_AT;
+        if (!(u < 0 || u >= 4)) {
+          if      (SIGNAL(t,u) == DONOR_GT) donor2 = DONOR_GT;
+          else if (SIGNAL(t,u) == DONOR_GC) donor2 = DONOR_GC;
+          else if (SIGNAL(t,u) == DONOR_AT) donor2 = DONOR_AT;
+        }
+      }
     }
 
-    tmp_r = ESL_MIN(r, 3);
-    tmp_s = ESL_MIN(s, 3);
+    do_pstate = (acc0 >= 0 || acc1 >= 0 || acc2 >= 0);
+    do_donor  = (donor0 >= 0 || donor1 >= 0 || donor2 >= 0);
 
-    AG0v = _mm_set1_ps(AG0);  AG1v = _mm_set1_ps(AG1);  AG2v = _mm_set1_ps(AG2);
-    AC0v = _mm_set1_ps(AC0);  AC1v = _mm_set1_ps(AC1);  AC2v = _mm_set1_ps(AC2);
-    GT0v = _mm_set1_ps(GT0);  GC0v = _mm_set1_ps(GC0);  AT0v = _mm_set1_ps(AT0);
-    GT1v = _mm_set1_ps(GT1);  GC1v = _mm_set1_ps(GC1);  AT1v = _mm_set1_ps(AT1);
-    GT2v = _mm_set1_ps(GT2);  GC2v = _mm_set1_ps(GC2);  AT2v = _mm_set1_ps(AT2);
+    AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
+    AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
+    AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
+    AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
+    AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
+    AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
+    GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
+    GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
+    AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
+    GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
+    GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
+    AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
+    GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
+    GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
+    AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
 
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
@@ -488,47 +496,52 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
       }
 
       /* ---- P state ---- */
-      pv = zerov;
+      PMO_SP(dpc, q) = zerov;
+      if (do_pstate) {
+        pv = zerov;
 
-      /* C0: full 3-nt from acceptor */
-      TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
-              _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
-                         _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
+        /* C0: full 3-nt from acceptor */
+        TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
+                _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
+                           _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
-      /* C1: 1 nuc from before donor + 2 from acceptor */
-      for (nuc1 = 0; nuc1 < 4; nuc1++) {
-        TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
-                _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
-                           _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
-      }
-
-      /* C2: 2 nucs from before donor + 1 from acceptor */
-      for (nuc1 = 0; nuc1 < 4; nuc1++) {
-        for (nuc2 = 0; nuc2 < 4; nuc2++) {
-          TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
-                  _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
-                             _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
+        /* C1: 1 nuc from before donor + 2 from acceptor */
+        for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
+                  _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
+                             _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
         }
+
+        /* C2: 2 nucs from before donor + 1 from acceptor */
+        for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc2 = 0; nuc2 < 4; nuc2++) {
+            TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
+                    _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
+                               _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
+            pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
+          }
+        }
+        PMO_SP(dpc, q) = pv;
       }
-      PMO_SP(dpc, q) = pv;
 
       /* ---- Donor lookback: update OSS at position k from (lb, k-1) ---- */
-      TMP_v = _mm_max_ps(tsv_m, tsv_d);
+      if (do_donor) {
+        TMP_v = _mm_max_ps(tsv_m, tsv_d);
 
-      OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
-      OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
-      OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
+        OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
+        OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
+        OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
 
-      OSS1(oss,q,p7S_GTAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,tmp_r), _mm_mul_ps(TMP_v, GT1v));
-      OSS1(oss,q,p7S_GCAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,tmp_r), _mm_mul_ps(TMP_v, GC1v));
-      OSS1(oss,q,p7S_ATAC,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,tmp_r), _mm_mul_ps(TMP_v, AT1v));
+        OSS1(oss,q,p7S_GTAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,r), _mm_mul_ps(TMP_v, GT1v));
+        OSS1(oss,q,p7S_GCAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,r), _mm_mul_ps(TMP_v, GC1v));
+        OSS1(oss,q,p7S_ATAC,r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,r), _mm_mul_ps(TMP_v, AT1v));
 
-      OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GT2v));
-      OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GC2v));
-      OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s), _mm_mul_ps(TMP_v, AT2v));
+        OSS2(oss,q,p7S_GTAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,r,s), _mm_mul_ps(TMP_v, GT2v));
+        OSS2(oss,q,p7S_GCAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,r,s), _mm_mul_ps(TMP_v, GC2v));
+        OSS2(oss,q,p7S_ATAC,r,s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,r,s), _mm_mul_ps(TMP_v, AT2v));
+      }
 
       /* Advance donor lookback carry */
       tsv_m = MMO_SP(dplb, q);
@@ -633,15 +646,15 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
   __m128   msv, isv, dcv;
   __m128   sig_GTAG_v, sig_GCAG_v, sig_ATAC_v;
 
-  float    AG0, AG1, AG2, AC0, AC1, AC2;
-  float    GT0, GT1, GT2, GC0, GC1, GC2, AT0, AT1, AT2;
+  int      acc0, acc1, acc2;           /* ACCEPT_AG, ACCEPT_AC, or -1 */
+  int      donor0, donor1, donor2;       /* DONOR_GT/GC/AT, or -1       */
+  int      do_pstate, do_donor;
   __m128   AG0v, AG1v, AG2v, AC0v, AC1v, AC2v;
   __m128   GT0v, GC0v, AT0v, GT1v, GC1v, AT1v, GT2v, GC2v, AT2v;
 
   int      C0, C1[4], C2[16];
   int      v, w, x;
   int      r, s, t, u;
-  int      tmp_r, tmp_s;
   int      nuc1, nuc2;
 
   float    xB_0;
@@ -693,8 +706,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
     ox->xmx[i * p7X_NXCELLS + p7X_C] = 0.0f;
   }
 
-  AG0 = AG1 = AG2 = 0.0f;
-  AC0 = AC1 = AC2 = 0.0f;
+  acc0 = acc1 = acc2 = -1;
   v = w = x = -1;
 
   for (i = 1; i <= 2; i++) {
@@ -718,14 +730,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
     __m128 *rfv_c0 = local_rfv + C0 * Q;
 
     /* Acceptor window: needed for correct P state when main loop fires early */
-    AG0 = AG1;  AG1 = AG2;
-    AC0 = AC1;  AC1 = AC2;
-    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
-      AG2 = AC2 = 0.0f;
-    } else {
-      AG2 = oss->acceptor_AG[v*4 + w];
-      AC2 = oss->acceptor_AC[v*4 + w];
-    }
+    acc0 = acc1;  acc1 = acc2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4)      acc2 = -1;
+    else if (SIGNAL(v,w) == ACCEPT_AG)             acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC)             acc2 = ACCEPT_AC;
+    else                                           acc2 = -1;
 
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
@@ -852,38 +861,47 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
         rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
     }
 
-    AG0 = AG1;  AG1 = AG2;
-    AC0 = AC1;  AC1 = AC2;
-    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
-      AG2 = AC2 = 0.0f;
-    } else {
-      AG2 = oss->acceptor_AG[v*4 + w];
-      AC2 = oss->acceptor_AC[v*4 + w];
+    acc0 = acc1;  acc1 = acc2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4)      acc2 = -1;
+    else if (SIGNAL(v,w) == ACCEPT_AG)             acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC)             acc2 = ACCEPT_AC;
+    else                                           acc2 = -1;
+
+    donor0 = donor1 = donor2 = -1;
+    if (!(r < 0 || r >= 4 || s < 0 || s >= 4)) {
+      if      (SIGNAL(r,s) == DONOR_GT) donor0 = DONOR_GT;
+      else if (SIGNAL(r,s) == DONOR_GC) donor0 = DONOR_GC;
+      else if (SIGNAL(r,s) == DONOR_AT) donor0 = DONOR_AT;
+      if (!(t < 0 || t >= 4)) {
+        if      (SIGNAL(s,t) == DONOR_GT) donor1 = DONOR_GT;
+        else if (SIGNAL(s,t) == DONOR_GC) donor1 = DONOR_GC;
+        else if (SIGNAL(s,t) == DONOR_AT) donor1 = DONOR_AT;
+        if (!(u < 0 || u >= 4)) {
+          if      (SIGNAL(t,u) == DONOR_GT) donor2 = DONOR_GT;
+          else if (SIGNAL(t,u) == DONOR_GC) donor2 = DONOR_GC;
+          else if (SIGNAL(t,u) == DONOR_AT) donor2 = DONOR_AT;
+        }
+      }
     }
 
-    if (r < 0 || r >= 4 || s < 0 || s >= 4) {
-      GT0 = GC0 = AT0 = GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
-    } else if (t < 0 || t >= 4) {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
-    } else if (u < 0 || u >= 4) {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
-      GT2 = GC2 = AT2 = 0.0f;
-    } else {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
-      GT2 = oss->donor_GT[t*4+u];  GC2 = oss->donor_GC[t*4+u];  AT2 = oss->donor_AT[t*4+u];
-    }
+    do_pstate = (acc0 >= 0 || acc1 >= 0 || acc2 >= 0);
+    do_donor  = (donor0 >= 0 || donor1 >= 0 || donor2 >= 0);
 
-    tmp_r = ESL_MIN(r, 3);
-    tmp_s = ESL_MIN(s, 3);
-
-    AG0v = _mm_set1_ps(AG0);  AG1v = _mm_set1_ps(AG1);  AG2v = _mm_set1_ps(AG2);
-    AC0v = _mm_set1_ps(AC0);  AC1v = _mm_set1_ps(AC1);  AC2v = _mm_set1_ps(AC2);
-    GT0v = _mm_set1_ps(GT0);  GC0v = _mm_set1_ps(GC0);  AT0v = _mm_set1_ps(AT0);
-    GT1v = _mm_set1_ps(GT1);  GC1v = _mm_set1_ps(GC1);  AT1v = _mm_set1_ps(AT1);
-    GT2v = _mm_set1_ps(GT2);  GC2v = _mm_set1_ps(GC2);  AT2v = _mm_set1_ps(AT2);
+    AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
+    AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
+    AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
+    AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
+    AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
+    AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
+    GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
+    GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
+    AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
+    GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
+    GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
+    AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
+    GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
+    GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
+    AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
 
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
@@ -929,44 +947,49 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_S
       }
 
       /* ---- P state ---- */
-      pv = zerov;
+      PMO_SP(dpc, q) = zerov;
+      if (do_pstate) {
+        pv = zerov;
 
-      TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
-              _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
-                         _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
+        TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
+                _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
+                           _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
-      for (nuc1 = 0; nuc1 < 4; nuc1++) {
-        TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
-                _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
-                           _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
-      }
-
-      for (nuc1 = 0; nuc1 < 4; nuc1++) {
-        for (nuc2 = 0; nuc2 < 4; nuc2++) {
-          TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
-                  _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
-                             _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
+        for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
+                  _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
+                             _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
         }
+
+        for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc2 = 0; nuc2 < 4; nuc2++) {
+            TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
+                    _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
+                               _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
+            pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
+          }
+        }
+        PMO_SP(dpc, q) = pv;
       }
-      PMO_SP(dpc, q) = pv;
 
       /* ---- Donor lookback: update OSS at position k from (lb, k-1) ---- */
-      TMP_v = _mm_max_ps(tsv_m, tsv_d);
+      if (do_donor) {
+        TMP_v = _mm_max_ps(tsv_m, tsv_d);
 
-      OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
-      OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
-      OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
+        OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
+        OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
+        OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
 
-      OSS1(oss,q,p7S_GTAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,tmp_r), _mm_mul_ps(TMP_v, GT1v));
-      OSS1(oss,q,p7S_GCAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,tmp_r), _mm_mul_ps(TMP_v, GC1v));
-      OSS1(oss,q,p7S_ATAC,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,tmp_r), _mm_mul_ps(TMP_v, AT1v));
+        OSS1(oss,q,p7S_GTAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,r), _mm_mul_ps(TMP_v, GT1v));
+        OSS1(oss,q,p7S_GCAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,r), _mm_mul_ps(TMP_v, GC1v));
+        OSS1(oss,q,p7S_ATAC,r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,r), _mm_mul_ps(TMP_v, AT1v));
 
-      OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GT2v));
-      OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GC2v));
-      OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s), _mm_mul_ps(TMP_v, AT2v));
+        OSS2(oss,q,p7S_GTAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,r,s), _mm_mul_ps(TMP_v, GT2v));
+        OSS2(oss,q,p7S_GCAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,r,s), _mm_mul_ps(TMP_v, GC2v));
+        OSS2(oss,q,p7S_ATAC,r,s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,r,s), _mm_mul_ps(TMP_v, AT2v));
+      }
 
       tsv_m = MMO_SP(dplb, q);
       tsv_d = DMO_SP(dplb, q);
@@ -1065,15 +1088,15 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
   __m128   msv, isv, dcv;
   __m128   sig_GTAG_v, sig_GCAG_v, sig_ATAC_v;
 
-  float    AG0, AG1, AG2, AC0, AC1, AC2;
-  float    GT0, GT1, GT2, GC0, GC1, GC2, AT0, AT1, AT2;
+  int      acc0, acc1, acc2;           /* ACCEPT_AG, ACCEPT_AC, or -1 */
+  int      donor0, donor1, donor2;       /* DONOR_GT/GC/AT, or -1       */
+  int      do_pstate, do_donor;
   __m128   AG0v, AG1v, AG2v, AC0v, AC1v, AC2v;
   __m128   GT0v, GC0v, AT0v, GT1v, GC1v, AT1v, GT2v, GC2v, AT2v;
 
   int      C0, C1[4], C2[16];
   int      v, w, x;
   int      r, s, t, u;
-  int      tmp_r, tmp_s;
   int      nuc1, nuc2;
 
   float    NN_loop, NB_move, EC_move;
@@ -1111,8 +1134,7 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
     ox->xmx[i * p7X_NXCELLS + p7X_C] = 0.0f;
   }
 
-  AG0 = AG1 = AG2 = 0.0f;
-  AC0 = AC1 = AC2 = 0.0f;
+  acc0 = acc1 = acc2 = -1;
   v = w = x = -1;
 
   for (i = 1; i <= 2; i++) {
@@ -1136,14 +1158,11 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
     __m128 *rfv_c0 = local_rfv + C0 * Q;
 
     /* Acceptor window update */
-    AG0 = AG1;  AG1 = AG2;
-    AC0 = AC1;  AC1 = AC2;
-    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
-      AG2 = AC2 = 0.0f;
-    } else {
-      AG2 = oss->acceptor_AG[v*4 + w];
-      AC2 = oss->acceptor_AC[v*4 + w];
-    }
+    acc0 = acc1;  acc1 = acc2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4)      acc2 = -1;
+    else if (SIGNAL(v,w) == ACCEPT_AG)             acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC)             acc2 = ACCEPT_AC;
+    else                                           acc2 = -1;
 
     /* N/B: codon-stride recurrence */
     {
@@ -1256,38 +1275,47 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
         rfv_c2[nuc1*4+nuc2] = local_rfv + C2[nuc1*4+nuc2] * Q;
     }
 
-    AG0 = AG1;  AG1 = AG2;
-    AC0 = AC1;  AC1 = AC2;
-    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
-      AG2 = AC2 = 0.0f;
-    } else {
-      AG2 = oss->acceptor_AG[v*4 + w];
-      AC2 = oss->acceptor_AC[v*4 + w];
+    acc0 = acc1;  acc1 = acc2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4)      acc2 = -1;
+    else if (SIGNAL(v,w) == ACCEPT_AG)             acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC)             acc2 = ACCEPT_AC;
+    else                                           acc2 = -1;
+
+    donor0 = donor1 = donor2 = -1;
+    if (!(r < 0 || r >= 4 || s < 0 || s >= 4)) {
+      if      (SIGNAL(r,s) == DONOR_GT) donor0 = DONOR_GT;
+      else if (SIGNAL(r,s) == DONOR_GC) donor0 = DONOR_GC;
+      else if (SIGNAL(r,s) == DONOR_AT) donor0 = DONOR_AT;
+      if (!(t < 0 || t >= 4)) {
+        if      (SIGNAL(s,t) == DONOR_GT) donor1 = DONOR_GT;
+        else if (SIGNAL(s,t) == DONOR_GC) donor1 = DONOR_GC;
+        else if (SIGNAL(s,t) == DONOR_AT) donor1 = DONOR_AT;
+        if (!(u < 0 || u >= 4)) {
+          if      (SIGNAL(t,u) == DONOR_GT) donor2 = DONOR_GT;
+          else if (SIGNAL(t,u) == DONOR_GC) donor2 = DONOR_GC;
+          else if (SIGNAL(t,u) == DONOR_AT) donor2 = DONOR_AT;
+        }
+      }
     }
 
-    if (r < 0 || r >= 4 || s < 0 || s >= 4) {
-      GT0 = GC0 = AT0 = GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
-    } else if (t < 0 || t >= 4) {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
-    } else if (u < 0 || u >= 4) {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
-      GT2 = GC2 = AT2 = 0.0f;
-    } else {
-      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
-      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
-      GT2 = oss->donor_GT[t*4+u];  GC2 = oss->donor_GC[t*4+u];  AT2 = oss->donor_AT[t*4+u];
-    }
+    do_pstate = (acc0 >= 0 || acc1 >= 0 || acc2 >= 0);
+    do_donor  = (donor0 >= 0 || donor1 >= 0 || donor2 >= 0);
 
-    tmp_r = ESL_MIN(r, 3);
-    tmp_s = ESL_MIN(s, 3);
-
-    AG0v = _mm_set1_ps(AG0);  AG1v = _mm_set1_ps(AG1);  AG2v = _mm_set1_ps(AG2);
-    AC0v = _mm_set1_ps(AC0);  AC1v = _mm_set1_ps(AC1);  AC2v = _mm_set1_ps(AC2);
-    GT0v = _mm_set1_ps(GT0);  GC0v = _mm_set1_ps(GC0);  AT0v = _mm_set1_ps(AT0);
-    GT1v = _mm_set1_ps(GT1);  GC1v = _mm_set1_ps(GC1);  AT1v = _mm_set1_ps(AT1);
-    GT2v = _mm_set1_ps(GT2);  GC2v = _mm_set1_ps(GC2);  AT2v = _mm_set1_ps(AT2);
+    AG0v = _mm_set1_ps(acc0 == ACCEPT_AG ? 1.0f : 0.0f);
+    AG1v = _mm_set1_ps(acc1 == ACCEPT_AG ? 1.0f : 0.0f);
+    AG2v = _mm_set1_ps(acc2 == ACCEPT_AG ? 1.0f : 0.0f);
+    AC0v = _mm_set1_ps(acc0 == ACCEPT_AC ? 1.0f : 0.0f);
+    AC1v = _mm_set1_ps(acc1 == ACCEPT_AC ? 1.0f : 0.0f);
+    AC2v = _mm_set1_ps(acc2 == ACCEPT_AC ? 1.0f : 0.0f);
+    GT0v = _mm_set1_ps(donor0 == DONOR_GT ? 1.0f : 0.0f);
+    GC0v = _mm_set1_ps(donor0 == DONOR_GC ? 1.0f : 0.0f);
+    AT0v = _mm_set1_ps(donor0 == DONOR_AT ? 1.0f : 0.0f);
+    GT1v = _mm_set1_ps(donor1 == DONOR_GT ? 1.0f : 0.0f);
+    GC1v = _mm_set1_ps(donor1 == DONOR_GC ? 1.0f : 0.0f);
+    AT1v = _mm_set1_ps(donor1 == DONOR_AT ? 1.0f : 0.0f);
+    GT2v = _mm_set1_ps(donor2 == DONOR_GT ? 1.0f : 0.0f);
+    GC2v = _mm_set1_ps(donor2 == DONOR_GC ? 1.0f : 0.0f);
+    AT2v = _mm_set1_ps(donor2 == DONOR_AT ? 1.0f : 0.0f);
 
     /* N/B: codon-stride recurrence */
     {
@@ -1344,44 +1372,49 @@ p7_ospliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, OSPLICE_SCO
       }
 
       /* ---- P state ---- */
-      pv = zerov;
+      PMO_SP(dpc, q) = zerov;
+      if (do_pstate) {
+        pv = zerov;
 
-      TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
-              _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
-                         _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
-      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
+        TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
+                _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
+                           _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c0[q]));
 
-      for (nuc1 = 0; nuc1 < 4; nuc1++) {
-        TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
-                _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
-                           _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
-        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
-      }
-
-      for (nuc1 = 0; nuc1 < 4; nuc1++) {
-        for (nuc2 = 0; nuc2 < 4; nuc2++) {
-          TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
-                  _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
-                             _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
-          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
+        for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
+                  _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
+                             _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c1[nuc1][q]));
         }
+
+        for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc2 = 0; nuc2 < 4; nuc2++) {
+            TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
+                    _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
+                               _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
+            pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, rfv_c2[nuc1*4+nuc2][q]));
+          }
+        }
+        PMO_SP(dpc, q) = pv;
       }
-      PMO_SP(dpc, q) = pv;
 
       /* ---- Donor lookback: update OSS at position k from (lb, k-1) ---- */
-      TMP_v = _mm_max_ps(tsv_m, tsv_d);
+      if (do_donor) {
+        TMP_v = _mm_max_ps(tsv_m, tsv_d);
 
-      OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
-      OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
-      OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
+        OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
+        OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
+        OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
 
-      OSS1(oss,q,p7S_GTAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,tmp_r), _mm_mul_ps(TMP_v, GT1v));
-      OSS1(oss,q,p7S_GCAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,tmp_r), _mm_mul_ps(TMP_v, GC1v));
-      OSS1(oss,q,p7S_ATAC,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,tmp_r), _mm_mul_ps(TMP_v, AT1v));
+        OSS1(oss,q,p7S_GTAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,r), _mm_mul_ps(TMP_v, GT1v));
+        OSS1(oss,q,p7S_GCAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,r), _mm_mul_ps(TMP_v, GC1v));
+        OSS1(oss,q,p7S_ATAC,r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,r), _mm_mul_ps(TMP_v, AT1v));
 
-      OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GT2v));
-      OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GC2v));
-      OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s), _mm_mul_ps(TMP_v, AT2v));
+        OSS2(oss,q,p7S_GTAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,r,s), _mm_mul_ps(TMP_v, GT2v));
+        OSS2(oss,q,p7S_GCAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,r,s), _mm_mul_ps(TMP_v, GC2v));
+        OSS2(oss,q,p7S_ATAC,r,s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,r,s), _mm_mul_ps(TMP_v, AT2v));
+      }
 
       tsv_m = MMO_SP(dplb, q);
       tsv_d = DMO_SP(dplb, q);

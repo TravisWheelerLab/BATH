@@ -9,8 +9,9 @@
  * Contents:
  *    1. Local table helpers (re-stripe emissions/transitions for sub-range).
  *    2. p7_ospliceviterbi_TranslatedGlobal()
- *    3. Unit tests.
- *    4. Test driver.
+ *    3. p7_ospliceviterbi_TranslatedSemiGlobalExtendDown()
+ *    4. Unit tests.
+ *    5. Test driver.
  */
 
 #include "p7_config.h"
@@ -575,7 +576,429 @@ p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
 
 
 /*****************************************************************
- * 3. Unit tests.
+ * 3. p7_ospliceviterbi_TranslatedSemiGlobalExtendDown()
+ *****************************************************************/
+
+/* Function:  p7_ospliceviterbi_TranslatedSemiGlobalExtendDown()
+ * Synopsis:  SSE-accelerated semi-global (global entry, semi-global exit) translated spliced Viterbi.
+ *
+ * Purpose:   SSE equivalent of p7_spliceviterbi_TranslatedSemiGlobalExtendDown().
+ *            Same DP recurrence as p7_ospliceviterbi_TranslatedGlobal() but exits
+ *            semi-globally: at each row i, E(i) = max over k=1..M of max(M(i,k), D(i,k)),
+ *            and C(i) = max(C(i-3) * CC_loop, E(i) * EC_move).  The final score is C(L).
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if profile not codon_lengths==1, <eslEMEM> on alloc.
+ */
+int
+p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
+                                                  const ESL_DSQ *sub_dsq,
+                                                  const P7_FS_OPROFILE *om_fs,
+                                                  P7_OMX *ox,
+                                                  int i_start, int i_end,
+                                                  int k_start, int k_end)
+{
+  int      M          = k_end - k_start + 1;
+  int      L          = i_end - i_start + 1;
+  int      Q          = p7O_NQF(M);
+  int      r_M        = (M - 1) / Q;
+  int      min_intron = pli->min_intron;
+
+  __m128  *local_rfv  = NULL;
+  __m128  *local_tfv  = NULL;
+  void    *rfv_raw    = NULL;
+  void    *tfv_raw    = NULL;
+  __m128  *valid_mask = NULL;
+  void    *mask_raw   = NULL;
+
+  __m128  *dpc, *dpp3, *dplb;
+
+  __m128   zerov     = _mm_setzero_ps();
+  __m128   TSC_P_v   = _mm_set1_ps(TSC_P_PROB);
+
+  __m128   mpv3, dpv3, ipv3, ppv3;
+  __m128   tsv_m, tsv_d;
+  __m128   msv, isv, dcv;
+  __m128   sig_GTAG_v, sig_GCAG_v, sig_ATAC_v;
+
+  float    AG0, AG1, AG2, AC0, AC1, AC2;
+  float    GT0, GT1, GT2, GC0, GC1, GC2, AT0, AT1, AT2;
+  __m128   AG0v, AG1v, AG2v, AC0v, AC1v, AC2v;
+  __m128   GT0v, GC0v, AT0v, GT1v, GC1v, AT1v, GT2v, GC2v, AT2v;
+
+  int      C0, C1[4], C2[16];
+  int      v, w, x;
+  int      r, s, t, u;
+  int      tmp_r, tmp_s;
+  int      nuc1, nuc2;
+
+  float    xB_0;
+  float    CC_loop, EC_move;
+  int      i, q, j, loop_end, sub_i;
+  int      status;
+
+  if (om_fs->codon_lengths != 1)
+    ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
+
+  local_rfv = build_local_rfv(om_fs, k_start, M, Q, &rfv_raw);
+  local_tfv = build_local_tfv(om_fs, k_start, M, Q, &tfv_raw);
+  if (!local_rfv || !local_tfv) { status = eslEMEM; goto ERROR; }
+
+  /* Valid-lane bitmask per stripe: all-1s for k<=M, all-0s for k>M.
+   * Used to exclude invalid lanes (k>M in last stripe) from the E horizontal max. */
+  ESL_ALLOC(mask_raw, sizeof(__m128) * Q + 15);
+  valid_mask = (__m128 *)(((unsigned long int) mask_raw + 15) & (~0xfUL));
+  {
+    int rl;
+    for (q = 0; q < Q; q++) {
+      union { __m128 v; float p[4]; } vm;
+      vm.v = _mm_setzero_ps();
+      for (rl = 0; rl < 4; rl++)
+        if (q + rl * Q + 1 <= M) vm.p[rl] = 1.0f;
+      valid_mask[q] = _mm_cmpgt_ps(vm.v, zerov);
+    }
+  }
+
+  sig_GTAG_v = _mm_set1_ps(oss->signal_scores[p7S_GTAG]);
+  sig_GCAG_v = _mm_set1_ps(oss->signal_scores[p7S_GCAG]);
+  sig_ATAC_v = _mm_set1_ps(oss->signal_scores[p7S_ATAC]);
+
+  CC_loop = om_fs->xf[p7O_C][p7O_LOOP];
+  EC_move = om_fs->xf[p7O_E][p7O_MOVE];
+
+  for (j = 0; j < SIGNAL_MEM_SIZE; j++)
+    for (q = 0; q < Q; q++)
+      oss->oscore[j][q] = zerov;
+
+  xB_0 = om_fs->xf[p7O_N][p7O_MOVE];
+
+  /* Zero rows 0, 1, 2: DP cells and C state */
+  for (i = 0; i <= 2; i++) {
+    dpc = ox->dpf[i];
+    for (q = 0; q < Q; q++)
+      MMO_SP(dpc,q) = DMO_SP(dpc,q) = IMO_SP(dpc,q) = PMO_SP(dpc,q) = zerov;
+    ox->xmx[i * p7X_NXCELLS + p7X_E] = 0.0f;
+    ox->xmx[i * p7X_NXCELLS + p7X_C] = 0.0f;
+  }
+
+  AG0 = AG1 = AG2 = 0.0f;
+  AC0 = AC1 = AC2 = 0.0f;
+  v = w = x = -1;
+
+  for (i = 1; i <= 2; i++) {
+    w = x;
+    sub_i = i_start + i - 1;
+    x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
+  }
+
+  /* ---------------------------------------------------------------
+   * Early rows 3..min_intron+2: M/I/D only, no donor lookback (P=0).
+   * Accumulate E and C at each row.
+   * --------------------------------------------------------------- */
+  loop_end = ESL_MIN(L, min_intron + 2);
+
+  for (i = 3; i <= loop_end; i++) {
+    v = w;  w = x;
+    sub_i = i_start + i - 1;
+    x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
+
+    C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+
+    /* Acceptor window: needed for correct P state when main loop fires early */
+    AG0 = AG1;  AG1 = AG2;
+    AC0 = AC1;  AC1 = AC2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
+      AG2 = AC2 = 0.0f;
+    } else {
+      AG2 = oss->acceptor_AG[v*4 + w];
+      AC2 = oss->acceptor_AC[v*4 + w];
+    }
+
+    dpc  = ox->dpf[i];
+    dpp3 = ox->dpf[i - 3];
+
+    mpv3 = esl_sse_rightshiftz_float(MMO_SP(dpp3, Q-1));
+    dpv3 = esl_sse_rightshiftz_float(DMO_SP(dpp3, Q-1));
+    ipv3 = esl_sse_rightshiftz_float(IMO_SP(dpp3, Q-1));
+    ppv3 = esl_sse_rightshiftz_float(PMO_SP(dpp3, Q-1));
+    dcv  = zerov;
+
+    for (q = 0; q < Q; q++) {
+      int is_last = (q == Q - 1);
+
+      msv = _mm_max_ps(_mm_mul_ps(mpv3, LTFV(TFV_MM, q)),
+            _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
+            _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
+                       _mm_mul_ps(ppv3, TSC_P_v))));
+      msv = _mm_mul_ps(msv, LRFV(C0, q));
+
+      mpv3 = MMO_SP(dpp3, q);
+      dpv3 = DMO_SP(dpp3, q);
+      ipv3 = IMO_SP(dpp3, q);
+      ppv3 = PMO_SP(dpp3, q);
+
+      MMO_SP(dpc, q) = msv;
+      DMO_SP(dpc, q) = dcv;
+      dcv             = _mm_mul_ps(msv, LTFV(TFV_MD, q));
+
+      isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
+                       _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
+      if (is_last) {
+        union { __m128 v; float p[4]; } ii;
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.p[r_M] = 0.0f;
+        IMO_SP(dpc, q) = ii.v;
+      } else {
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+      }
+
+      PMO_SP(dpc, q) = zerov;
+    }
+
+    if (i == 3) {
+      union { __m128 v; float p[4]; } em, mc, md0, d1;
+      em.v    = LRFV(C0, 0);
+      mc.v    = MMO_SP(dpc, 0);
+      mc.p[0] = xB_0 * em.p[0];
+      MMO_SP(dpc, 0) = mc.v;
+      md0.v   = LTFV(TFV_MD, 0);
+      d1.v    = DMO_SP(dpc, 1);
+      d1.p[0] = mc.p[0] * md0.p[0];
+      DMO_SP(dpc, 1) = d1.v;
+    }
+
+    /* D-state serialization */
+    dcv = esl_sse_rightshiftz_float(dcv);
+    DMO_SP(dpc, 0) = zerov;
+    for (q = 0; q < Q; q++) {
+      DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+      dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+    }
+    for (j = 1; j < 4; j++) {
+      dcv = esl_sse_rightshiftz_float(dcv);
+      for (q = 0; q < Q; q++) {
+        DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+        dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+      }
+    }
+
+    /* Semi-global exit: E(i) = max over k=1..M of max(M,D); C(i) = max(C(i-3)*CC, E(i)*EC) */
+    {
+      __m128 emax_v = zerov;
+      union { __m128 v; float p[4]; } em;
+      float xE, xC;
+      for (q = 0; q < Q; q++)
+        emax_v = _mm_max_ps(emax_v, _mm_and_ps(_mm_max_ps(MMO_SP(dpc, q), DMO_SP(dpc, q)), valid_mask[q]));
+      em.v = emax_v;
+      xE   = ESL_MAX(ESL_MAX(em.p[0], em.p[1]), ESL_MAX(em.p[2], em.p[3]));
+      xC   = ESL_MAX(ox->xmx[(i - 3) * p7X_NXCELLS + p7X_C] * CC_loop, xE * EC_move);
+      ox->xmx[i * p7X_NXCELLS + p7X_E] = xE;
+      ox->xmx[i * p7X_NXCELLS + p7X_C] = xC;
+    }
+  }  /* end early rows */
+
+
+  /* ---------------------------------------------------------------
+   * Initialize donor-lookback nucleotide window for the main loop.
+   * --------------------------------------------------------------- */
+  s = (int)sub_dsq[i_start];
+  t = (int)sub_dsq[i_start + 1];
+  u = (int)sub_dsq[i_start + 2];
+  r = 0;
+
+  /* ---------------------------------------------------------------
+   * Main DP: rows min_intron+3 .. L.
+   * Full M/I/D/P + donor lookback OSS write + semi-global E/C exit.
+   * --------------------------------------------------------------- */
+  for (i = min_intron + 3; i <= L; i++) {
+    __m128 pv, TMP_v;
+
+    sub_i = i_start + i - 1;
+
+    r = s;  s = t;  t = u;
+    u = (sub_dsq[sub_i - min_intron + 1] < 4)
+        ? (int)sub_dsq[sub_i - min_intron + 1]
+        : p7P_MAXCODONS1;
+
+    v = w;  w = x;
+    x = (sub_dsq[sub_i] < 4) ? (int)sub_dsq[sub_i] : p7P_MAXCODONS1;
+
+    C0 = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+      for (nuc2 = 0; nuc2 < 4; nuc2++)
+        C2[nuc1*4+nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
+    }
+
+    AG0 = AG1;  AG1 = AG2;
+    AC0 = AC1;  AC1 = AC2;
+    if (v < 0 || v >= 4 || w < 0 || w >= 4) {
+      AG2 = AC2 = 0.0f;
+    } else {
+      AG2 = oss->acceptor_AG[v*4 + w];
+      AC2 = oss->acceptor_AC[v*4 + w];
+    }
+
+    if (r < 0 || r >= 4 || s < 0 || s >= 4) {
+      GT0 = GC0 = AT0 = GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
+    } else if (t < 0 || t >= 4) {
+      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
+      GT1 = GC1 = AT1 = GT2 = GC2 = AT2 = 0.0f;
+    } else if (u < 0 || u >= 4) {
+      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
+      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
+      GT2 = GC2 = AT2 = 0.0f;
+    } else {
+      GT0 = oss->donor_GT[r*4+s];  GC0 = oss->donor_GC[r*4+s];  AT0 = oss->donor_AT[r*4+s];
+      GT1 = oss->donor_GT[s*4+t];  GC1 = oss->donor_GC[s*4+t];  AT1 = oss->donor_AT[s*4+t];
+      GT2 = oss->donor_GT[t*4+u];  GC2 = oss->donor_GC[t*4+u];  AT2 = oss->donor_AT[t*4+u];
+    }
+
+    tmp_r = ESL_MIN(r, 3);
+    tmp_s = ESL_MIN(s, 3);
+
+    AG0v = _mm_set1_ps(AG0);  AG1v = _mm_set1_ps(AG1);  AG2v = _mm_set1_ps(AG2);
+    AC0v = _mm_set1_ps(AC0);  AC1v = _mm_set1_ps(AC1);  AC2v = _mm_set1_ps(AC2);
+    GT0v = _mm_set1_ps(GT0);  GC0v = _mm_set1_ps(GC0);  AT0v = _mm_set1_ps(AT0);
+    GT1v = _mm_set1_ps(GT1);  GC1v = _mm_set1_ps(GC1);  AT1v = _mm_set1_ps(AT1);
+    GT2v = _mm_set1_ps(GT2);  GC2v = _mm_set1_ps(GC2);  AT2v = _mm_set1_ps(AT2);
+
+    dpc  = ox->dpf[i];
+    dpp3 = ox->dpf[i - 3];
+    dplb = ox->dpf[i - min_intron - 3];
+
+    mpv3  = esl_sse_rightshiftz_float(MMO_SP(dpp3, Q-1));
+    dpv3  = esl_sse_rightshiftz_float(DMO_SP(dpp3, Q-1));
+    ipv3  = esl_sse_rightshiftz_float(IMO_SP(dpp3, Q-1));
+    ppv3  = esl_sse_rightshiftz_float(PMO_SP(dpp3, Q-1));
+    tsv_m = esl_sse_rightshiftz_float(MMO_SP(dplb, Q-1));
+    tsv_d = esl_sse_rightshiftz_float(DMO_SP(dplb, Q-1));
+    dcv   = zerov;
+
+    for (q = 0; q < Q; q++) {
+      int is_last = (q == Q - 1);
+
+      /* ---- M state ---- */
+      msv = _mm_max_ps(_mm_mul_ps(mpv3, LTFV(TFV_MM, q)),
+            _mm_max_ps(_mm_mul_ps(ipv3, LTFV(TFV_IM, q)),
+            _mm_max_ps(_mm_mul_ps(dpv3, LTFV(TFV_DM, q)),
+                       _mm_mul_ps(ppv3, TSC_P_v))));
+      msv = _mm_mul_ps(msv, LRFV(C0, q));
+
+      mpv3 = MMO_SP(dpp3, q);
+      dpv3 = DMO_SP(dpp3, q);
+      ipv3 = IMO_SP(dpp3, q);
+      ppv3 = PMO_SP(dpp3, q);
+
+      MMO_SP(dpc, q) = msv;
+      DMO_SP(dpc, q) = dcv;
+      dcv = _mm_mul_ps(msv, LTFV(TFV_MD, q));
+
+      /* ---- I state (zero at k=M only, not entire last stripe) ---- */
+      isv = _mm_max_ps(_mm_mul_ps(MMO_SP(dpp3, q), LTFV(TFV_MI, q)),
+                       _mm_mul_ps(IMO_SP(dpp3, q), LTFV(TFV_II, q)));
+      if (is_last) {
+        union { __m128 v; float p[4]; } ii;
+        ii.v = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+        ii.p[r_M] = 0.0f;
+        IMO_SP(dpc, q) = ii.v;
+      } else {
+        IMO_SP(dpc, q) = _mm_and_ps(isv, _mm_cmpgt_ps(LRFV(C0, q), zerov));
+      }
+
+      /* ---- P state ---- */
+      pv = zerov;
+
+      TMP_v = _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(AG0v, sig_GTAG_v)),
+              _mm_max_ps(_mm_mul_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(AG0v, sig_GCAG_v)),
+                         _mm_mul_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(AC0v, sig_ATAC_v))));
+      pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C0, q)));
+
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        TMP_v = _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GTAG,nuc1), _mm_mul_ps(AG1v, sig_GTAG_v)),
+                _mm_max_ps(_mm_mul_ps(OSS1(oss,q,p7S_GCAG,nuc1), _mm_mul_ps(AG1v, sig_GCAG_v)),
+                           _mm_mul_ps(OSS1(oss,q,p7S_ATAC,nuc1), _mm_mul_ps(AC1v, sig_ATAC_v))));
+        pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C1[nuc1], q)));
+      }
+
+      for (nuc1 = 0; nuc1 < 4; nuc1++) {
+        for (nuc2 = 0; nuc2 < 4; nuc2++) {
+          TMP_v = _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GTAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GTAG_v)),
+                  _mm_max_ps(_mm_mul_ps(OSS2(oss,q,p7S_GCAG,nuc1,nuc2), _mm_mul_ps(AG2v, sig_GCAG_v)),
+                             _mm_mul_ps(OSS2(oss,q,p7S_ATAC,nuc1,nuc2), _mm_mul_ps(AC2v, sig_ATAC_v))));
+          pv = _mm_max_ps(pv, _mm_mul_ps(TMP_v, LRFV(C2[nuc1*4+nuc2], q)));
+        }
+      }
+      PMO_SP(dpc, q) = pv;
+
+      /* ---- Donor lookback: update OSS at position k from (lb, k-1) ---- */
+      TMP_v = _mm_max_ps(tsv_m, tsv_d);
+
+      OSS0(oss,q,p7S_GTAG) = _mm_max_ps(OSS0(oss,q,p7S_GTAG), _mm_mul_ps(TMP_v, GT0v));
+      OSS0(oss,q,p7S_GCAG) = _mm_max_ps(OSS0(oss,q,p7S_GCAG), _mm_mul_ps(TMP_v, GC0v));
+      OSS0(oss,q,p7S_ATAC) = _mm_max_ps(OSS0(oss,q,p7S_ATAC), _mm_mul_ps(TMP_v, AT0v));
+
+      OSS1(oss,q,p7S_GTAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,tmp_r), _mm_mul_ps(TMP_v, GT1v));
+      OSS1(oss,q,p7S_GCAG,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,tmp_r), _mm_mul_ps(TMP_v, GC1v));
+      OSS1(oss,q,p7S_ATAC,tmp_r) = _mm_max_ps(OSS1(oss,q,p7S_ATAC,tmp_r), _mm_mul_ps(TMP_v, AT1v));
+
+      OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GT2v));
+      OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,tmp_r,tmp_s), _mm_mul_ps(TMP_v, GC2v));
+      OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,tmp_r,tmp_s), _mm_mul_ps(TMP_v, AT2v));
+
+      tsv_m = MMO_SP(dplb, q);
+      tsv_d = DMO_SP(dplb, q);
+    }
+
+    /* D-state serialization */
+    dcv = esl_sse_rightshiftz_float(dcv);
+    DMO_SP(dpc, 0) = zerov;
+    for (q = 0; q < Q; q++) {
+      DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+      dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+    }
+    for (j = 1; j < 4; j++) {
+      dcv = esl_sse_rightshiftz_float(dcv);
+      for (q = 0; q < Q; q++) {
+        DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+        dcv = _mm_mul_ps(DMO_SP(dpc, q), LTFV(TFV_DD, q));
+      }
+    }
+
+    /* Semi-global exit: E(i) and C(i) */
+    {
+      __m128 emax_v = zerov;
+      union { __m128 v; float p[4]; } em;
+      float xE, xC;
+      for (q = 0; q < Q; q++)
+        emax_v = _mm_max_ps(emax_v, _mm_and_ps(_mm_max_ps(MMO_SP(dpc, q), DMO_SP(dpc, q)), valid_mask[q]));
+      em.v = emax_v;
+      xE   = ESL_MAX(ESL_MAX(em.p[0], em.p[1]), ESL_MAX(em.p[2], em.p[3]));
+      xC   = ESL_MAX(ox->xmx[(i - 3) * p7X_NXCELLS + p7X_C] * CC_loop, xE * EC_move);
+      ox->xmx[i * p7X_NXCELLS + p7X_E] = xE;
+      ox->xmx[i * p7X_NXCELLS + p7X_C] = xC;
+    }
+  }  /* end main DP loop */
+
+  ox->M = M;
+  ox->L = L;
+
+  free(mask_raw);
+  free(rfv_raw);
+  free(tfv_raw);
+  return eslOK;
+
+  ERROR:
+    if (mask_raw) free(mask_raw);
+    if (rfv_raw)  free(rfv_raw);
+    if (tfv_raw)  free(tfv_raw);
+    return status;
+}
+/*--- end, p7_ospliceviterbi_TranslatedSemiGlobalExtendDown() ---*/
+
+
+/*****************************************************************
+ * 4. Unit tests.
  *****************************************************************/
 #ifdef p7SPLICED_VITERBI_TESTDRIVE
 #include "esl_random.h"
@@ -663,12 +1086,94 @@ utest_global(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_splicepipeline_Destroy(pli);
   p7_omx_Destroy(ox);
 }
+
+/* utest_extend_down():
+ * Compare p7_ospliceviterbi_TranslatedSemiGlobalExtendDown() (SSE, probability-space)
+ * against p7_spliceviterbi_TranslatedSemiGlobalExtendDown() (scalar, log-space).
+ * For each profile-emitted sequence, expf(scalar_C) must equal sse_C within tolerance.
+ */
+static void
+utest_extend_down(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+                  ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
+                  int M, int N)
+{
+  char           *msg   = "spliced viterbi extend_down unit test failed";
+  P7_HMM         *hmm   = NULL;
+  P7_PROFILE     *gm    = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_tr = p7_profile_fs_Create(M, abcAA, 1);
+  P7_FS_OPROFILE *om_fs = p7_fs_oprofile_Create(M, abcAA, 1);
+  ESL_SQ         *sq    = esl_sq_CreateDigital(abcAA);
+  P7_TRACE       *tr    = p7_trace_Create();
+  ESL_DSQ        *dsq   = NULL;
+  SPLICE_PIPELINE *pli  = NULL;
+  P7_OMX         *ox    = NULL;
+  int             L_dna, L_amino;
+  int             i, j;
+  float           scalar_C, sse_C;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
+  p7_fs_oprofile_Convert(gm_tr, om_fs);
+
+  pli = p7_splicepipeline_Create(NULL, M, M * 3);
+  ox  = p7_omx_Create_dpf(M, M * 3, M * 3, p7X_NSCELLS_SP);
+
+  while (N--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
+      L_amino = sq->n;
+      L_dna   = L_amino * 3;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna + 2))) == NULL) esl_fatal("malloc failed");
+      dsq[0] = dsq[L_dna + 1] = eslDSQ_SENTINEL;
+
+      j = 1;
+      for (i = 1; i <= sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      p7_fs_ReconfigLength         (gm_tr, L_amino);
+      p7_fs_oprofile_ReconfigLength(om_fs,  L_amino);
+
+      p7_gmx_GrowTo          (pli->vit, M, L_dna, L_dna);
+      p7_omx_GrowTo_dpf      (ox,       M, L_dna, L_dna);
+      p7_splicescores_GrowTo (pli->splice_scores,  M);
+      p7_osplicescores_GrowTo(pli->osplice_scores, M);
+
+      /* Scalar reference (log-space) */
+      p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      scalar_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
+
+      /* SSE implementation (probability-space) */
+      p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(pli, pli->osplice_scores, dsq, om_fs, ox, 1, L_dna, 1, M);
+      sse_C = ox->xmx[L_dna * p7X_NXCELLS + p7X_C];
+
+      if (scalar_C <= -1e30f) {        /* -eslINFINITY: expect 0 in prob-space */
+        if (sse_C > 0.0f) esl_fatal(msg);
+      } else {
+        if (fabsf(expf(scalar_C) - sse_C) > 0.001f) esl_fatal(msg);
+      }
+    }
+
+  if (dsq != NULL) free(dsq);
+  esl_sq_Destroy(sq);
+  p7_trace_Destroy(tr);
+  p7_hmm_Destroy(hmm);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_fs_oprofile_Destroy(om_fs);
+  p7_splicepipeline_Destroy(pli);
+  p7_omx_Destroy(ox);
+}
 #endif /*p7SPLICED_VITERBI_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
 
 /*****************************************************************
- * 4. Test driver.
+ * 5. Test driver.
  *****************************************************************/
 #ifdef p7SPLICED_VITERBI_TESTDRIVE
 /*
@@ -687,7 +1192,7 @@ static ESL_OPTIONS options[] = {
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options]";
-static char banner[] = "test driver for SSE spliced Viterbi TranslatedGlobal";
+static char banner[] = "test driver for SSE spliced Viterbi";
 
 int
 main(int argc, char **argv)
@@ -702,7 +1207,8 @@ main(int argc, char **argv)
   int             M      = esl_opt_GetInteger(go, "-M");
   int             N      = esl_opt_GetInteger(go, "-N");
 
-  utest_global(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+  utest_global      (r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+  utest_extend_down (r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
 
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);

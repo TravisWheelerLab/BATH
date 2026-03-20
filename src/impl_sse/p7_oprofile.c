@@ -1049,6 +1049,49 @@ p7_oprofile_Convert(const P7_PROFILE *gm, P7_OPROFILE *om)
   return status;
 }
 
+/* Function:  p7_oprofile_Logify()
+ * Synopsis:  Convert optimized profile float scores from probability-space to log-space.
+ *
+ * Purpose:   Convert the float emission scores <rfv>, transition scores <tfv>,
+ *            and special state transition scores <xf> in optimized profile <om>
+ *            from probability-space (odds ratios, as set by <p7_oprofile_Convert()>)
+ *            to log-space (log odds) in-place.
+ *
+ *            After this call, <om> is suitable for use in <p7_Viterbi()> and
+ *            <p7_ViterbiScore()>, which use <_mm_add_ps> (log-space addition)
+ *            rather than <_mm_mul_ps> (probability-space multiplication).
+ *
+ *            This modifies <om> in-place and renders it unsuitable for
+ *            <p7_Forward()> or <p7_Backward()> without converting back.
+ *
+ * Args:      om - optimized profile to convert in-place.
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_oprofile_Logify(P7_OPROFILE *om)
+{
+  int Q = p7O_NQF(om->M);
+  int j, x, s, t;
+
+  /* Log-transform all float emission vectors. */
+  for (x = 0; x < om->abc->Kp; x++)
+    for (j = 0; j < Q; j++)
+      om->rfv[x][j] = esl_sse_logf(om->rfv[x][j]);
+
+  /* Log-transform all float transition vectors (7 transitions + 1 DD block = 8*Q). */
+  for (j = 0; j < 8 * Q; j++)
+    om->tfv[j] = esl_sse_logf(om->tfv[j]);
+
+  /* Log-transform all special state transition scores. */
+  for (s = 0; s < p7O_NXSTATES; s++)
+    for (t = 0; t < p7O_NXTRANS; t++)
+      om->xf[s][t] = logf(om->xf[s][t]);
+
+  return eslOK;
+}
+
+
 /* Function:  p7_oprofile_ReconfigLength()
  * Synopsis:  Set the target sequence length of a model.
  * Incept:    SRE, Thu Dec 20 09:56:40 2007 [Janelia]

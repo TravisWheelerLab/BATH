@@ -422,17 +422,18 @@ p7_pli_ExtendAndMergeWindows_BATH(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL
     window_end    = ESL_MAX(prev_window->n+prev_window->length-1, curr_window->n+curr_window->length-1);
     window_len    = window_end - window_start + 1;
 
+
     if(((float)(overlap_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap) &&
       window_len < ( 2 * (om->max_length * 3)))
     {
       prev_window->n      = window_start;
       prev_window->length = window_len;
-      orf_block->list[i].idx = new_hit_cnt;
     } 
     else {
       new_hit_cnt++;
       windowlist->windows[new_hit_cnt] = windowlist->windows[i];
     }
+    orf_block->list[i].idx = new_hit_cnt;
   }
   windowlist->count = new_hit_cnt+1;
 
@@ -1114,7 +1115,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
     
     env_len = dom->jenv - dom->ienv + 1;	
     ali_len = (dom->jali - dom->iali + 1) / 3;   
-   
+
     if (ali_len < 4) 
     {  // anything less than this is a funny byproduct of the Forward score passing a very low threshold, but no reliable alignment existing that supports it
       if(dom->scores_per_pos != NULL) free(dom->scores_per_pos);
@@ -1123,7 +1124,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
       continue; 
     }
     tmp_i = dom->ienv;
-    
+
     /* map alignment and envelope coodinates to orignal DNA target sequence */ 
     if (!complementarity)
     { 
@@ -1141,7 +1142,8 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
       dom->jali       = dnasq->start - (window_start + dom->jali) + 2;
       dom->iali       = dnasq->start - (window_start + dom->iali) + 2; 
     }
-    
+
+
     /* Adjust score from env_len to max window length */ 
     bitscore = dom->envsc;
     bitscore -= 2 * log(2. / (env_len+2));
@@ -1308,7 +1310,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     for(f = 0; f < orf_block->count; f++) {
       curr_orf = &(orf_block->list[f]);
       pli_tmp->P_orf[f] = eslINFINITY; 
-
+      
       if(curr_orf->idx == windowidx) { 
     
         p7_bg_SetLength(bg, curr_orf->n);
@@ -1554,7 +1556,7 @@ p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5
     }
 
     if (P > pli->F3) continue; 
-
+    
     pli->pos_past_fwd += curr_orf->n * 3;
     p7_omx_GrowTo(pli->oxb, om->M, 0, curr_orf->n);
 
@@ -1682,11 +1684,11 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   ESL_ALLOC(vit_coords->orf_starts, sizeof(int64_t) *  orf_block->count);
   ESL_ALLOC(vit_coords->orf_ends, sizeof(int64_t) *  orf_block->count);
   vit_coords->orf_cnt = 0;
-  
+
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);
-   
+    
     if (   (orfsq->start < orfsq->end    &&  orfsq->end < dnasq->C )  ||
            (orfsq->end < orfsq->start    &&  orfsq->start < dnasq->C ) )
         continue; /* don't bother with an orf that showed up completely within a previous window */
@@ -1703,12 +1705,12 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
       p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
 	
       p7_omx_GrowTo(pli->oxf, om->M, 0, orfsq->n);    /* expand the one-row omx if needed */
-	
+      
       p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
       seq_score = (usc - nullsc) / eslCONST_LOG2;
       P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
       if (P > pli->F1 ) continue;
-      
+     
       msv_coords->orf_starts[msv_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
       msv_coords->orf_ends[msv_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       msv_coords->orf_cnt++;
@@ -1734,7 +1736,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
         P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
         if (P > pli->F2) continue;
       }
-
+      
       vit_coords->orf_starts[vit_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
       vit_coords->orf_ends[vit_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
       vit_coords->orf_cnt++;

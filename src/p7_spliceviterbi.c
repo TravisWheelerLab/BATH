@@ -90,8 +90,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
   int          loop_end;
   int          sub_i,sub_k;
   float        TMP_SC;
-  int          acc0, acc1, acc2;     /* acceptor signal at codon offsets 0,1,2: ACCEPT_AG, ACCEPT_AC, or -1 */
-  int          donor0, donor1, donor2; /* donor signal at codon offsets 0,1,2: DONOR_GT/GC/AT, or -1 */
+  int          acc0, acc1, acc2;     
+  int          donor0, donor1, donor2; 
   float const *rsc_c0;
   float const *rsc_c1[4];
   float const *rsc_c2[16];
@@ -359,12 +359,15 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
           }
         }
       }
+    } // end k loop
 
-      /* Donor Site Look Back */
-      if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
+	/* Separate k look for donor site to prevent cache thrashing */ 
+	if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
+	  /* First possible P state is k = 2 */
+      for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
 
-        if      (donor2 == DONOR_GT) SSX2(k, p7S_GTAG, r, s) = ESL_MAX(SSX2(k, p7S_GTAG, r, s), TMP_SC);
+		if      (donor2 == DONOR_GT) SSX2(k, p7S_GTAG, r, s) = ESL_MAX(SSX2(k, p7S_GTAG, r, s), TMP_SC);
         else if (donor2 == DONOR_GC) SSX2(k, p7S_GCAG, r, s) = ESL_MAX(SSX2(k, p7S_GCAG, r, s), TMP_SC);
         else if (donor2 == DONOR_AT) SSX2(k, p7S_ATAC, r, s) = ESL_MAX(SSX2(k, p7S_ATAC, r, s), TMP_SC);
         if      (donor1 == DONOR_GT) SSX1(k, p7S_GTAG, r) = ESL_MAX(SSX1(k, p7S_GTAG, r), TMP_SC);
@@ -373,9 +376,8 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
         if      (donor0 == DONOR_GT) SSX0(k, p7S_GTAG) = ESL_MAX(SSX0(k, p7S_GTAG), TMP_SC);
         else if (donor0 == DONOR_GC) SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC);
         else if (donor0 == DONOR_AT) SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC);
-      }
-
-    } // end k loop
+	  }
+	}
 
     sub_k = k_start + M -1;
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
@@ -727,8 +729,15 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         }
       }
 
-      /* Donor Site Look Back */
-      if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
+      XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E),
+                        ESL_MAX(MMX_SP(i,k), DMX_SP(i,k)));
+
+    } // end k loop
+
+    /* Separate k look for donor site to prevent cache thrashing */
+    if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
+      /* First possible P state is k = 2 */
+      for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
 
         if      (donor2 == DONOR_GT) SSX2(k, p7S_GTAG, r, s) = ESL_MAX(SSX2(k, p7S_GTAG, r, s), TMP_SC);
@@ -741,11 +750,8 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
         else if (donor0 == DONOR_GC) SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC);
         else if (donor0 == DONOR_AT) SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC);
       }
+    }
 
-      XMX_SP(i,p7G_E) = ESL_MAX(XMX_SP(i,p7G_E),
-                        ESL_MAX(MMX_SP(i,k), DMX_SP(i,k)));
-
-    } // end k loop
 
     sub_k = k_start + M -1;
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
@@ -1076,8 +1082,13 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         }
       }
 
-      /* Donor Site Look Back */
-      if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
+    } // end k loop
+
+
+    /* Separate k look for donor site to prevent cache thrashing */
+    if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
+      /* First possible P state is k = 2 */
+      for (k = 2; k < M; k++) {
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
 
         if      (donor2 == DONOR_GT) SSX2(k, p7S_GTAG, r, s) = ESL_MAX(SSX2(k, p7S_GTAG, r, s), TMP_SC);
@@ -1090,8 +1101,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
         else if (donor0 == DONOR_GC) SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC);
         else if (donor0 == DONOR_AT) SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC);
       }
-
-    } // end k loop
+    }
 
     sub_k = k_start + M -1;
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),

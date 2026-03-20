@@ -423,7 +423,7 @@ p7_pli_ExtendAndMergeWindows_BATH(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL
     window_len    = window_end - window_start + 1;
 
     if(((float)(overlap_len)/ESL_MIN(prev_window->length, curr_window->length) > pct_overlap) &&
-      window_len < ( 1.2 * (om->max_length * 3)))
+      window_len < ( 2 * (om->max_length * 3)))
     {
       prev_window->n      = window_start;
       prev_window->length = window_len;

@@ -318,77 +318,50 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
       DMX_SP(i,k) = ESL_MAX(MMX_SP(i,k-1) + TSC(p7P_MD,sub_k-1),
                             DMX_SP(i,k-1) + TSC(p7P_DD,sub_k-1));
 
+      /* P state scoring */
       PMX_SP(i,k) = -eslINFINITY;
 
-    } // end main k loop
-
-    /* Separate k loops for acceptor site to prevent cache thrashing for rsc_c1 & rsc_c2 */
-    if (acc0 >= 0 || acc1 >= 0 || acc2 >= 0) {
-      if (acc0 == ACCEPT_AG) {
-		for (k = 2; k < M; k++) {
-		  sub_k = k_start + k -1;
+      if (acc0 >= 0 || acc1 >= 0 || acc2 >= 0) {
+        if (acc0 == ACCEPT_AG) {
           TMP_SC = ESL_MAX(SSX0(k, p7S_GTAG) + signal_scores[p7S_GTAG],
                            SSX0(k, p7S_GCAG) + signal_scores[p7S_GCAG]) + rsc_c0[sub_k];
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
-        } 
-	  }
-	  else if (acc0 == ACCEPT_AC) {
-	    for (k = 2; k < M; k++) {
-		  sub_k = k_start + k -1;
+        } else if (acc0 == ACCEPT_AC) {
           TMP_SC = SSX0(k, p7S_ATAC) + signal_scores[p7S_ATAC] + rsc_c0[sub_k];
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         }
-      }
-        
-	  if (acc1 == ACCEPT_AG) {
-        for (nuc1 = 0; nuc1 < 4; nuc1++) {
-		  float const *rsc1 = rsc_c1[nuc1];
-          for (k = 2; k < M; k++) {
-			sub_k = k_start + k -1;
+        if (acc1 == ACCEPT_AG) {
+          for (nuc1 = 0; nuc1 < 4; nuc1++) {
             TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG],
-                             SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG]) + rsc1[sub_k];
+                             SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG]) + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
-		}
-      } 
-	  else if (acc1 == ACCEPT_AC) {
-	    for (nuc1 = 0; nuc1 < 4; nuc1++) {
-		  float const *rsc1 = rsc_c1[nuc1];
-          for (k = 2; k < M; k++) {
-		    sub_k = k_start + k -1;
-            TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + rsc1[sub_k];
+        } else if (acc1 == ACCEPT_AC) {
+          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+            TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
         }
-	  }
-      if (acc2 == ACCEPT_AG) {
-        for (nuc1 = 0; nuc1 < 4; nuc1++) {
-          for (nuc2 = 0; nuc2 < 4; nuc2++) {
-			float const *rsc2 = rsc_c2[nuc1*4+nuc2];
-		    for (k = 2; k < M; k++) {
-			  sub_k = k_start + k -1;
+        if (acc2 == ACCEPT_AG) {
+          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+            for (nuc2 = 0; nuc2 < 4; nuc2++) {
               TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc1, nuc2) + signal_scores[p7S_GTAG],
-                               SSX2(k, p7S_GCAG, nuc1, nuc2) + signal_scores[p7S_GCAG]) + rsc2[sub_k];
+                               SSX2(k, p7S_GCAG, nuc1, nuc2) + signal_scores[p7S_GCAG]) + rsc_c2[nuc1*4+nuc2][sub_k];
               PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
             }
           }
-		}
-      } 
-	  else if (acc2 == ACCEPT_AC) {
-        for (nuc1 = 0; nuc1 < 4; nuc1++) {
-          for (nuc2 = 0; nuc2 < 4; nuc2++) {
-			float const *rsc2 = rsc_c2[nuc1*4+nuc2];
-		    for (k = 2; k < M; k++) {
-              sub_k = k_start + k -1;
-              TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + rsc2[sub_k];
+        } else if (acc2 == ACCEPT_AC) {
+          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+            for (nuc2 = 0; nuc2 < 4; nuc2++) {
+              TMP_SC = SSX2(k, p7S_ATAC, nuc1, nuc2) + signal_scores[p7S_ATAC] + rsc_c2[nuc1*4+nuc2][sub_k];
               PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
             }
           }
         }
       }
-    }
+    } // end k loop
 
-	/* Separate k loop for donor site to prevent cache thrashing for MMX_SP & DMX_SP*/ 
+	/* Separate k look for donor site to prevent cache thrashing */ 
 	if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
 	  /* First possible P state is k = 2 */
       for (k = 2; k < M; k++) {

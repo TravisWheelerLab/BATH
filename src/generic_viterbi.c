@@ -382,7 +382,7 @@ main(int argc, char **argv)
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
   gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
-  tr = p7_trace_fs_Create;
+  tr = p7_trace_fs_Create();
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
@@ -399,7 +399,7 @@ main(int argc, char **argv)
 
 	  if (! esl_opt_GetBoolean(go, "--notrace"))
       {
-        p7_GViterbi_Trace(dsq, L, gm, gx, tr);
+        p7_GTrace(dsq, L, gm, gx, tr);
         p7_trace_Reuse(tr);
       }
     }

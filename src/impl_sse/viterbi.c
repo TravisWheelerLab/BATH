@@ -227,11 +227,6 @@ static inline int vit_select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i);
  *            The profile <om> must be in lspace (p7_oprofile_Logify()
  *            called), matching the state in which <p7_Viterbi()> was run.
  *
- *            Mirrors <p7_StochasticTrace()> in stotrace.c, replacing
- *            each probabilistic choice with a deterministic argmax.
- *            Because the matrix is log-space, path weights are sums
- *            (not products) and no normalization is needed before argmax.
- *
  * Args:      dsq   - digital target sequence, 1..L
  *            L     - length of dsq
  *            om    - optimized profile (lspace float scores)
@@ -467,7 +462,6 @@ vit_select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
-  { "-c",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "compare scores to generic implementation (debug)", 0 },
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
   { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                     0 },
   { "-N",        eslARG_INT,  "20000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
@@ -529,12 +523,6 @@ main(int argc, char **argv)
       esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
       p7_Viterbi(dsq, L, om, ox, &sc);
 
-      if (esl_opt_GetBoolean(go, "-c"))
-	  {
-	    p7_GViterbi(dsq, L, gm, gx, &sc2);
-	    printf("%.4f %.4f\n", sc, sc2);
-	  }
-
 	  if (! esl_opt_GetBoolean(go, "--notrace"))
 	  {
         p7_Viterbi_Trace(dsq, L, om, ox, tr);  
@@ -593,6 +581,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   P7_GMX      *gx  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   P7_TRACE    *tr  = p7_trace_fs_Create();
   P7_TRACE    *trg = p7_trace_fs_Create();
+  char         errbuf[eslERRBUFSIZE];
   float        sc1, sc2;
 
   p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
@@ -603,15 +592,18 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
 
       p7_Viterbi (dsq, L, om, ox, &sc1);
       p7_GViterbi(dsq, L, gm, gx, &sc2);
+      printf("sc1 %f sc2 %f\n", sc1, sc2);
       if (fabs(sc1 - sc2) > 0.001) esl_fatal(msg);
 
       p7_Viterbi_Trace(dsq, L, om, ox, tr);
-	  p7_GViterbi_Trace(dsq, L, gm, gx, trg);
+	  p7_GTrace(dsq, L, gm, gx, trg);
 
-	  if (p7_trace_fs_Validate(tr, abc, dsq, NULL)   != eslOK) esl_fatal(msg);
-	  if (p7_trace_fs_Validate(trg, abc, dsq, NULL)  != eslOK) esl_fatal(msg);
+      p7_trace_Dump(stdout, tr, NULL, dsq);      
+      p7_trace_Dump(stdout, trg, NULL, dsq);
+
+	  if (p7_trace_Validate(tr, abc, dsq, errbuf)   != eslOK) esl_fatal("trace invalid:\n%s", errbuf);
+	  if (p7_trace_Validate(trg, abc, dsq, errbuf)  != eslOK) esl_fatal("trace invalid:\n%s", errbuf);
 	  if (p7_trace_Compare(tr, trg, 0.)              != eslOK) esl_fatal(msg);
-	  
     }
 
   free(dsq);

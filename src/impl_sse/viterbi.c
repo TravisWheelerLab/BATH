@@ -210,7 +210,116 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
 /*****************************************************************
  * 2. Benchmark driver.
  *****************************************************************/
+#ifdef p7VITERBI_BENCHMARK
+/*
+   gcc -g -O3 -msse2 -std=gnu99 -o viterbi_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7VITERBI_BENCHMARK viterbi.c -lhmmer -leasel -lm
+   icc  -O3 -static -o viterbi_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7VITERBI_BENCHMARK viterbi.c -lhmmer -leasel -lm
 
+   ./viterbi_benchmark <hmmfile>           runs benchmark
+   ./viterbi_benchmark -c -N100 <hmmfile>  compare scores to generic Viterbi
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
+  { "-c",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "compare scores to generic implementation (debug)", 0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
+  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                     0 },
+  { "-N",        eslARG_INT,  "20000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for SSE Viterbi";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abc     = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bg      = NULL;
+  P7_PROFILE     *gm      = NULL;
+  P7_OPROFILE    *om      = NULL;
+  P7_OMX         *ox      = NULL;
+  P7_GMX         *gx      = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           sc, sc2;
+  double          base_time, bench_time, Mcs;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+
+  bg = p7_bg_Create(abc);
+  p7_bg_SetLength(bg, L);
+  gm = p7_profile_Create(hmm->M, abc);
+  p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
+  om = p7_oprofile_Create(gm->M, abc);
+  p7_oprofile_Convert(gm, om);
+  p7_oprofile_ReconfigLength(om, L);
+  p7_oprofile_Logify(om);
+
+  ox = p7_omx_Create(gm->M, L, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+
+  /* Baseline time: just sequence generation */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++) esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  /* Benchmark time */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_Viterbi(dsq, L, om, ox, &sc);
+
+      if (esl_opt_GetBoolean(go, "-c"))
+	{
+	  p7_GViterbi(dsq, L, gm, gx, &sc2);
+	  printf("%.4f %.4f\n", sc, sc2);
+	}
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n", gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_omx_Destroy(ox);
+  p7_gmx_Destroy(gx);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_bg_Destroy(bg);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_alphabet_Destroy(abc);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7VITERBI_BENCHMARK*/
 /*------------------- end, benchmark driver ---------------------*/
 
 
@@ -247,10 +356,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
       esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
 
       p7_Viterbi (dsq, L, om, ox, &sc1);
-	  p7_omx_Dump(stdout, ox);
       p7_GViterbi(dsq, L, gm, gx, &sc2);
-	  p7_gmx_Dump(stdout, gx, p7_DEFAULT);
-      printf("sc1 %f sc2 %f\n", sc1, sc2);
       if (fabs(sc1 - sc2) > 0.001) esl_fatal(msg);
     }
 

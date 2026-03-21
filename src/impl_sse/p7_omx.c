@@ -881,6 +881,102 @@ ERROR:
   return status;
 }
 
+/* Function:  p7_omx_Dump()
+ * Synopsis:  Dump the full float DP matrix to a stream, for diagnostics.
+ *
+ * Purpose:   Dump the complete float (MDI) DP matrix stored in <ox>
+ *            to stream <fp>. Rows 0..L and model positions 1..M are
+ *            printed in three sub-rows (M, I, D) per sequence position,
+ *            together with the special state scores (E, N, J, B, C)
+ *            stored in <ox->xmx>.
+ *
+ *            The output format mirrors <p7_gmx_Dump()> to facilitate
+ *            direct comparison with the generic DP matrix.
+ *
+ *            <ox> must be a full-matrix allocation (<allocL >= L>)
+ *            with special-state storage (<ox->xmx != NULL>), as
+ *            produced by <p7_omx_Create(M, L, L)>.
+ *
+ * Args:      fp  - output stream
+ *            ox  - optimized full DP matrix (float, lspace or pspace)
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_omx_Dump(FILE *fp, P7_OMX *ox)
+{
+  int     M  = ox->M;
+  int     L  = ox->L;
+  int     Q  = p7O_NQF(M);
+  int     width     = 9;
+  int     precision = 4;
+  float  *v  = NULL;
+  int     i, q, z, k;
+  union { __m128 v; float x[4]; } tmp;
+  int     status;
+
+  ESL_ALLOC(v, sizeof(float) * (Q * 4 + 1));
+
+  /* Header row: column indices */
+  fprintf(fp, "      ");
+  for (k = 0; k <= M; k++) fprintf(fp, "%*d ", width, k);
+  fprintf(fp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
+  fprintf(fp, "      ");
+  for (k = 0; k <= M + 5; k++) fprintf(fp, "%*.*s ", width, width, "----------");
+  fprintf(fp, "\n");
+
+  for (i = 0; i <= L; i++)
+    {
+      __m128 *dp = ox->dpf[i];
+
+      /* M row */
+      v[0] = 0.0f;
+      for (q = 0; q < Q; q++) {
+        tmp.v = MMO(dp, q);
+        for (z = 0; z < 4; z++) { k = q + z*Q + 1; if (k <= M) v[k] = tmp.x[z]; }
+      }
+      fprintf(fp, "%3d M ", i);
+      for (k = 0; k <= M; k++) fprintf(fp, "%*.*f ", width, precision, v[k]);
+      if (ox->xmx != NULL)
+        fprintf(fp, "%*.*f %*.*f %*.*f %*.*f %*.*f",
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_E],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_N],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_J],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_B],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_C]);
+      fprintf(fp, "\n");
+
+      /* I row */
+      v[0] = 0.0f;
+      for (q = 0; q < Q; q++) {
+        tmp.v = IMO(dp, q);
+        for (z = 0; z < 4; z++) { k = q + z*Q + 1; if (k <= M) v[k] = tmp.x[z]; }
+      }
+      fprintf(fp, "%3d I ", i);
+      for (k = 0; k <= M; k++) fprintf(fp, "%*.*f ", width, precision, v[k]);
+      fprintf(fp, "\n");
+
+      /* D row */
+      v[0] = 0.0f;
+      for (q = 0; q < Q; q++) {
+        tmp.v = DMO(dp, q);
+        for (z = 0; z < 4; z++) { k = q + z*Q + 1; if (k <= M) v[k] = tmp.x[z]; }
+      }
+      fprintf(fp, "%3d D ", i);
+      for (k = 0; k <= M; k++) fprintf(fp, "%*.*f ", width, precision, v[k]);
+      fprintf(fp, "\n\n");
+    }
+
+  free(v);
+  return eslOK;
+
+ERROR:
+  free(v);
+  return status;
+}
+
 /*------------- end, debugging dumps of P7_OMX ------------------*/
 
 

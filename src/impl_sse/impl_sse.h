@@ -424,6 +424,7 @@ extern int          p7_omx_Reuse  (P7_OMX *ox);
 extern void         p7_omx_Destroy(P7_OMX *ox);
 
 extern int          p7_omx_SetDumpMode(FILE *fp, P7_OMX *ox, int truefalse);
+extern int          p7_omx_Dump      (FILE *fp, P7_OMX *ox);
 extern int          p7_omx_DumpMFRow(P7_OMX *ox, int rowi, uint8_t xE, uint8_t xN, uint8_t xJ, uint8_t xB, uint8_t xC);
 extern int          p7_omx_DumpVFRow(P7_OMX *ox, int rowi, int16_t xE, int16_t xN, int16_t xJ, int16_t xB, int16_t xC);
 extern int          p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);

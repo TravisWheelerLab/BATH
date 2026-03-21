@@ -939,15 +939,169 @@ vit_select_codon_len_fs(const P7_OMX *ox, int i, int k, int Q)
 
 
 /*****************************************************************
- * 3. Unit tests.
+ * 4. Unit tests.
  *****************************************************************/
+#ifdef p7VITERBI_FS_TESTDRIVE
+#include "esl_gencode.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
 
+/* utest_viterbi_fs()
+ *
+ * For N random HMMs and randomly reverse-translated DNA sequences:
+ *   1. SSE and generic Viterbi scores agree (< 0.001 nat tolerance).
+ *   2. Each SSE trace is structurally valid.
+ *   3. Each generic trace is structurally valid.
+ *
+ * Direct path comparison is intentionally omitted: when multiple
+ * paths tie for the best score, the two argmax implementations may
+ * break ties differently and still both be correct.
+ */
+static void
+utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+                 ESL_GENCODE *gcode, P7_BG *bgAA,
+                 P7_CODONTABLE *codon_table, int M, int N)
+{
+  char           *msg    = "utest_viterbi_fs failed";
+  P7_HMM         *hmm    = NULL;
+  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_fs5 = p7_profile_fs_Create(M, abcAA, 5);
+  P7_FS_OPROFILE *om_fs5 = p7_fs_oprofile_Create(M, abcAA, 5);
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq    = NULL;
+  P7_TRACE       *tr     = p7_trace_fs_Create();
+  P7_TRACE       *trg    = p7_trace_fs_Create();
+  P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  P7_GMX         *gx     = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
+  P7_OMX         *ox     = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
+  char            errbuf[eslERRBUFSIZE];
+  float           gsc, osc;
+  int             curr_L, i, j;
+
+  if (!gm || !gm_fs5 || !om_fs5 || !sq || !tr || !trg || !iv5 || !gx || !ox) esl_fatal(msg);
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, M, p7_LOCAL);
+  p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+
+  while (N--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, NULL);
+      curr_L = sq->n * 3;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (curr_L + 2))) == NULL) esl_fatal("malloc failed");
+      j = 1;
+      for (i = 1; i <= (int)sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      p7_fs_oprofile_ReconfigLength(om_fs5, sq->n);
+      p7_fs_ReconfigLength(gm_fs5, sq->n);
+
+      p7_gmx_GrowTo(gx, M, curr_L, curr_L);
+      p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
+      p7_omx_GrowTo_dpf(ox, M, curr_L, curr_L);
+
+      /* Generic Viterbi */
+      if (p7_GViterbi_Frameshift(dsq, curr_L, gm_fs5, gx, iv5, &gsc) != eslOK) esl_fatal(msg);
+
+      /* SSE Viterbi */
+      { int s = p7_Viterbi_Frameshift(dsq, curr_L, om_fs5, ox, &osc);
+        if (s == eslERANGE) continue;
+        if (s != eslOK)     esl_fatal(msg); }
+
+      /* Scores must agree */
+      if (fabs(gsc - osc) > 0.001)
+        esl_fatal("%s: generic vit %.4f != SSE vit %.4f", msg, gsc, osc);
+
+      /* Traces */
+      if (p7_GVTrace_Frameshift(dsq, curr_L, gm_fs5, gx, trg)           != eslOK) esl_fatal(msg);
+      if (p7_Viterbi_Frameshift_Trace(dsq, curr_L, om_fs5, ox, tr)       != eslOK) esl_fatal(msg);
+
+      if (p7_trace_fs_Validate(tr,  abcDNA, dsq, errbuf) != eslOK)
+        esl_fatal("%s: SSE trace invalid: %s",     msg, errbuf);
+      if (p7_trace_fs_Validate(trg, abcDNA, dsq, errbuf) != eslOK)
+        esl_fatal("%s: generic trace invalid: %s", msg, errbuf);
+
+      p7_trace_Reuse(tr);
+      p7_trace_Reuse(trg);
+    }
+
+  free(dsq);
+  p7_trace_fs_Destroy(tr);
+  p7_trace_fs_Destroy(trg);
+  p7_omx_Destroy(ox);
+  p7_ivx_Destroy(iv5);
+  p7_gmx_Destroy(gx);
+  p7_hmm_Destroy(hmm);
+  esl_sq_Destroy(sq);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_fs_oprofile_Destroy(om_fs5);
+}
+#endif /*p7VITERBI_FS_TESTDRIVE*/
 /*----------------- end, unit tests -----------------------------*/
 
 
 
 /*****************************************************************
- * 4. Test driver.
+ * 5. Test driver.
  *****************************************************************/
+#ifdef p7VITERBI_FS_TESTDRIVE
+/*
+  gcc -g -Wall -msse2 -std=gnu99 -o viterbi_fs_utest -I.. -L.. -I../../easel -L../../easel -Dp7VITERBI_FS_TESTDRIVE viterbi_fs.c -lhmmer -leasel -lm
+  ./viterbi_fs_utest
+*/
+#include "p7_config.h"
 
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_gencode.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
+
+static ESL_OPTIONS options[] = {
+  /* name    type           default env range toggles reqs incomp help                                       docgroup */
+  { "-h",  eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",  eslARG_INT,     "42", NULL, NULL, NULL, NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-M",  eslARG_INT,     "72", NULL, NULL, NULL, NULL, NULL, "size of random models to sample",                0 },
+  { "-N",  eslARG_INT,     "20", NULL, NULL, NULL, NULL, NULL, "number of random sequences to sample",           0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "test driver for SSE p7_Viterbi_Frameshift() and p7_Viterbi_Frameshift_Trace()";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA  = esl_alphabet_Create(eslAMINO);
+  ESL_ALPHABET   *abcDNA = esl_alphabet_Create(eslDNA);
+  ESL_GENCODE    *gcode  = esl_gencode_Create(abcDNA, abcAA);
+  P7_CODONTABLE  *ct     = p7_codontable_Create(gcode);
+  P7_BG          *bgAA   = p7_bg_Create(abcAA);
+  int             M      = esl_opt_GetInteger(go, "-M");
+  int             N      = esl_opt_GetInteger(go, "-N");
+
+  p7_FLogsumInit();
+
+  utest_viterbi_fs(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+
+  p7_bg_Destroy(bgAA);
+  p7_codontable_Destroy(ct);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return eslOK;
+}
+#endif /*p7VITERBI_FS_TESTDRIVE*/
 /*----------------- end, test driver ----------------------------*/

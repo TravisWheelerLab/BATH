@@ -66,7 +66,6 @@ p7_GViterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
   int          t, u, v, w, x;
   int          ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
   float        esc  = p7_fs_profile_IsLocal(gm_fs5) ? 0 : -eslINFINITY;
-  int status;
 
   if(gm_fs5->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
   
@@ -617,24 +616,24 @@ utest_basic(ESL_GETOPTS *go)
 
   if (esl_abc_CreateDsq(abcDNA, targ, &dsq)             != eslOK) esl_fatal("failed to digitize DNA sequence");
 
-  if ((vit = p7_gmx_Create(gm_fs5->M, L, L, p7P_5CODONS))    == NULL) esl_fatal("failed to create Viterbi matrix");
+  if ((vit = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS))    == NULL) esl_fatal("failed to create Viterbi matrix");
   if ((fwd = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS)) == NULL) esl_fatal("failed to create Forward matrix");
   if ((iv  = p7_ivx_Create(gm_fs5->M, p7P_5CODONS))           == NULL) esl_fatal("failed to create IVX");
-  if ((tr  = p7_trace_Create())                                == NULL) esl_fatal("failed to create trace");
+  if ((tr  = p7_trace_fs_Create())                                == NULL) esl_fatal("failed to create trace");
 
   if (p7_GViterbi_Frameshift(dsq, L, gm_fs5, vit, iv, &vsc) != eslOK) esl_fatal("Viterbi failed");
   if (esl_opt_GetBoolean(go, "-v")) printf("utest_basic: Viterbi score: %.4f\n", vsc);
 
   if (p7_GVTrace_Frameshift(dsq, L, gm_fs5, vit, tr)        != eslOK) esl_fatal("traceback failed");
   if (p7_trace_fs_Validate(tr, abcDNA, dsq, errbuf)         != eslOK) esl_fatal("trace invalid: %s", errbuf);
-  if (esl_opt_GetBoolean(go, "-v")) p7_trace_Dump(stdout, tr, NULL, dsq);
+  if (esl_opt_GetBoolean(go, "-v")) p7_trace_fs_Dump(stdout, tr, NULL, dsq, abcDNA);
 
   p7_FLogsumInit();
   if (p7_GForward_Frameshift(dsq, L, gm_fs5, fwd, iv, &fsc) != eslOK) esl_fatal("Forward failed");
   if (esl_opt_GetBoolean(go, "-v")) printf("utest_basic: Forward score: %.4f\n", fsc);
   if (fsc < vsc - 0.001) esl_fatal("utest_basic: Forward score (%.4f) < Viterbi score (%.4f)", fsc, vsc);
 
-  p7_trace_Destroy(tr);
+  p7_trace_fs_Destroy(tr);
   p7_ivx_Destroy(iv);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(vit);
@@ -678,10 +677,10 @@ utest_viterbi_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_AL
 
   if ((dsqAA  = malloc(sizeof(ESL_DSQ) * ((L/3)+2))) == NULL) esl_fatal("malloc failed");
   if ((dsqDNA = malloc(sizeof(ESL_DSQ) * (L+2)))     == NULL) esl_fatal("malloc failed");
-  if ((vit    = p7_gmx_Create(gm_fs5->M, L, L, p7P_5CODONS))    == NULL) esl_fatal("matrix creation failed");
+  if ((vit    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS))    == NULL) esl_fatal("matrix creation failed");
   if ((fwd    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS)) == NULL) esl_fatal("matrix creation failed");
   if ((iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS))           == NULL) esl_fatal("ivx creation failed");
-  if ((tr     = p7_trace_Create())                                == NULL) esl_fatal("trace creation failed");
+  if ((tr     = p7_trace_fs_Create())                                == NULL) esl_fatal("trace creation failed");
 
   for (idx = 0; idx < nseq; idx++)
     {
@@ -715,7 +714,7 @@ utest_viterbi_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_AL
   avg_sc /= (float) nseq;
   if (avg_sc > 0.) esl_fatal("Viterbi scores have positive expectation (%.4f nats)", avg_sc);
 
-  p7_trace_Destroy(tr);
+  p7_trace_fs_Destroy(tr);
   p7_ivx_Destroy(iv);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(vit);

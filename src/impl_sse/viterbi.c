@@ -230,6 +230,7 @@ static ESL_OPTIONS options[] = {
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
   { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                     0 },
   { "-N",        eslARG_INT,  "20000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
+  { "--notrace", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "Do not benchmark the trace",                       0 }
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
@@ -250,6 +251,7 @@ main(int argc, char **argv)
   P7_OPROFILE    *om      = NULL;
   P7_OMX         *ox      = NULL;
   P7_GMX         *gx      = NULL;
+  P7_TRACE       *tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
@@ -271,6 +273,7 @@ main(int argc, char **argv)
 
   ox = p7_omx_Create(gm->M, L, L);
   gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  tr = p7_trace_fs_Create();
 
   /* Baseline time: just sequence generation */
   esl_stopwatch_Start(w);
@@ -286,10 +289,16 @@ main(int argc, char **argv)
       p7_Viterbi(dsq, L, om, ox, &sc);
 
       if (esl_opt_GetBoolean(go, "-c"))
-	{
-	  p7_GViterbi(dsq, L, gm, gx, &sc2);
-	  printf("%.4f %.4f\n", sc, sc2);
-	}
+	  {
+	    p7_GViterbi(dsq, L, gm, gx, &sc2);
+	    printf("%.4f %.4f\n", sc, sc2);
+	  }
+
+	  if (! esl_opt_GetBoolean(go, "--notrace"))
+	  {
+        p7_Viterbi_Trace(dsq, L, om, ox, tr);  
+	    p7_trace_Reuse(tr);
+	  }
     }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
@@ -299,6 +308,7 @@ main(int argc, char **argv)
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
+  p7_trace_fs_Destroy(tr);
   p7_omx_Destroy(ox);
   p7_gmx_Destroy(gx);
   p7_oprofile_Destroy(om);
@@ -340,6 +350,8 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   ESL_DSQ     *dsq = malloc(sizeof(ESL_DSQ) * (L+2));
   P7_OMX      *ox  = p7_omx_Create(M, L, L);
   P7_GMX      *gx  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_TRACE    *tr  = p7_trace_fs_Create();
+  P7_TRACE    *trg = p7_trace_fs_Create();
   float        sc1, sc2;
 
   p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
@@ -351,9 +363,19 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
       p7_Viterbi (dsq, L, om, ox, &sc1);
       p7_GViterbi(dsq, L, gm, gx, &sc2);
       if (fabs(sc1 - sc2) > 0.001) esl_fatal(msg);
+
+      p7_Viterbi_Trace(dsq, L, om, ox, tr);
+	  p7_GViterbi_Trace(dsq, L, gm, gx, trg);
+
+	  if (p7_trace_fs_Validate(tr, abc, dsq, NULL)   != eslOK) esl_fatal(msg);
+	  if (p7_trace_fs_Validate(trg, abc, dsq, NULL)  != eslOK) esl_fatal(msg);
+	  if (p7_trace_Compare(tr, trg, 0.)              != eslOK) esl_fatal(msg);
+	  
     }
 
   free(dsq);
+  p7_trace_fs_Destroy(tr);
+  p7_trace_fs_Destroy(trg);
   p7_hmm_Destroy(hmm);
   p7_omx_Destroy(ox);
   p7_gmx_Destroy(gx);

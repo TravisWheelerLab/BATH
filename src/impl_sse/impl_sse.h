@@ -424,7 +424,7 @@ extern int          p7_omx_Reuse  (P7_OMX *ox);
 extern void         p7_omx_Destroy(P7_OMX *ox);
 
 extern int          p7_omx_SetDumpMode(FILE *fp, P7_OMX *ox, int truefalse);
-extern int          p7_omx_Dump      (FILE *fp, P7_OMX *ox);
+extern int          p7_omx_Dump       (FILE *fp, P7_OMX *ox);
 extern int          p7_omx_DumpMFRow(P7_OMX *ox, int rowi, uint8_t xE, uint8_t xN, uint8_t xJ, uint8_t xB, uint8_t xC);
 extern int          p7_omx_DumpVFRow(P7_OMX *ox, int rowi, int16_t xE, int16_t xN, int16_t xJ, int16_t xB, int16_t xC);
 extern int          p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
@@ -452,7 +452,7 @@ extern int          p7_oprofile_ReconfigUnihit    (P7_OPROFILE *om, int L);
 
 extern int          p7_oprofile_Dump(FILE *fp, const P7_OPROFILE *om);
 extern int          p7_oprofile_Sample(ESL_RANDOMNESS *r, const ESL_ALPHABET *abc, const P7_BG *bg, int M, int L,
-               P7_HMM **opt_hmm, P7_PROFILE **opt_gm, P7_OPROFILE **ret_om);
+                                       P7_HMM **opt_hmm, P7_PROFILE **opt_gm, P7_OPROFILE **ret_om);
 extern int          p7_oprofile_Compare(const P7_OPROFILE *om1, const P7_OPROFILE *om2, float tol, char *errmsg);
 extern int          p7_profile_SameAsMF(const P7_OPROFILE *om, P7_PROFILE *gm);
 extern int          p7_profile_SameAsVF(const P7_OPROFILE *om, P7_PROFILE *gm);
@@ -546,6 +546,9 @@ extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq
 /* vitfilter.c */
 extern int p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
 
+/* vitfilter_fs.c */
+extern int p7_Viterbi_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
+extern int p7_Viterbi_Trace                    (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,   P7_TRACE *tr);
 
 /* p7_oprofile.c (logify) */
 extern int p7_oprofile_Logify(P7_OPROFILE *om);

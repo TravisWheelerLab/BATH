@@ -319,7 +319,7 @@ p7_GViterbi_longtarget(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
  *****************************************************************/
 #ifdef p7GENERIC_VITERBI_BENCHMARK
 /*
-   gcc -g -O2      -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
+   gcc -g -O3      -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
    icc -O3 -static -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
    ./benchmark-generic-viterbi <hmmfile>
  */

@@ -1,4 +1,14 @@
-/* Frameshift aware Viterbi algorithm and traceback.*/
+/* Frameshift aware Viterbi algorithm; generic (non-SIMD) version.
+ *
+ * Full mattix, log space, Frameshift aware translated Viterbi 
+ * algorithm with 5 codon lengths, plus trace back. 
+ *
+ * Contents:
+ *    1. Frameshift Viterbi and trace back.
+ *    2. Benchmark driver.
+ *    3. Unit tests.
+ *    4. Test driver.
+ */
 #include "p7_config.h"
 
 #include "easel.h"
@@ -9,6 +19,10 @@
 #include "hmmer.h"
 
 #define IVX(i,k) (ivx[((k)*p7P_5CODONS) + (i)])
+
+/*****************************************************************
+ * 1. Frameshift Viterbi and trace back.
+ *****************************************************************/
 
 /* Function:  p7_GViterbi_Frameshift()
  * Synopsis:  The Viterbi algorithm, with frameshift awareness.
@@ -532,7 +546,256 @@ p7_GVTrace_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, co
 
 }
 
+/*-------------------- end, Viterbi -----------------------------*/
+
+/*****************************************************************
+ * 2. Benchmark driver.
+ *****************************************************************/
+
+
+/*----------------- end, benchmark ------------------------------*/
 
 
 
+/*****************************************************************
+ * 3. Unit tests
+ *****************************************************************/
+#ifdef p7GENERIC_VITERBI_FRAMESHIFT_TESTDRIVE
+#include <string.h>
+#include "esl_getopts.h"
+#include "esl_msa.h"
+#include "esl_msafile.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
 
+/* utest_basic: build a tiny protein HMM from a Stockholm alignment,
+ * reverse-translate one codon per residue into a DNA target sequence,
+ * run frameshift Viterbi, run the traceback, and validate the trace.
+ * Also confirms that Forward score >= Viterbi score on the same input.
+ */
+static void
+utest_basic(ESL_GETOPTS *go)
+{
+  /* Minimal Stockholm alignment of two identical 4-residue seqs */
+  char           *query = "# STOCKHOLM 1.0\n\nseq1 MAFY\nseq2 MAFY\n//\n";
+  int             fmt   = eslMSAFILE_STOCKHOLM;
+  ESL_ALPHABET   *abcAA  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  ESL_MSA        *msa    = NULL;
+  P7_HMM         *hmm    = NULL;
+  P7_BG          *bgAA   = NULL;
+  P7_FS_PROFILE  *gm_fs5 = NULL;
+  P7_PRIOR       *pri    = NULL;
+  ESL_GENCODE    *gcode  = NULL;
+  P7_CODONTABLE  *ct     = NULL;
+  ESL_RANDOMNESS *r      = NULL;
+  /* DNA target: ATG(M) GCT(A) TTT(F) TAT(Y) = MAFY */
+  char           *targ   = "ATGGCTTTTTAT";
+  int             L      = strlen(targ);  /* 12 nt */
+  ESL_DSQ        *dsq    = NULL;
+  P7_GMX         *vit    = NULL;
+  P7_GMX         *fwd    = NULL;
+  P7_IVX         *iv     = NULL;
+  P7_TRACE       *tr     = NULL;
+  char            errbuf[eslERRBUFSIZE];
+  float           vsc, fsc;
+
+  if ((abcAA  = esl_alphabet_Create(eslAMINO))          == NULL) esl_fatal("failed to create AA alphabet");
+  if ((abcDNA = esl_alphabet_Create(eslDNA))             == NULL) esl_fatal("failed to create DNA alphabet");
+  if ((r      = esl_randomness_CreateFast(42))           == NULL) esl_fatal("failed to create RNG");
+  if ((pri    = p7_prior_CreateAmino())                  == NULL) esl_fatal("failed to create prior");
+  if ((msa    = esl_msa_CreateFromString(query, fmt))    == NULL) esl_fatal("failed to create MSA");
+  if (esl_msa_Digitize(abcAA, msa, NULL)                != eslOK) esl_fatal("failed to digitize MSA");
+  if (p7_Fastmodelmaker(msa, 0.5, NULL, &hmm, NULL)     != eslOK) esl_fatal("failed to build HMM");
+  if (p7_ParameterEstimation(hmm, pri)                  != eslOK) esl_fatal("failed to parameterize HMM");
+  if (p7_hmm_SetConsensus(hmm, NULL)                    != eslOK) esl_fatal("failed to set consensus");
+  if ((bgAA   = p7_bg_Create(abcAA))                    == NULL) esl_fatal("failed to create background");
+  if ((gcode  = esl_gencode_Create(abcDNA, abcAA))      == NULL) esl_fatal("failed to create gencode");
+  if ((ct     = p7_codontable_Create(gcode))             == NULL) esl_fatal("failed to create codon table");
+  if ((gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, 5)) == NULL) esl_fatal("failed to create fs profile");
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL) != eslOK) esl_fatal("failed to configure fs profile");
+
+  if (esl_abc_CreateDsq(abcDNA, targ, &dsq)             != eslOK) esl_fatal("failed to digitize DNA sequence");
+
+  if ((vit = p7_gmx_Create(gm_fs5->M, L, L, p7P_5CODONS))    == NULL) esl_fatal("failed to create Viterbi matrix");
+  if ((fwd = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS)) == NULL) esl_fatal("failed to create Forward matrix");
+  if ((iv  = p7_ivx_Create(gm_fs5->M, p7P_5CODONS))           == NULL) esl_fatal("failed to create IVX");
+  if ((tr  = p7_trace_Create())                                == NULL) esl_fatal("failed to create trace");
+
+  if (p7_GViterbi_Frameshift(dsq, L, gm_fs5, vit, iv, &vsc) != eslOK) esl_fatal("Viterbi failed");
+  if (esl_opt_GetBoolean(go, "-v")) printf("utest_basic: Viterbi score: %.4f\n", vsc);
+
+  if (p7_GVTrace_Frameshift(dsq, L, gm_fs5, vit, tr)        != eslOK) esl_fatal("traceback failed");
+  if (p7_trace_fs_Validate(tr, abcDNA, dsq, errbuf)         != eslOK) esl_fatal("trace invalid: %s", errbuf);
+  if (esl_opt_GetBoolean(go, "-v")) p7_trace_Dump(stdout, tr, NULL, dsq);
+
+  p7_FLogsumInit();
+  if (p7_GForward_Frameshift(dsq, L, gm_fs5, fwd, iv, &fsc) != eslOK) esl_fatal("Forward failed");
+  if (esl_opt_GetBoolean(go, "-v")) printf("utest_basic: Forward score: %.4f\n", fsc);
+  if (fsc < vsc - 0.001) esl_fatal("utest_basic: Forward score (%.4f) < Viterbi score (%.4f)", fsc, vsc);
+
+  p7_trace_Destroy(tr);
+  p7_ivx_Destroy(iv);
+  p7_gmx_Destroy(fwd);
+  p7_gmx_Destroy(vit);
+  free(dsq);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_codontable_Destroy(ct);
+  esl_gencode_Destroy(gcode);
+  p7_bg_Destroy(bgAA);
+  p7_hmm_Destroy(hmm);
+  esl_msa_Destroy(msa);
+  p7_prior_Destroy(pri);
+  esl_randomness_Destroy(r);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+}
+
+
+/* utest_viterbi_fs: Viterbi validation on random DNA sequences.
+ *
+ * For each sequence:
+ *   1. Reverse-translate a random AA sequence to get in-frame DNA.
+ *   2. Run Viterbi and traceback; validate the trace structure.
+ *   3. Confirm Forward score >= Viterbi score.
+ *   4. Accumulate (Viterbi - null) scores to check the average is <= 0
+ *      (random sequences should not score better than the null model).
+ */
+static void
+utest_viterbi_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+                 P7_CODONTABLE *ct, P7_BG *bgAA, P7_FS_PROFILE *gm_fs5, int nseq, int L)
+{
+  int       i, j, idx;
+  float     avg_sc = 0.;
+  ESL_DSQ  *dsqAA  = NULL;
+  ESL_DSQ  *dsqDNA = NULL;
+  P7_GMX   *vit    = NULL;
+  P7_GMX   *fwd    = NULL;
+  P7_IVX   *iv     = NULL;
+  P7_TRACE *tr     = NULL;
+  char      errbuf[eslERRBUFSIZE];
+  float     vsc, fsc, nullsc;
+
+  if ((dsqAA  = malloc(sizeof(ESL_DSQ) * ((L/3)+2))) == NULL) esl_fatal("malloc failed");
+  if ((dsqDNA = malloc(sizeof(ESL_DSQ) * (L+2)))     == NULL) esl_fatal("malloc failed");
+  if ((vit    = p7_gmx_Create(gm_fs5->M, L, L, p7P_5CODONS))    == NULL) esl_fatal("matrix creation failed");
+  if ((fwd    = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS)) == NULL) esl_fatal("matrix creation failed");
+  if ((iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS))           == NULL) esl_fatal("ivx creation failed");
+  if ((tr     = p7_trace_Create())                                == NULL) esl_fatal("trace creation failed");
+
+  for (idx = 0; idx < nseq; idx++)
+    {
+      /* Build a random in-frame DNA sequence from a random AA sequence */
+      if (esl_rsq_xfIID(r, bgAA->f, abcAA->K, L/3, dsqAA) != eslOK) esl_fatal("seq generation failed");
+      j = 1;
+      for (i = 1; i <= L/3; i++) {
+        p7_codontable_GetCodon(ct, r, dsqAA[i], dsqDNA+j);
+        j += 3;
+      }
+      dsqDNA[0] = dsqDNA[L+1] = eslDSQ_SENTINEL;
+
+      if (p7_GViterbi_Frameshift(dsqDNA, L, gm_fs5, vit, iv, &vsc) != eslOK) esl_fatal("Viterbi failed");
+      if (p7_GVTrace_Frameshift(dsqDNA, L, gm_fs5, vit, tr)        != eslOK) esl_fatal("traceback failed");
+      if (p7_trace_fs_Validate(tr, abcDNA, dsqDNA, errbuf)         != eslOK) esl_fatal("trace invalid: %s", errbuf);
+
+      if (p7_GForward_Frameshift(dsqDNA, L, gm_fs5, fwd, iv, &fsc) != eslOK) esl_fatal("Forward failed");
+      if (fsc < vsc - 0.001) esl_fatal("Forward score (%.4f) < Viterbi score (%.4f)", fsc, vsc);
+
+      if (p7_bg_fs_NullOne(bgAA, dsqAA, L/3, &nullsc) != eslOK) esl_fatal("null score failed");
+      avg_sc += vsc - nullsc;
+
+      if (esl_opt_GetBoolean(go, "--vv"))
+        printf("utest_viterbi_fs: vsc %.4f fsc %.4f nullsc %.4f\n", vsc, fsc, nullsc);
+
+      p7_trace_Reuse(tr);
+      p7_gmx_Reuse(vit);
+      p7_gmx_Reuse(fwd);
+    }
+
+  avg_sc /= (float) nseq;
+  if (avg_sc > 0.) esl_fatal("Viterbi scores have positive expectation (%.4f nats)", avg_sc);
+
+  p7_trace_Destroy(tr);
+  p7_ivx_Destroy(iv);
+  p7_gmx_Destroy(fwd);
+  p7_gmx_Destroy(vit);
+  free(dsqDNA);
+  free(dsqAA);
+}
+
+#endif /*p7GENERIC_VITERBI_FRAMESHIFT_TESTDRIVE*/
+/*----------------- end, unit tests -----------------------------*/
+
+
+/*****************************************************************
+ * 4. Test driver.
+ *****************************************************************/
+/* gcc -g -Wall -Dp7GENERIC_VITERBI_FRAMESHIFT_TESTDRIVE -I. -I../easel -L. -L../easel -o generic_viterbi_frameshift_utest generic_viterbi_frameshift.c -lhmmer -leasel -lm
+ */
+#ifdef p7GENERIC_VITERBI_FRAMESHIFT_TESTDRIVE
+#include "easel.h"
+#include "esl_getopts.h"
+#include "esl_msa.h"
+
+#include "p7_config.h"
+#include "hmmer.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-v",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "be verbose",                                     0 },
+  { "--vv",      eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "be very verbose",                                0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "unit test driver for the generic frameshift Viterbi implementation";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA  = NULL;
+  ESL_ALPHABET   *abcDNA = NULL;
+  P7_HMM         *hmm    = NULL;
+  P7_FS_PROFILE  *gm_fs5 = NULL;
+  P7_BG          *bgAA   = NULL;
+  ESL_GENCODE    *gcode  = NULL;
+  P7_CODONTABLE  *ct     = NULL;
+  int             M      = 100;
+  int             L      = 600;  /* must be a multiple of 3 */
+  int             nseq   = 20;
+  char            errbuf[eslERRBUFSIZE];
+
+  p7_FLogsumInit();
+
+  if ((abcAA  = esl_alphabet_Create(eslAMINO))                         == NULL) esl_fatal("failed to create AA alphabet");
+  if ((abcDNA = esl_alphabet_Create(eslDNA))                           == NULL) esl_fatal("failed to create DNA alphabet");
+  if ((gcode  = esl_gencode_Create(abcDNA, abcAA))                     == NULL) esl_fatal("failed to create gencode");
+  if ((ct     = p7_codontable_Create(gcode))                           == NULL) esl_fatal("failed to create codon table");
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)                                != eslOK) esl_fatal("failed to sample HMM");
+  if ((bgAA   = p7_bg_Create(abcAA))                                   == NULL) esl_fatal("failed to create background");
+  if (p7_bg_SetLength(bgAA, L/3)                                       != eslOK) esl_fatal("failed to set bg length");
+  if ((gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, 5))                == NULL) esl_fatal("failed to create fs profile");
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL)    != eslOK) esl_fatal("failed to configure fs profile");
+  if (p7_hmm_Validate(hmm, errbuf, 0.0001)                             != eslOK) esl_fatal("HMM invalid: %s", errbuf);
+
+  utest_basic      (go);
+  utest_viterbi_fs (go, r, abcAA, abcDNA, ct, bgAA, gm_fs5, nseq, L);
+
+  fprintf(stderr, "All tests passed.\n");
+
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_bg_Destroy(bgAA);
+  p7_hmm_Destroy(hmm);
+  p7_codontable_Destroy(ct);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7GENERIC_VITERBI_FRAMESHIFT_TESTDRIVE*/
+/*----------------- end, test driver -----------------------------*/

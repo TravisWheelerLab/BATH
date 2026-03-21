@@ -550,8 +550,134 @@ p7_GVTrace_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, co
 /*****************************************************************
  * 2. Benchmark driver.
  *****************************************************************/
+#ifdef p7GENERIC_VITERBI_FRAMESHIFT_BENCHMARK
+/*
+   gcc -g -O3 -o generic_viterbi_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_FRAMESHIFT_BENCHMARK generic_viterbi_frameshift.c -lhmmer -leasel -lm
+   icc -O3 -static -o generic_viterbi_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_FRAMESHIFT_BENCHMARK generic_viterbi_frameshift.c -lhmmer -leasel -lm
 
+   ./generic_viterbi_frameshift_benchmark <hmmfile>       benchmark Viterbi + traceback together
+   ./generic_viterbi_frameshift_benchmark -V <hmmfile>    benchmark Viterbi only
+   ./generic_viterbi_frameshift_benchmark -T <hmmfile>    benchmark traceback only (requires Viterbi to fill matrix first)
+ */
+#include "p7_config.h"
 
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL,  "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL,  "set random number seed to <n>",                  0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL,  "length of random target DNA seqs (mult of 3)",   0 },
+  { "-N",        eslARG_INT,   "2000", NULL, "n>0", NULL,  NULL, NULL,  "number of random target seqs",                   0 },
+  { "-V",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-T",  "benchmark Viterbi only (skip traceback)",        0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-V",  "benchmark traceback only (skip Viterbi timing)", 0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for generic frameshift Viterbi";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_FS_PROFILE  *gm_fs5  = NULL;
+  P7_GMX         *gx      = NULL;
+  P7_IVX         *iv      = NULL;
+  P7_TRACE       *tr      = NULL;
+  ESL_GENCODE    *gcode   = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           sc;
+  double          base_time, bench_time, Mcs;
+  int             do_viterbi  = ! esl_opt_GetBoolean(go, "-T");
+  int             do_traceback= ! esl_opt_GetBoolean(go, "-V");
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
+
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgDNA  = p7_bg_Create(abcDNA);
+  p7_bg_SetLength(bgDNA, L);
+
+  gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
+  p7_ProfileConfig_fs(hmm, p7_bg_Create(abcAA), gcode, gm_fs5, L/3, p7_UNILOCAL);
+
+  gx = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
+  iv = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
+  tr = p7_trace_Create();
+
+  /* If benchmarking traceback only, pre-fill the matrix once with a
+   * representative sequence so the matrix is in a valid filled state. */
+  if (! do_viterbi) {
+    esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+    p7_GViterbi_Frameshift(dsq, L, gm_fs5, gx, iv, &sc);
+  }
+
+  /* Baseline time: just sequence generation */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++) esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  /* Benchmark time */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+
+      if (do_viterbi)
+        p7_GViterbi_Frameshift(dsq, L, gm_fs5, gx, iv, &sc);
+
+      if (do_traceback) {
+        p7_GVTrace_Frameshift(dsq, L, gm_fs5, gx, tr);
+        p7_trace_Reuse(tr);
+      }
+
+      p7_gmx_Reuse(gx);
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm_fs5->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n", gm_fs5->M);
+  printf("# L    = %d\n", L);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_trace_Destroy(tr);
+  p7_ivx_Destroy(iv);
+  p7_gmx_Destroy(gx);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_bg_Destroy(bgDNA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7GENERIC_VITERBI_FRAMESHIFT_BENCHMARK*/
 /*----------------- end, benchmark ------------------------------*/
 
 

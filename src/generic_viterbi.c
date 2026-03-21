@@ -614,7 +614,7 @@ main(int argc, char **argv)
 /* This is essentially identical to the vtrace example. */
 #ifdef p7GENERIC_VITERBI_EXAMPLE
 /* 
-   gcc -g -O2 -Dp7GENERIC_VITERBI_EXAMPLE -I. -I../easel -L. -L../easel -o generic_viterbi_example generic_viterbi.c -lhmmer -leasel -lm
+   gcc -g -O3 -Dp7GENERIC_VITERBI_EXAMPLE -I. -I../easel -L. -L../easel -o generic_viterbi_example generic_viterbi.c -lhmmer -leasel -lm
  */
 #include "p7_config.h"
 

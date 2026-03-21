@@ -600,10 +600,6 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
       if (p7_trace_Validate(tr,  abc, dsq, errbuf) != eslOK) esl_fatal("%s: SSE trace invalid: %s",     msg, errbuf);
       if (p7_trace_Validate(trg, abc, dsq, errbuf) != eslOK) esl_fatal("%s: generic trace invalid: %s", msg, errbuf);
 
-      /* Both traces must be optimal: score each and compare.
-       * Direct path comparison (p7_trace_Compare) would be wrong here —
-       * when multiple paths tie for the best score, argmax implementations
-       * may break ties differently. */
       p7_trace_Score(tr,  dsq, gm, &tsc1);
       p7_trace_Score(trg, dsq, gm, &tsc2);
       if (fabs(tsc1 - tsc2) > 0.001) esl_fatal("%s: trace scores disagree: %.4f vs %.4f", msg, tsc1, tsc2);

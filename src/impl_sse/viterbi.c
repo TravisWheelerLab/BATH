@@ -105,10 +105,6 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
   XMXo(0, p7X_J) = xJ;
   XMXo(0, p7X_C) = xC;
 
-#if eslDEBUGLEVEL > 0
-  if (ox->debugging) p7_omx_DumpFloatRow(ox, FALSE, 0, 5, 2, xE, xN, xJ, xB, xC);
-#endif
-
   for (i = 1; i <= L; i++)
     {
       rsc  = om->rfv[dsq[i]];
@@ -194,9 +190,6 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
 	  }
       } while (q == Q);
 
-#if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFloatRow(ox, FALSE, i, 5, 2, xE, xN, xJ, xB, xC);
-#endif
     } /* end loop over sequence residues 1..L */
 
   /* C->T */

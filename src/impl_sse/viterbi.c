@@ -13,9 +13,10 @@
  *
  * Contents:
  *   1. Viterbi implementation.
- *   2. Benchmark driver.
- *   3. Unit tests.
- *   4. Test driver.
+ *   2. p7_Viterbi_Trace() implementation.
+ *   3. Benchmark driver.
+ *   4. Unit tests.
+ *   5. Test driver.
  *
  */
 #include "p7_config.h"
@@ -28,6 +29,7 @@
 
 #include "easel.h"
 #include "esl_sse.h"
+#include "esl_vectorops.h"
 
 #include "hmmer.h"
 #include "impl_sse.h"
@@ -201,7 +203,246 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
 
 
 /*****************************************************************
- * 2. Benchmark driver.
+ * 2. p7_Viterbi_Trace() implementation
+ *****************************************************************/
+
+/* Forward declarations for vit_select_*() helpers */
+static inline int vit_select_m(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k);
+static inline int vit_select_d(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k);
+static inline int vit_select_i(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k);
+static inline int vit_select_n(int i);
+static inline int vit_select_c(const P7_OPROFILE *om, const P7_OMX *ox, int i);
+static inline int vit_select_j(const P7_OPROFILE *om, const P7_OMX *ox, int i);
+static inline int vit_select_e(const P7_OMX *ox, int i, int *ret_k);
+static inline int vit_select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i);
+
+
+/* Function:  p7_Viterbi_Trace()
+ * Synopsis:  Traceback from an lspace Viterbi DP matrix; SSE version.
+ *
+ * Purpose:   Recover the optimal alignment path from DP matrix <ox>
+ *            filled by <p7_Viterbi()>.  The trace is written into <tr>
+ *            (caller provides an initial allocation).
+ *
+ *            The profile <om> must be in lspace (p7_oprofile_Logify()
+ *            called), matching the state in which <p7_Viterbi()> was run.
+ *
+ *            Mirrors <p7_StochasticTrace()> in stotrace.c, replacing
+ *            each probabilistic choice with a deterministic argmax.
+ *            Because the matrix is log-space, path weights are sums
+ *            (not products) and no normalization is needed before argmax.
+ *
+ * Args:      dsq   - digital target sequence, 1..L
+ *            L     - length of dsq
+ *            om    - optimized profile (lspace float scores)
+ *            ox    - Viterbi DP matrix from p7_Viterbi()
+ *            tr    - RETURN: optimal traceback; caller provides alloc
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if an impossible state is reached.
+ */
+int
+p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox,
+                 P7_TRACE *tr)
+{
+  int i  = L;
+  int k  = 0;
+  int s0, s1;
+  int status;
+
+  if ((status = p7_trace_Append(tr, p7T_T, k, i)) != eslOK) return status;
+  if ((status = p7_trace_Append(tr, p7T_C, k, i)) != eslOK) return status;
+  s0 = p7T_C;
+
+  while (s0 != p7T_S)
+    {
+      switch (s0) {
+      case p7T_M: s1 = vit_select_m(om, ox, i, k);  k--; i--; break;
+      case p7T_D: s1 = vit_select_d(om, ox, i, k);  k--;      break;
+      case p7T_I: s1 = vit_select_i(om, ox, i, k);       i--; break;
+      case p7T_N: s1 = vit_select_n(i);                        break;
+      case p7T_C: s1 = vit_select_c(om, ox, i);                break;
+      case p7T_J: s1 = vit_select_j(om, ox, i);                break;
+      case p7T_E: s1 = vit_select_e(ox, i, &k);                break;
+      case p7T_B: s1 = vit_select_b(om, ox, i);                break;
+      default: ESL_EXCEPTION(eslEINVAL, "bogus state in Viterbi traceback");
+      }
+      if (s1 == -1) ESL_EXCEPTION(eslEINVAL, "Viterbi traceback choice failed");
+
+      if ((status = p7_trace_Append(tr, s1, k, i)) != eslOK) return status;
+
+      if ((s1 == p7T_N || s1 == p7T_J || s1 == p7T_C) && s1 == s0) i--;
+      s0 = s1;
+    }
+
+  tr->M = om->M;
+  tr->L = L;
+  return p7_trace_Reverse(tr);
+}
+/*------------------ end, p7_Viterbi_Trace() --------------------*/
+
+
+/* M(i,k) is reached from B(i-1), M(i-1,k-1), I(i-1,k-1), or D(i-1,k-1).
+ * All log-space: weights are sums; argmax needs no normalization.
+ */
+static inline int
+vit_select_m(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
+{
+  int     Q     = p7O_NQF(ox->M);
+  int     q     = (k-1) % Q;
+  int     r     = (k-1) / Q;
+  __m128 *tp    = om->tfv + 7*q;
+  __m128  xBv   = _mm_set1_ps(ox->xmx[(i-1)*p7X_NXCELLS + p7X_B]);
+  __m128  infv  = _mm_set1_ps(-eslINFINITY);
+  __m128  mpv, dpv, ipv;
+  union { __m128 v; float p[4]; } u;
+  float   path[4];
+  int     state[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
+
+  if (q > 0) {
+    mpv = ox->dpf[i-1][(q-1)*3 + p7X_M];
+    dpv = ox->dpf[i-1][(q-1)*3 + p7X_D];
+    ipv = ox->dpf[i-1][(q-1)*3 + p7X_I];
+  } else {
+    mpv = esl_sse_rightshift_ps(ox->dpf[i-1][(Q-1)*3 + p7X_M], infv);
+    dpv = esl_sse_rightshift_ps(ox->dpf[i-1][(Q-1)*3 + p7X_D], infv);
+    ipv = esl_sse_rightshift_ps(ox->dpf[i-1][(Q-1)*3 + p7X_I], infv);
+  }
+
+  u.v = _mm_add_ps(xBv, *tp); tp++;  path[0] = u.p[r];  /* B  + T_BM */
+  u.v = _mm_add_ps(mpv, *tp); tp++;  path[1] = u.p[r];  /* M' + T_MM */
+  u.v = _mm_add_ps(ipv, *tp); tp++;  path[2] = u.p[r];  /* I' + T_IM */
+  u.v = _mm_add_ps(dpv, *tp);        path[3] = u.p[r];  /* D' + T_DM */
+  return state[esl_vec_FArgMax(path, 4)];
+}
+
+/* D(i,k) is reached from M(i,k-1) or D(i,k-1). Same row i. */
+static inline int
+vit_select_d(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
+{
+  int     Q     = p7O_NQF(ox->M);
+  int     q     = (k-1) % Q;
+  int     r     = (k-1) / Q;
+  __m128  infv  = _mm_set1_ps(-eslINFINITY);
+  __m128  mpv, dpv;
+  __m128  tmdv, tddv;
+  union { __m128 v; float p[4]; } u;
+  float   path[2];
+  int     state[2] = { p7T_M, p7T_D };
+
+  if (q > 0) {
+    mpv  = ox->dpf[i][(q-1)*3 + p7X_M];
+    dpv  = ox->dpf[i][(q-1)*3 + p7X_D];
+    tmdv = om->tfv[7*(q-1) + p7O_MD];
+    tddv = om->tfv[7*Q + (q-1)];
+  } else {
+    mpv  = esl_sse_rightshift_ps(ox->dpf[i][(Q-1)*3 + p7X_M], infv);
+    dpv  = esl_sse_rightshift_ps(ox->dpf[i][(Q-1)*3 + p7X_D], infv);
+    tmdv = esl_sse_rightshift_ps(om->tfv[7*(Q-1) + p7O_MD], infv);
+    tddv = esl_sse_rightshift_ps(om->tfv[8*Q-1], infv);
+  }
+
+  u.v = _mm_add_ps(mpv, tmdv); path[0] = u.p[r];
+  u.v = _mm_add_ps(dpv, tddv); path[1] = u.p[r];
+  return state[esl_vec_FArgMax(path, 2)];
+}
+
+/* I(i,k) is reached from M(i-1,k) or I(i-1,k). */
+static inline int
+vit_select_i(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
+{
+  int     Q    = p7O_NQF(ox->M);
+  int     q    = (k-1) % Q;
+  int     r    = (k-1) / Q;
+  __m128  mpv  = ox->dpf[i-1][q*3 + p7X_M];
+  __m128  ipv  = ox->dpf[i-1][q*3 + p7X_I];
+  __m128 *tp   = om->tfv + 7*q + p7O_MI;
+  union { __m128 v; float p[4]; } u;
+  float   path[2];
+  int     state[2] = { p7T_M, p7T_I };
+
+  u.v = _mm_add_ps(mpv, *tp); tp++;  path[0] = u.p[r];  /* M + T_MI */
+  u.v = _mm_add_ps(ipv, *tp);        path[1] = u.p[r];  /* I + T_II */
+  return state[esl_vec_FArgMax(path, 2)];
+}
+
+/* N(i) comes from N(i-1) for i>0, or S for i==0. */
+static inline int
+vit_select_n(int i)
+{
+  return (i == 0) ? p7T_S : p7T_N;
+}
+
+/* C(i) is reached from C(i-1) or E(i). lspace: add, not multiply. */
+static inline int
+vit_select_c(const P7_OPROFILE *om, const P7_OMX *ox, int i)
+{
+  float path[2];
+  int   state[2] = { p7T_C, p7T_E };
+
+  path[0] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_C] + om->xf[p7O_C][p7O_LOOP];
+  path[1] = ox->xmx[    i*p7X_NXCELLS + p7X_E] + om->xf[p7O_E][p7O_MOVE];
+  return state[esl_vec_FArgMax(path, 2)];
+}
+
+/* J(i) is reached from J(i-1) or E(i). lspace: add, not multiply. */
+static inline int
+vit_select_j(const P7_OPROFILE *om, const P7_OMX *ox, int i)
+{
+  float path[2];
+  int   state[2] = { p7T_J, p7T_E };
+
+  path[0] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_J] + om->xf[p7O_J][p7O_LOOP];
+  path[1] = ox->xmx[    i*p7X_NXCELLS + p7X_E] + om->xf[p7O_E][p7O_LOOP];
+  return state[esl_vec_FArgMax(path, 2)];
+}
+
+/* E(i) is reached from any M(i,k=1..M) or D(i,k=2..M).
+ * Scan all (q,r) to find the maximum M or D value; return state and *ret_k.
+ */
+static inline int
+vit_select_e(const P7_OMX *ox, int i, int *ret_k)
+{
+  int    Q         = p7O_NQF(ox->M);
+  union { __m128 v; float p[4]; } u;
+  float  best      = -eslINFINITY;
+  int    best_k    = 1;
+  int    best_state = p7T_M;
+  int    q, r, k;
+
+  for (q = 0; q < Q; q++)
+    {
+      u.v = ox->dpf[i][q*3 + p7X_M];
+      for (r = 0; r < 4; r++) {
+        k = r*Q + q + 1;
+        if (k <= ox->M && u.p[r] > best) { best = u.p[r]; best_k = k; best_state = p7T_M; }
+      }
+      u.v = ox->dpf[i][q*3 + p7X_D];
+      for (r = 0; r < 4; r++) {
+        k = r*Q + q + 1;
+        if (k <= ox->M && u.p[r] > best) { best = u.p[r]; best_k = k; best_state = p7T_D; }
+      }
+    }
+  *ret_k = best_k;
+  return best_state;
+}
+
+/* B(i) is reached from N(i) or J(i). lspace: add, not multiply. */
+static inline int
+vit_select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
+{
+  float path[2];
+  int   state[2] = { p7T_N, p7T_J };
+
+  path[0] = ox->xmx[i*p7X_NXCELLS + p7X_N] + om->xf[p7O_N][p7O_MOVE];
+  path[1] = ox->xmx[i*p7X_NXCELLS + p7X_J] + om->xf[p7O_J][p7O_MOVE];
+  return state[esl_vec_FArgMax(path, 2)];
+}
+/*-------------- end, vit_select_*() helpers --------------------*/
+
+
+/*****************************************************************
+ * 3. Benchmark driver.
  *****************************************************************/
 #ifdef p7VITERBI_BENCHMARK
 /*

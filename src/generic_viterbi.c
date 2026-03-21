@@ -347,6 +347,7 @@ static ESL_OPTIONS options[] = {
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
   { "-N",        eslARG_INT,  "20000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "--notrace", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "Do not benchmark the trace",                     0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
@@ -365,6 +366,7 @@ main(int argc, char **argv)
   P7_BG          *bg      = NULL;
   P7_PROFILE     *gm      = NULL;
   P7_GMX         *gx      = NULL;
+  P7_TRACE       *tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
@@ -380,6 +382,7 @@ main(int argc, char **argv)
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
   gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  tr = p7_trace_fs_Create;
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
@@ -393,6 +396,12 @@ main(int argc, char **argv)
     {
       esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
       p7_GViterbi     (dsq, L, gm, gx, &sc);
+
+	  if (! esl_opt_GetBoolean(go, "--notrace"))
+      {
+        p7_GViterbi_Trace(dsq, L, gm, gx, tr);
+        p7_trace_Reuse(tr);
+      }
     }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
@@ -403,6 +412,7 @@ main(int argc, char **argv)
 
 
   free(dsq);
+  p7_trace_fs_Destroy(tr);
   p7_gmx_Destroy(gx);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bg);

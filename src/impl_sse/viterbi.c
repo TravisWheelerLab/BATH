@@ -582,7 +582,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   P7_TRACE    *tr  = p7_trace_fs_Create();
   P7_TRACE    *trg = p7_trace_fs_Create();
   char         errbuf[eslERRBUFSIZE];
-  float        sc1, sc2;
+  float        sc1, sc2, tsc1, tsc2;
 
   p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
   p7_oprofile_Logify(om);
@@ -592,18 +592,24 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
 
       p7_Viterbi (dsq, L, om, ox, &sc1);
       p7_GViterbi(dsq, L, gm, gx, &sc2);
-      printf("sc1 %f sc2 %f\n", sc1, sc2);
-      if (fabs(sc1 - sc2) > 0.001) esl_fatal(msg);
+      if (fabs(sc1 - sc2) > 0.001) esl_fatal("%s: Viterbi scores disagree: %.4f vs %.4f", msg, sc1, sc2);
 
       p7_Viterbi_Trace(dsq, L, om, ox, tr);
-	  p7_GTrace(dsq, L, gm, gx, trg);
+      p7_GTrace(dsq, L, gm, gx, trg);
 
-      p7_trace_Dump(stdout, tr, NULL, dsq);      
-      p7_trace_Dump(stdout, trg, NULL, dsq);
+      if (p7_trace_Validate(tr,  abc, dsq, errbuf) != eslOK) esl_fatal("%s: SSE trace invalid: %s",     msg, errbuf);
+      if (p7_trace_Validate(trg, abc, dsq, errbuf) != eslOK) esl_fatal("%s: generic trace invalid: %s", msg, errbuf);
 
-	  if (p7_trace_Validate(tr, abc, dsq, errbuf)   != eslOK) esl_fatal("trace invalid:\n%s", errbuf);
-	  if (p7_trace_Validate(trg, abc, dsq, errbuf)  != eslOK) esl_fatal("trace invalid:\n%s", errbuf);
-	  if (p7_trace_Compare(tr, trg, 0.)              != eslOK) esl_fatal(msg);
+      /* Both traces must be optimal: score each and compare.
+       * Direct path comparison (p7_trace_Compare) would be wrong here —
+       * when multiple paths tie for the best score, argmax implementations
+       * may break ties differently. */
+      p7_trace_Score(tr,  dsq, gm, &tsc1);
+      p7_trace_Score(trg, dsq, gm, &tsc2);
+      if (fabs(tsc1 - tsc2) > 0.001) esl_fatal("%s: trace scores disagree: %.4f vs %.4f", msg, tsc1, tsc2);
+
+      p7_trace_Reuse(tr);
+      p7_trace_Reuse(trg);
     }
 
   free(dsq);

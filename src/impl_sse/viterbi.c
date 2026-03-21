@@ -148,10 +148,10 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
 	  /* Partially compute D(i,q+1): M->D transition only; D->D added below. */
 	  dcv = _mm_add_ps(sv, *tsc); tsc++;  /* Mk->Dk+1 */
 
-	  /* Calculate and store I(i,q). */
+	  /* Calculate and store I(i,q). Insert emission = log(1) = 0 (background freq). */
 	  sv        =                _mm_add_ps(mpv, *tsc);  tsc++;  /* Mk->Ik   */
 	  sv        = _mm_max_ps(sv, _mm_add_ps(ipv, *tsc)); tsc++;  /* Ik->Ik   */
-	  IMO(dp,q) = _mm_add_ps(sv, *rsc);                  rsc++;  /* + emission */
+	  IMO(dp,q) = sv;
 	}
 
       /* Special states (E must be done; B must follow N,J). */
@@ -249,7 +249,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
       p7_Viterbi (dsq, L, om, ox, &sc1);
 	  p7_omx_Dump(stdout, ox);
       p7_GViterbi(dsq, L, gm, gx, &sc2);
-	  p7_gmx_Dump(stdout, gx);
+	  p7_gmx_Dump(stdout, gx, p7_DEFAULT);
       printf("sc1 %f sc2 %f\n", sc1, sc2);
       if (fabs(sc1 - sc2) > 0.001) esl_fatal(msg);
     }

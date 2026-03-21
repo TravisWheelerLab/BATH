@@ -247,8 +247,10 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
       esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
 
       p7_Viterbi (dsq, L, om, ox, &sc1);
+	  p7_omx_Dump(stdout, ox);
       p7_GViterbi(dsq, L, gm, gx, &sc2);
-
+	  p7_gmx_Dump(stdout, gx);
+      printf("sc1 %f sc2 %f\n", sc1, sc2);
       if (fabs(sc1 - sc2) > 0.001) esl_fatal(msg);
     }
 

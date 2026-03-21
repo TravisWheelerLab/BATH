@@ -622,7 +622,7 @@ main(int argc, char **argv)
 
   gx = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
   iv = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
-  tr = p7_trace_Create();
+  tr = p7_trace_fs_Create();
 
   /* If benchmarking traceback only, pre-fill the matrix once with a
    * representative sequence so the matrix is in a valid filled state. */
@@ -662,7 +662,7 @@ main(int argc, char **argv)
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
-  p7_trace_Destroy(tr);
+  p7_trace_fs_Destroy(tr);
   p7_ivx_Destroy(iv);
   p7_gmx_Destroy(gx);
   p7_profile_fs_Destroy(gm_fs5);

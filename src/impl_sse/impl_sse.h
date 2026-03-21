@@ -548,7 +548,7 @@ extern int p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 
 /* vitfilter_fs.c */
 extern int p7_Viterbi_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
-extern int p7_Viterbi_Trace                    (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,   P7_TRACE *tr);
+extern int p7_Viterbi_Frameshift_Trace                    (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,   P7_TRACE *tr);
 
 /* p7_oprofile.c (logify) */
 extern int p7_oprofile_Logify(P7_OPROFILE *om);

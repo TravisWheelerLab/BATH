@@ -497,24 +497,72 @@ select_b_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
 }
 
 /* select_codon_fs_sse:
- *   At M(i,k), choose the codon length c=1..5 with the highest posterior
- *   probability from the FS pp matrix.
+ *   At M(i,k), choose codon length c=1..5 via joint OA predecessor quality
+ *   plus posterior: sv_c = max_state(OA[i-c][k-1]) + pp_Cc(i,k), return
+ *   argmax_c(sv_c).  This mirrors the OA fill recurrence exactly, grounding
+ *   the codon-length choice in predecessor-row context rather than local
+ *   emission posteriors alone, which reduces bias toward rare-amino-acid columns.
+ *   Called with already-decremented k (k = k_original - 1).
  */
 static inline int
-select_codon_fs_sse(const P7_OMX *pp, int i, int k)
+select_codon_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i, int k)
 {
-  int   Q = p7O_NQF(pp->M);
-  int   q = (k-1) % Q;
-  int   r = (k-1) / Q;
-  union { __m128 v; float p[4]; } u;
-  float codon[5];
+  int     Q       = p7O_NQF(ox->M);
+  int     q       = (k-1) % Q;
+  int     r       = (k-1) / Q;
+  __m128 *tp      = om_fs->tfv + 7*q;   /* BM,MM,IM,DM,... at dest stripe q */
+  union { __m128 v; float p[4]; } u, tv;
+  __m128  neg_inf = _mm_set1_ps(-eslINFINITY);
+  float   ppC[5];
+  float   sv[5];
+  float   tBM, tMM, tIM, tDM;
+  float   xB, mval, ival, dval, best;
+  __m128  mpv, dpv, ipv;
+  int     c;
 
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C1);  codon[0] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C2);  codon[1] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C3);  codon[2] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C4);  codon[3] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C5);  codon[4] = u.p[r];
-  return esl_vec_FArgMax(codon, 5) + 1;
+  /* Transition masks at stripe q: same for all codon lags since k is fixed */
+  tv.v = tp[0];  tBM = tv.p[r];
+  tv.v = tp[1];  tMM = tv.p[r];
+  tv.v = tp[2];  tIM = tv.p[r];
+  tv.v = tp[3];  tDM = tv.p[r];
+
+  /* pp posteriors for each codon length at (i, k) */
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C1);  ppC[0] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C2);  ppC[1] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C3);  ppC[2] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C4);  ppC[3] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C5);  ppC[4] = u.p[r];
+
+  /* sv_c = max_state(OA[i-c][k-1]) + ppC[c-1] for c = 1..5 */
+  for (c = 1; c <= 5; c++) {
+    if (i < c) { sv[c-1] = -eslINFINITY; continue; }
+
+    /* OA at row i-c, column k-1: stripe q-1 (right-shifted when q=0) */
+    if (q > 0) {
+      mpv = ox->dpf[i-c][(q-1)*p7X_NSCELLS + p7X_M];
+      dpv = ox->dpf[i-c][(q-1)*p7X_NSCELLS + p7X_D];
+      ipv = ox->dpf[i-c][(q-1)*p7X_NSCELLS + p7X_I];
+    } else {
+      mpv = esl_sse_rightshift_ps(ox->dpf[i-c][(Q-1)*p7X_NSCELLS + p7X_M], neg_inf);
+      dpv = esl_sse_rightshift_ps(ox->dpf[i-c][(Q-1)*p7X_NSCELLS + p7X_D], neg_inf);
+      ipv = esl_sse_rightshift_ps(ox->dpf[i-c][(Q-1)*p7X_NSCELLS + p7X_I], neg_inf);
+    }
+    xB  = ox->xmx[(i-c)*p7X_NXCELLS + p7X_B];
+
+    u.v  = mpv;  mval = u.p[r];
+    u.v  = ipv;  ival = u.p[r];
+    u.v  = dpv;  dval = u.p[r];
+
+    best = -eslINFINITY;
+    if (tBM != 0.0f && xB   > best) best = xB;
+    if (tMM != 0.0f && mval > best) best = mval;
+    if (tIM != 0.0f && ival > best) best = ival;
+    if (tDM != 0.0f && dval > best) best = dval;
+
+    sv[c-1] = (best == -eslINFINITY) ? -eslINFINITY : best + ppC[c-1];
+  }
+
+  return esl_vec_FArgMax(sv, 5) + 1;
 }
 
 
@@ -527,8 +575,9 @@ select_codon_fs_sse(const P7_OMX *pp, int i, int k)
  *
  *            The OA matrix <ox> uses standard 3-cell layout; the pp matrix
  *            uses 8-cell FS layout.  At each M state, <select_codon_fs_sse>
- *            picks the codon length c=1..5 with the highest posterior, and
- *            i is decremented by c after the step.  I states use lag-3.
+ *            picks the codon length c=1..5 that maximizes the joint OA
+ *            predecessor score plus posterior pp_Cc(i,k), and i is
+ *            decremented by c after the step.  I states use lag-3.
  *            N/J/C special states use lag-3 nucleotide stepping.
  *
  * Args:      om_fs - optimized frameshift profile
@@ -575,7 +624,7 @@ p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
 
       postprob = get_postprob_fs(pp, scur, sprv, k, i);
 
-      if (scur == p7T_M) c = select_codon_fs_sse(pp, i, k);
+      if (scur == p7T_M) c = select_codon_fs_sse(om_fs, pp, ox, i, k);
       else               c = 0;
 
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;

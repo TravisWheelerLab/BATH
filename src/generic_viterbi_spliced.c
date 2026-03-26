@@ -1370,10 +1370,10 @@ p7_GViterbi_spliced_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq
 /*****************************************************************
  * 5. Benchmark driver.
  *****************************************************************/
-#ifdef p7SPLICEVITERBI_BENCHMARK
+#ifdef p7GENERIC_VITERBI_SPLICED_BENCHMARK
 /*
-   gcc -g -O3 -Wall -std=gnu99 -o spliceviterbi_benchmark -I. -L. -I../easel -L../easel -Dp7SPLICEVITERBI_BENCHMARK p7_spliceviterbi.c -lhmmer -leasel -lm
-   ./spliceviterbi_benchmark <hmmfile>
+   gcc -g -O3 -Wall -std=gnu99 -o generic_viterbi_spliced_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_SPLICED_BENCHMARK generic_viterbi_spliced.c -lhmmer -leasel -lm
+   ./generic_viterbi_spliced_benchmark <hmmfile>
  */
 #include "esl_gencode.h"
 #include "esl_getopts.h"
@@ -1527,14 +1527,14 @@ main(int argc, char **argv)
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /*p7SPLICEVITERBI_BENCHMARK*/
+#endif /*p7GENERIC_VITERBI_SPLICED_BENCHMARK*/
 /*---------------- end, benchmark driver ----------------*/
 
 
 /*****************************************************************
  * 6. Unit tests.
  *****************************************************************/
-#ifdef p7SPLICEVITERBI_TESTDRIVE
+#ifdef p7GENERIC_VITERBI_SPLICED_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
@@ -1639,17 +1639,17 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_profile_fs_Destroy(gm_tr);
   p7_splicepipeline_Destroy(pli);
 }
-#endif /*p7SPLICEVITERBI_TESTDRIVE*/
+#endif /*p7GENERIC_VITERBI_SPLICED_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
 
 /*****************************************************************
  * 7. Test driver.
  *****************************************************************/
-#ifdef p7SPLICEVITERBI_TESTDRIVE
+#ifdef p7GENERIC_VITERBI_SPLICED_TESTDRIVE
 /*
-   gcc -g -Wall -std=gnu99 -o spliceviterbi_utest -I. -L. -I../easel -L../easel -Dp7SPLICEVITERBI_TESTDRIVE p7_spliceviterbi.c -lhmmer -leasel -lm
-   ./spliceviterbi_utest
+   gcc -g -Wall -std=gnu99 -o generic_viterbi_spliced_utest -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_SPLICED_TESTDRIVE generic_viterbi_spliced.c -lhmmer -leasel -lm
+   ./generic_viterbi_spliced_utest
  */
 #include "esl_gencode.h"
 #include "esl_getopts.h"
@@ -1692,7 +1692,7 @@ main(int argc, char **argv)
   printf("All tests passed.\n");
   return eslOK;
 }
-#endif /*p7SPLICEVITERBI_TESTDRIVE*/
+#endif /*p7GENERIC_VITERBI_SPLICED_TESTDRIVE*/
 /*--------------------- end, test driver ------------------------*/
 
 

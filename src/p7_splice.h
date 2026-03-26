@@ -267,32 +267,11 @@ extern SPLICE_SCORES* p7_splicescores_Create(int M_hint);
 extern int p7_splicescores_GrowTo(SPLICE_SCORES* splice_scores, int M);
 extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
 
-/* p7_spliceviterbi.c */
+/* generic_viterbi_spliced.c */
 extern int p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
 extern int p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
 extern int p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
 extern int p7_GViterbi_spliced_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
-
-/* impl_sse/spliced_viterbi.c */
-extern int p7_ospliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
-                                              const ESL_DSQ *sub_dsq,
-                                              const P7_FS_OPROFILE *om_fs,
-                                              P7_OMX *ox,
-                                              int i_start, int i_end,
-                                              int k_start, int k_end);
-extern int p7_ospliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
-                                                             const ESL_DSQ *sub_dsq,
-                                                             const P7_FS_OPROFILE *om_fs,
-                                                             P7_OMX *ox,
-                                                             int i_start, int i_end,
-                                                             int k_start, int k_end);
-extern int p7_ospliceviterbi_TranslatedSemiGlobalExtendUp  (SPLICE_PIPELINE *pli, OSPLICE_SCORES *oss,
-                                                             const ESL_DSQ *sub_dsq,
-                                                             const P7_FS_OPROFILE *om_fs,
-                                                             P7_OMX *ox,
-                                                             int i_start, int i_end,
-                                                             int k_start, int k_end);
-
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

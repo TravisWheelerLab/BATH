@@ -119,7 +119,7 @@ OBJS =  build.o\
     p7_splicepath.o\
     p7_splicepipeline.o\
 	p7_splicescores.o\
-    p7_spliceviterbi.o\
+    generic_viterbi_spliced.o\
 	p7_tophits.o\
 	p7_trace.o\
 	p7_scoredata.o
@@ -143,7 +143,7 @@ BENCHMARKS = \
 	generic_stotrace_benchmark\
     generic_stotrace_frameshift_benchmark\
 	generic_viterbi_benchmark\
-    spliceviterbi_benchmark	
+    generic_viterbi_spliced_benchmark
 
 UTESTS =\
 	build_utest\
@@ -169,7 +169,7 @@ UTESTS =\
 	p7_tophits_utest\
 	p7_trace_utest\
 	p7_scoredata_utest\
-	spliceviterbi_utest
+	generic_viterbi_spliced_utest
 
 ITESTS = \
 	itest_brute

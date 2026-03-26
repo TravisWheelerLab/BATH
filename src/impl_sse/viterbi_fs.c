@@ -1022,7 +1022,7 @@ main(int argc, char **argv)
   tr = p7_trace_fs_Create();
 
   if (esl_opt_GetBoolean(go, "-c")) {
-    gx = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
+    gx = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS);
     iv = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
   }
 
@@ -1124,7 +1124,7 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_TRACE       *tr     = p7_trace_fs_Create();
   P7_TRACE       *trg    = p7_trace_fs_Create();
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
-  P7_GMX         *gx     = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
+  P7_GMX         *gx     = p7_gmx_Create(M, M, M, p7G_NSCELLS);
   P7_OMX         *ox     = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
   char            errbuf[eslERRBUFSIZE];
   float           gsc, osc;

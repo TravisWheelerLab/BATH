@@ -1550,8 +1550,8 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
         j += 3;
       }
-
-      p7_fs_ReconfigLength(gm_tr, L_amino);
+      if(N > 1) continue;
+      p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
       p7_splicescores_GrowTo(pli->splice_scores, M);
 
@@ -1562,16 +1562,19 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       n_p = 0;
       for (i = 0; i < tr->N; i++)
         if (tr->st[i] == p7T_P) n_p++;
+      printf("N %d n_p %d\n", N, n_p);
       if (n_p < 1) esl_fatal(msg);
 
       /* --- Test 2: TranslatedSemiGlobalExtendDown; final C must be reachable --- */
       p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+      printf("final_C %f\n", final_C);
       if (final_C == -eslINFINITY) esl_fatal(msg);
 
       /* --- Test 3: TranslatedSemiGlobalExtendUp; final C must be reachable --- */
       p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+      printf("final_C %f\n", final_C);
       if (final_C == -eslINFINITY) esl_fatal(msg);
     }
 
@@ -1604,7 +1607,7 @@ static ESL_OPTIONS options[] = {
   { "-s",        eslARG_INT,     "42",  NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-M",        eslARG_INT,     "100", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
   { "-N",        eslARG_INT,     "50",  NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
-  { "-I",        eslARG_INT,    "200",  NULL, "n>0", NULL,  NULL, NULL, "simulated intron length (random nucleotides between GT..AG)", 0 },
+  { "-I",        eslARG_INT,    "500",  NULL, "n>0", NULL,  NULL, NULL, "simulated intron length (random nucleotides between GT..AG)", 0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options]";

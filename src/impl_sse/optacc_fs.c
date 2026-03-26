@@ -346,14 +346,14 @@ get_postprob_fs(const P7_OMX *pp, int scur, int sprv, int k, int i)
   return 0.0f;
 }
 
-/* select_m_fs_sse:
+/* select_m_fs:
  *   M(i,k) is reached from B(i-c), M(i-c,k-1), I(i-c,k-1), or D(i-c,k-1)
  *   for some codon length c.  To determine the STATE TYPE (independent of c),
  *   we compare accumulated OA scores at the current row i, column k-1,
  *   following the same convention as the scalar p7_OATrace_Frameshift.
  */
 static inline int
-select_m_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
+select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
 {
   int     Q     = p7O_NQF(ox->M);
   int     q     = (k-1) % Q;
@@ -385,11 +385,11 @@ select_m_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   return state[esl_vec_FArgMax(path, 4)];
 }
 
-/* select_d_fs_sse:
+/* select_d_fs:
  *   D(i,k) is reached from M(i,k-1) or D(i,k-1) within the same row.
  */
 static inline int
-select_d_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
+select_d_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
 {
   int     Q     = p7O_NQF(ox->M);
   int     q     = (k-1) % Q;
@@ -416,11 +416,11 @@ select_d_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   return ((path[0] >= path[1]) ? p7T_M : p7T_D);
 }
 
-/* select_i_fs_sse:
+/* select_i_fs:
  *   I(i,k) is reached from M(i-3,k) or I(i-3,k) (lag-3, same model column).
  */
 static inline int
-select_i_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
+select_i_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
 {
   int     Q      = p7O_NQF(ox->M);
   int     q      = (k-1) % Q;
@@ -437,19 +437,19 @@ select_i_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   return ((path[0] >= path[1]) ? p7T_M : p7T_I);
 }
 
-/* select_n_fs_sse: N(i) comes from N(i-1) for i>0, else from S. */
+/* select_n_fs: N(i) comes from N(i-1) for i>0, else from S. */
 static inline int
-select_n_fs_sse(int i)
+select_n_fs(int i)
 {
   return ((i == 0) ? p7T_S : p7T_N);
 }
 
-/* select_c_fs_sse:
+/* select_c_fs:
  *   C(i) comes from C(i-3)+pp(i), C(i-2)+pp(i+1), C(i-1)+pp(i+2), or E(i).
  *   Returns p7T_C or p7T_E.
  */
 static inline int
-select_c_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
+select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
 {
   int   L     = ox->L;
   float t1    = (om_fs->xf[p7O_C][p7O_LOOP] == 0.0f) ? 0.0f : 1.0f;
@@ -469,12 +469,12 @@ select_c_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox,
   return state[esl_vec_FArgMax(path, 4)];
 }
 
-/* select_j_fs_sse:
+/* select_j_fs:
  *   J(i) comes from J(i)+pp(i) (loop self-transition) or E(i).
  *   Returns p7T_J or p7T_E.
  */
 static inline int
-select_j_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
+select_j_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
 {
   float path[2];
   int   state[2] = { p7T_J, p7T_E };
@@ -488,13 +488,13 @@ select_j_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox,
   return state[esl_vec_FArgMax(path, 2)];
 }
 
-/* select_e_fs_sse:
+/* select_e_fs:
  *   E(i) is reached from M(i,k) or D(i,k) for any k=1..M.
  *   Iterate in sequential k=1..M order with strict >, matching the scalar
  *   select_e() tie-breaking (first/lowest k with the max value wins).
  */
 static inline int
-select_e_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
+select_e_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
 {
   int    Q    = p7O_NQF(ox->M);
   union { __m128 v; float p[4]; } u;
@@ -514,9 +514,9 @@ select_e_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k
   return smax;
 }
 
-/* select_b_fs_sse: B(i) comes from N(i) or J(i). */
+/* select_b_fs: B(i) comes from N(i) or J(i). */
 static inline int
-select_b_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
+select_b_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
 {
   float path[2];
   path[0] = (om_fs->xf[p7O_N][p7O_MOVE] == 0.0f) ? -eslINFINITY : ox->xmx[i*p7X_NXCELLS+p7X_N];
@@ -524,12 +524,12 @@ select_b_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
   return ((path[0] > path[1]) ? p7T_N : p7T_J);
 }
 
-/* select_codon_fs_sse:
+/* select_codon_fs:
  *   At M(i,k), choose the codon length c=1..5 with the highest posterior
  *   probability from the FS pp matrix.
  */
 static inline int
-select_codon_fs_sse(const P7_OMX *pp, int i, int k)
+select_codon_fs(const P7_OMX *pp, int i, int k)
 {
   int   Q = p7O_NQF(pp->M);
   int   q = (k-1) % Q;
@@ -555,7 +555,7 @@ select_codon_fs_sse(const P7_OMX *pp, int i, int k)
  *            posterior probabilities from the FS decoding matrix <pp>.
  *
  *            The OA matrix <ox> uses standard 3-cell layout; the pp matrix
- *            uses 8-cell FS layout.  At each M state, <select_codon_fs_sse>
+ *            uses 8-cell FS layout.  At each M state, <select_codon_fs>
  *            picks the codon length c=1..5 that maximizes the joint OA
  *            predecessor score plus posterior pp_Cc(i,k), and i is
  *            decremented by c after the step.  I states use lag-3.
@@ -591,21 +591,21 @@ p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   while (sprv != p7T_S)
     {
       switch (sprv) {
-      case p7T_M: scur = select_m_fs_sse(om_fs,     ox, i, k);       k--;   break;
-      case p7T_D: scur = select_d_fs_sse(om_fs,     ox, i, k);       k--;   break;
-      case p7T_I: scur = select_i_fs_sse(om_fs,     ox, i, k);       i -= 3; break;
-      case p7T_N: scur = select_n_fs_sse(i);                                  break;
-      case p7T_C: scur = select_c_fs_sse(om_fs, pp, ox, i);                   break;
-      case p7T_J: scur = select_j_fs_sse(om_fs, pp, ox, i);                   break;
-      case p7T_E: scur = select_e_fs_sse(om_fs,     ox, i, &k);               break;
-      case p7T_B: scur = select_b_fs_sse(om_fs,     ox, i);                   break;
+      case p7T_M: scur = select_m_fs(om_fs,     ox, i, k);       k--;   break;
+      case p7T_D: scur = select_d_fs(om_fs,     ox, i, k);       k--;   break;
+      case p7T_I: scur = select_i_fs(om_fs,     ox, i, k);       i -= 3; break;
+      case p7T_N: scur = select_n_fs(i);                                  break;
+      case p7T_C: scur = select_c_fs(om_fs, pp, ox, i);                   break;
+      case p7T_J: scur = select_j_fs(om_fs, pp, ox, i);                   break;
+      case p7T_E: scur = select_e_fs(om_fs,     ox, i, &k);               break;
+      case p7T_B: scur = select_b_fs(om_fs,     ox, i);                   break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in OA FS traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA FS SSE traceback choice failed");
 
       postprob = get_postprob_fs(pp, scur, sprv, k, i);
 
-      if (scur == p7T_M) c = select_codon_fs_sse(pp, i, k);
+      if (scur == p7T_M) c = select_codon_fs(pp, i, k);
       else               c = 0;
 
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;

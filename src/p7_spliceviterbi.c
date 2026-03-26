@@ -1484,34 +1484,39 @@ main(int argc, char **argv)
 
 /* utest_viterbi():
  *
- * Three consistency checks on profile-emitted DNA sequences:
+ * A simulated intron (GT + <intron_len> random nucleotides + AG) is inserted
+ * at the midpoint of a profile-emitted, reverse-translated DNA sequence,
+ * splitting it into two exons.  Three consistency checks are applied
+ * independently to each exon:
  *
- * 1. TranslatedGlobal: E(L) is finite, and C(L) = E(L) + EC_MOVE.
+ * 1. TranslatedGlobal: E(exon_end) is finite, and
+ *      C(exon_end) = E(exon_end) + EC_MOVE.
  *
  * 2. TranslatedSemiGlobalExtendDown (global entry, semi-global exit)
- *    vs. TranslatedGlobal: C_ExtendDown(L) >= C_Global(L).
+ *    vs. TranslatedGlobal: C_ExtendDown(exon_end) >= C_Global(exon_end).
  *    ExtendDown considers all early-exit paths including the global
- *    exit at (L, M), so its best score is at least as good.
+ *    exit, so its best score is at least as good.
  *
  * 3. TranslatedSemiGlobalExtendUp (semi-global entry, global exit)
- *    vs. TranslatedGlobal: E_ExtendUp(L) >= E_Global(L).
+ *    vs. TranslatedGlobal: E_ExtendUp(exon_end) >= E_Global(exon_end).
  *    ExtendUp considers entry at any (i, k), which includes the
- *    global entry at (3, 1), so its best score is at least as good.
+ *    global entry, so its best score is at least as good.
  */
 static void
 utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
               ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
-              int M, int N)
+              int M, int N, int intron_len)
 {
-  char           *msg   = "splice viterbi unit test failed";
-  P7_HMM         *hmm   = NULL;
-  P7_PROFILE     *gm    = p7_profile_Create(M, abcAA);
-  P7_FS_PROFILE  *gm_tr = p7_profile_fs_Create(M, abcAA, 1);
-  ESL_SQ         *sq    = esl_sq_CreateDigital(abcAA);
-  P7_TRACE       *tr    = p7_trace_Create();
-  ESL_DSQ        *dsq   = NULL;
-  SPLICE_PIPELINE *pli  = NULL;
-  int             L_dna, L_amino;
+  char           *msg         = "splice viterbi unit test failed";
+  P7_HMM         *hmm         = NULL;
+  P7_PROFILE     *gm          = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_tr       = p7_profile_fs_Create(M, abcAA, 1);
+  ESL_SQ         *sq          = esl_sq_CreateDigital(abcAA);
+  P7_TRACE       *tr          = p7_trace_Create();
+  ESL_DSQ        *dsq         = NULL;
+  SPLICE_PIPELINE *pli        = NULL;
+  int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
+  int             L_amino, half_amino, half_dna, exon2_start, L_dna_total;
   int             i, j;
   float           global_E, global_C;
   float           ext_down_C, ext_up_E;
@@ -1526,40 +1531,71 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     {
       p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
       L_amino = sq->n;
-      L_dna   = L_amino * 3;
+      if (L_amino < 2) continue;   /* need at least 2 residues to split */
+
+      half_amino  = L_amino / 2;
+      half_dna    = half_amino * 3;
+      exon2_start = half_dna + intron_total + 1;
+      L_dna_total = L_amino * 3 + intron_total;
 
       if (dsq != NULL) free(dsq);
-      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna + 2))) == NULL) esl_fatal("malloc failed");
-      dsq[0] = dsq[L_dna + 1] = eslDSQ_SENTINEL;
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal("malloc failed");
+      dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
 
+      /* Reverse-translate first exon */
       j = 1;
-      for (i = 1; i <= sq->n; i++) {
+      for (i = 1; i <= half_amino; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+      /* Simulated intron: GT + intron_len random nucleotides + AG
+       * eslDNA alphabet: A=0, C=1, G=2, T=3                        */
+      dsq[j++] = 2;  /* G */
+      dsq[j++] = 3;  /* T */
+      for (i = 0; i < intron_len; i++) dsq[j++] = esl_rnd_Roll(r, 4);
+      dsq[j++] = 0;  /* A */
+      dsq[j++] = 2;  /* G */
+      /* Reverse-translate second exon */
+      for (i = half_amino + 1; i <= L_amino; i++) {
         p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
         j += 3;
       }
 
-      p7_fs_ReconfigLength(gm_tr, L_amino);
-      p7_gmx_GrowTo(pli->vit, M, L_dna, L_dna);
+      p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
       p7_splicescores_GrowTo(pli->splice_scores, M);
 
-      /* --- Test 1: TranslatedGlobal consistency --- */
-      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
-      global_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
-      global_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
+      /* --- Tests on exon 1: dsq[1..half_dna], model 1..M --- */
+      p7_fs_ReconfigLength(gm_tr, half_amino);
 
-      if (global_E == -eslINFINITY) esl_fatal(msg);   /* must be reachable */
+      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, half_dna, 1, M);
+      global_E = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_E];
+      global_C = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_C];
+      if (global_E == -eslINFINITY) esl_fatal(msg);
       if (global_C != global_E + gm_tr->xsc[p7P_E][p7P_MOVE]) esl_fatal(msg);
 
-      /* --- Test 2: ExtendDown C(L) >= Global C(L) --- */
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
-      ext_down_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
-
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, half_dna, 1, M);
+      ext_down_C = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_C];
       if (ext_down_C < global_C - 0.001f) esl_fatal(msg);
 
-      /* --- Test 3: ExtendUp E(L) >= Global E(L) --- */
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
-      ext_up_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, half_dna, 1, M);
+      ext_up_E = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_E];
+      if (ext_up_E < global_E - 0.001f) esl_fatal(msg);
 
+      /* --- Tests on exon 2: dsq[exon2_start..L_dna_total], model 1..M --- */
+      p7_fs_ReconfigLength(gm_tr, L_amino - half_amino);
+
+      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, exon2_start, L_dna_total, 1, M);
+      global_E = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_E];
+      global_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+      if (global_E == -eslINFINITY) esl_fatal(msg);
+      if (global_C != global_E + gm_tr->xsc[p7P_E][p7P_MOVE]) esl_fatal(msg);
+
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, exon2_start, L_dna_total, 1, M);
+      ext_down_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+      if (ext_down_C < global_C - 0.001f) esl_fatal(msg);
+
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, exon2_start, L_dna_total, 1, M);
+      ext_up_E = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_E];
       if (ext_up_E < global_E - 0.001f) esl_fatal(msg);
     }
 
@@ -1591,7 +1627,8 @@ static ESL_OPTIONS options[] = {
   { "-h",        eslARG_NONE,   FALSE,  NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
   { "-s",        eslARG_INT,     "42",  NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-M",        eslARG_INT,     "100", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
-  { "-N",        eslARG_INT,     "50", NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
+  { "-N",        eslARG_INT,     "50",  NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
+  { "-I",        eslARG_INT,    "200",  NULL, "n>0", NULL,  NULL, NULL, "simulated intron length (random nucleotides between GT..AG)", 0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options]";
@@ -1609,8 +1646,9 @@ main(int argc, char **argv)
   P7_CODONTABLE  *ct     = p7_codontable_Create(gcode);
   int             M      = esl_opt_GetInteger(go, "-M");
   int             N      = esl_opt_GetInteger(go, "-N");
+  int             I      = esl_opt_GetInteger(go, "-I");
 
-  utest_viterbi(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+  utest_viterbi(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
 
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);

@@ -1386,6 +1386,7 @@ static ESL_OPTIONS benchmark_options[] = {
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target DNA seqs",               0 },
   { "-N",        eslARG_INT,    "100", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "-I",        eslARG_INT,    "200", NULL, "n>0", NULL,  NULL, NULL, "length of simulated intron (excl. GT..AG signals)", 0 },
   { "-G",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedGlobal",                0 },
   { "-D",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendDown",  0 },
   { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendUp",    0 },
@@ -1412,11 +1413,14 @@ main(int argc, char **argv)
   SPLICE_PIPELINE *pli    = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
+  int             I       = esl_opt_GetInteger(go, "-I");
+  int             intron_total = I + 4;
+  int             L_total = L + intron_total;
   int             do_G    = (esl_opt_GetBoolean(go, "-G") || (!esl_opt_GetBoolean(go, "-D") && !esl_opt_GetBoolean(go, "-U")));
   int             do_D    = (esl_opt_GetBoolean(go, "-D") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-U")));
   int             do_U    = (esl_opt_GetBoolean(go, "-U") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-D")));
-  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L + 2));
-  int             i;
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L_total + 2));
+  int             i, k, half;
   double          base_time, bench_time, Mcs;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
@@ -1425,17 +1429,29 @@ main(int argc, char **argv)
   gcode  = esl_gencode_Create(abcDNA, abcAA);
   bgAA   = p7_bg_Create(abcAA);
   gm_tr  = p7_profile_fs_Create(hmm->M, abcAA, 1);
-  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, L / 3, p7_UNILOCAL);
-  p7_fs_ReconfigLength(gm_tr, L / 3);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, L_total / 3, p7_UNILOCAL);
+  p7_fs_ReconfigLength(gm_tr, L_total / 3);
 
-  pli = p7_splicepipeline_Create(NULL, hmm->M, L);
-  p7_gmx_GrowTo(pli->vit, hmm->M, L, L);
+  pli = p7_splicepipeline_Create(NULL, hmm->M, L_total);
+  p7_gmx_GrowTo(pli->vit, hmm->M, L_total, L_total);
   p7_splicescores_GrowTo(pli->splice_scores, hmm->M);
+
+  half = L / 2;
 
   /* Baseline: time to generate sequences alone */
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
-    esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+    {
+      dsq[0] = eslDSQ_SENTINEL;
+      for (k = 1; k <= half; k++)              dsq[k] = esl_rnd_Roll(r, 4);
+      dsq[half+1] = 2; /* G */
+      dsq[half+2] = 3; /* T */
+      for (k = 0; k < I; k++)                  dsq[half+3+k] = esl_rnd_Roll(r, 4);
+      dsq[half+3+I] = 0; /* A */
+      dsq[half+4+I] = 2; /* G */
+      for (k = half+intron_total+1; k <= L_total; k++) dsq[k] = esl_rnd_Roll(r, 4);
+      dsq[L_total+1] = eslDSQ_SENTINEL;
+    }
   esl_stopwatch_Stop(w);
   base_time = w->user;
 
@@ -1443,17 +1459,27 @@ main(int argc, char **argv)
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
-      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      if (do_G) p7_GViterbi_spliced_TranslatedGlobal          (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
-      if (do_D) p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
-      if (do_U) p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
+      dsq[0] = eslDSQ_SENTINEL;
+      for (k = 1; k <= half; k++)              dsq[k] = esl_rnd_Roll(r, 4);
+      dsq[half+1] = 2; /* G */
+      dsq[half+2] = 3; /* T */
+      for (k = 0; k < I; k++)                  dsq[half+3+k] = esl_rnd_Roll(r, 4);
+      dsq[half+3+I] = 0; /* A */
+      dsq[half+4+I] = 2; /* G */
+      for (k = half+intron_total+1; k <= L_total; k++) dsq[k] = esl_rnd_Roll(r, 4);
+      dsq[L_total+1] = eslDSQ_SENTINEL;
+      if (do_G) p7_GViterbi_spliced_TranslatedGlobal          (pli, dsq, gm_tr, pli->vit, 1, L_total, 1, hmm->M);
+      if (do_D) p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_total, 1, hmm->M);
+      if (do_U) p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_total, 1, hmm->M);
     }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
-  Mcs        = (double) N * (double) L * (double) hmm->M * 1e-6 / bench_time;
+  Mcs        = (double) N * (double) L_total * (double) hmm->M * 1e-6 / bench_time;
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n",   hmm->M);
-  printf("# L    = %d\n",   L);
+  printf("# M       = %d\n",   hmm->M);
+  printf("# L       = %d\n",   L);
+  printf("# I       = %d\n",   I);
+  printf("# L_total = %d\n",   L_total);
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);

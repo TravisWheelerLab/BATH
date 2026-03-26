@@ -105,8 +105,8 @@ p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc)
     }
   }
 
+  bld->fsprob     = p7P_FSPROB;
   bld->fs         = (go != NULL) ?  esl_opt_IsUsed    (go, "--fs")         : TRUE;
-  bld->fsprob     = (go != NULL) ?  esl_opt_GetReal   (go, "--fsprob")     : 0.01;
   bld->ct         = (go != NULL) ?  esl_opt_GetInteger(go, "--ct")         : 1;
   bld->symfrac    = (go != NULL) ?  esl_opt_GetReal   (go, "--symfrac")    : 0.5; 
   bld->fragthresh = (go != NULL) ?  esl_opt_GetReal   (go, "--fragthresh") : 0.5; 

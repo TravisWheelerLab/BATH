@@ -134,6 +134,7 @@ main(int argc, char **argv)
         if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
            (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
 
+		  hmm->fsprob = p7P_FSPROB;
           hmm->fs = TRUE;
           hmm->ct = ct;
 

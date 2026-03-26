@@ -61,14 +61,14 @@
  *            mirroring p7_Forward_Frameshift(), with all sum-over-paths
  *            operations replaced by max-over-paths operations.
  *
- *            <ox> must be created with p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS).
+ *            <ox> must be created with p7_omx_Create_dpf(M, L, L, p7X_NSCELLS).
  *            Scale factors at each row are written to
  *            <ox->xmx[i*p7X_NXCELLS+p7X_SCALE]>.
  *
  * Args:      dsq    - nucleotide sequence, 1..L
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths == 5)
- *            ox     - DP matrix, p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS)
+ *            ox     - DP matrix, p7_omx_Create_dpf(M, L, L, p7X_NSCELLS)
  *            opt_sc - optRETURN: Viterbi score in nats
  *
  * Returns:   <eslOK> on success.
@@ -117,10 +117,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   /* Zero-initialize rows 0..L of the full DP matrix */
   for (r = 0; r <= L; r++)
     for (q = 0; q < Q; q++)
-      MMO_FS(ox->dpf[r],q,p7X_FS_C0) = MMO_FS(ox->dpf[r],q,p7X_FS_C1) =
-      MMO_FS(ox->dpf[r],q,p7X_FS_C2) = MMO_FS(ox->dpf[r],q,p7X_FS_C3) =
-      MMO_FS(ox->dpf[r],q,p7X_FS_C4) = MMO_FS(ox->dpf[r],q,p7X_FS_C5) =
-      DMO_FS(ox->dpf[r],q)            = IMO_FS(ox->dpf[r],q)            = zerov;
+      MMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = zerov;
 
   /* Zero-initialize all IVX rows */
   for (r = 0; r < p7P_5CODONS; r++)
@@ -175,32 +172,27 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       sv  = _mm_max_ps(sv, _mm_mul_ps(dpv1, *tp)); tp++;  /* DM=0 */
       IVX(ivx_1, q) = sv;
 
-      /* M_C1(1,q): 1-nt codon only; M_C0 = best codon (= C1 here) */
+      /* M_C0(1,q): 1-nt codon only */
       msv = _mm_mul_ps(sv, om_fs->rfv[c1][q]);
-      MMO_FS(dpc, q, p7X_FS_C0) = msv;
-      MMO_FS(dpc, q, p7X_FS_C1) = msv;
-      MMO_FS(dpc, q, p7X_FS_C2) = zerov;
-      MMO_FS(dpc, q, p7X_FS_C3) = zerov;
-      MMO_FS(dpc, q, p7X_FS_C4) = zerov;
-      MMO_FS(dpc, q, p7X_FS_C5) = zerov;
+      MMO(dpc, q) = msv;
       xEv = _mm_max_ps(xEv, msv);
 
-      DMO_FS(dpc, q) = dcv;
+      DMO(dpc, q) = dcv;
       dcv = _mm_mul_ps(msv, *tp); tp++;   /* MD */
 
       /* I(1,q) = 0 (dpp3 all zeros) */
-      IMO_FS(dpc, q) = zerov;
+      IMO(dpc, q) = zerov;
       tp += 2;  /* skip MI, II */
     }
 
   /* DD paths */
-  dcv           = esl_sse_rightshiftz_float(dcv);
-  DMO_FS(dpc,0) = zerov;
-  tp            = om_fs->tfv + 7*Q;
+  dcv        = esl_sse_rightshiftz_float(dcv);
+  DMO(dpc,0) = zerov;
+  tp         = om_fs->tfv + 7*Q;
   for (q = 0; q < Q; q++)
     {
-      DMO_FS(dpc, q) = _mm_max_ps(dcv, DMO_FS(dpc, q));
-      dcv            = _mm_mul_ps(DMO_FS(dpc, q), *tp); tp++;
+      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+      dcv         = _mm_mul_ps(DMO(dpc, q), *tp); tp++;
     }
   if (om_fs->M < 100)
     {
@@ -210,8 +202,8 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           tp  = om_fs->tfv + 7*Q;
           for (q = 0; q < Q; q++)
             {
-              DMO_FS(dpc, q) = _mm_max_ps(dcv, DMO_FS(dpc, q));
-              dcv            = _mm_mul_ps(dcv, *tp); tp++;
+              DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+              dcv         = _mm_mul_ps(dcv, *tp); tp++;
             }
         }
     }
@@ -225,17 +217,17 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           cv  = zerov;
           for (q = 0; q < Q; q++)
             {
-              sv             = _mm_max_ps(dcv, DMO_FS(dpc, q));
-              cv             = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO_FS(dpc, q)));
-              DMO_FS(dpc, q) = sv;
-              dcv            = _mm_mul_ps(dcv, *tp); tp++;
+              sv          = _mm_max_ps(dcv, DMO(dpc, q));
+              cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
+              DMO(dpc, q) = sv;
+              dcv         = _mm_mul_ps(dcv, *tp); tp++;
             }
           if (! _mm_movemask_ps(cv)) break;
         }
     }
   /* Add D to xEv, then reduce to scalar xE */
   for (q = 0; q < Q; q++)
-    xEv = _mm_max_ps(xEv, DMO_FS(dpc, q));
+    xEv = _mm_max_ps(xEv, DMO(dpc, q));
   esl_sse_hmax_ps(xEv, &xE);
 
   xN = 1.0f;
@@ -251,14 +243,9 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       xEv = _mm_set1_ps(scale_factor);
       for (q = 0; q < Q; q++)
         {
-          MMO_FS(dpc,q,p7X_FS_C0) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C0), xEv);
-          MMO_FS(dpc,q,p7X_FS_C1) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C1), xEv);
-          MMO_FS(dpc,q,p7X_FS_C2) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C2), xEv);
-          MMO_FS(dpc,q,p7X_FS_C3) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C3), xEv);
-          MMO_FS(dpc,q,p7X_FS_C4) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C4), xEv);
-          MMO_FS(dpc,q,p7X_FS_C5) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C5), xEv);
-          DMO_FS(dpc,q)            = _mm_mul_ps(DMO_FS(dpc,q),            xEv);
-          IMO_FS(dpc,q)            = _mm_mul_ps(IMO_FS(dpc,q),            xEv);
+          MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
+          DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
+          IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
         }
       for (r = 0; r < p7P_5CODONS; r++)
         for (q = 0; q < Q; q++)
@@ -303,9 +290,9 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   dcv  = zerov;
   xEv  = zerov;
 
-  mpv1 = esl_sse_rightshiftz_float(MMO_FS(dpp1, Q-1, p7X_FS_C0));
-  dpv1 = esl_sse_rightshiftz_float(DMO_FS(dpp1, Q-1));
-  ipv1 = esl_sse_rightshiftz_float(IMO_FS(dpp1, Q-1));
+  mpv1 = esl_sse_rightshiftz_float(MMO(dpp1, Q-1));
+  dpv1 = esl_sse_rightshiftz_float(DMO(dpp1, Q-1));
+  ipv1 = esl_sse_rightshiftz_float(IMO(dpp1, Q-1));
 
   for (q = 0; q < Q; q++)
     {
@@ -320,33 +307,28 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       msv = _mm_max_ps(mc1, mc2);
       xEv = _mm_max_ps(xEv, msv);
 
-      mpv1 = MMO_FS(dpp1, q, p7X_FS_C0);
-      dpv1 = DMO_FS(dpp1, q);
-      ipv1 = IMO_FS(dpp1, q);
+      mpv1 = MMO(dpp1, q);
+      dpv1 = DMO(dpp1, q);
+      ipv1 = IMO(dpp1, q);
 
-      MMO_FS(dpc, q, p7X_FS_C0) = msv;
-      MMO_FS(dpc, q, p7X_FS_C1) = mc1;
-      MMO_FS(dpc, q, p7X_FS_C2) = mc2;
-      MMO_FS(dpc, q, p7X_FS_C3) = zerov;
-      MMO_FS(dpc, q, p7X_FS_C4) = zerov;
-      MMO_FS(dpc, q, p7X_FS_C5) = zerov;
-      DMO_FS(dpc, q) = dcv;
+      MMO(dpc, q) = msv;
+      DMO(dpc, q) = dcv;
 
       dcv = _mm_mul_ps(msv, *tp); tp++;   /* MD */
 
       /* I(2,q) = 0 (no dpp3 yet) */
-      IMO_FS(dpc, q) = zerov;
+      IMO(dpc, q) = zerov;
       tp += 2;  /* skip MI, II */
     }
 
   /* DD paths */
-  dcv           = esl_sse_rightshiftz_float(dcv);
-  DMO_FS(dpc,0) = zerov;
-  tp            = om_fs->tfv + 7*Q;
+  dcv        = esl_sse_rightshiftz_float(dcv);
+  DMO(dpc,0) = zerov;
+  tp         = om_fs->tfv + 7*Q;
   for (q = 0; q < Q; q++)
     {
-      DMO_FS(dpc, q) = _mm_max_ps(dcv, DMO_FS(dpc, q));
-      dcv            = _mm_mul_ps(DMO_FS(dpc, q), *tp); tp++;
+      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+      dcv         = _mm_mul_ps(DMO(dpc, q), *tp); tp++;
     }
   if (om_fs->M < 100)
     {
@@ -356,8 +338,8 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           tp  = om_fs->tfv + 7*Q;
           for (q = 0; q < Q; q++)
             {
-              DMO_FS(dpc, q) = _mm_max_ps(dcv, DMO_FS(dpc, q));
-              dcv            = _mm_mul_ps(dcv, *tp); tp++;
+              DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+              dcv         = _mm_mul_ps(dcv, *tp); tp++;
             }
         }
     }
@@ -371,16 +353,16 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           cv  = zerov;
           for (q = 0; q < Q; q++)
             {
-              sv             = _mm_max_ps(dcv, DMO_FS(dpc, q));
-              cv             = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO_FS(dpc, q)));
-              DMO_FS(dpc, q) = sv;
-              dcv            = _mm_mul_ps(dcv, *tp); tp++;
+              sv          = _mm_max_ps(dcv, DMO(dpc, q));
+              cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
+              DMO(dpc, q) = sv;
+              dcv         = _mm_mul_ps(dcv, *tp); tp++;
             }
           if (! _mm_movemask_ps(cv)) break;
         }
     }
   for (q = 0; q < Q; q++)
-    xEv = _mm_max_ps(xEv, DMO_FS(dpc, q));
+    xEv = _mm_max_ps(xEv, DMO(dpc, q));
   esl_sse_hmax_ps(xEv, &xE);
 
   xN = 1.0f;
@@ -395,14 +377,9 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       xEv = _mm_set1_ps(scale_factor);
       for (q = 0; q < Q; q++)
         {
-          MMO_FS(dpc,q,p7X_FS_C0) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C0), xEv);
-          MMO_FS(dpc,q,p7X_FS_C1) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C1), xEv);
-          MMO_FS(dpc,q,p7X_FS_C2) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C2), xEv);
-          MMO_FS(dpc,q,p7X_FS_C3) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C3), xEv);
-          MMO_FS(dpc,q,p7X_FS_C4) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C4), xEv);
-          MMO_FS(dpc,q,p7X_FS_C5) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C5), xEv);
-          DMO_FS(dpc,q)            = _mm_mul_ps(DMO_FS(dpc,q),            xEv);
-          IMO_FS(dpc,q)            = _mm_mul_ps(IMO_FS(dpc,q),            xEv);
+          MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
+          DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
+          IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
         }
       /* Rows 0 and 1 are committed; do not retroactively scale them.
        * The insert_adj correction handles the scale difference when they
@@ -471,9 +448,9 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
                  / (ox->xmx[(i-2)*p7X_NXCELLS+p7X_SCALE]
                  *  ox->xmx[(i-1)*p7X_NXCELLS+p7X_SCALE]);
 
-      mpv1 = esl_sse_rightshiftz_float(MMO_FS(dpp1, Q-1, p7X_FS_C0));
-      dpv1 = esl_sse_rightshiftz_float(DMO_FS(dpp1, Q-1));
-      ipv1 = esl_sse_rightshiftz_float(IMO_FS(dpp1, Q-1));
+      mpv1 = esl_sse_rightshiftz_float(MMO(dpp1, Q-1));
+      dpv1 = esl_sse_rightshiftz_float(DMO(dpp1, Q-1));
+      ipv1 = esl_sse_rightshiftz_float(IMO(dpp1, Q-1));
 
       xBv1 = _mm_set1_ps(xB_buf[b1]);
       tp   = om_fs->tfv;
@@ -491,42 +468,35 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           sv  = _mm_max_ps(sv, _mm_mul_ps(dpv1, *tp)); tp++;
           IVX(ivx_1, q) = sv;
 
-          __m128 mc1 = _mm_mul_ps(sv,               om_fs->rfv[c1][q]);
-          __m128 mc2 = _mm_mul_ps(IVX(ivx_2, q),   om_fs->rfv[c2][q]);
-          __m128 mc3 = _mm_mul_ps(IVX(ivx_3, q),   om_fs->rfv[c3][q]);
-          __m128 mc4 = _mm_mul_ps(IVX(ivx_4, q),   om_fs->rfv[c4][q]);
-          __m128 mc5 = _mm_mul_ps(IVX(ivx_5, q),   om_fs->rfv[c5][q]);
           /* M_C0 = best codon-length match at this model position */
-          msv = _mm_max_ps(_mm_max_ps(_mm_max_ps(mc1, mc2), _mm_max_ps(mc3, mc4)), mc5);
+          msv = _mm_max_ps(_mm_max_ps(_mm_max_ps(_mm_mul_ps(sv,             om_fs->rfv[c1][q]),
+                                                  _mm_mul_ps(IVX(ivx_2, q), om_fs->rfv[c2][q])),
+                                      _mm_max_ps(_mm_mul_ps(IVX(ivx_3, q), om_fs->rfv[c3][q]),
+                                                  _mm_mul_ps(IVX(ivx_4, q), om_fs->rfv[c4][q]))),
+                                      _mm_mul_ps(IVX(ivx_5, q),             om_fs->rfv[c5][q]));
           xEv = _mm_max_ps(xEv, msv);
 
-          mpv1 = MMO_FS(dpp1, q, p7X_FS_C0);
-          dpv1 = DMO_FS(dpp1, q);
-          ipv1 = IMO_FS(dpp1, q);
+          mpv1 = MMO(dpp1, q);
+          dpv1 = DMO(dpp1, q);
+          ipv1 = IMO(dpp1, q);
 
-          MMO_FS(dpc, q, p7X_FS_C0) = msv;
-          MMO_FS(dpc, q, p7X_FS_C1) = mc1;
-          MMO_FS(dpc, q, p7X_FS_C2) = mc2;
-          MMO_FS(dpc, q, p7X_FS_C3) = mc3;
-          MMO_FS(dpc, q, p7X_FS_C4) = mc4;
-          MMO_FS(dpc, q, p7X_FS_C5) = mc5;
-
-          DMO_FS(dpc, q) = dcv;
+          MMO(dpc, q) = msv;
+          DMO(dpc, q) = dcv;
           dcv = _mm_mul_ps(msv, *tp); tp++;   /* MD */
 
           /* I(i,k) = max(M(i-3,k)*MI, I(i-3,k)*II); scale-corrected */
-          sv             = _mm_mul_ps(_mm_mul_ps(MMO_FS(dpp3, q, p7X_FS_C0), adj_v), *tp); tp++;  /* MI */
-          IMO_FS(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(_mm_mul_ps(IMO_FS(dpp3, q), adj_v), *tp)); tp++;  /* II */
+          sv          = _mm_mul_ps(_mm_mul_ps(MMO(dpp3, q), adj_v), *tp); tp++;  /* MI */
+          IMO(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(_mm_mul_ps(IMO(dpp3, q), adj_v), *tp)); tp++;  /* II */
         }
 
       /* DD paths */
-      dcv           = esl_sse_rightshiftz_float(dcv);
-      DMO_FS(dpc,0) = zerov;
-      tp            = om_fs->tfv + 7*Q;
+      dcv        = esl_sse_rightshiftz_float(dcv);
+      DMO(dpc,0) = zerov;
+      tp         = om_fs->tfv + 7*Q;
       for (q = 0; q < Q; q++)
         {
-          DMO_FS(dpc, q) = _mm_max_ps(dcv, DMO_FS(dpc, q));
-          dcv            = _mm_mul_ps(DMO_FS(dpc, q), *tp); tp++;
+          DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+          dcv         = _mm_mul_ps(DMO(dpc, q), *tp); tp++;
         }
       if (om_fs->M < 100)
         {
@@ -536,8 +506,8 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
               tp  = om_fs->tfv + 7*Q;
               for (q = 0; q < Q; q++)
                 {
-                  DMO_FS(dpc, q) = _mm_max_ps(dcv, DMO_FS(dpc, q));
-                  dcv            = _mm_mul_ps(dcv, *tp); tp++;
+                  DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+                  dcv         = _mm_mul_ps(dcv, *tp); tp++;
                 }
             }
         }
@@ -551,17 +521,17 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
               cv  = zerov;
               for (q = 0; q < Q; q++)
                 {
-                  sv             = _mm_max_ps(dcv, DMO_FS(dpc, q));
-                  cv             = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO_FS(dpc, q)));
-                  DMO_FS(dpc, q) = sv;
-                  dcv            = _mm_mul_ps(dcv, *tp); tp++;
+                  sv          = _mm_max_ps(dcv, DMO(dpc, q));
+                  cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
+                  DMO(dpc, q) = sv;
+                  dcv         = _mm_mul_ps(dcv, *tp); tp++;
                 }
               if (! _mm_movemask_ps(cv)) break;
             }
         }
 
       for (q = 0; q < Q; q++)
-        xEv = _mm_max_ps(xEv, DMO_FS(dpc, q));
+        xEv = _mm_max_ps(xEv, DMO(dpc, q));
       esl_sse_hmax_ps(xEv, &xE);
 
       xN = xN_buf[b3] * om_fs->xf[p7O_N][p7O_LOOP];
@@ -577,14 +547,9 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           xEv = _mm_set1_ps(scale_factor);
           for (q = 0; q < Q; q++)
             {
-              MMO_FS(dpc,q,p7X_FS_C0) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C0), xEv);
-              MMO_FS(dpc,q,p7X_FS_C1) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C1), xEv);
-              MMO_FS(dpc,q,p7X_FS_C2) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C2), xEv);
-              MMO_FS(dpc,q,p7X_FS_C3) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C3), xEv);
-              MMO_FS(dpc,q,p7X_FS_C4) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C4), xEv);
-              MMO_FS(dpc,q,p7X_FS_C5) = _mm_mul_ps(MMO_FS(dpc,q,p7X_FS_C5), xEv);
-              DMO_FS(dpc,q)            = _mm_mul_ps(DMO_FS(dpc,q),            xEv);
-              IMO_FS(dpc,q)            = _mm_mul_ps(IMO_FS(dpc,q),            xEv);
+              MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
+              DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
+              IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
             }
           for (r = 0; r < p7P_5CODONS; r++)
             for (q = 0; q < Q; q++)
@@ -654,7 +619,7 @@ static inline int vit_select_c_fs      (const P7_FS_OPROFILE *om_fs, const P7_OM
 static inline int vit_select_j_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
 static inline int vit_select_e_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k);
 static inline int vit_select_b_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
-static inline int vit_select_codon_len_fs(const P7_OMX *ox, int i, int k, int Q);
+static inline int vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox);
 
 
 /* Function:  p7_Viterbi_Framshift_Trace()
@@ -679,7 +644,6 @@ p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L,
                  const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
                  P7_TRACE *tr)
 {
-  int Q  = p7O_NQF(ox->M);
   int i  = L;
   int k  = 0;
   int c  = 0;
@@ -705,9 +669,9 @@ p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L,
       }
       if (s1 == -1) ESL_EXCEPTION(eslEINVAL, "Viterbi traceback choice failed");
 
-      /* For M states: select codon length c (1..5) from C1..C5 cells. */
+      /* For M states: recompute codon length c (1..5) from stored DP cells. */
       if (s1 == p7T_M) {
-        c = vit_select_codon_len_fs(ox, i, k, Q);
+        c = vit_select_codon_len_fs(dsq, i, k, om_fs, ox);
         if (i - c < 0) s1 = p7T_B;
       } else {
         c = 0;
@@ -750,13 +714,13 @@ vit_select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   int     state[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
 
   if (q > 0) {
-    mpv = MMO_FS(ox->dpf[i], q-1, p7X_FS_C0);
-    dpv = DMO_FS(ox->dpf[i], q-1);
-    ipv = IMO_FS(ox->dpf[i], q-1);
+    mpv = MMO(ox->dpf[i], q-1);
+    dpv = DMO(ox->dpf[i], q-1);
+    ipv = IMO(ox->dpf[i], q-1);
   } else {
-    mpv = esl_sse_rightshiftz_float(MMO_FS(ox->dpf[i], Q-1, p7X_FS_C0));
-    dpv = esl_sse_rightshiftz_float(DMO_FS(ox->dpf[i], Q-1));
-    ipv = esl_sse_rightshiftz_float(IMO_FS(ox->dpf[i], Q-1));
+    mpv = esl_sse_rightshiftz_float(MMO(ox->dpf[i], Q-1));
+    dpv = esl_sse_rightshiftz_float(DMO(ox->dpf[i], Q-1));
+    ipv = esl_sse_rightshiftz_float(IMO(ox->dpf[i], Q-1));
   }
 
   u.v = _mm_mul_ps(xBv, *tp); tp++;  path[0] = u.p[r];  /* B  * T_BM */
@@ -780,13 +744,13 @@ vit_select_d_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   int     state[2] = { p7T_M, p7T_D };
 
   if (q > 0) {
-    mpv  = MMO_FS(ox->dpf[i], q-1, p7X_FS_C0);
-    dpv  = DMO_FS(ox->dpf[i], q-1);
+    mpv  = MMO(ox->dpf[i], q-1);
+    dpv  = DMO(ox->dpf[i], q-1);
     tmdv = om_fs->tfv[7*(q-1) + p7O_MD];
     tddv = om_fs->tfv[7*Q + (q-1)];
   } else {
-    mpv  = esl_sse_rightshiftz_float(MMO_FS(ox->dpf[i], Q-1, p7X_FS_C0));
-    dpv  = esl_sse_rightshiftz_float(DMO_FS(ox->dpf[i], Q-1));
+    mpv  = esl_sse_rightshiftz_float(MMO(ox->dpf[i], Q-1));
+    dpv  = esl_sse_rightshiftz_float(DMO(ox->dpf[i], Q-1));
     tmdv = esl_sse_rightshiftz_float(om_fs->tfv[7*(Q-1) + p7O_MD]);
     tddv = esl_sse_rightshiftz_float(om_fs->tfv[8*Q-1]);
   }
@@ -803,8 +767,8 @@ vit_select_i_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   int     Q    = p7O_NQF(ox->M);
   int     q    = (k-1) % Q;
   int     r    = (k-1) / Q;
-  __m128  mpv  = MMO_FS(ox->dpf[i-3], q, p7X_FS_C0);
-  __m128  ipv  = IMO_FS(ox->dpf[i-3], q);
+  __m128  mpv  = MMO(ox->dpf[i-3], q);
+  __m128  ipv  = IMO(ox->dpf[i-3], q);
   __m128 *tp   = om_fs->tfv + 7*q + p7O_MI;
   union { __m128 v; float p[4]; } u;
   float   path[2];
@@ -884,12 +848,12 @@ vit_select_e_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k
 
   for (q = 0; q < Q; q++)
     {
-      u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C0);
+      u.v = MMO(ox->dpf[i], q);
       for (r = 0; r < 4; r++) {
         k = r*Q + q + 1;
         if (k <= ox->M && u.p[r] > best) { best = u.p[r]; best_k = k; best_state = p7T_M; }
       }
-      u.v = DMO_FS(ox->dpf[i], q);
+      u.v = DMO(ox->dpf[i], q);
       for (r = 0; r < 4; r++) {
         k = r*Q + q + 1;
         if (k <= ox->M && u.p[r] > best) { best = u.p[r]; best_k = k; best_state = p7T_D; }
@@ -911,21 +875,78 @@ vit_select_b_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
   return state[esl_vec_FArgMax(path, 2)];
 }
 
-/* For M state at (i,k): select codon length c in 1..5 by argmax of C1..C5 cells. */
+/* For M state at (i,k): recompute codon length c (1..5) by reconstructing
+ * per-codon IVX scores from stored DP cells, with row-scale corrections.
+ *
+ * For codon length n, the predecessor DP row is i-n (at cumulative scale
+ * S[i-n]).  To compare across n values at a common scale (S[i-1]), multiply
+ * each raw score by corr = product(SCALE[r] for r = i-n+1 .. i-1).
+ * Built cumulatively: after using corr for n, update corr *= SCALE[i-n].
+ */
 static inline int
-vit_select_codon_len_fs(const P7_OMX *ox, int i, int k, int Q)
+vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
+                        const P7_FS_OPROFILE *om_fs, const P7_OMX *ox)
 {
-  int   q = (k-1) % Q;
-  int   r = (k-1) / Q;
+  int    Q     = p7O_NQF(ox->M);
+  int    q_k   = (k-1) % Q;   /* stripe for model pos k   */
+  int    r_k   = (k-1) / Q;   /* element for model pos k  */
+  int    q_km1 = (k > 1) ? (k-2) % Q : 0;
+  int    r_km1 = (k > 1) ? (k-2) / Q : 0;
   union { __m128 v; float p[4]; } u;
-  float path[5];
+  float  tbm, tmm, tim, tdm;
+  float  bprev, mprev, iprev, dprev;
+  float  raw_ivx, rfv_cn;
+  float  scores[5];
+  float  corr;
+  int    x2, w2, v2, u2, t2;
+  int    cn, n;
 
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C1); path[0] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C2); path[1] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C3); path[2] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C4); path[3] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C5); path[4] = u.p[r];
-  return esl_vec_FArgMax(path, 5) + 1;  /* returns 1..5 */
+  /* Scalar transition probs for model position k */
+  u.v = om_fs->tfv[7*q_k + 0]; tbm = u.p[r_k];
+  u.v = om_fs->tfv[7*q_k + 1]; tmm = u.p[r_k];
+  u.v = om_fs->tfv[7*q_k + 2]; tim = u.p[r_k];
+  u.v = om_fs->tfv[7*q_k + 3]; tdm = u.p[r_k];
+
+  /* Nucleotide indices for codon lengths 1..5 ending at position i */
+  x2 = (i >= 1 && dsq[i]   < p7P_MAXNUC) ? (int)dsq[i]   : p7P_MAXCODONS5;
+  w2 = (i >= 2 && dsq[i-1] < p7P_MAXNUC) ? (int)dsq[i-1] : p7P_MAXCODONS5;
+  v2 = (i >= 3 && dsq[i-2] < p7P_MAXNUC) ? (int)dsq[i-2] : p7P_MAXCODONS5;
+  u2 = (i >= 4 && dsq[i-3] < p7P_MAXNUC) ? (int)dsq[i-3] : p7P_MAXCODONS5;
+  t2 = (i >= 5 && dsq[i-4] < p7P_MAXNUC) ? (int)dsq[i-4] : p7P_MAXCODONS5;
+
+  corr = 1.0f;
+  for (n = 1; n <= 5; n++)
+    {
+      if (i < n) { scores[n-1] = 0.0f; continue; }
+
+      /* Predecessor B/M/I/D at row i-n */
+      bprev = ox->xmx[(i-n)*p7X_NXCELLS + p7X_B];
+      if (k > 1) {
+        u.v = MMO(ox->dpf[i-n], q_km1); mprev = u.p[r_km1];
+        u.v = IMO(ox->dpf[i-n], q_km1); iprev = u.p[r_km1];
+        u.v = DMO(ox->dpf[i-n], q_km1); dprev = u.p[r_km1];
+      } else {
+        mprev = iprev = dprev = 0.0f;
+      }
+
+      raw_ivx = ESL_MAX(bprev*tbm, ESL_MAX(mprev*tmm, ESL_MAX(iprev*tim, dprev*tdm)));
+
+      switch (n) {
+        case 1: cn = p7P_CODON1_FS5(x2);                   cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
+        case 2: cn = p7P_CODON2_FS5(w2, x2);               cn = p7P_MINIDX(cn, p7P_DEGEN5_QC1); break;
+        case 3: cn = p7P_CODON3_FS5(v2, w2, x2);           cn = p7P_MINIDX(cn, p7P_DEGEN5_C);   break;
+        case 4: cn = p7P_CODON4_FS5(u2, v2, w2, x2);       cn = p7P_MINIDX(cn, p7P_DEGEN5_QC1); break;
+        default:cn = p7P_CODON5_FS5(t2, u2, v2, w2, x2);  cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
+      }
+      u.v = om_fs->rfv[cn][q_k]; rfv_cn = u.p[r_k];
+
+      scores[n-1] = raw_ivx * rfv_cn * corr;
+
+      /* Accumulate scale correction: bring row i-n to scale of row i-1 */
+      corr *= ox->xmx[(i-n)*p7X_NXCELLS + p7X_SCALE];
+    }
+
+  return esl_vec_FArgMax(scores, 5) + 1;  /* returns 1..5 */
 }
 /*-------------- end, vit_select_*_fs() helpers -----------------*/
 
@@ -1018,7 +1039,7 @@ main(int argc, char **argv)
   p7_fs_oprofile_Convert(gm_fs5, om_fs5);
   p7_fs_oprofile_ReconfigLength(om_fs5, L/3);
 
-  ox = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
+  ox = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
   tr = p7_trace_fs_Create();
 
   if (esl_opt_GetBoolean(go, "-c")) {
@@ -1125,7 +1146,7 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_TRACE       *trg    = p7_trace_fs_Create();
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
   P7_GMX         *gx     = p7_gmx_Create(M, M, M, p7G_NSCELLS);
-  P7_OMX         *ox     = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
+  P7_OMX         *ox     = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
   char            errbuf[eslERRBUFSIZE];
   float           gsc, osc;
   int             curr_L, i, j;

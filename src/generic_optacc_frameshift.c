@@ -339,7 +339,7 @@ static inline int select_c(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const 
 static inline int select_j(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i);
 static inline int select_e(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i, int *ret_k);
 static inline int select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i);
-static inline int select_codon(const P7_GMX *pp, int i, int k);
+static inline int select_codon(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i, int k);
 
 /* Function:  p7_GOATrace_Frameshift()
  * Synopsis:  Optimal accuracy decoding: traceback.
@@ -405,7 +405,7 @@ p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_G
 
       postprob = get_postprob(pp, scur, sprv, k, i);
 
-      if(scur == p7T_M) c = select_codon(pp, i, k);
+      if(scur == p7T_M) c = select_codon(gm_fs5, pp, gx, i, k);
       else              c = 0;
 
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
@@ -571,20 +571,51 @@ select_b(const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, int i)
 }
 
 static inline int
-select_codon(const P7_GMX *pp, int i, int k) 
+select_codon(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, int i, int k)
 {
-  float **dp   = pp->dp;
-  float codon[5];
+  float      **dp   = gx->dp;       /* for MMX/IMX/DMX macros */
+  float       *xmx  = gx->xmx;     /* for XMX macro          */
+  float const *tsc  = gm_fs5->tsc; /* for TSCDELTA macro     */
+  float        sv[5];
+  float        penalty[5];
+  float        pred;
+  float        fp = gm_fs5->fsprob;
+  int          c;
 
-  codon[0] = MMX_FS(i,k,p7G_C1);
-  codon[1] = MMX_FS(i,k,p7G_C2);
-  codon[2] = MMX_FS(i,k,p7G_C3);
-  codon[3] = MMX_FS(i,k,p7G_C4);
-  codon[4] = MMX_FS(i,k,p7G_C5);
+  /* Per-codon-length log-probability penalties from the model's frameshift
+   * probability, matching the values used in p7_ProfileConfig_fs.
+   * These are column-agnostic (unlike pp_Cc), so they penalise quasi-codons
+   * uniformly without re-introducing the rare-amino-acid column bias. */
+  if (gm_fs5->codon_lengths == 5) {
+    penalty[0] = log(fp / 2.);           /* c=1: 2-nt deletion  */
+    penalty[1] = log(fp);                 /* c=2: 1-nt deletion  */
+    penalty[2] = log(1. - 4. * fp);      /* c=3: no frameshift  */
+    penalty[3] = log(fp);                 /* c=4: 1-nt insertion */
+    penalty[4] = log(fp / 2.);           /* c=5: 2-nt insertion */
+  } else {                                /* codon_lengths == 3  */
+    penalty[0] = -eslINFINITY;           /* c=1: not used       */
+    penalty[1] = log(fp);                 /* c=2: 1-nt deletion  */
+    penalty[2] = log(1. - 3. * fp);      /* c=3: no frameshift  */
+    penalty[3] = log(fp);                 /* c=4: 1-nt insertion */
+    penalty[4] = -eslINFINITY;           /* c=5: not used       */
+  }
 
-  return esl_vec_FArgMax(codon, 5) + 1; 
+  /* sv_c = max_state(OA[i-c][k-1]) + penalty(c) for c = 1..5.
+   * Emission posteriors pp_Cc are deliberately excluded: including them
+   * reproduces the inflated quasi-codon bias at rare-amino-acid columns.
+   * The fsprob penalties provide a column-agnostic frequency prior instead. */
+  for (c = 1; c <= 5; c++) {
+    if (i < c || penalty[c-1] == -eslINFINITY) { sv[c-1] = -eslINFINITY; continue; }
 
+    pred = ESL_MAX( TSCDELTA(p7P_BM, k-1) * XMX(i-c, p7G_B),
+           ESL_MAX( TSCDELTA(p7P_MM, k-1) * MMX(i-c, k-1),
+           ESL_MAX( TSCDELTA(p7P_IM, k-1) * IMX(i-c, k-1),
+                    TSCDELTA(p7P_DM, k-1) * DMX(i-c, k-1))));
 
+    sv[c-1] = pred + penalty[c-1];
+  }
+
+  return esl_vec_FArgMax(sv, 5) + 1;
 }
 /*------------------------ end, oa traceback --------------------*/
 

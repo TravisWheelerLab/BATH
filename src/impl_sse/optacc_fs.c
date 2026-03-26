@@ -513,7 +513,6 @@ select_codon_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX 
   __m128 *tp      = om_fs->tfv + 7*q;   /* BM,MM,IM,DM,... at dest stripe q */
   union { __m128 v; float p[4]; } u, tv;
   __m128  neg_inf = _mm_set1_ps(-eslINFINITY);
-  float   ppC[5];
   float   sv[5];
   float   tBM, tMM, tIM, tDM;
   float   xB, mval, ival, dval, best;
@@ -526,14 +525,11 @@ select_codon_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX 
   tv.v = tp[2];  tIM = tv.p[r];
   tv.v = tp[3];  tDM = tv.p[r];
 
-  /* pp posteriors for each codon length at (i, k) */
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C1);  ppC[0] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C2);  ppC[1] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C3);  ppC[2] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C4);  ppC[3] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C5);  ppC[4] = u.p[r];
-
-  /* sv_c = max_state(OA[i-c][k-1]) + ppC[c-1] for c = 1..5 */
+  /* sv_c = max_state(OA[i-c][k-1]) for c = 1..5
+   * Emission posteriors pp_Cc are deliberately excluded: they are biased by
+   * inflated quasi-codon emission scores at rare-amino-acid columns, and
+   * including them here reproduces that bias in codon-length selection.
+   * Using only predecessor OA quality makes the choice column-agnostic. */
   for (c = 1; c <= 5; c++) {
     if (i < c) { sv[c-1] = -eslINFINITY; continue; }
 
@@ -559,7 +555,7 @@ select_codon_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX 
     if (tIM != 0.0f && ival > best) best = ival;
     if (tDM != 0.0f && dval > best) best = dval;
 
-    sv[c-1] = (best == -eslINFINITY) ? -eslINFINITY : best + ppC[c-1];
+    sv[c-1] = best;
   }
 
   return esl_vec_FArgMax(sv, 5) + 1;

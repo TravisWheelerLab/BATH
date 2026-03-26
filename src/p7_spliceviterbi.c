@@ -1524,7 +1524,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
   while (N--)
     {
-      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, NULL);
       L_amino     = sq->n;
       L_dna_total = L_amino * 3 + intron_total;
 
@@ -1550,7 +1550,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
         j += 3;
       }
-      if(N > 1) continue;
+
       p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
       p7_splicescores_GrowTo(pli->splice_scores, M);
@@ -1562,19 +1562,16 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       n_p = 0;
       for (i = 0; i < tr->N; i++)
         if (tr->st[i] == p7T_P) n_p++;
-      printf("N %d n_p %d\n", N, n_p);
       if (n_p < 1) esl_fatal(msg);
 
       /* --- Test 2: TranslatedSemiGlobalExtendDown; final C must be reachable --- */
       p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
-      printf("final_C %f\n", final_C);
       if (final_C == -eslINFINITY) esl_fatal(msg);
 
       /* --- Test 3: TranslatedSemiGlobalExtendUp; final C must be reachable --- */
       p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
-      printf("final_C %f\n", final_C);
       if (final_C == -eslINFINITY) esl_fatal(msg);
     }
 

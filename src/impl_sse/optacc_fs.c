@@ -70,6 +70,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   register __m128 xEv, xBv1, xBv2, xBv3, xBv4, xBv5;
   register __m128 dcv;
   __m128 bm, mm, im, dm, md, mi, ii;
+  __m128 pen1v, pen2v, pen3v, pen4v, pen5v;  /* per-codon-length fsprob log-penalties */
   __m128 *tp;
   __m128 *dpc;                         /* current OA row (3-cell layout)     */
   __m128 *dp1, *dp2, *dp3, *dp4, *dp5; /* previous OA rows                   */
@@ -89,6 +90,26 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   ox->xmx[0*p7X_NXCELLS+p7X_J] = -eslINFINITY;
   ox->xmx[0*p7X_NXCELLS+p7X_B] =  0.0f;
   ox->xmx[0*p7X_NXCELLS+p7X_C] = -eslINFINITY;
+
+  /* Frameshift log-probability penalties, matching p7_ProfileConfig_fs.
+   * Applied to sv_c in the fill so the OA score penalises quasi-codon paths
+   * consistently; select_codon then uses the identical formula. */
+  {
+    float fp = om_fs->fsprob;
+    if (om_fs->codon_lengths == 5) {
+      pen1v = _mm_set1_ps(logf(fp / 2.f));        /* c=1: 2-nt deletion  */
+      pen2v = _mm_set1_ps(logf(fp));               /* c=2: 1-nt deletion  */
+      pen3v = _mm_set1_ps(logf(1.f - 4.f * fp));  /* c=3: no frameshift  */
+      pen4v = _mm_set1_ps(logf(fp));               /* c=4: 1-nt insertion */
+      pen5v = _mm_set1_ps(logf(fp / 2.f));        /* c=5: 2-nt insertion */
+    } else {                                        /* codon_lengths == 3  */
+      pen1v = infv;                                /* c=1: not used       */
+      pen2v = _mm_set1_ps(logf(fp));               /* c=2: 1-nt deletion  */
+      pen3v = _mm_set1_ps(logf(1.f - 3.f * fp));  /* c=3: no frameshift  */
+      pen4v = _mm_set1_ps(logf(fp));               /* c=4: 1-nt insertion */
+      pen5v = infv;                                /* c=5: not used       */
+    }
+  }
 
   for (i = 1; i <= L; i++)
     {
@@ -179,6 +200,13 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
           sv5 = _mm_max_ps(sv5, _mm_and_ps(im, ipv5));
           sv5 = _mm_max_ps(sv5, _mm_and_ps(dm, dpv5));
           sv5 = _mm_add_ps(sv5, MMO_FS(ppc, q, p7X_FS_C5));
+
+          /* Apply per-codon-length fsprob log-penalties */
+          sv1 = _mm_add_ps(sv1, pen1v);
+          sv2 = _mm_add_ps(sv2, pen2v);
+          sv3 = _mm_add_ps(sv3, pen3v);
+          sv4 = _mm_add_ps(sv4, pen4v);
+          sv5 = _mm_add_ps(sv5, pen5v);
 
           /* Best M(i,k) over all 5 codon lengths */
           sv = _mm_max_ps(_mm_max_ps(sv1, sv2),
@@ -513,10 +541,13 @@ select_codon_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX 
   __m128 *tp      = om_fs->tfv + 7*q;   /* BM,MM,IM,DM,... at dest stripe q */
   union { __m128 v; float p[4]; } u, tv;
   __m128  neg_inf = _mm_set1_ps(-eslINFINITY);
+  float   ppC[5];
   float   sv[5];
+  float   penalty[5];
   float   tBM, tMM, tIM, tDM;
   float   xB, mval, ival, dval, best;
   __m128  mpv, dpv, ipv;
+  float   fp = om_fs->fsprob;
   int     c;
 
   /* Transition masks at stripe q: same for all codon lags since k is fixed */
@@ -525,13 +556,33 @@ select_codon_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX 
   tv.v = tp[2];  tIM = tv.p[r];
   tv.v = tp[3];  tDM = tv.p[r];
 
-  /* sv_c = max_state(OA[i-c][k-1]) for c = 1..5
-   * Emission posteriors pp_Cc are deliberately excluded: they are biased by
-   * inflated quasi-codon emission scores at rare-amino-acid columns, and
-   * including them here reproduces that bias in codon-length selection.
-   * Using only predecessor OA quality makes the choice column-agnostic. */
+  /* pp posteriors for each codon length at (i, k) */
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C1);  ppC[0] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C2);  ppC[1] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C3);  ppC[2] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C4);  ppC[3] = u.p[r];
+  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C5);  ppC[4] = u.p[r];
+
+  /* Fsprob log-penalties: identical values used in the OA fill so that
+   * the traceback reconstructs the same c the fill optimised for. */
+  if (om_fs->codon_lengths == 5) {
+    penalty[0] = logf(fp / 2.f);          /* c=1: 2-nt deletion  */
+    penalty[1] = logf(fp);                 /* c=2: 1-nt deletion  */
+    penalty[2] = logf(1.f - 4.f * fp);    /* c=3: no frameshift  */
+    penalty[3] = logf(fp);                 /* c=4: 1-nt insertion */
+    penalty[4] = logf(fp / 2.f);          /* c=5: 2-nt insertion */
+  } else {                                 /* codon_lengths == 3  */
+    penalty[0] = -eslINFINITY;            /* c=1: not used       */
+    penalty[1] = logf(fp);                 /* c=2: 1-nt deletion  */
+    penalty[2] = logf(1.f - 3.f * fp);    /* c=3: no frameshift  */
+    penalty[3] = logf(fp);                 /* c=4: 1-nt insertion */
+    penalty[4] = -eslINFINITY;            /* c=5: not used       */
+  }
+
+  /* sv_c = max_state(OA[i-c][k-1]) + pp_Cc(i,k) + penalty(c),
+   * matching the fill recurrence exactly. */
   for (c = 1; c <= 5; c++) {
-    if (i < c) { sv[c-1] = -eslINFINITY; continue; }
+    if (i < c || penalty[c-1] == -eslINFINITY) { sv[c-1] = -eslINFINITY; continue; }
 
     /* OA at row i-c, column k-1: stripe q-1 (right-shifted when q=0) */
     if (q > 0) {
@@ -555,7 +606,7 @@ select_codon_fs_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX 
     if (tIM != 0.0f && ival > best) best = ival;
     if (tDM != 0.0f && dval > best) best = dval;
 
-    sv[c-1] = best;
+    sv[c-1] = (best == -eslINFINITY) ? -eslINFINITY : best + ppC[c-1] + penalty[c-1];
   }
 
   return esl_vec_FArgMax(sv, 5) + 1;

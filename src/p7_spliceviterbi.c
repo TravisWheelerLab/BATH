@@ -1508,7 +1508,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_PROFILE     *gm          = p7_profile_Create(M, abcAA);
   P7_FS_PROFILE  *gm_tr       = p7_profile_fs_Create(M, abcAA, 1);
   ESL_SQ         *sq          = esl_sq_CreateDigital(abcAA);
-  P7_TRACE       *tr          = p7_trace_Create();
+  P7_TRACE       *tr          = p7_trace_fs_Create();
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
   int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
@@ -1577,7 +1577,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
   if (dsq != NULL) free(dsq);
   esl_sq_Destroy(sq);
-  p7_trace_Destroy(tr);
+  p7_trace_fs_Destroy(tr);
   p7_hmm_Destroy(hmm);
   p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_tr);

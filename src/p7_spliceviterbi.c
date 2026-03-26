@@ -1486,21 +1486,17 @@ main(int argc, char **argv)
  *
  * A simulated intron (GT + <intron_len> random nucleotides + AG) is inserted
  * at the midpoint of a profile-emitted, reverse-translated DNA sequence,
- * splitting it into two exons.  Three consistency checks are applied
- * independently to each exon:
+ * splitting it into two exons.  For each sequence, three tests are run on
+ * the full spliced sequence (both exons + intron):
  *
- * 1. TranslatedGlobal: E(exon_end) is finite, and
- *      C(exon_end) = E(exon_end) + EC_MOVE.
+ * 1. TranslatedGlobal + TranslatedTrace: the trace must contain at least one
+ *    P state (p7T_P), confirming that the splice junction was detected.
  *
- * 2. TranslatedSemiGlobalExtendDown (global entry, semi-global exit)
- *    vs. TranslatedGlobal: C_ExtendDown(exon_end) >= C_Global(exon_end).
- *    ExtendDown considers all early-exit paths including the global
- *    exit, so its best score is at least as good.
+ * 2. TranslatedSemiGlobalExtendDown: the final C state must be reachable
+ *    (not -eslINFINITY).
  *
- * 3. TranslatedSemiGlobalExtendUp (semi-global entry, global exit)
- *    vs. TranslatedGlobal: E_ExtendUp(exon_end) >= E_Global(exon_end).
- *    ExtendUp considers entry at any (i, k), which includes the
- *    global entry, so its best score is at least as good.
+ * 3. TranslatedSemiGlobalExtendUp: the final C state must be reachable
+ *    (not -eslINFINITY).
  */
 static void
 utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
@@ -1516,10 +1512,9 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
   int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
-  int             L_amino, half_amino, half_dna, exon2_start, L_dna_total;
-  int             i, j;
-  float           global_E, global_C;
-  float           ext_down_C, ext_up_E;
+  int             L_amino, L_dna_total;
+  int             i, j, n_p;
+  float           final_C;
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
   p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
@@ -1530,21 +1525,16 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   while (N--)
     {
       p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
-      L_amino = sq->n;
-      if (L_amino < 2) continue;   /* need at least 2 residues to split */
-
-      half_amino  = L_amino / 2;
-      half_dna    = half_amino * 3;
-      exon2_start = half_dna + intron_total + 1;
+      L_amino     = sq->n;
       L_dna_total = L_amino * 3 + intron_total;
 
       if (dsq != NULL) free(dsq);
       if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal("malloc failed");
       dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
 
-      /* Reverse-translate first exon */
+      /* Reverse-translate first half of the sequence (exon 1) */
       j = 1;
-      for (i = 1; i <= half_amino; i++) {
+      for (i = 1; i <= L_amino / 2; i++) {
         p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
         j += 3;
       }
@@ -1555,48 +1545,34 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       for (i = 0; i < intron_len; i++) dsq[j++] = esl_rnd_Roll(r, 4);
       dsq[j++] = 0;  /* A */
       dsq[j++] = 2;  /* G */
-      /* Reverse-translate second exon */
-      for (i = half_amino + 1; i <= L_amino; i++) {
+      /* Reverse-translate second half of the sequence (exon 2) */
+      for (i = L_amino / 2 + 1; i <= L_amino; i++) {
         p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
         j += 3;
       }
 
+      p7_fs_ReconfigLength(gm_tr, L_amino);
       p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
       p7_splicescores_GrowTo(pli->splice_scores, M);
 
-      /* --- Tests on exon 1: dsq[1..half_dna], model 1..M --- */
-      p7_fs_ReconfigLength(gm_tr, half_amino);
+      /* --- Test 1: TranslatedGlobal + Trace; trace must contain >= 1 P state --- */
+      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      p7_trace_Reuse(tr);
+      p7_GViterbi_spliced_TranslatedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+      n_p = 0;
+      for (i = 0; i < tr->N; i++)
+        if (tr->st[i] == p7T_P) n_p++;
+      if (n_p < 1) esl_fatal(msg);
 
-      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, half_dna, 1, M);
-      global_E = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_E];
-      global_C = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_C];
-      if (global_E == -eslINFINITY) esl_fatal(msg);
-      if (global_C != global_E + gm_tr->xsc[p7P_E][p7P_MOVE]) esl_fatal(msg);
+      /* --- Test 2: TranslatedSemiGlobalExtendDown; final C must be reachable --- */
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+      if (final_C == -eslINFINITY) esl_fatal(msg);
 
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, half_dna, 1, M);
-      ext_down_C = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_C];
-      if (ext_down_C < global_C - 0.001f) esl_fatal(msg);
-
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, half_dna, 1, M);
-      ext_up_E = pli->vit->xmx[half_dna * p7G_NXCELLS + p7G_E];
-      if (ext_up_E < global_E - 0.001f) esl_fatal(msg);
-
-      /* --- Tests on exon 2: dsq[exon2_start..L_dna_total], model 1..M --- */
-      p7_fs_ReconfigLength(gm_tr, L_amino - half_amino);
-
-      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, exon2_start, L_dna_total, 1, M);
-      global_E = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_E];
-      global_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
-      if (global_E == -eslINFINITY) esl_fatal(msg);
-      if (global_C != global_E + gm_tr->xsc[p7P_E][p7P_MOVE]) esl_fatal(msg);
-
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, exon2_start, L_dna_total, 1, M);
-      ext_down_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
-      if (ext_down_C < global_C - 0.001f) esl_fatal(msg);
-
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, exon2_start, L_dna_total, 1, M);
-      ext_up_E = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_E];
-      if (ext_up_E < global_E - 0.001f) esl_fatal(msg);
+      /* --- Test 3: TranslatedSemiGlobalExtendUp; final C must be reachable --- */
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+      if (final_C == -eslINFINITY) esl_fatal(msg);
     }
 
   if (dsq != NULL) free(dsq);

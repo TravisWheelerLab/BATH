@@ -14,9 +14,9 @@
  * position.
  *
  * Contents:
- *    1. p7_spliceviterbi_TranslatedGlobal()
- *    2. p7_spliceviterbi_TranslatedSemiGlobalExtendDown()
- *    3. p7_spliceviterbi_TranslatedSemiGlobalExtendUp()
+ *    1. p7_GViterbi_spliced_TranslatedGlobal()
+ *    2. p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown()
+ *    3. p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp()
  *    4. p7_splicevitebi_TranslatedTrace()
  *    5. Benchmark driver.
  *    6. Unit tests.
@@ -36,7 +36,7 @@
 #define MAX_NUC 4
 #define TSC_P log(4.58e-5)
 
-/* Function:  p7_spliceviterbi_TranslatedGlobal()
+/* Function:  p7_GViterbi_spliced_TranslatedGlobal()
  * Synopsis:  Fully global translated spliced Viterbi algorithm
  *
  * Purpose:   For finding the maxiumum scoring splice site between two 
@@ -69,7 +69,7 @@
  * Return:    <eslOK> on success.
  */
 int
-p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   
   float const *tsc  = gm_tr->tsc;
@@ -409,7 +409,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
 
 
 
-/* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendDown()
+/* Function:  p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown()
  * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
  *
  * Purpose:   For finding the maxiumum scoring splice site between an 
@@ -444,7 +444,7 @@ p7_spliceviterbi_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, 
  * Return:    <eslOK> on success.
  */
 int
-p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
@@ -784,7 +784,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
 }
 
 
-/* Function:  p7_spliceviterbi_TranslatedSemiGlobalExtendUP()
+/* Function:  p7_GViterbi_spliced_TranslatedSemiGlobalExtendUP()
  * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
  *
  * Purpose:   For finding the maxiumum scoring splice site between an
@@ -819,7 +819,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_
  * Return:    <eslOK> on success.
  */
 int
-p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
@@ -1156,7 +1156,7 @@ p7_spliceviterbi_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DS
  *
  */            
 int
-p7_spliceviterbi_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_spliced_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
 {
 
   float const *tsc = gm_tr->tsc;
@@ -1444,9 +1444,9 @@ main(int argc, char **argv)
   for (i = 0; i < N; i++)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      if (do_G) p7_spliceviterbi_TranslatedGlobal          (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
-      if (do_D) p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
-      if (do_U) p7_spliceviterbi_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
+      if (do_G) p7_GViterbi_spliced_TranslatedGlobal          (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
+      if (do_D) p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
+      if (do_U) p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L, 1, hmm->M);
     }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
@@ -1543,7 +1543,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_splicescores_GrowTo(pli->splice_scores, M);
 
       /* --- Test 1: TranslatedGlobal consistency --- */
-      p7_spliceviterbi_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
       global_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
       global_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
 
@@ -1551,13 +1551,13 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       if (global_C != global_E + gm_tr->xsc[p7P_E][p7P_MOVE]) esl_fatal(msg);
 
       /* --- Test 2: ExtendDown C(L) >= Global C(L) --- */
-      p7_spliceviterbi_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
       ext_down_C = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_C];
 
       if (ext_down_C < global_C - 0.001f) esl_fatal(msg);
 
       /* --- Test 3: ExtendUp E(L) >= Global E(L) --- */
-      p7_spliceviterbi_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
+      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna, 1, M);
       ext_up_E = pli->vit->xmx[L_dna * p7G_NXCELLS + p7G_E];
 
       if (ext_up_E < global_E - 0.001f) esl_fatal(msg);

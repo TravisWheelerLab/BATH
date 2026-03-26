@@ -1390,6 +1390,7 @@ static ESL_OPTIONS benchmark_options[] = {
   { "-G",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedGlobal",                0 },
   { "-D",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendDown",  0 },
   { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendUp",    0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "include Trace",                                  0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char benchmark_usage[]  = "[-options] <hmmfile>";
@@ -1411,6 +1412,7 @@ main(int argc, char **argv)
   P7_FS_PROFILE  *gm_tr   = NULL;
   ESL_GENCODE    *gcode   = NULL;
   SPLICE_PIPELINE *pli    = NULL;
+  P7_TRACE        *tr     = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   int             I       = esl_opt_GetInteger(go, "-I");
@@ -1419,6 +1421,7 @@ main(int argc, char **argv)
   int             do_G    = (esl_opt_GetBoolean(go, "-G") || (!esl_opt_GetBoolean(go, "-D") && !esl_opt_GetBoolean(go, "-U")));
   int             do_D    = (esl_opt_GetBoolean(go, "-D") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-U")));
   int             do_U    = (esl_opt_GetBoolean(go, "-U") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-D")));
+  int             do_T    = esl_opt_GetBoolean(go, "-T");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L_total + 2));
   int             i, k, half;
   double          base_time, bench_time, Mcs;
@@ -1435,6 +1438,8 @@ main(int argc, char **argv)
   pli = p7_splicepipeline_Create(NULL, hmm->M, L_total);
   p7_gmx_GrowTo(pli->vit, hmm->M, L_total, L_total);
   p7_splicescores_GrowTo(pli->splice_scores, hmm->M);
+  
+  tr = p7_trace_fs_Create();
 
   half = L / 2;
 
@@ -1468,9 +1473,15 @@ main(int argc, char **argv)
       dsq[half+4+I] = 2; /* G */
       for (k = half+intron_total+1; k <= L_total; k++) dsq[k] = esl_rnd_Roll(r, 4);
       dsq[L_total+1] = eslDSQ_SENTINEL;
-      if (do_G) p7_GViterbi_spliced_TranslatedGlobal          (pli, dsq, gm_tr, pli->vit, 1, L_total, 1, hmm->M);
+      if (do_G) p7_GViterbi_spliced_TranslatedGlobal              (pli, dsq, gm_tr, pli->vit, 1, L_total, 1, hmm->M);
+      if (do_G && do_T) p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_total, 1, hmm->M); 
+      p7_trace_Reuse(tr);
       if (do_D) p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_total, 1, hmm->M);
+      if (do_D && do_T) p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_total, 1, hmm->M);
+      p7_trace_Reuse(tr);
       if (do_U) p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_total, 1, hmm->M);
+      if (do_U && do_T) p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_total, 1, hmm->M);
+      p7_trace_Reuse(tr);
     }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
@@ -1483,6 +1494,7 @@ main(int argc, char **argv)
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
+  p7_trace_fs_Destroy(tr);
   p7_splicepipeline_Destroy(pli);
   p7_profile_fs_Destroy(gm_tr);
   p7_bg_Destroy(bgAA);

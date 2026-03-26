@@ -140,7 +140,6 @@ static ESL_OPTIONS options[] = {
     */
     { "--eentexp", eslARG_NONE,"default",NULL, NULL,    EFFOPTS,    NULL,      NULL, "adjust eff seq # to reach rel. ent. target using exp scaling",  99 },
     
-  { "--fsprob",        eslARG_REAL,   "0.01",   NULL, "0.0<=x<=1.0", NULL, NULL,     NULL, "set the frameshift probabilty",                         99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -545,7 +544,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       }
 
       /* special arguments for hmmbuild */
-      info[i].bld->fsprob     = (go != NULL && esl_opt_IsUsed (go, "--fs"))     ?  esl_opt_GetReal   (go, "--fsprob") : 0.01;
+	  info[i].bld->fsprob = p7P_FSPROB;
       info[i].bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
       info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
       if ( info[i].bld->w_beta < 0 || info[i].bld->w_beta > 1  ) esl_fatal("Invalid window-length beta value\n");

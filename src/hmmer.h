@@ -333,6 +333,8 @@ enum p7p_ivx_codon {
 #define p7P_MSC_AMINO3(gm, k ,x)  ((gm)->rsc[p7P_MAXCODONS3 + (x)][(k)])
 #define p7P_MSC_AMINO1(gm, k ,x)  ((gm)->rsc[p7P_MAXCODONS1 + (x)][(k)])
 
+#define p7P_FSPROB      0.01
+
 typedef struct p7_profile_s {
   float  *tsc;                            /* transitions  [0.1..M-1][0..p7P_NTRANS-1], hand-indexed  */
   float **rsc;                            /* emissions [0..Kp-1][0.1..M][p7P_NR], hand-indexed       */

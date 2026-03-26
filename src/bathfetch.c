@@ -298,7 +298,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
         if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
            (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
 
-          hmm->fsprob = 0.01;
+          hmm->fsprob = p7P_FSPROB;
           hmm->fs = TRUE;
           hmm->ct = ct;
 
@@ -425,7 +425,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
         if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
            (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
 
-          hmm->fsprob = 0.01;
+          hmm->fsprob = p7P_FSPROB;
           hmm->fs = TRUE;
           hmm->ct = ct;
 

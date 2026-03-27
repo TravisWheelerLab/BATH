@@ -158,8 +158,13 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   sig_gcag_v = _mm_set1_ps(oss->signal_scores[p7S_GCAG]);
   sig_atac_v = _mm_set1_ps(oss->signal_scores[p7S_ATAC]);
 
-  /* Initialize codon nucleotide window (v,w,x) and acceptor state */
-  v = w = x = p7P_MAXNUC;
+  /* Initialize codon nucleotide window (v,w,x) and acceptor state.
+   * Pre-prime w and x with the first two nucleotides so that at i=3,
+   * after v←w, w←x, x←sub_dsq[i_start+2], the first codon is valid.
+   * This mirrors the generic's two-row pre-loop (i=1,2). */
+  v   = p7P_MAXNUC;
+  w   = ((int)sub_dsq[i_start]   < MAX_NUC) ? (int)sub_dsq[i_start]   : p7P_MAXNUC;
+  x   = ((int)sub_dsq[i_start+1] < MAX_NUC) ? (int)sub_dsq[i_start+1] : p7P_MAXNUC;
   acc0 = acc1 = acc2 = -1;
 
   /* Initialize donor nucleotide window (r,s,t,u): primed with positions 1,2,3 */

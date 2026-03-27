@@ -928,7 +928,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Sort and remove duplicates */
     p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
-	if(!esl_opt_IsUsed(go, "--splice")) assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
     /* Sort and remove hits bellow threshold */
@@ -938,6 +937,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
      * was calcualted by p7_tophits_ComputeBathEvalues() */
     pipelinehits_accumulator->Z = 1;    
     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
+	if(!esl_opt_IsUsed(go, "--splice")) assign_Lengths(tophits_accumulator, id_length_list);
 
     /* Splice hits */
     if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) { 
@@ -1347,7 +1347,7 @@ static int
 add_id_length(ID_LENGTH_LIST *list, int id, int L)
 {
   int status;
-
+  printf("BBBBB\n");
   if (list->count > 0 && list->id_lengths[list->count-1].id == id) {
     /* the last time this gets updated, it'll have the sequence's actual length */
     list->id_lengths[list->count-1].length = L;
@@ -1375,11 +1375,12 @@ assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list)
 
   int i;
   int j = 0;
-
+  printf("AAAA\n");
   for (i=0; i<th->N; i++) {
-	
+    printf("i %d seqidx %d\n", i, th->hit[i]->seqidx);	
+    printf("j %d id %d\n", j, id_length_list->id_lengths[j].id);
     while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++; } 
-     if(th->hit[i]->flags & p7_IS_REPORTED )  th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length;
+     if(th->hit[i]->flags & p7_IS_REPORTED )  { printf(" L %d  length %d\n", th->hit[i]->dcl[0].ad->L, id_length_list->id_lengths[j].length); th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length; }
   }
 
   return eslOK;

@@ -386,6 +386,8 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
 	  if (flags & p7_SHOW_LOG) val = log(val);
 	  fprintf(ofp, "%*.*f ", width, precision, val);
 	}
+	fprintf(ofp, "\n");
+
     if(gx->nscells == p7G_NSCELLS_SP) {
       fprintf(ofp, "%3d P ", i);
       for (k = kstart; k <= kend;        k++)
@@ -398,7 +400,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
 
     }
 
-      fprintf(ofp, "\n\n");
+      fprintf(ofp, "\n");
   }
   return eslOK;
 }

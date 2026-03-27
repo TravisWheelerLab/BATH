@@ -273,50 +273,9 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       /* Zero I at stop-codon positions (matches generic: if rsc=-inf then I=-inf) */
       IMO_SP(dpc, q) = _mm_and_ps(IMO_SP(dpc, q), _mm_cmpgt_ps(om_fs->rfv[C0][q], zerov));
 
-      /* P(i,k): acceptor-site lookup from accumulated donor scores in oss */
-      pv = zerov;
-      if (acc0 >= 0 || acc1 >= 0 || acc2 >= 0) {
+      PMO_SP(dpc, q) = zerov;  /* P cleared; filled by second pass below if any acc fires */
 
-        if (acc0 == ACCEPT_AG) {
-          sv = _mm_max_ps(_mm_mul_ps(OSS0(oss, q, p7S_GTAG), sig_gtag_v),
-                          _mm_mul_ps(OSS0(oss, q, p7S_GCAG), sig_gcag_v));
-          pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C0][q]));
-        } else if (acc0 == ACCEPT_AC) {
-          sv = _mm_mul_ps(OSS0(oss, q, p7S_ATAC), sig_atac_v);
-          pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C0][q]));
-        }
-
-        if (acc1 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
-            sv = _mm_max_ps(_mm_mul_ps(OSS1(oss, q, p7S_GTAG, nuc1), sig_gtag_v),
-                            _mm_mul_ps(OSS1(oss, q, p7S_GCAG, nuc1), sig_gcag_v));
-            pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C1[nuc1]][q]));
-          }
-        } else if (acc1 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
-            sv = _mm_mul_ps(OSS1(oss, q, p7S_ATAC, nuc1), sig_atac_v);
-            pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C1[nuc1]][q]));
-          }
-        }
-
-        if (acc2 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++)
-            for (nuc2 = 0; nuc2 < 4; nuc2++) {
-              sv = _mm_max_ps(_mm_mul_ps(OSS2(oss, q, p7S_GTAG, nuc1, nuc2), sig_gtag_v),
-                              _mm_mul_ps(OSS2(oss, q, p7S_GCAG, nuc1, nuc2), sig_gcag_v));
-              pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C2[nuc1*4+nuc2]][q]));
-            }
-        } else if (acc2 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++)
-            for (nuc2 = 0; nuc2 < 4; nuc2++) {
-              sv = _mm_mul_ps(OSS2(oss, q, p7S_ATAC, nuc1, nuc2), sig_atac_v);
-              pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C2[nuc1*4+nuc2]][q]));
-            }
-        }
-      }
-      PMO_SP(dpc, q) = pv;  /* Store P(i,k) in OMX for use as predecessor at row i+3 */
-
-    } /* end inner q loop */
+    } /* end inner M/D/I loop */
 
     /* Global entry at i=3: inject B→M(k=1) into element r=0 of stripe q=0.
      * k=1 is at (q=0, element r=0).  BM transition = 1.0 for global entry,

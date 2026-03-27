@@ -14,13 +14,16 @@
  *   - Single codon length (3-nt only): no IVX circular buffer.
  *     M(i,q) predecessors come from dpf[i-3] directly.
  *   - Global alignment: B enters only at i=3, k=1; E exits only at i=L, k=M.
- *   - P state stored in a 3-row circular buffer (pvbuf) alongside the
- *     main dp matrix.  P(i-3, k-1) is read from pvbuf via the same
- *     right-shift trick used for M/I/D.
+ *   - P state stored in the OMX matrix using PMO_SP (p7X_NSCELLS_SP=4
+ *     cells per stripe: M, D, I, P).  P(i-3, k-1) is read from the
+ *     stored row via the same right-shift trick used for M/I/D.
  *   - Donor accumulation loop fills OSS arrays from dpf[i-min_intron-3].
  *
  * Contents:
  *   1. p7_Viterbi_SplicedGlobal()
+ *   2. p7_Viterbi_SplicedTrace()
+ *   3. Unit tests.
+ *   4. Test driver.
  */
 #include "p7_config.h"
 
@@ -56,14 +59,14 @@
  *
  *            Donor site scores are accumulated into <oss> during the
  *            forward pass; acceptor lookups from <oss> compute the P
- *            (splice) state at each cell.  P state values are stored in
- *            a 3-row circular buffer (pvbuf) for use as predecessors
- *            three rows later.
+ *            (splice) state at each cell.  P state values are stored
+ *            directly in the OMX matrix via PMO_SP() (the matrix must
+ *            have been created with p7X_NSCELLS_SP cells per stripe).
  *
  *            The DP matrix <ox> must have been pre-grown to hold at
  *            least M model positions and L = i_end-i_start+1 sequence
- *            rows using p7_gmx_GrowTo().  The profile <om_fs> must have
- *            codon_lengths == 1 (single 3-nt codon length).
+ *            rows using p7_omx_GrowTo_dpf() with p7X_NSCELLS_SP.
+ *            The profile <om_fs> must have codon_lengths == 1.
  *
  *            The final alignment score (in nats) is accessible as
  *              ox->totscale + logf(xC)
@@ -72,7 +75,7 @@
  * Args:      oss        - probability-space splice scores (OSS arrays)
  *            sub_dsq    - nucleotide sequence (1-indexed, i_start..i_end valid)
  *            om_fs      - optimized frameshift profile (codon_lengths == 1)
- *            ox         - DP matrix, pre-grown to (M, L, L, p7X_NSCELLS)
+ *            ox         - DP matrix, pre-grown to (M, L, L, p7X_NSCELLS_SP)
  *            i_start    - first nucleotide position (1-indexed in sub_dsq)
  *            i_end      - last  nucleotide position
  *            k_start    - first model position (1-indexed in om_fs)
@@ -110,12 +113,6 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   __m128         *dpc, *dpp3;
   __m128         *tp;
 
-  /* P-state circular buffer: 3 rows × Q stripes */
-  __m128         *pvbuf     = NULL;
-  __m128         *pvbuf_mem = NULL;
-  __m128         *ppc;        /* current P-state row:     pvbuf[(i   %3)*Q] */
-  __m128         *ppp3_row;   /* P-state row i-3:         pvbuf[((i-3)%3)*Q] */
-
   /* Scale correction for I(i,k) reading from dpp3 committed at S[i-3] */
   float           insert_adj;
   __m128          adj_v;
@@ -133,7 +130,6 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   int             nuc1, nuc2;
 
   int             i, q, j, row, sub_i;
-  int             status;
 
   if (om_fs->codon_lengths != 1)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
@@ -143,15 +139,10 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   ox->has_own_scales = TRUE;
   ox->totscale       = 0.0;
 
-  /* Allocate P-state circular buffer */
-  ESL_ALLOC(pvbuf_mem, sizeof(__m128) * 3 * Q + 15);
-  pvbuf = (__m128 *)(((unsigned long int) pvbuf_mem + 15) & (~0xfUL));
-  for (row = 0; row < 3 * Q; row++) pvbuf[row] = zerov;
-
   /* Zero-initialize DP matrix rows 0..L; set all scale factors to 1 */
   for (row = 0; row <= L; row++) {
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[row], q) = DMO(ox->dpf[row], q) = IMO(ox->dpf[row], q) = zerov;
+      MMO_SP(ox->dpf[row], q) = DMO_SP(ox->dpf[row], q) = IMO_SP(ox->dpf[row], q) = PMO_SP(ox->dpf[row], q) = zerov;
     ox->xmx[row * p7X_NXCELLS + p7X_SCALE] = 1.0f;
     ox->xmx[row * p7X_NXCELLS + p7X_E]     = 0.0f;
     ox->xmx[row * p7X_NXCELLS + p7X_C]     = 0.0f;
@@ -232,10 +223,8 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       }
     }
 
-    dpc      = ox->dpf[i];
-    dpp3     = ox->dpf[i - 3];
-    ppc      = pvbuf + ( i      % 3) * Q;
-    ppp3_row = pvbuf + ((i - 3) % 3) * Q;
+    dpc  = ox->dpf[i];
+    dpp3 = ox->dpf[i - 3];
 
     /* Scale correction: I(i,k) reads dpp3 committed at cumulative scale S[i-3];
      * current running scale is S[i-1].  Correction = 1/(S[i-2]*S[i-1]). */
@@ -245,10 +234,10 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     adj_v = _mm_set1_ps(insert_adj);
 
     /* Right-shifted row-i-3 predecessors for M(i,k) ← (M/I/D/P)(i-3, k-1) */
-    mpv3 = esl_sse_rightshiftz_float(MMO(dpp3,     Q-1));
-    dpv3 = esl_sse_rightshiftz_float(DMO(dpp3,     Q-1));
-    ipv3 = esl_sse_rightshiftz_float(IMO(dpp3,     Q-1));
-    ppv3 = esl_sse_rightshiftz_float(ppp3_row[Q-1]);
+    mpv3 = esl_sse_rightshiftz_float(MMO_SP(dpp3, Q-1));
+    dpv3 = esl_sse_rightshiftz_float(DMO_SP(dpp3, Q-1));
+    ipv3 = esl_sse_rightshiftz_float(IMO_SP(dpp3, Q-1));
+    ppv3 = esl_sse_rightshiftz_float(PMO_SP(dpp3, Q-1));
 
     dcv  = zerov;
     xEv  = zerov;
@@ -269,18 +258,18 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       xEv = _mm_max_ps(xEv, msv);
 
       /* Update right-shifted predecessors for next stripe (k→k+1) */
-      mpv3 = MMO(dpp3, q);
-      dpv3 = DMO(dpp3, q);
-      ipv3 = IMO(dpp3, q);
-      ppv3 = ppp3_row[q];
+      mpv3 = MMO_SP(dpp3, q);
+      dpv3 = DMO_SP(dpp3, q);
+      ipv3 = IMO_SP(dpp3, q);
+      ppv3 = PMO_SP(dpp3, q);
 
-      MMO(dpc, q) = msv;
-      DMO(dpc, q) = dcv;
+      MMO_SP(dpc, q) = msv;
+      DMO_SP(dpc, q) = dcv;
       dcv = _mm_mul_ps(msv, *tp); tp++;                                  /* MD       */
 
       /* I(i,k) = max( M(i-3,k)*MI, I(i-3,k)*II ); mpv3/ipv3 now hold same-stripe values */
-      sv          = _mm_mul_ps(_mm_mul_ps(mpv3, adj_v), *tp); tp++;     /* MI       */
-      IMO(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(_mm_mul_ps(ipv3, adj_v), *tp)); tp++;  /* II */
+      sv             = _mm_mul_ps(_mm_mul_ps(mpv3, adj_v), *tp); tp++;  /* MI       */
+      IMO_SP(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(_mm_mul_ps(ipv3, adj_v), *tp)); tp++;  /* II */
 
       /* P(i,k): acceptor-site lookup from accumulated donor scores in oss */
       pv = zerov;
@@ -323,7 +312,7 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
             }
         }
       }
-      ppc[q] = pv;  /* Store P(i,k) for use as predecessor at row i+3 */
+      PMO_SP(dpc, q) = pv;  /* Store P(i,k) in OMX for use as predecessor at row i+3 */
 
     } /* end inner q loop */
 
@@ -333,26 +322,26 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     if (i == 3) {
       union { __m128 v; float p[4]; } u_entry, u_rfv;
       u_rfv.v      = om_fs->rfv[C0][0];
-      u_entry.v    = MMO(dpc, 0);          /* currently zerov */
+      u_entry.v    = MMO_SP(dpc, 0);        /* currently zerov */
       u_entry.p[0] = ESL_MAX(u_entry.p[0], xB0 * u_rfv.p[0]);
-      MMO(dpc, 0)  = u_entry.v;
+      MMO_SP(dpc, 0) = u_entry.v;
     }
 
     /* DD paths: propagate D(i,k) ← max(M(i,k-1)*MD, D(i,k-1)*DD) along k */
-    dcv        = esl_sse_rightshiftz_float(dcv);
-    DMO(dpc,0) = zerov;
-    tp         = om_fs->tfv + 7*Q;
+    dcv           = esl_sse_rightshiftz_float(dcv);
+    DMO_SP(dpc,0) = zerov;
+    tp            = om_fs->tfv + 7*Q;
     for (q = 0; q < Q; q++) {
-      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-      dcv         = _mm_mul_ps(DMO(dpc, q), *tp); tp++;
+      DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+      dcv            = _mm_mul_ps(DMO_SP(dpc, q), *tp); tp++;
     }
     if (om_fs->M < 100) {
       for (j = 1; j < 4; j++) {
         dcv = esl_sse_rightshiftz_float(dcv);
         tp  = om_fs->tfv + 7*Q;
         for (q = 0; q < Q; q++) {
-          DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-          dcv         = _mm_mul_ps(dcv, *tp); tp++;
+          DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+          dcv            = _mm_mul_ps(dcv, *tp); tp++;
         }
       }
     } else {
@@ -362,10 +351,10 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
         tp  = om_fs->tfv + 7*Q;
         cv  = zerov;
         for (q = 0; q < Q; q++) {
-          sv          = _mm_max_ps(dcv, DMO(dpc, q));
-          cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
-          DMO(dpc, q) = sv;
-          dcv         = _mm_mul_ps(dcv, *tp); tp++;
+          sv             = _mm_max_ps(dcv, DMO_SP(dpc, q));
+          cv             = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO_SP(dpc, q)));
+          DMO_SP(dpc, q) = sv;
+          dcv            = _mm_mul_ps(dcv, *tp); tp++;
         }
         if (! _mm_movemask_ps(cv)) break;
       }
@@ -378,7 +367,7 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     if (i >= min_intron + 3 && (donor0 >= 0 || donor1 >= 0 || donor2 >= 0)) {
       __m128 *dpd = ox->dpf[i - min_intron - 3];
       for (q = 0; q < Q; q++) {
-        __m128 tmp_sc = _mm_max_ps(MMO(dpd, q), DMO(dpd, q));
+        __m128 tmp_sc = _mm_max_ps(MMO_SP(dpd, q), DMO_SP(dpd, q));
         if (q == 0) {
           /* Mask out k=1 (element r=0): P state requires k >= 2 */
           union { __m128 v; float p[4]; } u_tmp;
@@ -402,7 +391,7 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
 
     /* Accumulate D into xEv for rescaling trigger */
     for (q = 0; q < Q; q++)
-      xEv = _mm_max_ps(xEv, DMO(dpc, q));
+      xEv = _mm_max_ps(xEv, DMO_SP(dpc, q));
     esl_sse_hmax_ps(xEv, &xE);
 
     /* Sparse rescaling: scale row when max value exceeds threshold */
@@ -410,10 +399,10 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       float   scale_factor = 1.0f / xE;
       __m128  scale_v      = _mm_set1_ps(scale_factor);
       for (q = 0; q < Q; q++) {
-        MMO(dpc, q) = _mm_mul_ps(MMO(dpc, q), scale_v);
-        DMO(dpc, q) = _mm_mul_ps(DMO(dpc, q), scale_v);
-        IMO(dpc, q) = _mm_mul_ps(IMO(dpc, q), scale_v);
-        ppc[q]      = _mm_mul_ps(ppc[q],      scale_v);
+        MMO_SP(dpc, q) = _mm_mul_ps(MMO_SP(dpc, q), scale_v);
+        DMO_SP(dpc, q) = _mm_mul_ps(DMO_SP(dpc, q), scale_v);
+        IMO_SP(dpc, q) = _mm_mul_ps(IMO_SP(dpc, q), scale_v);
+        PMO_SP(dpc, q) = _mm_mul_ps(PMO_SP(dpc, q), scale_v);
       }
       ox->xmx[i * p7X_NXCELLS + p7X_SCALE] = xE;
       ox->totscale += logf(xE);
@@ -429,20 +418,15 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     int   q_M = (M - 1) % Q;
     int   r_M = (M - 1) / Q;
     union { __m128 v; float p[4]; } u_m, u_d;
-    u_m.v = MMO(ox->dpf[L], q_M);
-    u_d.v = DMO(ox->dpf[L], q_M);
+    u_m.v = MMO_SP(ox->dpf[L], q_M);
+    u_d.v = DMO_SP(ox->dpf[L], q_M);
     xE    = ESL_MAX(u_m.p[r_M], u_d.p[r_M]);
     xC    = xE * om_fs->xf[p7O_E][p7O_MOVE];
     ox->xmx[L * p7X_NXCELLS + p7X_E] = xE;
     ox->xmx[L * p7X_NXCELLS + p7X_C] = xC;
   }
 
-  free(pvbuf_mem);
   return eslOK;
-
- ERROR:
-  if (pvbuf_mem) free(pvbuf_mem);
-  return status;
 }
 /*-------------- end, p7_Viterbi_SplicedGlobal() --------------*/
 
@@ -455,10 +439,11 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
 static inline float get_msc_sp(const P7_OMX *ox, int i, int k, int Q);
 static inline float get_dsc_sp(const P7_OMX *ox, int i, int k, int Q);
 static inline float get_isc_sp(const P7_OMX *ox, int i, int k, int Q);
+static inline float get_psc_sp(const P7_OMX *ox, int i, int k, int Q);
 static inline float get_rsc_sp(const P7_FS_OPROFILE *om_fs, int cn, int k, int Q);
 static inline float get_tsc_sp(const P7_FS_OPROFILE *om_fs, int t_off, int k, int Q);
 static inline float get_dd_sp (const P7_FS_OPROFILE *om_fs, int k, int Q);
-static inline int   vit_select_m_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, const float *pmat, int M_loc, int i, int k, int Q);
+static inline int   vit_select_m_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int M_loc, int i, int k, int Q);
 static inline int   vit_select_d_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k, int Q);
 static inline int   vit_select_i_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k, int Q);
 static inline int   vit_select_e_sp(const P7_OMX *ox, int i, int M_loc, int Q, int *ret_k);
@@ -468,18 +453,23 @@ static inline int   vit_select_e_sp(const P7_OMX *ox, int i, int M_loc, int Q, i
  * 2a. vit_select_*_sp() helper functions
  *****************************************************************/
 
-/* Scalar M/D/I cell extractors: strip r=(k-1)/Q from stripe q=(k-1)%Q */
+/* Scalar M/D/I/P cell extractors: strip r=(k-1)/Q from stripe q=(k-1)%Q.
+ * Must use the _SP macros because ox was created with p7X_NSCELLS_SP stride. */
 static inline float
 get_msc_sp(const P7_OMX *ox, int i, int k, int Q)
-{ union { __m128 v; float p[4]; } u; u.v = MMO(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
+{ union { __m128 v; float p[4]; } u; u.v = MMO_SP(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
 
 static inline float
 get_dsc_sp(const P7_OMX *ox, int i, int k, int Q)
-{ union { __m128 v; float p[4]; } u; u.v = DMO(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
+{ union { __m128 v; float p[4]; } u; u.v = DMO_SP(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
 
 static inline float
 get_isc_sp(const P7_OMX *ox, int i, int k, int Q)
-{ union { __m128 v; float p[4]; } u; u.v = IMO(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
+{ union { __m128 v; float p[4]; } u; u.v = IMO_SP(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
+
+static inline float
+get_psc_sp(const P7_OMX *ox, int i, int k, int Q)
+{ union { __m128 v; float p[4]; } u; u.v = PMO_SP(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
 
 /* Emission probability for codon index cn at model position k */
 static inline float
@@ -497,11 +487,11 @@ get_dd_sp(const P7_FS_OPROFILE *om_fs, int k, int Q)
 { union { __m128 v; float p[4]; } u; u.v = om_fs->tfv[7*Q + (k-1)%Q]; return u.p[(k-1)/Q]; }
 
 
-/* M(i,k) predecessors are at row i-3 (all same cumulative scale, no relative correction).
- * Emission and adj3 are common to all candidates and cancel in argmax. */
+/* M(i,k) predecessors: M/I/D/P from row i-3 at k-1, or B (global entry at i=3, k=1).
+ * P state is read directly from PMO_SP in the OMX matrix. */
 static inline int
 vit_select_m_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
-                const float *pmat, int M_loc, int i, int k, int Q)
+                int M_loc, int i, int k, int Q)
 {
   float path[5];
   int   state[5] = { p7T_M, p7T_I, p7T_D, p7T_P, p7T_B };
@@ -510,13 +500,13 @@ vit_select_m_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
     path[0] = get_msc_sp(ox, i-3, k-1, Q) * get_tsc_sp(om_fs, 1, k, Q);  /* M * MM */
     path[1] = get_isc_sp(ox, i-3, k-1, Q) * get_tsc_sp(om_fs, 2, k, Q);  /* I * IM */
     path[2] = get_dsc_sp(ox, i-3, k-1, Q) * get_tsc_sp(om_fs, 3, k, Q);  /* D * DM */
-    path[3] = pmat[(i-3) * (M_loc+2) + (k-1)] * 4.58e-5f;                 /* P * PM */
+    path[3] = get_psc_sp(ox, i-3, k-1, Q) * 4.58e-5f;                     /* P * PM */
   } else {
     path[0] = path[1] = path[2] = path[3] = 0.0f;
   }
-  /* Global entry B→M only at i=3, k=1; B(0) is at true scale 1.0, and all
-   * M/I/D/P at row 0 are 0, so no scale correction is needed. */
+  /* Global entry B→M only at i=3, k=1. */
   path[4] = (k == 1 && i == 3) ? om_fs->xf[p7O_N][p7O_MOVE] : 0.0f;
+
   return state[esl_vec_FArgMax(path, 5)];
 }
 
@@ -564,20 +554,18 @@ vit_select_e_sp(const P7_OMX *ox, int i, int M_loc, int Q, int *ret_k)
  * Synopsis:  Traceback from a spliced Viterbi DP matrix; SSE probability-space version.
  *
  * Purpose:   Extract the optimal alignment path from the DP matrix <ox> filled
- *            by p7_Viterbi_SplicedGlobal().  The P-state values needed for
- *            traceback are supplied in <pmat>, a (L+1)×(M+2) scalar matrix
- *            indexed as pmat[i*(M+2)+k] for row i=0..L and model k=0..M+1.
- *            <signal_scores> is an array of p7S_SPLICE_SIGNALS probabilities
- *            (GT-AG, GC-AG, AT-AC) as filled by p7_splicescores_Create().
- *
+ *            by p7_Viterbi_SplicedGlobal().  P-state predecessors of M cells
+ *            are read directly from PMO_SP() in the OMX matrix (the matrix
+ *            must have been created with p7X_NSCELLS_SP cells per stripe).
  *            Donor site search uses per-row cumulative scale factors stored
  *            in ox->xmx to normalize candidates across different DP rows
  *            before argmax comparison.
+ *            <signal_scores> is an array of p7S_SPLICE_SIGNALS probabilities
+ *            (GT-AG, GC-AG, AT-AC) as filled by p7_osplicescores_Create().
  *
  * Args:      sub_dsq       - nucleotide sequence (1-indexed)
  *            om_fs         - optimized frameshift profile (codon_lengths == 1)
  *            ox            - DP matrix from p7_Viterbi_SplicedGlobal()
- *            pmat          - P-state matrix (L+1)×(M+2), row-major float array
  *            signal_scores - splice signal probabilities [p7S_GTAG/GCAG/ATAC]
  *            tr            - RETURN: traceback (caller provides empty trace)
  *            i_start       - first nucleotide position
@@ -594,7 +582,6 @@ int
 p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq,
                         const P7_FS_OPROFILE *om_fs,
                         const P7_OMX *ox,
-                        const float *pmat,
                         const float *signal_scores,
                         P7_TRACE *tr,
                         int i_start, int i_end,
@@ -638,7 +625,7 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq,
       break;
 
     case p7T_M:
-      s1 = vit_select_m_sp(om_fs, ox, pmat, M_loc, i, k, Q);
+      s1 = vit_select_m_sp(om_fs, ox, M_loc, i, k, Q);
       k--; i -= 3;
       break;
 
@@ -762,3 +749,169 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq,
   return status;
 }
 /*-------------- end, p7_Viterbi_SplicedTrace() --------------*/
+
+
+/*****************************************************************
+ * 3. Unit tests.
+ *****************************************************************/
+#ifdef p7VITERBI_SP_TESTDRIVE
+#include "esl_random.h"
+#include "esl_randomseq.h"
+
+/* utest_spliced_trace():
+ *
+ * Build the same protein-emitted, reverse-translated DNA sequence with a
+ * simulated GT..AG intron that the generic unit test uses.  Run both the
+ * generic p7_GViterbi_spliced_TranslatedGlobal + p7_GViterbi_spliced_TranslatedTrace
+ * and the SSE p7_Viterbi_SplicedGlobal + p7_Viterbi_SplicedTrace on the same
+ * sequence, then compare the two traces with p7_trace_Compare.
+ */
+static void
+utest_spliced_trace(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+                    ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
+                    int M, int N, int intron_len)
+{
+  char           *msg          = "viterbi_sp utest_spliced_trace failed";
+  P7_HMM         *hmm          = NULL;
+  P7_PROFILE     *gm           = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_tr        = p7_profile_fs_Create(M, abcAA, 1);
+  P7_FS_OPROFILE *om_fs        = p7_fs_oprofile_Create(M, abcAA, 1);
+  ESL_SQ         *sq           = esl_sq_CreateDigital(abcAA);
+  P7_TRACE       *tr_ref       = p7_trace_fs_Create();
+  P7_TRACE       *tr_sse       = p7_trace_fs_Create();
+  ESL_DSQ        *dsq          = NULL;
+  SPLICE_PIPELINE *pli         = NULL;
+  P7_OMX         *ox           = p7_omx_Create_dpf(M, M*3, M*3, p7X_NSCELLS_SP);
+  OSPLICE_SCORES *oss          = p7_osplicescores_Create(M);
+  int             intron_total = intron_len + 4;   /* GT + intron_len + AG */
+  int             L_amino, L_dna_total;
+  int             i, j;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
+  p7_fs_oprofile_Convert(gm_tr, om_fs);
+
+  pli = p7_splicepipeline_Create(NULL, M, M * 3);
+
+  while (N--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, NULL);
+      L_amino     = sq->n;
+      L_dna_total = L_amino * 3 + intron_total;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal(msg);
+      dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
+
+      /* Reverse-translate first exon */
+      j = 1;
+      for (i = 1; i <= L_amino / 2; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+      /* Simulated intron: GT + intron_len random nucleotides + AG */
+      dsq[j++] = 2;  /* G */
+      dsq[j++] = 3;  /* T */
+      for (i = 0; i < intron_len; i++) dsq[j++] = esl_rnd_Roll(r, 4);
+      dsq[j++] = 0;  /* A */
+      dsq[j++] = 2;  /* G */
+      /* Reverse-translate second exon */
+      for (i = L_amino / 2 + 1; i <= L_amino; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      /* Reconfigure lengths */
+      p7_fs_ReconfigLength(gm_tr, L_dna_total / 3);
+      p7_fs_oprofile_ReconfigLength(om_fs, L_dna_total / 3);
+
+      /* Grow matrices */
+      p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
+      p7_omx_GrowTo_dpf(ox, M, L_dna_total, L_dna_total);
+      p7_splicescores_GrowTo(pli->splice_scores, M);
+      p7_osplicescores_GrowTo(oss, M);
+
+      /* --- Generic: global Viterbi + trace --- */
+      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      p7_trace_Reuse(tr_ref);
+      p7_GViterbi_spliced_TranslatedTrace (pli, dsq, gm_tr, pli->vit, tr_ref, 1, L_dna_total, 1, M);
+
+      /* --- SSE: global Viterbi + trace --- */
+      p7_Viterbi_SplicedGlobal(oss, dsq, om_fs, ox, 1, L_dna_total, 1, M, pli->min_intron);
+      p7_trace_Reuse(tr_sse);
+      p7_Viterbi_SplicedTrace(dsq, om_fs, ox, oss->signal_scores,
+                              tr_sse, 1, L_dna_total, 1, M, pli->min_intron);
+
+      /* Compare SSE trace to generic reference */
+      if (p7_trace_Compare(tr_sse, tr_ref, 0.0f) != eslOK) esl_fatal(msg);
+    }
+
+  if (dsq != NULL) free(dsq);
+  esl_sq_Destroy(sq);
+  p7_trace_fs_Destroy(tr_ref);
+  p7_trace_fs_Destroy(tr_sse);
+  p7_hmm_Destroy(hmm);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_fs_oprofile_Destroy(om_fs);
+  p7_omx_Destroy(ox);
+  p7_osplicescores_Destroy(oss);
+  p7_splicepipeline_Destroy(pli);
+}
+#endif /*p7VITERBI_SP_TESTDRIVE*/
+/*---------------------- end, unit tests ------------------------*/
+
+
+/*****************************************************************
+ * 4. Test driver.
+ *****************************************************************/
+#ifdef p7VITERBI_SP_TESTDRIVE
+/*
+   gcc -g -Wall -std=gnu99 -o viterbi_sp_utest -I. -I.. -L.. -I../../easel -L../../easel -Dp7VITERBI_SP_TESTDRIVE viterbi_sp.c -lhmmer -leasel -lm
+   ./viterbi_sp_utest
+ */
+#include "esl_gencode.h"
+#include "esl_getopts.h"
+
+static ESL_OPTIONS options[] = {
+  /* name    type          default env range toggles reqs incomp help                                  docgroup */
+  { "-h", eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL, "show brief help on version and usage",        0 },
+  { "-s", eslARG_INT,    "42", NULL, NULL, NULL, NULL, NULL, "set random number seed to <n>",               0 },
+  { "-M", eslARG_INT,   "100", NULL, NULL, NULL, NULL, NULL, "size of random models to sample",             0 },
+  { "-N", eslARG_INT,    "20", NULL, NULL, NULL, NULL, NULL, "number of random sequences to sample",        0 },
+  { "-I", eslARG_INT,   "500", NULL, "n>0",NULL, NULL, NULL, "simulated intron length (random nucs between GT..AG)", 0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "test driver for SSE p7_Viterbi_SplicedGlobal() and p7_Viterbi_SplicedTrace()";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA  = esl_alphabet_Create(eslAMINO);
+  ESL_ALPHABET   *abcDNA = esl_alphabet_Create(eslDNA);
+  P7_BG          *bgAA   = p7_bg_Create(abcAA);
+  ESL_GENCODE    *gcode  = esl_gencode_Create(abcDNA, abcAA);
+  P7_CODONTABLE  *ct     = p7_codontable_Create(gcode);
+  int             M      = esl_opt_GetInteger(go, "-M");
+  int             N      = esl_opt_GetInteger(go, "-N");
+  int             I      = esl_opt_GetInteger(go, "-I");
+
+  utest_spliced_trace(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
+
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  p7_bg_Destroy(bgAA);
+  esl_gencode_Destroy(gcode);
+  p7_codontable_Destroy(ct);
+  esl_getopts_Destroy(go);
+  esl_randomness_Destroy(r);
+  printf("All tests passed.\n");
+  return eslOK;
+}
+#endif /*p7VITERBI_SP_TESTDRIVE*/
+/*--------------------- end, test driver ------------------------*/
+

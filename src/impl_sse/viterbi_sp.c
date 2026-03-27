@@ -360,21 +360,18 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       }
     }
 
-    /* Donor accumulation: record max(M,D) at row i-min_intron-3 into OSS arrays.
-     * This stores potential donor-site scores for acceptor lookup min_intron+3
-     * rows later.  First possible P target is k=2, so zero out k=1
-     * (element r=0 of stripe q=0) before accumulating. */
+    /* Donor accumulation: record max(M(j,k-1),D(j,k-1)) at row j=i-min_intron-3
+     * into OSS[q] for each stripe q.  The generic stores max(M,D) at k-1 under
+     * index k, so we right-shift the donor vector by one stripe position using the
+     * same rolling trick used for M predecessors.  The rightshiftz inserts 0 at
+     * stripe 0 element 0, masking k=1 (P state requires k >= 2) for free. */
     if (i >= min_intron + 3 && (donor0 >= 0 || donor1 >= 0 || donor2 >= 0)) {
-      __m128 *dpd = ox->dpf[i - min_intron - 3];
+      __m128 *dpd      = ox->dpf[i - min_intron - 3];
+      __m128  donor_prev = esl_sse_rightshiftz_float(_mm_max_ps(MMO_SP(dpd, Q-1), DMO_SP(dpd, Q-1)));
       for (q = 0; q < Q; q++) {
-        __m128 tmp_sc = _mm_max_ps(MMO_SP(dpd, q), DMO_SP(dpd, q));
-        if (q == 0) {
-          /* Mask out k=1 (element r=0): P state requires k >= 2 */
-          union { __m128 v; float p[4]; } u_tmp;
-          u_tmp.v    = tmp_sc;
-          u_tmp.p[0] = 0.0f;
-          tmp_sc     = u_tmp.v;
-        }
+        __m128 tmp_sc = donor_prev;
+        donor_prev    = _mm_max_ps(MMO_SP(dpd, q), DMO_SP(dpd, q));
+
         if      (donor2 == DONOR_GT) OSS2(oss,q,p7S_GTAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,r,s), tmp_sc);
         else if (donor2 == DONOR_GC) OSS2(oss,q,p7S_GCAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,r,s), tmp_sc);
         else if (donor2 == DONOR_AT) OSS2(oss,q,p7S_ATAC,r,s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,r,s), tmp_sc);
@@ -842,7 +839,7 @@ utest_spliced(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       p7_Viterbi_SplicedGlobal(oss, dsq, om_fs, ox, 1, L_dna_total, 1, M, pli->min_intron);
       sse_sc = ox->totscale + logf(ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C]);
-
+      printf("N %d sse_sc %f ref_sc %f\n", N, sse_sc, ref_sc);
       if (fabsf(sse_sc - ref_sc) > 0.001f) esl_fatal(msg);
 
       /* --- Test 2: SSE trace must contain at least one P state --- */

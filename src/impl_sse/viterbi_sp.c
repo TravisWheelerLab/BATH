@@ -24,6 +24,7 @@
  *   2. p7_Viterbi_SplicedTrace()
  *   3. Unit tests.
  *   4. Test driver.
+ *   5. Benchmark driver.
  */
 #include "p7_config.h"
 
@@ -967,4 +968,171 @@ main(int argc, char **argv)
 }
 #endif /*p7VITERBI_SP_TESTDRIVE*/
 /*--------------------- end, test driver ------------------------*/
+
+
+/*****************************************************************
+ * 5. Benchmark driver.
+ *****************************************************************/
+#ifdef p7VITERBI_SP_BENCHMARK
+/*
+   gcc -g -O3 -Wall -std=gnu99 -msse2 -o viterbi_sp_benchmark -I. -L. -I../../easel -L../../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
+   ./viterbi_sp_benchmark <hmmfile>
+ */
+#include "esl_gencode.h"
+#include "esl_getopts.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+static ESL_OPTIONS benchmark_options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-N",        eslARG_INT,    "100", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "-I",        eslARG_INT,    "200", NULL, "n>0", NULL,  NULL, NULL, "length of simulated intron (excl. GT..AG signals)", 0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "also benchmark SplicedTrace after each DP",      0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char benchmark_usage[]  = "[-options] <hmmfile>";
+static char benchmark_banner[] = "benchmark driver for SSE spliced Viterbi DP";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go           = p7_CreateDefaultApp(benchmark_options, 1, argc, argv, benchmark_banner, benchmark_usage);
+  char           *hmmfile      = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w            = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r            = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA        = NULL;
+  ESL_ALPHABET   *abcDNA       = esl_alphabet_Create(eslDNA);
+  P7_HMMFILE     *hfp          = NULL;
+  P7_HMM         *hmm          = NULL;
+  P7_BG          *bgAA         = NULL;
+  P7_PROFILE     *gm           = NULL;
+  P7_FS_PROFILE  *gm_tr        = NULL;
+  P7_FS_OPROFILE *om_fs        = NULL;
+  ESL_GENCODE    *gcode        = NULL;
+  P7_CODONTABLE  *codon_table  = NULL;
+  ESL_SQ         *sq           = NULL;
+  SPLICE_PIPELINE *pli         = NULL;
+  P7_OMX         *ox           = NULL;
+  OSPLICE_SCORES *oss          = NULL;
+  P7_TRACE       *tr           = NULL;
+  int             N            = esl_opt_GetInteger(go, "-N");
+  int             I            = esl_opt_GetInteger(go, "-I");
+  int             intron_total = I + 4;
+  int             do_T         = esl_opt_GetBoolean(go, "-T");
+  ESL_DSQ        *dsq          = NULL;
+  int             i, j, k, L_amino, L_dna_total;
+  int64_t         total_cells;
+  float           final_C;
+  double          base_time, bench_time, Mcs;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
+
+  gcode       = esl_gencode_Create(abcDNA, abcAA);
+  bgAA        = p7_bg_Create(abcAA);
+  gm          = p7_profile_Create(hmm->M, abcAA);
+  gm_tr       = p7_profile_fs_Create(hmm->M, abcAA, 1);
+  om_fs       = p7_fs_oprofile_Create(hmm->M, abcAA, 1);
+  codon_table = p7_codontable_Create(gcode);
+  sq          = esl_sq_CreateDigital(abcAA);
+
+  p7_ProfileConfig   (hmm, bgAA,        gm,    hmm->M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, hmm->M, p7_UNILOCAL);
+  p7_fs_oprofile_Convert(gm_tr, om_fs);
+
+  pli = p7_splicepipeline_Create(NULL, hmm->M, hmm->M * 3);
+  ox  = p7_omx_Create_dpf(hmm->M, hmm->M * 3, hmm->M * 3, p7X_NSCELLS_SP);
+  oss = p7_osplicescores_Create(hmm->M);
+  tr  = p7_trace_fs_Create();
+
+  /* Baseline: time to generate sequences alone */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, NULL);
+      L_amino     = sq->n;
+      L_dna_total = L_amino * 3 + intron_total;
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) p7_Fail("malloc failed");
+      dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
+      j = 1;
+      for (k = 1; k <= L_amino / 2; k++) { p7_codontable_GetCodon(codon_table, r, sq->dsq[k], dsq + j); j += 3; }
+      dsq[j++] = 2;  /* G */
+      dsq[j++] = 3;  /* T */
+      for (k = 0; k < I; k++) dsq[j++] = esl_rnd_Roll(r, 4);
+      dsq[j++] = 0;  /* A */
+      dsq[j++] = 2;  /* G */
+      for (k = L_amino / 2 + 1; k <= L_amino; k++) { p7_codontable_GetCodon(codon_table, r, sq->dsq[k], dsq + j); j += 3; }
+    }
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  /* Benchmark */
+  total_cells = 0;
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, NULL);
+      L_amino     = sq->n;
+      L_dna_total = L_amino * 3 + intron_total;
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) p7_Fail("malloc failed");
+      dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
+      j = 1;
+      for (k = 1; k <= L_amino / 2; k++) { p7_codontable_GetCodon(codon_table, r, sq->dsq[k], dsq + j); j += 3; }
+      dsq[j++] = 2;  /* G */
+      dsq[j++] = 3;  /* T */
+      for (k = 0; k < I; k++) dsq[j++] = esl_rnd_Roll(r, 4);
+      dsq[j++] = 0;  /* A */
+      dsq[j++] = 2;  /* G */
+      for (k = L_amino / 2 + 1; k <= L_amino; k++) { p7_codontable_GetCodon(codon_table, r, sq->dsq[k], dsq + j); j += 3; }
+
+      p7_fs_ReconfigLength(gm_tr, L_dna_total / 3);
+      p7_fs_oprofile_ReconfigLength(om_fs, L_dna_total / 3);
+      p7_omx_GrowTo_dpf(ox, hmm->M, L_dna_total, L_dna_total);
+      p7_osplicescores_GrowTo(oss, hmm->M);
+
+      p7_Viterbi_SplicedGlobal(oss, dsq, om_fs, ox, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+      final_C = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+      if (final_C != 0.0f && do_T) {
+        p7_Viterbi_SplicedTrace(dsq, om_fs, ox, oss->signal_scores,
+                                tr, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+        p7_trace_Reuse(tr);
+      }
+      total_cells += (int64_t) L_dna_total * hmm->M;
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) total_cells * 1e-6 / bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M          = %d\n",   hmm->M);
+  printf("# N          = %d\n",   N);
+  printf("# I          = %d\n",   I);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  if (dsq != NULL) free(dsq);
+  p7_trace_fs_Destroy(tr);
+  p7_osplicescores_Destroy(oss);
+  p7_omx_Destroy(ox);
+  p7_splicepipeline_Destroy(pli);
+  esl_sq_Destroy(sq);
+  p7_codontable_Destroy(codon_table);
+  p7_fs_oprofile_Destroy(om_fs);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_profile_Destroy(gm);
+  p7_bg_Destroy(bgAA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7VITERBI_SP_BENCHMARK*/
+/*---------------- end, benchmark driver ----------------*/
 

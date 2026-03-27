@@ -354,6 +354,42 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       }
     }
 
+    /* At i=3, the DD fixup above used dcv=0 (dpp3=row 0, all zero), so
+     * D(3,k≥2) from the global-entry M(3,k=1) was not propagated.
+     * Re-run DD propagation seeded by M(3,k=1)*MD. */
+    if (i == 3) {
+      dcv = _mm_mul_ps(MMO_SP(dpc, 0), om_fs->tfv[p7O_MD]);  /* M(k)*MD for q=0 → D(k+1) in q=1 */
+      tp  = om_fs->tfv + 7*Q + 1;                             /* DD for q=1..Q-1 */
+      for (q = 1; q < Q; q++) {
+        DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+        dcv = _mm_mul_ps(DMO_SP(dpc, q), *tp); tp++;
+      }
+      if (om_fs->M < 100) {
+        for (j = 1; j < 4; j++) {
+          dcv = esl_sse_rightshiftz_float(dcv);
+          tp  = om_fs->tfv + 7*Q;
+          for (q = 0; q < Q; q++) {
+            DMO_SP(dpc, q) = _mm_max_ps(dcv, DMO_SP(dpc, q));
+            dcv = _mm_mul_ps(DMO_SP(dpc, q), *tp); tp++;
+          }
+        }
+      } else {
+        for (j = 1; j < 4; j++) {
+          register __m128 cv;
+          dcv = esl_sse_rightshiftz_float(dcv);
+          tp  = om_fs->tfv + 7*Q;
+          cv  = zerov;
+          for (q = 0; q < Q; q++) {
+            sv             = _mm_max_ps(dcv, DMO_SP(dpc, q));
+            cv             = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO_SP(dpc, q)));
+            DMO_SP(dpc, q) = sv;
+            dcv            = _mm_mul_ps(dcv, *tp); tp++;
+          }
+          if (! _mm_movemask_ps(cv)) break;
+        }
+      }
+    }
+
     /* Donor accumulation: record max(M(j,k-1),D(j,k-1)) at row j=i-min_intron-3
      * into OSS[q] for each stripe q.  The generic stores max(M,D) at k-1 under
      * index k, so we right-shift the donor vector by one stripe position using the

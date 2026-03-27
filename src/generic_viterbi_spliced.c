@@ -90,13 +90,26 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
   int          loop_end;
   int          sub_i,sub_k;
   float        TMP_SC;
-  int          acc0, acc1, acc2;     
-  int          donor0, donor1, donor2; 
+  int          acc0, acc1, acc2;
+  int          donor0, donor1, donor2;
   float const *rsc_c0;
   float const *rsc_c1[4];
   float const *rsc_c2[16];
+  int          ring_size;
+  float       *ring_raw  = NULL;
+  float      **ring      = NULL;
+  int          status;
 
   if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
+
+  /* Donor ring buffer: stores max(M,D) per model position for the min_intron+4 most
+   * recent rows, replacing far-back lookups into dp[] (DRAM cache misses) with reads
+   * from a compact structure (~600 KB) that fits in L3 cache. */
+  ring_size = min_intron + 4;
+  ESL_ALLOC(ring_raw, sizeof(float) * ring_size * (M + 1));
+  for (k = 0; k < ring_size * (M + 1); k++) ring_raw[k] = -eslINFINITY;
+  ESL_ALLOC(ring, sizeof(float *) * ring_size);
+  for (k = 0; k < ring_size; k++) ring[k] = ring_raw + k * (M + 1);
 
   /* Note on variable names 
    * ..0 are for splice codons where zero nucleortides come from before the donor,
@@ -210,6 +223,10 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
     PMX_SP(i,M) = -eslINFINITY;
 
     XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
+
+    /* Write max(M,D) per position into ring for later donor lookups */
+    for (k = 1; k <= M; k++)
+      ring[i % ring_size][k] = ESL_MAX(MMX_SP(i, k), DMX_SP(i, k));
 
   }
 
@@ -361,11 +378,14 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
       }
     } // end k loop
 
-	/* Separate k look for donor site to prevent cache thrashing */ 
+	/* Separate k loop for donor site to prevent cache thrashing.
+	 * Read max(M,D) from ring buffer instead of the full DP matrix to avoid
+	 * DRAM cache misses on the min_intron+3 row lookback. */
 	if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
+	  float *donor_row = ring[(i - min_intron - 3) % ring_size];
 	  /* First possible P state is k = 2 */
       for (k = 2; k < M; k++) {
-        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+        TMP_SC = donor_row[k-1];
 
 		if      (donor2 == DONOR_GT) SSX2(k, p7S_GTAG, r, s) = ESL_MAX(SSX2(k, p7S_GTAG, r, s), TMP_SC);
         else if (donor2 == DONOR_GC) SSX2(k, p7S_GCAG, r, s) = ESL_MAX(SSX2(k, p7S_GCAG, r, s), TMP_SC);
@@ -394,7 +414,10 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
 
     XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
 
-   
+    /* Write max(M,D) per position into ring for later donor lookups */
+    for (k = 1; k <= M; k++)
+      ring[i % ring_size][k] = ESL_MAX(MMX_SP(i, k), DMX_SP(i, k));
+
   } // end loop over L
 
   /*exit from last i and k */
@@ -404,7 +427,14 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
   gx->M = M;
   gx->L = L;
 
+  free(ring);
+  free(ring_raw);
   return eslOK;
+
+ ERROR:
+  if (ring)     free(ring);
+  if (ring_raw) free(ring_raw);
+  return status;
 }
 
 

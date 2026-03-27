@@ -392,7 +392,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
 
       /* We have a region i..j to evaluate. */
       ddef->nregions++;
-      pli->was_region++;
       if (is_multidomain_region_frameshift(ddef, i, j))
       {
 	 	
@@ -401,7 +400,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         * one or more domain envelopes.
         */
         ddef->nclustered++;
-        pli->was_multi++; 
+      
        /* Resolve the region into domains by stochastic trace
         * clustering; assign position-specific null2 model by
         * stochastic trace clustering; there is redundancy
@@ -422,7 +421,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         last_j2 = 0;
         
         for (d = 0; d < nc; d++) {
-          pli->num_clust++;
+     
           p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
          if (i2 <= last_j2) ddef->noverlaps++;
 

@@ -1154,11 +1154,6 @@ typedef struct p7_pipeline_s {
   P7_HMMFILE   *hfp;             /* COPY of open HMM database (if scan mode) */
   char          errbuf[eslERRBUFSIZE];
 
-
-  //TODO
-  int was_region;
-  int was_multi;
-  int num_clust;
 } P7_PIPELINE;
 
 #define PARSER_ROWS_FWD 4

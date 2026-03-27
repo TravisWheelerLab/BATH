@@ -249,11 +249,6 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    pli->hfp             = NULL;
    pli->errbuf[0]       = '\0';
 
-
-//TODO
-  pli->was_region = 0;
-  pli->was_multi = 0;
-  pli->num_clust = 0;
    return pli;
 
 ERROR:

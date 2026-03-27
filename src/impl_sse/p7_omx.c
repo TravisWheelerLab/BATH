@@ -1044,13 +1044,26 @@ p7_omx_DumpSP(FILE *fp, P7_OMX *ox, int istart, int iend, int kstart, int kend, 
         if (logify) val = (val == 0.0f) ? -eslINFINITY : logf(val);
         fprintf(fp, "%*.*f ", width, precision, val);
       }
-      if (ox->xmx != NULL)
+      if (ox->xmx != NULL) {
+        float xE_v = ox->xmx[i * p7X_NXCELLS + p7X_E];
+        float xN_v = ox->xmx[i * p7X_NXCELLS + p7X_N];
+        float xJ_v = ox->xmx[i * p7X_NXCELLS + p7X_J];
+        float xB_v = ox->xmx[i * p7X_NXCELLS + p7X_B];
+        float xC_v = ox->xmx[i * p7X_NXCELLS + p7X_C];
+        if (logify) {
+          xE_v = (xE_v == 0.0f) ? -eslINFINITY : logf(xE_v);
+          xN_v = (xN_v == 0.0f) ? -eslINFINITY : logf(xN_v);
+          xJ_v = (xJ_v == 0.0f) ? -eslINFINITY : logf(xJ_v);
+          xB_v = (xB_v == 0.0f) ? -eslINFINITY : logf(xB_v);
+          xC_v = (xC_v == 0.0f) ? -eslINFINITY : logf(xC_v);
+        }
         fprintf(fp, "%*.*f %*.*f %*.*f %*.*f %*.*f",
-                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_E],
-                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_N],
-                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_J],
-                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_B],
-                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_C]);
+                width, precision, xE_v,
+                width, precision, xN_v,
+                width, precision, xJ_v,
+                width, precision, xB_v,
+                width, precision, xC_v);
+      }
       fprintf(fp, "\n");
 
       /* I row */

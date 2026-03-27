@@ -141,6 +141,9 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       MMO_SP(ox->dpf[row], q) = DMO_SP(ox->dpf[row], q) = IMO_SP(ox->dpf[row], q) = PMO_SP(ox->dpf[row], q) = zerov;
     ox->xmx[row * p7X_NXCELLS + p7X_SCALE] = 1.0f;
     ox->xmx[row * p7X_NXCELLS + p7X_E]     = 0.0f;
+    ox->xmx[row * p7X_NXCELLS + p7X_N]     = 0.0f;
+    ox->xmx[row * p7X_NXCELLS + p7X_J]     = 0.0f;
+    ox->xmx[row * p7X_NXCELLS + p7X_B]     = 0.0f;
     ox->xmx[row * p7X_NXCELLS + p7X_C]     = 0.0f;
   }
 
@@ -150,6 +153,8 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       oss->oscore[q][j] = zerov;
 
   xB0        = om_fs->xf[p7O_N][p7O_MOVE];  /* N→B transition probability */
+  ox->xmx[0 * p7X_NXCELLS + p7X_N] = 1.0f; /* S->N, p=1; store for dump/debug */
+  ox->xmx[0 * p7X_NXCELLS + p7X_B] = xB0;  /* store for dump/debug */
   sig_gtag_v = _mm_set1_ps(oss->signal_scores[p7S_GTAG]);
   sig_gcag_v = _mm_set1_ps(oss->signal_scores[p7S_GCAG]);
   sig_atac_v = _mm_set1_ps(oss->signal_scores[p7S_ATAC]);
@@ -874,7 +879,7 @@ utest_spliced(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         printf("Score mismatch: dumping SSE matrix (logified):\n");
         p7_omx_DumpSP(stdout, ox, 0, L_dna_total, 0, M, TRUE);
         printf("Generic matrix:\n");
-        p7_gmx_DumpWindow(stdout, pli->vit, 0, L_dna_total, 0, M, p7_SHOW_LOG);
+        p7_gmx_DumpWindow(stdout, pli->vit, 0, L_dna_total, 0, M, p7_DEFAULT);
         esl_fatal(msg);
       }
 

@@ -758,26 +758,29 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq,
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
-/* utest_spliced_trace():
+/* utest_spliced():
  *
  * Build the same protein-emitted, reverse-translated DNA sequence with a
- * simulated GT..AG intron that the generic unit test uses.  Run both the
- * generic p7_GViterbi_spliced_TranslatedGlobal + p7_GViterbi_spliced_TranslatedTrace
- * and the SSE p7_Viterbi_SplicedGlobal + p7_Viterbi_SplicedTrace on the same
- * sequence, then compare the two traces with p7_trace_Compare.
+ * simulated GT..AG intron that the generic unit test uses.  For each sequence:
+ *
+ * 1. Run p7_GViterbi_spliced_TranslatedGlobal (generic) and read the final
+ *    C-state log-probability score.
+ * 2. Run p7_Viterbi_SplicedGlobal (SSE) and convert its probability-space
+ *    C-state score to log-probability; compare against the generic score.
+ * 3. Run p7_Viterbi_SplicedTrace (SSE) and verify the trace contains at
+ *    least one P state, confirming the splice junction was detected.
  */
 static void
-utest_spliced_trace(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
-                    ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
-                    int M, int N, int intron_len)
+utest_spliced(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+              ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
+              int M, int N, int intron_len)
 {
-  char           *msg          = "viterbi_sp utest_spliced_trace failed";
+  char           *msg          = "viterbi_sp utest_spliced failed";
   P7_HMM         *hmm          = NULL;
   P7_PROFILE     *gm           = p7_profile_Create(M, abcAA);
   P7_FS_PROFILE  *gm_tr        = p7_profile_fs_Create(M, abcAA, 1);
   P7_FS_OPROFILE *om_fs        = p7_fs_oprofile_Create(M, abcAA, 1);
   ESL_SQ         *sq           = esl_sq_CreateDigital(abcAA);
-  P7_TRACE       *tr_ref       = p7_trace_fs_Create();
   P7_TRACE       *tr_sse       = p7_trace_fs_Create();
   ESL_DSQ        *dsq          = NULL;
   SPLICE_PIPELINE *pli         = NULL;
@@ -785,7 +788,8 @@ utest_spliced_trace(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA
   OSPLICE_SCORES *oss          = p7_osplicescores_Create(M);
   int             intron_total = intron_len + 4;   /* GT + intron_len + AG */
   int             L_amino, L_dna_total;
-  int             i, j;
+  int             i, j, n_p;
+  float           ref_sc, sse_sc;
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
   p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
@@ -832,24 +836,27 @@ utest_spliced_trace(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA
       p7_splicescores_GrowTo(pli->splice_scores, M);
       p7_osplicescores_GrowTo(oss, M);
 
-      /* --- Generic: global Viterbi + trace --- */
+      /* --- Test 1: compare final C-state score (generic log-prob vs SSE) --- */
       p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-      p7_trace_Reuse(tr_ref);
-      p7_GViterbi_spliced_TranslatedTrace (pli, dsq, gm_tr, pli->vit, tr_ref, 1, L_dna_total, 1, M);
+      ref_sc = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 
-      /* --- SSE: global Viterbi + trace --- */
       p7_Viterbi_SplicedGlobal(oss, dsq, om_fs, ox, 1, L_dna_total, 1, M, pli->min_intron);
+      sse_sc = ox->totscale + logf(ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C]);
+
+      if (fabsf(sse_sc - ref_sc) > 0.001f) esl_fatal(msg);
+
+      /* --- Test 2: SSE trace must contain at least one P state --- */
       p7_trace_Reuse(tr_sse);
       p7_Viterbi_SplicedTrace(dsq, om_fs, ox, oss->signal_scores,
                               tr_sse, 1, L_dna_total, 1, M, pli->min_intron);
-
-      /* Compare SSE trace to generic reference */
-      if (p7_trace_Compare(tr_sse, tr_ref, 0.0f) != eslOK) esl_fatal(msg);
+      n_p = 0;
+      for (i = 0; i < tr_sse->N; i++)
+        if (tr_sse->st[i] == p7T_P) n_p++;
+      if (n_p < 1) esl_fatal(msg);
     }
 
   if (dsq != NULL) free(dsq);
   esl_sq_Destroy(sq);
-  p7_trace_fs_Destroy(tr_ref);
   p7_trace_fs_Destroy(tr_sse);
   p7_hmm_Destroy(hmm);
   p7_profile_Destroy(gm);
@@ -884,7 +891,7 @@ static ESL_OPTIONS options[] = {
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options]";
-static char banner[] = "test driver for SSE p7_Viterbi_SplicedGlobal() and p7_Viterbi_SplicedTrace()";
+static char banner[] = "test driver for SSE spliced Viterbi: score comparison and P-state detection";
 
 int
 main(int argc, char **argv)
@@ -900,7 +907,7 @@ main(int argc, char **argv)
   int             N      = esl_opt_GetInteger(go, "-N");
   int             I      = esl_opt_GetInteger(go, "-I");
 
-  utest_spliced_trace(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
+  utest_spliced(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
 
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);

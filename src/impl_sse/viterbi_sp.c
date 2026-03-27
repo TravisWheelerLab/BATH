@@ -975,7 +975,7 @@ main(int argc, char **argv)
  *****************************************************************/
 #ifdef p7VITERBI_SP_BENCHMARK
 /*
-   gcc -g -O3 -Wall -std=gnu99 -msse2 -o viterbi_sp_benchmark -I. -L. -I../../easel -L../../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
+   gcc -g -O3 -Wall -std=gnu99 -msse2 -o viterbi_sp_benchmark -I. -I.. -I../.. -I../../../easel -L../.. -L../../../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
    ./viterbi_sp_benchmark <hmmfile>
  */
 #include "esl_gencode.h"

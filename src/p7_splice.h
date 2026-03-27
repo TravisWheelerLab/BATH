@@ -198,6 +198,10 @@ typedef struct _splice_info
 #define SSX0(k, signal)             (score[(k)][(signal)])                                                            //xxxxXXX
 #define SSX1(k, signal, nuc1)       (score[(k)][SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])            //XxxxxXX
 #define SSX2(k, signal, nuc1, nuc2) (score[(k)][SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX
+/* SSX2X: x-indexed SSX2 variant used in TranslatedGlobal.
+ * Emission is baked in at donor time (indexed by acceptor nucleotide x=0..4),
+ * reducing the acceptor-side 16-pair loop to a single lookup. */
+#define SSX2X(k, signal, x)         (score[(k)][SPLICE_OFFSET_2 + (x)          * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX-x
 
 #define SIGNAL(nuc1, nuc2)           (4*(nuc1)+(nuc2))
 

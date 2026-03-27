@@ -445,3 +445,320 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   return status;
 }
 /*-------------- end, p7_Viterbi_SplicedGlobal() --------------*/
+
+
+/*****************************************************************
+ * 2. p7_Viterbi_SplicedTrace()
+ *****************************************************************/
+
+/* Forward declarations for vit_select_*_sp() helpers */
+static inline float get_msc_sp(const P7_OMX *ox, int i, int k, int Q);
+static inline float get_dsc_sp(const P7_OMX *ox, int i, int k, int Q);
+static inline float get_isc_sp(const P7_OMX *ox, int i, int k, int Q);
+static inline float get_rsc_sp(const P7_FS_OPROFILE *om_fs, int cn, int k, int Q);
+static inline float get_tsc_sp(const P7_FS_OPROFILE *om_fs, int t_off, int k, int Q);
+static inline float get_dd_sp (const P7_FS_OPROFILE *om_fs, int k, int Q);
+static inline int   vit_select_m_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, const float *pmat, int M_loc, int i, int k, int Q);
+static inline int   vit_select_d_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k, int Q);
+static inline int   vit_select_i_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k, int Q);
+static inline int   vit_select_e_sp(const P7_OMX *ox, int i, int M_loc, int Q, int *ret_k);
+
+
+/*****************************************************************
+ * 2a. vit_select_*_sp() helper functions
+ *****************************************************************/
+
+/* Scalar M/D/I cell extractors: strip r=(k-1)/Q from stripe q=(k-1)%Q */
+static inline float
+get_msc_sp(const P7_OMX *ox, int i, int k, int Q)
+{ union { __m128 v; float p[4]; } u; u.v = MMO(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
+
+static inline float
+get_dsc_sp(const P7_OMX *ox, int i, int k, int Q)
+{ union { __m128 v; float p[4]; } u; u.v = DMO(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
+
+static inline float
+get_isc_sp(const P7_OMX *ox, int i, int k, int Q)
+{ union { __m128 v; float p[4]; } u; u.v = IMO(ox->dpf[i], (k-1)%Q); return u.p[(k-1)/Q]; }
+
+/* Emission probability for codon index cn at model position k */
+static inline float
+get_rsc_sp(const P7_FS_OPROFILE *om_fs, int cn, int k, int Q)
+{ union { __m128 v; float p[4]; } u; u.v = om_fs->rfv[cn][(k-1)%Q]; return u.p[(k-1)/Q]; }
+
+/* Main transition: t_off 0=BM 1=MM 2=IM 3=DM 4=MD 5=MI 6=II; layout tfv[7*q + t_off] */
+static inline float
+get_tsc_sp(const P7_FS_OPROFILE *om_fs, int t_off, int k, int Q)
+{ union { __m128 v; float p[4]; } u; u.v = om_fs->tfv[7 * ((k-1)%Q) + t_off]; return u.p[(k-1)/Q]; }
+
+/* DD transition: layout tfv[7*Q + q] */
+static inline float
+get_dd_sp(const P7_FS_OPROFILE *om_fs, int k, int Q)
+{ union { __m128 v; float p[4]; } u; u.v = om_fs->tfv[7*Q + (k-1)%Q]; return u.p[(k-1)/Q]; }
+
+
+/* M(i,k) predecessors are at row i-3 (all same cumulative scale, no relative correction).
+ * Emission and adj3 are common to all candidates and cancel in argmax. */
+static inline int
+vit_select_m_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
+                const float *pmat, int M_loc, int i, int k, int Q)
+{
+  float path[5];
+  int   state[5] = { p7T_M, p7T_I, p7T_D, p7T_P, p7T_B };
+
+  if (k > 1) {
+    path[0] = get_msc_sp(ox, i-3, k-1, Q) * get_tsc_sp(om_fs, 1, k, Q);  /* M * MM */
+    path[1] = get_isc_sp(ox, i-3, k-1, Q) * get_tsc_sp(om_fs, 2, k, Q);  /* I * IM */
+    path[2] = get_dsc_sp(ox, i-3, k-1, Q) * get_tsc_sp(om_fs, 3, k, Q);  /* D * DM */
+    path[3] = pmat[(i-3) * (M_loc+2) + (k-1)] * 4.58e-5f;                 /* P * PM */
+  } else {
+    path[0] = path[1] = path[2] = path[3] = 0.0f;
+  }
+  /* Global entry B→M only at i=3, k=1; B(0) is at true scale 1.0, and all
+   * M/I/D/P at row 0 are 0, so no scale correction is needed. */
+  path[4] = (k == 1 && i == 3) ? om_fs->xf[p7O_N][p7O_MOVE] : 0.0f;
+  return state[esl_vec_FArgMax(path, 5)];
+}
+
+/* D(i,k) predecessors M(i,k-1) and D(i,k-1) are at the same row; no scale correction. */
+static inline int
+vit_select_d_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k, int Q)
+{
+  float path[2];
+  int   state[2] = { p7T_M, p7T_D };
+
+  if (k > 1) {
+    path[0] = get_msc_sp(ox, i, k-1, Q) * get_tsc_sp(om_fs, 4, k, Q);  /* M * MD */
+    path[1] = get_dsc_sp(ox, i, k-1, Q) * get_dd_sp (om_fs, k, Q);     /* D * DD */
+  } else {
+    path[0] = path[1] = 0.0f;
+  }
+  return state[esl_vec_FArgMax(path, 2)];
+}
+
+/* I(i,k) predecessors M(i-3,k) and I(i-3,k) are both at row i-3; no relative correction. */
+static inline int
+vit_select_i_sp(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k, int Q)
+{
+  float path[2];
+  int   state[2] = { p7T_M, p7T_I };
+
+  path[0] = get_msc_sp(ox, i-3, k, Q) * get_tsc_sp(om_fs, 5, k, Q);  /* M * MI */
+  path[1] = get_isc_sp(ox, i-3, k, Q) * get_tsc_sp(om_fs, 6, k, Q);  /* I * II */
+  return state[esl_vec_FArgMax(path, 2)];
+}
+
+/* Global exit: E is reached only from M(L,M) or D(L,M). */
+static inline int
+vit_select_e_sp(const P7_OMX *ox, int i, int M_loc, int Q, int *ret_k)
+{
+  float mval = get_msc_sp(ox, i, M_loc, Q);
+  float dval = get_dsc_sp(ox, i, M_loc, Q);
+  *ret_k = M_loc;
+  return (mval >= dval) ? p7T_M : p7T_D;
+}
+/*-------------- end, vit_select_*_sp() helpers -----------------*/
+
+
+/* Function:  p7_Viterbi_SplicedTrace()
+ * Synopsis:  Traceback from a spliced Viterbi DP matrix; SSE probability-space version.
+ *
+ * Purpose:   Extract the optimal alignment path from the DP matrix <ox> filled
+ *            by p7_Viterbi_SplicedGlobal().  The P-state values needed for
+ *            traceback are supplied in <pmat>, a (L+1)×(M+2) scalar matrix
+ *            indexed as pmat[i*(M+2)+k] for row i=0..L and model k=0..M+1.
+ *            <signal_scores> is an array of p7S_SPLICE_SIGNALS probabilities
+ *            (GT-AG, GC-AG, AT-AC) as filled by p7_splicescores_Create().
+ *
+ *            Donor site search uses per-row cumulative scale factors stored
+ *            in ox->xmx to normalize candidates across different DP rows
+ *            before argmax comparison.
+ *
+ * Args:      sub_dsq       - nucleotide sequence (1-indexed)
+ *            om_fs         - optimized frameshift profile (codon_lengths == 1)
+ *            ox            - DP matrix from p7_Viterbi_SplicedGlobal()
+ *            pmat          - P-state matrix (L+1)×(M+2), row-major float array
+ *            signal_scores - splice signal probabilities [p7S_GTAG/GCAG/ATAC]
+ *            tr            - RETURN: traceback (caller provides empty trace)
+ *            i_start       - first nucleotide position
+ *            i_end         - last  nucleotide position
+ *            k_start       - first model position (must be 1 for current impl.)
+ *            k_end         - last  model position
+ *            min_intron    - minimum intron length
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if traceback reaches an impossible state.
+ *            <eslEMEM>   on allocation failure.
+ */
+int
+p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq,
+                        const P7_FS_OPROFILE *om_fs,
+                        const P7_OMX *ox,
+                        const float *pmat,
+                        const float *signal_scores,
+                        P7_TRACE *tr,
+                        int i_start, int i_end,
+                        int k_start, int k_end,
+                        int min_intron)
+{
+  int     Q         = p7O_NQF(om_fs->M);
+  int     L         = i_end - i_start + 1;
+  int     M_loc     = k_end - k_start + 1;
+  int     i         = L;
+  int     k         = 0;
+  int     c         = 0;
+  int     j         = 0;     /* donor DP row, set during P donor search       */
+  int     snxt      = p7T_X; /* state following donor, set during P search    */
+  int     s0, s1;
+  int     status;
+
+  /* Per-row log-cumulative scale for donor-site candidate normalization.
+   * logcumscale[r] = sum_{j=1}^{r} log( scale_factor[j] ).
+   * Ratio cumscale(a)/cumscale(b) = exp( logcumscale[a] - logcumscale[b] ). */
+  float  *logcumscale = NULL;
+  int     r;
+  ESL_ALLOC(logcumscale, (L + 2) * sizeof(float));
+  logcumscale[0] = 0.0f;
+  for (r = 1; r <= L; r++)
+    logcumscale[r] = logcumscale[r-1] + logf(ox->xmx[r * p7X_NXCELLS + p7X_SCALE]);
+
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, 0)) != eslOK) goto ERROR;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) goto ERROR;
+  s0 = p7T_C;
+
+  while (s0 != p7T_S) {
+    switch (s0) {
+
+    case p7T_C:                       /* global: C always comes directly from E */
+      s1 = p7T_E;
+      break;
+
+    case p7T_E:                       /* global exit only from M(L,M) or D(L,M) */
+      s1 = vit_select_e_sp(ox, i, M_loc, Q, &k);
+      break;
+
+    case p7T_M:
+      s1 = vit_select_m_sp(om_fs, ox, pmat, M_loc, i, k, Q);
+      k--; i -= 3;
+      break;
+
+    case p7T_D:
+      s1 = vit_select_d_sp(om_fs, ox, i, k, Q);
+      k--;
+      break;
+
+    case p7T_I:
+      s1 = vit_select_i_sp(om_fs, ox, i, k, Q);
+      i -= 3;
+      break;
+
+    case p7T_P:                       /* P: jump to donor exon predecessor */
+      s1 = snxt;
+      k--;
+      i  = j - c - 2;
+      break;
+
+    case p7T_B:                       /* global: B always comes from N */
+      s1 = p7T_N;
+      break;
+
+    case p7T_N:
+      s1 = (i == 0) ? p7T_S : p7T_N;
+      break;
+
+    default: ESL_EXCEPTION(eslEINVAL, "bogus state in Viterbi_SplicedTrace");
+    }
+
+    /* Donor site search: when s1==P, (i,k) is already the P state position
+     * (updated by case p7T_M above).  Scan backward over j to find which
+     * donor signal and codon offset c gave the best score into P(i,k). */
+    if (s1 == p7T_P) {
+      int   sub_i  = i_start + i - 1;
+      int   v      = (sub_i >= 2 && sub_dsq[sub_i-2] < MAX_NUC) ? (int)sub_dsq[sub_i-2] : p7P_MAXCODONS1;
+      int   w      = (sub_i >= 1 && sub_dsq[sub_i-1] < MAX_NUC) ? (int)sub_dsq[sub_i-1] : p7P_MAXCODONS1;
+      int   x      = (              sub_dsq[sub_i  ] < MAX_NUC) ? (int)sub_dsq[sub_i  ] : p7P_MAXCODONS1;
+      int   c0_idx = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+      float emit0  = get_rsc_sp(om_fs, c0_idx, k, Q);
+
+      float best   = -1.0f;
+      int   best_j = -1;
+      int   jj, cc;
+      snxt = p7T_M;
+
+      for (jj = i - min_intron + 1; jj > 3; jj--) {
+        int   sub_d  = i_start + jj - 1;
+        int   dn0    = (int)sub_dsq[sub_d - 1];
+        int   dn1    = (int)sub_dsq[sub_d    ];
+        float sig;
+
+        if (dn0 >= MAX_NUC || dn1 >= MAX_NUC) continue;
+        if      (SIGNAL(dn0, dn1) == DONOR_GT) sig = signal_scores[p7S_GTAG];
+        else if (SIGNAL(dn0, dn1) == DONOR_GC) sig = signal_scores[p7S_GCAG];
+        else if (SIGNAL(dn0, dn1) == DONOR_AT) sig = signal_scores[p7S_ATAC];
+        else continue;
+
+        /* Nucleotides just before the donor for c=1 (1 nt) and c=2 (2 nt) variants */
+        int tu = (sub_d >= 2 && sub_dsq[sub_d-2] < MAX_NUC) ? (int)sub_dsq[sub_d-2] : p7P_MAXCODONS1;
+        int tt = (sub_d >= 3 && sub_dsq[sub_d-3] < MAX_NUC) ? (int)sub_dsq[sub_d-3] : p7P_MAXCODONS1;
+        int c1_idx = p7P_MINIDX(p7P_CODON3_FS1(tu, w, x), p7P_DEGEN1_C);
+        int c2_idx = p7P_MINIDX(p7P_CODON3_FS1(tt, tu, x), p7P_DEGEN1_C);
+        float emit1 = get_rsc_sp(om_fs, c1_idx, k, Q);
+        float emit2 = get_rsc_sp(om_fs, c2_idx, k, Q);
+
+        /* Candidates at three codon offsets; normalize to scale of row i via
+         * adj = exp( logcumscale[row] - logcumscale[i] ). */
+        float adj, cand;
+        float mval, dval;
+
+        /* c=0: predecessor DP row = jj-2 */
+        if (jj >= 2) {
+          adj  = expf(logcumscale[jj-2] - logcumscale[i]);
+          mval = get_msc_sp(ox, jj-2, k-1, Q) * sig * emit0 * adj;
+          dval = get_dsc_sp(ox, jj-2, k-1, Q) * sig * emit0 * adj;
+          cand = ESL_MAX(mval, dval);
+          if (cand > best) { best = cand; best_j = jj; c = 0; snxt = (mval >= dval) ? p7T_M : p7T_D; }
+        }
+        /* c=1: predecessor DP row = jj-3 */
+        if (jj >= 3) {
+          adj  = expf(logcumscale[jj-3] - logcumscale[i]);
+          mval = get_msc_sp(ox, jj-3, k-1, Q) * sig * emit1 * adj;
+          dval = get_dsc_sp(ox, jj-3, k-1, Q) * sig * emit1 * adj;
+          cand = ESL_MAX(mval, dval);
+          if (cand > best) { best = cand; best_j = jj; c = 1; snxt = (mval >= dval) ? p7T_M : p7T_D; }
+        }
+        /* c=2: predecessor DP row = jj-4 */
+        if (jj >= 4) {
+          adj  = expf(logcumscale[jj-4] - logcumscale[i]);
+          mval = get_msc_sp(ox, jj-4, k-1, Q) * sig * emit2 * adj;
+          dval = get_dsc_sp(ox, jj-4, k-1, Q) * sig * emit2 * adj;
+          cand = ESL_MAX(mval, dval);
+          if (cand > best) { best = cand; best_j = jj; c = 2; snxt = (mval >= dval) ? p7T_M : p7T_D; }
+        }
+      }
+      if (best_j == -1) ESL_EXCEPTION(eslEINVAL, "P at k=%d,i=%d couldn't be traced", k, i);
+      j = best_j;
+    } /* end donor search */
+
+    /* Codon length: M states always use c=3; P state uses c from donor search. */
+    if      (s1 == p7T_M) c = 3;
+    else if (s1 != p7T_P) c = 0;
+
+    if ((status = p7_trace_fs_Append(tr, s1, k_start + k - 1, i_start + i - 1, c)) != eslOK) goto ERROR;
+
+    /* N/C: deferred i decrement for self-transitions */
+    if ((s1 == p7T_N || s1 == p7T_C) && s1 == s0) i--;
+
+    s0 = s1;
+  } /* end traceback loop */
+
+  tr->M = M_loc;
+  tr->L = L;
+
+  free(logcumscale);
+  return p7_trace_fs_Reverse(tr);
+
+ ERROR:
+  if (logcumscale) free(logcumscale);
+  return status;
+}
+/*-------------- end, p7_Viterbi_SplicedTrace() --------------*/

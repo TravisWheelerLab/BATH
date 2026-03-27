@@ -641,6 +641,9 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq,
   for (r = 1; r <= L; r++)
     logcumscale[r] = logcumscale[r-1] + logf(ox->xmx[r * p7X_NXCELLS + p7X_SCALE]);
 
+  if (ox->xmx[L * p7X_NXCELLS + p7X_C] == 0.0f)
+    ESL_EXCEPTION(eslFAIL, "impossible C reached at L=%d: alignment score is -inf", L);
+
   if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, 0)) != eslOK) goto ERROR;
   if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) goto ERROR;
   s0 = p7T_C;
@@ -883,14 +886,17 @@ utest_spliced(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         esl_fatal(msg);
       }
 
-      /* --- Test 2: SSE trace must contain at least one P state --- */
-      p7_trace_Reuse(tr_sse);
-      p7_Viterbi_SplicedTrace(dsq, om_fs, ox, oss->signal_scores,
-                              tr_sse, 1, L_dna_total, 1, M, pli->min_intron);
-      n_p = 0;
-      for (i = 0; i < tr_sse->N; i++)
-        if (tr_sse->st[i] == p7T_P) n_p++;
-      if (n_p < 1) esl_fatal(msg);
+      /* --- Test 2: SSE trace must contain at least one P state ---
+       * Skip if score is -inf (impossible alignment: no valid trace exists). */
+      if (!isinf(sse_sc)) {
+        p7_trace_Reuse(tr_sse);
+        p7_Viterbi_SplicedTrace(dsq, om_fs, ox, oss->signal_scores,
+                                tr_sse, 1, L_dna_total, 1, M, pli->min_intron);
+        n_p = 0;
+        for (i = 0; i < tr_sse->N; i++)
+          if (tr_sse->st[i] == p7T_P) n_p++;
+        if (n_p < 1) esl_fatal(msg);
+      }
     }
 
   if (dsq != NULL) free(dsq);

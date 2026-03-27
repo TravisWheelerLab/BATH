@@ -1424,6 +1424,7 @@ main(int argc, char **argv)
   ESL_DSQ        *dsq          = NULL;
   int             i, j, k, L_amino, L_dna_total;
   int64_t         total_cells;
+  float           final_C;
   double          base_time, bench_time, Mcs;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
@@ -1488,16 +1489,28 @@ main(int argc, char **argv)
       p7_fs_ReconfigLength(gm_tr, L_dna_total / 3);
       p7_gmx_GrowTo(pli->vit, hmm->M, L_dna_total, L_dna_total);
 
-      if (do_G) p7_GViterbi_spliced_TranslatedGlobal              (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
-      if (do_G && do_T) p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
-      p7_trace_Reuse(tr);
-      if (do_D) p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
-      if (do_D && do_T) p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
-      p7_trace_Reuse(tr);
-      if (do_U) p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
-      if (do_U && do_T) p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
-      p7_trace_Reuse(tr);
-
+	  if (do_G) {
+        p7_GViterbi_spliced_TranslatedGlobal              (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+	    final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+        if (final_C != -eslINFINITY && do_T) {
+		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+          p7_trace_Reuse(tr);
+		}
+	  }
+      if (do_D) {
+	    p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+        if (do_T) { 
+		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+          p7_trace_Reuse(tr);
+		}
+	  }
+      if (do_U) { 
+	    p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+        if (do_T) {
+		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+          p7_trace_Reuse(tr);
+        }
+	  }
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
   esl_stopwatch_Stop(w);
@@ -1613,12 +1626,15 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* --- Test 1: TranslatedGlobal + Trace; trace must contain >= 1 P state --- */
       p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-      p7_trace_Reuse(tr);
-      p7_GViterbi_spliced_TranslatedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
-      n_p = 0;
-      for (i = 0; i < tr->N; i++)
-        if (tr->st[i] == p7T_P) n_p++;
-      if (n_p < 1) esl_fatal(msg);
+      final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+	  if (final_C != -eslINFINITY) {
+        p7_GViterbi_spliced_TranslatedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+        n_p = 0;
+        for (i = 0; i < tr->N; i++)
+          if (tr->st[i] == p7T_P) n_p++;
+        if (n_p < 1) esl_fatal(msg);
+        p7_trace_Reuse(tr);
+	  }
 
       /* --- Test 2: TranslatedSemiGlobalExtendDown; final C must be reachable --- */
       p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);

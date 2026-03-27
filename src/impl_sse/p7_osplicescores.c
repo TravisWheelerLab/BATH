@@ -21,7 +21,7 @@
 
 #include "hmmer.h"
 #include "impl_sse.h"
-#include "../p7_splice.h"
+#include "p7_splice.h"
 
 
 /*****************************************************************

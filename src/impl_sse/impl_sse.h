@@ -550,6 +550,9 @@ extern int p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 extern int p7_Viterbi_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
 extern int p7_Viterbi_Frameshift_Trace                    (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,   P7_TRACE *tr);
 
+/* viterbi_sp.c */
+extern int p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss, const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, int i_start, int i_end, int k_start, int k_end, int min_intron);
+
 /* p7_oprofile.c (logify) */
 extern int p7_oprofile_Logify(P7_OPROFILE *om);
 

@@ -113,10 +113,6 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   __m128         *dpc, *dpp3;
   __m128         *tp;
 
-  /* Scale correction for I(i,k) reading from dpp3 committed at S[i-3] */
-  float           insert_adj;
-  __m128          adj_v;
-
   /* Special state scalars */
   float           xB0;   /* N→B probability: B(row 0) */
   float           xE, xC;
@@ -231,13 +227,6 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
 
-    /* Scale correction: I(i,k) reads dpp3 committed at cumulative scale S[i-3];
-     * current running scale is S[i-1].  Correction = 1/(S[i-2]*S[i-1]). */
-    insert_adj = 1.0f
-               / (ox->xmx[(i-2) * p7X_NXCELLS + p7X_SCALE]
-               *  ox->xmx[(i-1) * p7X_NXCELLS + p7X_SCALE]);
-    adj_v = _mm_set1_ps(insert_adj);
-
     /* Right-shifted row-i-3 predecessors for M(i,k) ← (M/I/D/P)(i-3, k-1) */
     mpv3 = esl_sse_rightshiftz_float(MMO_SP(dpp3, Q-1));
     dpv3 = esl_sse_rightshiftz_float(DMO_SP(dpp3, Q-1));
@@ -273,8 +262,8 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       dcv = _mm_mul_ps(msv, *tp); tp++;                                  /* MD       */
 
       /* I(i,k) = max( M(i-3,k)*MI, I(i-3,k)*II ); mpv3/ipv3 now hold same-stripe values */
-      sv             = _mm_mul_ps(_mm_mul_ps(mpv3, adj_v), *tp); tp++;  /* MI       */
-      IMO_SP(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(_mm_mul_ps(ipv3, adj_v), *tp)); tp++;  /* II */
+      sv             = _mm_mul_ps(mpv3, *tp); tp++;  /* MI */
+      IMO_SP(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(ipv3, *tp)); tp++;  /* II */
 
       /* P(i,k): acceptor-site lookup from accumulated donor scores in oss */
       pv = zerov;

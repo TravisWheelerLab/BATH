@@ -269,6 +269,8 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       /* I(i,k) = max( M(i-3,k)*MI, I(i-3,k)*II ); mpv3/ipv3 now hold same-stripe values */
       sv             = _mm_mul_ps(mpv3, *tp); tp++;  /* MI */
       IMO_SP(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(ipv3, *tp)); tp++;  /* II */
+      /* Zero I at stop-codon positions (matches generic: if rsc=-inf then I=-inf) */
+      IMO_SP(dpc, q) = _mm_and_ps(IMO_SP(dpc, q), _mm_cmpgt_ps(om_fs->rfv[C0][q], zerov));
 
       /* P(i,k): acceptor-site lookup from accumulated donor scores in oss */
       pv = zerov;

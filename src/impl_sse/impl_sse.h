@@ -393,7 +393,7 @@ typedef struct _osplice_scores {
   int     allocM;       /* model length this was sized for       */
   int     allocQ;       /* SSE stripe count = p7O_NQF(allocM)    */
 
-  __m128 **oscore;      /* [allocQ][SIGNAL_MEM_SIZE] P-state accumulation vectors */
+  __m128 **oscore;      /* [allocQ][OSS_MEM_SIZE] P-state accumulation vectors */
   void    *oscore_raw;  /* raw malloc ptr (free this)            */
   __m128  *oscore_base; /* 16-byte aligned base (= oscore[0])    */
 
@@ -405,9 +405,17 @@ typedef struct _osplice_scores {
  * Mirror the SSX0/1/2 macros in p7_splice.h, but indexing by
  * SSE stripe q rather than model position k.
  */
+/* OSS_MEM_SIZE: SSE-specific per-stripe storage for OSPLICE_SCORES.
+ * Layout: 3 (OSS0: 1 per signal) + 12 (OSS1: 4 nuc1 * 3 signals)
+ *       + 15 (OSS2: 5 acceptor-x values * 3 signals, x=0..p7P_MAXNUC)
+ * OSS2 stores emission-weighted scores baked in at donor time, indexed
+ * by the acceptor nucleotide x instead of donor (nuc1,nuc2) pair.
+ * This differs from the scalar SIGNAL_MEM_SIZE (63) in p7_splice.h. */
+#define OSS_MEM_SIZE             30
+
 #define OSS0(oss,q,sig)          ((oss)->oscore[q][(sig)])
 #define OSS1(oss,q,sig,n1)       ((oss)->oscore[q][SPLICE_OFFSET_1 + (n1)*p7S_SPLICE_SIGNALS + (sig)])
-#define OSS2(oss,q,sig,n1,n2)    ((oss)->oscore[q][SPLICE_OFFSET_2 + (4*(n1)+(n2))*p7S_SPLICE_SIGNALS + (sig)])
+#define OSS2(oss,q,sig,x)        ((oss)->oscore[q][SPLICE_OFFSET_2 + (x)*p7S_SPLICE_SIGNALS + (sig)])
 
 
 /*****************************************************************

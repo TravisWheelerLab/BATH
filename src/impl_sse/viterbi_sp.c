@@ -123,8 +123,8 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   int             r, s, t, u;      /* donor window: donor signal at (r,s) etc.     */
   int             acc0, acc1, acc2; /* acceptor signals delayed 0/1/2 rows          */
   int             donor0, donor1, donor2;
-  int             C0, C1[4], C2[16];
-  int             nuc1, nuc2;
+  int             C0, C1[4];
+  int             nuc1;
 
   int             i, q, j, row, sub_i;
 
@@ -150,7 +150,7 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
 
   /* Reset OSS P-state accumulators to 0 (probability space: 0.0 = -inf) */
   for (q = 0; q < Q; q++)
-    for (j = 0; j < SIGNAL_MEM_SIZE; j++)
+    for (j = 0; j < OSS_MEM_SIZE; j++)
       oss->oscore[q][j] = zerov;
 
   xB0        = om_fs->xf[p7O_N][p7O_MOVE];  /* N→B transition probability */
@@ -193,11 +193,8 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
 
     /* Splice codon indices for C1 (1 pre-donor nt) and C2 (2 pre-donor nt) */
-    for (nuc1 = 0; nuc1 < 4; nuc1++) {
+    for (nuc1 = 0; nuc1 < 4; nuc1++)
       C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
-      for (nuc2 = 0; nuc2 < 4; nuc2++)
-        C2[nuc1*4 + nuc2] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, nuc2, x), p7P_DEGEN1_C);
-    }
 
     /* Acceptor signal at (v,w): delay 0/1/2 rows for C0/C1/C2 splice codons */
     acc0 = acc1;
@@ -365,13 +362,31 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     if (i >= min_intron + 3 && (donor0 >= 0 || donor1 >= 0 || donor2 >= 0)) {
       __m128 *dpd      = ox->dpf[i - min_intron - 3];
       __m128  donor_prev = esl_sse_rightshiftz_float(_mm_max_ps(MMO_SP(dpd, Q-1), DMO_SP(dpd, Q-1)));
+
+      /* OSS2: precompute codon indices for each possible acceptor x (0..p7P_MAXNUC).
+       * Emission is baked into OSS2 at donor time so the acceptor-side P-state loop
+       * needs only one lookup per stripe instead of iterating all 16 (nuc1,nuc2) pairs. */
+      int oss2_sig = -1, oss2_c[5];
+      if (donor2 >= 0) {
+        oss2_sig  = (donor2 == DONOR_GT) ? p7S_GTAG : (donor2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+        oss2_c[0] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 0),          p7P_DEGEN1_C);
+        oss2_c[1] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 1),          p7P_DEGEN1_C);
+        oss2_c[2] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 2),          p7P_DEGEN1_C);
+        oss2_c[3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 3),          p7P_DEGEN1_C);
+        oss2_c[4] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXNUC), p7P_DEGEN1_C);
+      }
+
       for (q = 0; q < Q; q++) {
         __m128 tmp_sc = donor_prev;
         donor_prev    = _mm_max_ps(MMO_SP(dpd, q), DMO_SP(dpd, q));
 
-        if      (donor2 == DONOR_GT) OSS2(oss,q,p7S_GTAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GTAG,r,s), tmp_sc);
-        else if (donor2 == DONOR_GC) OSS2(oss,q,p7S_GCAG,r,s) = _mm_max_ps(OSS2(oss,q,p7S_GCAG,r,s), tmp_sc);
-        else if (donor2 == DONOR_AT) OSS2(oss,q,p7S_ATAC,r,s) = _mm_max_ps(OSS2(oss,q,p7S_ATAC,r,s), tmp_sc);
+        if (oss2_sig >= 0) {
+          OSS2(oss,q,oss2_sig,0) = _mm_max_ps(OSS2(oss,q,oss2_sig,0), _mm_mul_ps(tmp_sc, om_fs->rfv[oss2_c[0]][q]));
+          OSS2(oss,q,oss2_sig,1) = _mm_max_ps(OSS2(oss,q,oss2_sig,1), _mm_mul_ps(tmp_sc, om_fs->rfv[oss2_c[1]][q]));
+          OSS2(oss,q,oss2_sig,2) = _mm_max_ps(OSS2(oss,q,oss2_sig,2), _mm_mul_ps(tmp_sc, om_fs->rfv[oss2_c[2]][q]));
+          OSS2(oss,q,oss2_sig,3) = _mm_max_ps(OSS2(oss,q,oss2_sig,3), _mm_mul_ps(tmp_sc, om_fs->rfv[oss2_c[3]][q]));
+          OSS2(oss,q,oss2_sig,4) = _mm_max_ps(OSS2(oss,q,oss2_sig,4), _mm_mul_ps(tmp_sc, om_fs->rfv[oss2_c[4]][q]));
+        }
 
         if      (donor1 == DONOR_GT) OSS1(oss,q,p7S_GTAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GTAG,r), tmp_sc);
         else if (donor1 == DONOR_GC) OSS1(oss,q,p7S_GCAG,r) = _mm_max_ps(OSS1(oss,q,p7S_GCAG,r), tmp_sc);
@@ -414,18 +429,12 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
         }
 
         if (acc2 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++)
-            for (nuc2 = 0; nuc2 < 4; nuc2++) {
-              sv = _mm_max_ps(_mm_mul_ps(OSS2(oss, q, p7S_GTAG, nuc1, nuc2), sig_gtag_v),
-                              _mm_mul_ps(OSS2(oss, q, p7S_GCAG, nuc1, nuc2), sig_gcag_v));
-              pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C2[nuc1*4+nuc2]][q]));
-            }
+          /* OSS2 stores emission-weighted scores baked in at donor time; x indexes acceptor nucleotide */
+          sv = _mm_max_ps(_mm_mul_ps(OSS2(oss, q, p7S_GTAG, x), sig_gtag_v),
+                          _mm_mul_ps(OSS2(oss, q, p7S_GCAG, x), sig_gcag_v));
+          pv = _mm_max_ps(pv, sv);
         } else if (acc2 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++)
-            for (nuc2 = 0; nuc2 < 4; nuc2++) {
-              sv = _mm_mul_ps(OSS2(oss, q, p7S_ATAC, nuc1, nuc2), sig_atac_v);
-              pv = _mm_max_ps(pv, _mm_mul_ps(sv, om_fs->rfv[C2[nuc1*4+nuc2]][q]));
-            }
+          pv = _mm_max_ps(pv, _mm_mul_ps(OSS2(oss, q, p7S_ATAC, x), sig_atac_v));
         }
 
         PMO_SP(dpc, q) = pv;

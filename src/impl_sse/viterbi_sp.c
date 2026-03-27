@@ -385,7 +385,7 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
       /* OSS2: precompute codon indices for each possible acceptor x (0..p7P_MAXNUC).
        * Emission is baked into OSS2 at donor time so the acceptor-side P-state loop
        * needs only one lookup per stripe instead of iterating all 16 (nuc1,nuc2) pairs. */
-      int oss2_sig = -1, oss2_c[5];
+      int oss2_sig = -1, oss2_c[5] = {0, 0, 0, 0, 0};
       if (donor2 >= 0) {
         oss2_sig  = (donor2 == DONOR_GT) ? p7S_GTAG : (donor2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
         oss2_c[0] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 0),          p7P_DEGEN1_C);
@@ -755,7 +755,7 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq,
 
       float best   = -1.0f;
       int   best_j = -1;
-      int   jj, cc;
+      int   jj;
       snxt = p7T_M;
 
       for (jj = i - min_intron + 1; jj > 3; jj--) {

@@ -888,14 +888,8 @@ utest_spliced(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       p7_Viterbi_SplicedGlobal(oss, dsq, om_fs, ox, 1, L_dna_total, 1, M, pli->min_intron);
       sse_sc = ox->totscale + logf(ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C]);
-      printf("N %d sse_sc %f ref_sc %f\n", N, sse_sc, ref_sc);
-      if (fabsf(sse_sc - ref_sc) > 0.001f) {
-        printf("Score mismatch: dumping SSE matrix (logified):\n");
-        p7_omx_DumpSP(stdout, ox, 0, L_dna_total, 0, M, TRUE);
-        printf("Generic matrix:\n");
-        p7_gmx_DumpWindow(stdout, pli->vit, 0, L_dna_total, 0, M, p7_DEFAULT);
-        esl_fatal(msg);
-      }
+      
+      if (fabsf(sse_sc - ref_sc) > 0.001f) esl_fatal(msg);
 
       /* --- Test 2: SSE trace must contain at least one P state ---
        * Skip if score is -inf (impossible alignment: no valid trace exists). */

@@ -127,9 +127,25 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
   int             nuc1;
 
   int             i, q, j, row, sub_i;
+  int             ring_size;
+  __m128         *ring_raw  = NULL;
+  __m128         *ring_base = NULL;
+  __m128        **ring      = NULL;
+  int             status;
 
   if (om_fs->codon_lengths != 1)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
+
+  /* Donor ring buffer: stores max(M,D) per stripe for the min_intron+4 most recent rows.
+   * Replaces far-back lookups into ox->dpf[] (which are DRAM cache misses) with reads
+   * from a compact ~600 KB structure that fits in L3 cache. */
+  ring_size = min_intron + 4;
+  ESL_ALLOC(ring_raw, sizeof(__m128) * ring_size * Q + 15);
+  ring_base = (__m128 *)(((unsigned long int) ring_raw + 15) & (~0xfUL));
+  memset(ring_base, 0, sizeof(__m128) * ring_size * Q);
+  ESL_ALLOC(ring, sizeof(__m128 *) * ring_size);
+  for (j = 0; j < ring_size; j++)
+    ring[j] = ring_base + j * Q;
 
   ox->M              = M;
   ox->L              = L;
@@ -360,8 +376,11 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
      * same rolling trick used for M predecessors.  The rightshiftz inserts 0 at
      * stripe 0 element 0, masking k=1 (P state requires k >= 2) for free. */
     if (i >= min_intron + 3 && (donor0 >= 0 || donor1 >= 0 || donor2 >= 0)) {
-      __m128 *dpd      = ox->dpf[i - min_intron - 3];
-      __m128  donor_prev = esl_sse_rightshiftz_float(_mm_max_ps(MMO_SP(dpd, Q-1), DMO_SP(dpd, Q-1)));
+      /* Read max(M,D) from the ring buffer instead of the full DP matrix.
+       * The ring stores cache-friendly recent rows; the full matrix lookup
+       * at i-min_intron-3 would be a DRAM cache miss. */
+      __m128 *dpd_ring   = ring[(i - min_intron - 3) % ring_size];
+      __m128  donor_prev = esl_sse_rightshiftz_float(dpd_ring[Q-1]);
 
       /* OSS2: precompute codon indices for each possible acceptor x (0..p7P_MAXNUC).
        * Emission is baked into OSS2 at donor time so the acceptor-side P-state loop
@@ -378,7 +397,7 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
 
       for (q = 0; q < Q; q++) {
         __m128 tmp_sc = donor_prev;
-        donor_prev    = _mm_max_ps(MMO_SP(dpd, q), DMO_SP(dpd, q));
+        donor_prev    = dpd_ring[q];
 
         if (oss2_sig >= 0) {
           OSS2(oss,q,oss2_sig,0) = _mm_max_ps(OSS2(oss,q,oss2_sig,0), _mm_mul_ps(tmp_sc, om_fs->rfv[oss2_c[0]][q]));
@@ -462,6 +481,11 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
        * only written here if actual rescaling occurs. */
     }
 
+    /* Write max(M,D) per stripe into the ring buffer for this row.
+     * This is read back min_intron+3 rows later during donor accumulation. */
+    for (q = 0; q < Q; q++)
+      ring[i % ring_size][q] = _mm_max_ps(MMO_SP(dpc, q), DMO_SP(dpc, q));
+
   } /* end main loop i = 3..L */
 
   /* Global exit: E = max(M(L,k=M), D(L,k=M)) → C = E * T_EC
@@ -478,7 +502,14 @@ p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss,
     ox->xmx[L * p7X_NXCELLS + p7X_C] = xC;
   }
 
+  free(ring);
+  free(ring_raw);
   return eslOK;
+
+ ERROR:
+  if (ring)     free(ring);
+  if (ring_raw) free(ring_raw);
+  return status;
 }
 /*-------------- end, p7_Viterbi_SplicedGlobal() --------------*/
 

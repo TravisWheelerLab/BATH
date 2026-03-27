@@ -4577,7 +4577,7 @@ main(int argc, char **argv)
           if (tr->i[z] > 0) tr->pp[z] = esl_random(r);
 
       ad = p7_alidisplay_fs_Create(tr, 0, gm_fs5, sqDNA, gcode, FALSE);
-      p7_alidisplay_Print_BATH(stdout, ad, 40, 40, 80, pli);
+      p7_alidisplay_Print_BATH(stdout, ad, 30, 40, 80, pli);
       p7_alidisplay_Destroy(ad);
     }
       p7_trace_Reuse(tr);

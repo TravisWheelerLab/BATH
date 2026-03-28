@@ -1490,24 +1490,24 @@ main(int argc, char **argv)
       p7_gmx_GrowTo(pli->vit, hmm->M, L_dna_total, L_dna_total);
 
 	  if (do_G) {
-        p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+        p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
 	    final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
         if (final_C != -eslINFINITY && do_T) {
-		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
           p7_trace_Reuse(tr);
 		}
 	  }
       if (do_D) {
-	    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+	    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
         if (do_T) { 
-		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
           p7_trace_Reuse(tr);
 		}
 	  }
       if (do_U) { 
-	    p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+	    p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
         if (do_T) {
-		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
           p7_trace_Reuse(tr);
         }
 	  }
@@ -1625,10 +1625,10 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_splicescores_GrowTo(pli->splice_scores, M);
 
       /* --- Test 1: Global + Trace; trace must contain >= 1 P state --- */
-      p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+      p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 	  if (final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
         n_p = 0;
         for (i = 0; i < tr->N; i++)
           if (tr->st[i] == p7T_P) n_p++;
@@ -1637,12 +1637,12 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	  }
 
       /* --- Test 2: ExtendDown; final C must be reachable --- */
-      p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+      p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
 
       /* --- Test 3: ExtendUp; final C must be reachable --- */
-      p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+      p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
     }
@@ -1730,8 +1730,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       j += 3;
     } 
 
-    p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
-	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1742,8 +1742,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
-    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
-	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1754,8 +1754,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);
 	
 	p7_trace_Reuse(tr);
-	p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
-    p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1803,8 +1803,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       j += 3;
     } 
     
-    p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
-	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1815,8 +1815,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
-    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
-	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1827,8 +1827,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);  
 	
 	p7_trace_Reuse(tr);
-	p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
-    p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)

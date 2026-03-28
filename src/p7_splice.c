@@ -1712,14 +1712,14 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L/3);
    
-  p7_GViterbi_SplicedGlobal(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedGlobal(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, i_start, i_end, k_start, k_end, pli->min_intron);
 
   /* If the hits were in different frames and no splice site was able to pull score 
    * from the upstream frame to the downstream frame the spliceing is a failure */
   if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2016,10 +2016,10 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L/3);
   
-  p7_GViterbi_SplicedExtendDown(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedExtendDown(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, i_start, i_end, k_start, k_end, pli->min_intron);
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2285,10 +2285,10 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L);
   
-  p7_GViterbi_SplicedExtendUp(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedExtendUp(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, i_start, i_end, k_start, k_end, pli->min_intron);
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2545,10 +2545,10 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L);
   
-  p7_GViterbi_SplicedGlobal(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedGlobal(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, i_start, i_end, k_start, k_end, pli->min_intron);
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
 
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 

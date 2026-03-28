@@ -103,8 +103,8 @@ typedef struct _splice_scores
 {
   int allocM;
 
-  float **score;
-  float *score_mem;
+  float **P_scores;
+  float *P_scores_mem;
 
   float *signal_scores;
 
@@ -153,7 +153,6 @@ typedef struct _splice_pipeline
   P7_HIT  *hit;
 
   SPLICE_SCORES *splice_scores;
-  OSPLICE_SCORES *osplice_scores;
 
 } SPLICE_PIPELINE;
 
@@ -195,11 +194,11 @@ typedef struct _splice_info
 
 
 /* MACROS for the P state score storage */
-#define SSX0(k, signal)             (score[(k)][(signal)])                                                            //xxxxXXX
-#define SSX1(k, signal, nuc1)       (score[(k)][SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])            //XxxxxXX
+#define SSX0(k, signal)             (P_scores[(k)][(signal)])                                                            //xxxxXXX
+#define SSX1(k, signal, nuc1)       (P_scores[(k)][SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])            //XxxxxXX
 /* SSX2: x-indexed by acceptor nucleotide (x=0..4, including degenerate sentinel).
  * Emission is baked in at donor time, reducing the acceptor-side lookup to a single call. */
-#define SSX2(k, signal, x)          (score[(k)][SPLICE_OFFSET_2 + (x)          * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX
+#define SSX2(k, signal, x)          (P_scores[(k)][SPLICE_OFFSET_2 + (x)          * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX
 
 #define SIGNAL(nuc1, nuc2)           (4*(nuc1)+(nuc2))
 
@@ -270,10 +269,10 @@ extern int p7_splicescores_GrowTo(SPLICE_SCORES* splice_scores, int M);
 extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
 
 /* generic_viterbi_spliced.c */
-extern int p7_GViterbi_SplicedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_GViterbi_SplicedExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *path_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end);
-extern int p7_GViterbi_SplicedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end);
+extern int p7_GViterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron);
+extern int p7_GViterbi_SplicedExtendUp(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron);
+extern int p7_GViterbi_SplicedExtendDown(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron);
+extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_inton);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

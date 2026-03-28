@@ -57,27 +57,26 @@
  *            <donor_..> arrays return 0 for valid sites and -inf for 
  *            all others. 
  *
- * Args:      pli     - splicing pipeline containing the splice site matricies and scores
- *            sub_dsq - nucleotide sequence 
- *            gm_tr   - a codon profile.
- *            gx      - DP matrix with room for an MxL alignment
- *            i_start - start poition on the <sub_dsq>
- *            i_end   - end poition on the <sub_dsq>
- *            k_start - start poition on the <gm_tr>
- *            k_end   - end poition on the <gm_tr>
+ * Args:      sub_dsq       - nucleotide sequence 
+ *            gm_tr         - a codon profile.
+ *            gx            - DP matrix with room for an MxL alignment
+ *            P_scores      - storage for max P state scores
+ *            signal_scores - scores for splice site signals
+ *            i_start       - start poition on the <sub_dsq>
+ *            i_end         - end poition on the <sub_dsq>
+ *            k_start       - start poition on the <gm_tr>
+ *            k_end         - end poition on the <gm_tr>
+ *            min_intron    - minimum intron length
  *
  * Return:    <eslOK> on success.
  */
 int
-p7_GViterbi_SplicedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron)
 {
   
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->splice_scores->score;
-  float       *signal_scores = pli->splice_scores->signal_scores;
-  int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
   int          C2[5] = {0, 0, 0, 0, 0}; 
@@ -110,7 +109,7 @@ p7_GViterbi_SplicedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7
   /* Reset splice site score storage */
   for(k = 0; k < M; k++) {
     for(i = 0; i < SIGNAL_MEM_SIZE; i++)
-      score[k][i] = -eslINFINITY;
+      P_scores[k][i] = -eslINFINITY;
   }
 
   /* Initialization of the zero row.  */
@@ -433,26 +432,25 @@ p7_GViterbi_SplicedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7
  *            <donor_..> arrays return 0 for valid sites and -inf for
  *            all others. 
  *             
- * Args:      pli     - splicing pipeline containing the splice site matricies and scores
- *            sub_dsq - nucleotide sequence 
- *            gm_tr   - a codon profile.
- *            gx      - DP matrix with room for an MxL alignment
- *            i_start - start poition on the <sub_dsq>
- *            i_end   - end poition on the <sub_dsq>
- *            k_start - start poition on the <gm_tr>
- *            k_end   - end poition on the <gm_tr>
+ * Args:      sub_dsq       - nucleotide sequence 
+ *            gm_tr         - a codon profile.
+ *            gx            - DP matrix with room for an MxL alignment
+ *            P_scores      - storage for max P state scores
+ *            signal_scores - scores for splice site signals
+ *            i_start       - start poition on the <sub_dsq>
+ *            i_end         - end poition on the <sub_dsq>
+ *            k_start       - start poition on the <gm_tr>
+ *            k_end         - end poition on the <gm_tr>
+ *            min_intron    - minimum intron length
  *
  * Return:    <eslOK> on success.
  */
 int
-p7_GViterbi_SplicedExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedExtendDown(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->splice_scores->score;
-  float       *signal_scores = pli->splice_scores->signal_scores;
-  int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
   int          C2[5] = {0, 0, 0, 0, 0};
@@ -485,7 +483,7 @@ p7_GViterbi_SplicedExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, cons
   /* Reset splice site score storage */
   for(k = 0; k < M; k++) {
     for(i = 0; i < SIGNAL_MEM_SIZE; i++)
-      score[k][i] = -eslINFINITY;
+      P_scores[k][i] = -eslINFINITY;
   }
 
   /* Initialization of the zero row.  */
@@ -810,26 +808,25 @@ p7_GViterbi_SplicedExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, cons
  *            <donor_..> arrays return 0 for valid sites and -inf for
  *            all others. 
  *
- * Args:      pli     - splicing pipeline containing the splice site matricies and scores
- *            sub_dsq - nucleotide sequence
- *            gm_tr   - a codon profile.
- *            gx      - DP matrix with room for an MxL alignment
- *            i_start - start poition on the <sub_dsq>
- *            i_end   - end poition on the <sub_dsq>
- *            k_start - start poition on the <gm_tr>
- *            k_end   - end poition on the <gm_tr>
+ * Args:      sub_dsq       - nucleotide sequence
+ *            gm_tr         - a codon profile.
+ *            gx            - DP matrix with room for an MxL alignment
+ *            P_scores      - storage for max P state scores
+ *            signal_scores - scores for splice site signals
+ *            i_start       - start poition on the <sub_dsq>
+ *            i_end         - end poition on the <sub_dsq>
+ *            k_start       - start poition on the <gm_tr>
+ *            k_end         - end poition on the <gm_tr>
+ *            min_intron    - minimum intron length
  *
  * Return:    <eslOK> on success.
  */
 int
-p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedExtendUp(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
-  float      **score = pli->splice_scores->score;
-  float       *signal_scores = pli->splice_scores->signal_scores;
-  int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
   int          C2[5] = {0, 0, 0, 0, 0};
@@ -862,7 +859,7 @@ p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const 
   /* Reset splice site score storage */
   for(k = 0; k < M; k++) {
     for(i = 0; i < SIGNAL_MEM_SIZE; i++)
-      score[k][i] = -eslINFINITY;
+      P_scores[k][i] = -eslINFINITY;
   }
 
   /* Initialization of the zero row.  */
@@ -1144,15 +1141,16 @@ p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const 
  *            from the filled translated spliced viterbi matrix <gx> and the 
  *            donor site index matrix <lookback>. Returns the filled trance <tr> 
  *
- * Args:      pli       - splicing pipeline containing the splice site matricies and scores
- *            sub_dsq   - nucleotide sequence
- *            gm_tr     - a codon profile.
- *            gx        - filled spliced viterbi DP matrix
- *            tr        - trace to fil
- *            i_start   - start poition on the <sub_dsq>
- *            i_end     - end poition on the <sub_dsq>
- *            k_start   - start poition on the <gm_tr>
- *            k_end     - end poition on the <gm_tr>
+ * Args:      sub_dsq       - nucleotide sequence
+ *            gm_tr         - a codon profile.
+ *            gx            - filled spliced viterbi DP matrix
+ *            signal_scores - scores for splice site signals 
+ *            tr            - trace to fil
+ *            i_start       - start poition on the <sub_dsq>
+ *            i_end         - end poition on the <sub_dsq>
+ *            k_start       - start poition on the <gm_tr>
+ *            k_end         - end poition on the <gm_tr>
+ *            min_intron    - minimum intron length
  *
  * Return:    <eslOK> on success. 
  *            <eslFAIL> if even the optimal path has zero probability;
@@ -1160,15 +1158,13 @@ p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const 
  *
  */            
 int
-p7_GViterbi_SplicedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron)
 {
 
   float const *tsc = gm_tr->tsc;
   float      **dp  = gx->dp;              /* so {MDI}MX() macros work       */
   float       *xmx = gx->xmx;             /* so XMX() macro works           */
   float        tol = 1e-5;                /* floating point "equality" test */
-  float       *signal_scores = pli->splice_scores->signal_scores;
-  int          min_intron = pli->min_intron;		
   int          M   = k_end - k_start + 1; /* sub model length               */
   int          L   = i_end - i_start + 1; /* sub seq length                 */
   int          i   = L;                   /* position in seq (1..L)         */
@@ -1494,24 +1490,24 @@ main(int argc, char **argv)
       p7_gmx_GrowTo(pli->vit, hmm->M, L_dna_total, L_dna_total);
 
 	  if (do_G) {
-        p7_GViterbi_SplicedGlobal              (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+        p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
 	    final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
         if (final_C != -eslINFINITY && do_T) {
-		  p7_GViterbi_SplicedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
           p7_trace_Reuse(tr);
 		}
 	  }
       if (do_D) {
-	    p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+	    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
         if (do_T) { 
-		  p7_GViterbi_SplicedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
           p7_trace_Reuse(tr);
 		}
 	  }
       if (do_U) { 
-	    p7_GViterbi_SplicedExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+	    p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
         if (do_T) {
-		  p7_GViterbi_SplicedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+		  p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
           p7_trace_Reuse(tr);
         }
 	  }
@@ -1629,10 +1625,10 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_splicescores_GrowTo(pli->splice_scores, M);
 
       /* --- Test 1: Global + Trace; trace must contain >= 1 P state --- */
-      p7_GViterbi_SplicedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 	  if (final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
         n_p = 0;
         for (i = 0; i < tr->N; i++)
           if (tr->st[i] == p7T_P) n_p++;
@@ -1641,12 +1637,12 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	  }
 
       /* --- Test 2: ExtendDown; final C must be reachable --- */
-      p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
 
       /* --- Test 3: ExtendUp; final C must be reachable --- */
-      p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
     }
@@ -1734,8 +1730,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       j += 3;
     } 
 
-    p7_GViterbi_SplicedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+    p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1746,8 +1742,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
-    p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1758,8 +1754,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);
 	
 	p7_trace_Reuse(tr);
-	p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-    p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+	p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1807,8 +1803,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       j += 3;
     } 
     
-    p7_GViterbi_SplicedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+    p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1819,8 +1815,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
-    p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+    p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)
@@ -1831,8 +1827,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     if( n == 2 && c != 1) esl_fatal(msg);  
 	
 	p7_trace_Reuse(tr);
-	p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
-    p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+	p7_GViterbi_SplicedExtendUp(dsq, gm_tr, pli->vit, pli->splice_socres->P_Scores, pli->splice_socres->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+    p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_socres->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)

@@ -823,7 +823,7 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
 
       /* Convert SSE OA to scalar GMX for matrix-level comparison */
       if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                    != eslOK) esl_fatal(msg);
-      printf("accscore_sse %f accscore_ref %f\n", accscore_sse, accscore_ref);   
+      
       if (esl_FCompare_old(accscore_sse, accscore_ref, tol) != eslOK) esl_fatal(msg);
       if (p7_gmx_Compare(gx_oa, gx_oa2, tol)               != eslOK) esl_fatal(msg);
       if (p7_trace_Compare(tr_sse, tr_ref, pptol)           != eslOK) esl_fatal(msg);

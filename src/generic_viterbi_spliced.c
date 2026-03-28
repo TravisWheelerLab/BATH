@@ -80,20 +80,21 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
   int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
-  int          C1[4];
+  int          C2[5] = {0, 0, 0, 0, 0}; 
+  int          C1[5] = {0, 0, 0, 0, 0};
   int          C0;
   int          i,k;
   int          r, s, t, u;
   int          v, w, x;
-  int          nuc1;
-  int          xi2;           /* x index (0..4) for SSX2 acceptor lookup */
+  int          nuc1, nuc3;
   int          loop_end;
   int          sub_i,sub_k;
   float        TMP_SC;
   int          acc0, acc1, acc2;
-  int          donor0, donor1, donor2;
+  int          don0, don1, don2;
+  int          don_sig; 
   float const *rsc_c0;
-  float const *rsc_c1[4];
+  float const *rsc_c1[5];
 
   if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
 
@@ -104,7 +105,7 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
    */
 
   acc0 = acc1 = acc2 = -1;
-  donor0 = donor1 = donor2 = -1;
+  don0 = don1 = don2 = -1;
 
   /* Reset splice site score storage */
   for(k = 0; k < M; k++) {
@@ -228,9 +229,14 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
    * u = sub_dsq[sub_i-min_intron+1]; // sub_dsq[8];
    */
 
-  s = sub_dsq[i_start];   
-  t = sub_dsq[i_start+1];
-  u = sub_dsq[i_start+2];
+  if(sub_dsq[i_start] < MAX_NUC)   s = sub_dsq[i_start];
+  else                             s = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+1] < MAX_NUC) t = sub_dsq[i_start+1];
+  else                             t = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+2] < MAX_NUC) u = sub_dsq[i_start+2];
+  else                             u = p7P_MAXCODONS1;
 
   /* Main DP recursion */
   for (i = min_intron+3; i <= L; i++)
@@ -241,7 +247,8 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
 	r = s;
     s = t;
     t = u;
-    u = sub_dsq[sub_i-min_intron+1];
+	if(sub_dsq[sub_i-min_intron+1] < MAX_NUC) u = sub_dsq[sub_i-min_intron+1];
+	else                                      u = p7P_MAXCODONS1;
  
     v = w;
     w = x;
@@ -249,48 +256,35 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
     if(sub_dsq[sub_i] < MAX_NUC) x = sub_dsq[sub_i];
     else                         x = p7P_MAXCODONS1;
 
-	/* Codon indexing */
+	/* Codon indexing for unsplit codon */
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
-
-    for (nuc1 = 0; nuc1 < 4; nuc1++)
-      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
-
-    /* xi2: compact index (0..4) into SSX2 for the current acceptor nucleotide x */
-    xi2 = (x < MAX_NUC) ? x : 4;
-
     rsc_c0 = gm_tr->rsc[C0];
-    for (nuc1 = 0; nuc1 < 4; nuc1++)
+
+	/* Codon indexing for split codons */
+    for (nuc1 = 0; nuc1 < MAX_NUC; nuc1++)
+      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+    C1[MAX_NUC] = p7P_MINIDX(p7P_CODON3_FS1(p7P_MAXCODONS1, w, x), p7P_DEGEN1_C);
+
+    for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++)
       rsc_c1[nuc1] = gm_tr->rsc[C1[nuc1]];
 
-    /* get acceptor site - prevent out of bounds for non A,C,G,T nucleotides*/
+    nuc3 = ESL_MIN(x, MAX_NUC);
+
+    /* get acceptor sites */
     acc0 = acc1;
     acc1 = acc2;
-    if      (v >= MAX_NUC || w >= MAX_NUC) acc2 = -1;
-    else if (SIGNAL(v,w) == ACCEPT_AG)     acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC)     acc2 = ACCEPT_AC;
-    else                                   acc2 = -1;
+    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
+    else                               acc2 = -1;
 
-    /* get donor site - - prevent out of bounds for non-A,C,G,T nucleotides*/
-    donor0 = donor1 = donor2 = -1;
-    if (!(r >= MAX_NUC || s >= MAX_NUC)) {
-      if      (SIGNAL(r,s) == DONOR_GT) donor0 = DONOR_GT;
-      else if (SIGNAL(r,s) == DONOR_GC) donor0 = DONOR_GC;
-      else if (SIGNAL(r,s) == DONOR_AT) donor0 = DONOR_AT;
-      if (t < MAX_NUC) {
-        if      (SIGNAL(s,t) == DONOR_GT) donor1 = DONOR_GT;
-        else if (SIGNAL(s,t) == DONOR_GC) donor1 = DONOR_GC;
-        else if (SIGNAL(s,t) == DONOR_AT) donor1 = DONOR_AT;
-        if (u < MAX_NUC) {
-          if      (SIGNAL(t,u) == DONOR_GT) donor2 = DONOR_GT;
-          else if (SIGNAL(t,u) == DONOR_GC) donor2 = DONOR_GC;
-          else if (SIGNAL(t,u) == DONOR_AT) donor2 = DONOR_AT;
-        }
-      }
-    }
-
-	/* Prevent out of bounds indexing for donor site.
-	 * GT#,GC#,AT# will pervent overwiting the wronge SSX */
+	/* get donor sites */
+	don0 = don1;
+    don1 = don2;
+    if      (SIGNAL(t,u) == DONOR_GT) don2 = DONOR_GT;
+    else if (SIGNAL(t,u) == DONOR_GC) don2 = DONOR_GC;
+    else if (SIGNAL(t,u) == DONOR_AT) don2 = DONOR_AT;
+    else                              don2 = -1;
 
     XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
 
@@ -326,64 +320,31 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
           TMP_SC = SSX0(k, p7S_ATAC) + signal_scores[p7S_ATAC] + rsc_c0[sub_k];
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         }
+
         if (acc1 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++) {
             TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG],
                              SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG]) + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
         } else if (acc1 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++) {
             TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
         }
+
         if (acc2 == ACCEPT_AG) {
-          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, xi2) + signal_scores[p7S_GTAG],
-                           SSX2(k, p7S_GCAG, xi2) + signal_scores[p7S_GCAG]);
+          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc3) + signal_scores[p7S_GTAG],
+                           SSX2(k, p7S_GCAG, nuc3) + signal_scores[p7S_GCAG]);
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         } else if (acc2 == ACCEPT_AC) {
-          TMP_SC = SSX2(k, p7S_ATAC, xi2) + signal_scores[p7S_ATAC];
+          TMP_SC = SSX2(k, p7S_ATAC, nuc3) + signal_scores[p7S_ATAC];
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         }
       }
-    } // end k loop
-
-	/* Separate k loop for donor site to prevent cache thrashing.
-	 * SSX2: precompute codon indices for each possible acceptor x (0..4, including
-	 * degenerate sentinel). Emission is baked in at donor time so the acceptor-side
-	 * P-state loop needs only one SSX2 lookup instead of a 16-pair (nuc1,nuc2) loop. */
-	if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
-      int ssx2_sig = -1, ssx2_c[5] = {0, 0, 0, 0, 0};
-      if (donor2 >= 0) {
-        ssx2_sig  = (donor2 == DONOR_GT) ? p7S_GTAG : (donor2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
-        ssx2_c[0] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 0),              p7P_DEGEN1_C);
-        ssx2_c[1] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 1),              p7P_DEGEN1_C);
-        ssx2_c[2] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 2),              p7P_DEGEN1_C);
-        ssx2_c[3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 3),              p7P_DEGEN1_C);
-        ssx2_c[4] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
-      }
-	  /* First possible P state is k = 2 */
-      for (k = 2; k < M; k++) {
-        sub_k  = k_start + k - 1;
-        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
-
-        if (ssx2_sig >= 0) {
-          SSX2(k,ssx2_sig,0) = ESL_MAX(SSX2(k,ssx2_sig,0), TMP_SC + gm_tr->rsc[ssx2_c[0]][sub_k]);
-          SSX2(k,ssx2_sig,1) = ESL_MAX(SSX2(k,ssx2_sig,1), TMP_SC + gm_tr->rsc[ssx2_c[1]][sub_k]);
-          SSX2(k,ssx2_sig,2) = ESL_MAX(SSX2(k,ssx2_sig,2), TMP_SC + gm_tr->rsc[ssx2_c[2]][sub_k]);
-          SSX2(k,ssx2_sig,3) = ESL_MAX(SSX2(k,ssx2_sig,3), TMP_SC + gm_tr->rsc[ssx2_c[3]][sub_k]);
-          SSX2(k,ssx2_sig,4) = ESL_MAX(SSX2(k,ssx2_sig,4), TMP_SC + gm_tr->rsc[ssx2_c[4]][sub_k]);
-        }
-        if      (donor1 == DONOR_GT) SSX1(k, p7S_GTAG, r) = ESL_MAX(SSX1(k, p7S_GTAG, r), TMP_SC);
-        else if (donor1 == DONOR_GC) SSX1(k, p7S_GCAG, r) = ESL_MAX(SSX1(k, p7S_GCAG, r), TMP_SC);
-        else if (donor1 == DONOR_AT) SSX1(k, p7S_ATAC, r) = ESL_MAX(SSX1(k, p7S_ATAC, r), TMP_SC);
-        if      (donor0 == DONOR_GT) SSX0(k, p7S_GTAG) = ESL_MAX(SSX0(k, p7S_GTAG), TMP_SC);
-        else if (donor0 == DONOR_GC) SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC);
-        else if (donor0 == DONOR_AT) SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC);
-	  }
-	}
-
+    }
+	  
     sub_k = k_start + M -1;
     MMX_SP(i,M) = ESL_MAX(MMX_SP(i-3,M-1) + TSC(p7P_MM,sub_k-1),
                   ESL_MAX(IMX_SP(i-3,M-1) + TSC(p7P_IM,sub_k-1),
@@ -399,6 +360,41 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
 
     XMX_SP(i,p7G_E) = XMX_SP(i,p7G_C) = XMX_SP(i,p7G_J) = -eslINFINITY;
 
+	/* Separate k loop for donor sites */
+	if (don2 >= 0) {
+	 
+      /* Get codon indicies for all C2 type split codons */
+      for(nuc3 = 0; nuc3 < MAX_NUC; nuc3++)
+        C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
+      C2[MAX_NUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
+
+      don_sig = (don2 == DONOR_GT) ? p7S_GTAG : (don2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+        for(nuc3 = 0; nuc3 <= MAX_NUC; nuc3++)
+          SSX2(k,don_sig,nuc3) = ESL_MAX(SSX2(k,don_sig,nuc3), TMP_SC + gm_tr->rsc[C2[nuc3]][sub_k]);
+      }
+    }
+
+	if(don1  >= 0) {
+	  nuc1 = ESL_MIN(r, MAX_NUC); 
+	  don_sig = (don1 == DONOR_GT) ? p7S_GTAG : (don1 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+	  for (k = 2; k < M; k++) {
+	    sub_k  = k_start + k - 1;
+		TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+		SSX1(k, don_sig, nuc1) = ESL_MAX(SSX1(k, don_sig, nuc1), TMP_SC);
+	  }
+	}
+
+	if (don0 >= 0) {
+      don_sig = (don0 == DONOR_GT) ? p7S_GTAG : (don0 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+        SSX0(k, don_sig) = ESL_MAX(SSX0(k, don_sig), TMP_SC);
+	  }
+	}
    
   } // end loop over L
 
@@ -459,20 +455,21 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
   int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
-  int          C1[4];
+  int          C2[5] = {0, 0, 0, 0, 0};
+  int          C1[5] = {0, 0, 0, 0, 0};
   int          C0;
   int          i,k;
   int          r, s, t, u;
   int          v, w, x;
-  int          nuc1;
-  int          xi2;
+  int          nuc1, nuc3;
   int          loop_end;
   int          sub_i,sub_k;
   float        TMP_SC;
   int          acc0, acc1, acc2;     /* acceptor signal at codon offsets 0,1,2: ACCEPT_AG, ACCEPT_AC, or -1 */
-  int          donor0, donor1, donor2; /* donor signal at codon offsets 0,1,2: DONOR_GT/GC/AT, or -1 */
+  int          don0, don1, don2; /* donor signal at codon offsets 0,1,2: DONOR_GT/GC/AT, or -1 */
+  int          don_sig;
   float const *rsc_c0;
-  float const *rsc_c1[4];
+  float const *rsc_c1[5];
 
   if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
 
@@ -483,7 +480,7 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
    */
 
   acc0 = acc1 = acc2 = -1;
-  donor0 = donor1 = donor2 = -1;
+  don0 = don1 = don2 = -1;
 
   /* Reset splice site score storage */
   for(k = 0; k < M; k++) {
@@ -603,9 +600,14 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
 
   }
 
-  s = sub_dsq[i_start];
-  t = sub_dsq[i_start+1];
-  u = sub_dsq[i_start+2];
+  if(sub_dsq[i_start] < MAX_NUC)   s = sub_dsq[i_start];
+  else                             s = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+1] < MAX_NUC) t = sub_dsq[i_start+1];
+  else                             t = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+2] < MAX_NUC) u = sub_dsq[i_start+2];
+  else                             u = p7P_MAXCODONS1;
 
   /* Main DP recursion */
   for (i = min_intron+3; i <= L; i++)
@@ -615,7 +617,8 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
     r = s;
     s = t;
     t = u;
-    u = sub_dsq[sub_i-min_intron+1];
+    if(sub_dsq[sub_i-min_intron+1] < MAX_NUC) u = sub_dsq[sub_i-min_intron+1];
+    else                                      u = p7P_MAXCODONS1;
 
     v = w;
     w = x;
@@ -627,40 +630,30 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
 
-    for (nuc1 = 0; nuc1 < 4; nuc1++)
+    for (nuc1 = 0; nuc1 < MAX_NUC; nuc1++)
       C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+    C1[MAX_NUC] = p7P_MINIDX(p7P_CODON3_FS1(p7P_MAXCODONS1, w, x), p7P_DEGEN1_C);
 
-    xi2 = (x < MAX_NUC) ? x : 4;
+    nuc3 = ESL_MIN(x, MAX_NUC);
 
     rsc_c0 = gm_tr->rsc[C0];
-    for (nuc1 = 0; nuc1 < 4; nuc1++)
+    for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++)
       rsc_c1[nuc1] = gm_tr->rsc[C1[nuc1]];
 
-    /* get acceptor site - prevent out of bounds for non A,C,G,T nucleotides */
+    /* get acceptor sites */
     acc0 = acc1;
     acc1 = acc2;
-    if      (v >= MAX_NUC || w >= MAX_NUC) acc2 = -1;
-    else if (SIGNAL(v,w) == ACCEPT_AG)     acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC)     acc2 = ACCEPT_AC;
-    else                                   acc2 = -1;
+    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
+    else                               acc2 = -1;
 
-    /* get donor site - prevent out of bounds for non-A,C,G,T nucleotides */
-    donor0 = donor1 = donor2 = -1;
-    if (!(r >= MAX_NUC || s >= MAX_NUC)) {
-      if      (SIGNAL(r,s) == DONOR_GT) donor0 = DONOR_GT;
-      else if (SIGNAL(r,s) == DONOR_GC) donor0 = DONOR_GC;
-      else if (SIGNAL(r,s) == DONOR_AT) donor0 = DONOR_AT;
-      if (t < MAX_NUC) {
-        if      (SIGNAL(s,t) == DONOR_GT) donor1 = DONOR_GT;
-        else if (SIGNAL(s,t) == DONOR_GC) donor1 = DONOR_GC;
-        else if (SIGNAL(s,t) == DONOR_AT) donor1 = DONOR_AT;
-        if (u < MAX_NUC) {
-          if      (SIGNAL(t,u) == DONOR_GT) donor2 = DONOR_GT;
-          else if (SIGNAL(t,u) == DONOR_GC) donor2 = DONOR_GC;
-          else if (SIGNAL(t,u) == DONOR_AT) donor2 = DONOR_AT;
-        }
-      }
-    }
+    /* get donor sites */
+    don0 = don1;
+    don1 = don2;
+    if      (SIGNAL(t,u) == DONOR_GT) don2 = DONOR_GT;
+    else if (SIGNAL(t,u) == DONOR_GC) don2 = DONOR_GC;
+    else if (SIGNAL(t,u) == DONOR_AT) don2 = DONOR_AT;
+    else                              don2 = -1;
 
 
     XMX_SP(i,p7G_N) =  XMX_SP(i,p7G_B) =  -eslINFINITY;
@@ -700,23 +693,23 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         }
         if (acc1 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++) {
             TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG],
                              SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG]) + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
         } else if (acc1 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++) {
             TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
         }
         if (acc2 == ACCEPT_AG) {
-          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, xi2) + signal_scores[p7S_GTAG],
-                           SSX2(k, p7S_GCAG, xi2) + signal_scores[p7S_GCAG]);
+          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc3) + signal_scores[p7S_GTAG],
+                           SSX2(k, p7S_GCAG, nuc3) + signal_scores[p7S_GCAG]);
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         } else if (acc2 == ACCEPT_AC) {
-          TMP_SC = SSX2(k, p7S_ATAC, xi2) + signal_scores[p7S_ATAC];
+          TMP_SC = SSX2(k, p7S_ATAC, nuc3) + signal_scores[p7S_ATAC];
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         }
       }
@@ -726,37 +719,39 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
 
     } // end k loop
 
-    /* Separate k loop for donor site to prevent cache thrashing.
-     * SSX2: precompute codon indices for each possible acceptor x (0..4, including
-     * degenerate sentinel). Emission is baked in at donor time so the acceptor-side
-     * P-state loop needs only one SSX2 lookup instead of a 16-pair (nuc1,nuc2) loop. */
-    if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
-      int ssx2_sig = -1, ssx2_c[5] = {0, 0, 0, 0, 0};
-      if (donor2 >= 0) {
-        ssx2_sig  = (donor2 == DONOR_GT) ? p7S_GTAG : (donor2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
-        ssx2_c[0] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 0),              p7P_DEGEN1_C);
-        ssx2_c[1] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 1),              p7P_DEGEN1_C);
-        ssx2_c[2] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 2),              p7P_DEGEN1_C);
-        ssx2_c[3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 3),              p7P_DEGEN1_C);
-        ssx2_c[4] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
-      }
-      /* First possible P state is k = 2 */
+    /* Separate k loop for donor sites */
+    if (don2 >= 0) {
+
+      /* Get codon indices for all C2 type split codons */
+      for(nuc3 = 0; nuc3 < MAX_NUC; nuc3++)
+        C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
+      C2[MAX_NUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
+
+      don_sig = (don2 == DONOR_GT) ? p7S_GTAG : (don2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
       for (k = 2; k < M; k++) {
         sub_k  = k_start + k - 1;
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
-        if (ssx2_sig >= 0) {
-          SSX2(k,ssx2_sig,0) = ESL_MAX(SSX2(k,ssx2_sig,0), TMP_SC + gm_tr->rsc[ssx2_c[0]][sub_k]);
-          SSX2(k,ssx2_sig,1) = ESL_MAX(SSX2(k,ssx2_sig,1), TMP_SC + gm_tr->rsc[ssx2_c[1]][sub_k]);
-          SSX2(k,ssx2_sig,2) = ESL_MAX(SSX2(k,ssx2_sig,2), TMP_SC + gm_tr->rsc[ssx2_c[2]][sub_k]);
-          SSX2(k,ssx2_sig,3) = ESL_MAX(SSX2(k,ssx2_sig,3), TMP_SC + gm_tr->rsc[ssx2_c[3]][sub_k]);
-          SSX2(k,ssx2_sig,4) = ESL_MAX(SSX2(k,ssx2_sig,4), TMP_SC + gm_tr->rsc[ssx2_c[4]][sub_k]);
-        }
-        if      (donor1 == DONOR_GT) SSX1(k, p7S_GTAG, r) = ESL_MAX(SSX1(k, p7S_GTAG, r), TMP_SC);
-        else if (donor1 == DONOR_GC) SSX1(k, p7S_GCAG, r) = ESL_MAX(SSX1(k, p7S_GCAG, r), TMP_SC);
-        else if (donor1 == DONOR_AT) SSX1(k, p7S_ATAC, r) = ESL_MAX(SSX1(k, p7S_ATAC, r), TMP_SC);
-        if      (donor0 == DONOR_GT) SSX0(k, p7S_GTAG) = ESL_MAX(SSX0(k, p7S_GTAG), TMP_SC);
-        else if (donor0 == DONOR_GC) SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC);
-        else if (donor0 == DONOR_AT) SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC);
+        for(nuc3 = 0; nuc3 <= MAX_NUC; nuc3++)
+          SSX2(k,don_sig,nuc3) = ESL_MAX(SSX2(k,don_sig,nuc3), TMP_SC + gm_tr->rsc[C2[nuc3]][sub_k]);
+      }
+    }
+
+    if (don1 >= 0) {
+      nuc1 = ESL_MIN(r, MAX_NUC);
+      don_sig = (don1 == DONOR_GT) ? p7S_GTAG : (don1 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+        SSX1(k, don_sig, nuc1) = ESL_MAX(SSX1(k, don_sig, nuc1), TMP_SC);
+      }
+    }
+
+    if (don0 >= 0) {
+      don_sig = (don0 == DONOR_GT) ? p7S_GTAG : (don0 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+        SSX0(k, don_sig) = ESL_MAX(SSX0(k, don_sig), TMP_SC);
       }
     }
 
@@ -837,20 +832,21 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL
   int          min_intron = pli->min_intron;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
-  int          C1[4];
+  int          C2[5] = {0, 0, 0, 0, 0};
+  int          C1[5] = {0, 0, 0, 0, 0};
   int          C0;
   int          i,k;
   int          r, s, t, u;
   int          v, w, x;
-  int          nuc1;
-  int          xi2;
+  int          nuc1, nuc3;
   int          loop_end;
   int          sub_i,sub_k;
   float        TMP_SC;
   int          acc0, acc1, acc2;     /* acceptor signal at codon offsets 0,1,2: ACCEPT_AG, ACCEPT_AC, or -1 */
-  int          donor0, donor1, donor2; /* donor signal at codon offsets 0,1,2: DONOR_GT/GC/AT, or -1 */
+  int          don0, don1, don2; /* donor signal at codon offsets 0,1,2: DONOR_GT/GC/AT, or -1 */
+  int          don_sig;
   float const *rsc_c0;
-  float const *rsc_c1[4];
+  float const *rsc_c1[5];
 
   if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
 
@@ -861,7 +857,7 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL
    */
 
   acc0 = acc1 = acc2 = -1;
-  donor0 = donor1 = donor2 = -1;
+  don0 = don1 = don2 = -1;
 
   /* Reset splice site score storage */
   for(k = 0; k < M; k++) {
@@ -959,9 +955,14 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL
 
   }
 
-  s = sub_dsq[i_start];
-  t = sub_dsq[i_start+1];
-  u = sub_dsq[i_start+2];
+  if(sub_dsq[i_start] < MAX_NUC)   s = sub_dsq[i_start];
+  else                             s = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+1] < MAX_NUC) t = sub_dsq[i_start+1];
+  else                             t = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+2] < MAX_NUC) u = sub_dsq[i_start+2];
+  else                             u = p7P_MAXCODONS1;
 
   /* Main DP recursion */
   for (i = min_intron+3; i <= L; i++)
@@ -971,7 +972,8 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL
     r = s;
     s = t;
     t = u;
-    u = sub_dsq[sub_i-min_intron+1];
+    if(sub_dsq[sub_i-min_intron+1] < MAX_NUC) u = sub_dsq[sub_i-min_intron+1];
+    else                                      u = p7P_MAXCODONS1;
 
     v = w;
     w = x;
@@ -983,40 +985,30 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
 
-    for (nuc1 = 0; nuc1 < 4; nuc1++)
+    for (nuc1 = 0; nuc1 < MAX_NUC; nuc1++)
       C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+    C1[MAX_NUC] = p7P_MINIDX(p7P_CODON3_FS1(p7P_MAXCODONS1, w, x), p7P_DEGEN1_C);
 
-    xi2 = (x < MAX_NUC) ? x : 4;
+    nuc3 = ESL_MIN(x, MAX_NUC);
 
     rsc_c0 = gm_tr->rsc[C0];
-    for (nuc1 = 0; nuc1 < 4; nuc1++)
+    for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++)
       rsc_c1[nuc1] = gm_tr->rsc[C1[nuc1]];
 
-    /* get acceptor site - prevent out of bounds for non A,C,G,T nucleotides */
+    /* get acceptor sites */
     acc0 = acc1;
     acc1 = acc2;
-    if      (v >= MAX_NUC || w >= MAX_NUC) acc2 = -1;
-    else if (SIGNAL(v,w) == ACCEPT_AG)     acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC)     acc2 = ACCEPT_AC;
-    else                                   acc2 = -1;
+    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
+    else                               acc2 = -1;
 
-    /* get donor site - prevent out of bounds for non-A,C,G,T nucleotides */
-    donor0 = donor1 = donor2 = -1;
-    if (!(r >= MAX_NUC || s >= MAX_NUC)) {
-      if      (SIGNAL(r,s) == DONOR_GT) donor0 = DONOR_GT;
-      else if (SIGNAL(r,s) == DONOR_GC) donor0 = DONOR_GC;
-      else if (SIGNAL(r,s) == DONOR_AT) donor0 = DONOR_AT;
-      if (t < MAX_NUC) {
-        if      (SIGNAL(s,t) == DONOR_GT) donor1 = DONOR_GT;
-        else if (SIGNAL(s,t) == DONOR_GC) donor1 = DONOR_GC;
-        else if (SIGNAL(s,t) == DONOR_AT) donor1 = DONOR_AT;
-        if (u < MAX_NUC) {
-          if      (SIGNAL(t,u) == DONOR_GT) donor2 = DONOR_GT;
-          else if (SIGNAL(t,u) == DONOR_GC) donor2 = DONOR_GC;
-          else if (SIGNAL(t,u) == DONOR_AT) donor2 = DONOR_AT;
-        }
-      }
-    }
+    /* get donor sites */
+    don0 = don1;
+    don1 = don2;
+    if      (SIGNAL(t,u) == DONOR_GT) don2 = DONOR_GT;
+    else if (SIGNAL(t,u) == DONOR_GC) don2 = DONOR_GC;
+    else if (SIGNAL(t,u) == DONOR_AT) don2 = DONOR_AT;
+    else                              don2 = -1;
 
 
     XMX_SP(i,p7G_N) = XMX_SP(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
@@ -1056,60 +1048,62 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         }
         if (acc1 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++) {
             TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG],
                              SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG]) + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
         } else if (acc1 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 < 4; nuc1++) {
+          for (nuc1 = 0; nuc1 <= MAX_NUC; nuc1++) {
             TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + rsc_c1[nuc1][sub_k];
             PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
           }
         }
         if (acc2 == ACCEPT_AG) {
-          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, xi2) + signal_scores[p7S_GTAG],
-                           SSX2(k, p7S_GCAG, xi2) + signal_scores[p7S_GCAG]);
+          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc3) + signal_scores[p7S_GTAG],
+                           SSX2(k, p7S_GCAG, nuc3) + signal_scores[p7S_GCAG]);
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         } else if (acc2 == ACCEPT_AC) {
-          TMP_SC = SSX2(k, p7S_ATAC, xi2) + signal_scores[p7S_ATAC];
+          TMP_SC = SSX2(k, p7S_ATAC, nuc3) + signal_scores[p7S_ATAC];
           PMX_SP(i,k) = ESL_MAX(PMX_SP(i,k), TMP_SC);
         }
       }
 
     } // end k loop
 
-    /* Separate k loop for donor site to prevent cache thrashing.
-     * SSX2: precompute codon indices for each possible acceptor x (0..4, including
-     * degenerate sentinel). Emission is baked in at donor time so the acceptor-side
-     * P-state loop needs only one SSX2 lookup instead of a 16-pair (nuc1,nuc2) loop. */
-    if (donor0 >= 0 || donor1 >= 0 || donor2 >= 0) {
-      int ssx2_sig = -1, ssx2_c[5] = {0, 0, 0, 0, 0};
-      if (donor2 >= 0) {
-        ssx2_sig  = (donor2 == DONOR_GT) ? p7S_GTAG : (donor2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
-        ssx2_c[0] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 0),              p7P_DEGEN1_C);
-        ssx2_c[1] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 1),              p7P_DEGEN1_C);
-        ssx2_c[2] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 2),              p7P_DEGEN1_C);
-        ssx2_c[3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, 3),              p7P_DEGEN1_C);
-        ssx2_c[4] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
-      }
-      /* First possible P state is k = 2 */
+    /* Separate k loop for donor sites */
+    if (don2 >= 0) {
+
+      /* Get codon indices for all C2 type split codons */
+      for(nuc3 = 0; nuc3 < MAX_NUC; nuc3++)
+        C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
+      C2[MAX_NUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
+
+      don_sig = (don2 == DONOR_GT) ? p7S_GTAG : (don2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
       for (k = 2; k < M; k++) {
         sub_k  = k_start + k - 1;
         TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
-        if (ssx2_sig >= 0) {
-          SSX2(k,ssx2_sig,0) = ESL_MAX(SSX2(k,ssx2_sig,0), TMP_SC + gm_tr->rsc[ssx2_c[0]][sub_k]);
-          SSX2(k,ssx2_sig,1) = ESL_MAX(SSX2(k,ssx2_sig,1), TMP_SC + gm_tr->rsc[ssx2_c[1]][sub_k]);
-          SSX2(k,ssx2_sig,2) = ESL_MAX(SSX2(k,ssx2_sig,2), TMP_SC + gm_tr->rsc[ssx2_c[2]][sub_k]);
-          SSX2(k,ssx2_sig,3) = ESL_MAX(SSX2(k,ssx2_sig,3), TMP_SC + gm_tr->rsc[ssx2_c[3]][sub_k]);
-          SSX2(k,ssx2_sig,4) = ESL_MAX(SSX2(k,ssx2_sig,4), TMP_SC + gm_tr->rsc[ssx2_c[4]][sub_k]);
-        }
-        if      (donor1 == DONOR_GT) SSX1(k, p7S_GTAG, r) = ESL_MAX(SSX1(k, p7S_GTAG, r), TMP_SC);
-        else if (donor1 == DONOR_GC) SSX1(k, p7S_GCAG, r) = ESL_MAX(SSX1(k, p7S_GCAG, r), TMP_SC);
-        else if (donor1 == DONOR_AT) SSX1(k, p7S_ATAC, r) = ESL_MAX(SSX1(k, p7S_ATAC, r), TMP_SC);
-        if      (donor0 == DONOR_GT) SSX0(k, p7S_GTAG) = ESL_MAX(SSX0(k, p7S_GTAG), TMP_SC);
-        else if (donor0 == DONOR_GC) SSX0(k, p7S_GCAG) = ESL_MAX(SSX0(k, p7S_GCAG), TMP_SC);
-        else if (donor0 == DONOR_AT) SSX0(k, p7S_ATAC) = ESL_MAX(SSX0(k, p7S_ATAC), TMP_SC);
+        for(nuc3 = 0; nuc3 <= MAX_NUC; nuc3++)
+          SSX2(k,don_sig,nuc3) = ESL_MAX(SSX2(k,don_sig,nuc3), TMP_SC + gm_tr->rsc[C2[nuc3]][sub_k]);
+      }
+    }
+
+    if (don1 >= 0) {
+      nuc1 = ESL_MIN(r, MAX_NUC);
+      don_sig = (don1 == DONOR_GT) ? p7S_GTAG : (don1 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+        SSX1(k, don_sig, nuc1) = ESL_MAX(SSX1(k, don_sig, nuc1), TMP_SC);
+      }
+    }
+
+    if (don0 >= 0) {
+      don_sig = (don0 == DONOR_GT) ? p7S_GTAG : (don0 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX_SP(i-min_intron-3,k-1), DMX_SP(i-min_intron-3,k-1));
+        SSX0(k, don_sig) = ESL_MAX(SSX0(k, don_sig), TMP_SC);
       }
     }
 

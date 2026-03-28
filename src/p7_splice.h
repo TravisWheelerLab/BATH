@@ -197,11 +197,9 @@ typedef struct _splice_info
 /* MACROS for the P state score storage */
 #define SSX0(k, signal)             (score[(k)][(signal)])                                                            //xxxxXXX
 #define SSX1(k, signal, nuc1)       (score[(k)][SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])            //XxxxxXX
-#define SSX2(k, signal, nuc1, nuc2) (score[(k)][SPLICE_OFFSET_2 + (4*(nuc1)+(nuc2)) * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX
-/* SSX2X: x-indexed SSX2 variant used in TranslatedGlobal.
- * Emission is baked in at donor time (indexed by acceptor nucleotide x=0..4),
- * reducing the acceptor-side 16-pair loop to a single lookup. */
-#define SSX2X(k, signal, x)         (score[(k)][SPLICE_OFFSET_2 + (x)          * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX-x
+/* SSX2: x-indexed by acceptor nucleotide (x=0..4, including degenerate sentinel).
+ * Emission is baked in at donor time, reducing the acceptor-side lookup to a single call. */
+#define SSX2(k, signal, x)          (score[(k)][SPLICE_OFFSET_2 + (x)          * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX
 
 #define SIGNAL(nuc1, nuc2)           (4*(nuc1)+(nuc2))
 
@@ -211,9 +209,9 @@ typedef struct _splice_info
 #define ACCEPT_AG                 2
 #define ACCEPT_AC                 1
 
-#define SIGNAL_MEM_SIZE           63       /* total storage = M * SIGNAL_MEM_SIZE */ 
-#define SPLICE_OFFSET_1           3        /* start of XxxxxXX codons  */
-#define SPLICE_OFFSET_2           15       /* start of XXxxxxX codons  */
+#define SIGNAL_MEM_SIZE           33       /* total storage = M * SIGNAL_MEM_SIZE: 3 SSX0 + 15 SSX1 + 15 SSX2 */
+#define SPLICE_OFFSET_1           3        /* start of XxxxxXX codons (nuc1=0..MAX_NUC, 5 values) */
+#define SPLICE_OFFSET_2           18       /* start of XXxxxxX codons (x=0..MAX_NUC, 5 values)    */
 
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node           */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance                             */

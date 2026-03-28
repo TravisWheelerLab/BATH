@@ -383,8 +383,8 @@ p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_G
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
 #endif
 
-  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
-  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) return status;
+  if ((status = p7_trace_fs_AppendWithPP(tr, p7T_T, k, i, c, 0.0f)) != eslOK) return status;
+  if ((status = p7_trace_fs_AppendWithPP(tr, p7T_C, k, i, c, 0.0f)) != eslOK) return status;
 
   sprv = p7T_C;
   while (sprv != p7T_S)

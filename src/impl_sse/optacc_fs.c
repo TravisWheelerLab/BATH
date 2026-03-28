@@ -556,8 +556,8 @@ p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
 
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace not empty; needs to be Reuse()'d?");
 
-  if ((status = p7_trace_fs_Append      (tr, p7T_T, k, i, c))           != eslOK) return status;
-  if ((status = p7_trace_fs_Append      (tr, p7T_C, k, i, c))           != eslOK) return status;
+  if ((status = p7_trace_fs_AppendWithPP(tr, p7T_T, k, i, c, 0.0f))     != eslOK) return status;
+  if ((status = p7_trace_fs_AppendWithPP(tr, p7T_C, k, i, c, 0.0f))     != eslOK) return status;
 
   sprv = p7T_C;
   while (sprv != p7T_S)

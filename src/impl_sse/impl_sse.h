@@ -378,46 +378,6 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
   ox->dpf[i][q] = u.v;
 }
   
-
-
-
-/*****************************************************************
- * 4. OSPLICE_SCORES: probability-space splice signal scores
- *
- * P-state accumulation arrays (oscore) are stored as striped __m128
- * vectors (one vector per SSE stripe q = 0..allocQ-1) for direct
- * use in the SSE Viterbi inner loop.
- *****************************************************************/
-
-typedef struct _osplice_scores {
-  int     allocM;       /* model length this was sized for       */
-  int     allocQ;       /* SSE stripe count = p7O_NQF(allocM)    */
-
-  __m128 **oscore;      /* [allocQ][OSS_MEM_SIZE] P-state accumulation vectors */
-  void    *oscore_raw;  /* raw malloc ptr (free this)            */
-  __m128  *oscore_base; /* 16-byte aligned base (= oscore[0])    */
-
-  float   *signal_scores;  /* {0.9921, 0.0073, 0.0006}          */
-
-} OSPLICE_SCORES;
-
-/* OSS macros: striped P-state accumulation table access.
- * Mirror the SSX0/1/2 macros in p7_splice.h, but indexing by
- * SSE stripe q rather than model position k.
- */
-/* OSS_MEM_SIZE: SSE-specific per-stripe storage for OSPLICE_SCORES.
- * Layout: 3 (OSS0: 1 per signal) + 12 (OSS1: 4 nuc1 * 3 signals)
- *       + 15 (OSS2: 5 acceptor-x values * 3 signals, x=0..p7P_MAXNUC)
- * OSS2 stores emission-weighted scores baked in at donor time, indexed
- * by the acceptor nucleotide x instead of donor (nuc1,nuc2) pair.
- * This differs from the scalar SIGNAL_MEM_SIZE (63) in p7_splice.h. */
-#define OSS_MEM_SIZE             30
-
-#define OSS0(oss,q,sig)          ((oss)->oscore[q][(sig)])
-#define OSS1(oss,q,sig,n1)       ((oss)->oscore[q][SPLICE_OFFSET_1 + (n1)*p7S_SPLICE_SIGNALS + (sig)])
-#define OSS2(oss,q,sig,x)        ((oss)->oscore[q][SPLICE_OFFSET_2 + (x)*p7S_SPLICE_SIGNALS + (sig)])
-
-
 /*****************************************************************
  * 4. Declarations of the external API.
  *****************************************************************/
@@ -438,7 +398,6 @@ extern int          p7_omx_DumpMFRow(P7_OMX *ox, int rowi, uint8_t xE, uint8_t x
 extern int          p7_omx_DumpVFRow(P7_OMX *ox, int rowi, int16_t xE, int16_t xN, int16_t xJ, int16_t xB, int16_t xC);
 extern int          p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
 extern int           p7_omx_DumpFBRow_FS(P7_OMX *ox, int logify, int i, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
-
 
 /* p7_oprofile.c */
 extern P7_OPROFILE *p7_oprofile_Create(int M, const ESL_ALPHABET *abc);
@@ -471,7 +430,6 @@ extern int          p7_oprofile_GetSSVEmissionScoreArray(const P7_OPROFILE *om, 
 extern int          p7_oprofile_GetFwdEmissionScoreArray(const P7_OPROFILE *om, float *arr );
 extern int          p7_oprofile_GetFwdEmissionArray(const P7_OPROFILE *om, P7_BG *bg, float *arr );
 
-
 /* p7_fs_oprofile.c */
 extern P7_FS_OPROFILE *p7_fs_oprofile_Create(int M, const ESL_ALPHABET *abc, int codon_lengths);
 extern int             p7_fs_oprofile_IsLocal(const P7_FS_OPROFILE *om_fs);
@@ -482,13 +440,6 @@ extern int             p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_
 extern int             p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigUnihit    (P7_FS_OPROFILE *om_fs, int L);
-
-/* p7_osplicescores.c */
-extern OSPLICE_SCORES *p7_osplicescores_Create (int M_hint);
-extern int             p7_osplicescores_GrowTo (OSPLICE_SCORES *ss, int M);
-extern void            p7_osplicescores_Destroy(OSPLICE_SCORES *ss);
-
-
 
 /* decoding.c */
 extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);
@@ -558,10 +509,6 @@ extern int p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 /* vitfilter_fs.c */
 extern int p7_Viterbi_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
 extern int p7_Viterbi_Frameshift_Trace                    (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,   P7_TRACE *tr);
-
-/* viterbi_sp.c */
-extern int p7_Viterbi_SplicedGlobal(OSPLICE_SCORES *oss, const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, int i_start, int i_end, int k_start, int k_end, int min_intron);
-extern int p7_Viterbi_SplicedTrace (const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron);
 
 /* p7_oprofile.c (logify) */
 extern int p7_oprofile_Logify(P7_OPROFILE *om);

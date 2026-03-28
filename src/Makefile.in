@@ -153,6 +153,8 @@ UTESTS =\
     generic_msv_utest\
 	generic_stotrace_utest\
 	generic_viterbi_utest\
+    generic_viterbi_frameshift_utest\
+	generic_viterbi_spliced_utest\
 	hmmer_utest\
 	logsum_utest\
 	modelconfig_utest\
@@ -168,8 +170,7 @@ UTESTS =\
 	p7_profile_utest\
 	p7_tophits_utest\
 	p7_trace_utest\
-	p7_scoredata_utest\
-	generic_viterbi_spliced_utest
+	p7_scoredata_utest
 
 ITESTS = \
 	itest_brute

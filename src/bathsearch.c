@@ -1370,7 +1370,7 @@ assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list)
   
   for (i=0; i<th->N; i++) {
     while (th->hit[i]->seqidx != id_length_list->id_lengths[j].id) { j++; } 
-    th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length; 
+    if(th->hit[i]->dcl[0].ad != NULL) th->hit[i]->dcl[0].ad->L = id_length_list->id_lengths[j].length; 
   }
 
   return eslOK;

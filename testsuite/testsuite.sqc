@@ -26,10 +26,12 @@
 1 exercise hmmer              @src/hmmer_utest@
 1 exercise build              @src/build_utest@
 1 exercise generic_fwdback    @src/generic_fwdback_utest@
+1 exercise generic_fwdback_fs @src/generic_fwdback_frameshift_utest@
 1 exercise generic_msv        @src/generic_msv_utest@
 1 exercise generic_stotrace   @src/generic_stotrace_utest@
 1 exercise generic_viterbi    @src/generic_viterbi_utest@
-1 exercise fwdback_frameshift @src/generic_fwdback_frameshift_utest@
+1 exercise generic_viterbi_fs @src/generic_viterbi_frameshift_utest@
+1 exercise generic_viterbi_sp @src/generic_viterbi_spliced_utest@
 1 exercise logsum             @src/logsum_utest@
 1 exercise modelconfig        @src/modelconfig_utest@
 1 exercise seqmodel           @src/seqmodel_utest@
@@ -44,7 +46,6 @@
 1 exercise p7_tophits         @src/p7_tophits_utest@
 1 exercise p7_trace           @src/p7_trace_utest@
 1 exercise p7_scoredata       @src/p7_scoredata_utest@
-1 exercise p7_spliceviterbi   @src/spliceviterbi_utest@
 
 
 1 exercise decoding           @src/impl/decoding_utest@

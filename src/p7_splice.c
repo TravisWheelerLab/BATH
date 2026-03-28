@@ -1719,7 +1719,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_spliced_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2019,7 +2019,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   p7_GViterbi_SplicedExtendDown(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_spliced_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2288,7 +2288,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   p7_GViterbi_SplicedExtendUp(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_spliced_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2548,7 +2548,7 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   p7_GViterbi_SplicedGlobal(pli, path_seq->dsq, gm_tr, pli->vit, i_start, i_end, k_start, k_end);
 
   tr = p7_trace_fs_Create();
-  p7_GViterbi_spliced_TranslatedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
+  p7_GViterbi_SplicedTrace(pli, path_seq->dsq, gm_tr, pli->vit, tr, i_start, i_end, k_start, k_end);
 
   //p7_trace_fs_Dump(stdout, tr, NULL, NULL, NULL);
 

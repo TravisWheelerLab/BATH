@@ -17,7 +17,7 @@
  *    1. p7_GViterbi_SplicedGlobal()
  *    2. p7_GViterbi_SplicedExtendDown()
  *    3. p7_GViterbi_SplicedExtendUp()
- *    4. p7_splicevitebi_TranslatedTrace()
+ *    4. p7_GViterbi_SplicedTrace()
  *    5. Benchmark driver.
  *    6. Unit tests.
  *    7. Test driver.
@@ -1137,7 +1137,7 @@ p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const 
 }
 
 
-/* Function:  p7_splicevitebi_TranslatedTrace()
+/* Function:  p7_GViterbi_SplicedTrace()
  * Synopsis:  Create a trace fot any of the translted spliced vitebi algorithms
  *
  * Purpose:   Create a trace that includes the exons(s) and any splice site(s) 
@@ -1160,7 +1160,7 @@ p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const 
  *
  */            
 int
-p7_GViterbi_spliced_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end)
 {
 
   float const *tsc = gm_tr->tsc;
@@ -1368,7 +1368,7 @@ p7_GViterbi_spliced_TranslatedTrace(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq
 
   return p7_trace_fs_Reverse(tr);
 }
-/*----------------- end, p7_splicevitebi_TranslatedTrace() ------*/
+/*----------------- end, p7_GViterbi_SplicedTrace() ------*/
 
 
 /*****************************************************************
@@ -1497,21 +1497,21 @@ main(int argc, char **argv)
         p7_GViterbi_SplicedGlobal              (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
 	    final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
         if (final_C != -eslINFINITY && do_T) {
-		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+		  p7_GViterbi_SplicedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
           p7_trace_Reuse(tr);
 		}
 	  }
       if (do_D) {
 	    p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
         if (do_T) { 
-		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+		  p7_GViterbi_SplicedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
           p7_trace_Reuse(tr);
 		}
 	  }
       if (do_U) { 
 	    p7_GViterbi_SplicedExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
         if (do_T) {
-		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
+		  p7_GViterbi_SplicedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
           p7_trace_Reuse(tr);
         }
 	  }
@@ -1562,7 +1562,7 @@ main(int argc, char **argv)
  * splitting it into two exons.  For each sequence, three tests are run on
  * the full spliced sequence (both exons + intron):
  *
- * 1. Global + TranslatedTrace: the trace must contain at least one
+ * 1. Global + Trace: the trace must contain at least one
  *    P state (p7T_P), confirming that the splice junction was detected.
  *
  * 2. ExtendDown: the final C state must be reachable
@@ -1632,7 +1632,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_GViterbi_SplicedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 	  if (final_C != -eslINFINITY) {
-        p7_GViterbi_spliced_TranslatedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+        p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
         n_p = 0;
         for (i = 0; i < tr->N; i++)
           if (tr->st[i] == p7T_P) n_p++;
@@ -1659,6 +1659,190 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_profile_fs_Destroy(gm_tr);
   p7_splicepipeline_Destroy(pli);
 }
+
+/* utest_splice():
+ *
+ * A simulated intron (GT + random nucleotides + AG) is inserted at the 
+ * midpoint of a profile-emitted consensus, reverse-translated DNA sequence,
+ * splitting it into two exons. Intron is inserted at different postions, 
+ * with and without degenerate nucleotides. Test ability to detect correct 
+ * splice site.
+ *
+ */
+static void
+utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+              ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table)
+{
+  char           *msg         = "splice viterbi unit test failed";
+  int             M           = 200;
+  P7_HMM         *hmm         = NULL;
+  P7_PROFILE     *gm          = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_tr       = p7_profile_fs_Create(M, abcAA, 1);
+  ESL_SQ         *sq          = esl_sq_CreateDigital(abcAA);
+  P7_TRACE       *tr          = p7_trace_fs_Create();
+  ESL_DSQ        *dsq         = NULL;
+  SPLICE_PIPELINE *pli        = NULL;
+  int             intron_len  = 500;  
+  int             L_amino, L_dna_total;
+  int             n, i, j, c;
+  int             v, x;
+  float           final_C;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
+
+  pli = p7_splicepipeline_Create(NULL, M, M * 3);
+
+  p7_emit_SimpleConsensus(hmm, sq);
+  L_amino     = sq->n;
+  L_dna_total = L_amino * 3 + intron_len + 4;
+
+  p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
+  p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
+  p7_splicescores_GrowTo(pli->splice_scores, M);
+
+  for(n = 0; n < 3; n++) {
+    if (dsq != NULL) free(dsq);  
+    if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal("malloc failed");
+    dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
+
+    j = 1;
+	for (i = 1; i <= L_amino / 2; i++) {
+      p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+      j += 3;
+    }
+
+	v = dsq[j-2];
+	x = dsq[j-1];
+
+    j -= n;
+  
+    dsq[j++] = 2;  /* G */
+    dsq[j++] = 3;  /* T */
+    for (i = 0; i < intron_len; i++) dsq[j++] = esl_rnd_Roll(r, 4);
+    dsq[j++] = 0;  /* A */
+    dsq[j++] = 2;  /* G */	
+
+	if(n == 2)
+	  dsq[j++] = v;
+	if(n >= 1) 
+	  dsq[j++] = x;
+   
+    /* Reverse-translate second half of the sequence (exon 2) */
+    for (i = L_amino / 2 + 1; i <= L_amino; i++) {
+      p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+      j += 3;
+    } 
+
+    p7_GViterbi_SplicedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+
+	c = -1;
+	for (i = 0; i < tr->N; i++)
+	  if (tr->st[i] == p7T_P) c = tr->c[i];
+
+    if( c != n ) esl_fatal(msg);	
+
+	p7_trace_Reuse(tr);
+    p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+
+	c = -1;
+	for (i = 0; i < tr->N; i++)
+      if (tr->st[i] == p7T_P) c = tr->c[i];
+  
+	if( c != n ) esl_fatal(msg);
+	
+	p7_trace_Reuse(tr);
+	p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+    p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+
+	c = -1;
+	for (i = 0; i < tr->N; i++)
+      if (tr->st[i] == p7T_P) c = tr->c[i];
+
+	if( c != n ) esl_fatal(msg);
+
+	p7_trace_Reuse(tr);
+	/* Test handling of degerenate nucleotides */ 
+    if (dsq != NULL) free(dsq);  
+    if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal("malloc failed");
+    dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
+
+    j = 1;
+	for (i = 1; i <= L_amino / 2; i++) {
+      p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+      j += 3;
+    }
+
+	dsq[j-3] = abcDNA->Kp-3;
+	dsq[j-2] = abcDNA->Kp-3;
+	dsq[j-1] = abcDNA->Kp-3;
+
+	v = dsq[j-2];
+	x = dsq[j-1];
+
+    j -= n;
+  
+    dsq[j++] = 2;  /* G */
+    dsq[j++] = 3;  /* T */
+    for (i = 0; i < intron_len; i++) dsq[j++] = esl_rnd_Roll(r, 4);
+    dsq[j++] = 0;  /* A */
+    dsq[j++] = 2;  /* G */	
+
+	if(n == 2)
+	  dsq[j++] = v;
+	if(n >= 1) 
+	  dsq[j++] = x;
+   
+    /* Reverse-translate second half of the sequence (exon 2) */
+    for (i = L_amino / 2 + 1; i <= L_amino; i++) {
+      p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+      j += 3;
+    } 
+    
+    p7_GViterbi_SplicedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+
+	c = -1;
+	for (i = 0; i < tr->N; i++)
+	  if (tr->st[i] == p7T_P) c = tr->c[i];
+
+    if( c != n ) esl_fatal(msg);	
+
+	p7_trace_Reuse(tr);
+    p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+	p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+
+	c = -1;
+	for (i = 0; i < tr->N; i++)
+      if (tr->st[i] == p7T_P) c = tr->c[i];
+  
+	if( c != n ) esl_fatal(msg);
+	
+	p7_trace_Reuse(tr);
+	p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+    p7_GViterbi_SplicedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
+
+	c = -1;
+	for (i = 0; i < tr->N; i++)
+      if (tr->st[i] == p7T_P) c = tr->c[i];
+
+	if( c != n ) esl_fatal(msg);
+
+	p7_trace_Reuse(tr);
+  }
+  
+  if (dsq != NULL) free(dsq);
+  esl_sq_Destroy(sq);
+  p7_trace_fs_Destroy(tr);
+  p7_hmm_Destroy(hmm);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_tr);
+  p7_splicepipeline_Destroy(pli);
+}
+
 #endif /*p7GENERIC_VITERBI_SPLICED_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
@@ -1701,6 +1885,7 @@ main(int argc, char **argv)
   int             I      = esl_opt_GetInteger(go, "-I");
 
   utest_viterbi(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
+  utest_splice(r, abcAA, abcDNA, gcode, bgAA, ct);
 
   esl_alphabet_Destroy(abcAA);
   esl_alphabet_Destroy(abcDNA);

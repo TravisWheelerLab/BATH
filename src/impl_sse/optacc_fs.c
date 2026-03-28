@@ -70,7 +70,6 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   register __m128 xEv, xBv1, xBv2, xBv3, xBv4, xBv5;
   register __m128 dcv;
   __m128 bm, mm, im, dm, md, mi, ii;
-  __m128 pen1v, pen2v, pen3v, pen4v, pen5v;  /* per-codon-length fsprob log-penalties */
   __m128 *tp;
   __m128 *dpc;                         /* current OA row (3-cell layout)     */
   __m128 *dp1, *dp2, *dp3, *dp4, *dp5; /* previous OA rows                   */
@@ -90,26 +89,6 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   ox->xmx[0*p7X_NXCELLS+p7X_J] = -eslINFINITY;
   ox->xmx[0*p7X_NXCELLS+p7X_B] =  0.0f;
   ox->xmx[0*p7X_NXCELLS+p7X_C] = -eslINFINITY;
-
-  /* Frameshift log-probability penalties, matching p7_ProfileConfig_fs.
-   * Applied to sv_c in the fill so the OA score penalises quasi-codon paths
-   * consistently; select_codon then uses the identical formula. */
-  {
-    float fp = om_fs->fsprob;
-    if (om_fs->codon_lengths == 5) {
-      pen1v = _mm_set1_ps(logf(fp / 2.f));        /* c=1: 2-nt deletion  */
-      pen2v = _mm_set1_ps(logf(fp));               /* c=2: 1-nt deletion  */
-      pen3v = _mm_set1_ps(logf(1.f - 4.f * fp));  /* c=3: no frameshift  */
-      pen4v = _mm_set1_ps(logf(fp));               /* c=4: 1-nt insertion */
-      pen5v = _mm_set1_ps(logf(fp / 2.f));        /* c=5: 2-nt insertion */
-    } else {                                        /* codon_lengths == 3  */
-      pen1v = infv;                                /* c=1: not used       */
-      pen2v = _mm_set1_ps(logf(fp));               /* c=2: 1-nt deletion  */
-      pen3v = _mm_set1_ps(logf(1.f - 3.f * fp));  /* c=3: no frameshift  */
-      pen4v = _mm_set1_ps(logf(fp));               /* c=4: 1-nt insertion */
-      pen5v = infv;                                /* c=5: not used       */
-    }
-  }
 
   for (i = 1; i <= L; i++)
     {
@@ -200,13 +179,6 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
           sv5 = _mm_max_ps(sv5, _mm_and_ps(im, ipv5));
           sv5 = _mm_max_ps(sv5, _mm_and_ps(dm, dpv5));
           sv5 = _mm_add_ps(sv5, MMO_FS(ppc, q, p7X_FS_C5));
-
-          /* Apply per-codon-length fsprob log-penalties */
-          sv1 = _mm_add_ps(sv1, pen1v);
-          sv2 = _mm_add_ps(sv2, pen2v);
-          sv3 = _mm_add_ps(sv3, pen3v);
-          sv4 = _mm_add_ps(sv4, pen4v);
-          sv5 = _mm_add_ps(sv5, pen5v);
 
           /* Best M(i,k) over all 5 codon lengths */
           sv = _mm_max_ps(_mm_max_ps(sv1, sv2),
@@ -851,7 +823,7 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
 
       /* Convert SSE OA to scalar GMX for matrix-level comparison */
       if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                    != eslOK) esl_fatal(msg);
-      
+      printf("accscore_sse %f accscore_ref %f\n", accscore_sse, accscore_ref);   
       if (esl_FCompare_old(accscore_sse, accscore_ref, tol) != eslOK) esl_fatal(msg);
       if (p7_gmx_Compare(gx_oa, gx_oa2, tol)               != eslOK) esl_fatal(msg);
       if (p7_trace_Compare(tr_sse, tr_ref, pptol)           != eslOK) esl_fatal(msg);

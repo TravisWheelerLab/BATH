@@ -3,9 +3,9 @@
  * Three DP variants are provided, covering the three ways a sub-sequence
  * region can be aligned relative to the splice graph:
  *
- *   TranslatedGlobal          -- global entry (k=1) and exit (k=M)
- *   TranslatedSemiGlobalExtendDown -- global entry, semi-global exit (any k,i)
- *   TranslatedSemiGlobalExtendUp   -- semi-global entry (any k,i), global exit
+ *   Global     -- global entry (k=1) and exit (k=M)
+ *   ExtendDown -- global entry, semi-global exit (any k,i)
+ *   ExtendUp   -- semi-global entry (any k,i), global exit
  *
  * All three use log-space probability DP and share a common P-state
  * mechanism: donor-site scores are accumulated in the SPLICE_SCORES
@@ -14,9 +14,9 @@
  * position.
  *
  * Contents:
- *    1. p7_GViterbi_spliced_TranslatedGlobal()
- *    2. p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown()
- *    3. p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp()
+ *    1. p7_GViterbi_SplicedGlobal()
+ *    2. p7_GViterbi_SplicedExtendDown()
+ *    3. p7_GViterbi_SplicedExtendUp()
  *    4. p7_splicevitebi_TranslatedTrace()
  *    5. Benchmark driver.
  *    6. Unit tests.
@@ -36,7 +36,7 @@
 #define MAX_NUC 4
 #define TSC_P log(4.58e-5)
 
-/* Function:  p7_GViterbi_spliced_TranslatedGlobal()
+/* Function:  p7_GViterbi_SplicedGlobal()
  * Synopsis:  Fully global translated spliced Viterbi algorithm
  *
  * Purpose:   For finding the maxiumum scoring splice site between two 
@@ -69,7 +69,7 @@
  * Return:    <eslOK> on success.
  */
 int
-p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   
   float const *tsc  = gm_tr->tsc;
@@ -410,7 +410,7 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
 
 
 
-/* Function:  p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown()
+/* Function:  p7_GViterbi_SplicedExtendDown()
  * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
  *
  * Purpose:   For finding the maxiumum scoring splice site between an 
@@ -445,7 +445,7 @@ p7_GViterbi_spliced_TranslatedGlobal(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_ds
  * Return:    <eslOK> on success.
  */
 int
-p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedExtendDown(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
@@ -787,7 +787,7 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
 }
 
 
-/* Function:  p7_GViterbi_spliced_TranslatedSemiGlobalExtendUP()
+/* Function:  p7_GViterbi_SplicedExtendUp()
  * Synopsis:  Semi global translated spliced Viterbi algorithm (global start)
  *
  * Purpose:   For finding the maxiumum scoring splice site between an
@@ -822,7 +822,7 @@ p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(SPLICE_PIPELINE *pli, const E
  * Return:    <eslOK> on success.
  */
 int
-p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
+p7_GViterbi_SplicedExtendUp(SPLICE_PIPELINE *pli, const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, int i_start, int i_end, int k_start, int k_end)
 {
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
@@ -1390,10 +1390,10 @@ static ESL_OPTIONS benchmark_options[] = {
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-N",        eslARG_INT,    "100", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
   { "-I",        eslARG_INT,    "200", NULL, "n>0", NULL,  NULL, NULL, "length of simulated intron (excl. GT..AG signals)", 0 },
-  { "-G",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedGlobal",                0 },
-  { "-D",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendDown",  0 },
-  { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark TranslatedSemiGlobalExtendUp",    0 },
-  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "also benchmark TranslatedTrace after each DP",   0 },
+  { "-G",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Global",                0 },
+  { "-D",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark ExtendDown",  0 },
+  { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark ExtendUp",    0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "also benchmark Trace after each DP",   0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char benchmark_usage[]  = "[-options] <hmmfile>";
@@ -1494,7 +1494,7 @@ main(int argc, char **argv)
       p7_gmx_GrowTo(pli->vit, hmm->M, L_dna_total, L_dna_total);
 
 	  if (do_G) {
-        p7_GViterbi_spliced_TranslatedGlobal              (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+        p7_GViterbi_SplicedGlobal              (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
 	    final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
         if (final_C != -eslINFINITY && do_T) {
 		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
@@ -1502,14 +1502,14 @@ main(int argc, char **argv)
 		}
 	  }
       if (do_D) {
-	    p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+	    p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
         if (do_T) { 
 		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
           p7_trace_Reuse(tr);
 		}
 	  }
       if (do_U) { 
-	    p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
+	    p7_GViterbi_SplicedExtendUp  (pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, hmm->M);
         if (do_T) {
 		  p7_GViterbi_spliced_TranslatedTrace       (pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, hmm->M);
           p7_trace_Reuse(tr);
@@ -1562,13 +1562,13 @@ main(int argc, char **argv)
  * splitting it into two exons.  For each sequence, three tests are run on
  * the full spliced sequence (both exons + intron):
  *
- * 1. TranslatedGlobal + TranslatedTrace: the trace must contain at least one
+ * 1. Global + TranslatedTrace: the trace must contain at least one
  *    P state (p7T_P), confirming that the splice junction was detected.
  *
- * 2. TranslatedSemiGlobalExtendDown: the final C state must be reachable
+ * 2. ExtendDown: the final C state must be reachable
  *    (not -eslINFINITY).
  *
- * 3. TranslatedSemiGlobalExtendUp: the final C state must be reachable
+ * 3. ExtendUp: the final C state must be reachable
  *    (not -eslINFINITY).
  */
 static void
@@ -1628,8 +1628,8 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
       p7_splicescores_GrowTo(pli->splice_scores, M);
 
-      /* --- Test 1: TranslatedGlobal + Trace; trace must contain >= 1 P state --- */
-      p7_GViterbi_spliced_TranslatedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      /* --- Test 1: Global + Trace; trace must contain >= 1 P state --- */
+      p7_GViterbi_SplicedGlobal(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 	  if (final_C != -eslINFINITY) {
         p7_GViterbi_spliced_TranslatedTrace(pli, dsq, gm_tr, pli->vit, tr, 1, L_dna_total, 1, M);
@@ -1640,13 +1640,13 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         p7_trace_Reuse(tr);
 	  }
 
-      /* --- Test 2: TranslatedSemiGlobalExtendDown; final C must be reachable --- */
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      /* --- Test 2: ExtendDown; final C must be reachable --- */
+      p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
 
-      /* --- Test 3: TranslatedSemiGlobalExtendUp; final C must be reachable --- */
-      p7_GViterbi_spliced_TranslatedSemiGlobalExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
+      /* --- Test 3: ExtendUp; final C must be reachable --- */
+      p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
     }

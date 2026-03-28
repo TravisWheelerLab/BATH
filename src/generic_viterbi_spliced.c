@@ -1686,7 +1686,6 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   int             L_amino, L_dna_total;
   int             n, i, j, c;
   int             v, x;
-  float           final_C;
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
   p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
@@ -1741,8 +1740,10 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	c = -1;
 	for (i = 0; i < tr->N; i++)
 	  if (tr->st[i] == p7T_P) c = tr->c[i];
-
-    if( c != n ) esl_fatal(msg);	
+    
+    if( n == 0 && c != 0) esl_fatal(msg);
+    if( n == 1 && c != 2) esl_fatal(msg);
+    if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
     p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
@@ -1751,8 +1752,10 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	c = -1;
 	for (i = 0; i < tr->N; i++)
       if (tr->st[i] == p7T_P) c = tr->c[i];
-  
-	if( c != n ) esl_fatal(msg);
+    
+    if( n == 0 && c != 0) esl_fatal(msg);
+    if( n == 1 && c != 2) esl_fatal(msg);
+    if( n == 2 && c != 1) esl_fatal(msg);
 	
 	p7_trace_Reuse(tr);
 	p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
@@ -1761,8 +1764,10 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	c = -1;
 	for (i = 0; i < tr->N; i++)
       if (tr->st[i] == p7T_P) c = tr->c[i];
-
-	if( c != n ) esl_fatal(msg);
+    
+    if( n == 0 && c != 0) esl_fatal(msg);
+    if( n == 1 && c != 2) esl_fatal(msg);
+    if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
 	/* Test handling of degerenate nucleotides */ 
@@ -1809,7 +1814,9 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	for (i = 0; i < tr->N; i++)
 	  if (tr->st[i] == p7T_P) c = tr->c[i];
 
-    if( c != n ) esl_fatal(msg);	
+    if( n == 0 && c != 0) esl_fatal(msg);
+    if( n == 1 && c != 2) esl_fatal(msg);
+    if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
     p7_GViterbi_SplicedExtendDown(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
@@ -1818,8 +1825,10 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	c = -1;
 	for (i = 0; i < tr->N; i++)
       if (tr->st[i] == p7T_P) c = tr->c[i];
-  
-	if( c != n ) esl_fatal(msg);
+
+    if( n == 0 && c != 0) esl_fatal(msg);
+    if( n == 1 && c != 2) esl_fatal(msg);
+    if( n == 2 && c != 1) esl_fatal(msg);  
 	
 	p7_trace_Reuse(tr);
 	p7_GViterbi_SplicedExtendUp(pli, dsq, gm_tr, pli->vit, 1, L_dna_total, 1, M);
@@ -1829,7 +1838,9 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	for (i = 0; i < tr->N; i++)
       if (tr->st[i] == p7T_P) c = tr->c[i];
 
-	if( c != n ) esl_fatal(msg);
+    if( n == 0 && c != 0) esl_fatal(msg);
+    if( n == 1 && c != 2) esl_fatal(msg);
+    if( n == 2 && c != 1) esl_fatal(msg);
 
 	p7_trace_Reuse(tr);
   }

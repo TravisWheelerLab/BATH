@@ -2,8 +2,8 @@
  *
  * Log-space DP: _mm_add_ps along a path, _mm_max_ps to select the best
  * path at each branch point. No rescaling is required. The profile must
- * be converted to log-space by p7_fs_oprofile_Logify() before calling.
- * The final score is returned directly as a log-odds score in nats:
+ * be in log-space before calling. The final score is returned directly 
+ * as a log-odds score in nats:
  *
  *   opt_sc = max(xC(L), xC(L-1)+LOOP, xC(L-2)+LOOP) + xf[C][MOVE]
  *
@@ -56,15 +56,12 @@
  *            Viterbi score (in nats) is returned in <opt_sc>.
  *
  *            The DP is computed in log-space (log-odds scores).  The profile
- *            <om_fs> must have been converted to log-space beforehand by
- *            calling <p7_fs_oprofile_Logify()>.  Transitions and emissions
- *            are combined by addition (_mm_add_ps) and paths are selected by
- *            max (_mm_max_ps).  No rescaling is needed or performed.
+ *            <om_fs> must be in log space.
  *
  *
  * Args:      dsq    - nucleotide sequence, 1..L
  *            L      - length of dsq
- *            om_fs  - optimized frameshift profile, logified by p7_fs_oprofile_Logify()
+ *            om_fs  - optimized log space frameshift profile
  *            ox     - DP matrix, p7_omx_Create_dpf(M, L, L, p7X_NSCELLS)
  *            opt_sc - optRETURN: Viterbi score in nats
  *
@@ -936,9 +933,8 @@ main(int argc, char **argv)
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
 
   om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
-  p7_fs_oprofile_Convert(gm_fs5, om_fs5);
-  p7_fs_oprofile_ReconfigLength(om_fs5, L/3);
-  p7_fs_oprofile_Logify(om_fs5);
+  p7_fs_oprofile_Convert_Log(gm_fs5, om_fs5);
+  p7_fs_oprofile_ReconfigLength_Log(om_fs5, L/3);
 
   ox = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
   tr = p7_trace_fs_Create();
@@ -1057,8 +1053,7 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_hmm_Sample(r, M, abcAA, &hmm);
   p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, M, p7_LOCAL);
-  p7_fs_oprofile_Convert(gm_fs5, om_fs5);
-  p7_fs_oprofile_Logify(om_fs5);
+  p7_fs_oprofile_Convert_Log(gm_fs5, om_fs5);
 
   while (N--)
     {

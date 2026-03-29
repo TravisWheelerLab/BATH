@@ -517,6 +517,9 @@ extern int p7_oprofile_Logify(P7_OPROFILE *om);
 extern int p7_Viterbi      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
 extern int p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
 
+/* viterbi_sp.c */
+extern int p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron);
+
 /* vitscore.c */
 extern int p7_ViterbiScore (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
 

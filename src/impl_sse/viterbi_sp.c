@@ -2,13 +2,13 @@
  *
  * Probability-space DP (mul/max) with sparse rescaling.  Uses only
  * 3-nt codons (codon_lengths == 1 profile).  The P (split-codon)
- * state is computed per-lane (scalar) because P_scores[][SIGNAL_MEM_SIZE]
- * is indexed by model position, not by stripe.  M/D/I states are fully
- * vectorised.
+ * state is vectorised via an internal pvx[SIGNAL_MEM_SIZE * Q] buffer
+ * laid out in stripe order.  M/D/I states are fully vectorised.
  *
- * P_scores is kept in log-space (as in the scalar implementation);
- * conversions between log- and prob-space occur at the donor-update
- * and P-state-read boundaries.
+ * pvx stores probability-space values (unlike the scalar P_scores which
+ * uses log-space).  This eliminates all expf()/logf() calls in the
+ * P-state read and reduces the rescaling adjustment to a single
+ * vectorised _mm_mul_ps.
  *
  * Contents:
  *   1. p7_Viterbi_SplicedGlobal()
@@ -108,7 +108,8 @@ run_dd_passes(__m128 *dpc, __m128 dcv, const __m128 *tfv_dd, int Q, int M)
  *            sequence against an optimised 1-codon-length profile <om_fs>,
  *            storing the full DP matrix in <ox>.  Models splice junctions
  *            via a P (split-codon) state backed by the caller-maintained
- *            log-space <P_scores> table and <signal_scores>.
+ *            an internally allocated probability-space <pvx> buffer and
+ *            <signal_scores>.
  *
  *            This is the SSE accelerated equivalent of p7_GViterbi_SplicedGlobal().
  *            It requires a profile configured with codon_lengths == 1.
@@ -128,7 +129,6 @@ run_dd_passes(__m128 *dpc, __m128 dcv, const __m128 *tfv_dd, int Q, int M)
  * Args:      sub_dsq       - digital nucleotide sequence, i_start..i_end
  *            om_fs         - optimised 1-codon profile
  *            ox            - DP matrix (p7X_NSCELLS_SP cells per stripe)
- *            P_scores      - [0..M-1][SIGNAL_MEM_SIZE] splice-site log-scores
  *            signal_scores - [p7S_SPLICE_SIGNALS] signal log-scores
  *            i_start,i_end - sequence sub-range (1-based absolute coords)
  *            k_start,k_end - model sub-range (must be 1..om_fs->M)
@@ -139,7 +139,7 @@ run_dd_passes(__m128 *dpc, __m128 dcv, const __m128 *tfv_dd, int Q, int M)
  */
 int
 p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7_OMX *ox,
-                         float **P_scores, const float *signal_scores,
+                         const float *signal_scores,
                          int i_start, int i_end, int k_start, int k_end, int min_intron)
 {
   /* SSE register names mirror viterbi_fs.c conventions */
@@ -150,11 +150,16 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
   register __m128  xEv;                      /* E-state partial max                    */
   __m128           zerov;                    /* splatted 0.0                            */
   __m128           tsc_p_v;                  /* splatted TSC_P_PROB                     */
+  __m128           sig_gtag_v;              /* splatted signal_prob[p7S_GTAG]          */
+  __m128           sig_gcag_v;              /* splatted signal_prob[p7S_GCAG]          */
+  __m128           sig_atac_v;              /* splatted signal_prob[p7S_ATAC]          */
 
   __m128  *dpc;                  /* current DP row                              */
   __m128  *dpp3;                 /* DP row i-3                                  */
   __m128  *dpd;                  /* DP row i-min_intron-3 (donor lookback)      */
   __m128  *tp;                   /* transition pointer into om_fs->tfv          */
+  __m128  *pvx     = NULL;       /* vectorised P_scores: [SIGNAL_MEM_SIZE*Q]    */
+  void    *pvx_mem = NULL;       /* raw allocation for pvx (needs 16-b align)   */
 
   int      L     = i_end - i_start + 1;
   int      M     = om_fs->M;
@@ -179,19 +184,23 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
   int      don_sig;
 
   int      loop_end;
-  int      i, q, r_lane;
+  int      i, q, r_lane, sig_idx;
   int      sub_i, k_local;
 
   float    insert_adj;           /* scale correction for I(i,k) from dpp3      */
   float    TMP_SC_prob;          /* scratch probability-space score             */
-  float    TMP_SC_log;           /* scratch log-space score                     */
 
-  /* P-state per-lane scratch */
-  float    p_lane[4];
   union { __m128 v; float p[4]; } u_vec;
+  int      status;
 
   if (om_fs->codon_lengths != 1)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
+
+  /* Allocate pvx: SIGNAL_MEM_SIZE circular slots x Q stripes.
+   * Layout: pvx[signal * Q + q] holds 4-lane prob-space P_scores for
+   * stripe q at signal index signal (0..SIGNAL_MEM_SIZE-1).            */
+  ESL_ALLOC(pvx_mem, sizeof(__m128) * SIGNAL_MEM_SIZE * Q + 15);
+  pvx = (__m128 *) (((unsigned long int) pvx_mem + 15) & (~0xf));
 
   ox->M              = M;
   ox->L              = L;
@@ -201,12 +210,17 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
   zerov   = _mm_setzero_ps();
   tsc_p_v = _mm_set1_ps(TSC_P_PROB);
 
+  /* Pre-compute probability-space signal scores (used in P-state read). */
+  sig_gtag_v = _mm_set1_ps(expf(signal_scores[p7S_GTAG]));
+  sig_gcag_v = _mm_set1_ps(expf(signal_scores[p7S_GCAG]));
+  sig_atac_v = _mm_set1_ps(expf(signal_scores[p7S_ATAC]));
+
   /* ------------------------------------------------------------------
-   * Reset P_scores to -inf.
+   * Reset pvx to 0.0 (probability-space zero = log-space -inf).
    * ------------------------------------------------------------------ */
-  for (k_local = 0; k_local < M; k_local++)
-    for (i = 0; i < SIGNAL_MEM_SIZE; i++)
-      P_scores[k_local][i] = -eslINFINITY;
+  for (sig_idx = 0; sig_idx < SIGNAL_MEM_SIZE; sig_idx++)
+    for (q = 0; q < Q; q++)
+      pvx[sig_idx * Q + q] = zerov;
 
   /* ------------------------------------------------------------------
    * Zero-initialise rows 0..L of the DP matrix.
@@ -496,84 +510,69 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
           IMO_SP(dpc, q) = _mm_max_ps(sv,
                            _mm_mul_ps(_mm_mul_ps(IMO_SP(dpp3, q), adj_v), *tp)); tp++; /* II */
 
-          /* P state: per-lane scalar lookup (log->prob conversion) */
+          /* P state: vectorised probability-space lookup.
+           * pvx[signal*Q + q] holds the 4-lane prob-space P_scores for
+           * stripe q; signal vectors are pre-multiplied into sig_*_v.
+           * Padding lanes (k_local >= M) are zero in pvx, contributing 0. */
           if (acc0 < 0 && acc1 < 0 && acc2 < 0)
             {
               PMO_SP(dpc, q) = zerov;
             }
           else
             {
-              for (r_lane = 0; r_lane < 4; r_lane++)
+              __m128 pv        = zerov;
+              __m128 emit_c0_v = om_fs->rfv[C0][q];
+
+              /* acc0: SSX0 * signal_prob * emit_C0 */
+              if (acc0 == ACCEPT_AG)
                 {
-                  k_local = q + r_lane * Q + 1;   /* 1-based model position */
-                  p_lane[r_lane] = 0.0f;
-                  if (k_local >= M) continue;      /* beyond model end       */
+                  __m128 sg = _mm_mul_ps(pvx[p7S_GTAG * Q + q], sig_gtag_v);
+                  __m128 sc = _mm_mul_ps(pvx[p7S_GCAG * Q + q], sig_gcag_v);
+                  pv = _mm_max_ps(pv, _mm_mul_ps(_mm_max_ps(sg, sc), emit_c0_v));
+                }
+              else if (acc0 == ACCEPT_AC)
+                {
+                  __m128 sa = _mm_mul_ps(pvx[p7S_ATAC * Q + q], sig_atac_v);
+                  pv = _mm_max_ps(pv, _mm_mul_ps(sa, emit_c0_v));
+                }
 
-                  float emit_c0 = p7_fs_oprofile_FGetEmission(om_fs, k_local, C0);
+              /* acc1: SSX1(nuc1) * signal_prob * emit_C1[nuc1] */
+              if (acc1 == ACCEPT_AG)
+                {
+                  for (nuc1 = 0; nuc1 <= SP_MAX_NUC; nuc1++)
+                    {
+                      int base = SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS;
+                      __m128 sg = _mm_mul_ps(pvx[(base + p7S_GTAG) * Q + q], sig_gtag_v);
+                      __m128 sc = _mm_mul_ps(pvx[(base + p7S_GCAG) * Q + q], sig_gcag_v);
+                      pv = _mm_max_ps(pv, _mm_mul_ps(_mm_max_ps(sg, sc), om_fs->rfv[C1[nuc1]][q]));
+                    }
+                }
+              else if (acc1 == ACCEPT_AC)
+                {
+                  for (nuc1 = 0; nuc1 <= SP_MAX_NUC; nuc1++)
+                    {
+                      int base = SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS;
+                      __m128 sa = _mm_mul_ps(pvx[(base + p7S_ATAC) * Q + q], sig_atac_v);
+                      pv = _mm_max_ps(pv, _mm_mul_ps(sa, om_fs->rfv[C1[nuc1]][q]));
+                    }
+                }
 
-                  /* acc0: C0-type (0 nt before donor) */
-                  if (acc0 == ACCEPT_AG)
-                    {
-                      float sg = (P_scores[k_local][p7S_GTAG] > -eslINFINITY)
-                                   ? expf(P_scores[k_local][p7S_GTAG] + signal_scores[p7S_GTAG]) : 0.0f;
-                      float sc = (P_scores[k_local][p7S_GCAG] > -eslINFINITY)
-                                   ? expf(P_scores[k_local][p7S_GCAG] + signal_scores[p7S_GCAG]) : 0.0f;
-                      p_lane[r_lane] = ESL_MAX(p_lane[r_lane], ESL_MAX(sg, sc) * emit_c0);
-                    }
-                  else if (acc0 == ACCEPT_AC)
-                    {
-                      float sa = (P_scores[k_local][p7S_ATAC] > -eslINFINITY)
-                                   ? expf(P_scores[k_local][p7S_ATAC] + signal_scores[p7S_ATAC]) : 0.0f;
-                      p_lane[r_lane] = ESL_MAX(p_lane[r_lane], sa * emit_c0);
-                    }
+              /* acc2: SSX2(nuc3) * signal_prob (emission baked in at write time) */
+              if (acc2 == ACCEPT_AG)
+                {
+                  int base = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS;
+                  __m128 sg = _mm_mul_ps(pvx[(base + p7S_GTAG) * Q + q], sig_gtag_v);
+                  __m128 sc = _mm_mul_ps(pvx[(base + p7S_GCAG) * Q + q], sig_gcag_v);
+                  pv = _mm_max_ps(pv, _mm_max_ps(sg, sc));
+                }
+              else if (acc2 == ACCEPT_AC)
+                {
+                  int base = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS;
+                  pv = _mm_max_ps(pv, _mm_mul_ps(pvx[(base + p7S_ATAC) * Q + q], sig_atac_v));
+                }
 
-                  /* acc1: C1-type (1 nt before donor) */
-                  if (acc1 == ACCEPT_AG)
-                    {
-                      for (nuc1 = 0; nuc1 <= SP_MAX_NUC; nuc1++)
-                        {
-                          int off = SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS;
-                          float sg = (P_scores[k_local][off + p7S_GTAG] > -eslINFINITY)
-                                       ? expf(P_scores[k_local][off + p7S_GTAG] + signal_scores[p7S_GTAG]) : 0.0f;
-                          float sc = (P_scores[k_local][off + p7S_GCAG] > -eslINFINITY)
-                                       ? expf(P_scores[k_local][off + p7S_GCAG] + signal_scores[p7S_GCAG]) : 0.0f;
-                          float ec1 = p7_fs_oprofile_FGetEmission(om_fs, k_local, C1[nuc1]);
-                          p_lane[r_lane] = ESL_MAX(p_lane[r_lane], ESL_MAX(sg, sc) * ec1);
-                        }
-                    }
-                  else if (acc1 == ACCEPT_AC)
-                    {
-                      for (nuc1 = 0; nuc1 <= SP_MAX_NUC; nuc1++)
-                        {
-                          int off = SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS;
-                          float sa = (P_scores[k_local][off + p7S_ATAC] > -eslINFINITY)
-                                       ? expf(P_scores[k_local][off + p7S_ATAC] + signal_scores[p7S_ATAC]) : 0.0f;
-                          float ec1 = p7_fs_oprofile_FGetEmission(om_fs, k_local, C1[nuc1]);
-                          p_lane[r_lane] = ESL_MAX(p_lane[r_lane], sa * ec1);
-                        }
-                    }
-
-                  /* acc2: C2-type (2 nt before donor, nuc3 = x) */
-                  if (acc2 == ACCEPT_AG)
-                    {
-                      int off = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS;
-                      float sg = (P_scores[k_local][off + p7S_GTAG] > -eslINFINITY)
-                                   ? expf(P_scores[k_local][off + p7S_GTAG] + signal_scores[p7S_GTAG]) : 0.0f;
-                      float sc = (P_scores[k_local][off + p7S_GCAG] > -eslINFINITY)
-                                   ? expf(P_scores[k_local][off + p7S_GCAG] + signal_scores[p7S_GCAG]) : 0.0f;
-                      p_lane[r_lane] = ESL_MAX(p_lane[r_lane], ESL_MAX(sg, sc));
-                    }
-                  else if (acc2 == ACCEPT_AC)
-                    {
-                      int off = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS;
-                      float sa = (P_scores[k_local][off + p7S_ATAC] > -eslINFINITY)
-                                   ? expf(P_scores[k_local][off + p7S_ATAC] + signal_scores[p7S_ATAC]) : 0.0f;
-                      p_lane[r_lane] = ESL_MAX(p_lane[r_lane], sa);
-                    }
-                } /* end r_lane */
-
-              PMO_SP(dpc, q) = _mm_set_ps(p_lane[3], p_lane[2], p_lane[1], p_lane[0]);
-              xEv = _mm_max_ps(xEv, PMO_SP(dpc, q));
+              PMO_SP(dpc, q) = pv;
+              xEv = _mm_max_ps(xEv, pv);
             }
         } /* end q loop */
 
@@ -586,9 +585,8 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
 
       if (xE > 1.0e4f)
         {
-          float  sfv_f   = 1.0f / xE;
-          float  log_adj = -logf(xE);
-          __m128 sfv     = _mm_set1_ps(sfv_f);
+          float  sfv_f = 1.0f / xE;
+          __m128 sfv   = _mm_set1_ps(sfv_f);
           for (q = 0; q < Q; q++)
             {
               MMO_SP(dpc, q) = _mm_mul_ps(MMO_SP(dpc, q), sfv);
@@ -596,13 +594,11 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
               IMO_SP(dpc, q) = _mm_mul_ps(IMO_SP(dpc, q), sfv);
               PMO_SP(dpc, q) = _mm_mul_ps(PMO_SP(dpc, q), sfv);
             }
-          /* Keep P_scores in sync with current scale (mirrors IVX rescaling in
-           * viterbi_fs.c).  P_scores stores log-space values; dividing the
-           * probability scale by xE subtracts logf(xE) from all log entries.  */
-          for (k_local = 1; k_local < M; k_local++)
-            for (q = 0; q < SIGNAL_MEM_SIZE; q++)
-              if (P_scores[k_local][q] > -eslINFINITY)
-                P_scores[k_local][q] += log_adj;
+          /* Keep pvx in sync: pvx is probability-space so divide by xE
+           * (same as scaling M/D/I/P cells).                             */
+          for (sig_idx = 0; sig_idx < SIGNAL_MEM_SIZE; sig_idx++)
+            for (q = 0; q < Q; q++)
+              pvx[sig_idx * Q + q] = _mm_mul_ps(pvx[sig_idx * Q + q], sfv);
           ox->xmx[i*p7X_NXCELLS + p7X_SCALE] = xE;
           ox->totscale += logf(xE);
           xE = 1.0f;
@@ -612,14 +608,14 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
       ox->xmx[i*p7X_NXCELLS + p7X_E] = xE;
 
       /* ------------------------------------------------------------------
-       * Donor-site k-loop: update P_scores for future P-state reads.
+       * Donor-site k-loop: update pvx for future P-state reads.
        * Reads from dpd = dpf[i - min_intron - 3].
        * TMP_SC_prob = max(M(dpd,k-1), D(dpd,k-1)) — probability-space.
-       * P_scores stores log-space; convert with logf() at write time.
+       * pvx stores probability-space; no logf() conversion needed.
        * ------------------------------------------------------------------ */
       if (don2 >= 0)
         {
-          /* C2-type: 2 nt before donor; emission baked in. */
+          /* C2-type: 2 nt before donor; emission baked into pvx at write time. */
           for (nuc3 = 0; nuc3 < SP_MAX_NUC; nuc3++)
             C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
           C2[SP_MAX_NUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
@@ -633,7 +629,6 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
                 k_local = q + r_lane * Q + 1;   /* 1-based */
                 if (k_local < 2 || k_local >= M) continue;
 
-                /* k-1 position in striped layout */
                 int km1 = k_local - 1;
                 int q2  = (km1 - 1) % Q;
                 int r2  = (km1 - 1) / Q;
@@ -642,16 +637,15 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
                 u_vec.v = DMO_SP(dpd, q2); TMP_SC_prob  = ESL_MAX(TMP_SC_prob, u_vec.p[r2]);
 
                 if (TMP_SC_prob <= 0.0f) continue;
-                TMP_SC_log = logf(TMP_SC_prob);
+                /* Probability-space: no logf needed */
 
                 for (nuc3 = 0; nuc3 <= SP_MAX_NUC; nuc3++)
                   {
-                    float emit = p7_fs_oprofile_FGetEmission(om_fs, k_local, C2[nuc3]);
-                    float log_emit = (emit > 0.0f) ? logf(emit) : -eslINFINITY;
-                    int   off      = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + don_sig;
-                    float new_sc   = TMP_SC_log + log_emit;
-                    if (new_sc > P_scores[k_local][off])
-                      P_scores[k_local][off] = new_sc;
+                    float new_sc = TMP_SC_prob * p7_fs_oprofile_FGetEmission(om_fs, k_local, C2[nuc3]);
+                    int   off    = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + don_sig;
+                    u_vec.v = pvx[off * Q + q];
+                    if (new_sc > u_vec.p[r_lane]) u_vec.p[r_lane] = new_sc;
+                    pvx[off * Q + q] = u_vec.v;
                   }
               }
         } /* end don2 */
@@ -676,11 +670,11 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
                 u_vec.v = DMO_SP(dpd, q2); TMP_SC_prob  = ESL_MAX(TMP_SC_prob, u_vec.p[r2]);
 
                 if (TMP_SC_prob <= 0.0f) continue;
-                TMP_SC_log = logf(TMP_SC_prob);
 
                 int off = SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + don_sig;
-                if (TMP_SC_log > P_scores[k_local][off])
-                  P_scores[k_local][off] = TMP_SC_log;
+                u_vec.v = pvx[off * Q + q];
+                if (TMP_SC_prob > u_vec.p[r_lane]) u_vec.p[r_lane] = TMP_SC_prob;
+                pvx[off * Q + q] = u_vec.v;
               }
         } /* end don1 */
 
@@ -703,10 +697,10 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
                 u_vec.v = DMO_SP(dpd, q2); TMP_SC_prob  = ESL_MAX(TMP_SC_prob, u_vec.p[r2]);
 
                 if (TMP_SC_prob <= 0.0f) continue;
-                TMP_SC_log = logf(TMP_SC_prob);
 
-                if (TMP_SC_log > P_scores[k_local][don_sig])
-                  P_scores[k_local][don_sig] = TMP_SC_log;
+                u_vec.v = pvx[don_sig * Q + q];
+                if (TMP_SC_prob > u_vec.p[r_lane]) u_vec.p[r_lane] = TMP_SC_prob;
+                pvx[don_sig * Q + q] = u_vec.v;
               }
         } /* end don0 */
 
@@ -731,7 +725,12 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
     ox->xmx[L*p7X_NXCELLS + p7X_C] = xE * om_fs->xf[p7O_E][p7O_MOVE];
   }
 
+  free(pvx_mem);
   return eslOK;
+
+ ERROR:
+  if (pvx_mem) free(pvx_mem);
+  return status;
 }
 /*------------------ end, p7_Viterbi_SplicedGlobal() ---------------*/
 
@@ -879,7 +878,7 @@ main(int argc, char **argv)
         }
 
       p7_Viterbi_SplicedGlobal(dsq, om_fs, ox,
-                               pli->splice_scores->P_scores, pli->splice_scores->signal_scores,
+                               pli->splice_scores->signal_scores,
                                1, L_dna_total, 1, hmm->M, pli->min_intron);
 
       if (esl_opt_GetBoolean(go, "-c"))
@@ -1021,7 +1020,6 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* --- SSE Viterbi --- */
       p7_Viterbi_SplicedGlobal(dsq, om_fs, ox,
-                               pli->splice_scores->P_scores,
                                pli->splice_scores->signal_scores,
                                1, L_dna_total, 1, M, min_intron);
 

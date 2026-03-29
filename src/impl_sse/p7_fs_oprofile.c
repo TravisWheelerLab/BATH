@@ -296,6 +296,96 @@ fs_fb_conversion(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
 }
 
 
+/* fs_fb_conversion_log()
+ *
+ * Like fs_fb_conversion(), but stores scores directly in log-space rather
+ * than converting them to probability space.  The source profile <gm_fs>
+ * already holds log-odds scores, so we skip the esl_sse_expf / expf calls
+ * and copy the values straight into om_fs->rfv, om_fs->tfv, and om_fs->xf.
+ * The result is an optimized FS profile whose float arrays are ready for use
+ * by a log-space Viterbi implementation without any subsequent
+ * p7_fs_oprofile_Logify() call.
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if <om_fs> is too small or codon_lengths is invalid.
+ */
+static int
+fs_fb_conversion_log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
+{
+  int     M   = gm_fs->M;
+  int     nq  = p7O_NQF(M);
+  int     ncodon_rows;
+  int     c;
+  int     q;
+  int     k;
+  int     kb;
+  int     z;
+  int     t;
+  int     tg;
+  int     j;
+  union { __m128 v; float x[4]; } tmp;
+
+  if (nq > om_fs->allocQ4) ESL_EXCEPTION(eslEINVAL, "optimized profile is too small to hold conversion");
+
+  if      (om_fs->codon_lengths == 1) ncodon_rows = p7P_MAXCODONS1 + gm_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 3) ncodon_rows = p7P_MAXCODONS3 + gm_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 5) ncodon_rows = p7P_MAXCODONS5 + gm_fs->abc->Kp;
+  else ESL_EXCEPTION(eslEINVAL, "codon_lengths must be 1, 3, or 5");
+
+  /* Striped match emission scores in log-space: copy directly, no expf. */
+  for (c = 0; c < ncodon_rows; c++)
+    for (k = 1, q = 0; q < nq; q++, k++)
+      {
+        for (z = 0; z < 4; z++) tmp.x[z] = (k + z*nq <= M) ? gm_fs->rsc[c][k + z*nq] : -eslINFINITY;
+        om_fs->rfv[c][q] = tmp.v;
+      }
+
+  /* Transition scores in log-space: copy directly, no expf. */
+  for (j = 0, k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (t = p7O_BM; t <= p7O_II; t++)
+        {
+          switch (t) {
+          case p7O_BM: tg = p7P_BM; kb = k-1; break;
+          case p7O_MM: tg = p7P_MM; kb = k-1; break;
+          case p7O_IM: tg = p7P_IM; kb = k-1; break;
+          case p7O_DM: tg = p7P_DM; kb = k-1; break;
+          case p7O_MD: tg = p7P_MD; kb = k;   break;
+          case p7O_MI: tg = p7P_MI; kb = k;   break;
+          case p7O_II: tg = p7P_II; kb = k;   break;
+          default:     tg = 0;      kb = k;   break; /* unreachable; suppresses compiler warning */
+          }
+          for (z = 0; z < 4; z++) tmp.x[z] = (kb + z*nq < M) ? p7P_TSC(gm_fs, kb + z*nq, tg) : -eslINFINITY;
+          om_fs->tfv[j++] = tmp.v;
+        }
+    }
+
+  /* DD transitions in log-space. */
+  for (k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (z = 0; z < 4; z++) tmp.x[z] = (k + z*nq < M) ? p7P_TSC(gm_fs, k + z*nq, p7P_DD) : -eslINFINITY;
+      om_fs->tfv[j++] = tmp.v;
+    }
+
+  /* Special state (ENJC) transitions in log-space: copy directly, no expf.
+   * N/C/J will be overwritten by p7_fs_oprofile_ReconfigLength_Log(), so
+   * we initialise them here from gm_fs->xsc for completeness.
+   */
+  om_fs->xf[p7O_E][p7O_LOOP] = gm_fs->xsc[p7P_E][p7P_LOOP];
+  om_fs->xf[p7O_E][p7O_MOVE] = gm_fs->xsc[p7P_E][p7P_MOVE];
+  om_fs->xf[p7O_N][p7O_LOOP] = gm_fs->xsc[p7P_N][p7P_LOOP];
+  om_fs->xf[p7O_N][p7O_MOVE] = gm_fs->xsc[p7P_N][p7P_MOVE];
+  om_fs->xf[p7O_C][p7O_LOOP] = gm_fs->xsc[p7P_C][p7P_LOOP];
+  om_fs->xf[p7O_C][p7O_MOVE] = gm_fs->xsc[p7P_C][p7P_MOVE];
+  om_fs->xf[p7O_J][p7O_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP];
+  om_fs->xf[p7O_J][p7O_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE];
+
+  /* fsprob is already stored as a log-odds score; nothing to do. */
+
+  return eslOK;
+}
+
+
 /* Function:  p7_fs_oprofile_Convert()
  * Synopsis:  Convert a generic frameshift profile to an optimized one.
  *
@@ -335,6 +425,77 @@ p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
   om_fs->fsprob        = gm_fs->fsprob;
 
   if ((status = fs_fb_conversion(gm_fs, om_fs)) != eslOK) return status;
+
+  if (om_fs->name != NULL) free(om_fs->name);
+  if (om_fs->acc  != NULL) free(om_fs->acc);
+  if (om_fs->desc != NULL) free(om_fs->desc);
+  if ((status = esl_strdup(gm_fs->name, -1, &(om_fs->name))) != eslOK) goto ERROR;
+  if ((status = esl_strdup(gm_fs->acc,  -1, &(om_fs->acc)))  != eslOK) goto ERROR;
+  if ((status = esl_strdup(gm_fs->desc, -1, &(om_fs->desc))) != eslOK) goto ERROR;
+  strcpy(om_fs->rf,        gm_fs->rf);
+  strcpy(om_fs->mm,        gm_fs->mm);
+  strcpy(om_fs->cs,        gm_fs->cs);
+  strcpy(om_fs->consensus, gm_fs->consensus);
+  for (z = 0; z < p7_NEVPARAM; z++) om_fs->evparam[z] = gm_fs->evparam[z];
+  for (z = 0; z < p7_NCUTOFFS; z++) om_fs->cutoff[z]  = gm_fs->cutoff[z];
+  for (z = 0; z < p7_MAXABET;  z++) om_fs->compo[z]   = gm_fs->compo[z];
+
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
+
+/* Function:  p7_fs_oprofile_Convert_Log()
+ * Synopsis:  Convert a generic FS profile to an optimized one, keeping float scores in log-space.
+ *
+ * Purpose:   Convert a generic frameshift profile <gm_fs> to an optimized
+ *            profile <om_fs>, where <om_fs> has already been allocated for
+ *            at least <gm_fs->M> nodes with the same alphabet and
+ *            <codon_lengths> setting.
+ *
+ *            Unlike <p7_fs_oprofile_Convert()>, this function does not convert
+ *            the float emission and transition scores to probability space.
+ *            Instead it copies the log-odds scores from <gm_fs> directly into
+ *            <om_fs->rfv>, <om_fs->tfv>, and <om_fs->xf>.  The resulting
+ *            <om_fs> is immediately suitable for a log-space Viterbi
+ *            implementation without a subsequent <p7_fs_oprofile_Logify()> call.
+ *
+ *            <om_fs->fsprob> is already stored as a log-odds score in
+ *            <gm_fs> and is copied as-is.
+ *
+ *            After this call, use <p7_fs_oprofile_ReconfigLength_Log()> (not
+ *            <p7_fs_oprofile_ReconfigLength()>) to set the target sequence
+ *            length, because <om_fs->xf> is already in log-space.
+ *
+ * Args:      gm_fs - generic frameshift profile to convert (log-odds scores)
+ *            om_fs - allocated optimized profile to receive the result
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if the two profiles are incompatible (different
+ *            alphabets, <om_fs> too small, or invalid codon_lengths).
+ *            <eslEMEM> on allocation failure (string duplication).
+ */
+int
+p7_fs_oprofile_Convert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
+{
+  int status, z;
+
+  if (gm_fs->abc->type != om_fs->abc->type) ESL_EXCEPTION(eslEINVAL, "alphabets of the two profiles don't match");
+  if (gm_fs->M         >  om_fs->allocM)    ESL_EXCEPTION(eslEINVAL, "optimized profile is too small");
+
+  /* Set configuration fields first; fs_fb_conversion_log() uses them. */
+  om_fs->mode          = gm_fs->mode;
+  om_fs->L             = gm_fs->L;
+  om_fs->M             = gm_fs->M;
+  om_fs->nj            = gm_fs->nj;
+  om_fs->max_length    = gm_fs->max_length;
+  om_fs->codon_lengths = gm_fs->codon_lengths;
+  om_fs->fsprob        = gm_fs->fsprob;
+
+  if ((status = fs_fb_conversion_log(gm_fs, om_fs)) != eslOK) return status;
 
   if (om_fs->name != NULL) free(om_fs->name);
   if (om_fs->acc  != NULL) free(om_fs->acc);

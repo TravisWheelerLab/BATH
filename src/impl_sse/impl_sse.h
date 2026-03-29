@@ -438,7 +438,8 @@ extern int             p7_fs_oprofile_IsLocal(const P7_FS_OPROFILE *om_fs);
 extern void            p7_fs_oprofile_Destroy(P7_FS_OPROFILE *om_fs);
 extern P7_FS_OPROFILE *p7_fs_oprofile_Clone(const P7_FS_OPROFILE *om_fs);
 
-extern int             p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_Convert    (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_Convert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
 extern int             p7_fs_oprofile_ReconfigLength    (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigLength_Log(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);

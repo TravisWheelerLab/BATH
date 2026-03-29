@@ -1,19 +1,17 @@
 /* SSE-accelerated frameshift-aware Viterbi algorithm; full matrix.
  *
- * Probability-space DP: _mm_mul_ps along a path, _mm_max_ps to select
- * the best path at each branch point. Sparse rescaling is used to
- * achieve full dynamic range on long sequences. The final score is:
+ * Log-space DP: _mm_add_ps along a path, _mm_max_ps to select the best
+ * path at each branch point. No rescaling is required. The profile must
+ * be converted to log-space by p7_fs_oprofile_Logify() before calling.
+ * The final score is returned directly as a log-odds score in nats:
  *
- *   ret_sc = ox->totscale + logf(max_xC * xf[C][MOVE])
+ *   opt_sc = max(xC(L), xC(L-1)+LOOP, xC(L-2)+LOOP) + xf[C][MOVE]
  *
- * where max_xC = max(xC(L), xC(L-1)*LOOP, xC(L-2)*LOOP), accounting
- * for the three possible final codon lengths (3, 4, or 5 nt) that can
- * end exactly at position L.
+ * where the max accounts for the three possible final codon lengths
+ * (3, 4, or 5 nt) that can end exactly at position L.
  *
- * Based on p7_Forward_Frameshift() in fwdback_fs.c. Every sum-of-paths
- * (_mm_add_ps combining alternative paths) is replaced by a
- * max-over-paths (_mm_max_ps); multiplications along a single path
- * (_mm_mul_ps) are unchanged.
+ * The vit_select_*_fs() traceback helpers in section 2a have been
+ * updated to log-space to match.
  *
  * Contents:
  *   1. p7_Viterbi_Frameshift() implementation.
@@ -45,34 +43,33 @@
  *****************************************************************/
 
 /* Function:  p7_Viterbi_Frameshift()
- * Synopsis:  SSE-accelerated frameshift-aware Viterbi algorithm, 5 codon lengths, full matrix.
+ * Synopsis:  SSE-accelerated frameshift-aware Viterbi algorithm, log-space, 5 codon lengths.
  *
  * Purpose:   Full O(ML) Viterbi algorithm for frameshift-aware translated
  *            comparison between a nucleotide sequence and a frameshift-aware
  *            codon HMM, using five codon lengths (1-5 nucleotides), with
- *            SIMD parallelism and sparse rescaling.
+ *            SIMD parallelism.
  *
- *            Finds the maximum-probability alignment of nucleotide sequence
- *            <dsq> of length <L> to frameshift-aware codon profile <om_fs>,
- *            storing the full DP matrix in <ox> to enable subsequent
- *            traceback.  The Viterbi score (in nats) is returned in <opt_sc>.
+ *            Finds the maximum-scoring alignment of nucleotide sequence <dsq>
+ *            of length <L> to frameshift-aware codon profile <om_fs>, storing
+ *            the full DP matrix in <ox> to enable subsequent traceback.  The
+ *            Viterbi score (in nats) is returned in <opt_sc>.
  *
- *            The DP is computed in probability space (scaled odds ratios),
- *            mirroring p7_Forward_Frameshift(), with all sum-over-paths
- *            operations replaced by max-over-paths operations.
+ *            The DP is computed in log-space (log-odds scores).  The profile
+ *            <om_fs> must have been converted to log-space beforehand by
+ *            calling <p7_fs_oprofile_Logify()>.  Transitions and emissions
+ *            are combined by addition (_mm_add_ps) and paths are selected by
+ *            max (_mm_max_ps).  No rescaling is needed or performed.
  *
- *            <ox> must be created with p7_omx_Create_dpf(M, L, L, p7X_NSCELLS).
- *            Scale factors at each row are written to
- *            <ox->xmx[i*p7X_NXCELLS+p7X_SCALE]>.
  *
  * Args:      dsq    - nucleotide sequence, 1..L
  *            L      - length of dsq
- *            om_fs  - optimized frameshift profile (codon_lengths == 5)
+ *            om_fs  - optimized frameshift profile, logified by p7_fs_oprofile_Logify()
  *            ox     - DP matrix, p7_omx_Create_dpf(M, L, L, p7X_NSCELLS)
  *            opt_sc - optRETURN: Viterbi score in nats
  *
  * Returns:   <eslOK> on success.
- * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> on score underflow.
+ * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> if no valid path exists.
  */
 int
 p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
@@ -83,8 +80,8 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   register __m128 dcv;                   /* delayed D(i,q+1) carry                          */
   register __m128 xEv;                   /* E-state partial max (horizontal reduce later)   */
   register __m128 xBv1;                  /* splatted B(i-1)                                 */
-  __m128   zerov;                        /* splatted 0.0                                    */
-  float    xN, xE, xB, xC, xJ;          /* special state scalars                           */
+  __m128   infv;                         /* splatted -eslINFINITY: log-space "impossible"   */
+  float    xN, xE, xB, xC, xJ;          /* special state scalars (log-space)               */
   float    xN_buf[PARSER_ROWS_FWD];
   float    xB_buf[PARSER_ROWS_FWD];
   float    xJ_buf[PARSER_ROWS_FWD];
@@ -99,47 +96,46 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
-  float    insert_adj;                   /* scale correction for I(i,k) from dpf[i-3]      */
   int      status;
 
   if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
   ox->M              = om_fs->M;
   ox->L              = L;
-  ox->has_own_scales = TRUE;
+  ox->has_own_scales = FALSE;
   ox->totscale       = 0.0;
-  zerov = _mm_setzero_ps();
+  infv = _mm_set1_ps(-eslINFINITY);
 
   /* Allocate IVX: p7P_5CODONS circular rows x Q stripes */
   ESL_ALLOC(ivxf_mem, sizeof(__m128) * p7P_5CODONS * Q + 15);
   ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
-  /* Zero-initialize rows 0..L of the full DP matrix */
+  /* Initialize rows 0..L of the full DP matrix to -inf (log-space impossible). */
   for (r = 0; r <= L; r++)
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = zerov;
+      MMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = infv;
 
-  /* Zero-initialize all IVX rows */
+  /* Initialize all IVX rows to -inf. */
   for (r = 0; r < p7P_5CODONS; r++)
     for (q = 0; q < Q; q++)
-      IVX(r, q) = zerov;
+      IVX(r, q) = infv;
 
-  /* Initialize special-state circular buffers.
-   * N(0)=N(1)=N(2)=1; B(0)=B(1)=B(2)=T_NM; E=J=C=0. */
+  /* Initialize special-state circular buffers (log-space).
+   * N(0)=N(1)=N(2)=0 (=log 1); B(0)=B(1)=B(2)=log T_NM; E=J=C=-inf. */
   for (r = 0; r < PARSER_ROWS_FWD; r++)
-    xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = 0.0f;
-  xN_buf[0] = xN_buf[1] = xN_buf[2] = 1.0f;
+    xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = -eslINFINITY;
+  xN_buf[0] = xN_buf[1] = xN_buf[2] = 0.0f;
   xB_buf[0] = xB_buf[1] = xB_buf[2] = om_fs->xf[p7O_N][p7O_MOVE];
 
-  /* Write rows 0, 1, 2 specials to ox->xmx */
+  /* Write rows 0, 1, 2 specials to ox->xmx (log-space; SCALE=0 means no rescaling). */
   for (r = 0; r < 3; r++)
     {
-      ox->xmx[r*p7X_NXCELLS+p7X_SCALE] = 1.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_E]     = 0.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_N]     = 1.0f;
-      ox->xmx[r*p7X_NXCELLS+p7X_J]     = 0.0f;
+      ox->xmx[r*p7X_NXCELLS+p7X_SCALE] = 0.0f;
+      ox->xmx[r*p7X_NXCELLS+p7X_E]     = -eslINFINITY;
+      ox->xmx[r*p7X_NXCELLS+p7X_N]     = 0.0f;
+      ox->xmx[r*p7X_NXCELLS+p7X_J]     = -eslINFINITY;
       ox->xmx[r*p7X_NXCELLS+p7X_B]     = om_fs->xf[p7O_N][p7O_MOVE];
-      ox->xmx[r*p7X_NXCELLS+p7X_C]     = 0.0f;
+      ox->xmx[r*p7X_NXCELLS+p7X_C]     = -eslINFINITY;
     }
 
   /* Initialize nucleotide rolling window */
@@ -155,55 +151,55 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   ivx_1 = 1;  /* i % p7P_5CODONS */
 
   dpc  = ox->dpf[1];
-  dpp1 = ox->dpf[0];  /* all zeros */
+  dpp1 = ox->dpf[0];  /* all -inf */
 
   xBv1 = _mm_set1_ps(xB_buf[0]);
   tp   = om_fs->tfv;
-  dcv  = zerov;
-  xEv  = zerov;
-  mpv1 = dpv1 = ipv1 = zerov;
+  dcv  = infv;
+  xEv  = infv;
+  mpv1 = dpv1 = ipv1 = infv;
 
   for (q = 0; q < Q; q++)
     {
-      /* IVX(1,q) = max(B(0)*BM, 0, 0, 0) = B(0)*BM */
-      sv  =                _mm_mul_ps(xBv1, *tp); tp++;   /* BM */
-      sv  = _mm_max_ps(sv, _mm_mul_ps(mpv1, *tp)); tp++;  /* MM=0 */
-      sv  = _mm_max_ps(sv, _mm_mul_ps(ipv1, *tp)); tp++;  /* IM=0 */
-      sv  = _mm_max_ps(sv, _mm_mul_ps(dpv1, *tp)); tp++;  /* DM=0 */
+      /* IVX(1,q) = max(B(0)+BM, -inf, -inf, -inf) = B(0)+BM */
+      sv  =                _mm_add_ps(xBv1, *tp); tp++;   /* BM */
+      sv  = _mm_max_ps(sv, _mm_add_ps(mpv1, *tp)); tp++;  /* MM=-inf */
+      sv  = _mm_max_ps(sv, _mm_add_ps(ipv1, *tp)); tp++;  /* IM=-inf */
+      sv  = _mm_max_ps(sv, _mm_add_ps(dpv1, *tp)); tp++;  /* DM=-inf */
       IVX(ivx_1, q) = sv;
 
       /* M_C0(1,q): 1-nt codon only */
-      msv = _mm_mul_ps(sv, om_fs->rfv[c1][q]);
+      msv = _mm_add_ps(sv, om_fs->rfv[c1][q]);
       MMO(dpc, q) = msv;
       xEv = _mm_max_ps(xEv, msv);
 
-      DMO(dpc, q) = dcv;
-      dcv = _mm_mul_ps(msv, *tp); tp++;   /* MD */
+      DMO(dpc, q) = dcv;  /* dcv = -inf initially */
+      dcv = _mm_add_ps(msv, *tp); tp++;   /* MD */
 
-      /* I(1,q) = 0 (dpp3 all zeros) */
-      IMO(dpc, q) = zerov;
+      /* I(1,q) = -inf (dpp3 not yet available) */
+      IMO(dpc, q) = infv;
       tp += 2;  /* skip MI, II */
     }
 
   /* DD paths */
-  dcv        = esl_sse_rightshiftz_float(dcv);
-  DMO(dpc,0) = zerov;
+  dcv        = esl_sse_rightshift_ps(dcv, infv);
+  DMO(dpc,0) = infv;
   tp         = om_fs->tfv + 7*Q;
   for (q = 0; q < Q; q++)
     {
       DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-      dcv         = _mm_mul_ps(DMO(dpc, q), *tp); tp++;
+      dcv         = _mm_add_ps(DMO(dpc, q), *tp); tp++;
     }
   if (om_fs->M < 100)
     {
       for (j = 1; j < 4; j++)
         {
-          dcv = esl_sse_rightshiftz_float(dcv);
+          dcv = esl_sse_rightshift_ps(dcv, infv);
           tp  = om_fs->tfv + 7*Q;
           for (q = 0; q < Q; q++)
             {
               DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-              dcv         = _mm_mul_ps(dcv, *tp); tp++;
+              dcv         = _mm_add_ps(dcv, *tp); tp++;
             }
         }
     }
@@ -212,15 +208,15 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       for (j = 1; j < 4; j++)
         {
           register __m128 cv;
-          dcv = esl_sse_rightshiftz_float(dcv);
+          dcv = esl_sse_rightshift_ps(dcv, infv);
           tp  = om_fs->tfv + 7*Q;
-          cv  = zerov;
+          cv  = _mm_setzero_ps();
           for (q = 0; q < Q; q++)
             {
               sv          = _mm_max_ps(dcv, DMO(dpc, q));
               cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
               DMO(dpc, q) = sv;
-              dcv         = _mm_mul_ps(dcv, *tp); tp++;
+              dcv         = _mm_add_ps(dcv, *tp); tp++;
             }
           if (! _mm_movemask_ps(cv)) break;
         }
@@ -230,38 +226,13 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
     xEv = _mm_max_ps(xEv, DMO(dpc, q));
   esl_sse_hmax_ps(xEv, &xE);
 
-  xN = 1.0f;
-  xJ = xE * om_fs->xf[p7O_E][p7O_LOOP];
-  xC = xE * om_fs->xf[p7O_E][p7O_MOVE];
-  xB = ESL_MAX(xN * om_fs->xf[p7O_N][p7O_MOVE], xJ * om_fs->xf[p7O_J][p7O_MOVE]);
-
-  /* Sparse rescaling at i=1 */
-  if (xE > 1.0e4f)
-    {
-      float scale_factor = 1.0f / xE;
-      xN *= scale_factor; xJ *= scale_factor; xC *= scale_factor; xB *= scale_factor;
-      xEv = _mm_set1_ps(scale_factor);
-      for (q = 0; q < Q; q++)
-        {
-          MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
-          DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
-          IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
-        }
-      for (r = 0; r < p7P_5CODONS; r++)
-        for (q = 0; q < Q; q++)
-          IVX(r, q) = _mm_mul_ps(IVX(r, q), xEv);
-      for (r = 0; r < PARSER_ROWS_FWD; r++)
-        {
-          xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
-          xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
-        }
-      ox->xmx[1*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
-      xE = 1.0f;
-    }
-  else ox->xmx[1*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  xN = 0.0f;
+  xJ = xE + om_fs->xf[p7O_E][p7O_LOOP];
+  xC = xE + om_fs->xf[p7O_E][p7O_MOVE];
+  xB = ESL_MAX(xN + om_fs->xf[p7O_N][p7O_MOVE], xJ + om_fs->xf[p7O_J][p7O_MOVE]);
 
   xN_buf[1] = xN; xB_buf[1] = xB; xJ_buf[1] = xJ; xC_buf[1] = xC;
+  ox->xmx[1*p7X_NXCELLS+p7X_SCALE] = 0.0f;
   ox->xmx[1*p7X_NXCELLS+p7X_E] = xE;
   ox->xmx[1*p7X_NXCELLS+p7X_N] = xN;
   ox->xmx[1*p7X_NXCELLS+p7X_J] = xJ;
@@ -287,23 +258,23 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
 
   xBv1 = _mm_set1_ps(xB_buf[1]);
   tp   = om_fs->tfv;
-  dcv  = zerov;
-  xEv  = zerov;
+  dcv  = infv;
+  xEv  = infv;
 
-  mpv1 = esl_sse_rightshiftz_float(MMO(dpp1, Q-1));
-  dpv1 = esl_sse_rightshiftz_float(DMO(dpp1, Q-1));
-  ipv1 = esl_sse_rightshiftz_float(IMO(dpp1, Q-1));
+  mpv1 = esl_sse_rightshift_ps(MMO(dpp1, Q-1), infv);
+  dpv1 = esl_sse_rightshift_ps(DMO(dpp1, Q-1), infv);
+  ipv1 = esl_sse_rightshift_ps(IMO(dpp1, Q-1), infv);
 
   for (q = 0; q < Q; q++)
     {
-      sv  =                _mm_mul_ps(xBv1, *tp); tp++;
-      sv  = _mm_max_ps(sv, _mm_mul_ps(mpv1, *tp)); tp++;
-      sv  = _mm_max_ps(sv, _mm_mul_ps(ipv1, *tp)); tp++;
-      sv  = _mm_max_ps(sv, _mm_mul_ps(dpv1, *tp)); tp++;
+      sv  =                _mm_add_ps(xBv1, *tp); tp++;
+      sv  = _mm_max_ps(sv, _mm_add_ps(mpv1, *tp)); tp++;
+      sv  = _mm_max_ps(sv, _mm_add_ps(ipv1, *tp)); tp++;
+      sv  = _mm_max_ps(sv, _mm_add_ps(dpv1, *tp)); tp++;
       IVX(ivx_1, q) = sv;
 
-      __m128 mc1 = _mm_mul_ps(sv,             om_fs->rfv[c1][q]);
-      __m128 mc2 = _mm_mul_ps(IVX(ivx_2, q), om_fs->rfv[c2][q]);
+      __m128 mc1 = _mm_add_ps(sv,             om_fs->rfv[c1][q]);
+      __m128 mc2 = _mm_add_ps(IVX(ivx_2, q), om_fs->rfv[c2][q]);
       msv = _mm_max_ps(mc1, mc2);
       xEv = _mm_max_ps(xEv, msv);
 
@@ -314,32 +285,32 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       MMO(dpc, q) = msv;
       DMO(dpc, q) = dcv;
 
-      dcv = _mm_mul_ps(msv, *tp); tp++;   /* MD */
+      dcv = _mm_add_ps(msv, *tp); tp++;   /* MD */
 
-      /* I(2,q) = 0 (no dpp3 yet) */
-      IMO(dpc, q) = zerov;
+      /* I(2,q) = -inf (dpp3 not yet available) */
+      IMO(dpc, q) = infv;
       tp += 2;  /* skip MI, II */
     }
 
   /* DD paths */
-  dcv        = esl_sse_rightshiftz_float(dcv);
-  DMO(dpc,0) = zerov;
+  dcv        = esl_sse_rightshift_ps(dcv, infv);
+  DMO(dpc,0) = infv;
   tp         = om_fs->tfv + 7*Q;
   for (q = 0; q < Q; q++)
     {
       DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-      dcv         = _mm_mul_ps(DMO(dpc, q), *tp); tp++;
+      dcv         = _mm_add_ps(DMO(dpc, q), *tp); tp++;
     }
   if (om_fs->M < 100)
     {
       for (j = 1; j < 4; j++)
         {
-          dcv = esl_sse_rightshiftz_float(dcv);
+          dcv = esl_sse_rightshift_ps(dcv, infv);
           tp  = om_fs->tfv + 7*Q;
           for (q = 0; q < Q; q++)
             {
               DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-              dcv         = _mm_mul_ps(dcv, *tp); tp++;
+              dcv         = _mm_add_ps(dcv, *tp); tp++;
             }
         }
     }
@@ -348,15 +319,15 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       for (j = 1; j < 4; j++)
         {
           register __m128 cv;
-          dcv = esl_sse_rightshiftz_float(dcv);
+          dcv = esl_sse_rightshift_ps(dcv, infv);
           tp  = om_fs->tfv + 7*Q;
-          cv  = zerov;
+          cv  = _mm_setzero_ps();
           for (q = 0; q < Q; q++)
             {
               sv          = _mm_max_ps(dcv, DMO(dpc, q));
               cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
               DMO(dpc, q) = sv;
-              dcv         = _mm_mul_ps(dcv, *tp); tp++;
+              dcv         = _mm_add_ps(dcv, *tp); tp++;
             }
           if (! _mm_movemask_ps(cv)) break;
         }
@@ -365,40 +336,13 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
     xEv = _mm_max_ps(xEv, DMO(dpc, q));
   esl_sse_hmax_ps(xEv, &xE);
 
-  xN = 1.0f;
-  xJ = xE * om_fs->xf[p7O_E][p7O_LOOP];
-  xC = xE * om_fs->xf[p7O_E][p7O_MOVE];
-  xB = ESL_MAX(xN * om_fs->xf[p7O_N][p7O_MOVE], xJ * om_fs->xf[p7O_J][p7O_MOVE]);
-
-  if (xE > 1.0e4f)
-    {
-      float scale_factor = 1.0f / xE;
-      xN *= scale_factor; xJ *= scale_factor; xC *= scale_factor; xB *= scale_factor;
-      xEv = _mm_set1_ps(scale_factor);
-      for (q = 0; q < Q; q++)
-        {
-          MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
-          DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
-          IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
-        }
-      /* Rows 0 and 1 are committed; do not retroactively scale them.
-       * The insert_adj correction handles the scale difference when they
-       * are read as dpp3 at i=3 and i=4 respectively. */
-      for (r = 0; r < p7P_5CODONS; r++)
-        for (q = 0; q < Q; q++)
-          IVX(r, q) = _mm_mul_ps(IVX(r, q), xEv);
-      for (r = 0; r < PARSER_ROWS_FWD; r++)
-        {
-          xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
-          xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
-        }
-      ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
-      xE = 1.0f;
-    }
-  else ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  xN = 0.0f;
+  xJ = xE + om_fs->xf[p7O_E][p7O_LOOP];
+  xC = xE + om_fs->xf[p7O_E][p7O_MOVE];
+  xB = ESL_MAX(xN + om_fs->xf[p7O_N][p7O_MOVE], xJ + om_fs->xf[p7O_J][p7O_MOVE]);
 
   xN_buf[2] = xN; xB_buf[2] = xB; xJ_buf[2] = xJ; xC_buf[2] = xC;
+  ox->xmx[2*p7X_NXCELLS+p7X_SCALE] = 0.0f;
   ox->xmx[2*p7X_NXCELLS+p7X_E] = xE;
   ox->xmx[2*p7X_NXCELLS+p7X_N] = xN;
   ox->xmx[2*p7X_NXCELLS+p7X_J] = xJ;
@@ -408,14 +352,13 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   /*----------------------------------------------------------------
    * Main recurrence: i = 3..L
    *
-   * M_Cn(i,k) = IVX(i-n+1, k) * Rn(k)              for n = 1..5
+   * M_Cn(i,k) = IVX(i-n+1, k) + Rn(k)              for n = 1..5
    * M_C0(i,k) = max(M_C1, M_C2, M_C3, M_C4, M_C5)  (best codon length)
-   * I(i,k)    = max(M(i-3,k)*MI, I(i-3,k)*II)
-   * D(i,k)    = max(M(i,k-1)*MD, D(i,k-1)*DD)
+   * I(i,k)    = max(M(i-3,k)+MI, I(i-3,k)+II)
+   * D(i,k)    = max(M(i,k-1)+MD, D(i,k-1)+DD)
    *
-   * insert_adj: I(i,k) reads dpf[i-3] which was committed under the
-   * cumulative scale at row i-3; running scale is that of row i-1.
-   * Correction = 1 / (S[i-2] * S[i-1]).
+   * In log-space there is no scaling, so dpp3 is read directly with
+   * no insert_adj correction.
    *----------------------------------------------------------------*/
   for (i = 3; i <= L; i++)
     {
@@ -442,38 +385,30 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       dpp1 = ox->dpf[i-1];
       dpp3 = ox->dpf[i-3];
 
-      /* insert_adj: dpp3 committed at scale S[i-3]; running scale = S[i-1].
-       * Correction = 1.0 / (S[i-2] * S[i-1]). */
-      insert_adj = 1.0f
-                 / (ox->xmx[(i-2)*p7X_NXCELLS+p7X_SCALE]
-                 *  ox->xmx[(i-1)*p7X_NXCELLS+p7X_SCALE]);
-
-      mpv1 = esl_sse_rightshiftz_float(MMO(dpp1, Q-1));
-      dpv1 = esl_sse_rightshiftz_float(DMO(dpp1, Q-1));
-      ipv1 = esl_sse_rightshiftz_float(IMO(dpp1, Q-1));
+      mpv1 = esl_sse_rightshift_ps(MMO(dpp1, Q-1), infv);
+      dpv1 = esl_sse_rightshift_ps(DMO(dpp1, Q-1), infv);
+      ipv1 = esl_sse_rightshift_ps(IMO(dpp1, Q-1), infv);
 
       xBv1 = _mm_set1_ps(xB_buf[b1]);
       tp   = om_fs->tfv;
-      dcv  = zerov;
-      xEv  = zerov;
-
-      register __m128 adj_v = _mm_set1_ps(insert_adj);
+      dcv  = infv;
+      xEv  = infv;
 
       for (q = 0; q < Q; q++)
         {
-          /* IVX(i,k) = max(B(i-1)*BM, M(i-1,k-1)*MM, I(i-1,k-1)*IM, D(i-1,k-1)*DM) */
-          sv  =                _mm_mul_ps(xBv1, *tp); tp++;
-          sv  = _mm_max_ps(sv, _mm_mul_ps(mpv1, *tp)); tp++;
-          sv  = _mm_max_ps(sv, _mm_mul_ps(ipv1, *tp)); tp++;
-          sv  = _mm_max_ps(sv, _mm_mul_ps(dpv1, *tp)); tp++;
+          /* IVX(i,k) = max(B(i-1)+BM, M(i-1,k-1)+MM, I(i-1,k-1)+IM, D(i-1,k-1)+DM) */
+          sv  =                _mm_add_ps(xBv1, *tp); tp++;
+          sv  = _mm_max_ps(sv, _mm_add_ps(mpv1, *tp)); tp++;
+          sv  = _mm_max_ps(sv, _mm_add_ps(ipv1, *tp)); tp++;
+          sv  = _mm_max_ps(sv, _mm_add_ps(dpv1, *tp)); tp++;
           IVX(ivx_1, q) = sv;
 
           /* M_C0 = best codon-length match at this model position */
-          msv = _mm_max_ps(_mm_max_ps(_mm_max_ps(_mm_mul_ps(sv,             om_fs->rfv[c1][q]),
-                                                  _mm_mul_ps(IVX(ivx_2, q), om_fs->rfv[c2][q])),
-                                      _mm_max_ps(_mm_mul_ps(IVX(ivx_3, q), om_fs->rfv[c3][q]),
-                                                  _mm_mul_ps(IVX(ivx_4, q), om_fs->rfv[c4][q]))),
-                                      _mm_mul_ps(IVX(ivx_5, q),             om_fs->rfv[c5][q]));
+          msv = _mm_max_ps(_mm_max_ps(_mm_max_ps(_mm_add_ps(sv,             om_fs->rfv[c1][q]),
+                                                  _mm_add_ps(IVX(ivx_2, q), om_fs->rfv[c2][q])),
+                                      _mm_max_ps(_mm_add_ps(IVX(ivx_3, q), om_fs->rfv[c3][q]),
+                                                  _mm_add_ps(IVX(ivx_4, q), om_fs->rfv[c4][q]))),
+                                      _mm_add_ps(IVX(ivx_5, q),             om_fs->rfv[c5][q]));
           xEv = _mm_max_ps(xEv, msv);
 
           mpv1 = MMO(dpp1, q);
@@ -482,32 +417,32 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
 
           MMO(dpc, q) = msv;
           DMO(dpc, q) = dcv;
-          dcv = _mm_mul_ps(msv, *tp); tp++;   /* MD */
+          dcv = _mm_add_ps(msv, *tp); tp++;   /* MD */
 
-          /* I(i,k) = max(M(i-3,k)*MI, I(i-3,k)*II); scale-corrected */
-          sv          = _mm_mul_ps(_mm_mul_ps(MMO(dpp3, q), adj_v), *tp); tp++;  /* MI */
-          IMO(dpc, q) = _mm_max_ps(sv, _mm_mul_ps(_mm_mul_ps(IMO(dpp3, q), adj_v), *tp)); tp++;  /* II */
+          /* I(i,k) = max(M(i-3,k)+MI, I(i-3,k)+II); no scale correction in log-space */
+          sv          = _mm_add_ps(MMO(dpp3, q), *tp); tp++;  /* MI */
+          IMO(dpc, q) = _mm_max_ps(sv, _mm_add_ps(IMO(dpp3, q), *tp)); tp++;  /* II */
         }
 
       /* DD paths */
-      dcv        = esl_sse_rightshiftz_float(dcv);
-      DMO(dpc,0) = zerov;
+      dcv        = esl_sse_rightshift_ps(dcv, infv);
+      DMO(dpc,0) = infv;
       tp         = om_fs->tfv + 7*Q;
       for (q = 0; q < Q; q++)
         {
           DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-          dcv         = _mm_mul_ps(DMO(dpc, q), *tp); tp++;
+          dcv         = _mm_add_ps(DMO(dpc, q), *tp); tp++;
         }
       if (om_fs->M < 100)
         {
           for (j = 1; j < 4; j++)
             {
-              dcv = esl_sse_rightshiftz_float(dcv);
+              dcv = esl_sse_rightshift_ps(dcv, infv);
               tp  = om_fs->tfv + 7*Q;
               for (q = 0; q < Q; q++)
                 {
                   DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-                  dcv         = _mm_mul_ps(dcv, *tp); tp++;
+                  dcv         = _mm_add_ps(dcv, *tp); tp++;
                 }
             }
         }
@@ -516,15 +451,15 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           for (j = 1; j < 4; j++)
             {
               register __m128 cv;
-              dcv = esl_sse_rightshiftz_float(dcv);
+              dcv = esl_sse_rightshift_ps(dcv, infv);
               tp  = om_fs->tfv + 7*Q;
-              cv  = zerov;
+              cv  = _mm_setzero_ps();
               for (q = 0; q < Q; q++)
                 {
                   sv          = _mm_max_ps(dcv, DMO(dpc, q));
                   cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
                   DMO(dpc, q) = sv;
-                  dcv         = _mm_mul_ps(dcv, *tp); tp++;
+                  dcv         = _mm_add_ps(dcv, *tp); tp++;
                 }
               if (! _mm_movemask_ps(cv)) break;
             }
@@ -534,38 +469,13 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
         xEv = _mm_max_ps(xEv, DMO(dpc, q));
       esl_sse_hmax_ps(xEv, &xE);
 
-      xN = xN_buf[b3] * om_fs->xf[p7O_N][p7O_LOOP];
-      xJ = ESL_MAX(xJ_buf[b3] * om_fs->xf[p7O_J][p7O_LOOP], xE * om_fs->xf[p7O_E][p7O_LOOP]);
-      xC = ESL_MAX(xC_buf[b3] * om_fs->xf[p7O_C][p7O_LOOP], xE * om_fs->xf[p7O_E][p7O_MOVE]);
-      xB = ESL_MAX(xN         * om_fs->xf[p7O_N][p7O_MOVE],  xJ * om_fs->xf[p7O_J][p7O_MOVE]);
-
-      /* Sparse rescaling */
-      if (xE > 1.0e4f)
-        {
-          float scale_factor = 1.0f / xE;
-          xN *= scale_factor; xJ *= scale_factor; xC *= scale_factor; xB *= scale_factor;
-          xEv = _mm_set1_ps(scale_factor);
-          for (q = 0; q < Q; q++)
-            {
-              MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
-              DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
-              IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
-            }
-          for (r = 0; r < p7P_5CODONS; r++)
-            for (q = 0; q < Q; q++)
-              IVX(r, q) = _mm_mul_ps(IVX(r, q), xEv);
-          for (r = 0; r < PARSER_ROWS_FWD; r++)
-            {
-              xN_buf[r] *= scale_factor; xB_buf[r] *= scale_factor;
-              xJ_buf[r] *= scale_factor; xC_buf[r] *= scale_factor;
-            }
-          ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
-          ox->totscale += log(xE);
-          xE = 1.0f;
-        }
-      else ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+      xN = xN_buf[b3] + om_fs->xf[p7O_N][p7O_LOOP];
+      xJ = ESL_MAX(xJ_buf[b3] + om_fs->xf[p7O_J][p7O_LOOP], xE + om_fs->xf[p7O_E][p7O_LOOP]);
+      xC = ESL_MAX(xC_buf[b3] + om_fs->xf[p7O_C][p7O_LOOP], xE + om_fs->xf[p7O_E][p7O_MOVE]);
+      xB = ESL_MAX(xN         + om_fs->xf[p7O_N][p7O_MOVE],  xJ + om_fs->xf[p7O_J][p7O_MOVE]);
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
+      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = 0.0f;
       ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
       ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
       ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
@@ -573,26 +483,26 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
     } /* end main loop i=3..L */
 
-  /* Final score: max of xC(L), xC(L-1)*LOOP, xC(L-2)*LOOP, then *MOVE.
+  /* Final score: max of xC(L), xC(L-1)+LOOP, xC(L-2)+LOOP, then +MOVE.
    * The best-scoring alignment can end with a codon of length 3, 4, or 5 nt. */
   {
     float xCL   = xC_buf[   L    % PARSER_ROWS_FWD];
     float xCLm1 = xC_buf[((L-1) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD];
     float xCLm2 = xC_buf[((L-2) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD];
     float xCtot = ESL_MAX(xCL,
-                  ESL_MAX(xCLm1 * om_fs->xf[p7O_C][p7O_LOOP],
-                          xCLm2 * om_fs->xf[p7O_C][p7O_LOOP]));
+                  ESL_MAX(xCLm1 + om_fs->xf[p7O_C][p7O_LOOP],
+                          xCLm2 + om_fs->xf[p7O_C][p7O_LOOP]));
 
-    if      (isnan(xCtot))           ESL_EXCEPTION(eslERANGE, "Viterbi score is NaN");
-    else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "Viterbi score overflow (is infinity)");
-    else if (L > 1 && xCtot == 0.0f) {
+    if      (isnan(xCtot))            ESL_EXCEPTION(eslERANGE, "Viterbi score is NaN");
+    else if (isinf(xCtot) == 1)       ESL_EXCEPTION(eslERANGE, "Viterbi score overflow (is +infinity)");
+    else if (L > 1 && isinf(xCtot) == -1) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
       free(ivxf_mem);
       return eslERANGE;
     }
 
     if (opt_sc != NULL)
-      *opt_sc = ox->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
+      *opt_sc = xCtot + om_fs->xf[p7O_C][p7O_MOVE];
   }
 
   free(ivxf_mem);
@@ -698,7 +608,7 @@ p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L,
  *****************************************************************/
 
 /* M(i,k) is reached from B(i), M(i,k-1), I(i,k-1), or D(i,k-1).
- * All predecessors are at the same row i.
+ * All predecessors are at the same row i. Log-space: add transitions.
  */
 static inline int
 vit_select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
@@ -708,6 +618,7 @@ vit_select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   int     r     = (k-1) / Q;
   __m128 *tp    = om_fs->tfv + 7*q;   /* BM, MM, IM, DM, MD, MI, II */
   __m128  xBv   = _mm_set1_ps(ox->xmx[i*p7X_NXCELLS + p7X_B]);
+  __m128  infv  = _mm_set1_ps(-eslINFINITY);
   __m128  mpv, dpv, ipv;
   union { __m128 v; float p[4]; } u;
   float   path[4];
@@ -718,25 +629,28 @@ vit_select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
     dpv = DMO(ox->dpf[i], q-1);
     ipv = IMO(ox->dpf[i], q-1);
   } else {
-    mpv = esl_sse_rightshiftz_float(MMO(ox->dpf[i], Q-1));
-    dpv = esl_sse_rightshiftz_float(DMO(ox->dpf[i], Q-1));
-    ipv = esl_sse_rightshiftz_float(IMO(ox->dpf[i], Q-1));
+    mpv = esl_sse_rightshift_ps(MMO(ox->dpf[i], Q-1), infv);
+    dpv = esl_sse_rightshift_ps(DMO(ox->dpf[i], Q-1), infv);
+    ipv = esl_sse_rightshift_ps(IMO(ox->dpf[i], Q-1), infv);
   }
 
-  u.v = _mm_mul_ps(xBv, *tp); tp++;  path[0] = u.p[r];  /* B  * T_BM */
-  u.v = _mm_mul_ps(mpv, *tp); tp++;  path[1] = u.p[r];  /* M' * T_MM */
-  u.v = _mm_mul_ps(ipv, *tp); tp++;  path[2] = u.p[r];  /* I' * T_IM */
-  u.v = _mm_mul_ps(dpv, *tp);        path[3] = u.p[r];  /* D' * T_DM */
+  u.v = _mm_add_ps(xBv, *tp); tp++;  path[0] = u.p[r];  /* B  + T_BM */
+  u.v = _mm_add_ps(mpv, *tp); tp++;  path[1] = u.p[r];  /* M' + T_MM */
+  u.v = _mm_add_ps(ipv, *tp); tp++;  path[2] = u.p[r];  /* I' + T_IM */
+  u.v = _mm_add_ps(dpv, *tp);        path[3] = u.p[r];  /* D' + T_DM */
   return state[esl_vec_FArgMax(path, 4)];
 }
 
-/* D(i,k) is reached from M(i,k-1) or D(i,k-1). Same row i. */
+/* D(i,k) is reached from M(i,k-1) or D(i,k-1). Same row i.
+ * Log-space: add transitions.
+ */
 static inline int
 vit_select_d_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
 {
   int     Q     = p7O_NQF(ox->M);
   int     q     = (k-1) % Q;
   int     r     = (k-1) / Q;
+  __m128  infv  = _mm_set1_ps(-eslINFINITY);
   __m128  mpv, dpv;
   __m128  tmdv, tddv;
   union { __m128 v; float p[4]; } u;
@@ -749,18 +663,20 @@ vit_select_d_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
     tmdv = om_fs->tfv[7*(q-1) + p7O_MD];
     tddv = om_fs->tfv[7*Q + (q-1)];
   } else {
-    mpv  = esl_sse_rightshiftz_float(MMO(ox->dpf[i], Q-1));
-    dpv  = esl_sse_rightshiftz_float(DMO(ox->dpf[i], Q-1));
-    tmdv = esl_sse_rightshiftz_float(om_fs->tfv[7*(Q-1) + p7O_MD]);
-    tddv = esl_sse_rightshiftz_float(om_fs->tfv[8*Q-1]);
+    mpv  = esl_sse_rightshift_ps(MMO(ox->dpf[i], Q-1), infv);
+    dpv  = esl_sse_rightshift_ps(DMO(ox->dpf[i], Q-1), infv);
+    tmdv = esl_sse_rightshift_ps(om_fs->tfv[7*(Q-1) + p7O_MD], infv);
+    tddv = esl_sse_rightshift_ps(om_fs->tfv[8*Q-1],             infv);
   }
 
-  u.v = _mm_mul_ps(mpv, tmdv); path[0] = u.p[r];
-  u.v = _mm_mul_ps(dpv, tddv); path[1] = u.p[r];
+  u.v = _mm_add_ps(mpv, tmdv); path[0] = u.p[r];
+  u.v = _mm_add_ps(dpv, tddv); path[1] = u.p[r];
   return state[esl_vec_FArgMax(path, 2)];
 }
 
-/* I(i,k) is reached from M(i-3,k) or I(i-3,k). */
+/* I(i,k) is reached from M(i-3,k) or I(i-3,k).
+ * Log-space: add transitions. No scale correction needed.
+ */
 static inline int
 vit_select_i_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
 {
@@ -774,8 +690,8 @@ vit_select_i_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   float   path[2];
   int     state[2] = { p7T_M, p7T_I };
 
-  u.v = _mm_mul_ps(mpv, *tp); tp++;  path[0] = u.p[r];  /* M * T_MI */
-  u.v = _mm_mul_ps(ipv, *tp);        path[1] = u.p[r];  /* I * T_II */
+  u.v = _mm_add_ps(mpv, *tp); tp++;  path[0] = u.p[r];  /* M + T_MI */
+  u.v = _mm_add_ps(ipv, *tp);        path[1] = u.p[r];  /* I + T_II */
   return state[esl_vec_FArgMax(path, 2)];
 }
 
@@ -787,61 +703,52 @@ vit_select_n_fs(int i)
 }
 
 /* C(i) is reached from E(i) or C at one of three codon offsets (i-3, i-2, i-1).
- * Scale-factor adjustment brings all candidates to a common scale before argmax.
+ * Log-space: all xmx values are log-odds; add transitions directly, no scale factors.
  */
 static inline int
 vit_select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
 {
   float loop  = om_fs->xf[p7O_C][p7O_LOOP];
-  float s_im2, s_im1, s_i;
   float path[4];
 
   if (i < 4) return p7T_E;
 
-  s_im2 = ox->xmx[(i-2)*p7X_NXCELLS + p7X_SCALE];
-  s_im1 = ox->xmx[(i-1)*p7X_NXCELLS + p7X_SCALE];
-  s_i   = ox->xmx[ i   *p7X_NXCELLS + p7X_SCALE];
-
-  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_C] * loop;
-  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_C] * loop  * s_im2;
-  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_C] * loop  * s_im2 * s_im1;
-  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] * om_fs->xf[p7O_E][p7O_MOVE] * s_im2 * s_im1 * s_i;
+  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_C] + loop;
+  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_C] + loop;
+  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_C] + loop;
+  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] + om_fs->xf[p7O_E][p7O_MOVE];
   return (esl_vec_FArgMax(path, 4) < 3) ? p7T_C : p7T_E;
 }
 
 /* J(i) is reached from E(i) or J at one of three codon offsets (i-3, i-2, i-1).
- * Same scale-factor adjustment logic as vit_select_c_fs().
+ * Log-space: add transitions directly, no scale factors.
  */
 static inline int
 vit_select_j_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
 {
   float loop  = om_fs->xf[p7O_J][p7O_LOOP];
-  float s_im2, s_im1, s_i;
   float path[4];
 
   if (i < 4) return p7T_E;
 
-  s_im2 = ox->xmx[(i-2)*p7X_NXCELLS + p7X_SCALE];
-  s_im1 = ox->xmx[(i-1)*p7X_NXCELLS + p7X_SCALE];
-  s_i   = ox->xmx[ i   *p7X_NXCELLS + p7X_SCALE];
-
-  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_J] * loop;
-  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_J] * loop  * s_im2;
-  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_J] * loop  * s_im2 * s_im1;
-  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] * om_fs->xf[p7O_E][p7O_LOOP] * s_im2 * s_im1 * s_i;
+  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_J] + loop;
+  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_J] + loop;
+  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_J] + loop;
+  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] + om_fs->xf[p7O_E][p7O_LOOP];
   return (esl_vec_FArgMax(path, 4) < 3) ? p7T_J : p7T_E;
 }
 
 /* E(i) is reached from any M(i,k=1..M) or D(i,k=2..M).
  * Scan all (q,r) to find the maximum M or D cell; return p7T_M or p7T_D
  * and set *ret_k to the winning model position.
+ * Log-space: initialize best to -inf so any real score wins.
  */
 static inline int
 vit_select_e_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
 {
   int    Q    = p7O_NQF(ox->M);
   union { __m128 v; float p[4]; } u;
-  float  best = -1.0f;
+  float  best = -eslINFINITY;
   int    best_k = 1;
   int    best_state = p7T_M;
   int    q, r, k;
@@ -863,25 +770,23 @@ vit_select_e_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k
   return best_state;
 }
 
-/* B(i) is reached from N(i) or J(i). Same row, no scale adjustment needed. */
+/* B(i) is reached from N(i) or J(i). Log-space: add transitions. */
 static inline int
 vit_select_b_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
 {
   float   path[2];
   int     state[2] = { p7T_N, p7T_J };
 
-  path[0] = ox->xmx[i*p7X_NXCELLS + p7X_N] * om_fs->xf[p7O_N][p7O_MOVE];
-  path[1] = ox->xmx[i*p7X_NXCELLS + p7X_J] * om_fs->xf[p7O_J][p7O_MOVE];
+  path[0] = ox->xmx[i*p7X_NXCELLS + p7X_N] + om_fs->xf[p7O_N][p7O_MOVE];
+  path[1] = ox->xmx[i*p7X_NXCELLS + p7X_J] + om_fs->xf[p7O_J][p7O_MOVE];
   return state[esl_vec_FArgMax(path, 2)];
 }
 
 /* For M state at (i,k): recompute codon length c (1..5) by reconstructing
- * per-codon IVX scores from stored DP cells, with row-scale corrections.
+ * per-codon IVX scores from stored DP cells.
  *
- * For codon length n, the predecessor DP row is i-n (at cumulative scale
- * S[i-n]).  To compare across n values at a common scale (S[i-1]), multiply
- * each raw score by corr = product(SCALE[r] for r = i-n+1 .. i-1).
- * Built cumulatively: after using corr for n, update corr *= SCALE[i-n].
+ * Log-space: transitions and emissions are added; no scale correction is
+ * needed because there is no per-row rescaling in the log-space forward pass.
  */
 static inline int
 vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
@@ -897,11 +802,10 @@ vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
   float  bprev, mprev, iprev, dprev;
   float  raw_ivx, rfv_cn;
   float  scores[5];
-  float  corr;
   int    x2, w2, v2, u2, t2;
   int    cn, n;
 
-  /* Scalar transition probs for model position k */
+  /* Scalar log-space transition scores for model position k */
   u.v = om_fs->tfv[7*q_k + 0]; tbm = u.p[r_k];
   u.v = om_fs->tfv[7*q_k + 1]; tmm = u.p[r_k];
   u.v = om_fs->tfv[7*q_k + 2]; tim = u.p[r_k];
@@ -914,22 +818,21 @@ vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
   u2 = (i >= 4 && dsq[i-3] < p7P_MAXNUC) ? (int)dsq[i-3] : p7P_MAXCODONS5;
   t2 = (i >= 5 && dsq[i-4] < p7P_MAXNUC) ? (int)dsq[i-4] : p7P_MAXCODONS5;
 
-  corr = 1.0f;
   for (n = 1; n <= 5; n++)
     {
-      if (i < n) { scores[n-1] = 0.0f; continue; }
+      if (i < n) { scores[n-1] = -eslINFINITY; continue; }
 
-      /* Predecessor B/M/I/D at row i-n */
+      /* Predecessor B/M/I/D at row i-n (log-space values) */
       bprev = ox->xmx[(i-n)*p7X_NXCELLS + p7X_B];
       if (k > 1) {
         u.v = MMO(ox->dpf[i-n], q_km1); mprev = u.p[r_km1];
         u.v = IMO(ox->dpf[i-n], q_km1); iprev = u.p[r_km1];
         u.v = DMO(ox->dpf[i-n], q_km1); dprev = u.p[r_km1];
       } else {
-        mprev = iprev = dprev = 0.0f;
+        mprev = iprev = dprev = -eslINFINITY;
       }
 
-      raw_ivx = ESL_MAX(bprev*tbm, ESL_MAX(mprev*tmm, ESL_MAX(iprev*tim, dprev*tdm)));
+      raw_ivx = ESL_MAX(bprev+tbm, ESL_MAX(mprev+tmm, ESL_MAX(iprev+tim, dprev+tdm)));
 
       switch (n) {
         case 1: cn = p7P_CODON1_FS5(x2);                   cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
@@ -940,10 +843,7 @@ vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
       }
       u.v = om_fs->rfv[cn][q_k]; rfv_cn = u.p[r_k];
 
-      scores[n-1] = raw_ivx * rfv_cn * corr;
-
-      /* Accumulate scale correction: bring row i-n to scale of row i-1 */
-      corr *= ox->xmx[(i-n)*p7X_NXCELLS + p7X_SCALE];
+      scores[n-1] = raw_ivx + rfv_cn;
     }
 
   return esl_vec_FArgMax(scores, 5) + 1;  /* returns 1..5 */
@@ -1038,6 +938,7 @@ main(int argc, char **argv)
   om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
   p7_fs_oprofile_Convert(gm_fs5, om_fs5);
   p7_fs_oprofile_ReconfigLength(om_fs5, L/3);
+  p7_fs_oprofile_Logify(om_fs5);
 
   ox = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
   tr = p7_trace_fs_Create();
@@ -1157,6 +1058,7 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, M, p7_LOCAL);
   p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+  p7_fs_oprofile_Logify(om_fs5);
 
   while (N--)
     {
@@ -1171,7 +1073,7 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         j += 3;
       }
 
-      p7_fs_oprofile_ReconfigLength(om_fs5, sq->n);
+      p7_fs_oprofile_ReconfigLength_Log(om_fs5, sq->n);
       p7_fs_ReconfigLength(gm_fs5, sq->n);
 
       p7_gmx_GrowTo(gx, M, curr_L, curr_L);

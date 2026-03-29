@@ -572,7 +572,6 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_fs, P7
                 }
 
               PMO_SP(dpc, q) = pv;
-              xEv = _mm_max_ps(xEv, pv);
             }
         } /* end q loop */
 

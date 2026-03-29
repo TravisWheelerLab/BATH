@@ -994,6 +994,83 @@ fb_conversion(const P7_PROFILE *gm, P7_OPROFILE *om)
 }
 
 
+/* fb_conversion_log()
+ * Like fb_conversion(), but stores scores directly in log-space rather than
+ * converting them to probability space.  The source profile <gm> already
+ * holds log-odds scores, so we skip the esl_sse_expf / expf calls and copy
+ * the values straight into om->rfv, om->tfv, and om->xf.  The result is an
+ * optimized profile whose float arrays are ready for use by p7_Viterbi()
+ * without any subsequent p7_oprofile_Logify() call.
+ */
+static int
+fb_conversion_log(const P7_PROFILE *gm, P7_OPROFILE *om)
+{
+  int     M   = gm->M;
+  int     nq  = p7O_NQF(M);
+  int     x;
+  int     q;
+  int     k;
+  int     kb;
+  int     z;
+  int     t;
+  int     tg;
+  int     j;
+  union { __m128 v; float x[4]; } tmp;
+
+  if (nq > om->allocQ4) ESL_EXCEPTION(eslEINVAL, "optimized profile is too small to hold conversion");
+
+  /* Striped match scores in log-space: copy directly, no expf. */
+  for (x = 0; x < gm->abc->Kp; x++)
+    for (k = 1, q = 0; q < nq; q++, k++)
+      {
+	for (z = 0; z < 4; z++) tmp.x[z] = (k + z*nq <= M) ? p7P_MSC(gm, k+z*nq, x) : -eslINFINITY;
+	om->rfv[x][q] = tmp.v;
+      }
+
+  /* Transition scores in log-space: copy directly, no expf. */
+  for (j = 0, k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (t = p7O_BM; t <= p7O_II; t++)
+	{
+	  switch (t) {
+	  case p7O_BM: tg = p7P_BM; kb = k-1; break;
+	  case p7O_MM: tg = p7P_MM; kb = k-1; break;
+	  case p7O_IM: tg = p7P_IM; kb = k-1; break;
+	  case p7O_DM: tg = p7P_DM; kb = k-1; break;
+	  case p7O_MD: tg = p7P_MD; kb = k;   break;
+	  case p7O_MI: tg = p7P_MI; kb = k;   break;
+	  case p7O_II: tg = p7P_II; kb = k;   break;
+	  }
+
+	  for (z = 0; z < 4; z++) tmp.x[z] = (kb+z*nq < M) ? p7P_TSC(gm, kb+z*nq, tg) : -eslINFINITY;
+	  om->tfv[j++] = tmp.v;
+	}
+    }
+
+  /* DD transitions in log-space. */
+  for (k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (z = 0; z < 4; z++) tmp.x[z] = (k+z*nq < M) ? p7P_TSC(gm, k+z*nq, p7P_DD) : -eslINFINITY;
+      om->tfv[j++] = tmp.v;
+    }
+
+  /* Special state transitions in log-space: copy directly, no expf.
+   * N/C/J will be overwritten by p7_oprofile_ReconfigLength_Log(), so
+   * we initialise them here from gm->xsc for completeness.
+   */
+  om->xf[p7O_E][p7O_LOOP] = gm->xsc[p7P_E][p7P_LOOP];
+  om->xf[p7O_E][p7O_MOVE] = gm->xsc[p7P_E][p7P_MOVE];
+  om->xf[p7O_N][p7O_LOOP] = gm->xsc[p7P_N][p7P_LOOP];
+  om->xf[p7O_N][p7O_MOVE] = gm->xsc[p7P_N][p7P_MOVE];
+  om->xf[p7O_C][p7O_LOOP] = gm->xsc[p7P_C][p7P_LOOP];
+  om->xf[p7O_C][p7O_MOVE] = gm->xsc[p7P_C][p7P_MOVE];
+  om->xf[p7O_J][p7O_LOOP] = gm->xsc[p7P_J][p7P_LOOP];
+  om->xf[p7O_J][p7O_MOVE] = gm->xsc[p7P_J][p7P_MOVE];
+
+  return eslOK;
+}
+
+
 /* Function:  p7_oprofile_Convert()
  * Synopsis:  Converts standard profile to an optimized one.
  * Incept:    SRE, Mon Nov 26 07:38:57 2007 [Janelia]
@@ -1048,6 +1125,76 @@ p7_oprofile_Convert(const P7_PROFILE *gm, P7_OPROFILE *om)
  ERROR:
   return status;
 }
+
+
+/* Function:  p7_oprofile_Convert_Log()
+ * Synopsis:  Converts standard profile to an optimized one, keeping float scores in log-space.
+ *
+ * Purpose:   Convert a standard profile <gm> to an optimized profile <om>,
+ *            where <om> has already been allocated for a profile of at least
+ *            <gm->M> nodes and the same emission alphabet <gm->abc>.
+ *
+ *            Unlike <p7_oprofile_Convert()>, this function does not convert
+ *            the float emission and transition scores to probability space.
+ *            Instead it copies the log-odds scores from <gm> directly into
+ *            <om->rfv>, <om->tfv>, and <om->xf>.  The resulting <om> is
+ *            immediately suitable for <p7_Viterbi()> without a subsequent
+ *            <p7_oprofile_Logify()> call.
+ *
+ *            The MSV byte scores and ViterbiFilter word scores are still
+ *            built in the normal way (via <mf_conversion()> and
+ *            <vf_conversion()>), as those algorithms are unaffected.
+ *
+ *            After this call, use <p7_oprofile_ReconfigLength_Log()> (not
+ *            <p7_oprofile_ReconfigLength()>) to set the target sequence
+ *            length, because <om->xf> is already in log-space.
+ *
+ * Args:      gm - profile to optimize (log-odds scores)
+ *            om - allocated optimized profile for holding the result.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <gm>, <om> aren't compatible.
+ *            <eslEMEM> on allocation failure.
+ */
+int
+p7_oprofile_Convert_Log(const P7_PROFILE *gm, P7_OPROFILE *om)
+{
+  int status, z;
+
+  om->mode       = gm->mode;
+  om->L          = gm->L;
+  om->M          = gm->M;
+  om->nj         = gm->nj;
+  om->max_length = gm->max_length;
+
+  if (gm->abc->type != om->abc->type) ESL_EXCEPTION(eslEINVAL, "alphabets of the two profiles don't match");
+  if (gm->M         >  om->allocM)    ESL_EXCEPTION(eslEINVAL, "oprofile is too small");
+
+  if ((status = mf_conversion    (gm, om)) != eslOK) return status;
+  if ((status = vf_conversion    (gm, om)) != eslOK) return status;
+  if ((status = fb_conversion_log(gm, om)) != eslOK) return status;
+
+  if (om->name != NULL) free(om->name);
+  if (om->acc  != NULL) free(om->acc);
+  if (om->desc != NULL) free(om->desc);
+  if ((status = esl_strdup(gm->name, -1, &(om->name))) != eslOK) goto ERROR;
+  if ((status = esl_strdup(gm->acc,  -1, &(om->acc)))  != eslOK) goto ERROR;
+  if ((status = esl_strdup(gm->desc, -1, &(om->desc))) != eslOK) goto ERROR;
+  strcpy(om->rf,        gm->rf);
+  strcpy(om->mm,        gm->mm);
+  strcpy(om->cs,        gm->cs);
+  strcpy(om->consensus, gm->consensus);
+  for (z = 0; z < p7_NEVPARAM; z++) om->evparam[z] = gm->evparam[z];
+  for (z = 0; z < p7_NCUTOFFS; z++) om->cutoff[z]  = gm->cutoff[z];
+  for (z = 0; z < p7_MAXABET;  z++) om->compo[z]   = gm->compo[z];
+
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
 
 /* Function:  p7_oprofile_Logify()
  * Synopsis:  Convert optimized profile float scores from probability-space to log-space.

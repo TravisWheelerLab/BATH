@@ -411,7 +411,8 @@ extern int          p7_oprofile_UpdateVitEmissionScores(P7_OPROFILE *om, P7_BG *
 extern int          p7_oprofile_UpdateMSVEmissionScores(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 
 
-extern int          p7_oprofile_Convert(const P7_PROFILE *gm, P7_OPROFILE *om);
+extern int          p7_oprofile_Convert    (const P7_PROFILE *gm, P7_OPROFILE *om);
+extern int          p7_oprofile_Convert_Log(const P7_PROFILE *gm, P7_OPROFILE *om);
 extern int          p7_oprofile_ReconfigLength    (P7_OPROFILE *om, int L);
 extern int          p7_oprofile_ReconfigLength_Log(P7_OPROFILE *om, int L);
 extern int          p7_oprofile_ReconfigMSVLength (P7_OPROFILE *om, int L);

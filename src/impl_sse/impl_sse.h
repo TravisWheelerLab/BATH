@@ -413,6 +413,7 @@ extern int          p7_oprofile_UpdateMSVEmissionScores(P7_OPROFILE *om, P7_BG *
 
 extern int          p7_oprofile_Convert(const P7_PROFILE *gm, P7_OPROFILE *om);
 extern int          p7_oprofile_ReconfigLength    (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigLength_Log(P7_OPROFILE *om, int L);
 extern int          p7_oprofile_ReconfigMSVLength (P7_OPROFILE *om, int L);
 extern int          p7_oprofile_ReconfigRestLength(P7_OPROFILE *om, int L);
 extern int          p7_oprofile_ReconfigMultihit  (P7_OPROFILE *om, int L);
@@ -437,7 +438,8 @@ extern void            p7_fs_oprofile_Destroy(P7_FS_OPROFILE *om_fs);
 extern P7_FS_OPROFILE *p7_fs_oprofile_Clone(const P7_FS_OPROFILE *om_fs);
 
 extern int             p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
-extern int             p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigLength    (P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigLength_Log(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigUnihit    (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_Logify            (P7_FS_OPROFILE *om_fs);

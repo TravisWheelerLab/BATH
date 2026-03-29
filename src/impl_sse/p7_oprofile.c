@@ -1178,6 +1178,40 @@ p7_oprofile_ReconfigRestLength(P7_OPROFILE *om, int L)
   return eslOK;
 }
 
+/* Function:  p7_oprofile_ReconfigLength_Log()
+ * Synopsis:  Set the target sequence length of a logified optimized profile.
+ *
+ * Purpose:   Same as <p7_oprofile_ReconfigLength()>, but for a profile that
+ *            has been converted to log-space by <p7_oprofile_Logify()>.
+ *            Computes the N/C/J loop and move transition probabilities for
+ *            the given length <L> and stores them as log-probabilities in
+ *            <om->xf>, keeping the profile consistent with <p7_Viterbi()>.
+ *
+ *            Only <om->xf> is updated.  The MSV byte scores (<tjb_b>) and
+ *            ViterbiFilter word scores (<xw>) are left unchanged because they
+ *            are managed by their own code paths and are not used by the
+ *            log-space Viterbi implementation.
+ *
+ * Args:      om - logified optimized profile to reconfigure
+ *            L  - new target sequence length
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_oprofile_ReconfigLength_Log(P7_OPROFILE *om, int L)
+{
+  float pmove, ploop;
+
+  pmove = (2.0f + om->nj) / ((float) L + 2.0f + om->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  ploop = 1.0f - pmove;
+
+  om->xf[p7O_N][p7O_LOOP] = om->xf[p7O_C][p7O_LOOP] = om->xf[p7O_J][p7O_LOOP] = logf(ploop);
+  om->xf[p7O_N][p7O_MOVE] = om->xf[p7O_C][p7O_MOVE] = om->xf[p7O_J][p7O_MOVE] = logf(pmove);
+
+  om->L = L;
+  return eslOK;
+}
+
 
 /* Function:  p7_oprofile_ReconfigMultihit()
  * Synopsis:  Quickly reconfig model into multihit mode for target length <L>.

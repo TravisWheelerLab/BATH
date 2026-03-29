@@ -391,6 +391,38 @@ p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L)
   return eslOK;
 }
 
+/* Function:  p7_fs_oprofile_ReconfigLength_Log()
+ * Synopsis:  Set the target sequence length of a logified optimized frameshift profile.
+ *
+ * Purpose:   Same as <p7_fs_oprofile_ReconfigLength()>, but for a profile that
+ *            has been converted to log-space by <p7_fs_oprofile_Logify()>.
+ *            Computes the N/C/J loop and move transition probabilities for the
+ *            given length <L> and stores them as log-probabilities in <om_fs->xf>,
+ *            keeping the profile consistent with log-space Viterbi.
+ *
+ *            The E-state transitions are length-independent and are left unchanged,
+ *            exactly as in <p7_fs_oprofile_ReconfigLength()>.
+ *
+ * Args:      om_fs - logified optimized frameshift profile to reconfigure
+ *            L     - new target sequence length
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_fs_oprofile_ReconfigLength_Log(P7_FS_OPROFILE *om_fs, int L)
+{
+  float pmove, ploop;
+
+  pmove = (2.0f + om_fs->nj) / ((float) L + 2.0f + om_fs->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  ploop = 1.0f - pmove;
+
+  om_fs->xf[p7O_N][p7O_LOOP] = om_fs->xf[p7O_C][p7O_LOOP] = om_fs->xf[p7O_J][p7O_LOOP] = logf(ploop);
+  om_fs->xf[p7O_N][p7O_MOVE] = om_fs->xf[p7O_C][p7O_MOVE] = om_fs->xf[p7O_J][p7O_MOVE] = logf(pmove);
+
+  om_fs->L = L;
+  return eslOK;
+}
+
 
 /* Function:  p7_fs_oprofile_ReconfigMultihit()
  * Synopsis:  Quickly reconfig model into multihit mode for target length <L>.

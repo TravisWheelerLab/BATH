@@ -1036,8 +1036,8 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         esl_fatal("%s: scalar C=-inf but SSE C=%.4f", msg, osc);
 
       if (fabs(gsc - osc) > 0.001f) {
-        p7_omx_DumpSP(stdout, ox);
-        p7_gmx_Dump(stdout, pli->vit, P7_DEFAULT);
+        p7_omx_DumpSP(stdout, ox, 1, L_dna_total, 1, M, TRUE);
+        p7_gmx_Dump(stdout, pli->vit, p7_DEFAULT);
         esl_fatal("%s: scalar C=%.4f  SSE C=%.4f  diff=%.4f nats",
                   msg, gsc, osc, fabs(gsc - osc));
       }

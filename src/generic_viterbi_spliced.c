@@ -1583,6 +1583,7 @@ static ESL_OPTIONS benchmark_options[] = {
   { "-D",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark ExtendDown",  0 },
   { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark ExtendUp",    0 },
   { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "also benchmark Trace after each DP",   0 },
+  { "--dummy",   eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark dummy",   0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char benchmark_usage[]  = "[-options] <hmmfile>";
@@ -1610,10 +1611,11 @@ main(int argc, char **argv)
   int             N            = esl_opt_GetInteger(go, "-N");
   int             I            = esl_opt_GetInteger(go, "-I");
   int             intron_total = I + 4;
-  int             do_G         = (esl_opt_GetBoolean(go, "-G") || (!esl_opt_GetBoolean(go, "-D") && !esl_opt_GetBoolean(go, "-U")));
-  int             do_D         = (esl_opt_GetBoolean(go, "-D") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-U")));
-  int             do_U         = (esl_opt_GetBoolean(go, "-U") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-D")));
+  int             do_G         = (esl_opt_GetBoolean(go, "-G") || (!esl_opt_GetBoolean(go, "-D") && !esl_opt_GetBoolean(go, "-U") && !esl_opt_GetBoolean(go, "--dummy")));
+  int             do_D         = (esl_opt_GetBoolean(go, "-D") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-U") && !esl_opt_GetBoolean(go, "--dummy")));
+  int             do_U         = (esl_opt_GetBoolean(go, "-U") || (!esl_opt_GetBoolean(go, "-G") && !esl_opt_GetBoolean(go, "-D") && !esl_opt_GetBoolean(go, "--dummy")));
   int             do_T         = esl_opt_GetBoolean(go, "-T");
+  int             do_dummy     = esl_opt_GetBoolean(go, "--dummy");
   ESL_DSQ        *dsq          = NULL;
   int             i, j, k, L_amino, L_dna_total;
   int64_t         total_cells;
@@ -1704,6 +1706,9 @@ main(int argc, char **argv)
           p7_trace_Reuse(tr);
         }
 	  }
+      if (do_dummy) {
+        p7_GViterbi_SplicedGlobal_Dummy(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+      } 
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
   esl_stopwatch_Stop(w);

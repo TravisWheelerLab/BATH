@@ -258,7 +258,40 @@ p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
 }
 
 /*****************************************************************
- * 3. P7_OMX: a one-row dynamic programming matrix
+ * 3. OSPLICE_SCORES: vectorized splice-site score storage
+ *****************************************************************/
+
+/* OSPLICE_SCORES stores P-state donor scores and splice-signal log-probabilities
+ * in striped SSE float vectors, for use by the optimized spliced Viterbi functions.
+ *
+ * P_scores[s][q] is the __m128 vector for signal-memory slot s and stripe q.
+ * The slot layout mirrors SPLICE_SCORES from p7_splice.h (SIGNAL_MEM_SIZE = 33
+ * slots: 3 for SSX0, 15 for SSX1, 15 for SSX2), but indexed [slot][stripe] rather
+ * than [node][slot] so that the inner k loop is vectorized.
+ *
+ * signal_scores[3] holds the three splice-signal log-probabilities (GT-AG, GC-AG,
+ * AT-AC) broadcast to all four SSE lanes.  The array dimension 3 matches
+ * p7S_SPLICE_SIGNALS defined in p7_splice.h.
+ */
+typedef struct _osplice_scores {
+  int      allocM;           /* max model length for which P_scores is allocated */
+  int      allocQ4;          /* p7O_NQF(allocM): allocated stripe count           */
+  __m128 **P_scores;         /* [SIGNAL_MEM_SIZE][allocQ4] donor score vectors    */
+  __m128  *P_scores_mem;     /* flat backing memory (+15 bytes for alignment)     */
+  __m128   signal_scores[3]; /* broadcast GT-AG / GC-AG / AT-AC log-probs        */
+} OSPLICE_SCORES;
+
+/* OSSX macros: analogues of SSX0/SSX1/SSX2 from p7_splice.h, indexing by
+ * stripe q instead of model node k.  Slot offsets match SPLICE_OFFSET_1 = 3,
+ * SPLICE_OFFSET_2 = 18, p7S_SPLICE_SIGNALS = 3 from p7_splice.h.
+ */
+#define OSSX0(q, signal)          (P_scores[(signal)][q])
+#define OSSX1(q, signal, nuc1)    (P_scores[3  + (nuc1) * 3 + (signal)][q])
+#define OSSX2(q, signal, x)       (P_scores[18 + (x)   * 3 + (signal)][q])
+
+
+/*****************************************************************
+ * 4. P7_OMX: a one-row dynamic programming matrix
  *****************************************************************/
 
 enum p7x_scells_e { p7X_M = 0, p7X_D = 1, p7X_I = 2 };
@@ -441,6 +474,10 @@ extern P7_FS_OPROFILE *p7_fs_oprofile_Clone(const P7_FS_OPROFILE *om_fs);
 extern int             p7_fs_oprofile_Convert    (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
 extern int             p7_fs_oprofile_Convert_Log   (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
 extern int             p7_fs_oprofile_SubConvert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs, int k_start, int k_end);
+
+extern OSPLICE_SCORES *p7_osplicescores_Create (int M_hint);
+extern int             p7_osplicescores_GrowTo (OSPLICE_SCORES *os, int M);
+extern void            p7_osplicescores_Destroy(OSPLICE_SCORES *os);
 extern int             p7_fs_oprofile_ReconfigLength    (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigLength_Log(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);

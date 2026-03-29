@@ -209,8 +209,8 @@ typedef struct _splice_info
 #define ACCEPT_AC                 1
 
 #define SIGNAL_MEM_SIZE           33       /* total storage = M * SIGNAL_MEM_SIZE: 3 SSX0 + 15 SSX1 + 15 SSX2 */
-#define SPLICE_OFFSET_1           3        /* start of XxxxxXX codons (nuc1=0..MAX_NUC, 5 values) */
-#define SPLICE_OFFSET_2           18       /* start of XXxxxxX codons (x=0..MAX_NUC, 5 values)    */
+#define SPLICE_OFFSET_1           3        /* start of XxxxxXX codons (nuc1=0..p7P_MAXNUC, 5 values) */
+#define SPLICE_OFFSET_2           18       /* start of XXxxxxX codons (x=0..p7P_MAXNUC, 5 values)    */
 
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node           */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance                             */

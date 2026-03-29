@@ -502,9 +502,8 @@ main(int argc, char **argv)
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
   om = p7_oprofile_Create(gm->M, abc);
-  p7_oprofile_Convert(gm, om);
-  p7_oprofile_ReconfigLength(om, L);
-  p7_oprofile_Logify(om);
+  p7_oprofile_Convert_Log(gm, om);
+  p7_oprofile_ReconfigLength_Log(om, L);
 
   ox = p7_omx_Create(gm->M, L, L);
   gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);

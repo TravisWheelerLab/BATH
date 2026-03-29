@@ -518,6 +518,109 @@ p7_fs_oprofile_Convert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
 }
 
 
+/* Function:  p7_fs_oprofile_SubConvert_Log()
+ * Synopsis:  Re-stripe an already-converted log-space FS oprofile for a model sub-region.
+ *
+ * Purpose:   Update the k-dependent arrays of <om_fs> so that full-model node
+ *            <k_start> maps to sub-model node 1, and so on through <k_end>.
+ *            All other fields (metadata, xf, mode, nj, etc.) are left unchanged
+ *            because they were already set correctly by a prior call to
+ *            <p7_fs_oprofile_Convert_Log()>.
+ *
+ *            <om_fs> must have been allocated for a profile at least as large as
+ *            <gm_fs->M> (guaranteed if it was allocated and converted for the full
+ *            model), so <om_fs->allocQ4 >= p7O_NQF(k_end - k_start + 1)> always holds.
+ *
+ *            The k=0 sentinel column in the DP matrix is not touched here; it is
+ *            initialised to -inf by the DP code, ensuring that transitions such as
+ *            M(i-3,0)->M(i,1) remain -inf.
+ *
+ *            On return, <om_fs->M> is set to <k_end - k_start + 1>.
+ *
+ * Args:      gm_fs   - source generic FS profile (log-odds scores, full model)
+ *            om_fs   - optimized FS profile to update in-place
+ *            k_start - first full-model node of the sub-region (1-based, inclusive)
+ *            k_end   - last  full-model node of the sub-region (1-based, inclusive)
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if codon_lengths is invalid or <om_fs> is too small.
+ */
+int
+p7_fs_oprofile_SubConvert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs, int k_start, int k_end)
+{
+  int     Mp  = k_end - k_start + 1;  /* sub-model length                                    */
+  int     nq  = p7O_NQF(Mp);          /* number of striped float vectors for the sub-region  */
+  int     ncodon_rows;
+  int     c;
+  int     q;
+  int     k;
+  int     kb;
+  int     z;
+  int     t;
+  int     tg;
+  int     j;
+  union { __m128 v; float x[4]; } tmp;
+
+  if (nq > om_fs->allocQ4) ESL_EXCEPTION(eslEINVAL, "optimized profile is too small to hold sub-region conversion");
+
+  if      (om_fs->codon_lengths == 1) ncodon_rows = p7P_MAXCODONS1 + gm_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 3) ncodon_rows = p7P_MAXCODONS3 + gm_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 5) ncodon_rows = p7P_MAXCODONS5 + gm_fs->abc->Kp;
+  else ESL_EXCEPTION(eslEINVAL, "codon_lengths must be 1, 3, or 5");
+
+  /* Re-stripe emission scores.
+   * Sub-model node k (1-based) at stripe lane z maps to full-model node
+   * k_start - 1 + k + z*nq (1-based).  Boundary: k + z*nq <= Mp.
+   */
+  for (c = 0; c < ncodon_rows; c++)
+    for (k = 1, q = 0; q < nq; q++, k++)
+      {
+        for (z = 0; z < 4; z++)
+          tmp.x[z] = (k + z*nq <= Mp) ? gm_fs->rsc[c][k_start - 1 + k + z*nq] : -eslINFINITY;
+        om_fs->rfv[c][q] = tmp.v;
+      }
+
+  /* Re-stripe transition scores (BM..II then DD).
+   * Sub-model 0-based index kb + z*nq maps to full-model 0-based index
+   * k_start - 1 + kb + z*nq.  Boundary: kb + z*nq < Mp.
+   * Rotated vectors (BM,MM,IM,DM) use kb = k-1; straight (MD,MI,II) use kb = k.
+   */
+  for (j = 0, k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (t = p7O_BM; t <= p7O_II; t++)
+        {
+          switch (t) {
+          case p7O_BM: tg = p7P_BM; kb = k-1; break;
+          case p7O_MM: tg = p7P_MM; kb = k-1; break;
+          case p7O_IM: tg = p7P_IM; kb = k-1; break;
+          case p7O_DM: tg = p7P_DM; kb = k-1; break;
+          case p7O_MD: tg = p7P_MD; kb = k;   break;
+          case p7O_MI: tg = p7P_MI; kb = k;   break;
+          case p7O_II: tg = p7P_II; kb = k;   break;
+          default:     tg = 0;      kb = k;   break; /* unreachable; suppresses compiler warning */
+          }
+          for (z = 0; z < 4; z++)
+            tmp.x[z] = (kb + z*nq < Mp) ? p7P_TSC(gm_fs, k_start - 1 + kb + z*nq, tg) : -eslINFINITY;
+          om_fs->tfv[j++] = tmp.v;
+        }
+    }
+
+  /* DD transitions. */
+  for (k = 1, q = 0; q < nq; q++, k++)
+    {
+      for (z = 0; z < 4; z++)
+        tmp.x[z] = (k + z*nq < Mp) ? p7P_TSC(gm_fs, k_start - 1 + k + z*nq, p7P_DD) : -eslINFINITY;
+      om_fs->tfv[j++] = tmp.v;
+    }
+
+  /* Update M to the sub-region length; nq is now consistent with om_fs->M. */
+  om_fs->M = Mp;
+
+  return eslOK;
+}
+
+
 /* Function:  p7_fs_oprofile_ReconfigLength()
  * Synopsis:  Set the target sequence length of an optimized frameshift profile.
  *

@@ -443,6 +443,64 @@ p7_fs_oprofile_ReconfigUnihit(P7_FS_OPROFILE *om_fs, int L)
 }
 
 
+/* Function:  p7_fs_oprofile_Logify()
+ * Synopsis:  Convert optimized FS profile float scores from probability-space to log-space.
+ *
+ * Purpose:   Convert the float emission scores <rfv>, transition scores <tfv>,
+ *            and special state transition scores <xf> in optimized FS profile
+ *            <om_fs> from probability-space (odds ratios, as set by
+ *            <p7_fs_oprofile_Convert()>) to log-space (log odds) in-place.
+ *
+ *            The number of emission rows in <rfv> depends on <om_fs->codon_lengths>:
+ *              codon_lengths == 1: p7P_MAXCODONS1 + abc->Kp rows
+ *              codon_lengths == 3: p7P_MAXCODONS3 + abc->Kp rows
+ *              codon_lengths == 5: p7P_MAXCODONS5 + abc->Kp rows
+ *
+ *            <om_fs->fsprob> is already stored as a log-odds score and is
+ *            left unchanged.
+ *
+ *            After this call, <om_fs> is suitable for use in a log-space
+ *            Viterbi implementation that uses <_mm_add_ps> rather than
+ *            <_mm_mul_ps>. It renders the profile unsuitable for
+ *            <p7_Viterbi_Frameshift()> (probability-space) without converting back.
+ *
+ * Args:      om_fs - optimized FS profile to convert in-place.
+ *
+ * Returns:   <eslOK> on success.
+ *            <eslEINVAL> if <om_fs->codon_lengths> is not 1, 3, or 5.
+ */
+int
+p7_fs_oprofile_Logify(P7_FS_OPROFILE *om_fs)
+{
+  int Q = p7O_NQF(om_fs->M);
+  int ncodon_rows;
+  int c, j, s, t;
+
+  if      (om_fs->codon_lengths == 1) ncodon_rows = p7P_MAXCODONS1 + om_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 3) ncodon_rows = p7P_MAXCODONS3 + om_fs->abc->Kp;
+  else if (om_fs->codon_lengths == 5) ncodon_rows = p7P_MAXCODONS5 + om_fs->abc->Kp;
+  else ESL_EXCEPTION(eslEINVAL, "codon_lengths must be 1, 3, or 5");
+
+  /* Log-transform all float emission vectors (codon and amino acid rows). */
+  for (c = 0; c < ncodon_rows; c++)
+    for (j = 0; j < Q; j++)
+      om_fs->rfv[c][j] = esl_sse_logf(om_fs->rfv[c][j]);
+
+  /* Log-transform all float transition vectors (p7O_NTRANS * Q = 8*Q entries). */
+  for (j = 0; j < p7O_NTRANS * Q; j++)
+    om_fs->tfv[j] = esl_sse_logf(om_fs->tfv[j]);
+
+  /* Log-transform all special state transition scores. */
+  for (s = 0; s < p7O_NXSTATES; s++)
+    for (t = 0; t < p7O_NXTRANS; t++)
+      om_fs->xf[s][t] = logf(om_fs->xf[s][t]);
+
+  /* om_fs->fsprob is already a log-odds score; leave it unchanged. */
+
+  return eslOK;
+}
+
+
 /*------------ end, conversions to P7_FS_OPROFILE ------------------*/
 
 /***********************************************************************

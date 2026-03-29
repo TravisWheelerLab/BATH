@@ -440,6 +440,7 @@ extern int             p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_
 extern int             p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigUnihit    (P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_Logify            (P7_FS_OPROFILE *om_fs);
 
 /* decoding.c */
 extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);

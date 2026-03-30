@@ -35,7 +35,7 @@
 
 #define TSC_P log(4.58e-5)
 
-#define PVX3(i,k) (ivx[((i)*3) + (k)])
+#define PVX3(i,k) (ivx[((k)*3) + (i)])
 
 /* Function:  p7_GViterbi_SplicedGlobal()
  * Synopsis:  Fully global translated spliced Viterbi algorithm
@@ -576,6 +576,8 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
     for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++)
       rsc_c1[nuc1] = gm_tr->rsc[C1[nuc1]];
 
+	nuc3 = ESL_MIN(x, p7P_MAXNUC);
+
     /* get acceptor sites */
     acc0 = acc1;
     acc1 = acc2;
@@ -605,6 +607,8 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
       DMX(i,k) = ESL_MAX(MMX(i,k-1) + TSC(p7P_MD,sub_k-1),
                             DMX(i,k-1) + TSC(p7P_DD,sub_k-1));
 
+
+	  PVX3(pv_i,k) = -eslINFINITY;
 
       if (acc0 >= 0 || acc1 >= 0 || acc2 >= 0) {
         if (acc0 == ACCEPT_AG) {

@@ -421,7 +421,49 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
     mpv = esl_sse_rightshift_ps(MMO(dpp3, Q - 1), infv);
     dpv = esl_sse_rightshift_ps(DMO(dpp3, Q - 1), infv);
     ipv = esl_sse_rightshift_ps(IMO(dpp3, Q - 1), infv);
-    ppv = esl_sse_rightshift_ps(pvx[pv_i * Q + Q - 1], infv);  /* P(i-3, k-1) seed */
+    /* Pre-loop: compute P(i, k) for all stripes and write to pvx before
+     * the main MM/IM/DM/PM loop reads them.  This ensures the PM transition
+     * uses P(i, k-1) from the current row rather than the stale P(i-3, k-1)
+     * that would otherwise sit in the circular buffer slot pv_i. */
+    for (q = 0; q < Q; q++) {
+      __m128 psv = infv;
+      if (acc0 == ACCEPT_AG) {
+        psv = _mm_max_ps(psv, _mm_add_ps(
+            _mm_max_ps(_mm_add_ps(os->P_scores[p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
+                       _mm_add_ps(os->P_scores[p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
+            om_tr->rfv[C0][q]));
+      } else if (acc0 == ACCEPT_AC) {
+        psv = _mm_max_ps(psv, _mm_add_ps(
+            _mm_add_ps(os->P_scores[p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
+            om_tr->rfv[C0][q]));
+      }
+      if (acc1 == ACCEPT_AG) {
+        for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
+          psv = _mm_max_ps(psv, _mm_add_ps(
+              _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
+                         _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
+              om_tr->rfv[C1[nuc1]][q]));
+        }
+      } else if (acc1 == ACCEPT_AC) {
+        for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
+          psv = _mm_max_ps(psv, _mm_add_ps(
+              _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
+              om_tr->rfv[C1[nuc1]][q]));
+        }
+      }
+      if (acc2 == ACCEPT_AG) {
+        psv = _mm_max_ps(psv,
+            _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
+                       _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])));
+      } else if (acc2 == ACCEPT_AC) {
+        psv = _mm_max_ps(psv,
+            _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]));
+      }
+      pvx[pv_i * Q + q] = psv;
+    }
+
+    /* Seed ppv from the freshly computed P(i, *) values in pvx. */
+    ppv = esl_sse_rightshift_ps(pvx[pv_i * Q + Q - 1], infv);  /* P(i, k-1) seed */
 
     tp  = om_tr->tfv;
     dcv = infv;
@@ -436,13 +478,13 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
     }
 
     for (q = 0; q < Q; q++) {
-      __m128 ppv_next = pvx[pv_i * Q + q];   /* save P(i-3, k) before overwriting */
+      __m128 ppv_next = pvx[pv_i * Q + q];   /* P(i, k) from pre-loop; carry to next stripe */
 
       tp++;                                              /* skip BM */
       sv  =                _mm_add_ps(mpv, *tp); tp++;  /* MM */
       sv  = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++; /* IM */
       sv  = _mm_max_ps(sv, _mm_add_ps(dpv, *tp)); tp++; /* DM */
-      sv  = _mm_max_ps(sv, _mm_add_ps(ppv, tsc_p_vec)); /* PM: P(i-3, k-1) + TSC_P */
+      sv  = _mm_max_ps(sv, _mm_add_ps(ppv, tsc_p_vec)); /* PM */
       sv  = _mm_max_ps(sv, b_entry);
       b_entry = infv;
 
@@ -463,46 +505,7 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
       }
       IMO(dpc, q) = sv;
 
-      /* P-state write: accumulate best P(i, k) from active acceptor sites
-       * by reading the donor scores accumulated in os->P_scores. */
-      {
-        __m128 psv = infv;
-        if (acc0 == ACCEPT_AG) {
-          psv = _mm_max_ps(psv, _mm_add_ps(
-              _mm_max_ps(_mm_add_ps(os->P_scores[p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
-                         _mm_add_ps(os->P_scores[p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
-              om_tr->rfv[C0][q]));
-        } else if (acc0 == ACCEPT_AC) {
-          psv = _mm_max_ps(psv, _mm_add_ps(
-              _mm_add_ps(os->P_scores[p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
-              om_tr->rfv[C0][q]));
-        }
-        if (acc1 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
-            psv = _mm_max_ps(psv, _mm_add_ps(
-                _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
-                           _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
-                om_tr->rfv[C1[nuc1]][q]));
-          }
-        } else if (acc1 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
-            psv = _mm_max_ps(psv, _mm_add_ps(
-                _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
-                om_tr->rfv[C1[nuc1]][q]));
-          }
-        }
-        if (acc2 == ACCEPT_AG) {
-          psv = _mm_max_ps(psv,
-              _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
-                         _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])));
-        } else if (acc2 == ACCEPT_AC) {
-          psv = _mm_max_ps(psv,
-              _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]));
-        }
-        pvx[pv_i * Q + q] = psv;
-      }
-
-      ppv = ppv_next;   /* advance P(i-3, k-1) carry to next stripe */
+      ppv = ppv_next;
     }
 
     /* DD sweep */

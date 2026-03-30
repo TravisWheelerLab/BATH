@@ -859,7 +859,6 @@ vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
    ./viterbi_fs_benchmark <hmmfile>            benchmark Viterbi + traceback together
    ./viterbi_fs_benchmark -V <hmmfile>         benchmark Viterbi only
    ./viterbi_fs_benchmark -T <hmmfile>         benchmark traceback only
-   ./viterbi_fs_benchmark -c -N100 <hmmfile>   compare scores to generic Viterbi
 */
 #include "p7_config.h"
 
@@ -880,7 +879,6 @@ vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
 static ESL_OPTIONS options[] = {
   /* name    type           default  env  range  toggles reqs incomp  help                                             docgroup */
   { "-h",  eslARG_NONE,   FALSE, NULL, NULL,   NULL,  NULL, NULL,  "show brief help on version and usage",                0 },
-  { "-c",  eslARG_NONE,   FALSE, NULL, NULL,   NULL,  NULL, NULL,  "compare scores to generic implementation (debug)",    0 },
   { "-s",  eslARG_INT,     "42", NULL, NULL,   NULL,  NULL, NULL,  "set random number seed to <n>",                       0 },
   { "-L",  eslARG_INT,   "1200", NULL, "n>0",  NULL,  NULL, NULL,  "length of random target DNA seqs (multiple of 3)",    0 },
   { "-N",  eslARG_INT,   "2000", NULL, "n>0",  NULL,  NULL, NULL,  "number of random target seqs",                        0 },
@@ -908,8 +906,6 @@ main(int argc, char **argv)
   P7_FS_PROFILE  *gm_fs5  = NULL;
   P7_FS_OPROFILE *om_fs5  = NULL;
   P7_OMX         *ox      = NULL;
-  P7_GMX         *gx      = NULL;   /* only allocated if -c */
-  P7_IVX         *iv      = NULL;   /* only allocated if -c */
   P7_TRACE       *tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
@@ -939,11 +935,6 @@ main(int argc, char **argv)
   ox = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
   tr = p7_trace_fs_Create();
 
-  if (esl_opt_GetBoolean(go, "-c")) {
-    gx = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS);
-    iv = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
-  }
-
   /* If benchmarking traceback only, pre-fill the matrix once. */
   if (! do_viterbi) {
     esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
@@ -965,12 +956,6 @@ main(int argc, char **argv)
       if (do_viterbi)
         p7_Viterbi_Frameshift(dsq, L, om_fs5, ox, &sc);
 
-      if (esl_opt_GetBoolean(go, "-c")) {
-        p7_GViterbi_Frameshift(dsq, L, gm_fs5, gx, iv, &sc2);
-        printf("%.4f %.4f\n", sc, sc2);
-        p7_gmx_Reuse(gx);
-      }
-
       if (do_traceback) {
         p7_Viterbi_Frameshift_Trace(dsq, L, om_fs5, ox, tr);
         p7_trace_Reuse(tr);
@@ -987,8 +972,6 @@ main(int argc, char **argv)
   free(dsq);
   p7_trace_fs_Destroy(tr);
   p7_omx_Destroy(ox);
-  if (iv) p7_ivx_Destroy(iv);
-  if (gx) p7_gmx_Destroy(gx);
   p7_fs_oprofile_Destroy(om_fs5);
   p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgDNA);

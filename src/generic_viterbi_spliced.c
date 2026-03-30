@@ -35,7 +35,7 @@
 
 #define TSC_P log(4.58e-5)
 
-#define PVX4(i,k) (ivx[((k)*4) + (i)])
+#define PVX4(i,k) (ivx[((k)*SPLICE_ROWS) + (i)])
 
 /* Function:  p7_GViterbi_SplicedGlobal()
  * Synopsis:  Fully global translated spliced Viterbi algorithm
@@ -408,13 +408,15 @@ p7_GViterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7
 }
 
 int
-p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, P7_IVX *iv, int i_start, int i_end, int k_start, int k_end, int min_intron)
+p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *iv, SPLICE_SCORES *ssc, int i_start, int i_end, int k_start, int k_end, int min_intron)
 {
   
   float const *tsc  = gm_tr->tsc;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
   float       *ivx  = iv->ivx;
+  float      **P_scores = ssc->P_scores;
+  float       *signal_scores = ssc->signal_scores;
   int          L = (i_end - i_start + 1);
   int          M = (k_end - k_start + 1);
   int          C0;
@@ -451,7 +453,7 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
       P_scores[k][i] = -eslINFINITY;
   }
 
-  for (i = 0; i < 4; i++) {
+  for (i = 0; i < SPLICE_ROWS; i++) {
     for(k = 0; k <= M; k++) {
       PVX4(i,k) = -eslINFINITY;
     }
@@ -583,8 +585,8 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
   {
     /* get nucleotides and codon */
     sub_i = i_start + i - 1;
-    pv_i  =  i    % 4;
-    pv_pi = (i-3) % 4; 
+    pv_i  =  i    % SPLICE_ROWS;
+    pv_pi = (i-3) % SPLICE_ROWS; 
 
     r = s;
     s = t;
@@ -2023,7 +2025,7 @@ main(int argc, char **argv)
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, hmm->M, p7_UNILOCAL);
 
   gx = p7_gmx_Create (hmm->M, hmm->M, hmm->M, p7G_NSCELLS);
-  iv = p7_ivx_Create (hmm->M, 4);
+  iv = p7_ivx_Create (hmm->M, SPLICE_ROWS);
   pli = p7_splicepipeline_Create(NULL, hmm->M, hmm->M * 3);
   p7_splicescores_GrowTo(pli->splice_scores, hmm->M);
   tr = p7_trace_fs_Create();
@@ -2097,7 +2099,7 @@ main(int argc, char **argv)
         }
 	  }
       if (do_dummy) {
-        p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+        p7_GViterbi_SplicedGlobal_NoP(dsq, gm_tr, gx, iv, pli->splice_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
         if (do_T) {
           p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, gx, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron);
           p7_trace_Reuse(tr);
@@ -2176,7 +2178,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
   P7_GMX          *gx         = p7_gmx_Create(M, M, M, p7G_NSCELLS);
-  P7_IVX          *iv         = p7_ivx_Create(M, 4);
+  P7_IVX          *iv         = p7_ivx_Create(M, SPLICE_ROWS);
   int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
   int             L_amino, L_dna_total;
   int             i, j, n_p;
@@ -2234,7 +2236,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	  }
 
       p7_gmx_GrowTo(gx, M, L_dna_total, L_dna_total);
-      p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+      p7_GViterbi_SplicedGlobal_NoP(dsq, gm_tr, gx, iv, pli->splice_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C != -eslINFINITY) {
         p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, gx, pli->splice_scores->signal_scores, tr_NoP, 1, L_dna_total, 1, M, pli->min_intron);
@@ -2306,7 +2308,7 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   pli = p7_splicepipeline_Create(NULL, M, M * 3);
 
   gx = p7_gmx_Create(M, M, M, p7G_NSCELLS);
-  iv = p7_ivx_Create(M, 4);
+  iv = p7_ivx_Create(M, SPLICE_ROWS);
 
   p7_emit_SimpleConsensus(hmm, sq);
   L_amino     = sq->n;
@@ -2353,7 +2355,7 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     //p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
 	//p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
    
-    p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv,  1, L_dna_total, 1, M, pli->min_intron); 
+    p7_GViterbi_SplicedGlobal_NoP(dsq, gm_tr, gx, iv, pli->splice_scores, 1, L_dna_total, 1, M, pli->min_intron); 
      p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, gx, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron); 
 
 	c = -1;

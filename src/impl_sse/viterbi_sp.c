@@ -370,6 +370,7 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   /* Donor lookback window init: s/t/u prime the rolling window so that
    * at the first main iteration (i = min_intron+3) the shift r=s; s=t; t=u
    * yields r=sub_dsq[i_start], s=sub_dsq[i_start+1], t=sub_dsq[i_start+2]. */
+  r = p7P_MAXCODONS1;
   s = (sub_dsq[i_start]     < p7P_MAXNUC) ? sub_dsq[i_start]     : p7P_MAXCODONS1;
   t = (sub_dsq[i_start + 1] < p7P_MAXNUC) ? sub_dsq[i_start + 1] : p7P_MAXCODONS1;
   u = (sub_dsq[i_start + 2] < p7P_MAXNUC) ? sub_dsq[i_start + 2] : p7P_MAXCODONS1;
@@ -909,6 +910,7 @@ static ESL_OPTIONS benchmark_options[] = {
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-N",        eslARG_INT,    "100", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
   { "-I",        eslARG_INT,    "200", NULL, "n>0", NULL,  NULL, NULL, "length of simulated intron (excl. GT..AG signals)", 0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "also benchmark Trace after each DP",   0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char benchmark_usage[]  = "[-options] <hmmfile>";
@@ -930,10 +932,13 @@ main(int argc, char **argv)
   P7_FS_PROFILE  *gm_tr        = NULL;
   P7_FS_OPROFILE *om_tr        = NULL;
   P7_OMX         *ox           = NULL;
+  P7_TRACE       *tr           = NULL;
   ESL_GENCODE    *gcode        = NULL;
   P7_CODONTABLE  *codon_table  = NULL;
   ESL_SQ         *sq           = NULL;
+  SPLICE_PIPELINE *pli         = NULL;
   OSPLICE_SCORES *oss          = NULL;
+  int             do_T         = esl_opt_GetBoolean(go, "-T"); 
   int             N            = esl_opt_GetInteger(go, "-N");
   int             I            = esl_opt_GetInteger(go, "-I");
   int             intron_total = I + 4;
@@ -957,9 +962,11 @@ main(int argc, char **argv)
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, hmm->M, p7_UNILOCAL);
   p7_fs_oprofile_Convert_Log(gm_tr, om_tr);
 
+  pli = p7_splicepipeline_Create(NULL, hmm->M, hmm->M * 3);
   ox = p7_omx_Create_dpf(hmm->M, hmm->M, hmm->M, p7X_NSCELLS); 
   oss = p7_osplicescores_Create(hmm->M);
- 
+
+  tr = p7_trace_fs_Create(); 
   /* Baseline: time to generate sequences alone */
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
@@ -1002,10 +1009,15 @@ main(int argc, char **argv)
       dsq[j++] = 2;  /* G */
       for (k = L_amino / 2 + 1; k <= L_amino; k++) { p7_codontable_GetCodon(codon_table, r, sq->dsq[k], dsq + j); j += 3; }
 
+      p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
       p7_omx_GrowTo_dpf(ox, hmm->M, L_dna_total, L_dna_total);
       p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox, oss, 1, L_dna_total, 13);
-         
+
+      if(do_T)
+        p7_Viterbi_SplicedTrace_NoP(dsq, ox, gm_tr, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron); 
+      
+      p7_trace_Reuse(tr); 
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
   esl_stopwatch_Stop(w);
@@ -1023,11 +1035,13 @@ main(int argc, char **argv)
   p7_profile_fs_Destroy(gm_tr);
   p7_fs_oprofile_Destroy(om_tr);
   p7_omx_Destroy(ox);
+  p7_splicepipeline_Destroy(pli);
   p7_osplicescores_Destroy(oss);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bgAA);
   p7_hmm_Destroy(hmm);
   p7_hmmfile_Close(hfp);
+  p7_trace_fs_Destroy(tr);
   esl_gencode_Destroy(gcode);
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);
@@ -1064,7 +1078,9 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_OMX         *ox          = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_SP);
   P7_OMX         *ox_NoP      = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
   P7_GMX         *gx_NoP      = p7_gmx_Create(M, M, M, p7G_NSCELLS);
-  P7_IVX         *iv_nop      = p7_ivx_Create(M, 4);
+  P7_IVX         *iv_nop      = p7_ivx_Create(M, SPLICE_ROWS);
+  P7_TRACE       *otr         = p7_trace_fs_Create();
+  P7_TRACE       *gtr         = p7_trace_fs_Create();
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
   OSPLICE_SCORES  *oss        = NULL;
@@ -1139,8 +1155,8 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 //        esl_fatal("%s: generic %.4f != SSE %.4f", msg, final_gC, final_oC);
 
       p7_gmx_GrowTo(gx_NoP, sub_M, L_dna_total, L_dna_total);
-      p7_ivx_GrowTo(iv_nop, sub_M, 4);
-      p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx_NoP, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv_nop, 1, L_dna_total, k_start, k_end, pli->min_intron);
+      p7_ivx_GrowTo(iv_nop, sub_M, SPLICE_ROWS);
+      p7_GViterbi_SplicedGlobal_NoP(dsq, gm_tr, gx_NoP, iv_nop, pli->splice_scores, 1, L_dna_total, k_start, k_end, pli->min_intron);
       final_gC = gx_NoP->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 
       p7_omx_GrowTo_dpf(ox_NoP, sub_M, L_dna_total, L_dna_total);
@@ -1150,7 +1166,16 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
      
       if (fabs(final_gC - final_oC) > 0.001) 
         esl_fatal("%s: generic %.4f != SSE %.4f", msg, final_gC, final_oC); 
-      
+
+      if(final_gC == -eslINFINITY) continue;
+
+      p7_Viterbi_SplicedTrace_NoP(dsq, ox_NoP, gm_tr, pli->splice_scores->signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron);
+      p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, gx_NoP, pli->splice_scores->signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron); 
+
+      p7_trace_Compare(otr, gtr, 0.0);
+        
+      p7_trace_Reuse(otr);
+      p7_trace_Reuse(gtr);
     }
 
   if (dsq != NULL) free(dsq);
@@ -1163,6 +1188,8 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_omx_Destroy(ox_NoP);
   p7_gmx_Destroy(gx_NoP);
   p7_ivx_Destroy(iv_nop);
+  p7_trace_fs_Destroy(otr);
+  p7_trace_fs_Destroy(gtr);
   p7_osplicescores_Destroy(oss);
 }
 

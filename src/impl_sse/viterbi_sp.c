@@ -276,17 +276,24 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7
  * 2b. p7_Viterbi_SplicedGlobal_NoP()
  *
  * SSE counterpart of p7_GViterbi_SplicedGlobal_DummyNoP.
- * Uses the standard 3-cell (M,D,I) layout — no P column — so the
- * DP rows are Q*3 vectors wide rather than Q*4.  The P predecessor
- * in the M recurrence is held at -inf (matching the scalar's extra
- * ESL_MAX(...,-eslINFINITY) call) so the instruction count per cell
- * is identical to the full function; only the matrix stride differs.
- * Purpose: isolate the bandwidth cost of the P column.
+ * Uses the standard 3-cell (M,D,I) layout with a 3-slot circular
+ * P-state buffer pvx[slot*Q + q] (slot = i%3) instead of a P column
+ * in the main DP matrix.  The P predecessor in the M recurrence reads
+ * from pvx rather than from a P column in ox->dpf, so the matrix rows
+ * remain Q*3 vectors wide.
+ *
+ * Acceptor-site P writes mirror p7_GViterbi_SplicedGlobal_DummyNoP:
+ * os->P_scores is reset to -inf (no donor tracking in this Dummy
+ * variant), so every pvx write evaluates to -inf and the P->M
+ * transition never fires.  The code structure is in place for the
+ * full implementation once donor-site P_scores writes are added.
+ *
+ * The pvx buffer is allocated and freed internally.
  *****************************************************************/
 
 int
 p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr,
-                              P7_OMX *ox,
+                              P7_OMX *ox, OSPLICE_SCORES *os,
                               int i_start, int i_end, int min_intron)
 {
   register __m128 mpv, dpv, ipv;
@@ -295,11 +302,19 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   float    xB, xE;
   __m128  *dpc, *dpp3;
   __m128  *tp;
+  __m128  *pvx;                    /* 3-slot circular P buffer: pvx[slot*Q + q] */
+  __m128   ppv;                    /* P(i-3, k-1) carry for current row          */
+  __m128   tsc_p_vec;              /* broadcast TSC_P_LOG                        */
   int      Q  = p7O_NQF(om_tr->M);
   int      L  = i_end - i_start + 1;
   int      C0;
+  int      C1[p7P_MAXNUC + 1];    /* split-codon indices for acc1 acceptor case  */
   int      v, w, x;
+  int      nuc1, nuc3;
+  int      acc0, acc1, acc2;      /* acceptor site type for rows i, i-1, i-2    */
+  int      pv_i;                  /* i % 3: slot index into pvx                 */
   int      i, q, j, r, sub_i;
+  int      status;
 
   if (om_tr->codon_lengths != 1)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
@@ -311,6 +326,16 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   ox->has_own_scales = FALSE;
   ox->totscale       = 0.0f;
   infv               = _mm_set1_ps(-eslINFINITY);
+  tsc_p_vec          = _mm_set1_ps(TSC_P_LOG);
+
+  pvx = NULL;
+  ESL_ALLOC(pvx, sizeof(__m128) * 3 * Q);
+  for (r = 0; r < 3 * Q; r++) pvx[r] = infv;
+
+  /* Reset os->P_scores to -inf (no donor site tracking in this Dummy variant) */
+  for (j = 0; j < SIGNAL_MEM_SIZE; j++)
+    for (q = 0; q < Q; q++)
+      os->P_scores[j][q] = infv;
 
   /* Initialize all DP rows 0..L to -inf. */
   for (r = 0; r <= L; r++)
@@ -329,7 +354,8 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   xB = om_tr->xf[p7O_N][p7O_MOVE];
   ox->xmx[0 * p7X_NXCELLS + p7X_B] = xB;
 
-  /* Nucleotide rolling window init. */
+  /* Nucleotide rolling window and acceptor site tracker init. */
+  acc0 = acc1 = acc2 = -1;
   v = w = p7P_MAXCODONS1;
   x = (sub_dsq[i_start] < p7P_MAXNUC) ? sub_dsq[i_start] : p7P_MAXCODONS1;
   if (L >= 2) {
@@ -346,12 +372,28 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
 
+    /* Split-codon indices for acc1 acceptor case; nuc3 for acc2 SSX2 lookups */
+    for (nuc1 = 0; nuc1 < p7P_MAXNUC; nuc1++)
+      C1[nuc1] = p7P_MINIDX(p7P_CODON3_FS1(nuc1, w, x), p7P_DEGEN1_C);
+    C1[p7P_MAXNUC] = p7P_MINIDX(p7P_CODON3_FS1(p7P_MAXCODONS1, w, x), p7P_DEGEN1_C);
+    nuc3 = ESL_MIN(x, p7P_MAXNUC);
+
+    /* Shift acceptor site window: acc0 fires 2 rows ago (SSX0), acc1 one row ago (SSX1),
+     * acc2 is this row's acceptor dinucleotide (SSX2). */
+    acc0 = acc1;
+    acc1 = acc2;
+    if      (SIGNAL(v, w) == ACCEPT_AG) acc2 = ACCEPT_AG;
+    else if (SIGNAL(v, w) == ACCEPT_AC) acc2 = ACCEPT_AC;
+    else                                acc2 = -1;
+
+    pv_i = i % 3;
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
 
     mpv = esl_sse_rightshift_ps(MMO(dpp3, Q - 1), infv);
     dpv = esl_sse_rightshift_ps(DMO(dpp3, Q - 1), infv);
     ipv = esl_sse_rightshift_ps(IMO(dpp3, Q - 1), infv);
+    ppv = esl_sse_rightshift_ps(pvx[pv_i * Q + Q - 1], infv);  /* P(i-3, k-1) seed */
 
     tp  = om_tr->tfv;
     dcv = infv;
@@ -366,11 +408,13 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
     }
 
     for (q = 0; q < Q; q++) {
+      __m128 ppv_next = pvx[pv_i * Q + q];   /* save P(i-3, k) before overwriting */
+
       tp++;                                              /* skip BM */
       sv  =                _mm_add_ps(mpv, *tp); tp++;  /* MM */
       sv  = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++; /* IM */
       sv  = _mm_max_ps(sv, _mm_add_ps(dpv, *tp)); tp++; /* DM */
-      sv  = _mm_max_ps(sv, infv);                       /* P predecessor: always -inf (matches scalar ESL_MAX) */
+      sv  = _mm_max_ps(sv, _mm_add_ps(ppv, tsc_p_vec)); /* PM: P(i-3, k-1) + TSC_P */
       sv  = _mm_max_ps(sv, b_entry);
       b_entry = infv;
 
@@ -383,13 +427,55 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
       DMO(dpc, q) = dcv;
       dcv = _mm_add_ps(msv, *tp); tp++;                 /* MD */
 
-      sv          = _mm_add_ps(mpv, *tp); tp++;          /* MI */
-      sv          = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++;  /* II */
+      sv  = _mm_add_ps(mpv, *tp); tp++;                 /* MI */
+      sv  = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++; /* II */
       { /* stop-codon mask: I = -inf where emission == -inf */
         __m128 stop_mask = _mm_cmpeq_ps(om_tr->rfv[C0][q], infv);
         sv = _mm_or_ps(_mm_andnot_ps(stop_mask, sv), _mm_and_ps(stop_mask, infv));
       }
       IMO(dpc, q) = sv;
+
+      /* P-state write: accumulate best P(i, k) from active acceptor sites.
+       * os->P_scores is -inf in this Dummy variant (no donor tracking), so
+       * psv stays -inf and pvx remains -inf throughout. */
+      {
+        __m128 psv = infv;
+        if (acc0 == ACCEPT_AG) {
+          psv = _mm_max_ps(psv, _mm_add_ps(
+              _mm_max_ps(_mm_add_ps(os->P_scores[p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
+                         _mm_add_ps(os->P_scores[p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
+              om_tr->rfv[C0][q]));
+        } else if (acc0 == ACCEPT_AC) {
+          psv = _mm_max_ps(psv, _mm_add_ps(
+              _mm_add_ps(os->P_scores[p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
+              om_tr->rfv[C0][q]));
+        }
+        if (acc1 == ACCEPT_AG) {
+          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
+            psv = _mm_max_ps(psv, _mm_add_ps(
+                _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
+                           _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
+                om_tr->rfv[C1[nuc1]][q]));
+          }
+        } else if (acc1 == ACCEPT_AC) {
+          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
+            psv = _mm_max_ps(psv, _mm_add_ps(
+                _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
+                om_tr->rfv[C1[nuc1]][q]));
+          }
+        }
+        if (acc2 == ACCEPT_AG) {
+          psv = _mm_max_ps(psv,
+              _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
+                         _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])));
+        } else if (acc2 == ACCEPT_AC) {
+          psv = _mm_max_ps(psv,
+              _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]));
+        }
+        pvx[pv_i * Q + q] = psv;
+      }
+
+      ppv = ppv_next;   /* advance P(i-3, k-1) carry to next stripe */
     }
 
     /* DD sweep */
@@ -437,7 +523,12 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   ox->xmx[L * p7X_NXCELLS + p7X_E] = xE;
   ox->xmx[L * p7X_NXCELLS + p7X_C] = xE + om_tr->xf[p7O_E][p7O_MOVE];
 
+  free(pvx);
   return eslOK;
+
+ ERROR:
+  if (pvx != NULL) free(pvx);
+  return status;
 }
 /*--------------- end, p7_Viterbi_SplicedGlobal_NoP() -----------*/
 
@@ -570,7 +661,7 @@ main(int argc, char **argv)
 
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
       p7_omx_GrowTo_dpf(ox, hmm->M, L_dna_total, L_dna_total);
-      p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox ,1, L_dna_total, 13);
+      p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox, oss, 1, L_dna_total, 13);
          
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
@@ -630,6 +721,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_OMX         *ox          = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_SP);
   P7_OMX         *ox_NoP      = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
   P7_GMX         *gx_NoP      = p7_gmx_Create(M, M, M, p7G_NSCELLS);
+  P7_IVX         *iv_nop      = p7_ivx_Create(M, 3);
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
   OSPLICE_SCORES  *oss        = NULL;
@@ -704,12 +796,14 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         esl_fatal("%s: generic %.4f != SSE %.4f", msg, final_gC, final_oC);
 
       p7_gmx_GrowTo(gx_NoP, sub_M, L_dna_total, L_dna_total);
-      p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx_NoP, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron);
+      p7_ivx_GrowTo(iv_nop, sub_M, 3);
+      p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx_NoP, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv_nop, 1, L_dna_total, k_start, k_end, pli->min_intron);
       final_gC = gx_NoP->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 
       p7_omx_GrowTo_dpf(ox_NoP, sub_M, L_dna_total, L_dna_total);
-      p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox_NoP, 1, L_dna_total , pli->min_intron);
-      final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+      p7_osplicescores_GrowTo(oss, sub_M);
+      p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox_NoP, oss, 1, L_dna_total, pli->min_intron);
+      final_oC = ox_NoP->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
       if (fabs(final_gC - final_oC) > 0.001)
         esl_fatal("%s: generic %.4f != SSE %.4f", msg, final_gC, final_oC); 
@@ -720,11 +814,12 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   esl_sq_Destroy(sq);
   p7_hmm_Destroy(hmm);
   p7_profile_fs_Destroy(gm_tr);
-  p7_fs_oprofile_Destroy(om_tr); 
+  p7_fs_oprofile_Destroy(om_tr);
   p7_splicepipeline_Destroy(pli);
   p7_omx_Destroy(ox);
   p7_omx_Destroy(ox_NoP);
   p7_gmx_Destroy(gx_NoP);
+  p7_ivx_Destroy(iv_nop);
   p7_osplicescores_Destroy(oss);
 }
 

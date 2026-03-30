@@ -272,6 +272,176 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7
 /*------------------ end, p7_Viterbi_SplicedGlobal() ---------------*/
 
 
+/*****************************************************************
+ * 2b. p7_Viterbi_SplicedGlobal_NoP()
+ *
+ * SSE counterpart of p7_GViterbi_SplicedGlobal_DummyNoP.
+ * Uses the standard 3-cell (M,D,I) layout — no P column — so the
+ * DP rows are Q*3 vectors wide rather than Q*4.  The P predecessor
+ * in the M recurrence is held at -inf (matching the scalar's extra
+ * ESL_MAX(...,-eslINFINITY) call) so the instruction count per cell
+ * is identical to the full function; only the matrix stride differs.
+ * Purpose: isolate the bandwidth cost of the P column.
+ *****************************************************************/
+
+int
+p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr,
+                              P7_OMX *ox,
+                              int i_start, int i_end, int min_intron)
+{
+  register __m128 mpv, dpv, ipv;
+  register __m128 sv, msv, dcv;
+  __m128   infv, b_entry;
+  float    xB, xE;
+  __m128  *dpc, *dpp3;
+  __m128  *tp;
+  int      Q  = p7O_NQF(om_tr->M);
+  int      L  = i_end - i_start + 1;
+  int      C0;
+  int      v, w, x;
+  int      i, q, j, r, sub_i;
+
+  if (om_tr->codon_lengths != 1)
+    ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
+  if (ox->nscells != p7X_NSCELLS)
+    ESL_EXCEPTION(eslEINVAL, "DP matrix must have p7X_NSCELLS cells per stripe position");
+
+  ox->M              = om_tr->M;
+  ox->L              = L;
+  ox->has_own_scales = FALSE;
+  ox->totscale       = 0.0f;
+  infv               = _mm_set1_ps(-eslINFINITY);
+
+  /* Initialize all DP rows 0..L to -inf. */
+  for (r = 0; r <= L; r++)
+    for (q = 0; q < Q; q++)
+      MMO(ox->dpf[r], q) = DMO(ox->dpf[r], q) = IMO(ox->dpf[r], q) = infv;
+
+  /* Initialize special-state rows; set B(0) = log T(N->B). */
+  for (r = 0; r <= L; r++) {
+    ox->xmx[r * p7X_NXCELLS + p7X_SCALE] = 0.0f;
+    ox->xmx[r * p7X_NXCELLS + p7X_E]     = -eslINFINITY;
+    ox->xmx[r * p7X_NXCELLS + p7X_N]     = -eslINFINITY;
+    ox->xmx[r * p7X_NXCELLS + p7X_J]     = -eslINFINITY;
+    ox->xmx[r * p7X_NXCELLS + p7X_B]     = -eslINFINITY;
+    ox->xmx[r * p7X_NXCELLS + p7X_C]     = -eslINFINITY;
+  }
+  xB = om_tr->xf[p7O_N][p7O_MOVE];
+  ox->xmx[0 * p7X_NXCELLS + p7X_B] = xB;
+
+  /* Nucleotide rolling window init. */
+  v = w = p7P_MAXCODONS1;
+  x = (sub_dsq[i_start] < p7P_MAXNUC) ? sub_dsq[i_start] : p7P_MAXCODONS1;
+  if (L >= 2) {
+    w = x;
+    x = (sub_dsq[i_start + 1] < p7P_MAXNUC) ? sub_dsq[i_start + 1] : p7P_MAXCODONS1;
+  }
+
+  for (i = 3; i <= L; i++) {
+    sub_i = i_start + i - 1;
+    v     = w;
+    w     = x;
+    x     = (sub_dsq[sub_i] < p7P_MAXNUC) ? sub_dsq[sub_i] : p7P_MAXCODONS1;
+
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+
+    dpc  = ox->dpf[i];
+    dpp3 = ox->dpf[i - 3];
+
+    mpv = esl_sse_rightshift_ps(MMO(dpp3, Q - 1), infv);
+    dpv = esl_sse_rightshift_ps(DMO(dpp3, Q - 1), infv);
+    ipv = esl_sse_rightshift_ps(IMO(dpp3, Q - 1), infv);
+
+    tp  = om_tr->tfv;
+    dcv = infv;
+
+    if (i == 3) {
+      union { __m128 v; float p[4]; } u;
+      u.v    = infv;
+      u.p[0] = xB;
+      b_entry = u.v;
+    } else {
+      b_entry = infv;
+    }
+
+    for (q = 0; q < Q; q++) {
+      tp++;                                              /* skip BM */
+      sv  =                _mm_add_ps(mpv, *tp); tp++;  /* MM */
+      sv  = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++; /* IM */
+      sv  = _mm_max_ps(sv, _mm_add_ps(dpv, *tp)); tp++; /* DM */
+      sv  = _mm_max_ps(sv, infv);                       /* P predecessor: always -inf (matches scalar ESL_MAX) */
+      sv  = _mm_max_ps(sv, b_entry);
+      b_entry = infv;
+
+      mpv = MMO(dpp3, q);
+      dpv = DMO(dpp3, q);
+      ipv = IMO(dpp3, q);
+
+      msv = _mm_add_ps(sv, om_tr->rfv[C0][q]);
+      MMO(dpc, q) = msv;
+      DMO(dpc, q) = dcv;
+      dcv = _mm_add_ps(msv, *tp); tp++;                 /* MD */
+
+      sv          = _mm_add_ps(mpv, *tp); tp++;          /* MI */
+      sv          = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++;  /* II */
+      { /* stop-codon mask: I = -inf where emission == -inf */
+        __m128 stop_mask = _mm_cmpeq_ps(om_tr->rfv[C0][q], infv);
+        sv = _mm_or_ps(_mm_andnot_ps(stop_mask, sv), _mm_and_ps(stop_mask, infv));
+      }
+      IMO(dpc, q) = sv;
+    }
+
+    /* DD sweep */
+    dcv = esl_sse_rightshift_ps(dcv, infv);
+    DMO(dpc, 0) = infv;
+    tp = om_tr->tfv + 7 * Q;
+    for (q = 0; q < Q; q++) {
+      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+      dcv = _mm_add_ps(DMO(dpc, q), *tp); tp++;
+    }
+    if (om_tr->M < 100) {
+      for (j = 1; j < 4; j++) {
+        dcv = esl_sse_rightshift_ps(dcv, infv);
+        tp  = om_tr->tfv + 7 * Q;
+        for (q = 0; q < Q; q++) {
+          DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+          dcv = _mm_add_ps(dcv, *tp); tp++;
+        }
+      }
+    } else {
+      for (j = 1; j < 4; j++) {
+        register __m128 cv;
+        dcv = esl_sse_rightshift_ps(dcv, infv);
+        tp  = om_tr->tfv + 7 * Q;
+        cv  = _mm_setzero_ps();
+        for (q = 0; q < Q; q++) {
+          sv             = _mm_max_ps(dcv, DMO(dpc, q));
+          cv             = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
+          DMO(dpc, q)    = sv;
+          dcv            = _mm_add_ps(dcv, *tp); tp++;
+        }
+        if (!_mm_movemask_ps(cv)) break;
+      }
+    }
+  }
+
+  {
+    union { __m128 v; float p[4]; } um, ud;
+    int qM = (om_tr->M - 1) % Q;
+    int rM = (om_tr->M - 1) / Q;
+    um.v = MMO(ox->dpf[L], qM);
+    ud.v = DMO(ox->dpf[L], qM);
+    xE   = ESL_MAX(um.p[rM], ud.p[rM]);
+  }
+  ox->xmx[L * p7X_NXCELLS + p7X_E] = xE;
+  ox->xmx[L * p7X_NXCELLS + p7X_C] = xE + om_tr->xf[p7O_E][p7O_MOVE];
+
+  return eslOK;
+}
+/*--------------- end, p7_Viterbi_SplicedGlobal_NoP() -----------*/
+
+
 
 /*****************************************************************
  * 3. Benchmark driver.

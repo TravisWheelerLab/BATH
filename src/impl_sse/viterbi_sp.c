@@ -857,6 +857,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
         j += 3;
       }
+      printf("End of first exon %d\n", j-1);
       /* Simulated intron: GT + intron_len random nucleotides + AG
        * eslDNA alphabet: A=0, C=1, G=2, T=3                        */
       dsq[j++] = 2;  /* G */
@@ -865,11 +866,12 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       dsq[j++] = 0;  /* A */
       dsq[j++] = 2;  /* G */
       /* Reverse-translate second half of the sequence (exon 2) */
+      printf("End of intron %d\n", j-1); 
       for (i = k_start+ sub_M/2 + 1; i <= k_end; i++) {
         p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
         j += 3;
       }
-
+      printf("end of second Exon %d\n", j-1); 
       p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_gmx_GrowTo(pli->vit, sub_M, L_dna_total, L_dna_total);
       p7_splicescores_GrowTo(pli->splice_scores, sub_M);
@@ -899,10 +901,14 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_osplicescores_GrowTo(oss, sub_M);
       p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox_NoP, oss, 1, L_dna_total, pli->min_intron);
       final_oC = ox_NoP->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
-
-      if (fabs(final_gC - final_oC) > 0.001)
+      printf("final_gC %f final_oC %f \n", final_gC, final_oC);
+      if (fabs(final_gC - final_oC) > 0.001) {
+        printf("Dump gx_NoP:\n");
+        p7_gmx_Dump(stdout, gx_NoP, p7_DEFAULT);
+        printf("Dump ox_NoP:\n");        
+        p7_omx_Dump(stdout, ox_NoP);
         esl_fatal("%s: generic %.4f != SSE %.4f", msg, final_gC, final_oC); 
-
+      }
     }
 
   if (dsq != NULL) free(dsq);
@@ -948,7 +954,7 @@ static ESL_OPTIONS options[] = {
   /* name    type           default env range toggles reqs incomp help                                       docgroup */
   { "-h",  eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL, NULL, "show brief help on version and usage",           0 },
   { "-s",  eslARG_INT,     "42", NULL, NULL, NULL, NULL, NULL, "set random number seed to <n>",                  0 },
-  { "-M",  eslARG_INT,    "200", NULL,"n>=50",NULL,NULL, NULL, "size of random models to sample",                0 },
+  { "-M",  eslARG_INT,    "200", NULL,"n>=5",NULL,NULL, NULL, "size of random models to sample",                0 },
   { "-N",  eslARG_INT,     "20", NULL, NULL, NULL, NULL, NULL, "number of random sequences to sample",           0 },
   { "-I",  eslARG_INT,    "500", NULL,"n>0", NULL, NULL, NULL, "simulated intron length",                        0 }, 
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },

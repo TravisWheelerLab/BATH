@@ -278,17 +278,14 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7
  * SSE counterpart of p7_GViterbi_SplicedGlobal_DummyNoP.
  * Uses the standard 3-cell (M,D,I) layout with a 3-slot circular
  * P-state buffer pvx[slot*Q + q] (slot = i%3) instead of a P column
- * in the main DP matrix.  The P predecessor in the M recurrence reads
- * from pvx rather than from a P column in ox->dpf, so the matrix rows
- * remain Q*3 vectors wide.
+ * in the main DP matrix.
  *
- * Acceptor-site P writes mirror p7_GViterbi_SplicedGlobal_DummyNoP:
- * os->P_scores is reset to -inf (no donor tracking in this Dummy
- * variant), so every pvx write evaluates to -inf and the P->M
- * transition never fires.  The code structure is in place for the
- * full implementation once donor-site P_scores writes are added.
+ * Mirrors p7_GViterbi_SplicedGlobal_DummyNoP fully:
+ *   - Acceptor-site q-loop writes to pvx using os->P_scores.
+ *   - Donor-site q-loops (after the DD sweep) write to os->P_scores
+ *     using the DP values at row i-min_intron-3.
  *
- * The pvx buffer is allocated and freed internally.
+ * The pvx buffer and don tracking are allocated and managed internally.
  *****************************************************************/
 
 int
@@ -309,11 +306,15 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   int      L  = i_end - i_start + 1;
   int      C0;
   int      C1[p7P_MAXNUC + 1];    /* split-codon indices for acc1 acceptor case  */
+  int      C2[p7P_MAXNUC + 1];    /* split-codon indices for don2 donor case     */
   int      v, w, x;
+  int      r, s, t, u;            /* nucleotide lookback window for donor sites  */
   int      nuc1, nuc3;
   int      acc0, acc1, acc2;      /* acceptor site type for rows i, i-1, i-2    */
+  int      don0, don1, don2;      /* donor site type for rows i, i-1, i-2       */
+  int      don_sig;               /* p7S_GTAG / p7S_GCAG / p7S_ATAC             */
   int      pv_i;                  /* i % 3: slot index into pvx                 */
-  int      i, q, j, r, sub_i;
+  int      i, q, j, ri, sub_i;
   int      status;
 
   if (om_tr->codon_lengths != 1)
@@ -330,32 +331,33 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
 
   pvx = NULL;
   ESL_ALLOC(pvx, sizeof(__m128) * 3 * Q);
-  for (r = 0; r < 3 * Q; r++) pvx[r] = infv;
+  for (ri = 0; ri < 3 * Q; ri++) pvx[ri] = infv;
 
-  /* Reset os->P_scores to -inf (no donor site tracking in this Dummy variant) */
+  /* Reset os->P_scores to -inf; donor writes will accumulate into it. */
   for (j = 0; j < SIGNAL_MEM_SIZE; j++)
     for (q = 0; q < Q; q++)
       os->P_scores[j][q] = infv;
 
   /* Initialize all DP rows 0..L to -inf. */
-  for (r = 0; r <= L; r++)
+  for (ri = 0; ri <= L; ri++)
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[r], q) = DMO(ox->dpf[r], q) = IMO(ox->dpf[r], q) = infv;
+      MMO(ox->dpf[ri], q) = DMO(ox->dpf[ri], q) = IMO(ox->dpf[ri], q) = infv;
 
   /* Initialize special-state rows; set B(0) = log T(N->B). */
-  for (r = 0; r <= L; r++) {
-    ox->xmx[r * p7X_NXCELLS + p7X_SCALE] = 0.0f;
-    ox->xmx[r * p7X_NXCELLS + p7X_E]     = -eslINFINITY;
-    ox->xmx[r * p7X_NXCELLS + p7X_N]     = -eslINFINITY;
-    ox->xmx[r * p7X_NXCELLS + p7X_J]     = -eslINFINITY;
-    ox->xmx[r * p7X_NXCELLS + p7X_B]     = -eslINFINITY;
-    ox->xmx[r * p7X_NXCELLS + p7X_C]     = -eslINFINITY;
+  for (ri = 0; ri <= L; ri++) {
+    ox->xmx[ri * p7X_NXCELLS + p7X_SCALE] = 0.0f;
+    ox->xmx[ri * p7X_NXCELLS + p7X_E]     = -eslINFINITY;
+    ox->xmx[ri * p7X_NXCELLS + p7X_N]     = -eslINFINITY;
+    ox->xmx[ri * p7X_NXCELLS + p7X_J]     = -eslINFINITY;
+    ox->xmx[ri * p7X_NXCELLS + p7X_B]     = -eslINFINITY;
+    ox->xmx[ri * p7X_NXCELLS + p7X_C]     = -eslINFINITY;
   }
   xB = om_tr->xf[p7O_N][p7O_MOVE];
   ox->xmx[0 * p7X_NXCELLS + p7X_B] = xB;
 
-  /* Nucleotide rolling window and acceptor site tracker init. */
+  /* Nucleotide rolling window and acceptor/donor site tracker init. */
   acc0 = acc1 = acc2 = -1;
+  don0 = don1 = don2 = -1;
   v = w = p7P_MAXCODONS1;
   x = (sub_dsq[i_start] < p7P_MAXNUC) ? sub_dsq[i_start] : p7P_MAXCODONS1;
   if (L >= 2) {
@@ -363,11 +365,27 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
     x = (sub_dsq[i_start + 1] < p7P_MAXNUC) ? sub_dsq[i_start + 1] : p7P_MAXCODONS1;
   }
 
+  /* Donor lookback window init: s/t/u prime the rolling window so that
+   * at the first main iteration (i = min_intron+3) the shift r=s; s=t; t=u
+   * yields r=sub_dsq[i_start], s=sub_dsq[i_start+1], t=sub_dsq[i_start+2]. */
+  s = (sub_dsq[i_start]     < p7P_MAXNUC) ? sub_dsq[i_start]     : p7P_MAXCODONS1;
+  t = (sub_dsq[i_start + 1] < p7P_MAXNUC) ? sub_dsq[i_start + 1] : p7P_MAXCODONS1;
+  u = (sub_dsq[i_start + 2] < p7P_MAXNUC) ? sub_dsq[i_start + 2] : p7P_MAXCODONS1;
+
   for (i = 3; i <= L; i++) {
     sub_i = i_start + i - 1;
-    v     = w;
-    w     = x;
-    x     = (sub_dsq[sub_i] < p7P_MAXNUC) ? sub_dsq[sub_i] : p7P_MAXCODONS1;
+
+    /* Donor lookback window: only valid when i >= min_intron+3 (avoids
+     * accessing sub_dsq before i_start).  Guards don update too. */
+    if (i >= min_intron + 3) {
+      r = s; s = t; t = u;
+      u = (sub_dsq[sub_i - min_intron + 1] < p7P_MAXNUC)
+              ? sub_dsq[sub_i - min_intron + 1] : p7P_MAXCODONS1;
+    }
+
+    v = w;
+    w = x;
+    x = (sub_dsq[sub_i] < p7P_MAXNUC) ? sub_dsq[sub_i] : p7P_MAXCODONS1;
 
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
@@ -385,6 +403,16 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
     if      (SIGNAL(v, w) == ACCEPT_AG) acc2 = ACCEPT_AG;
     else if (SIGNAL(v, w) == ACCEPT_AC) acc2 = ACCEPT_AC;
     else                                acc2 = -1;
+
+    /* Shift donor site window (guarded): don2 is this row's donor dinucleotide,
+     * don1 one row ago (1 pre-donor nuc = r), don0 two rows ago (0 pre-donor nucs). */
+    if (i >= min_intron + 3) {
+      don0 = don1; don1 = don2;
+      if      (SIGNAL(t, u) == DONOR_GT) don2 = DONOR_GT;
+      else if (SIGNAL(t, u) == DONOR_GC) don2 = DONOR_GC;
+      else if (SIGNAL(t, u) == DONOR_AT) don2 = DONOR_AT;
+      else                               don2 = -1;
+    }
 
     pv_i = i % 3;
     dpc  = ox->dpf[i];
@@ -435,9 +463,8 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
       }
       IMO(dpc, q) = sv;
 
-      /* P-state write: accumulate best P(i, k) from active acceptor sites.
-       * os->P_scores is -inf in this Dummy variant (no donor tracking), so
-       * psv stays -inf and pvx remains -inf throughout. */
+      /* P-state write: accumulate best P(i, k) from active acceptor sites
+       * by reading the donor scores accumulated in os->P_scores. */
       {
         __m128 psv = infv;
         if (acc0 == ACCEPT_AG) {
@@ -510,7 +537,75 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
         if (!_mm_movemask_ps(cv)) break;
       }
     }
-  }
+
+    /*------------------------------------------------------------
+     * Donor site q-loops.
+     * Run after the DD sweep so MMO/DMO(dpc) are final.
+     * Read DP values at row i-min_intron-3 (the last complete exon
+     * codon before the donor site), accumulate into os->P_scores.
+     *
+     * don2: 2 pre-donor nucs (r, s); C2 codon emission baked in.
+     * don1: 1 pre-donor nuc  (r);    emission added at acceptor time.
+     * don0: 0 pre-donor nucs;        emission added at acceptor time.
+     *------------------------------------------------------------*/
+    if (don2 >= 0 || don1 >= 0 || don0 >= 0) {
+      __m128 *dpp_lb = ox->dpf[i - min_intron - 3];
+      __m128  lb_mpv, lb_dpv, lb_tsv;
+
+      if (don2 >= 0) {
+        /* C2[nuc3] = codon(r, s, nuc3) for all post-acceptor nuc3 values.
+         * Emission is baked in; nuc3 is reused as loop variable (safe: acceptor
+         * block finished using it as ESL_MIN(x, p7P_MAXNUC)). */
+        for (nuc3 = 0; nuc3 < p7P_MAXNUC; nuc3++)
+          C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
+        C2[p7P_MAXNUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
+
+        don_sig = (don2 == DONOR_GT) ? p7S_GTAG : (don2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+        lb_mpv  = esl_sse_rightshift_ps(MMO(dpp_lb, Q - 1), infv);
+        lb_dpv  = esl_sse_rightshift_ps(DMO(dpp_lb, Q - 1), infv);
+        for (q = 0; q < Q; q++) {
+          lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);           /* TMP_SC: best M/D at k-1 */
+          for (nuc3 = 0; nuc3 <= p7P_MAXNUC; nuc3++) {
+            int slot = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + don_sig;
+            os->P_scores[slot][q] = _mm_max_ps(os->P_scores[slot][q],
+                                               _mm_add_ps(lb_tsv, om_tr->rfv[C2[nuc3]][q]));
+          }
+          lb_mpv = MMO(dpp_lb, q);
+          lb_dpv = DMO(dpp_lb, q);
+        }
+      }
+
+      if (don1 >= 0) {
+        /* nuc1 = pre-donor nucleotide (r); emission added at acceptor time. */
+        nuc1    = ESL_MIN(r, p7P_MAXNUC);
+        don_sig = (don1 == DONOR_GT) ? p7S_GTAG : (don1 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+        {
+          int slot = SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + don_sig;
+          lb_mpv = esl_sse_rightshift_ps(MMO(dpp_lb, Q - 1), infv);
+          lb_dpv = esl_sse_rightshift_ps(DMO(dpp_lb, Q - 1), infv);
+          for (q = 0; q < Q; q++) {
+            lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);
+            os->P_scores[slot][q] = _mm_max_ps(os->P_scores[slot][q], lb_tsv);
+            lb_mpv = MMO(dpp_lb, q);
+            lb_dpv = DMO(dpp_lb, q);
+          }
+        }
+      }
+
+      if (don0 >= 0) {
+        /* 0 pre-donor nucs; emission added at acceptor time. */
+        don_sig = (don0 == DONOR_GT) ? p7S_GTAG : (don0 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+        lb_mpv  = esl_sse_rightshift_ps(MMO(dpp_lb, Q - 1), infv);
+        lb_dpv  = esl_sse_rightshift_ps(DMO(dpp_lb, Q - 1), infv);
+        for (q = 0; q < Q; q++) {
+          lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);
+          os->P_scores[don_sig][q] = _mm_max_ps(os->P_scores[don_sig][q], lb_tsv);
+          lb_mpv = MMO(dpp_lb, q);
+          lb_dpv = DMO(dpp_lb, q);
+        }
+      }
+    }
+  } /* end main loop i = 3..L */
 
   {
     union { __m128 v; float p[4]; } um, ud;

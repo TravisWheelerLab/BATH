@@ -35,7 +35,7 @@
 
 #define TSC_P log(4.58e-5)
 
-#define PVX3(i,k) (ivx[((k)*3) + (i)])
+#define PVX4(i,k) (ivx[((k)*4) + (i)])
 
 /* Function:  p7_GViterbi_SplicedGlobal()
  * Synopsis:  Fully global translated spliced Viterbi algorithm
@@ -426,7 +426,7 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
   int          nuc1, nuc3;
   int          loop_end;
   int          sub_i,sub_k;
-  int          pv_i;
+  int          pv_i, pv_pi;
   int          acc0, acc1, acc2;
   int          don0, don1, don2;
   int          don_sig;
@@ -451,9 +451,9 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
       P_scores[k][i] = -eslINFINITY;
   }
 
-  for (i = 0; i < 3; i++) {
+  for (i = 0; i < 4; i++) {
     for(k = 0; k <= M; k++) {
-      PVX3(i,k) = -eslINFINITY;
+      PVX4(i,k) = -eslINFINITY;
     }
   }
 
@@ -583,7 +583,8 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
   {
     /* get nucleotides and codon */
     sub_i = i_start + i - 1;
-    pv_i = i % 3;
+    pv_i  =  i    % 4;
+    pv_pi = (i-3) % 4; 
 
     r = s;
     s = t;
@@ -635,11 +636,49 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
 
       sub_k = k_start + k -1;
 
+      PVX4(pv_i,k) = -eslINFINITY;
+      if (acc0 >= 0 || acc1 >= 0 || acc2 >= 0) {
+
+        if (acc0 == ACCEPT_AG) {
+          TMP_SC = ESL_MAX(SSX0(k, p7S_GTAG) + signal_scores[p7S_GTAG],
+                           SSX0(k, p7S_GCAG) + signal_scores[p7S_GCAG]) + rsc_c0[sub_k];
+          PVX4(pv_i,k) = ESL_MAX(PVX4(pv_i,k), TMP_SC);
+        } else if (acc0 == ACCEPT_AC) {
+          TMP_SC = SSX0(k, p7S_ATAC) + signal_scores[p7S_ATAC] + rsc_c0[sub_k];
+          PVX4(pv_i,k) = ESL_MAX(PVX4(pv_i,k), TMP_SC);
+        }
+
+        if (acc1 == ACCEPT_AG) {
+          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
+            TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG],
+                             SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG]) + rsc_c1[nuc1][sub_k];
+
+            PVX4(pv_i,k) = ESL_MAX(PVX4(pv_i,k), TMP_SC);
+ 
+          }
+        } else if (acc1 == ACCEPT_AC) {
+          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
+            TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + rsc_c1[nuc1][sub_k];
+            PVX4(pv_i,k) = ESL_MAX(PVX4(pv_i,k), TMP_SC);
+          }
+        }
+
+        if (acc2 == ACCEPT_AG) {
+          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc3) + signal_scores[p7S_GTAG],
+                           SSX2(k, p7S_GCAG, nuc3) + signal_scores[p7S_GCAG]);
+          PVX4(pv_i,k) = ESL_MAX(PVX4(pv_i,k), TMP_SC);
+
+        } else if (acc2 == ACCEPT_AC) {
+          TMP_SC = SSX2(k, p7S_ATAC, nuc3) + signal_scores[p7S_ATAC];
+          PVX4(pv_i,k) = ESL_MAX(PVX4(pv_i,k), TMP_SC);
+        }
+      }
+
       MMX(i,k) = ESL_MAX(MMX(i-3,k-1) + TSC(p7P_MM,sub_k-1),
                     ESL_MAX(IMX(i-3,k-1) + TSC(p7P_IM,sub_k-1),
                     ESL_MAX(DMX(i-3,k-1) + TSC(p7P_DM,sub_k-1),
-                            PVX3(pv_i,k-1) + TSC_P))) + rsc_c0[sub_k];
-      
+                            PVX4(pv_pi,k-1) + TSC_P))) + rsc_c0[sub_k];
+
 	  IMX(i,k) = ESL_MAX(MMX(i-3,k) + TSC(p7P_MI,sub_k),
                             IMX(i-3,k) + TSC(p7P_II,sub_k));
 
@@ -650,47 +689,13 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
                             DMX(i,k-1) + TSC(p7P_DD,sub_k-1));
 
 
-	  PVX3(pv_i,k) = -eslINFINITY;
-
-      if (acc0 >= 0 || acc1 >= 0 || acc2 >= 0) {
-        if (acc0 == ACCEPT_AG) {
-          TMP_SC = ESL_MAX(SSX0(k, p7S_GTAG) + signal_scores[p7S_GTAG],
-                           SSX0(k, p7S_GCAG) + signal_scores[p7S_GCAG]) + rsc_c0[sub_k];
-          PVX3(pv_i,k) = ESL_MAX(PVX3(pv_i,k), TMP_SC);
-        } else if (acc0 == ACCEPT_AC) {
-          TMP_SC = SSX0(k, p7S_ATAC) + signal_scores[p7S_ATAC] + rsc_c0[sub_k];
-          PVX3(pv_i,k) = ESL_MAX(PVX3(pv_i,k), TMP_SC);
-        }
-
-        if (acc1 == ACCEPT_AG) {
-          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
-            TMP_SC = ESL_MAX(SSX1(k, p7S_GTAG, nuc1) + signal_scores[p7S_GTAG],
-                             SSX1(k, p7S_GCAG, nuc1) + signal_scores[p7S_GCAG]) + rsc_c1[nuc1][sub_k];
-            PVX3(pv_i,k) = ESL_MAX(PVX3(pv_i,k), TMP_SC);
-          }
-        } else if (acc1 == ACCEPT_AC) {
-          for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
-            TMP_SC = SSX1(k, p7S_ATAC, nuc1) + signal_scores[p7S_ATAC] + rsc_c1[nuc1][sub_k];
-            PVX3(pv_i,k) = ESL_MAX(PVX3(pv_i,k), TMP_SC);
-          }
-        }
-
-        if (acc2 == ACCEPT_AG) {
-          TMP_SC = ESL_MAX(SSX2(k, p7S_GTAG, nuc3) + signal_scores[p7S_GTAG],
-                           SSX2(k, p7S_GCAG, nuc3) + signal_scores[p7S_GCAG]);
-          PVX3(pv_i,k) = ESL_MAX(PVX3(pv_i,k), TMP_SC);
-        } else if (acc2 == ACCEPT_AC) {
-          TMP_SC = SSX2(k, p7S_ATAC, nuc3) + signal_scores[p7S_ATAC];
-          PVX3(pv_i,k) = ESL_MAX(PVX3(pv_i,k), TMP_SC);
-        }
-      }
     }
 	  
     sub_k = k_start + M -1;
     MMX(i,M) = ESL_MAX(MMX(i-3,M-1) + TSC(p7P_MM,sub_k-1),
                   ESL_MAX(IMX(i-3,M-1) + TSC(p7P_IM,sub_k-1),
                   ESL_MAX(DMX(i-3,M-1) + TSC(p7P_DM,sub_k-1),
-                          PVX3(pv_i,M-1) + TSC_P))) + rsc_c0[sub_k];
+                          PVX4(pv_pi,M-1) + TSC_P))) + rsc_c0[sub_k];
     
     IMX(i,M) = -eslINFINITY;
 
@@ -713,6 +718,7 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
         TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
         for(nuc3 = 0; nuc3 <= p7P_MAXNUC; nuc3++)
           SSX2(k,don_sig,nuc3) = ESL_MAX(SSX2(k,don_sig,nuc3), TMP_SC + gm_tr->rsc[C2[nuc3]][sub_k]);
+
       }
     }
 
@@ -1707,6 +1713,237 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
 }
 /*----------------- end, p7_GViterbi_SplicedTrace() ------*/
 
+int
+p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron)
+{
+
+  float const *tsc = gm_tr->tsc;
+  float      **dp  = gx->dp;              /* so {MDI}MX() macros work       */
+  float       *xmx = gx->xmx;             /* so XMX() macro works           */
+  float        tol = 1e-5;                /* floating point "equality" test */
+  int          M   = k_end - k_start + 1; /* sub model length               */
+  int          L   = i_end - i_start + 1; /* sub seq length                 */
+  int          i   = L;                   /* position in seq (1..L)         */
+  int          k   = 0;                   /* position in model (1..M)       */
+  int          j;
+  int          t,u,v,w,x;
+  int          c, c0, c1, c2, c3;
+  int          sprv,scur;
+  int          sub_i, sub_k;
+  int          donor_i;
+  int          acc[3] = {0, 0, 0};
+  int          don_sig;
+  float        P_state;
+  float        emit, emit0, emit1, emit2;
+  int          status;
+
+  if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
+
+#if eslDEBUGLEVEL > 0
+  if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
+#endif
+
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i+i_start-1, 0)) != eslOK) return status;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i+i_start-1, 0)) != eslOK) return status;
+  
+  sprv = p7T_C;
+  
+  while (sprv != p7T_S) {
+    switch (sprv) {
+    case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
+       
+      if      (XMX(i, p7G_C) < XMX(i-2, p7G_C) || XMX(i, p7G_C) < XMX(i-1, p7G_C))                     scur = p7T_C; 
+      else if (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
+      else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
+
+      break;
+
+    case p7T_E:     /* E connects from any M state. k set here */
+      if (XMX(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+      for (k = M; k >= 1; k--) {
+        if (esl_FCompare_old(XMX(i, p7G_E), MMX(i,k), tol) == eslOK) { scur = p7T_M; break; }
+        if (esl_FCompare_old(XMX(i, p7G_E), DMX(i,k), tol) == eslOK) { scur = p7T_D; break; }
+      }
+      if (k == 0) ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
+ 
+      break;
+
+    case p7T_M:         /* M connects from i-1,k-1, or B */
+      if (MMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
+     
+      sub_i = i_start + i - 1; 
+      
+      if(sub_dsq[sub_i-2] < p7P_MAXNUC) v = sub_dsq[sub_i-2];
+      else                           v = p7P_MAXCODONS1;
+
+      if(sub_dsq[sub_i-1] < p7P_MAXNUC) w = sub_dsq[sub_i-1];
+      else                           w = p7P_MAXCODONS1;
+
+      if(sub_dsq[sub_i]   < p7P_MAXNUC) x = sub_dsq[sub_i];
+      else                           x = p7P_MAXCODONS1;
+
+      c3 = p7P_CODON3_FS1(v, w, x);
+      c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
+
+      sub_k  = k_start + k - 1;
+      emit = p7P_MSC_CODON(gm_tr, sub_k, c3);
+      
+      if      (esl_FCompare_old(MMX(i,k), MMX(i-3, k-1) + TSC(p7P_MM, sub_k-1) + emit, tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(MMX(i,k), IMX(i-3, k-1) + TSC(p7P_IM, sub_k-1) + emit, tol) == eslOK) scur = p7T_I;
+      else if (esl_FCompare_old(MMX(i,k), DMX(i-3, k-1) + TSC(p7P_DM, sub_k-1) + emit, tol) == eslOK) scur = p7T_D;      
+      else if (esl_FCompare_old(MMX(i,k), XMX(i-3, p7G_B)                      + emit, tol) == eslOK) scur = p7T_B;
+      else {    /* The P state is not stored - must be recreated */
+        if (i < min_intron+7) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+
+        /* detect which acceptor sites are available */
+        acc[0] = 0;
+        if(SIGNAL(sub_dsq[sub_i-7], sub_dsq[sub_i-6]) == ACCEPT_AG) acc[0] = 1;
+        if(SIGNAL(sub_dsq[sub_i-7], sub_dsq[sub_i-6]) == ACCEPT_AC) acc[0] = 2; 
+       
+        acc[1] = 0;
+        if(SIGNAL(sub_dsq[sub_i-6], sub_dsq[sub_i-5]) == ACCEPT_AG) acc[1] = 1;
+        if(SIGNAL(sub_dsq[sub_i-6], sub_dsq[sub_i-5]) == ACCEPT_AC) acc[1] = 2;
+
+        acc[2] = 0;
+        if(SIGNAL(sub_dsq[sub_i-5], sub_dsq[sub_i-4]) == ACCEPT_AG) acc[2] = 1;
+        if(SIGNAL(sub_dsq[sub_i-5], sub_dsq[sub_i-4]) == ACCEPT_AC) acc[2] = 2;
+
+        if(acc[0] == 0 && acc[1] == 0 && acc[2] == 0) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+
+        /* Scan for donor sites */
+        for(j = 0; j < i-min_intron-4; j++) {
+        
+          don_sig = -1;
+          if     (SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GT) don_sig = p7S_GTAG;
+          else if(SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GC) don_sig = p7S_GCAG;
+          else if(SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_AT) don_sig = p7S_ATAC;
+        
+          if(don_sig != -1) {
+            /* If we have a donor site get emmisions */
+            
+            if(sub_dsq[sub_i-min_intron-3] < p7P_MAXNUC) t = sub_dsq[sub_i-min_intron-j-3];
+            else                                         t = p7P_MAXCODONS1;
+
+            if(sub_dsq[sub_i-min_intron-2] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron-j-2];
+            else                                         u = p7P_MAXCODONS1;
+            
+            if(sub_dsq[sub_i-5] < p7P_MAXNUC) v = sub_dsq[sub_i-5];
+            else                              v = p7P_MAXCODONS1;
+
+            if(sub_dsq[sub_i-4] < p7P_MAXNUC) w = sub_dsq[sub_i-4];
+            else                              w = p7P_MAXCODONS1;
+            
+            if(sub_dsq[sub_i-3] < p7P_MAXNUC) x = sub_dsq[sub_i-3];
+            else                              x = p7P_MAXCODONS1;     
+
+            c2 = p7P_CODON3_FS1(t, u, x);
+            c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
+            emit2 = p7P_MSC_CODON(gm_tr, sub_k-1, c2);
+
+            c1 = p7P_CODON3_FS1(u, w, x);
+            c1 = p7P_MINIDX(c1, p7P_DEGEN1_C);
+            emit1 = p7P_MSC_CODON(gm_tr, sub_k-1, c1);
+
+            c0 = p7P_CODON3_FS1(v, w, x);
+            c0 = p7P_MINIDX(c0, p7P_DEGEN1_C);
+            emit0 = p7P_MSC_CODON(gm_tr, sub_k-1, c0);
+
+            /* Pair donor and acceptor sites and compare scores */
+            if(don_sig == p7S_GTAG || don_sig == p7S_GCAG) {
+              if (acc[2] == 1) {
+                P_state = ESL_MAX(MMX(i-min_intron-j-4,k-2), DMX(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
+                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
+              }
+              if (acc[1] == 1) {
+                P_state = ESL_MAX(MMX(i-min_intron-j-3,k-2), DMX(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
+                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
+              }
+              if (acc[0] == 1) {
+                P_state = ESL_MAX(MMX(i-min_intron-j-2,k-2), DMX(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
+                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
+              }
+            }
+            else if(don_sig == p7S_ATAC) {
+              if (acc[2] == 2) {
+                P_state = ESL_MAX(MMX(i-min_intron-j-4,k-2), DMX(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
+                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
+              }
+              if (acc[1] == 2) {
+                P_state = ESL_MAX(MMX(i-min_intron-j-3,k-2), DMX(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
+                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
+              }
+              if (acc[0] == 2) {
+                P_state = ESL_MAX(MMX(i-min_intron-j-2,k-2), DMX(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
+                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
+              }
+            }
+          }
+        }   
+        if(scur != p7T_P) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+      }
+      
+      k--; i-=3;
+      break;
+
+    case p7T_D:         /* D connects from M,D at i,k-1 */
+      if (DMX(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
+     
+      sub_k  = k_start + k - 1; 
+      if      (esl_FCompare_old(DMX(i,k), MMX(i, k-1) + TSC(p7P_MD, sub_k-1), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(DMX(i,k), DMX(i, k-1) + TSC(p7P_DD, sub_k-1), tol) == eslOK) scur = p7T_D;
+      else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
+      k--;
+      break;
+
+    case p7T_I:         /* I connects from M,I at i-1,k*/
+      if (IMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
+
+      sub_k  = k_start + k - 1;
+      if      (esl_FCompare_old(IMX(i,k), MMX(i-3,k) + TSC(p7P_MI, sub_k), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(IMX(i,k), IMX(i-3,k) + TSC(p7P_II, sub_k), tol) == eslOK) scur = p7T_I;
+      else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k,i);
+      i-=3;
+      break;
+
+    case p7T_P:
+      if (MMX(donor_i,k-1) > DMX(donor_i,k-1)) scur = p7T_M;
+      else                                     scur = p7T_D;
+
+      k--; i = donor_i; 
+      break;
+
+    case p7T_N:         /* N connects from S, N */
+      if (XMX(i, p7G_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
+      scur = ( (i == 0) ? p7T_S : p7T_N);
+      break;
+
+    case p7T_B:         /* B connects from N, J */
+      if (XMX(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+      if      (esl_FCompare_old(XMX(i,p7G_B), XMX(i, p7G_N) + gm_tr->xsc[p7P_N][p7P_MOVE], tol) == eslOK) scur = p7T_N;
+      else  ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
+      break;
+
+      default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
+    } /* end switch over statetype[tpos-1] */
+
+    if      (scur == p7T_M) c = 3;
+    else if (scur != p7T_P) c = 0;
+
+    if ((status = p7_trace_fs_Append(tr, scur, k_start+k-1, i_start+i-1, c)) != eslOK) return status;
+    
+    /* For NC, we had to defer i decrement. */
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
+   
+    sprv = scur;
+  } /* end traceback, at S state */
+
+  tr->M = M;
+  tr->L = L;
+
+  return p7_trace_fs_Reverse(tr);
+}
 
 /*****************************************************************
  * 5. Benchmark driver.
@@ -1786,7 +2023,7 @@ main(int argc, char **argv)
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, hmm->M, p7_UNILOCAL);
 
   gx = p7_gmx_Create (hmm->M, hmm->M, hmm->M, p7G_NSCELLS);
-  iv = p7_ivx_Create (hmm->M, 3);
+  iv = p7_ivx_Create (hmm->M, 4);
   pli = p7_splicepipeline_Create(NULL, hmm->M, hmm->M * 3);
   p7_splicescores_GrowTo(pli->splice_scores, hmm->M);
   tr = p7_trace_fs_Create();
@@ -1861,6 +2098,10 @@ main(int argc, char **argv)
 	  }
       if (do_dummy) {
         p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+        if (do_T) {
+          p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, gx, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+          p7_trace_Reuse(tr);
+        }
       } 
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
@@ -1931,8 +2172,11 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_FS_PROFILE  *gm_tr       = p7_profile_fs_Create(M, abcAA, 1);
   ESL_SQ         *sq          = esl_sq_CreateDigital(abcAA);
   P7_TRACE       *tr          = p7_trace_fs_Create();
+  P7_TRACE       *tr_NoP      = p7_trace_fs_Create();
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
+  P7_GMX          *gx         = p7_gmx_Create(M, M, M, p7G_NSCELLS);
+  P7_IVX          *iv         = p7_ivx_Create(M, 4);
   int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
   int             L_amino, L_dna_total;
   int             i, j, n_p;
@@ -1989,6 +2233,20 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         p7_trace_Reuse(tr);
 	  }
 
+      p7_gmx_GrowTo(gx, M, L_dna_total, L_dna_total);
+      p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+      final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+      if (final_C != -eslINFINITY) {
+        p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, gx, pli->splice_scores->signal_scores, tr_NoP, 1, L_dna_total, 1, M, pli->min_intron);
+        n_p = 0;
+        for (i = 0; i < tr_NoP->N; i++)
+          if (tr_NoP->st[i] == p7T_P) n_p++;
+        if (n_p < 1) esl_fatal(msg);
+        p7_trace_Reuse(tr_NoP);
+      }
+
+      p7_trace_Compare(tr, tr_NoP, 0.0);
+
       /* --- Test 2: ExtendDown; final C must be reachable --- */
       p7_GViterbi_SplicedExtendDown(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       final_C = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
@@ -2003,10 +2261,13 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   if (dsq != NULL) free(dsq);
   esl_sq_Destroy(sq);
   p7_trace_fs_Destroy(tr);
+  p7_trace_fs_Destroy(tr_NoP);
   p7_hmm_Destroy(hmm);
   p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_tr);
   p7_splicepipeline_Destroy(pli);
+  p7_gmx_Destroy(gx);
+  p7_ivx_Destroy(iv);  
 }
 
 /* utest_splice():
@@ -2031,6 +2292,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_TRACE       *tr          = p7_trace_fs_Create();
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
+  P7_GMX          *gx         = NULL;
+  P7_IVX          *iv         = NULL;
   int             intron_len  = 500;  
   int             L_amino, L_dna_total;
   int             n, i, j, c;
@@ -2042,6 +2305,9 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
   pli = p7_splicepipeline_Create(NULL, M, M * 3);
 
+  gx = p7_gmx_Create(M, M, M, p7G_NSCELLS);
+  iv = p7_ivx_Create(M, 4);
+
   p7_emit_SimpleConsensus(hmm, sq);
   L_amino     = sq->n;
   L_dna_total = L_amino * 3 + intron_len + 4;
@@ -2049,7 +2315,8 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
   p7_gmx_GrowTo(pli->vit, M, L_dna_total, L_dna_total);
   p7_splicescores_GrowTo(pli->splice_scores, M);
-
+      
+  p7_gmx_GrowTo(gx, M, L_dna_total, L_dna_total);
   for(n = 0; n < 3; n++) {
     if (dsq != NULL) free(dsq);  
     if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal("malloc failed");
@@ -2083,8 +2350,11 @@ utest_splice(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       j += 3;
     } 
 
-    p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
-	p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+    //p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, M, pli->min_intron);
+	//p7_GViterbi_SplicedTrace(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron);
+   
+    p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv,  1, L_dna_total, 1, M, pli->min_intron); 
+     p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, gx, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, M, pli->min_intron); 
 
 	c = -1;
 	for (i = 0; i < tr->N; i++)

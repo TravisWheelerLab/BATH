@@ -302,16 +302,15 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   OSPLICE_SCORES  *oss        = NULL;
   int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
   int             L_amino, L_dna_total;
-  int             i, j, n_p;
+  int             i, j;
   int             k_start, k_end;
-  int             i_start, i_end;
   int             sub_M;
   float           final_gC, final_oC;
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
   p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
-  p7_oprofile_Convert_Log(gm_tr, om_tr);
+  p7_fs_oprofile_Convert_Log(gm_tr, om_tr);
 
   pli = p7_splicepipeline_Create(NULL, M, M * 3);
   oss = p7_osplicescores_Create(M); 
@@ -360,12 +359,12 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_GViterbi_SplicedGlobal_Dummy(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron);
       final_gC = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 
-	  p7_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
-      p7_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
+	  p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
+      p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
 	  p7_omx_GrowTo(ox, sub_M, L_dna_total, L_dna_total);
 	  p7_osplicescores_GrowTo(oss, sub_M);
 
-      p7_Viterbi_SplicedGlobal(dsq, om_tr, P7_OMX *ox, oss, 1, L_dna_total , pli->min_intron)
+      p7_Viterbi_SplicedGlobal(dsq, om_tr, ox, oss, 1, L_dna_total , pli->min_intron);
       final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
 	  /* Scores must agree */
@@ -397,7 +396,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
  *****************************************************************/
 #ifdef p7VITERBI_SP_TESTDRIVE
 /*
-  gcc -g -Wall -msse2 -std=gnu99 -o viterbi_sp_utest -I.. -L.. -I../../easel -L../../easel -Dp7VITERBI_SP_TESTDRIVE viterbi_fs.c -lhmmer -leasel -lm
+  gcc -g -Wall -msse2 -std=gnu99 -o viterbi_sp_utest -I.. -L.. -I../../easel -L../../easel -Dp7VITERBI_SP_TESTDRIVE viterbi_sp.c -lhmmer -leasel -lm
   ./viterbi_sp_utest
 */
 #include "p7_config.h"
@@ -435,6 +434,7 @@ main(int argc, char **argv)
   P7_BG          *bgAA   = p7_bg_Create(abcAA);
   int             M      = esl_opt_GetInteger(go, "-M");
   int             N      = esl_opt_GetInteger(go, "-N");
+  int             I      = esl_opt_GetInteger(go, "-I");
 
   p7_FLogsumInit();
 
@@ -446,5 +446,8 @@ main(int argc, char **argv)
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);
   esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return eslOK;
+}
 #endif /*p7VITERBI_SP_TESTDRIVE*/
 /*----------------- end, test driver ----------------------------*/

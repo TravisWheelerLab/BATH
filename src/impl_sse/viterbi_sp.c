@@ -291,12 +291,10 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 {
   char           *msg         = "spliced viterbi unit test failed";
   P7_HMM         *hmm         = NULL;
-  P7_PROFILE     *gm          = p7_profile_Create(M, abcAA);
   P7_FS_PROFILE  *gm_tr       = p7_profile_fs_Create(M, abcAA, 1);
   P7_FS_OPROFILE *om_tr       = p7_fs_oprofile_Create(M, abcAA, 1);
   ESL_SQ         *sq          = esl_sq_CreateDigital(abcAA);
-  P7_TRACE       *tr          = p7_trace_fs_Create();
-  P7_OMX         *ox          = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_SP); 
+  P7_OMX         *ox          = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_SP);
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
   OSPLICE_SCORES  *oss        = NULL;
@@ -308,7 +306,6 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   float           final_gC, final_oC;
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
-  p7_ProfileConfig   (hmm, bgAA, gm,    M, p7_LOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
   p7_fs_oprofile_Convert_Log(gm_tr, om_tr);
 
@@ -355,13 +352,13 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_gmx_GrowTo(pli->vit, sub_M, L_dna_total, L_dna_total);
       p7_splicescores_GrowTo(pli->splice_scores, sub_M);
 
-      /* --- Test 1: Global + Trace; trace must contain >= 1 P state --- */
+      /* --- Score comparison: generic Dummy and SSE Dummy must agree --- */
       p7_GViterbi_SplicedGlobal_Dummy(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron);
       final_gC = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 
 	  p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
-	  p7_omx_GrowTo(ox, sub_M, L_dna_total, L_dna_total);
+	  p7_omx_GrowTo_dpf(ox, sub_M, L_dna_total, L_dna_total);
 	  p7_osplicescores_GrowTo(oss, sub_M);
 
       p7_Viterbi_SplicedGlobal(dsq, om_tr, ox, oss, 1, L_dna_total , pli->min_intron);
@@ -374,9 +371,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
   if (dsq != NULL) free(dsq);
   esl_sq_Destroy(sq);
-  p7_trace_fs_Destroy(tr);
   p7_hmm_Destroy(hmm);
-  p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_tr);
   p7_fs_oprofile_Destroy(om_tr); 
   p7_splicepipeline_Destroy(pli);

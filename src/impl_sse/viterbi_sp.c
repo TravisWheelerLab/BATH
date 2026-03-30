@@ -278,13 +278,25 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7
  *****************************************************************/
 #ifdef p7VITERBI_SP_BENCHMARK
 /*
-   gcc -g -O3 -Wall -std=gnu99 -o viterbi_sp_benchmark -I. -L. -I../easel -L../easel -Dp7VITERBI_SP_BENCHMARK
+   gcc -g -O3 -Wall -std=gnu99 -o viterbi_sp_benchmark -I. -L. -I../easel -L../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
    ./viterbi_sp_benchmark <hmmfile>
  */
+
+#include "p7_config.h"
+
+#include <math.h>
+#include <stdio.h>
+
+#include "easel.h"
+#include "esl_alphabet.h"
 #include "esl_gencode.h"
 #include "esl_getopts.h"
+#include "esl_random.h"
 #include "esl_randomseq.h"
 #include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_sse.h"
 
 static ESL_OPTIONS benchmark_options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
@@ -407,6 +419,8 @@ main(int argc, char **argv)
   p7_codontable_Destroy(codon_table);
   p7_profile_fs_Destroy(gm_tr);
   p7_fs_oprofile_Destroy(om_tr);
+  p7_omx_Destroy(ox);
+  p7_osplicescores_Destroy(oss);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bgAA);
   p7_hmm_Destroy(hmm);
@@ -429,6 +443,8 @@ main(int argc, char **argv)
  * 4. Unit tests.
  *****************************************************************/
 #ifdef p7VITERBI_SP_TESTDRIVE
+
+#include "esl_gencode.h"
 #include "esl_random.h"
 #include "esl_randomseq.h"
 

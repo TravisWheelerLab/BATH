@@ -419,13 +419,17 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
   int          M = (k_end - k_start + 1);
   int          C0;
   int          C1[5] = {0, 0, 0, 0, 0};
+  int          C2[5] = {0, 0, 0, 0, 0};
   int          i,k;
+  int          r, s, t, u;
   int          v, w, x;
   int          nuc1, nuc3;
   int          loop_end;
   int          sub_i,sub_k;
   int          pv_i;
   int          acc0, acc1, acc2;
+  int          don0, don1, don2;
+  int          don_sig;
   float        TMP_SC;
   float const *rsc_c0;
   float const *rsc_c1[5];
@@ -439,6 +443,7 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
    */
 
   acc0 = acc1 = acc2 = -1;
+  don0 = don1 = don2 = -1;
 
   /* Reset splice site score storage */
   for(k = 0; k < M; k++) {
@@ -549,6 +554,29 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
 
   }
 
+  /* Example Indexing for r, s, t, u:
+   * i_start = 5;
+   * min_intron = 13;
+   * s = sub_dsq[5];
+   * t = sub_dsq[6];
+   * u = sub_dsq[7];
+   * ...
+   * i = min_intron+3;        // 16;
+   * sub_i = i_start + i - 1; // 20;
+   * r = s;                   // sub_dsq[5];
+   * s = t;                   // sub_dsq[6];
+   * t = u;                   // sub_dsq[7];
+   * u = sub_dsq[sub_i-min_intron+1]; // sub_dsq[8];
+   */
+
+  if(sub_dsq[i_start] < p7P_MAXNUC)   s = sub_dsq[i_start];
+  else                             s = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+1] < p7P_MAXNUC) t = sub_dsq[i_start+1];
+  else                             t = p7P_MAXCODONS1;
+
+  if(sub_dsq[i_start+2] < p7P_MAXNUC) u = sub_dsq[i_start+2];
+  else                             u = p7P_MAXCODONS1;
 
   /* Main DP recursion */
   for (i = min_intron+3; i <= L; i++)
@@ -556,6 +584,12 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
     /* get nucleotides and codon */
     sub_i = i_start + i - 1;
     pv_i = i % 3;
+
+    r = s;
+    s = t;
+    t = u;
+    if(sub_dsq[sub_i-min_intron+1] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron+1];
+    else                                         u = p7P_MAXCODONS1;
 
     v = w;
     w = x;
@@ -584,6 +618,14 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
     if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
     else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
     else                               acc2 = -1;
+
+    /* get donor sites */
+    don0 = don1;
+    don1 = don2;
+    if      (SIGNAL(t,u) == DONOR_GT) don2 = DONOR_GT;
+    else if (SIGNAL(t,u) == DONOR_GC) don2 = DONOR_GC;
+    else if (SIGNAL(t,u) == DONOR_AT) don2 = DONOR_AT;
+    else                              don2 = -1;
 
     XMX(i,p7G_N) =  XMX(i,p7G_B) =  -eslINFINITY;
 
@@ -648,7 +690,7 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
     MMX(i,M) = ESL_MAX(MMX(i-3,M-1) + TSC(p7P_MM,sub_k-1),
                   ESL_MAX(IMX(i-3,M-1) + TSC(p7P_IM,sub_k-1),
                   ESL_MAX(DMX(i-3,M-1) + TSC(p7P_DM,sub_k-1),
-                          -eslINFINITY)))         + rsc_c0[sub_k];
+                          PVX3(pv_i,M-1) + TSC_P))) + rsc_c0[sub_k];
     
     IMX(i,M) = -eslINFINITY;
 
@@ -656,9 +698,46 @@ p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *
                           DMX(i,M-1) + TSC(p7P_DD,sub_k-1));
 
     XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;
-   
+
+   	/* Separate k loop for donor sites */
+	if (don2 >= 0) {
+	 
+      /* Get codon indicies for all C2 type split codons */
+      for(nuc3 = 0; nuc3 < p7P_MAXNUC; nuc3++)
+        C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
+      C2[p7P_MAXNUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
+
+      don_sig = (don2 == DONOR_GT) ? p7S_GTAG : (don2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
+        for(nuc3 = 0; nuc3 <= p7P_MAXNUC; nuc3++)
+          SSX2(k,don_sig,nuc3) = ESL_MAX(SSX2(k,don_sig,nuc3), TMP_SC + gm_tr->rsc[C2[nuc3]][sub_k]);
+      }
+    }
+
+	if(don1  >= 0) {
+	  nuc1 = ESL_MIN(r, p7P_MAXNUC); 
+	  don_sig = (don1 == DONOR_GT) ? p7S_GTAG : (don1 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+	  for (k = 2; k < M; k++) {
+	    sub_k  = k_start + k - 1;
+		TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
+		SSX1(k, don_sig, nuc1) = ESL_MAX(SSX1(k, don_sig, nuc1), TMP_SC);
+	  }
+	}
+
+	if (don0 >= 0) {
+      don_sig = (don0 == DONOR_GT) ? p7S_GTAG : (don0 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      for (k = 2; k < M; k++) {
+        sub_k  = k_start + k - 1;
+        TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
+        SSX0(k, don_sig) = ESL_MAX(SSX0(k, don_sig), TMP_SC);
+	  }
+	}
+
   } // end loop over L
 
+   
   /*exit from last i and k */
   XMX(L,p7G_E) = ESL_MAX(MMX(L,M), DMX(L,M));
   XMX(L,p7G_C) = XMX(L,p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE];

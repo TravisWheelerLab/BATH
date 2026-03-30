@@ -299,8 +299,8 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   float    xB, xE;
   __m128  *dpc, *dpp3;
   __m128  *tp;
-  __m128  *pvx;                    /* 3-slot circular P buffer: pvx[slot*Q + q] */
-  __m128   ppv;                    /* P(i-3, k-1) carry for current row          */
+  __m128  *pvx;                    /* 4-slot circular P buffer: pvx[slot*Q + q] */
+  __m128   ppv;                    /* P(i, k-1) carry for current row            */
   __m128   tsc_p_vec;              /* broadcast TSC_P_LOG                        */
   int      Q  = p7O_NQF(om_tr->M);
   int      L  = i_end - i_start + 1;
@@ -313,7 +313,8 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   int      acc0, acc1, acc2;      /* acceptor site type for rows i, i-1, i-2    */
   int      don0, don1, don2;      /* donor site type for rows i, i-1, i-2       */
   int      don_sig;               /* p7S_GTAG / p7S_GCAG / p7S_ATAC             */
-  int      pv_i;                  /* i % 3: slot index into pvx                 */
+  int      pv_i;                  /* i % 4: current-row slot index into pvx     */
+  int      pv_pi;                 /* (i-3) % 4: i-3 row slot index into pvx    */
   int      i, q, j, ri, sub_i;
   int      status;
 
@@ -330,8 +331,8 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
   tsc_p_vec          = _mm_set1_ps(TSC_P_LOG);
 
   pvx = NULL;
-  ESL_ALLOC(pvx, sizeof(__m128) * 3 * Q);
-  for (ri = 0; ri < 3 * Q; ri++) pvx[ri] = infv;
+  ESL_ALLOC(pvx, sizeof(__m128) * 4 * Q);
+  for (ri = 0; ri < 4 * Q; ri++) pvx[ri] = infv;
 
   /* Reset os->P_scores to -inf; donor writes will accumulate into it. */
   for (j = 0; j < SIGNAL_MEM_SIZE; j++)
@@ -414,7 +415,8 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
       else                               don2 = -1;
     }
 
-    pv_i = i % 3;
+    pv_i  =  i    % 4;
+    pv_pi = (i-3) % 4;
     dpc  = ox->dpf[i];
     dpp3 = ox->dpf[i - 3];
 
@@ -462,8 +464,8 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
       pvx[pv_i * Q + q] = psv;
     }
 
-    /* Seed ppv from the freshly computed P(i, *) values in pvx. */
-    ppv = esl_sse_rightshift_ps(pvx[pv_i * Q + Q - 1], infv);  /* P(i, k-1) seed */
+    /* Seed ppv from P(i-3, *) in pvx; PM transition uses P(i-3, k-1). */
+    ppv = esl_sse_rightshift_ps(pvx[pv_pi * Q + Q - 1], infv);  /* P(i-3, k-1) seed */
 
     tp  = om_tr->tfv;
     dcv = infv;
@@ -478,7 +480,7 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
     }
 
     for (q = 0; q < Q; q++) {
-      __m128 ppv_next = pvx[pv_i * Q + q];   /* P(i, k) from pre-loop; carry to next stripe */
+      __m128 ppv_next = pvx[pv_pi * Q + q];   /* P(i-3, k); carry as P(i-3, k-1) to next stripe */
 
       tp++;                                              /* skip BM */
       sv  =                _mm_add_ps(mpv, *tp); tp++;  /* MM */

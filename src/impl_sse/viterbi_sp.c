@@ -2,9 +2,10 @@
  *
  * Contents:
  *   1. p7_Viterbi_SplicedGlobal()
- *   2. Benchmark driver.
- *   3. Unit tests.
- *   4. Test driver.
+ *   2. p7_Viterbi_SplicedTrace_NoP()
+ *   3. Benchmark driver.
+ *   4. Unit tests.
+ *   5. Test driver.
  */
 #include "p7_config.h"
 
@@ -635,6 +636,248 @@ p7_Viterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr
 
 
 /*****************************************************************
+ * 2. p7_Viterbi_SplicedTrace_NoP()
+ *****************************************************************/
+
+/* Function:  p7_Viterbi_SplicedTrace_NoP()
+ * Synopsis:  Traceback through a p7_Viterbi_SplicedGlobal_NoP() DP matrix.
+ *
+ * Purpose:   Given a filled DP matrix <ox> from p7_Viterbi_SplicedGlobal_NoP(),
+ *            trace the optimal path and record it in <tr>.
+ *
+ *            The P state is not stored in the DP matrix and must be
+ *            reconstructed by scanning donor and acceptor dinucleotides in
+ *            <sub_dsq>, mirroring the scalar p7_GViterbi_SplicedTrace_NoP().
+ *            Emission and transition scores for the reconstruction are read
+ *            from the scalar profile <gm_tr>.
+ *
+ * Args:      sub_dsq      - nucleotide subsequence, 1-based
+ *            ox           - filled DP matrix from p7_Viterbi_SplicedGlobal_NoP()
+ *            gm_tr        - scalar FS profile (transition/emission scores)
+ *            signal_scores - log-probabilities for GT-AG, GC-AG, AT-AC signals
+ *            tr           - allocated, empty trace to fill
+ *            i_start      - first nucleotide position (1-based in sub_dsq)
+ *            i_end        - last  nucleotide position
+ *            k_start      - first model position (1-based in gm_tr)
+ *            k_end        - last  model position
+ *            min_intron   - minimum intron length
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if profile is not 1-codon-length.
+ *            <eslEFAIL>  if traceback fails to identify a predecessor state.
+ */
+int
+p7_Viterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
+                             const P7_FS_PROFILE *gm_tr, const float *signal_scores,
+                             P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron)
+{
+  float const *tsc    = gm_tr->tsc;          /* so TSC() macro works                        */
+  float        tol    = 1e-5;
+  int          M      = k_end - k_start + 1;
+  int          L      = i_end - i_start + 1;
+  int          i      = L;
+  int          k      = 0;
+  int          j;
+  int          t, u, v, w, x;
+  int          c, c0, c1, c2, c3;
+  int          sprv, scur;
+  int          sub_i, sub_k;
+  int          donor_i;
+  int          acc[3] = {0, 0, 0};
+  int          don_sig;
+  float        P_state;
+  float        emit, emit0, emit1, emit2;
+  int          status;
+
+  /* Safe scalar accessors for the striped SSE DP matrix.
+   * Guard k<1 to avoid negative-modulo undefined behaviour at model boundaries. */
+#define OMMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (ii), (kk)))
+#define ODMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (ii), (kk)))
+#define OIMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (ii), (kk)))
+#define OXMXo(ii,s)  (ox->xmx[(ii) * p7X_NXCELLS + (s)])
+
+  if (gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
+#if eslDEBUGLEVEL > 0
+  if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
+#endif
+
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i+i_start-1, 0)) != eslOK) return status;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i+i_start-1, 0)) != eslOK) return status;
+
+  sprv = p7T_C;
+
+  while (sprv != p7T_S) {
+    switch (sprv) {
+
+    case p7T_C:
+      if      (OXMXo(i, p7X_C) == -eslINFINITY)
+        ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      else if (esl_FCompare_old(OXMXo(i, p7X_C), OXMXo(i-3, p7X_C) + gm_tr->xsc[p7P_C][p7P_LOOP], tol) == eslOK)
+        scur = p7T_C;
+      else if (esl_FCompare_old(OXMXo(i, p7X_C), OXMXo(i,   p7X_E) + gm_tr->xsc[p7P_E][p7P_MOVE], tol) == eslOK)
+        scur = p7T_E;
+      else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
+      break;
+
+    case p7T_E:
+      if (OXMXo(i, p7X_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+      for (k = M; k >= 1; k--) {
+        if (esl_FCompare_old(OXMXo(i, p7X_E), OMMo(i,k), tol) == eslOK) { scur = p7T_M; break; }
+        if (esl_FCompare_old(OXMXo(i, p7X_E), ODMo(i,k), tol) == eslOK) { scur = p7T_D; break; }
+      }
+      if (k == 0) ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
+      break;
+
+    case p7T_M:
+      if (OMMo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
+
+      sub_i = i_start + i - 1;
+      v     = (sub_dsq[sub_i-2] < p7P_MAXNUC) ? (int)sub_dsq[sub_i-2] : p7P_MAXCODONS1;
+      w     = (sub_dsq[sub_i-1] < p7P_MAXNUC) ? (int)sub_dsq[sub_i-1] : p7P_MAXCODONS1;
+      x     = (sub_dsq[sub_i]   < p7P_MAXNUC) ? (int)sub_dsq[sub_i]   : p7P_MAXCODONS1;
+      c3    = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+      sub_k = k_start + k - 1;
+      emit  = p7P_MSC_CODON(gm_tr, sub_k, c3);
+
+      scur = -1;
+      if      (esl_FCompare_old(OMMo(i,k), OMMo(i-3,k-1) + TSC(p7P_MM,sub_k-1) + emit, tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(OMMo(i,k), OIMo(i-3,k-1) + TSC(p7P_IM,sub_k-1) + emit, tol) == eslOK) scur = p7T_I;
+      else if (esl_FCompare_old(OMMo(i,k), ODMo(i-3,k-1) + TSC(p7P_DM,sub_k-1) + emit, tol) == eslOK) scur = p7T_D;
+      else if (esl_FCompare_old(OMMo(i,k), OXMXo(i-3, p7X_B)                   + emit, tol) == eslOK) scur = p7T_B;
+      else {
+        /* P state is not stored; reconstruct by scanning donor/acceptor sites. */
+        if (i < min_intron + 7) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+
+        acc[0] = 0;
+        if (SIGNAL(sub_dsq[sub_i-7], sub_dsq[sub_i-6]) == ACCEPT_AG) acc[0] = 1;
+        if (SIGNAL(sub_dsq[sub_i-7], sub_dsq[sub_i-6]) == ACCEPT_AC) acc[0] = 2;
+        acc[1] = 0;
+        if (SIGNAL(sub_dsq[sub_i-6], sub_dsq[sub_i-5]) == ACCEPT_AG) acc[1] = 1;
+        if (SIGNAL(sub_dsq[sub_i-6], sub_dsq[sub_i-5]) == ACCEPT_AC) acc[1] = 2;
+        acc[2] = 0;
+        if (SIGNAL(sub_dsq[sub_i-5], sub_dsq[sub_i-4]) == ACCEPT_AG) acc[2] = 1;
+        if (SIGNAL(sub_dsq[sub_i-5], sub_dsq[sub_i-4]) == ACCEPT_AC) acc[2] = 2;
+
+        if (acc[0] == 0 && acc[1] == 0 && acc[2] == 0)
+          ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced: no acceptor site", k,i);
+
+        for (j = 0; j < i - min_intron - 4 && scur == -1; j++) {
+          don_sig = -1;
+          if      (SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GT) don_sig = p7S_GTAG;
+          else if (SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GC) don_sig = p7S_GCAG;
+          else if (SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_AT) don_sig = p7S_ATAC;
+
+          if (don_sig != -1) {
+            t = (sub_dsq[sub_i-min_intron-j-3] < p7P_MAXNUC) ? (int)sub_dsq[sub_i-min_intron-j-3] : p7P_MAXCODONS1;
+            u = (sub_dsq[sub_i-min_intron-j-2] < p7P_MAXNUC) ? (int)sub_dsq[sub_i-min_intron-j-2] : p7P_MAXCODONS1;
+            v = (sub_dsq[sub_i-5]              < p7P_MAXNUC) ? (int)sub_dsq[sub_i-5]              : p7P_MAXCODONS1;
+            w = (sub_dsq[sub_i-4]              < p7P_MAXNUC) ? (int)sub_dsq[sub_i-4]              : p7P_MAXCODONS1;
+            x = (sub_dsq[sub_i-3]              < p7P_MAXNUC) ? (int)sub_dsq[sub_i-3]              : p7P_MAXCODONS1;
+
+            c2    = p7P_MINIDX(p7P_CODON3_FS1(t, u, x), p7P_DEGEN1_C);
+            emit2 = p7P_MSC_CODON(gm_tr, sub_k-1, c2);
+            c1    = p7P_MINIDX(p7P_CODON3_FS1(u, w, x), p7P_DEGEN1_C);
+            emit1 = p7P_MSC_CODON(gm_tr, sub_k-1, c1);
+            c0    = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+            emit0 = p7P_MSC_CODON(gm_tr, sub_k-1, c0);
+
+            if (don_sig == p7S_GTAG || don_sig == p7S_GCAG) {
+              if (scur == -1 && acc[2] == 1) {
+                P_state = ESL_MAX(OMMo(i-min_intron-j-4,k-2), ODMo(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
+                if (esl_FCompare_old(OMMo(i,k), P_state + TSC_P_LOG + emit, tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; }
+              }
+              if (scur == -1 && acc[1] == 1) {
+                P_state = ESL_MAX(OMMo(i-min_intron-j-3,k-2), ODMo(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
+                if (esl_FCompare_old(OMMo(i,k), P_state + TSC_P_LOG + emit, tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; }
+              }
+              if (scur == -1 && acc[0] == 1) {
+                P_state = ESL_MAX(OMMo(i-min_intron-j-2,k-2), ODMo(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
+                if (esl_FCompare_old(OMMo(i,k), P_state + TSC_P_LOG + emit, tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; }
+              }
+            } else { /* p7S_ATAC */
+              if (scur == -1 && acc[2] == 2) {
+                P_state = ESL_MAX(OMMo(i-min_intron-j-4,k-2), ODMo(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
+                if (esl_FCompare_old(OMMo(i,k), P_state + TSC_P_LOG + emit, tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; }
+              }
+              if (scur == -1 && acc[1] == 2) {
+                P_state = ESL_MAX(OMMo(i-min_intron-j-3,k-2), ODMo(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
+                if (esl_FCompare_old(OMMo(i,k), P_state + TSC_P_LOG + emit, tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; }
+              }
+              if (scur == -1 && acc[0] == 2) {
+                P_state = ESL_MAX(OMMo(i-min_intron-j-2,k-2), ODMo(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
+                if (esl_FCompare_old(OMMo(i,k), P_state + TSC_P_LOG + emit, tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; }
+              }
+            }
+          }
+        }
+        if (scur == -1) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+      }
+
+      k--; i -= 3;
+      break;
+
+    case p7T_D:
+      if (ODMo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
+      sub_k = k_start + k - 1;
+      if      (esl_FCompare_old(ODMo(i,k), OMMo(i,k-1) + TSC(p7P_MD,sub_k-1), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(ODMo(i,k), ODMo(i,k-1) + TSC(p7P_DD,sub_k-1), tol) == eslOK) scur = p7T_D;
+      else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
+      k--;
+      break;
+
+    case p7T_I:
+      if (OIMo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
+      sub_k = k_start + k - 1;
+      if      (esl_FCompare_old(OIMo(i,k), OMMo(i-3,k) + TSC(p7P_MI,sub_k), tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare_old(OIMo(i,k), OIMo(i-3,k) + TSC(p7P_II,sub_k), tol) == eslOK) scur = p7T_I;
+      else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k,i);
+      i -= 3;
+      break;
+
+    case p7T_P:
+      scur = (OMMo(donor_i,k-1) >= ODMo(donor_i,k-1)) ? p7T_M : p7T_D;
+      k--; i = donor_i;
+      break;
+
+    case p7T_N:
+      /* N is not stored in the SSE fill; the only path is S->N(0)->B(0). */
+      scur = (i == 0) ? p7T_S : p7T_N;
+      break;
+
+    case p7T_B:
+      /* B is only at i=0 and always came from N->B in this global model. */
+      scur = p7T_N;
+      break;
+
+    default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
+    } /* end switch */
+
+    if      (scur == p7T_M) c = 3;
+    else if (scur != p7T_P) c = 0;
+
+    if ((status = p7_trace_fs_Append(tr, scur, k_start+k-1, i_start+i-1, c)) != eslOK) return status;
+
+    /* For N and C: i decrement is deferred to handle self-loops correctly. */
+    if ((scur == p7T_N || scur == p7T_C) && scur == sprv) i--;
+
+    sprv = scur;
+  } /* end traceback, at S state */
+
+  tr->M = M;
+  tr->L = L;
+
+#undef OMMo
+#undef ODMo
+#undef OIMo
+#undef OXMXo
+
+  return p7_trace_fs_Reverse(tr);
+}
+/*------------- end, p7_Viterbi_SplicedTrace_NoP() --------------*/
+
+
+
+/*****************************************************************
  * 3. Benchmark driver.
  *****************************************************************/
 #ifdef p7VITERBI_SP_BENCHMARK
@@ -821,7 +1064,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_OMX         *ox          = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_SP);
   P7_OMX         *ox_NoP      = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
   P7_GMX         *gx_NoP      = p7_gmx_Create(M, M, M, p7G_NSCELLS);
-  P7_IVX         *iv_nop      = p7_ivx_Create(M, 3);
+  P7_IVX         *iv_nop      = p7_ivx_Create(M, 4);
   ESL_DSQ        *dsq         = NULL;
   SPLICE_PIPELINE *pli        = NULL;
   OSPLICE_SCORES  *oss        = NULL;
@@ -896,7 +1139,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 //        esl_fatal("%s: generic %.4f != SSE %.4f", msg, final_gC, final_oC);
 
       p7_gmx_GrowTo(gx_NoP, sub_M, L_dna_total, L_dna_total);
-      p7_ivx_GrowTo(iv_nop, sub_M, 3);
+      p7_ivx_GrowTo(iv_nop, sub_M, 4);
       p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx_NoP, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, iv_nop, 1, L_dna_total, k_start, k_end, pli->min_intron);
       final_gC = gx_NoP->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
 

@@ -193,9 +193,15 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7
       DMO_SP(dpc, q) = dcv;                             /* delayed D from the previous stripe's M->D */
       dcv = _mm_add_ps(msv, *tp); tp++;                 /* MD: stage M->D carry for next stripe */
 
-      /* I(i,k) = max(M(i-3,k)*MI, I(i-3,k)*II).  Uses same-k values from dpp3. */
+      /* I(i,k) = max(M(i-3,k)*MI, I(i-3,k)*II).  Uses same-k values from dpp3.
+       * Stop codons have emission -inf; I state is biologically impossible there. */
       sv             = _mm_add_ps(mpv, *tp); tp++;      /* MI */
-      IMO_SP(dpc, q) = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++;  /* II */
+      sv             = _mm_max_ps(sv, _mm_add_ps(ipv, *tp)); tp++;  /* II */
+      { /* mask out I at stop-codon positions (emission == -inf) */
+        __m128 stop_mask = _mm_cmpeq_ps(om_tr->rfv[C0][q], infv);
+        sv = _mm_or_ps(_mm_andnot_ps(stop_mask, sv), _mm_and_ps(stop_mask, infv));
+      }
+      IMO_SP(dpc, q) = sv;
 
       PMO_SP(dpc, q) = infv;                            /* Dummy: P always -inf */
     }

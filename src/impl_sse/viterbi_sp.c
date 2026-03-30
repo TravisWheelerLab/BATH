@@ -278,7 +278,8 @@ p7_Viterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7
  *****************************************************************/
 #ifdef p7VITERBI_SP_BENCHMARK
 /*
-   gcc -g -O3 -Wall -std=gnu99 -o viterbi_sp_benchmark -I. -L. -I../easel -L../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
+ gcc -g -O3 -Wall -std=gnu99 -o viterbi_sp_benchmark -I. -I.. -I../../easel -L. -L.. -L../../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
+ 
    ./viterbi_sp_benchmark <hmmfile>
  */
 
@@ -399,10 +400,8 @@ main(int argc, char **argv)
 
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
       p7_omx_GrowTo_dpf(ox, hmm->M, L_dna_total, L_dna_total);
-      p7_Viterbi_SplicedGlobal(dsq, om_tr, ox, oss, 1, L_dna_total , pli->min_intron);
+      p7_Viterbi_SplicedGlobal(dsq, om_tr, ox, oss, 1, L_dna_total, 13);
          
-      p7_GViterbi_SplicedGlobal_Dummy(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
-     
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
   esl_stopwatch_Stop(w);

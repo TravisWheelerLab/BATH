@@ -312,18 +312,18 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   pli = p7_splicepipeline_Create(NULL, M, M * 3);
   oss = p7_osplicescores_Create(M); 
 
+  p7_emit_SimpleConsensus(hmm, sq);
+  L_amino     = sq->n;
+
   while (N--)
     {
-	  p7_emit_SimpleConsensus(hmm, sq);
-      L_amino     = sq->n;
-
 	  k_start = k_end = 0;
 	  while(k_end <= k_start || k_end > L_amino) {
 	    k_start = esl_rnd_Roll(r, L_amino/4) + 1;
 	    k_end   = esl_rnd_Roll(r, L_amino/2) + k_start + L_amino/4;
 	  }
       sub_M = k_end - k_start + 1;
-
+      
       L_dna_total = sub_M * 3 + intron_total;
       if (dsq != NULL) free(dsq);
       if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal("malloc failed");

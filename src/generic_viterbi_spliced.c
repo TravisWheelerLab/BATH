@@ -600,6 +600,193 @@ p7_GViterbi_SplicedGlobal_Dummy(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_
   return eslOK;
 }
 
+int
+p7_GViterbi_SplicedGlobal_DummyNoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron)
+{
+  
+  float const *tsc  = gm_tr->tsc;
+  float      **dp   = gx->dp;
+  float       *xmx  = gx->xmx;
+  int          L = (i_end - i_start + 1);
+  int          M = (k_end - k_start + 1);
+  int          C0;
+  int          i,k;
+  int          v, w, x;
+  int          loop_end;
+  int          sub_i,sub_k;
+  float const *rsc_c0;
+
+  if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
+
+  /* Note on variable names 
+   * ..0 are for splice codons where zero nucleortides come from before the donor,
+   * ..1 are for splice codons where one nucleortide comes from before the donor,
+   * ..2 are for splice codons where two nucleortides come from before the donor,
+   */
+
+  /* Reset splice site score storage */
+  for(k = 0; k < M; k++) {
+    for(i = 0; i < SIGNAL_MEM_SIZE; i++)
+      P_scores[k][i] = -eslINFINITY;
+  }
+
+  /* Initialization of the zero row.  */
+  XMX(0,p7G_N) = 0.;                                     /* S->N, p=1            */
+  XMX(0,p7G_B) = gm_tr->xsc[p7P_N][p7P_MOVE];            /* S->N->B, no N-tail   */
+  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;
+  for (k = 0; k <= M; k++)
+    MMX(0,k) = DMX(0,k) = IMX(0,k) = -eslINFINITY;
+
+  /*Special cases for the first 2 rows (no codons yet)*/
+  v = w = x = -1;
+  for(i = 1; i <= 2; i++)
+  {
+    w = x;
+    sub_i = i_start + i - 1;
+    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+    XMX(i,p7G_N) =  XMX(i,p7G_B) =  -eslINFINITY;
+
+    for (k = 0; k <= M; k++)
+      MMX(i,k) = DMX(i,k) = IMX(i,k) = -eslINFINITY;
+
+    XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;
+  }
+
+  /*Special cases for the rows 3-min_intron+2 (no donor site look backs)*/
+  loop_end = ESL_MIN(L, min_intron+2);
+  for (i = 3; i <= loop_end; i++)
+  {
+    v = w;
+    w = x;
+    sub_i = i_start + i - 1;
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1; 
+
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+    rsc_c0 = gm_tr->rsc[C0];
+
+    XMX(i,p7G_N) =  XMX(i,p7G_B) =  -eslINFINITY;
+
+    MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
+
+	/* Global model entry at i = 3, k = 1 */
+    sub_k = k_start;
+	if(i == 3) MMX(i,1) = XMX(i-3,p7G_B) + rsc_c0[sub_k];
+	else       MMX(i,1) = -eslINFINITY;
+
+	IMX(i,1) = ESL_MAX(MMX(i-3,1) + TSC(p7P_MI,sub_k),
+                          IMX(i-3,1) + TSC(p7P_II,sub_k));
+
+	/* No I state for stop codons */
+	if(rsc_c0[sub_k] == -eslINFINITY) IMX(i,1) = -eslINFINITY;
+
+    DMX(i,1) = -eslINFINITY;
+
+    for (k = 2; k < M; k++) {
+      sub_k = k_start + k -1;
+
+      MMX(i,k) = ESL_MAX(MMX(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                            DMX(i-3,k-1) + TSC(p7P_DM,sub_k-1))) + rsc_c0[sub_k];
+       
+	  IMX(i,k) = ESL_MAX(MMX(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX(i-3,k) + TSC(p7P_II,sub_k));
+
+	  /* No I state for stop codons */
+      if(rsc_c0[sub_k] == -eslINFINITY) IMX(i,k) = -eslINFINITY;
+
+      DMX(i,k) = ESL_MAX(MMX(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+    }
+
+    sub_k = k_start + M -1;
+    
+    MMX(i,M) = ESL_MAX(MMX(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                          DMX(i-3,M-1) + TSC(p7P_DM,sub_k-1)))+ rsc_c0[sub_k];
+
+    IMX(i,M) = -eslINFINITY;
+
+    DMX(i,M) = ESL_MAX(MMX(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+
+    XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;
+
+  }
+
+
+  /* Main DP recursion */
+  for (i = min_intron+3; i <= L; i++)
+  {
+    /* get nucleotides and codon */
+    sub_i = i_start + i - 1;
+
+    v = w;
+    w = x;
+
+    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
+    else                         x = p7P_MAXCODONS1;
+
+	/* Codon indexing for unsplit codon */
+    C0 = p7P_CODON3_FS1(v, w, x);
+    C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
+    rsc_c0 = gm_tr->rsc[C0];
+
+    XMX(i,p7G_N) =  XMX(i,p7G_B) =  -eslINFINITY;
+
+    MMX(i,0) = IMX(i,0) = DMX(i,0) =  -eslINFINITY;
+
+    for (k = 1; k < M; k++) {
+
+      sub_k = k_start + k -1;
+
+      MMX(i,k) = ESL_MAX(MMX(i-3,k-1) + TSC(p7P_MM,sub_k-1),
+                    ESL_MAX(IMX(i-3,k-1) + TSC(p7P_IM,sub_k-1),
+                    ESL_MAX(DMX(i-3,k-1) + TSC(p7P_DM,sub_k-1),
+                            -eslINFINITY))) + rsc_c0[sub_k];
+      
+	  IMX(i,k) = ESL_MAX(MMX(i-3,k) + TSC(p7P_MI,sub_k),
+                            IMX(i-3,k) + TSC(p7P_II,sub_k));
+
+	  /* No I state for stop codons */
+	  if(rsc_c0[sub_k] == -eslINFINITY) IMX(i,k) = -eslINFINITY;
+
+      DMX(i,k) = ESL_MAX(MMX(i,k-1) + TSC(p7P_MD,sub_k-1),
+                            DMX(i,k-1) + TSC(p7P_DD,sub_k-1));
+
+    }
+	  
+    sub_k = k_start + M -1;
+    MMX(i,M) = ESL_MAX(MMX(i-3,M-1) + TSC(p7P_MM,sub_k-1),
+                  ESL_MAX(IMX(i-3,M-1) + TSC(p7P_IM,sub_k-1),
+                  ESL_MAX(DMX(i-3,M-1) + TSC(p7P_DM,sub_k-1),
+                          -eslINFINITY)))         + rsc_c0[sub_k];
+    
+    IMX(i,M) = -eslINFINITY;
+
+    DMX(i,M) = ESL_MAX(MMX(i,M-1) + TSC(p7P_MD,sub_k-1),
+                          DMX(i,M-1) + TSC(p7P_DD,sub_k-1));
+
+    XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;
+   
+  } // end loop over L
+
+  /*exit from last i and k */
+  XMX(L,p7G_E) = ESL_MAX(MMX(L,M), DMX(L,M));
+  XMX(L,p7G_C) = XMX(L,p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE];
+
+  gx->M = M;
+  gx->L = L;
+
+  return eslOK;
+}
+
 
 
 /* Function:  p7_GViterbi_SplicedExtendDown()
@@ -1608,6 +1795,7 @@ main(int argc, char **argv)
   ESL_SQ         *sq           = NULL;
   SPLICE_PIPELINE *pli         = NULL;
   P7_TRACE        *tr          = NULL;
+  P7_GMX         *gx           = NULL;
   int             N            = esl_opt_GetInteger(go, "-N");
   int             I            = esl_opt_GetInteger(go, "-I");
   int             intron_total = I + 4;
@@ -1635,6 +1823,7 @@ main(int argc, char **argv)
   p7_ProfileConfig   (hmm, bgAA,        gm,    hmm->M, p7_LOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, hmm->M, p7_UNILOCAL);
 
+  gx = p7_gmx_Create (hmm->M, hmm->M, hmm->M, p7G_NSCELLS)
   pli = p7_splicepipeline_Create(NULL, hmm->M, hmm->M * 3);
   p7_splicescores_GrowTo(pli->splice_scores, hmm->M);
   tr = p7_trace_fs_Create();
@@ -1683,6 +1872,7 @@ main(int argc, char **argv)
 
       p7_fs_ReconfigLength(gm_tr, L_dna_total / 3);
       p7_gmx_GrowTo(pli->vit, hmm->M, L_dna_total, L_dna_total);
+      p7_gmx_GrowTo(gx, hmm->M, L_dna_total, L_dna_total);
 
 	  if (do_G) {
         p7_GViterbi_SplicedGlobal(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
@@ -1707,7 +1897,7 @@ main(int argc, char **argv)
         }
 	  }
       if (do_dummy) {
-        p7_GViterbi_SplicedGlobal_Dummy(dsq, gm_tr, pli->vit, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
+        p7_GViterbi_SplicedGlobal_DummyNoP(dsq, gm_tr, gx, pli->splice_scores->P_scores, pli->splice_scores->signal_scores, 1, L_dna_total, 1, hmm->M, pli->min_intron);
       } 
       total_cells += (int64_t) L_dna_total * hmm->M;
     }

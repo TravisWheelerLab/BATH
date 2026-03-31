@@ -437,7 +437,7 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
   float        TMP_SC;
   float const *rsc_c0;
   float const *rsc_c1[5];
-
+  
   if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
 
   /* Note on variable names 
@@ -531,10 +531,10 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
     for (k = 2; k < M; k++) {
       sub_k = k_start + k -1;
 
-      MMX(i,k) = ESL_MAX(MMX(i-3,k-1)    + TSC(p7P_MM,sub_k-1),
-                 ESL_MAX(IMX(i-3,k-1)    + TSC(p7P_IM,sub_k-1),
-                 ESL_MAX(DMX(i-3,k-1)    + TSC(p7P_DM,sub_k-1),
-                         XMX(i,p7G_B) + entry))) + rsc_c0[sub_k]; // no B->M trasntions for exons. 
+      MMX(i,k) = ESL_MAX(MMX(i-3,k-1)   + TSC(p7P_MM,sub_k-1),
+                 ESL_MAX(IMX(i-3,k-1)   + TSC(p7P_IM,sub_k-1),
+                 ESL_MAX(DMX(i-3,k-1)   + TSC(p7P_DM,sub_k-1),
+                         XMX(i-3,p7G_B) + entry))) + rsc_c0[sub_k]; // no B->M trasntions for exons. 
        
 	  IMX(i,k) = ESL_MAX(MMX(i-3,k) + TSC(p7P_MI,sub_k),
                          IMX(i-3,k) + TSC(p7P_II,sub_k));
@@ -553,14 +553,15 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
 
     sub_k = k_start + M -1;
     
-    MMX(i,M) = ESL_MAX(MMX(i-3,M-1) + TSC(p7P_MM,sub_k-1),
-                  ESL_MAX(IMX(i-3,M-1) + TSC(p7P_IM,sub_k-1),
-                          DMX(i-3,M-1) + TSC(p7P_DM,sub_k-1)))+ rsc_c0[sub_k];
+    MMX(i,M) = ESL_MAX(MMX(i-3,M-1)   + TSC(p7P_MM,sub_k-1),
+               ESL_MAX(IMX(i-3,M-1)   + TSC(p7P_IM,sub_k-1),
+               ESL_MAX(DMX(i-3,M-1)   + TSC(p7P_DM,sub_k-1),
+                       XMX(i-3,p7G_B) + entry))) + rsc_c0[sub_k];
 
     IMX(i,M) = -eslINFINITY;
 
     DMX(i,M) = ESL_MAX(MMX(i,M-1) + TSC(p7P_MD,sub_k-1),
-                          DMX(i,M-1) + TSC(p7P_DD,sub_k-1));
+                       DMX(i,M-1) + TSC(p7P_DD,sub_k-1));
 
 
     XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E),
@@ -699,7 +700,7 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
       MMX(i,k) = ESL_MAX(MMX(i-3,k-1)    + TSC(p7P_MM,sub_k-1),
                  ESL_MAX(IMX(i-3,k-1)    + TSC(p7P_IM,sub_k-1),
                  ESL_MAX(DMX(i-3,k-1)    + TSC(p7P_DM,sub_k-1),
-                 ESL_MAX(XMX(i,p7G_B)    + entry,        
+                 ESL_MAX(XMX(i-3,p7G_B)  + entry,        
                          PVX4(pv_pi,k-1) + TSC_P)))) + rsc_c0[sub_k];
 
 	  IMX(i,k) = ESL_MAX(MMX(i-3,k) + TSC(p7P_MI,sub_k),
@@ -720,7 +721,7 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
     MMX(i,M) = ESL_MAX(MMX(i-3,M-1)    + TSC(p7P_MM,sub_k-1),
                ESL_MAX(IMX(i-3,M-1)    + TSC(p7P_IM,sub_k-1),
                ESL_MAX(DMX(i-3,M-1)    + TSC(p7P_DM,sub_k-1),
-               ESL_MAX(XMX(i,p7G_B)    + entry,
+               ESL_MAX(XMX(i-3,p7G_B)  + entry,
                        PVX4(pv_pi,M-1) + TSC_P))))+ rsc_c0[sub_k];
                            
     IMX(i,M) = -eslINFINITY;

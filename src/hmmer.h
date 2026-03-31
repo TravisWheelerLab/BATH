@@ -639,7 +639,6 @@ typedef struct p7_gmx_s {
   int      allocR;      /* current allocated # of rows : L+1 <= validR <= allocR                */
   int      validR;      /* # of rows actually pointing at DP memory                             */
   int      allocW;      /* current set row width :  M+1 <= allocW                               */
-  int      allocC; //TODO remove
   int      nscells;     /* which p7G_NSCELLS macro was used to allocate this matrix             */
   uint64_t ncells;      /* total # of allocated cells in 2D matrix : ncells >= (validR)(allocW) */
 
@@ -1472,21 +1471,6 @@ extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int
 extern P7_IVX *p7_ivx_Create(int allocM, int allocC);
 extern int     p7_ivx_GrowTo(P7_IVX *iv, int M, int C);
 extern void    p7_ivx_Destroy(P7_IVX *iv);
-
-/* p7_gmx_fs.c */
-extern P7_GMX *p7_gmx_fs_Create (int allocM, int allocL, int allocLx, int allocC);
-extern P7_GMX *p7_gmx_sp_Create (int allocM, int allocL, int allocLx);
-extern int     p7_gmx_fs_GrowTo (P7_GMX *gx, int M, int L, int Lx, int C);
-extern int     p7_gmx_sp_GrowTo (P7_GMX *gx, int M, int L, int Lx);
-extern size_t  p7_gmx_fs_Sizeof (P7_GMX *gx);
-extern int     p7_gmx_fs_Dump(FILE *fp, P7_GMX *gx, int flags, int scientific);
-extern int     p7_gmx_fs_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
-extern int     p7_gmx_fs_DumpWindow_Scientific(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
-extern int     p7_gmx_fs_ParserDump(FILE *ofp, P7_GMX *gx, int i, int curr, int kstart, int kend, int flags);
-extern int     p7_gmx_sp_Dump(FILE *ofp, P7_GMX *gx, int flags);
-extern int     p7_gmx_sp_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
-extern int     p7_gmx_sp_DumpHeader(FILE *ofp, P7_GMX *gx, int kstart, int kend, int flags);
-extern int     p7_gmx_sp_DumpRow(FILE *ofp, P7_GMX *gx, int itrue, int imx, int kstart, int kend, int flags);
 
 /* p7_hit.c */
 extern P7_HIT *p7_hit_Create_empty();

@@ -142,11 +142,8 @@ typedef struct _splice_pipeline
   P7_OMX  *bwd;  
   P7_OMX  *pp;
 
-  P7_GMX  *gfwd;
-  P7_GMX  *gbwd;
-  P7_GMX  *gpp;
-
   P7_GMX  *vit;
+  P7_IVX  *iv;
 
   P7_BG   *bg;
 
@@ -270,7 +267,6 @@ extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
 
 /* generic_viterbi_spliced.c */
 extern int p7_GViterbi_SplicedGlobal(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron);
-extern int p7_GViterbi_SplicedGlobal_Dummy(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, P7_IVX *iv, int i_start, int i_end, int k_start, int k_end, int min_intron);
 extern int p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *iv, SPLICE_SCORES *ssc, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
 extern int p7_GViterbi_SplicedExtendUp(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron);
 extern int p7_GViterbi_SplicedExtendDown(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, float **P_scores, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron);

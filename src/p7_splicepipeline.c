@@ -100,16 +100,11 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   if ((pli->bwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
   if ((pli->pp  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
 
-  pli->gfwd = NULL;
-  pli->gbwd = NULL;
-  pli->gpp  = NULL;
-  if ((pli->gfwd = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-  if ((pli->gbwd = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS   )) == NULL) goto ERROR;
-  if ((pli->gpp  = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-
   pli->vit = NULL;
-  if ((pli->vit = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS_SP)) == NULL) goto ERROR;
-  
+  pli->iv  = NULL;
+  if ((pli->vit = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS)) == NULL) goto ERROR;
+  if ((pli->iv  = p7_ivx_Create(M_hint, SPLICE_ROWS)) == NULL) goto ERROR;  
+
   pli->bg = NULL;
 
   pli->hit = NULL;
@@ -139,10 +134,6 @@ p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli)
   p7_omx_Reuse(pli->fwd);
   p7_omx_Reuse(pli->bwd);
   p7_omx_Reuse(pli->pp);
-
-  p7_gmx_Reuse(pli->gfwd);
-  p7_gmx_Reuse(pli->gbwd);
-  p7_gmx_Reuse(pli->gpp);
 
   p7_gmx_Reuse(pli->vit);
 
@@ -188,11 +179,8 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   p7_omx_Destroy(pli->bwd);
   p7_omx_Destroy(pli->pp);
 
-  p7_gmx_Destroy(pli->gfwd);
-  p7_gmx_Destroy(pli->gbwd);
-  p7_gmx_Destroy(pli->gpp);
-
   p7_gmx_Destroy(pli->vit);
+  p7_ivx_Destroy(pli->iv);  
 
   p7_bg_Destroy(pli->bg);
 

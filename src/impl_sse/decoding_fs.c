@@ -581,6 +581,7 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
   p7_hmm_Destroy(hmm);
   p7_gmx_Destroy(gx1);
   p7_gmx_Destroy(gx2);
+  p7_gmx_Destroy(gxpp);
   p7_ivx_Destroy(iv5);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bck);

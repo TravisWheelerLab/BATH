@@ -1689,7 +1689,6 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   int         intron_cnt;
   int         step_cnt;
   int         start_new;
-  P7_GMX      *gx; 
   P7_TRACE    *tr;
   SPLICE_PATH *ret_path;
   SPLICE_PATH *tmp_path;
@@ -1703,8 +1702,6 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   pli   = info->pli;
   gm_tr = info->gm_tr;
 
-  gx = pli->vit;
-
   ret_path = NULL;
   tmp_path = NULL;
 
@@ -1717,7 +1714,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
 
   /* If the hits were in different frames and no splice site was able to pull score 
    * from the upstream frame to the downstream frame the spliceing is a failure */
-  if(gx->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
+  if(pli->vit->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
 
   tr = p7_trace_fs_Create();
   p7_GViterbi_SplicedTrace_NoP(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
@@ -2287,9 +2284,10 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   p7_ivx_GrowTo(pli->iv, M, SPLICE_ROWS);
   p7_splicescores_GrowTo(pli->splice_scores, M);
   p7_fs_ReconfigLength(gm_tr, L);
-
+  
   p7_GViterbi_SplicedGlobal_NoP(path_seq->dsq, gm_tr, pli->vit, pli->iv, pli->splice_scores, i_start, i_end, k_start, k_end, pli->min_intron, FALSE, TRUE);  
-
+  //p7_gmx_Dump(stdout,  pli->vit, p7_DEFAULT);
+  //fflush(stdout);
   tr = p7_trace_fs_Create();
   p7_GViterbi_SplicedTrace_NoP(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
 

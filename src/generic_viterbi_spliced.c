@@ -1756,6 +1756,7 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
   float       *xmx   = gx->xmx;             /* so XMX() macro works           */
   float        tol   = 1e-5;                /* floating point "equality" test */
   float        P_tol = 2e-5;                /* more calculations for P state require higher toloerance */
+  float        a_tol = 1e-4;
   int          M     = k_end - k_start + 1; /* sub model length               */
   int          L     = i_end - i_start + 1; /* sub seq length                 */
   int          i     = L;                   /* position in seq (1..L)         */
@@ -1889,29 +1890,29 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
             if(don_sig == p7S_GTAG || don_sig == p7S_GCAG) {
               if (acc[2] == 1) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-4,k-2), DMX(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
-                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, P_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
+				if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
               }
               if (acc[1] == 1) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-3,k-2), DMX(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
-                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, P_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
               }
               if (acc[0] == 1) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-2,k-2), DMX(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
-                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, P_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
               }
             }
             else if(don_sig == p7S_ATAC) {
               if (acc[2] == 2) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-4,k-2), DMX(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
-                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, P_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
               }
               if (acc[1] == 2) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-3,k-2), DMX(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
-                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, P_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
               }
               if (acc[0] == 2) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-2,k-2), DMX(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
-                if(esl_FCompare_old(MMX(i,k), P_state + TSC_P + emit, P_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
               }
             }
           }

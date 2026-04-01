@@ -482,14 +482,10 @@ p7_Viterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
     switch (sprv) {
 
     case p7T_C:
-      if      (OXMXo(i, p7X_C) < OXMXo(i-2, p7X_C) || OXMXo(i, p7X_C) < OXMXo(i-1, p7X_C))
-        scur = p7T_C;
-      else if (OXMXo(i, p7X_C) == -eslINFINITY)
-        ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-      else if (esl_FCompare(OXMXo(i, p7X_C), OXMXo(i-3, p7X_C) + gm_tr->xsc[p7P_C][p7P_LOOP], r_tol, a_tol) == eslOK)
-        scur = p7T_C;
-      else if (esl_FCompare(OXMXo(i, p7X_C), OXMXo(i,   p7X_E) + gm_tr->xsc[p7P_E][p7P_MOVE], r_tol, a_tol) == eslOK)
-        scur = p7T_E;
+      if      (OXMXo(i, p7X_C) < OXMXo(i-2, p7X_C) || OXMXo(i, p7X_C) < OXMXo(i-1, p7X_C))                           scur = p7T_C;
+      else if (OXMXo(i, p7X_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      else if (esl_FCompare(OXMXo(i, p7X_C), OXMXo(i-3, p7X_C) + gm_tr->xsc[p7P_C][p7P_LOOP], r_tol, a_tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare(OXMXo(i, p7X_C), OXMXo(i,   p7X_E) + gm_tr->xsc[p7P_E][p7P_MOVE], r_tol, a_tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
       break;
 

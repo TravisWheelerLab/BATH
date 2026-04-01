@@ -176,6 +176,8 @@ typedef struct _splice_info
   P7_OPROFILE        *om;         /* optimized query profile                  */
   P7_PROFILE         *gm;         /* non-optimized query profile              */
   P7_FS_PROFILE      *gm_tr;      /* non optimized translated query profile   */
+  P7_FS_OPROFILE     *om_tr;      /* optimized translated query profile       */
+  P7_OMX             *ovit;       /* optimized matrix for spliced viterbi     */
   P7_TOPHITS         *tophits;    /* original tophits                         */
   P7_TOPHITS         *seeds;      /* seed hits from SSV                       */
   ESL_GENCODE        *gcode;      /* used for translation                     */

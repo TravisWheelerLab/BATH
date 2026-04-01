@@ -92,6 +92,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
     info[i].om         = p7_oprofile_Clone(om);
     info[i].gm         = p7_profile_Clone(gm);
     info[i].gm_tr      = p7_profile_fs_Clone(gm_tr);
+    info[i].om_tr      = p7_fs_oprofile_Create(gm->M, gm->abc, 1);
+    info[i].ovit       = p7_omx_Create_dpf(gm->M, gm->M, gm->M, p7X_NSCELLS);
 	info[i].pli        = p7_splicepipeline_Create(go, 100, 100);
 	info[i].pli->bg    = p7_bg_Create(om->abc);
 	if (info[i].pli->do_biasfilter)
@@ -118,6 +120,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
 	p7_oprofile_Destroy(info[i].om);
     p7_profile_Destroy(info[i].gm);
     p7_profile_fs_Destroy(info[i].gm_tr);
+    p7_fs_oprofile_Destroy(info[i].om_tr);
     p7_splicepipeline_Destroy(info[i].pli);
   }
   if(info           != NULL) free(info);
@@ -1696,28 +1699,41 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
   P7_FS_PROFILE *gm_tr;
+  P7_FS_OPROFILE *om_tr;
+  P7_OMX      *ovit;
   P7_HIT      *hit;
 
   graph = info->graph;
   pli   = info->pli;
   gm_tr = info->gm_tr;
+  om_tr = info->om_tr;
+  ovit   = info->ovit;
 
   ret_path = NULL;
   tmp_path = NULL;
 
-  p7_gmx_GrowTo(pli->vit, M, L, L);
-  p7_ivx_GrowTo(pli->iv, M, SPLICE_ROWS);
-  p7_splicescores_GrowTo(pli->splice_scores, M);
-  p7_fs_ReconfigLength(gm_tr, L/3);
+  //p7_gmx_GrowTo(pli->vit, M, L, L);
+ // p7_ivx_GrowTo(pli->iv, M, SPLICE_ROWS);
+ // p7_splicescores_GrowTo(pli->splice_scores, M);
+ // p7_fs_ReconfigLength(gm_tr, L/3);
+
+  p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
+  p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
+  p7_omx_GrowTo_dpf(ovit, M, L, L);
+  p7_osplicescores_GrowTo(pli->ossc, M);
    
-  p7_GViterbi_SplicedGlobal_NoP(path_seq->dsq, gm_tr, pli->vit, pli->iv, pli->splice_scores, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, TRUE);
+  //p7_GViterbi_SplicedGlobal_NoP(path_seq->dsq, gm_tr, pli->vit, pli->iv, pli->splice_scores, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, TRUE);
+
+  p7_Viterbi_SplicedGlobal_NoP(path_seq->dsq, om_tr, ovit, pli->ossc, i_start, i_end, pli->min_intron, TRUE, TRUE);
 
   /* If the hits were in different frames and no splice site was able to pull score 
    * from the upstream frame to the downstream frame the spliceing is a failure */
-  if(pli->vit->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
-
+  //if(pli->vit->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
+  if(ovit->xmx[L*p7X_NXCELLS+p7X_C] == -eslINFINITY) return NULL;
+  printf("path_seq %s L %d ovit->xmx[L*p7X_NXCELLS+p7X_C] %f ovit->xmx[L*p7X_NXCELLS+p7X_E] %f\n", path_seq->name, L, ovit->xmx[L*p7X_NXCELLS+p7X_C], ovit->xmx[L*p7X_NXCELLS+p7X_E]);
   tr = p7_trace_fs_Create();
-  p7_GViterbi_SplicedTrace_NoP(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
+//  p7_GViterbi_SplicedTrace_NoP(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
+  p7_Viterbi_SplicedTrace_NoP(path_seq->dsq, ovit, gm_tr, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
 
   /* Find number of introns in trace */
   intron_cnt = 0;

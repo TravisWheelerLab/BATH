@@ -1752,15 +1752,14 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
 {
 
   float const *tsc   = gm_tr->tsc;
-  float      **dp    = gx->dp;              /* so {MDI}MX() macros work       */
-  float       *xmx   = gx->xmx;             /* so XMX() macro works           */
-  float        tol   = 1e-5;                /* floating point "equality" test */
-  float        P_tol = 2e-5;                /* more calculations for P state require higher toloerance */
-  float        a_tol = 1e-4;
-  int          M     = k_end - k_start + 1; /* sub model length               */
-  int          L     = i_end - i_start + 1; /* sub seq length                 */
-  int          i     = L;                   /* position in seq (1..L)         */
-  int          k     = 0;                   /* position in model (1..M)       */
+  float      **dp    = gx->dp;              /* so {MDI}MX() macros work                              */ 
+  float       *xmx   = gx->xmx;             /* so XMX() macro works                                  */
+  float        r_tol = 1e-5;                /* relative tolerance for floating point "equality" test */
+  float        a_tol = 1e-4;                /* absolute tolerance for floating point "equality" test */
+  int          M     = k_end - k_start + 1; /* sub model length                                      */
+  int          L     = i_end - i_start + 1; /* sub seq length                                        */
+  int          i     = L;                   /* position in seq (1..L)                                */
+  int          k     = 0;                   /* position in model (1..M)                              */
   int          j;
   int          t,u,v,w,x;
   int          c, c0, c1, c2, c3;
@@ -1790,8 +1789,8 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
        
       if      (XMX(i, p7G_C) < XMX(i-2, p7G_C) || XMX(i, p7G_C) < XMX(i-1, p7G_C))                     scur = p7T_C; 
       else if (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP], tol) == eslOK) scur = p7T_C;
-      else if (esl_FCompare_old(XMX(i, p7G_C), XMX(i,   p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE], tol) == eslOK) scur = p7T_E;
+      else if (esl_FCompare(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP], r_tol, a_tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare(XMX(i, p7G_C), XMX(i,   p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE], r_tol, a_tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
 
       break;
@@ -1799,8 +1798,8 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
     case p7T_E:     /* E connects from any M state. k set here */
       if (XMX(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
       for (k = M; k >= 1; k--) {
-        if (esl_FCompare_old(XMX(i, p7G_E), MMX(i,k), tol) == eslOK) { scur = p7T_M; break; }
-        if (esl_FCompare_old(XMX(i, p7G_E), DMX(i,k), tol) == eslOK) { scur = p7T_D; break; }
+        if (esl_FCompare(XMX(i, p7G_E), MMX(i,k), r_tol, a_tol) == eslOK) { scur = p7T_M; break; }
+        if (esl_FCompare(XMX(i, p7G_E), DMX(i,k), r_tol, a_tol) == eslOK) { scur = p7T_D; break; }
       }
       if (k == 0) ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
  
@@ -1826,10 +1825,10 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
       sub_k  = k_start + k - 1;
       emit = p7P_MSC_CODON(gm_tr, sub_k, c3);
       
-      if      (esl_FCompare_old(MMX(i,k), MMX(i-3, k-1) + TSC(p7P_MM, sub_k-1) + emit, tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare_old(MMX(i,k), IMX(i-3, k-1) + TSC(p7P_IM, sub_k-1) + emit, tol) == eslOK) scur = p7T_I;
-      else if (esl_FCompare_old(MMX(i,k), DMX(i-3, k-1) + TSC(p7P_DM, sub_k-1) + emit, tol) == eslOK) scur = p7T_D;      
-      else if (esl_FCompare_old(MMX(i,k), XMX(i-3, p7G_B)                      + emit, tol) == eslOK) scur = p7T_B;
+      if      (esl_FCompare(MMX(i,k), MMX(i-3, k-1) + TSC(p7P_MM, sub_k-1) + emit, r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(MMX(i,k), IMX(i-3, k-1) + TSC(p7P_IM, sub_k-1) + emit, r_tol, a_tol) == eslOK) scur = p7T_I;
+      else if (esl_FCompare(MMX(i,k), DMX(i-3, k-1) + TSC(p7P_DM, sub_k-1) + emit, r_tol, a_tol) == eslOK) scur = p7T_D;      
+      else if (esl_FCompare(MMX(i,k), XMX(i-3, p7G_B)                      + emit, r_tol, a_tol) == eslOK) scur = p7T_B;
       else {    /* The P state is not stored - must be recreated */
         if (i < min_intron+7) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
 
@@ -1890,29 +1889,29 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
             if(don_sig == p7S_GTAG || don_sig == p7S_GCAG) {
               if (acc[2] == 1) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-4,k-2), DMX(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
-				if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
+				if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, rtol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
               }
               if (acc[1] == 1) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-3,k-2), DMX(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
-                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
               }
               if (acc[0] == 1) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-2,k-2), DMX(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
-                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
               }
             }
             else if(don_sig == p7S_ATAC) {
               if (acc[2] == 2) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-4,k-2), DMX(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
-                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
               }
               if (acc[1] == 2) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-3,k-2), DMX(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
-                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
               }
               if (acc[0] == 2) {
                 P_state = ESL_MAX(MMX(i-min_intron-j-2,k-2), DMX(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
-                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
+                if(esl_FCompare(MMX(i,k), P_state + TSC_P + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
               }
             }
           }
@@ -1927,8 +1926,8 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
       if (DMX(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
      
       sub_k  = k_start + k - 1; 
-      if      (esl_FCompare_old(DMX(i,k), MMX(i, k-1) + TSC(p7P_MD, sub_k-1), tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare_old(DMX(i,k), DMX(i, k-1) + TSC(p7P_DD, sub_k-1), tol) == eslOK) scur = p7T_D;
+      if      (esl_FCompare(DMX(i,k), MMX(i, k-1) + TSC(p7P_MD, sub_k-1), r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(DMX(i,k), DMX(i, k-1) + TSC(p7P_DD, sub_k-1), r_tol, a_tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
       k--;
       break;
@@ -1937,8 +1936,8 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
       if (IMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
 
       sub_k  = k_start + k - 1;
-      if      (esl_FCompare_old(IMX(i,k), MMX(i-3,k) + TSC(p7P_MI, sub_k), tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare_old(IMX(i,k), IMX(i-3,k) + TSC(p7P_II, sub_k), tol) == eslOK) scur = p7T_I;
+      if      (esl_FCompare(IMX(i,k), MMX(i-3,k) + TSC(p7P_MI, sub_k), r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(IMX(i,k), IMX(i-3,k) + TSC(p7P_II, sub_k), r_tol, a_tol) == eslOK) scur = p7T_I;
       else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k,i);
       i-=3;
       break;
@@ -1957,7 +1956,7 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
 
     case p7T_B:         /* B connects from N, J */
       if (XMX(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
-      if      (esl_FCompare_old(XMX(i,p7G_B), XMX(i, p7G_N) + gm_tr->xsc[p7P_N][p7P_MOVE], tol) == eslOK) scur = p7T_N;
+      if      (esl_FCompare(XMX(i,p7G_B), XMX(i, p7G_N) + gm_tr->xsc[p7P_N][p7P_MOVE], r_tol, a_tol) == eslOK) scur = p7T_N;
       else  ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
       break;
 

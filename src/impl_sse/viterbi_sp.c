@@ -933,6 +933,34 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         
       p7_trace_Reuse(otr);
       p7_trace_Reuse(gtr);
+
+      p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox, oss, 1, L_dna_total, pli->min_intron, TRUE, FALSE);
+      final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+
+      p7_GViterbi_SplicedGlobal_NoP(dsq, gm_tr, pli->vit, pli->iv, pli->splice_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, TRUE, FALSE);
+      final_gC = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+
+      p7_Viterbi_SplicedTrace_NoP(dsq, ox, gm_tr, pli->splice_scores->signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron);
+      p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron);
+
+      p7_trace_Compare(otr, gtr, 0.0);
+
+      p7_trace_Reuse(otr);
+      p7_trace_Reuse(gtr);
+
+      p7_Viterbi_SplicedGlobal_NoP(dsq, om_tr, ox, oss, 1, L_dna_total, pli->min_intron, FALSE, TRUE);
+      final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+
+      p7_GViterbi_SplicedGlobal_NoP(dsq, gm_tr, pli->vit, pli->iv, pli->splice_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, FALSE, TRUE);
+      final_gC = pli->vit->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
+
+      p7_Viterbi_SplicedTrace_NoP(dsq, ox, gm_tr, pli->splice_scores->signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron);
+      p7_GViterbi_SplicedTrace_NoP(dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron);
+
+      p7_trace_Compare(otr, gtr, 0.0);
+
+      p7_trace_Reuse(otr);
+      p7_trace_Reuse(gtr);
     }
 
   if (dsq != NULL) free(dsq);

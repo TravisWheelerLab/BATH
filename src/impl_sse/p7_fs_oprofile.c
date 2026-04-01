@@ -617,6 +617,10 @@ p7_fs_oprofile_SubConvert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs,
   /* Update M to the sub-region length; nq is now consistent with om_fs->M. */
   om_fs->M = Mp;
 
+  /* E-state transitions (not set by ReconfigLength; must be explicit here). */
+  om_fs->xf[p7O_E][p7O_LOOP] = gm_fs->xsc[p7P_E][p7P_LOOP];
+  om_fs->xf[p7O_E][p7O_MOVE] = gm_fs->xsc[p7P_E][p7P_MOVE];
+
   return eslOK;
 }
 

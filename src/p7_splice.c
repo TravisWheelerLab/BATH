@@ -121,6 +121,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
     p7_profile_Destroy(info[i].gm);
     p7_profile_fs_Destroy(info[i].gm_tr);
     p7_fs_oprofile_Destroy(info[i].om_tr);
+    p7_omx_Destroy(info[i].ovit);
     p7_splicepipeline_Destroy(info[i].pli);
   }
   if(info           != NULL) free(info);
@@ -1730,7 +1731,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
    * from the upstream frame to the downstream frame the spliceing is a failure */
   //if(pli->vit->xmx[L*p7G_NXCELLS+p7G_C] == -eslINFINITY) return NULL; 
   if(ovit->xmx[L*p7X_NXCELLS+p7X_C] == -eslINFINITY) return NULL;
-  printf("path_seq %s L %d ovit->xmx[L*p7X_NXCELLS+p7X_C] %f ovit->xmx[L*p7X_NXCELLS+p7X_E] %f\n", path_seq->name, L, ovit->xmx[L*p7X_NXCELLS+p7X_C], ovit->xmx[L*p7X_NXCELLS+p7X_E]);
+  //printf("path_seq %s L %d ovit->xmx[L*p7X_NXCELLS+p7X_C] %f ovit->xmx[L*p7X_NXCELLS+p7X_E] %f\n", path_seq->name, L, ovit->xmx[L*p7X_NXCELLS+p7X_C], ovit->xmx[L*p7X_NXCELLS+p7X_E]);
   tr = p7_trace_fs_Create();
 //  p7_GViterbi_SplicedTrace_NoP(path_seq->dsq, gm_tr, pli->vit, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);
   p7_Viterbi_SplicedTrace_NoP(path_seq->dsq, ovit, gm_tr, pli->splice_scores->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron);

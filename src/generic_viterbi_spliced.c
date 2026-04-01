@@ -495,7 +495,7 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
     w = x;
     sub_i = i_start + i - 1;
     if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
-    else                         x = p7P_MAXCODONS1; 
+    else                            x = p7P_MAXCODONS1; 
 
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
@@ -504,12 +504,15 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
     /* get acceptor site */
     acc0 = acc1;
     acc1 = acc2;
-    if      (SIGNAL(v,w) == ACCEPT_AG)     acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC)     acc2 = ACCEPT_AC;
-    else                                   acc2 = -1;
-
-    XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
-    XMX(i,p7G_B) = XMX(i,p7G_N)   + gm_tr->xsc[p7P_N][p7P_MOVE];
+    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
+    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
+    else                               acc2 = -1;
+    
+	if(!global_start) {
+      XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
+      XMX(i,p7G_B) = XMX(i,p7G_N)   + gm_tr->xsc[p7P_N][p7P_MOVE];
+    }
+	else XMX(i,p7G_N) = XMX(i,p7G_B) = -eslINFINITY;
 
     MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
 
@@ -526,7 +529,7 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
 
     DMX(i,1) = -eslINFINITY;
 
-    XMX(i,p7G_E) = MMX(i,1) + exit;
+    XMX(i,p7G_E) = MMX(i,1);
 
     for (k = 2; k < M; k++) {
       sub_k = k_start + k -1;
@@ -563,14 +566,16 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
     DMX(i,M) = ESL_MAX(MMX(i,M-1) + TSC(p7P_MD,sub_k-1),
                        DMX(i,M-1) + TSC(p7P_DD,sub_k-1));
 
+    if(!global_end) {
+      XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E),
+                     ESL_MAX(MMX(i,M),
+                             DMX(i,M)));
 
-    XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E),
-                   ESL_MAX(MMX(i,M),
-                           DMX(i,M))) + exit;
+     XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP],
+                            XMX(i,p7G_E)   + gm_tr->xsc[p7P_E][p7P_MOVE]);
+   }
+   else XMX(i,p7G_C) = -eslINFINITY;
 
-   XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP],
-                          XMX(i,p7G_E)   + gm_tr->xsc[p7P_E][p7P_MOVE]);
-   
    XMX(i,p7G_J) = -eslINFINITY;
 
   }
@@ -590,8 +595,8 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
    * u = sub_dsq[sub_i-min_intron+1]; // sub_dsq[8];
    */
 
-  if(sub_dsq[i_start] < p7P_MAXNUC)   s = sub_dsq[i_start];
-  else                             s = p7P_MAXCODONS1;
+  if(sub_dsq[i_start] < p7P_MAXNUC)  s = sub_dsq[i_start];
+  else                               s = p7P_MAXCODONS1;
 
   if(sub_dsq[i_start+1] < p7P_MAXNUC) t = sub_dsq[i_start+1];
   else                             t = p7P_MAXCODONS1;
@@ -649,10 +654,13 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
     else if (SIGNAL(t,u) == DONOR_AT) don2 = DONOR_AT;
     else                              don2 = -1;
 
-    XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
-    XMX(i,p7G_B) = XMX(i,p7G_N)   + gm_tr->xsc[p7P_N][p7P_MOVE];
+	if(!global_start) {
+      XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
+      XMX(i,p7G_B) = XMX(i,p7G_N)   + gm_tr->xsc[p7P_N][p7P_MOVE];
+    }
+	else XMX(i,p7G_N) = XMX(i,p7G_B) = -eslINFINITY;
 
-    MMX(i,0) = IMX(i,0) = DMX(i,0) =  -eslINFINITY;
+    MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
 
     XMX(i,p7G_E) = -eslINFINITY;
 
@@ -730,13 +738,16 @@ p7_GViterbi_SplicedGlobal_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr
     DMX(i,M) = ESL_MAX(MMX(i,M-1) + TSC(p7P_MD,sub_k-1),
                        DMX(i,M-1) + TSC(p7P_DD,sub_k-1));
 
-    XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E),
-                   ESL_MAX(MMX(i,M),
-                           DMX(i,M))) + exit;
+	if(!global_end) {
+      XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E),
+                     ESL_MAX(MMX(i,M),
+                             DMX(i,M)));
 
-    XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP],
-                           XMX(i,p7G_E)   + gm_tr->xsc[p7P_E][p7P_MOVE]);
-
+      XMX(i,p7G_C) = ESL_MAX(XMX(i-3,p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP],
+                             XMX(i,p7G_E)   + gm_tr->xsc[p7P_E][p7P_MOVE]);
+    }
+	else XMX(i,p7G_C) = -eslINFINITY;
+	   
     XMX(i,p7G_J) = -eslINFINITY;
 
    	/* Separate k loop for donor sites */

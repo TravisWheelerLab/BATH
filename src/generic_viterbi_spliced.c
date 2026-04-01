@@ -1858,10 +1858,10 @@ p7_GViterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr,
           if(don_sig != -1) {
             /* If we have a donor site get emmisions */
             
-            if(sub_dsq[sub_i-min_intron-3] < p7P_MAXNUC) t = sub_dsq[sub_i-min_intron-j-3];
+            if(sub_dsq[sub_i-min_intron-j-3] < p7P_MAXNUC) t = sub_dsq[sub_i-min_intron-j-3];
             else                                         t = p7P_MAXCODONS1;
 
-            if(sub_dsq[sub_i-min_intron-2] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron-j-2];
+            if(sub_dsq[sub_i-min_intron-j-2] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron-j-2];
             else                                         u = p7P_MAXCODONS1;
             
             if(sub_dsq[sub_i-5] < p7P_MAXNUC) v = sub_dsq[sub_i-5];

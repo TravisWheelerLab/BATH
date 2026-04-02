@@ -89,8 +89,10 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
 
   for (i = 0; i < infocnt; ++i)
   {
-    info[i].om         = p7_oprofile_Clone(om);
     info[i].gm         = p7_profile_Clone(gm);
+    info[i].om         = p7_oprofile_Clone(om);
+    info[i].om_log     = p7_oprofile_Create(gm->M, gm->abc); 
+    p7_oprofile_Convert_Log(gm, info[i].om_log);
     info[i].gm_tr      = p7_profile_fs_Clone(gm_tr);
     info[i].om_tr      = p7_fs_oprofile_Create(gm->M, gm->abc, 1);
     info[i].ovit       = p7_omx_Create_dpf(gm->M, gm->M, gm->M, p7X_NSCELLS);
@@ -117,8 +119,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
   /* Clean up */
   for (i = 0; i < infocnt; ++i)
   {
-	p7_oprofile_Destroy(info[i].om);
     p7_profile_Destroy(info[i].gm);
+	p7_oprofile_Destroy(info[i].om);
+    p7_oprofile_Destroy(info[i].om_log);
     p7_profile_fs_Destroy(info[i].gm_tr);
     p7_fs_oprofile_Destroy(info[i].om_tr);
     p7_omx_Destroy(info[i].ovit);
@@ -1434,7 +1437,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
 		
       }
     }
-    p7_gmx_Reuse(pli->vit);
+    p7_omx_Reuse(info->ovit);
     p7_splicepath_Destroy(tmp_path); 
   }
  
@@ -1534,7 +1537,7 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
       }
       p7_splicepath_Destroy(tmp_path);
     }
-    p7_gmx_Reuse(pli->vit);
+    p7_omx_Reuse(info->ovit);
   }
 
   /**************************
@@ -1597,7 +1600,7 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
       }
       p7_splicepath_Destroy(tmp_path);
     }
-    p7_gmx_Reuse(pli->vit);
+    p7_omx_Reuse(info->ovit);
   }
 
   return eslOK;
@@ -1663,7 +1666,7 @@ p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_
      p7_splicepath_Destroy(tmp_path);
   }
   
-  p7_gmx_Reuse(pli->vit);
+  p7_omx_Reuse(info->ovit);
 
   return eslOK;
   
@@ -3290,14 +3293,18 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   P7_TRACE *tr;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
-  P7_OPROFILE *om;
-  P7_PROFILE *gm;
+  P7_PROFILE  *gm;
+  P7_OPROFILE *om;  
+  P7_OPROFILE *om_log;
+  P7_OMX      *ovit;
   int       status;
 
-  graph = info->graph;
-  pli   = info->pli;
-  om    = info->om;
-  gm    = info->gm;
+  graph  = info->graph;
+  pli    = info->pli;
+  gm     = info->gm;
+  om     = info->om;
+  om_log = info->om_log;
+  ovit   = info->ovit;
 
   tr           = p7_trace_CreateWithPP();
   hit          = p7_hit_Create_empty();
@@ -3325,12 +3332,12 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     /* This is a rare event usually caused by a low probability exon somewhere in the path. 
      * If we can find the offending exon and cut the path in two at that point then we can 
      * save the good exons, but to do that we need an alignment so we create one with Viterbi */
-    
-    p7_gmx_GrowTo(pli->vit, gm->M, pli->amino_sq->n, pli->amino_sq->n);
-    p7_ReconfigUnihit(gm, pli->amino_sq->n); 
 
-    p7_GViterbi(pli->amino_sq->dsq, pli->amino_sq->n, gm, pli->vit, NULL);
-    p7_GTrace(pli->amino_sq->dsq, pli->amino_sq->n, gm, pli->vit, tr);
+    p7_omx_GrowTo_dpf(ovit, om_log->M, pli->amino_sq->n, pli->amino_sq->n);
+    p7_oprofile_ReconfigUnihit_Log(om_log, pli->amino_sq->n);
+
+    p7_Viterbi(pli->amino_sq->dsq, pli->amino_sq->n, om_log, ovit, NULL);
+    p7_Viterbi_Trace(pli->amino_sq->dsq, pli->amino_sq->n, om_log, ovit, tr);
    
     p7_trace_Index(tr);
     hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt);
@@ -3339,6 +3346,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 	  p7_trace_splice_Destroy(hit->dcl->tr);
       p7_hit_Destroy(hit);
       p7_trace_Destroy(tr);
+      p7_omx_Reuse(ovit);
       return eslOK;
     }
     
@@ -3355,6 +3363,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
     p7_hit_Destroy(hit);
     p7_trace_Destroy(tr);
+    p7_omx_Reuse(ovit);
     return status;
   }
   

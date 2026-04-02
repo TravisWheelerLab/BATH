@@ -1393,6 +1393,16 @@ p7_oprofile_ReconfigMultihit(P7_OPROFILE *om, int L)
   return p7_oprofile_ReconfigLength(om, L);
 }
 
+int
+p7_oprofile_ReconfigMultihit_Log(P7_OPROFILE *om, int L)
+{
+  om->xf[p7O_E][p7O_MOVE] = -eslCONST_LOG2;
+  om->xf[p7O_E][p7O_LOOP] = -eslCONST_LOG2;
+  om->nj = 1.0f;
+
+  return p7_oprofile_ReconfigLength_Log(om, L);
+}
+
 /* Function:  p7_oprofile_ReconfigUnihit()
  * Synopsis:  Quickly reconfig model into unihit mode for target length <L>.
  * Incept:    SRE, Thu Aug 21 10:10:32 2008 [Janelia]
@@ -1416,6 +1426,16 @@ p7_oprofile_ReconfigUnihit(P7_OPROFILE *om, int L)
   om->xw[p7O_E][p7O_LOOP] = -32768;
 
   return p7_oprofile_ReconfigLength(om, L);
+}
+
+int
+p7_oprofile_ReconfigUnihit_Log(P7_OPROFILE *om, int L)
+{
+  om->xf[p7O_E][p7O_MOVE] = 0.0f;
+  om->xf[p7O_E][p7O_LOOP] = -eslINFINITY;
+  om->nj = 0.0f;
+
+  return p7_oprofile_ReconfigLength_Log(om, L);
 }
 /*------------ end, conversions to P7_OPROFILE ------------------*/
 

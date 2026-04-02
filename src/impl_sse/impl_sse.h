@@ -446,12 +446,14 @@ extern int          p7_oprofile_UpdateMSVEmissionScores(P7_OPROFILE *om, P7_BG *
 
 extern int          p7_oprofile_Convert    (const P7_PROFILE *gm, P7_OPROFILE *om);
 extern int          p7_oprofile_Convert_Log(const P7_PROFILE *gm, P7_OPROFILE *om);
-extern int          p7_oprofile_ReconfigLength    (P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigLength_Log(P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigMSVLength (P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigRestLength(P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigMultihit  (P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigUnihit    (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigLength      (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigLength_Log  (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigMSVLength   (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigRestLength  (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigMultihit    (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigMultihit_Log(P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigUnihit      (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigUnihit_Log  (P7_OPROFILE *om, int L);
 
 extern int          p7_oprofile_Dump(FILE *fp, const P7_OPROFILE *om);
 extern int          p7_oprofile_Sample(ESL_RANDOMNESS *r, const ESL_ALPHABET *abc, const P7_BG *bg, int M, int L,

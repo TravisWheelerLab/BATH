@@ -195,7 +195,7 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
     } /* end loop over sequence residues 1..L */
 
   /* C->T */
-  *ret_sc = xC + om->xf[p7O_C][p7O_MOVE];
+  if (ret_sc != NULL) *ret_sc = xC + om->xf[p7O_C][p7O_MOVE];
   return eslOK;
 }
 /*------------------ end, p7_Viterbi() -------------------------*/

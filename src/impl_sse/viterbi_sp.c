@@ -531,7 +531,7 @@ p7_Viterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
         if (acc[0] == 0 && acc[1] == 0 && acc[2] == 0)
           ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced: no acceptor site", k,i);
 
-        for (j = 0; j < i - min_intron - 4 && scur == -1; j++) {
+        for (j = 0; j < i - min_intron - 4; j++) {
           don_sig = -1;
           if      (SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GT) don_sig = p7S_GTAG;
           else if (SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GC) don_sig = p7S_GCAG;
@@ -552,30 +552,30 @@ p7_Viterbi_SplicedTrace_NoP(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
             emit0 = p7P_MSC_CODON(gm_tr, sub_k-1, c0);
 
             if (don_sig == p7S_GTAG || don_sig == p7S_GCAG) {
-              if (scur == -1 && acc[2] == 1) {
+              if (acc[2] == 1) {
                 P_state = ESL_MAX(OMMo(i-min_intron-j-4,k-2), ODMo(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
-                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; }
+                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
               }
-              if (scur == -1 && acc[1] == 1) {
+              if (acc[1] == 1) {
                 P_state = ESL_MAX(OMMo(i-min_intron-j-3,k-2), ODMo(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
-                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; }
+                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
               }
-              if (scur == -1 && acc[0] == 1) {
+              if (acc[0] == 1) {
                 P_state = ESL_MAX(OMMo(i-min_intron-j-2,k-2), ODMo(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
-                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; }
+                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
               }
             } else { /* p7S_ATAC */
-              if (scur == -1 && acc[2] == 2) {
+              if (acc[2] == 2) {
                 P_state = ESL_MAX(OMMo(i-min_intron-j-4,k-2), ODMo(i-min_intron-j-4,k-2)) + signal_scores[don_sig] + emit2;
-                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; }
+                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 2; donor_i = i-min_intron-j-4; break; }
               }
-              if (scur == -1 && acc[1] == 2) {
+              if (acc[1] == 2) {
                 P_state = ESL_MAX(OMMo(i-min_intron-j-3,k-2), ODMo(i-min_intron-j-3,k-2)) + signal_scores[don_sig] + emit1;
-                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; }
+                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 1; donor_i = i-min_intron-j-3; break; }
               }
-              if (scur == -1 && acc[0] == 2) {
+              if (acc[0] == 2) {
                 P_state = ESL_MAX(OMMo(i-min_intron-j-2,k-2), ODMo(i-min_intron-j-2,k-2)) + signal_scores[don_sig] + emit0;
-                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; }
+                if (esl_FCompare(OMMo(i,k), P_state + TSC_P_LOG + emit, r_tol, a_tol) == eslOK) { scur = p7T_P; c = 0; donor_i = i-min_intron-j-2; break; }
               }
             }
           }

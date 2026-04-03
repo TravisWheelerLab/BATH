@@ -271,7 +271,7 @@ extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
 
 /* generic_viterbi_spliced.c */
 extern int p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *iv, SPLICE_SCORES *ssc, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
-extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_inton, float *vitsc);
+extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

@@ -101,11 +101,11 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
   xJ = -eslINFINITY;
   xC = -eslINFINITY;
 
-  OXMXo(0, p7X_N) = xN;
-  OXMXo(0, p7X_B) = xB;
-  OXMXo(0, p7X_E) = xE;
-  OXMXo(0, p7X_J) = xJ;
-  OXMXo(0, p7X_C) = xC;
+  XMXo(0, p7X_N) = xN;
+  XMXo(0, p7X_B) = xB;
+  XMXo(0, p7X_E) = xE;
+  XMXo(0, p7X_J) = xJ;
+  XMXo(0, p7X_C) = xC;
 
   for (i = 1; i <= L; i++)
     {
@@ -159,11 +159,11 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
       xJ = ESL_MAX(xJ + om->xf[p7O_J][p7O_LOOP],  xE + om->xf[p7O_E][p7O_LOOP]);
       xB = ESL_MAX(xJ + om->xf[p7O_J][p7O_MOVE],  xN + om->xf[p7O_N][p7O_MOVE]);
 
-      OXMXo(i, p7X_E) = xE;
-      OXMXo(i, p7X_N) = xN;
-      OXMXo(i, p7X_J) = xJ;
-      OXMXo(i, p7X_B) = xB;
-      OXMXo(i, p7X_C) = xC;
+      XMXo(i, p7X_E) = xE;
+      XMXo(i, p7X_N) = xN;
+      XMXo(i, p7X_J) = xJ;
+      XMXo(i, p7X_B) = xB;
+      XMXo(i, p7X_C) = xC;
 
       /* D->D propagation.
        *
@@ -242,7 +242,7 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
 #define OMMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (i), (k)))
 #define ODMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (i), (k)))
 #define OIMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (i), (k)))
-#define OOXMXo(i,s) (ox->xmx[(i)*p7X_NXCELLS+(s)])
+#define OXMXo(i,s)  (ox->xmx[(i)*p7X_NXCELLS+(s)])
 
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");

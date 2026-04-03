@@ -556,7 +556,7 @@ p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L,
 #define OMMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (i), (k)))
 #define ODMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (i), (k)))
 #define OIMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (i), (k)))
-#define OOXMXo(i,s) (ox->xmx[(i)*p7X_NXCELLS+(s)])
+#define OXMXo(i,s)  (ox->xmx[(i)*p7X_NXCELLS+(s)])
 
   if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
   if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) return status;

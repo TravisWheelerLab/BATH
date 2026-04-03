@@ -517,335 +517,256 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
  * 2. p7_Viterbi_Frameshift_Trace() implementation
  *****************************************************************/
 
-/* Forward declarations for vit_select_*_fs() helpers */
-static inline int vit_select_m_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k);
-static inline int vit_select_d_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k);
-static inline int vit_select_i_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k);
-static inline int vit_select_n_fs      (int i);
-static inline int vit_select_c_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
-static inline int vit_select_j_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
-static inline int vit_select_e_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k);
-static inline int vit_select_b_fs      (const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
-static inline int vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox);
-
-
-/* Function:  p7_Viterbi_Framshift_Trace()
- * Synopsis:  Traceback from a Viterbi DP matrix (FS 8-cell layout); SSE version.
+/* Function:  p7_Viterbi_Frameshift_Trace()
+ * Synopsis:  Traceback from a Viterbi DP matrix (FS layout); SSE version.
  *
  * Purpose:   Extract the optimal (Viterbi) alignment path from the DP matrix
  *            <ox> that was filled by <p7_Viterbi_Frameshift()>.  The trace is
  *            written into <tr> (caller provides an already-allocated trace via
  *            <p7_trace_fs_Create()>).
  *
- * Args:      dsq   - digital nucleotide sequence, 1..L (used only for L)
+ * Args:      dsq   - digital nucleotide sequence, 1..L
  *            L     - sequence length
  *            om_fs - optimized frameshift profile
  *            ox    - Viterbi DP matrix from p7_Viterbi_Frameshift()
  *            tr    - RETURN: traceback; caller provides initial alloc
  *
  * Returns:   <eslOK> on success.
- * Throws:    <eslEINVAL> if an impossible state is reached.
+ * Throws:    <eslFAIL> if an impossible state is reached during traceback.
  */
 int
 p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L,
-                 const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
-                 P7_TRACE *tr)
+                            const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
+                            P7_TRACE *tr)
 {
-  int i  = L;
-  int k  = 0;
-  int c  = 0;
-  int s0, s1;
-  int status;
+  int   Q      = p7O_NQF(om_fs->M);
+  int   M      = om_fs->M;
+  int   i      = L;
+  int   k      = 0;
+  int   c      = 0;
+  int   prev_c = 0;
+  float r_tol  = 1e-5;
+  float a_tol  = 1e-4;
+  int   sprv, scur;
+  float path[4];
+  int   state4[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
+  float match_codon[5];
+  int   status;
+
+#define MMXo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (i), (k)))
+#define DMXo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (i), (k)))
+#define IMXo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (i), (k)))
+#define XMXo(i,s)  (ox->xmx[(i)*p7X_NXCELLS+(s)])
 
   if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
   if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) return status;
-  s0 = p7T_C;
+  sprv = p7T_C;
 
-  while (s0 != p7T_S)
-    {
-      switch (s0) {
-      case p7T_M: s1 = vit_select_m_fs(om_fs, ox, i, k);  k--;    break;
-      case p7T_D: s1 = vit_select_d_fs(om_fs, ox, i, k);  k--;    break;
-      case p7T_I: s1 = vit_select_i_fs(om_fs, ox, i, k);  i -= 3; break;
-      case p7T_N: s1 = vit_select_n_fs(i);                         break;
-      case p7T_C: s1 = vit_select_c_fs(om_fs, ox, i);              break;
-      case p7T_J: s1 = vit_select_j_fs(om_fs, ox, i);              break;
-      case p7T_E: s1 = vit_select_e_fs(om_fs, ox, i, &k);          break;
-      case p7T_B: s1 = vit_select_b_fs(om_fs, ox, i);              break;
-      default: ESL_EXCEPTION(eslEINVAL, "bogus state in Viterbi traceback");
+  while (sprv != p7T_S) {
+    switch (sprv) {
+    case p7T_C:     /* C(i) comes from C(i-3) or E(i) */
+      if (XMXo(i, p7X_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+
+      if      (XMXo(i, p7X_C) < XMXo(i-2, p7X_C) || XMXo(i, p7X_C) < XMXo(i-1, p7X_C))                             scur = p7T_C;
+      else if (esl_FCompare(XMXo(i, p7X_C), XMXo(i-3, p7X_C) + om_fs->xf[p7O_C][p7O_LOOP], r_tol, a_tol) == eslOK)  scur = p7T_C;
+      else if (esl_FCompare(XMXo(i, p7X_C), XMXo(i,   p7X_E) + om_fs->xf[p7O_E][p7O_MOVE], r_tol, a_tol) == eslOK)  scur = p7T_E;
+      else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
+      break;
+
+    case p7T_E:     /* E connects from any M state; k set here */
+      if (XMXo(i, p7X_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+
+      if (p7_fs_oprofile_IsLocal(om_fs))
+        {
+          scur = p7T_M;     /* can't come from D in local mode */
+          for (k = M; k >= 1; k--) if (esl_FCompare(XMXo(i, p7X_E), MMXo(i,k), r_tol, a_tol) == eslOK) break;
+          if (k == 0) ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
+        }
+      else              /* glocal: only M_M or D_M */
+        {
+          if      (esl_FCompare(XMXo(i, p7X_E), MMXo(i,M), r_tol, a_tol) == eslOK) { scur = p7T_M; k = M; }
+          else if (esl_FCompare(XMXo(i, p7X_E), DMXo(i,M), r_tol, a_tol) == eslOK) { scur = p7T_D; k = M; }
+          else    ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
+        }
+      break;
+
+    case p7T_M:     /* M(i,k) comes from B/M/I/D at row i-prev_c, pos k-1 */
+      {
+        union { __m128 v; float p[4]; } u;
+        int   q_k   = (k-1) % Q;
+        int   r_k   = (k-1) / Q;
+        int   q_km1 = (k > 1) ? (k-2) % Q : 0;
+        int   r_km1 = (k > 1) ? (k-2) / Q : 0;
+        float tbm, tmm, tim, tdm;
+        float bprev, mprev, iprev, dprev;
+        int   ipred = i - prev_c;
+
+        if (MMXo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k, i);
+
+        u.v = om_fs->tfv[7*q_k + p7O_BM]; tbm = u.p[r_k];
+        u.v = om_fs->tfv[7*q_k + p7O_MM]; tmm = u.p[r_k];
+        u.v = om_fs->tfv[7*q_k + p7O_IM]; tim = u.p[r_k];
+        u.v = om_fs->tfv[7*q_k + p7O_DM]; tdm = u.p[r_k];
+
+        bprev = XMXo(ipred, p7X_B);
+        if (k > 1) {
+          u.v = MMO(ox->dpf[ipred], q_km1); mprev = u.p[r_km1];
+          u.v = IMO(ox->dpf[ipred], q_km1); iprev = u.p[r_km1];
+          u.v = DMO(ox->dpf[ipred], q_km1); dprev = u.p[r_km1];
+        } else {
+          mprev = iprev = dprev = -eslINFINITY;
+        }
+
+        path[0] = bprev + tbm;
+        path[1] = mprev + tmm;
+        path[2] = iprev + tim;
+        path[3] = dprev + tdm;
+        scur = state4[esl_vec_FArgMax(path, 4)];
+        k--; i -= prev_c;
+        break;
       }
-      if (s1 == -1) ESL_EXCEPTION(eslEINVAL, "Viterbi traceback choice failed");
 
-      /* For M states: recompute codon length c (1..5) from stored DP cells. */
-      if (s1 == p7T_M) {
-        c = vit_select_codon_len_fs(dsq, i, k, om_fs, ox);
-        if (i - c < 0) s1 = p7T_B;
-      } else {
-        c = 0;
+    case p7T_D:     /* D(i,k) comes from M(i,k-1) or D(i,k-1) */
+      {
+        union { __m128 v; float p[4]; } u;
+        int   q_km1 = (k-2) % Q;
+        int   r_km1 = (k-2) / Q;
+        float tmd, tdd, mm_km1, dm_km1;
+
+        if (DMXo(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k, i);
+        if (k < 2) ESL_EXCEPTION(eslFAIL, "D at k=1,i=%d can't be traced", i);
+
+        u.v = om_fs->tfv[7*q_km1 + p7O_MD]; tmd = u.p[r_km1];
+        u.v = om_fs->tfv[7*Q + q_km1];      tdd = u.p[r_km1];
+        u.v = MMO(ox->dpf[i], q_km1); mm_km1 = u.p[r_km1];
+        u.v = DMO(ox->dpf[i], q_km1); dm_km1 = u.p[r_km1];
+
+        if      (esl_FCompare(DMXo(i,k), mm_km1 + tmd, r_tol, a_tol) == eslOK) scur = p7T_M;
+        else if (esl_FCompare(DMXo(i,k), dm_km1 + tdd, r_tol, a_tol) == eslOK) scur = p7T_D;
+        else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k, i);
+        k--;
+        break;
       }
 
-      if ((status = p7_trace_fs_Append(tr, s1, k, i, c)) != eslOK) return status;
+    case p7T_I:     /* I(i,k) comes from M(i-3,k) or I(i-3,k) */
+      {
+        union { __m128 v; float p[4]; } u;
+        int   q_k = (k-1) % Q;
+        int   r_k = (k-1) / Q;
+        float tmi, tii, mprev_i, iprev_i;
 
-      /* For NCJ states: deferred i decrement (one nucleotide per loop iteration). */
-      if ((s1 == p7T_N || s1 == p7T_C || s1 == p7T_J) && s1 == s0) i--;
+        if (IMXo(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k, i);
 
-      s0 = s1;
-      i -= c;
+        u.v = om_fs->tfv[7*q_k + p7O_MI]; tmi = u.p[r_k];
+        u.v = om_fs->tfv[7*q_k + p7O_II]; tii = u.p[r_k];
+        u.v = MMO(ox->dpf[i-3], q_k); mprev_i = u.p[r_k];
+        u.v = IMO(ox->dpf[i-3], q_k); iprev_i = u.p[r_k];
+
+        if      (esl_FCompare(IMXo(i,k), mprev_i + tmi, r_tol, a_tol) == eslOK) scur = p7T_M;
+        else if (esl_FCompare(IMXo(i,k), iprev_i + tii, r_tol, a_tol) == eslOK) scur = p7T_I;
+        else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k, i);
+        i -= 3;
+        break;
+      }
+
+    case p7T_N:     /* N connects from S or N */
+      if (XMXo(i, p7X_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
+      scur = (i == 0) ? p7T_S : p7T_N;
+      break;
+
+    case p7T_B:     /* B connects from N or J */
+      if (XMXo(i, p7X_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+
+      if      (esl_FCompare(XMXo(i, p7X_B), XMXo(i, p7X_N) + om_fs->xf[p7O_N][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_N;
+      else if (esl_FCompare(XMXo(i, p7X_B), XMXo(i, p7X_J) + om_fs->xf[p7O_J][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_J;
+      else ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
+      break;
+
+    case p7T_J:     /* J connects from E(i) or J(i-3) */
+      if (XMXo(i, p7X_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
+
+      if      (esl_FCompare(XMXo(i, p7X_J), XMXo(i-3, p7X_J) + om_fs->xf[p7O_J][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_J;
+      else if (esl_FCompare(XMXo(i, p7X_J), XMXo(i,   p7X_E) + om_fs->xf[p7O_E][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_E;
+      else ESL_EXCEPTION(eslFAIL, "J at i=%d couldn't be traced", i);
+      break;
+
+    default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
+    } /* end switch over sprv */
+
+    /* For M states: recompute codon length c (1..5) from stored DP cells.
+     * At this point k and i have already been decremented to the predecessor
+     * position, so we compute the codon length for the M state being appended
+     * (scur == p7T_M) at (k, i).
+     */
+    if (scur == p7T_M) {
+      union { __m128 v; float p[4]; } u;
+      int   q_k   = (k-1) % Q;
+      int   r_k   = (k-1) / Q;
+      int   q_km1 = (k > 1) ? (k-2) % Q : 0;
+      int   r_km1 = (k > 1) ? (k-2) / Q : 0;
+      float tbm, tmm, tim, tdm;
+      int   x2 = (i >= 1 && dsq[i]   < p7P_MAXNUC) ? (int)dsq[i]   : p7P_MAXCODONS5;
+      int   w2 = (i >= 2 && dsq[i-1] < p7P_MAXNUC) ? (int)dsq[i-1] : p7P_MAXCODONS5;
+      int   v2 = (i >= 3 && dsq[i-2] < p7P_MAXNUC) ? (int)dsq[i-2] : p7P_MAXCODONS5;
+      int   u2 = (i >= 4 && dsq[i-3] < p7P_MAXNUC) ? (int)dsq[i-3] : p7P_MAXCODONS5;
+      int   t2 = (i >= 5 && dsq[i-4] < p7P_MAXNUC) ? (int)dsq[i-4] : p7P_MAXCODONS5;
+      int   cn, n;
+      float bprev, mprev, iprev, dprev, ivx_n;
+
+      u.v = om_fs->tfv[7*q_k + p7O_BM]; tbm = u.p[r_k];
+      u.v = om_fs->tfv[7*q_k + p7O_MM]; tmm = u.p[r_k];
+      u.v = om_fs->tfv[7*q_k + p7O_IM]; tim = u.p[r_k];
+      u.v = om_fs->tfv[7*q_k + p7O_DM]; tdm = u.p[r_k];
+
+      for (n = 1; n <= 5; n++) {
+        if (i < n) { match_codon[n-1] = -eslINFINITY; continue; }
+
+        bprev = XMXo(i-n, p7X_B);
+        if (k > 1) {
+          u.v = MMO(ox->dpf[i-n], q_km1); mprev = u.p[r_km1];
+          u.v = IMO(ox->dpf[i-n], q_km1); iprev = u.p[r_km1];
+          u.v = DMO(ox->dpf[i-n], q_km1); dprev = u.p[r_km1];
+        } else {
+          mprev = iprev = dprev = -eslINFINITY;
+        }
+        ivx_n = ESL_MAX(bprev + tbm, ESL_MAX(mprev + tmm, ESL_MAX(iprev + tim, dprev + tdm)));
+
+        switch (n) {
+          case 1: cn = p7P_CODON1_FS5(x2);                  cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
+          case 2: cn = p7P_CODON2_FS5(w2, x2);              cn = p7P_MINIDX(cn, p7P_DEGEN5_QC1); break;
+          case 3: cn = p7P_CODON3_FS5(v2, w2, x2);          cn = p7P_MINIDX(cn, p7P_DEGEN5_C);   break;
+          case 4: cn = p7P_CODON4_FS5(u2, v2, w2, x2);      cn = p7P_MINIDX(cn, p7P_DEGEN5_QC1); break;
+          default:cn = p7P_CODON5_FS5(t2, u2, v2, w2, x2); cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
+        }
+        u.v = om_fs->rfv[cn][q_k];
+        match_codon[n-1] = ivx_n + u.p[r_k];
+      }
+      c = esl_vec_FArgMax(match_codon, 5) + 1;
+    } else {
+      c = 0;
     }
+
+    if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
+
+    /* Deferred i decrements for N, C (by 1) and J (by 3). */
+    if ((scur == p7T_N || scur == p7T_C) && scur == sprv) i--;
+    if ( scur == p7T_J                   && scur == sprv) i -= 3;
+
+    prev_c = c;
+    c = 0;
+    sprv = scur;
+  } /* end traceback, at S state */
+
+#undef MMXo
+#undef DMXo
+#undef IMXo
+#undef XMXo
 
   tr->M = om_fs->M;
   tr->L = L;
   return p7_trace_fs_Reverse(tr);
 }
 /*------------------ end, p7_Viterbi_Frameshift_Trace() --------------------*/
-
-
-/*****************************************************************
- * 2a. vit_select_*_fs() helper functions
- *****************************************************************/
-
-/* M(i,k) is reached from B(i), M(i,k-1), I(i,k-1), or D(i,k-1).
- * All predecessors are at the same row i. Log-space: add transitions.
- */
-static inline int
-vit_select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
-{
-  int     Q     = p7O_NQF(ox->M);
-  int     q     = (k-1) % Q;
-  int     r     = (k-1) / Q;
-  __m128 *tp    = om_fs->tfv + 7*q;   /* BM, MM, IM, DM, MD, MI, II */
-  __m128  xBv   = _mm_set1_ps(ox->xmx[i*p7X_NXCELLS + p7X_B]);
-  __m128  infv  = _mm_set1_ps(-eslINFINITY);
-  __m128  mpv, dpv, ipv;
-  union { __m128 v; float p[4]; } u;
-  float   path[4];
-  int     state[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
-
-  if (q > 0) {
-    mpv = MMO(ox->dpf[i], q-1);
-    dpv = DMO(ox->dpf[i], q-1);
-    ipv = IMO(ox->dpf[i], q-1);
-  } else {
-    mpv = esl_sse_rightshift_ps(MMO(ox->dpf[i], Q-1), infv);
-    dpv = esl_sse_rightshift_ps(DMO(ox->dpf[i], Q-1), infv);
-    ipv = esl_sse_rightshift_ps(IMO(ox->dpf[i], Q-1), infv);
-  }
-
-  u.v = _mm_add_ps(xBv, *tp); tp++;  path[0] = u.p[r];  /* B  + T_BM */
-  u.v = _mm_add_ps(mpv, *tp); tp++;  path[1] = u.p[r];  /* M' + T_MM */
-  u.v = _mm_add_ps(ipv, *tp); tp++;  path[2] = u.p[r];  /* I' + T_IM */
-  u.v = _mm_add_ps(dpv, *tp);        path[3] = u.p[r];  /* D' + T_DM */
-  return state[esl_vec_FArgMax(path, 4)];
-}
-
-/* D(i,k) is reached from M(i,k-1) or D(i,k-1). Same row i.
- * Log-space: add transitions.
- */
-static inline int
-vit_select_d_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
-{
-  int     Q     = p7O_NQF(ox->M);
-  int     q     = (k-1) % Q;
-  int     r     = (k-1) / Q;
-  __m128  infv  = _mm_set1_ps(-eslINFINITY);
-  __m128  mpv, dpv;
-  __m128  tmdv, tddv;
-  union { __m128 v; float p[4]; } u;
-  float   path[2];
-  int     state[2] = { p7T_M, p7T_D };
-
-  if (q > 0) {
-    mpv  = MMO(ox->dpf[i], q-1);
-    dpv  = DMO(ox->dpf[i], q-1);
-    tmdv = om_fs->tfv[7*(q-1) + p7O_MD];
-    tddv = om_fs->tfv[7*Q + (q-1)];
-  } else {
-    mpv  = esl_sse_rightshift_ps(MMO(ox->dpf[i], Q-1), infv);
-    dpv  = esl_sse_rightshift_ps(DMO(ox->dpf[i], Q-1), infv);
-    tmdv = esl_sse_rightshift_ps(om_fs->tfv[7*(Q-1) + p7O_MD], infv);
-    tddv = esl_sse_rightshift_ps(om_fs->tfv[8*Q-1],             infv);
-  }
-
-  u.v = _mm_add_ps(mpv, tmdv); path[0] = u.p[r];
-  u.v = _mm_add_ps(dpv, tddv); path[1] = u.p[r];
-  return state[esl_vec_FArgMax(path, 2)];
-}
-
-/* I(i,k) is reached from M(i-3,k) or I(i-3,k).
- * Log-space: add transitions. No scale correction needed.
- */
-static inline int
-vit_select_i_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
-{
-  int     Q    = p7O_NQF(ox->M);
-  int     q    = (k-1) % Q;
-  int     r    = (k-1) / Q;
-  __m128  mpv  = MMO(ox->dpf[i-3], q);
-  __m128  ipv  = IMO(ox->dpf[i-3], q);
-  __m128 *tp   = om_fs->tfv + 7*q + p7O_MI;
-  union { __m128 v; float p[4]; } u;
-  float   path[2];
-  int     state[2] = { p7T_M, p7T_I };
-
-  u.v = _mm_add_ps(mpv, *tp); tp++;  path[0] = u.p[r];  /* M + T_MI */
-  u.v = _mm_add_ps(ipv, *tp);        path[1] = u.p[r];  /* I + T_II */
-  return state[esl_vec_FArgMax(path, 2)];
-}
-
-/* N(i) must come from N(i-1) for i>0, or S for i==0. */
-static inline int
-vit_select_n_fs(int i)
-{
-  return (i == 0) ? p7T_S : p7T_N;
-}
-
-/* C(i) is reached from E(i) or C at one of three codon offsets (i-3, i-2, i-1).
- * Log-space: all xmx values are log-odds; add transitions directly, no scale factors.
- */
-static inline int
-vit_select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
-{
-  float loop  = om_fs->xf[p7O_C][p7O_LOOP];
-  float path[4];
-
-  if (i < 4) return p7T_E;
-
-  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_C] + loop;
-  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_C] + loop;
-  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_C] + loop;
-  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] + om_fs->xf[p7O_E][p7O_MOVE];
-  return (esl_vec_FArgMax(path, 4) < 3) ? p7T_C : p7T_E;
-}
-
-/* J(i) is reached from E(i) or J at one of three codon offsets (i-3, i-2, i-1).
- * Log-space: add transitions directly, no scale factors.
- */
-static inline int
-vit_select_j_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
-{
-  float loop  = om_fs->xf[p7O_J][p7O_LOOP];
-  float path[4];
-
-  if (i < 4) return p7T_E;
-
-  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_J] + loop;
-  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_J] + loop;
-  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_J] + loop;
-  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] + om_fs->xf[p7O_E][p7O_LOOP];
-  return (esl_vec_FArgMax(path, 4) < 3) ? p7T_J : p7T_E;
-}
-
-/* E(i) is reached from any M(i,k=1..M) or D(i,k=2..M).
- * Scan all (q,r) to find the maximum M or D cell; return p7T_M or p7T_D
- * and set *ret_k to the winning model position.
- * Log-space: initialize best to -inf so any real score wins.
- */
-static inline int
-vit_select_e_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
-{
-  int    Q    = p7O_NQF(ox->M);
-  union { __m128 v; float p[4]; } u;
-  float  best = -eslINFINITY;
-  int    best_k = 1;
-  int    best_state = p7T_M;
-  int    q, r, k;
-
-  for (q = 0; q < Q; q++)
-    {
-      u.v = MMO(ox->dpf[i], q);
-      for (r = 0; r < 4; r++) {
-        k = r*Q + q + 1;
-        if (k <= ox->M && u.p[r] > best) { best = u.p[r]; best_k = k; best_state = p7T_M; }
-      }
-      u.v = DMO(ox->dpf[i], q);
-      for (r = 0; r < 4; r++) {
-        k = r*Q + q + 1;
-        if (k <= ox->M && u.p[r] > best) { best = u.p[r]; best_k = k; best_state = p7T_D; }
-      }
-    }
-  *ret_k = best_k;
-  return best_state;
-}
-
-/* B(i) is reached from N(i) or J(i). Log-space: add transitions. */
-static inline int
-vit_select_b_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
-{
-  float   path[2];
-  int     state[2] = { p7T_N, p7T_J };
-
-  path[0] = ox->xmx[i*p7X_NXCELLS + p7X_N] + om_fs->xf[p7O_N][p7O_MOVE];
-  path[1] = ox->xmx[i*p7X_NXCELLS + p7X_J] + om_fs->xf[p7O_J][p7O_MOVE];
-  return state[esl_vec_FArgMax(path, 2)];
-}
-
-/* For M state at (i,k): recompute codon length c (1..5) by reconstructing
- * per-codon IVX scores from stored DP cells.
- *
- * Log-space: transitions and emissions are added; no scale correction is
- * needed because there is no per-row rescaling in the log-space forward pass.
- */
-static inline int
-vit_select_codon_len_fs(const ESL_DSQ *dsq, int i, int k,
-                        const P7_FS_OPROFILE *om_fs, const P7_OMX *ox)
-{
-  int    Q     = p7O_NQF(ox->M);
-  int    q_k   = (k-1) % Q;   /* stripe for model pos k   */
-  int    r_k   = (k-1) / Q;   /* element for model pos k  */
-  int    q_km1 = (k > 1) ? (k-2) % Q : 0;
-  int    r_km1 = (k > 1) ? (k-2) / Q : 0;
-  union { __m128 v; float p[4]; } u;
-  float  tbm, tmm, tim, tdm;
-  float  bprev, mprev, iprev, dprev;
-  float  raw_ivx, rfv_cn;
-  float  scores[5];
-  int    x2, w2, v2, u2, t2;
-  int    cn, n;
-
-  /* Scalar log-space transition scores for model position k */
-  u.v = om_fs->tfv[7*q_k + 0]; tbm = u.p[r_k];
-  u.v = om_fs->tfv[7*q_k + 1]; tmm = u.p[r_k];
-  u.v = om_fs->tfv[7*q_k + 2]; tim = u.p[r_k];
-  u.v = om_fs->tfv[7*q_k + 3]; tdm = u.p[r_k];
-
-  /* Nucleotide indices for codon lengths 1..5 ending at position i */
-  x2 = (i >= 1 && dsq[i]   < p7P_MAXNUC) ? (int)dsq[i]   : p7P_MAXCODONS5;
-  w2 = (i >= 2 && dsq[i-1] < p7P_MAXNUC) ? (int)dsq[i-1] : p7P_MAXCODONS5;
-  v2 = (i >= 3 && dsq[i-2] < p7P_MAXNUC) ? (int)dsq[i-2] : p7P_MAXCODONS5;
-  u2 = (i >= 4 && dsq[i-3] < p7P_MAXNUC) ? (int)dsq[i-3] : p7P_MAXCODONS5;
-  t2 = (i >= 5 && dsq[i-4] < p7P_MAXNUC) ? (int)dsq[i-4] : p7P_MAXCODONS5;
-
-  for (n = 1; n <= 5; n++)
-    {
-      if (i < n) { scores[n-1] = -eslINFINITY; continue; }
-
-      /* Predecessor B/M/I/D at row i-n (log-space values) */
-      bprev = ox->xmx[(i-n)*p7X_NXCELLS + p7X_B];
-      if (k > 1) {
-        u.v = MMO(ox->dpf[i-n], q_km1); mprev = u.p[r_km1];
-        u.v = IMO(ox->dpf[i-n], q_km1); iprev = u.p[r_km1];
-        u.v = DMO(ox->dpf[i-n], q_km1); dprev = u.p[r_km1];
-      } else {
-        mprev = iprev = dprev = -eslINFINITY;
-      }
-
-      raw_ivx = ESL_MAX(bprev+tbm, ESL_MAX(mprev+tmm, ESL_MAX(iprev+tim, dprev+tdm)));
-
-      switch (n) {
-        case 1: cn = p7P_CODON1_FS5(x2);                   cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
-        case 2: cn = p7P_CODON2_FS5(w2, x2);               cn = p7P_MINIDX(cn, p7P_DEGEN5_QC1); break;
-        case 3: cn = p7P_CODON3_FS5(v2, w2, x2);           cn = p7P_MINIDX(cn, p7P_DEGEN5_C);   break;
-        case 4: cn = p7P_CODON4_FS5(u2, v2, w2, x2);       cn = p7P_MINIDX(cn, p7P_DEGEN5_QC1); break;
-        default:cn = p7P_CODON5_FS5(t2, u2, v2, w2, x2);  cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
-      }
-      u.v = om_fs->rfv[cn][q_k]; rfv_cn = u.p[r_k];
-
-      scores[n-1] = raw_ivx + rfv_cn;
-    }
-
-  return esl_vec_FArgMax(scores, 5) + 1;  /* returns 1..5 */
-}
-/*-------------- end, vit_select_*_fs() helpers -----------------*/
 
 
 /*****************************************************************

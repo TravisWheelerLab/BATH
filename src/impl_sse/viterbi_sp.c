@@ -29,9 +29,44 @@
 /*****************************************************************
  * 1. p7_Viterbi_Spliced()
  *****************************************************************/
-
+/* Function:  p7_Viterbi_Spliced()
+ * Synopsis:  Translated spliced Viterbi algorithm
+ *
+ * Purpose:   For finding the maxiumum scoring splice site between two
+ *            or more exons. Algins from poistion <i_start> to <i_end>
+ *            on the <sub_dsq> to a restriped sub-model <om_tr>, in 
+ *            either fully global, semi-global (one end only) or local 
+ *            mode. The DP matrix <ox> must include room for the 
+ *            standard core model stats <M, I, D>. The splice <P> state
+ *            is only stored in a temproarily in a buffer. The
+ *            <P> state acts as a modiifed <M> state, emitinf a codon
+ *            that is made of either two nucleotides from before the
+ *            donor site and one from after the acceptor site <C2>, one
+ *            nucleotide from from before the donor site and two from
+ *            after the acceptor <C1>, or from the three after the
+ *            acceptor <C0>.
+ *
+ *            Potetnial donor sites scores are recorded in the <P_scores>
+ *            matrix (33*M) via the SSX macro. Splice siginal scores are
+ *            sotored in <signal_scores> array and <acceptor_..> and
+ *            <donor_..> arrays return 0 for valid sites and -inf for
+ *            all others.
+ *
+ * Args:      sub_dsq       - nucleotide sequence
+ *            om_tr         - a codon profile.
+ *            ox            - DP matrix with room for an MxL alignment
+ *            ossc          - buffer for donor site scores and an array of splice site signal scores
+ *            i_start       - start poition on the <sub_dsq>
+ *            i_end         - end poition on the <sub_dsq>
+ *            min_intron    - minimum intron length
+ *            global_start  - bool value controlling global vs local entry
+ *            global_end    - bool value controlling global vs local exit
+ *
+ *
+ * Return:    <eslOK> on success.
+ */
 int
-p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, OSPLICE_SCORES *os, int i_start, int i_end, int min_intron, int global_start, int global_end)
+p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, OSPLICE_SCORES *ossc, int i_start, int i_end, int min_intron, int global_start, int global_end)
 {
   register __m128 mpv, dpv, ipv;
   register __m128 sv, msv, dcv;
@@ -57,6 +92,8 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   int      pv_pi;                 /* (i-3) % 4: i-3 row slot index into pvx    */
   int      i, q, j, ri, sub_i;
   int      status;
+  __m128 **P_scores      = ossc->P_scores;
+  __m128  *signal_scores = ossc->signal_scores;
 
   if (om_tr->codon_lengths != 1)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
@@ -74,10 +111,10 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   ESL_ALLOC(pvx, sizeof(__m128) * 4 * Q);
   for (ri = 0; ri < 4 * Q; ri++) pvx[ri] = infv;
 
-  /* Reset os->P_scores to -inf; donor writes will accumulate into it. */
+  /* Reset P_scores to -inf; donor writes will accumulate into it. */
   for (j = 0; j < SIGNAL_MEM_SIZE; j++)
     for (q = 0; q < Q; q++)
-      os->P_scores[j][q] = infv;
+      P_scores[j][q] = infv;
 
   /* Initialize all DP rows 0..L to -inf. */
   for (ri = 0; ri <= L; ri++)
@@ -182,35 +219,35 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
       __m128 psv = infv;
       if (acc0 == ACCEPT_AG) {
         psv = _mm_max_ps(psv, _mm_add_ps(
-            _mm_max_ps(_mm_add_ps(os->P_scores[p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
-                       _mm_add_ps(os->P_scores[p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
+            _mm_max_ps(_mm_add_ps(P_scores[p7S_GTAG][q], signal_scores[p7S_GTAG]),
+                       _mm_add_ps(P_scores[p7S_GCAG][q], signal_scores[p7S_GCAG])),
             om_tr->rfv[C0][q]));
       } else if (acc0 == ACCEPT_AC) {
         psv = _mm_max_ps(psv, _mm_add_ps(
-            _mm_add_ps(os->P_scores[p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
+            _mm_add_ps(P_scores[p7S_ATAC][q], signal_scores[p7S_ATAC]),
             om_tr->rfv[C0][q]));
       }
       if (acc1 == ACCEPT_AG) {
         for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
           psv = _mm_max_ps(psv, _mm_add_ps(
-              _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
-                         _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])),
+              _mm_max_ps(_mm_add_ps(P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], signal_scores[p7S_GTAG]),
+                         _mm_add_ps(P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], signal_scores[p7S_GCAG])),
               om_tr->rfv[C1[nuc1]][q]));
         }
       } else if (acc1 == ACCEPT_AC) {
         for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
           psv = _mm_max_ps(psv, _mm_add_ps(
-              _mm_add_ps(os->P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]),
+              _mm_add_ps(P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], signal_scores[p7S_ATAC]),
               om_tr->rfv[C1[nuc1]][q]));
         }
       }
       if (acc2 == ACCEPT_AG) {
         psv = _mm_max_ps(psv,
-            _mm_max_ps(_mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], os->signal_scores[p7S_GTAG]),
-                       _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], os->signal_scores[p7S_GCAG])));
+            _mm_max_ps(_mm_add_ps(P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], signal_scores[p7S_GTAG]),
+                       _mm_add_ps(P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], signal_scores[p7S_GCAG])));
       } else if (acc2 == ACCEPT_AC) {
         psv = _mm_max_ps(psv,
-            _mm_add_ps(os->P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], os->signal_scores[p7S_ATAC]));
+            _mm_add_ps(P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], signal_scores[p7S_ATAC]));
       }
       pvx[pv_i * Q + q] = psv;
     }
@@ -302,7 +339,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
      * Donor site q-loops.
      * Run after the DD sweep so MMO/DMO(dpc) are final.
      * Read DP values at row i-min_intron-3 (the last complete exon
-     * codon before the donor site), accumulate into os->P_scores.
+     * codon before the donor site), accumulate into P_scores.
      *
      * don2: 2 pre-donor nucs (r, s); C2 codon emission baked in.
      * don1: 1 pre-donor nuc  (r);    emission added at acceptor time.
@@ -327,7 +364,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
           lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);           /* TMP_SC: best M/D at k-1 */
           for (nuc3 = 0; nuc3 <= p7P_MAXNUC; nuc3++) {
             int slot = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + don_sig;
-            os->P_scores[slot][q] = _mm_max_ps(os->P_scores[slot][q],
+            P_scores[slot][q] = _mm_max_ps(P_scores[slot][q],
                                                _mm_add_ps(lb_tsv, om_tr->rfv[C2[nuc3]][q]));
           }
           lb_mpv = MMO(dpp_lb, q);
@@ -345,7 +382,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
           lb_dpv = esl_sse_rightshift_ps(DMO(dpp_lb, Q - 1), infv);
           for (q = 0; q < Q; q++) {
             lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);
-            os->P_scores[slot][q] = _mm_max_ps(os->P_scores[slot][q], lb_tsv);
+            P_scores[slot][q] = _mm_max_ps(P_scores[slot][q], lb_tsv);
             lb_mpv = MMO(dpp_lb, q);
             lb_dpv = DMO(dpp_lb, q);
           }
@@ -359,7 +396,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
         lb_dpv  = esl_sse_rightshift_ps(DMO(dpp_lb, Q - 1), infv);
         for (q = 0; q < Q; q++) {
           lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);
-          os->P_scores[don_sig][q] = _mm_max_ps(os->P_scores[don_sig][q], lb_tsv);
+          P_scores[don_sig][q] = _mm_max_ps(P_scores[don_sig][q], lb_tsv);
           lb_mpv = MMO(dpp_lb, q);
           lb_dpv = DMO(dpp_lb, q);
         }

@@ -101,11 +101,11 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
   xJ = -eslINFINITY;
   xC = -eslINFINITY;
 
-  XMXo(0, p7X_N) = xN;
-  XMXo(0, p7X_B) = xB;
-  XMXo(0, p7X_E) = xE;
-  XMXo(0, p7X_J) = xJ;
-  XMXo(0, p7X_C) = xC;
+  OXMXo(0, p7X_N) = xN;
+  OXMXo(0, p7X_B) = xB;
+  OXMXo(0, p7X_E) = xE;
+  OXMXo(0, p7X_J) = xJ;
+  OXMXo(0, p7X_C) = xC;
 
   for (i = 1; i <= L; i++)
     {
@@ -159,11 +159,11 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
       xJ = ESL_MAX(xJ + om->xf[p7O_J][p7O_LOOP],  xE + om->xf[p7O_E][p7O_LOOP]);
       xB = ESL_MAX(xJ + om->xf[p7O_J][p7O_MOVE],  xN + om->xf[p7O_N][p7O_MOVE]);
 
-      XMXo(i, p7X_E) = xE;
-      XMXo(i, p7X_N) = xN;
-      XMXo(i, p7X_J) = xJ;
-      XMXo(i, p7X_B) = xB;
-      XMXo(i, p7X_C) = xC;
+      OXMXo(i, p7X_E) = xE;
+      OXMXo(i, p7X_N) = xN;
+      OXMXo(i, p7X_J) = xJ;
+      OXMXo(i, p7X_B) = xB;
+      OXMXo(i, p7X_C) = xC;
 
       /* D->D propagation.
        *
@@ -239,10 +239,10 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
   int   sprv, scur;
   int   status;
 
-#define MMXo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (i), (k)))
-#define DMXo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (i), (k)))
-#define IMXo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (i), (k)))
-#define XMXo(i,s)  (ox->xmx[(i)*p7X_NXCELLS+(s)])
+#define OMMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (i), (k)))
+#define ODMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (i), (k)))
+#define OIMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (i), (k)))
+#define OOXMXo(i,s) (ox->xmx[(i)*p7X_NXCELLS+(s)])
 
 #if eslDEBUGLEVEL > 0
   if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
@@ -256,21 +256,21 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
     switch (sprv) {
 
     case p7T_C:
-      if (XMXo(i, p7X_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-      if      (esl_FCompare(XMXo(i,p7X_C), XMXo(i-1,p7X_C) + om->xf[p7O_C][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_C;
-      else if (esl_FCompare(XMXo(i,p7X_C), XMXo(i,  p7X_E) + om->xf[p7O_E][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_E;
+      if (OXMXo(i, p7X_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      if      (esl_FCompare(OXMXo(i,p7X_C), OXMXo(i-1,p7X_C) + om->xf[p7O_C][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare(OXMXo(i,p7X_C), OXMXo(i,  p7X_E) + om->xf[p7O_E][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
       break;
 
     case p7T_E:
-      if (XMXo(i, p7X_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+      if (OXMXo(i, p7X_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
       if (p7_oprofile_IsLocal(om)) {
         scur = p7T_M;
-        for (k = M; k >= 1; k--) if (esl_FCompare(XMXo(i,p7X_E), MMXo(i,k), r_tol, a_tol) == eslOK) break;
+        for (k = M; k >= 1; k--) if (esl_FCompare(OXMXo(i,p7X_E), OMMo(i,k), r_tol, a_tol) == eslOK) break;
         if (k == 0) ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
       } else {
-        if      (esl_FCompare(XMXo(i,p7X_E), MMXo(i,M), r_tol, a_tol) == eslOK) { scur = p7T_M; k = M; }
-        else if (esl_FCompare(XMXo(i,p7X_E), DMXo(i,M), r_tol, a_tol) == eslOK) { scur = p7T_D; k = M; }
+        if      (esl_FCompare(OXMXo(i,p7X_E), OMMo(i,M), r_tol, a_tol) == eslOK) { scur = p7T_M; k = M; }
+        else if (esl_FCompare(OXMXo(i,p7X_E), ODMo(i,M), r_tol, a_tol) == eslOK) { scur = p7T_D; k = M; }
         else ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
       }
       break;
@@ -283,11 +283,11 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
       float tMM = (u.v = om->tfv[7*q + p7O_MM],     u.p[r]);
       float tIM = (u.v = om->tfv[7*q + p7O_IM],     u.p[r]);
       float tDM = (u.v = om->tfv[7*q + p7O_DM],     u.p[r]);
-      if (MMXo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k, i);
-      if      (esl_FCompare(MMXo(i,k), XMXo(i-1,p7X_B) + tBM + rsc, r_tol, a_tol) == eslOK) scur = p7T_B;
-      else if (esl_FCompare(MMXo(i,k), MMXo(i-1,k-1)   + tMM + rsc, r_tol, a_tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare(MMXo(i,k), IMXo(i-1,k-1)   + tIM + rsc, r_tol, a_tol) == eslOK) scur = p7T_I;
-      else if (esl_FCompare(MMXo(i,k), DMXo(i-1,k-1)   + tDM + rsc, r_tol, a_tol) == eslOK) scur = p7T_D;
+      if (OMMo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k, i);
+      if      (esl_FCompare(OMMo(i,k), OXMXo(i-1,p7X_B) + tBM + rsc, r_tol, a_tol) == eslOK) scur = p7T_B;
+      else if (esl_FCompare(OMMo(i,k), OMMo(i-1,k-1)   + tMM + rsc, r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(OMMo(i,k), OIMo(i-1,k-1)   + tIM + rsc, r_tol, a_tol) == eslOK) scur = p7T_I;
+      else if (esl_FCompare(OMMo(i,k), ODMo(i-1,k-1)   + tDM + rsc, r_tol, a_tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k, i);
       k--; i--;
       break; }
@@ -297,9 +297,9 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
       int   qp  = (k-2) % Q, rp  = (k-2) / Q;   /* stripe coords of k-1 */
       float tMD = (k > 1) ? (u.v = om->tfv[7*qp + p7O_MD], u.p[rp]) : -eslINFINITY;
       float tDD = (k > 1) ? (u.v = om->tfv[7*Q  + qp],     u.p[rp]) : -eslINFINITY;
-      if (DMXo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k, i);
-      if      (esl_FCompare(DMXo(i,k), MMXo(i,k-1) + tMD, r_tol, a_tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare(DMXo(i,k), DMXo(i,k-1) + tDD, r_tol, a_tol) == eslOK) scur = p7T_D;
+      if (ODMo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k, i);
+      if      (esl_FCompare(ODMo(i,k), OMMo(i,k-1) + tMD, r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(ODMo(i,k), ODMo(i,k-1) + tDD, r_tol, a_tol) == eslOK) scur = p7T_D;
       else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k, i);
       k--;
       break; }
@@ -309,29 +309,29 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
       int   q   = (k-1) % Q, r   = (k-1) / Q;
       float tMI = (u.v = om->tfv[7*q + p7O_MI], u.p[r]);
       float tII = (u.v = om->tfv[7*q + p7O_II], u.p[r]);
-      if (IMXo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k, i);
-      if      (esl_FCompare(IMXo(i,k), MMXo(i-1,k) + tMI, r_tol, a_tol) == eslOK) scur = p7T_M;
-      else if (esl_FCompare(IMXo(i,k), IMXo(i-1,k) + tII, r_tol, a_tol) == eslOK) scur = p7T_I;
+      if (OIMo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k, i);
+      if      (esl_FCompare(OIMo(i,k), OMMo(i-1,k) + tMI, r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(OIMo(i,k), OIMo(i-1,k) + tII, r_tol, a_tol) == eslOK) scur = p7T_I;
       else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k, i);
       i--;
       break; }
 
     case p7T_N:
-      if (XMXo(i, p7X_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
+      if (OXMXo(i, p7X_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
       scur = (i == 0) ? p7T_S : p7T_N;
       break;
 
     case p7T_B:
-      if (XMXo(i, p7X_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
-      if      (esl_FCompare(XMXo(i,p7X_B), XMXo(i,p7X_N) + om->xf[p7O_N][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_N;
-      else if (esl_FCompare(XMXo(i,p7X_B), XMXo(i,p7X_J) + om->xf[p7O_J][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_J;
+      if (OXMXo(i, p7X_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+      if      (esl_FCompare(OXMXo(i,p7X_B), OXMXo(i,p7X_N) + om->xf[p7O_N][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_N;
+      else if (esl_FCompare(OXMXo(i,p7X_B), OXMXo(i,p7X_J) + om->xf[p7O_J][p7O_MOVE], r_tol, a_tol) == eslOK) scur = p7T_J;
       else ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
       break;
 
     case p7T_J:
-      if (XMXo(i, p7X_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
-      if      (esl_FCompare(XMXo(i,p7X_J), XMXo(i-1,p7X_J) + om->xf[p7O_J][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_J;
-      else if (esl_FCompare(XMXo(i,p7X_J), XMXo(i,  p7X_E) + om->xf[p7O_E][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_E;
+      if (OXMXo(i, p7X_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
+      if      (esl_FCompare(OXMXo(i,p7X_J), OXMXo(i-1,p7X_J) + om->xf[p7O_J][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_J;
+      else if (esl_FCompare(OXMXo(i,p7X_J), OXMXo(i,  p7X_E) + om->xf[p7O_E][p7O_LOOP], r_tol, a_tol) == eslOK) scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "J at i=%d couldn't be traced", i);
       break;
 
@@ -346,10 +346,10 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
   tr->M = M;
   tr->L = L;
 
-#undef MMXo
-#undef DMXo
-#undef IMXo
-#undef XMXo
+#undef OMMo
+#undef ODMo
+#undef OIMo
+#undef OXMXo
 
   return p7_trace_Reverse(tr);
 }

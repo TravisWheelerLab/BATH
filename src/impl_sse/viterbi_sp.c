@@ -610,12 +610,15 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PR
       break;
 
     case p7T_N:
+      if (OXMXo(i, p7X_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
       scur = (i == 0) ? p7T_S : p7T_N;
       break;
 
     case p7T_B:
       vsc += p7P_TSC(gm_tr, k, p7P_BM);
-      scur = p7T_N;
+      if (OXMXo(i, p7X_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+      if (esl_FCompare(OXMXo(i, p7X_B), OXMXo(i, p7X_N) + gm_tr->xsc[p7P_N][p7P_MOVE], r_tol, a_tol) == eslOK) scur = p7T_N;
+      else ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
       break;
 
     default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");

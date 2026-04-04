@@ -72,7 +72,10 @@ UTESTS = @MPI_UTESTS@\
     optacc_fs_utest\
 	stotrace_utest\
 	stotrace_fs_utest\
-	vitfilter_utest
+	vitfilter_utest\
+    viterbi_utest\
+    viterbi_fs_utest\
+    viterbi_sp_utest
 
 BENCHMARKS = @MPI_BENCHMARKS@\
 	decoding_benchmark\

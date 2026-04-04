@@ -195,13 +195,11 @@ typedef struct _splice_info
 
 
 /* MACROS for the P state score storage */
-#define SSX0(k, signal)             (P_scores[(k)][(signal)])                                                            //xxxxXXX
-#define SSX1(k, signal, nuc1)       (P_scores[(k)][SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])            //XxxxxXX
-#define SSX2(k, signal, x)          (P_scores[(k)][SPLICE_OFFSET_2 + (x)          * p7S_SPLICE_SIGNALS + (signal)]) //XXxxxxX
+#define SSX0(k, signal)           (don_ivx[(k)*SIGNAL_MEM_SIZE+(signal)])                              //xxxxXXX
+#define SSX1(k, signal, nuc1)     (don_ivx[(k)*SIGNAL_MEM_SIZE + SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])  //XxxxxXX
+#define SSX2(k, signal, nuc3)     (don_ivx[(k)*SIGNAL_MEM_SIZE + SPLICE_OFFSET_2 + (nuc3) * p7S_SPLICE_SIGNALS + (signal)])  //XXxxxxX
 
-#define SPLICE_ROWS               4
-
-#define SIGNAL(nuc1, nuc2)           (4*(nuc1)+(nuc2))
+#define SIGNAL(nuc1, nuc2)        (4*(nuc1)+(nuc2))
 
 #define DONOR_GT                  11
 #define DONOR_GC                  9
@@ -225,6 +223,8 @@ enum p7s_splice_signals_e {
   p7S_ATAC  = 2,
 };
 #define p7S_SPLICE_SIGNALS 3
+
+#define SPLICE_ROWS               4
 
 /* p7_splicebounds.c */
 extern SPLICE_BOUNDS* p7_splicebounds_Create(int allocN);
@@ -270,7 +270,7 @@ extern int p7_splicescores_GrowTo(SPLICE_SCORES* splice_scores, int M);
 extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
 
 /* generic_viterbi_spliced.c */
-extern int p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *iv, SPLICE_SCORES *ssc, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
+extern int p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *acc_iv, P7_IVX *don_iv, float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
 extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
 
 /* p7_splice.c */

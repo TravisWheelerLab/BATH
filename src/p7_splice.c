@@ -1718,7 +1718,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   pli   = info->pli;
   gm_tr = info->gm_tr;
   om_tr = info->om_tr;
-  ovit   = info->ovit;
+  ovit  = info->ovit;
 
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);

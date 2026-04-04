@@ -134,6 +134,13 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   ox->xmx[0 * p7X_NXCELLS + p7X_B] = xB;
   if (!global_start) ox->xmx[0 * p7X_NXCELLS + p7X_N] = 0.f;
 
+  /* Rows 1 and 2: N and B initialized unconditionally to match the generic
+   * (p7_GViterbi_Spliced sets N(1)=N(2)=0, B(1)=B(2)=T_NB regardless of
+   * global_start).  This allows the N self-loop traceback (which decrements
+   * i by 1) to visit any row without hitting -eslINFINITY. */
+  if (L >= 1) { ox->xmx[1 * p7X_NXCELLS + p7X_N] = 0.f; ox->xmx[1 * p7X_NXCELLS + p7X_B] = xB; }
+  if (L >= 2) { ox->xmx[2 * p7X_NXCELLS + p7X_N] = 0.f; ox->xmx[2 * p7X_NXCELLS + p7X_B] = xB; }
+
   /* Nucleotide rolling window and acceptor/donor site tracker init. */
   acc0 = acc1 = acc2 = -1;
   don0 = don1 = don2 = -1;

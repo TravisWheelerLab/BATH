@@ -105,9 +105,9 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   ox->totscale       = 0.0f;
   infv               = _mm_set1_ps(-eslINFINITY);
   tsc_p_vec          = _mm_set1_ps(TSC_P);
-  sig_gtag           = _mm_set1_ps(sig_gtag);
-  sig_gcag           = _mm_set1_ps(sig_gcag);
-  sig_atac           = _mm_set1_ps(sig_atac);
+  sig_gtag           = _mm_set1_ps(signal_scores[p7S_GTAG]);
+  sig_gcag           = _mm_set1_ps(signal_scores[p7S_GCAG]);
+  sig_atac           = _mm_set1_ps(signal_scores[p7S_ATAC]);
 
   acc_ovx = acc_ov->ivx;
   for (ri = 0; ri < SPLICE_ROWS; ri++)

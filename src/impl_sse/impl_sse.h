@@ -291,7 +291,32 @@ typedef struct _osplice_scores {
 
 
 /*****************************************************************
- * 4. P7_OMX: a one-row dynamic programming matrix
+ * 4. P7_OIVX: vectorized intermediate-value matrix
+ *****************************************************************/
+
+/* P7_OIVX is the SSE analog of P7_IVX (p7_ivx.c).  It stores __m128
+ * vectors in [channel][stripe] layout, where stripe q covers model
+ * positions k such that (k-1) % Q == q and lane r = (k-1) / Q.
+ * This matches the striped layout used throughout impl_sse and lets
+ * the inner k loop over channels be fully vectorized.
+ *
+ * ivx[c][q] is the __m128 vector for channel c and stripe q.
+ */
+typedef struct p7_oivx_s {
+  int      allocM;    /* max model length for which ivx is allocated  */
+  int      allocC;    /* number of channels                           */
+  int      allocQ4;   /* p7O_NQF(allocM): allocated stripe count      */
+  __m128 **ivx;       /* [allocC][allocQ4] striped intermediate values */
+  __m128  *ivx_mem;   /* flat backing memory (+15 bytes for alignment) */
+} P7_OIVX;
+
+/* OIVXo(c,q): access channel c, stripe q.
+ * Requires a local pointer  __m128 **ivx = ov->ivx;  in the caller. */
+#define OIVXo(c, q)  (ivx[(c)][(q)])
+
+
+/*****************************************************************
+ * 5. P7_OMX: a one-row dynamic programming matrix
  *****************************************************************/
 
 enum p7x_scells_e { p7X_M = 0, p7X_D = 1, p7X_I = 2 };
@@ -480,6 +505,10 @@ extern int             p7_fs_oprofile_SubConvert_Log(const P7_FS_PROFILE *gm_fs,
 extern OSPLICE_SCORES *p7_osplicescores_Create (int M_hint);
 extern int             p7_osplicescores_GrowTo (OSPLICE_SCORES *os, int M);
 extern void            p7_osplicescores_Destroy(OSPLICE_SCORES *os);
+
+extern P7_OIVX        *p7_oivx_Create (int M_hint, int C);
+extern int             p7_oivx_GrowTo (P7_OIVX *ov, int M, int C);
+extern void            p7_oivx_Destroy(P7_OIVX *ov);
 extern int             p7_fs_oprofile_ReconfigLength    (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigLength_Log(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);

@@ -524,6 +524,7 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
   P7_GMX         *gx1    = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
   P7_GMX         *gx2    = p7_gmx_Create(M, M, M, p7G_NSCELLS);
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
   P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
   P7_OMX         *bck    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
   P7_GMX         *gxpp   = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
@@ -585,6 +586,7 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
   p7_gmx_Destroy(gx2);
   p7_gmx_Destroy(gxpp);
   p7_ivx_Destroy(iv5);
+  p7_oivx_Destroy(ov5);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bck);
   p7_trace_Destroy(tr);

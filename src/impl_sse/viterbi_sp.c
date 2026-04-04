@@ -1024,6 +1024,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_fs_oprofile_Destroy(om_tr);
   p7_splicepipeline_Destroy(pli);
   p7_gmx_Destroy(gx);
+  p7_omx_Destroy(ox);
   p7_ivx_Destroy(acc_iv);
   p7_ivx_Destroy(don_iv);
   p7_splicescores_Destroy(ssc);

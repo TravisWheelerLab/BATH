@@ -850,7 +850,7 @@ main(int argc, char **argv)
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (do_T && final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, ssc->signal_scores, tr, 1, L_dna_total, 1, hmm->M, min_intron);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, ssc->signal_scores, tr, 1, L_dna_total, 1, hmm->M, min_intron, NULL);
         p7_trace_Reuse(tr);
       }     
 	 
@@ -986,7 +986,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, ssc->signal_scores, tr_NoP, 1, L_dna_total, 1, M, min_intron);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, ssc->signal_scores, tr_NoP, 1, L_dna_total, 1, M, min_intron, NULL);
         n_p = 0;
         for (i = 0; i < tr_NoP->N; i++)
           if (tr_NoP->st[i] == p7T_P) n_p++;

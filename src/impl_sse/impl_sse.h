@@ -285,9 +285,9 @@ typedef struct _osplice_scores {
  * stripe q instead of model node k.  Slot offsets match SPLICE_OFFSET_1 = 3,
  * SPLICE_OFFSET_2 = 18, p7S_SPLICE_SIGNALS = 3 from p7_splice.h.
  */
-#define OSSX0(q, signal)          (P_scores[(signal)][q])
-#define OSSX1(q, signal, nuc1)    (P_scores[3  + (nuc1) * 3 + (signal)][q])
-#define OSSX2(q, signal, x)       (P_scores[18 + (x)   * 3 + (signal)][q])
+#define OSSX0(q, signal)          (don_ovx[(signal)][q])
+#define OSSX1(q, signal, nuc1)    (don_ovx[3  + (nuc1) * 3 + (signal)][q])
+#define OSSX2(q, signal, nuc3)    (don_ovx[18 + (nuc3) * 3 + (signal)][q])
 
 
 /*****************************************************************
@@ -592,7 +592,7 @@ extern int p7_Viterbi      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 extern int p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
 
 /* viterbi_sp.c */
-extern int p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, OSPLICE_SCORES *os, int i_start, int i_end, int min_intron, int global_start, int global_end);
+extern int p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
 extern int p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
 
 /* vitscore.c */

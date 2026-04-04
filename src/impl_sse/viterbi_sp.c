@@ -46,7 +46,7 @@
  *            after the acceptor <C1>, or from the three after the
  *            acceptor <C0>.
  *
- *            Potetnial donor sites scores are recorded in the <P_scores>
+ *            Potetnial donor sites scores are recorded in the <don_ovx>
  *            matrix (33*M) via the SSX macro. Splice siginal scores are
  *            sotored in <signal_scores> array and <acceptor_..> and
  *            <donor_..> arrays return 0 for valid sites and -inf for
@@ -66,7 +66,7 @@
  * Return:    <eslOK> on success.
  */
 int
-p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, OSPLICE_SCORES *ossc, int i_start, int i_end, int min_intron, int global_start, int global_end)
+p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end)
 {
   register __m128 mpv, dpv, ipv;
   register __m128 sv, msv, dcv;
@@ -74,7 +74,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   float    xB, xE;
   __m128  *dpc, *dpp3;
   __m128  *tp;
-  __m128  *pvx;                    /* 4-slot circular P buffer: pvx[slot*Q + q] */
+  __m128 **acc_ovx;                    /* 4-slot circular P buffer: acc_ovx[slot][q]    */
   __m128   ppv;                    /* P(i, k-1) carry for current row            */
   __m128   tsc_p_vec;              /* broadcast TSC_P                        */
   int      Q  = p7O_NQF(om_tr->M);
@@ -88,12 +88,11 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   int      acc0, acc1, acc2;      /* acceptor site type for rows i, i-1, i-2    */
   int      don0, don1, don2;      /* donor site type for rows i, i-1, i-2       */
   int      don_sig;               /* p7S_GTAG / p7S_GCAG / p7S_ATAC             */
-  int      pv_i;                  /* i % 4: current-row slot index into pvx     */
-  int      pv_pi;                 /* (i-3) % 4: i-3 row slot index into pvx    */
+  int      pv_i;                  /* i % 4: current-row slot index into acc_ovx     */
+  int      pv_pi;                 /* (i-3) % 4: i-3 row slot index into acc_ovx    */
   int      i, q, j, ri, sub_i;
-  int      status;
-  __m128 **P_scores      = ossc->P_scores;
-  __m128  *signal_scores = ossc->signal_scores;
+  __m128 **don_ovx      = don_ov->ivx;
+  __m128   sig_gtag, sig_gcag, sig_atac;
 
   if (om_tr->codon_lengths != 1)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");
@@ -106,15 +105,19 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   ox->totscale       = 0.0f;
   infv               = _mm_set1_ps(-eslINFINITY);
   tsc_p_vec          = _mm_set1_ps(TSC_P);
+  sig_gtag           = _mm_set1_ps(sig_gtag);
+  sig_gcag           = _mm_set1_ps(sig_gcag);
+  sig_atac           = _mm_set1_ps(sig_atac);
 
-  pvx = NULL;
-  ESL_ALLOC(pvx, sizeof(__m128) * 4 * Q);
-  for (ri = 0; ri < 4 * Q; ri++) pvx[ri] = infv;
+  acc_ovx = acc_ov->ivx;
+  for (ri = 0; ri < SPLICE_ROWS; ri++)
+    for (q = 0; q < Q; q++)
+      acc_ovx[ri][q] = infv;
 
-  /* Reset P_scores to -inf; donor writes will accumulate into it. */
+  /* Reset don_ovx to -inf; donor writes will accumulate into it. */
   for (j = 0; j < SIGNAL_MEM_SIZE; j++)
     for (q = 0; q < Q; q++)
-      P_scores[j][q] = infv;
+      don_ovx[j][q] = infv;
 
   /* Initialize all DP rows 0..L to -inf. */
   for (ri = 0; ri <= L; ri++)
@@ -218,7 +221,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
     mpv = esl_sse_rightshift_ps(MMO(dpp3, Q - 1), infv);
     dpv = esl_sse_rightshift_ps(DMO(dpp3, Q - 1), infv);
     ipv = esl_sse_rightshift_ps(IMO(dpp3, Q - 1), infv);
-    /* Pre-loop: compute P(i, k) for all stripes and write to pvx before
+    /* Pre-loop: compute P(i, k) for all stripes and write to acc_ovx before
      * the main MM/IM/DM/PM loop reads them.  This ensures the PM transition
      * uses P(i, k-1) from the current row rather than the stale P(i-3, k-1)
      * that would otherwise sit in the circular buffer slot pv_i. */
@@ -226,41 +229,41 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
       __m128 psv = infv;
       if (acc0 == ACCEPT_AG) {
         psv = _mm_max_ps(psv, _mm_add_ps(
-            _mm_max_ps(_mm_add_ps(P_scores[p7S_GTAG][q], signal_scores[p7S_GTAG]),
-                       _mm_add_ps(P_scores[p7S_GCAG][q], signal_scores[p7S_GCAG])),
+            _mm_max_ps(_mm_add_ps(don_ovx[p7S_GTAG][q], sig_gtag),
+                       _mm_add_ps(don_ovx[p7S_GCAG][q], sig_gcag)),
             om_tr->rfv[C0][q]));
       } else if (acc0 == ACCEPT_AC) {
         psv = _mm_max_ps(psv, _mm_add_ps(
-            _mm_add_ps(P_scores[p7S_ATAC][q], signal_scores[p7S_ATAC]),
+            _mm_add_ps(don_ovx[p7S_ATAC][q], sig_atac),
             om_tr->rfv[C0][q]));
       }
       if (acc1 == ACCEPT_AG) {
         for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
           psv = _mm_max_ps(psv, _mm_add_ps(
-              _mm_max_ps(_mm_add_ps(P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], signal_scores[p7S_GTAG]),
-                         _mm_add_ps(P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], signal_scores[p7S_GCAG])),
+              _mm_max_ps(_mm_add_ps(don_ovx[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], sig_gtag),
+                         _mm_add_ps(don_ovx[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], sig_gcag)),
               om_tr->rfv[C1[nuc1]][q]));
         }
       } else if (acc1 == ACCEPT_AC) {
         for (nuc1 = 0; nuc1 <= p7P_MAXNUC; nuc1++) {
           psv = _mm_max_ps(psv, _mm_add_ps(
-              _mm_add_ps(P_scores[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], signal_scores[p7S_ATAC]),
+              _mm_add_ps(don_ovx[SPLICE_OFFSET_1 + nuc1 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], sig_atac),
               om_tr->rfv[C1[nuc1]][q]));
         }
       }
       if (acc2 == ACCEPT_AG) {
         psv = _mm_max_ps(psv,
-            _mm_max_ps(_mm_add_ps(P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], signal_scores[p7S_GTAG]),
-                       _mm_add_ps(P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], signal_scores[p7S_GCAG])));
+            _mm_max_ps(_mm_add_ps(don_ovx[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GTAG][q], sig_gtag),
+                       _mm_add_ps(don_ovx[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_GCAG][q], sig_gcag)));
       } else if (acc2 == ACCEPT_AC) {
         psv = _mm_max_ps(psv,
-            _mm_add_ps(P_scores[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], signal_scores[p7S_ATAC]));
+            _mm_add_ps(don_ovx[SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + p7S_ATAC][q], sig_atac));
       }
-      pvx[pv_i * Q + q] = psv;
+      acc_ovx[pv_i][q] = psv;
     }
 
-    /* Seed ppv from P(i-3, *) in pvx; PM transition uses P(i-3, k-1). */
-    ppv = esl_sse_rightshift_ps(pvx[pv_pi * Q + Q - 1], infv);  /* P(i-3, k-1) seed */
+    /* Seed ppv from P(i-3, *) in acc_ovx; PM transition uses P(i-3, k-1). */
+    ppv = esl_sse_rightshift_ps(acc_ovx[pv_pi][Q - 1], infv);  /* P(i-3, k-1) seed */
 
     tp  = om_tr->tfv;
     dcv = infv;
@@ -279,7 +282,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
     }
 
     for (q = 0; q < Q; q++) {
-      __m128 ppv_next = pvx[pv_pi * Q + q];   /* P(i-3, k); carry as P(i-3, k-1) to next stripe */
+      __m128 ppv_next = acc_ovx[pv_pi][q];         /* P(i-3, k); carry as P(i-3, k-1) to next stripe */
 
       tp++;                                              /* skip BM */
       sv  =                _mm_add_ps(mpv, *tp); tp++;  /* MM */
@@ -346,7 +349,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
      * Donor site q-loops.
      * Run after the DD sweep so MMO/DMO(dpc) are final.
      * Read DP values at row i-min_intron-3 (the last complete exon
-     * codon before the donor site), accumulate into P_scores.
+     * codon before the donor site), accumulate into don_ovx.
      *
      * don2: 2 pre-donor nucs (r, s); C2 codon emission baked in.
      * don1: 1 pre-donor nuc  (r);    emission added at acceptor time.
@@ -371,7 +374,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
           lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);           /* TMP_SC: best M/D at k-1 */
           for (nuc3 = 0; nuc3 <= p7P_MAXNUC; nuc3++) {
             int slot = SPLICE_OFFSET_2 + nuc3 * p7S_SPLICE_SIGNALS + don_sig;
-            P_scores[slot][q] = _mm_max_ps(P_scores[slot][q],
+            don_ovx[slot][q] = _mm_max_ps(don_ovx[slot][q],
                                                _mm_add_ps(lb_tsv, om_tr->rfv[C2[nuc3]][q]));
           }
           lb_mpv = MMO(dpp_lb, q);
@@ -389,7 +392,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
           lb_dpv = esl_sse_rightshift_ps(DMO(dpp_lb, Q - 1), infv);
           for (q = 0; q < Q; q++) {
             lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);
-            P_scores[slot][q] = _mm_max_ps(P_scores[slot][q], lb_tsv);
+            don_ovx[slot][q] = _mm_max_ps(don_ovx[slot][q], lb_tsv);
             lb_mpv = MMO(dpp_lb, q);
             lb_dpv = DMO(dpp_lb, q);
           }
@@ -403,7 +406,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
         lb_dpv  = esl_sse_rightshift_ps(DMO(dpp_lb, Q - 1), infv);
         for (q = 0; q < Q; q++) {
           lb_tsv = _mm_max_ps(lb_mpv, lb_dpv);
-          P_scores[don_sig][q] = _mm_max_ps(P_scores[don_sig][q], lb_tsv);
+          don_ovx[don_sig][q] = _mm_max_ps(don_ovx[don_sig][q], lb_tsv);
           lb_mpv = MMO(dpp_lb, q);
           lb_dpv = DMO(dpp_lb, q);
         }
@@ -436,12 +439,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
     ox->xmx[L * p7X_NXCELLS + p7X_C] = xE + om_tr->xf[p7O_E][p7O_MOVE];
   }
 
-  free(pvx);
   return eslOK;
-
- ERROR:
-  if (pvx != NULL) free(pvx);
-  return status;
 }
 /*--------------- end, p7_Viterbi_Spliced() -----------*/
 
@@ -756,7 +754,6 @@ main(int argc, char **argv)
   P7_CODONTABLE  *codon_table  = NULL;
   ESL_SQ         *sq           = NULL;
   SPLICE_PIPELINE *pli         = NULL;
-  OSPLICE_SCORES *oss          = NULL;
   int             do_T         = esl_opt_GetBoolean(go, "-T"); 
   int             N            = esl_opt_GetInteger(go, "-N");
   int             I            = esl_opt_GetInteger(go, "-I");
@@ -782,8 +779,9 @@ main(int argc, char **argv)
   p7_fs_oprofile_Convert_Log(gm_tr, om_tr);
 
   pli = p7_splicepipeline_Create(NULL, hmm->M, hmm->M * 3);
-  ox = p7_omx_Create_dpf(hmm->M, hmm->M, hmm->M, p7X_NSCELLS); 
-  oss = p7_osplicescores_Create(hmm->M);
+  ox = p7_omx_Create_dpf(hmm->M, hmm->M, hmm->M, p7X_NSCELLS);
+  P7_OIVX *acc_ov = p7_oivx_Create(hmm->M, SPLICE_ROWS);
+  P7_OIVX *don_ov = p7_oivx_Create(hmm->M, SIGNAL_MEM_SIZE);
 
   tr = p7_trace_fs_Create(); 
   /* Baseline: time to generate sequences alone */
@@ -831,7 +829,7 @@ main(int argc, char **argv)
       p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
       p7_omx_GrowTo_dpf(ox, hmm->M, L_dna_total, L_dna_total);
-      p7_Viterbi_Spliced(dsq, om_tr, ox, oss, 1, L_dna_total, 13, TRUE, TRUE);
+      p7_Viterbi_Spliced(dsq, om_tr, ox, pli->splice_scores->signal_scores, acc_ov, don_ov, 1, L_dna_total, 13, TRUE, TRUE);
 
       if(do_T)
         p7_Viterbi_SplicedTrace(dsq, ox, gm_tr, pli->splice_scores->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron); 
@@ -855,7 +853,8 @@ main(int argc, char **argv)
   p7_fs_oprofile_Destroy(om_tr);
   p7_omx_Destroy(ox);
   p7_splicepipeline_Destroy(pli);
-  p7_osplicescores_Destroy(oss);
+  p7_oivx_Destroy(acc_ov);
+  p7_oivx_Destroy(don_ov);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bgAA);
   p7_hmm_Destroy(hmm);
@@ -962,8 +961,10 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
 	  p7_omx_GrowTo_dpf(ox, sub_M, L_dna_total, L_dna_total);
 	  p7_osplicescores_GrowTo(pli->ossc, sub_M);
-  
-      p7_Viterbi_Spliced(dsq, om_tr, ox, pli->ossc, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
+	  p7_oivx_GrowTo(pli->acc_ov, sub_M, SPLICE_ROWS);
+	  p7_oivx_GrowTo(pli->don_ov, sub_M, SIGNAL_MEM_SIZE);
+
+      p7_Viterbi_Spliced(dsq, om_tr, ox, ssc->signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
       final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
       p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
@@ -988,7 +989,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_trace_Reuse(otr);
       p7_trace_Reuse(gtr);
 
-      p7_Viterbi_Spliced(dsq, om_tr, ox, pli->ossc, 1, L_dna_total, pli->min_intron, TRUE, FALSE);
+      p7_Viterbi_Spliced(dsq, om_tr, ox, ssc->signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, FALSE);
       final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, TRUE, FALSE);
@@ -1002,7 +1003,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_trace_Reuse(otr);
       p7_trace_Reuse(gtr);
 
-      p7_Viterbi_Spliced(dsq, om_tr, ox, pli->ossc, 1, L_dna_total, pli->min_intron, FALSE, TRUE);
+      p7_Viterbi_Spliced(dsq, om_tr, ox, ssc->signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, FALSE, TRUE);
       final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, FALSE, TRUE);

@@ -91,6 +91,12 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->ossc = NULL;
   pli->ossc = p7_osplicescores_Create(M_hint);
 
+  pli->acc_ov = NULL;
+  pli->acc_ov = p7_oivx_Create(M_hint, SPLICE_ROWS);
+
+  pli->don_ov = NULL;
+  pli->don_ov = p7_oivx_Create(M_hint, SIGNAL_MEM_SIZE);
+
   pli->nuc_sq   = NULL;
   pli->amino_sq = NULL;
 
@@ -178,6 +184,8 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
 
   p7_splicescores_Destroy(pli->splice_scores);
   p7_osplicescores_Destroy(pli->ossc);
+  p7_oivx_Destroy(pli->acc_ov);
+  p7_oivx_Destroy(pli->don_ov);
 
   p7_omx_Destroy(pli->fwd);
   p7_omx_Destroy(pli->bwd);

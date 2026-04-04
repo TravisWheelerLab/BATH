@@ -684,12 +684,13 @@ main(int argc, char **argv)
   /* ox_bck: standard 3-cell layout (Backward input; becomes OA after OA) */
   ox_fwd = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
   ox_bck = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
+  P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
   tr     = p7_trace_fs_CreateWithPP();
 
   /* Fill pipeline once to produce pp matrix in ox_fwd */
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_Forward_Frameshift (dsq, L, om_fs5, ox_fwd, &fsc);
-  p7_Backward_Frameshift(dsq, L, om_fs5, ox_fwd, ox_bck, &bsc);
+  p7_Forward_Frameshift (dsq, L, om_fs5, ox_fwd, ov5, &fsc);
+  p7_Backward_Frameshift(dsq, L, om_fs5, ox_fwd, ox_bck, ov5, &bsc);
   p7_Decoding_Frameshift(om_fs5, ox_fwd, ox_bck);  /* ox_fwd now holds pp */
 
   esl_stopwatch_Start(w);
@@ -714,6 +715,7 @@ main(int argc, char **argv)
   p7_trace_fs_Destroy(tr);
   p7_omx_Destroy(ox_bck);
   p7_omx_Destroy(ox_fwd);
+  p7_oivx_Destroy(ov5);
   p7_fs_oprofile_Destroy(om_fs5);
   p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgDNA);
@@ -794,6 +796,7 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   /* SSE: forward/backward use 8-cell FS layout; OA uses standard 3-cell */
   ox_fwd = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
   ox_bck = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS);
+  P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
 
   /* Scalar: pp uses 8-cell FS layout; OA matrices use standard 3-cell */
   gx_pp  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
@@ -808,8 +811,8 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, seq_L, dsq);
       
       /* SSE pipeline: Forward -> Backward -> Decoding (in-place into ox_fwd) -> OA -> Trace */
-      if (p7_Forward_Frameshift (dsq, seq_L, om_fs,         ox_fwd, &fsc) == eslERANGE) continue;
-      if (p7_Backward_Frameshift(dsq, seq_L, om_fs, ox_fwd, ox_bck, &bsc) == eslERANGE) continue;
+      if (p7_Forward_Frameshift (dsq, seq_L, om_fs,         ox_fwd,      ov5, &fsc) == eslERANGE) continue;
+      if (p7_Backward_Frameshift(dsq, seq_L, om_fs, ox_fwd, ox_bck, ov5, &bsc) == eslERANGE) continue;
       if (esl_FCompare_old(fsc, bsc, tol)                                      != eslOK) esl_fatal(msg);
       if (p7_Decoding_Frameshift(om_fs, ox_fwd, ox_bck)                    != eslOK) esl_fatal(msg);
       /* ox_fwd now holds the SSE posterior probability matrix */
@@ -843,6 +846,7 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   p7_trace_fs_Destroy(tr_ref);
   p7_omx_Destroy(ox_fwd);
   p7_omx_Destroy(ox_bck);
+  p7_oivx_Destroy(ov5);
   p7_gmx_Destroy(gx_pp);
   p7_gmx_Destroy(gx_oa);
   p7_gmx_Destroy(gx_oa2);

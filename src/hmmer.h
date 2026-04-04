@@ -1081,6 +1081,8 @@ typedef struct p7_pipeline_s {
   P7_OMX     *oxb_fs; /* five-row Backward matrix for frameshift backward only */
   P7_OMX     *fwd_fs; /* full frameshift Fwd matrix for domain envelopes       */
   P7_OMX     *bck_fs; /* full frameshift Bwd matrix for domain envelopes       */
+  P7_OIVX    *ov3;    /* pre-allocated IVX buffer for 3-codon forward/backward */
+  P7_OIVX    *ov5;    /* pre-allocated IVX buffer for 5-codon forward/backward */
 
   /* Domain postprocessing                                                  */
   ESL_RANDOMNESS *r;                       /* random number generator                  */

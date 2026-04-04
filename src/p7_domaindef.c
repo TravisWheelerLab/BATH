@@ -410,7 +410,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         
         p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL); 
         p7_omx_GrowTo_dpf(pli->fwd_fs, om_fs5->M, j-i+1, j-i+1);
-        if (p7_Forward_Frameshift(windowsq->dsq+i-1, j-i+1, om_fs5, pli->fwd_fs, NULL) == eslERANGE)
+        if (p7_Forward_Frameshift(windowsq->dsq+i-1, j-i+1, om_fs5, pli->fwd_fs, pli->ov5, NULL) == eslERANGE)
           nc = 0; /* forward underflow; no valid traces for this region */
         else
           region_trace_ensemble_frameshift(ddef, om_fs5, windowsq->dsq, windowsq->abc, i, j, pli->fwd_fs, &nc);
@@ -1019,7 +1019,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   /* Forward */
   p7_fs_oprofile_ReconfigLength(om_fs5, Ld/3);
   p7_omx_GrowTo_dpf(ox1, om_fs5->M, Ld, Ld);
-  if ((status = p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, &envsc)) == eslERANGE) return eslOK;
+  if ((status = p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, pli->ov5, &envsc)) == eslERANGE) return eslOK;
   if (status != eslOK) ESL_XEXCEPTION(status, "forward frameshift failed");
 
   seqscore = (envsc-filtersc) / eslCONST_LOG2; 
@@ -1038,7 +1038,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
 
   /* Backward */
   p7_omx_GrowTo_dpf(ox2, om_fs5->M, Ld, Ld);
-  if ((status = p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, NULL)) == eslERANGE) return eslOK;
+  if ((status = p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, pli->ov5, NULL)) == eslERANGE) return eslOK;
   if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
 
   /* Posterior Probabilities */

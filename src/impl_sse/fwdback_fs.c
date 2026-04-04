@@ -44,8 +44,8 @@
 #include "hmmer.h"
 #include "impl_sse.h"
 
-/* IVX intermediate matrix access: [slot 0..p7P_3CODONS-1][stripe 0..Q-1] */
-#define IVX(slot, q) (ivxf[(slot)*Q + (q)])
+/* IVX intermediate matrix access: [slot 0..p7P_xCODONS-1][stripe 0..Q-1] */
+#define IVX(slot, q) (ivx[(slot)][(q)])
 
 /*****************************************************************
  * 1. Forward/Backward
@@ -94,7 +94,7 @@
  *            In either case, <*opt_sc> is undefined.
  */
 int
-p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
+p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
   register __m128 mpv2, dpv2, ipv2;   /* right-shifted prev2 row MDI for BM/MM/IM/DM   */
   register __m128 sv;                 /* temporary IVX accumulator                      */
@@ -113,8 +113,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   int      ivx_2, ivx_3, ivx_4;       /* IVX slot indices for rows at i, i-1, i-2      */
   __m128  *dpc, *dpp2, *dpp3;         /* MDI DP row pointers                            */
   __m128  *tp;                        /* steps through om_fs->tfv transitions           */
-  __m128  *ivxf     = NULL;           /* IVX intermediate matrix [slot*Q + q]           */
-  __m128  *ivxf_mem = NULL;           /* unaligned alloc backing ivxf                   */
+  __m128 **ivx = ov->ivx;            /* IVX intermediate matrix [slot][q]              */
   int      Q = p7O_NQF(om_fs->M);     /* number of SIMD float stripes                   */
   int      i, q, j, r;
   int      c2, c3, c4;                /* codon emission table indices                   */
@@ -136,10 +135,6 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   ox->has_own_scales = TRUE;
   ox->totscale       = 0.0;
   zerov = _mm_setzero_ps();
-
-  /* Allocate and align IVX: p7P_3CODONS circular rows x Q stripes */
-  ESL_ALLOC(ivxf_mem, sizeof(__m128) * p7P_3CODONS * Q + 15);
-  ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
   /* Zero-initialize all PARSER_ROWS_FWD MDI rows */
   for (r = 0; r < PARSER_ROWS_FWD; r++)
@@ -528,7 +523,6 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
     else if (L > 2 && xCtot == 0.0f) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      free(ivxf_mem);
       return eslERANGE;
     }
 
@@ -536,11 +530,9 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
       *opt_sc = ox->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
   }
 
-  free(ivxf_mem);
   return eslOK;
 
  ERROR:
-  if (ivxf_mem) free(ivxf_mem);
   return status;
 }
 
@@ -574,7 +566,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
  *            <eslERANGE> if score overflows or underflows.
  */
 int
-p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
   register __m128 sv;                  /* temporary accumulator                           */
   register __m128 dcv;                 /* D(i,k+1) left-shift carry                      */
@@ -594,14 +586,15 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   __m128  *tp7;                        /* steps backward through om_fs->tfv (7 per stripe)*/
   __m128  *tp_dd;                      /* steps backward through DD block                 */
   __m128  *tp_mm;                      /* stripe (q+1)%Q for rotated MM/IM/DM transitions */
-  __m128  *ivxf     = NULL;            /* ivx intermediate values [q], recomputed each i  */
-  __m128  *ivxf_mem = NULL;            /* unaligned alloc backing ivxf                    */
+  __m128  *ivxf;                        /* ivx intermediate values [q], recomputed each i  */
   int      Q = p7O_NQF(om_fs->M);      /* number of SIMD float stripes                    */
   int      i, q, j, r;
   int      c2, c3, c4;                 /* codon emission table indices                    */
   int      u, v, w, x;                 /* rolling nucleotide window (i+4..i+1)             */
   float    scale;                      /* fwd scale factor at row i                        */
   int      status;
+
+  ivxf = ov->ivx[0];
 
   if (om_fs->codon_lengths != 3)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 3 codon lengths");
@@ -621,10 +614,6 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   bck->has_own_scales = FALSE;
   bck->totscale       = 0.0;
   zerov = _mm_setzero_ps();
-
-  /* Allocate and align ivxf: Q stripes (recomputed at each position i) */
-  ESL_ALLOC(ivxf_mem, sizeof(__m128) * Q + 15);
-  ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
   /* Zero-initialize all PARSER_ROWS_BWD MDI rows */
   for (r = 0; r < PARSER_ROWS_BWD; r++)
@@ -1018,7 +1007,6 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
     else if (L > 0 && xNtot == 0.0f) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      free(ivxf_mem);
       return eslERANGE;
     }
 
@@ -1026,11 +1014,9 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
       *opt_sc = bck->totscale + logf(xNtot);
   }
 
-  free(ivxf_mem);
   return eslOK;
 
  ERROR:
-  if (ivxf_mem) free(ivxf_mem);
   return status;
 }
 
@@ -1074,7 +1060,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
  *            In either case, <*opt_sc> is undefined.
  */
 int
-p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
+p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
 {
   register __m128 mpv1, dpv1, ipv1;   /* right-shifted prev1 row MDI for BM/MM/IM/DM    */
   register __m128 sv;                  /* temporary IVX accumulator                      */
@@ -1093,8 +1079,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   int      ivx_1, ivx_2, ivx_3, ivx_4, ivx_5; /* IVX slot indices                      */
   __m128  *dpc, *dpp1, *dpp3;          /* MDI DP row pointers                            */
   __m128  *tp;                         /* steps through om_fs->tfv transitions           */
-  __m128  *ivxf     = NULL;            /* IVX intermediate matrix [slot*Q + q]           */
-  __m128  *ivxf_mem = NULL;            /* unaligned alloc backing ivxf                   */
+  __m128 **ivx = ov->ivx;             /* IVX intermediate matrix [slot][q]              */
   int      Q = p7O_NQF(om_fs->M);      /* number of SIMD float stripes                   */
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;         /* codon emission table indices                   */
@@ -1116,10 +1101,6 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   fwd->has_own_scales = TRUE;
   fwd->totscale       = 0.0;
   zerov = _mm_setzero_ps();
-
-  /* Allocate and align IVX: p7P_5CODONS circular rows x Q stripes */
-  ESL_ALLOC(ivxf_mem, sizeof(__m128) * p7P_5CODONS * Q + 15);
-  ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
   /* Zero-initialize all PARSER_ROWS_FWD MDI rows */
   for (r = 0; r < PARSER_ROWS_FWD; r++)
@@ -1653,7 +1634,6 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
     else if (L > 1 && xCtot == 0.0f) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      free(ivxf_mem);
       return eslERANGE;
     }
 
@@ -1661,11 +1641,9 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
       *opt_sc = fwd->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
   }
 
-  free(ivxf_mem);
   return eslOK;
 
  ERROR:
-  if (ivxf_mem) free(ivxf_mem);
   return status;
 }
 
@@ -1699,7 +1677,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
  *            <eslERANGE> if score overflows or underflows.
  */
 int
-p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
   register __m128 sv;                  /* temporary accumulator                           */
   register __m128 dcv;                 /* D(i,k+1) left-shift carry                      */
@@ -1719,14 +1697,15 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   __m128  *tp7;                        /* steps backward through om_fs->tfv               */
   __m128  *tp_dd;                      /* steps backward through DD block                 */
   __m128  *tp_mm;                      /* for rotated MM/IM/DM transitions                */
-  __m128  *ivxf     = NULL;            /* ivx intermediate values [q], recomputed each i  */
-  __m128  *ivxf_mem = NULL;
+  __m128  *ivxf;                        /* ivx intermediate values [q], recomputed each i  */
   int      Q = p7O_NQF(om_fs->M);
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
   float    scale;
   int      status;
+
+  ivxf = ov->ivx[0];
 
   if (om_fs->codon_lengths != 5)
     ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
@@ -1746,10 +1725,6 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   bck->has_own_scales = FALSE;
   bck->totscale       = 0.0;
   zerov = _mm_setzero_ps();
-
-  /* Allocate and align ivxf: Q stripes (recomputed at each position i) */
-  ESL_ALLOC(ivxf_mem, sizeof(__m128) * Q + 15);
-  ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
   /* Zero-initialize all PARSER_ROWS_BWD MDI rows */
   for (r = 0; r < PARSER_ROWS_BWD; r++)
@@ -2051,7 +2026,6 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
     else if (L > 0 && xNtot == 0.0f) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      free(ivxf_mem);
       return eslERANGE;
     }
 
@@ -2059,11 +2033,9 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
       *opt_sc = bck->totscale + logf(xNtot);
   }
 
-  free(ivxf_mem);
   return eslOK;
 
  ERROR:
-  if (ivxf_mem) free(ivxf_mem);
   return status;
 }
 
@@ -2095,7 +2067,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
  * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> on score overflow/underflow.
  */
 int
-p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, float *opt_sc)
+p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
 {
   register __m128 mpv1, dpv1, ipv1;     /* right-shifted prev1 MDI for BM/MM/IM/DM       */
   register __m128 sv;                    /* temporary IVX accumulator                      */
@@ -2113,8 +2085,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   int      ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
   __m128  *dpc, *dpp1, *dpp3;
   __m128  *tp;
-  __m128  *ivxf     = NULL;
-  __m128  *ivxf_mem = NULL;
+  __m128 **ivx = ov->ivx;               /* IVX intermediate matrix [slot][q]              */
   int      Q = p7O_NQF(om_fs->M);
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
@@ -2129,10 +2100,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   fwd->has_own_scales = TRUE;
   fwd->totscale       = 0.0;
   zerov = _mm_setzero_ps();
-
-  /* Allocate IVX: p7P_5CODONS circular rows x Q stripes */
-  ESL_ALLOC(ivxf_mem, sizeof(__m128) * p7P_5CODONS * Q + 15);
-  ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
   /* Zero-initialize rows 0..L of the full DP matrix */
   for (r = 0; r <= L; r++)
@@ -2646,7 +2613,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
     else if (isinf(xCtot) == 1)      ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
     else if (L > 1 && xCtot == 0.0f) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      free(ivxf_mem);
       return eslERANGE;
     }
 
@@ -2654,11 +2620,9 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       *opt_sc = fwd->totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
   }
 
-  free(ivxf_mem);
   return eslOK;
 
  ERROR:
-  if (ivxf_mem) free(ivxf_mem);
   return status;
 }
 
@@ -2687,7 +2651,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
  * Throws:    <eslEINVAL>, <eslERANGE> on error.
  */
 int
-p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
   register __m128 sv;
   register __m128 dcv;
@@ -2706,8 +2670,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
   __m128  *zero_row = NULL;             /* fallback all-zero row for i+n > L              */
   __m128  *zero_mem = NULL;
   __m128  *tp7, *tp_dd, *tp_mm;
-  __m128  *ivxf     = NULL;
-  __m128  *ivxf_mem = NULL;
+  __m128  *ivxf;                        /* ivx intermediate values [q], recomputed each i  */
   int      Q = p7O_NQF(om_fs->M);
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
@@ -2718,15 +2681,13 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
 
   if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
+  ivxf = ov->ivx[0];
+
   bck->M              = om_fs->M;
   bck->L              = L;
   bck->has_own_scales = FALSE;
   bck->totscale       = 0.0;
   zerov = _mm_setzero_ps();
-
-  /* Allocate ivxf (single row, Q stripes) and zero_row (Q stripes, always zero) */
-  ESL_ALLOC(ivxf_mem, sizeof(__m128) * Q + 15);
-  ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
 
   /* zero_row is used via MMO/DMO/IMO macros which stride by p7X_NSCELLS=3,
    * so it needs Q*p7X_NSCELLS entries, not just Q. */
@@ -3022,7 +2983,6 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
     else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
     else if (L > 0 && xNtot == 0.0f) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      free(ivxf_mem);
       free(zero_mem);
       return eslERANGE;
     }
@@ -3031,12 +2991,10 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
       *opt_sc = bck->totscale + logf(xNtot);
   }
 
-  free(ivxf_mem);
   free(zero_mem);
   return eslOK;
 
  ERROR:
-  if (ivxf_mem) free(ivxf_mem);
   if (zero_mem) free(zero_mem);
   return status;
 }
@@ -3136,6 +3094,8 @@ main(int argc, char **argv)
   bck_p = p7_omx_Create(hmm->M, PARSER_ROWS_BWD, L);
   fwd   = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
   bck   = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
+  P7_OIVX *ov3 = p7_oivx_Create(hmm->M, p7P_3CODONS);
+  P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
 
   /* Baseline: time to generate sequences alone */
   esl_stopwatch_Start(w);
@@ -3143,11 +3103,11 @@ main(int argc, char **argv)
     esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
     if(esl_opt_GetBoolean(go, "-B")) {
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
-        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, &sc);
+        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, ov3, &sc);
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
-        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, &sc);
+        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
       if (! esl_opt_GetBoolean(go, "-P"))
-        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, &sc);
+        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
 	}
   }
   esl_stopwatch_Stop(w);
@@ -3160,19 +3120,19 @@ main(int argc, char **argv)
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
-        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, &sc);
+        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, ov3, &sc);
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
-        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, &sc);
+        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
       if (! esl_opt_GetBoolean(go, "-P"))
-        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, &sc);
+        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
 
       if (! esl_opt_GetBoolean(go, "-F")) {
         if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
-          p7_BackwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, bck_p, NULL);
+          p7_BackwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, bck_p, ov3, NULL);
         if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
-          p7_BackwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, bck_p, NULL);
+          p7_BackwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, bck_p, ov5, NULL);
         if (! esl_opt_GetBoolean(go, "-P"))
-          p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, NULL);
+          p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, NULL);
       }
     }
   esl_stopwatch_Stop(w);
@@ -3187,6 +3147,8 @@ main(int argc, char **argv)
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bck_p);
   p7_omx_Destroy(fwd_p);
+  p7_oivx_Destroy(ov3);
+  p7_oivx_Destroy(ov5);
   p7_fs_oprofile_Destroy(om_fs5);
   p7_fs_oprofile_Destroy(om_fs3);
   p7_profile_fs_Destroy(gm_fs5);
@@ -3239,6 +3201,8 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, M, p7X_NSCELLS);
   P7_IVX         *iv3    = p7_ivx_Create(M, p7P_3CODONS);
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  P7_OIVX        *ov3    = p7_oivx_Create(M, p7P_3CODONS);
+  P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
   float tolerance, generic_tolerance;
   float fsc3, bsc3;
   float fsc5, bsc5;
@@ -3284,13 +3248,13 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
       /* 3-codon SSE vs scalar */
-      if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, &fsc3)     == eslERANGE) continue;
+      if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, ov3, &fsc3) == eslERANGE) continue;
 	  p7_GForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
 
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-      if (p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, oxb, &bsc3) == eslERANGE) continue;
+      if (p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, oxb, ov3, &bsc3) == eslERANGE) continue;
 
       if (fabs(fsc3-bsc3) > tolerance) esl_fatal(msg);
 
@@ -3298,23 +3262,23 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
       p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
 
-      if (p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, &fsc5)      == eslERANGE) continue;
+      if (p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, ov5, &fsc5) == eslERANGE) continue;
       p7_GForwardParser_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
 
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-      if (p7_BackwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, oxb, &bsc5) == eslERANGE) continue;
+      if (p7_BackwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, oxb, ov5, &bsc5) == eslERANGE) continue;
 
       if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &full_fsc)                 == eslERANGE) continue;
+      if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, ov5, &full_fsc)            == eslERANGE) continue;
 
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
-      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &full_bsc)           == eslERANGE) continue;
+      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, ov5, &full_bsc)      == eslERANGE) continue;
 
       if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);
     }
@@ -3329,6 +3293,8 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   p7_gmx_Destroy(fgx);
   p7_ivx_Destroy(iv3);
   p7_ivx_Destroy(iv5);
+  p7_oivx_Destroy(ov3);
+  p7_oivx_Destroy(ov5);
   p7_trace_Destroy(tr);
   p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_fs3);

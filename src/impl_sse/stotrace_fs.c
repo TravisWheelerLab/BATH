@@ -400,6 +400,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   ESL_DSQ        *dsq    = NULL;
   P7_TRACE       *tr     = p7_trace_fs_Create();
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
   P7_GMX         *gxf    = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
   P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
   float           gfsc, ofsc;
@@ -438,7 +439,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* SSE forward */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      { int s = p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, &ofsc);
+      { int s = p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, ov5, &ofsc);
         if (s == eslERANGE) continue;
         if (s != eslOK)     esl_fatal(msg); }
 
@@ -468,6 +469,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_omx_Destroy(fwd);
   p7_ivx_Destroy(iv5);
   p7_gmx_Destroy(gxf);
+  p7_oivx_Destroy(ov5);
   p7_hmm_Destroy(hmm);
   esl_sq_Destroy(sq);
   p7_profile_Destroy(gm);

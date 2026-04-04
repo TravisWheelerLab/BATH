@@ -608,21 +608,23 @@ int
 p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs3, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
-  P7_OMX  *ox      = NULL; 
+  P7_OMX  *ox      = NULL;
+  P7_OIVX *ov3     = NULL;
   ESL_DSQ *amino_dsq     = NULL;
   ESL_DSQ *dna_dsq     = NULL;
   double  *xv      = NULL;
-  float    fsc, nullsc;		                  
+  float    fsc, nullsc;
   double   gmu, glam;
   int      status;
   int      i, j, a;
 
-  ox = p7_omx_Create_dpf(om_fs3->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS);
+  ox  = p7_omx_Create_dpf(om_fs3->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS);
+  ov3 = p7_oivx_Create(om_fs3->M, p7P_3CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
 
-  if (ox == NULL) { status = eslEMEM; goto ERROR; }
+  if (ox == NULL || ov3 == NULL) { status = eslEMEM; goto ERROR; }
 
   p7_fs_oprofile_ReconfigLength(om_fs3, L);
 
@@ -640,7 +642,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs3, P7_CODONTABLE *ct, 
 		j+=3;
 	  } 
      
-     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, L*3, om_fs3, ox, &fsc)) == eslERANGE) { i--; continue; }
+     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, L*3, om_fs3, ox, ov3, &fsc)) == eslERANGE) { i--; continue; }
      if (status != eslOK) goto ERROR;
      
      if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
@@ -659,6 +661,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs3, P7_CODONTABLE *ct, 
   free(amino_dsq);
   free(dna_dsq);
   p7_omx_Destroy(ox);
+  p7_oivx_Destroy(ov3);
   return eslOK;
 
  ERROR:
@@ -667,6 +670,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs3, P7_CODONTABLE *ct, 
   if (amino_dsq != NULL) free(amino_dsq);
   if (dna_dsq != NULL) free(dna_dsq);
   if (ox  != NULL) p7_omx_Destroy(ox);
+  if (ov3 != NULL) p7_oivx_Destroy(ov3);
   return status;
 }
 
@@ -700,21 +704,23 @@ int
 p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs5, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
-  P7_OMX  *ox      = NULL; 
+  P7_OMX  *ox      = NULL;
+  P7_OIVX *ov5     = NULL;
   ESL_DSQ *amino_dsq     = NULL;
   ESL_DSQ *dna_dsq     = NULL;
   double  *xv      = NULL;
-  float    fsc, nullsc;		                  
+  float    fsc, nullsc;
   double   gmu, glam;
   int      status;
   int      i, j, a;
 
-  ox = p7_omx_Create_dpf(om_fs5->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS);
+  ox  = p7_omx_Create_dpf(om_fs5->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS);
+  ov5 = p7_oivx_Create(om_fs5->M, p7P_5CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
 
-  if (ox == NULL) { status = eslEMEM; goto ERROR; }
+  if (ox == NULL || ov5 == NULL) { status = eslEMEM; goto ERROR; }
 
   p7_fs_oprofile_ReconfigLength(om_fs5, L);
   p7_bg_SetLength(bg, L);
@@ -731,7 +737,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs5, P7_CODONTABLE *ct, 
         j+=3;
       }
 
-      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, L*3, om_fs5, ox, &fsc)) == eslERANGE) { i--; continue; }
+      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, L*3, om_fs5, ox, ov5, &fsc)) == eslERANGE) { i--; continue; }
       if (status != eslOK) goto ERROR;
        
       if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
@@ -745,11 +751,12 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs5, P7_CODONTABLE *ct, 
    * instead of tailp.
    */
   *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
-	
+
   free(xv);
   free(amino_dsq);
   free(dna_dsq);
   p7_omx_Destroy(ox);
+  p7_oivx_Destroy(ov5);
   return eslOK;
 
  ERROR:
@@ -758,6 +765,7 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs5, P7_CODONTABLE *ct, 
   if (amino_dsq != NULL) free(amino_dsq);
   if (dna_dsq != NULL) free(dna_dsq);
   if (ox  != NULL) p7_omx_Destroy(ox);
+  if (ov5 != NULL) p7_oivx_Destroy(ov5);
   return status;
 }
 

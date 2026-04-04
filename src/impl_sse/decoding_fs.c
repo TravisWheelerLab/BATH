@@ -440,14 +440,15 @@ main(int argc, char **argv)
 
   fwd = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
   bck = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
+  P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
 
   /* Baseline: time Forward+Backward alone */
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      p7_Forward_Frameshift (dsq, L, om_fs5, fwd, &fsc);
-      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, &bsc);
+      p7_Forward_Frameshift (dsq, L, om_fs5, fwd,      ov5, &fsc);
+      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
     }
   esl_stopwatch_Stop(w);
   base_time = w->user;
@@ -457,8 +458,8 @@ main(int argc, char **argv)
   for (i = 0; i < N; i++)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      p7_Forward_Frameshift (dsq, L, om_fs5, fwd, &fsc);
-      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, &bsc);
+      p7_Forward_Frameshift (dsq, L, om_fs5, fwd,      ov5, &fsc);
+      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
       p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* overwrites fwd in-place */
     }
   esl_stopwatch_Stop(w);
@@ -472,6 +473,7 @@ main(int argc, char **argv)
   free(dsq);
   p7_omx_Destroy(bck);
   p7_omx_Destroy(fwd);
+  p7_oivx_Destroy(ov5);
   p7_fs_oprofile_Destroy(om_fs5);
   p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgDNA);
@@ -567,8 +569,8 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
 
-      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd, &fsc) == eslERANGE) continue;
-      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc) == eslERANGE) continue;
+      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd, ov5, &fsc) == eslERANGE) continue;
+      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, ov5, &bsc) == eslERANGE) continue;
       p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* fwd is now the PP matrix */
 
       /* --- Deconvert SSE PP to generic layout and compare --- */
@@ -608,6 +610,7 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
   P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, M, p7G_NSCELLS);
   P7_GMX         *bgx    = p7_gmx_Create(M, PARSER_ROWS_BWD, M, p7G_NSCELLS);
   P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS);
+  P7_OIVX        *ov3    = p7_oivx_Create(M, p7P_3CODONS);
   P7_DOMAINDEF   *oddef  = NULL; 
   P7_DOMAINDEF   *gddef  = NULL;
   float tolerance;
@@ -649,8 +652,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
       p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
 
-      if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, &fsc3)          == eslERANGE) continue;
-      if (p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, bwd, &generic_fsc3) == eslERANGE) continue;
+      if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, ov3, &fsc3)     == eslERANGE) continue;
+      if (p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, bwd, ov3, &generic_fsc3) == eslERANGE) continue;
 
       oddef->mocc = oddef->btot = oddef->etot = NULL;
       ESL_ALLOC(oddef->mocc, sizeof(float) * (curr_L+1));
@@ -696,6 +699,7 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
   p7_gmx_Destroy(fgx);
   p7_gmx_Destroy(bgx);
   p7_ivx_Destroy(iv);
+  p7_oivx_Destroy(ov3);
   p7_trace_Destroy(tr);
   p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_fs3);

@@ -179,6 +179,7 @@ utest_null2_fs_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
   ESL_DSQ        *dsq    = NULL;
   P7_TRACE       *tr     = p7_trace_Create();
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
   P7_GMX         *gxf    = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
   P7_GMX         *gxb    = p7_gmx_Create(M, M, M, p7G_NSCELLS);
   P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
@@ -229,8 +230,8 @@ utest_null2_fs_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
 
-      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd,      &fsc) == eslERANGE) continue;
-      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, &bsc) == eslERANGE) continue;
+      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd,           ov5, &fsc) == eslERANGE) continue;
+      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, ov5, &bsc) == eslERANGE) continue;
       if (p7_Decoding_Frameshift(om_fs5, fwd, bck)                    != eslOK) esl_fatal(msg);
       if (p7_Null2_fs_ByExpectation(om_fs5, fwd, on2)                 != eslOK) esl_fatal(msg);
 
@@ -245,6 +246,7 @@ utest_null2_fs_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
   p7_gmx_Destroy(gxf);
   p7_gmx_Destroy(gxb);
   p7_ivx_Destroy(iv5);
+  p7_oivx_Destroy(ov5);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bck);
   p7_trace_Destroy(tr);

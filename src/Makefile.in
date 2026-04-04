@@ -118,7 +118,6 @@ OBJS =  build.o\
     p7_splicegraph.o\
     p7_splicepath.o\
     p7_splicepipeline.o\
-	p7_splicescores.o\
     generic_viterbi_spliced.o\
 	p7_tophits.o\
 	p7_trace.o\

@@ -99,18 +99,6 @@ typedef struct _splice_path {
 } SPLICE_PATH;
 
 
-typedef struct _splice_scores
-{
-  int allocM;
-
-  float **P_scores;
-  float *P_scores_mem;
-
-  float *signal_scores;
-
-} SPLICE_SCORES;
-
-
 typedef struct _splice_pipeline 
 {
   
@@ -135,6 +123,8 @@ typedef struct _splice_pipeline
 
   int64_t *orig_nuc_idx;
 
+  float *signal_scores;
+
   ESL_SQ  *nuc_sq;
   ESL_SQ  *amino_sq; 
 
@@ -149,7 +139,6 @@ typedef struct _splice_pipeline
 
   P7_HIT  *hit;
 
-  SPLICE_SCORES *splice_scores;
   P7_OIVX       *acc_ov;   /* pre-allocated circular P buffer for spliced Viterbi */
   P7_OIVX       *don_ov;   /* pre-allocated donor P-score buffer for spliced Viterbi */
 
@@ -261,14 +250,10 @@ extern void p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path);
 extern void p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph);
 
 /* p7_splicepipeline.c */
+extern void p7_SignalScores(float *f);
 extern SPLICE_PIPELINE* p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint);
 extern void p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli);
-extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli); 
-
-/* p7_splicescores.c */
-extern SPLICE_SCORES* p7_splicescores_Create(int M_hint);
-extern int p7_splicescores_GrowTo(SPLICE_SCORES* splice_scores, int M);
-extern void p7_splicescores_Destroy(SPLICE_SCORES* splice_scores);
+extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli);
 
 /* generic_viterbi_spliced.c */
 extern int p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *acc_iv, P7_IVX *don_iv, float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);

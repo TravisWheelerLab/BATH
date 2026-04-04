@@ -770,7 +770,6 @@ main(int argc, char **argv)
   P7_GMX         *gx           = NULL;
   P7_IVX         *acc_iv       = NULL;
   P7_IVX         *don_iv       = NULL;
-  SPLICE_SCORES  *ssc          = NULL; 
   P7_TRACE        *tr          = NULL;
   int             N            = esl_opt_GetInteger(go, "-N");
   int             I            = esl_opt_GetInteger(go, "-I");
@@ -799,7 +798,8 @@ main(int argc, char **argv)
   gx     = p7_gmx_Create(hmm->M, hmm->M, hmm->M, p7G_NSCELLS);
   acc_iv = p7_ivx_Create(hmm->M, SPLICE_ROWS);
   don_iv = p7_ivx_Create(hmm->M, SIGNAL_MEM_SIZE); 
-  ssc = p7_splicescores_Create(hmm->M);
+  float signal_scores[p7S_SPLICE_SIGNALS];
+  p7_SignalScores(signal_scores);
   tr = p7_trace_fs_Create();
 
   /* Baseline: time to generate sequences alone */
@@ -847,10 +847,10 @@ main(int argc, char **argv)
       p7_fs_ReconfigLength(gm_tr, L_dna_total / 3);
       p7_gmx_GrowTo(gx, hmm->M, L_dna_total, L_dna_total);
 
-      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
+      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (do_T && final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, ssc->signal_scores, tr, 1, L_dna_total, 1, hmm->M, min_intron, NULL);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr, 1, L_dna_total, 1, hmm->M, min_intron, NULL);
         p7_trace_Reuse(tr);
       }     
 	 
@@ -870,7 +870,6 @@ main(int argc, char **argv)
   p7_gmx_Destroy(gx);
   p7_ivx_Destroy(acc_iv);
   p7_ivx_Destroy(don_iv);
-  p7_splicescores_Destroy(ssc);
   esl_sq_Destroy(sq);
   p7_codontable_Destroy(codon_table);
   p7_profile_fs_Destroy(gm_tr);
@@ -929,7 +928,6 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_GMX         *gx          = NULL;
   P7_IVX         *acc_iv      = NULL;
   P7_IVX         *don_iv      = NULL;
-  SPLICE_SCORES  *ssc         = NULL;
   int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
   int             min_intron   = 13;
   int             L_amino, L_dna_total;
@@ -943,7 +941,8 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   gx     = p7_gmx_Create(hmm->M, hmm->M, hmm->M, p7G_NSCELLS);
   acc_iv = p7_ivx_Create(hmm->M, SPLICE_ROWS);
   don_iv = p7_ivx_Create(hmm->M, SIGNAL_MEM_SIZE);
-  ssc    = p7_splicescores_Create(hmm->M);
+  float signal_scores[p7S_SPLICE_SIGNALS];
+  p7_SignalScores(signal_scores);
 
   while (N--)
     {
@@ -981,12 +980,11 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
     
       p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_gmx_GrowTo(gx, M, L_dna_total, L_dna_total);
-      p7_splicescores_GrowTo(ssc, M);
 
-      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
+      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, ssc->signal_scores, tr_NoP, 1, L_dna_total, 1, M, min_intron, NULL);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr_NoP, 1, L_dna_total, 1, M, min_intron, NULL);
         n_p = 0;
         for (i = 0; i < tr_NoP->N; i++)
           if (tr_NoP->st[i] == p7T_P) n_p++;
@@ -995,12 +993,12 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       }
 
       /* --- Test 2: ExtendDown; final C must be reachable --- */
-      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, FALSE);
+      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, FALSE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
 
       /* --- Test 3: ExtendUp; final C must be reachable --- */
-      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, ssc->signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, FALSE, TRUE);
+      p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, FALSE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
     }
@@ -1015,7 +1013,6 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_gmx_Destroy(gx);
   p7_ivx_Destroy(acc_iv);
   p7_ivx_Destroy(don_iv);
-  p7_splicescores_Destroy(ssc);
 
 }
 

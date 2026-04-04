@@ -18,6 +18,19 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
+/* Splice singal probabilities taken from
+ * "Comprehensive splice-site analysis using comparative genomics",
+ * Nihar Sheth et al., 2006
+ */
+void
+p7_SignalScores(float *f)
+{
+  f[0] = log(0.9921);     /* GT-AG */
+  f[1] = log(0.0073);     /* GC-AG */
+  f[2] = log(0.0006);     /* AT-AC */
+  return;
+}
+
 
 /*****************************************************************
  * 1. The SPLICE_PIPELINE structure.
@@ -85,8 +98,9 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   
   pli->show_cigar = (go && esl_opt_GetBoolean(go, "--cigar") ? TRUE : FALSE);  
 
-  pli->splice_scores = NULL;
-  pli->splice_scores = p7_splicescores_Create(M_hint);
+  signal_scores = NULL;
+  ESL_ALLOC(signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
+  p7_SignalScores(signal_scores);
 
   pli->acc_ov = NULL;
   pli->acc_ov = p7_oivx_Create(M_hint, SPLICE_ROWS);
@@ -177,9 +191,9 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   esl_sq_Destroy(pli->nuc_sq);
   esl_sq_Destroy(pli->amino_sq);
 
-  if(pli->orig_nuc_idx != NULL) free(pli->orig_nuc_idx);
+  if(pli->orig_nuc_idx  != NULL) free(pli->orig_nuc_idx);
+  if(pli->signal_scores != NULL) free(pli->signal_scores);
 
-  p7_splicescores_Destroy(pli->splice_scores);
   p7_oivx_Destroy(pli->acc_ov);
   p7_oivx_Destroy(pli->don_ov);
 

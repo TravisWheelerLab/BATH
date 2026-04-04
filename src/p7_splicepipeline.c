@@ -98,9 +98,9 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   
   pli->show_cigar = (go && esl_opt_GetBoolean(go, "--cigar") ? TRUE : FALSE);  
 
-  signal_scores = NULL;
-  ESL_ALLOC(signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
-  p7_SignalScores(signal_scores);
+  pli->signal_scores = NULL;
+  ESL_ALLOC(pli->signal_scores, sizeof(float) * p7S_SPLICE_SIGNALS);
+  p7_SignalScores(pli->signal_scores);
 
   pli->acc_ov = NULL;
   pli->acc_ov = p7_oivx_Create(M_hint, SPLICE_ROWS);

@@ -53,7 +53,6 @@ OBJS =  decoding.o\
 	p7_omx.o\
 	p7_oprofile.o\
 	p7_fs_oprofile.o\
-	p7_osplicescores.o\
 	p7_oivx.o\
 	mpi.o
 

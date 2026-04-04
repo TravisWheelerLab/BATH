@@ -150,7 +150,6 @@ typedef struct _splice_pipeline
   P7_HIT  *hit;
 
   SPLICE_SCORES *splice_scores;
-  OSPLICE_SCORES *ossc;
   P7_OIVX       *acc_ov;   /* pre-allocated circular P buffer for spliced Viterbi */
   P7_OIVX       *don_ov;   /* pre-allocated donor P-score buffer for spliced Viterbi */
 

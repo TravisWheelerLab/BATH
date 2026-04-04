@@ -55,7 +55,9 @@
  * Args:      sub_dsq       - nucleotide sequence
  *            om_tr         - a codon profile.
  *            ox            - DP matrix with room for an MxL alignment
- *            ossc          - buffer for donor site scores and an array of splice site signal scores
+ *            signal_scores - log-probabilities for GT-AG, GC-AG, AT-AC splice signals
+ *            acc_ov        - pre-allocated circular P-state buffer (SPLICE_ROWS slots)
+ *            don_ov        - pre-allocated donor P-score buffer (SIGNAL_MEM_SIZE slots)
  *            i_start       - start poition on the <sub_dsq>
  *            i_end         - end poition on the <sub_dsq>
  *            min_intron    - minimum intron length
@@ -960,7 +962,6 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 	  p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
 	  p7_omx_GrowTo_dpf(ox, sub_M, L_dna_total, L_dna_total);
-	  p7_osplicescores_GrowTo(pli->ossc, sub_M);
 	  p7_oivx_GrowTo(pli->acc_ov, sub_M, SPLICE_ROWS);
 	  p7_oivx_GrowTo(pli->don_ov, sub_M, SIGNAL_MEM_SIZE);
 

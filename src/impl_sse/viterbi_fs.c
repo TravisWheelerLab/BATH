@@ -36,7 +36,7 @@
 #include "impl_sse.h"
 
 /* IVX intermediate matrix access: [slot 0..p7P_5CODONS-1][stripe 0..Q-1] */
-#define IVX(slot, q) (ivxf[(slot)*Q + (q)])
+#define IVX(slot, q) (ivx[(slot)][(q)])
 
 /*****************************************************************
  * 1. p7_Viterbi_Frameshift() implementation
@@ -69,7 +69,7 @@
  * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> if no valid path exists.
  */
 int
-p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, float *opt_sc)
+p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
   register __m128 mpv1, dpv1, ipv1;     /* right-shifted prev1 MDI for BM/MM/IM/DM        */
   register __m128 sv;                    /* temporary IVX accumulator                       */
@@ -87,8 +87,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   int      ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
   __m128  *dpc, *dpp1, *dpp3;
   __m128  *tp;
-  __m128  *ivxf     = NULL;
-  __m128  *ivxf_mem = NULL;
+  __m128 **ivx      = NULL;
   int      Q = p7O_NQF(om_fs->M);
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
@@ -103,9 +102,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   ox->totscale       = 0.0;
   infv = _mm_set1_ps(-eslINFINITY);
 
-  /* Allocate IVX: p7P_5CODONS circular rows x Q stripes */
-  ESL_ALLOC(ivxf_mem, sizeof(__m128) * p7P_5CODONS * Q + 15);
-  ivxf = (__m128 *) (((unsigned long int) ivxf_mem + 15) & (~0xf));
+  ivx = ov->ivx;
 
   /* Initialize rows 0..L of the full DP matrix to -inf (log-space impossible). */
   for (r = 0; r <= L; r++)
@@ -494,7 +491,6 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
     else if (isinf(xCtot) == 1)       ESL_EXCEPTION(eslERANGE, "Viterbi score overflow (is +infinity)");
     else if (L > 1 && isinf(xCtot) == -1) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      free(ivxf_mem);
       return eslERANGE;
     }
 
@@ -502,11 +498,9 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       *opt_sc = xCtot + om_fs->xf[p7O_C][p7O_MOVE];
   }
 
-  free(ivxf_mem);
   return eslOK;
 
  ERROR:
-  if (ivxf_mem) free(ivxf_mem);
   return status;
 }
 /*------------------ end, p7_Viterbi_Frameshift() ---------------*/
@@ -855,11 +849,12 @@ main(int argc, char **argv)
 
   ox = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
   tr = p7_trace_fs_Create();
+  P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
 
   /* If benchmarking traceback only, pre-fill the matrix once. */
   if (! do_viterbi) {
     esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-    p7_Viterbi_Frameshift(dsq, L, om_fs5, ox, &sc);
+    p7_Viterbi_Frameshift(dsq, L, om_fs5, ox, ov5, &sc);
   }
 
   /* Baseline time: just sequence generation */
@@ -875,7 +870,7 @@ main(int argc, char **argv)
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
       if (do_viterbi)
-        p7_Viterbi_Frameshift(dsq, L, om_fs5, ox, &sc);
+        p7_Viterbi_Frameshift(dsq, L, om_fs5, ox, ov5, &sc);
 
       if (do_traceback) {
         p7_Viterbi_Frameshift_Trace(dsq, L, om_fs5, ox, tr);
@@ -893,6 +888,7 @@ main(int argc, char **argv)
   free(dsq);
   p7_trace_fs_Destroy(tr);
   p7_omx_Destroy(ox);
+  p7_oivx_Destroy(ov5);
   p7_fs_oprofile_Destroy(om_fs5);
   p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgDNA);
@@ -946,13 +942,14 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_TRACE       *tr     = p7_trace_fs_Create();
   P7_TRACE       *trg    = p7_trace_fs_Create();
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
   P7_GMX         *gx     = p7_gmx_Create(M, M, M, p7G_NSCELLS);
   P7_OMX         *ox     = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
   char            errbuf[eslERRBUFSIZE];
   float           gsc, osc;
   int             curr_L, i, j;
 
-  if (!gm || !gm_fs5 || !om_fs5 || !sq || !tr || !trg || !iv5 || !gx || !ox) esl_fatal(msg);
+  if (!gm || !gm_fs5 || !om_fs5 || !sq || !tr || !trg || !iv5 || !ov5 || !gx || !ox) esl_fatal(msg);
 
   p7_hmm_Sample(r, M, abcAA, &hmm);
   p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
@@ -977,13 +974,14 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       p7_gmx_GrowTo(gx, M, curr_L, curr_L);
       p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
+      p7_oivx_GrowTo(ov5, M, p7P_5CODONS);
       p7_omx_GrowTo_dpf(ox, M, curr_L, curr_L);
 
       /* Generic Viterbi */
       if (p7_GViterbi_Frameshift(dsq, curr_L, gm_fs5, gx, iv5, &gsc) != eslOK) esl_fatal(msg);
 
       /* SSE Viterbi */
-      { int s = p7_Viterbi_Frameshift(dsq, curr_L, om_fs5, ox, &osc);
+      { int s = p7_Viterbi_Frameshift(dsq, curr_L, om_fs5, ox, ov5, &osc);
         if (s == eslERANGE) continue;
         if (s != eslOK)     esl_fatal(msg); }
 
@@ -1009,6 +1007,7 @@ utest_viterbi_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_trace_fs_Destroy(trg);
   p7_omx_Destroy(ox);
   p7_ivx_Destroy(iv5);
+  p7_oivx_Destroy(ov5);
   p7_gmx_Destroy(gx);
   p7_hmm_Destroy(hmm);
   esl_sq_Destroy(sq);

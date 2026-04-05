@@ -254,8 +254,42 @@ p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
   return u.p[r];
 }
 
+/* OSSX macros: analogues of SSX0/SSX1/SSX2 from p7_splice.h, indexing by
+ * stripe q instead of model node k.  Slot offsets match SPLICE_OFFSET_1 = 3,
+ * SPLICE_OFFSET_2 = 18, p7S_SPLICE_SIGNALS = 3 from p7_splice.h.
+ */
+#define OSSX0(q, signal)          (don_ovx[(signal)][q])
+#define OSSX1(q, signal, nuc1)    (don_ovx[3  + (nuc1) * 3 + (signal)][q])
+#define OSSX2(q, signal, nuc3)    (don_ovx[18 + (nuc3) * 3 + (signal)][q])
+
+
 /*****************************************************************
- * 3. P7_OMX: a one-row dynamic programming matrix
+ * 4. P7_OIVX: vectorized intermediate-value matrix
+ *****************************************************************/
+
+/* P7_OIVX is the NEON analog of P7_IVX (p7_ivx.c).  It stores float32x4_t
+ * vectors in [channel][stripe] layout, where stripe q covers model
+ * positions k such that (k-1) % Q == q and lane r = (k-1) / Q.
+ * This matches the striped layout used throughout impl_neon and lets
+ * the inner k loop over channels be fully vectorized.
+ *
+ * ivx[c][q] is the float32x4_t vector for channel c and stripe q.
+ */
+typedef struct p7_oivx_s {
+  int          allocM;   /* max model length for which ivx is allocated  */
+  int          allocC;   /* number of channels                           */
+  int          allocQ4;  /* p7O_NQF(allocM): allocated stripe count      */
+  float32x4_t **ivx;     /* [allocC][allocQ4] striped intermediate values */
+  float32x4_t  *ivx_mem; /* flat backing memory (+15 bytes for alignment) */
+} P7_OIVX;
+
+/* OIVXo(c,q): access channel c, stripe q.
+ * Requires a local pointer  float32x4_t **ivx = ov->ivx;  in the caller. */
+#define OIVXo(c, q)  (ivx[(c)][(q)])
+
+
+/*****************************************************************
+ * 5. P7_OMX: a one-row dynamic programming matrix
  *****************************************************************/
 
 enum p7x_scells_e { p7X_M = 0, p7X_D = 1, p7X_I = 2 };
@@ -275,11 +309,6 @@ enum p7x_fscodons_e {
   p7X_FS_C5 = 5,   /* 5-nt codon match                          */
 };
 #define p7X_NSCELLS_FS 8   /* D + I + M_C0..M_C5 */
-
-enum p7x_spcells_e {
-  p7X_P = 3
-};
-#define p7X_NSCELLS_SP 4
 
 /* Besides ENJBC states, we may also store a rescaling factor on each row  */
 enum p7x_xcells_e { p7X_E = 0, p7X_N = 1, p7X_J = 2, p7X_B = 3, p7X_C = 4, p7X_SCALE = 5 };
@@ -386,6 +415,7 @@ extern int          p7_omx_Reuse  (P7_OMX *ox);
 extern void         p7_omx_Destroy(P7_OMX *ox);
 
 extern int          p7_omx_SetDumpMode(FILE *fp, P7_OMX *ox, int truefalse);
+extern int          p7_omx_Dump       (FILE *fp, P7_OMX *ox);
 extern int          p7_omx_DumpMFRow(P7_OMX *ox, int rowi, uint8_t xE, uint8_t xN, uint8_t xJ, uint8_t xB, uint8_t xC);
 extern int          p7_omx_DumpVFRow(P7_OMX *ox, int rowi, int16_t xE, int16_t xN, int16_t xJ, int16_t xB, int16_t xC);
 extern int          p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
@@ -405,12 +435,16 @@ extern int          p7_oprofile_UpdateVitEmissionScores(P7_OPROFILE *om, P7_BG *
 extern int          p7_oprofile_UpdateMSVEmissionScores(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 
 
-extern int          p7_oprofile_Convert(const P7_PROFILE *gm, P7_OPROFILE *om);
-extern int          p7_oprofile_ReconfigLength    (P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigMSVLength (P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigRestLength(P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigMultihit  (P7_OPROFILE *om, int L);
-extern int          p7_oprofile_ReconfigUnihit    (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_Convert    (const P7_PROFILE *gm, P7_OPROFILE *om);
+extern int          p7_oprofile_Convert_Log(const P7_PROFILE *gm, P7_OPROFILE *om);
+extern int          p7_oprofile_ReconfigLength      (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigLength_Log  (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigMSVLength   (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigRestLength  (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigMultihit    (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigMultihit_Log(P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigUnihit      (P7_OPROFILE *om, int L);
+extern int          p7_oprofile_ReconfigUnihit_Log  (P7_OPROFILE *om, int L);
 
 extern int          p7_oprofile_Dump(FILE *fp, const P7_OPROFILE *om);
 extern int          p7_oprofile_Sample(ESL_RANDOMNESS *r, const ESL_ALPHABET *abc, const P7_BG *bg, int M, int L,
@@ -430,10 +464,18 @@ extern int             p7_fs_oprofile_IsLocal(const P7_FS_OPROFILE *om_fs);
 extern void            p7_fs_oprofile_Destroy(P7_FS_OPROFILE *om_fs);
 extern P7_FS_OPROFILE *p7_fs_oprofile_Clone(const P7_FS_OPROFILE *om_fs);
 
-extern int             p7_fs_oprofile_Convert(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
-extern int             p7_fs_oprofile_ReconfigLength(P7_FS_OPROFILE *om_fs, int L);
-extern int             p7_fs_oprofile_ReconfigMultihit(P7_FS_OPROFILE *om_fs, int L);
-extern int             p7_fs_oprofile_ReconfigUnihit  (P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_Convert    (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_Convert_Log   (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_SubConvert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs, int k_start, int k_end);
+
+extern P7_OIVX        *p7_oivx_Create (int M_hint, int C);
+extern int             p7_oivx_GrowTo (P7_OIVX *ov, int M, int C);
+extern void            p7_oivx_Destroy(P7_OIVX *ov);
+extern int             p7_fs_oprofile_ReconfigLength    (P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigLength_Log(P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigUnihit    (P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_Logify            (P7_FS_OPROFILE *om_fs);
 
 /* decoding.c */
 extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);
@@ -469,12 +511,12 @@ extern int p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX 
 
 
 /* fwdback_fs.c */
-extern int p7_ForwardParser_Frameshift_3Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
-extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
-extern int p7_ForwardParser_Frameshift_5Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
-extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
-extern int p7_Forward_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  float *opt_sc);
-extern int p7_Backward_Frameshift              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_ForwardParser_Frameshift_3Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int p7_ForwardParser_Frameshift_5Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int p7_Forward_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int p7_Backward_Frameshift              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 
 /* null2.c */
 extern int p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float *null2);
@@ -500,6 +542,20 @@ extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq
 /* vitfilter.c */
 extern int p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
 
+/* vitfilter_fs.c */
+extern int p7_Viterbi_Frameshift      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                   P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
+
+/* p7_oprofile.c (logify) */
+extern int p7_oprofile_Logify(P7_OPROFILE *om);
+
+/* viterbi.c */
+extern int p7_Viterbi      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+extern int p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
+
+/* viterbi_sp.c */
+extern int p7_Viterbi_Spliced    (const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
+extern int p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
 
 /* vitscore.c */
 extern int p7_ViterbiScore (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);

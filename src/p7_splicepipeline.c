@@ -89,7 +89,7 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
  
   if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
-  else                                            pli->do_biasfilter = TRUE;
+  else                                           pli->do_biasfilter = TRUE;
   
   if (go && esl_opt_GetBoolean(go, "--max")) {
     pli->do_biasfilter = FALSE;
@@ -103,27 +103,23 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   p7_SignalScores(pli->signal_scores);
 
   pli->acc_ov = NULL;
-  pli->acc_ov = p7_oivx_Create(M_hint, SPLICE_ROWS);
-
   pli->don_ov = NULL;
+  pli->acc_ov = p7_oivx_Create(M_hint, SPLICE_ROWS);
   pli->don_ov = p7_oivx_Create(M_hint, SIGNAL_MEM_SIZE);
+
+  pli->vit = NULL;
+  pli->fwd = NULL;
+  pli->bwd = NULL;
+  pli->pp  = NULL;
+  if ((pli->vit = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
+  if ((pli->fwd = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
+  if ((pli->bwd = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
+  if ((pli->pp  = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
 
   pli->nuc_sq   = NULL;
   pli->amino_sq = NULL;
 
   pli->orig_nuc_idx = NULL;
-
-  pli->fwd = NULL;
-  pli->bwd = NULL;
-  pli->pp  = NULL;
-  if ((pli->fwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->bwd = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-  if ((pli->pp  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-
-  pli->vit = NULL;
-  pli->iv  = NULL;
-  if ((pli->vit = p7_gmx_Create(M_hint, L_hint*3, L_hint*3, p7G_NSCELLS)) == NULL) goto ERROR;
-  if ((pli->iv  = p7_ivx_Create(M_hint, SPLICE_ROWS)) == NULL) goto ERROR;  
 
   pli->bg = NULL;
 
@@ -150,12 +146,11 @@ p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli)
   esl_sq_Destroy(pli->amino_sq);
   pli->nuc_sq = NULL;
   pli->amino_sq = NULL; 
- 
+
+  p7_omx_Reuse(pli->vit); 
   p7_omx_Reuse(pli->fwd);
   p7_omx_Reuse(pli->bwd);
   p7_omx_Reuse(pli->pp);
-
-  p7_gmx_Reuse(pli->vit);
 
   if(pli->orig_nuc_idx != NULL) free(pli->orig_nuc_idx);
   pli->orig_nuc_idx = NULL;  
@@ -197,12 +192,10 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   p7_oivx_Destroy(pli->acc_ov);
   p7_oivx_Destroy(pli->don_ov);
 
+  p7_omx_Destroy(pli->vit);
   p7_omx_Destroy(pli->fwd);
   p7_omx_Destroy(pli->bwd);
   p7_omx_Destroy(pli->pp);
-
-  p7_gmx_Destroy(pli->vit);
-  p7_ivx_Destroy(pli->iv);  
 
   p7_bg_Destroy(pli->bg);
 

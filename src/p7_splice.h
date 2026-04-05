@@ -128,19 +128,17 @@ typedef struct _splice_pipeline
   ESL_SQ  *nuc_sq;
   ESL_SQ  *amino_sq; 
 
+  P7_OIVX *acc_ov;  
+  P7_OIVX *don_ov;   
+
+  P7_OMX  *vit; 
   P7_OMX  *fwd;
   P7_OMX  *bwd;  
   P7_OMX  *pp;
 
-  P7_GMX  *vit;
-  P7_IVX  *iv;
-
   P7_BG   *bg;
 
   P7_HIT  *hit;
-
-  P7_OIVX       *acc_ov;   /* pre-allocated circular P buffer for spliced Viterbi */
-  P7_OIVX       *don_ov;   /* pre-allocated donor P-score buffer for spliced Viterbi */
 
 } SPLICE_PIPELINE;
 
@@ -168,7 +166,6 @@ typedef struct _splice_info
   P7_OPROFILE        *om_log;     /* log-space optimized query profile        */ 
   P7_FS_PROFILE      *gm_tr;      /* non optimized translated query profile   */
   P7_FS_OPROFILE     *om_tr;      /* optimized translated query profile       */
-  P7_OMX             *ovit;       /* optimized matrix for spliced viterbi     */
   P7_TOPHITS         *tophits;    /* original tophits                         */
   P7_TOPHITS         *seeds;      /* seed hits from SSV                       */
   ESL_GENCODE        *gcode;      /* used for translation                     */

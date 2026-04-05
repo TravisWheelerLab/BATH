@@ -313,11 +313,6 @@ enum p7x_fscodons_e {
 };
 #define p7X_NSCELLS_FS 8   /* D + I + M_C0..M_C5 */
 
-enum p7x_spcells_e {
-  p7X_P = 3
-};
-#define p7X_NSCELLS_SP 4
-
 /* Besides ENJBC states, we may also store a rescaling factor on each row  */
 enum p7x_xcells_e { p7X_E = 0, p7X_N = 1, p7X_J = 2, p7X_B = 3, p7X_C = 4, p7X_SCALE = 5 };
 #define p7X_NXCELLS 6
@@ -382,12 +377,6 @@ typedef struct p7_omx_s {
 #define DMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_D])
 #define IMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_I])
 
-/* Splice full-matrix row access (p7X_NSCELLS_SP = 4 cells per stripe: M, D, I, P) */
-#define MMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_M])
-#define DMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_D])
-#define IMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_I])
-#define PMO_SP(dp,q)  ((dp)[(q) * p7X_NSCELLS_SP + p7X_P])
-
 static inline float
 p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k)
 {
@@ -427,7 +416,6 @@ extern void         p7_omx_Destroy(P7_OMX *ox);
 
 extern int          p7_omx_SetDumpMode(FILE *fp, P7_OMX *ox, int truefalse);
 extern int          p7_omx_Dump       (FILE *fp, P7_OMX *ox);
-extern int          p7_omx_DumpSP     (FILE *fp, P7_OMX *ox, int istart, int iend, int kstart, int kend, int logify);
 extern int          p7_omx_DumpMFRow(P7_OMX *ox, int rowi, uint8_t xE, uint8_t xN, uint8_t xJ, uint8_t xB, uint8_t xC);
 extern int          p7_omx_DumpVFRow(P7_OMX *ox, int rowi, int16_t xE, int16_t xN, int16_t xJ, int16_t xB, int16_t xC);
 extern int          p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);

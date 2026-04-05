@@ -627,11 +627,6 @@ enum p7g_xcells_e {
 };
 #define p7G_NXCELLS 5
 
-enum p7g_splicecells_e {
-  p7G_P = 3
-};
-#define p7G_NSCELLS_SP 4
-
 typedef struct p7_gmx_s {
   int  M;    /* actual model dimension (model 1..M)    */
   int  L;    /* actual sequence dimension (seq 1..L)   */
@@ -674,13 +669,6 @@ typedef struct p7_ivx_s {
 #define IMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_I])
 #define DMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
 #define XMX_FS(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
-
-/* splice matrix */
-#define MMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_M])
-#define IMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_I])
-#define DMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_D])
-#define PMX_SP(i,k) (dp[(i)][(k) * p7G_NSCELLS_SP + p7G_P])
-#define XMX_SP(i,s) (xmx[(i)     * p7G_NXCELLS    + (s)])
 
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])

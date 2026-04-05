@@ -349,25 +349,6 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
         fprintf(ofp, "\n");
       }
     }
-    else if(gx->nscells == p7G_NSCELLS_SP) {
-      fprintf(ofp, "%3d M ", i);
-      for (k = kstart; k <= kend;        k++)
-      {
-        val = gx->dp[i][k * p7G_NSCELLS_SP + p7G_M];
-        if (flags & p7_SHOW_LOG) val = log(val);
-        fprintf(ofp, "%*.*f ", width, precision, val);
-      }
-      if (! (flags & p7_HIDE_SPECIALS))
-      {
-        for (x = 0;  x <  p7G_NXCELLS; x++)
-        {
-          val = gx->xmx[  i * p7G_NXCELLS + x];
-          if (flags & p7_SHOW_LOG) val = log(val);
-          fprintf(ofp, "%*.*f ", width, precision, val);
-        }
-      }
-      fprintf(ofp, "\n");
-    }
     else ESL_EXCEPTION(eslFAIL, "Unrecognized number of states in P7_GMX"); 
 
     fprintf(ofp, "%3d I ", i);
@@ -387,20 +368,8 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
 	  fprintf(ofp, "%*.*f ", width, precision, val);
 	}
 	fprintf(ofp, "\n");
-
-    if(gx->nscells == p7G_NSCELLS_SP) {
-      fprintf(ofp, "%3d P ", i);
-      for (k = kstart; k <= kend;        k++)
-      {
-        val = gx->dp[i][k * gx->nscells + p7G_P];
-        if (flags & p7_SHOW_LOG) val = log(val);
-        fprintf(ofp, "%*.*f ", width, precision, val);
-      }
-      fprintf(ofp, "\n");
-
-    }
-
-      fprintf(ofp, "\n");
+  
+    fprintf(ofp, "\n");
   }
   return eslOK;
 }

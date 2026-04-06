@@ -20,7 +20,7 @@
  *   17. P7_BUILDER:     configuration options for new HMM construction.
  *   18. Declaration of functions in HMMER's exposed API.
  *   
- * Also, see impl_{sse,vmx,neon}/impl_{sse,vmxi,neon}.h for additional API
+ * Also, see impl_{sse,neon}/impl_{sse,neon}.h for additional API
  * specific to the acceleration layer; in particular, the P7_OPROFILE
  * structure for an optimized profile.
 */
@@ -1044,8 +1044,6 @@ typedef struct p7_hmm_window_list_s {
 #include "impl_neon/impl_neon.h"
 #elif defined (eslENABLE_SSE)
 #include "impl_sse/impl_sse.h"
-#elif defined (eslENABLE_VMX)
-#include "impl_vmx/impl_vmx.h"
 #else
 #error "No vector implementation enabled"
 #endif

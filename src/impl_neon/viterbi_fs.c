@@ -214,7 +214,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   /* Add D to xEv, then reduce to scalar xE */
   for (q = 0; q < Q; q++)
     xEv = vmaxq_f32(xEv, DMO(dpc, q));
-  esl_neon_hmax_float((esl_neon_128f_t){ .f32x4 = xEv }, &xE);
+  xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
 
   xN = 0.0f;
   xJ = xE + om_fs->xf[p7O_E][p7O_LOOP];
@@ -325,7 +325,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
     }
   for (q = 0; q < Q; q++)
     xEv = vmaxq_f32(xEv, DMO(dpc, q));
-  esl_neon_hmax_float((esl_neon_128f_t){ .f32x4 = xEv }, &xE);
+  xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
 
   xN = 0.0f;
   xJ = xE + om_fs->xf[p7O_E][p7O_LOOP];
@@ -459,7 +459,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
 
       for (q = 0; q < Q; q++)
         xEv = vmaxq_f32(xEv, DMO(dpc, q));
-      esl_neon_hmax_float((esl_neon_128f_t){ .f32x4 = xEv }, &xE);
+      xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
 
       xN = xN_buf[b3] + om_fs->xf[p7O_N][p7O_LOOP];
       xJ = ESL_MAX(xJ_buf[b3] + om_fs->xf[p7O_J][p7O_LOOP], xE + om_fs->xf[p7O_E][p7O_LOOP]);

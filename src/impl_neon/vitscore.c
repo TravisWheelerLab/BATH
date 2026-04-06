@@ -146,7 +146,7 @@ p7_ViterbiScore(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, fl
 	}
 
       /* Now the "special" states, which start from Mk->E (->C, ->J->B) */
-      esl_neon_hmax_f32(xEv, &xE);
+      xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
       xN = xN +  om->xf[p7O_N][p7O_LOOP];
       xC = ESL_MAX(xC + om->xf[p7O_C][p7O_LOOP],  xE + om->xf[p7O_E][p7O_MOVE]);
       xJ = ESL_MAX(xJ + om->xf[p7O_J][p7O_LOOP],  xE + om->xf[p7O_E][p7O_LOOP]);
@@ -167,7 +167,7 @@ p7_ViterbiScore(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, fl
        *   max_k D(i,k) is why we tracked Dmaxv;
        *   xB(i) was just calculated above.
        */
-      esl_neon_hmax_f32(Dmaxv, &Dmax);
+      Dmax = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = Dmaxv });
       if (Dmax + om->ddbound_f > xB)
 	{
 	  /* Now we're obligated to do at least one complete DD path to be sure. */

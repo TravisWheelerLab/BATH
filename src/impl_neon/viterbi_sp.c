@@ -425,7 +425,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
       float32x4_t xEv = infv;
       for (q = 0; q < Q; q++)
         xEv = vmaxq_f32(xEv, vmaxq_f32(MMO(dpc, q), DMO(dpc, q)));
-      esl_neon_hmax_float((esl_neon_128f_t){ .f32x4 = xEv }, &xE);
+      xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
       ox->xmx[i * p7X_NXCELLS + p7X_E] = xE;
       ox->xmx[i * p7X_NXCELLS + p7X_C] = ESL_MAX(
           ox->xmx[(i-3) * p7X_NXCELLS + p7X_C] + om_tr->xf[p7O_C][p7O_LOOP],

@@ -240,7 +240,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
       for (q = 0; q < Q; q++) xEv = vmaxq_f32(xEv, DMO(dpc, q));
 
       /* E state */
-      esl_neon_hmax_float((esl_neon_128f_t){ .f32x4 = xEv }, &xE);
+      xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
       ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
 
       /* N state: lag-3 for i>=3; for i<=2 only pp contributes (no prior N term) */

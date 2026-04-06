@@ -152,7 +152,7 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
 	}
 
       /* Special states (E must be done; B must follow N,J). */
-      esl_neon_hmax_float((esl_neon_128f_t){ .f32x4 = xEv }, &xE);
+      xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
       xN = xN +  om->xf[p7O_N][p7O_LOOP];
       xC = ESL_MAX(xC + om->xf[p7O_C][p7O_LOOP],  xE + om->xf[p7O_E][p7O_MOVE]);
       xJ = ESL_MAX(xJ + om->xf[p7O_J][p7O_LOOP],  xE + om->xf[p7O_E][p7O_LOOP]);

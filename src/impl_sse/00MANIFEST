@@ -5,8 +5,10 @@
 ================================================================                 
 
 impl_sse.h    :  declarations, including P7_OPROFILE, P7_OMX, macros, functions
-p7_oprofile.c :  vectorized profile structure
+p7_oprofile.c :  vectorized profile structure (protein to protein or DNA to DNA)
+p7_oprofile.c :  vectorized profile structure (DNA (codons) to protein)
 p7_omx.c      :  vectorized DP matrix
+p7_oivx.c     :  vectorized buffer matrix for intermediate values
 io.c          :  i/o of vectorized profiles
 
 
@@ -14,12 +16,25 @@ io.c          :  i/o of vectorized profiles
 = Dynamic programming routines for scoring target sequences
 ================================================================
 
-msvfilter.c   :  p7_MSVFilter()      - main acceleration routine
-vitfilter.c   :  p7_ViterbiFilter()  - secondary acceleration routine
-fwdback.c     :  p7_Forward()        - Forward algorithm
-                 p7_Backward()       - Backward algorithm
-                 p7_ForwardParser()  - streamlined Forward used for first pass domain definition
-                 p7_BackwardParser() - streamlined Backward used for first pass domain definition 
+msvfilter.c   :  p7_MSVFilter()                         - main acceleration routine - protein to protein
+                 p7_SSVFilter_BATH()                    - find ungapped hit windows - protein to protein                
+vitfilter.c   :  p7_ViterbiFilter()                     - secondary acceleration routine - protein to protein
+viterbi.c     :  p7_Viterbi()                           - full matrix Viterbi - protein to protein
+                 p7_Viterbi_Trace()                     - Viterbi traceback - protein to protein
+viterbi_fs.c  :  p7_Viterbi_Frameshift()                - frameshift-aware Viterbi - DNA to protein
+                 p7_Viterbi_Frameshift_Trace()          - frameshift-aware Viterbi traceback
+viterbi_sp.c  :  p7_Viterbi_Spliced()                   - splice-aware Viterbi - DNA to protein
+                 p7_Viterbi_SplicedTrace()              - splice-aware Viterbi traceback 
+fwdback.c     :  p7_Forward()                           - Forward algorithm - protein to protein
+                 p7_Backward()                          - Backward algorithm - protein to protein
+                 p7_ForwardParser()                     - streamlined Forward used for first pass domain definition - protein to protein
+                 p7_BackwardParser()                    - streamlined Backward used for first pass domain definition - protein to protein
+fwdback_fs.c  :  p7_Forward_Frameshift()                - frameshift-aware Forward algorithm - 5 codon lengths - DNA to protein
+                 p7_Backward_Frameshift()               - frameshift-aware Backward algorithm - 5 codon lengths - DNA to protein
+                 p7_ForwardParser_Frameshift_3Codons()  - streamlined frameshift-aware Forward - 3 codon lengths - DNA to protein
+                 p7_BackwardParser_Frameshift_3Codons() - streamlined frameshift-aware Backward - 3 codon lengths - DNA to protein
+                 p7_ForwardParser_Frameshift_5Codons()  - streamlined frameshift-aware Forward - 5 codon lengths - DNA to protein
+                 p7_BackwardParser_Frameshift_5Codons() - streamlined frameshift-aware Backward - 5 codon lengths - DNA to protein  
 
 
 ================================================================
@@ -27,8 +42,12 @@ fwdback.c     :  p7_Forward()        - Forward algorithm
 ================================================================
 
 decoding.c    : posterior decoding of Forward/Backward matrices
+decoding_fs.c : posterior decoding of frameshift-aware Forward/Backward matrices
 stotrace.c    : stochastic traceback, sampling paths from Forward matrices
+stotrace_fs.c : stochastic traceback, sampling paths from frameshift-aware Forward matrices
 optacc.c      : "optimal accuracy" alignment algorithm, using posterior decoding
+optacc_fs.c   : "optimal accuracy" frameshift-aware alignment algorithm, using posterior decoding 
 null2.c       : null2 model for biased composition corrections
+null2_fs.c    : null2 model for frameshift-aware biased composition corrections
 
 

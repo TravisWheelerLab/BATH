@@ -83,7 +83,10 @@ BENCHMARKS = @MPI_BENCHMARKS@\
 	null2_benchmark\
 	optacc_benchmark\
 	stotrace_benchmark\
-	vitfilter_benchmark
+	vitfilter_benchmark\
+    viterbi_benchmark\
+	viterbi_fs_benchmark\
+	viterbi_sq_benchmark
 
 EXAMPLES =\
 	fwdback_example\

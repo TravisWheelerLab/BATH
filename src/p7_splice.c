@@ -3331,9 +3331,9 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   p7_oprofile_ReconfigUnihit(om, pli->amino_sq->n);
 
-  p7_omx_GrowTo(pli->fwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
-  p7_omx_GrowTo(pli->bwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
-  p7_omx_GrowTo(pli->pp,  om->M, pli->amino_sq->n, pli->amino_sq->n);
+  p7_omx_GrowTo_dpf(pli->fwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
+  p7_omx_GrowTo_dpf(pli->bwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
+  p7_omx_GrowTo_dpf(pli->pp,  om->M, pli->amino_sq->n, pli->amino_sq->n);
 
   p7_bg_SetLength(pli->bg, pli->amino_sq->n);
   if (pli->do_biasfilter)

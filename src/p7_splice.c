@@ -762,20 +762,12 @@ printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, grap
 int
 p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr)
 {
-  int z;
   int up, down;
   int seq_gap_len;
   int amino_gap_len;
   int k_switch;
-  int amino_len;
-  float vitsc;
-  float       nullsc;
-  float       seqsc;
-  double      P;
-  P7_TRACE    *tr;
   P7_TOPHITS  *th;
   SPLICE_EDGE *edge;
-
 
   th = graph->th;
 
@@ -824,7 +816,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
               th->hit[up]->dcl->jhmm < th->hit[down]->dcl->jhmm) { 
               
         edge = p7_splicegraph_AddEdge(graph, up, down);
-        k_switch = 0;
+        
         /* If hits overlap, find the minimum lost score to remove the overlap */
         p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl, &k_switch);
         
@@ -833,47 +825,11 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
         edge->upstream_nuc_end       = th->hit[up]->dcl->jali;
         edge->downstream_nuc_start   = th->hit[down]->dcl->iali;
 
-        /* If the edge has an hmm overlap and cost of eliminating that overlap 
-		 * is greater than the E->J exit and B->M entry for the downstream hit 
-		 * then these hits are better off seperate and we will remove the edge */
+        /* If the edge has an hmm overlap and cost of eliminating that overlap is greater than the B->M entry 
+         * for the downstream hit then these hits are better off seperate and we will remove the edge */
         if(edge->edge_score < -eslCONST_LOG2 + p7P_TSC(gm_tr, th->hit[down]->dcl->ihmm-1, p7P_BM)) {
-		  edge->edge_score = -eslINFINITY;
           graph->num_edges[up]--;
         }
-        else if(k_switch > 0) {
-
-		  /* Simulate the combined viterbi score of the up and down nodes 
-		   * if spliced at the k postions responsible for the edge score*/
-          vitsc  = th->hit[up]->dcl->aliscore + th->hit[down]->dcl->aliscore + edge->edge_score; 
-		  vitsc += p7P_TSC(gm_tr, th->hit[down]->dcl->ihmm-1, p7P_BM) + -eslCONST_LOG2 + gm_tr->xsc[p7P_C][p7P_MOVE];
-
-		  tr = th->hit[up]->dcl->tr;
-		  for(z = 0; z < tr->N; z++) if(tr->st[z] == p7T_M) break;
-		  amino_len = 0;
-		  while(tr->k[z] < k_switch) {
-            if(tr->st[z] == p7T_M || tr->st[z] == p7T_I) amino_len++;
-			z++;
-		  }
-
-		  tr = th->hit[down]->dcl->tr;
-		  for(z = 0; z < tr->N; z++) if(tr->k[z] == k_switch) break;
-          while(tr->st[z] != p7T_E) {
-            if(tr->st[z] == p7T_M || tr->st[z] == p7T_I) amino_len++;
-            z++;
-		  }
-
-		   p7_bg_SetLength(pli->bg, amino_len);
-           p7_bg_NullOne  (pli->bg, NULL, amino_len, &nullsc);
-
-           seqsc = (vitsc-nullsc) / eslCONST_LOG2;
-           P  = esl_gumbel_surv(seqsc,  gm_tr->evparam[p7_VMU],  gm_tr->evparam[p7_VLAMBDA]);
-
-           if (P > pli->F2) {
-			 edge->edge_score = -eslINFINITY;
-             graph->num_edges[up]--;            
-           }
-
-	    }
       }   
     }
   } 

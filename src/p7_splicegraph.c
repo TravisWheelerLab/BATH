@@ -390,10 +390,11 @@ p7_splicegraph_GetEdge(SPLICE_GRAPH* graph, int up_node, int down_node)
 
 
 int
-p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom)
+p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, const P7_DOMAIN *downstream_dom, int *k_switch)
 {
 
   int p, s;
+  int s_min;
   int overlap_start;
   int overlap_end;
   int overlap_len;
@@ -412,7 +413,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
   downstream_prefix_sum = NULL;
 
   /* return if no there is no hmm overlap */
-  if(downstream_dom->ihmm > upstream_dom->jhmm)  return eslOK;
+  if(downstream_dom->ihmm > upstream_dom->jhmm) return eslOK;
 
   overlap_start = ESL_MAX(upstream_dom->ihmm, downstream_dom->ihmm);
   overlap_end   = ESL_MIN(upstream_dom->jhmm, downstream_dom->jhmm);
@@ -505,15 +506,19 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
   /* Find the minimum score loss to eliminate the overlap*/
   /*start with all positions belonging to the downstream hit - not allowed if upstream hit heas no positions before the overlap. */
-  if(upstream_dom->ihmm == overlap_start) min_lost_sc = eslINFINITY;
-  else                                    min_lost_sc = upstream_suffix_sum[0]; 
+  if(upstream_dom->ihmm == overlap_start) { min_lost_sc = eslINFINITY; s_min = 0; }
+  else                                    { min_lost_sc = upstream_suffix_sum[0]; s_min = 0; }
   for(s = 1; s < overlap_len; s++) {
     /* at each step add another overlap postion to the upstream hit */
-    curr_lost_sc = upstream_suffix_sum[s] + downstream_prefix_sum[s-1]; 
-    min_lost_sc = ESL_MIN(min_lost_sc, curr_lost_sc);
+    curr_lost_sc = upstream_suffix_sum[s] + downstream_prefix_sum[s-1];
+    if(curr_lost_sc < min_lost_sc) { min_lost_sc = curr_lost_sc; s_min = s; }
   }
   /* end with all positions belonging to the upstream hit - not allowed if downstream hit has no postions after the overlap */
-  if(downstream_dom->jhmm > overlap_end) min_lost_sc = ESL_MIN(min_lost_sc, downstream_prefix_sum[overlap_len-1]);
+  if(downstream_dom->jhmm > overlap_end) {
+    if(downstream_prefix_sum[overlap_len-1] < min_lost_sc) { min_lost_sc = downstream_prefix_sum[overlap_len-1]; s_min = overlap_len; }
+  }
+
+  *k_switch = overlap_start + s_min;
 
   edge->edge_score -= (min_lost_sc + upstream_lost + downstream_lost);
 

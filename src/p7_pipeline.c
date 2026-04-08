@@ -1173,9 +1173,10 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
      {
       
        dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0], pli->show_cigar);
-       dom->ad->sqfrom = dom->iali;
-       dom->ad->sqto   = dom->jali;
-       dom->ad->L      = dnasq->L; 
+       dom->ad->exon_cnt = 1;
+       dom->ad->sqfrom   = dom->iali;
+       dom->ad->sqto     = dom->jali;
+       dom->ad->L        = dnasq->L; 
         
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);

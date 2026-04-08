@@ -65,11 +65,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
   int                infocnt;
   int                revcomp;
   int                seq_min, seq_max;
-  ESL_SQ             *ali_seq;
   SPLICE_WORKER_INFO *info;
   int                 status;
 
-  ali_seq = NULL;
   info    = NULL; 
  
   
@@ -126,31 +124,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
     p7_splicepipeline_Destroy(info[i].pli);
   }
   if(info           != NULL) free(info);
-
-  /* Build any missing alignments */
-  for ( i = 0; i < tophits->N; i++) {
-  
-    if(tophits->hit[i]->dcl->ad != NULL) continue;
-    if(tophits->hit[i]->flags & p7_IS_REPORTED ) {
-      if(tophits->hit[i]->dcl->iali < tophits->hit[i]->dcl->jali) {
-        seq_min = tophits->hit[i]->subseq_start;
-        seq_max = tophits->hit[i]->dcl->jali;
-        revcomp = 0;
-      }
-      else {
-        seq_min = tophits->hit[i]->dcl->jali;
-        seq_max = tophits->hit[i]->subseq_start;
-        revcomp = 1;
-      }
-      
-      ali_seq = p7_splice_GetSubSequence(seq_file, tophits->hit[i]->name, seq_min, seq_max, revcomp, NULL);
-      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs5, ali_seq, esl_opt_GetBoolean(go, "--cigar"));
-      tophits->hit[i]->dcl->ad->exon_cnt = 1;
-      tophits->hit[i]->dcl->ad->sqfrom = tophits->hit[i]->dcl->iali;
-      tophits->hit[i]->dcl->ad->sqto   = tophits->hit[i]->dcl->jali;  
-      esl_sq_Destroy(ali_seq);
-    }
-  }
 
   return eslOK;
 

@@ -1172,13 +1172,10 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
         (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T)))
      {
       
-       if(!pli->spliced) {
-         
-         dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0], pli->show_cigar);
-         dom->ad->sqfrom = dom->iali;
-         dom->ad->sqto   = dom->jali;
-         dom->ad->L      = dnasq->L; 
-       }      
+       dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0], pli->show_cigar);
+       dom->ad->sqfrom = dom->iali;
+       dom->ad->sqto   = dom->jali;
+       dom->ad->L      = dnasq->L; 
         
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);

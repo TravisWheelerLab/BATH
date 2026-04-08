@@ -624,9 +624,18 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   /* Find paths until no more exist with at least one anchor node */
   while(orig_path != NULL) {
 
-    seq_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) - ALIGNMENT_EXT;
-    seq_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT;
-    path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, orig_path->revcomp, info);
+    path_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) - ALIGNMENT_EXT;
+    path_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]) + ALIGNMENT_EXT;
+	if(path_seq == NULL) 
+      path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, path_min, path_max, orig_path->revcomp, info);
+	else {
+	  seq_min  = ESL_MIN(path_seq->start, path_seq->end);
+	  seq_max  = ESL_MAX(path_seq->start, path_seq->end);
+	  if(path_min < seq_min || path_max > seq_max) {
+	    esl_sq_Destroy(path_seq);
+		path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, path_min, path_max, orig_path->revcomp, info);
+	  }
+	}
     
 //p7_splicegraph_DumpHits(stdout, graph);
 //p7_splicegraph_DumpGraph(stdout, graph);
@@ -730,7 +739,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       }
     } 
 
-    esl_sq_Destroy(path_seq);
     p7_splicepath_Destroy(orig_path);
     p7_splicepath_Destroy(copy_path);
     p7_splicepath_Destroy(spliced_path);
@@ -745,6 +753,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);  
 
+  if(path_seq != NULL) esl_sq_Destroy(path_seq);
   p7_splicebounds_Destroy(bounds);
   return eslOK;
 
@@ -3797,8 +3806,8 @@ p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_
   esl_sqio_FetchInfo(fh, seqname, target_seq);
 
   target_seq->abc   = seq_file->abc;
-  target_seq->start = (seq_min < 1)             ? 1             : seq_min;
-  target_seq->end   = (seq_max > target_seq->L) ? target_seq->L : seq_max;
+  target_seq->start = (seq_min - SEQ_WINDOW_EXT < 1)             ? 1             : seq_min - SEQ_WINDOW_EXT;
+  target_seq->end   = (seq_max + SEQ_WINDOW_EXT > target_seq->L) ? target_seq->L : seq_max + SEQ_WINDOW_EXT;
 
   /* Fetch target range sequence */
   if (esl_sqio_FetchSubseq(fh, target_seq->name, target_seq->start, target_seq->end, target_seq) != eslOK)

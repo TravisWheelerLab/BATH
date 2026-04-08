@@ -203,6 +203,7 @@ typedef struct _splice_info
 #define MAX_INTRON_EXT            10000    /*maximum extension distance                             */
 #define MAX_AMINO_GAP             1500     /*maximum amino gap for an edge                          */
 #define ALIGNMENT_EXT             30       /*extention at start and end of final alignment sequence */
+#define SEQ_WINDOW_EXT            10000    /* extra padding fetched on each side of a sequence window */
 
 /* Indices of p7_splice_SignalScores */
 enum p7s_splice_signals_e {

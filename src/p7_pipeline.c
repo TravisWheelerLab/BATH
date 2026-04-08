@@ -1172,13 +1172,10 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
         (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T)))
      {
       
-       if(!pli->spliced) {
-         
-         dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0], pli->show_cigar);
-         dom->ad->sqfrom = dom->iali;
-         dom->ad->sqto   = dom->jali;
-         dom->ad->L      = dnasq->L; 
-       }      
+       dom->ad = p7_alidisplay_nonfs_Create(dom->tr, 0, om, windowsq, orfsq, dom->tr->sqfrom[0], pli->show_cigar);
+       dom->ad->sqfrom = dom->iali;
+       dom->ad->sqto   = dom->jali;
+       dom->ad->L      = dnasq->L; 
         
        /* Add hits to hitlist and check if they are reprotable*/   
        p7_tophits_CreateNextHit(hitlist, &hit);
@@ -1688,7 +1685,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);
-    
     if (   (orfsq->start < orfsq->end    &&  orfsq->end < dnasq->C )  ||
            (orfsq->end < orfsq->start    &&  orfsq->start < dnasq->C ) )
         continue; /* don't bother with an orf that showed up completely within a previous window */

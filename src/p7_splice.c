@@ -63,20 +63,14 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
   int                i;
   int                ncpus;
   int                infocnt;
-  int                revcomp;
-  int                seq_min, seq_max;
-  ESL_SQ             *ali_seq;
   SPLICE_WORKER_INFO *info;
   int                 status;
 
-  ali_seq = NULL;
   info    = NULL; 
- 
   
   printf("\nQuery %s LENG %d\n",  om->name, om->M);
   fflush(stdout);
 
-  
   /* Get the number of threads */
   ncpus = 0;
 #ifdef HMMER_THREADS
@@ -126,31 +120,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
     p7_splicepipeline_Destroy(info[i].pli);
   }
   if(info           != NULL) free(info);
-
-  /* Build any missing alignments */
-  for ( i = 0; i < tophits->N; i++) {
-  
-    if(tophits->hit[i]->dcl->ad != NULL) continue;
-    if(tophits->hit[i]->flags & p7_IS_REPORTED ) {
-      if(tophits->hit[i]->dcl->iali < tophits->hit[i]->dcl->jali) {
-        seq_min = tophits->hit[i]->subseq_start;
-        seq_max = tophits->hit[i]->dcl->jali;
-        revcomp = 0;
-      }
-      else {
-        seq_min = tophits->hit[i]->dcl->jali;
-        seq_max = tophits->hit[i]->subseq_start;
-        revcomp = 1;
-      }
-      
-      ali_seq = p7_splice_GetSubSequence(seq_file, tophits->hit[i]->name, seq_min, seq_max, revcomp, NULL);
-      tophits->hit[i]->dcl->ad = p7_alidisplay_fs_Create(tophits->hit[i]->dcl->tr, 0, gm_fs5, ali_seq, esl_opt_GetBoolean(go, "--cigar"));
-      tophits->hit[i]->dcl->ad->exon_cnt = 1;
-      tophits->hit[i]->dcl->ad->sqfrom = tophits->hit[i]->dcl->iali;
-      tophits->hit[i]->dcl->ad->sqto   = tophits->hit[i]->dcl->jali;  
-      esl_sq_Destroy(ali_seq);
-    }
-  }
 
   return eslOK;
 
@@ -1738,10 +1707,6 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
 
   /* Find first M state - start of first hit */
   for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
-  if (z1 == tr->N) {
-    p7_trace_fs_Destroy(tr);
-    return NULL;
-  }
 
   /* Count emitting states and find last M state state - end of last exon */
   amino_len = 0;
@@ -1760,7 +1725,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   seqsc = (vitsc-nullsc) / eslCONST_LOG2;
   P  = esl_gumbel_surv(seqsc,  gm_tr->evparam[p7_VMU],  gm_tr->evparam[p7_VLAMBDA]);
   
-  if (P > 0.001) {
+  if (P > pli->F2) {
     p7_trace_fs_Destroy(tr); 
     return NULL;
   }
@@ -2024,7 +1989,11 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   int         intron_cnt;
   int         step_cnt;
   int         start_new;
+  int         amino_len;
   float       vitsc;
+  float       nullsc;
+  float       seqsc;
+  double      P;
   P7_TRACE    *tr;
   SPLICE_PATH *ret_path; 
   SPLICE_PATH *tmp_path;
@@ -2049,6 +2018,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
 
   p7_Viterbi_Spliced(path_seq->dsq, om_tr, pli->vit, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, FALSE);
   tr = p7_trace_fs_Create();
+
   p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, &vitsc);
 
   /* Find number of introns in trace */
@@ -2063,14 +2033,25 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
 
   /* Find first M state - start of first hit */
   for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
-  if (z1 == tr->N) {
-    p7_trace_fs_Destroy(tr);
-    return NULL;
+
+  /* Count emitting states and find last M state state - end of last exon */
+  amino_len = 0;
+  for(z2 = z1; z2 < tr->N; z2++) {
+    if(tr->st[z2] == p7T_M || tr->st[z2] == p7T_P || tr->st[z2] == p7T_I) amino_len++;
+    if(tr->st[z2] == p7T_E) {
+      while(tr->st[z2] != p7T_M) z2--;
+      break;
+    }
   }
 
-  /* Find last M state state - end of last hit */
-  for(z2 = tr->N-1; z2 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
-  if (z2 == -1) {
+  /*Filter out low quality splicings */
+  p7_bg_SetLength(pli->bg, amino_len);
+  p7_bg_NullOne  (pli->bg, NULL, amino_len, &nullsc);
+
+  seqsc = (vitsc-nullsc) / eslCONST_LOG2;
+  P  = esl_gumbel_surv(seqsc,  gm_tr->evparam[p7_VMU],  gm_tr->evparam[p7_VLAMBDA]);
+
+  if (P > pli->F2) {
     p7_trace_fs_Destroy(tr);
     return NULL;
   }
@@ -2298,7 +2279,11 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   int         intron_cnt;
   int         step_cnt;
   int         start_new;
+  int         amino_len;
   float       vitsc;
+  float       nullsc;
+  float       seqsc;
+  double      P;
   P7_TRACE    *tr;
   SPLICE_PATH *ret_path; 
   SPLICE_PATH *tmp_path;
@@ -2337,14 +2322,25 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
 
   /* Find first M state - start of first hit */
   for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
-  if (z1 == tr->N) {
-    p7_trace_fs_Destroy(tr);
-    return NULL;
+
+  /* Count emitting states and find last M state state - end of last exon */
+  amino_len = 0;
+  for(z2 = z1; z2 < tr->N; z2++) {
+    if(tr->st[z2] == p7T_M || tr->st[z2] == p7T_P || tr->st[z2] == p7T_I) amino_len++;
+    if(tr->st[z2] == p7T_E) {
+      while(tr->st[z2] != p7T_M) z2--;
+      break;
+    }
   }
 
-  /* Find last M state state - end of last hit */
-  for(z2 = tr->N-1; z2 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
-  if (z2 == -1) {
+  /*Filter out low quality splicings */
+  p7_bg_SetLength(pli->bg, amino_len);
+  p7_bg_NullOne  (pli->bg, NULL, amino_len, &nullsc);
+
+  seqsc = (vitsc-nullsc) / eslCONST_LOG2;
+  P  = esl_gumbel_surv(seqsc,  gm_tr->evparam[p7_VMU],  gm_tr->evparam[p7_VLAMBDA]);
+
+  if (P > pli->F2) {
     p7_trace_fs_Destroy(tr);
     return NULL;
   }
@@ -2588,7 +2584,6 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
   tr = p7_trace_fs_Create();
   p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, NULL);
 
-
   /* Find number of introns in trace */
   intron_cnt = 0;
   for(z = 0; z < tr->N; z++)
@@ -2601,18 +2596,12 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
 
   /* Find first M state - start of first hit */
   for(z1 = 0; z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
-  if (z1 == tr->N) {
-    p7_trace_fs_Destroy(tr);
-    return NULL;
-  }
 
   /* Find last M state state - end of last hit */
   for(z2 = tr->N-1; z2 >= 0; z2--) if(tr->st[z2] == p7T_M) break;
-  if (z2 == -1) {
-    p7_trace_fs_Destroy(tr);
-    return NULL;
-  }
 
+  /* No need for a P value check - single exon split must be better scoreing than orginal exon */
+  
   ret_path = p7_splicepath_Create(intron_cnt+1);
 
   step_cnt = 0;

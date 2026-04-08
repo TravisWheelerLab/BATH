@@ -830,7 +830,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
         edge = p7_splicegraph_AddEdge(graph, up, down);
         
         /* If hits overlap, find the minimum lost score to remove the overlap */
-        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
+        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl);
         
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
@@ -3800,7 +3800,7 @@ p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_
 {
   ESL_SQ     *target_seq;
   ESL_SQFILE *fh = info->thread_seq_file;
-
+//  printf("Fetching\n");
   /* Get basic sequence info */
   target_seq = esl_sq_Create();
   esl_sqio_FetchInfo(fh, seqname, target_seq);

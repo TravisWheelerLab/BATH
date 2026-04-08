@@ -287,7 +287,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down)
   int          contains_anchor;
   float        best_start_score;
   SPLICE_EDGE *out_edge;
-  SPLICE_PATH *path;
+  SPLICE_PATH *path       = NULL;
   P7_TOPHITS  *th;
   int         status;
 
@@ -398,9 +398,9 @@ longest_path (SPLICE_GRAPH *graph, int extend_down)
   int         up, down;
   int         stack_size;
   float       step_score;
-  int         *reaches_anchor;
-  int         *visited;
-  int         *stack;
+  int         *reaches_anchor = NULL;
+  int         *visited        = NULL;
+  int         *stack          = NULL;
   SPLICE_EDGE *tmp_edge;
   int          status;
 
@@ -429,14 +429,14 @@ longest_path (SPLICE_GRAPH *graph, int extend_down)
 
   /* Push scores upstream */
   ESL_ALLOC(reaches_anchor, sizeof(int) * graph->num_nodes);
-  esl_vec_ISet(reaches_anchor, graph->num_nodes, 0);  
+  esl_vec_ISet(reaches_anchor, graph->num_nodes, 0);
   while(stack_size > 0) {
     down = stack[stack_size-1];
     stack_size--;
 
-    for(up = 0; up < graph->num_nodes; up++) {
-      if (up == down) continue;
-      if (!graph->node_in_graph[up]) continue;
+    for(i = 0; i < graph->num_in_nodes[down]; i++) {
+      up = graph->in_nodes[down][i];
+      if(!graph->node_in_graph[up]) continue;
       tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
 
       if(tmp_edge != NULL && tmp_edge->edge_score != -eslINFINITY) {
@@ -447,7 +447,7 @@ longest_path (SPLICE_GRAPH *graph, int extend_down)
               reaches_anchor[up] = TRUE;
               graph->path_scores[up]   = step_score;
               graph->best_out_edge[up] = down;
-             }
+            }
           }
           else {
             graph->path_scores[up]   = step_score;
@@ -476,16 +476,15 @@ int
 topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node)
 {
 
-  int i;
-  
+  int i, j;
+
   visited[node] = TRUE;
- 
-  for(i = 0; i < graph->num_nodes; i++) {
-    
+
+  for(j = 0; j < graph->num_in_nodes[node]; j++) {
+    i = graph->in_nodes[node][j];
     if(!graph->node_in_graph[i]) continue;
     if(visited[i]) continue;
-    if(p7_splicegraph_EdgeExists(graph, i, node))  
-      topological_sort(graph, visited, stack, stack_size, i);
+    topological_sort(graph, visited, stack, stack_size, i);
   }
 
   stack[*stack_size] = node;

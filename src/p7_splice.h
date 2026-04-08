@@ -67,10 +67,15 @@ typedef struct _splice_graph {
   float *path_scores;  //Path score pulled upstream
   float *ali_scores;   
 
-  P7_TOPHITS  *th;  
+  P7_TOPHITS  *th;
   SPLICE_EDGE **edges;
   int         *num_edges;
   int         *edge_mem;
+
+  /* Incoming edge lists (reverse adjacency) */
+  int        **in_nodes;      /* in_nodes[down][j]  = j-th upstream node id  */
+  int         *num_in_nodes;  /* number of incoming edges per node            */
+  int         *in_node_mem;   /* allocated capacity per node                  */
 
 } SPLICE_GRAPH;
 

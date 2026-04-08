@@ -97,6 +97,9 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
     info[i].gcode      = gcode;
 	info[i].seq_file   = seq_file;
 	info[i].db_nuc_cnt = db_nuc_cnt;
+	esl_sqfile_Open(seq_file->filename, seq_file->format, NULL, &info[i].thread_seq_file);
+	esl_sqfile_OpenSSI(info[i].thread_seq_file, NULL);
+	info[i].thread_seq_file->abc = seq_file->abc;
   }
 
   for (i = 0; i < infocnt; ++i)
@@ -118,6 +121,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
     p7_profile_fs_Destroy(info[i].gm_tr);
     p7_fs_oprofile_Destroy(info[i].om_tr);
     p7_splicepipeline_Destroy(info[i].pli);
+    esl_sqfile_Close(info[i].thread_seq_file);
   }
   if(info           != NULL) free(info);
 
@@ -3785,48 +3789,24 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
 ESL_SQ* 
 p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp, SPLICE_WORKER_INFO *info)
 {
-
-  
   ESL_SQ     *target_seq;
-  ESL_SQFILE *tmp_file;
-
-#ifdef HMMER_THREADS
-  if(info && info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-#endif /*HMMER_THREADS*/
-	
-  esl_sqfile_Open(seq_file->filename,seq_file->format,NULL,&tmp_file);
-  esl_sqfile_OpenSSI(tmp_file,NULL);
+  ESL_SQFILE *fh = info->thread_seq_file;
 
   /* Get basic sequence info */
   target_seq = esl_sq_Create();
-  esl_sqio_FetchInfo(tmp_file, seqname, target_seq);
+  esl_sqio_FetchInfo(fh, seqname, target_seq);
 
-  target_seq->start = seq_min;
-  target_seq->end   = seq_max;
   target_seq->abc   = seq_file->abc;
+  target_seq->start = (seq_min < 1)             ? 1             : seq_min;
+  target_seq->end   = (seq_max > target_seq->L) ? target_seq->L : seq_max;
 
-  /* Make sure target range coords did not extend too far */
-  if (target_seq->start < 1)
-    target_seq->start = 1; 
-
-  if (target_seq->end > target_seq->L)
-    target_seq->end = target_seq->L;
-  
-  /* Fetch target range sequcene */
-  if (esl_sqio_FetchSubseq(tmp_file,target_seq->name,target_seq->start,target_seq->end,target_seq) != eslOK) 
-    esl_fatal(esl_sqfile_GetErrorBuf(tmp_file));
-
-  esl_sqfile_Close(tmp_file);
-
-#ifdef HMMER_THREADS
-  if(info && info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
-#endif /*HMMER_THREADS*/
+  /* Fetch target range sequence */
+  if (esl_sqio_FetchSubseq(fh, target_seq->name, target_seq->start, target_seq->end, target_seq) != eslOK)
+    esl_fatal(esl_sqfile_GetErrorBuf(fh));
 
   esl_sq_SetName(target_seq, seqname);
- 
-  if(revcomp)
-   esl_sq_ReverseComplement(target_seq);
 
+  if (revcomp) esl_sq_ReverseComplement(target_seq);
   esl_sq_Digitize(target_seq->abc, target_seq);
 
   return target_seq;

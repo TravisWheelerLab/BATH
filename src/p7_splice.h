@@ -169,7 +169,8 @@ typedef struct _splice_info
   P7_TOPHITS         *tophits;    /* original tophits                         */
   P7_TOPHITS         *seeds;      /* seed hits from SSV                       */
   ESL_GENCODE        *gcode;      /* used for translation                     */
-  ESL_SQFILE         *seq_file;   /* target sequence file                     */
+  ESL_SQFILE         *seq_file;         /* target sequence file (reference only)    */
+  ESL_SQFILE         *thread_seq_file; /* per-thread open handle with SSI loaded   */
   int64_t             db_nuc_cnt; /* sequence database size for e-values      */
   int                 num_graphs; /* total number of graphs                   */
   int                 thread_id;  /* ID of this thread                        */

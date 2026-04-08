@@ -760,12 +760,11 @@ printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, grap
  *
  */
 int
-p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr)
+p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_PROFILE *gm_tr) 
 {
   int up, down;
   int seq_gap_len;
   int amino_gap_len;
-  int k_switch;
   P7_TOPHITS  *th;
   SPLICE_EDGE *edge;
 
@@ -818,7 +817,7 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
         edge = p7_splicegraph_AddEdge(graph, up, down);
         
         /* If hits overlap, find the minimum lost score to remove the overlap */
-        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl, &k_switch);
+        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
         
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
@@ -1187,7 +1186,6 @@ p7_splice_CreateExtensionEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *orig_graph, S
   int up, down;
   int seq_gap_len;
   int amino_gap_len;
-  int k_switch;
   P7_TOPHITS  *th;
   SPLICE_EDGE *edge;
   SPLICE_EDGE *orig_edge;
@@ -1239,9 +1237,9 @@ p7_splice_CreateExtensionEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *orig_graph, S
       else if(!extension_graph->tmp_node[up] && !extension_graph->tmp_node[down])
       {
         /* If hits overlap, find the minimum lost socre to remove the overlap */
-
+      
         edge = p7_splicegraph_AddEdge(extension_graph, up, down);
-        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl, &k_switch);
+        p7_splicegraph_AliScoreEdge(edge, th->hit[up]->dcl, th->hit[down]->dcl); 
          
         edge->upstream_amino_end     = th->hit[up]->dcl->jhmm;
         edge->downstream_amino_start = th->hit[down]->dcl->ihmm; 
@@ -3302,12 +3300,14 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   P7_TRACE *tr;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
+  P7_PROFILE  *gm;
   P7_OPROFILE *om;  
   P7_OPROFILE *om_log;
   int       status;
 
   graph  = info->graph;
   pli    = info->pli;
+  gm     = info->gm;
   om     = info->om;
   om_log = info->om_log;
 

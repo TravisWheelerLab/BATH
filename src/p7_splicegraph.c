@@ -20,7 +20,8 @@
 #include "p7_splice.h"
 
 
-static int path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *visited); 
+static int  path_finder      (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *visited);
+static int* find_components  (SPLICE_GRAPH *graph, int *K_out);
 
 
 /*****************************************************************
@@ -247,6 +248,304 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   free(graph);
   graph = NULL;
 
+  return;
+}
+
+
+/* Function: find_components()  [static]
+ *
+ * Purpose:  Find weakly-connected components in <graph> using BFS
+ *           over both outgoing and incoming edges.  Only nodes where
+ *           node_in_graph[i] is TRUE are visited.
+ *
+ *           Returns an allocated int array of length graph->num_nodes
+ *           where labels[i] is the component index (0..K-1) for
+ *           active nodes and -1 for inactive nodes.  Sets *K_out to
+ *           the total number of components found.
+ *
+ * Returns:  Pointer to labels array on success, NULL on allocation failure.
+ */
+static int*
+find_components(SPLICE_GRAPH *graph, int *K_out)
+{
+  int  i, j;
+  int  K   = 0;
+  int  cur, nb;
+  int  head, tail;
+  int *labels = NULL;
+  int *queue  = NULL;
+  int  status;
+
+  ESL_ALLOC(labels, sizeof(int) * graph->num_nodes);
+  ESL_ALLOC(queue,  sizeof(int) * graph->num_nodes);
+
+  for(i = 0; i < graph->num_nodes; i++) labels[i] = -1;
+
+  for(i = 0; i < graph->num_nodes; i++) {
+    if(!graph->node_in_graph[i]) continue;
+    if(labels[i] != -1)          continue;  /* already labelled */
+
+    /* BFS from node i to label component K */
+    head = tail = 0;
+    queue[tail++] = i;
+    labels[i]     = K;
+
+    while(head < tail) {
+      cur = queue[head++];
+
+      /* Follow outgoing edges */
+      for(j = 0; j < graph->num_edges[cur]; j++) {
+        nb = graph->edges[cur][j].downstream_node_id;
+        if(nb < 0 || nb >= graph->num_nodes) continue;
+        if(!graph->node_in_graph[nb])        continue;
+        if(labels[nb] != -1)                 continue;
+        labels[nb]    = K;
+        queue[tail++] = nb;
+      }
+
+      /* Follow incoming edges */
+      for(j = 0; j < graph->num_in_nodes[cur]; j++) {
+        nb = graph->in_nodes[cur][j];
+        if(nb < 0 || nb >= graph->num_nodes) continue;
+        if(!graph->node_in_graph[nb])        continue;
+        if(labels[nb] != -1)                 continue;
+        labels[nb]    = K;
+        queue[tail++] = nb;
+      }
+    }
+    K++;
+  }
+
+  free(queue);
+  *K_out = K;
+  return labels;
+
+  ERROR:
+    if(labels) free(labels);
+    if(queue)  free(queue);
+    return NULL;
+}
+
+
+/* Function: p7_splicegraph_Split()
+ *
+ * Purpose:  Split <graph> into weakly-connected subgraphs.
+ *
+ *           If the graph is already connected (K==1), returns a
+ *           1-element array containing the original <graph> pointer
+ *           unchanged; *num_subgraphs is set to 1.  The caller should
+ *           destroy the original graph normally and free the returned
+ *           array pointer.
+ *
+ *           If K>1, returns an array of K independent subgraphs, one
+ *           per component.  Each subgraph owns deep copies of all its
+ *           data arrays.  Nodes not belonging to a component have
+ *           node_in_graph[i]=FALSE in that subgraph.  The caller should
+ *           call p7_splicegraph_DestroySubgraph() on each element and
+ *           then free() the array.  The original <graph> should still
+ *           be destroyed normally by the outer code.
+ *
+ * Returns:  Pointer to SPLICE_GRAPH* array on success, NULL on failure.
+ */
+SPLICE_GRAPH**
+p7_splicegraph_Split(SPLICE_GRAPH *graph, int *num_subgraphs)
+{
+  int           i, k, K;
+  int          *labels     = NULL;
+  SPLICE_GRAPH *sub        = NULL;
+  SPLICE_GRAPH **subgraphs = NULL;
+  int           status;
+
+  labels = find_components(graph, &K);
+  if(labels == NULL) goto ERROR;
+
+  /* K==1: graph is already connected, return it unchanged */
+  if(K == 1) {
+    ESL_ALLOC(subgraphs, sizeof(SPLICE_GRAPH*));
+    subgraphs[0]   = graph;
+    *num_subgraphs = 1;
+    free(labels);
+    return subgraphs;
+  }
+
+  /* K>1: deep-copy each component into an independent subgraph */
+  ESL_ALLOC(subgraphs, sizeof(SPLICE_GRAPH*) * K);
+  for(k = 0; k < K; k++) subgraphs[k] = NULL;
+
+  for(k = 0; k < K; k++) {
+
+    ESL_ALLOC(sub, sizeof(SPLICE_GRAPH));
+
+    /* Initialize all pointers to NULL so DestroySubgraph is safe on partial alloc */
+    sub->node_in_graph = NULL;
+    sub->tmp_node      = NULL;
+    sub->orig_hit_idx  = NULL;
+    sub->best_out_edge = NULL;
+    sub->ali_scores    = NULL;
+    sub->path_scores   = NULL;
+    sub->th            = NULL;
+    sub->edges         = NULL;
+    sub->edge_mem      = NULL;
+    sub->num_edges     = NULL;
+    sub->in_nodes      = NULL;
+    sub->in_node_mem   = NULL;
+    sub->num_in_nodes  = NULL;
+
+    subgraphs[k] = sub;   /* store early so ERROR cleanup works */
+
+    sub->nalloc    = graph->nalloc;
+    sub->num_nodes = graph->num_nodes;
+    sub->anchor_N  = graph->anchor_N;
+    sub->revcomp   = graph->revcomp;
+    sub->seqidx    = graph->seqidx;
+    sub->seqname   = graph->seqname;  /* shared pointer, not owned */
+
+    ESL_ALLOC(sub->node_in_graph, sizeof(int)   * sub->nalloc);
+    ESL_ALLOC(sub->tmp_node,      sizeof(int)   * sub->nalloc);
+    ESL_ALLOC(sub->orig_hit_idx,  sizeof(int)   * sub->nalloc);
+    ESL_ALLOC(sub->best_out_edge, sizeof(int)   * sub->nalloc);
+    ESL_ALLOC(sub->ali_scores,    sizeof(float) * sub->nalloc);
+    ESL_ALLOC(sub->path_scores,   sizeof(float) * sub->nalloc);
+
+    ESL_ALLOC(sub->th,     sizeof(P7_TOPHITS));
+    sub->th->N                   = 0;
+    sub->th->is_sorted_by_seqidx = FALSE;
+    sub->th->hit                 = NULL;
+    ESL_ALLOC(sub->th->hit, sizeof(P7_HIT*) * sub->nalloc);
+
+    ESL_ALLOC(sub->edges,     sizeof(SPLICE_EDGE*) * sub->nalloc);
+    ESL_ALLOC(sub->edge_mem,  sizeof(int)          * sub->nalloc);
+    ESL_ALLOC(sub->num_edges, sizeof(int)          * sub->nalloc);
+
+    ESL_ALLOC(sub->in_nodes,     sizeof(int*) * sub->nalloc);
+    ESL_ALLOC(sub->in_node_mem,  sizeof(int)  * sub->nalloc);
+    ESL_ALLOC(sub->num_in_nodes, sizeof(int)  * sub->nalloc);
+
+    /* Pre-NULL the per-node pointer arrays so partial-fill is safe on error */
+    for(i = 0; i < sub->nalloc; i++) {
+      sub->edges[i]    = NULL;
+      sub->in_nodes[i] = NULL;
+    }
+
+    for(i = 0; i < sub->nalloc; i++) {
+
+      if(i < graph->num_nodes && graph->node_in_graph[i] && labels[i] == k) {
+
+        sub->node_in_graph[i] = TRUE;
+        sub->tmp_node[i]      = graph->tmp_node[i];
+        sub->orig_hit_idx[i]  = graph->orig_hit_idx[i];
+        sub->best_out_edge[i] = graph->best_out_edge[i];
+        sub->ali_scores[i]    = graph->ali_scores[i];
+        sub->path_scores[i]   = -eslINFINITY;
+        sub->th->hit[i]       = graph->th->hit[i];
+        sub->th->N++;
+
+        /* Deep copy outgoing edges */
+        sub->num_edges[i] = graph->num_edges[i];
+        sub->edge_mem[i]  = graph->edge_mem[i];
+        if(graph->edges[i] != NULL) {
+          ESL_ALLOC(sub->edges[i], sizeof(SPLICE_EDGE) * sub->edge_mem[i]);
+          memcpy(sub->edges[i], graph->edges[i], sizeof(SPLICE_EDGE) * sub->num_edges[i]);
+        }
+
+        /* Deep copy incoming edge list */
+        sub->num_in_nodes[i] = graph->num_in_nodes[i];
+        sub->in_node_mem[i]  = graph->in_node_mem[i];
+        if(graph->in_nodes[i] != NULL) {
+          ESL_ALLOC(sub->in_nodes[i], sizeof(int) * sub->in_node_mem[i]);
+          memcpy(sub->in_nodes[i], graph->in_nodes[i], sizeof(int) * sub->num_in_nodes[i]);
+        }
+
+      } else {
+
+        sub->node_in_graph[i] = FALSE;
+        sub->tmp_node[i]      = FALSE;
+        sub->orig_hit_idx[i]  = -1;
+        sub->best_out_edge[i] = -1;
+        sub->ali_scores[i]    = -eslINFINITY;
+        sub->path_scores[i]   = -eslINFINITY;
+        sub->th->hit[i]       = NULL;
+        sub->num_edges[i]     = 0;
+        sub->edge_mem[i]      = 0;
+        sub->num_in_nodes[i]  = 0;
+        sub->in_node_mem[i]   = 0;
+      }
+    }
+  }
+
+  free(labels);
+  *num_subgraphs = K;
+  return subgraphs;
+
+  ERROR:
+    if(labels)    free(labels);
+    if(subgraphs) {
+      for(k = 0; k < K; k++)
+        if(subgraphs[k] != NULL) p7_splicegraph_DestroySubgraph(subgraphs[k]);
+      free(subgraphs);
+    }
+    return NULL;
+}
+
+
+/* Function: p7_splicegraph_DestroySubgraph()
+ *
+ * Purpose:  Frees a subgraph created by p7_splicegraph_Split() for K>1.
+ *           All arrays are independently owned and are freed here.
+ *           The seqname pointer is not owned and is not freed.
+ *           Hit objects with tmp_node[i]==TRUE (created during splicing)
+ *           are freed; all other hit objects are not freed.
+ */
+void
+p7_splicegraph_DestroySubgraph(SPLICE_GRAPH *graph)
+{
+  int i;
+
+  if(graph == NULL) return;
+
+  if(graph->orig_hit_idx  != NULL) free(graph->orig_hit_idx);
+  if(graph->node_in_graph != NULL) free(graph->node_in_graph);
+
+  if(graph->path_scores   != NULL) free(graph->path_scores);
+  if(graph->ali_scores    != NULL) free(graph->ali_scores);
+
+  if(graph->best_out_edge != NULL) free(graph->best_out_edge);
+
+  if(graph->tmp_node != NULL && graph->th != NULL && graph->th->hit != NULL) {
+    for(i = 0; i < graph->num_nodes; i++) {
+      if(graph->tmp_node[i]) {
+        p7_trace_fs_Destroy(graph->th->hit[i]->dcl->tr);
+        p7_hit_Destroy(graph->th->hit[i]);
+      }
+    }
+  }
+
+  if(graph->tmp_node != NULL) free(graph->tmp_node);
+
+  if(graph->th != NULL) {
+    if(graph->th->hit != NULL) free(graph->th->hit);
+    free(graph->th);
+  }
+
+  if(graph->edges != NULL) {
+    for(i = 0; i < graph->nalloc; i++)
+      if(graph->edges[i] != NULL) free(graph->edges[i]);
+    free(graph->edges);
+  }
+  if(graph->edge_mem  != NULL) free(graph->edge_mem);
+  if(graph->num_edges != NULL) free(graph->num_edges);
+
+  if(graph->in_nodes != NULL) {
+    for(i = 0; i < graph->nalloc; i++)
+      if(graph->in_nodes[i] != NULL) free(graph->in_nodes[i]);
+    free(graph->in_nodes);
+  }
+  if(graph->in_node_mem  != NULL) free(graph->in_node_mem);
+  if(graph->num_in_nodes != NULL) free(graph->num_in_nodes);
+
+  graph->seqname = NULL;
+
+  free(graph);
   return;
 }
 

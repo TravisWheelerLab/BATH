@@ -719,7 +719,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
         p7_splicebounds_Add(bounds, hit_seq_min, hit_seq_max, hit_hmm_min, hit_hmm_max);
 
         for(h = 0; h < sub->num_nodes; h++) {
-          if(!sub->node_in_graph[h]) continue;
           node_seq_min = ESL_MIN(sub->th->hit[h]->dcl->iali, sub->th->hit[h]->dcl->jali);
           node_seq_max = ESL_MAX(sub->th->hit[h]->dcl->iali, sub->th->hit[h]->dcl->jali);
           node_hmm_min = sub->th->hit[h]->dcl->ihmm;

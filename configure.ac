@@ -529,12 +529,12 @@ AC_C_BIGENDIAN([
   ],[
   if test "$enable_neon" = "yes"; then
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-    AC_MSG_NOTICE([HMMER3 NEON only supports little-endian platforms: e.g. aarch64 not aarch64be])
+    AC_MSG_NOTICE([BATH2 NEON only supports little-endian platforms: e.g. aarch64 not aarch64be])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   else
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
     AC_MSG_NOTICE([Couldn't determine byte order for your platform.])
-    AC_MSG_NOTICE([BATH vector code is sensitive to byte order.])
+    AC_MSG_NOTICE([BATH22 vector code is sensitive to byte order.])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   fi	
   ])
@@ -611,7 +611,7 @@ AC_SYS_LARGEFILE
 # 13. Config subdirs and files
 ################################################################
 
-# HMMER Makefiles.
+# BATH Makefiles.
 AC_CONFIG_FILES([ \
   Makefile                                     \
   src/Makefile                                 \
@@ -715,7 +715,7 @@ AC_OUTPUT
 
 echo "
 
-HMMER configuration:
+BATH configuration:
    compiler:             ${CC} ${CFLAGS} ${SSE_CFLAGS} ${NEON_CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS}
    host:                 $host
    linker:               ${LDFLAGS}
@@ -724,7 +724,7 @@ HMMER configuration:
 
 
 if test x"$HAVE_PYTHON3" = x"yes"; then echo "
-Now do 'make'  to build HMMER, and optionally:
+Now do 'make'  to build BATH, and optionally:
        'make check'  to run self tests,
        'make install'  to install programs and man pages,
        '(cd easel; make install)'  to install Easel tools.
@@ -732,7 +732,7 @@ Now do 'make'  to build HMMER, and optionally:
 else echo "
    (No python3 found, so 'make check' is disabled.)
 
-Now do 'make'  to build HMMER, and optionally:
+Now do 'make'  to build BATH, and optionally:
        'make install'  to install programs and man pages,
        '(cd easel; make install)'  to install Easel tools.
 ";

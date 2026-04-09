@@ -1239,9 +1239,9 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   float      null2[p7_MAXCODE];
   int        status;
  
-  p7_oprofile_ReconfigLength(om, orfsq->n);
-  p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
-  p7_omx_GrowTo(ox2, om->M, orfsq->n, orfsq->n); 
+  p7_oprofile_ReconfigLength(om, Ld);
+  p7_omx_GrowTo(ox1, om->M, Ld, Ld); 
+  p7_omx_GrowTo(ox2, om->M, Ld, Ld); 
 	
   p7_Forward (orfsq->dsq + i-1, Ld, om,      ox1, &envsc);
   p7_Backward(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc);

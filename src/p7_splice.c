@@ -928,7 +928,6 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
       skip = FALSE;
       for(between = 0; between < graph->anchor_N; between++) {
         if(between == down) continue;
-        if(!graph->node_in_graph[between]) continue;
         if(p7_splice_HitBetween(th->hit[up]->dcl, th->hit[between]->dcl, first_hit->dcl, graph->revcomp)) {
           skip = TRUE;  
           break;
@@ -1076,7 +1075,6 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
       skip = FALSE;
       for(between = 0; between < graph->anchor_N; between++) {
         if(between == down) continue;
-        if(!graph->node_in_graph[between]) continue;
         if(p7_splice_HitBetween(last_hit->dcl, th->hit[between]->dcl, th->hit[down]->dcl, graph->revcomp)) {
           skip = TRUE;
           break;

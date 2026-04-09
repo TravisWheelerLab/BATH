@@ -611,6 +611,11 @@ AC_SYS_LARGEFILE
 # 13. Config subdirs and files
 ################################################################
 
+# VMX (PowerPC AltiVec) is not supported; define empty substitution so
+# @VMX_CFLAGS@ in easel/Makefile.in doesn't produce a literal compiler flag.
+VMX_CFLAGS=""
+AC_SUBST(VMX_CFLAGS)
+
 # BATH Makefiles.
 AC_CONFIG_FILES([ \
   Makefile                                     \

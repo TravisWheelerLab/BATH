@@ -3000,7 +3000,6 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, SPLICE
         pli->hit->dcl->ad->exon_anchor[i] = FALSE;
         pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
         for(n = 0; n <= graph->anchor_N; n++) {
-          if(!graph->node_in_graph[n])            continue;
           if(graph->th->hit[n]->dcl->ad != NULL) continue;
           if(graph->th->hit[n]->flags & p7_IS_REPORTED ) {
             if(p7_splicegraph_NodeOverlap(graph, n, spliced_path, i)) {

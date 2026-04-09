@@ -3799,15 +3799,16 @@ ESL_SQ*
 p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp, SPLICE_WORKER_INFO *info)
 {
   ESL_SQ     *target_seq;
-  ESL_SQFILE *fh = info->thread_seq_file;
-//  printf("Fetching\n");
+  ESL_SQFILE      *fh = info->thread_seq_file;
+  SPLICE_PIPELINE *pli = info->pli;
+
   /* Get basic sequence info */
   target_seq = esl_sq_Create();
   esl_sqio_FetchInfo(fh, seqname, target_seq);
 
   target_seq->abc   = seq_file->abc;
-  target_seq->start = (seq_min - SEQ_WINDOW_EXT < 1)             ? 1             : seq_min - SEQ_WINDOW_EXT;
-  target_seq->end   = (seq_max + SEQ_WINDOW_EXT > target_seq->L) ? target_seq->L : seq_max + SEQ_WINDOW_EXT;
+  target_seq->start = (seq_min - (pli->max_extend*2) < 1)             ? 1             : seq_min - (pli->max_extend*2);
+  target_seq->end   = (seq_max + (pli->max_extend*2) > target_seq->L) ? target_seq->L : seq_max + (pli->max_extend*2);
 
   /* Fetch target range sequence */
   if (esl_sqio_FetchSubseq(fh, target_seq->name, target_seq->start, target_seq->end, target_seq) != eslOK)

@@ -27,6 +27,7 @@
 typedef struct {
   ESL_SQ           *tmpseq;     // - a new or reused digital sequence object used for p7_alidisplay_Create() call
   P7_OMX          **oxf_holder; // - a temporary list of forward parser matricies for ORFs
+  float            *fwdsc;
   double           *P_orf;		// - a temporary list or forwrad P values for ORFs
 } P7_PIPELINE_BATH_OBJS;
 
@@ -1205,7 +1206,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
   int64_t          orf_start, orf_end;
   int64_t          window_start, window_end;
   float            fwdsc_fs, fwdsc_orf;        /* forward scores                               */
-  float            nullsc_orf;                 /* ORF null score for forward filter            */
+  float            nullsc_fs, nullsc_orf;      /* ORF null score for forward filter            */
   float            filtersc_fs, filtersc_orf;  /* total filterscs for forward filters          */
   float            seqscore_fs, seqscore_orf;  /* the corrected per-seq bit score              */
   float 	       tot_orf_sc;                 /* summed score for all ORFs in current DNA window */
@@ -1275,7 +1276,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
        min_P_orf = ESL_MIN(min_P_orf, pli_tmp->P_orf[f]);  
         
        /* Sum the scores of all ORFs in the window (without bias).*/ 
-       tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf); 
+       tot_orf_sc =  p7_FLogsum(tot_orf_sc, fwdsc_orf-nullsc_orf); 
     
       }
     }
@@ -1290,7 +1291,11 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
    * or the min orf P passes the F4 threshold then run Frameshift Forward on the DNA Window */
   if(!pli->std_pipe || min_P_orf <= pli->F4) {
     p7_bg_SetLength(bg, dna_window->length/3);
-    p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, pli->do_biasfilter, &filtersc_fs);
+    p7_bg_fs_NullOne(bg, pli_tmp->tmpseq->dsq, dna_window->length/3, &nullsc_fs);
+
+    if (pli->do_biasfilter)
+      p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, pli->do_biasfilter, &filtersc_fs);
+    else filtersc_fs = nullsc_fs;
 
     p7_omx_GrowTo_dpf(pli->oxf_fs, om->M, PARSER_ROWS_FWD, dna_window->length);
     p7_oivx_GrowTo(pli->ov3, om_fs3->M, p7P_3CODONS);
@@ -1301,7 +1306,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
 
     seqscore_fs = (fwdsc_fs-filtersc_fs) / eslCONST_LOG2;
     P_fs = esl_exp_surv(seqscore_fs,  om_fs3->evparam[p7_FTAUFS3],  om_fs3->evparam[p7_FLAMBDA]);
-    P_fs_nobias = esl_exp_surv(fwdsc_fs/eslCONST_LOG2,  om_fs3->evparam[p7_FTAUFS3],  om_fs3->evparam[p7_FLAMBDA]); 
+    P_fs_nobias = esl_exp_surv((fwdsc_fs-nullsc_fs)/eslCONST_LOG2,  om_fs3->evparam[p7_FTAUFS3],  om_fs3->evparam[p7_FLAMBDA]); 
   }
 
   /* If the DNA window passed frameshift forward AND produced a lower P-value 
@@ -1607,7 +1612,18 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   pli_tmp->tmpseq     = NULL;
   pli_tmp->oxf_holder = NULL;
   pli_tmp->P_orf      = NULL;
+  pli_tmp->fwdsc      = NULL;
 
+  ESL_ALLOC(pli_tmp->fwdsc,      sizeof(float)    * orf_block->count);
+  ESL_ALLOC(pli_tmp->P_orf,      sizeof(double)   * orf_block->count);
+  ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
+
+  for(i = 0; i < orf_block->count; i++) {
+      pli_tmp->oxf_holder[i] = NULL;
+      pli_tmp->fwdsc = -eslINFINIFY;
+      pli_tmp->P_orf = 1.0;
+  }
+  
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);
@@ -1686,11 +1702,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
     p7_hmmwindow_init(&post_vit_windowlist);  
     
     p7_pli_ExtendAndMergeWindows_BATH(pli, post_vit_orf_block, dnasq, om, bg, data, &post_vit_windowlist, 0., complementarity); 
-
-	ESL_ALLOC(pli_tmp->P_orf,      sizeof(double)   * post_vit_orf_block->count);
-    ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * post_vit_orf_block->count);
-    for(i = 0; i < post_vit_orf_block->count; i++) 
-      pli_tmp->oxf_holder[i] = NULL;
 
     for(i = 0; i < post_vit_windowlist.count; i++)
     {

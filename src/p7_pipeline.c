@@ -22,17 +22,6 @@
 #include "p7_splice.h"
 
 /* Struct used to pass a collection of useful temporary objects around
- * within the LongTarget functions (nhmmer)
- */
-typedef struct {
-  ESL_SQ           *tmpseq; // - a new or reused digital sequence object used for p7_alidisplay_Create() call
-  P7_BG            *bg;
-  P7_OPROFILE      *om;
-  float            *scores;
-  float            *fwd_emissions_arr;
-} P7_PIPELINE_LONGTARGET_OBJS;
-
-/* Struct used to pass a collection of useful temporary objects around
  * within the Frameshift functions (BATH)
  */
 typedef struct {
@@ -41,12 +30,6 @@ typedef struct {
   double           *P_orf;		// - a temporary list or forwrad P values for ORFs
 } P7_PIPELINE_BATH_OBJS;
 
-/* Struct used to keep track of the # and length of ORFs passing filters */
-typedef struct {
-  int64_t          *orf_starts;
-  int64_t          *orf_ends;
-  int               orf_cnt;
-} P7_ORF_COORDS;
 
 /*****************************************************************
  * 1. The P7_PIPELINE object: allocation, initialization, destruction.
@@ -440,58 +423,6 @@ p7_pli_ExtendAndMergeWindows_BATH(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL
 }
 
 
-
-
-/* Function:  p7_pli_etPosPast_BATH
- * Synopsis:  Counts DNA positions passing MSV, Viterbi or Forward filter as ORFs 
- *
- * Purpose:    Uses ORF start and end positons on the DNA sequence to 
- *             calculate the number of unique DNA positions passing a 
- *             filter in the frameshift pipeline. Assumes that ORF 
- *             coordinates are in order of start position.             
- */
-int
-p7_pli_GetPosPast_BATH(P7_ORF_COORDS *coords)
-{
-  int            i;
-  int            pos_cnt = 0;
-  int            new_orf_cnt = 0;
-  int64_t        prev_start, curr_start;
-  int64_t        prev_end, curr_end;
-  int64_t        min_start, max_start;
-  int64_t        min_end, max_end;
-  int64_t        overlap, max_length; 
-
-  if(coords->orf_cnt == 0) return pos_cnt;
-
-  for(i = 1; i < coords->orf_cnt; i++)
-  {
-    prev_start = coords->orf_starts[new_orf_cnt];
-    curr_start = coords->orf_starts[i];
-    prev_end =   coords->orf_ends[new_orf_cnt];
-    curr_end =   coords->orf_ends[i];
-     
-    max_start        = ESL_MAX(prev_start, curr_start);
-    min_end          = ESL_MIN(prev_end, curr_end);
-    min_start        = ESL_MIN(prev_start, curr_start);
-    max_end          = ESL_MAX(prev_end, curr_end);
-       
-    overlap          = min_end - max_start + 1;
-    max_length       = max_end - min_start + 1;
-   
-    if ( (float) overlap / max_length > 0.)
-    {
-      coords->orf_starts[new_orf_cnt] = min_start;
-      coords->orf_ends[new_orf_cnt]   = max_end;
-    } else new_orf_cnt++;
-  }
-
-  new_orf_cnt++; 
-  for(i = 0; i < new_orf_cnt; i++)
-    pos_cnt += coords->orf_ends[i] - coords->orf_starts[i] + 1;
-  
-  return pos_cnt;
-}
 
 /* Function:  p7_pli_TargetReportable
  * Synopsis:  Returns TRUE if target score meets reporting threshold.
@@ -1648,7 +1579,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   ESL_SQ            *orfsq;               /* ORF sequence                            */
   ESL_SQ_BLOCK      *post_vit_orf_block;  /* block of ORFs that pass viterbi         */
   P7_HMM_WINDOWLIST  post_vit_windowlist; /* list of windows from ORFs that pass viterbi */
-  P7_ORF_COORDS     *msv_coords, *bias_coords, *vit_coords;  /* number of nucleotieds passing filters */
   P7_PIPELINE_BATH_OBJS *pli_tmp;   
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
@@ -1658,30 +1588,11 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   post_vit_orf_block = esl_sq_CreateDigitalBlock(orf_block->listSize, om->abc);
   post_vit_windowlist.windows = NULL;
 
-  msv_coords = NULL;
-  bias_coords = NULL;
-  vit_coords = NULL;
-
   pli_tmp = NULL;
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_BATH_OBJS));
   pli_tmp->tmpseq     = NULL;
   pli_tmp->oxf_holder = NULL;
   pli_tmp->P_orf      = NULL;
-
-  ESL_ALLOC(msv_coords, sizeof(P7_ORF_COORDS));
-  ESL_ALLOC(msv_coords->orf_starts, sizeof(int64_t) *  orf_block->count);
-  ESL_ALLOC(msv_coords->orf_ends, sizeof(int64_t) *  orf_block->count);
-  msv_coords->orf_cnt = 0;
-
-  ESL_ALLOC(bias_coords, sizeof(P7_ORF_COORDS));
-  ESL_ALLOC(bias_coords->orf_starts, sizeof(int64_t) *  orf_block->count);
-  ESL_ALLOC(bias_coords->orf_ends, sizeof(int64_t) *  orf_block->count);
-  bias_coords->orf_cnt = 0;
-
-  ESL_ALLOC(vit_coords, sizeof(P7_ORF_COORDS));
-  ESL_ALLOC(vit_coords->orf_starts, sizeof(int64_t) *  orf_block->count);
-  ESL_ALLOC(vit_coords->orf_ends, sizeof(int64_t) *  orf_block->count);
-  vit_coords->orf_cnt = 0;
 
   for (i = 0; i < orf_block->count; ++i)
   { 
@@ -1707,10 +1618,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
       seq_score = (usc - nullsc) / eslCONST_LOG2;
       P = esl_gumbel_surv( seq_score,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
       if (P > pli->F1 ) continue;
-     
-      msv_coords->orf_starts[msv_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
-      msv_coords->orf_ends[msv_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
-      msv_coords->orf_cnt++;
+    
+      pli->pos_past_msv  += orfsq->n * 3; 
       
       /* biased composition HMM filtering */
       if (pli->do_biasfilter)
@@ -1721,9 +1630,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
         if (P > pli->F1) continue;
       }  else filtersc = nullsc;
 
-      bias_coords->orf_starts[bias_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
-      bias_coords->orf_ends[bias_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
-      bias_coords->orf_cnt++;
+      pli->pos_past_bias += orfsq->n * 3;    
 
       /* Viterbi filer on ORF */
       if (P > pli->F2)
@@ -1733,10 +1640,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
         P  = esl_gumbel_surv(seq_score,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
         if (P > pli->F2) continue;
       }
-      
-      vit_coords->orf_starts[vit_coords->orf_cnt] = ESL_MIN(orfsq->start, orfsq->end);
-      vit_coords->orf_ends[vit_coords->orf_cnt] =   ESL_MAX(orfsq->start, orfsq->end);
-      vit_coords->orf_cnt++;
+
+      pli->pos_past_vit  += orfsq->n * 3;      
       
       /* Collect all ORFs which passed Viterbi Filter */
       esl_sq_Copy(orfsq, &(post_vit_orf_block->list[post_vit_orf_block->count]));
@@ -1745,10 +1650,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   }
 
   min_length = ESL_MIN(dnasq->n, om->max_length * 3);
-
-  pli->pos_past_msv  += ESL_MAX(p7_pli_GetPosPast_BATH(msv_coords), min_length);
-  pli->pos_past_bias += ESL_MAX(p7_pli_GetPosPast_BATH(bias_coords), min_length);
-  pli->pos_past_vit  += ESL_MAX(p7_pli_GetPosPast_BATH(vit_coords), min_length);
 
   /* seq object for domaindef function*/
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
@@ -1784,25 +1685,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   }
 
   /* clean up */ 
-  if ( msv_coords != NULL)
-  {
-    if (msv_coords->orf_starts != NULL) free(msv_coords->orf_starts);
-    if (msv_coords->orf_ends   != NULL) free(msv_coords->orf_ends);
-    free(msv_coords);
-  }
-  if ( bias_coords != NULL)
-  {
-    if (bias_coords->orf_starts != NULL) free(bias_coords->orf_starts);
-    if (bias_coords->orf_ends   != NULL) free(bias_coords->orf_ends);
-    free(bias_coords);
-  }
-  if ( vit_coords != NULL)
-  {
-    if (vit_coords->orf_starts != NULL) free(vit_coords->orf_starts);
-    if (vit_coords->orf_ends   != NULL) free(vit_coords->orf_ends);
-    free(vit_coords);
-  }
-  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (pli_tmp != NULL) 
   {
     pli_tmp->tmpseq->dsq = NULL;
@@ -1811,33 +1693,12 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
 	if (pli_tmp->P_orf      != NULL) free(pli_tmp->P_orf);
     free(pli_tmp);
   }
-
+  if ( post_vit_orf_block != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (post_vit_windowlist.windows != NULL) free (post_vit_windowlist.windows); 
 
   return eslOK;
 
 ERROR:
-  if ( msv_coords != NULL)
-  {
-    if (msv_coords->orf_starts != NULL) free(msv_coords->orf_starts);
-    if (msv_coords->orf_ends   != NULL) free(msv_coords->orf_ends);
-    free(msv_coords);
-  }
-
-  if ( bias_coords != NULL)
-  {
-    if (bias_coords->orf_starts != NULL) free(bias_coords->orf_starts);
-    if (bias_coords->orf_ends   != NULL) free(bias_coords->orf_ends);
-    free(bias_coords);
-  }
-
-  if ( vit_coords != NULL)
-  {
-    if (vit_coords->orf_starts != NULL) free(vit_coords->orf_starts);
-    if (vit_coords->orf_ends   != NULL) free(vit_coords->orf_ends);
-    free(vit_coords);
-  }
-
   if (pli_tmp != NULL)
   {
     if (pli_tmp->tmpseq     != NULL) esl_sq_Destroy(pli_tmp->tmpseq);
@@ -1845,9 +1706,9 @@ ERROR:
     if (pli_tmp->P_orf      != NULL) free(pli_tmp->P_orf);
     free(pli_tmp);
   }
-
   if ( post_vit_orf_block         != NULL) esl_sq_DestroyBlock(post_vit_orf_block); 
   if (post_vit_windowlist.windows != NULL) free (post_vit_windowlist.windows);
+
   return status;
 }
 

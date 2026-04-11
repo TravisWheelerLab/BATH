@@ -1202,8 +1202,8 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
 
   int              f;
   int              status;
-  ESL_DSQ         *subseq;                     /* current DNA window holder                    */ 
-  ESL_SQ          *curr_orf;                   /* current ORF holder                           */
+  int64_t          orf_start, orf_end;
+  int64_t          window_start, window_end;
   float            fwdsc_fs, fwdsc_orf;        /* forward scores                               */
   float            nullsc_orf;                 /* ORF null score for forward filter            */
   float            filtersc_fs, filtersc_orf;  /* total filterscs for forward filters          */
@@ -1213,8 +1213,13 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
   double           P_fs_nobias;                /* P-value of frameshift forward for window w/o bias adjustments*/
   double           tot_orf_P;                  /* P-value of summed forward score for all ORFs */
   double           min_P_orf;                  /* lowest p-value produced by an ORF */
+  ESL_DSQ         *subseq;                     /* current DNA window holder                    */ 
+  ESL_SQ          *curr_orf;                   /* current ORF holder                           */
 
   subseq = dnasq->dsq + dna_window->n - 1;
+
+  window_start = complementarity ? dnasq->start - (dna_window->n + dna_window->length) : dnasq->start + dna_window->n - 1; 
+  window_end   = complementarity ? dnasq->start - dna_window->n + 1 : window_start + dna_window->length - 1;
 
   pli_tmp->tmpseq->L = dna_window->length;
   pli_tmp->tmpseq->n = dna_window->length;
@@ -1238,8 +1243,17 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
     for(f = 0; f < orf_block->count; f++) {
       curr_orf = &(orf_block->list[f]);
       pli_tmp->P_orf[f] = eslINFINITY; 
-      
-      if(curr_orf->idx == windowidx) { 
+   
+      if(complementarity) {
+        orf_start =  dnasq->start - (dnasq->n - curr_orf->end   + 1) + 1;
+        orf_end   =  dnasq->start - (dnasq->n - curr_orf->start + 1) + 1;
+      } else {    
+        orf_start = dnasq->start + curr_orf->start - 1;
+        orf_end   = dnasq->start + curr_orf->end   - 1;
+      } 
+
+      /* Only process ORF if it in inside the current window */ 
+      if(orf_start >= window_start && orf_end <= window_end) {    
     
         p7_bg_SetLength(bg, curr_orf->n);
         p7_bg_NullOne  (bg, curr_orf->dsq, curr_orf->n, &nullsc_orf);

@@ -1251,7 +1251,7 @@ p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPRO
        /* Save the Forward Martix for each ORF so we do not have to rerun 
         * Forward in the event that the standard pipeline is selected */
         p7_oprofile_ReconfigLength(om, curr_orf->n);
-        if ((pli_tmp->oxf_holder[f] = p7_omx_Create(om->M, 0, curr_orf->n)) == NULL) goto ERROR;
+        if ((pli_tmp->oxf_holder[f] = p7_omx_Create_dpf(om->M, 0, curr_orf->n, p7G_NSCELLS)) == NULL) goto ERROR;
         p7_ForwardParser(curr_orf->dsq, curr_orf->n, om, pli_tmp->oxf_holder[f], &fwdsc_orf);
        
        /* Find the individual p-value (with bias) of each ORF in the window and store it. 

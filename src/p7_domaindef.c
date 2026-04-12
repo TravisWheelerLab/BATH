@@ -998,7 +998,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   int            z1, z2;
   float          domcorrection = 0.0;
   float          envsc, oasc;
-  float          filtersc, seqscore;
+  float          nullsc, seqscore;
   double         P;
   int            codon_idx;  
   int            z;
@@ -1014,7 +1014,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   if (Ld < 15) return eslOK;
  
   p7_bg_SetLength(bg, Ld/3);
-  p7_bg_fs_FilterScore(bg, windowsq->dsq+i-1, Ld, gcode, pli->do_biasfilter, &filtersc);
+  p7_bg_fs_NullOne(bg, windowsq->dsq+i-1, Ld/3, &nullsc);
  
   /* Forward */
   p7_fs_oprofile_ReconfigLength(om_fs5, Ld/3);
@@ -1022,7 +1022,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   if ((status = p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, pli->ov5, &envsc)) == eslERANGE) return eslOK;
   if (status != eslOK) ESL_XEXCEPTION(status, "forward frameshift failed");
 
-  seqscore = (envsc-filtersc) / eslCONST_LOG2; 
+  seqscore = (envsc-nullsc) / eslCONST_LOG2; 
   P = esl_exp_surv(seqscore,  om_fs5->evparam[p7_FTAUFS5],  om_fs5->evparam[p7_FLAMBDA]);   
 
   /* DNA windows often contain one true positive domain and one of more low 

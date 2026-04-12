@@ -816,6 +816,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       seed_accumulator = p7_hmmwindow_CreateList();
     
     scoredata = p7_hmm_ScoreDataCreate(om, NULL);
+    p7_hmm_ScoreDataComputeRest(om, scoredata);
 
     for (i = 0; i < infocnt; ++i)
     {

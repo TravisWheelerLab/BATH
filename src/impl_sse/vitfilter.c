@@ -249,6 +249,223 @@ p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, f
 /*---------------- end, p7_ViterbiFilter() ----------------------*/
 
 
+/* Function:  p7_ViterbiFilter_BATH()
+ * Synopsis:  Viterbi filter returning both a score and above-threshold diagonal windows.
+ *
+ * Purpose:   Runs the standard Viterbi DP (identical to p7_ViterbiFilter) without
+ *            resetting the dp matrix, so the global Viterbi score accumulates normally.
+ *            Additionally, at each row i where the row-maximum xE >= <sc_thresh>
+ *            (derived from <filtersc> and <P> using Viterbi Gumbel parameters), the
+ *            model position k_start responsible for that maximum is identified.  A
+ *            forward diagonal extension in SSV score space then traces the diagonal
+ *            from (i, k_start) until the match score drops, giving k_end and i_end.
+ *            One window (n=i, k=k_end, length=k_end-k_start+1) is appended to
+ *            <windowlist> and threshold checks are suppressed until i > i_end to
+ *            avoid re-triggering on the same alignment.
+ *
+ *            The global Viterbi score is returned in <ret_sc> exactly as
+ *            p7_ViterbiFilter() would return it, so the caller can apply a
+ *            bias-corrected F2 filter using the windows for local composition.
+ *
+ * Args:      dsq        - digital target sequence, 1..L
+ *            L          - length of dsq in residues
+ *            om         - optimized profile
+ *            ox         - DP matrix (one-row)
+ *            ssvdata    - precomputed SSV score data (ssv_scores, for diagonal extension)
+ *            filtersc   - bias-corrected null score (nats); used for sc_thresh
+ *            P          - p-value threshold (F2); used for sc_thresh
+ *            windowlist - RETURN: above-threshold diagonal windows appended here
+ *            ret_sc     - RETURN: Viterbi score (nats)
+ *
+ * Returns:   <eslOK> on success.
+ *            <eslERANGE> if score overflows; <*ret_sc> is <eslINFINITY>.
+ *
+ * Throws:    <eslEINVAL> if <ox> is too small or profile is not in local mode.
+ */
+int
+p7_ViterbiFilter_BATH(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox,
+                      const P7_SCOREDATA *ssvdata, float filtersc, double P,
+                      P7_HMM_WINDOWLIST *windowlist, float *ret_sc)
+{
+  register __m128i mpv, dpv, ipv;
+  register __m128i sv;
+  register __m128i dcv;
+  register __m128i xEv;
+  register __m128i xBv;
+  register __m128i Dmaxv;
+  __m128i  negInfv;
+  int16_t  xE, xB, xC, xJ, xN;
+  int16_t  Dmax;
+  int      i;
+  int      q;
+  int      Q        = p7O_NQW(om->M);
+  __m128i *dp       = ox->dpw[0];
+  __m128i *rsc;
+  __m128i *tsc;
+
+  int16_t  sc_thresh;       /* Viterbi score threshold, int16 space              */
+  int      sc_ext_thresh;   /* SSV score threshold for diagonal extension        */
+  float    invP;
+  int      z, k;
+  int      skip_until = 0;  /* suppress xE check for i <= skip_until             */
+  union { __m128i v; int16_t i[8]; } tmp;
+
+  /* Viterbi threshold: invert P using Viterbi Gumbel params + filtersc */
+  invP      = esl_gumbel_invsurv(P, om->evparam[p7_VMU], om->evparam[p7_VLAMBDA]);
+  sc_thresh = (int16_t) ceil( ( (filtersc + eslCONST_LOG2 * invP + 3.0) * om->scale_w )
+              - (float)om->xw[p7O_E][p7O_MOVE] - (float)om->xw[p7O_C][p7O_MOVE] + (float)om->base_w );
+
+  /* SSV threshold for forward diagonal extension: invert P using MSV Gumbel params */
+  invP          = esl_gumbel_invsurv(P, om->evparam[p7_MMU], om->evparam[p7_MLAMBDA]);
+  sc_ext_thresh = (int) ceil( ( (filtersc + eslCONST_LOG2 * invP + 3.0) * om->scale_b )
+                  + om->base_b + om->tec_b + om->tjb_b );
+
+  if (Q > ox->allocQ8)                                 ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small");
+  if (om->mode != p7_LOCAL && om->mode != p7_UNILOCAL) ESL_EXCEPTION(eslEINVAL, "Fast filter only works for local alignment");
+  ox->M = om->M;
+
+  /* -infinity is -32768.
+   * negInfv holds -32768 only in the lowest 2 bytes (used for OR after byte-shift). */
+  negInfv = _mm_set1_epi16(-32768);
+  negInfv = _mm_srli_si128(negInfv, 14);
+
+  for (q = 0; q < Q; q++)
+    MMXo(q) = IMXo(q) = DMXo(q) = _mm_set1_epi16(-32768);
+  xN = om->base_w;
+  xB = xN + om->xw[p7O_N][p7O_MOVE];
+  xJ = -32768;
+  xC = -32768;
+  xE = -32768;
+
+  for (i = 1; i <= L; i++)
+  {
+    rsc   = om->rwv[dsq[i]];
+    tsc   = om->twv;
+    dcv   = _mm_set1_epi16(-32768);
+    xEv   = _mm_set1_epi16(-32768);
+    Dmaxv = _mm_set1_epi16(-32768);
+    xBv   = _mm_set1_epi16(xB);
+
+    /* Right-shift each vector by 1 element (2 bytes), filling with -32768 */
+    mpv = MMXo(Q-1);  mpv = _mm_slli_si128(mpv, 2);  mpv = _mm_or_si128(mpv, negInfv);
+    dpv = DMXo(Q-1);  dpv = _mm_slli_si128(dpv, 2);  dpv = _mm_or_si128(dpv, negInfv);
+    ipv = IMXo(Q-1);  ipv = _mm_slli_si128(ipv, 2);  ipv = _mm_or_si128(ipv, negInfv);
+
+    for (q = 0; q < Q; q++)
+    {
+      sv   =                    _mm_adds_epi16(xBv, *tsc);  tsc++;
+      sv   = _mm_max_epi16(sv,  _mm_adds_epi16(mpv, *tsc)); tsc++;
+      sv   = _mm_max_epi16(sv,  _mm_adds_epi16(ipv, *tsc)); tsc++;
+      sv   = _mm_max_epi16(sv,  _mm_adds_epi16(dpv, *tsc)); tsc++;
+      sv   = _mm_adds_epi16(sv, *rsc);                      rsc++;
+      xEv  = _mm_max_epi16(xEv, sv);
+
+      mpv     = MMXo(q);
+      dpv     = DMXo(q);
+      ipv     = IMXo(q);
+
+      MMXo(q) = sv;
+      DMXo(q) = dcv;
+
+      dcv   = _mm_adds_epi16(sv, *tsc);  tsc++;
+      Dmaxv = _mm_max_epi16(dcv, Dmaxv);
+
+      sv      =                    _mm_adds_epi16(mpv, *tsc); tsc++;
+      IMXo(q) = _mm_max_epi16(sv,  _mm_adds_epi16(ipv, *tsc)); tsc++;
+    }
+
+    xE = esl_sse_hmax_epi16(xEv);
+    if (xE >= 32767) { *ret_sc = eslINFINITY; return eslERANGE; }
+
+    /* Special state updates — always performed, never skipped (no dp reset) */
+    xN = xN +  om->xw[p7O_N][p7O_LOOP];
+    xC = ESL_MAX(xC + om->xw[p7O_C][p7O_LOOP], xE + om->xw[p7O_E][p7O_MOVE]);
+    xJ = ESL_MAX(xJ + om->xw[p7O_J][p7O_LOOP], xE + om->xw[p7O_E][p7O_LOOP]);
+    xB = ESL_MAX(xJ + om->xw[p7O_J][p7O_MOVE], xN + om->xw[p7O_N][p7O_MOVE]);
+
+    if (i > skip_until && xE >= sc_thresh)
+    {
+      /* Find k_start: first k in scan order where MMXo score == xE */
+      int k_start = 0;
+      for (q = 0; q < Q && k_start == 0; q++) {
+        tmp.v = MMXo(q);
+        for (z = 0; z < 8; z++) {
+          k = q + Q*z + 1;
+          if (tmp.i[z] == xE && k <= om->M) { k_start = k; break; }
+        }
+      }
+
+      /* Forward diagonal extension in SSV score space from (i, k_start).
+       * Starts at sc_ext_thresh (the SSV threshold) and extends M->M until
+       * score stops improving for 5 consecutive steps. */
+      int max_k_end     = k_start;
+      int max_i_end     = i;
+      int sc_ext        = sc_ext_thresh;
+      int max_sc_ext    = sc_ext;
+      int pos_since_max = 0;
+      int kk = k_start + 1;
+      int nn = i + 1;
+      while (kk <= om->M && nn <= L) {
+        sc_ext += om->bias_b - ssvdata->ssv_scores[kk * om->abc->Kp + dsq[nn]];
+        if (sc_ext >= max_sc_ext) {
+          max_sc_ext    = sc_ext;
+          max_k_end     = kk;
+          max_i_end     = nn;
+          pos_since_max = 0;
+        } else {
+          if (++pos_since_max == 5) break;
+        }
+        kk++;
+        nn++;
+      }
+
+      p7_hmmwindow_new(windowlist, 0, i, max_k_end, max_k_end - k_start + 1, 0.0, p7_NOCOMPLEMENT, L);
+      skip_until = max_i_end;
+    }
+
+    /* Lazy F loop */
+    Dmax = esl_sse_hmax_epi16(Dmaxv);
+    if (Dmax + om->ddbound_w > xB)
+    {
+      dcv = _mm_slli_si128(dcv, 2);
+      dcv = _mm_or_si128(dcv, negInfv);
+      tsc = om->twv + 7*Q;
+      for (q = 0; q < Q; q++)
+      {
+        DMXo(q) = _mm_max_epi16(dcv, DMXo(q));
+        dcv     = _mm_adds_epi16(DMXo(q), *tsc); tsc++;
+      }
+      do {
+        dcv = _mm_slli_si128(dcv, 2);
+        dcv = _mm_or_si128(dcv, negInfv);
+        tsc = om->twv + 7*Q;
+        for (q = 0; q < Q; q++)
+        {
+          if (!esl_sse_any_gt_epi16(dcv, DMXo(q))) break;
+          DMXo(q) = _mm_max_epi16(dcv, DMXo(q));
+          dcv     = _mm_adds_epi16(DMXo(q), *tsc); tsc++;
+        }
+      } while (q == Q);
+    }
+    else
+    {
+      dcv = _mm_slli_si128(dcv, 2);
+      DMXo(0) = _mm_or_si128(dcv, negInfv);
+    }
+  }
+
+  /* Global Viterbi score via C->T */
+  if (xC > -32768) {
+    *ret_sc  = (float) xC + (float) om->xw[p7O_C][p7O_MOVE] - (float) om->base_w;
+    *ret_sc /= om->scale_w;
+    *ret_sc -= 3.0;
+  } else *ret_sc = -eslINFINITY;
+
+  return eslOK;
+}
+/*---------------- end, p7_ViterbiFilter_BATH() -----------------*/
+
+
 
 /*****************************************************************
  * 2. Benchmark driver.

@@ -723,12 +723,12 @@ utest_viterbi_filter_bath(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M
       /* 2. Every window must have valid boundaries */
       for (w = 0; w < wlist.count; w++)
         {
-          if (wlist.windows[w].n        <  1) esl_fatal("%s: window %d n=%d < 1",             msg, w, wlist.windows[w].n);
-          if (wlist.windows[w].n        >  L) esl_fatal("%s: window %d n=%d > L=%d",          msg, w, wlist.windows[w].n, L);
-          if (wlist.windows[w].k        <  1) esl_fatal("%s: window %d k=%d < 1",             msg, w, wlist.windows[w].k);
-          if (wlist.windows[w].k        >  M) esl_fatal("%s: window %d k=%d > M=%d",          msg, w, wlist.windows[w].k, M);
-          if (wlist.windows[w].k_length <  1) esl_fatal("%s: window %d k_length=%d < 1",      msg, w, wlist.windows[w].k_length);
-          if (wlist.windows[w].k_length >  M) esl_fatal("%s: window %d k_length=%d > M=%d",   msg, w, wlist.windows[w].k_length, M);
+          if (wlist.windows[w].n      <  1) esl_fatal("%s: window %d n=%d < 1",             msg, w, wlist.windows[w].n);
+          if (wlist.windows[w].n      >  L) esl_fatal("%s: window %d n=%d > L=%d",          msg, w, wlist.windows[w].n, L);
+          if (wlist.windows[w].k      <  1) esl_fatal("%s: window %d k=%d < 1",             msg, w, wlist.windows[w].k);
+          if (wlist.windows[w].k      >  M) esl_fatal("%s: window %d k=%d > M=%d",          msg, w, wlist.windows[w].k, M);
+          if (wlist.windows[w].length <  1) esl_fatal("%s: window %d k_length=%d < 1",      msg, w, wlist.windows[w].length);
+          if (wlist.windows[w].length >  M) esl_fatal("%s: window %d k_length=%d > M=%d",   msg, w, wlist.windows[w].length, M);
         }
     }
 

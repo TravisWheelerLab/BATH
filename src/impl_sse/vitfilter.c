@@ -510,24 +510,27 @@ static char banner[] = "benchmark driver for Viterbi filter";
 int 
 main(int argc, char **argv)
 {
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
-  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_OPROFILE    *om      = NULL;
-  P7_OMX         *ox      = NULL;
-  P7_GMX         *gx      = NULL;
-  int             L       = esl_opt_GetInteger(go, "-L");
-  int             N       = esl_opt_GetInteger(go, "-N");
-  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
-  int             i;
-  float           sc1, sc2;
-  double          base_time, bench_time, Mcs;
+  ESL_GETOPTS       *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char              *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH     *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS    *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET      *abc     = NULL;
+  P7_HMMFILE        *hfp     = NULL;
+  P7_HMM            *hmm     = NULL;
+  P7_BG             *bg      = NULL;
+  P7_PROFILE        *gm      = NULL;
+  P7_OPROFILE       *om      = NULL;
+  P7_SCOREDATA      *data    = NULL;
+  P7_OMX            *ox      = NULL;
+  P7_GMX            *gx      = NULL;
+  P7_HMM_WINDOWLIST  wlist;
+  int                L       = esl_opt_GetInteger(go, "-L");
+  int                N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ           *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int                i;
+  float              sc1, sc2;
+  float              nullsc;
+  double             base_time, bench_time, Mcs;
 
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
@@ -539,11 +542,13 @@ main(int argc, char **argv)
   om = p7_oprofile_Create(gm->M, abc);
   p7_oprofile_Convert(gm, om);
   p7_oprofile_ReconfigLength(om, L);
+  data = p7_hmm_ScoreDataCreate(om, NULL);
 
   if (esl_opt_GetBoolean(go, "-x")) p7_profile_SameAsVF(om, gm);
 
   ox = p7_omx_Create(gm->M, 0, 0);
   gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  p7_hmmwindow_init(&wlist);
 
   /* Get a baseline time: how long it takes just to generate the sequences */
   esl_stopwatch_Start(w);
@@ -577,13 +582,31 @@ main(int argc, char **argv)
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
   Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
-  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  esl_stopwatch_Display(stdout, w, "# ViterbiFilter       CPU time: ");
   printf("# M    = %d\n",   gm->M);
   printf("# %.1f Mc/s\n", Mcs);
 
+  /* Benchmark p7_ViterbiFilter_BATH() */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_bg_NullOne(bg, dsq, L, &nullsc);
+      wlist.count = 0;
+      p7_ViterbiFilter_BATH(dsq, L, om, ox, data, nullsc, 0.2, &wlist, &sc1);
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# ViterbiFilter_BATH  CPU time: ");
+  printf("# M    = %d\n", gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(wlist.windows);
   free(dsq);
   p7_omx_Destroy(ox);
   p7_gmx_Destroy(gx);
+  p7_hmm_ScoreDataDestroy(data);
   p7_oprofile_Destroy(om);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bg);
@@ -661,6 +684,74 @@ utest_viterbi_filter(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int
   p7_profile_Destroy(gm);
   p7_oprofile_Destroy(om);
 }
+
+/* utest_viterbi_filter_bath()
+ *
+ * Checks two properties of p7_ViterbiFilter_BATH():
+ *
+ * 1. Score agreement: the returned Viterbi score must match
+ *    p7_ViterbiFilter() to within floating-point rounding (0.001 nats),
+ *    because both run the same DP without resetting the matrix.
+ *
+ * 2. Window validity: every window appended to the windowlist must have
+ *    n in [1,L], k in [1,M], and length in [1,M].
+ */
+static void
+utest_viterbi_filter_bath(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N)
+{
+  char              msg[]  = "ViterbiFilter_BATH unit test failed";
+  P7_HMM           *hmm   = NULL;
+  P7_PROFILE       *gm    = NULL;
+  P7_OPROFILE      *om    = NULL;
+  P7_SCOREDATA     *data  = NULL;
+  ESL_DSQ          *dsq   = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX           *ox    = p7_omx_Create(M, 0, 0);
+  P7_HMM_WINDOWLIST wlist;
+  float             sc1, sc2;
+  float             nullsc;
+  int               w;
+
+  p7_hmmwindow_init(&wlist);
+  p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
+  data = p7_hmm_ScoreDataCreate(om, NULL);
+
+  while (N--)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+
+      /* Reference score from standard ViterbiFilter */
+      p7_ViterbiFilter(dsq, L, om, ox, &sc1);
+
+      /* Score + windows from ViterbiFilter_BATH; use nullsc as filtersc */
+      p7_bg_NullOne(bg, dsq, L, &nullsc);
+      wlist.count = 0;
+      p7_ViterbiFilter_BATH(dsq, L, om, ox, data, nullsc, 0.001, &wlist, &sc2);
+
+      /* 1. Scores must agree */
+      if (sc1 != eslINFINITY && sc2 != eslINFINITY)
+        if (fabs(sc1 - sc2) > 0.001)
+          esl_fatal("%s: scores differ: ViterbiFilter=%.4f  ViterbiFilter_BATH=%.4f", msg, sc1, sc2);
+
+      /* 2. Every window must have valid boundaries */
+      for (w = 0; w < wlist.count; w++)
+        {
+          if (wlist.windows[w].n      <  1) esl_fatal("%s: window %d n=%d < 1",           msg, w, wlist.windows[w].n);
+          if (wlist.windows[w].n      >  L) esl_fatal("%s: window %d n=%d > L=%d",        msg, w, wlist.windows[w].n, L);
+          if (wlist.windows[w].k      <  1) esl_fatal("%s: window %d k=%d < 1",           msg, w, wlist.windows[w].k);
+          if (wlist.windows[w].k      >  M) esl_fatal("%s: window %d k=%d > M=%d",        msg, w, wlist.windows[w].k, M);
+          if (wlist.windows[w].length <  1) esl_fatal("%s: window %d length=%d < 1",      msg, w, wlist.windows[w].length);
+          if (wlist.windows[w].length >  M) esl_fatal("%s: window %d length=%d > M=%d",   msg, w, wlist.windows[w].length, M);
+        }
+    }
+
+  free(wlist.windows);
+  free(dsq);
+  p7_hmm_ScoreDataDestroy(data);
+  p7_hmm_Destroy(hmm);
+  p7_omx_Destroy(ox);
+  p7_profile_Destroy(gm);
+  p7_oprofile_Destroy(om);
+}
 #endif /*p7VITFILTER_TESTDRIVE*/
 
 
@@ -712,9 +803,14 @@ main(int argc, char **argv)
   if ((bg = p7_bg_Create(abc))            == NULL)  esl_fatal("failed to create null model");
 
   if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter() tests, DNA\n");
-  utest_viterbi_filter(r, abc, bg, M, L, N);   
-  utest_viterbi_filter(r, abc, bg, 1, L, 10);  
-  utest_viterbi_filter(r, abc, bg, M, 1, 10);  
+  utest_viterbi_filter(r, abc, bg, M, L, N);
+  utest_viterbi_filter(r, abc, bg, 1, L, 10);
+  utest_viterbi_filter(r, abc, bg, M, 1, 10);
+
+  if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter_BATH() tests, DNA\n");
+  utest_viterbi_filter_bath(r, abc, bg, M, L, N);
+  utest_viterbi_filter_bath(r, abc, bg, 1, L, 10);
+  utest_viterbi_filter_bath(r, abc, bg, M, 1, 10);
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);
@@ -724,9 +820,14 @@ main(int argc, char **argv)
   if ((bg = p7_bg_Create(abc))              == NULL)  esl_fatal("failed to create null model");
 
   if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter() tests, protein\n");
-  utest_viterbi_filter(r, abc, bg, M, L, N); 
+  utest_viterbi_filter(r, abc, bg, M, L, N);
   utest_viterbi_filter(r, abc, bg, 1, L, 10);
   utest_viterbi_filter(r, abc, bg, M, 1, 10);
+
+  if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter_BATH() tests, protein\n");
+  utest_viterbi_filter_bath(r, abc, bg, M, L, N);
+  utest_viterbi_filter_bath(r, abc, bg, 1, L, 10);
+  utest_viterbi_filter_bath(r, abc, bg, M, 1, 10);
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);

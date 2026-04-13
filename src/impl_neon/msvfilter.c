@@ -452,6 +452,7 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const 
  */
 #ifdef p7MSVFILTER_BENCHMARK
 /*
+ * gcc -g -O3 -march=armv8-a -std=gnu99 -o msvfilter_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7MSVFILTER_BENCHMARK msvfilter.c -lhmmer -leasel -lm
    ./benchmark-msvfilter <hmmfile>            runs benchmark
    ./benchmark-msvfilter -N100 -c <hmmfile>   compare scores to generic impl
    ./benchmark-msvfilter -N100 -x <hmmfile>   compare scores to exact emulation

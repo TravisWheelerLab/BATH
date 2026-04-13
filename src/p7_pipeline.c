@@ -29,7 +29,7 @@ typedef struct {
   P7_OMX          **oxf_holder; // - a temporary list of forward parser matricies for ORFs
   float            *fwdsc;
   double           *P_orf;		// - a temporary list or forwrad P values for ORFs
-} P7_PIPELINE_BATH_OBJS;
+} P7_PIPELINE_OBJS;
 
 
 /*****************************************************************
@@ -423,14 +423,62 @@ p7_pli_ExtendAndMergeWindows_BATH(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL
   return eslOK;
 }
 
-int
-p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
-{ 
+static int
+p7_pli_ComputeLocalCompo(const P7_HMM_WINDOWLIST *windows, int first, int last,
+                         const P7_SCOREDATA *data, const P7_OPROFILE *om,
+                         const P7_BG *bg, float *compo)
+{
+  int   w, x, k;
+  int   k_start, k_end;
+  int   k_len;
+  float log_odds;
 
-  int i, f;
-  int best_window;
+  if (first > last) return eslFAIL; // No new windows
+
+  /* Find the bounding span across all windows in [first, last] */
+  k_end   = windows->windows[first].k;
+  k_start = k_end - windows->windows[first].length + 1;
+  for (w = first + 1; w <= last; w++) {
+    k_end   = ESL_MAX(k_end,   windows->windows[w].k);
+    k_start = ESL_MIN(k_start, windows->windows[w].k - windows->windows[w].length + 1);
+  }
+
+  /* Enforce minumum window length of 20 */
+  k_len = k_end - k_start + 1;
+  if(k_len > 20) {
+    k_start -= (20-k_len-1)/2;
+   	k_end   += (20-k_len-1)/2;
+  }
+
+  /* Clamp to valid model range */
+  k_start = ESL_MAX(1,     k_start);
+  k_end   = ESL_MIN(om->M, k_end);
+
+  /* Accumulate emission probabilities over the merged, padded span */
+  esl_vec_FSet(compo, om->abc->K, 0.0f);
+  for (k = k_start; k <= k_end; k++) {
+    for (x = 0; x < om->abc->K; x++) {
+      /* ssv_scores[k*Kp+x] is a byte emission cost: lower = more favored.
+       * (base_b - cost) / scale_b recovers the log-odds emission score.
+       * Multiplying by bg->f[x] gives the approximate emission probability. */
+      log_odds = ((float)om->base_b - (float)data->ssv_scores[k * om->abc->Kp + x]) / om->scale_b;
+      compo[x] += bg->f[x] * expf(log_odds);
+    }
+  }
+
+  esl_vec_FNorm(compo, om->abc->K);
+  return eslOK;
+}
+
+
+int
+p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int complementarity)
+{
+
+  int i, f, w;
+  int best_window_idx;
   float best_score;
-  P7_HMM_WINDOWLIST    tmp_windowlist;
+  P7_HMM_WINDOW        fallback_window;
   P7_HMM_WINDOW        *prev_window = NULL;
   P7_HMM_WINDOW        *curr_window = NULL;
   int64_t              window_start;
@@ -442,68 +490,63 @@ p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq,
   int                  new_hit_cnt = 0;
   ESL_SQ *curr_orf;
 
-  p7_hmmwindow_init(&tmp_windowlist);
-
   for(f = 0; f < orf_block->count; f++)
   {
-    if(pli_tmp->P_orf[f] > pli->F4) continue; 
+    if(pli_tmp->P_orf[f] > pli->F4) continue;
 
     curr_orf = &(orf_block->list[f]);
-  
-    p7_oprofile_ReconfigLength(om, curr_orf->n);
-    p7_omx_GrowTo(pli->oxf, om->M, 0, curr_orf->n);    /* expand the one-row omx if needed */ 
 
-    p7_SSVFilter_BATH(curr_orf->dsq, curr_orf->n, om, pli->oxf, data, bg, pli->F1, &tmp_windowlist); 
+    /* Find the best precomputed window for this ORF (id == f).
+     * Windows were produced by p7_ViterbiFilter_BATH or p7_SSVFilter_BATH
+     * earlier in the pipeline and stamped with the ORF index in id. */
+    best_window_idx = -1;
+    best_score      = -eslINFINITY;
+    for(w = 0; w < hit_windows->count; w++) {
+      if(hit_windows->windows[w].id != f) continue;
+      if(hit_windows->windows[w].score > best_score ||
+         (hit_windows->windows[w].score == best_score &&
+          hit_windows->windows[w].length > (best_window_idx >= 0 ? hit_windows->windows[best_window_idx].length : 0))) {
+        best_score      = hit_windows->windows[w].score;
+        best_window_idx = w;
+      }
+    }
 
-    /* If the orf fails to produce a window use the full ORF coords aligned to the center of the model. */
-    if(tmp_windowlist.count == 0) {
+    if(best_window_idx >= 0) {
+      curr_window = &hit_windows->windows[best_window_idx];
+    } else {
+      /* No precomputed window for this ORF — fall back to center of model. */
       if(curr_orf->n >= om->M) {
-        window_start = (curr_orf->n - om->M) / 2 + 1;
-        window_end   = om->M;
-        window_len   = om->M;
+        fallback_window.n      = (curr_orf->n - om->M) / 2 + 1;
+        fallback_window.k      = om->M;
+        fallback_window.length = om->M;
+      } else {
+        fallback_window.n      = 1;
+        fallback_window.k      = om->M - ((om->M - curr_orf->n) / 2);
+        fallback_window.length = curr_orf->n;
       }
-      else {
-        window_start = 1;
-        window_end   = om->M - ((om->M - curr_orf->n) / 2);
-        window_len   = curr_orf->n;
-      }
-      p7_hmmwindow_new(&tmp_windowlist, 0, window_start, window_end, window_len, 0.0, 0, curr_orf->n);
+      curr_window = &fallback_window;
     }
 
-    best_window = 0;
-    best_score  = tmp_windowlist.windows[0].score;
-    for(i = 1; i < tmp_windowlist.count; i++) {
-      if(tmp_windowlist.windows[i].score > best_score) {
-        best_window = i;
-        best_score  = tmp_windowlist.windows[i].score;
-      }
-    }
-
-    curr_window = tmp_windowlist.windows+best_window;
-
-    /* Extend ORF coords */
+    /* Extend ORF coords using prefix/suffix lengths */
     window_start = curr_window->n -                       (om->max_length * (0.1 + data->prefix_lengths[curr_window->k - curr_window->length + 1])) + 1;
     window_end   = curr_window->n + curr_window->length + (om->max_length * (0.1 + data->suffix_lengths[curr_window->k])) - 2;
 
-    window_start = ESL_MIN(0,           window_start); //move start to at least the begining of the ORF
-    window_end   = ESL_MAX(curr_orf->n, window_end);   // move end to at least the end of the ORF    
+    window_start = ESL_MIN(0,           window_start); /* move start to at least the beginning of the ORF */
+    window_end   = ESL_MAX(curr_orf->n, window_end);   /* move end   to at least the end of the ORF      */
 
     /* Convert to DNA coords */
     if(complementarity) {
-      window_start   = ESL_MAX(1,        (dnasq->n - curr_orf->start + 1) + (window_start * 3));
-      window_end     = ESL_MIN(dnasq->n, (dnasq->n - curr_orf->start + 1) + (window_end * 3));
+      window_start = ESL_MAX(1,        (dnasq->n - curr_orf->start + 1) + (window_start * 3));
+      window_end   = ESL_MIN(dnasq->n, (dnasq->n - curr_orf->start + 1) + (window_end * 3));
     }
     else {
       window_start = ESL_MAX(1,        curr_orf->start + (window_start * 3));
       window_end   = ESL_MIN(dnasq->n, curr_orf->start + (window_end * 3));
     }
-    
-    p7_hmmwindow_new(windowlist, 0, window_start, curr_window->k, window_end-window_start+1, 0.0, complementarity, dnasq->n);    
-    curr_orf->idx = windowlist->count - 1; // keep track of which window ORFs belong to
-    tmp_windowlist.count = 0;
-  }
 
-  if (tmp_windowlist.windows != NULL) free (tmp_windowlist.windows);
+    p7_hmmwindow_new(windowlist, 0, window_start, curr_window->k, window_end-window_start+1, 0.0, complementarity, dnasq->n);
+    curr_orf->idx = windowlist->count - 1; /* keep track of which window ORFs belong to */
+  }
   
   if( windowlist->count == 0) return eslOK;
 
@@ -1316,7 +1359,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_postViterbi_Frameshift_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, P7_HMM_WINDOW *dna_window, int windowidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_OBJS *pli_tmp, int complementarity)
 {
 
   int              f;
@@ -1510,7 +1553,7 @@ ERROR:
 }
 
 static int
-p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int complementarity)
 {
 
   int              i, w;
@@ -1533,7 +1576,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
   p7_hmmwindow_init(&fwd_windowlist);
 
   /* Build windows from ORF's that pass F4 */
-  p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp,complementarity);  
+  p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp, hit_windows, complementarity);
   
   for(w = 0; w < fwd_windowlist.count; w++) {
 
@@ -1709,7 +1752,7 @@ ERROR:
  *
  */
 static int
-p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_SCOREDATA *data, P7_HMM_WINDOWLIST *splcing_windows, P7_PIPELINE_BATH_OBJS *pli_tmp, int complementarity)
+p7_pli_postViterbi_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_SCOREDATA *data, P7_HMM_WINDOWLIST *splcing_windows, P7_PIPELINE_OBJS *pli_tmp, int complementarity)
 {
 
   int              f, w;
@@ -1858,29 +1901,31 @@ ERROR:
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *splcing_windows, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *hit_windows, int complementarity)
 {
 
-  int                i, w;
-  int                status, wstatus;
-  int                old_window_cnt;
-  int64_t            orf_start, orf_end; 
-  float              nullsc;              /* null model score                        */
-  float              usc;                 /* msv score                               */
-  float              vfsc;                /* viterbi score                           */
-  float              fwdsc;
-  float              seqsc;              /* null corrected bit score                */
-  float              filtersc;            /* bias and null score                     */
-  double             P;                   /* p-value holder                          */
-  ESL_SQ            *orfsq;               /* ORF sequence                            */
-  P7_HMM_WINDOW     *window;             
-  P7_PIPELINE_BATH_OBJS *pli_tmp;   
+  int     i, w;
+  int     status, wstatus;
+  int     old_window_cnt;
+  int64_t orf_start, orf_end; 
+  float   local_compo[p7_MAXABET]; /* Local model composition from windows    */
+  float   nullsc;                  /* null model score                        */
+  float   usc;                     /* msv score                               */
+  float   vfsc;                    /* viterbi score                           */
+  float   fwdsc;                   /* forward score                           */
+  float   seqsc;                   /* null corrected bit score                */
+  float   filtersc;                /* bias and null score                     */
+  float   local_filtersc;          /* bias and null score using local_compo   */
+  double  P;                       /* p-value holder                          */
+  ESL_SQ           *orfsq;         /* ORF sequence                            */
+  P7_HMM_WINDOW    *window;             
+  P7_PIPELINE_OBJS *pli_tmp;   
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
 
   pli_tmp = NULL;
-  ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_BATH_OBJS));
+  ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_OBJS));
   pli_tmp->tmpseq     = NULL;
   pli_tmp->oxf_holder = NULL;
   pli_tmp->P_orf      = NULL;
@@ -1917,6 +1962,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
     
     if(orfsq->n > 0) 
     {
+	  vfsc = -eslINFINITY;
+
       p7_bg_SetLength(bg, orfsq->n);
       p7_oprofile_ReconfigLength(om, orfsq->n);
       p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
@@ -1941,26 +1988,57 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
 
       pli->pos_past_bias += orfsq->n * 3;    
 
+	  old_window_cnt = hit_windows->count;
       /* Viterbi filer on ORF */
       if (P > pli->F2)
       {
-        p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
+        p7_ViterbiFilter_BATH(orfsq->dsq, orfsq->n, om, pli->oxf, data, filtersc, pli->F2, hit_windows, &vfsc);
         seqsc = (vfsc-filtersc) / eslCONST_LOG2;
         P  = esl_gumbel_surv(seqsc,  om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
-        if (P > pli->F2) continue;
+        if (P > pli->F2) { hit_windows->count = old_window_cnt; continue; }
       }
+	  else  // get windows
+		p7_SSVFilter_BATH(orfsq->dsq, orfsq->n, om, pli->oxf, data, bg, pli->F1, hit_windows);
 
+	  for(w = old_window_cnt; w < hit_windows->count; w++)
+        hit_windows->windows[w].id = i; // record ORF index for DNA windows
+										  
       pli->pos_past_vit  += orfsq->n * 3;      
-  
+
+	  if (pli->do_biasfilter) {
+        if (p7_pli_ComputeLocalCompo(hit_windows, old_window_cnt, hit_windows->count - 1, data, om, bg, local_compo) == eslOK) {
+          p7_bg_SetFilter(bg, om->M, local_compo);
+          p7_bg_SetLength(bg, orfsq->n);
+          p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &local_filtersc);
+      
+		  if(local_filtersc > filtersc) {
+		    filtersc = local_filtersc;
+    		if(vfsc == -eslINFINITY) { // Viterbi not run 
+              seqsc = (usc - filtersc) / eslCONST_LOG2;
+              P = esl_gumbel_surv(seqsc, om->evparam[p7_MMU], om->evparam[p7_MLAMBDA]);
+              if (P > pli->F1) { hit_windows->count = old_window_cnt; continue; }
+    		  if (P > pli->F2) {
+                p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
+    		    seqsc = (vfsc - filtersc) / eslCONST_LOG2;
+    		    P = esl_gumbel_surv(seqsc, om->evparam[p7_VMU], om->evparam[p7_VLAMBDA]);
+    		    if (P > pli->F2) { hit_windows->count = old_window_cnt; continue; }
+    		  }
+    		} 
+    		else {
+   	          seqsc = (vfsc - filtersc) / eslCONST_LOG2;
+              P = esl_gumbel_surv(seqsc, om->evparam[p7_VMU], om->evparam[p7_VLAMBDA]);
+              if (P > pli->F2) { hit_windows->count = old_window_cnt; continue; }
+            }
+	      }
+	    }
+        p7_bg_SetFilter(bg, om->M, om->compo);
+        p7_bg_SetLength(bg, orfsq->n);
+      } 
+
       if(!pli->fs_pipe) {
-
-        /* Save SSV windows to use a seeds in splcing graph */
         if(pli->spliced) {
-          old_window_cnt = splcing_windows->count;
-          p7_SSVFilter_BATH(orfsq->dsq, orfsq->n, om, pli->oxf, data, bg, pli->F1, splcing_windows);
-
-          for(w = old_window_cnt; w < splcing_windows->count; w++) {
-            window = &(splcing_windows->windows[w]);
+		  for(w = old_window_cnt; w < hit_windows->count; w++) {
+            window = &(hit_windows->windows[w]);
 
             window->id = seqidx;
             window->complementarity = complementarity;
@@ -1969,7 +2047,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
             else
               window->n = dnasq->start + orfsq->start + (window->n*3) - 4;
             window->length *= 3;
-
           }
         }
 
@@ -1979,8 +2056,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
         if (P > pli->F3) continue;
 
         if(pli->spliced) {
-          for(w = old_window_cnt; w < splcing_windows->count; w++)
-            splcing_windows->windows[w].pass_forward = TRUE;      
+          for(w = old_window_cnt; w < hit_windows->count; w++)
+            hit_windows->windows[w].pass_forward = TRUE;      
         }
 
         /*Get ORF DNA seqeunce for alignment */
@@ -2032,7 +2109,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
   }
 
   if(pli->fs_pipe)  { 
-    p7_pli_Frameshift(pli, om, om_fs3, om_fs5, gm_fs5, data, bg, hitlist, seqidx, orf_block, dnasq, gcode, pli_tmp, complementarity);
+    p7_pli_Frameshift(pli, om, om_fs3, om_fs5, gm_fs5, data, bg, hitlist, seqidx, orf_block, dnasq, gcode, pli_tmp, hit_windows, complementarity);
   }
 
   /* clean up */ 

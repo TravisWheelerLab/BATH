@@ -821,11 +821,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     for (i = 0; i < infocnt; ++i)
     {
       /* Create processing pipeline and hit list */
-      info[i].hw = NULL;
-      if (esl_opt_IsUsed(go, "--splice")) {
-        info[i].hw = p7_hmmwindow_CreateList();
-      }
-
+      info[i].hw = p7_hmmwindow_CreateList();
       info[i].gcode = gcode;
       info[i].wrk = esl_gencode_WorkstateCreate(go, gcode);
       info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);

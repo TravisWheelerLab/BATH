@@ -49,12 +49,12 @@ p7_oivx_Create_sse(int M_hint, int C)
 #ifdef eslENABLE_AVX
   ov->ivx_mem_avx = NULL;
   ov->ivx_avx     = NULL;
-  ov->allocQ8     = 0;
+  ov->allocQ4_avx = 0;
 #endif
 #ifdef eslENABLE_AVX512
   ov->ivx_mem_avx512 = NULL;
   ov->ivx_avx512     = NULL;
-  ov->allocQ16       = 0;
+  ov->allocQ4_avx512 = 0;
 #endif
 
   ESL_ALLOC(ov->ivx_mem, sizeof(__m128) * C * nq + 15);

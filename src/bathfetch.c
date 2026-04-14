@@ -122,6 +122,8 @@ main(int argc, char **argv)
 
     
    
+  impl_Init();
+
   /* Open the HMM file.  */
   status  = p7_hmmfile_OpenE(hmmfile, NULL, &hfp, errbuf);
   if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", hmmfile, errbuf);

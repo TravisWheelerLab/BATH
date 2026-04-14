@@ -101,9 +101,11 @@ main(int argc, char **argv)
      exit(0);
   }
  
+  impl_Init();
+
   /* Start timing. */
   esl_stopwatch_Start(w);
- 
+
   status = p7_hmmfile_OpenE(hmmfile_in, NULL, &hfp, errbuf);
   if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", hmmfile_in, errbuf);
   else if (status == eslEFORMAT)   p7_Fail("File format problem in trying to open HMM file %s.\n%s\n",                hmmfile_in, errbuf);

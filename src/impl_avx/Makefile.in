@@ -146,6 +146,13 @@ libhmmer-impl.stamp: ${OBJS}
 
 ${OBJS}:   ${HDRS} ../hmmer.h
 
+# _sse.c files must NOT be compiled with AVX_CFLAGS (-mavx2).
+# The compiler can auto-vectorize scalar loops with 256-bit AVX2 instructions
+# when -mavx2 is set, which would SIGILL on AVX1-only machines where the
+# runtime dispatch falls back to the _sse implementations.
+%_sse.o: %_sse.c
+	${QUIET_CC}${CC} ${CFLAGS} ${PIC_CFLAGS} ${PTHREAD_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${DEFS} ${MYINCDIRS} -o $@ -c $<
+
 .c.o:
 	${QUIET_CC}${CC} ${CFLAGS} ${PIC_CFLAGS} ${PTHREAD_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${DEFS} ${MYINCDIRS} -o $@ -c $<
 

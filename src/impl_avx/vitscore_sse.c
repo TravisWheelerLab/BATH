@@ -60,8 +60,8 @@ p7_ViterbiScore_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox
 
   for (i = 1; i <= L; i++)
     {
-      rsc   = om->rf[dsq[i]];
-      tsc   = om->tf;
+      rsc   = om->rfv[dsq[i]];
+      tsc   = om->tfv;
       dcv   = infv;
       xEv   = infv;
       Dmaxv = infv;
@@ -103,10 +103,10 @@ p7_ViterbiScore_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox
 
       /* Lazy F loop. */
       esl_sse_hmax_ps(Dmaxv, &Dmax);
-      if (Dmax + om->ddbound_f > xB)
+      if (Dmax + om->ddbound_w > xB)
         {
           dcv = esl_sse_rightshift_ps(dcv, infv);
-          tsc = om->tf + 7*Q;
+          tsc = om->tfv + 7*Q;
           for (q = 0; q < Q; q++)
             {
               DMO(dp,q) = _mm_max_ps(dcv, DMO(dp,q));
@@ -115,7 +115,7 @@ p7_ViterbiScore_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox
 
           do {
             dcv = esl_sse_rightshift_ps(dcv, infv);
-            tsc = om->tf + 7*Q;
+            tsc = om->tfv + 7*Q;
             for (q = 0; q < Q; q++)
               {
                 if (! esl_sse_any_gt_ps(dcv, DMO(dp,q))) break;

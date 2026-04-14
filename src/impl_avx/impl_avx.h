@@ -734,10 +734,10 @@ extern int p7_ViterbiFilter_sse     (const ESL_DSQ *dsq, int L, const P7_OPROFIL
 extern int p7_ViterbiFilter_BATH_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata, float filtersc, double P, P7_HMM_WINDOWLIST *windowlist, float *ret_sc);
 #endif
 
-/* vitfilter_fs.c */
+/* viterbi_fs.c */
 extern int p7_Viterbi_Frameshift      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                  P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern int p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
-/* vitfilter_fs_sse.c — SSE implementations */
+/* viterbi_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Viterbi_Frameshift_sse      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                  P7_OMX *ox, P7_OIVX *ov, float *opt_sc);
 extern int p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);

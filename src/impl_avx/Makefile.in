@@ -64,6 +64,8 @@ OBJS =  decoding.o\
 	vitfilter_fs_sse.o\
 	viterbi.o\
 	viterbi_sse.o\
+	viterbi_fs.o\
+	viterbi_fs_sse.o\
 	viterbi_sp.o\
 	viterbi_sp_sse.o\
 	vitscore.o\

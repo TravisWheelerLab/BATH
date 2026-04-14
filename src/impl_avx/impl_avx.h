@@ -593,10 +593,28 @@ extern int            (*p7_fs_oprofile_ReconfigMultihit)(P7_FS_OPROFILE *om_fs, 
 extern int            (*p7_fs_oprofile_ReconfigUnihit)(P7_FS_OPROFILE *om_fs, int L);
 extern int            (*p7_fs_oprofile_Logify)(P7_FS_OPROFILE *om_fs);
 
+/* p7_fs_oprofile_sse.c — SSE implementations (used as fallback in AVX dispatch) */
+extern P7_FS_OPROFILE *p7_fs_oprofile_Create_sse(int allocM, const ESL_ALPHABET *abc, int codon_lengths);
+extern void            p7_fs_oprofile_Destroy_sse(P7_FS_OPROFILE *om_fs);
+extern P7_FS_OPROFILE *p7_fs_oprofile_Clone_sse(const P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_Convert_sse(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_Convert_Log_sse(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs);
+extern int             p7_fs_oprofile_SubConvert_Log_sse(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs, int k_start, int k_end);
+extern int             p7_fs_oprofile_ReconfigLength_sse(P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigLength_Log_sse(P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigMultihit_sse(P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_ReconfigUnihit_sse(P7_FS_OPROFILE *om_fs, int L);
+extern int             p7_fs_oprofile_Logify_sse(P7_FS_OPROFILE *om_fs);
+
 /* p7_oivx.c — function pointers (dispatched at runtime) */
 extern P7_OIVX *(*p7_oivx_Create)(int M_hint, int C);
 extern int      (*p7_oivx_GrowTo)(P7_OIVX *ov, int M, int C);
 extern void     (*p7_oivx_Destroy)(P7_OIVX *ov);
+
+/* p7_oivx_sse.c — SSE implementations (used as fallback in AVX dispatch) */
+extern P7_OIVX *p7_oivx_Create_sse(int M_hint, int C);
+extern int      p7_oivx_GrowTo_sse(P7_OIVX *ov, int M, int C);
+extern void     p7_oivx_Destroy_sse(P7_OIVX *ov);
 
 /* decoding.c */
 extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);

@@ -850,17 +850,61 @@ p7_oprofile_GetFwdEmissionArray(const P7_OPROFILE *om, P7_BG *bg, float *arr)
 int
 p7_profile_SameAsMF_sse(const P7_OPROFILE *om, P7_PROFILE *gm)
 {
-  /* Delegate to the original impl_sse version if available, or
-   * provide a minimal check here. */
-  /* For now: basic sanity — M and mode must match. Full comparison
-   * requires reading back rbv/twv which is ISA-specific. */
-  if (om->M != gm->M) ESL_FAIL(eslFAIL, NULL, "M mismatch");
+  int    k, x;
+  float  tbm = roundf(om->scale_b * (log(2.0f / ((float) gm->M * (float) (gm->M+1)))));
+
+  /* Transitions */
+  esl_vec_FSet(gm->tsc, p7P_NTRANS * gm->M, -eslINFINITY);
+  for (k = 1; k <  gm->M; k++) p7P_TSC(gm, k, p7P_MM) = 0.0f;
+  for (k = 0; k <  gm->M; k++) p7P_TSC(gm, k, p7P_BM) = tbm;
+
+  /* Emissions */
+  for (x = 0; x < gm->abc->Kp; x++)
+    for (k = 0; k <= gm->M; k++)
+      {
+        gm->rsc[x][k*2]   = (gm->rsc[x][k*2] <= -eslINFINITY) ? -eslINFINITY : roundf(om->scale_b * gm->rsc[x][k*2]);
+        gm->rsc[x][k*2+1] = 0;  /* insert score: MSV makes it zero no matter what. */
+      }
+
+  /* Specials */
+  for (k = 0; k < p7P_NXSTATES; k++)
+    for (x = 0; x < p7P_NXTRANS; x++)
+      gm->xsc[k][x] = (gm->xsc[k][x] <= -eslINFINITY) ? -eslINFINITY : roundf(om->scale_b * gm->xsc[k][x]);
+
+  /* NN, CC, JJ hardcoded 0 in limited precision */
+  gm->xsc[p7P_N][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = gm->xsc[p7P_C][p7P_LOOP] = 0;
+
   return eslOK;
 }
 
 int
 p7_profile_SameAsVF_sse(const P7_OPROFILE *om, P7_PROFILE *gm)
 {
-  if (om->M != gm->M) ESL_FAIL(eslFAIL, NULL, "M mismatch");
+  int k, x;
+
+  /* Transitions */
+  for (x = 0; x < gm->M*p7P_NTRANS; x++)
+    gm->tsc[x] = (gm->tsc[x] <= -eslINFINITY) ? -eslINFINITY : roundf(om->scale_w * gm->tsc[x]);
+
+  /* Enforce the rule that no II can be 0; max of -1 */
+  for (x = p7P_II; x < gm->M*p7P_NTRANS; x += p7P_NTRANS)
+    if (gm->tsc[x] == 0.0) gm->tsc[x] = -1.0;
+
+  /* Emissions */
+  for (x = 0; x < gm->abc->Kp; x++)
+    for (k = 0; k <= gm->M; k++)
+      {
+        gm->rsc[x][k*2]   = (gm->rsc[x][k*2]   <= -eslINFINITY) ? -eslINFINITY : roundf(om->scale_w * gm->rsc[x][k*2]);
+        gm->rsc[x][k*2+1] = 0.0;  /* insert score: VF makes it zero no matter what. */
+      }
+
+  /* Specials */
+  for (k = 0; k < p7P_NXSTATES; k++)
+    for (x = 0; x < p7P_NXTRANS; x++)
+      gm->xsc[k][x] = (gm->xsc[k][x] <= -eslINFINITY) ? -eslINFINITY : roundf(om->scale_w * gm->xsc[k][x]);
+
+  /* 3nat approximation: NN, CC, JJ hardcoded 0 in limited precision */
+  gm->xsc[p7P_N][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = gm->xsc[p7P_C][p7P_LOOP] = 0.0;
+
   return eslOK;
 }

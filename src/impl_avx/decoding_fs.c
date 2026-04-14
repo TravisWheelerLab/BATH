@@ -337,6 +337,7 @@ main(int argc, char **argv)
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
   if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
 
+  impl_Init();
   p7_FLogsumInit();
 
   utest_domdef      (r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);

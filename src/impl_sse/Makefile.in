@@ -37,7 +37,6 @@ OBJS =  decoding.o\
 	decoding_fs.o\
 	fwdback.o\
 	fwdback_fs.o\
-	io.o\
 	ssvfilter.o\
 	msvfilter.o\
 	null2.o\
@@ -53,8 +52,7 @@ OBJS =  decoding.o\
 	p7_omx.o\
 	p7_oprofile.o\
 	p7_fs_oprofile.o\
-	p7_oivx.o\
-	mpi.o
+	p7_oivx.o
 
 HDRS =  impl_sse.h
 

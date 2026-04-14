@@ -36,7 +36,7 @@ endif
 check: 
 	@command -v python3 >/dev/null 2>&1 || { echo >&2 "python3 is required for 'make check', but is not in your PATH. Aborting."; exit 1; }
 	@echo 
-	@echo Running HMMER test suite...
+	@echo Running BATH test suite...
 	@echo
 	@${srcdir}/../${ESLDIR}/devkit/sqc -e ${SQCLEVEL} ${srcdir}/testsuite.sqc .. ${srcdir}/..
 

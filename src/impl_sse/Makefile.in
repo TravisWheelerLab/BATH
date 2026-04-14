@@ -61,7 +61,6 @@ UTESTS = @MPI_UTESTS@\
     decoding_fs_utest\
 	fwdback_utest\
 	fwdback_fs_utest\
-	io_utest\
 	msvfilter_utest\
 	null2_utest\
     null2_fs_utest\
@@ -88,7 +87,6 @@ BENCHMARKS = @MPI_BENCHMARKS@\
 
 EXAMPLES =\
 	fwdback_example\
-	io_example\
 	msvfilter_example\
 	optacc_example\
 	p7_oprofile_example\

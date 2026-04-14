@@ -491,14 +491,6 @@ extern int p7_ForwardParser (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,  
 extern int p7_Backward      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 
-/* io.c */
-extern int p7_oprofile_Write(FILE *ffp, FILE *pfp, P7_OPROFILE *om);
-extern int p7_oprofile_ReadMSV (P7_HMMFILE *hfp, ESL_ALPHABET **byp_abc, P7_OPROFILE **ret_om);
-extern int p7_oprofile_ReadInfoMSV(P7_HMMFILE *hfp, ESL_ALPHABET **byp_abc, P7_OPROFILE **ret_om);
-extern int p7_oprofile_ReadBlockMSV(P7_HMMFILE *hfp, ESL_ALPHABET **byp_abc, P7_OM_BLOCK *hmmBlock);
-extern int p7_oprofile_ReadRest(P7_HMMFILE *hfp, P7_OPROFILE *om);
-extern int p7_oprofile_Position(P7_HMMFILE *hfp, off_t offset);
-
 extern P7_OM_BLOCK *p7_oprofile_CreateBlock(int size);
 extern void p7_oprofile_DestroyBlock(P7_OM_BLOCK *block);
 

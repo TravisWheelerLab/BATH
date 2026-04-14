@@ -307,8 +307,8 @@ p7_oprofile_Compare(const P7_OPROFILE *om1, const P7_OPROFILE *om2, float tol, c
 {
   if (om1->M    != om2->M)    ESL_FAIL(eslFAIL, errmsg, "M mismatch");
   if (om1->mode != om2->mode) ESL_FAIL(eslFAIL, errmsg, "mode mismatch");
-  if (esl_FCompare(om1->scale_b, om2->scale_b, tol) != eslOK) ESL_FAIL(eslFAIL, errmsg, "scale_b mismatch");
-  if (esl_FCompare(om1->scale_w, om2->scale_w, tol) != eslOK) ESL_FAIL(eslFAIL, errmsg, "scale_w mismatch");
+  if (esl_FCompare(om1->scale_b, om2->scale_b, tol, 0.0) != eslOK) ESL_FAIL(eslFAIL, errmsg, "scale_b mismatch");
+  if (esl_FCompare(om1->scale_w, om2->scale_w, tol, 0.0) != eslOK) ESL_FAIL(eslFAIL, errmsg, "scale_w mismatch");
   return eslOK;
 }
 
@@ -325,7 +325,7 @@ p7_profile_SameAsMF(const P7_OPROFILE *om, P7_PROFILE *gm)
   extern int p7_profile_SameAsMF_sse(const P7_OPROFILE *om, P7_PROFILE *gm);
   return p7_profile_SameAsMF_sse(om, gm);
 #else
-  ESL_EXCEPTION(eslENOIMPL, "p7_profile_SameAsMF requires SSE");
+  ESL_EXCEPTION(eslENORESULT, "p7_profile_SameAsMF requires SSE");
 #endif
 }
 
@@ -336,7 +336,7 @@ p7_profile_SameAsVF(const P7_OPROFILE *om, P7_PROFILE *gm)
   extern int p7_profile_SameAsVF_sse(const P7_OPROFILE *om, P7_PROFILE *gm);
   return p7_profile_SameAsVF_sse(om, gm);
 #else
-  ESL_EXCEPTION(eslENOIMPL, "p7_profile_SameAsVF requires SSE");
+  ESL_EXCEPTION(eslENORESULT, "p7_profile_SameAsVF requires SSE");
 #endif
 }
 
@@ -353,7 +353,7 @@ p7_oprofile_Logify(P7_OPROFILE *om)
 #ifdef eslENABLE_SSE
   { extern int p7_oprofile_Logify_sse(P7_OPROFILE *om); return p7_oprofile_Logify_sse(om); }
 #endif
-  ESL_EXCEPTION(eslENOIMPL, "p7_oprofile_Logify: no SIMD implementation available");
+  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_Logify: no SIMD implementation available");
 }
 
 /* Block management — ISA-independent */

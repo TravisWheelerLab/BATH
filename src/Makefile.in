@@ -251,10 +251,10 @@ ${UTESTS}: libhmmer.a  ${HDRS} p7_config.h
            DFILE=${srcdir}/$${BASENAME}.c ;\
 	fi;\
 	if test ${V} ;\
-	   then echo "{CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
+	   then echo "{CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
 	   else echo '    ' GEN $@ ;\
         fi ;\
-	${CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
+	${CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
 
 ${BENCHMARKS}: libhmmer.a  ${HDRS} p7_config.h
 	@BASENAME=`echo $@ | sed -e 's/_benchmark//' | sed -e 's/^p7_//'` ;\
@@ -266,10 +266,10 @@ ${BENCHMARKS}: libhmmer.a  ${HDRS} p7_config.h
            DFILE=${srcdir}/$${BASENAME}.c ;\
 	fi;\
 	if test ${V} ;\
-	   then echo "{CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
+	   then echo "{CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
 	   else echo '    ' GEN $@ ;\
         fi ;\
-	${CC} ${CFLAGS} ${PTHREAD_CFLAGS}  ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
+	${CC} ${CFLAGS} ${PTHREAD_CFLAGS}  ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
 
 ${STATS}: libhmmer.a ${HDRS} p7_config.h
 	@BASENAME=`echo $@ | sed -e 's/_stats//' | sed -e 's/^p7_//'` ;\
@@ -281,10 +281,10 @@ ${STATS}: libhmmer.a ${HDRS} p7_config.h
            DFILE=${srcdir}/$${BASENAME}.c ;\
 	fi;\
 	if test ${V} ;\
-	   then echo "{CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
+	   then echo "{CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
 	   else echo '    ' GEN $@ ;\
         fi ;\
-	${CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
+	${CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
 
 ${EXAMPLES}: libhmmer.a ${HDRS} p7_config.h
 	@BASENAME=`echo $@ | sed -e 's/_example[0-9]*//' | sed -e 's/^p7_//'` ;\
@@ -295,10 +295,10 @@ ${EXAMPLES}: libhmmer.a ${HDRS} p7_config.h
            DFILE=${srcdir}/$${BASENAME}.c ;\
 	fi;\
 	if test ${V} ;\
-	   then echo "{CC} ${CFLAGS} ${PIC_CFLAGS} ${PTHREAD_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
+	   then echo "{CC} ${CFLAGS} ${PIC_CFLAGS} ${PTHREAD_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}" ;\
 	   else echo '    ' GEN $@ ;\
         fi ;\
-	${CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
+	${CC} ${CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS} ${NEON_CFLAGS} ${SSE_CFLAGS} ${AVX_CFLAGS} ${CPPFLAGS} ${LDFLAGS} ${DEFS} ${MYLIBDIRS} ${MYINCDIRS} -D$${DFLAG} -o $@ $${DFILE} ${LIBS}
 
 install:
 	for file in ${PROGS}; do \

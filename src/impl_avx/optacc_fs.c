@@ -229,6 +229,8 @@ main(int argc, char **argv)
   int             L      = esl_opt_GetInteger(go, "-L");
   int             N      = esl_opt_GetInteger(go, "-N");
 
+  impl_Init();
+
   utest_optacc_fs(go, r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N);
 
   p7_bg_Destroy(bgAA);

@@ -271,6 +271,7 @@ main(int argc, char **argv)
   int             I      = esl_opt_GetInteger(go, "-I");
 
   p7_FLogsumInit();
+  impl_Init();
 
   utest_viterbi_sp(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
 

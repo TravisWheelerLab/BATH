@@ -170,6 +170,7 @@ main(int argc, char **argv)
   float           tol  = esl_opt_GetReal   (go, "-t");
   
   p7_FLogsumInit();
+  impl_Init();
 
   utest_decoding(r, abc, bg, M, L, N, tol);
   

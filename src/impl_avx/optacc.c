@@ -281,6 +281,8 @@ main(int argc, char **argv)
   int             L    = esl_opt_GetInteger(go, "-L");
   int             N    = esl_opt_GetInteger(go, "-N");
 
+  impl_Init();
+
   /* first round of tests for DNA alphabets.  */
   if ((abc = esl_alphabet_Create(eslDNA)) == NULL)  esl_fatal("failed to create alphabet");
   if ((bg = p7_bg_Create(abc))            == NULL)  esl_fatal("failed to create null model");

@@ -204,6 +204,7 @@ main(int argc, char **argv)
   int             N      = esl_opt_GetInteger(go, "-N");
 
   p7_FLogsumInit();
+  impl_Init();
 
   utest_viterbi_fs(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
 

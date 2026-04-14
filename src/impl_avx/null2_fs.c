@@ -190,6 +190,7 @@ main(int argc, char **argv)
   int             N      = esl_opt_GetInteger(go, "-N");
 
   p7_FLogsumInit();
+  impl_Init();
 
   utest_null2_fs_expectation(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
 

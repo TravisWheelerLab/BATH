@@ -72,6 +72,7 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
 #include "esl_gencode.h"
 #include "esl_random.h"
 #include "esl_randomseq.h"
+#include "p7_splice.h"
 
 static void
 utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,

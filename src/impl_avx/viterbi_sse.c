@@ -2,8 +2,9 @@
  * These are the _sse-suffixed versions called by the runtime dispatcher in viterbi.c.
  */
 
-#ifdef eslENABLE_SSE
 #include "p7_config.h"
+
+#ifdef eslENABLE_SSE
 
 #include <stdio.h>
 #include <math.h>

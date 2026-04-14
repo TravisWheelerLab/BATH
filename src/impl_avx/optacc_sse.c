@@ -3,8 +3,9 @@
  * in optacc.c and optacc_fs.c.
  */
 
-#ifdef eslENABLE_SSE
 #include "p7_config.h"
+
+#ifdef eslENABLE_SSE
 
 #include <float.h>
 

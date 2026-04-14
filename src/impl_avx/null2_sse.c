@@ -3,8 +3,9 @@
  * in null2.c and null2_fs.c.
  */
 
-#ifdef eslENABLE_SSE
 #include "p7_config.h"
+
+#ifdef eslENABLE_SSE
 
 #include <stdlib.h>
 #include <string.h>

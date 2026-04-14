@@ -3,8 +3,9 @@
  * the runtime dispatcher in vitfilter_fs.c.
  */
 
-#ifdef eslENABLE_SSE
 #include "p7_config.h"
+
+#ifdef eslENABLE_SSE
 
 #include <stdio.h>
 #include <math.h>

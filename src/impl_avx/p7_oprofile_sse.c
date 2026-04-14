@@ -338,19 +338,19 @@ p7_oprofile_UpdateMSVEmissionScores_sse(P7_OPROFILE *om, P7_BG *bg, float *fwd_e
 static uint8_t
 unbiased_byteify(P7_OPROFILE *om, float sc)
 {
-  float rv = roundf(om->scale_b * sc);
-  if      (rv <    0.0f) return 0;
-  else if (rv >  255.0f) return 255;
-  else return (uint8_t) rv;
+  uint8_t b;
+  sc = -1.0f * roundf(om->scale_b * sc);        /* convert to integer cost in a float */
+  b  = (sc > 255.) ? 255 : (uint8_t) sc;        /* cast, saturate to unsigned char cost */
+  return b;
 }
 
 static uint8_t
 biased_byteify(P7_OPROFILE *om, float sc)
 {
-  float rv = roundf(om->scale_b * sc) + om->base_b + om->bias_b;
-  if      (rv <    0.0f) return 0;
-  else if (rv >  255.0f) return 255;
-  else return (uint8_t) rv;
+  uint8_t b;
+  sc = -1.0f * roundf(om->scale_b * sc);        /* convert to integer cost in a float */
+  b  = (sc > 255 - om->bias_b) ? 255 : (uint8_t) sc + om->bias_b;
+  return b;
 }
 
 static int16_t

@@ -170,7 +170,7 @@ p7_omx_Destroy(P7_OMX *ox)
 #endif
 #ifdef eslENABLE_AVX
   if (ox->allocQ4_avx > 0 || ox->allocQ8_avx > 0 || ox->allocQ16_avx > 0) {
-    p7_omx_Destroy_avx(ox);
+    p7_omx_Destroy_sse(ox);
     return;
   }
 #endif

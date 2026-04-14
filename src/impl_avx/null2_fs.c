@@ -26,7 +26,7 @@ p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
   if (esl_cpu_has_avx512()) return p7_Null2_fs_ByExpectation_avx512(om_fs, pp, null2);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Null2_fs_ByExpectation_avx(om_fs, pp, null2);
+  if (esl_cpu_has_avx())    return p7_Null2_fs_ByExpectation_sse(om_fs, pp, null2);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Null2_fs_ByExpectation_sse(om_fs, pp, null2);

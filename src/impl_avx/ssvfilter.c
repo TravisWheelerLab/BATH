@@ -26,7 +26,7 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
   if (esl_cpu_has_avx512()) return p7_SSVFilter_avx512(dsq, L, om, ret_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_SSVFilter_avx(dsq, L, om, ret_sc);
+  if (esl_cpu_has_avx())    return p7_SSVFilter_sse(dsq, L, om, ret_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_SSVFilter_sse(dsq, L, om, ret_sc);

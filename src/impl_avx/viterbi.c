@@ -26,7 +26,7 @@ p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
   if (esl_cpu_has_avx512()) return p7_Viterbi_avx512(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_avx(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx())    return p7_Viterbi_sse(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Viterbi_sse(dsq, L, om, ox, ret_sc);
@@ -51,7 +51,7 @@ p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX 
   if (esl_cpu_has_avx512()) return p7_Viterbi_Trace_avx512(dsq, L, om, ox, tr);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Trace_avx(dsq, L, om, ox, tr);
+  if (esl_cpu_has_avx())    return p7_Viterbi_Trace_sse(dsq, L, om, ox, tr);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Viterbi_Trace_sse(dsq, L, om, ox, tr);

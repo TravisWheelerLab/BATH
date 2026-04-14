@@ -26,7 +26,7 @@ p7_ViterbiScore(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, fl
   if (esl_cpu_has_avx512()) return p7_ViterbiScore_avx512(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ViterbiScore_avx(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx())    return p7_ViterbiScore_sse(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_ViterbiScore_sse(dsq, L, om, ox, ret_sc);

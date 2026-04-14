@@ -26,7 +26,7 @@ p7_OptimalAccuracy(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *r
   if (esl_cpu_has_avx512()) return p7_OptimalAccuracy_avx512(om, pp, ox, ret_e);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OptimalAccuracy_avx(om, pp, ox, ret_e);
+  if (esl_cpu_has_avx())    return p7_OptimalAccuracy_sse(om, pp, ox, ret_e);
 #endif
 #ifdef eslENABLE_SSE
   return p7_OptimalAccuracy_sse(om, pp, ox, ret_e);
@@ -51,7 +51,7 @@ p7_OATrace(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *
   if (esl_cpu_has_avx512()) return p7_OATrace_avx512(om, pp, ox, tr);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OATrace_avx(om, pp, ox, tr);
+  if (esl_cpu_has_avx())    return p7_OATrace_sse(om, pp, ox, tr);
 #endif
 #ifdef eslENABLE_SSE
   return p7_OATrace_sse(om, pp, ox, tr);

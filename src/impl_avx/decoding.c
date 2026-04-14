@@ -27,7 +27,7 @@ p7_Decoding(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *pp)
   if (esl_cpu_has_avx512()) return p7_Decoding_avx512(om, oxf, oxb, pp);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Decoding_avx(om, oxf, oxb, pp);
+  if (esl_cpu_has_avx())    return p7_Decoding_sse(om, oxf, oxb, pp);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Decoding_sse(om, oxf, oxb, pp);
@@ -51,7 +51,7 @@ p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P
   if (esl_cpu_has_avx512()) return p7_DomainDecoding_avx512(om, oxf, oxb, ddef);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_DomainDecoding_avx(om, oxf, oxb, ddef);
+  if (esl_cpu_has_avx())    return p7_DomainDecoding_sse(om, oxf, oxb, ddef);
 #endif
 #ifdef eslENABLE_SSE
   return p7_DomainDecoding_sse(om, oxf, oxb, ddef);

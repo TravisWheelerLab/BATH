@@ -28,7 +28,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
   if (esl_cpu_has_avx512()) return p7_Viterbi_Spliced_avx512(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Spliced_avx(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end);
+  if (esl_cpu_has_avx())    return p7_Viterbi_Spliced_sse(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Viterbi_Spliced_sse(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end);
@@ -56,7 +56,7 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
   if (esl_cpu_has_avx512()) return p7_Viterbi_SplicedTrace_avx512(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_SplicedTrace_avx(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);
+  if (esl_cpu_has_avx())    return p7_Viterbi_SplicedTrace_sse(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Viterbi_SplicedTrace_sse(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);

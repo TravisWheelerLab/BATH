@@ -29,7 +29,7 @@ p7_StochasticTrace(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPRO
   if (esl_cpu_has_avx512()) return p7_StochasticTrace_avx512(rng, dsq, L, om, ox, tr);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_StochasticTrace_avx(rng, dsq, L, om, ox, tr);
+  if (esl_cpu_has_avx())    return p7_StochasticTrace_sse(rng, dsq, L, om, ox, tr);
 #endif
 #ifdef eslENABLE_SSE
   return p7_StochasticTrace_sse(rng, dsq, L, om, ox, tr);

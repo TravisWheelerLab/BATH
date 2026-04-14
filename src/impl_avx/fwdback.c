@@ -29,7 +29,7 @@ p7_Forward(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float 
   if (esl_cpu_has_avx512()) return p7_Forward_avx512(dsq, L, om, fwd, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Forward_avx(dsq, L, om, fwd, opt_sc);
+  if (esl_cpu_has_avx())    return p7_Forward_sse(dsq, L, om, fwd, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Forward_sse(dsq, L, om, fwd, opt_sc);
@@ -53,7 +53,7 @@ p7_ForwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, 
   if (esl_cpu_has_avx512()) return p7_ForwardParser_avx512(dsq, L, om, fwd, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ForwardParser_avx(dsq, L, om, fwd, opt_sc);
+  if (esl_cpu_has_avx())    return p7_ForwardParser_sse(dsq, L, om, fwd, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_ForwardParser_sse(dsq, L, om, fwd, opt_sc);
@@ -77,7 +77,7 @@ p7_Backward(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd,
   if (esl_cpu_has_avx512()) return p7_Backward_avx512(dsq, L, om, fwd, bck, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Backward_avx(dsq, L, om, fwd, bck, opt_sc);
+  if (esl_cpu_has_avx())    return p7_Backward_sse(dsq, L, om, fwd, bck, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Backward_sse(dsq, L, om, fwd, bck, opt_sc);
@@ -101,7 +101,7 @@ p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX
   if (esl_cpu_has_avx512()) return p7_BackwardParser_avx512(dsq, L, om, fwd, bck, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_BackwardParser_avx(dsq, L, om, fwd, bck, opt_sc);
+  if (esl_cpu_has_avx())    return p7_BackwardParser_sse(dsq, L, om, fwd, bck, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_BackwardParser_sse(dsq, L, om, fwd, bck, opt_sc);

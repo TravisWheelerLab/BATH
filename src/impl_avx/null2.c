@@ -25,7 +25,7 @@ p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float *null2)
   if (esl_cpu_has_avx512()) return p7_Null2_ByExpectation_avx512(om, pp, null2);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Null2_ByExpectation_avx(om, pp, null2);
+  if (esl_cpu_has_avx())    return p7_Null2_ByExpectation_sse(om, pp, null2);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Null2_ByExpectation_sse(om, pp, null2);
@@ -49,7 +49,7 @@ p7_Null2_ByTrace(const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend
   if (esl_cpu_has_avx512()) return p7_Null2_ByTrace_avx512(om, tr, zstart, zend, wrk, null2);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Null2_ByTrace_avx(om, tr, zstart, zend, wrk, null2);
+  if (esl_cpu_has_avx())    return p7_Null2_ByTrace_sse(om, tr, zstart, zend, wrk, null2);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Null2_ByTrace_sse(om, tr, zstart, zend, wrk, null2);

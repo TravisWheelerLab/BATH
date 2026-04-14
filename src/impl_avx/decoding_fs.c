@@ -29,7 +29,7 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
   if (esl_cpu_has_avx512()) return p7_Decoding_Frameshift_avx512(om_fs, fwd, bck);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Decoding_Frameshift_avx(om_fs, fwd, bck);
+  if (esl_cpu_has_avx())    return p7_Decoding_Frameshift_sse(om_fs, fwd, bck);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Decoding_Frameshift_sse(om_fs, fwd, bck);
@@ -54,7 +54,7 @@ p7_DomainDecoding_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, con
   if (esl_cpu_has_avx512()) return p7_DomainDecoding_Frameshift_avx512(om_fs, oxf, oxb, ddef);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_DomainDecoding_Frameshift_avx(om_fs, oxf, oxb, ddef);
+  if (esl_cpu_has_avx())    return p7_DomainDecoding_Frameshift_sse(om_fs, oxf, oxb, ddef);
 #endif
 #ifdef eslENABLE_SSE
   return p7_DomainDecoding_Frameshift_sse(om_fs, oxf, oxb, ddef);

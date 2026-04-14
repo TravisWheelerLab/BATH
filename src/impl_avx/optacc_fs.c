@@ -27,7 +27,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   if (esl_cpu_has_avx512()) return p7_OptimalAccuracy_Frameshift_avx512(om_fs, pp, ox, ret_e);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OptimalAccuracy_Frameshift_avx(om_fs, pp, ox, ret_e);
+  if (esl_cpu_has_avx())    return p7_OptimalAccuracy_Frameshift_sse(om_fs, pp, ox, ret_e);
 #endif
 #ifdef eslENABLE_SSE
   return p7_OptimalAccuracy_Frameshift_sse(om_fs, pp, ox, ret_e);
@@ -53,7 +53,7 @@ p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   if (esl_cpu_has_avx512()) return p7_OATrace_Frameshift_avx512(om_fs, pp, ox, tr);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OATrace_Frameshift_avx(om_fs, pp, ox, tr);
+  if (esl_cpu_has_avx())    return p7_OATrace_Frameshift_sse(om_fs, pp, ox, tr);
 #endif
 #ifdef eslENABLE_SSE
   return p7_OATrace_Frameshift_sse(om_fs, pp, ox, tr);

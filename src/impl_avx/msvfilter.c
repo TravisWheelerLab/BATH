@@ -26,7 +26,7 @@ p7_MSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float
   if (esl_cpu_has_avx512()) return p7_MSVFilter_avx512(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_MSVFilter_avx(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx())    return p7_MSVFilter_sse(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_MSVFilter_sse(dsq, L, om, ox, ret_sc);
@@ -52,7 +52,7 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox,
   if (esl_cpu_has_avx512()) return p7_SSVFilter_BATH_avx512(dsq, L, om, ox, ssvdata, bg, P, windowlist);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_SSVFilter_BATH_avx(dsq, L, om, ox, ssvdata, bg, P, windowlist);
+  if (esl_cpu_has_avx())    return p7_SSVFilter_BATH_sse(dsq, L, om, ox, ssvdata, bg, P, windowlist);
 #endif
 #ifdef eslENABLE_SSE
   return p7_SSVFilter_BATH_sse(dsq, L, om, ox, ssvdata, bg, P, windowlist);

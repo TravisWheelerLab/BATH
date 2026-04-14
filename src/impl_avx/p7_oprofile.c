@@ -140,38 +140,38 @@ impl_Init(void)
   if (esl_cpu_has_avx())
     {
       /* P7_OPROFILE */
-      p7_oprofile_Create                = p7_oprofile_Create_avx;
-      p7_oprofile_Destroy               = p7_oprofile_Destroy_avx;
-      p7_oprofile_Clone                 = p7_oprofile_Clone_avx;
-      p7_oprofile_Convert               = p7_oprofile_Convert_avx;
-      p7_oprofile_Convert_Log           = p7_oprofile_Convert_Log_avx;
-      p7_oprofile_ReconfigLength        = p7_oprofile_ReconfigLength_avx;
-      p7_oprofile_ReconfigLength_Log    = p7_oprofile_ReconfigLength_Log_avx;
-      p7_oprofile_ReconfigMSVLength     = p7_oprofile_ReconfigMSVLength_avx;
-      p7_oprofile_ReconfigRestLength    = p7_oprofile_ReconfigRestLength_avx;
-      p7_oprofile_ReconfigMultihit      = p7_oprofile_ReconfigMultihit_avx;
-      p7_oprofile_ReconfigMultihit_Log  = p7_oprofile_ReconfigMultihit_Log_avx;
-      p7_oprofile_ReconfigUnihit        = p7_oprofile_ReconfigUnihit_avx;
-      p7_oprofile_ReconfigUnihit_Log    = p7_oprofile_ReconfigUnihit_Log_avx;
-      p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_avx;
-      p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_avx;
-      p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_avx;
+      p7_oprofile_Create                = p7_oprofile_Create_sse;
+      p7_oprofile_Destroy               = p7_oprofile_Destroy_sse;
+      p7_oprofile_Clone                 = p7_oprofile_Clone_sse;
+      p7_oprofile_Convert               = p7_oprofile_Convert_sse;
+      p7_oprofile_Convert_Log           = p7_oprofile_Convert_Log_sse;
+      p7_oprofile_ReconfigLength        = p7_oprofile_ReconfigLength_sse;
+      p7_oprofile_ReconfigLength_Log    = p7_oprofile_ReconfigLength_Log_sse;
+      p7_oprofile_ReconfigMSVLength     = p7_oprofile_ReconfigMSVLength_sse;
+      p7_oprofile_ReconfigRestLength    = p7_oprofile_ReconfigRestLength_sse;
+      p7_oprofile_ReconfigMultihit      = p7_oprofile_ReconfigMultihit_sse;
+      p7_oprofile_ReconfigMultihit_Log  = p7_oprofile_ReconfigMultihit_Log_sse;
+      p7_oprofile_ReconfigUnihit        = p7_oprofile_ReconfigUnihit_sse;
+      p7_oprofile_ReconfigUnihit_Log    = p7_oprofile_ReconfigUnihit_Log_sse;
+      p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_sse;
+      p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_sse;
+      p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_sse;
       /* P7_FS_OPROFILE */
-      p7_fs_oprofile_Create             = p7_fs_oprofile_Create_avx;
-      p7_fs_oprofile_Destroy            = p7_fs_oprofile_Destroy_avx;
-      p7_fs_oprofile_Clone              = p7_fs_oprofile_Clone_avx;
-      p7_fs_oprofile_Convert            = p7_fs_oprofile_Convert_avx;
-      p7_fs_oprofile_Convert_Log        = p7_fs_oprofile_Convert_Log_avx;
-      p7_fs_oprofile_SubConvert_Log     = p7_fs_oprofile_SubConvert_Log_avx;
-      p7_fs_oprofile_ReconfigLength     = p7_fs_oprofile_ReconfigLength_avx;
-      p7_fs_oprofile_ReconfigLength_Log = p7_fs_oprofile_ReconfigLength_Log_avx;
-      p7_fs_oprofile_ReconfigMultihit   = p7_fs_oprofile_ReconfigMultihit_avx;
-      p7_fs_oprofile_ReconfigUnihit     = p7_fs_oprofile_ReconfigUnihit_avx;
-      p7_fs_oprofile_Logify             = p7_fs_oprofile_Logify_avx;
+      p7_fs_oprofile_Create             = p7_fs_oprofile_Create_sse;
+      p7_fs_oprofile_Destroy            = p7_fs_oprofile_Destroy_sse;
+      p7_fs_oprofile_Clone              = p7_fs_oprofile_Clone_sse;
+      p7_fs_oprofile_Convert            = p7_fs_oprofile_Convert_sse;
+      p7_fs_oprofile_Convert_Log        = p7_fs_oprofile_Convert_Log_sse;
+      p7_fs_oprofile_SubConvert_Log     = p7_fs_oprofile_SubConvert_Log_sse;
+      p7_fs_oprofile_ReconfigLength     = p7_fs_oprofile_ReconfigLength_sse;
+      p7_fs_oprofile_ReconfigLength_Log = p7_fs_oprofile_ReconfigLength_Log_sse;
+      p7_fs_oprofile_ReconfigMultihit   = p7_fs_oprofile_ReconfigMultihit_sse;
+      p7_fs_oprofile_ReconfigUnihit     = p7_fs_oprofile_ReconfigUnihit_sse;
+      p7_fs_oprofile_Logify             = p7_fs_oprofile_Logify_sse;
       /* P7_OIVX */
-      p7_oivx_Create                    = p7_oivx_Create_avx;
-      p7_oivx_GrowTo                    = p7_oivx_GrowTo_avx;
-      p7_oivx_Destroy                   = p7_oivx_Destroy_avx;
+      p7_oivx_Create                    = p7_oivx_Create_sse;
+      p7_oivx_GrowTo                    = p7_oivx_GrowTo_sse;
+      p7_oivx_Destroy                   = p7_oivx_Destroy_sse;
       return;
     }
 #endif
@@ -348,7 +348,7 @@ p7_oprofile_Logify(P7_OPROFILE *om)
   if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_Logify_avx512(P7_OPROFILE *om); return p7_oprofile_Logify_avx512(om); }
 #endif
 #ifdef eslENABLE_AVX
-  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_Logify_avx(P7_OPROFILE *om);    return p7_oprofile_Logify_avx(om); }
+  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_Logify_sse(P7_OPROFILE *om);    return p7_oprofile_Logify_sse(om); }
 #endif
 #ifdef eslENABLE_SSE
   { extern int p7_oprofile_Logify_sse(P7_OPROFILE *om); return p7_oprofile_Logify_sse(om); }

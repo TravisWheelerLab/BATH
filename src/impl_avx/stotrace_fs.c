@@ -29,7 +29,7 @@ p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L,
   if (esl_cpu_has_avx512()) return p7_StochasticTrace_Frameshift_avx512(rng, dsq, L, om_fs, ox, tr);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_StochasticTrace_Frameshift_sse(rng, dsq, L, om_fs, ox, tr);
+  if (esl_cpu_has_avx())    return p7_StochasticTrace_Frameshift_avx(rng, dsq, L, om_fs, ox, tr);
 #endif
 #ifdef eslENABLE_SSE
   return p7_StochasticTrace_Frameshift_sse(rng, dsq, L, om_fs, ox, tr);

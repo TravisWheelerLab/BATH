@@ -41,7 +41,7 @@ p7_omx_Create(int allocM, int allocL, int allocXL)
   if (esl_cpu_has_avx512()) return p7_omx_Create_avx512(allocM, allocL, allocXL);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_Create_sse(allocM, allocL, allocXL);
+  if (esl_cpu_has_avx())    return p7_omx_Create_avx(allocM, allocL, allocXL);
 #endif
 #ifdef eslENABLE_SSE
   return p7_omx_Create_sse(allocM, allocL, allocXL);
@@ -67,7 +67,7 @@ p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
   if (esl_cpu_has_avx512()) return p7_omx_GrowTo_avx512(ox, allocM, allocL, allocXL);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_GrowTo_sse(ox, allocM, allocL, allocXL);
+  if (esl_cpu_has_avx())    return p7_omx_GrowTo_avx(ox, allocM, allocL, allocXL);
 #endif
 #ifdef eslENABLE_SSE
   return p7_omx_GrowTo_sse(ox, allocM, allocL, allocXL);
@@ -91,7 +91,7 @@ p7_omx_Create_dpf(int allocM, int allocL, int allocXL, int nscells)
   if (esl_cpu_has_avx512()) return p7_omx_Create_dpf_avx512(allocM, allocL, allocXL, nscells);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_Create_dpf_sse(allocM, allocL, allocXL, nscells);
+  if (esl_cpu_has_avx())    return p7_omx_Create_dpf_avx(allocM, allocL, allocXL, nscells);
 #endif
 #ifdef eslENABLE_SSE
   return p7_omx_Create_dpf_sse(allocM, allocL, allocXL, nscells);
@@ -115,7 +115,7 @@ p7_omx_GrowTo_dpf(P7_OMX *ox, int allocM, int allocL, int allocXL)
   if (esl_cpu_has_avx512()) return p7_omx_GrowTo_dpf_avx512(ox, allocM, allocL, allocXL);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_GrowTo_dpf_sse(ox, allocM, allocL, allocXL);
+  if (esl_cpu_has_avx())    return p7_omx_GrowTo_dpf_avx(ox, allocM, allocL, allocXL);
 #endif
 #ifdef eslENABLE_SSE
   return p7_omx_GrowTo_dpf_sse(ox, allocM, allocL, allocXL);
@@ -170,7 +170,7 @@ p7_omx_Destroy(P7_OMX *ox)
 #endif
 #ifdef eslENABLE_AVX
   if (ox->allocQ4_avx > 0 || ox->allocQ8_avx > 0 || ox->allocQ16_avx > 0) {
-    p7_omx_Destroy_sse(ox);
+    p7_omx_Destroy_avx(ox);
     return;
   }
 #endif

@@ -27,7 +27,7 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   if (esl_cpu_has_avx512()) return p7_Viterbi_Frameshift_avx512(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Frameshift_sse(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    return p7_Viterbi_Frameshift_avx(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Viterbi_Frameshift_sse(dsq, L, om_fs, ox, ov, opt_sc);
@@ -53,7 +53,7 @@ p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L,
   if (esl_cpu_has_avx512()) return p7_Viterbi_Frameshift_Trace_avx512(dsq, L, om_fs, ox, tr);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Frameshift_Trace_sse(dsq, L, om_fs, ox, tr);
+  if (esl_cpu_has_avx())    return p7_Viterbi_Frameshift_Trace_avx(dsq, L, om_fs, ox, tr);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Viterbi_Frameshift_Trace_sse(dsq, L, om_fs, ox, tr);

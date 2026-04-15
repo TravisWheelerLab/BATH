@@ -1,53 +1,78 @@
-/* Optimal accuracy alignment; SSE implementations for impl_avx dispatch.
- * These are the _sse-suffixed versions called by the runtime dispatchers
+/* Optimal accuracy alignment; AVX2 implementations for impl_avx dispatch.
+ * These are the _avx-suffixed versions called by the runtime dispatchers
  * in optacc.c.
  */
 
 #include "p7_config.h"
 
-#ifdef eslENABLE_SSE
+#ifdef eslENABLE_AVX
 
 #include <float.h>
 
-#include <xmmintrin.h>
-#include <emmintrin.h>
+#include <immintrin.h>
 
 #include "easel.h"
-#include "esl_sse.h"
+#include "esl_avx.h"
 #include "esl_vectorops.h"
 
 #include "hmmer.h"
 #include "impl_avx.h"
 
 
+/* avx_rightshift_ps()
+ * Right-shift a 256-bit float vector by one position and insert infv at position 0.
+ * Mirrors esl_sse_rightshift_ps() for AVX2.
+ */
+static inline __m256
+avx_rightshift_ps(__m256 v, __m256 infv)
+{
+  return _mm256_blend_ps(esl_avx_rightshiftz_float(v), infv, 0x01);
+}
+
+/* avx_hmax_ps()
+ * Compute horizontal max of all 8 floats in a 256-bit register.
+ * Stores result in *ret. No equivalent in esl_avx.h.
+ */
+static inline void
+avx_hmax_ps(__m256 v, float *ret)
+{
+  __m128 hi   = _mm256_extractf128_ps(v, 1);
+  __m128 lo   = _mm256_castps256_ps128(v);
+  __m128 max4 = _mm_max_ps(lo, hi);
+  max4 = _mm_max_ps(max4, _mm_shuffle_ps(max4, max4, _MM_SHUFFLE(2,3,0,1)));
+  max4 = _mm_max_ps(max4, _mm_shuffle_ps(max4, max4, _MM_SHUFFLE(1,0,3,2)));
+  _mm_store_ss(ret, max4);
+}
+
+
 /*****************************************************************
  * 1. Standard optimal accuracy DP fill and traceback
  *****************************************************************/
 
-/* Function:  p7_OptimalAccuracy_sse()
+/* Function:  p7_OptimalAccuracy_avx()
  *
- * Purpose:   SSE implementation of optimal accuracy DP fill.
+ * Purpose:   AVX2 implementation of optimal accuracy DP fill.
  *            See p7_OptimalAccuracy() documentation for details.
  *
  * Returns:   <eslOK> on success.
  */
 int
-p7_OptimalAccuracy_sse(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *ret_e)
+p7_OptimalAccuracy_avx(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *ret_e)
 {
-  register __m128 mpv, dpv, ipv;
-  register __m128 sv;
-  register __m128 xEv;
-  register __m128 xBv;
-  register __m128 dcv;
+  register __m256 mpv, dpv, ipv;
+  register __m256 sv;
+  register __m256 xEv;
+  register __m256 xBv;
+  register __m256 dcv;
   float  *xmx = ox->xmx;
-  __m128 *dpc = ox->dpf[0];
-  __m128 *dpp;
-  __m128 *ppp;
-  __m128 *tp;
-  __m128 zerov = _mm_setzero_ps();
-  __m128 infv  = _mm_set1_ps(-eslINFINITY);
+  __m256 *dpc = ox->dpf_avx[0];
+  __m256 *dpp;
+  __m256 *ppp;
+  __m256 *tp;
+  __m256 zerov = _mm256_setzero_ps();
+  __m256 infv  = _mm256_set1_ps(-eslINFINITY);
   int M = om->M;
-  int Q = p7O_NQF(M);
+  int Q = p7O_NQF_AVX(M);
   int q;
   int j;
   int i;
@@ -65,24 +90,24 @@ p7_OptimalAccuracy_sse(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, floa
   for (i = 1; i <= pp->L; i++)
     {
       dpp = dpc;
-      dpc = ox->dpf[i];
-      ppp = pp->dpf[i];
-      tp  = om->tfv;
+      dpc = ox->dpf_avx[i];
+      ppp = pp->dpf_avx[i];
+      tp  = om->tfv_avx;
       dcv = infv;
       xEv = infv;
-      xBv = _mm_set1_ps(XMXo(i-1, p7X_B));
+      xBv = _mm256_set1_ps(XMXo(i-1, p7X_B));
 
-      mpv = esl_sse_rightshift_ps(MMO(dpp,Q-1), infv);
-      dpv = esl_sse_rightshift_ps(DMO(dpp,Q-1), infv);
-      ipv = esl_sse_rightshift_ps(IMO(dpp,Q-1), infv);
+      mpv = avx_rightshift_ps(MMO(dpp,Q-1), infv);
+      dpv = avx_rightshift_ps(DMO(dpp,Q-1), infv);
+      ipv = avx_rightshift_ps(IMO(dpp,Q-1), infv);
       for (q = 0; q < Q; q++)
         {
-          sv  =                _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), xBv);  tp++;
-          sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), mpv)); tp++;
-          sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), ipv)); tp++;
-          sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), dpv)); tp++;
-          sv  = _mm_add_ps(sv, *ppp);                                      ppp += 2;
-          xEv = _mm_max_ps(xEv, sv);
+          sv  =                _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), xBv);  tp++;
+          sv  = _mm256_max_ps(sv, _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), mpv)); tp++;
+          sv  = _mm256_max_ps(sv, _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), ipv)); tp++;
+          sv  = _mm256_max_ps(sv, _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), dpv)); tp++;
+          sv  = _mm256_add_ps(sv, *ppp);                                                       ppp += 2;
+          xEv = _mm256_max_ps(xEv, sv);
 
           mpv = MMO(dpp,q);
           dpv = DMO(dpp,q);
@@ -91,35 +116,35 @@ p7_OptimalAccuracy_sse(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, floa
           MMO(dpc,q) = sv;
           DMO(dpc,q) = dcv;
 
-          dcv = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), sv); tp++;
+          dcv = _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), sv); tp++;
 
-          sv         =                _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), mpv);   tp++;
-          sv         = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), ipv));  tp++;
-          IMO(dpc,q) = _mm_add_ps(sv, *ppp);                                       ppp++;
+          sv         =                _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), mpv);   tp++;
+          sv         = _mm256_max_ps(sv, _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), ipv));  tp++;
+          IMO(dpc,q) = _mm256_add_ps(sv, *ppp);                                                       ppp++;
         }
 
-      dcv = esl_sse_rightshift_ps(dcv, infv);
-      tp  = om->tfv + 7*Q;
+      dcv = avx_rightshift_ps(dcv, infv);
+      tp  = om->tfv_avx + 7*Q;
       for (q = 0; q < Q; q++)
         {
-          DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-          dcv         = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), DMO(dpc,q));   tp++;
+          DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+          dcv         = _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), DMO(dpc,q));   tp++;
         }
 
-      for (j = 1; j < 4; j++)
+      for (j = 1; j < 8; j++)
         {
-          dcv = esl_sse_rightshift_ps(dcv, infv);
-          tp  = om->tfv + 7*Q;
+          dcv = avx_rightshift_ps(dcv, infv);
+          tp  = om->tfv_avx + 7*Q;
           for (q = 0; q < Q; q++)
             {
-              DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-              dcv         = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), dcv);   tp++;
+              DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+              dcv         = _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), dcv);   tp++;
             }
         }
 
-      for (q = 0; q < Q; q++) xEv = _mm_max_ps(xEv, DMO(dpc,q));
+      for (q = 0; q < Q; q++) xEv = _mm256_max_ps(xEv, DMO(dpc,q));
 
-      esl_sse_hmax_ps(xEv, &(XMXo(i,p7X_E)));
+      avx_hmax_ps(xEv, &(XMXo(i,p7X_E)));
 
       t1 = ( (om->xf[p7O_J][p7O_LOOP] == 0.0) ? 0.0 : ox->xmx[(i-1)*p7X_NXCELLS+p7X_J] + pp->xmx[i*p7X_NXCELLS+p7X_J]);
       t2 = ( (om->xf[p7O_E][p7O_LOOP] == 0.0) ? 0.0 : ox->xmx[   i *p7X_NXCELLS+p7X_E]);
@@ -156,14 +181,14 @@ static inline int oa_select_b(const P7_OPROFILE *om,                   const P7_
 static inline float
 oa_get_postprob(const P7_OMX *pp, int scur, int sprv, int k, int i)
 {
-  int     Q     = p7O_NQF(pp->M);
+  int     Q     = p7O_NQF_AVX(pp->M);
   int     q     = (k-1) % Q;
   int     r     = (k-1) / Q;
-  union { __m128 v; float p[4]; } u;
+  union { __m256 v; float p[8]; } u;
 
   switch (scur) {
-  case p7T_M: u.v = MMO(pp->dpf[i], q); return u.p[r];
-  case p7T_I: u.v = IMO(pp->dpf[i], q); return u.p[r];
+  case p7T_M: u.v = MMO(pp->dpf_avx[i], q); return u.p[r];
+  case p7T_I: u.v = IMO(pp->dpf_avx[i], q); return u.p[r];
   case p7T_N: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_N];
   case p7T_C: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_C];
   case p7T_J: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_J];
@@ -174,24 +199,24 @@ oa_get_postprob(const P7_OMX *pp, int scur, int sprv, int k, int i)
 static inline int
 oa_select_m(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 {
-  int     Q     = p7O_NQF(ox->M);
+  int     Q     = p7O_NQF_AVX(ox->M);
   int     q     = (k-1) % Q;
   int     r     = (k-1) / Q;
-  __m128 *tp    = om->tfv + 7*q;
-  __m128  xBv   = _mm_set1_ps(ox->xmx[(i-1)*p7X_NXCELLS+p7X_B]);
-  __m128  mpv, dpv, ipv;
-  union { __m128 v; float p[4]; } u, tv;
+  __m256 *tp    = om->tfv_avx + 7*q;
+  __m256  xBv   = _mm256_set1_ps(ox->xmx[(i-1)*p7X_NXCELLS+p7X_B]);
+  __m256  mpv, dpv, ipv;
+  union { __m256 v; float p[8]; } u, tv;
   float   path[4];
   int     state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };
 
   if (q > 0) {
-    mpv = ox->dpf[i-1][(q-1)*3 + p7X_M];
-    dpv = ox->dpf[i-1][(q-1)*3 + p7X_D];
-    ipv = ox->dpf[i-1][(q-1)*3 + p7X_I];
+    mpv = ox->dpf_avx[i-1][(q-1)*3 + p7X_M];
+    dpv = ox->dpf_avx[i-1][(q-1)*3 + p7X_D];
+    ipv = ox->dpf_avx[i-1][(q-1)*3 + p7X_I];
   } else {
-    mpv = esl_sse_rightshiftz_float(ox->dpf[i-1][(Q-1)*3 + p7X_M]);
-    dpv = esl_sse_rightshiftz_float(ox->dpf[i-1][(Q-1)*3 + p7X_D]);
-    ipv = esl_sse_rightshiftz_float(ox->dpf[i-1][(Q-1)*3 + p7X_I]);
+    mpv = esl_avx_rightshiftz_float(ox->dpf_avx[i-1][(Q-1)*3 + p7X_M]);
+    dpv = esl_avx_rightshiftz_float(ox->dpf_avx[i-1][(Q-1)*3 + p7X_D]);
+    ipv = esl_avx_rightshiftz_float(ox->dpf_avx[i-1][(Q-1)*3 + p7X_I]);
   }
 
   u.v = xBv;  tv.v = *tp;  path[3] = ((tv.p[r] == 0.0) ?  -eslINFINITY : u.p[r]);  tp++;
@@ -204,22 +229,22 @@ oa_select_m(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 static inline int
 oa_select_d(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 {
-  int     Q     = p7O_NQF(ox->M);
+  int     Q     = p7O_NQF_AVX(ox->M);
   int     q     = (k-1) % Q;
   int     r     = (k-1) / Q;
-  union { __m128 v; float p[4]; } mpv, dpv, tmdv, tddv;
+  union { __m256 v; float p[8]; } mpv, dpv, tmdv, tddv;
   float   path[2];
 
   if (q > 0) {
-    mpv.v  = ox->dpf[i][(q-1)*3 + p7X_M];
-    dpv.v  = ox->dpf[i][(q-1)*3 + p7X_D];
-    tmdv.v = om->tfv[7*(q-1) + p7O_MD];
-    tddv.v = om->tfv[7*Q + (q-1)];
+    mpv.v  = ox->dpf_avx[i][(q-1)*3 + p7X_M];
+    dpv.v  = ox->dpf_avx[i][(q-1)*3 + p7X_D];
+    tmdv.v = om->tfv_avx[7*(q-1) + p7O_MD];
+    tddv.v = om->tfv_avx[7*Q + (q-1)];
   } else {
-    mpv.v  = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*3 + p7X_M]);
-    dpv.v  = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*3 + p7X_D]);
-    tmdv.v = esl_sse_rightshiftz_float(om->tfv[7*(Q-1) + p7O_MD]);
-    tddv.v = esl_sse_rightshiftz_float(om->tfv[8*Q-1]);
+    mpv.v  = esl_avx_rightshiftz_float(ox->dpf_avx[i][(Q-1)*3 + p7X_M]);
+    dpv.v  = esl_avx_rightshiftz_float(ox->dpf_avx[i][(Q-1)*3 + p7X_D]);
+    tmdv.v = esl_avx_rightshiftz_float(om->tfv_avx[7*(Q-1) + p7O_MD]);
+    tddv.v = esl_avx_rightshiftz_float(om->tfv_avx[8*Q-1]);
   }
 
   path[0] = ((tmdv.p[r] == 0.0) ? -eslINFINITY : mpv.p[r]);
@@ -230,15 +255,15 @@ oa_select_d(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 static inline int
 oa_select_i(const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 {
-  int     Q    = p7O_NQF(ox->M);
+  int     Q    = p7O_NQF_AVX(ox->M);
   int     q    = (k-1) % Q;
   int     r    = (k-1) / Q;
-  __m128 *tp   = om->tfv + 7*q + p7O_MI;
-  union { __m128 v; float p[4]; } tv, mpv, ipv;
+  __m256 *tp   = om->tfv_avx + 7*q + p7O_MI;
+  union { __m256 v; float p[8]; } tv, mpv, ipv;
   float   path[2];
 
-  mpv.v = ox->dpf[i-1][q*3 + p7X_M]; tv.v = *tp;  path[0] = ((tv.p[r] == 0.0) ? -eslINFINITY : mpv.p[r]);  tp++;
-  ipv.v = ox->dpf[i-1][q*3 + p7X_I]; tv.v = *tp;  path[1] = ((tv.p[r] == 0.0) ? -eslINFINITY : ipv.p[r]);
+  mpv.v = ox->dpf_avx[i-1][q*3 + p7X_M]; tv.v = *tp;  path[0] = ((tv.p[r] == 0.0) ? -eslINFINITY : mpv.p[r]);  tp++;
+  ipv.v = ox->dpf_avx[i-1][q*3 + p7X_I]; tv.v = *tp;  path[1] = ((tv.p[r] == 0.0) ? -eslINFINITY : ipv.p[r]);
   return  ((path[0] >= path[1]) ? p7T_M : p7T_I);
 }
 
@@ -269,17 +294,18 @@ oa_select_j(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, int i)
 static inline int
 oa_select_e(const P7_OPROFILE *om, const P7_OMX *ox, int i, int *ret_k)
 {
-  int     Q     = p7O_NQF(ox->M);
-  __m128 *dp    = ox->dpf[i];
-  union { __m128 v; float p[4]; } u;
+  int     Q     = p7O_NQF_AVX(ox->M);
+  __m256 *dp    = ox->dpf_avx[i];
+  union { __m256 v; float p[8]; } u;
   float  max   = -eslINFINITY;
-  int    smax, kmax;
+  int    smax  = p7T_M;
+  int    kmax  = 1;
   int    q,r;
 
   for (q = 0; q < Q; q++)
     {
-      u.v   = *dp; dp++;  for (r = 0; r < 4; r++) if (u.p[r] >= max) { max = u.p[r]; smax = p7T_M; kmax = r*Q + q + 1; }
-      u.v   = *dp; dp+=2; for (r = 0; r < 4; r++) if (u.p[r] > max)  { max = u.p[r]; smax = p7T_D; kmax = r*Q + q + 1; }
+      u.v   = *dp; dp++;  for (r = 0; r < 8; r++) if (u.p[r] >= max) { max = u.p[r]; smax = p7T_M; kmax = r*Q + q + 1; }
+      u.v   = *dp; dp+=2; for (r = 0; r < 8; r++) if (u.p[r] > max)  { max = u.p[r]; smax = p7T_D; kmax = r*Q + q + 1; }
     }
   *ret_k = kmax;
   return smax;
@@ -295,9 +321,9 @@ oa_select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
 }
 
 
-/* Function:  p7_OATrace_sse()
+/* Function:  p7_OATrace_avx()
  *
- * Purpose:   SSE implementation of optimal accuracy traceback.
+ * Purpose:   AVX2 implementation of optimal accuracy traceback.
  *            See p7_OATrace() documentation for details.
  *
  * Returns:   <eslOK> on success.
@@ -305,7 +331,7 @@ oa_select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
  *            <eslEINVAL> if trace is not empty.
  */
 int
-p7_OATrace_sse(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr)
+p7_OATrace_avx(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr)
 {
   int   i   = ox->L;
   int   k   = 0;
@@ -344,4 +370,5 @@ p7_OATrace_sse(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRA
   tr->L = ox->L;
   return p7_trace_Reverse(tr);
 }
-#endif /* eslENABLE_SSE */
+
+#endif /* eslENABLE_AVX */

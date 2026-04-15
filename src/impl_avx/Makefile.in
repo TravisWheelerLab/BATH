@@ -36,46 +36,67 @@ MYINCDIRS      = -I../../${ESLDIR} \
 
 OBJS =  decoding.o\
 	decoding_sse.o\
+	decoding_avx.o\
 	decoding_fs.o\
 	decoding_fs_sse.o\
+	decoding_fs_avx.o\
 	fwdback.o\
 	fwdback_sse.o\
+	fwdback_avx.o\
 	fwdback_fs.o\
 	fwdback_fs_sse.o\
+	fwdback_fs_avx.o\
 	msvfilter.o\
 	msvfilter_sse.o\
+	msvfilter_avx.o\
 	null2.o\
 	null2_sse.o\
+	null2_avx.o\
 	null2_fs.o\
 	null2_fs_sse.o\
+	null2_fs_avx.o\
 	optacc.o\
 	optacc_sse.o\
+	optacc_avx.o\
 	optacc_fs.o\
 	optacc_fs_sse.o\
+	optacc_fs_avx.o\
 	ssvfilter.o\
 	ssvfilter_sse.o\
+	ssvfilter_avx.o\
 	stotrace.o\
 	stotrace_sse.o\
+	stotrace_avx.o\
 	stotrace_fs.o\
 	stotrace_fs_sse.o\
+	stotrace_fs_avx.o\
 	vitfilter.o\
 	vitfilter_sse.o\
-	vitfilter_fs.o\
-	vitfilter_fs_sse.o\
+	vitfilter_avx.o\
 	viterbi.o\
 	viterbi_sse.o\
+	viterbi_avx.o\
 	viterbi_fs.o\
 	viterbi_fs_sse.o\
+	viterbi_fs_avx.o\
 	viterbi_sp.o\
 	viterbi_sp_sse.o\
+	viterbi_sp_avx.o\
 	vitscore.o\
 	vitscore_sse.o\
+	vitscore_avx.o\
 	p7_omx.o\
 	p7_omx_sse.o\
+	p7_omx_avx.o\
 	p7_oprofile.o\
 	p7_oprofile_sse.o\
+	p7_oprofile_avx.o\
+	p7_fs_oprofile.o\
 	p7_fs_oprofile_sse.o\
-	p7_oivx_sse.o
+	p7_fs_oprofile_avx.o\
+	p7_oivx.o\
+	p7_oivx_sse.o\
+	p7_oivx_avx.o
 
 HDRS =  impl_avx.h
 

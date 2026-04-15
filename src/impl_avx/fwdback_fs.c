@@ -29,7 +29,7 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   if (esl_cpu_has_avx512()) return p7_ForwardParser_Frameshift_3Codons_avx512(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ForwardParser_Frameshift_3Codons_sse(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    return p7_ForwardParser_Frameshift_3Codons_avx(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_ForwardParser_Frameshift_3Codons_sse(dsq, L, om_fs, ox, ov, opt_sc);
@@ -54,7 +54,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   if (esl_cpu_has_avx512()) return p7_BackwardParser_Frameshift_3Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_BackwardParser_Frameshift_3Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx())    return p7_BackwardParser_Frameshift_3Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_BackwardParser_Frameshift_3Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
@@ -79,7 +79,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   if (esl_cpu_has_avx512()) return p7_ForwardParser_Frameshift_5Codons_avx512(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ForwardParser_Frameshift_5Codons_sse(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    return p7_ForwardParser_Frameshift_5Codons_avx(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_ForwardParser_Frameshift_5Codons_sse(dsq, L, om_fs, ox, ov, opt_sc);
@@ -104,7 +104,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   if (esl_cpu_has_avx512()) return p7_BackwardParser_Frameshift_5Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_BackwardParser_Frameshift_5Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx())    return p7_BackwardParser_Frameshift_5Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_BackwardParser_Frameshift_5Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
@@ -129,7 +129,7 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
   if (esl_cpu_has_avx512()) return p7_Forward_Frameshift_avx512(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Forward_Frameshift_sse(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    return p7_Forward_Frameshift_avx(dsq, L, om_fs, ox, ov, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Forward_Frameshift_sse(dsq, L, om_fs, ox, ov, opt_sc);
@@ -154,7 +154,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
   if (esl_cpu_has_avx512()) return p7_Backward_Frameshift_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Backward_Frameshift_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx())    return p7_Backward_Frameshift_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_Backward_Frameshift_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);

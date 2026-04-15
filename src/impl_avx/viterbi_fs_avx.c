@@ -1,20 +1,23 @@
-/* Frameshift-aware Viterbi (full matrix) and traceback; SSE implementations
- * for impl_avx dispatch.  These are the _sse-suffixed versions called by
- * the runtime dispatcher in vitfilter_fs.c.
+/* AVX2 frameshift-aware Viterbi algorithm; full matrix.
+ * Ported from impl_avx/viterbi_fs_sse.c for the AVX2 SIMD width (8 floats/vector).
+ * All public functions carry the _avx suffix; the non-suffixed dispatchers
+ * live in viterbi_fs.c.
+ *
+ * Contents:
+ *   1. p7_Viterbi_Frameshift_avx() implementation.
+ *   2. p7_Viterbi_Frameshift_Trace_avx() implementation.
  */
-
 #include "p7_config.h"
 
-#ifdef eslENABLE_SSE
+#ifdef eslENABLE_AVX
 
 #include <stdio.h>
 #include <math.h>
 
-#include <xmmintrin.h>
-#include <emmintrin.h>
+#include <immintrin.h>		/* AVX2 */
 
 #include "easel.h"
-#include "esl_sse.h"
+#include "esl_avx.h"
 #include "esl_vectorops.h"
 
 #include "hmmer.h"
@@ -23,38 +26,61 @@
 /* IVX intermediate matrix access: [slot 0..p7P_5CODONS-1][stripe 0..Q-1] */
 #define IVX(slot, q) (ivx[(slot)][(q)])
 
+/* avx_rightshift_ps: right-shift a __m256 by one float lane, filling lane 0 with infv.
+ * Used for D-carry initialization (log-space Viterbi: impossible = -inf). */
+static inline __m256
+avx_rightshift_ps(__m256 v, __m256 infv)
+{
+  return _mm256_blend_ps(esl_avx_rightshiftz_float(v), infv, 0x01);
+}
 
-/* Function:  p7_Viterbi_Frameshift_sse()
+/* avx_hmax_ps: horizontal max across all 8 lanes of a __m256, return scalar. */
+static inline void
+avx_hmax_ps(__m256 v, float *ret_max)
+{
+  __m128 a = _mm256_extractf128_ps(v, 0);
+  __m128 b = _mm256_extractf128_ps(v, 1);
+  a = _mm_max_ps(a, b);
+  a = _mm_max_ps(a, _mm_shuffle_ps(a, a, _MM_SHUFFLE(2,3,0,1)));
+  a = _mm_max_ps(a, _mm_shuffle_ps(a, a, _MM_SHUFFLE(1,0,3,2)));
+  _mm_store_ss(ret_max, a);
+}
+
+
+/*****************************************************************
+ * 1. p7_Viterbi_Frameshift_avx() implementation
+ *****************************************************************/
+
+/* Function:  p7_Viterbi_Frameshift_avx()
+ * Synopsis:  AVX2 frameshift-aware Viterbi algorithm, log-space, 5 codon lengths.
  *
- * Purpose:   SSE implementation of full-matrix frameshift-aware Viterbi,
- *            log-space, 5 codon lengths.
- *            See p7_Viterbi_Frameshift() documentation for details.
+ * Purpose:   AVX2 implementation; see p7_Viterbi_Frameshift() in viterbi_fs.c
+ *            for full documentation.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> if no valid path exists.
  */
 int
-p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                           P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
+p7_Viterbi_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
-  register __m128 mpv1, dpv1, ipv1;
-  register __m128 sv;
-  register __m128 msv;
-  register __m128 dcv;
-  register __m128 xEv;
-  register __m128 xBv1;
-  __m128   infv;
-  float    xN, xE, xB, xC, xJ;
+  register __m256 mpv1, dpv1, ipv1;     /* right-shifted prev1 MDI for BM/MM/IM/DM        */
+  register __m256 sv;                    /* temporary IVX accumulator                       */
+  register __m256 msv;                   /* M-state best-path value for current position    */
+  register __m256 dcv;                   /* delayed D(i,q+1) carry                          */
+  register __m256 xEv;                   /* E-state partial max (horizontal reduce later)   */
+  register __m256 xBv1;                  /* splatted B(i-1)                                 */
+  __m256   infv;                         /* splatted -eslINFINITY: log-space "impossible"   */
+  float    xN, xE, xB, xC, xJ;          /* special state scalars (log-space)               */
   float    xN_buf[PARSER_ROWS_FWD];
   float    xB_buf[PARSER_ROWS_FWD];
   float    xJ_buf[PARSER_ROWS_FWD];
   float    xC_buf[PARSER_ROWS_FWD];
-  int      b, b1, b3;
+  int      b, b1, b3;                    /* circular buffer slots: i, i-1, i-3             */
   int      ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
-  __m128  *dpc, *dpp1, *dpp3;
-  __m128  *tp;
-  __m128 **ivx      = NULL;
-  int      Q = p7O_NQF(om_fs->M);
+  __m256  *dpc, *dpp1, *dpp3;
+  __m256  *tp;
+  __m256 **ivx      = NULL;
+  int      Q = p7O_NQF_AVX(om_fs->M);
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
@@ -66,27 +92,28 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
   ox->L              = L;
   ox->has_own_scales = FALSE;
   ox->totscale       = 0.0;
-  infv = _mm_set1_ps(-eslINFINITY);
+  infv = _mm256_set1_ps(-eslINFINITY);
 
-  ivx = ov->ivx;
+  ivx = ov->ivx_avx;
 
-  /* Initialize rows 0..L of the full DP matrix to -inf. */
+  /* Initialize rows 0..L of the full DP matrix to -inf (log-space impossible). */
   for (r = 0; r <= L; r++)
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = infv;
+      MMO(ox->dpf_avx[r],q) = DMO(ox->dpf_avx[r],q) = IMO(ox->dpf_avx[r],q) = infv;
 
   /* Initialize all IVX rows to -inf. */
   for (r = 0; r < p7P_5CODONS; r++)
     for (q = 0; q < Q; q++)
       IVX(r, q) = infv;
 
-  /* Initialize special-state circular buffers. */
+  /* Initialize special-state circular buffers (log-space).
+   * N(0)=N(1)=N(2)=0 (=log 1); B(0)=B(1)=B(2)=log T_NM; E=J=C=-inf. */
   for (r = 0; r < PARSER_ROWS_FWD; r++)
     xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = -eslINFINITY;
   xN_buf[0] = xN_buf[1] = xN_buf[2] = 0.0f;
   xB_buf[0] = xB_buf[1] = xB_buf[2] = om_fs->xf[p7O_N][p7O_MOVE];
 
-  /* Write rows 0, 1, 2 specials to ox->xmx. */
+  /* Write rows 0, 1, 2 specials to ox->xmx (log-space; SCALE=0 means no rescaling). */
   for (r = 0; r < 3; r++)
     {
       ox->xmx[r*p7X_NXCELLS+p7X_SCALE] = 0.0f;
@@ -97,7 +124,7 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
       ox->xmx[r*p7X_NXCELLS+p7X_C]     = -eslINFINITY;
     }
 
-  /* Initialize nucleotide rolling window. */
+  /* Initialize nucleotide rolling window */
   t = u = v = w = p7P_MAXCODONS5;
   if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS5;
 
@@ -107,79 +134,84 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
   i = 1;
   c1 = p7P_CODON1_FS5(x); c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
 
-  ivx_1 = 1;
+  ivx_1 = 1;  /* i % p7P_5CODONS */
 
-  dpc  = ox->dpf[1];
-  dpp1 = ox->dpf[0];
+  dpc  = ox->dpf_avx[1];
+  dpp1 = ox->dpf_avx[0];  /* all -inf */
 
-  xBv1 = _mm_set1_ps(xB_buf[0]);
-  tp   = om_fs->tfv;
+  xBv1 = _mm256_set1_ps(xB_buf[0]);
+  tp   = om_fs->tfv_avx;
   dcv  = infv;
   xEv  = infv;
   mpv1 = dpv1 = ipv1 = infv;
 
   for (q = 0; q < Q; q++)
     {
-      sv  =                _mm_add_ps(xBv1, *tp); tp++;
-      sv  = _mm_max_ps(sv, _mm_add_ps(mpv1, *tp)); tp++;
-      sv  = _mm_max_ps(sv, _mm_add_ps(ipv1, *tp)); tp++;
-      sv  = _mm_max_ps(sv, _mm_add_ps(dpv1, *tp)); tp++;
+      /* IVX(1,q) = max(B(0)+BM, -inf, -inf, -inf) = B(0)+BM */
+      sv  =                  _mm256_add_ps(xBv1, *tp); tp++;   /* BM */
+      sv  = _mm256_max_ps(sv, _mm256_add_ps(mpv1, *tp)); tp++;  /* MM=-inf */
+      sv  = _mm256_max_ps(sv, _mm256_add_ps(ipv1, *tp)); tp++;  /* IM=-inf */
+      sv  = _mm256_max_ps(sv, _mm256_add_ps(dpv1, *tp)); tp++;  /* DM=-inf */
       IVX(ivx_1, q) = sv;
 
-      msv = _mm_add_ps(sv, om_fs->rfv[c1][q]);
+      /* M_C0(1,q): 1-nt codon only */
+      msv = _mm256_add_ps(sv, om_fs->rfv_avx[c1][q]);
       MMO(dpc, q) = msv;
-      xEv = _mm_max_ps(xEv, msv);
+      xEv = _mm256_max_ps(xEv, msv);
 
-      DMO(dpc, q) = dcv;
-      dcv = _mm_add_ps(msv, *tp); tp++;
+      DMO(dpc, q) = dcv;  /* dcv = -inf initially */
+      dcv = _mm256_add_ps(msv, *tp); tp++;   /* MD */
 
+      /* I(1,q) = -inf (dpp3 not yet available) */
       IMO(dpc, q) = infv;
-      tp += 2;
+      tp += 2;  /* skip MI, II */
     }
 
   /* DD paths */
-  dcv        = esl_sse_rightshift_ps(dcv, infv);
+  dcv        = avx_rightshift_ps(dcv, infv);
   DMO(dpc,0) = infv;
-  tp         = om_fs->tfv + 7*Q;
+  tp         = om_fs->tfv_avx + 7*Q;
   for (q = 0; q < Q; q++)
     {
-      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-      dcv         = _mm_add_ps(DMO(dpc, q), *tp); tp++;
+      DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+      dcv         = _mm256_add_ps(DMO(dpc, q), *tp); tp++;
     }
   if (om_fs->M < 100)
     {
-      for (j = 1; j < 4; j++)
+      for (j = 1; j < 8; j++)
         {
-          dcv = esl_sse_rightshift_ps(dcv, infv);
-          tp  = om_fs->tfv + 7*Q;
+          dcv = avx_rightshift_ps(dcv, infv);
+          tp  = om_fs->tfv_avx + 7*Q;
           for (q = 0; q < Q; q++)
             {
-              DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-              dcv         = _mm_add_ps(dcv, *tp); tp++;
+              DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+              dcv         = _mm256_add_ps(dcv, *tp); tp++;
             }
         }
     }
   else
     {
-      for (j = 1; j < 4; j++)
+      for (j = 1; j < 8; j++)
         {
-          register __m128 cv;
-          dcv = esl_sse_rightshift_ps(dcv, infv);
-          tp  = om_fs->tfv + 7*Q;
-          cv  = _mm_setzero_ps();
+          register __m256 cv;
+          dcv = avx_rightshift_ps(dcv, infv);
+          tp  = om_fs->tfv_avx + 7*Q;
+          cv  = _mm256_setzero_ps();
           for (q = 0; q < Q; q++)
             {
-              sv          = _mm_max_ps(dcv, DMO(dpc, q));
-              cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
+              sv          = _mm256_max_ps(dcv, DMO(dpc, q));
+              cv          = _mm256_or_ps(cv, _mm256_cmp_ps(sv, DMO(dpc, q), _CMP_GT_OQ));
               DMO(dpc, q) = sv;
-              dcv         = _mm_add_ps(dcv, *tp); tp++;
+              dcv         = _mm256_add_ps(dcv, *tp); tp++;
             }
-          if (! _mm_movemask_ps(cv)) break;
+          if (! _mm256_movemask_ps(cv)) break;
         }
     }
+  /* Add D to xEv, then reduce to scalar xE */
   for (q = 0; q < Q; q++)
-    xEv = _mm_max_ps(xEv, DMO(dpc, q));
-  esl_sse_hmax_ps(xEv, &xE);
+    xEv = _mm256_max_ps(xEv, DMO(dpc, q));
+  xE = -eslINFINITY;
+  avx_hmax_ps(xEv, &xE);
 
   xN = 0.0f;
   xJ = xE + om_fs->xf[p7O_E][p7O_LOOP];
@@ -205,33 +237,33 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
   c1 = p7P_CODON1_FS5(x);    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
   c2 = p7P_CODON2_FS5(w, x); c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
 
-  ivx_1 = 2;
-  ivx_2 = 1;
+  ivx_1 = 2;  /* i % p7P_5CODONS */
+  ivx_2 = 1;  /* (i-1) % p7P_5CODONS */
 
-  dpc  = ox->dpf[2];
-  dpp1 = ox->dpf[1];
+  dpc  = ox->dpf_avx[2];
+  dpp1 = ox->dpf_avx[1];
 
-  xBv1 = _mm_set1_ps(xB_buf[1]);
-  tp   = om_fs->tfv;
+  xBv1 = _mm256_set1_ps(xB_buf[1]);
+  tp   = om_fs->tfv_avx;
   dcv  = infv;
   xEv  = infv;
 
-  mpv1 = esl_sse_rightshift_ps(MMO(dpp1, Q-1), infv);
-  dpv1 = esl_sse_rightshift_ps(DMO(dpp1, Q-1), infv);
-  ipv1 = esl_sse_rightshift_ps(IMO(dpp1, Q-1), infv);
+  mpv1 = avx_rightshift_ps(MMO(dpp1, Q-1), infv);
+  dpv1 = avx_rightshift_ps(DMO(dpp1, Q-1), infv);
+  ipv1 = avx_rightshift_ps(IMO(dpp1, Q-1), infv);
 
   for (q = 0; q < Q; q++)
     {
-      sv  =                _mm_add_ps(xBv1, *tp); tp++;
-      sv  = _mm_max_ps(sv, _mm_add_ps(mpv1, *tp)); tp++;
-      sv  = _mm_max_ps(sv, _mm_add_ps(ipv1, *tp)); tp++;
-      sv  = _mm_max_ps(sv, _mm_add_ps(dpv1, *tp)); tp++;
+      sv  =                  _mm256_add_ps(xBv1, *tp); tp++;
+      sv  = _mm256_max_ps(sv, _mm256_add_ps(mpv1, *tp)); tp++;
+      sv  = _mm256_max_ps(sv, _mm256_add_ps(ipv1, *tp)); tp++;
+      sv  = _mm256_max_ps(sv, _mm256_add_ps(dpv1, *tp)); tp++;
       IVX(ivx_1, q) = sv;
 
-      __m128 mc1 = _mm_add_ps(sv,             om_fs->rfv[c1][q]);
-      __m128 mc2 = _mm_add_ps(IVX(ivx_2, q), om_fs->rfv[c2][q]);
-      msv = _mm_max_ps(mc1, mc2);
-      xEv = _mm_max_ps(xEv, msv);
+      __m256 mc1 = _mm256_add_ps(sv,             om_fs->rfv_avx[c1][q]);
+      __m256 mc2 = _mm256_add_ps(IVX(ivx_2, q), om_fs->rfv_avx[c2][q]);
+      msv = _mm256_max_ps(mc1, mc2);
+      xEv = _mm256_max_ps(xEv, msv);
 
       mpv1 = MMO(dpp1, q);
       dpv1 = DMO(dpp1, q);
@@ -240,55 +272,57 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
       MMO(dpc, q) = msv;
       DMO(dpc, q) = dcv;
 
-      dcv = _mm_add_ps(msv, *tp); tp++;
+      dcv = _mm256_add_ps(msv, *tp); tp++;   /* MD */
 
+      /* I(2,q) = -inf (dpp3 not yet available) */
       IMO(dpc, q) = infv;
-      tp += 2;
+      tp += 2;  /* skip MI, II */
     }
 
   /* DD paths */
-  dcv        = esl_sse_rightshift_ps(dcv, infv);
+  dcv        = avx_rightshift_ps(dcv, infv);
   DMO(dpc,0) = infv;
-  tp         = om_fs->tfv + 7*Q;
+  tp         = om_fs->tfv_avx + 7*Q;
   for (q = 0; q < Q; q++)
     {
-      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-      dcv         = _mm_add_ps(DMO(dpc, q), *tp); tp++;
+      DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+      dcv         = _mm256_add_ps(DMO(dpc, q), *tp); tp++;
     }
   if (om_fs->M < 100)
     {
-      for (j = 1; j < 4; j++)
+      for (j = 1; j < 8; j++)
         {
-          dcv = esl_sse_rightshift_ps(dcv, infv);
-          tp  = om_fs->tfv + 7*Q;
+          dcv = avx_rightshift_ps(dcv, infv);
+          tp  = om_fs->tfv_avx + 7*Q;
           for (q = 0; q < Q; q++)
             {
-              DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-              dcv         = _mm_add_ps(dcv, *tp); tp++;
+              DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+              dcv         = _mm256_add_ps(dcv, *tp); tp++;
             }
         }
     }
   else
     {
-      for (j = 1; j < 4; j++)
+      for (j = 1; j < 8; j++)
         {
-          register __m128 cv;
-          dcv = esl_sse_rightshift_ps(dcv, infv);
-          tp  = om_fs->tfv + 7*Q;
-          cv  = _mm_setzero_ps();
+          register __m256 cv;
+          dcv = avx_rightshift_ps(dcv, infv);
+          tp  = om_fs->tfv_avx + 7*Q;
+          cv  = _mm256_setzero_ps();
           for (q = 0; q < Q; q++)
             {
-              sv          = _mm_max_ps(dcv, DMO(dpc, q));
-              cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
+              sv          = _mm256_max_ps(dcv, DMO(dpc, q));
+              cv          = _mm256_or_ps(cv, _mm256_cmp_ps(sv, DMO(dpc, q), _CMP_GT_OQ));
               DMO(dpc, q) = sv;
-              dcv         = _mm_add_ps(dcv, *tp); tp++;
+              dcv         = _mm256_add_ps(dcv, *tp); tp++;
             }
-          if (! _mm_movemask_ps(cv)) break;
+          if (! _mm256_movemask_ps(cv)) break;
         }
     }
   for (q = 0; q < Q; q++)
-    xEv = _mm_max_ps(xEv, DMO(dpc, q));
-  esl_sse_hmax_ps(xEv, &xE);
+    xEv = _mm256_max_ps(xEv, DMO(dpc, q));
+  xE = -eslINFINITY;
+  avx_hmax_ps(xEv, &xE);
 
   xN = 0.0f;
   xJ = xE + om_fs->xf[p7O_E][p7O_LOOP];
@@ -327,33 +361,33 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
       b1 = ((i-1) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD;
       b3 = ((i-3) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD;
 
-      dpc  = ox->dpf[i];
-      dpp1 = ox->dpf[i-1];
-      dpp3 = ox->dpf[i-3];
+      dpc  = ox->dpf_avx[i];
+      dpp1 = ox->dpf_avx[i-1];
+      dpp3 = ox->dpf_avx[i-3];
 
-      mpv1 = esl_sse_rightshift_ps(MMO(dpp1, Q-1), infv);
-      dpv1 = esl_sse_rightshift_ps(DMO(dpp1, Q-1), infv);
-      ipv1 = esl_sse_rightshift_ps(IMO(dpp1, Q-1), infv);
+      mpv1 = avx_rightshift_ps(MMO(dpp1, Q-1), infv);
+      dpv1 = avx_rightshift_ps(DMO(dpp1, Q-1), infv);
+      ipv1 = avx_rightshift_ps(IMO(dpp1, Q-1), infv);
 
-      xBv1 = _mm_set1_ps(xB_buf[b1]);
-      tp   = om_fs->tfv;
+      xBv1 = _mm256_set1_ps(xB_buf[b1]);
+      tp   = om_fs->tfv_avx;
       dcv  = infv;
       xEv  = infv;
 
       for (q = 0; q < Q; q++)
         {
-          sv  =                _mm_add_ps(xBv1, *tp); tp++;
-          sv  = _mm_max_ps(sv, _mm_add_ps(mpv1, *tp)); tp++;
-          sv  = _mm_max_ps(sv, _mm_add_ps(ipv1, *tp)); tp++;
-          sv  = _mm_max_ps(sv, _mm_add_ps(dpv1, *tp)); tp++;
+          sv  =                  _mm256_add_ps(xBv1, *tp); tp++;
+          sv  = _mm256_max_ps(sv, _mm256_add_ps(mpv1, *tp)); tp++;
+          sv  = _mm256_max_ps(sv, _mm256_add_ps(ipv1, *tp)); tp++;
+          sv  = _mm256_max_ps(sv, _mm256_add_ps(dpv1, *tp)); tp++;
           IVX(ivx_1, q) = sv;
 
-          msv = _mm_max_ps(_mm_max_ps(_mm_max_ps(_mm_add_ps(sv,             om_fs->rfv[c1][q]),
-                                                  _mm_add_ps(IVX(ivx_2, q), om_fs->rfv[c2][q])),
-                                      _mm_max_ps(_mm_add_ps(IVX(ivx_3, q), om_fs->rfv[c3][q]),
-                                                  _mm_add_ps(IVX(ivx_4, q), om_fs->rfv[c4][q]))),
-                                      _mm_add_ps(IVX(ivx_5, q),             om_fs->rfv[c5][q]));
-          xEv = _mm_max_ps(xEv, msv);
+          msv = _mm256_max_ps(_mm256_max_ps(_mm256_max_ps(_mm256_add_ps(sv,             om_fs->rfv_avx[c1][q]),
+                                                           _mm256_add_ps(IVX(ivx_2, q), om_fs->rfv_avx[c2][q])),
+                                             _mm256_max_ps(_mm256_add_ps(IVX(ivx_3, q), om_fs->rfv_avx[c3][q]),
+                                                           _mm256_add_ps(IVX(ivx_4, q), om_fs->rfv_avx[c4][q]))),
+                                             _mm256_add_ps(IVX(ivx_5, q),               om_fs->rfv_avx[c5][q]));
+          xEv = _mm256_max_ps(xEv, msv);
 
           mpv1 = MMO(dpp1, q);
           dpv1 = DMO(dpp1, q);
@@ -361,56 +395,57 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
 
           MMO(dpc, q) = msv;
           DMO(dpc, q) = dcv;
-          dcv = _mm_add_ps(msv, *tp); tp++;
+          dcv = _mm256_add_ps(msv, *tp); tp++;   /* MD */
 
-          sv          = _mm_add_ps(MMO(dpp3, q), *tp); tp++;
-          IMO(dpc, q) = _mm_max_ps(sv, _mm_add_ps(IMO(dpp3, q), *tp)); tp++;
+          sv          = _mm256_add_ps(MMO(dpp3, q), *tp); tp++;  /* MI */
+          IMO(dpc, q) = _mm256_max_ps(sv, _mm256_add_ps(IMO(dpp3, q), *tp)); tp++;  /* II */
         }
 
       /* DD paths */
-      dcv        = esl_sse_rightshift_ps(dcv, infv);
+      dcv        = avx_rightshift_ps(dcv, infv);
       DMO(dpc,0) = infv;
-      tp         = om_fs->tfv + 7*Q;
+      tp         = om_fs->tfv_avx + 7*Q;
       for (q = 0; q < Q; q++)
         {
-          DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-          dcv         = _mm_add_ps(DMO(dpc, q), *tp); tp++;
+          DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+          dcv         = _mm256_add_ps(DMO(dpc, q), *tp); tp++;
         }
       if (om_fs->M < 100)
         {
-          for (j = 1; j < 4; j++)
+          for (j = 1; j < 8; j++)
             {
-              dcv = esl_sse_rightshift_ps(dcv, infv);
-              tp  = om_fs->tfv + 7*Q;
+              dcv = avx_rightshift_ps(dcv, infv);
+              tp  = om_fs->tfv_avx + 7*Q;
               for (q = 0; q < Q; q++)
                 {
-                  DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-                  dcv         = _mm_add_ps(dcv, *tp); tp++;
+                  DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+                  dcv         = _mm256_add_ps(dcv, *tp); tp++;
                 }
             }
         }
       else
         {
-          for (j = 1; j < 4; j++)
+          for (j = 1; j < 8; j++)
             {
-              register __m128 cv;
-              dcv = esl_sse_rightshift_ps(dcv, infv);
-              tp  = om_fs->tfv + 7*Q;
-              cv  = _mm_setzero_ps();
+              register __m256 cv;
+              dcv = avx_rightshift_ps(dcv, infv);
+              tp  = om_fs->tfv_avx + 7*Q;
+              cv  = _mm256_setzero_ps();
               for (q = 0; q < Q; q++)
                 {
-                  sv          = _mm_max_ps(dcv, DMO(dpc, q));
-                  cv          = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc, q)));
+                  sv          = _mm256_max_ps(dcv, DMO(dpc, q));
+                  cv          = _mm256_or_ps(cv, _mm256_cmp_ps(sv, DMO(dpc, q), _CMP_GT_OQ));
                   DMO(dpc, q) = sv;
-                  dcv         = _mm_add_ps(dcv, *tp); tp++;
+                  dcv         = _mm256_add_ps(dcv, *tp); tp++;
                 }
-              if (! _mm_movemask_ps(cv)) break;
+              if (! _mm256_movemask_ps(cv)) break;
             }
         }
 
       for (q = 0; q < Q; q++)
-        xEv = _mm_max_ps(xEv, DMO(dpc, q));
-      esl_sse_hmax_ps(xEv, &xE);
+        xEv = _mm256_max_ps(xEv, DMO(dpc, q));
+      xE = -eslINFINITY;
+      avx_hmax_ps(xEv, &xE);
 
       xN = xN_buf[b3] + om_fs->xf[p7O_N][p7O_LOOP];
       xJ = ESL_MAX(xJ_buf[b3] + om_fs->xf[p7O_J][p7O_LOOP], xE + om_fs->xf[p7O_E][p7O_LOOP]);
@@ -426,7 +461,7 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
       ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
     } /* end main loop i=3..L */
 
-  /* Final score. */
+  /* Final score */
   {
     float xCL   = xC_buf[   L    % PARSER_ROWS_FWD];
     float xCLm1 = xC_buf[((L-1) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD];
@@ -435,8 +470,8 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
                   ESL_MAX(xCLm1 + om_fs->xf[p7O_C][p7O_LOOP],
                           xCLm2 + om_fs->xf[p7O_C][p7O_LOOP]));
 
-    if      (isnan(xCtot))                 ESL_EXCEPTION(eslERANGE, "Viterbi score is NaN");
-    else if (isinf(xCtot) == 1)            ESL_EXCEPTION(eslERANGE, "Viterbi score overflow (is +infinity)");
+    if      (isnan(xCtot))            ESL_EXCEPTION(eslERANGE, "Viterbi score is NaN");
+    else if (isinf(xCtot) == 1)       ESL_EXCEPTION(eslERANGE, "Viterbi score overflow (is +infinity)");
     else if (L > 1 && isinf(xCtot) == -1) {
       if (opt_sc != NULL) *opt_sc = -eslINFINITY;
       return eslERANGE;
@@ -451,22 +486,29 @@ p7_Viterbi_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
  ERROR:
   return status;
 }
+/*------------------ end, p7_Viterbi_Frameshift_avx() ---------------*/
 
 
-/* Function:  p7_Viterbi_Frameshift_Trace_sse()
+
+/*****************************************************************
+ * 2. p7_Viterbi_Frameshift_Trace_avx() implementation
+ *****************************************************************/
+
+/* Function:  p7_Viterbi_Frameshift_Trace_avx()
+ * Synopsis:  Traceback from a Viterbi DP matrix (FS layout); AVX2 version.
  *
- * Purpose:   SSE implementation of traceback from a frameshift Viterbi DP matrix.
- *            See p7_Viterbi_Frameshift_Trace() documentation for details.
+ * Purpose:   AVX2 implementation; see p7_Viterbi_Frameshift_Trace() in viterbi_fs.c
+ *            for full documentation.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslFAIL> if an impossible state is reached during traceback.
  */
 int
-p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
-                                 const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
-                                 P7_TRACE *tr)
+p7_Viterbi_Frameshift_Trace_avx(const ESL_DSQ *dsq, int L,
+                                  const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
+                                  P7_TRACE *tr)
 {
-  int   Q      = p7O_NQF(om_fs->M);
+  int   Q      = p7O_NQF_AVX(om_fs->M);
   int   M      = om_fs->M;
   int   i      = L;
   int   k      = 0;
@@ -480,9 +522,9 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
   float match_codon[5];
   int   status;
 
-#define OMMo(i,k)   ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (i), (k)))
-#define ODMo(i,k)   ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (i), (k)))
-#define OIMo(i,k)   ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (i), (k)))
+#define OMMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (i), (k)))
+#define ODMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (i), (k)))
+#define OIMo(i,k)  ((k)<1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (i), (k)))
 #define OXMXo(i,s)  (ox->xmx[(i)*p7X_NXCELLS+(s)])
 
   if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
@@ -494,7 +536,7 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
     case p7T_C:
       if (OXMXo(i, p7X_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
 
-      if      (OXMXo(i, p7X_C) < OXMXo(i-2, p7X_C) || OXMXo(i, p7X_C) < OXMXo(i-1, p7X_C))                            scur = p7T_C;
+      if      (OXMXo(i, p7X_C) < OXMXo(i-2, p7X_C) || OXMXo(i, p7X_C) < OXMXo(i-1, p7X_C))                             scur = p7T_C;
       else if (esl_FCompare(OXMXo(i, p7X_C), OXMXo(i-3, p7X_C) + om_fs->xf[p7O_C][p7O_LOOP], r_tol, a_tol) == eslOK)  scur = p7T_C;
       else if (esl_FCompare(OXMXo(i, p7X_C), OXMXo(i,   p7X_E) + om_fs->xf[p7O_E][p7O_MOVE], r_tol, a_tol) == eslOK)  scur = p7T_E;
       else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
@@ -519,7 +561,7 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
 
     case p7T_M:
       {
-        union { __m128 v; float p[4]; } u;
+        union { __m256 v; float p[8]; } u;
         int   q_k   = (k-1) % Q;
         int   r_k   = (k-1) / Q;
         int   q_km1 = (k > 1) ? (k-2) % Q : 0;
@@ -530,16 +572,16 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
 
         if (OMMo(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k, i);
 
-        u.v = om_fs->tfv[7*q_k + p7O_BM]; tbm = u.p[r_k];
-        u.v = om_fs->tfv[7*q_k + p7O_MM]; tmm = u.p[r_k];
-        u.v = om_fs->tfv[7*q_k + p7O_IM]; tim = u.p[r_k];
-        u.v = om_fs->tfv[7*q_k + p7O_DM]; tdm = u.p[r_k];
+        u.v = om_fs->tfv_avx[7*q_k + p7O_BM]; tbm = u.p[r_k];
+        u.v = om_fs->tfv_avx[7*q_k + p7O_MM]; tmm = u.p[r_k];
+        u.v = om_fs->tfv_avx[7*q_k + p7O_IM]; tim = u.p[r_k];
+        u.v = om_fs->tfv_avx[7*q_k + p7O_DM]; tdm = u.p[r_k];
 
         bprev = OXMXo(ipred, p7X_B);
         if (k > 1) {
-          u.v = MMO(ox->dpf[ipred], q_km1); mprev = u.p[r_km1];
-          u.v = IMO(ox->dpf[ipred], q_km1); iprev = u.p[r_km1];
-          u.v = DMO(ox->dpf[ipred], q_km1); dprev = u.p[r_km1];
+          u.v = MMO(ox->dpf_avx[ipred], q_km1); mprev = u.p[r_km1];
+          u.v = IMO(ox->dpf_avx[ipred], q_km1); iprev = u.p[r_km1];
+          u.v = DMO(ox->dpf_avx[ipred], q_km1); dprev = u.p[r_km1];
         } else {
           mprev = iprev = dprev = -eslINFINITY;
         }
@@ -555,7 +597,7 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
 
     case p7T_D:
       {
-        union { __m128 v; float p[4]; } u;
+        union { __m256 v; float p[8]; } u;
         int   q_km1 = (k-2) % Q;
         int   r_km1 = (k-2) / Q;
         float tmd, tdd, mm_km1, dm_km1;
@@ -563,10 +605,10 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
         if (ODMo(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k, i);
         if (k < 2) ESL_EXCEPTION(eslFAIL, "D at k=1,i=%d can't be traced", i);
 
-        u.v = om_fs->tfv[7*q_km1 + p7O_MD]; tmd = u.p[r_km1];
-        u.v = om_fs->tfv[7*Q + q_km1];      tdd = u.p[r_km1];
-        u.v = MMO(ox->dpf[i], q_km1); mm_km1 = u.p[r_km1];
-        u.v = DMO(ox->dpf[i], q_km1); dm_km1 = u.p[r_km1];
+        u.v = om_fs->tfv_avx[7*q_km1 + p7O_MD]; tmd = u.p[r_km1];
+        u.v = om_fs->tfv_avx[7*Q + q_km1];      tdd = u.p[r_km1];
+        u.v = MMO(ox->dpf_avx[i], q_km1); mm_km1 = u.p[r_km1];
+        u.v = DMO(ox->dpf_avx[i], q_km1); dm_km1 = u.p[r_km1];
 
         if      (esl_FCompare(ODMo(i,k), mm_km1 + tmd, r_tol, a_tol) == eslOK) scur = p7T_M;
         else if (esl_FCompare(ODMo(i,k), dm_km1 + tdd, r_tol, a_tol) == eslOK) scur = p7T_D;
@@ -577,17 +619,17 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
 
     case p7T_I:
       {
-        union { __m128 v; float p[4]; } u;
+        union { __m256 v; float p[8]; } u;
         int   q_k = (k-1) % Q;
         int   r_k = (k-1) / Q;
         float tmi, tii, mprev_i, iprev_i;
 
         if (OIMo(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k, i);
 
-        u.v = om_fs->tfv[7*q_k + p7O_MI]; tmi = u.p[r_k];
-        u.v = om_fs->tfv[7*q_k + p7O_II]; tii = u.p[r_k];
-        u.v = MMO(ox->dpf[i-3], q_k); mprev_i = u.p[r_k];
-        u.v = IMO(ox->dpf[i-3], q_k); iprev_i = u.p[r_k];
+        u.v = om_fs->tfv_avx[7*q_k + p7O_MI]; tmi = u.p[r_k];
+        u.v = om_fs->tfv_avx[7*q_k + p7O_II]; tii = u.p[r_k];
+        u.v = MMO(ox->dpf_avx[i-3], q_k); mprev_i = u.p[r_k];
+        u.v = IMO(ox->dpf_avx[i-3], q_k); iprev_i = u.p[r_k];
 
         if      (esl_FCompare(OIMo(i,k), mprev_i + tmi, r_tol, a_tol) == eslOK) scur = p7T_M;
         else if (esl_FCompare(OIMo(i,k), iprev_i + tii, r_tol, a_tol) == eslOK) scur = p7T_I;
@@ -618,11 +660,10 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
       break;
 
     default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
-    }
+    } /* end switch over sprv */
 
-    /* For M states: recompute codon length c (1..5). */
     if (scur == p7T_M) {
-      union { __m128 v; float p[4]; } u;
+      union { __m256 v; float p[8]; } u;
       int   q_k   = (k-1) % Q;
       int   r_k   = (k-1) / Q;
       int   q_km1 = (k > 1) ? (k-2) % Q : 0;
@@ -636,19 +677,19 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
       int   cn, n;
       float bprev, mprev, iprev, dprev, ivx_n;
 
-      u.v = om_fs->tfv[7*q_k + p7O_BM]; tbm = u.p[r_k];
-      u.v = om_fs->tfv[7*q_k + p7O_MM]; tmm = u.p[r_k];
-      u.v = om_fs->tfv[7*q_k + p7O_IM]; tim = u.p[r_k];
-      u.v = om_fs->tfv[7*q_k + p7O_DM]; tdm = u.p[r_k];
+      u.v = om_fs->tfv_avx[7*q_k + p7O_BM]; tbm = u.p[r_k];
+      u.v = om_fs->tfv_avx[7*q_k + p7O_MM]; tmm = u.p[r_k];
+      u.v = om_fs->tfv_avx[7*q_k + p7O_IM]; tim = u.p[r_k];
+      u.v = om_fs->tfv_avx[7*q_k + p7O_DM]; tdm = u.p[r_k];
 
       for (n = 1; n <= 5; n++) {
         if (i < n) { match_codon[n-1] = -eslINFINITY; continue; }
 
         bprev = OXMXo(i-n, p7X_B);
         if (k > 1) {
-          u.v = MMO(ox->dpf[i-n], q_km1); mprev = u.p[r_km1];
-          u.v = IMO(ox->dpf[i-n], q_km1); iprev = u.p[r_km1];
-          u.v = DMO(ox->dpf[i-n], q_km1); dprev = u.p[r_km1];
+          u.v = MMO(ox->dpf_avx[i-n], q_km1); mprev = u.p[r_km1];
+          u.v = IMO(ox->dpf_avx[i-n], q_km1); iprev = u.p[r_km1];
+          u.v = DMO(ox->dpf_avx[i-n], q_km1); dprev = u.p[r_km1];
         } else {
           mprev = iprev = dprev = -eslINFINITY;
         }
@@ -661,7 +702,7 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
           case 4: cn = p7P_CODON4_FS5(u2, v2, w2, x2);      cn = p7P_MINIDX(cn, p7P_DEGEN5_QC1); break;
           default:cn = p7P_CODON5_FS5(t2, u2, v2, w2, x2); cn = p7P_MINIDX(cn, p7P_DEGEN5_QC2); break;
         }
-        u.v = om_fs->rfv[cn][q_k];
+        u.v = om_fs->rfv_avx[cn][q_k];
         match_codon[n-1] = ivx_n + u.p[r_k];
       }
       c = esl_vec_FArgMax(match_codon, 5) + 1;
@@ -677,7 +718,7 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
     prev_c = c;
     c = 0;
     sprv = scur;
-  }
+  } /* end traceback */
 
 #undef OMMo
 #undef ODMo
@@ -688,7 +729,6 @@ p7_Viterbi_Frameshift_Trace_sse(const ESL_DSQ *dsq, int L,
   tr->L = L;
   return p7_trace_fs_Reverse(tr);
 }
+/*------------------ end, p7_Viterbi_Frameshift_Trace_avx() --------------------*/
 
-#undef IVX
-
-#endif /* eslENABLE_SSE */
+#endif /* eslENABLE_AVX */

@@ -59,25 +59,6 @@ int          (*p7_oprofile_UpdateFwdEmissionScores)(P7_OPROFILE *om, P7_BG *bg, 
 int          (*p7_oprofile_UpdateVitEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = NULL;
 int          (*p7_oprofile_UpdateMSVEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = NULL;
 
-/* P7_FS_OPROFILE lifecycle */
-P7_FS_OPROFILE *(*p7_fs_oprofile_Create)         (int M, const ESL_ALPHABET *abc, int codon_lengths)                             = NULL;
-void            (*p7_fs_oprofile_Destroy)        (P7_FS_OPROFILE *om_fs)                                                         = NULL;
-P7_FS_OPROFILE *(*p7_fs_oprofile_Clone)          (const P7_FS_OPROFILE *om_fs)                                                   = NULL;
-int             (*p7_fs_oprofile_Convert)        (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)                             = NULL;
-int             (*p7_fs_oprofile_Convert_Log)    (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)                             = NULL;
-int             (*p7_fs_oprofile_SubConvert_Log) (const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs, int k_start, int k_end)     = NULL;
-int             (*p7_fs_oprofile_ReconfigLength) (P7_FS_OPROFILE *om_fs, int L)                                                  = NULL;
-int             (*p7_fs_oprofile_ReconfigLength_Log)(P7_FS_OPROFILE *om_fs, int L)                                               = NULL;
-int             (*p7_fs_oprofile_ReconfigMultihit)(P7_FS_OPROFILE *om_fs, int L)                                                 = NULL;
-int             (*p7_fs_oprofile_ReconfigUnihit)  (P7_FS_OPROFILE *om_fs, int L)                                                 = NULL;
-int             (*p7_fs_oprofile_Logify)          (P7_FS_OPROFILE *om_fs)                                                        = NULL;
-
-/* P7_OIVX lifecycle */
-P7_OIVX *(*p7_oivx_Create) (int M_hint, int C)      = NULL;
-int       (*p7_oivx_GrowTo) (P7_OIVX *ov, int M, int C) = NULL;
-void      (*p7_oivx_Destroy)(P7_OIVX *ov)              = NULL;
-
-
 /*****************************************************************
  * 2. impl_Init(): CPU detection and function pointer assignment.
  *
@@ -139,39 +120,39 @@ impl_Init(void)
 #ifdef eslENABLE_AVX
   if (esl_cpu_has_avx())
     {
-      /* P7_OPROFILE */
-      p7_oprofile_Create                = p7_oprofile_Create_sse;
-      p7_oprofile_Destroy               = p7_oprofile_Destroy_sse;
-      p7_oprofile_Clone                 = p7_oprofile_Clone_sse;
-      p7_oprofile_Convert               = p7_oprofile_Convert_sse;
-      p7_oprofile_Convert_Log           = p7_oprofile_Convert_Log_sse;
-      p7_oprofile_ReconfigLength        = p7_oprofile_ReconfigLength_sse;
-      p7_oprofile_ReconfigLength_Log    = p7_oprofile_ReconfigLength_Log_sse;
-      p7_oprofile_ReconfigMSVLength     = p7_oprofile_ReconfigMSVLength_sse;
-      p7_oprofile_ReconfigRestLength    = p7_oprofile_ReconfigRestLength_sse;
-      p7_oprofile_ReconfigMultihit      = p7_oprofile_ReconfigMultihit_sse;
-      p7_oprofile_ReconfigMultihit_Log  = p7_oprofile_ReconfigMultihit_Log_sse;
-      p7_oprofile_ReconfigUnihit        = p7_oprofile_ReconfigUnihit_sse;
-      p7_oprofile_ReconfigUnihit_Log    = p7_oprofile_ReconfigUnihit_Log_sse;
-      p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_sse;
-      p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_sse;
-      p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_sse;
-      /* P7_FS_OPROFILE */
-      p7_fs_oprofile_Create             = p7_fs_oprofile_Create_sse;
-      p7_fs_oprofile_Destroy            = p7_fs_oprofile_Destroy_sse;
-      p7_fs_oprofile_Clone              = p7_fs_oprofile_Clone_sse;
-      p7_fs_oprofile_Convert            = p7_fs_oprofile_Convert_sse;
-      p7_fs_oprofile_Convert_Log        = p7_fs_oprofile_Convert_Log_sse;
-      p7_fs_oprofile_SubConvert_Log     = p7_fs_oprofile_SubConvert_Log_sse;
-      p7_fs_oprofile_ReconfigLength     = p7_fs_oprofile_ReconfigLength_sse;
-      p7_fs_oprofile_ReconfigLength_Log = p7_fs_oprofile_ReconfigLength_Log_sse;
-      p7_fs_oprofile_ReconfigMultihit   = p7_fs_oprofile_ReconfigMultihit_sse;
-      p7_fs_oprofile_ReconfigUnihit     = p7_fs_oprofile_ReconfigUnihit_sse;
-      p7_fs_oprofile_Logify             = p7_fs_oprofile_Logify_sse;
-      /* P7_OIVX */
-      p7_oivx_Create                    = p7_oivx_Create_sse;
-      p7_oivx_GrowTo                    = p7_oivx_GrowTo_sse;
-      p7_oivx_Destroy                   = p7_oivx_Destroy_sse;
+      /* P7_OPROFILE — AVX2 implementations */
+      p7_oprofile_Create                = p7_oprofile_Create_avx;
+      p7_oprofile_Destroy               = p7_oprofile_Destroy_avx;
+      p7_oprofile_Clone                 = p7_oprofile_Clone_avx;
+      p7_oprofile_Convert               = p7_oprofile_Convert_avx;
+      p7_oprofile_Convert_Log           = p7_oprofile_Convert_Log_avx;
+      p7_oprofile_ReconfigLength        = p7_oprofile_ReconfigLength_avx;
+      p7_oprofile_ReconfigLength_Log    = p7_oprofile_ReconfigLength_Log_avx;
+      p7_oprofile_ReconfigMSVLength     = p7_oprofile_ReconfigMSVLength_avx;
+      p7_oprofile_ReconfigRestLength    = p7_oprofile_ReconfigRestLength_avx;
+      p7_oprofile_ReconfigMultihit      = p7_oprofile_ReconfigMultihit_avx;
+      p7_oprofile_ReconfigMultihit_Log  = p7_oprofile_ReconfigMultihit_Log_avx;
+      p7_oprofile_ReconfigUnihit        = p7_oprofile_ReconfigUnihit_avx;
+      p7_oprofile_ReconfigUnihit_Log    = p7_oprofile_ReconfigUnihit_Log_avx;
+      p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_avx;
+      p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_avx;
+      p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_avx;
+      /* P7_FS_OPROFILE — AVX2 implementations */
+      p7_fs_oprofile_Create             = p7_fs_oprofile_Create_avx;
+      p7_fs_oprofile_Destroy            = p7_fs_oprofile_Destroy_avx;
+      p7_fs_oprofile_Clone              = p7_fs_oprofile_Clone_avx;
+      p7_fs_oprofile_Convert            = p7_fs_oprofile_Convert_avx;
+      p7_fs_oprofile_Convert_Log        = p7_fs_oprofile_Convert_Log_avx;
+      p7_fs_oprofile_SubConvert_Log     = p7_fs_oprofile_SubConvert_Log_avx;
+      p7_fs_oprofile_ReconfigLength     = p7_fs_oprofile_ReconfigLength_avx;
+      p7_fs_oprofile_ReconfigLength_Log = p7_fs_oprofile_ReconfigLength_Log_avx;
+      p7_fs_oprofile_ReconfigMultihit   = p7_fs_oprofile_ReconfigMultihit_avx;
+      p7_fs_oprofile_ReconfigUnihit     = p7_fs_oprofile_ReconfigUnihit_avx;
+      p7_fs_oprofile_Logify             = p7_fs_oprofile_Logify_avx;
+      /* P7_OIVX — AVX2 implementations */
+      p7_oivx_Create                    = p7_oivx_Create_avx;
+      p7_oivx_GrowTo                    = p7_oivx_GrowTo_avx;
+      p7_oivx_Destroy                   = p7_oivx_Destroy_avx;
       return;
     }
 #endif
@@ -228,16 +209,6 @@ int
 p7_oprofile_IsLocal(const P7_OPROFILE *om)
 {
   if (om->mode == p7_LOCAL || om->mode == p7_UNILOCAL) return TRUE;
-  return FALSE;
-}
-
-/* Function:  p7_fs_oprofile_IsLocal()
- * Synopsis:  Returns TRUE if FS profile is in local alignment mode.
- */
-int
-p7_fs_oprofile_IsLocal(const P7_FS_OPROFILE *om_fs)
-{
-  if (om_fs->mode == p7_LOCAL || om_fs->mode == p7_UNILOCAL) return TRUE;
   return FALSE;
 }
 

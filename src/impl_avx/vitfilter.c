@@ -26,7 +26,7 @@ p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, f
   if (esl_cpu_has_avx512()) return p7_ViterbiFilter_avx512(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ViterbiFilter_sse(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx())    return p7_ViterbiFilter_avx(dsq, L, om, ox, ret_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_ViterbiFilter_sse(dsq, L, om, ox, ret_sc);
@@ -54,7 +54,7 @@ p7_ViterbiFilter_BATH(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *
   if (esl_cpu_has_avx512()) return p7_ViterbiFilter_BATH_avx512(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ViterbiFilter_BATH_sse(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc);
+  if (esl_cpu_has_avx())    return p7_ViterbiFilter_BATH_avx(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc);
 #endif
 #ifdef eslENABLE_SSE
   return p7_ViterbiFilter_BATH_sse(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc);

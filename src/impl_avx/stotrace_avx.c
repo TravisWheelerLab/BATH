@@ -1,30 +1,25 @@
-/* Stochastic traceback; SSE implementations for impl_avx dispatch.
- * These are the _sse-suffixed versions called by the runtime dispatchers
+/* Stochastic traceback; AVX2 implementation for impl_avx dispatch.
+ * This is the _avx-suffixed version called by the runtime dispatcher
  * in stotrace.c.
  */
 
 #include "p7_config.h"
 
-#ifdef eslENABLE_SSE
+#ifdef eslENABLE_AVX
 
 #include <stdio.h>
 #include <math.h>
 
-#include <xmmintrin.h>
-#include <emmintrin.h>
+#include <immintrin.h>
 
 #include "easel.h"
 #include "esl_random.h"
-#include "esl_sse.h"
+#include "esl_avx.h"
 #include "esl_vectorops.h"
 
 #include "hmmer.h"
 #include "impl_avx.h"
 
-
-/*****************************************************************
- * 1. Standard stochastic traceback (p7_StochasticTrace_sse)
- *****************************************************************/
 
 static inline int select_m(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, int k);
 static inline int select_d(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, int k);
@@ -40,30 +35,30 @@ static inline int select_b(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_
 static inline int
 select_m(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 {
-  int     Q     = p7O_NQF(ox->M);
+  int     Q     = p7O_NQF_AVX(ox->M);
   int     q     = (k-1) % Q;
   int     r     = (k-1) / Q;
-  __m128 *tp    = om->tfv + 7*q;
-  __m128  xBv   = _mm_set1_ps(ox->xmx[(i-1)*p7X_NXCELLS+p7X_B]);
-  __m128  mpv, dpv, ipv;
-  union { __m128 v; float p[4]; } u;
+  __m256 *tp    = om->tfv_avx + 7*q;
+  __m256  xBv   = _mm256_set1_ps(ox->xmx[(i-1)*p7X_NXCELLS+p7X_B]);
+  __m256  mpv, dpv, ipv;
+  union { __m256 v; float p[8]; } u;
   float   path[4];
   int     state[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
 
   if (q > 0) {
-    mpv = ox->dpf[i-1][(q-1)*3 + p7X_M];
-    dpv = ox->dpf[i-1][(q-1)*3 + p7X_D];
-    ipv = ox->dpf[i-1][(q-1)*3 + p7X_I];
+    mpv = ox->dpf_avx[i-1][(q-1)*3 + p7X_M];
+    dpv = ox->dpf_avx[i-1][(q-1)*3 + p7X_D];
+    ipv = ox->dpf_avx[i-1][(q-1)*3 + p7X_I];
   } else {
-    mpv = esl_sse_rightshiftz_float(ox->dpf[i-1][(Q-1)*3 + p7X_M]);
-    dpv = esl_sse_rightshiftz_float(ox->dpf[i-1][(Q-1)*3 + p7X_D]);
-    ipv = esl_sse_rightshiftz_float(ox->dpf[i-1][(Q-1)*3 + p7X_I]);
+    mpv = esl_avx_rightshiftz_float(ox->dpf_avx[i-1][(Q-1)*3 + p7X_M]);
+    dpv = esl_avx_rightshiftz_float(ox->dpf_avx[i-1][(Q-1)*3 + p7X_D]);
+    ipv = esl_avx_rightshiftz_float(ox->dpf_avx[i-1][(Q-1)*3 + p7X_I]);
   }
 
-  u.v = _mm_mul_ps(xBv, *tp); tp++;  path[0] = u.p[r];
-  u.v = _mm_mul_ps(mpv, *tp); tp++;  path[1] = u.p[r];
-  u.v = _mm_mul_ps(ipv, *tp); tp++;  path[2] = u.p[r];
-  u.v = _mm_mul_ps(dpv, *tp);        path[3] = u.p[r];
+  u.v = _mm256_mul_ps(xBv, *tp); tp++;  path[0] = u.p[r];
+  u.v = _mm256_mul_ps(mpv, *tp); tp++;  path[1] = u.p[r];
+  u.v = _mm256_mul_ps(ipv, *tp); tp++;  path[2] = u.p[r];
+  u.v = _mm256_mul_ps(dpv, *tp);        path[3] = u.p[r];
   esl_vec_FNorm(path, 4);
   return state[esl_rnd_FChoose(rng, path, 4)];
 }
@@ -72,29 +67,29 @@ select_m(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, in
 static inline int
 select_d(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 {
-  int     Q     = p7O_NQF(ox->M);
+  int     Q     = p7O_NQF_AVX(ox->M);
   int     q     = (k-1) % Q;
   int     r     = (k-1) / Q;
-  __m128  mpv, dpv;
-  __m128  tmdv, tddv;
-  union { __m128 v; float p[4]; } u;
+  __m256  mpv, dpv;
+  __m256  tmdv, tddv;
+  union { __m256 v; float p[8]; } u;
   float   path[2];
   int     state[2] = { p7T_M, p7T_D };
 
   if (q > 0) {
-    mpv  = ox->dpf[i][(q-1)*3 + p7X_M];
-    dpv  = ox->dpf[i][(q-1)*3 + p7X_D];
-    tmdv = om->tfv[7*(q-1) + p7O_MD];
-    tddv = om->tfv[7*Q + (q-1)];
+    mpv  = ox->dpf_avx[i][(q-1)*3 + p7X_M];
+    dpv  = ox->dpf_avx[i][(q-1)*3 + p7X_D];
+    tmdv = om->tfv_avx[7*(q-1) + p7O_MD];
+    tddv = om->tfv_avx[7*Q + (q-1)];
   } else {
-    mpv  = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*3 + p7X_M]);
-    dpv  = esl_sse_rightshiftz_float(ox->dpf[i][(Q-1)*3 + p7X_D]);
-    tmdv = esl_sse_rightshiftz_float(om->tfv[7*(Q-1) + p7O_MD]);
-    tddv = esl_sse_rightshiftz_float(om->tfv[8*Q-1]);
+    mpv  = esl_avx_rightshiftz_float(ox->dpf_avx[i][(Q-1)*3 + p7X_M]);
+    dpv  = esl_avx_rightshiftz_float(ox->dpf_avx[i][(Q-1)*3 + p7X_D]);
+    tmdv = esl_avx_rightshiftz_float(om->tfv_avx[7*(Q-1) + p7O_MD]);
+    tddv = esl_avx_rightshiftz_float(om->tfv_avx[8*Q-1]);
   }
 
-  u.v = _mm_mul_ps(mpv, tmdv); path[0] = u.p[r];
-  u.v = _mm_mul_ps(dpv, tddv); path[1] = u.p[r];
+  u.v = _mm256_mul_ps(mpv, tmdv); path[0] = u.p[r];
+  u.v = _mm256_mul_ps(dpv, tddv); path[1] = u.p[r];
   esl_vec_FNorm(path, 2);
   return state[esl_rnd_FChoose(rng, path, 2)];
 }
@@ -103,18 +98,18 @@ select_d(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, in
 static inline int
 select_i(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, int k)
 {
-  int     Q    = p7O_NQF(ox->M);
+  int     Q    = p7O_NQF_AVX(ox->M);
   int     q    = (k-1) % Q;
   int     r    = (k-1) / Q;
-  __m128  mpv  = ox->dpf[i-1][q*3 + p7X_M];
-  __m128  ipv  = ox->dpf[i-1][q*3 + p7X_I];
-  __m128 *tp   = om->tfv + 7*q + p7O_MI;
-  union { __m128 v; float p[4]; } u;
+  __m256  mpv  = ox->dpf_avx[i-1][q*3 + p7X_M];
+  __m256  ipv  = ox->dpf_avx[i-1][q*3 + p7X_I];
+  __m256 *tp   = om->tfv_avx + 7*q + p7O_MI;
+  union { __m256 v; float p[8]; } u;
   float   path[2];
   int     state[2] = { p7T_M, p7T_I };
 
-  u.v = _mm_mul_ps(mpv, *tp); tp++;  path[0] = u.p[r];
-  u.v = _mm_mul_ps(ipv, *tp);        path[1] = u.p[r];
+  u.v = _mm256_mul_ps(mpv, *tp); tp++;  path[0] = u.p[r];
+  u.v = _mm256_mul_ps(ipv, *tp);        path[1] = u.p[r];
   esl_vec_FNorm(path, 2);
   return state[esl_rnd_FChoose(rng, path, 2)];
 }
@@ -159,25 +154,25 @@ select_j(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i)
 static inline int
 select_e(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i, int *ret_k)
 {
-  int    Q     = p7O_NQF(ox->M);
+  int    Q     = p7O_NQF_AVX(ox->M);
   double sum   = 0.0;
   double roll  = esl_random(rng);
   double norm  = 1.0 / ox->xmx[i*p7X_NXCELLS+p7X_E];
-  __m128 xEv   = _mm_set1_ps(norm);
-  union { __m128 v; float p[4]; } u;
+  __m256 xEv   = _mm256_set1_ps(norm);
+  union { __m256 v; float p[8]; } u;
   int    q,r;
 
   while (1) {
     for (q = 0; q < Q; q++)
       {
-        u.v = _mm_mul_ps(ox->dpf[i][q*3 + p7X_M], xEv);
-        for (r = 0; r < 4; r++) {
+        u.v = _mm256_mul_ps(ox->dpf_avx[i][q*3 + p7X_M], xEv);
+        for (r = 0; r < 8; r++) {
           sum += u.p[r];
           if (roll < sum) { *ret_k = r*Q + q + 1; return p7T_M;}
         }
 
-        u.v = _mm_mul_ps(ox->dpf[i][q*3 + p7X_D], xEv);
-        for (r = 0; r < 4; r++) {
+        u.v = _mm256_mul_ps(ox->dpf_avx[i][q*3 + p7X_D], xEv);
+        for (r = 0; r < 8; r++) {
           sum += u.p[r];
           if (roll < sum) { *ret_k = r*Q + q + 1; return p7T_D;}
         }
@@ -202,9 +197,9 @@ select_b(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i)
 }
 
 
-/* Function:  p7_StochasticTrace_sse()
+/* Function:  p7_StochasticTrace_avx()
  *
- * Purpose:   SSE implementation of stochastic backtrace from a Forward matrix.
+ * Purpose:   AVX2 implementation of stochastic backtrace from a Forward matrix.
  *            See p7_StochasticTrace() documentation for details.
  *
  * Returns:   <eslOK> on success.
@@ -212,8 +207,8 @@ select_b(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_OMX *ox, int i)
  *            <eslEINVAL> on various internal failures.
  */
 int
-p7_StochasticTrace_sse(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
-                       const P7_OMX *ox, P7_TRACE *tr)
+p7_StochasticTrace_avx(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
+                        const P7_OMX *ox, P7_TRACE *tr)
 {
   int   i;
   int   k;
@@ -253,4 +248,4 @@ p7_StochasticTrace_sse(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_
   return p7_trace_Reverse(tr);
 }
 
-#endif /* eslENABLE_SSE */
+#endif /* eslENABLE_AVX */

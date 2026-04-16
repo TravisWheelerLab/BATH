@@ -552,6 +552,10 @@ extern int          p7_oprofile_ReconfigUnihit_Log_sse(P7_OPROFILE *om, int L);
 extern int          p7_oprofile_UpdateFwdEmissionScores_sse(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 extern int          p7_oprofile_UpdateVitEmissionScores_sse(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 extern int          p7_oprofile_UpdateMSVEmissionScores_sse(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
+extern int          p7_oprofile_GetFwdTransitionArray_sse(const P7_OPROFILE *om, int type, float *arr);
+extern int          p7_oprofile_GetSSVEmissionScoreArray_sse(const P7_OPROFILE *om, uint8_t *arr);
+extern int          p7_oprofile_GetFwdEmissionScoreArray_sse(const P7_OPROFILE *om, float *arr);
+extern int          p7_oprofile_GetFwdEmissionArray_sse(const P7_OPROFILE *om, P7_BG *bg, float *arr);
 #endif
 #ifdef eslENABLE_AVX
 extern P7_OPROFILE *p7_oprofile_Create_avx(int M, const ESL_ALPHABET *abc);
@@ -571,6 +575,10 @@ extern int          p7_oprofile_UpdateFwdEmissionScores_avx(P7_OPROFILE *om, P7_
 extern int          p7_oprofile_UpdateVitEmissionScores_avx(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 extern int          p7_oprofile_UpdateMSVEmissionScores_avx(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 extern int          p7_oprofile_Logify_avx(P7_OPROFILE *om);
+extern int          p7_oprofile_GetFwdTransitionArray_avx(const P7_OPROFILE *om, int type, float *arr);
+extern int          p7_oprofile_GetSSVEmissionScoreArray_avx(const P7_OPROFILE *om, uint8_t *arr);
+extern int          p7_oprofile_GetFwdEmissionScoreArray_avx(const P7_OPROFILE *om, float *arr);
+extern int          p7_oprofile_GetFwdEmissionArray_avx(const P7_OPROFILE *om, P7_BG *bg, float *arr);
 #endif
 #ifdef eslENABLE_AVX512
 extern P7_OPROFILE *p7_oprofile_Create_avx512(int M, const ESL_ALPHABET *abc);

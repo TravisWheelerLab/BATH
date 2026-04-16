@@ -797,4 +797,84 @@ p7_oprofile_ReconfigUnihit_Log_avx(P7_OPROFILE *om, int L)
   return p7_oprofile_ReconfigLength_Log_avx(om, L);
 }
 
+/*****************************************************************
+ * Score array extraction (AVX2).
+ *****************************************************************/
+
+int
+p7_oprofile_GetFwdTransitionArray_avx(const P7_OPROFILE *om, int type, float *arr)
+{
+  int nq = p7O_NQF_AVX(om->M);
+  int i, j;
+  union { __m256 v; float x[8]; } tmp;
+
+  for (i = 0; i < nq; i++) {
+    tmp.v = om->tfv_avx[(type == p7O_DD ? nq*7+i : type+7*i)];
+    for (j = 0; j < 8; j++)
+      if (i+1+j*nq < om->M+1) arr[i+1+j*nq] = tmp.x[j];
+  }
+  return eslOK;
+}
+
+int
+p7_oprofile_GetSSVEmissionScoreArray_avx(const P7_OPROFILE *om, uint8_t *arr)
+{
+  int x, q, z, k;
+  union { __m256i v; uint8_t i[32]; } tmp;
+  int M        = om->M;
+  int K        = om->abc->Kp;
+  int nq       = p7O_NQB_AVX(M);
+  int cell_cnt = (om->M + 1) * K;
+
+  for (x = 0; x < K; x++)
+    for (q = 0, k = 1; q < nq; q++, k++) {
+      tmp.v = om->rbv_avx[x][q];
+      for (z = 0; z < 32; z++)
+        if ((K*(k+z*nq)+x) < cell_cnt) arr[K*(k+z*nq)+x] = tmp.i[z];
+    }
+  return eslOK;
+}
+
+int
+p7_oprofile_GetFwdEmissionScoreArray_avx(const P7_OPROFILE *om, float *arr)
+{
+  int x, q, z, k;
+  union { __m256 v; float f[8]; } tmp;
+  int M        = om->M;
+  int K        = om->abc->Kp;
+  int nq       = p7O_NQF_AVX(M);
+  int cell_cnt = (om->M + 1) * K;
+
+  for (x = 0; x < K; x++)
+    for (q = 0, k = 1; q < nq; q++, k++) {
+      tmp.v = avx_logf(om->rfv_avx[x][q]);
+      for (z = 0; z < 8; z++)
+        if ((K*(k+z*nq)+x) < cell_cnt) arr[K*(k+z*nq)+x] = tmp.f[z];
+    }
+  return eslOK;
+}
+
+int
+p7_oprofile_GetFwdEmissionArray_avx(const P7_OPROFILE *om, P7_BG *bg, float *arr)
+{
+  int x, q, z, k;
+  union { __m256 v; float f[8]; } tmp;
+  int M        = om->M;
+  int Kp       = om->abc->Kp;
+  int K        = om->abc->K;
+  int nq       = p7O_NQF_AVX(M);
+  int cell_cnt = (om->M + 1) * Kp;
+
+  for (x = 0; x < K; x++)
+    for (q = 0, k = 1; q < nq; q++, k++) {
+      tmp.v = om->rfv_avx[x][q];
+      for (z = 0; z < 8; z++)
+        if ((Kp*(k+z*nq)+x) < cell_cnt) arr[Kp*(k+z*nq)+x] = tmp.f[z] * bg->f[x];
+    }
+
+  for (x = 0; x <= M; x++)
+    esl_abc_FExpectScVec(om->abc, arr + Kp*x, bg->f);
+  return eslOK;
+}
+
 #endif /* eslENABLE_AVX */

@@ -327,6 +327,66 @@ p7_oprofile_Logify(P7_OPROFILE *om)
   ESL_EXCEPTION(eslENORESULT, "p7_oprofile_Logify: no SIMD implementation available");
 }
 
+int
+p7_oprofile_GetFwdTransitionArray(const P7_OPROFILE *om, int type, float *arr)
+{
+#ifdef eslENABLE_AVX512
+  if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_GetFwdTransitionArray_avx512(const P7_OPROFILE *om, int type, float *arr); return p7_oprofile_GetFwdTransitionArray_avx512(om, type, arr); }
+#endif
+#ifdef eslENABLE_AVX
+  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_GetFwdTransitionArray_avx(const P7_OPROFILE *om, int type, float *arr);    return p7_oprofile_GetFwdTransitionArray_avx(om, type, arr); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern int p7_oprofile_GetFwdTransitionArray_sse(const P7_OPROFILE *om, int type, float *arr); return p7_oprofile_GetFwdTransitionArray_sse(om, type, arr); }
+#endif
+  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetFwdTransitionArray: no SIMD implementation available");
+}
+
+int
+p7_oprofile_GetSSVEmissionScoreArray(const P7_OPROFILE *om, uint8_t *arr)
+{
+#ifdef eslENABLE_AVX512
+  if (om->allocQ16_avx512 > 0) { extern int p7_oprofile_GetSSVEmissionScoreArray_avx512(const P7_OPROFILE *om, uint8_t *arr); return p7_oprofile_GetSSVEmissionScoreArray_avx512(om, arr); }
+#endif
+#ifdef eslENABLE_AVX
+  if (om->allocQ16_avx    > 0) { extern int p7_oprofile_GetSSVEmissionScoreArray_avx(const P7_OPROFILE *om, uint8_t *arr);    return p7_oprofile_GetSSVEmissionScoreArray_avx(om, arr); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern int p7_oprofile_GetSSVEmissionScoreArray_sse(const P7_OPROFILE *om, uint8_t *arr); return p7_oprofile_GetSSVEmissionScoreArray_sse(om, arr); }
+#endif
+  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetSSVEmissionScoreArray: no SIMD implementation available");
+}
+
+int
+p7_oprofile_GetFwdEmissionScoreArray(const P7_OPROFILE *om, float *arr)
+{
+#ifdef eslENABLE_AVX512
+  if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_GetFwdEmissionScoreArray_avx512(const P7_OPROFILE *om, float *arr); return p7_oprofile_GetFwdEmissionScoreArray_avx512(om, arr); }
+#endif
+#ifdef eslENABLE_AVX
+  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_GetFwdEmissionScoreArray_avx(const P7_OPROFILE *om, float *arr);    return p7_oprofile_GetFwdEmissionScoreArray_avx(om, arr); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern int p7_oprofile_GetFwdEmissionScoreArray_sse(const P7_OPROFILE *om, float *arr); return p7_oprofile_GetFwdEmissionScoreArray_sse(om, arr); }
+#endif
+  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetFwdEmissionScoreArray: no SIMD implementation available");
+}
+
+int
+p7_oprofile_GetFwdEmissionArray(const P7_OPROFILE *om, P7_BG *bg, float *arr)
+{
+#ifdef eslENABLE_AVX512
+  if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_GetFwdEmissionArray_avx512(const P7_OPROFILE *om, P7_BG *bg, float *arr); return p7_oprofile_GetFwdEmissionArray_avx512(om, bg, arr); }
+#endif
+#ifdef eslENABLE_AVX
+  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_GetFwdEmissionArray_avx(const P7_OPROFILE *om, P7_BG *bg, float *arr);    return p7_oprofile_GetFwdEmissionArray_avx(om, bg, arr); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern int p7_oprofile_GetFwdEmissionArray_sse(const P7_OPROFILE *om, P7_BG *bg, float *arr); return p7_oprofile_GetFwdEmissionArray_sse(om, bg, arr); }
+#endif
+  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetFwdEmissionArray: no SIMD implementation available");
+}
+
 /* Block management — ISA-independent */
 P7_OM_BLOCK *
 p7_oprofile_CreateBlock(int size)

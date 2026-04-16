@@ -767,7 +767,7 @@ p7_oprofile_ReconfigUnihit_Log_sse(P7_OPROFILE *om, int L)
  *****************************************************************/
 
 int
-p7_oprofile_GetFwdTransitionArray(const P7_OPROFILE *om, int type, float *arr)
+p7_oprofile_GetFwdTransitionArray_sse(const P7_OPROFILE *om, int type, float *arr)
 {
   int nq = p7O_NQF(om->M);
   int i, j;
@@ -782,7 +782,7 @@ p7_oprofile_GetFwdTransitionArray(const P7_OPROFILE *om, int type, float *arr)
 }
 
 int
-p7_oprofile_GetSSVEmissionScoreArray(const P7_OPROFILE *om, uint8_t *arr)
+p7_oprofile_GetSSVEmissionScoreArray_sse(const P7_OPROFILE *om, uint8_t *arr)
 {
   int x, q, z, k;
   union { __m128i v; uint8_t i[16]; } tmp;
@@ -801,7 +801,7 @@ p7_oprofile_GetSSVEmissionScoreArray(const P7_OPROFILE *om, uint8_t *arr)
 }
 
 int
-p7_oprofile_GetFwdEmissionScoreArray(const P7_OPROFILE *om, float *arr)
+p7_oprofile_GetFwdEmissionScoreArray_sse(const P7_OPROFILE *om, float *arr)
 {
   int x, q, z, k;
   union { __m128 v; float f[4]; } tmp;
@@ -820,7 +820,7 @@ p7_oprofile_GetFwdEmissionScoreArray(const P7_OPROFILE *om, float *arr)
 }
 
 int
-p7_oprofile_GetFwdEmissionArray(const P7_OPROFILE *om, P7_BG *bg, float *arr)
+p7_oprofile_GetFwdEmissionArray_sse(const P7_OPROFILE *om, P7_BG *bg, float *arr)
 {
   int x, q, z, k;
   union { __m128 v; float f[4]; } tmp;

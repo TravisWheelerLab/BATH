@@ -140,7 +140,7 @@ p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx)
   if (esl_cpu_has_avx512()) return p7_omx_FDeconvert_avx512(ox, gx);
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_FDeconvert_sse(ox, gx);
+  if (esl_cpu_has_avx())    return p7_omx_FDeconvert_avx(ox, gx);
 #endif
 #ifdef eslENABLE_SSE
   return p7_omx_FDeconvert_sse(ox, gx);

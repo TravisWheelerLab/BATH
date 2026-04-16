@@ -319,7 +319,7 @@ p7_oprofile_Logify(P7_OPROFILE *om)
   if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_Logify_avx512(P7_OPROFILE *om); return p7_oprofile_Logify_avx512(om); }
 #endif
 #ifdef eslENABLE_AVX
-  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_Logify_sse(P7_OPROFILE *om);    return p7_oprofile_Logify_sse(om); }
+  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_Logify_avx(P7_OPROFILE *om);    return p7_oprofile_Logify_avx(om); }
 #endif
 #ifdef eslENABLE_SSE
   { extern int p7_oprofile_Logify_sse(P7_OPROFILE *om); return p7_oprofile_Logify_sse(om); }

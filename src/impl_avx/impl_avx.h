@@ -486,13 +486,14 @@ extern int          p7_omx_DumpFBRow (P7_OMX *ox, int logify, int rowi, int widt
 extern int          p7_omx_DumpFBRow_FS(P7_OMX *ox, int logify, int i, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
 
 /* p7_omx_sse.c — SSE implementations */
+#ifdef eslENABLE_SSE
 extern P7_OMX      *p7_omx_Create_sse    (int allocM, int allocL, int allocXL);
 extern int          p7_omx_GrowTo_sse    (P7_OMX *ox, int allocM, int allocL, int allocXL);
 extern P7_OMX      *p7_omx_Create_dpf_sse(int allocM, int allocL, int allocXL, int nscells);
 extern int          p7_omx_GrowTo_dpf_sse(P7_OMX *ox, int allocM, int allocL, int allocXL);
 extern int          p7_omx_FDeconvert_sse(P7_OMX *ox, P7_GMX *gx);
 extern void         p7_omx_Destroy_sse   (P7_OMX *ox);
-
+#endif
 /* p7_omx_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
 extern P7_OMX      *p7_omx_Create_avx    (int allocM, int allocL, int allocXL);
@@ -500,6 +501,7 @@ extern int          p7_omx_GrowTo_avx    (P7_OMX *ox, int allocM, int allocL, in
 extern P7_OMX      *p7_omx_Create_dpf_avx(int allocM, int allocL, int allocXL, int nscells);
 extern int          p7_omx_GrowTo_dpf_avx(P7_OMX *ox, int allocM, int allocL, int allocXL);
 extern void         p7_omx_Destroy_avx   (P7_OMX *ox);
+extern int          p7_omx_FDeconvert_avx(P7_OMX *ox, P7_GMX *gx);
 #endif
 
 /* p7_oprofile.c — function pointers (dispatched at runtime) */
@@ -568,6 +570,7 @@ extern int          p7_oprofile_ReconfigUnihit_Log_avx(P7_OPROFILE *om, int L);
 extern int          p7_oprofile_UpdateFwdEmissionScores_avx(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 extern int          p7_oprofile_UpdateVitEmissionScores_avx(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
 extern int          p7_oprofile_UpdateMSVEmissionScores_avx(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
+extern int          p7_oprofile_Logify_avx(P7_OPROFILE *om);
 #endif
 #ifdef eslENABLE_AVX512
 extern P7_OPROFILE *p7_oprofile_Create_avx512(int M, const ESL_ALPHABET *abc);

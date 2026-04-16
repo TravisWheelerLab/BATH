@@ -335,6 +335,76 @@ p7_omx_GrowTo_dpf_avx(P7_OMX *ox, int allocM, int allocL, int allocXL)
 }
 
 
+/* Function:  p7_omx_FDeconvert_avx()
+ *
+ * Purpose:   Convert 32-bit float values in AVX2 optimized DP matrix <ox>
+ *            to generic matrix <gx>.  Caller provides <gx> with sufficient
+ *            space for the <ox->M> by <ox->L> matrix.
+ *
+ *            If ox->nscells == p7X_NSCELLS_FS, the full 8-cell frameshift
+ *            layout is extracted; otherwise the standard 3-cell path is used.
+ */
+int
+p7_omx_FDeconvert_avx(P7_OMX *ox, P7_GMX *gx)
+{
+  int Q = p7O_NQF_AVX(ox->M);
+  int i, q, r, k, c;
+  union { __m256 v; float p[8]; } u;
+  float  **dp  = gx->dp;
+  float   *xmx = gx->xmx;
+
+  if (ox->nscells == p7X_NSCELLS_FS)
+    {
+      for (i = 0; i <= ox->L; i++)
+        {
+          for (c = 0; c < 6; c++) MMX_FS(i,0,c) = -eslINFINITY;
+          IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
+          for (q = 0; q < Q; q++)
+            {
+              u.v = DMO_FS(ox->dpf_avx[i],q);
+              for (r = 0; r < 8; r++) { k = Q*r+q+1; if (k <= ox->M) DMX_FS(i,k)   = u.p[r]; }
+              u.v = IMO_FS(ox->dpf_avx[i],q);
+              for (r = 0; r < 8; r++) { k = Q*r+q+1; if (k <= ox->M) IMX_FS(i,k)   = u.p[r]; }
+              for (c = 0; c < 6; c++) {
+                u.v = MMO_FS(ox->dpf_avx[i],q,c);
+                for (r = 0; r < 8; r++) { k = Q*r+q+1; if (k <= ox->M) MMX_FS(i,k,c) = u.p[r]; }
+              }
+            }
+          XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
+          XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
+          XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
+          XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
+          XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+        }
+    }
+  else
+    {
+      for (i = 0; i <= ox->L; i++)
+        {
+          MMX(i,0) = DMX(i,0) = IMX(i,0) = -eslINFINITY;
+          for (q = 0; q < Q; q++)
+            {
+              u.v = MMO(ox->dpf_avx[i],q);
+              for (r = 0; r < 8; r++) { k = Q*r+q+1; if (k <= ox->M) MMX(i,k) = u.p[r]; }
+              u.v = DMO(ox->dpf_avx[i],q);
+              for (r = 0; r < 8; r++) { k = Q*r+q+1; if (k <= ox->M) DMX(i,k) = u.p[r]; }
+              u.v = IMO(ox->dpf_avx[i],q);
+              for (r = 0; r < 8; r++) { k = Q*r+q+1; if (k <= ox->M) IMX(i,k) = u.p[r]; }
+            }
+          XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
+          XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
+          XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
+          XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
+          XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+        }
+    }
+
+  gx->L = ox->L;
+  gx->M = ox->M;
+  return eslOK;
+}
+
+
 /* Function:  p7_omx_Destroy_avx()
  *
  * Purpose:   Free a <P7_OMX> allocated by p7_omx_Create_avx() or

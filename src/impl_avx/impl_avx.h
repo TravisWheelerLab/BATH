@@ -466,50 +466,10 @@ typedef struct p7_omx_s {
 #define DMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_D])
 #define IMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_I])
 
-/* DP cell accessors: use the widest available ISA's row pointers.
- * AVX is preferred over SSE so that _avx traceback code reads dpf_avx,
- * not dpf (which is NULL when the matrix was created on the AVX path). */
-#ifdef eslENABLE_AVX
-static inline float
-p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k)
-{
-  union { __m256 v; float p[8]; } u;
-  int Q = p7O_NQF_AVX(ox->M);
-  u.v = ox->dpf_avx[i][p7X_NSCELLS * ((k-1) % Q) + s];
-  return u.p[(k-1)/Q];
-}
-
-static inline void
-p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
-{
-  union { __m256 v; float p[8]; } u;
-  int Q = p7O_NQF_AVX(ox->M);
-  int q = p7X_NSCELLS * ((k-1) % Q) + s;
-  u.v               = ox->dpf_avx[i][q];
-  u.p[(k-1)/Q]      = val;
-  ox->dpf_avx[i][q] = u.v;
-}
-#elif defined(eslENABLE_SSE)
-static inline float
-p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k)
-{
-  union { __m128 v; float p[4]; } u;
-  int Q = p7O_NQF(ox->M);
-  u.v = ox->dpf[i][p7X_NSCELLS * ((k-1) % Q) + s];
-  return u.p[(k-1)/Q];
-}
-
-static inline void
-p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
-{
-  union { __m128 v; float p[4]; } u;
-  int Q = p7O_NQF(ox->M);
-  int q = p7X_NSCELLS * ((k-1) % Q) + s;
-  u.v           = ox->dpf[i][q];
-  u.p[(k-1)/Q]  = val;
-  ox->dpf[i][q] = u.v;
-}
-#endif
+/* DP cell accessors: dispatched at runtime based on which ISA allocated ox.
+ * Implementations live in p7_omx_sse.c / p7_omx_avx.c; dispatchers in p7_omx.c. */
+extern float p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k);
+extern void  p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val);
 
 
 /*****************************************************************

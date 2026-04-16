@@ -423,4 +423,32 @@ p7_omx_Destroy_avx(P7_OMX *ox)
   free(ox);
 }
 
+
+/* Function:  p7_omx_FGetMDI_avx()
+ * Synopsis:  Read one float DP cell from an AVX-allocated P7_OMX.
+ */
+float
+p7_omx_FGetMDI_avx(const P7_OMX *ox, int s, int i, int k)
+{
+  union { __m256 v; float p[8]; } u;
+  int Q = p7O_NQF_AVX(ox->M);
+  u.v = ox->dpf_avx[i][p7X_NSCELLS * ((k-1) % Q) + s];
+  return u.p[(k-1)/Q];
+}
+
+
+/* Function:  p7_omx_FSetMDI_avx()
+ * Synopsis:  Write one float DP cell in an AVX-allocated P7_OMX.
+ */
+void
+p7_omx_FSetMDI_avx(const P7_OMX *ox, int s, int i, int k, float val)
+{
+  union { __m256 v; float p[8]; } u;
+  int Q = p7O_NQF_AVX(ox->M);
+  int q = p7X_NSCELLS * ((k-1) % Q) + s;
+  u.v               = ox->dpf_avx[i][q];
+  u.p[(k-1)/Q]      = val;
+  ox->dpf_avx[i][q] = u.v;
+}
+
 #endif /* eslENABLE_AVX */

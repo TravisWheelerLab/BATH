@@ -435,3 +435,37 @@ p7_omx_FDeconvert_sse(P7_OMX *ox, P7_GMX *gx)
   return eslENORESULT;
 #endif
 }
+
+
+/* Function:  p7_omx_FGetMDI_sse()
+ * Synopsis:  Read one float DP cell from an SSE-allocated P7_OMX.
+ */
+float
+p7_omx_FGetMDI_sse(const P7_OMX *ox, int s, int i, int k)
+{
+#ifdef eslENABLE_SSE
+  union { __m128 v; float p[4]; } u;
+  int Q = p7O_NQF(ox->M);
+  u.v = ox->dpf[i][p7X_NSCELLS * ((k-1) % Q) + s];
+  return u.p[(k-1)/Q];
+#else
+  return 0.0f;
+#endif
+}
+
+
+/* Function:  p7_omx_FSetMDI_sse()
+ * Synopsis:  Write one float DP cell in an SSE-allocated P7_OMX.
+ */
+void
+p7_omx_FSetMDI_sse(const P7_OMX *ox, int s, int i, int k, float val)
+{
+#ifdef eslENABLE_SSE
+  union { __m128 v; float p[4]; } u;
+  int Q = p7O_NQF(ox->M);
+  int q = p7X_NSCELLS * ((k-1) % Q) + s;
+  u.v           = ox->dpf[i][q];
+  u.p[(k-1)/Q]  = val;
+  ox->dpf[i][q] = u.v;
+#endif
+}

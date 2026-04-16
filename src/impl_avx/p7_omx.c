@@ -150,6 +150,50 @@ p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx)
 }
 
 
+/* Function:  p7_omx_FGetMDI()
+ *
+ * Purpose:   Read one float DP cell (state <s>, row <i>, node <k>) from
+ *            optimized matrix <ox>.  Dispatches to the ISA that allocated <ox>.
+ *
+ * Returns:   The float value stored at that cell.
+ */
+float
+p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k)
+{
+#ifdef eslENABLE_AVX512
+  if (ox->allocQ4_avx512 > 0) { extern float p7_omx_FGetMDI_avx512(const P7_OMX *, int, int, int); return p7_omx_FGetMDI_avx512(ox, s, i, k); }
+#endif
+#ifdef eslENABLE_AVX
+  if (ox->allocQ4_avx    > 0) { extern float p7_omx_FGetMDI_avx(const P7_OMX *, int, int, int);    return p7_omx_FGetMDI_avx(ox, s, i, k); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern float p7_omx_FGetMDI_sse(const P7_OMX *, int, int, int); return p7_omx_FGetMDI_sse(ox, s, i, k); }
+#else
+  return 0.0f;
+#endif
+}
+
+
+/* Function:  p7_omx_FSetMDI()
+ *
+ * Purpose:   Write float value <val> into DP cell (state <s>, row <i>, node <k>)
+ *            of optimized matrix <ox>.  Dispatches to the ISA that allocated <ox>.
+ */
+void
+p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
+{
+#ifdef eslENABLE_AVX512
+  if (ox->allocQ4_avx512 > 0) { extern void p7_omx_FSetMDI_avx512(const P7_OMX *, int, int, int, float); p7_omx_FSetMDI_avx512(ox, s, i, k, val); return; }
+#endif
+#ifdef eslENABLE_AVX
+  if (ox->allocQ4_avx    > 0) { extern void p7_omx_FSetMDI_avx(const P7_OMX *, int, int, int, float);    p7_omx_FSetMDI_avx(ox, s, i, k, val); return; }
+#endif
+#ifdef eslENABLE_SSE
+  { extern void p7_omx_FSetMDI_sse(const P7_OMX *, int, int, int, float); p7_omx_FSetMDI_sse(ox, s, i, k, val); }
+#endif
+}
+
+
 /* Function:  p7_omx_Destroy()
  *
  * Purpose:   Free <P7_OMX> <ox>.  Dispatches to the ISA-specific

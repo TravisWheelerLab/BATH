@@ -22,17 +22,23 @@
 #ifdef __SSE3__
 #include <pmmintrin.h>   /* DENORMAL_MODE */
 #endif
+#ifdef __SSE2__
 #include "esl_sse.h"
+#endif
 #endif
 
 #ifdef eslENABLE_AVX
 #include <immintrin.h>   /* AVX, AVX2 */
+#ifdef __AVX__
 #include "esl_avx.h"
+#endif
 #endif
 
 #ifdef eslENABLE_AVX512
 #include <immintrin.h>   /* AVX-512 */
+#ifdef __AVX512F__
 #include "esl_avx512.h"
+#endif
 #endif
 
 #include "hmmer.h"

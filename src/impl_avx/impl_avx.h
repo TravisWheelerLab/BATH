@@ -213,26 +213,8 @@ typedef struct {
   P7_OPROFILE  **list;
 } P7_OM_BLOCK;
 
-/* retrieve match odds ratio [k][x]: AVX preferred, SSE fallback */
-#ifdef eslENABLE_AVX
-static inline float
-p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
-{
-  union { __m256 v; float p[8]; } u;
-  int Q = p7O_NQF_AVX(om->M);
-  u.v = om->rfv_avx[x][(k-1) % Q];
-  return u.p[(k-1)/Q];
-}
-#elif defined(eslENABLE_SSE)
-static inline float
-p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
-{
-  union { __m128 v; float p[4]; } u;
-  int Q = p7O_NQF(om->M);
-  u.v = om->rfv[x][(k-1) % Q];
-  return u.p[(k-1)/Q];
-}
-#endif
+/* retrieve match odds ratio [k][x]: dispatched at runtime via p7_oprofile.c */
+extern float p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x);
 
 
 /*****************************************************************
@@ -307,28 +289,9 @@ typedef struct p7_fs_oprofile_s {
 } P7_FS_OPROFILE;
 
 /* Retrieve float match emission score for model position k, codon index c.
- * Used for display/debugging; inner loops use the striped vectors directly.
- * AVX preferred over SSE so rfv_avx is used when the profile was AVX-allocated.
+ * Dispatched at runtime via p7_oprofile.c based on which ISA allocated om_fs.
  */
-#ifdef eslENABLE_AVX
-static inline float
-p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
-{
-  union { __m256 v; float p[8]; } u;
-  int Q = p7O_NQF_AVX(om_fs->M);
-  u.v = om_fs->rfv_avx[c][(k-1) % Q];
-  return u.p[(k-1)/Q];
-}
-#elif defined(eslENABLE_SSE)
-static inline float
-p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
-{
-  union { __m128 v; float p[4]; } u;
-  int Q = p7O_NQF(om_fs->M);
-  u.v = om_fs->rfv[c][(k-1) % Q];
-  return u.p[(k-1)/Q];
-}
-#endif
+extern float p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c);
 
 /* OSSX macros: index donor IVX arrays by stripe q.
  * Slot offsets match SPLICE_OFFSET_1=3, SPLICE_OFFSET_2=18,

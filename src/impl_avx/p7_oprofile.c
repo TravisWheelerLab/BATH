@@ -387,6 +387,54 @@ p7_oprofile_GetFwdEmissionArray(const P7_OPROFILE *om, P7_BG *bg, float *arr)
   ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetFwdEmissionArray: no SIMD implementation available");
 }
 
+/* Function:  p7_oprofile_FGetEmission()
+ *
+ * Purpose:   Retrieve match odds ratio for model position <k>, residue <x>
+ *            from optimized profile <om>.  Dispatches to the ISA that allocated <om>.
+ *
+ * Returns:   The float emission odds ratio.
+ */
+float
+p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
+{
+#ifdef eslENABLE_AVX512
+  if (om->allocQ4_avx512 > 0) { extern float p7_oprofile_FGetEmission_avx512(const P7_OPROFILE *, int, int); return p7_oprofile_FGetEmission_avx512(om, k, x); }
+#endif
+#ifdef eslENABLE_AVX
+  if (om->allocQ4_avx    > 0) { extern float p7_oprofile_FGetEmission_avx(const P7_OPROFILE *, int, int);    return p7_oprofile_FGetEmission_avx(om, k, x); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern float p7_oprofile_FGetEmission_sse(const P7_OPROFILE *, int, int); return p7_oprofile_FGetEmission_sse(om, k, x); }
+#else
+  return 0.0f;
+#endif
+}
+
+
+/* Function:  p7_fs_oprofile_FGetEmission()
+ *
+ * Purpose:   Retrieve float match emission score for model position <k>, codon index <c>
+ *            from optimized FS profile <om_fs>.  Dispatches to the ISA that allocated <om_fs>.
+ *
+ * Returns:   The float emission score.
+ */
+float
+p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
+{
+#ifdef eslENABLE_AVX512
+  if (om_fs->allocQ4_avx512 > 0) { extern float p7_fs_oprofile_FGetEmission_avx512(const P7_FS_OPROFILE *, int, int); return p7_fs_oprofile_FGetEmission_avx512(om_fs, k, c); }
+#endif
+#ifdef eslENABLE_AVX
+  if (om_fs->allocQ4_avx    > 0) { extern float p7_fs_oprofile_FGetEmission_avx(const P7_FS_OPROFILE *, int, int);    return p7_fs_oprofile_FGetEmission_avx(om_fs, k, c); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern float p7_fs_oprofile_FGetEmission_sse(const P7_FS_OPROFILE *, int, int); return p7_fs_oprofile_FGetEmission_sse(om_fs, k, c); }
+#else
+  return 0.0f;
+#endif
+}
+
+
 /* Block management — ISA-independent */
 P7_OM_BLOCK *
 p7_oprofile_CreateBlock(int size)

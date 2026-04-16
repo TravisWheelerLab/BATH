@@ -908,3 +908,37 @@ p7_profile_SameAsVF_sse(const P7_OPROFILE *om, P7_PROFILE *gm)
 
   return eslOK;
 }
+
+
+/* Function:  p7_oprofile_FGetEmission_sse()
+ * Synopsis:  Retrieve match odds ratio [k][x] from SSE-allocated profile.
+ */
+float
+p7_oprofile_FGetEmission_sse(const P7_OPROFILE *om, int k, int x)
+{
+#ifdef eslENABLE_SSE
+  union { __m128 v; float p[4]; } u;
+  int Q = p7O_NQF(om->M);
+  u.v = om->rfv[x][(k-1) % Q];
+  return u.p[(k-1)/Q];
+#else
+  return 0.0f;
+#endif
+}
+
+
+/* Function:  p7_fs_oprofile_FGetEmission_sse()
+ * Synopsis:  Retrieve float match emission score [k][c] from SSE-allocated FS profile.
+ */
+float
+p7_fs_oprofile_FGetEmission_sse(const P7_FS_OPROFILE *om_fs, int k, int c)
+{
+#ifdef eslENABLE_SSE
+  union { __m128 v; float p[4]; } u;
+  int Q = p7O_NQF(om_fs->M);
+  u.v = om_fs->rfv[c][(k-1) % Q];
+  return u.p[(k-1)/Q];
+#else
+  return 0.0f;
+#endif
+}

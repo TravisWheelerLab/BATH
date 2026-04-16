@@ -877,4 +877,29 @@ p7_oprofile_GetFwdEmissionArray_avx(const P7_OPROFILE *om, P7_BG *bg, float *arr
   return eslOK;
 }
 
+/* Function:  p7_oprofile_FGetEmission_avx()
+ * Synopsis:  Retrieve match odds ratio [k][x] from AVX-allocated profile.
+ */
+float
+p7_oprofile_FGetEmission_avx(const P7_OPROFILE *om, int k, int x)
+{
+  union { __m256 v; float p[8]; } u;
+  int Q = p7O_NQF_AVX(om->M);
+  u.v = om->rfv_avx[x][(k-1) % Q];
+  return u.p[(k-1)/Q];
+}
+
+
+/* Function:  p7_fs_oprofile_FGetEmission_avx()
+ * Synopsis:  Retrieve float match emission score [k][c] from AVX-allocated FS profile.
+ */
+float
+p7_fs_oprofile_FGetEmission_avx(const P7_FS_OPROFILE *om_fs, int k, int c)
+{
+  union { __m256 v; float p[8]; } u;
+  int Q = p7O_NQF_AVX(om_fs->M);
+  u.v = om_fs->rfv_avx[c][(k-1) % Q];
+  return u.p[(k-1)/Q];
+}
+
 #endif /* eslENABLE_AVX */

@@ -61,7 +61,179 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox,
 #endif
 }
 /*****************************************************************
- * 3. Unit tests
+ * 3. Benchmark driver
+ *****************************************************************/
+/* The benchmark driver has some additional non-benchmarking options
+ * to facilitate small-scale (by-eye) comparison of MSV scores against
+ * other implementations, for debugging purposes.
+ *
+ * The -c option compares against p7_GMSV() scores. This allows
+ * measuring the error inherent in the AVX implementation's reduced
+ * precision (p7_MSVFilter() runs in uint8_t; p7_GMSV() uses floats).
+ *
+ * The -x option compares against an emulation that should give
+ * exactly the same scores. The emulation is achieved by jiggering the
+ * fp scores in a generic profile to disallow gaps, have the same
+ * rounding and precision as the uint8_t's MSVFilter() is using, and
+ * to make the same post-hoc corrections for the NN, CC, JJ
+ * contributions to the final nat score; under these contrived
+ * circumstances, p7_GViterbi() gives the same scores as
+ * p7_MSVFilter().
+ *
+ * For using either -c or -x, you probably also want to limit the
+ * number of generated target sequences, using -N10 or -N100 for
+ * example.
+ */
+#ifdef p7MSVFILTER_BENCHMARK
+/*
+   gcc -o benchmark-msvfilter -std=gnu99 -g -Wall -mavx2 -I.. -L.. -I../../easel -L../../easel -Dp7MSVFILTER_BENCHMARK msvfilter.c -lhmmer -leasel -lm
+
+   ./benchmark-msvfilter <hmmfile>            runs benchmark
+   ./benchmark-msvfilter -N100 -c <hmmfile>   compare scores to generic impl
+   ./benchmark-msvfilter -N100 -x <hmmfile>   compare scores to exact emulation
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_avx.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
+  { "-c",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-x", "compare scores to generic implementation (debug)", 0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
+  { "-x",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-c", "equate scores to trusted implementation (debug)",  0 },
+  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                     0 },
+  { "-N",        eslARG_INT,  "50000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for MSVFilter() implementation";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS       *go         = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char              *hmmfile    = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH     *w          = esl_stopwatch_Create();
+  ESL_RANDOMNESS    *r          = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET      *abc        = NULL;
+  P7_HMMFILE        *hfp        = NULL;
+  P7_HMM            *hmm        = NULL;
+  P7_BG             *bg         = NULL;
+  P7_PROFILE        *gm         = NULL;
+  P7_OPROFILE       *om         = NULL;
+  P7_OMX            *ox         = NULL;
+  P7_GMX            *gx         = NULL;
+  P7_SCOREDATA      *data       = NULL;
+  P7_HMM_WINDOWLIST  windowlist;
+  int                L          = esl_opt_GetInteger(go, "-L");
+  int                N          = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ           *dsq        = malloc(sizeof(ESL_DSQ) * (L+2));
+  int                i;
+  float              sc1, sc2;
+  double             base_time, bench_time, Mcs;
+
+  impl_Init();
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+
+  bg = p7_bg_Create(abc);
+  p7_bg_SetLength(bg, L);
+  gm = p7_profile_Create(hmm->M, abc);
+  p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
+  om = p7_oprofile_Create(gm->M, abc);
+  p7_oprofile_Convert(gm, om);
+  p7_oprofile_ReconfigLength(om, L);
+  data = p7_hmm_ScoreDataCreate(om, NULL);
+  windowlist.windows = NULL;
+  p7_hmmwindow_init(&windowlist);
+
+  if (esl_opt_GetBoolean(go, "-x")) p7_profile_SameAsMF(om, gm);
+
+  ox = p7_omx_Create(gm->M, 0, 0);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+
+  /* Get a baseline time: how long it takes just to generate the sequences */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_MSVFilter(dsq, L, om, ox, &sc1);
+
+      /* -c option: compare generic to fast score */
+      if (esl_opt_GetBoolean(go, "-c"))
+        {
+          p7_GMSV(dsq, L, gm, gx, 2.0, &sc2);
+          printf("%.4f %.4f\n", sc1, sc2);
+        }
+
+      /* -x option: compare generic to fast score in a way that should give exactly the same result */
+      if (esl_opt_GetBoolean(go, "-x"))
+        {
+          p7_GViterbi(dsq, L, gm, gx, &sc2);
+          sc2 /= om->scale_b;
+          if (om->mode == p7_UNILOCAL)   sc2 -= 2.0; /* that's ~ L \log \frac{L}{L+2}, for our NN,CC,JJ */
+          else if (om->mode == p7_LOCAL) sc2 -= 3.0; /* that's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ */
+          printf("%.4f %.4f\n", sc1, sc2);
+        }
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# MSV CPU time: ");
+  printf("# M    = %d\n", gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_SSVFilter_BATH(dsq, L, om, ox, data, bg, 0.02, &windowlist);
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# SSV CPU time: ");
+  printf("# M    = %d\n", gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_omx_Destroy(ox);
+  p7_gmx_Destroy(gx);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_bg_Destroy(bg);
+  p7_hmm_Destroy(hmm);
+  p7_hmm_ScoreDataDestroy(data);
+  p7_hmmfile_Close(hfp);
+  esl_alphabet_Destroy(abc);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  if (windowlist.windows != NULL) free(windowlist.windows);
+  return 0;
+}
+#endif /*p7MSVFILTER_BENCHMARK*/
+/*------------------ end, benchmark driver ----------------------*/
+
+
+/*****************************************************************
+ * 4. Unit tests
  *****************************************************************/
 #ifdef p7MSVFILTER_TESTDRIVE
 #include "esl_random.h"

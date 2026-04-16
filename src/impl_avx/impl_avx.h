@@ -207,8 +207,17 @@ typedef struct {
   P7_OPROFILE  **list;
 } P7_OM_BLOCK;
 
-/* retrieve match odds ratio [k][x] — SSE version */
-#ifdef eslENABLE_SSE
+/* retrieve match odds ratio [k][x]: AVX preferred, SSE fallback */
+#ifdef eslENABLE_AVX
+static inline float
+p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
+{
+  union { __m256 v; float p[8]; } u;
+  int Q = p7O_NQF_AVX(om->M);
+  u.v = om->rfv_avx[x][(k-1) % Q];
+  return u.p[(k-1)/Q];
+}
+#elif defined(eslENABLE_SSE)
 static inline float
 p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
 {
@@ -293,9 +302,18 @@ typedef struct p7_fs_oprofile_s {
 
 /* Retrieve float match emission score for model position k, codon index c.
  * Used for display/debugging; inner loops use the striped vectors directly.
- * ISA-specific versions select the right vector width.
+ * AVX preferred over SSE so rfv_avx is used when the profile was AVX-allocated.
  */
-#ifdef eslENABLE_SSE
+#ifdef eslENABLE_AVX
+static inline float
+p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
+{
+  union { __m256 v; float p[8]; } u;
+  int Q = p7O_NQF_AVX(om_fs->M);
+  u.v = om_fs->rfv_avx[c][(k-1) % Q];
+  return u.p[(k-1)/Q];
+}
+#elif defined(eslENABLE_SSE)
 static inline float
 p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
 {

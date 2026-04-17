@@ -617,10 +617,10 @@ utest_sse_vs_avx_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       p7_fs_oprofile_ReconfigLength_sse(om_fs5_sse, sq->n);
       p7_fs_oprofile_ReconfigLength_avx(om_fs5_avx, sq->n);
 
-      p7_omx_GrowTo(oxf_sse, M, PARSER_ROWS_FWD, curr_L);
-      p7_omx_GrowTo(oxf_avx, M, PARSER_ROWS_FWD, curr_L);
-      p7_omx_GrowTo(oxb_sse, M, PARSER_ROWS_BWD, curr_L);
-      p7_omx_GrowTo(oxb_avx, M, PARSER_ROWS_BWD, curr_L);
+      p7_omx_GrowTo_sse(oxf_sse, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo_avx(oxf_avx, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo_sse(oxb_sse, M, PARSER_ROWS_BWD, curr_L);
+      p7_omx_GrowTo_avx(oxb_avx, M, PARSER_ROWS_BWD, curr_L);
 
       /* 3-codon parser */
       if (p7_ForwardParser_Frameshift_3Codons_sse(dsq, curr_L, om_fs3_sse, oxf_sse, ov3_sse, &fsc3_sse) == eslERANGE) continue;
@@ -632,14 +632,14 @@ utest_sse_vs_avx_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       if (fabs(bsc3_sse - bsc3_avx) > 0.01) esl_fatal("%s: 3cod Bck sse=%.4f avx=%.4f", msg, bsc3_sse, bsc3_avx);
 
       /* 5-codon parser */
-      p7_omx_GrowTo(oxf_sse, M, PARSER_ROWS_FWD, curr_L);
-      p7_omx_GrowTo(oxf_avx, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo_sse(oxf_sse, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo_avx(oxf_avx, M, PARSER_ROWS_FWD, curr_L);
       if (p7_ForwardParser_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, oxf_sse, ov5_sse, &fsc5_sse) == eslERANGE) continue;
       if (p7_ForwardParser_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, oxf_avx, ov5_avx, &fsc5_avx) == eslERANGE) continue;
       if (fabs(fsc5_sse - fsc5_avx) > 0.01) esl_fatal("%s: 5cod Fwd sse=%.4f avx=%.4f", msg, fsc5_sse, fsc5_avx);
 
-      p7_omx_GrowTo(oxb_sse, M, PARSER_ROWS_BWD, curr_L);
-      p7_omx_GrowTo(oxb_avx, M, PARSER_ROWS_BWD, curr_L);
+      p7_omx_GrowTo_sse(oxb_sse, M, PARSER_ROWS_BWD, curr_L);
+      p7_omx_GrowTo_avx(oxb_avx, M, PARSER_ROWS_BWD, curr_L);
       if (p7_BackwardParser_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, oxf_sse, oxb_sse, ov5_sse, &bsc5_sse) == eslERANGE) continue;
       if (p7_BackwardParser_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, oxf_avx, oxb_avx, ov5_avx, &bsc5_avx) == eslERANGE) continue;
       if (fabs(bsc5_sse - bsc5_avx) > 0.01) esl_fatal("%s: 5cod Bck sse=%.4f avx=%.4f", msg, bsc5_sse, bsc5_avx);

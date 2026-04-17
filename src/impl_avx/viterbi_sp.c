@@ -95,7 +95,7 @@ p7_Viterbi_SplicedTrace_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
  *****************************************************************/
 #ifdef p7VITERBI_SP_BENCHMARK
 /*
- gcc -g -O3 -Wall -std=gnu99 -o benchmark-viterbi_sp -I. -I.. -I../../easel -L. -L.. -L../../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
+  gcc -o benchmark-viterbi_sp -std=gnu99 -g -Wall -mavx2 -I.. -L.. -I../../easel -L../../easel -Dp7VITERBI_SP_BENCHMARK viterbi_sp.c -lhmmer -leasel -lm
 
    ./benchmark-viterbi_sp <hmmfile>
  */
@@ -115,6 +115,7 @@ p7_Viterbi_SplicedTrace_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
 
 #include "hmmer.h"
 #include "impl_avx.h"
+#include "p7_splice.h"
 
 static ESL_OPTIONS benchmark_options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
@@ -143,7 +144,6 @@ main(int argc, char **argv)
   P7_PROFILE     *gm           = NULL;
   P7_FS_PROFILE  *gm_tr        = NULL;
   P7_FS_OPROFILE *om_tr        = NULL;
-  P7_OMX         *ox           = NULL;
   P7_TRACE       *tr           = NULL;
   ESL_GENCODE    *gcode        = NULL;
   P7_CODONTABLE  *codon_table  = NULL;
@@ -224,8 +224,7 @@ main(int argc, char **argv)
       p7_Viterbi_Spliced(dsq, om_tr, pli->vit, pli->signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
 
       if(do_T)
-        p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, pli->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron);
-
+        p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, pli->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron, NULL);
       p7_trace_Reuse(tr);
       total_cells += (int64_t) L_dna_total * hmm->M;
     }

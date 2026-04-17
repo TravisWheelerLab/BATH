@@ -1,14 +1,5 @@
 /* p7_oprofile.c — runtime dispatch for P7_OPROFILE management.
  *
- * Contains:
- *   1. Function pointer variable definitions (one definition each; extern in impl_avx.h).
- *   2. impl_Init(): CPU detection, flush-zero mode, function pointer assignment.
- *   3. ISA-independent functions (IsLocal, Dump, Sample, Compare, etc.).
- *
- * ISA-specific implementations live in:
- *   p7_oprofile_sse.c    — SSE (128-bit) versions, suffix _sse
- *   p7_oprofile_avx.c    — AVX-256 versions, suffix _avx      [TODO]
- *   p7_oprofile_avx512.c — AVX-512 versions, suffix _avx512   [TODO]
  */
 #include "p7_config.h"
 
@@ -35,162 +26,333 @@
 
 /*****************************************************************
  * 1. Function pointer variable definitions.
- *
- * Each is initialized to NULL; impl_Init() assigns them to the
- * fastest available ISA implementation.  All are declared extern
- * in impl_avx.h.
  *****************************************************************/
 
-/* P7_OPROFILE lifecycle */
-P7_OPROFILE *(*p7_oprofile_Create)            (int M, const ESL_ALPHABET *abc)                                                    = NULL;
-void         (*p7_oprofile_Destroy)           (P7_OPROFILE *om)                                                                   = NULL;
-P7_OPROFILE *(*p7_oprofile_Clone)             (const P7_OPROFILE *om)                                                             = NULL;
-int          (*p7_oprofile_Convert)           (const P7_PROFILE *gm, P7_OPROFILE *om)                                            = NULL;
-int          (*p7_oprofile_Convert_Log)       (const P7_PROFILE *gm, P7_OPROFILE *om)                                            = NULL;
-int          (*p7_oprofile_ReconfigLength)    (P7_OPROFILE *om, int L)                                                            = NULL;
-int          (*p7_oprofile_ReconfigLength_Log)(P7_OPROFILE *om, int L)                                                            = NULL;
-int          (*p7_oprofile_ReconfigMSVLength) (P7_OPROFILE *om, int L)                                                            = NULL;
-int          (*p7_oprofile_ReconfigRestLength)(P7_OPROFILE *om, int L)                                                            = NULL;
-int          (*p7_oprofile_ReconfigMultihit)  (P7_OPROFILE *om, int L)                                                            = NULL;
-int          (*p7_oprofile_ReconfigMultihit_Log)(P7_OPROFILE *om, int L)                                                          = NULL;
-int          (*p7_oprofile_ReconfigUnihit)    (P7_OPROFILE *om, int L)                                                            = NULL;
-int          (*p7_oprofile_ReconfigUnihit_Log)(P7_OPROFILE *om, int L)                                                            = NULL;
-int          (*p7_oprofile_UpdateFwdEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = NULL;
-int          (*p7_oprofile_UpdateVitEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = NULL;
-int          (*p7_oprofile_UpdateMSVEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = NULL;
+/* Forward declarations of all dispatchers */
+static P7_OPROFILE *p7_oprofile_Create_Dispatcher            (int M, const ESL_ALPHABET *abc);
+static void         p7_oprofile_Destroy_Dispatcher           (P7_OPROFILE *om);
+static P7_OPROFILE *p7_oprofile_Clone_Dispatcher             (const P7_OPROFILE *om);
+static int          p7_oprofile_Convert_Dispatcher           (const P7_PROFILE *gm, P7_OPROFILE *om);
+static int          p7_oprofile_Convert_Log_Dispatcher       (const P7_PROFILE *gm, P7_OPROFILE *om);
+static int          p7_oprofile_ReconfigLength_Dispatcher    (P7_OPROFILE *om, int L);
+static int          p7_oprofile_ReconfigLength_Log_Dispatcher(P7_OPROFILE *om, int L);
+static int          p7_oprofile_ReconfigMSVLength_Dispatcher (P7_OPROFILE *om, int L);
+static int          p7_oprofile_ReconfigRestLength_Dispatcher(P7_OPROFILE *om, int L);
+static int          p7_oprofile_ReconfigMultihit_Dispatcher  (P7_OPROFILE *om, int L);
+static int          p7_oprofile_ReconfigMultihit_Log_Dispatcher(P7_OPROFILE *om, int L);
+static int          p7_oprofile_ReconfigUnihit_Dispatcher    (P7_OPROFILE *om, int L);
+static int          p7_oprofile_ReconfigUnihit_Log_Dispatcher(P7_OPROFILE *om, int L);
+static int          p7_oprofile_UpdateFwdEmissionScores_Dispatcher(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
+static int          p7_oprofile_UpdateVitEmissionScores_Dispatcher(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
+static int          p7_oprofile_UpdateMSVEmissionScores_Dispatcher(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr);
+
+/* P7_OPROFILE lifecycle — global function pointers, initialized to dispatchers */
+P7_OPROFILE *(*p7_oprofile_Create)            (int M, const ESL_ALPHABET *abc)                                                    = p7_oprofile_Create_Dispatcher;
+void         (*p7_oprofile_Destroy)           (P7_OPROFILE *om)                                                                   = p7_oprofile_Destroy_Dispatcher;
+P7_OPROFILE *(*p7_oprofile_Clone)             (const P7_OPROFILE *om)                                                             = p7_oprofile_Clone_Dispatcher;
+int          (*p7_oprofile_Convert)           (const P7_PROFILE *gm, P7_OPROFILE *om)                                            = p7_oprofile_Convert_Dispatcher;
+int          (*p7_oprofile_Convert_Log)       (const P7_PROFILE *gm, P7_OPROFILE *om)                                            = p7_oprofile_Convert_Log_Dispatcher;
+int          (*p7_oprofile_ReconfigLength)    (P7_OPROFILE *om, int L)                                                            = p7_oprofile_ReconfigLength_Dispatcher;
+int          (*p7_oprofile_ReconfigLength_Log)(P7_OPROFILE *om, int L)                                                            = p7_oprofile_ReconfigLength_Log_Dispatcher;
+int          (*p7_oprofile_ReconfigMSVLength) (P7_OPROFILE *om, int L)                                                            = p7_oprofile_ReconfigMSVLength_Dispatcher;
+int          (*p7_oprofile_ReconfigRestLength)(P7_OPROFILE *om, int L)                                                            = p7_oprofile_ReconfigRestLength_Dispatcher;
+int          (*p7_oprofile_ReconfigMultihit)  (P7_OPROFILE *om, int L)                                                            = p7_oprofile_ReconfigMultihit_Dispatcher;
+int          (*p7_oprofile_ReconfigMultihit_Log)(P7_OPROFILE *om, int L)                                                          = p7_oprofile_ReconfigMultihit_Log_Dispatcher;
+int          (*p7_oprofile_ReconfigUnihit)    (P7_OPROFILE *om, int L)                                                            = p7_oprofile_ReconfigUnihit_Dispatcher;
+int          (*p7_oprofile_ReconfigUnihit_Log)(P7_OPROFILE *om, int L)                                                            = p7_oprofile_ReconfigUnihit_Log_Dispatcher;
+int          (*p7_oprofile_UpdateFwdEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = p7_oprofile_UpdateFwdEmissionScores_Dispatcher;
+int          (*p7_oprofile_UpdateVitEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = p7_oprofile_UpdateVitEmissionScores_Dispatcher;
+int          (*p7_oprofile_UpdateMSVEmissionScores)(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)              = p7_oprofile_UpdateMSVEmissionScores_Dispatcher;
+
 
 /*****************************************************************
- * 2. impl_Init(): CPU detection and function pointer assignment.
- *
- * Call once at program startup before any profile operations.
- * Selects the fastest available ISA (AVX-512 > AVX-256 > SSE)
- * and wires all function pointers accordingly.
+ * 3. Self-patching dispatcher bodies for p7_oprofile_* functions.
  *****************************************************************/
-void
-impl_Init(void)
+
+static P7_OPROFILE *
+p7_oprofile_Create_Dispatcher(int M, const ESL_ALPHABET *abc)
 {
-  /* Set flush-zero mode on x86 to avoid sub-normal fp slowdowns */
-#ifdef HAVE_FLUSH_ZERO_MODE
-  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
-#endif
-#ifdef _PMMINTRIN_H_INCLUDED
-  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-#endif
-
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512())
-    {
-      /* P7_OPROFILE */
-      p7_oprofile_Create                = p7_oprofile_Create_avx512;
-      p7_oprofile_Destroy               = p7_oprofile_Destroy_avx512;
-      p7_oprofile_Clone                 = p7_oprofile_Clone_avx512;
-      p7_oprofile_Convert               = p7_oprofile_Convert_avx512;
-      p7_oprofile_Convert_Log           = p7_oprofile_Convert_Log_avx512;
-      p7_oprofile_ReconfigLength        = p7_oprofile_ReconfigLength_avx512;
-      p7_oprofile_ReconfigLength_Log    = p7_oprofile_ReconfigLength_Log_avx512;
-      p7_oprofile_ReconfigMSVLength     = p7_oprofile_ReconfigMSVLength_avx512;
-      p7_oprofile_ReconfigRestLength    = p7_oprofile_ReconfigRestLength_avx512;
-      p7_oprofile_ReconfigMultihit      = p7_oprofile_ReconfigMultihit_avx512;
-      p7_oprofile_ReconfigMultihit_Log  = p7_oprofile_ReconfigMultihit_Log_avx512;
-      p7_oprofile_ReconfigUnihit        = p7_oprofile_ReconfigUnihit_avx512;
-      p7_oprofile_ReconfigUnihit_Log    = p7_oprofile_ReconfigUnihit_Log_avx512;
-      p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_avx512;
-      p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_avx512;
-      p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_avx512;
-      /* P7_FS_OPROFILE */
-      p7_fs_oprofile_Create             = p7_fs_oprofile_Create_avx512;
-      p7_fs_oprofile_Destroy            = p7_fs_oprofile_Destroy_avx512;
-      p7_fs_oprofile_Clone              = p7_fs_oprofile_Clone_avx512;
-      p7_fs_oprofile_Convert            = p7_fs_oprofile_Convert_avx512;
-      p7_fs_oprofile_Convert_Log        = p7_fs_oprofile_Convert_Log_avx512;
-      p7_fs_oprofile_SubConvert_Log     = p7_fs_oprofile_SubConvert_Log_avx512;
-      p7_fs_oprofile_ReconfigLength     = p7_fs_oprofile_ReconfigLength_avx512;
-      p7_fs_oprofile_ReconfigLength_Log = p7_fs_oprofile_ReconfigLength_Log_avx512;
-      p7_fs_oprofile_ReconfigMultihit   = p7_fs_oprofile_ReconfigMultihit_avx512;
-      p7_fs_oprofile_ReconfigUnihit     = p7_fs_oprofile_ReconfigUnihit_avx512;
-      p7_fs_oprofile_Logify             = p7_fs_oprofile_Logify_avx512;
-      /* P7_OIVX */
-      p7_oivx_Create                    = p7_oivx_Create_avx512;
-      p7_oivx_GrowTo                    = p7_oivx_GrowTo_avx512;
-      p7_oivx_Destroy                   = p7_oivx_Destroy_avx512;
-      return;
-    }
+  if (esl_cpu_has_avx512()) { p7_oprofile_Create = p7_oprofile_Create_avx512; return p7_oprofile_Create_avx512(M, abc); }
 #endif
-
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())
-    {
-      /* P7_OPROFILE — AVX2 implementations */
-      p7_oprofile_Create                = p7_oprofile_Create_avx;
-      p7_oprofile_Destroy               = p7_oprofile_Destroy_avx;
-      p7_oprofile_Clone                 = p7_oprofile_Clone_avx;
-      p7_oprofile_Convert               = p7_oprofile_Convert_avx;
-      p7_oprofile_Convert_Log           = p7_oprofile_Convert_Log_avx;
-      p7_oprofile_ReconfigLength        = p7_oprofile_ReconfigLength_avx;
-      p7_oprofile_ReconfigLength_Log    = p7_oprofile_ReconfigLength_Log_avx;
-      p7_oprofile_ReconfigMSVLength     = p7_oprofile_ReconfigMSVLength_avx;
-      p7_oprofile_ReconfigRestLength    = p7_oprofile_ReconfigRestLength_avx;
-      p7_oprofile_ReconfigMultihit      = p7_oprofile_ReconfigMultihit_avx;
-      p7_oprofile_ReconfigMultihit_Log  = p7_oprofile_ReconfigMultihit_Log_avx;
-      p7_oprofile_ReconfigUnihit        = p7_oprofile_ReconfigUnihit_avx;
-      p7_oprofile_ReconfigUnihit_Log    = p7_oprofile_ReconfigUnihit_Log_avx;
-      p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_avx;
-      p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_avx;
-      p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_avx;
-      /* P7_FS_OPROFILE — AVX2 implementations */
-      p7_fs_oprofile_Create             = p7_fs_oprofile_Create_avx;
-      p7_fs_oprofile_Destroy            = p7_fs_oprofile_Destroy_avx;
-      p7_fs_oprofile_Clone              = p7_fs_oprofile_Clone_avx;
-      p7_fs_oprofile_Convert            = p7_fs_oprofile_Convert_avx;
-      p7_fs_oprofile_Convert_Log        = p7_fs_oprofile_Convert_Log_avx;
-      p7_fs_oprofile_SubConvert_Log     = p7_fs_oprofile_SubConvert_Log_avx;
-      p7_fs_oprofile_ReconfigLength     = p7_fs_oprofile_ReconfigLength_avx;
-      p7_fs_oprofile_ReconfigLength_Log = p7_fs_oprofile_ReconfigLength_Log_avx;
-      p7_fs_oprofile_ReconfigMultihit   = p7_fs_oprofile_ReconfigMultihit_avx;
-      p7_fs_oprofile_ReconfigUnihit     = p7_fs_oprofile_ReconfigUnihit_avx;
-      p7_fs_oprofile_Logify             = p7_fs_oprofile_Logify_avx;
-      /* P7_OIVX — AVX2 implementations */
-      p7_oivx_Create                    = p7_oivx_Create_avx;
-      p7_oivx_GrowTo                    = p7_oivx_GrowTo_avx;
-      p7_oivx_Destroy                   = p7_oivx_Destroy_avx;
-      return;
-    }
+  if (esl_cpu_has_avx())    { p7_oprofile_Create = p7_oprofile_Create_avx;    return p7_oprofile_Create_avx(M, abc); }
 #endif
-
 #ifdef eslENABLE_SSE
-  /* Fallback: SSE (always available on x86 targets we support) */
-  p7_oprofile_Create                = p7_oprofile_Create_sse;
-  p7_oprofile_Destroy               = p7_oprofile_Destroy_sse;
-  p7_oprofile_Clone                 = p7_oprofile_Clone_sse;
-  p7_oprofile_Convert               = p7_oprofile_Convert_sse;
-  p7_oprofile_Convert_Log           = p7_oprofile_Convert_Log_sse;
-  p7_oprofile_ReconfigLength        = p7_oprofile_ReconfigLength_sse;
-  p7_oprofile_ReconfigLength_Log    = p7_oprofile_ReconfigLength_Log_sse;
-  p7_oprofile_ReconfigMSVLength     = p7_oprofile_ReconfigMSVLength_sse;
-  p7_oprofile_ReconfigRestLength    = p7_oprofile_ReconfigRestLength_sse;
-  p7_oprofile_ReconfigMultihit      = p7_oprofile_ReconfigMultihit_sse;
-  p7_oprofile_ReconfigMultihit_Log  = p7_oprofile_ReconfigMultihit_Log_sse;
-  p7_oprofile_ReconfigUnihit        = p7_oprofile_ReconfigUnihit_sse;
-  p7_oprofile_ReconfigUnihit_Log    = p7_oprofile_ReconfigUnihit_Log_sse;
+  p7_oprofile_Create = p7_oprofile_Create_sse;
+  return p7_oprofile_Create_sse(M, abc);
+#else
+  p7_Die("p7_oprofile_Create: no SIMD implementation available");
+  return NULL;
+#endif
+}
+
+static void
+p7_oprofile_Destroy_Dispatcher(P7_OPROFILE *om)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_Destroy = p7_oprofile_Destroy_avx512; p7_oprofile_Destroy_avx512(om); return; }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_Destroy = p7_oprofile_Destroy_avx;    p7_oprofile_Destroy_avx(om); return; }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_Destroy = p7_oprofile_Destroy_sse;
+  p7_oprofile_Destroy_sse(om);
+#else
+  p7_Die("p7_oprofile_Destroy: no SIMD implementation available");
+#endif
+}
+
+static P7_OPROFILE *
+p7_oprofile_Clone_Dispatcher(const P7_OPROFILE *om)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_Clone = p7_oprofile_Clone_avx512; return p7_oprofile_Clone_avx512(om); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_Clone = p7_oprofile_Clone_avx;    return p7_oprofile_Clone_avx(om); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_Clone = p7_oprofile_Clone_sse;
+  return p7_oprofile_Clone_sse(om);
+#else
+  p7_Die("p7_oprofile_Clone: no SIMD implementation available");
+  return NULL;
+#endif
+}
+
+static int
+p7_oprofile_Convert_Dispatcher(const P7_PROFILE *gm, P7_OPROFILE *om)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_Convert = p7_oprofile_Convert_avx512; return p7_oprofile_Convert_avx512(gm, om); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_Convert = p7_oprofile_Convert_avx;    return p7_oprofile_Convert_avx(gm, om); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_Convert = p7_oprofile_Convert_sse;
+  return p7_oprofile_Convert_sse(gm, om);
+#else
+  p7_Die("p7_oprofile_Convert: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_Convert_Log_Dispatcher(const P7_PROFILE *gm, P7_OPROFILE *om)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_Convert_Log = p7_oprofile_Convert_Log_avx512; return p7_oprofile_Convert_Log_avx512(gm, om); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_Convert_Log = p7_oprofile_Convert_Log_avx;    return p7_oprofile_Convert_Log_avx(gm, om); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_Convert_Log = p7_oprofile_Convert_Log_sse;
+  return p7_oprofile_Convert_Log_sse(gm, om);
+#else
+  p7_Die("p7_oprofile_Convert_Log: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigLength_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigLength = p7_oprofile_ReconfigLength_avx512; return p7_oprofile_ReconfigLength_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigLength = p7_oprofile_ReconfigLength_avx;    return p7_oprofile_ReconfigLength_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigLength = p7_oprofile_ReconfigLength_sse;
+  return p7_oprofile_ReconfigLength_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigLength: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigLength_Log_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigLength_Log = p7_oprofile_ReconfigLength_Log_avx512; return p7_oprofile_ReconfigLength_Log_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigLength_Log = p7_oprofile_ReconfigLength_Log_avx;    return p7_oprofile_ReconfigLength_Log_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigLength_Log = p7_oprofile_ReconfigLength_Log_sse;
+  return p7_oprofile_ReconfigLength_Log_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigLength_Log: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigMSVLength_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigMSVLength = p7_oprofile_ReconfigMSVLength_avx512; return p7_oprofile_ReconfigMSVLength_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigMSVLength = p7_oprofile_ReconfigMSVLength_avx;    return p7_oprofile_ReconfigMSVLength_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigMSVLength = p7_oprofile_ReconfigMSVLength_sse;
+  return p7_oprofile_ReconfigMSVLength_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigMSVLength: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigRestLength_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigRestLength = p7_oprofile_ReconfigRestLength_avx512; return p7_oprofile_ReconfigRestLength_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigRestLength = p7_oprofile_ReconfigRestLength_avx;    return p7_oprofile_ReconfigRestLength_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigRestLength = p7_oprofile_ReconfigRestLength_sse;
+  return p7_oprofile_ReconfigRestLength_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigRestLength: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigMultihit_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigMultihit = p7_oprofile_ReconfigMultihit_avx512; return p7_oprofile_ReconfigMultihit_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigMultihit = p7_oprofile_ReconfigMultihit_avx;    return p7_oprofile_ReconfigMultihit_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigMultihit = p7_oprofile_ReconfigMultihit_sse;
+  return p7_oprofile_ReconfigMultihit_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigMultihit: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigMultihit_Log_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigMultihit_Log = p7_oprofile_ReconfigMultihit_Log_avx512; return p7_oprofile_ReconfigMultihit_Log_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigMultihit_Log = p7_oprofile_ReconfigMultihit_Log_avx;    return p7_oprofile_ReconfigMultihit_Log_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigMultihit_Log = p7_oprofile_ReconfigMultihit_Log_sse;
+  return p7_oprofile_ReconfigMultihit_Log_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigMultihit_Log: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigUnihit_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigUnihit = p7_oprofile_ReconfigUnihit_avx512; return p7_oprofile_ReconfigUnihit_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigUnihit = p7_oprofile_ReconfigUnihit_avx;    return p7_oprofile_ReconfigUnihit_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigUnihit = p7_oprofile_ReconfigUnihit_sse;
+  return p7_oprofile_ReconfigUnihit_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigUnihit: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_ReconfigUnihit_Log_Dispatcher(P7_OPROFILE *om, int L)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_ReconfigUnihit_Log = p7_oprofile_ReconfigUnihit_Log_avx512; return p7_oprofile_ReconfigUnihit_Log_avx512(om, L); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_ReconfigUnihit_Log = p7_oprofile_ReconfigUnihit_Log_avx;    return p7_oprofile_ReconfigUnihit_Log_avx(om, L); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_oprofile_ReconfigUnihit_Log = p7_oprofile_ReconfigUnihit_Log_sse;
+  return p7_oprofile_ReconfigUnihit_Log_sse(om, L);
+#else
+  p7_Die("p7_oprofile_ReconfigUnihit_Log: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_UpdateFwdEmissionScores_Dispatcher(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_avx512; return p7_oprofile_UpdateFwdEmissionScores_avx512(om, bg, fwd_emissions, sc_arr); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_avx;    return p7_oprofile_UpdateFwdEmissionScores_avx(om, bg, fwd_emissions, sc_arr); }
+#endif
+#ifdef eslENABLE_SSE
   p7_oprofile_UpdateFwdEmissionScores = p7_oprofile_UpdateFwdEmissionScores_sse;
+  return p7_oprofile_UpdateFwdEmissionScores_sse(om, bg, fwd_emissions, sc_arr);
+#else
+  p7_Die("p7_oprofile_UpdateFwdEmissionScores: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_UpdateVitEmissionScores_Dispatcher(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_avx512; return p7_oprofile_UpdateVitEmissionScores_avx512(om, bg, fwd_emissions, sc_arr); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_avx;    return p7_oprofile_UpdateVitEmissionScores_avx(om, bg, fwd_emissions, sc_arr); }
+#endif
+#ifdef eslENABLE_SSE
   p7_oprofile_UpdateVitEmissionScores = p7_oprofile_UpdateVitEmissionScores_sse;
+  return p7_oprofile_UpdateVitEmissionScores_sse(om, bg, fwd_emissions, sc_arr);
+#else
+  p7_Die("p7_oprofile_UpdateVitEmissionScores: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+static int
+p7_oprofile_UpdateMSVEmissionScores_Dispatcher(P7_OPROFILE *om, P7_BG *bg, float *fwd_emissions, float *sc_arr)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_avx512; return p7_oprofile_UpdateMSVEmissionScores_avx512(om, bg, fwd_emissions, sc_arr); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_avx;    return p7_oprofile_UpdateMSVEmissionScores_avx(om, bg, fwd_emissions, sc_arr); }
+#endif
+#ifdef eslENABLE_SSE
   p7_oprofile_UpdateMSVEmissionScores = p7_oprofile_UpdateMSVEmissionScores_sse;
-  /* P7_FS_OPROFILE */
-  p7_fs_oprofile_Create             = p7_fs_oprofile_Create_sse;
-  p7_fs_oprofile_Destroy            = p7_fs_oprofile_Destroy_sse;
-  p7_fs_oprofile_Clone              = p7_fs_oprofile_Clone_sse;
-  p7_fs_oprofile_Convert            = p7_fs_oprofile_Convert_sse;
-  p7_fs_oprofile_Convert_Log        = p7_fs_oprofile_Convert_Log_sse;
-  p7_fs_oprofile_SubConvert_Log     = p7_fs_oprofile_SubConvert_Log_sse;
-  p7_fs_oprofile_ReconfigLength     = p7_fs_oprofile_ReconfigLength_sse;
-  p7_fs_oprofile_ReconfigLength_Log = p7_fs_oprofile_ReconfigLength_Log_sse;
-  p7_fs_oprofile_ReconfigMultihit   = p7_fs_oprofile_ReconfigMultihit_sse;
-  p7_fs_oprofile_ReconfigUnihit     = p7_fs_oprofile_ReconfigUnihit_sse;
-  p7_fs_oprofile_Logify             = p7_fs_oprofile_Logify_sse;
-  /* P7_OIVX */
-  p7_oivx_Create                    = p7_oivx_Create_sse;
-  p7_oivx_GrowTo                    = p7_oivx_GrowTo_sse;
-  p7_oivx_Destroy                   = p7_oivx_Destroy_sse;
+  return p7_oprofile_UpdateMSVEmissionScores_sse(om, bg, fwd_emissions, sc_arr);
+#else
+  p7_Die("p7_oprofile_UpdateMSVEmissionScores: no SIMD implementation available");
+  return eslENORESULT;
 #endif
 }
 
@@ -311,127 +473,206 @@ p7_profile_SameAsVF(const P7_OPROFILE *om, P7_PROFILE *gm)
 #endif
 }
 
-/* p7_oprofile_Logify() — ISA-independent dispatch */
+/* Self-patching dispatcher for p7_oprofile_Logify */
+static int p7_oprofile_Logify_Dispatcher(P7_OPROFILE *om);
+int (*p7_oprofile_Logify_fn)(P7_OPROFILE *om) = p7_oprofile_Logify_Dispatcher;
+
+static int
+p7_oprofile_Logify_Dispatcher(P7_OPROFILE *om)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { extern int p7_oprofile_Logify_avx512(P7_OPROFILE *om); p7_oprofile_Logify_fn = p7_oprofile_Logify_avx512; return p7_oprofile_Logify_avx512(om); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { extern int p7_oprofile_Logify_avx(P7_OPROFILE *om);    p7_oprofile_Logify_fn = p7_oprofile_Logify_avx;    return p7_oprofile_Logify_avx(om); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern int p7_oprofile_Logify_sse(P7_OPROFILE *om); p7_oprofile_Logify_fn = p7_oprofile_Logify_sse; return p7_oprofile_Logify_sse(om); }
+#else
+  p7_Die("p7_oprofile_Logify: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
 int
 p7_oprofile_Logify(P7_OPROFILE *om)
 {
+  return (*p7_oprofile_Logify_fn)(om);
+}
+
+/* Self-patching dispatcher for p7_oprofile_GetFwdTransitionArray */
+static int p7_oprofile_GetFwdTransitionArray_Dispatcher(const P7_OPROFILE *om, int type, float *arr);
+int (*p7_oprofile_GetFwdTransitionArray_fn)(const P7_OPROFILE *om, int type, float *arr) = p7_oprofile_GetFwdTransitionArray_Dispatcher;
+
+static int
+p7_oprofile_GetFwdTransitionArray_Dispatcher(const P7_OPROFILE *om, int type, float *arr)
+{
 #ifdef eslENABLE_AVX512
-  if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_Logify_avx512(P7_OPROFILE *om); return p7_oprofile_Logify_avx512(om); }
+  if (esl_cpu_has_avx512()) { extern int p7_oprofile_GetFwdTransitionArray_avx512(const P7_OPROFILE *om, int type, float *arr); p7_oprofile_GetFwdTransitionArray_fn = p7_oprofile_GetFwdTransitionArray_avx512; return p7_oprofile_GetFwdTransitionArray_avx512(om, type, arr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_Logify_avx(P7_OPROFILE *om);    return p7_oprofile_Logify_avx(om); }
+  if (esl_cpu_has_avx())    { extern int p7_oprofile_GetFwdTransitionArray_avx(const P7_OPROFILE *om, int type, float *arr);    p7_oprofile_GetFwdTransitionArray_fn = p7_oprofile_GetFwdTransitionArray_avx;    return p7_oprofile_GetFwdTransitionArray_avx(om, type, arr); }
 #endif
 #ifdef eslENABLE_SSE
-  { extern int p7_oprofile_Logify_sse(P7_OPROFILE *om); return p7_oprofile_Logify_sse(om); }
+  { extern int p7_oprofile_GetFwdTransitionArray_sse(const P7_OPROFILE *om, int type, float *arr); p7_oprofile_GetFwdTransitionArray_fn = p7_oprofile_GetFwdTransitionArray_sse; return p7_oprofile_GetFwdTransitionArray_sse(om, type, arr); }
+#else
+  p7_Die("p7_oprofile_GetFwdTransitionArray: no SIMD implementation available");
+  return eslENORESULT;
 #endif
-  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_Logify: no SIMD implementation available");
 }
 
 int
 p7_oprofile_GetFwdTransitionArray(const P7_OPROFILE *om, int type, float *arr)
 {
+  return (*p7_oprofile_GetFwdTransitionArray_fn)(om, type, arr);
+}
+
+/* Self-patching dispatcher for p7_oprofile_GetSSVEmissionScoreArray */
+static int p7_oprofile_GetSSVEmissionScoreArray_Dispatcher(const P7_OPROFILE *om, uint8_t *arr);
+int (*p7_oprofile_GetSSVEmissionScoreArray_fn)(const P7_OPROFILE *om, uint8_t *arr) = p7_oprofile_GetSSVEmissionScoreArray_Dispatcher;
+
+static int
+p7_oprofile_GetSSVEmissionScoreArray_Dispatcher(const P7_OPROFILE *om, uint8_t *arr)
+{
 #ifdef eslENABLE_AVX512
-  if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_GetFwdTransitionArray_avx512(const P7_OPROFILE *om, int type, float *arr); return p7_oprofile_GetFwdTransitionArray_avx512(om, type, arr); }
+  if (esl_cpu_has_avx512()) { extern int p7_oprofile_GetSSVEmissionScoreArray_avx512(const P7_OPROFILE *om, uint8_t *arr); p7_oprofile_GetSSVEmissionScoreArray_fn = p7_oprofile_GetSSVEmissionScoreArray_avx512; return p7_oprofile_GetSSVEmissionScoreArray_avx512(om, arr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_GetFwdTransitionArray_avx(const P7_OPROFILE *om, int type, float *arr);    return p7_oprofile_GetFwdTransitionArray_avx(om, type, arr); }
+  if (esl_cpu_has_avx())    { extern int p7_oprofile_GetSSVEmissionScoreArray_avx(const P7_OPROFILE *om, uint8_t *arr);    p7_oprofile_GetSSVEmissionScoreArray_fn = p7_oprofile_GetSSVEmissionScoreArray_avx;    return p7_oprofile_GetSSVEmissionScoreArray_avx(om, arr); }
 #endif
 #ifdef eslENABLE_SSE
-  { extern int p7_oprofile_GetFwdTransitionArray_sse(const P7_OPROFILE *om, int type, float *arr); return p7_oprofile_GetFwdTransitionArray_sse(om, type, arr); }
+  { extern int p7_oprofile_GetSSVEmissionScoreArray_sse(const P7_OPROFILE *om, uint8_t *arr); p7_oprofile_GetSSVEmissionScoreArray_fn = p7_oprofile_GetSSVEmissionScoreArray_sse; return p7_oprofile_GetSSVEmissionScoreArray_sse(om, arr); }
+#else
+  p7_Die("p7_oprofile_GetSSVEmissionScoreArray: no SIMD implementation available");
+  return eslENORESULT;
 #endif
-  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetFwdTransitionArray: no SIMD implementation available");
 }
 
 int
 p7_oprofile_GetSSVEmissionScoreArray(const P7_OPROFILE *om, uint8_t *arr)
 {
+  return (*p7_oprofile_GetSSVEmissionScoreArray_fn)(om, arr);
+}
+
+/* Self-patching dispatcher for p7_oprofile_GetFwdEmissionScoreArray */
+static int p7_oprofile_GetFwdEmissionScoreArray_Dispatcher(const P7_OPROFILE *om, float *arr);
+int (*p7_oprofile_GetFwdEmissionScoreArray_fn)(const P7_OPROFILE *om, float *arr) = p7_oprofile_GetFwdEmissionScoreArray_Dispatcher;
+
+static int
+p7_oprofile_GetFwdEmissionScoreArray_Dispatcher(const P7_OPROFILE *om, float *arr)
+{
 #ifdef eslENABLE_AVX512
-  if (om->allocQ16_avx512 > 0) { extern int p7_oprofile_GetSSVEmissionScoreArray_avx512(const P7_OPROFILE *om, uint8_t *arr); return p7_oprofile_GetSSVEmissionScoreArray_avx512(om, arr); }
+  if (esl_cpu_has_avx512()) { extern int p7_oprofile_GetFwdEmissionScoreArray_avx512(const P7_OPROFILE *om, float *arr); p7_oprofile_GetFwdEmissionScoreArray_fn = p7_oprofile_GetFwdEmissionScoreArray_avx512; return p7_oprofile_GetFwdEmissionScoreArray_avx512(om, arr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (om->allocQ16_avx    > 0) { extern int p7_oprofile_GetSSVEmissionScoreArray_avx(const P7_OPROFILE *om, uint8_t *arr);    return p7_oprofile_GetSSVEmissionScoreArray_avx(om, arr); }
+  if (esl_cpu_has_avx())    { extern int p7_oprofile_GetFwdEmissionScoreArray_avx(const P7_OPROFILE *om, float *arr);    p7_oprofile_GetFwdEmissionScoreArray_fn = p7_oprofile_GetFwdEmissionScoreArray_avx;    return p7_oprofile_GetFwdEmissionScoreArray_avx(om, arr); }
 #endif
 #ifdef eslENABLE_SSE
-  { extern int p7_oprofile_GetSSVEmissionScoreArray_sse(const P7_OPROFILE *om, uint8_t *arr); return p7_oprofile_GetSSVEmissionScoreArray_sse(om, arr); }
+  { extern int p7_oprofile_GetFwdEmissionScoreArray_sse(const P7_OPROFILE *om, float *arr); p7_oprofile_GetFwdEmissionScoreArray_fn = p7_oprofile_GetFwdEmissionScoreArray_sse; return p7_oprofile_GetFwdEmissionScoreArray_sse(om, arr); }
+#else
+  p7_Die("p7_oprofile_GetFwdEmissionScoreArray: no SIMD implementation available");
+  return eslENORESULT;
 #endif
-  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetSSVEmissionScoreArray: no SIMD implementation available");
 }
 
 int
 p7_oprofile_GetFwdEmissionScoreArray(const P7_OPROFILE *om, float *arr)
 {
+  return (*p7_oprofile_GetFwdEmissionScoreArray_fn)(om, arr);
+}
+
+/* Self-patching dispatcher for p7_oprofile_GetFwdEmissionArray */
+static int p7_oprofile_GetFwdEmissionArray_Dispatcher(const P7_OPROFILE *om, P7_BG *bg, float *arr);
+int (*p7_oprofile_GetFwdEmissionArray_fn)(const P7_OPROFILE *om, P7_BG *bg, float *arr) = p7_oprofile_GetFwdEmissionArray_Dispatcher;
+
+static int
+p7_oprofile_GetFwdEmissionArray_Dispatcher(const P7_OPROFILE *om, P7_BG *bg, float *arr)
+{
 #ifdef eslENABLE_AVX512
-  if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_GetFwdEmissionScoreArray_avx512(const P7_OPROFILE *om, float *arr); return p7_oprofile_GetFwdEmissionScoreArray_avx512(om, arr); }
+  if (esl_cpu_has_avx512()) { extern int p7_oprofile_GetFwdEmissionArray_avx512(const P7_OPROFILE *om, P7_BG *bg, float *arr); p7_oprofile_GetFwdEmissionArray_fn = p7_oprofile_GetFwdEmissionArray_avx512; return p7_oprofile_GetFwdEmissionArray_avx512(om, bg, arr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_GetFwdEmissionScoreArray_avx(const P7_OPROFILE *om, float *arr);    return p7_oprofile_GetFwdEmissionScoreArray_avx(om, arr); }
+  if (esl_cpu_has_avx())    { extern int p7_oprofile_GetFwdEmissionArray_avx(const P7_OPROFILE *om, P7_BG *bg, float *arr);    p7_oprofile_GetFwdEmissionArray_fn = p7_oprofile_GetFwdEmissionArray_avx;    return p7_oprofile_GetFwdEmissionArray_avx(om, bg, arr); }
 #endif
 #ifdef eslENABLE_SSE
-  { extern int p7_oprofile_GetFwdEmissionScoreArray_sse(const P7_OPROFILE *om, float *arr); return p7_oprofile_GetFwdEmissionScoreArray_sse(om, arr); }
+  { extern int p7_oprofile_GetFwdEmissionArray_sse(const P7_OPROFILE *om, P7_BG *bg, float *arr); p7_oprofile_GetFwdEmissionArray_fn = p7_oprofile_GetFwdEmissionArray_sse; return p7_oprofile_GetFwdEmissionArray_sse(om, bg, arr); }
+#else
+  p7_Die("p7_oprofile_GetFwdEmissionArray: no SIMD implementation available");
+  return eslENORESULT;
 #endif
-  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetFwdEmissionScoreArray: no SIMD implementation available");
 }
 
 int
 p7_oprofile_GetFwdEmissionArray(const P7_OPROFILE *om, P7_BG *bg, float *arr)
 {
-#ifdef eslENABLE_AVX512
-  if (om->allocQ4_avx512 > 0) { extern int p7_oprofile_GetFwdEmissionArray_avx512(const P7_OPROFILE *om, P7_BG *bg, float *arr); return p7_oprofile_GetFwdEmissionArray_avx512(om, bg, arr); }
-#endif
-#ifdef eslENABLE_AVX
-  if (om->allocQ4_avx    > 0) { extern int p7_oprofile_GetFwdEmissionArray_avx(const P7_OPROFILE *om, P7_BG *bg, float *arr);    return p7_oprofile_GetFwdEmissionArray_avx(om, bg, arr); }
-#endif
-#ifdef eslENABLE_SSE
-  { extern int p7_oprofile_GetFwdEmissionArray_sse(const P7_OPROFILE *om, P7_BG *bg, float *arr); return p7_oprofile_GetFwdEmissionArray_sse(om, bg, arr); }
-#endif
-  ESL_EXCEPTION(eslENORESULT, "p7_oprofile_GetFwdEmissionArray: no SIMD implementation available");
+  return (*p7_oprofile_GetFwdEmissionArray_fn)(om, bg, arr);
 }
 
 /* Function:  p7_oprofile_FGetEmission()
  *
  * Purpose:   Retrieve match odds ratio for model position <k>, residue <x>
- *            from optimized profile <om>.  Dispatches to the ISA that allocated <om>.
+ *            from optimized profile <om>.  Self-patching ISA dispatcher.
  *
  * Returns:   The float emission odds ratio.
  */
+static float p7_oprofile_FGetEmission_Dispatcher(const P7_OPROFILE *om, int k, int x);
+float (*p7_oprofile_FGetEmission_fn)(const P7_OPROFILE *om, int k, int x) = p7_oprofile_FGetEmission_Dispatcher;
+
+static float
+p7_oprofile_FGetEmission_Dispatcher(const P7_OPROFILE *om, int k, int x)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { extern float p7_oprofile_FGetEmission_avx512(const P7_OPROFILE *, int, int); p7_oprofile_FGetEmission_fn = p7_oprofile_FGetEmission_avx512; return p7_oprofile_FGetEmission_avx512(om, k, x); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { extern float p7_oprofile_FGetEmission_avx(const P7_OPROFILE *, int, int);    p7_oprofile_FGetEmission_fn = p7_oprofile_FGetEmission_avx;    return p7_oprofile_FGetEmission_avx(om, k, x); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern float p7_oprofile_FGetEmission_sse(const P7_OPROFILE *, int, int); p7_oprofile_FGetEmission_fn = p7_oprofile_FGetEmission_sse; return p7_oprofile_FGetEmission_sse(om, k, x); }
+#else
+  p7_Die("p7_oprofile_FGetEmission: no SIMD implementation available");
+  return 0.0f;
+#endif
+}
+
 float
 p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
 {
-#ifdef eslENABLE_AVX512
-  if (om->allocQ4_avx512 > 0) { extern float p7_oprofile_FGetEmission_avx512(const P7_OPROFILE *, int, int); return p7_oprofile_FGetEmission_avx512(om, k, x); }
-#endif
-#ifdef eslENABLE_AVX
-  if (om->allocQ4_avx    > 0) { extern float p7_oprofile_FGetEmission_avx(const P7_OPROFILE *, int, int);    return p7_oprofile_FGetEmission_avx(om, k, x); }
-#endif
-#ifdef eslENABLE_SSE
-  { extern float p7_oprofile_FGetEmission_sse(const P7_OPROFILE *, int, int); return p7_oprofile_FGetEmission_sse(om, k, x); }
-#else
-  return 0.0f;
-#endif
+  return (*p7_oprofile_FGetEmission_fn)(om, k, x);
 }
 
 
 /* Function:  p7_fs_oprofile_FGetEmission()
  *
  * Purpose:   Retrieve float match emission score for model position <k>, codon index <c>
- *            from optimized FS profile <om_fs>.  Dispatches to the ISA that allocated <om_fs>.
+ *            from optimized FS profile <om_fs>.  Self-patching ISA dispatcher.
  *
  * Returns:   The float emission score.
  */
+static float p7_fs_oprofile_FGetEmission_Dispatcher(const P7_FS_OPROFILE *om_fs, int k, int c);
+float (*p7_fs_oprofile_FGetEmission_fn)(const P7_FS_OPROFILE *om_fs, int k, int c) = p7_fs_oprofile_FGetEmission_Dispatcher;
+
+static float
+p7_fs_oprofile_FGetEmission_Dispatcher(const P7_FS_OPROFILE *om_fs, int k, int c)
+{
+#ifdef eslENABLE_AVX512
+  if (esl_cpu_has_avx512()) { extern float p7_fs_oprofile_FGetEmission_avx512(const P7_FS_OPROFILE *, int, int); p7_fs_oprofile_FGetEmission_fn = p7_fs_oprofile_FGetEmission_avx512; return p7_fs_oprofile_FGetEmission_avx512(om_fs, k, c); }
+#endif
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { extern float p7_fs_oprofile_FGetEmission_avx(const P7_FS_OPROFILE *, int, int);    p7_fs_oprofile_FGetEmission_fn = p7_fs_oprofile_FGetEmission_avx;    return p7_fs_oprofile_FGetEmission_avx(om_fs, k, c); }
+#endif
+#ifdef eslENABLE_SSE
+  { extern float p7_fs_oprofile_FGetEmission_sse(const P7_FS_OPROFILE *, int, int); p7_fs_oprofile_FGetEmission_fn = p7_fs_oprofile_FGetEmission_sse; return p7_fs_oprofile_FGetEmission_sse(om_fs, k, c); }
+#else
+  p7_Die("p7_fs_oprofile_FGetEmission: no SIMD implementation available");
+  return 0.0f;
+#endif
+}
+
 float
 p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
 {
-#ifdef eslENABLE_AVX512
-  if (om_fs->allocQ4_avx512 > 0) { extern float p7_fs_oprofile_FGetEmission_avx512(const P7_FS_OPROFILE *, int, int); return p7_fs_oprofile_FGetEmission_avx512(om_fs, k, c); }
-#endif
-#ifdef eslENABLE_AVX
-  if (om_fs->allocQ4_avx    > 0) { extern float p7_fs_oprofile_FGetEmission_avx(const P7_FS_OPROFILE *, int, int);    return p7_fs_oprofile_FGetEmission_avx(om_fs, k, c); }
-#endif
-#ifdef eslENABLE_SSE
-  { extern float p7_fs_oprofile_FGetEmission_sse(const P7_FS_OPROFILE *, int, int); return p7_fs_oprofile_FGetEmission_sse(om_fs, k, c); }
-#else
-  return 0.0f;
-#endif
+  return (*p7_fs_oprofile_FGetEmission_fn)(om_fs, k, c);
 }
 
 

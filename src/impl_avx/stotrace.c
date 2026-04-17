@@ -13,27 +13,37 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_StochasticTrace()
+/* Forward declaration of dispatcher */
+static int p7_StochasticTrace_Dispatcher(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
+                                         const P7_OMX *ox, P7_TRACE *tr);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_StochasticTrace)(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
+                          const P7_OMX *ox, P7_TRACE *tr) = p7_StochasticTrace_Dispatcher;
+
+/* Function:  p7_StochasticTrace_Dispatcher()
  *
- * Purpose:   Dispatch stochastic traceback to the fastest available ISA path.
+ * Purpose:   Self-patching dispatcher for stochastic traceback.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEMEM> on allocation error.
  *            <eslEINVAL> on various internal failures.
  */
-int
-p7_StochasticTrace(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
-                   const P7_OMX *ox, P7_TRACE *tr)
+static int
+p7_StochasticTrace_Dispatcher(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
+                               const P7_OMX *ox, P7_TRACE *tr)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_StochasticTrace_avx512(rng, dsq, L, om, ox, tr);
+  if (esl_cpu_has_avx512()) { p7_StochasticTrace = p7_StochasticTrace_avx512; return p7_StochasticTrace_avx512(rng, dsq, L, om, ox, tr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_StochasticTrace_avx(rng, dsq, L, om, ox, tr);
+  if (esl_cpu_has_avx())    { p7_StochasticTrace = p7_StochasticTrace_avx;    return p7_StochasticTrace_avx(rng, dsq, L, om, ox, tr); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_StochasticTrace = p7_StochasticTrace_sse;
   return p7_StochasticTrace_sse(rng, dsq, L, om, ox, tr);
 #else
+  p7_Die("p7_StochasticTrace: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

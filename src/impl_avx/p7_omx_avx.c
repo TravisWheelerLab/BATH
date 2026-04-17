@@ -1,8 +1,5 @@
 /* p7_omx_avx.c — AVX2 (256-bit) P7_OMX matrix lifecycle.
  *
- * All public functions carry the _avx suffix and are selected at
- * runtime by impl_Init() when AVX2 is the fastest available ISA.
- *
  * Key differences from p7_omx_sse.c:
  *   - dp_mem is sized for __m256 / __m256i (32 bytes each)
  *   - dpf_avx / dpw_avx / dpb_avx used instead of dpf / dpw / dpb

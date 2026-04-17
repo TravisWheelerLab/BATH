@@ -14,26 +14,36 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_StochasticTrace_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_StochasticTrace_Frameshift_Dispatcher(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L,
+                                                     const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_StochasticTrace_Frameshift)(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L,
+                                     const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr) = p7_StochasticTrace_Frameshift_Dispatcher;
+
+/* Function:  p7_StochasticTrace_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch frameshift stochastic traceback to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for frameshift stochastic traceback.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> on various internal failures.
  */
-int
-p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L,
-                               const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr)
+static int
+p7_StochasticTrace_Frameshift_Dispatcher(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L,
+                                          const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_StochasticTrace_Frameshift_avx512(rng, dsq, L, om_fs, ox, tr);
+  if (esl_cpu_has_avx512()) { p7_StochasticTrace_Frameshift = p7_StochasticTrace_Frameshift_avx512; return p7_StochasticTrace_Frameshift_avx512(rng, dsq, L, om_fs, ox, tr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_StochasticTrace_Frameshift_avx(rng, dsq, L, om_fs, ox, tr);
+  if (esl_cpu_has_avx())    { p7_StochasticTrace_Frameshift = p7_StochasticTrace_Frameshift_avx;    return p7_StochasticTrace_Frameshift_avx(rng, dsq, L, om_fs, ox, tr); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_StochasticTrace_Frameshift = p7_StochasticTrace_Frameshift_sse;
   return p7_StochasticTrace_Frameshift_sse(rng, dsq, L, om_fs, ox, tr);
 #else
+  p7_Die("p7_StochasticTrace_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

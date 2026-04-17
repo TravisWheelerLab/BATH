@@ -1,8 +1,5 @@
 /* p7_fs_oprofile_sse.c — SSE (128-bit) implementations of P7_FS_OPROFILE management.
  *
- * All public functions carry the _sse suffix and are selected at runtime
- * by impl_Init() in p7_oprofile.c when SSE is the fastest available ISA.
- *
  * Ported from impl_sse/p7_fs_oprofile.c with:
  *   - Public function names suffixed with _sse
  *   - Internal cross-calls updated to use _sse variants

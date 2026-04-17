@@ -13,51 +13,71 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_OptimalAccuracy_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_OptimalAccuracy_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+                                                    P7_OMX *ox, float *ret_e);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_OptimalAccuracy_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+                                     P7_OMX *ox, float *ret_e) = p7_OptimalAccuracy_Frameshift_Dispatcher;
+
+/* Function:  p7_OptimalAccuracy_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch frameshift optimal accuracy DP fill to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for frameshift optimal accuracy DP fill.
  *
  * Returns:   <eslOK> on success.
  */
-int
-p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
-                               P7_OMX *ox, float *ret_e)
+static int
+p7_OptimalAccuracy_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+                                         P7_OMX *ox, float *ret_e)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_OptimalAccuracy_Frameshift_avx512(om_fs, pp, ox, ret_e);
+  if (esl_cpu_has_avx512()) { p7_OptimalAccuracy_Frameshift = p7_OptimalAccuracy_Frameshift_avx512; return p7_OptimalAccuracy_Frameshift_avx512(om_fs, pp, ox, ret_e); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OptimalAccuracy_Frameshift_avx(om_fs, pp, ox, ret_e);
+  if (esl_cpu_has_avx())    { p7_OptimalAccuracy_Frameshift = p7_OptimalAccuracy_Frameshift_avx;    return p7_OptimalAccuracy_Frameshift_avx(om_fs, pp, ox, ret_e); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_OptimalAccuracy_Frameshift = p7_OptimalAccuracy_Frameshift_sse;
   return p7_OptimalAccuracy_Frameshift_sse(om_fs, pp, ox, ret_e);
 #else
+  p7_Die("p7_OptimalAccuracy_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_OATrace_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_OATrace_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+                                             const P7_OMX *ox, P7_TRACE *tr);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_OATrace_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+                             const P7_OMX *ox, P7_TRACE *tr) = p7_OATrace_Frameshift_Dispatcher;
+
+/* Function:  p7_OATrace_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch frameshift optimal accuracy traceback to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for frameshift optimal accuracy traceback.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if trace is not empty.
  *            <eslEMEM> on allocation error.
  */
-int
-p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
-                      const P7_OMX *ox, P7_TRACE *tr)
+static int
+p7_OATrace_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+                                  const P7_OMX *ox, P7_TRACE *tr)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_OATrace_Frameshift_avx512(om_fs, pp, ox, tr);
+  if (esl_cpu_has_avx512()) { p7_OATrace_Frameshift = p7_OATrace_Frameshift_avx512; return p7_OATrace_Frameshift_avx512(om_fs, pp, ox, tr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OATrace_Frameshift_avx(om_fs, pp, ox, tr);
+  if (esl_cpu_has_avx())    { p7_OATrace_Frameshift = p7_OATrace_Frameshift_avx;    return p7_OATrace_Frameshift_avx(om_fs, pp, ox, tr); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_OATrace_Frameshift = p7_OATrace_Frameshift_sse;
   return p7_OATrace_Frameshift_sse(om_fs, pp, ox, tr);
 #else
+  p7_Die("p7_OATrace_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

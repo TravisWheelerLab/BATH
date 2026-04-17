@@ -13,49 +13,65 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_OptimalAccuracy()
+/* Forward declaration of dispatcher */
+static int p7_OptimalAccuracy_Dispatcher(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_OptimalAccuracy)(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *ret_e) = p7_OptimalAccuracy_Dispatcher;
+
+/* Function:  p7_OptimalAccuracy_Dispatcher()
  *
- * Purpose:   Dispatch optimal accuracy DP fill to the fastest available ISA.
+ * Purpose:   Self-patching dispatcher for optimal accuracy DP fill.
  *
  * Returns:   <eslOK> on success.
  */
-int
-p7_OptimalAccuracy(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *ret_e)
+static int
+p7_OptimalAccuracy_Dispatcher(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *ret_e)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_OptimalAccuracy_avx512(om, pp, ox, ret_e);
+  if (esl_cpu_has_avx512()) { p7_OptimalAccuracy = p7_OptimalAccuracy_avx512; return p7_OptimalAccuracy_avx512(om, pp, ox, ret_e); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OptimalAccuracy_avx(om, pp, ox, ret_e);
+  if (esl_cpu_has_avx())    { p7_OptimalAccuracy = p7_OptimalAccuracy_avx;    return p7_OptimalAccuracy_avx(om, pp, ox, ret_e); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_OptimalAccuracy = p7_OptimalAccuracy_sse;
   return p7_OptimalAccuracy_sse(om, pp, ox, ret_e);
 #else
+  p7_Die("p7_OptimalAccuracy: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_OATrace()
+/* Forward declaration of dispatcher */
+static int p7_OATrace_Dispatcher(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_OATrace)(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr) = p7_OATrace_Dispatcher;
+
+/* Function:  p7_OATrace_Dispatcher()
  *
- * Purpose:   Dispatch optimal accuracy traceback to the fastest available ISA.
+ * Purpose:   Self-patching dispatcher for optimal accuracy traceback.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEMEM> on allocation error.
  *            <eslEINVAL> if trace is not empty.
  */
-int
-p7_OATrace(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr)
+static int
+p7_OATrace_Dispatcher(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_OATrace_avx512(om, pp, ox, tr);
+  if (esl_cpu_has_avx512()) { p7_OATrace = p7_OATrace_avx512; return p7_OATrace_avx512(om, pp, ox, tr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_OATrace_avx(om, pp, ox, tr);
+  if (esl_cpu_has_avx())    { p7_OATrace = p7_OATrace_avx;    return p7_OATrace_avx(om, pp, ox, tr); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_OATrace = p7_OATrace_sse;
   return p7_OATrace_sse(om, pp, ox, tr);
 #else
+  p7_Die("p7_OATrace: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

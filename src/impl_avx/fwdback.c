@@ -12,100 +12,131 @@
 #include "hmmer.h"
 #include "impl_avx.h"
 
-/* Function:  p7_Forward()
+/* Forward declaration of dispatcher */
+static int p7_Forward_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Forward)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc) = p7_Forward_Dispatcher;
+
+/* Function:  p7_Forward_Dispatcher()
  *
- * Purpose:   Dispatch Forward algorithm to the fastest available ISA path.
+ * Purpose:   Self-patching dispatcher for Forward algorithm.
  *
- * Returns:   <eslOK> on success.  <*opt_sc> is the log Forward score in
- *            nats.
+ * Returns:   <eslOK> on success.  <*opt_sc> is the log Forward score in nats.
  * Throws:    <eslEINVAL> if <ox> allocation is too small, or profile is
  *            not in a local alignment mode.
  *            <eslEMEM> on reallocation failure.
  */
-int
-p7_Forward(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc)
+static int
+p7_Forward_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Forward_avx512(dsq, L, om, fwd, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_Forward = p7_Forward_avx512; return p7_Forward_avx512(dsq, L, om, fwd, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Forward_avx(dsq, L, om, fwd, opt_sc);
+  if (esl_cpu_has_avx())    { p7_Forward = p7_Forward_avx;    return p7_Forward_avx(dsq, L, om, fwd, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Forward = p7_Forward_sse;
   return p7_Forward_sse(dsq, L, om, fwd, opt_sc);
 #else
+  p7_Die("p7_Forward: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_ForwardParser()
+/* Forward declaration of dispatcher */
+static int p7_ForwardParser_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_ForwardParser)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc) = p7_ForwardParser_Dispatcher;
+
+/* Function:  p7_ForwardParser_Dispatcher()
  *
- * Purpose:   Dispatch Forward parser (linear memory) to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for Forward parser (linear memory).
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_ForwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc)
+static int
+p7_ForwardParser_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_ForwardParser_avx512(dsq, L, om, fwd, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_ForwardParser = p7_ForwardParser_avx512; return p7_ForwardParser_avx512(dsq, L, om, fwd, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ForwardParser_avx(dsq, L, om, fwd, opt_sc);
+  if (esl_cpu_has_avx())    { p7_ForwardParser = p7_ForwardParser_avx;    return p7_ForwardParser_avx(dsq, L, om, fwd, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_ForwardParser = p7_ForwardParser_sse;
   return p7_ForwardParser_sse(dsq, L, om, fwd, opt_sc);
 #else
+  p7_Die("p7_ForwardParser: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_Backward()
+/* Forward declaration of dispatcher */
+static int p7_Backward_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Backward)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc) = p7_Backward_Dispatcher;
+
+/* Function:  p7_Backward_Dispatcher()
  *
- * Purpose:   Dispatch Backward algorithm to the fastest available ISA path.
+ * Purpose:   Self-patching dispatcher for Backward algorithm.
  *
  * Returns:   <eslOK> on success.  <*opt_sc> is the log Backward score.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_Backward(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+static int
+p7_Backward_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Backward_avx512(dsq, L, om, fwd, bck, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_Backward = p7_Backward_avx512; return p7_Backward_avx512(dsq, L, om, fwd, bck, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Backward_avx(dsq, L, om, fwd, bck, opt_sc);
+  if (esl_cpu_has_avx())    { p7_Backward = p7_Backward_avx;    return p7_Backward_avx(dsq, L, om, fwd, bck, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Backward = p7_Backward_sse;
   return p7_Backward_sse(dsq, L, om, fwd, bck, opt_sc);
 #else
+  p7_Die("p7_Backward: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_BackwardParser()
+/* Forward declaration of dispatcher */
+static int p7_BackwardParser_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardParser)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc) = p7_BackwardParser_Dispatcher;
+
+/* Function:  p7_BackwardParser_Dispatcher()
  *
- * Purpose:   Dispatch Backward parser (linear memory) to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for Backward parser (linear memory).
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+static int
+p7_BackwardParser_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_BackwardParser_avx512(dsq, L, om, fwd, bck, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_BackwardParser = p7_BackwardParser_avx512; return p7_BackwardParser_avx512(dsq, L, om, fwd, bck, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_BackwardParser_avx(dsq, L, om, fwd, bck, opt_sc);
+  if (esl_cpu_has_avx())    { p7_BackwardParser = p7_BackwardParser_avx;    return p7_BackwardParser_avx(dsq, L, om, fwd, bck, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_BackwardParser = p7_BackwardParser_sse;
   return p7_BackwardParser_sse(dsq, L, om, fwd, bck, opt_sc);
 #else
+  p7_Die("p7_BackwardParser: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

@@ -12,55 +12,81 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_Viterbi_Spliced()
+/* Forward declaration of dispatcher */
+static int p7_Viterbi_Spliced_Dispatcher(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox,
+                                         const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov,
+                                         int i_start, int i_end, int min_intron, int global_start, int global_end);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Viterbi_Spliced)(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox,
+                          const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov,
+                          int i_start, int i_end, int min_intron, int global_start, int global_end) = p7_Viterbi_Spliced_Dispatcher;
+
+/* Function:  p7_Viterbi_Spliced_Dispatcher()
  *
- * Purpose:   Dispatch spliced Viterbi DP fill to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for spliced Viterbi DP fill.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> on bad inputs.
  */
-int
-p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox,
-                   const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov,
-                   int i_start, int i_end, int min_intron, int global_start, int global_end)
+static int
+p7_Viterbi_Spliced_Dispatcher(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox,
+                               const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov,
+                               int i_start, int i_end, int min_intron, int global_start, int global_end)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Viterbi_Spliced_avx512(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end);
+  if (esl_cpu_has_avx512()) { p7_Viterbi_Spliced = p7_Viterbi_Spliced_avx512; return p7_Viterbi_Spliced_avx512(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Spliced_avx(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end);
+  if (esl_cpu_has_avx())    { p7_Viterbi_Spliced = p7_Viterbi_Spliced_avx;    return p7_Viterbi_Spliced_avx(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Viterbi_Spliced = p7_Viterbi_Spliced_sse;
   return p7_Viterbi_Spliced_sse(sub_dsq, om_tr, ox, signal_scores, acc_ov, don_ov, i_start, i_end, min_intron, global_start, global_end);
 #else
+  p7_Die("p7_Viterbi_Spliced: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_Viterbi_SplicedTrace()
+/* Forward declaration of dispatcher */
+static int p7_Viterbi_SplicedTrace_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
+                                               const P7_FS_PROFILE *gm_tr, const float *signal_scores,
+                                               P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
+                                               int min_intron, float *vitsc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Viterbi_SplicedTrace)(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
+                               const P7_FS_PROFILE *gm_tr, const float *signal_scores,
+                               P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
+                               int min_intron, float *vitsc) = p7_Viterbi_SplicedTrace_Dispatcher;
+
+/* Function:  p7_Viterbi_SplicedTrace_Dispatcher()
  *
- * Purpose:   Dispatch spliced Viterbi traceback to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for spliced Viterbi traceback.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if profile is not 1-codon-length.
  *            <eslEFAIL>  if traceback fails.
  */
-int
-p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
-                        const P7_FS_PROFILE *gm_tr, const float *signal_scores,
-                        P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
-                        int min_intron, float *vitsc)
+static int
+p7_Viterbi_SplicedTrace_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
+                                    const P7_FS_PROFILE *gm_tr, const float *signal_scores,
+                                    P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
+                                    int min_intron, float *vitsc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Viterbi_SplicedTrace_avx512(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);
+  if (esl_cpu_has_avx512()) { p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_avx512; return p7_Viterbi_SplicedTrace_avx512(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_SplicedTrace_avx(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);
+  if (esl_cpu_has_avx())    { p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_avx;    return p7_Viterbi_SplicedTrace_avx(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_sse;
   return p7_Viterbi_SplicedTrace_sse(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);
 #else
+  p7_Die("p7_Viterbi_SplicedTrace: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

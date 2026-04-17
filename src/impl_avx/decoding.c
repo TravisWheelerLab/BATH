@@ -13,49 +13,65 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_Decoding()
+/* Forward declaration of dispatcher */
+static int p7_Decoding_Dispatcher(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *pp);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Decoding)(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *pp) = p7_Decoding_Dispatcher;
+
+/* Function:  p7_Decoding_Dispatcher()
  *
- * Purpose:   Dispatch posterior decoding of residue assignment to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for posterior decoding of residue assignment.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> if numeric range is exceeded.
  */
-int
-p7_Decoding(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *pp)
+static int
+p7_Decoding_Dispatcher(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *pp)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Decoding_avx512(om, oxf, oxb, pp);
+  if (esl_cpu_has_avx512()) { p7_Decoding = p7_Decoding_avx512; return p7_Decoding_avx512(om, oxf, oxb, pp); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Decoding_avx(om, oxf, oxb, pp);
+  if (esl_cpu_has_avx())    { p7_Decoding = p7_Decoding_avx;    return p7_Decoding_avx(om, oxf, oxb, pp); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Decoding = p7_Decoding_sse;
   return p7_Decoding_sse(om, oxf, oxb, pp);
 #else
+  p7_Die("p7_Decoding: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_DomainDecoding()
+/* Forward declaration of dispatcher */
+static int p7_DomainDecoding_Dispatcher(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_DomainDecoding)(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef) = p7_DomainDecoding_Dispatcher;
+
+/* Function:  p7_DomainDecoding_Dispatcher()
  *
- * Purpose:   Dispatch posterior decoding of domain location to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for posterior decoding of domain location.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> on numeric overflow.
  */
-int
-p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef)
+static int
+p7_DomainDecoding_Dispatcher(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_DomainDecoding_avx512(om, oxf, oxb, ddef);
+  if (esl_cpu_has_avx512()) { p7_DomainDecoding = p7_DomainDecoding_avx512; return p7_DomainDecoding_avx512(om, oxf, oxb, ddef); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_DomainDecoding_avx(om, oxf, oxb, ddef);
+  if (esl_cpu_has_avx())    { p7_DomainDecoding = p7_DomainDecoding_avx;    return p7_DomainDecoding_avx(om, oxf, oxb, ddef); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_DomainDecoding = p7_DomainDecoding_sse;
   return p7_DomainDecoding_sse(om, oxf, oxb, ddef);
 #else
+  p7_Die("p7_DomainDecoding: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
@@ -170,7 +186,7 @@ main(int argc, char **argv)
   float           tol  = esl_opt_GetReal   (go, "-t");
   
   p7_FLogsumInit();
-  impl_Init();
+   impl_Init();
 
   utest_decoding(r, abc, bg, M, L, N, tol);
   

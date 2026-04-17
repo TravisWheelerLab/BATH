@@ -11,52 +11,72 @@
 #include "hmmer.h"
 #include "impl_avx.h"
 
-/* Function:  p7_MSVFilter()
+/* Forward declaration of dispatcher */
+static int p7_MSVFilter_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_MSVFilter)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc) = p7_MSVFilter_Dispatcher;
+
+/* Function:  p7_MSVFilter_Dispatcher()
  *
- * Purpose:   Dispatch MSV filter to the fastest available ISA path.
+ * Purpose:   Self-patching dispatcher: detects ISA once, patches pointer, calls implementation.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> on score overflow (high-scoring hit).
  * Throws:    <eslEINVAL> if <ox> allocation is too small.
  */
-int
-p7_MSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc)
+static int
+p7_MSVFilter_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_MSVFilter_avx512(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx512()) { p7_MSVFilter = p7_MSVFilter_avx512; return p7_MSVFilter_avx512(dsq, L, om, ox, ret_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_MSVFilter_avx(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx())    { p7_MSVFilter = p7_MSVFilter_avx;    return p7_MSVFilter_avx(dsq, L, om, ox, ret_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_MSVFilter = p7_MSVFilter_sse;
   return p7_MSVFilter_sse(dsq, L, om, ox, ret_sc);
 #else
+  p7_Die("p7_MSVFilter: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_SSVFilter_BATH()
+/* Forward declaration of dispatcher */
+static int p7_SSVFilter_BATH_Dispatcher(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox,
+                                        const P7_SCOREDATA *ssvdata, P7_BG *bg, double P,
+                                        P7_HMM_WINDOWLIST *windowlist);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_SSVFilter_BATH)(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox,
+                         const P7_SCOREDATA *ssvdata, P7_BG *bg, double P,
+                         P7_HMM_WINDOWLIST *windowlist) = p7_SSVFilter_BATH_Dispatcher;
+
+/* Function:  p7_SSVFilter_BATH_Dispatcher()
  *
- * Purpose:   Dispatch BATH SSV window finder to the fastest available ISA path.
+ * Purpose:   Self-patching dispatcher for BATH SSV window finder.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if <ox> allocation is too small.
  */
-int
-p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox,
-                  const P7_SCOREDATA *ssvdata, P7_BG *bg, double P,
-                  P7_HMM_WINDOWLIST *windowlist)
+static int
+p7_SSVFilter_BATH_Dispatcher(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox,
+                              const P7_SCOREDATA *ssvdata, P7_BG *bg, double P,
+                              P7_HMM_WINDOWLIST *windowlist)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_SSVFilter_BATH_avx512(dsq, L, om, ox, ssvdata, bg, P, windowlist);
+  if (esl_cpu_has_avx512()) { p7_SSVFilter_BATH = p7_SSVFilter_BATH_avx512; return p7_SSVFilter_BATH_avx512(dsq, L, om, ox, ssvdata, bg, P, windowlist); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_SSVFilter_BATH_avx(dsq, L, om, ox, ssvdata, bg, P, windowlist);
+  if (esl_cpu_has_avx())    { p7_SSVFilter_BATH = p7_SSVFilter_BATH_avx;    return p7_SSVFilter_BATH_avx(dsq, L, om, ox, ssvdata, bg, P, windowlist); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_SSVFilter_BATH = p7_SSVFilter_BATH_sse;
   return p7_SSVFilter_BATH_sse(dsq, L, om, ox, ssvdata, bg, P, windowlist);
 #else
+  p7_Die("p7_SSVFilter_BATH: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

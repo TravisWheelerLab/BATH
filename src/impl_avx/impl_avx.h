@@ -213,7 +213,7 @@ typedef struct {
   P7_OPROFILE  **list;
 } P7_OM_BLOCK;
 
-/* retrieve match odds ratio [k][x]: dispatched at runtime via p7_oprofile.c */
+/* retrieve match odds ratio [k][x]: self-patching dispatcher in p7_oprofile.c */
 extern float p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x);
 
 
@@ -289,7 +289,7 @@ typedef struct p7_fs_oprofile_s {
 } P7_FS_OPROFILE;
 
 /* Retrieve float match emission score for model position k, codon index c.
- * Dispatched at runtime via p7_oprofile.c based on which ISA allocated om_fs.
+ * Self-patching dispatcher in p7_oprofile.c.
  */
 extern float p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c);
 
@@ -429,22 +429,21 @@ typedef struct p7_omx_s {
 #define DMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_D])
 #define IMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_I])
 
-/* DP cell accessors: dispatched at runtime based on which ISA allocated ox.
- * Implementations live in p7_omx_sse.c / p7_omx_avx.c; dispatchers in p7_omx.c. */
-extern float p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k);
-extern void  p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val);
+/* DP cell accessors: self-patching dispatchers in p7_omx.c. */
+extern float (*p7_omx_FGetMDI)(const P7_OMX *ox, int s, int i, int k);
+extern void  (*p7_omx_FSetMDI)(const P7_OMX *ox, int s, int i, int k, float val);
 
 
 /*****************************************************************
  * 5. External API declarations
  *****************************************************************/
 
-/* p7_omx.c — dispatch wrappers and ISA-independent functions */
-extern P7_OMX      *p7_omx_Create    (int allocM, int allocL, int allocXL);
-extern int          p7_omx_GrowTo    (P7_OMX *ox, int allocM, int allocL, int allocXL);
-extern P7_OMX      *p7_omx_Create_dpf(int allocM, int allocL, int allocXL, int nscells);
-extern int          p7_omx_GrowTo_dpf(P7_OMX *ox, int allocM, int allocL, int allocXL);
-extern int          p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx);
+/* p7_omx.c — self-patching dispatchers and ISA-independent functions */
+extern P7_OMX     *(*p7_omx_Create)    (int allocM, int allocL, int allocXL);
+extern int         (*p7_omx_GrowTo)    (P7_OMX *ox, int allocM, int allocL, int allocXL);
+extern P7_OMX     *(*p7_omx_Create_dpf)(int allocM, int allocL, int allocXL, int nscells);
+extern int         (*p7_omx_GrowTo_dpf)(P7_OMX *ox, int allocM, int allocL, int allocXL);
+extern int         (*p7_omx_FDeconvert)(P7_OMX *ox, P7_GMX *gx);
 extern int          p7_omx_Reuse     (P7_OMX *ox);
 extern void         p7_omx_Destroy   (P7_OMX *ox);
 extern int          p7_omx_SetDumpMode(FILE *fp, P7_OMX *ox, int truefalse);
@@ -623,9 +622,9 @@ extern P7_OIVX *p7_oivx_Create_sse(int M_hint, int C);
 extern int      p7_oivx_GrowTo_sse(P7_OIVX *ov, int M, int C);
 extern void     p7_oivx_Destroy_sse(P7_OIVX *ov);
 
-/* decoding.c */
-extern int p7_Decoding      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);
-extern int p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
+/* decoding.c — self-patching dispatchers */
+extern int (*p7_Decoding)      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);
+extern int (*p7_DomainDecoding)(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 
 /* decoding_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -638,9 +637,9 @@ extern int p7_Decoding_avx               (const P7_OPROFILE *om,    const P7_OMX
 extern int p7_DomainDecoding_avx         (const P7_OPROFILE *om,    const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 #endif
 
-/* decoding_fs.c */
-extern int p7_Decoding_Frameshift   (const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck);
-extern int p7_DomainDecoding_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
+/* decoding_fs.c — self-patching dispatchers */
+extern int (*p7_Decoding_Frameshift)   (const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck);
+extern int (*p7_DomainDecoding_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 
 /* decoding_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -655,11 +654,11 @@ extern int p7_DomainDecoding_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P
 
 
 
-/* fwdback.c — dispatch wrappers */
-extern int p7_Forward       (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
-extern int p7_ForwardParser (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
-extern int p7_Backward      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
-extern int p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+/* fwdback.c — self-patching dispatchers */
+extern int (*p7_Forward)       (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
+extern int (*p7_ForwardParser) (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
+extern int (*p7_Backward)      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int (*p7_BackwardParser)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 /* fwdback_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Forward_sse       (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
@@ -676,13 +675,13 @@ extern int p7_Backward_avx      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
 extern int p7_BackwardParser_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 #endif
 
-/* fwdback_fs.c */
-extern int p7_ForwardParser_Frameshift_3Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
-extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
-extern int p7_ForwardParser_Frameshift_5Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
-extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
-extern int p7_Forward_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
-extern int p7_Backward_Frameshift              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+/* fwdback_fs.c — self-patching dispatchers */
+extern int (*p7_ForwardParser_Frameshift_3Codons) (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int (*p7_BackwardParser_Frameshift_3Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int (*p7_ForwardParser_Frameshift_5Codons) (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int (*p7_BackwardParser_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int (*p7_Forward_Frameshift)               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int (*p7_Backward_Frameshift)              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 
 /* fwdback_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -708,9 +707,9 @@ extern int p7_Backward_Frameshift_avx              (const ESL_DSQ *dsq, int L, c
 extern P7_OM_BLOCK *p7_oprofile_CreateBlock(int size);
 extern void         p7_oprofile_DestroyBlock(P7_OM_BLOCK *block);
 
-/* msvfilter.c — dispatch wrappers */
-extern int p7_MSVFilter      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
-extern int p7_SSVFilter_BATH (const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *msvdata, P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist);
+/* msvfilter.c — self-patching dispatchers */
+extern int (*p7_MSVFilter)      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+extern int (*p7_SSVFilter_BATH) (const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *msvdata, P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist);
 /* msvfilter_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_MSVFilter_sse      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
@@ -722,9 +721,9 @@ extern int p7_MSVFilter_avx      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *
 extern int p7_SSVFilter_BATH_avx (const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata, P7_BG *bg, double P, P7_HMM_WINDOWLIST *windowlist);
 #endif
 
-/* null2.c */
-extern int p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float *null2);
-extern int p7_Null2_ByTrace      (const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
+/* null2.c — self-patching dispatchers */
+extern int (*p7_Null2_ByExpectation)(const P7_OPROFILE *om, const P7_OMX *pp, float *null2);
+extern int (*p7_Null2_ByTrace)      (const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 
 /* null2_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -737,8 +736,8 @@ extern int p7_Null2_ByExpectation_avx   (const P7_OPROFILE    *om,    const P7_O
 extern int p7_Null2_ByTrace_avx         (const P7_OPROFILE    *om,    const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 #endif
 
-/* null2_fs.c */
-extern int p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);
+/* null2_fs.c — self-patching dispatcher */
+extern int (*p7_Null2_fs_ByExpectation)(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);
 
 /* null2_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -749,9 +748,9 @@ extern int p7_Null2_fs_ByExpectation_sse (const P7_FS_OPROFILE *om_fs, P7_OMX *p
 extern int p7_Null2_fs_ByExpectation_avx(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);
 #endif
 
-/* optacc.c */
-extern int p7_OptimalAccuracy(const P7_OPROFILE *om, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
-extern int p7_OATrace        (const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+/* optacc.c — self-patching dispatchers */
+extern int (*p7_OptimalAccuracy)(const P7_OPROFILE *om, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
+extern int (*p7_OATrace)        (const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
 
 /* optacc_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -764,9 +763,9 @@ extern int p7_OptimalAccuracy_avx           (const P7_OPROFILE    *om,    const 
 extern int p7_OATrace_avx                   (const P7_OPROFILE    *om,    const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
 #endif
 
-/* optacc_fs.c */
-extern int p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
-extern int p7_OATrace_Frameshift        (const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+/* optacc_fs.c — self-patching dispatchers */
+extern int (*p7_OptimalAccuracy_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
+extern int (*p7_OATrace_Frameshift)        (const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
 
 /* optacc_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -780,8 +779,8 @@ extern int p7_OATrace_Frameshift_avx        (const P7_FS_OPROFILE *om_fs, const 
 #endif
 
 
-/* ssvfilter.c — dispatch wrapper */
-extern int p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc);
+/* ssvfilter.c — self-patching dispatcher */
+extern int (*p7_SSVFilter)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc);
 /* ssvfilter_sse.c — SSE implementation */
 #ifdef eslENABLE_SSE
 extern int p7_SSVFilter_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc);
@@ -791,8 +790,8 @@ extern int p7_SSVFilter_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, fl
 extern int p7_SSVFilter_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc);
 #endif
 
-/* stotrace.c */
-extern int p7_StochasticTrace(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
+/* stotrace.c — self-patching dispatcher */
+extern int (*p7_StochasticTrace)(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
 
 /* stotrace_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -803,8 +802,8 @@ extern int p7_StochasticTrace_sse          (ESL_RANDOMNESS *rng, const ESL_DSQ *
 extern int p7_StochasticTrace_avx           (ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE    *om,    const P7_OMX *ox, P7_TRACE *tr);
 #endif
 
-/* stotrace_fs.c */
-extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
+/* stotrace_fs.c — self-patching dispatcher */
+extern int (*p7_StochasticTrace_Frameshift)(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
 
 /* stotrace_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -815,9 +814,9 @@ extern int p7_StochasticTrace_Frameshift_sse(ESL_RANDOMNESS *rng, const ESL_DSQ 
 extern int p7_StochasticTrace_Frameshift_avx(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
 #endif
 
-/* vitfilter.c — dispatch wrappers */
-extern int p7_ViterbiFilter     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
-extern int p7_ViterbiFilter_BATH(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata, float filtersc, double P, P7_HMM_WINDOWLIST *windowlist, float *ret_sc);
+/* vitfilter.c — self-patching dispatchers */
+extern int (*p7_ViterbiFilter)     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+extern int (*p7_ViterbiFilter_BATH)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata, float filtersc, double P, P7_HMM_WINDOWLIST *windowlist, float *ret_sc);
 /* vitfilter_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_ViterbiFilter_sse     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
@@ -829,9 +828,9 @@ extern int p7_ViterbiFilter_avx     (const ESL_DSQ *dsq, int L, const P7_OPROFIL
 extern int p7_ViterbiFilter_BATH_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata, float filtersc, double P, P7_HMM_WINDOWLIST *windowlist, float *ret_sc);
 #endif
 
-/* viterbi_fs.c */
-extern int p7_Viterbi_Frameshift      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                  P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
-extern int p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
+/* viterbi_fs.c — self-patching dispatchers */
+extern int (*p7_Viterbi_Frameshift)      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                  P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern int (*p7_Viterbi_Frameshift_Trace)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
 /* viterbi_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Viterbi_Frameshift_sse      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                  P7_OMX *ox, P7_OIVX *ov, float *opt_sc);
@@ -843,9 +842,9 @@ extern int p7_Viterbi_Frameshift_avx      (const ESL_DSQ *dsq, int L, const P7_F
 extern int p7_Viterbi_Frameshift_Trace_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
 #endif
 
-/* viterbi.c */
-extern int p7_Viterbi      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
-extern int p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
+/* viterbi.c — self-patching dispatchers */
+extern int (*p7_Viterbi)      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+extern int (*p7_Viterbi_Trace)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
 /* viterbi_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Viterbi_sse      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
@@ -857,9 +856,9 @@ extern int p7_Viterbi_avx      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om
 extern int p7_Viterbi_Trace_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
 #endif
 
-/* viterbi_sp.c */
-extern int p7_Viterbi_Spliced    (const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
-extern int p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
+/* viterbi_sp.c — self-patching dispatchers */
+extern int (*p7_Viterbi_Spliced)    (const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
+extern int (*p7_Viterbi_SplicedTrace)(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
 /* viterbi_sp_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Viterbi_Spliced_sse    (const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
@@ -871,8 +870,8 @@ extern int p7_Viterbi_Spliced_avx    (const ESL_DSQ *sub_dsq, const P7_FS_OPROFI
 extern int p7_Viterbi_SplicedTrace_avx(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
 #endif
 
-/* vitscore.c */
-extern int p7_ViterbiScore(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+/* vitscore.c — self-patching dispatcher */
+extern int (*p7_ViterbiScore)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
 /* vitscore_sse.c — SSE implementation */
 #ifdef eslENABLE_SSE
 extern int p7_ViterbiScore_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
@@ -890,7 +889,16 @@ extern int p7_ViterbiScore_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
  * It detects available ISA features, sets SSE flush-zero mode, and
  * wires the function pointers to the fastest available implementations.
  *****************************************************************/
-extern void impl_Init(void);
+static inline void
+impl_Init(void)
+{
+#ifdef HAVE_FLUSH_ZERO_MODE
+  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+#endif
+#ifdef _PMMINTRIN_H_INCLUDED
+  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+}
 
 
 #endif /* P7_IMPL_AVX_INCLUDED */

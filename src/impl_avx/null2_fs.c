@@ -12,25 +12,33 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_Null2_fs_ByExpectation()
+/* Forward declaration of dispatcher */
+static int p7_Null2_fs_ByExpectation_Dispatcher(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Null2_fs_ByExpectation)(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2) = p7_Null2_fs_ByExpectation_Dispatcher;
+
+/* Function:  p7_Null2_fs_ByExpectation_Dispatcher()
  *
- * Purpose:   Dispatch frameshift null2 estimation (expectation) to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for frameshift null2 estimation (expectation).
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if codon_lengths is not 1, 3, or 5.
  */
-int
-p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
+static int
+p7_Null2_fs_ByExpectation_Dispatcher(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Null2_fs_ByExpectation_avx512(om_fs, pp, null2);
+  if (esl_cpu_has_avx512()) { p7_Null2_fs_ByExpectation = p7_Null2_fs_ByExpectation_avx512; return p7_Null2_fs_ByExpectation_avx512(om_fs, pp, null2); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Null2_fs_ByExpectation_avx(om_fs, pp, null2);
+  if (esl_cpu_has_avx())    { p7_Null2_fs_ByExpectation = p7_Null2_fs_ByExpectation_avx;    return p7_Null2_fs_ByExpectation_avx(om_fs, pp, null2); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Null2_fs_ByExpectation = p7_Null2_fs_ByExpectation_sse;
   return p7_Null2_fs_ByExpectation_sse(om_fs, pp, null2);
 #else
+  p7_Die("p7_Null2_fs_ByExpectation: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

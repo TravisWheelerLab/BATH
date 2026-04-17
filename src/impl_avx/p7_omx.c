@@ -26,170 +26,216 @@
  * 1. Dispatcher wrappers.
  *****************************************************************/
 
-/* Function:  p7_omx_Create()
+/* Forward declaration of dispatcher */
+static P7_OMX *p7_omx_Create_Dispatcher(int allocM, int allocL, int allocXL);
+
+/* Global function pointer, initially pointing at the dispatcher */
+P7_OMX *(*p7_omx_Create)(int allocM, int allocL, int allocXL) = p7_omx_Create_Dispatcher;
+
+/* Function:  p7_omx_Create_Dispatcher()
  *
- * Purpose:   Allocate a <P7_OMX> for models up to size <allocM> and
- *            sequences up to <allocL>/<allocXL>.  Dispatches to the
- *            fastest available ISA implementation detected at runtime.
+ * Purpose:   Self-patching dispatcher: allocate a <P7_OMX> via the fastest ISA.
  *
  * Returns:   pointer to new <P7_OMX> on success, NULL on failure.
  */
-P7_OMX *
-p7_omx_Create(int allocM, int allocL, int allocXL)
+static P7_OMX *
+p7_omx_Create_Dispatcher(int allocM, int allocL, int allocXL)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_omx_Create_avx512(allocM, allocL, allocXL);
+  if (esl_cpu_has_avx512()) { p7_omx_Create = p7_omx_Create_avx512; return p7_omx_Create_avx512(allocM, allocL, allocXL); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_Create_avx(allocM, allocL, allocXL);
+  if (esl_cpu_has_avx())    { p7_omx_Create = p7_omx_Create_avx;    return p7_omx_Create_avx(allocM, allocL, allocXL); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_omx_Create = p7_omx_Create_sse;
   return p7_omx_Create_sse(allocM, allocL, allocXL);
 #else
+  p7_Die("p7_omx_Create: no SIMD implementation available");
   return NULL;
 #endif
 }
 
 
-/* Function:  p7_omx_GrowTo()
+/* Forward declaration of dispatcher */
+static int p7_omx_GrowTo_Dispatcher(P7_OMX *ox, int allocM, int allocL, int allocXL);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_omx_GrowTo)(P7_OMX *ox, int allocM, int allocL, int allocXL) = p7_omx_GrowTo_Dispatcher;
+
+/* Function:  p7_omx_GrowTo_Dispatcher()
  *
- * Purpose:   Assure that <P7_OMX> <ox> can accommodate a model of up
- *            to <allocM> nodes and a sequence up to <allocL>/<allocXL>.
- *            Dispatches to the ISA-specific implementation that allocated <ox>.
+ * Purpose:   Self-patching dispatcher for p7_omx_GrowTo.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEMEM> on allocation failure.
  */
-int
-p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
+static int
+p7_omx_GrowTo_Dispatcher(P7_OMX *ox, int allocM, int allocL, int allocXL)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_omx_GrowTo_avx512(ox, allocM, allocL, allocXL);
+  if (esl_cpu_has_avx512()) { p7_omx_GrowTo = p7_omx_GrowTo_avx512; return p7_omx_GrowTo_avx512(ox, allocM, allocL, allocXL); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_GrowTo_avx(ox, allocM, allocL, allocXL);
+  if (esl_cpu_has_avx())    { p7_omx_GrowTo = p7_omx_GrowTo_avx;    return p7_omx_GrowTo_avx(ox, allocM, allocL, allocXL); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_omx_GrowTo = p7_omx_GrowTo_sse;
   return p7_omx_GrowTo_sse(ox, allocM, allocL, allocXL);
 #else
+  p7_Die("p7_omx_GrowTo: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_omx_Create_dpf()
+/* Forward declaration of dispatcher */
+static P7_OMX *p7_omx_Create_dpf_Dispatcher(int allocM, int allocL, int allocXL, int nscells);
+
+/* Global function pointer, initially pointing at the dispatcher */
+P7_OMX *(*p7_omx_Create_dpf)(int allocM, int allocL, int allocXL, int nscells) = p7_omx_Create_dpf_Dispatcher;
+
+/* Function:  p7_omx_Create_dpf_Dispatcher()
  *
- * Purpose:   Like p7_omx_Create(), but allocates only float (dpf) rows.
- *            Pass p7X_NSCELLS (3) or p7X_NSCELLS_FS (8) as <nscells>.
+ * Purpose:   Self-patching dispatcher for p7_omx_Create_dpf.
  *
  * Returns:   pointer to new <P7_OMX> on success, NULL on failure.
  */
-P7_OMX *
-p7_omx_Create_dpf(int allocM, int allocL, int allocXL, int nscells)
+static P7_OMX *
+p7_omx_Create_dpf_Dispatcher(int allocM, int allocL, int allocXL, int nscells)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_omx_Create_dpf_avx512(allocM, allocL, allocXL, nscells);
+  if (esl_cpu_has_avx512()) { p7_omx_Create_dpf = p7_omx_Create_dpf_avx512; return p7_omx_Create_dpf_avx512(allocM, allocL, allocXL, nscells); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_Create_dpf_avx(allocM, allocL, allocXL, nscells);
+  if (esl_cpu_has_avx())    { p7_omx_Create_dpf = p7_omx_Create_dpf_avx;    return p7_omx_Create_dpf_avx(allocM, allocL, allocXL, nscells); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_omx_Create_dpf = p7_omx_Create_dpf_sse;
   return p7_omx_Create_dpf_sse(allocM, allocL, allocXL, nscells);
 #else
+  p7_Die("p7_omx_Create_dpf: no SIMD implementation available");
   return NULL;
 #endif
 }
 
 
-/* Function:  p7_omx_GrowTo_dpf()
+/* Forward declaration of dispatcher */
+static int p7_omx_GrowTo_dpf_Dispatcher(P7_OMX *ox, int allocM, int allocL, int allocXL);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_omx_GrowTo_dpf)(P7_OMX *ox, int allocM, int allocL, int allocXL) = p7_omx_GrowTo_dpf_Dispatcher;
+
+/* Function:  p7_omx_GrowTo_dpf_Dispatcher()
  *
- * Purpose:   Like p7_omx_GrowTo(), but for dpf-only matrices.
+ * Purpose:   Self-patching dispatcher for p7_omx_GrowTo_dpf.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEMEM> on allocation failure.
  */
-int
-p7_omx_GrowTo_dpf(P7_OMX *ox, int allocM, int allocL, int allocXL)
+static int
+p7_omx_GrowTo_dpf_Dispatcher(P7_OMX *ox, int allocM, int allocL, int allocXL)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_omx_GrowTo_dpf_avx512(ox, allocM, allocL, allocXL);
+  if (esl_cpu_has_avx512()) { p7_omx_GrowTo_dpf = p7_omx_GrowTo_dpf_avx512; return p7_omx_GrowTo_dpf_avx512(ox, allocM, allocL, allocXL); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_GrowTo_dpf_avx(ox, allocM, allocL, allocXL);
+  if (esl_cpu_has_avx())    { p7_omx_GrowTo_dpf = p7_omx_GrowTo_dpf_avx;    return p7_omx_GrowTo_dpf_avx(ox, allocM, allocL, allocXL); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_omx_GrowTo_dpf = p7_omx_GrowTo_dpf_sse;
   return p7_omx_GrowTo_dpf_sse(ox, allocM, allocL, allocXL);
 #else
+  p7_Die("p7_omx_GrowTo_dpf: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_omx_FDeconvert()
+/* Forward declaration of dispatcher */
+static int p7_omx_FDeconvert_Dispatcher(P7_OMX *ox, P7_GMX *gx);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_omx_FDeconvert)(P7_OMX *ox, P7_GMX *gx) = p7_omx_FDeconvert_Dispatcher;
+
+/* Function:  p7_omx_FDeconvert_Dispatcher()
  *
- * Purpose:   Convert float values in optimized DP matrix <ox> to
- *            generic matrix <gx>.  Dispatches to the ISA-specific
- *            implementation.
+ * Purpose:   Self-patching dispatcher: convert float values in <ox> to generic matrix <gx>.
  *
  * Returns:   <eslOK> on success.
  */
-int
-p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx)
+static int
+p7_omx_FDeconvert_Dispatcher(P7_OMX *ox, P7_GMX *gx)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_omx_FDeconvert_avx512(ox, gx);
+  if (esl_cpu_has_avx512()) { p7_omx_FDeconvert = p7_omx_FDeconvert_avx512; return p7_omx_FDeconvert_avx512(ox, gx); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_omx_FDeconvert_avx(ox, gx);
+  if (esl_cpu_has_avx())    { p7_omx_FDeconvert = p7_omx_FDeconvert_avx;    return p7_omx_FDeconvert_avx(ox, gx); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_omx_FDeconvert = p7_omx_FDeconvert_sse;
   return p7_omx_FDeconvert_sse(ox, gx);
 #else
+  p7_Die("p7_omx_FDeconvert: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_omx_FGetMDI()
+/* Forward declaration of dispatcher */
+static float p7_omx_FGetMDI_Dispatcher(const P7_OMX *ox, int s, int i, int k);
+
+/* Global function pointer, initially pointing at the dispatcher */
+float (*p7_omx_FGetMDI)(const P7_OMX *ox, int s, int i, int k) = p7_omx_FGetMDI_Dispatcher;
+
+/* Function:  p7_omx_FGetMDI_Dispatcher()
  *
- * Purpose:   Read one float DP cell (state <s>, row <i>, node <k>) from
- *            optimized matrix <ox>.  Dispatches to the ISA that allocated <ox>.
+ * Purpose:   Self-patching dispatcher: read one float DP cell from optimized matrix <ox>.
  *
  * Returns:   The float value stored at that cell.
  */
-float
-p7_omx_FGetMDI(const P7_OMX *ox, int s, int i, int k)
+static float
+p7_omx_FGetMDI_Dispatcher(const P7_OMX *ox, int s, int i, int k)
 {
 #ifdef eslENABLE_AVX512
-  if (ox->allocQ4_avx512 > 0) { extern float p7_omx_FGetMDI_avx512(const P7_OMX *, int, int, int); return p7_omx_FGetMDI_avx512(ox, s, i, k); }
+  if (esl_cpu_has_avx512()) { extern float p7_omx_FGetMDI_avx512(const P7_OMX *, int, int, int); p7_omx_FGetMDI = p7_omx_FGetMDI_avx512; return p7_omx_FGetMDI_avx512(ox, s, i, k); }
 #endif
 #ifdef eslENABLE_AVX
-  if (ox->allocQ4_avx    > 0) { extern float p7_omx_FGetMDI_avx(const P7_OMX *, int, int, int);    return p7_omx_FGetMDI_avx(ox, s, i, k); }
+  if (esl_cpu_has_avx())    { extern float p7_omx_FGetMDI_avx(const P7_OMX *, int, int, int);    p7_omx_FGetMDI = p7_omx_FGetMDI_avx;    return p7_omx_FGetMDI_avx(ox, s, i, k); }
 #endif
 #ifdef eslENABLE_SSE
-  { extern float p7_omx_FGetMDI_sse(const P7_OMX *, int, int, int); return p7_omx_FGetMDI_sse(ox, s, i, k); }
+  { extern float p7_omx_FGetMDI_sse(const P7_OMX *, int, int, int); p7_omx_FGetMDI = p7_omx_FGetMDI_sse; return p7_omx_FGetMDI_sse(ox, s, i, k); }
 #else
+  p7_Die("p7_omx_FGetMDI: no SIMD implementation available");
   return 0.0f;
 #endif
 }
 
 
-/* Function:  p7_omx_FSetMDI()
+/* Forward declaration of dispatcher */
+static void p7_omx_FSetMDI_Dispatcher(const P7_OMX *ox, int s, int i, int k, float val);
+
+/* Global function pointer, initially pointing at the dispatcher */
+void (*p7_omx_FSetMDI)(const P7_OMX *ox, int s, int i, int k, float val) = p7_omx_FSetMDI_Dispatcher;
+
+/* Function:  p7_omx_FSetMDI_Dispatcher()
  *
- * Purpose:   Write float value <val> into DP cell (state <s>, row <i>, node <k>)
- *            of optimized matrix <ox>.  Dispatches to the ISA that allocated <ox>.
+ * Purpose:   Self-patching dispatcher: write float value into DP cell of optimized matrix <ox>.
  */
-void
-p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
+static void
+p7_omx_FSetMDI_Dispatcher(const P7_OMX *ox, int s, int i, int k, float val)
 {
 #ifdef eslENABLE_AVX512
-  if (ox->allocQ4_avx512 > 0) { extern void p7_omx_FSetMDI_avx512(const P7_OMX *, int, int, int, float); p7_omx_FSetMDI_avx512(ox, s, i, k, val); return; }
+  if (esl_cpu_has_avx512()) { extern void p7_omx_FSetMDI_avx512(const P7_OMX *, int, int, int, float); p7_omx_FSetMDI = p7_omx_FSetMDI_avx512; p7_omx_FSetMDI_avx512(ox, s, i, k, val); return; }
 #endif
 #ifdef eslENABLE_AVX
-  if (ox->allocQ4_avx    > 0) { extern void p7_omx_FSetMDI_avx(const P7_OMX *, int, int, int, float);    p7_omx_FSetMDI_avx(ox, s, i, k, val); return; }
+  if (esl_cpu_has_avx())    { extern void p7_omx_FSetMDI_avx(const P7_OMX *, int, int, int, float);    p7_omx_FSetMDI = p7_omx_FSetMDI_avx;    p7_omx_FSetMDI_avx(ox, s, i, k, val); return; }
 #endif
 #ifdef eslENABLE_SSE
-  { extern void p7_omx_FSetMDI_sse(const P7_OMX *, int, int, int, float); p7_omx_FSetMDI_sse(ox, s, i, k, val); }
+  { extern void p7_omx_FSetMDI_sse(const P7_OMX *, int, int, int, float); p7_omx_FSetMDI = p7_omx_FSetMDI_sse; p7_omx_FSetMDI_sse(ox, s, i, k, val); }
+#else
+  p7_Die("p7_omx_FSetMDI: no SIMD implementation available");
 #endif
 }
 

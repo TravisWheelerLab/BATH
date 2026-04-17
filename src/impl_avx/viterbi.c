@@ -12,50 +12,66 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_Viterbi()
+/* Forward declaration of dispatcher */
+static int p7_Viterbi_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Viterbi)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc) = p7_Viterbi_Dispatcher;
+
+/* Function:  p7_Viterbi_Dispatcher()
  *
- * Purpose:   Dispatch full-matrix Viterbi to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for full-matrix Viterbi.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if <ox> allocation is too small.
  */
-int
-p7_Viterbi(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc)
+static int
+p7_Viterbi_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Viterbi_avx512(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx512()) { p7_Viterbi = p7_Viterbi_avx512; return p7_Viterbi_avx512(dsq, L, om, ox, ret_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_avx(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx())    { p7_Viterbi = p7_Viterbi_avx;    return p7_Viterbi_avx(dsq, L, om, ox, ret_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Viterbi = p7_Viterbi_sse;
   return p7_Viterbi_sse(dsq, L, om, ox, ret_sc);
 #else
+  p7_Die("p7_Viterbi: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_Viterbi_Trace()
+/* Forward declaration of dispatcher */
+static int p7_Viterbi_Trace_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Viterbi_Trace)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr) = p7_Viterbi_Trace_Dispatcher;
+
+/* Function:  p7_Viterbi_Trace_Dispatcher()
  *
- * Purpose:   Dispatch Viterbi traceback to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for Viterbi traceback.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if an impossible state is reached.
  */
-int
-p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox,
-                 P7_TRACE *tr)
+static int
+p7_Viterbi_Trace_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox,
+                             P7_TRACE *tr)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Viterbi_Trace_avx512(dsq, L, om, ox, tr);
+  if (esl_cpu_has_avx512()) { p7_Viterbi_Trace = p7_Viterbi_Trace_avx512; return p7_Viterbi_Trace_avx512(dsq, L, om, ox, tr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Trace_avx(dsq, L, om, ox, tr);
+  if (esl_cpu_has_avx())    { p7_Viterbi_Trace = p7_Viterbi_Trace_avx;    return p7_Viterbi_Trace_avx(dsq, L, om, ox, tr); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Viterbi_Trace = p7_Viterbi_Trace_sse;
   return p7_Viterbi_Trace_sse(dsq, L, om, ox, tr);
 #else
+  p7_Die("p7_Viterbi_Trace: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

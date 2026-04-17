@@ -13,152 +13,212 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_ForwardParser_Frameshift_3Codons()
+/* Forward declaration of dispatcher */
+static int p7_ForwardParser_Frameshift_3Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                          P7_OMX *ox, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_ForwardParser_Frameshift_3Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                           P7_OMX *ox, P7_OIVX *ov, float *opt_sc) = p7_ForwardParser_Frameshift_3Codons_Dispatcher;
+
+/* Function:  p7_ForwardParser_Frameshift_3Codons_Dispatcher()
  *
- * Purpose:   Dispatch 3-codon frameshift Forward parser to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for 3-codon frameshift Forward parser.
  *
  * Returns:   <eslOK> on success.  <*opt_sc> is the log Forward score in nats.
  * Throws:    <eslEINVAL> if allocation is too small.
  *            <eslEMEM> on reallocation failure.
  */
-int
-p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                                    P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
+static int
+p7_ForwardParser_Frameshift_3Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                               P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_ForwardParser_Frameshift_3Codons_avx512(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_ForwardParser_Frameshift_3Codons = p7_ForwardParser_Frameshift_3Codons_avx512; return p7_ForwardParser_Frameshift_3Codons_avx512(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ForwardParser_Frameshift_3Codons_avx(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    { p7_ForwardParser_Frameshift_3Codons = p7_ForwardParser_Frameshift_3Codons_avx;    return p7_ForwardParser_Frameshift_3Codons_avx(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_ForwardParser_Frameshift_3Codons = p7_ForwardParser_Frameshift_3Codons_sse;
   return p7_ForwardParser_Frameshift_3Codons_sse(dsq, L, om_fs, ox, ov, opt_sc);
 #else
+  p7_Die("p7_ForwardParser_Frameshift_3Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_BackwardParser_Frameshift_3Codons()
+/* Forward declaration of dispatcher */
+static int p7_BackwardParser_Frameshift_3Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                           const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardParser_Frameshift_3Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                            const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc) = p7_BackwardParser_Frameshift_3Codons_Dispatcher;
+
+/* Function:  p7_BackwardParser_Frameshift_3Codons_Dispatcher()
  *
- * Purpose:   Dispatch 3-codon frameshift Backward parser to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for 3-codon frameshift Backward parser.
  *
  * Returns:   <eslOK> on success.  <*opt_sc> is the log Backward score.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                                     const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
+static int
+p7_BackwardParser_Frameshift_3Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_BackwardParser_Frameshift_3Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_BackwardParser_Frameshift_3Codons = p7_BackwardParser_Frameshift_3Codons_avx512; return p7_BackwardParser_Frameshift_3Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_BackwardParser_Frameshift_3Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx())    { p7_BackwardParser_Frameshift_3Codons = p7_BackwardParser_Frameshift_3Codons_avx;    return p7_BackwardParser_Frameshift_3Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_BackwardParser_Frameshift_3Codons = p7_BackwardParser_Frameshift_3Codons_sse;
   return p7_BackwardParser_Frameshift_3Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #else
+  p7_Die("p7_BackwardParser_Frameshift_3Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_ForwardParser_Frameshift_5Codons()
+/* Forward declaration of dispatcher */
+static int p7_ForwardParser_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                          P7_OMX *ox, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_ForwardParser_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                           P7_OMX *ox, P7_OIVX *ov, float *opt_sc) = p7_ForwardParser_Frameshift_5Codons_Dispatcher;
+
+/* Function:  p7_ForwardParser_Frameshift_5Codons_Dispatcher()
  *
- * Purpose:   Dispatch 5-codon frameshift Forward parser to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for 5-codon frameshift Forward parser.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                                    P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
+static int
+p7_ForwardParser_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                               P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_ForwardParser_Frameshift_5Codons_avx512(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_ForwardParser_Frameshift_5Codons = p7_ForwardParser_Frameshift_5Codons_avx512; return p7_ForwardParser_Frameshift_5Codons_avx512(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ForwardParser_Frameshift_5Codons_avx(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    { p7_ForwardParser_Frameshift_5Codons = p7_ForwardParser_Frameshift_5Codons_avx;    return p7_ForwardParser_Frameshift_5Codons_avx(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_ForwardParser_Frameshift_5Codons = p7_ForwardParser_Frameshift_5Codons_sse;
   return p7_ForwardParser_Frameshift_5Codons_sse(dsq, L, om_fs, ox, ov, opt_sc);
 #else
+  p7_Die("p7_ForwardParser_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_BackwardParser_Frameshift_5Codons()
+/* Forward declaration of dispatcher */
+static int p7_BackwardParser_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                           const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardParser_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                            const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc) = p7_BackwardParser_Frameshift_5Codons_Dispatcher;
+
+/* Function:  p7_BackwardParser_Frameshift_5Codons_Dispatcher()
  *
- * Purpose:   Dispatch 5-codon frameshift Backward parser to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for 5-codon frameshift Backward parser.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                                     const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
+static int
+p7_BackwardParser_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_BackwardParser_Frameshift_5Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_BackwardParser_Frameshift_5Codons = p7_BackwardParser_Frameshift_5Codons_avx512; return p7_BackwardParser_Frameshift_5Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_BackwardParser_Frameshift_5Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx())    { p7_BackwardParser_Frameshift_5Codons = p7_BackwardParser_Frameshift_5Codons_avx;    return p7_BackwardParser_Frameshift_5Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_BackwardParser_Frameshift_5Codons = p7_BackwardParser_Frameshift_5Codons_sse;
   return p7_BackwardParser_Frameshift_5Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #else
+  p7_Die("p7_BackwardParser_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_Forward_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_Forward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                            P7_OMX *ox, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Forward_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                             P7_OMX *ox, P7_OIVX *ov, float *opt_sc) = p7_Forward_Frameshift_Dispatcher;
+
+/* Function:  p7_Forward_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch full-matrix 5-codon frameshift Forward to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for full-matrix 5-codon frameshift Forward.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                      P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
+static int
+p7_Forward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                 P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Forward_Frameshift_avx512(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_Forward_Frameshift = p7_Forward_Frameshift_avx512; return p7_Forward_Frameshift_avx512(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Forward_Frameshift_avx(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    { p7_Forward_Frameshift = p7_Forward_Frameshift_avx;    return p7_Forward_Frameshift_avx(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Forward_Frameshift = p7_Forward_Frameshift_sse;
   return p7_Forward_Frameshift_sse(dsq, L, om_fs, ox, ov, opt_sc);
 #else
+  p7_Die("p7_Forward_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_Backward_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_Backward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                             const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Backward_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                              const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc) = p7_Backward_Frameshift_Dispatcher;
+
+/* Function:  p7_Backward_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch full-matrix 5-codon frameshift Backward to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for full-matrix 5-codon frameshift Backward.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
-int
-p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                       const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
+static int
+p7_Backward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                  const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Backward_Frameshift_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_Backward_Frameshift = p7_Backward_Frameshift_avx512; return p7_Backward_Frameshift_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Backward_Frameshift_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  if (esl_cpu_has_avx())    { p7_Backward_Frameshift = p7_Backward_Frameshift_avx;    return p7_Backward_Frameshift_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Backward_Frameshift = p7_Backward_Frameshift_sse;
   return p7_Backward_Frameshift_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #else
+  p7_Die("p7_Backward_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

@@ -11,54 +11,73 @@
 #include "hmmer.h"
 #include "impl_avx.h"
 
-/* Function:  p7_ViterbiFilter()
+/* Forward declaration of dispatcher */
+static int p7_ViterbiFilter_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_ViterbiFilter)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc) = p7_ViterbiFilter_Dispatcher;
+
+/* Function:  p7_ViterbiFilter_Dispatcher()
  *
- * Purpose:   Dispatch Viterbi filter to the fastest available ISA path.
+ * Purpose:   Self-patching dispatcher for Viterbi filter.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> if score overflows; <*ret_sc> is <eslINFINITY>.
  * Throws:    <eslEINVAL> if <ox> is too small or profile is not local.
  */
-int
-p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc)
+static int
+p7_ViterbiFilter_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_ViterbiFilter_avx512(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx512()) { p7_ViterbiFilter = p7_ViterbiFilter_avx512; return p7_ViterbiFilter_avx512(dsq, L, om, ox, ret_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ViterbiFilter_avx(dsq, L, om, ox, ret_sc);
+  if (esl_cpu_has_avx())    { p7_ViterbiFilter = p7_ViterbiFilter_avx;    return p7_ViterbiFilter_avx(dsq, L, om, ox, ret_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_ViterbiFilter = p7_ViterbiFilter_sse;
   return p7_ViterbiFilter_sse(dsq, L, om, ox, ret_sc);
 #else
+  p7_Die("p7_ViterbiFilter: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_ViterbiFilter_BATH()
+/* Forward declaration of dispatcher */
+static int p7_ViterbiFilter_BATH_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox,
+                                            const P7_SCOREDATA *ssvdata, float filtersc, double P,
+                                            P7_HMM_WINDOWLIST *windowlist, float *ret_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_ViterbiFilter_BATH)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox,
+                             const P7_SCOREDATA *ssvdata, float filtersc, double P,
+                             P7_HMM_WINDOWLIST *windowlist, float *ret_sc) = p7_ViterbiFilter_BATH_Dispatcher;
+
+/* Function:  p7_ViterbiFilter_BATH_Dispatcher()
  *
- * Purpose:   Dispatch BATH Viterbi filter (score + windows) to the fastest
- *            available ISA path.
+ * Purpose:   Self-patching dispatcher for BATH Viterbi filter.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> if score overflows; <*ret_sc> is <eslINFINITY>.
  * Throws:    <eslEINVAL> if <ox> is too small or profile is not local.
  */
-int
-p7_ViterbiFilter_BATH(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox,
-                      const P7_SCOREDATA *ssvdata, float filtersc, double P,
-                      P7_HMM_WINDOWLIST *windowlist, float *ret_sc)
+static int
+p7_ViterbiFilter_BATH_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox,
+                                 const P7_SCOREDATA *ssvdata, float filtersc, double P,
+                                 P7_HMM_WINDOWLIST *windowlist, float *ret_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_ViterbiFilter_BATH_avx512(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc);
+  if (esl_cpu_has_avx512()) { p7_ViterbiFilter_BATH = p7_ViterbiFilter_BATH_avx512; return p7_ViterbiFilter_BATH_avx512(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_ViterbiFilter_BATH_avx(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc);
+  if (esl_cpu_has_avx())    { p7_ViterbiFilter_BATH = p7_ViterbiFilter_BATH_avx;    return p7_ViterbiFilter_BATH_avx(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_ViterbiFilter_BATH = p7_ViterbiFilter_BATH_sse;
   return p7_ViterbiFilter_BATH_sse(dsq, L, om, ox, ssvdata, filtersc, P, windowlist, ret_sc);
 #else
+  p7_Die("p7_ViterbiFilter_BATH: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

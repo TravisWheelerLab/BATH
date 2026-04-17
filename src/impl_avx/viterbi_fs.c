@@ -13,51 +13,71 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_Viterbi_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_Viterbi_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Viterbi_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, P7_OIVX *ov, float *opt_sc) = p7_Viterbi_Frameshift_Dispatcher;
+
+/* Function:  p7_Viterbi_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch frameshift-aware Viterbi (full matrix) to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for frameshift-aware Viterbi.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL>, <eslERANGE> as documented in the _sse implementation.
  */
-int
-p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
+static int
+p7_Viterbi_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Viterbi_Frameshift_avx512(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx512()) { p7_Viterbi_Frameshift = p7_Viterbi_Frameshift_avx512; return p7_Viterbi_Frameshift_avx512(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Frameshift_avx(dsq, L, om_fs, ox, ov, opt_sc);
+  if (esl_cpu_has_avx())    { p7_Viterbi_Frameshift = p7_Viterbi_Frameshift_avx;    return p7_Viterbi_Frameshift_avx(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Viterbi_Frameshift = p7_Viterbi_Frameshift_sse;
   return p7_Viterbi_Frameshift_sse(dsq, L, om_fs, ox, ov, opt_sc);
 #else
+  p7_Die("p7_Viterbi_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_Viterbi_Frameshift_Trace()
+/* Forward declaration of dispatcher */
+static int p7_Viterbi_Frameshift_Trace_Dispatcher(const ESL_DSQ *dsq, int L,
+                                                   const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
+                                                   P7_TRACE *tr);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Viterbi_Frameshift_Trace)(const ESL_DSQ *dsq, int L,
+                                   const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
+                                   P7_TRACE *tr) = p7_Viterbi_Frameshift_Trace_Dispatcher;
+
+/* Function:  p7_Viterbi_Frameshift_Trace_Dispatcher()
  *
- * Purpose:   Dispatch frameshift-aware Viterbi traceback to the fastest ISA.
+ * Purpose:   Self-patching dispatcher for frameshift-aware Viterbi traceback.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslFAIL> if an impossible state is reached during traceback.
  */
-int
-p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L,
-                             const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
-                             P7_TRACE *tr)
+static int
+p7_Viterbi_Frameshift_Trace_Dispatcher(const ESL_DSQ *dsq, int L,
+                                        const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
+                                        P7_TRACE *tr)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Viterbi_Frameshift_Trace_avx512(dsq, L, om_fs, ox, tr);
+  if (esl_cpu_has_avx512()) { p7_Viterbi_Frameshift_Trace = p7_Viterbi_Frameshift_Trace_avx512; return p7_Viterbi_Frameshift_Trace_avx512(dsq, L, om_fs, ox, tr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Viterbi_Frameshift_Trace_avx(dsq, L, om_fs, ox, tr);
+  if (esl_cpu_has_avx())    { p7_Viterbi_Frameshift_Trace = p7_Viterbi_Frameshift_Trace_avx;    return p7_Viterbi_Frameshift_Trace_avx(dsq, L, om_fs, ox, tr); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Viterbi_Frameshift_Trace = p7_Viterbi_Frameshift_Trace_sse;
   return p7_Viterbi_Frameshift_Trace_sse(dsq, L, om_fs, ox, tr);
 #else
+  p7_Die("p7_Viterbi_Frameshift_Trace: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }

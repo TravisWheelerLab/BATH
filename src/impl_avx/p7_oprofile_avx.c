@@ -1,8 +1,5 @@
 /* p7_oprofile_avx.c — AVX2 (256-bit) implementations of P7_OPROFILE management.
  *
- * All public functions carry the _avx suffix and are selected at runtime
- * by impl_Init() in p7_oprofile.c when AVX2 is the fastest available ISA.
- *
  * Systematic differences from p7_oprofile_sse.c:
  *   - __m128i / __m128  →  __m256i / __m256
  *   - p7O_NQB/NQW/NQF   →  p7O_NQB_AVX / p7O_NQW_AVX / p7O_NQF_AVX

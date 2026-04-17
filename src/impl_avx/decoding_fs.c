@@ -13,52 +13,69 @@
 #include "impl_avx.h"
 
 
-/* Function:  p7_Decoding_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_Decoding_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_Decoding_Frameshift)(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck) = p7_Decoding_Frameshift_Dispatcher;
+
+/* Function:  p7_Decoding_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch frameshift posterior decoding (in-place overwrite of fwd)
- *            to the fastest available ISA path.
+ * Purpose:   Self-patching dispatcher for frameshift posterior decoding.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> if numeric range is exceeded.
  * Throws:    <eslEMEM> on allocation failure.
  */
-int
-p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck)
+static int
+p7_Decoding_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_Decoding_Frameshift_avx512(om_fs, fwd, bck);
+  if (esl_cpu_has_avx512()) { p7_Decoding_Frameshift = p7_Decoding_Frameshift_avx512; return p7_Decoding_Frameshift_avx512(om_fs, fwd, bck); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_Decoding_Frameshift_avx(om_fs, fwd, bck);
+  if (esl_cpu_has_avx())    { p7_Decoding_Frameshift = p7_Decoding_Frameshift_avx;    return p7_Decoding_Frameshift_avx(om_fs, fwd, bck); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_Decoding_Frameshift = p7_Decoding_Frameshift_sse;
   return p7_Decoding_Frameshift_sse(om_fs, fwd, bck);
 #else
+  p7_Die("p7_Decoding_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
-/* Function:  p7_DomainDecoding_Frameshift()
+/* Forward declaration of dispatcher */
+static int p7_DomainDecoding_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb,
+                                                    P7_DOMAINDEF *ddef);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_DomainDecoding_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb,
+                                    P7_DOMAINDEF *ddef) = p7_DomainDecoding_Frameshift_Dispatcher;
+
+/* Function:  p7_DomainDecoding_Frameshift_Dispatcher()
  *
- * Purpose:   Dispatch frameshift domain decoding to the fastest available ISA.
+ * Purpose:   Self-patching dispatcher for frameshift domain decoding.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEMEM> on allocation failure.
  */
-int
-p7_DomainDecoding_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb,
-                              P7_DOMAINDEF *ddef)
+static int
+p7_DomainDecoding_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb,
+                                         P7_DOMAINDEF *ddef)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) return p7_DomainDecoding_Frameshift_avx512(om_fs, oxf, oxb, ddef);
+  if (esl_cpu_has_avx512()) { p7_DomainDecoding_Frameshift = p7_DomainDecoding_Frameshift_avx512; return p7_DomainDecoding_Frameshift_avx512(om_fs, oxf, oxb, ddef); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    return p7_DomainDecoding_Frameshift_avx(om_fs, oxf, oxb, ddef);
+  if (esl_cpu_has_avx())    { p7_DomainDecoding_Frameshift = p7_DomainDecoding_Frameshift_avx;    return p7_DomainDecoding_Frameshift_avx(om_fs, oxf, oxb, ddef); }
 #endif
 #ifdef eslENABLE_SSE
+  p7_DomainDecoding_Frameshift = p7_DomainDecoding_Frameshift_sse;
   return p7_DomainDecoding_Frameshift_sse(om_fs, oxf, oxb, ddef);
 #else
+  p7_Die("p7_DomainDecoding_Frameshift: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
@@ -337,8 +354,8 @@ main(int argc, char **argv)
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
   if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
 
-  impl_Init();
   p7_FLogsumInit();
+  impl_Init();
 
   utest_domdef      (r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
   utest_decoding_fs (r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);

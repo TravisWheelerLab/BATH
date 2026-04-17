@@ -76,6 +76,153 @@ p7_OATrace_Dispatcher(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox,
 #endif
 }
 /*****************************************************************
+ * 3. Benchmark driver.
+ *****************************************************************/
+#ifdef p7OPTACC_BENCHMARK
+/*
+   gcc -g -O3 -mavx2 -std=gnu99 -o benchmark-optacc -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm
+   icc  -O3 -static -o benchmark-optacc -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm
+
+   ./benchmark-optacc <hmmfile>         runs benchmark on optimal accuracy fill and trace
+   ./benchmark-optacc -c -N1 <hmmfile>  compare scores of AVX version to generic impl
+   ./benchmark-optacc -x -N1 <hmmfile>  test that scores match trusted implementation.
+
+                    RRM_1 (M=72)       Caudal_act (M=136)     SMC_N (M=1151)
+                 -----------------    ------------------     ---------------
+   20 Aug 08:     13.11u (110 Mc/s)     23.39u (116 Mc/s)    332.62u (69 Mc/s)
+
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_avx.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
+  { "-c",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-x", "compare scores to generic implementation (debug)", 0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
+  { "-x",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-c", "equate scores to trusted implementation (debug)",  0 },
+  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                     0 },
+  { "-N",        eslARG_INT,  "50000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
+  { "--notrace", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark the DP fill stage",                 0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for optimal accuracy alignment, AVX version";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abc     = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bg      = NULL;
+  P7_PROFILE     *gm      = NULL;
+  P7_OPROFILE    *om      = NULL;
+  P7_GMX         *gx1     = NULL;
+  P7_GMX         *gx2     = NULL;
+  P7_OMX         *ox1     = NULL;
+  P7_OMX         *ox2     = NULL;
+  P7_TRACE       *tr      = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           fsc, bsc, accscore;
+  float           fsc_g, bsc_g, accscore_g;
+  double          Mcs;
+
+  p7_FLogsumInit();
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+
+  bg = p7_bg_Create(abc);                 p7_bg_SetLength(bg, L);
+  gm = p7_profile_Create(hmm->M, abc);    p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
+  om = p7_oprofile_Create(gm->M, abc);    p7_oprofile_Convert(gm, om);
+  p7_oprofile_ReconfigLength(om, L);
+
+  if (esl_opt_GetBoolean(go, "-x") && p7_FLogsumError(-0.4, -0.5) > 0.0001)
+    p7_Fail("-x here requires p7_Logsum() recompiled in slow exact mode");
+
+  ox1 = p7_omx_Create(gm->M, L, L);
+  ox2 = p7_omx_Create(gm->M, L, L);
+  tr  = p7_trace_CreateWithPP();
+
+  esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+  p7_Forward (dsq, L, om, ox1,      &fsc);
+  p7_Backward(dsq, L, om, ox1, ox2, &bsc);
+  p7_Decoding(om, ox1, ox2, ox2);
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      p7_OptimalAccuracy(om, ox2, ox1, &accscore);
+
+      if (! esl_opt_GetBoolean(go, "--notrace"))
+	{
+	  p7_OATrace(om, ox2, ox1, tr);
+	  p7_trace_Reuse(tr);
+	}
+    }
+  esl_stopwatch_Stop(w);
+
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) w->user;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n",   gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  if (esl_opt_GetBoolean(go, "-c") || esl_opt_GetBoolean(go, "-x") )
+    {
+      gx1 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+      gx2 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+
+      p7_GForward (dsq, L, gm, gx1, &fsc_g);
+      p7_GBackward(dsq, L, gm, gx2, &bsc_g);
+      p7_GDecoding(gm, gx1, gx2, gx2);
+      p7_GOptimalAccuracy(gm, gx2, gx1, &accscore_g);
+
+      printf("generic:  fwd=%8.4f  bck=%8.4f  acc=%8.4f\n", fsc_g, bsc_g, accscore_g);
+      printf("AVX:      fwd=%8.4f  bck=%8.4f  acc=%8.4f\n", fsc,   bsc,   accscore);
+
+      p7_gmx_Destroy(gx1);
+      p7_gmx_Destroy(gx2);
+    }
+
+  free(dsq);
+  p7_omx_Destroy(ox1);
+  p7_omx_Destroy(ox2);
+  p7_trace_Destroy(tr);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_bg_Destroy(bg);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_alphabet_Destroy(abc);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7OPTACC_BENCHMARK*/
+/*---------------- end, benchmark driver ------------------------*/
+
+
+
+
+/*****************************************************************
  * 4. Unit tests
  *****************************************************************/
 #ifdef p7OPTACC_TESTDRIVE

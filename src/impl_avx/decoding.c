@@ -76,6 +76,113 @@ p7_DomainDecoding_Dispatcher(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_
 #endif
 }
 /*****************************************************************
+ * 2. Benchmark driver.
+ *****************************************************************/
+#ifdef p7DECODING_BENCHMARK
+/*
+   gcc -g -O3 -mavx2 -std=gnu99 -o benchmark-decoding -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm
+   icc  -O3 -static -o benchmark-decoding -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm
+   ./benchmark-decoding <hmmfile>
+                    RRM_1 (M=72)       Caudal_act (M=136)     SMC_N (M=1151)
+                 -----------------    ------------------     ---------------
+   21 Aug 08      3.52u (409 Mc/s)     15.36u (177 Mc/s)     318.78u (72.2 Mc/s)
+
+   The length dependency probably indicates L1 cache missing; because we're
+   manipulating 3 matrices at the same time, we can't fit the calculation
+   in cache.
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_avx.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
+  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                     0 },
+  { "-N",        eslARG_INT,  "50000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for posterior residue decoding, AVX version";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abc     = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bg      = NULL;
+  P7_PROFILE     *gm      = NULL;
+  P7_OPROFILE    *om      = NULL;
+  P7_OMX         *fwd     = NULL;
+  P7_OMX         *bck     = NULL;
+  P7_OMX         *pp      = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           fsc, bsc;
+  double          Mcs;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+
+  bg = p7_bg_Create(abc);                 p7_bg_SetLength(bg, L);
+  gm = p7_profile_Create(hmm->M, abc);    p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
+  om = p7_oprofile_Create(gm->M, abc);    p7_oprofile_Convert(gm, om);
+  p7_oprofile_ReconfigLength(om, L);
+
+  fwd = p7_omx_Create(gm->M, L, L);
+  bck = p7_omx_Create(gm->M, L, L);
+  pp  = p7_omx_Create(gm->M, L, L);
+
+  esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+  p7_Forward (dsq, L, om, fwd,      &fsc);
+  p7_Backward(dsq, L, om, fwd, bck, &bsc);
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    p7_Decoding(om, fwd, bck, pp);
+  esl_stopwatch_Stop(w);
+
+  Mcs = (double) N * (double) L * (double) gm->M * 1e-6 / (double) w->user;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n",   gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_omx_Destroy(fwd);
+  p7_omx_Destroy(bck);
+  p7_omx_Destroy(pp);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_bg_Destroy(bg);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_alphabet_Destroy(abc);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return eslOK;
+}
+#endif /*p7DECODING_BENCHMARK*/
+/*------------------ end, benchmark driver ----------------------*/
+
+
+/*****************************************************************
  * 3. Unit tests
  *****************************************************************/
 #ifdef p7DECODING_TESTDRIVE

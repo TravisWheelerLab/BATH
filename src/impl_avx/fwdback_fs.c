@@ -223,6 +223,172 @@ p7_Backward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFIL
 #endif
 }
 /*****************************************************************
+ * 2. Benchmark driver.
+ *****************************************************************/
+#ifdef p7FWDBACK_FS_BENCHMARK
+/*
+   gcc -g -O3 -mavx2 -std=gnu99 -o benchmark-fwdback_fs -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACK_FS_BENCHMARK fwdback_fs.c -lhmmer -leasel -lm
+   icc -O3 -static -o benchmark-fwdback_fs -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACK_FS_BENCHMARK fwdback_fs.c -lhmmer -leasel -lm
+   ./benchmark-fwdback_fs <hmmfile>
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_avx.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-L",        eslARG_INT,   "1200", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs (nucleotides)",     0 },
+  { "-N",        eslARG_INT,   "2000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "-B",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Backward functions",              0 },
+  { "-F",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Forward functions",               0 },
+  { "-P",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark parser (linear memory) versions", 0 },
+  { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark full matrix versions",            0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  "-P", NULL, "only benchmark 3-codon length parser",          0 },
+  { "-V",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  "-P", NULL, "only benchmark 5-codon length parser",          0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for AVX frameshift Forward/Backward";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA   = NULL;
+  ESL_ALPHABET   *abcDNA  = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bgDNA   = NULL;
+  P7_BG          *bgAA    = NULL;
+  P7_FS_PROFILE  *gm_fs5  = NULL;
+  P7_FS_PROFILE  *gm_fs3  = NULL;
+  P7_FS_OPROFILE *om_fs5  = NULL;
+  P7_FS_OPROFILE *om_fs3  = NULL;
+  P7_OMX         *fwd_p   = NULL;  /* parser fwd: linear memory, 3-cell layout  */
+  P7_OMX         *bck_p   = NULL;  /* parser bck: linear memory, 3-cell layout  */
+  P7_OMX         *fwd     = NULL;  /* full fwd: O(ML), 8-cell FS layout          */
+  P7_OMX         *bck     = NULL;  /* full bck: O(ML), 3-cell layout             */
+  ESL_GENCODE    *gcode   = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           sc;
+  double          base_time, bench_time, Mcs;
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abcAA, &hmm)          != eslOK) p7_Fail("Failed to read HMM");
+
+  abcDNA = esl_alphabet_Create(eslDNA);
+  gcode  = esl_gencode_Create(abcDNA, abcAA);
+  bgDNA  = p7_bg_Create(abcDNA);
+  bgAA   = p7_bg_Create(abcAA);
+
+  gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
+  gm_fs3 = p7_profile_fs_Create(hmm->M, abcAA, p7P_3CODONS);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, L/3, p7_UNILOCAL);
+
+  om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
+  om_fs3 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_3CODONS);
+  p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+  p7_fs_oprofile_Convert(gm_fs3, om_fs3);
+  p7_fs_oprofile_ReconfigLength(om_fs5, L/3);
+  p7_fs_oprofile_ReconfigLength(om_fs3, L/3);
+
+  fwd_p = p7_omx_Create(hmm->M, PARSER_ROWS_FWD, L);
+  bck_p = p7_omx_Create(hmm->M, PARSER_ROWS_BWD, L);
+  fwd   = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
+  bck   = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
+  P7_OIVX *ov3 = p7_oivx_Create(hmm->M, p7P_3CODONS);
+  P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
+
+  /* Baseline: time to generate sequences alone */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++) {
+    esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+    if(esl_opt_GetBoolean(go, "-B")) {
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
+        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, ov3, &sc);
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
+        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
+      if (! esl_opt_GetBoolean(go, "-P"))
+        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
+	}
+  }
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  /* Benchmark */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
+        p7_ForwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, ov3, &sc);
+      if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
+        p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
+      if (! esl_opt_GetBoolean(go, "-P"))
+        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
+
+      if (! esl_opt_GetBoolean(go, "-F")) {
+        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
+          p7_BackwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, bck_p, ov3, NULL);
+        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
+          p7_BackwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, bck_p, ov5, NULL);
+        if (! esl_opt_GetBoolean(go, "-P"))
+          p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, NULL);
+      }
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) hmm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n",   hmm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_omx_Destroy(bck);
+  p7_omx_Destroy(fwd);
+  p7_omx_Destroy(bck_p);
+  p7_omx_Destroy(fwd_p);
+  p7_oivx_Destroy(ov3);
+  p7_oivx_Destroy(ov5);
+  p7_fs_oprofile_Destroy(om_fs5);
+  p7_fs_oprofile_Destroy(om_fs3);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_profile_fs_Destroy(gm_fs3);
+  p7_bg_Destroy(bgDNA);
+  p7_bg_Destroy(bgAA);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcDNA);
+  esl_alphabet_Destroy(abcAA);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7FWDBACK_FS_BENCHMARK*/
+/*---------------- end, benchmark driver ----------------*/
+
+
+/*****************************************************************
  * 3. Unit tests.
  *****************************************************************/
 #ifdef p7FWDBACK_FS_TESTDRIVE

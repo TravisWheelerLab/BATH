@@ -141,6 +141,147 @@ p7_BackwardParser_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 #endif
 }
 /*****************************************************************
+ * 4. Benchmark driver.
+ *****************************************************************/
+#ifdef p7FWDBACK_BENCHMARK
+/* -c, -x options are for debugging and testing: see fwdfilter.c for explanation */
+/*
+   gcc -g -O3 -mavx2 -std=gnu99 -o benchmark-fwdback -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACK_BENCHMARK fwdback.c -lhmmer -leasel -lm
+   icc  -O3 -static -o benchmark-fwdback -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACK_BENCHMARK fwdback.c -lhmmer -leasel -lm
+
+   ./benchmark-fwdback <hmmfile>           runs benchmark on both Forward and Backward parser
+   ./benchmark-fwdback -c -N100 <hmmfile>  compare scores of AVX to generic impl
+   ./benchmark-fwdback -x -N100 <hmmfile>  test that scores match trusted implementation.
+ */
+#include "p7_config.h"
+
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+#include "esl_randomseq.h"
+#include "esl_stopwatch.h"
+
+#include "hmmer.h"
+#include "impl_avx.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",             0 },
+  { "-c",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-x", "compare scores to generic implementation (debug)", 0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                    0 },
+  { "-x",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-c", "equate scores to trusted implementation (debug)",  0 },
+  { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                     0 },
+  { "-N",        eslARG_INT,  "50000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                     0 },
+  { "-F",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-B", "only benchmark Forward",                           0 },
+  { "-B",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-F", "only benchmark Backward",                          0 },
+  { "-P",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "benchmark parsing version, not full version",      0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options] <hmmfile>";
+static char banner[] = "benchmark driver for Forward, Backward implementations";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char           *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abc     = NULL;
+  P7_HMMFILE     *hfp     = NULL;
+  P7_HMM         *hmm     = NULL;
+  P7_BG          *bg      = NULL;
+  P7_PROFILE     *gm      = NULL;
+  P7_OPROFILE    *om      = NULL;
+  P7_GMX         *gx      = NULL;
+  P7_OMX         *fwd     = NULL;
+  P7_OMX         *bck     = NULL;
+  int             L       = esl_opt_GetInteger(go, "-L");
+  int             N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int             i;
+  float           fsc, bsc;
+  float           fsc2, bsc2;
+  double          base_time, bench_time, Mcs;
+
+  p7_FLogsumInit();
+
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
+
+  bg = p7_bg_Create(abc);
+  p7_bg_SetLength(bg, L);
+  gm = p7_profile_Create(hmm->M, abc);
+  p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
+  om = p7_oprofile_Create(gm->M, abc);
+  p7_oprofile_Convert(gm, om);
+  p7_oprofile_ReconfigLength(om, L);
+
+  if (esl_opt_GetBoolean(go, "-x") && p7_FLogsumError(-0.4, -0.5) > 0.0001)
+    p7_Fail("-x here requires p7_Logsum() recompiled in slow exact mode");
+
+  if (esl_opt_GetBoolean(go, "-P")) {
+    fwd = p7_omx_Create(gm->M, 0, L);
+    bck = p7_omx_Create(gm->M, 0, L);
+  } else {
+    fwd = p7_omx_Create(gm->M, L, L);
+    bck = p7_omx_Create(gm->M, L, L);
+  }
+  gx  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+
+  /* Get a baseline time: how long it takes just to generate the sequences */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++) esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+  esl_stopwatch_Stop(w);
+  base_time = w->user;
+
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      if (esl_opt_GetBoolean(go, "-P")) {
+	if (! esl_opt_GetBoolean(go, "-B"))  p7_ForwardParser (dsq, L, om,      fwd, &fsc);
+	if (! esl_opt_GetBoolean(go, "-F"))  p7_BackwardParser(dsq, L, om, fwd, bck, &bsc);
+      } else {
+	if (! esl_opt_GetBoolean(go, "-B"))  p7_Forward (dsq, L, om,      fwd, &fsc);
+	if (! esl_opt_GetBoolean(go, "-F"))  p7_Backward(dsq, L, om, fwd, bck, &bsc);
+      }
+
+      if (esl_opt_GetBoolean(go, "-c") || esl_opt_GetBoolean(go, "-x"))
+	{
+	  p7_GForward (dsq, L, gm, gx, &fsc2);
+	  p7_GBackward(dsq, L, gm, gx, &bsc2);
+	  printf("%.4f %.4f %.4f %.4f\n", fsc, bsc, fsc2, bsc2);
+	}
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# CPU time: ");
+  printf("# M    = %d\n",   gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(dsq);
+  p7_omx_Destroy(bck);
+  p7_omx_Destroy(fwd);
+  p7_gmx_Destroy(gx);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_bg_Destroy(bg);
+  p7_hmm_Destroy(hmm);
+  p7_hmmfile_Close(hfp);
+  esl_alphabet_Destroy(abc);
+  esl_stopwatch_Destroy(w);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
+#endif /*p7FWDBACK_BENCHMARK*/
+/*------------------- end, benchmark driver ---------------------*/
+
+
+/*****************************************************************
  * 5. Unit tests.
  *****************************************************************/
 #ifdef p7FWDBACK_TESTDRIVE

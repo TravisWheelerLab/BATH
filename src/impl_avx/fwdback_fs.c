@@ -521,6 +521,169 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   p7_fs_oprofile_Destroy(om_fs3);
   p7_fs_oprofile_Destroy(om_fs5);
 }
+
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+/* utest_sse_vs_avx_fwdbackfs()
+ *
+ * Run the frameshift Forward/Backward variants for both SSE and AVX on the
+ * same sequences and profiles, comparing scores with 0.01 nat tolerance.
+ * Tests 3-codon parser, 5-codon parser, and full 5-codon Forward/Backward.
+ * Skipped silently if AVX is not available at runtime.
+ */
+static void
+utest_sse_vs_avx_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+                            ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA,
+                            P7_CODONTABLE *codon_table, int M, int N)
+{
+  char            msg[]       = "utest_sse_vs_avx_fwdbackfs failed";
+  P7_HMM         *hmm         = NULL;
+  P7_PROFILE     *gm          = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_fs3      = p7_profile_fs_Create(M, abcAA, 3);
+  P7_FS_PROFILE  *gm_fs5      = p7_profile_fs_Create(M, abcAA, 5);
+  P7_FS_OPROFILE *om_fs3_sse  = NULL;
+  P7_FS_OPROFILE *om_fs3_avx  = NULL;
+  P7_FS_OPROFILE *om_fs5_sse  = NULL;
+  P7_FS_OPROFILE *om_fs5_avx  = NULL;
+  ESL_SQ         *sq          = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq         = NULL;
+  P7_OMX         *oxf_sse     = NULL;
+  P7_OMX         *oxb_sse     = NULL;
+  P7_OMX         *oxf_avx     = NULL;
+  P7_OMX         *oxb_avx     = NULL;
+  P7_OMX         *fwd_sse     = NULL;
+  P7_OMX         *bck_sse     = NULL;
+  P7_OMX         *fwd_avx     = NULL;
+  P7_OMX         *bck_avx     = NULL;
+  P7_OIVX        *ov3_sse     = NULL;
+  P7_OIVX        *ov3_avx     = NULL;
+  P7_OIVX        *ov5_sse     = NULL;
+  P7_OIVX        *ov5_avx     = NULL;
+  float           fsc3_sse, fsc3_avx;
+  float           bsc3_sse, bsc3_avx;
+  float           fsc5_sse, fsc5_avx;
+  float           bsc5_sse, bsc5_avx;
+  float           full_fsc_sse, full_fsc_avx;
+  float           full_bsc_sse, full_bsc_avx;
+  int             curr_L, i, j;
+  int             n = N;
+
+  if (!esl_cpu_has_avx()) goto cleanup;
+
+  p7_FLogsumInit();
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, M, p7_LOCAL);
+
+  om_fs3_sse = p7_fs_oprofile_Create_sse(M, abcAA, 3);
+  om_fs3_avx = p7_fs_oprofile_Create_avx(M, abcAA, 3);
+  om_fs5_sse = p7_fs_oprofile_Create_sse(M, abcAA, 5);
+  om_fs5_avx = p7_fs_oprofile_Create_avx(M, abcAA, 5);
+  p7_fs_oprofile_Convert_sse(gm_fs3, om_fs3_sse);  p7_fs_oprofile_ReconfigLength_sse(om_fs3_sse, M);
+  p7_fs_oprofile_Convert_avx(gm_fs3, om_fs3_avx);  p7_fs_oprofile_ReconfigLength_avx(om_fs3_avx, M);
+  p7_fs_oprofile_Convert_sse(gm_fs5, om_fs5_sse);  p7_fs_oprofile_ReconfigLength_sse(om_fs5_sse, M);
+  p7_fs_oprofile_Convert_avx(gm_fs5, om_fs5_avx);  p7_fs_oprofile_ReconfigLength_avx(om_fs5_avx, M);
+
+  ov3_sse = p7_oivx_Create_sse(M, p7P_3CODONS);
+  ov3_avx = p7_oivx_Create_avx(M, p7P_3CODONS);
+  ov5_sse = p7_oivx_Create_sse(M, p7P_5CODONS);
+  ov5_avx = p7_oivx_Create_avx(M, p7P_5CODONS);
+
+  oxf_sse = p7_omx_Create_sse(M, PARSER_ROWS_FWD, M);
+  oxf_avx = p7_omx_Create_avx(M, PARSER_ROWS_FWD, M);
+  oxb_sse = p7_omx_Create_sse(M, PARSER_ROWS_BWD, M);
+  oxb_avx = p7_omx_Create_avx(M, PARSER_ROWS_BWD, M);
+  fwd_sse = p7_omx_Create_dpf_sse(M, M, M, p7X_NSCELLS_FS);
+  fwd_avx = p7_omx_Create_dpf_avx(M, M, M, p7X_NSCELLS_FS);
+  bck_sse = p7_omx_Create_dpf_sse(M, M, M, p7X_NSCELLS);
+  bck_avx = p7_omx_Create_dpf_avx(M, M, M, p7X_NSCELLS);
+
+  while (n--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, NULL);
+      curr_L = sq->n * 3;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (curr_L + 2))) == NULL) esl_fatal("malloc failed");
+      j = 1;
+      for (i = 1; i <= (int)sq->n; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      p7_fs_oprofile_ReconfigLength_sse(om_fs3_sse, sq->n);
+      p7_fs_oprofile_ReconfigLength_avx(om_fs3_avx, sq->n);
+      p7_fs_oprofile_ReconfigLength_sse(om_fs5_sse, sq->n);
+      p7_fs_oprofile_ReconfigLength_avx(om_fs5_avx, sq->n);
+
+      p7_omx_GrowTo(oxf_sse, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo(oxf_avx, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo(oxb_sse, M, PARSER_ROWS_BWD, curr_L);
+      p7_omx_GrowTo(oxb_avx, M, PARSER_ROWS_BWD, curr_L);
+
+      /* 3-codon parser */
+      if (p7_ForwardParser_Frameshift_3Codons_sse(dsq, curr_L, om_fs3_sse, oxf_sse, ov3_sse, &fsc3_sse) == eslERANGE) continue;
+      if (p7_ForwardParser_Frameshift_3Codons_avx(dsq, curr_L, om_fs3_avx, oxf_avx, ov3_avx, &fsc3_avx) == eslERANGE) continue;
+      if (fabs(fsc3_sse - fsc3_avx) > 0.01) esl_fatal("%s: 3cod Fwd sse=%.4f avx=%.4f", msg, fsc3_sse, fsc3_avx);
+
+      if (p7_BackwardParser_Frameshift_3Codons_sse(dsq, curr_L, om_fs3_sse, oxf_sse, oxb_sse, ov3_sse, &bsc3_sse) == eslERANGE) continue;
+      if (p7_BackwardParser_Frameshift_3Codons_avx(dsq, curr_L, om_fs3_avx, oxf_avx, oxb_avx, ov3_avx, &bsc3_avx) == eslERANGE) continue;
+      if (fabs(bsc3_sse - bsc3_avx) > 0.01) esl_fatal("%s: 3cod Bck sse=%.4f avx=%.4f", msg, bsc3_sse, bsc3_avx);
+
+      /* 5-codon parser */
+      p7_omx_GrowTo(oxf_sse, M, PARSER_ROWS_FWD, curr_L);
+      p7_omx_GrowTo(oxf_avx, M, PARSER_ROWS_FWD, curr_L);
+      if (p7_ForwardParser_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, oxf_sse, ov5_sse, &fsc5_sse) == eslERANGE) continue;
+      if (p7_ForwardParser_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, oxf_avx, ov5_avx, &fsc5_avx) == eslERANGE) continue;
+      if (fabs(fsc5_sse - fsc5_avx) > 0.01) esl_fatal("%s: 5cod Fwd sse=%.4f avx=%.4f", msg, fsc5_sse, fsc5_avx);
+
+      p7_omx_GrowTo(oxb_sse, M, PARSER_ROWS_BWD, curr_L);
+      p7_omx_GrowTo(oxb_avx, M, PARSER_ROWS_BWD, curr_L);
+      if (p7_BackwardParser_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, oxf_sse, oxb_sse, ov5_sse, &bsc5_sse) == eslERANGE) continue;
+      if (p7_BackwardParser_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, oxf_avx, oxb_avx, ov5_avx, &bsc5_avx) == eslERANGE) continue;
+      if (fabs(bsc5_sse - bsc5_avx) > 0.01) esl_fatal("%s: 5cod Bck sse=%.4f avx=%.4f", msg, bsc5_sse, bsc5_avx);
+
+      /* Full 5-codon Forward/Backward */
+      p7_omx_GrowTo_dpf_sse(fwd_sse, M, curr_L, curr_L);
+      p7_omx_GrowTo_dpf_avx(fwd_avx, M, curr_L, curr_L);
+      if (p7_Forward_Frameshift_sse(dsq, curr_L, om_fs5_sse, fwd_sse, ov5_sse, &full_fsc_sse) == eslERANGE) continue;
+      if (p7_Forward_Frameshift_avx(dsq, curr_L, om_fs5_avx, fwd_avx, ov5_avx, &full_fsc_avx) == eslERANGE) continue;
+      if (fabs(full_fsc_sse - full_fsc_avx) > 0.01) esl_fatal("%s: full Fwd sse=%.4f avx=%.4f", msg, full_fsc_sse, full_fsc_avx);
+
+      p7_omx_GrowTo_dpf_sse(bck_sse, M, curr_L, curr_L);
+      p7_omx_GrowTo_dpf_avx(bck_avx, M, curr_L, curr_L);
+      if (p7_Backward_Frameshift_sse(dsq, curr_L, om_fs5_sse, fwd_sse, bck_sse, ov5_sse, &full_bsc_sse) == eslERANGE) continue;
+      if (p7_Backward_Frameshift_avx(dsq, curr_L, om_fs5_avx, fwd_avx, bck_avx, ov5_avx, &full_bsc_avx) == eslERANGE) continue;
+      if (fabs(full_bsc_sse - full_bsc_avx) > 0.01) esl_fatal("%s: full Bck sse=%.4f avx=%.4f", msg, full_bsc_sse, full_bsc_avx);
+    }
+
+ cleanup:
+  if (dsq)        free(dsq);
+  if (oxf_sse)    p7_omx_Destroy_sse(oxf_sse);
+  if (oxf_avx)    p7_omx_Destroy_avx(oxf_avx);
+  if (oxb_sse)    p7_omx_Destroy_sse(oxb_sse);
+  if (oxb_avx)    p7_omx_Destroy_avx(oxb_avx);
+  if (fwd_sse)    p7_omx_Destroy_sse(fwd_sse);
+  if (fwd_avx)    p7_omx_Destroy_avx(fwd_avx);
+  if (bck_sse)    p7_omx_Destroy_sse(bck_sse);
+  if (bck_avx)    p7_omx_Destroy_avx(bck_avx);
+  if (ov3_sse)    p7_oivx_Destroy_sse(ov3_sse);
+  if (ov3_avx)    p7_oivx_Destroy_avx(ov3_avx);
+  if (ov5_sse)    p7_oivx_Destroy_sse(ov5_sse);
+  if (ov5_avx)    p7_oivx_Destroy_avx(ov5_avx);
+  if (om_fs3_sse) p7_fs_oprofile_Destroy_sse(om_fs3_sse);
+  if (om_fs3_avx) p7_fs_oprofile_Destroy_avx(om_fs3_avx);
+  if (om_fs5_sse) p7_fs_oprofile_Destroy_sse(om_fs5_sse);
+  if (om_fs5_avx) p7_fs_oprofile_Destroy_avx(om_fs5_avx);
+  if (hmm)        p7_hmm_Destroy(hmm);
+  esl_sq_Destroy(sq);
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs3);
+  p7_profile_fs_Destroy(gm_fs5);
+}
+#endif /* eslENABLE_SSE && eslENABLE_AVX */
+
 #endif /*p7FWDBACK_FS_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
@@ -579,6 +742,9 @@ main(int argc, char **argv)
   if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
   
   utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+  utest_sse_vs_avx_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
+#endif
 
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);

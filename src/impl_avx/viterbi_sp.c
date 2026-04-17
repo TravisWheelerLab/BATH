@@ -415,7 +415,132 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_trace_fs_Destroy(gtr);
 }
 
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+/* utest_sse_vs_avx_viterbi_sp()
+ *
+ * Run Viterbi_Spliced_sse and Viterbi_Spliced_avx on the same sequences
+ * and profile, comparing final C-state scores.  Creates ISA-specific
+ * DP matrices directly (no SPLICE_PIPELINE wrapper) so each ISA operates
+ * on its own allocated memory.  Tolerance is 0.01 nats.
+ * Skipped silently if AVX is not available at runtime.
+ */
+static void
+utest_sse_vs_avx_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
+                             ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table,
+                             int M, int N, int intron_len)
+{
+  char            msg[]         = "utest_sse_vs_avx_viterbi_sp failed";
+  P7_HMM         *hmm           = NULL;
+  P7_FS_PROFILE  *gm_tr         = p7_profile_fs_Create(M, abcAA, 1);
+  P7_FS_OPROFILE *om_tr_sse     = NULL;
+  P7_FS_OPROFILE *om_tr_avx     = NULL;
+  ESL_SQ         *sq            = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq           = NULL;
+  P7_OMX         *ox_sse        = NULL;
+  P7_OMX         *ox_avx        = NULL;
+  P7_OIVX        *acc_ov_sse    = NULL;
+  P7_OIVX        *acc_ov_avx    = NULL;
+  P7_OIVX        *don_ov_sse    = NULL;
+  P7_OIVX        *don_ov_avx    = NULL;
+  float           signal_scores[p7S_SPLICE_SIGNALS];
+  float           sc_sse, sc_avx;
+  int             intron_total  = intron_len + 4;
+  int             L_amino, L_dna_total;
+  int             k_start, k_end, sub_M;
+  int             i, j;
+  int             min_intron    = 13;
+  int             n             = N;
 
+  if (!esl_cpu_has_avx()) goto cleanup;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_tr, M, p7_UNILOCAL);
+
+  om_tr_sse = p7_fs_oprofile_Create_sse(M, abcAA, 1);
+  om_tr_avx = p7_fs_oprofile_Create_avx(M, abcAA, 1);
+  p7_fs_oprofile_Convert_Log_sse(gm_tr, om_tr_sse);
+  p7_fs_oprofile_Convert_Log_avx(gm_tr, om_tr_avx);
+
+  ox_sse     = p7_omx_Create_dpf_sse(M, M * 3, M * 3, p7X_NSCELLS);
+  ox_avx     = p7_omx_Create_dpf_avx(M, M * 3, M * 3, p7X_NSCELLS);
+  acc_ov_sse = p7_oivx_Create_sse(M, SPLICE_ROWS);
+  acc_ov_avx = p7_oivx_Create_avx(M, SPLICE_ROWS);
+  don_ov_sse = p7_oivx_Create_sse(M, SIGNAL_MEM_SIZE);
+  don_ov_avx = p7_oivx_Create_avx(M, SIGNAL_MEM_SIZE);
+
+  p7_SignalScores(signal_scores);
+  p7_emit_SimpleConsensus(hmm, sq);
+  L_amino = sq->n;
+
+  while (n--)
+    {
+      k_start = k_end = 0;
+      while (k_end <= k_start || k_end > L_amino) {
+        k_start = esl_rnd_Roll(r, L_amino / 4) + 1;
+        k_end   = esl_rnd_Roll(r, L_amino / 2) + k_start + L_amino / 4;
+      }
+      sub_M       = k_end - k_start + 1;
+      L_dna_total = sub_M * 3 + intron_total;
+
+      if (dsq != NULL) free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (L_dna_total + 2))) == NULL) esl_fatal("malloc failed");
+      dsq[0] = dsq[L_dna_total + 1] = eslDSQ_SENTINEL;
+
+      j = 1;
+      for (i = k_start; i <= k_start + sub_M / 2; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+      dsq[j++] = 2; /* G */
+      dsq[j++] = 3; /* T */
+      for (i = 0; i < intron_len; i++) dsq[j++] = esl_rnd_Roll(r, 4);
+      dsq[j++] = 0; /* A */
+      dsq[j++] = 2; /* G */
+      for (i = k_start + sub_M / 2 + 1; i <= k_end; i++) {
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
+        j += 3;
+      }
+
+      p7_fs_oprofile_SubConvert_Log_sse(gm_tr, om_tr_sse, k_start, k_end);
+      p7_fs_oprofile_SubConvert_Log_avx(gm_tr, om_tr_avx, k_start, k_end);
+      p7_fs_oprofile_ReconfigLength_Log_sse(om_tr_sse, L_dna_total / 3);
+      p7_fs_oprofile_ReconfigLength_Log_avx(om_tr_avx, L_dna_total / 3);
+
+      p7_omx_GrowTo_dpf_sse(ox_sse, sub_M, L_dna_total, L_dna_total);
+      p7_omx_GrowTo_dpf_avx(ox_avx, sub_M, L_dna_total, L_dna_total);
+      p7_oivx_GrowTo_sse(acc_ov_sse, sub_M, SPLICE_ROWS);
+      p7_oivx_GrowTo_avx(acc_ov_avx, sub_M, SPLICE_ROWS);
+      p7_oivx_GrowTo_sse(don_ov_sse, sub_M, SIGNAL_MEM_SIZE);
+      p7_oivx_GrowTo_avx(don_ov_avx, sub_M, SIGNAL_MEM_SIZE);
+
+      p7_Viterbi_Spliced_sse(dsq, om_tr_sse, ox_sse, signal_scores, acc_ov_sse, don_ov_sse,
+                             1, L_dna_total, min_intron, TRUE, TRUE);
+      sc_sse = ox_sse->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+
+      p7_Viterbi_Spliced_avx(dsq, om_tr_avx, ox_avx, signal_scores, acc_ov_avx, don_ov_avx,
+                             1, L_dna_total, min_intron, TRUE, TRUE);
+      sc_avx = ox_avx->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+
+      if (sc_sse == -eslINFINITY && sc_avx == -eslINFINITY) continue;
+      if (fabs(sc_sse - sc_avx) > 0.01)
+        esl_fatal("%s: sse=%.4f avx=%.4f", msg, sc_sse, sc_avx);
+    }
+
+ cleanup:
+  if (dsq)        free(dsq);
+  if (ox_sse)     p7_omx_Destroy_sse(ox_sse);
+  if (ox_avx)     p7_omx_Destroy_avx(ox_avx);
+  if (acc_ov_sse) p7_oivx_Destroy_sse(acc_ov_sse);
+  if (acc_ov_avx) p7_oivx_Destroy_avx(acc_ov_avx);
+  if (don_ov_sse) p7_oivx_Destroy_sse(don_ov_sse);
+  if (don_ov_avx) p7_oivx_Destroy_avx(don_ov_avx);
+  if (om_tr_sse)  p7_fs_oprofile_Destroy_sse(om_tr_sse);
+  if (om_tr_avx)  p7_fs_oprofile_Destroy_avx(om_tr_avx);
+  if (hmm)        p7_hmm_Destroy(hmm);
+  esl_sq_Destroy(sq);
+  p7_profile_fs_Destroy(gm_tr);
+}
+#endif /* eslENABLE_SSE && eslENABLE_AVX */
 
 #endif /*p7VITERBI_SP_TESTDRIVE*/
 /*----------------- end, unit tests -----------------------------*/
@@ -471,6 +596,9 @@ main(int argc, char **argv)
   impl_Init();
 
   utest_viterbi_sp(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+  utest_sse_vs_avx_viterbi_sp(r, abcAA, abcDNA, gcode, bgAA, ct, M, N, I);
+#endif
 
   p7_bg_Destroy(bgAA);
   p7_codontable_Destroy(ct);

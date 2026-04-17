@@ -345,6 +345,78 @@ utest_fwdback(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   p7_profile_Destroy(gm);
   p7_oprofile_Destroy(om);
 }
+
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+/* utest_sse_vs_avx_fwdback()
+ *
+ * Run Forward_sse/Backward_sse and Forward_avx/Backward_avx on the same
+ * sequences and profile, comparing scores.  SSE uses Q=ceil(M/4) stripes;
+ * AVX uses Q=ceil(M/8).  Different summation orders from different stripe
+ * widths cause small floating-point differences.  Tolerance is 0.01 nats,
+ * tight enough to catch wrong implementations but loose enough to pass
+ * expected rounding differences.
+ * Skipped silently if AVX is not available at runtime.
+ */
+static void
+utest_sse_vs_avx_fwdback(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N)
+{
+  char         msg[]  = "utest_sse_vs_avx_fwdback: scores differ";
+  P7_HMM      *hmm    = NULL;
+  P7_PROFILE  *gm     = NULL;
+  P7_OPROFILE *om_tmp = NULL;
+  P7_OPROFILE *om_sse = NULL;
+  P7_OPROFILE *om_avx = NULL;
+  ESL_DSQ     *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX      *oxf_sse = NULL;
+  P7_OMX      *oxb_sse = NULL;
+  P7_OMX      *oxf_avx = NULL;
+  P7_OMX      *oxb_avx = NULL;
+  float        fsc_sse, bsc_sse;
+  float        fsc_avx, bsc_avx;
+  int          n       = N;
+
+  if (!esl_cpu_has_avx()) { free(dsq); return; }
+
+  p7_FLogsumInit();
+
+  p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om_tmp);
+  p7_oprofile_Destroy(om_tmp);
+
+  om_sse = p7_oprofile_Create_sse(M, abc);
+  om_avx = p7_oprofile_Create_avx(M, abc);
+  p7_oprofile_Convert_sse(gm, om_sse);
+  p7_oprofile_Convert_avx(gm, om_avx);
+
+  oxf_sse = p7_omx_Create_sse(M, L, L);
+  oxb_sse = p7_omx_Create_sse(M, L, L);
+  oxf_avx = p7_omx_Create_avx(M, L, L);
+  oxb_avx = p7_omx_Create_avx(M, L, L);
+
+  while (n--)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+
+      p7_Forward_sse (dsq, L, om_sse, oxf_sse, &fsc_sse);
+      p7_Backward_sse(dsq, L, om_sse, oxf_sse, oxb_sse, &bsc_sse);
+      p7_Forward_avx (dsq, L, om_avx, oxf_avx, &fsc_avx);
+      p7_Backward_avx(dsq, L, om_avx, oxf_avx, oxb_avx, &bsc_avx);
+
+      if (fabs(fsc_sse - fsc_avx) > 0.01) esl_fatal("%s: Forward sse=%.4f avx=%.4f",  msg, fsc_sse, fsc_avx);
+      if (fabs(bsc_sse - bsc_avx) > 0.01) esl_fatal("%s: Backward sse=%.4f avx=%.4f", msg, bsc_sse, bsc_avx);
+    }
+
+  free(dsq);
+  p7_hmm_Destroy(hmm);
+  p7_omx_Destroy_sse(oxf_sse);
+  p7_omx_Destroy_sse(oxb_sse);
+  p7_omx_Destroy_avx(oxf_avx);
+  p7_omx_Destroy_avx(oxb_avx);
+  p7_oprofile_Destroy_sse(om_sse);
+  p7_oprofile_Destroy_avx(om_avx);
+  p7_profile_Destroy(gm);
+}
+#endif /* eslENABLE_SSE && eslENABLE_AVX */
+
 #endif /*p7FWDBACK_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
@@ -401,6 +473,11 @@ main(int argc, char **argv)
   utest_fwdback(r, abc, bg, M, L, N);   /* normal sized models */
   utest_fwdback(r, abc, bg, 1, L, 10);  /* size 1 models       */
   utest_fwdback(r, abc, bg, M, 1, 10);  /* size 1 sequences    */
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+  utest_sse_vs_avx_fwdback(r, abc, bg, M, L, N);
+  utest_sse_vs_avx_fwdback(r, abc, bg, 1, L, 10);
+  utest_sse_vs_avx_fwdback(r, abc, bg, M, 1, 10);
+#endif
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);
@@ -409,9 +486,14 @@ main(int argc, char **argv)
   if ((abc = esl_alphabet_Create(eslAMINO)) == NULL)  esl_fatal("failed to create alphabet");
   if ((bg = p7_bg_Create(abc))              == NULL)  esl_fatal("failed to create null model");
 
-  utest_fwdback(r, abc, bg, M, L, N);   
-  utest_fwdback(r, abc, bg, 1, L, 10);  
-  utest_fwdback(r, abc, bg, M, 1, 10);  
+  utest_fwdback(r, abc, bg, M, L, N);
+  utest_fwdback(r, abc, bg, 1, L, 10);
+  utest_fwdback(r, abc, bg, M, 1, 10);
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+  utest_sse_vs_avx_fwdback(r, abc, bg, M, L, N);
+  utest_sse_vs_avx_fwdback(r, abc, bg, 1, L, 10);
+  utest_sse_vs_avx_fwdback(r, abc, bg, M, 1, 10);
+#endif
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);

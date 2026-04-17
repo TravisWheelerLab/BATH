@@ -364,6 +364,61 @@ utest_viterbi_filter_bath(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M
   p7_profile_Destroy(gm);
   p7_oprofile_Destroy(om);
 }
+
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+/* utest_sse_vs_avx_vitfilter()
+ *
+ * Run ViterbiFilter_sse and ViterbiFilter_avx on the same sequences and profile.
+ * Scores must be exactly equal: ViterbiFilter uses integer (int16) arithmetic,
+ * so stripe width differences between SSE and AVX do not affect the result.
+ * Skipped silently if AVX is not available at runtime.
+ */
+static void
+utest_sse_vs_avx_vitfilter(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N)
+{
+  P7_HMM      *hmm    = NULL;
+  P7_PROFILE  *gm     = NULL;
+  P7_OPROFILE *om_tmp = NULL;
+  P7_OPROFILE *om_sse = NULL;
+  P7_OPROFILE *om_avx = NULL;
+  ESL_DSQ     *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX      *ox_sse = NULL;
+  P7_OMX      *ox_avx = NULL;
+  float        sc_sse, sc_avx;
+  int          n      = N;
+
+  if (!esl_cpu_has_avx()) { free(dsq); return; }
+
+  p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om_tmp);
+  p7_oprofile_Destroy(om_tmp);
+
+  om_sse = p7_oprofile_Create_sse(M, abc);
+  om_avx = p7_oprofile_Create_avx(M, abc);
+  p7_oprofile_Convert_sse(gm, om_sse);
+  p7_oprofile_Convert_avx(gm, om_avx);
+
+  ox_sse = p7_omx_Create_sse(M, 0, 0);
+  ox_avx = p7_omx_Create_avx(M, 0, 0);
+
+  while (n--)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_ViterbiFilter_sse(dsq, L, om_sse, ox_sse, &sc_sse);
+      p7_ViterbiFilter_avx(dsq, L, om_avx, ox_avx, &sc_avx);
+      if (sc_sse != sc_avx)
+        esl_fatal("utest_sse_vs_avx_vitfilter: scores differ: sse=%.4f avx=%.4f", sc_sse, sc_avx);
+    }
+
+  free(dsq);
+  p7_hmm_Destroy(hmm);
+  p7_omx_Destroy_sse(ox_sse);
+  p7_omx_Destroy_avx(ox_avx);
+  p7_oprofile_Destroy_sse(om_sse);
+  p7_oprofile_Destroy_avx(om_avx);
+  p7_profile_Destroy(gm);
+}
+#endif /* eslENABLE_SSE && eslENABLE_AVX */
+
 #endif /*p7VITFILTER_TESTDRIVE*/
 
 
@@ -426,6 +481,13 @@ main(int argc, char **argv)
   utest_viterbi_filter_bath(r, abc, bg, 1, L, 10);
   utest_viterbi_filter_bath(r, abc, bg, M, 1, 10);
 
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+  if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter() SSE vs AVX tests, DNA\n");
+  utest_sse_vs_avx_vitfilter(r, abc, bg, M, L, N);
+  utest_sse_vs_avx_vitfilter(r, abc, bg, 1, L, 10);
+  utest_sse_vs_avx_vitfilter(r, abc, bg, M, 1, 10);
+#endif
+
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);
 
@@ -442,6 +504,13 @@ main(int argc, char **argv)
   utest_viterbi_filter_bath(r, abc, bg, M, L, N);
   utest_viterbi_filter_bath(r, abc, bg, 1, L, 10);
   utest_viterbi_filter_bath(r, abc, bg, M, 1, 10);
+
+#if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
+  if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter() SSE vs AVX tests, protein\n");
+  utest_sse_vs_avx_vitfilter(r, abc, bg, M, L, N);
+  utest_sse_vs_avx_vitfilter(r, abc, bg, 1, L, 10);
+  utest_sse_vs_avx_vitfilter(r, abc, bg, M, 1, 10);
+#endif
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);

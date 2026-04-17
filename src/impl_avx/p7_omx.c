@@ -240,34 +240,31 @@ p7_omx_FSetMDI_Dispatcher(const P7_OMX *ox, int s, int i, int k, float val)
 }
 
 
-/* Function:  p7_omx_Destroy()
+/* Forward declaration of dispatcher */
+static void p7_omx_Destroy_Dispatcher(P7_OMX *ox);
+
+/* Global function pointer, initially pointing at the dispatcher */
+void (*p7_omx_Destroy)(P7_OMX *ox) = p7_omx_Destroy_Dispatcher;
+
+/* Function:  p7_omx_Destroy_Dispatcher()
  *
- * Purpose:   Free <P7_OMX> <ox>.  Dispatches to the ISA-specific
- *            implementation.  Safe to call on NULL.
+ * Purpose:   Self-patching dispatcher: free <P7_OMX> <ox>.  Safe to call on NULL.
  */
-void
-p7_omx_Destroy(P7_OMX *ox)
+static void
+p7_omx_Destroy_Dispatcher(P7_OMX *ox)
 {
   if (ox == NULL) return;
-
-  /* Destroy via the same ISA that allocated ox.
-   * We detect which ISA's fields are populated by checking the allocQ fields. */
 #ifdef eslENABLE_AVX512
-  if (ox->allocQ4_avx512 > 0 || ox->allocQ8_avx512 > 0 || ox->allocQ16_avx512 > 0) {
-    p7_omx_Destroy_avx512(ox);
-    return;
-  }
+  if (esl_cpu_has_avx512()) { p7_omx_Destroy = p7_omx_Destroy_avx512; p7_omx_Destroy_avx512(ox); return; }
 #endif
 #ifdef eslENABLE_AVX
-  if (ox->allocQ4_avx > 0 || ox->allocQ8_avx > 0 || ox->allocQ16_avx > 0) {
-    p7_omx_Destroy_avx(ox);
-    return;
-  }
+  if (esl_cpu_has_avx())    { p7_omx_Destroy = p7_omx_Destroy_avx;    p7_omx_Destroy_avx(ox);    return; }
 #endif
 #ifdef eslENABLE_SSE
+  p7_omx_Destroy = p7_omx_Destroy_sse;
   p7_omx_Destroy_sse(ox);
 #else
-  free(ox);
+  p7_Die("p7_omx_Destroy: no SIMD implementation available");
 #endif
 }
 

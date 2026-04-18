@@ -53,6 +53,7 @@ typedef struct _splice_graph {
   /* Target sequence info */
   int          revcomp;
   int64_t      seqidx;      
+  int64_t      seqL;
   char        *seqname;    
 
   /* Node info */

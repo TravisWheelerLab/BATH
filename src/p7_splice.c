@@ -37,9 +37,9 @@
  * 1. Graph Creation
  *****************************************************************/
 
-static int serial_loop(SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits);
+static int serial_loop(SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, ID_LENGTH_LIST *id_length_list);
 #ifdef HMMER_THREADS
-static int thread_loop(SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, int infocnt);
+static int thread_loop(SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, ID_LENGTH_LIST *id_length_list, int infocnt);
 static void* splice_thread(void *arg);
 #endif /*HMMER_THREADS*/
 
@@ -57,7 +57,7 @@ static void* splice_thread(void *arg);
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, P7_FS_PROFILE *gm_fs5, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt)
+p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, P7_FS_PROFILE *gm_fs5, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, ID_LENGTH_LIST *id_length_list, int64_t db_nuc_cnt)
 {
 
   int                i;
@@ -107,10 +107,10 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
 
   /* Begin splicing */
 #ifdef HMMER_THREADS
-  if (ncpus > 0) thread_loop(info, tophits, seed_hits, infocnt); 
+  if (ncpus > 0) thread_loop(info, tophits, seed_hits, id_length_list, infocnt); 
   else
 #endif  /*HMMER_THREADS*/
-    serial_loop (info, tophits, seed_hits); 
+    serial_loop (info, tophits, seed_hits, id_length_list); 
   
   /* Clean up */
   for (i = 0; i < infocnt; ++i)
@@ -134,10 +134,10 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
 
 
 int  
-serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits) 
+serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, ID_LENGTH_LIST *id_length_list) 
 {
 
-  int              g, h;
+  int              i, g, h;
   int              num_graphs;
   int              revcomp, curr_revcomp;
   int64_t          seqidx, curr_seqidx;
@@ -204,7 +204,12 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
   for(g = 0; g < num_graphs; g++) {
 
 	graph = graphs[g];
-
+    for (i=0; i < id_length_list->count; i++) {
+      if(graph->seqidx == id_length_list->id_lengths[i].id) {
+        graph->seqL = id_length_list->id_lengths[i].length;
+        break;
+      }
+    }
     /* Add all BATH hits from the correct seqidx and strand as nodes to graph */
     p7_splice_AddAnchors(info, graph, tophits);
     p7_splice_AddSeeds(info, graph, seed_hits);
@@ -229,7 +234,7 @@ serial_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
 
 #ifdef HMMER_THREADS
 int  
-thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, int infocnt) 
+thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, ID_LENGTH_LIST *id_length_list, int infocnt) 
 {
   int              i, g, h;
   int              num_graphs;
@@ -302,7 +307,12 @@ thread_loop (SPLICE_WORKER_INFO *info, P7_TOPHITS *tophits, P7_TOPHITS *seed_hit
   for(g = 0; g < num_graphs; g++) {
 
 	graph = graphs[g];
-
+    for (i=0; i < id_length_list->count; i++) {
+      if(graph->seqidx == id_length_list->id_lengths[i].id) {
+        graph->seqL = id_length_list->id_lengths[i].length;
+        break;
+      }
+    }
     p7_splice_AddAnchors(info, graph, tophits);
     p7_splice_AddSeeds(info, graph, seed_hits);
 
@@ -3795,29 +3805,28 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
 
 
 
-ESL_SQ* 
+ESL_SQ*
 p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp, SPLICE_WORKER_INFO *info)
 {
-  ESL_SQ     *target_seq;
-  ESL_SQFILE      *fh = info->thread_seq_file;
-  SPLICE_PIPELINE *pli = info->pli;
+  ESL_SQ          *target_seq;
+  ESL_SQFILE      *fh   = info->thread_seq_file;
+  SPLICE_PIPELINE *pli  = info->pli;
+  int64_t          seqL = info->graph->seqL;
+  int64_t          start, end;
 
-  /* Get basic sequence info */
-  target_seq = esl_sq_Create();
-  esl_sqio_FetchInfo(fh, seqname, target_seq);
+  start = (seq_min - (pli->max_extend*2) < 1)    ? 1    : seq_min - (pli->max_extend*2);
+  end   = (seq_max + (pli->max_extend*2) > seqL) ? seqL : seq_max + (pli->max_extend*2);
 
-  target_seq->abc   = seq_file->abc;
-  target_seq->start = (seq_min - (pli->max_extend*2) < 1)             ? 1             : seq_min - (pli->max_extend*2);
-  target_seq->end   = (seq_max + (pli->max_extend*2) > target_seq->L) ? target_seq->L : seq_max + (pli->max_extend*2);
+  target_seq    = esl_sq_CreateDigital(seq_file->abc);
+  target_seq->L = seqL;
 
   /* Fetch target range sequence */
-  if (esl_sqio_FetchSubseq(fh, target_seq->name, target_seq->start, target_seq->end, target_seq) != eslOK)
+  if (esl_sqio_FetchSubseq(fh, seqname, start, end, target_seq) != eslOK)
     esl_fatal(esl_sqfile_GetErrorBuf(fh));
 
   esl_sq_SetName(target_seq, seqname);
 
   if (revcomp) esl_sq_ReverseComplement(target_seq);
-  esl_sq_Digitize(target_seq->abc, target_seq);
 
   return target_seq;
 }

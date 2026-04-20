@@ -104,10 +104,9 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
 
   ivx = ov->ivx;
 
-  /* Initialize rows 0..L of the full DP matrix to -inf (log-space impossible). */
-  for (r = 0; r <= L; r++)
+  { __m128 *drow = ox->dpf[0];
     for (q = 0; q < Q; q++)
-      MMO(ox->dpf[r],q) = DMO(ox->dpf[r],q) = IMO(ox->dpf[r],q) = infv;
+      MMO(drow, q) = DMO(drow, q) = IMO(drow, q) = infv; }
 
   /* Initialize all IVX rows to -inf. */
   for (r = 0; r < p7P_5CODONS; r++)

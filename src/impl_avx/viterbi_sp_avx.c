@@ -114,9 +114,13 @@ p7_Viterbi_Spliced_avx(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_O
     for (q = 0; q < Q; q++)
       don_ovx[j][q] = infv;
 
-  for (ri = 0; ri <= L; ri++)
-    for (q = 0; q < Q; q++)
-      MMO(ox->dpf_avx[ri], q) = DMO(ox->dpf_avx[ri], q) = IMO(ox->dpf_avx[ri], q) = infv;
+  { __m256 *drow;
+    for (ri = 0; ri <= 2 && ri <= L; ri++) {
+      drow = ox->dpf_avx[ri];
+      for (q = 0; q < Q; q++)
+        MMO(drow, q) = DMO(drow, q) = IMO(drow, q) = infv;
+    }
+  }
 
   for (ri = 0; ri <= L; ri++) {
     ox->xmx[ri * p7X_NXCELLS + p7X_SCALE] = 0.0f;

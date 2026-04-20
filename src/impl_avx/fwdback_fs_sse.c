@@ -1399,12 +1399,12 @@ p7_Forward_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
   fwd->totscale       = 0.0;
   zerov = _mm_setzero_ps();
 
-  for (r = 0; r <= L; r++)
+  { __m128 *drow = fwd->dpf[0];
     for (q = 0; q < Q; q++)
-      MMO_FS(fwd->dpf[r],q,p7X_FS_C0) = MMO_FS(fwd->dpf[r],q,p7X_FS_C1) =
-      MMO_FS(fwd->dpf[r],q,p7X_FS_C2) = MMO_FS(fwd->dpf[r],q,p7X_FS_C3) =
-      MMO_FS(fwd->dpf[r],q,p7X_FS_C4) = MMO_FS(fwd->dpf[r],q,p7X_FS_C5) =
-      DMO_FS(fwd->dpf[r],q)            = IMO_FS(fwd->dpf[r],q)            = zerov;
+      MMO_FS(drow,q,p7X_FS_C0) = MMO_FS(drow,q,p7X_FS_C1) =
+      MMO_FS(drow,q,p7X_FS_C2) = MMO_FS(drow,q,p7X_FS_C3) =
+      MMO_FS(drow,q,p7X_FS_C4) = MMO_FS(drow,q,p7X_FS_C5) =
+      DMO_FS(drow,q)            = IMO_FS(drow,q)            = zerov; }
 
   for (r = 0; r < p7P_5CODONS; r++)
     for (q = 0; q < Q; q++)
@@ -1741,9 +1741,6 @@ p7_Backward_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
   ESL_ALLOC(zero_mem, sizeof(__m128)*Q*p7X_NSCELLS+15);
   zero_row=(__m128*)(((unsigned long int)zero_mem+15)&(~0xf));
   for (q=0;q<Q*p7X_NSCELLS;q++) zero_row[q]=zerov;
-
-  for (r=0;r<=L;r++) for (q=0;q<Q;q++)
-    MMO(bck->dpf[r],q)=IMO(bck->dpf[r],q)=DMO(bck->dpf[r],q)=zerov;
 
   for (r=0;r<PARSER_ROWS_BWD;r++)
     xN_buf[r]=xB_buf[r]=xJ_buf[r]=xC_buf[r]=0.0f;

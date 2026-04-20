@@ -1715,7 +1715,7 @@ p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
   __m256  *tp7, *tp_dd, *tp_mm;
   __m256  *ivxf;
   int      Q = p7O_NQF_AVX(om_fs->M);
-  int      i, q, j;
+  int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
   float    scale;

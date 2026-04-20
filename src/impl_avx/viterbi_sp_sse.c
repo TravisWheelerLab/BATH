@@ -20,10 +20,6 @@
 #include "p7_splice.h"
 #include "impl_avx.h"
 
-/* Log-space constant for the P->M transition (= logf(4.58e-5)). */
-#define TSC_P logf(4.58e-5f)
-
-
 /* Function:  p7_Viterbi_Spliced_sse()
  *
  * Purpose:   SSE implementation of translated spliced Viterbi.

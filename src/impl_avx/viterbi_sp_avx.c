@@ -19,9 +19,6 @@
 #include "p7_splice.h"
 #include "impl_avx.h"
 
-/* Log-space constant for the P->M transition (= logf(4.58e-5)). */
-#define TSC_P logf(4.58e-5f)
-
 /* avx_rightshift_ps: right-shift a __m256 by one float lane, filling lane 0 with infv. */
 static inline __m256
 avx_rightshift_ps(__m256 v, __m256 infv)

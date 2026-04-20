@@ -220,6 +220,9 @@ enum p7s_splice_signals_e {
 
 #define SPLICE_ROWS               4
 
+/* P->M transtion cost */
+#define TSC_P logf(4.5e-5f)
+
 /* p7_splicebounds.c */
 extern SPLICE_BOUNDS* p7_splicebounds_Create(int allocN);
 extern int p7_splicebounds_GorwTo(SPLICE_BOUNDS *bounds, int allocN);

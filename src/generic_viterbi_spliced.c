@@ -20,8 +20,6 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-#define TSC_P log(4.58e-5)
-
 #define PVX4(i,k) (acc_ivx[((k)*SPLICE_ROWS) + (i)])
 
 /* Function:  p7_GViterbi_Spliced()

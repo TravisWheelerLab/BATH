@@ -1715,7 +1715,7 @@ p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
   __m256  *tp7, *tp_dd, *tp_mm;
   __m256  *ivxf;
   int      Q = p7O_NQF_AVX(om_fs->M);
-  int      i, q, j, r;
+  int      i, q, j;
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
   float    scale;
@@ -1732,9 +1732,6 @@ p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
   ESL_ALLOC(zero_mem, sizeof(__m256)*Q*p7X_NSCELLS+31);
   zero_row=(__m256*)(((unsigned long int)zero_mem+31)&(~0x1f));
   for (q=0;q<Q*p7X_NSCELLS;q++) zero_row[q]=zerov;
-
-  for (r=0;r<=L;r++) for (q=0;q<Q;q++)
-    MMO(bck->dpf_avx[r],q)=IMO(bck->dpf_avx[r],q)=DMO(bck->dpf_avx[r],q)=zerov;
 
   for (r=0;r<PARSER_ROWS_BWD;r++)
     xN_buf[r]=xB_buf[r]=xJ_buf[r]=xC_buf[r]=0.0f;

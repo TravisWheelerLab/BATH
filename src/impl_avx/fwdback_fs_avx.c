@@ -1393,11 +1393,12 @@ p7_Forward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
   zerov = _mm256_setzero_ps();
 
   for (r = 0; r <= L; r++)
-    for (q = 0; q < Q; q++)
-      MMO_FS(fwd->dpf_avx[r],q,p7X_FS_C0) = MMO_FS(fwd->dpf_avx[r],q,p7X_FS_C1) =
-      MMO_FS(fwd->dpf_avx[r],q,p7X_FS_C2) = MMO_FS(fwd->dpf_avx[r],q,p7X_FS_C3) =
-      MMO_FS(fwd->dpf_avx[r],q,p7X_FS_C4) = MMO_FS(fwd->dpf_avx[r],q,p7X_FS_C5) =
-      DMO_FS(fwd->dpf_avx[r],q)            = IMO_FS(fwd->dpf_avx[r],q)            = zerov;
+    { __m256 *drow = fwd->dpf_avx[r];
+      for (q = 0; q < Q; q++)
+        MMO_FS(drow,q,p7X_FS_C0) = MMO_FS(drow,q,p7X_FS_C1) =
+        MMO_FS(drow,q,p7X_FS_C2) = MMO_FS(drow,q,p7X_FS_C3) =
+        MMO_FS(drow,q,p7X_FS_C4) = MMO_FS(drow,q,p7X_FS_C5) =
+        DMO_FS(drow,q)            = IMO_FS(drow,q)            = zerov; }
 
   for (r = 0; r < p7P_5CODONS; r++)
     for (q = 0; q < Q; q++)

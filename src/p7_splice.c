@@ -3,7 +3,7 @@
  *   2. Add each set of hits to a graph as anchor nodes
  *   3. Add additional hits from saved_hits as seed nodes
  *   4. Add edges between nodes that are upstream/downstream compatible
- *   5. Find the best path that contains at least one anchor node
+ *   5. Find the best path
  *   6. Find splice sites with spliced Viterbi
  *   7. Realign spliced exons to model with Fwd/Bwd
  *   8. Return to step 5 until no more paths with anchor nodes exist.
@@ -12,7 +12,7 @@
  *    1. Graph Creation
  *    2. Path Finding and Splicing
  *    3. Path Alignenment 
- *    3. Helper Functions
+ *    4. Helper Functions
  *    
  */
 #include "p7_config.h"
@@ -754,11 +754,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     p7_splicepath_Destroy(spliced_path);
     p7_splicepipeline_Reuse(pli);
 
-//p7_splicegraph_DumpHits(stdout, graph);
     orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
 
-//p7_splicegraph_DumpHits(stdout, graph); 
-//p7_splicegraph_DumpGraph(stdout, graph);
   }
 printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
   fflush(stdout);  
@@ -3106,13 +3103,10 @@ p7_splice_CreateSplicedSequnce(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   /* If the spliced seqeunce length is non-mod 3 send to farmshift alignment */
   if(path_seq_len % 3 != 0) {
     spliced_path->frameshift = TRUE;
-    p7_splicepath_Dump(stdout, spliced_path);
-    ESL_XEXCEPTION(eslFAIL, "NOT mod 3");
+    ESL_XEXCEPTION(eslFAIL, "Spliced sequence not mod 3");
     return eslOK;
   }
 
-
-//TODO - Test if adding extantions improves results
   /* Working backward from the start of the path find the first instance of a stop codon in the extended upstream region of path_seq */
   if (spliced_path->revcomp) {
     path_start_pos = path_seq->n - spliced_path->iali[0] + path_seq->end;
@@ -3257,13 +3251,10 @@ p7_splice_CreateSplicedSequnce(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     
     if(esl_abc_XIsNonresidue(gcode->aa_abc, amino)) {
       spliced_path->frameshift = TRUE;
-  
-      p7_splicepath_Dump(stdout, spliced_path); 
       free(nuc_index);
       free(nuc_dsq);
       free(amino_dsq);
-//TODO remove
-      ESL_XEXCEPTION(eslFAIL, "STOP codon");
+      ESL_XEXCEPTION(eslFAIL, "STOP codon encounterd in spliced sequence");
       return eslOK;
     }
 
@@ -3503,7 +3494,9 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
   int contains_anchor;
   int min_idx;
   float min_score;
-
+  printf("p7_splice_FixDecodingErrors %s %d\n", graph->seqname, graph->revcomp);
+  p7_splicepath_Dump(stdout,spliced_path);
+  
   /* If the alignmnt has rejected some exons we first remove those from the path */ 
   if(spliced_path->path_len > ad->exon_cnt) {
     
@@ -3803,8 +3796,20 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   return eslOK;
 }
 
+/********************************************
+ * 4. Helper Functions
+ * *****************************************/
 
 
+/*  Function: p7_splice_GetSubSequence
+ *  Synopsis: Fetch subsequences
+ *
+ *  Purpose : Fetch a subsequnce from file for use in 
+ *            spliced alignments.
+ *
+ * Returns:   ESL_SQ* on success.
+ *
+ */
 ESL_SQ*
 p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp, SPLICE_WORKER_INFO *info)
 {

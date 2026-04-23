@@ -1562,12 +1562,10 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
   double           P_tot;                      /* P-value of summed forward score for all ORFs */
   double           P_min;                      /* lowest p-value produced by an ORF */
   ESL_SQ          *orfsq;
-  P7_HMM_WINDOWLIST bias_windowlist;
   P7_HMM_WINDOWLIST fwd_windowlist;
   P7_HMM_WINDOW     *dna_window;
 
   p7_hmmwindow_init(&fwd_windowlist);
-  p7_hmmwindow_init(&bias_windowlist);
 
   /* Build windows from ORF's that pass F4 */
   p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp, hit_windows, complementarity);
@@ -1715,7 +1713,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
     p7_omx_Destroy(pli_tmp->oxf_holder[i]);
     pli_tmp->oxf_holder[i] = NULL;
   }
-  
+  if (fwd_windowlist.windows != NULL) free (fwd_windowlist.windows); 
     
   return eslOK;
 
@@ -1726,7 +1724,7 @@ ERROR:
     p7_omx_Destroy(pli_tmp->oxf_holder[i]);
     pli_tmp->oxf_holder[i] = NULL;
   }
-   
+  if (fwd_windowlist.windows != NULL) free (fwd_windowlist.windows);
 
 }
 

@@ -196,6 +196,8 @@ esac
 AC_ARG_ENABLE(gcov,    [AS_HELP_STRING([--enable-gcov],    [compile for code coverage testing])],        enable_gcov=$enableval,    enable_gcov=no)
 AC_ARG_ENABLE(gprof,   [AS_HELP_STRING([--enable-gprof],   [compile for gcc code profiling])],           enable_gprof=$enableval,   enable_gprof=no)
 
+AC_ARG_ENABLE(asan,    [AS_HELP_STRING([--enable-asan],    [compile with address sanitizer]) ],         enable_asan=$enableval,    enable_asan=no)
+
 AC_ARG_ENABLE(neon,    [AS_HELP_STRING([--enable-neon],    [enable our ARM Neon vector code])],          enable_neon=$enableval,    enable_neon=check)
 AC_ARG_ENABLE(sse,     [AS_HELP_STRING([--enable-sse],     [enable our SSE vector code])],               enable_sse=$enableval,     enable_sse=check)
 AC_ARG_ENABLE(avx,     [AS_HELP_STRING([--enable-avx],     [enable our AVX/AVX2 vector code])],          enable_avx=$enableval,     enable_avx=check)
@@ -280,6 +282,21 @@ elif test "$enable_debugging" != "no"; then
    fi
 elif test x"${CFLAGS}" = x; then
    CFLAGS="-O3"
+fi
+
+
+# Turn on a sanitizer, if asked.
+#
+if test "$enable_asan" = "yes"; then
+  CFLAGS="$CFLAGS -fsanitize=address"
+  LDFLAGS="$LDFLAGS -fsanitize=address"
+fi
+if test "$enable_tsan" = "yes"; then
+  if test "$enable_asan" = "yes"; then
+    AC_MSG_FAILURE([The address and thread sanitizers are incompatible. Use only one of --enable-asan and --enable-tsan])
+  fi
+  CFLAGS="$CFLAGS -fsanitize=thread"
+  LDFLAGS="$LDFLAGS -fsanitize=thread"
 fi
 
 

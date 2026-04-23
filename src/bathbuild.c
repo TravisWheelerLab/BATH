@@ -67,7 +67,6 @@ static ESL_OPTIONS options[] = {
   { "-o",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
   { "--ct",        eslARG_INT,    "1",      NULL, NULL,             NULL, NULL,     NULL, "use alt genetic code of NCBI transl table <n>",         1 }, 
-  { "--fs",        eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     NULL, "calculate statistics for frameshift aware search",      1 }, 
   { "--unali",     eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     "-O", "input file is an unaligned sequence file",              1 },
 
   /* Alternate model construction strategies */
@@ -265,7 +264,6 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
 
   if (fprintf(cfg->ofp, "# input file:                       %s\n", cfg->infile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(cfg->ofp, "# output HMM file:                  %s\n", cfg->hmmfile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(cfg->ofp, "# frameshift stats calculated:      %s\n", (esl_opt_IsUsed(go, "--fs") ? "YES" : "NO")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
   if (esl_opt_IsUsed(go, "-n")           && fprintf(cfg->ofp, "# name (the single) HMM:            %s\n",        esl_opt_GetString(go, "-n"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")           && fprintf(cfg->ofp, "# output directed to file:          %s\n",        esl_opt_GetString(go, "-o"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -508,7 +506,6 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 
       info[i].bg = p7_bg_Create(cfg->abc);
       info[i].bld = p7_builder_Create(go, cfg->abc);
-      info[i].bld->fs = esl_opt_IsUsed(go, "--fs");
 
       if (info[i].bld == NULL)  p7_Fail("p7_builder_Create failed");
 

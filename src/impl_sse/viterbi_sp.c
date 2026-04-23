@@ -23,9 +23,6 @@
 #include "p7_splice.h"
 #include "impl_sse.h"
 
-/* Log-space constant for the P->M transition (= logf(4.58e-5)). */
-#define TSC_P logf(4.58e-5f)
-
 /*****************************************************************
  * 1. p7_Viterbi_Spliced()
  *****************************************************************/

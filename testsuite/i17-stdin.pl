@@ -65,7 +65,6 @@ if (! -r "$srcdir/testsuite/$model2.sto")  { die "FAIL: can't read msa $model2.s
 `echo $model1    > $tmppfx.key`;                                                      if ($?) { die "FAIL: cat\n"; }
 `echo $model2   >> $tmppfx.key`;                                                      if ($?) { die "FAIL: cat\n"; }
 
-
 ################################################################
 # bathbuild
 #    don't diff HMM files, they may fail because of DATE field

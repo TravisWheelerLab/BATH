@@ -68,9 +68,6 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
 
   info    = NULL; 
   
-  printf("\nQuery %s LENG %d\n",  om->name, om->M);
-  fflush(stdout);
-
   /* Get the number of threads */
   ncpus = 0;
 #ifdef HMMER_THREADS
@@ -514,60 +511,6 @@ p7_splice_AddSeeds(SPLICE_WORKER_INFO *info, SPLICE_GRAPH *graph, const P7_TOPHI
 }
 
 
-/*  Function: p7_splice_HitUpstream
- *  Synopsis: Determine if one hit is upstream of another
- *
- *  Purpose : Check the sequence and hmm coordinates of two hits 
- *            to determine if one is upstream of another 
- *
- * Returns:   <TRUE> if <upstream> is indeed upstream of <downstream> and <FALSE> otherwise.
- *
- */
-int
-p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp) 
-{
-
-  if(upstream->ihmm > downstream->ihmm || upstream->jhmm > downstream->jhmm)
-    return FALSE;
-    
-  if (( revcomp  && upstream->iali <= downstream->iali) ||
-     ((!revcomp) && upstream->iali >= downstream->iali))
-    return FALSE;
-
-  if (( revcomp  && upstream->jali <= downstream->jali) ||
-     ((!revcomp) && upstream->jali >= downstream->jali))
-    return FALSE;
-
-  return TRUE;
-  
-}
-
-
-/*  Function: p7_splice_HitBetween
- *
- *  Synopsis: Determine if one hit is between to other his on the sequence
- *
- * Returns:   <TRUE> if <mid> is indeed between <up> and <down> and <FALSE> otherwise 
- *
- */
-int
-p7_splice_HitBetween(P7_DOMAIN *up, P7_DOMAIN *mid, P7_DOMAIN *down, int revcomp) 
-{
-
-  if (( revcomp  && up->iali <= mid->iali) ||
-     ((!revcomp) && up->iali >= mid->iali))
-    return FALSE;
-
-  if (( revcomp  && mid->jali <= down->jali) ||
-     ((!revcomp) && mid->jali >= down->jali))
-    return FALSE;
-
-  return TRUE;
-  
-}
-
-
-
 /*****************************************************************
  * 2. Path Finding and Splicing
  *****************************************************************/
@@ -614,13 +557,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   gm_tr      = info->gm_tr;
   seq_file   = info->seq_file;
 
-  printf("\nQuery %s Target %s strand %c seqidx %lld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
-  fflush(stdout);
-
-//printf("RECOVER\n");
-//p7_splicegraph_DumpHits(stdout, graph);
-//fflush(stdout);
-
   bounds = p7_splicebounds_Create(10);
 
   /* Create edges between original and recovered nodes */
@@ -628,8 +564,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
  
   /* Build paths from orignal hit nodes and edge so that every node appears in one and only one path */
   orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
-
-//p7_splicegraph_DumpGraph(stdout, graph);
 
   /* Find paths until no more exist with at least one anchor node */
   while(orig_path != NULL) {
@@ -647,30 +581,15 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 	  }
 	}
     
-//p7_splicegraph_DumpHits(stdout, graph);
-//p7_splicegraph_DumpGraph(stdout, graph);
-//printf("FIRST PATH \n");
-//p7_splicepath_Dump(stdout,orig_path);
-//p7_splicepath_DumpScores(stdout,orig_path,graph);
-//fflush(stdout);
-
     /* Create dopy of orig_path so orig)path does not get altered by p7_splice_SpliceExons() */
     copy_path = p7_splicepath_Clone(orig_path);
          
     spliced_path = p7_splice_SpliceExons(info, copy_path, path_seq);
     
-//printf("SPLICED PATH\n");
-//p7_splicepath_Dump(stdout,spliced_path);
-//fflush(stdout);
-
     if(spliced_path != NULL) {
             
       /* Add additional nodes to the begining and end of spliced_path */
       p7_splice_ExtendPath(pli, info->seeds, orig_path, spliced_path, graph, bounds);
-
-//printf("EXTEND PATH\n");
-//p7_splicepath_Dump(stdout,spliced_path);
-//fflush(stdout);
 
       /* If extension nodes were added, splice them */
       if(spliced_path->extension[0] || spliced_path->extension[spliced_path->path_len-1]) {
@@ -691,11 +610,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       }
       else if (spliced_path->path_len == 1) p7_splice_SpliceSingle(info, spliced_path, path_seq);        
      
-//printf("FINAL PATH\n");
-//p7_splicepath_Dump(stdout,spliced_path);
-//fflush(stdout);
-
-//p7_splicegraph_DumpHits(stdout, graph); 
       success = FALSE;
 
       if(spliced_path->path_len > 1) {
@@ -706,8 +620,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       }
  
       if(success) {
-//printf("SUCCESS PATH\n");
-//p7_splicepath_Dump(stdout,spliced_path);          
         /* Break edges that overlap the hit so that paths do not intertwine */
         hit_seq_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
         hit_seq_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
@@ -757,8 +669,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
 
   }
-printf("\nComplete Query %s Target %s strand %c seqidx %ld\n", gm_tr->name, graph->seqname, (graph->revcomp ? '-' : '+'), graph->seqidx);
-  fflush(stdout);  
 
   if(path_seq != NULL) esl_sq_Destroy(path_seq);
   p7_splicebounds_Destroy(bounds);
@@ -3494,8 +3404,6 @@ p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_A
   int contains_anchor;
   int min_idx;
   float min_score;
-  printf("p7_splice_FixDecodingErrors %s %d\n", graph->seqname, graph->revcomp);
-  p7_splicepath_Dump(stdout,spliced_path);
   
   /* If the alignmnt has rejected some exons we first remove those from the path */ 
   if(spliced_path->path_len > ad->exon_cnt) {
@@ -3836,6 +3744,58 @@ p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_
   return target_seq;
 }
 
+
+/*  Function: p7_splice_HitUpstream
+ *  Synopsis: Determine if one hit is upstream of another
+ *
+ *  Purpose : Check the sequence and hmm coordinates of two hits 
+ *            to determine if one is upstream of another 
+ *
+ * Returns:   <TRUE> if <upstream> is indeed upstream of <downstream> and <FALSE> otherwise.
+ *
+ */
+int
+p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp) 
+{
+
+  if(upstream->ihmm > downstream->ihmm || upstream->jhmm > downstream->jhmm)
+    return FALSE;
+    
+  if (( revcomp  && upstream->iali <= downstream->iali) ||
+     ((!revcomp) && upstream->iali >= downstream->iali))
+    return FALSE;
+
+  if (( revcomp  && upstream->jali <= downstream->jali) ||
+     ((!revcomp) && upstream->jali >= downstream->jali))
+    return FALSE;
+
+  return TRUE;
+  
+}
+
+
+/*  Function: p7_splice_HitBetween
+ *
+ *  Synopsis: Determine if one hit is between to other his on the sequence
+ *
+ * Returns:   <TRUE> if <mid> is indeed between <up> and <down> and <FALSE> otherwise 
+ *
+ */
+int
+p7_splice_HitBetween(P7_DOMAIN *up, P7_DOMAIN *mid, P7_DOMAIN *down, int revcomp) 
+{
+
+  if (( revcomp  && up->iali <= mid->iali) ||
+     ((!revcomp) && up->iali >= mid->iali))
+    return FALSE;
+
+  if (( revcomp  && mid->jali <= down->jali) ||
+     ((!revcomp) && mid->jali >= down->jali))
+    return FALSE;
+
+  return TRUE;
+  
+}
 
 
 

@@ -15,7 +15,6 @@
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "show brief help on version and usage",                             1 },
-  { "--fs",      eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate statistics for frameshift aware search",      1 }, 
   { "--ct",      eslARG_INT,      "1", NULL, NULL,      NULL,       NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
@@ -101,9 +100,11 @@ main(int argc, char **argv)
      exit(0);
   }
  
+  impl_Init();
+
   /* Start timing. */
   esl_stopwatch_Start(w);
- 
+
   status = p7_hmmfile_OpenE(hmmfile_in, NULL, &hfp, errbuf);
   if      (status == eslENOTFOUND) p7_Fail("File existence/permissions problem in trying to open HMM file %s.\n%s\n", hmmfile_in, errbuf);
   else if (status == eslEFORMAT)   p7_Fail("File format problem in trying to open HMM file %s.\n%s\n",                hmmfile_in, errbuf);
@@ -128,38 +129,35 @@ main(int argc, char **argv)
       if(esl_opt_IsUsed(go, "--ct")) ct = esl_opt_GetInteger(go, "--ct");
       else                           ct = hmm->ct;
 
-      /* Do we need fs stats */ 
-      if(hmm->fs || esl_opt_IsUsed(go, "--fs")) {
+      /* Always compute fs stats for BATH format; recompute tau if missing or codon table changed */
+      hmm->fsprob = p7P_FSPROB;
+      hmm->fs = TRUE;
+      if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+         (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
 
-        if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-           (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
+        hmm->ct = ct;
 
-		  hmm->fsprob = p7P_FSPROB;
-          hmm->fs = TRUE;
-          hmm->ct = ct;
+        if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
+        if(gcode     == NULL) gcode     = esl_gencode_Create(abcDNA, hmm->abc);
+        esl_gencode_Set(gcode, hmm->ct);
 
-          if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
-          if(gcode     == NULL) gcode     = esl_gencode_Create(abcDNA, hmm->abc);
-          esl_gencode_Set(gcode, hmm->ct);
+        if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
 
-          if(codon_tbl == NULL) codon_tbl = p7_codontable_Create(gcode);
- 
-          om_fs3 = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_3CODONS);
-          gm_fs3 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_3CODONS);
-          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL);
-          p7_fs_oprofile_Convert(gm_fs3, om_fs3);
+        om_fs3 = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_3CODONS);
+        gm_fs3 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_3CODONS);
+        p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, 100, p7_LOCAL);
+        p7_fs_oprofile_Convert(gm_fs3, om_fs3);
 
-          om_fs5 = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_5CODONS);
-          gm_fs5 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_5CODONS);
-          p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
-          p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+        om_fs5 = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_5CODONS);
+        gm_fs5 = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_5CODONS);
+        p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, 100, p7_LOCAL);
+        p7_fs_oprofile_Convert(gm_fs5, om_fs5);
 
-          p7_fs_Tau_3codons(r, om_fs3, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS3] = tau_fs;
+        p7_fs_Tau_3codons(r, om_fs3, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS3] = tau_fs;
 
-          p7_fs_Tau_5codons(r, om_fs5, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
-          hmm->evparam[p7_FTAUFS5] = tau_fs; 
-        }
+        p7_fs_Tau_5codons(r, om_fs5, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
+        hmm->evparam[p7_FTAUFS5] = tau_fs;
       }
 
       hmm->ct = ct;

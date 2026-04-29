@@ -52,17 +52,6 @@ typedef struct {
 } WORKER_INFO;
 
 
-/* items used to keep track ot orignal taget lengths */
-typedef struct {
-  int    id;         /* internal sequence ID  */
-  int    length;     /* length of sequence */
-} ID_LENGTH;
-
-typedef struct {
-  ID_LENGTH  *id_lengths;
-  int        count;
-  int        size;
-} ID_LENGTH_LIST;
 
 static ID_LENGTH_LIST* init_id_length( int size );
 static void            destroy_id_length( ID_LENGTH_LIST *list );
@@ -819,15 +808,12 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       seed_accumulator = p7_hmmwindow_CreateList();
     
     scoredata = p7_hmm_ScoreDataCreate(om, NULL);
+    p7_hmm_ScoreDataComputeRest(om, scoredata);
 
     for (i = 0; i < infocnt; ++i)
     {
       /* Create processing pipeline and hit list */
-      info[i].hw = NULL;
-      if (esl_opt_IsUsed(go, "--splice")) {
-        info[i].hw = p7_hmmwindow_CreateList();
-      }
-
+      info[i].hw = p7_hmmwindow_CreateList();
       info[i].gcode = gcode;
       info[i].wrk = esl_gencode_WorkstateCreate(go, gcode);
       info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);
@@ -946,7 +932,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 
       seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm_fs5, dbfp, gcode, pipelinehits_accumulator->F3, esl_opt_GetInteger(go, "--max_intron"));
       
-      p7_splice_SpliceHits(tophits_accumulator, seed_hits, om, gm, gm_tr, gm_fs5, go, gcode, dbfp, resCnt);
+      p7_splice_SpliceHits(tophits_accumulator, seed_hits, om, gm, gm_tr, gm_fs5, go, gcode, dbfp, id_length_list, resCnt);
 
       for(i = 0; i < seed_hits->N; i++) {
         p7_trace_fs_Destroy(seed_hits->unsrt[i].dcl->tr);

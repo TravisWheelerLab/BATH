@@ -66,6 +66,7 @@ m4_include([easel/m4/ax_gcc_func_attribute.m4])
 
 m4_include([easel/m4/esl_neon.m4])
 m4_include([easel/m4/esl_sse.m4])
+m4_include([easel/m4/esl_avx.m4])
 
 m4_include([easel/m4/ax_prog_cc_mpi.m4])
 m4_include([easel/m4/ax_pthread.m4])
@@ -195,8 +196,11 @@ esac
 AC_ARG_ENABLE(gcov,    [AS_HELP_STRING([--enable-gcov],    [compile for code coverage testing])],        enable_gcov=$enableval,    enable_gcov=no)
 AC_ARG_ENABLE(gprof,   [AS_HELP_STRING([--enable-gprof],   [compile for gcc code profiling])],           enable_gprof=$enableval,   enable_gprof=no)
 
+AC_ARG_ENABLE(asan,    [AS_HELP_STRING([--enable-asan],    [compile with address sanitizer]) ],         enable_asan=$enableval,    enable_asan=no)
+
 AC_ARG_ENABLE(neon,    [AS_HELP_STRING([--enable-neon],    [enable our ARM Neon vector code])],          enable_neon=$enableval,    enable_neon=check)
 AC_ARG_ENABLE(sse,     [AS_HELP_STRING([--enable-sse],     [enable our SSE vector code])],               enable_sse=$enableval,     enable_sse=check)
+AC_ARG_ENABLE(avx,     [AS_HELP_STRING([--enable-avx],     [enable our AVX/AVX2 vector code])],          enable_avx=$enableval,     enable_avx=check)
 
 AC_ARG_ENABLE(threads, [AS_HELP_STRING([--enable-threads], [enable POSIX threads parallelization])],     enable_threads=$enableval, enable_threads=check)
 AC_ARG_ENABLE(mpi,     [AS_HELP_STRING([--enable-mpi],     [enable MPI parallelization])],               enable_mpi=$enableval,     enable_mpi=no)
@@ -213,12 +217,14 @@ AC_ARG_WITH(gsl,       [AS_HELP_STRING([--with-gsl],       [use the GSL, GNU Sci
 vecsel=0
 if test "$enable_neon"    = "yes"; then vecsel=$((vecsel+1)); fi
 if test "$enable_sse"     = "yes"; then vecsel=$((vecsel+1)); fi
+if test "$enable_avx"     = "yes"; then vecsel=$((vecsel+1)); fi
 
 if   [[ $vecsel -gt 1 ]]; then
-  AC_MSG_ERROR([Select only one implementation: sse or neon])
+  AC_MSG_ERROR([Select only one implementation: neon, sse, or avx])
 elif [[ $vecsel -eq 1 ]]; then
   if test "$enable_neon"  = "check"; then enable_neon="no";  fi
   if test "$enable_sse"   = "check"; then enable_sse="no";   fi
+  if test "$enable_avx"   = "check"; then enable_avx="no";   fi
 fi
 
 
@@ -276,6 +282,21 @@ elif test "$enable_debugging" != "no"; then
    fi
 elif test x"${CFLAGS}" = x; then
    CFLAGS="-O3"
+fi
+
+
+# Turn on a sanitizer, if asked.
+#
+if test "$enable_asan" = "yes"; then
+  CFLAGS="$CFLAGS -fsanitize=address"
+  LDFLAGS="$LDFLAGS -fsanitize=address"
+fi
+if test "$enable_tsan" = "yes"; then
+  if test "$enable_asan" = "yes"; then
+    AC_MSG_FAILURE([The address and thread sanitizers are incompatible. Use only one of --enable-asan and --enable-tsan])
+  fi
+  CFLAGS="$CFLAGS -fsanitize=thread"
+  LDFLAGS="$LDFLAGS -fsanitize=thread"
 fi
 
 
@@ -358,6 +379,25 @@ if test "$enable_sse" = "yes" || test "$enable_sse" = "check"; then
     ])
 fi
 
+if test "$enable_avx" = "yes" || test "$enable_avx" = "check"; then
+  ESL_AVX([
+    AC_DEFINE(eslENABLE_SSE, 1, [Enable SSE vector implementation])
+    AC_DEFINE(eslENABLE_AVX, 1, [Enable AVX/AVX2 vector implementation])
+    AC_SUBST([HMMERIMPLLIB], ["impl_avx/libhmmerimpl.a"])
+    SSE_CFLAGS=$esl_sse_cflags
+    AC_SUBST(SSE_CFLAGS)
+    AVX_CFLAGS=$esl_avx_cflags
+    AC_SUBST(AVX_CFLAGS)
+    enable_avx=yes
+    impl_choice=avx
+    ],[
+    if test "$enable_avx" = "yes"; then
+      AC_MSG_FAILURE([Unable to compile our AVX implementations. Try another compiler?])
+    fi
+    enable_avx=no
+    ])
+fi
+
 if test "$enable_neon" = "yes" || test "$enable_neon" = "check"; then
   ESL_NEON([
     AC_DEFINE(eslENABLE_NEON,  1, [Enable ARM NEON vector implementation])
@@ -380,8 +420,10 @@ neon) AC_MSG_NOTICE([Activating ARM NEON vector DP implementation])
       ;;
 sse)  AC_MSG_NOTICE([Activating Intel/AMD SSE vector DP implementation])
       ;;
+avx)  AC_MSG_NOTICE([Activating Intel/AMD AVX/AVX2 vector DP implementation])
+      ;;
 *)    AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-      AC_MSG_NOTICE([BATH requires SSE or NEON vector instructions.])
+      AC_MSG_NOTICE([BATH requires SSE, AVX, or NEON vector instructions.])
       AC_MSG_NOTICE([Supported platforms are x86 (Intel/AMD) and ARM (v7 or later).])
       AC_MSG_ERROR([No supported vectorization found for your machine.])
       ;;
@@ -529,12 +571,12 @@ AC_C_BIGENDIAN([
   ],[
   if test "$enable_neon" = "yes"; then
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-    AC_MSG_NOTICE([HMMER3 NEON only supports little-endian platforms: e.g. aarch64 not aarch64be])
+    AC_MSG_NOTICE([BATH2 NEON only supports little-endian platforms: e.g. aarch64 not aarch64be])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   else
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
     AC_MSG_NOTICE([Couldn't determine byte order for your platform.])
-    AC_MSG_NOTICE([BATH vector code is sensitive to byte order.])
+    AC_MSG_NOTICE([BATH22 vector code is sensitive to byte order.])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   fi	
   ])
@@ -611,7 +653,12 @@ AC_SYS_LARGEFILE
 # 13. Config subdirs and files
 ################################################################
 
-# HMMER Makefiles.
+# VMX (PowerPC AltiVec) is not supported; define empty substitution so
+# @VMX_CFLAGS@ in easel/Makefile.in doesn't produce a literal compiler flag.
+VMX_CFLAGS=""
+AC_SUBST(VMX_CFLAGS)
+
+# BATH Makefiles.
 AC_CONFIG_FILES([ \
   Makefile                                     \
   src/Makefile                                 \
@@ -715,7 +762,7 @@ AC_OUTPUT
 
 echo "
 
-HMMER configuration:
+BATH configuration:
    compiler:             ${CC} ${CFLAGS} ${SSE_CFLAGS} ${NEON_CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS}
    host:                 $host
    linker:               ${LDFLAGS}
@@ -724,7 +771,7 @@ HMMER configuration:
 
 
 if test x"$HAVE_PYTHON3" = x"yes"; then echo "
-Now do 'make'  to build HMMER, and optionally:
+Now do 'make'  to build BATH, and optionally:
        'make check'  to run self tests,
        'make install'  to install programs and man pages,
        '(cd easel; make install)'  to install Easel tools.
@@ -732,7 +779,7 @@ Now do 'make'  to build HMMER, and optionally:
 else echo "
    (No python3 found, so 'make check' is disabled.)
 
-Now do 'make'  to build HMMER, and optionally:
+Now do 'make'  to build BATH, and optionally:
        'make install'  to install programs and man pages,
        '(cd easel; make install)'  to install Easel tools.
 ";

@@ -22,9 +22,6 @@
 #include "p7_splice.h"
 #include "impl_neon.h"
 
-/* Log-space constant for the P->M transition (= logf(4.58e-5)). */
-#define TSC_P logf(4.58e-5f)
-
 /*****************************************************************
  * 1. p7_Viterbi_Spliced()
  *****************************************************************/
@@ -120,10 +117,13 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
     for (q = 0; q < Q; q++)
       don_ovx[j][q] = infv;
 
-  /* Initialize all DP rows 0..L to -inf. */
-  for (ri = 0; ri <= L; ri++)
-    for (q = 0; q < Q; q++)
-      MMO(ox->dpf[ri], q) = DMO(ox->dpf[ri], q) = IMO(ox->dpf[ri], q) = infv;
+  { float32x4_t *drow;
+    for (ri = 0; ri <= 2 && ri <= L; ri++) {
+      drow = ox->dpf[ri];
+      for (q = 0; q < Q; q++)
+        MMO(drow, q) = DMO(drow, q) = IMO(drow, q) = infv;
+    }
+  }
 
   /* Initialize special-state rows; set B(0) = log T(N->B). */
   for (ri = 0; ri <= L; ri++) {

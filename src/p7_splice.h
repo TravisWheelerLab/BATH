@@ -53,6 +53,7 @@ typedef struct _splice_graph {
   /* Target sequence info */
   int          revcomp;
   int64_t      seqidx;      
+  int64_t      seqL;
   char        *seqname;    
 
   /* Node info */
@@ -67,10 +68,15 @@ typedef struct _splice_graph {
   float *path_scores;  //Path score pulled upstream
   float *ali_scores;   
 
-  P7_TOPHITS  *th;  
+  P7_TOPHITS  *th;
   SPLICE_EDGE **edges;
   int         *num_edges;
   int         *edge_mem;
+
+  /* Incoming edge lists (reverse adjacency) */
+  int        **in_nodes;      /* in_nodes[down][j]  = j-th upstream node id  */
+  int         *num_in_nodes;  /* number of incoming edges per node            */
+  int         *in_node_mem;   /* allocated capacity per node                  */
 
 } SPLICE_GRAPH;
 
@@ -169,7 +175,8 @@ typedef struct _splice_info
   P7_TOPHITS         *tophits;    /* original tophits                         */
   P7_TOPHITS         *seeds;      /* seed hits from SSV                       */
   ESL_GENCODE        *gcode;      /* used for translation                     */
-  ESL_SQFILE         *seq_file;   /* target sequence file                     */
+  ESL_SQFILE         *seq_file;         /* target sequence file (reference only)    */
+  ESL_SQFILE         *thread_seq_file; /* per-thread open handle with SSI loaded   */
   int64_t             db_nuc_cnt; /* sequence database size for e-values      */
   int                 num_graphs; /* total number of graphs                   */
   int                 thread_id;  /* ID of this thread                        */
@@ -212,6 +219,9 @@ enum p7s_splice_signals_e {
 #define p7S_SPLICE_SIGNALS 3
 
 #define SPLICE_ROWS               4
+
+/* P->M transtion cost */
+#define TSC_P logf(4.5e-5f)
 
 /* p7_splicebounds.c */
 extern SPLICE_BOUNDS* p7_splicebounds_Create(int allocN);

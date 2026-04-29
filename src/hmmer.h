@@ -1042,6 +1042,8 @@ typedef struct p7_hmm_window_list_s {
  *****************************************************************/
 #if   defined (eslENABLE_NEON)
 #include "impl_neon/impl_neon.h"
+#elif defined (eslENABLE_AVX)
+#include "impl_avx/impl_avx.h"
 #elif defined (eslENABLE_SSE)
 #include "impl_sse/impl_sse.h"
 #else
@@ -1368,6 +1370,18 @@ extern int    p7_MeanPositionRelativeEntropy(const P7_HMM *hmm, const P7_BG *bg,
 extern int    p7_hmm_CompositionKLD(const P7_HMM *hmm, const P7_BG *bg, float *ret_KL, float **opt_avp);
 
 
+/* ID_LENGTH_LIST: tracks sequence lengths by internal ID, used in bathsearch and splicing */
+typedef struct {
+  int  id;
+  int  length;
+} ID_LENGTH;
+
+typedef struct {
+  ID_LENGTH *id_lengths;
+  int        count;
+  int        size;
+} ID_LENGTH_LIST;
+
 /* tracealign.c */
 extern int p7_tracealign_Seqs(ESL_SQ **sq,           P7_TRACE **tr, int nseq, int M,  int optflags, P7_HMM *hmm, ESL_MSA **ret_msa);
 extern int p7_tracealign_MSA (const ESL_MSA *premsa, P7_TRACE **tr,           int M,  int optflags, ESL_MSA **ret_postmsa);
@@ -1414,7 +1428,7 @@ extern int    p7_bg_Write(FILE *fp, P7_BG *bg);
 
 extern int    p7_bg_SetFilter  (P7_BG *bg, int M, const float *compo);
 extern int    p7_bg_FilterScore(P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc);
-extern int    p7_bg_fs_FilterScore(P7_BG *bg, ESL_DSQ *dna_dsq, int L, const ESL_GENCODE *gcode, int do_biasfilter, float *ret_sc);
+extern int    p7_bg_fs_FilterScore(P7_BG *bg, ESL_DSQ *dna_dsq, int L, const ESL_GENCODE *gcode, float *ret_sc);
 
 /* p7_builder.c */
 extern P7_BUILDER *p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc);
@@ -1616,7 +1630,7 @@ extern int     p7_spensemble_GetClusterCoords(P7_SPENSEMBLE *sp, int which,
 extern void    p7_spensemble_Destroy(P7_SPENSEMBLE *sp);
 
 /* p7_splice.c */
-extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, P7_FS_PROFILE *gm_fs5, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, int64_t db_nuc_cnt);
+extern int p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, P7_FS_PROFILE *gm_fs5, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, ID_LENGTH_LIST *id_length_list, int64_t db_nuc_cnt);
 
 /* p7_tophits.c */
 extern P7_TOPHITS *p7_tophits_Create(void);

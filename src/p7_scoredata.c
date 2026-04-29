@@ -459,6 +459,7 @@ main(int argc, char **argv)
 
   if (be_verbose) printf("p7_scoredata unit test: rng seed %" PRIu32 "\n", esl_randomness_GetSeed(rng));
 
+  impl_Init();
   utest_createScoreData(go, rng);
 
   esl_randomness_Destroy(rng);

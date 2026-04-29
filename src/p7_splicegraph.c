@@ -114,10 +114,17 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->edge_mem,  sizeof(int)          * graph->nalloc);
   ESL_ALLOC(graph->num_edges, sizeof(int)          * graph->nalloc);
 
+  ESL_ALLOC(graph->in_nodes,     sizeof(int*) * graph->nalloc);
+  ESL_ALLOC(graph->in_node_mem,  sizeof(int)  * graph->nalloc);
+  ESL_ALLOC(graph->num_in_nodes, sizeof(int)  * graph->nalloc);
+
   for(i = 0; i < graph->nalloc; i++) {
-    graph->edges[i]     = NULL;
-    graph->edge_mem[i]  = 0; 
-    graph->num_edges[i] = 0;
+    graph->edges[i]       = NULL;
+    graph->edge_mem[i]    = 0;
+    graph->num_edges[i]   = 0;
+    graph->in_nodes[i]    = NULL;
+    graph->in_node_mem[i] = 0;
+    graph->num_in_nodes[i]= 0;
   }
   
   return eslOK;
@@ -161,14 +168,21 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
 
     ESL_REALLOC(graph->th->hit,  sizeof(P7_HIT*)      * graph->nalloc);
     ESL_REALLOC(graph->edges,    sizeof(SPLICE_EDGE*) * graph->nalloc);
-  
-    ESL_REALLOC(graph->edge_mem,  sizeof(int)         * graph->nalloc);
-    ESL_REALLOC(graph->num_edges, sizeof(int)         * graph->nalloc);   
+
+    ESL_REALLOC(graph->edge_mem,  sizeof(int)  * graph->nalloc);
+    ESL_REALLOC(graph->num_edges, sizeof(int)  * graph->nalloc);
+
+    ESL_REALLOC(graph->in_nodes,     sizeof(int*) * graph->nalloc);
+    ESL_REALLOC(graph->in_node_mem,  sizeof(int)  * graph->nalloc);
+    ESL_REALLOC(graph->num_in_nodes, sizeof(int)  * graph->nalloc);
 
     for(i = old_alloc; i < graph->nalloc; i++) {
-      graph->edges[i] = NULL;     
-      graph->edge_mem[i]  = 0;
-      graph->num_edges[i] = 0;
+      graph->edges[i]        = NULL;
+      graph->edge_mem[i]     = 0;
+      graph->num_edges[i]    = 0;
+      graph->in_nodes[i]     = NULL;
+      graph->in_node_mem[i]  = 0;
+      graph->num_in_nodes[i] = 0;
     }
 
   }
@@ -214,12 +228,19 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   if (graph->th->hit != NULL) free(graph->th->hit);
   if (graph->th      != NULL) free(graph->th);
 
-  for(i = 0; i < graph->nalloc; i++) 
-   if(graph->edges[i] != NULL) free(graph->edges[i]);
+  for(i = 0; i < graph->nalloc; i++)
+    if(graph->edges[i] != NULL) free(graph->edges[i]);
 
   if(graph->edges     != NULL) free(graph->edges);
   if(graph->edge_mem  != NULL) free(graph->edge_mem);
   if(graph->num_edges != NULL) free(graph->num_edges);
+
+  for(i = 0; i < graph->nalloc; i++)
+    if(graph->in_nodes[i] != NULL) free(graph->in_nodes[i]);
+
+  if(graph->in_nodes     != NULL) free(graph->in_nodes);
+  if(graph->in_node_mem  != NULL) free(graph->in_node_mem);
+  if(graph->num_in_nodes != NULL) free(graph->num_in_nodes);
 
   graph->seqname = NULL;
 
@@ -317,11 +338,22 @@ p7_splicegraph_AddEdge(SPLICE_GRAPH *graph, int up_node, int down_node)
   ret_edge->next_k_start = -1;
 
   ret_edge->upstream_node_id   = up_node;
-  ret_edge->downstream_node_id = down_node; 
+  ret_edge->downstream_node_id = down_node;
 
-  ret_edge->jump_edge = FALSE;
-  
+  ret_edge->jump_edge  = FALSE;
   ret_edge->edge_score = 0.;
+
+  /* Add up_node to the incoming node list of down_node */
+  if(graph->in_nodes[down_node] == NULL) {
+    ESL_ALLOC(graph->in_nodes[down_node], sizeof(int) * EDGE_ALLOC);
+    graph->in_node_mem[down_node]  = EDGE_ALLOC;
+    graph->num_in_nodes[down_node] = 0;
+  }
+  if(graph->num_in_nodes[down_node] == graph->in_node_mem[down_node]) {
+    graph->in_node_mem[down_node] *= 2;
+    ESL_REALLOC(graph->in_nodes[down_node], sizeof(int) * graph->in_node_mem[down_node]);
+  }
+  graph->in_nodes[down_node][graph->num_in_nodes[down_node]++] = up_node;
 
   return ret_edge;
 

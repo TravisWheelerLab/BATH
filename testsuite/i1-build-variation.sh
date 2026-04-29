@@ -41,46 +41,6 @@ then
    exit 1
 fi
 
-#With --fs and not
-$bathbuild --fs $hmmfile1 $alifile > $outfile1;  if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
-
-cat $outfile1 | grep -v "^#" > $diffile1
-diff $diffile1 $diffile2 > /dev/null
-if test $? -eq 0
-then
-   echo "FAIL: output files identical, despite only one using --fs"
-   exit 1
-fi
-
-cat $hmmfile1| grep -v "^DATE" > $diffile1
-diff $diffile1 $diffile2 > /dev/null
-if test $? -eq 0
-then
-   echo "FAIL: HMM files identical, despite only one using --fs"
-   exit 1
-fi
-
-# both with --fs
-$bathbuild --fs $hmmfile2 $alifile > $outfile2;  if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
-
-cat $outfile1 | grep -v "^#" > $diffile1
-cat $outfile2 | grep -v "^#" > $diffile2
-diff $diffile1 $diffile2 > /dev/null
-if test $? -ne 0
-then
-   echo "FAIL: output files differ"
-   exit 1
-fi
-
-cat $hmmfile1| grep -v "^DATE" > $diffile1
-cat $hmmfile2| grep -v "^DATE" > $diffile2
-diff $diffile1 $diffile2 > /dev/null
-if test $? -ne 0
-then
-   echo "FAIL: HMM files differ"
-   exit 1
-fi
-
 # With different seeds: HMM files will differ because of statistical fits
 $bathbuild --seed 1 $hmmfile1 $alifile > $outfile1;  if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
 $bathbuild --seed 2 $hmmfile2 $alifile > $outfile2;  if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
@@ -90,19 +50,6 @@ cat $hmmfile2| grep -v "^DATE" > $diffile2
 diff $diffile1 $diffile2 > /dev/null
 if test $? -eq 0 
 then 
-   echo "FAIL: HMM files identical, despite different rng seeds"
-   exit 1
-fi
-
-# With different seeds: HMM files will differ because of statistical fits
-$bathbuild --seed 1 --fs $hmmfile1 $alifile > $outfile1;  if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
-$bathbuild --seed 2 --fs $hmmfile2 $alifile > $outfile2;  if test $? -ne 0; then echo "FAIL: crash"; exit 1; fi
-
-cat $hmmfile1| grep -v "^DATE" > $diffile1
-cat $hmmfile2| grep -v "^DATE" > $diffile2
-diff $diffile1 $diffile2 > /dev/null
-if test $? -eq 0
-then
    echo "FAIL: HMM files identical, despite different rng seeds"
    exit 1
 fi

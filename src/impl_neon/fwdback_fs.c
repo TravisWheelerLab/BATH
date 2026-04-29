@@ -2074,12 +2074,12 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   fwd->totscale       = 0.0;
   zerov = vmovq_n_f32(0.0f);
 
-  for (r = 0; r <= L; r++)
+  { float32x4_t *drow = fwd->dpf[0];
     for (q = 0; q < Q; q++)
-      MMO_FS(fwd->dpf[r],q,p7X_FS_C0) = MMO_FS(fwd->dpf[r],q,p7X_FS_C1) =
-      MMO_FS(fwd->dpf[r],q,p7X_FS_C2) = MMO_FS(fwd->dpf[r],q,p7X_FS_C3) =
-      MMO_FS(fwd->dpf[r],q,p7X_FS_C4) = MMO_FS(fwd->dpf[r],q,p7X_FS_C5) =
-      DMO_FS(fwd->dpf[r],q)            = IMO_FS(fwd->dpf[r],q)            = zerov;
+      MMO_FS(drow,q,p7X_FS_C0) = MMO_FS(drow,q,p7X_FS_C1) =
+      MMO_FS(drow,q,p7X_FS_C2) = MMO_FS(drow,q,p7X_FS_C3) =
+      MMO_FS(drow,q,p7X_FS_C4) = MMO_FS(drow,q,p7X_FS_C5) =
+      DMO_FS(drow,q)            = IMO_FS(drow,q)            = zerov; }
 
   for (r = 0; r < p7P_5CODONS; r++)
     for (q = 0; q < Q; q++)
@@ -2405,9 +2405,6 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
   zero_row = (float32x4_t *) (((unsigned long int) zero_mem + 15) & (~0xf));
   for (q = 0; q < Q * p7X_NSCELLS; q++) zero_row[q] = zerov;
 
-  for (r = 0; r <= L; r++)
-    for (q = 0; q < Q; q++)
-      MMO(bck->dpf[r],q) = IMO(bck->dpf[r],q) = DMO(bck->dpf[r],q) = zerov;
   for (r = 0; r < PARSER_ROWS_BWD; r++)
     xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = 0.0f;
   xC_buf[(L+1)%PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];

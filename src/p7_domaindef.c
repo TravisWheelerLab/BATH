@@ -21,11 +21,9 @@
 static int is_multidomain_region  (P7_DOMAINDEF *ddef, int i, int j);
 static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
-static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, int *ret_nc);
-static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg,  const ESL_GENCODE *gcode);
-static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done);
-
-
+static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc);
+static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg,  const ESL_GENCODE *gcode);
+static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done);
 
 /*****************************************************************
  * 1. The P7_DOMAINDEF object: allocation, reuse, destruction
@@ -98,7 +96,8 @@ p7_domaindef_Create_BATH(ESL_RANDOMNESS *r, ESL_GETOPTS *go)
   ddef->r            = r;  
   ddef->do_reseeding = TRUE;
 
-  ddef->fstbl = esl_opt_IsUsed(go, "--fstblout"); /* TRUE to produce tabular frameshift location output */
+  ddef->fstbl  = esl_opt_IsUsed(go, "--fstblout"); /* TRUE to produce tabular frameshift location output */
+  ddef->splice = esl_opt_IsUsed(go, "--splice");   /* TRUE to use spliced version of domain spliting */
 
   return ddef;
   
@@ -171,8 +170,9 @@ p7_domaindef_Reuse(P7_DOMAINDEF *ddef)
     ESL_ALLOC(ddef->dcl, sizeof(P7_DOMAIN) * ddef->nalloc);
   else {
     for (d = 0; d < ddef->ndom; d++) {
-      p7_alidisplay_Destroy(ddef->dcl[d].ad); ddef->dcl[d].ad             = NULL;
-      free(ddef->dcl[d].scores_per_pos);      ddef->dcl[d].scores_per_pos = NULL;
+      p7_alidisplay_Destroy(ddef->dcl[d].ad);                                        ddef->dcl[d].ad             = NULL;
+      if(ddef->dcl[d].scores_per_pos != NULL) { free(ddef->dcl[d].scores_per_pos); } ddef->dcl[d].scores_per_pos = NULL;
+      if(ddef->dcl[d].k_per_pos      != NULL) { free(ddef->dcl[d].k_per_pos); }      ddef->dcl[d].k_per_pos      = NULL;
     }    
   }
   ddef->ndom = 0;
@@ -257,6 +257,7 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
   if (ddef->dcl  != NULL) {
     for (d = 0; d < ddef->ndom; d++) {
       if (ddef->dcl[d].scores_per_pos) free(ddef->dcl[d].scores_per_pos);
+      if (ddef->dcl[d].k_per_pos)      free(ddef->dcl[d].k_per_pos);
       p7_alidisplay_Destroy(ddef->dcl[d].ad);
     }
     free(ddef->dcl);
@@ -277,9 +278,9 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
  * Synopsis:  Define "domains" in a DNA window using posterior probs
  *            with frameshift awareness.
  *
- * Purpose:   Given a DNA sequence <sq> and protien model (<gm>, <gm_fs5>) 
+ * Purpose:   Given a DNA sequence <sq> and frameshift model (<om_fs5>) 
  *            for which we have already calculated a Forward and 
- *            Backward parsing matrices <gxf> and <gxb>; use posterior 
+ *            Backward parsing matrices <oxf> and <oxb>; use posterior 
  *            probability heuristics to determine an annotated "domain". 
  *            In this context domains are simply subsequences of the DNA 
  *            that have demonstrated a high prbability of homology to the 
@@ -297,7 +298,7 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
  * Throws:    <eslEMEM> on allocation failure. 
  */
 int
-p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_PROFILE *gm_fs5, P7_BG *bg, const ESL_GENCODE *gcode)
+p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_BG *bg, const ESL_GENCODE *gcode)
 {
 
   int i, j;
@@ -311,27 +312,28 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
   int saveL     = gm_fs5->L;     /* Save the length config of <gm_fs5>; will restore upon return */
   int save_mode = gm_fs5->mode;  /* Likewise for the mode. */
   int status;
-  P7_GMX       *gxf  = pli->gxf;
-  P7_GMX       *gxb  = pli->gxb; 
-  P7_DOMAINDEF *ddef = pli->ddef;
+  P7_OMX       *oxf  = pli->oxf_fs;
+  P7_OMX       *oxb  = pli->oxb_fs;
+  P7_DOMAINDEF *ddef    = pli->ddef;
 
- 
   if ((status = p7_domaindef_GrowTo(ddef, windowsq->n))      != eslOK) return status;          /* ddef's btot,etot,mocc now ready for seq of length n            */
-  if ((status = p7_DomainDecoding_Frameshift(gm_fs5, gxf, gxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
-
+  if ((status = p7_DomainDecoding_Frameshift(om_fs5, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
+  
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */
   p7_fs_ReconfigUnihit(gm_fs5, saveL/3);                                                          /* process each domain in unihit mode, regardless of om->mode     */
+ p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL/3);
 
   i         = -1;
   triggered = FALSE;
   start     = FALSE;
   end       = FALSE;
 
-  for (j = 1; j < gxf->L; j++)
+  for (j = 1; j < oxf->L; j++)
   { 
     if (! triggered)  // no domain start found
     {
+      
       if       (ddef->mocc[j]  >= ddef->rt1 ) triggered = TRUE; // possible domain start found
       d = j;
     }
@@ -355,21 +357,21 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
           } 
         }
       }
-      
+       
       i = ESL_MAX(1, d-3); // one codon wiggle room
       d = j+1;
-
+      
       /* Frameshift aware domain ends must be evident in all three frames */
-      while(d < gxf->L && !end) 
+      while(d < oxf->L && !end) 
       {
         d++;
-        if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2)
+        if(d < oxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2)
         {
           d++;
-          if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
+          if(d < oxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
           {
             d++;
-            if(d < gxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
+            if(d < oxf->L && ddef->mocc[d] - (ddef->etot[d] - ddef->etot[d-3]) < ddef->rt2) 
             {
               d++;
               end = TRUE;  
@@ -378,8 +380,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         }
       }
       
-      j = ESL_MIN(gxf->L, d+3); // one codon wiggle room
-
+      j = ESL_MIN(oxf->L, d+3); // one codon wiggle room
+      
       if(j - i + 1 < 12) {
         i     = -1;
         triggered = FALSE;
@@ -390,37 +392,36 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
 
       /* We have a region i..j to evaluate. */
       ddef->nregions++;
-
       if (is_multidomain_region_frameshift(ddef, i, j))
       {
-	
+	 	
         /* This region appears to contain more than one domain, so we have to
         * resolve it by cluster analysis of posterior trace samples, to define
         * one or more domain envelopes.
         */
         ddef->nclustered++;
-       
+      
        /* Resolve the region into domains by stochastic trace
         * clustering; assign position-specific null2 model by
         * stochastic trace clustering; there is redundancy
         * here; we will consolidate later if null2 strategy
         * works
         */
-        p7_ivx_GrowTo(pli->iv, gm_fs5->M, p7P_5CODONS); 
-        p7_gmx_fs_GrowTo(pli->gfwd, gm_fs5->M, j-i+1, j-i+1, p7P_5CODONS);
-        p7_fs_ReconfigMultihit(gm_fs5, saveL/3);
+        
+        p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL); 
+        p7_omx_GrowTo_dpf(pli->fwd_fs, om_fs5->M, j-i+1, j-i+1);
+        if (p7_Forward_Frameshift(windowsq->dsq+i-1, j-i+1, om_fs5, pli->fwd_fs, pli->ov5, NULL) == eslERANGE)
+          nc = 0; /* forward underflow; no valid traces for this region */
+        else
+          region_trace_ensemble_frameshift(ddef, om_fs5, windowsq->dsq, windowsq->abc, i, j, pli->fwd_fs, &nc);
 
-        p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, j-i+1, gm_fs5, pli->gfwd, pli->iv, NULL);
-
-        region_trace_ensemble_frameshift(ddef, gm_fs5, windowsq->dsq, windowsq->abc, i, j, pli->gfwd, &nc);
-
-        p7_fs_ReconfigUnihit(gm_fs5, saveL/3);
+        p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL);
        
         /* ddef->n2sc is now set on i..j by the traceback-dependent method */
         last_j2 = 0;
-	
+        
         for (d = 0; d < nc; d++) {
-         
+     
           p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
          if (i2 <= last_j2) ddef->noverlaps++;
 
@@ -445,7 +446,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
          
          i2 = ESL_MAX(1,i2); // Hacky bug fix to prevent 0 index - real fix requires changes to region_trace_ensemble_frameshift() 
 
-         if (rescore_isolated_domain_frameshift(ddef, pli, gm_fs5, windowsq, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
+          ddef->nenvelopes++;
+         if (rescore_isolated_domain_frameshift(ddef, pli, om_fs5, gm_fs5, windowsq, i2, j2, bg, gcode) == eslOK) last_j2 = j2;
         }
 
         p7_spensemble_Reuse(ddef->sp);
@@ -454,8 +456,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
      } else {
 	
       ddef->nenvelopes++;
-       
-      rescore_isolated_domain_frameshift(ddef, pli, gm_fs5, windowsq, i, j, bg, gcode);
+      rescore_isolated_domain_frameshift(ddef, pli, om_fs5, gm_fs5, windowsq, i, j, bg, gcode);
     }
     i     = -1;
     triggered = FALSE;
@@ -496,7 +497,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
+p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
 {
   int i, j;
   int triggered;
@@ -559,31 +560,29 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
             last_j2 = 0;
             if(nc == 0) ddef->nenvelopes++;
             for (d = 0; d < nc; d++) {
-                  p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
-                  if (i2 <= last_j2) ddef->noverlaps++;
+              p7_spensemble_GetClusterCoords(ddef->sp, d, &i2, &j2, NULL, NULL, NULL);
+              if (i2 <= last_j2) ddef->noverlaps++;
 
-                  /* Note that k..m coords on model are available, but
-                     * we're currently ignoring them.  This leads to a
-                     * rare clustering bug that we eventually need to fix
-                     * properly [xref J3/32]: two different regions in one
-                     * profile HMM might have hit same seq domain, and
-                     * when we now go to calculate an OA trace, nothing
-                     * constrains us to find the two different alignments
-                     * to the HMM; in fact, because OA is optimal, we'll
-                     * find one and the *same* alignment, leading to an
-                     * apparent duplicate alignment in the output.
-                     *
-                     * Registered as #h74, Dec 2009, after EBI finds and
-                     * reports it.  #h74 is worked around in p7_tophits.c
-                     * by hiding all but one envelope with an identical
-                     * alignment, in the rare event that this
-                     * happens. [xref J5/130].
-                  */
-                  ddef->nenvelopes++;
-
-                  if (rescore_isolated_domain_bath(ddef, om, gm_fs5, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i2, j2, TRUE) == eslOK)
-                       last_j2 = j2;
-
+              /* Note that k..m coords on model are available, but
+                 * we're currently ignoring them.  This leads to a
+                 * rare clustering bug that we eventually need to fix
+                 * properly [xref J3/32]: two different regions in one
+                 * profile HMM might have hit same seq domain, and
+                 * when we now go to calculate an OA trace, nothing
+                 * constrains us to find the two different alignments
+                 * to the HMM; in fact, because OA is optimal, we'll
+                 * find one and the *same* alignment, leading to an
+                 * apparent duplicate alignment in the output.
+                 *
+                 * Registered as #h74, Dec 2009, after EBI finds and
+                 * reports it.  #h74 is worked around in p7_tophits.c
+                 * by hiding all but one envelope with an identical
+                 * alignment, in the rare event that this
+                 * happens. [xref J5/130].
+              */
+              ddef->nenvelopes++;
+              if (rescore_isolated_domain_bath(ddef, om, gm_fs5, orfsq, windowsq, ntsqlen, fwd, bck, i2, j2, TRUE) == eslOK)
+              last_j2 = j2;
           }
             p7_spensemble_Reuse(ddef->sp);
             p7_trace_Reuse(ddef->tr);
@@ -593,8 +592,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
 		
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
-	    
-            rescore_isolated_domain_bath(ddef, om, gm_fs5, orfsq, windowsq, ntsqlen, gcode, fwd, bck, i, j, FALSE);
+            rescore_isolated_domain_bath(ddef, om, gm_fs5, orfsq, windowsq, ntsqlen, fwd, bck, i, j, FALSE);
         }
         i     = -1;
         triggered = FALSE;
@@ -785,16 +783,16 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
 
   /* Collect an ensemble of sampled traces; calculate null2 odds ratios from these */
   for (t = 0; t < ddef->nsamples; t++)
-    {
+  {
       p7_StochasticTrace(ddef->r, dsq+ireg-1, Lr, om, fwd, ddef->tr);
       p7_trace_Index(ddef->tr);
 
       pos = 1;
       for (d = 0; d < ddef->tr->ndom; d++)
-  {
-    p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
+      {
+        p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
 
-    p7_Null2_ByTrace(om, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
+        p7_Null2_ByTrace(om, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
     /* residues outside domains get bumped +1: because f'(x) = f(x), so f'(x)/f(x) = 1 in these segments */
     for (; pos <= ddef->tr->sqfrom[d]; pos++) ddef->n2sc[ireg+pos-1] += 1.0;
 
@@ -855,7 +853,7 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
  * tracebacks to sort it out.
  * 
  * Caller provides a filled Forward matrix in <fwd> for the sequence
- * region <dsq+ireg-1>, length <jreg-ireg+1>, for the model <gm_fs5>
+ * region <dsq+ireg-1>, length <jreg-ireg+1>, for the model <om_fs5>
  * configured in multihit mode with its target length distribution
  * set to the total length of <dsq>: i.e., the same model
  * configuration used to score the complete sequence (if it weren't
@@ -890,7 +888,7 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
  *    
  */
 static int
-region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs5, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_GMX *fwd, int *ret_nc)
+region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs5, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc)
 {
   int    Lr  = jreg-ireg+1;
   int    t, d, d2;
@@ -909,7 +907,7 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs5
   for (t = 0; t < ddef->nsamples; t++)
     {
 
-      p7_StochasticTrace_Frameshift(ddef->r, dsq+ireg-1, Lr, gm_fs5, fwd, ddef->tr);
+      p7_StochasticTrace_Frameshift(ddef->r, dsq+ireg-1, Lr, om_fs5, fwd, ddef->tr);
 
       p7_trace_fs_Index(ddef->tr);
  
@@ -959,13 +957,13 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs5
 
 
 
- /* rescore_isolated_domain_frameshift() - BATH
+ /* rescore_isolated_domain_frameshift() 
  *
  * We have isolated a single domain's envelope from <i>..<j> in DNA 
  * window <windowsq>, and now we want to score it in isolation and 
  * obtain an alignment display for it.
  * 
- * The caller provides model <gm_fs5> configured in unilocal mode; by
+ * The caller provides model <om_fs5> configured in unilocal mode; by
  * using unilocal (as opposed to multilocal), we're going to force the
  * identification of a single domain in this envelope now.
  * 
@@ -992,81 +990,71 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_PROFILE *gm_fs5
  * 
  */
 static int
-rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg, const ESL_GENCODE *gcode)
+rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg, const ESL_GENCODE *gcode)
 {
 
   P7_DOMAIN *dom           = NULL;
   int            Ld            = j-i+1;
-  int            n_holder;
+  int            z1, z2;
   float          domcorrection = 0.0;
   float          envsc, oasc;
-  float          filtersc, seqscore;
+  float          nullsc, seqscore;
   double         P;
   int            codon_idx;  
   int            z;
-  int            z1, z2;
   int            pos;
   float          null2[p7_MAXCODE];
   int            status;
-  ESL_DSQ        t, u, v, w, x;
-  ESL_DSQ   *dsq_holder;
-  P7_GMX    *gx1 = pli->gfwd;
-  P7_GMX    *gx2 = pli->gbck; 
-  P7_GMX    *pp  = pli->pp;
-  P7_IVX    *iv  = pli->iv;
+  int            t, u, v, w, x;
+  P7_OMX    *ox1 = pli->fwd_fs;
+  P7_OMX    *ox2 = pli->bck_fs; 
 
-  if (gm_fs5->codon_lengths != 5) ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
+  if (om_fs5->codon_lengths != 5) ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
 
   if (Ld < 15) return eslOK;
-  
-  dsq_holder = windowsq->dsq;
-  windowsq->dsq = windowsq->dsq+i-1;
-  n_holder = windowsq->n;
-  windowsq->n = Ld;
-  windowsq->L = Ld;
-  
-  windowsq->dsq = dsq_holder;
-  windowsq->n = n_holder; 
-  windowsq->L = n_holder;  
-  
-  p7_bg_SetLength(bg, Ld/3);
-  p7_bg_fs_FilterScore(bg, windowsq->dsq+i-1, Ld, gcode, pli->do_biasfilter, &filtersc);
  
-  /* Forward */ 
-  p7_fs_ReconfigLength(gm_fs5, Ld/3);
-  p7_ivx_GrowTo(iv, gm_fs5->M, p7P_5CODONS); 
-  p7_gmx_fs_GrowTo(gx1, gm_fs5->M, Ld, Ld, p7P_5CODONS);
-  p7_Forward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs5, gx1, iv, &envsc);
+  p7_bg_SetLength(bg, Ld/3);
+  p7_bg_fs_NullOne(bg, windowsq->dsq+i-1, Ld/3, &nullsc);
+ 
+  /* Forward */
+  p7_fs_oprofile_ReconfigLength(om_fs5, Ld/3);
+  p7_omx_GrowTo_dpf(ox1, om_fs5->M, Ld, Ld);
+  if ((status = p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, pli->ov5, &envsc)) == eslERANGE) return eslOK;
+  if (status != eslOK) ESL_XEXCEPTION(status, "forward frameshift failed");
 
-  seqscore = (envsc-filtersc) / eslCONST_LOG2; 
-  P = esl_exp_surv(seqscore,  gm_fs5->evparam[p7_FTAUFS5],  gm_fs5->evparam[p7_FLAMBDA]);   
+  seqscore = (envsc-nullsc) / eslCONST_LOG2; 
+  P = esl_exp_surv(seqscore,  om_fs5->evparam[p7_FTAUFS5],  om_fs5->evparam[p7_FLAMBDA]);   
 
   /* DNA windows often contain one true positive domain and one of more low 
    * scoring false positive domain(s).  Use the current residue count to 
    * throw away any domains already bellow the reporting threshold before 
    * we do any further calculations */
+
   pli->Z = (float)pli->nres / (float)gm_fs5->max_length;
-  if(P * pli->Z > pli->E) {
-    p7_gmx_Reuse(gx1);
+  if (pli->inc_by_E  && P * pli->Z > pli->E) {
+    p7_omx_Reuse(ox1);
     return eslOK;
   }
 
   /* Backward */
-  p7_gmx_fs_GrowTo(gx2, gm_fs5->M, Ld, Ld, 0);
-  p7_Backward_Frameshift(windowsq->dsq+i-1, gcode, Ld, gm_fs5, gx2, iv, NULL);
+  p7_omx_GrowTo_dpf(ox2, om_fs5->M, Ld, Ld);
+  if ((status = p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, pli->ov5, NULL)) == eslERANGE) return eslOK;
+  if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
 
   /* Posterior Probabilities */
-  p7_gmx_fs_GrowTo(pp,  gm_fs5->M, Ld, Ld, p7P_5CODONS);
-  p7_Decoding_Frameshift(gm_fs5, gx1, gx2, pp);      
+  status = p7_Decoding_Frameshift(om_fs5, ox1, ox2);
+  if (status == eslERANGE) return eslFAIL; /* numeric overflow; domain treated as garbage */
 
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(gm_fs5, pp, gx2, &oasc);      
-  p7_OATrace_Frameshift(gm_fs5, pp, gx2, gx1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  p7_OptimalAccuracy_Frameshift(om_fs5, ox1, ox2, &oasc);
+  p7_OATrace_Frameshift(om_fs5, ox1, ox2, ddef->tr);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
     if (ddef->tr->i[z] >= 0) ddef->tr->i[z] += i-1;
   
+  p7_trace_fs_Index(ddef->tr);  
+
   /* get ptr to next empty domain structure in domaindef's results */
   if (ddef->ndom == ddef->nalloc) {
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
@@ -1074,11 +1062,24 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   }
 
   dom = &(ddef->dcl[ddef->ndom]);
-  dom->ad             = NULL;
+  dom->ad             = NULL; 
   dom->scores_per_pos = NULL; 
-  
+  dom->k_per_pos      = NULL;
+  dom->aliscore       = 0.0; 
+
+  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs5);
+
+  if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
+    free(dom->scores_per_pos);
+    free(dom->k_per_pos);
+    dom->scores_per_pos = NULL;
+    dom->k_per_pos = NULL;
+    p7_trace_Reuse(ddef->tr);
+    return eslFAIL;
+  }
+
   /* Compute bias correction */
-  p7_Null2_fs_ByExpectation(gm_fs5, pp, null2);
+  p7_Null2_fs_ByExpectation(om_fs5, ox1, null2);
 
   t = u = v = w = x = -1;
   z = 0;
@@ -1086,13 +1087,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
 
   while(pos <= j)
   {
-    if(esl_abc_XIsCanonical(windowsq->abc, windowsq->dsq[pos])) x = windowsq->dsq[pos];
-    else if(esl_abc_XIsDegenerate(windowsq->abc, windowsq->dsq[pos]))
-    {
-      for(x = 0; x < windowsq->abc->K; x++)
-        if(windowsq->abc->degen[windowsq->dsq[pos]][x]) break;
-    }      
-    
+    if(windowsq->dsq[pos] < p7P_MAXNUC) x = windowsq->dsq[pos];
+	else                                x = p7P_MAXCODONS5; 
+
     switch (ddef->tr->st[z]) {
       case p7T_N:
       case p7T_C:
@@ -1113,16 +1110,19 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
                      else if(ddef->tr->c[z] == 4) { codon_idx = p7P_CODON4_FS5(u, v, w, x);    codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC1); }
                      else if(ddef->tr->c[z] == 5) { codon_idx = p7P_CODON5_FS5(t, u, v, w, x); codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_QC2); }
                      ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs5, ddef->tr->k[z], codon_idx)]);
+                     
+                     if(ddef->n2sc[pos] == -eslINFINITY) ddef->n2sc[pos] = 0.0; // work around for stop codons
                      z++; 
                    }
                    else 
                      ddef->n2sc[pos]  = 0.0;
-                   pos++;  break;
+                   pos++; break;
       case p7T_I:  if(ddef->tr->i[z] == pos)
                    {
                      codon_idx = p7P_CODON3_FS5(v, w, x);       
                      codon_idx = p7P_MINIDX(codon_idx, p7P_DEGEN5_C);
                      ddef->n2sc[pos]  = logf(null2[p7P_AMINO(gm_fs5, ddef->tr->k[z], codon_idx)]);
+                     if(ddef->n2sc[pos] == -eslINFINITY) ddef->n2sc[pos] = 0.0; // work around for stop codons
                      z++;
                    }
                    else 
@@ -1130,20 +1130,19 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
                    pos++;  break;
     }
     t = u;
-    u = w;
+    u = v;
     v = w;
     w = x;
   } 
  
 
-  for (pos = i; pos <= j; pos++) 
+  for (pos = i; pos <= j; pos++)  
     domcorrection   += ddef->n2sc[pos];         /* domcorrection is in units of NATS */
-  
+
   dom->domcorrection = ESL_MAX(0., domcorrection); /* in units of NATS */
-  
-  
-  for (z1 = 0;           z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
-  for (z2 = ddef->tr->N; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+   
+  for (z1 = 0;             z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->N-1; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
 
   if(windowsq->start < windowsq->end)
   {
@@ -1159,10 +1158,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
     dom->ienv          = j;
     dom->jenv          = i;
   }
-
-  dom->ihmm          = ddef->tr->k[z1];
-  dom->jhmm          = ddef->tr->k[z2];
-
+  dom->ihmm          = ddef->tr->k[z1]; 
+  dom->jhmm          = ddef->tr->k[z2]; 
+  
   dom->envsc         = envsc;         /* in units of NATS */
   dom->oasc          = oasc;        /* in units of expected # of correctly aligned residues */
   dom->dombias       = 0.0; /* gets set later, using bg->omega and dombias */
@@ -1171,20 +1169,24 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
   dom->is_reported   = FALSE; /* gets set later by caller */
   dom->is_included   = FALSE; /* gets set later by caller */
   dom->tr            = p7_trace_fs_Clone(ddef->tr); 
-  
+
+  free(dom->scores_per_pos);
+  free(dom->k_per_pos);
+  dom->scores_per_pos = NULL;
+  dom->k_per_pos = NULL;
+
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);
-  p7_gmx_Reuse(gx1);
-  p7_gmx_Reuse(gx2);
-  p7_gmx_Reuse(pp);    
+  
+  p7_omx_Reuse(ox1);
+  p7_omx_Reuse(ox2);
 
   return eslOK;
 
  ERROR:
   p7_trace_Reuse(ddef->tr);
-  p7_gmx_Reuse(gx1);
-  p7_gmx_Reuse(gx2);
-  p7_gmx_Reuse(pp);
+  p7_omx_Reuse(ox1);
+  p7_omx_Reuse(ox2);
   return eslEMEM;
 }
 
@@ -1224,7 +1226,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_P
  * 
  */
 static int
-rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, const ESL_GENCODE *gcode, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
+rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE *gm_fs5, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
 {
 
   P7_DOMAIN *dom           = NULL;
@@ -1237,31 +1239,33 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   float      null2[p7_MAXCODE];
   int        status;
  
-  p7_oprofile_ReconfigLength(om, orfsq->n);
-  p7_omx_GrowTo(ox1, om->M, orfsq->n, orfsq->n); 
-  p7_omx_GrowTo(ox2, om->M, orfsq->n, orfsq->n); 
+  p7_oprofile_ReconfigLength(om, Ld);
+  p7_omx_GrowTo(ox1, om->M, Ld, Ld); 
+  p7_omx_GrowTo(ox2, om->M, Ld, Ld); 
 	
   p7_Forward (orfsq->dsq + i-1, Ld, om,      ox1, &envsc);
   p7_Backward(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc);
    
   status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
- 
+   
   /* Find an optimal accuracy alignment */
   p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
 
   p7_OATrace        (om, ox2, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
-  
-   
+    
+  /* hack the trace's sq coords to be correct w.r.t. original dsq */
+  for (z = 0; z < ddef->tr->N; z++)
+    if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
+
+  /*Index before converting to get ORF coords used in alignment creation */
+  p7_trace_Index(ddef->tr);
+
   /* get ptr to next empty domain structure in domaindef's results */
   if (ddef->ndom == ddef->nalloc) {
     ESL_REALLOC(ddef->dcl, sizeof(P7_DOMAIN) * (ddef->nalloc*2));
     ddef->nalloc *= 2;
   }
-    
-  /* hack the trace's sq coords to be correct w.r.t. original dsq */
-  for (z = 0; z < ddef->tr->N; z++)
-    if (ddef->tr->i[z] > 0) ddef->tr->i[z] += i-1;
 
   /*Index bewfore converting to get ORF start coords */
   p7_trace_Index(ddef->tr);
@@ -1273,22 +1277,35 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
 
   dom = &(ddef->dcl[ddef->ndom]);
   dom->ad             = NULL;
-  dom->scores_per_pos = NULL;  
+  dom->scores_per_pos = NULL;
+  dom->k_per_pos      = NULL;
+  dom->aliscore       = 0.0; 
+ 
+  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs5); 
+
+  if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
+    free(dom->scores_per_pos);   
+    free(dom->k_per_pos);
+    dom->scores_per_pos = NULL;
+    dom->k_per_pos = NULL;
+    p7_trace_Reuse(ddef->tr);    
+    return eslFAIL; 
+  }
 
   if (!null2_is_done) {   
     p7_Null2_ByExpectation(om, ox2, null2);
-    for (pos = i; pos <= j; pos++) 
+    for (pos = i; pos <= j; pos++) {
       ddef->n2sc[pos]  = logf(null2[orfsq->dsq[pos]]);
+    }
   }
   
   for (pos = i; pos <= j; pos++)
     domcorrection   += ddef->n2sc[pos];
-
-  dom->domcorrection = domcorrection; /* in units of NATS */
-
+  dom->domcorrection = ESL_MAX(0.0, domcorrection); /* in units of NATS */
+  
   /* Use trace to find start and end positions */
-  for (z1 = 0;           z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
-  for (z2 = ddef->tr->N; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
+  for (z1 = 0;             z1 < ddef->tr->N; z1++) if (ddef->tr->st[z1] == p7T_M) break;
+  for (z2 = ddef->tr->N-1; z2 >= 0 ;         z2--) if (ddef->tr->st[z2] == p7T_M) break;
 
   dom->ihmm          = ddef->tr->k[z1];
   dom->jhmm          = ddef->tr->k[z2];
@@ -1311,6 +1328,13 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   dom->is_reported   = FALSE;         /* gets set later by caller */
   dom->is_included   = FALSE;         /* gets set later by caller */
   dom->tr            = p7_trace_fs_Clone(ddef->tr); 
+
+  if(!ddef->splice) { 
+    free(dom->scores_per_pos); 
+    free(dom->k_per_pos);
+    dom->scores_per_pos = NULL;
+    dom->k_per_pos = NULL;
+  }
 
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);

@@ -289,9 +289,9 @@ main(int argc, char **argv)
 
   bg = p7_bg_Create(abc);                 p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);    p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
-  fwd = p7_gmx_Create(gm->M, L);  
-  bck = p7_gmx_Create(gm->M, L);
-  pp  = p7_gmx_Create(gm->M, L);
+  fwd = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);  
+  bck = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  pp  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
   p7_GForward (dsq, L, gm, fwd, &fsc);
@@ -420,8 +420,8 @@ main(int argc, char **argv)
   else if (esl_opt_GetBoolean(go, "--s"))   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_UNIGLOCAL);
   
   /* Allocate matrices */
-  fwd = p7_gmx_Create(gm->M, sq->n);
-  bck = p7_gmx_Create(gm->M, sq->n);
+  fwd = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
+  bck = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
 
   /* Set the profile and null model's target length models */
   p7_bg_SetLength(bg,   sq->n);

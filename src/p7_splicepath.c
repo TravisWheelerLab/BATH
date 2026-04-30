@@ -1,0 +1,549 @@
+/* SPLICE_PATH: a set of spliced hits 
+ *
+ * Contents:
+ *    1. The SPLICE_PATH object.
+ *    2. Path Finding Algorithms
+ *    3. Debugging tools.
+ *
+ */
+
+#include "p7_config.h"
+
+#include <string.h>
+
+#include "easel.h"
+#include "esl_vectorops.h"
+#include "esl_gumbel.h"
+#include "esl_exponential.h"
+
+#include "hmmer.h"
+#include "p7_splice.h"
+
+static int longest_path (SPLICE_GRAPH *graph, int extend_down);
+static int topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node);
+
+/*****************************************************************
+ * 1. The SPLICE_PATH structure.
+ *****************************************************************/
+
+/* Function:  p7_splicepath_Create()
+ *
+ * Purpose:   Allocates a splice path with room for 2x <path_len> 
+ *            hits.
+ *
+ * Returns:   a pointer to the new <SPLICE_PATH> structure
+ *            on success.
+ *
+ * Throws:    <NULL> on allocation error.
+ */
+SPLICE_PATH*
+p7_splicepath_Create(int path_len)
+{
+
+  SPLICE_PATH *path;
+  int          status;
+
+  path = NULL;
+  ESL_ALLOC(path, sizeof(SPLICE_PATH));
+
+  path->frameshift = FALSE;
+
+  path->alloc_len = path_len*2;
+  path->path_len  = path_len;
+
+  path->node_id = NULL;
+  ESL_ALLOC(path->node_id, sizeof(int)*path->alloc_len);
+
+  path->extension = NULL;
+  ESL_ALLOC(path->extension, sizeof(int)*path->alloc_len);
+
+  path->ihmm = NULL;
+  path->jhmm = NULL;
+  ESL_ALLOC(path->ihmm,    sizeof(int)*path->alloc_len);
+  ESL_ALLOC(path->jhmm,    sizeof(int)*path->alloc_len);
+
+  path->iali = NULL;
+  path->jali = NULL;
+  ESL_ALLOC(path->iali,    sizeof(int64_t)*path->alloc_len);
+  ESL_ALLOC(path->jali,    sizeof(int64_t)*path->alloc_len);
+
+  path->aliscore = NULL;
+  ESL_ALLOC(path->aliscore, sizeof(float)*path->alloc_len);
+  
+  return path;
+
+  ERROR:
+    p7_splicepath_Destroy(path);
+    return NULL;
+}
+
+
+
+/* Function:  p7_splicepath_Grow()
+ * Synopsis:  Reallocates a larger splice path, if needed.
+ *
+ * Purpose:   If <SPLICE_PATH> cannot hold another hit,
+ *            doubles the internal allocation.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ *
+ */
+int
+p7_splicepath_Grow(SPLICE_PATH *path)
+{
+
+  int status;
+
+  if(path->path_len < path->alloc_len) return eslOK;
+
+  path->alloc_len *= 2;
+
+  ESL_REALLOC(path->node_id,   sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->extension, sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->ihmm,      sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->jhmm,      sizeof(int)     * path->alloc_len);
+  ESL_REALLOC(path->iali,      sizeof(int64_t) * path->alloc_len);
+  ESL_REALLOC(path->jali,      sizeof(int64_t) * path->alloc_len);
+  ESL_REALLOC(path->aliscore,  sizeof(float)   * path->alloc_len);
+  return eslOK;
+
+  ERROR:
+    p7_splicepath_Destroy(path);
+    return status;
+
+}
+
+
+/* Function:  p7_splicepath_Clone()
+ * Synopsis:  Create a clone of a splice path
+ *
+ * Purpose:   Given a SPLICE_PATH <path> create and
+ *            return an identical SPLICE_PATH  
+ *
+ * Returns:   <SPLICE_PATH> 
+ *
+ *
+ */
+SPLICE_PATH*
+p7_splicepath_Clone(SPLICE_PATH *path)
+{
+  int s;
+  SPLICE_PATH *ret_path;
+
+  ret_path = p7_splicepath_Create(path->path_len);
+
+  ret_path->revcomp    = path->revcomp;
+  ret_path->frameshift = path->frameshift;
+
+  for(s = 0; s < path->path_len; s++) {
+    ret_path->node_id[s]   = path->node_id[s];
+    ret_path->extension[s] = path->extension[s];    
+
+    ret_path->ihmm[s] = path->ihmm[s];
+    ret_path->jhmm[s] = path->jhmm[s];
+    ret_path->iali[s] = path->iali[s];
+    ret_path->jali[s] = path->jali[s];
+    
+    ret_path->aliscore[s] = path->aliscore[s];
+  }
+
+  return ret_path;
+}
+
+/* Function:  p7_splicepath_Insert()
+ * Synopsis:  Insert a new step to a  path
+ *
+ * Purpose:   Add new <step> idx top existing <SPLICE_PATH> 
+ *
+ * Returns:   <eslOK>.
+ *
+ */
+int
+p7_splicepath_Insert(SPLICE_PATH *path, int step)
+{
+
+  int s;
+  
+  p7_splicepath_Grow(path); 
+
+  for(s = path->path_len; s > step; s--) {
+    path->node_id[s]   = path->node_id[s-1];
+    path->extension[s] = path->extension[s-1];
+
+    path->ihmm[s]     = path->ihmm[s-1];
+    path->jhmm[s]     = path->jhmm[s-1];
+    path->iali[s]     = path->iali[s-1];
+    path->jali[s]     = path->jali[s-1];
+    path->aliscore[s] = path->aliscore[s-1];
+  }
+
+  path->path_len++;
+ 
+  path->node_id[step]   = -1;
+  path->extension[step] = FALSE;
+
+  path->ihmm[step]     = -1;
+  path->jhmm[step]     = -1;
+  path->iali[step]     = -1;
+  path->jali[step]     = -1; 
+  path->aliscore[step] = -eslINFINITY;
+
+  return eslOK;
+ 
+}
+
+
+/* Function:  p7_splicepath_Remove()
+ * Synopsis:  Remove a step from a path.
+ *
+ * Purpose:   Remove the <step> inx from <SPLICE_PATH>
+ *
+ * Returns:   <eslOK>.
+ */
+int
+p7_splicepath_Remove(SPLICE_PATH *path, int step)
+{
+
+  int s;
+
+  for(s = step; s < path->path_len-1; s++) {
+
+    path->node_id[s]   = path->node_id[s+1];
+    path->extension[s] = path->extension[s+1];
+
+    path->ihmm[s]     = path->ihmm[s+1];
+    path->jhmm[s]     = path->jhmm[s+1];
+    path->iali[s]     = path->iali[s+1];
+    path->jali[s]     = path->jali[s+1];   
+    path->aliscore[s] = path->aliscore[s+1];   
+  }
+
+  path->path_len--;
+  
+  return eslOK;
+
+}
+
+
+
+/* Function: p7_splicepath_Destroy()
+ *
+ * Purpose:  Frees a <SPLICE_PATH>
+ */
+void
+p7_splicepath_Destroy(SPLICE_PATH *path)
+{
+
+   if(path == NULL) return;
+
+   if(path->node_id   != NULL) free(path->node_id);
+   if(path->extension != NULL) free(path->extension);
+   if(path->ihmm      != NULL) free(path->ihmm);
+   if(path->jhmm      != NULL) free(path->jhmm);
+   if(path->iali      != NULL) free(path->iali);
+   if(path->jali      != NULL) free(path->jali); 
+   if(path->aliscore  != NULL) free(path->aliscore);
+   if(path            != NULL) free(path);
+
+   return;
+}
+
+
+
+/*****************************************************************
+ * 3. Path Finding Algorithms
+ *****************************************************************/
+
+
+/* Function:  p7_splicepath_Remove()
+ * Synopsis:  Find the highest scoring path in and graph
+ *
+ * Purpose:   Given a SPLICE_GRAPH <graph> with nodes and edges
+ *            find the highest scoring path (sum of node and 
+ *            edge scores) in that graph that contains at least 
+ *            one anchor node. To find the best path we use a 
+ *            modified single-source shortest path algorithm 
+ *            employing a topogogical sort.  This works 
+ *            because the upstream/downstream conditions
+ *            requirded for edge creation ensure the graph
+ *            is acyclical. 
+ *
+ * Returns:   <SPLICE_PATH> on success, <NULL> if no path is found
+ *
+ */
+SPLICE_PATH*
+p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down)
+{
+
+  int          i;
+  int          N;
+  int          path_len;
+  int          start_node;
+  int          curr_node;
+  int          next_node;
+  int          step_cnt;
+  int          contains_anchor;
+  float        best_start_score;
+  SPLICE_EDGE *out_edge;
+  SPLICE_PATH *path       = NULL;
+  P7_TOPHITS  *th;
+  int         status;
+
+  th = graph->th;
+  contains_anchor = FALSE;
+
+  /* Find best scoring paths */
+  if((status = longest_path(graph, extend_down)) != eslOK) goto ERROR;
+
+  while(!contains_anchor) {
+    
+    /* Find the best place to start our path - if extending up can start anywhere - otherwise must start at anchor node*/
+    best_start_score = -eslINFINITY;
+    start_node  = -1;
+    if(extend_up) N = graph->num_nodes;
+    else          N = graph->anchor_N;
+    for (i = 0; i < N; i++) {
+      if(graph->path_scores[i] > best_start_score) {
+        best_start_score = graph->path_scores[i];
+        start_node  = i;
+      }
+    }
+
+    /* We have run out of paths */ 
+    if(start_node < 0) return NULL; 
+ 
+    curr_node = start_node;
+  
+    path_len  = 1;
+  
+    out_edge = NULL;
+    
+    /* Get path length and check that path contains a anchor node */ 
+    while(graph->best_out_edge[curr_node] >= 0) {
+
+      if(curr_node < graph->anchor_N) contains_anchor = TRUE;
+
+      next_node = graph->best_out_edge[curr_node];
+      
+      out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
+
+      if(out_edge == NULL || out_edge->edge_score == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "Edge does not exist");
+      if(out_edge->jump_edge) break;  
+
+      curr_node = next_node;
+      path_len++;
+    } 
+  
+    if(curr_node < graph->anchor_N) contains_anchor = TRUE;  
+
+    if(!contains_anchor) graph->path_scores[start_node] = -eslINFINITY;
+  }
+
+  /* Once a viable path has been found build the path */
+  if ((path = p7_splicepath_Create(path_len)) == NULL) goto ERROR;
+    
+  path->revcomp = graph->revcomp;
+  
+  path->node_id[0]   = start_node;
+  path->extension[0] = FALSE; 
+ 
+  path->ihmm[0] = th->hit[start_node]->dcl->ihmm;
+  path->iali[0] = th->hit[start_node]->dcl->iali;
+
+  path->aliscore[0] = th->hit[start_node]->dcl->aliscore;
+
+  if(th->hit[start_node]->dcl->tr->fs) path->frameshift = TRUE; 
+  
+  curr_node = start_node;
+  step_cnt = 1;
+  while (step_cnt < path_len) {
+    next_node = graph->best_out_edge[curr_node];
+    out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
+
+    path->node_id[step_cnt]   = next_node;
+    path->extension[step_cnt] = FALSE;  
+
+    path->jhmm[step_cnt-1] = th->hit[curr_node]->dcl->jhmm;
+    path->ihmm[step_cnt]   = th->hit[next_node]->dcl->ihmm;
+    path->jali[step_cnt-1] = th->hit[curr_node]->dcl->jali;
+    path->iali[step_cnt]   = th->hit[next_node]->dcl->iali;
+
+    path->aliscore[step_cnt] = th->hit[next_node]->dcl->aliscore;
+ 
+    if(th->hit[next_node]->dcl->tr->fs) path->frameshift = TRUE; 
+
+    curr_node = next_node;
+    step_cnt++;
+  }
+  
+  path->jhmm[step_cnt-1] = th->hit[curr_node]->dcl->jhmm;
+  path->jali[step_cnt-1] = th->hit[curr_node]->dcl->jali;
+
+  return path;
+
+  ERROR:
+    if(path != NULL) p7_splicepath_Destroy(path);
+    return NULL; 
+
+}
+
+
+int
+longest_path (SPLICE_GRAPH *graph, int extend_down)
+{
+
+  int         i;
+  int         up, down;
+  int         stack_size;
+  float       step_score;
+  int         *reaches_anchor = NULL;
+  int         *visited        = NULL;
+  int         *stack          = NULL;
+  SPLICE_EDGE *tmp_edge;
+  int          status;
+
+  /* Reset path and edge data */ 
+  for(i = 0; i < graph->num_nodes; i++) {
+    if(graph->node_in_graph[i]) 
+      graph->path_scores[i]   = graph->ali_scores[i];
+    else
+      graph->path_scores[i]   = -eslINFINITY;
+    
+    graph->best_out_edge[i] = -1;
+  }
+
+  /* Create topological sort of graph */
+  ESL_ALLOC(visited, sizeof(int) * graph->num_nodes);
+  esl_vec_ISet(visited, graph->num_nodes, 0);
+
+  ESL_ALLOC(stack, sizeof(int) * graph->num_nodes);
+
+  stack_size = 0;
+  for(i = 0; i < graph->num_nodes; i++) {
+    if (!graph->node_in_graph[i]) continue;
+    if(!visited[i])
+      topological_sort(graph, visited, stack, &stack_size, i);
+  }
+
+  /* Push scores upstream */
+  ESL_ALLOC(reaches_anchor, sizeof(int) * graph->num_nodes);
+  esl_vec_ISet(reaches_anchor, graph->num_nodes, 0);
+  while(stack_size > 0) {
+    down = stack[stack_size-1];
+    stack_size--;
+
+    for(i = 0; i < graph->num_in_nodes[down]; i++) {
+      up = graph->in_nodes[down][i];
+      if(!graph->node_in_graph[up]) continue;
+      tmp_edge = p7_splicegraph_GetEdge(graph, up, down);
+
+      if(tmp_edge != NULL && tmp_edge->edge_score != -eslINFINITY) {
+        step_score = graph->ali_scores[up] + tmp_edge->edge_score + graph->path_scores[down];
+        if(graph->path_scores[up] <= step_score) {
+          if(!extend_down) {
+            if(down < graph->anchor_N || reaches_anchor[down]) {
+              reaches_anchor[up] = TRUE;
+              graph->path_scores[up]   = step_score;
+              graph->best_out_edge[up] = down;
+            }
+          }
+          else {
+            graph->path_scores[up]   = step_score;
+            graph->best_out_edge[up] = down;
+          }
+        }
+      }
+    }
+  }
+
+  if(reaches_anchor != NULL) free(reaches_anchor);
+  if(visited        != NULL) free(visited);
+  if(stack          != NULL) free(stack);
+  return eslOK;
+
+  ERROR:
+    if(reaches_anchor != NULL) free(reaches_anchor);
+    if(visited        != NULL) free(visited);
+    if(stack          != NULL) free(stack);
+    return status;
+}
+
+
+
+int
+topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size, int node)
+{
+
+  int i, j;
+
+  visited[node] = TRUE;
+
+  for(j = 0; j < graph->num_in_nodes[node]; j++) {
+    i = graph->in_nodes[node][j];
+    if(!graph->node_in_graph[i]) continue;
+    if(visited[i]) continue;
+    topological_sort(graph, visited, stack, stack_size, i);
+  }
+
+  stack[*stack_size] = node;
+  *stack_size += 1;
+
+  return eslOK;
+
+}
+
+
+/*****************************************************************
+ * 2. Debugging tools.
+ *****************************************************************/
+
+void
+p7_splicepath_Dump(FILE *fp, SPLICE_PATH *path)
+{
+
+  int i;
+
+  if(path == NULL) return;
+
+  fprintf(fp, "  Path Length  %d\n", path->path_len);
+  fprintf(fp, "  %4s %4s %9s %9s %10s %10s \n", "Step", "Node", "hmm_start", "hmm_end", "seq_start", "seq_end");
+  for(i = 0; i < path->path_len; i++) {
+    fprintf(fp, "  %4d %4d %9d %9d %10" PRId64 " %10" PRId64 "\n", i+1, path->node_id[i]+1,
+      path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i]);
+  }
+
+  fprintf(fp, "\n");
+
+  return;
+}
+
+void
+p7_splicepath_DumpScores(FILE *fp, SPLICE_PATH *path, SPLICE_GRAPH *graph)
+{
+
+  int i;
+  float edge_score;
+  SPLICE_EDGE *tmp_edge;  
+
+  if(path == NULL) return;
+
+  fprintf(fp, "  Path Length  %d\n", path->path_len);
+  fprintf(fp, "  %4s %4s %9s %9s %10s %10s %10s %10s\n", "Step", "Node", "hmm_start", "hmm_end", "seq_start", "seq_end", "hit_score", "edge_score");
+
+  fprintf(fp, "  %4d %4d %9d %9d %10" PRId64 " %10" PRId64 " %10f %10f\n", 1, path->node_id[0]+1,
+      path->ihmm[0], path->jhmm[0], path->iali[0], path->jali[0], path->aliscore[0], -eslINFINITY);
+  for(i = 1; i < path->path_len; i++) {
+    
+    tmp_edge = p7_splicegraph_GetEdge(graph, path->node_id[i-1], path->node_id[i]);
+    if(tmp_edge == NULL) edge_score = 0.0;
+    else                 edge_score =  tmp_edge->edge_score;
+    fprintf(fp, "  %4d %4d %9d %9d %10" PRId64 " %10" PRId64 " %10f %10f\n", i+1, path->node_id[i]+1,
+      path->ihmm[i], path->jhmm[i], path->iali[i], path->jali[i], path->aliscore[i], edge_score);
+  }
+
+  fprintf(fp, "\n");
+
+  return;
+}

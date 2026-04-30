@@ -84,30 +84,31 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
 
   /* Entry scores. */
   if (p7_profile_IsLocal(gm))
-    {
-      /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
-       * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
-      Z = 0.;
-      ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
-
-      if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
-      for (k = 1; k <= hmm->M; k++) 
-  Z += occ[k] * (float) (hmm->M-k+1);
-      for (k = 1; k <= hmm->M; k++) 
-  p7P_TSC(gm, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
-
-      free(occ);
-    }
-  else  /* glocal modes: left wing retraction; must be in log space for precision */
-    {
-      Z = log(hmm->t[0][p7H_MD]);
-      p7P_TSC(gm, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
-      for (k = 1; k < hmm->M; k++) 
   {
-     p7P_TSC(gm, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
-     Z += log(hmm->t[k][p7H_DD]);
-  }
-    }
+    /* Local mode entry:  occ[k] /( \sum_i occ[i] * (M-i+1))
+     * (Reduces to uniform 2/(M(M+1)) for occupancies of 1.0)  */
+     Z = 0.;
+     ESL_ALLOC(occ, sizeof(float) * (hmm->M+1));
+
+     if ((status = p7_hmm_CalculateOccupancy(hmm, occ, NULL)) != eslOK) goto ERROR;
+     for (k = 1; k <= hmm->M; k++) 
+       Z += occ[k] * (float) (hmm->M-k+1);
+     for (k = 1; k <= hmm->M; k++) 
+       p7P_TSC(gm, k-1, p7P_BM) = log(occ[k] / Z); /* note off-by-one: entry at Mk stored as [k-1][BM] */
+     
+     free(occ);
+     occ = NULL;
+   }
+   else  /* glocal modes: left wing retraction; must be in log space for precision */
+   {
+     Z = log(hmm->t[0][p7H_MD]);
+     p7P_TSC(gm, 0, p7P_BM) = log(1.0 - hmm->t[0][p7H_MD]);
+     for (k = 1; k < hmm->M; k++) 
+     {
+       p7P_TSC(gm, k, p7P_BM) = Z + log(hmm->t[k][p7H_DM]);
+       Z += log(hmm->t[k][p7H_DD]);
+     }
+   }
 
   /* E state loop/move probabilities: nonzero for MOVE allows loops/multihits
    * N,C,J transitions are set later by length config 
@@ -229,9 +230,10 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   float   *tp;
   float    sc[p7_MAXCODE];
   float    Z;
-  float    one_indel = log(hmm->fsprob);
-  float    two_indel = 0.f; /* only used for 5-codon profiles */
-  float    no_indel;
+  float    one_indel  = 0.f; 
+  float    two_indel  = 0.f;
+  float    no_indel   = 0.f;
+  float    stop_codon = 0.f;
 
   /* Contract checks */
   if (gm_fs->abc->type != hmm->abc->type) ESL_XEXCEPTION(eslEINVAL, "HMM and profile alphabet don't match");
@@ -239,14 +241,20 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   if (! (hmm->flags & p7H_CONS))          ESL_XEXCEPTION(eslEINVAL, "HMM must have a consensus to transfer to the profile");
 
   if (gm_fs->codon_lengths == 5) {
-    maxcodons = p7P_MAXCODONS5;
-    two_indel = log(hmm->fsprob / 2.);
-    no_indel  = log(1. - hmm->fsprob * 4.);
+    maxcodons  = p7P_MAXCODONS5;
+	one_indel  = log(hmm->fsprob);
+    two_indel  = log(hmm->fsprob / 2.);
+    stop_codon = log(hmm->fsprob);
+    no_indel   = log(1.- hmm->fsprob * 4.);
   } else if (gm_fs->codon_lengths == 3) {
     maxcodons = p7P_MAXCODONS3;
+	one_indel  = log(hmm->fsprob);
+    stop_codon = log(hmm->fsprob);
     no_indel  = log(1. - hmm->fsprob * 3.);
+  } else if (gm_fs->codon_lengths == 1) {
+    maxcodons = p7P_MAXCODONS1;
   } else {
-    ESL_XEXCEPTION(eslEINVAL, "invalid codon_lengths; must be 3 or 5");
+    ESL_XEXCEPTION(eslEINVAL, "invalid codon_lengths; must be 1, 3 or 5");
   }
 
   /* Copy some pointer references and other info across from HMM  */
@@ -497,7 +505,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 		    codon_idx = p7P_CODON3_FS5(v, w, x);
 			codon = 16 * v + 4 * w + x;
 			a = gcode->basic[codon];
-			p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? one_indel : no_indel;
+			p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? stop_codon : no_indel;
 			for (u = 0; u < 4; u++) {
 			  codon_idx = p7P_CODON4_FS5(u, v, w, x);
 			  p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
@@ -630,7 +638,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
             codon_idx = p7P_CODON3_FS3(v, w, x);
             codon = 16 * v + 4 * w + x;
             a = gcode->basic[codon];
-            p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? one_indel : no_indel;
+            p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? stop_codon : no_indel;
             for (u = 0; u < 4; u++) {
               codon_idx = p7P_CODON4_FS3(u, v, w, x);
               p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
@@ -653,7 +661,32 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
       p7P_INDEL(gm_fs, k, codon_idx) = p7P_xxx;
     }
   }
+  else if (gm_fs->codon_lengths == 1) {
+    for (k = 1; k <= hmm->M; k++) {
+      for (x = 0; x < 4; x++) {
+        for (w = 0; w < 4; w++) {
+          for (v = 0; v < 4; v++) {
+            codon = 16 * v + 4 * w + x;
+            a = gcode->basic[codon];
+            codon_idx = p7P_CODON3_FS1(v, w, x);
+            p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO1(gm_fs, k, a);
+			p7P_AMINO(gm_fs, k, codon_idx) = a;
+            p7P_INDEL(gm_fs, k, codon_idx) = p7P_XXX;
+		  }
+		}
+	  }
+      /* degenerate nucleotide placeholders */
+      a = hmm->abc->Kp-3;
+      codon_idx = p7P_DEGEN1_C;
+      p7P_MSC_CODON(gm_fs, k, codon_idx) = p7P_MSC_AMINO1(gm_fs, k, a);
+      p7P_AMINO(gm_fs, k, codon_idx) = a;
+      p7P_INDEL(gm_fs, k, codon_idx) = p7P_xxx;
+    }	  
+  }
 
+  gm_fs->fs = hmm->fs;
+  gm_fs->fsprob = hmm->fsprob;
+    
   /* Remaining specials, [NCJ][MOVE | LOOP] are set by ReconfigLength() */
   gm_fs->L = 0;            /* force ReconfigLength to reconfig */
   if ((status = p7_fs_ReconfigLength(gm_fs, L_amino)) != eslOK) goto ERROR;
@@ -663,8 +696,6 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   if (occ != NULL) free(occ);
   return status;
 }
-
-
 
 
 /* Function:  p7_ReconfigLength()
@@ -696,7 +727,7 @@ p7_ReconfigLength(P7_PROFILE *gm, int L)
   /* Configure N,J,C transitions so they bear L/(2+nj) of the total
    * unannotated sequence length L. 
    */
-  pmove = (2.0f + gm->nj) / ((float) L + 2.0f + gm->nj); /* 2/(L+2) for sw; 3/(L+3) for fs */
+  pmove = (2.0f + gm->nj) / ((float) L + 2.0f + gm->nj); /* 2/(L+2) for uni; 3/(L+3) for multi */
   ploop = 1.0f - pmove;
   gm->xsc[p7P_N][p7P_LOOP] =  gm->xsc[p7P_C][p7P_LOOP] = gm->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm->xsc[p7P_N][p7P_MOVE] =  gm->xsc[p7P_C][p7P_MOVE] = gm->xsc[p7P_J][p7P_MOVE] = log(pmove);
@@ -738,6 +769,7 @@ p7_fs_ReconfigLength(P7_FS_PROFILE *gm_fs, int L_amino)
   gm_fs->xsc[p7P_N][p7P_LOOP] =  gm_fs->xsc[p7P_C][p7P_LOOP] = gm_fs->xsc[p7P_J][p7P_LOOP] = log(ploop);
   gm_fs->xsc[p7P_N][p7P_MOVE] =  gm_fs->xsc[p7P_C][p7P_MOVE] = gm_fs->xsc[p7P_J][p7P_MOVE] = log(pmove);
   gm_fs->L = L_amino;
+
   return eslOK;
 }
 
@@ -841,34 +873,35 @@ p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L_amino)
   return p7_fs_ReconfigLength(gm_fs, L_amino);
 }
 
-/* Function:  p7_UpdateFwdEmissionScores()
- * Synopsis:  Update om match emissions to account for new bg, using
- *            preallocated sc_tmp[].
+/* Function:  p7_fs_UpdateEmissionScores()
+ * Synopsis:  Update om match emissions to account for new bg
  *
  * Purpose:   Change scores based on updated background model
  *
  */
 int
-p7_UpdateFwdEmissionScores(P7_PROFILE *gm, P7_BG *bg, float *fwd_emissions, float *sc_tmp)
+p7_fs_UpdateEmissionScores(P7_FS_PROFILE *gm_fs5, P7_BG *bg, const P7_HMM *hmm)
 {
-  int     i, j;
-  int     K   = gm->abc->K;
-  int     Kp  = gm->abc->Kp;
+  int     k, x;
+  int     K, Kp;
+  float   sc[p7_MAXCODE];
 
-  for (i = 1; i <= gm->M; i++) {
-    for (j=0; j<K; j++) {
-      if (gm->mm && gm->mm[i] == 'm')
-        sc_tmp[j] = 0;
-      else
-        sc_tmp[j] = log(fwd_emissions[i*gm->abc->Kp + j] / bg->f[j]);
-    }
+  if (gm_fs5->codon_lengths != 5)  ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths"); 
+  K  = gm_fs5->abc->K;
+  Kp = gm_fs5->abc->Kp;
 
+  sc[K]    = -eslINFINITY;
+  sc[Kp-1] = -eslINFINITY;
+  sc[Kp-2] = -eslINFINITY;
 
-    esl_abc_FExpectScVec(bg->abc, sc_tmp, bg->f);
+  for (k = 1; k <= gm_fs5->M; k++) {
+    for (x = 0; x < hmm->abc->K; x++) 
+     sc[x] = log((double)hmm->mat[k][x] / bg->f[x]);
+    
+    esl_abc_FExpectScVec(gm_fs5->abc, sc, bg->f);
 
-    for (j=0; j<Kp; j++)
-      gm->rsc[j][(i) * p7P_NR  + p7P_MSC] =  sc_tmp[j];
-
+    for (x = 0; x < gm_fs5->abc->Kp; x++)
+      p7P_MSC_AMINO5(gm_fs5, k, x) = sc[x];
   }
 
   return eslOK;

@@ -112,8 +112,8 @@ main(int argc, char **argv)
 	  else if (status != eslOK)      p7_Fail("Unexpected error %d reading sequence file %s", status, sqfp->filename);
 
 	  /* Resize DP matrix if necessary */
-	  p7_gmx_GrowTo(fwd,    gm->M,    sq->n);
-	  p7_gmx_GrowTo(fwdref, gmref->M, sq->n);
+	  p7_gmx_GrowTo(fwd,    gm->M,    sq->n, sq->n, p7G_NSCELLS);
+	  p7_gmx_GrowTo(fwdref, gmref->M, sq->n, sq->n, p7G_NSCELLS);
 
 	  /* Set the profile and null model's target length models */
 	  p7_bg_SetLength(bg, sq->n);

@@ -428,7 +428,8 @@ select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
  *****************************************************************/
 #ifdef p7OPTACC_BENCHMARK
 /* 
-   icc  -O3 -static -o optacc_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm 
+   gcc -g -O3 -msse2 -std=gnu99 -o optacc_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm
+   icc  -O3 -static -o optacc_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7OPTACC_BENCHMARK optacc.c -lhmmer -leasel -lm
 
    ./optacc_benchmark <hmmfile>         runs benchmark on optimal accuracy fill and trace
    ./optacc_benchmark -c -N1 <hmmfile>  compare scores of SSE version to generic impl
@@ -533,8 +534,8 @@ main(int argc, char **argv)
 
   if (esl_opt_GetBoolean(go, "-c") || esl_opt_GetBoolean(go, "-x") )
     {
-      gx1 = p7_gmx_Create(gm->M, L);
-      gx2 = p7_gmx_Create(gm->M, L);
+      gx1 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+      gx2 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
       
       p7_GForward (dsq, L, gm, gx1, &fsc_g);
       p7_GBackward(dsq, L, gm, gx2, &bsc_g);
@@ -600,8 +601,8 @@ utest_optacc(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, i
   ESL_SQ      *sq  = esl_sq_CreateDigital(abc);
   P7_OMX      *ox1 = p7_omx_Create(M, L, L);
   P7_OMX      *ox2 = p7_omx_Create(M, L, L);
-  P7_GMX      *gx1 = p7_gmx_Create(M, L);
-  P7_GMX      *gx2 = p7_gmx_Create(M, L);
+  P7_GMX      *gx1 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX      *gx2 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   P7_TRACE    *tr  = p7_trace_CreateWithPP();
   P7_TRACE    *trg = p7_trace_CreateWithPP();
   P7_TRACE    *tro = p7_trace_CreateWithPP();
@@ -618,12 +619,12 @@ utest_optacc(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, i
   if (p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om)!= eslOK) esl_fatal(msg);
   while (N--)
     {
-      if (p7_ProfileEmit(r, hmm, gm, bg, sq, tro)         != eslOK) esl_fatal(msg);
+      if (p7_ProfileEmit(r, hmm, gm, bg, sq, tro)          != eslOK) esl_fatal(msg);
 
-      if (p7_omx_GrowTo(ox1, M, sq->n, sq->n)             != eslOK) esl_fatal(msg);
-      if (p7_omx_GrowTo(ox2, M, sq->n, sq->n)             != eslOK) esl_fatal(msg);
-      if (p7_gmx_GrowTo(gx1, M, sq->n)                    != eslOK) esl_fatal(msg);
-      if (p7_gmx_GrowTo(gx2, M, sq->n)                    != eslOK) esl_fatal(msg);
+      if (p7_omx_GrowTo(ox1, M, sq->n, sq->n)              != eslOK) esl_fatal(msg);
+      if (p7_omx_GrowTo(ox2, M, sq->n, sq->n)              != eslOK) esl_fatal(msg);
+      if (p7_gmx_GrowTo(gx1, M, sq->n, sq->n) != eslOK) esl_fatal(msg);
+      if (p7_gmx_GrowTo(gx2, M, sq->n, sq->n) != eslOK) esl_fatal(msg);
 
       if (p7_Forward (sq->dsq, sq->n, om, ox1,      &fsc) != eslOK) esl_fatal(msg);
       if (p7_Backward(sq->dsq, sq->n, om, ox1, ox2, &bsc) != eslOK) esl_fatal(msg);
@@ -899,7 +900,7 @@ main(int argc, char **argv)
   /* Allocations */
   ox1 = p7_omx_Create(gm->M, sq->n, sq->n);
   ox2 = p7_omx_Create(gm->M, sq->n, sq->n);
-  gx  = p7_gmx_Create(gm->M, sq->n);
+  gx  = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
   tr  = p7_trace_CreateWithPP();
   p7_FLogsumInit();
 

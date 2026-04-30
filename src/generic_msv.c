@@ -315,7 +315,7 @@ main(int argc, char **argv)
   p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
@@ -375,9 +375,9 @@ utest_msv(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, P7_P
   float     sc1, sc2;
   int       k, idx;
 
-  if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2))) == NULL)  esl_fatal("malloc failed");
-  if ((gx     = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
-  if ((g2     = p7_profile_Clone(gm))           == NULL)  esl_fatal("profile clone failed");
+  if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2)))          == NULL)  esl_fatal("malloc failed");
+  if ((gx     = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS)) == NULL)  esl_fatal("matrix creation failed");
+  if ((g2     = p7_profile_Clone(gm))                    == NULL)  esl_fatal("profile clone failed");
 
   /* Make g2's scores appropriate for simulating the MSV algorithm in Viterbi */
   esl_vec_FSet(g2->tsc, p7P_NTRANS * g2->M, -eslINFINITY);
@@ -529,13 +529,13 @@ main(int argc, char **argv)
   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL);
 
   /* Allocate matrix */
-  fwd = p7_gmx_Create(gm->M, sq->n);
+  fwd = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
 
   while ((status = esl_sqio_Read(sqfp, sq)) == eslOK)
     {
       p7_ReconfigLength(gm,  sq->n);
       p7_bg_SetLength(bg,    sq->n);
-      p7_gmx_GrowTo(fwd, gm->M, sq->n); 
+      p7_gmx_GrowTo(fwd, gm->M, sq->n, sq->ni, p7G_NSCELLS); 
 
       /* Run MSV */
       p7_GMSV(sq->dsq, sq->n, gm, fwd, nu, &sc);

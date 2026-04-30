@@ -98,7 +98,7 @@ main(int argc, char **argv)
   ESL_ALPHABET   *abc      = esl_alphabet_Create(eslDNA);
   ESL_RANDOMNESS *r        = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
   P7_BG          *bg       = p7_bg_Create(abc);
-  P7_GMX         *gx       = p7_gmx_Create(3, 4); /* M=3, L up to 4. */
+  P7_GMX         *gx       = p7_gmx_Create(3, 4, 4, p7G_NSCELLS); /* M=3, L up to 4. */
   P7_HMM         *hmm      = NULL;
   P7_PROFILE     *gm       = NULL;
   char           *hmmfile  = esl_opt_GetString (go, "-o");
@@ -138,7 +138,7 @@ main(int argc, char **argv)
 
 	for (L = 0; L <= 4; L++)
 	  {
-	    p7_gmx_GrowTo(gx, 3, L);
+	    p7_gmx_GrowTo(gx, 3, L, L);
 
 	    dsq[0] = dsq[L+1] = eslDSQ_SENTINEL;       /* Initialize dsq of length L at 0000... (all A) */
 	    for (i = 1; i <= L; i++) dsq[i] = 0;
@@ -149,7 +149,7 @@ main(int argc, char **argv)
 	      p7_gmx_Dump(stdout, gx, p7_DEFAULT);
 	    p7_gmx_Reuse(gx);
 
-	    p7_gmx_GrowTo(gx, 3, L);
+	    p7_gmx_GrowTo(gx, 3, L, L);
 	    if (p7_GForward(dsq, L, gm, gx, &(fsc[L]))  != eslOK) esl_fatal("forward failed");
 	    if (esl_opt_GetBoolean(go, "--vv")) 
 	      p7_gmx_Dump(stdout, gx, p7_DEFAULT);

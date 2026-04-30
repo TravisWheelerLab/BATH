@@ -279,8 +279,8 @@ main(int argc, char **argv)
 
   bg = p7_bg_Create(abc);                 p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);    p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL);
-  gx1 = p7_gmx_Create(gm->M, L);  
-  gx2 = p7_gmx_Create(gm->M, L);
+  gx1 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);  
+  gx2 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
   p7_GForward (dsq, L, gm, gx1, &fsc);
@@ -407,8 +407,8 @@ main(int argc, char **argv)
 
   /* Other initial allocations */
   dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
-  fwd  = p7_gmx_Create(gm->M, L);
-  bck  = p7_gmx_Create(gm->M, L);
+  fwd  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  bck  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
   p7_FLogsumInit();
 
   utest_correct_normalization(r, gm, bg, dsq, L, fwd, bck);

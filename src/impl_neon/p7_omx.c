@@ -211,6 +211,130 @@ p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
   return status;
 }  
 
+/* Function:  p7_omx_Create_dpf()
+ * Synopsis:  Create a dpf-only optimized DP matrix for frameshift algorithms.
+ *
+ * Purpose:   Like <p7_omx_Create()>, but allocates only the float (<dpf>)
+ *            DP array.  <nscells> specifies the number of cells per stripe
+ *            position (e.g. <p7X_NSCELLS_FS> = 8 for the frameshift layout).
+ *            The <dpw> and <dpb> arrays are not allocated.
+ *
+ * Returns:   pointer to new <P7_OMX> on success, or <NULL> on allocation failure.
+ */
+P7_OMX *
+p7_omx_Create_dpf(int allocM, int allocL, int allocXL, int nscells)
+{
+  P7_OMX *ox     = NULL;
+  int     i;
+  int     status;
+
+  ESL_ALLOC(ox, sizeof(P7_OMX));
+  ox->dp_mem = NULL;
+  ox->dpb    = NULL;
+  ox->dpw    = NULL;
+  ox->dpf    = NULL;
+  ox->xmx    = NULL;
+  ox->x_mem  = NULL;
+
+  ox->nscells  = nscells;
+  ox->allocR   = allocL + 1;
+  ox->validR   = ox->allocR;
+  ox->allocQ4  = p7O_NQF(allocM);
+  ox->allocQ8  = 0;   /* not used */
+  ox->allocQ16 = 0;   /* not used */
+  ox->ncells   = (int64_t) ox->allocR * ox->allocQ4 * 4;
+
+  ESL_ALLOC(ox->dp_mem, sizeof(float32x4_t) * ox->allocR * ox->allocQ4 * nscells + 15);
+  ESL_ALLOC(ox->dpf,    sizeof(float32x4_t *) * ox->allocR);
+
+  ox->dpf[0] = (float32x4_t *) ( ( (unsigned long int) ((char *) ox->dp_mem + 15) & (~0xf)));
+  for (i = 1; i <= allocL; i++)
+    ox->dpf[i] = ox->dpf[0] + i * ox->allocQ4 * nscells;
+
+  ox->allocXR = allocXL + 1;
+  ESL_ALLOC(ox->x_mem, sizeof(float) * ox->allocXR * p7X_NXCELLS + 15);
+  ox->xmx = (float *) ( ( (unsigned long int) ((char *) ox->x_mem + 15) & (~0xf)));
+
+  ox->M              = 0;
+  ox->L              = 0;
+  ox->totscale       = 0.0;
+  ox->has_own_scales = TRUE;
+#if eslDEBUGLEVEL > 0
+  ox->debugging = FALSE;
+  ox->dfp       = NULL;
+#endif
+  return ox;
+
+ ERROR:
+  p7_omx_Destroy(ox);
+  return NULL;
+}
+
+
+/* Function:  p7_omx_GrowTo_dpf()
+ * Synopsis:  Assure a dpf-only DP matrix is large enough.
+ *
+ * Purpose:   Like <p7_omx_GrowTo()>, but for matrices created with
+ *            <p7_omx_Create_dpf()>.  Uses <ox->nscells> as the per-stripe
+ *            cell count.  <dpw> and <dpb> are not touched.
+ *
+ * Returns:   <eslOK> on success.  Any previous data in <ox> is invalidated.
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_omx_GrowTo_dpf(P7_OMX *ox, int allocM, int allocL, int allocXL)
+{
+  void   *p;
+  int     nqf    = p7O_NQF(allocM);
+  int64_t ncells = (int64_t)(allocL + 1) * nqf * 4;
+  int     reset_row_pointers = FALSE;
+  int     i;
+  int     status;
+
+  if (ox->allocQ4 * 4 >= allocM && ox->validR > allocL && ox->allocXR >= allocXL + 1) return eslOK;
+
+  if (ncells > ox->ncells)
+    {
+      ESL_RALLOC(ox->dp_mem, p, sizeof(float32x4_t) * (allocL + 1) * nqf * ox->nscells + 15);
+      ox->ncells = ncells;
+      reset_row_pointers = TRUE;
+    }
+
+  if (allocXL + 1 >= ox->allocXR)
+    {
+      ESL_RALLOC(ox->x_mem, p, sizeof(float) * (allocXL + 1) * p7X_NXCELLS + 15);
+      ox->allocXR = allocXL + 1;
+      ox->xmx     = (float *) ( ( (unsigned long int) ((char *) ox->x_mem + 15) & (~0xf)));
+    }
+
+  if (allocL >= ox->allocR)
+    {
+      ESL_RALLOC(ox->dpf, p, sizeof(float32x4_t *) * (allocL + 1));
+      ox->allocR         = allocL + 1;
+      reset_row_pointers = TRUE;
+    }
+
+  if (allocM > ox->allocQ4 * 4) reset_row_pointers = TRUE;
+  if (allocL >= ox->validR)     reset_row_pointers = TRUE;
+
+  if (reset_row_pointers)
+    {
+      ox->dpf[0] = (float32x4_t *) ( ( (unsigned long int) ((char *) ox->dp_mem + 15) & (~0xf)));
+      ox->validR = ESL_MIN(ox->ncells / (nqf * 4), ox->allocR);
+      for (i = 1; i < ox->validR; i++)
+        ox->dpf[i] = ox->dpf[0] + i * nqf * ox->nscells;
+      ox->allocQ4 = nqf;
+    }
+
+  ox->M = 0;
+  ox->L = 0;
+  return eslOK;
+
+ ERROR:
+  return status;
+}
+
+
 /* Function:  p7_omx_FDeconvert()
  * Synopsis:  Convert an optimized DP matrix to generic one.
  * Incept:    ML, Fri Mar 12 10:32:20 2021 [Heidelberg]
@@ -219,33 +343,64 @@ p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
  *            <ox> to a generic one <gx>. Caller provides <gx> with sufficient
  *            space to hold the <ox->M> by <ox->L> matrix.
  *
- *            This function is used to gain access to the
- *            somewhat more powerful debugging and display
- *            tools available for generic DP matrices.
+ *            If <ox->nscells == p7X_NSCELLS_FS> (8-cell frameshift layout),
+ *            <gx> must have been created with <p7G_NSCELLS_FS> and the full
+ *            D, I, M_C0..M_C5 per-position values are extracted.  Otherwise
+ *            the standard 3-cell (M, D, I) path is used.
+ *
+ *            This function is used to gain access to the somewhat more powerful
+ *            debugging and display tools available for generic DP matrices.
  */
 int
 p7_omx_FDeconvert(P7_OMX *ox, P7_GMX *gx)
 {
   int Q = p7O_NQF(ox->M);
-  int i, q, r, k;
+  int i, q, r, k, c;
   union { float32x4_t v; float p[4]; } u;
   float      **dp   = gx->dp;
   float       *xmx  = gx->xmx;
 
-  for (i = 0; i <= ox->L; i++)
+  if (ox->nscells == p7X_NSCELLS_FS)
     {
-      MMX(i,0) = DMX(i,0) = IMX(i,0) = -eslINFINITY;
-      for (q = 0; q < Q; q++)
-	{
-	  u.v = MMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) MMX(i, (Q*r)+q+1) = u.p[r]; }
-	  u.v = DMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) DMX(i, (Q*r)+q+1) = u.p[r]; }
-	  u.v = IMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) IMX(i, (Q*r)+q+1) = u.p[r]; }
-	}
-      XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
-      XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
-      XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
-      XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
-      XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+      for (i = 0; i <= ox->L; i++)
+        {
+          for (c = 0; c < 6; c++) MMX_FS(i,0,c) = -eslINFINITY;
+          IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
+          for (q = 0; q < Q; q++)
+            {
+              u.v = DMO_FS(ox->dpf[i],q);
+              for (r = 0; r < 4; r++) { k = Q*r+q+1; if (k <= ox->M) DMX_FS(i,k)   = u.p[r]; }
+              u.v = IMO_FS(ox->dpf[i],q);
+              for (r = 0; r < 4; r++) { k = Q*r+q+1; if (k <= ox->M) IMX_FS(i,k)   = u.p[r]; }
+              for (c = 0; c < 6; c++) {
+                u.v = MMO_FS(ox->dpf[i],q,c);
+                for (r = 0; r < 4; r++) { k = Q*r+q+1; if (k <= ox->M) MMX_FS(i,k,c) = u.p[r]; }
+              }
+            }
+          XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
+          XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
+          XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
+          XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
+          XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+        }
+    }
+  else
+    {
+      for (i = 0; i <= ox->L; i++)
+        {
+          MMX(i,0) = DMX(i,0) = IMX(i,0) = -eslINFINITY;
+          for (q = 0; q < Q; q++)
+            {
+              u.v = MMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) MMX(i, (Q*r)+q+1) = u.p[r]; }
+              u.v = DMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) DMX(i, (Q*r)+q+1) = u.p[r]; }
+              u.v = IMO(ox->dpf[i],q);  for (r = 0; r < 4; r++) { k = (Q*r)+q+1; if (k <= ox->M) IMX(i, (Q*r)+q+1) = u.p[r]; }
+            }
+          XMX(i,p7G_E) = ox->xmx[i*p7X_NXCELLS+p7X_E];
+          XMX(i,p7G_N) = ox->xmx[i*p7X_NXCELLS+p7X_N];
+          XMX(i,p7G_J) = ox->xmx[i*p7X_NXCELLS+p7X_J];
+          XMX(i,p7G_B) = ox->xmx[i*p7X_NXCELLS+p7X_B];
+          XMX(i,p7G_C) = ox->xmx[i*p7X_NXCELLS+p7X_C];
+        }
     }
   gx->L = ox->L;
   gx->M = ox->M;
@@ -604,6 +759,165 @@ p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, flo
   if (logify) for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k] == 0. ? -eslINFINITY : log(v[k]));
   else        for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k]);
   fprintf(ox->dfp, "\n\n");
+
+  free(v);
+  return eslOK;
+
+ERROR:
+  free(v);
+  return status;
+}
+
+int
+p7_omx_DumpFBRow_FS(P7_OMX *ox, int logify, int i, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC)
+{
+  float32x4_t *dp;
+  int      M  = ox->M;
+  int      Q  = p7O_NQF(M);
+  float   *v  = NULL;
+  int      q,z,k;
+  union { float32x4_t v; float x[4]; } tmp;
+  int      status;
+
+  dp = (ox->allocR == 1) ? ox->dpf[0] : ox->dpf[rowi];
+
+  ESL_ALLOC(v, sizeof(float) * ((Q*4)+1));
+  v[0] = 0.;
+
+  if (i == 0)
+    {
+      fprintf(ox->dfp, "      ");
+      for (k = 0; k <= M;  k++) fprintf(ox->dfp, "%*d ", width, k);
+      fprintf(ox->dfp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
+      fprintf(ox->dfp, "      ");
+      for (k = 0; k <= M+5;  k++) fprintf(ox->dfp, "%*s ", width, "--------");
+      fprintf(ox->dfp, "\n");
+    }
+
+  /* Unpack, unstripe, then print M's. */
+  for (q = 0; q < Q; q++) {
+    tmp.v = MMXo(q);
+    for (z = 0; z < 4; z++) v[q+Q*z+1] = tmp.x[z];
+  }
+  fprintf(ox->dfp, "%3d M ", i);
+  if (logify) for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k] == 0. ? -eslINFINITY : log(v[k]));
+  else        for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k]);
+
+  /* The specials */
+  if (logify) fprintf(ox->dfp, "%*.*f %*.*f %*.*f %*.*f %*.*f\n",
+                      width, precision, xE == 0. ? -eslINFINITY : log(xE),
+                      width, precision, xN == 0. ? -eslINFINITY : log(xN),
+                      width, precision, xJ == 0. ? -eslINFINITY : log(xJ),
+                      width, precision, xB == 0. ? -eslINFINITY : log(xB),
+                      width, precision, xC == 0. ? -eslINFINITY : log(xC));
+  else        fprintf(ox->dfp, "%*.*f %*.*f %*.*f %*.*f %*.*f\n",
+                      width, precision, xE, width, precision, xN, width, precision, xJ,
+                      width, precision, xB, width, precision, xC);
+
+  /* Unpack, unstripe, then print I's. */
+  for (q = 0; q < Q; q++) {
+    tmp.v = IMXo(q);
+    for (z = 0; z < 4; z++) v[q+Q*z+1] = tmp.x[z];
+  }
+  fprintf(ox->dfp, "%3d I ", i);
+  if (logify) for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k] == 0. ? -eslINFINITY : log(v[k]));
+  else        for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k]);
+  fprintf(ox->dfp, "\n");
+
+  /* Unpack, unstripe, then print D's. */
+  for (q = 0; q < Q; q++) {
+    tmp.v = DMXo(q);
+    for (z = 0; z < 4; z++) v[q+Q*z+1] = tmp.x[z];
+  }
+  fprintf(ox->dfp, "%3d D ", i);
+  if (logify) for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k] == 0. ? -eslINFINITY : log(v[k]));
+  else        for (k = 0; k <= M; k++) fprintf(ox->dfp, "%*.*f ", width, precision, v[k]);
+  fprintf(ox->dfp, "\n\n");
+
+  free(v);
+  return eslOK;
+
+ERROR:
+  free(v);
+  return status;
+}
+
+/* Function:  p7_omx_Dump()
+ * Synopsis:  Dump the full float DP matrix to a stream, for diagnostics.
+ *
+ * Purpose:   Dump the complete float (MDI) DP matrix stored in <ox>
+ *            to stream <fp>. Rows 0..L and model positions 1..M are
+ *            printed in three sub-rows (M, I, D) per sequence position,
+ *            together with the special state scores (E, N, J, B, C)
+ *            stored in <ox->xmx>.
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_omx_Dump(FILE *fp, P7_OMX *ox)
+{
+  int     M  = ox->M;
+  int     L  = ox->L;
+  int     Q  = p7O_NQF(M);
+  int     width     = 9;
+  int     precision = 4;
+  float  *v  = NULL;
+  int     i, q, z, k;
+  union { float32x4_t v; float x[4]; } tmp;
+  int     status;
+
+  ESL_ALLOC(v, sizeof(float) * (Q * 4 + 1));
+
+  /* Header row: column indices */
+  fprintf(fp, "      ");
+  for (k = 0; k <= M; k++) fprintf(fp, "%*d ", width, k);
+  fprintf(fp, "%*s %*s %*s %*s %*s\n", width, "E", width, "N", width, "J", width, "B", width, "C");
+  fprintf(fp, "      ");
+  for (k = 0; k <= M + 5; k++) fprintf(fp, "%*.*s ", width, width, "----------");
+  fprintf(fp, "\n");
+
+  for (i = 0; i <= L; i++)
+    {
+      float32x4_t *dp = ox->dpf[i];
+
+      /* M row */
+      v[0] = 0.0f;
+      for (q = 0; q < Q; q++) {
+        tmp.v = MMO(dp, q);
+        for (z = 0; z < 4; z++) { k = q + z*Q + 1; if (k <= M) v[k] = tmp.x[z]; }
+      }
+      fprintf(fp, "%3d M ", i);
+      for (k = 0; k <= M; k++) fprintf(fp, "%*.*f ", width, precision, v[k]);
+      if (ox->xmx != NULL)
+        fprintf(fp, "%*.*f %*.*f %*.*f %*.*f %*.*f",
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_E],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_N],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_J],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_B],
+                width, precision, ox->xmx[i * p7X_NXCELLS + p7X_C]);
+      fprintf(fp, "\n");
+
+      /* I row */
+      v[0] = 0.0f;
+      for (q = 0; q < Q; q++) {
+        tmp.v = IMO(dp, q);
+        for (z = 0; z < 4; z++) { k = q + z*Q + 1; if (k <= M) v[k] = tmp.x[z]; }
+      }
+      fprintf(fp, "%3d I ", i);
+      for (k = 0; k <= M; k++) fprintf(fp, "%*.*f ", width, precision, v[k]);
+      fprintf(fp, "\n");
+
+      /* D row */
+      v[0] = 0.0f;
+      for (q = 0; q < Q; q++) {
+        tmp.v = DMO(dp, q);
+        for (z = 0; z < 4; z++) { k = q + z*Q + 1; if (k <= M) v[k] = tmp.x[z]; }
+      }
+      fprintf(fp, "%3d D ", i);
+      for (k = 0; k <= M; k++) fprintf(fp, "%*.*f ", width, precision, v[k]);
+      fprintf(fp, "\n\n");
+    }
 
   free(v);
   return eslOK;

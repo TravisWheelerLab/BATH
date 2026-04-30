@@ -196,7 +196,8 @@ p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_OMX *oxb, P
  *****************************************************************/
 #ifdef p7DECODING_BENCHMARK
 /*
-   icc  -O3 -static -o decoding_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm 
+   gcc -g -O3 -msse2 -std=gnu99 -o decoding_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm
+   icc  -O3 -static -o decoding_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7DECODING_BENCHMARK decoding.c -lhmmer -leasel -lm
    ./decoding_benchmark <hmmfile>     
                     RRM_1 (M=72)       Caudal_act (M=136)     SMC_N (M=1151)
                  -----------------    ------------------     ---------------
@@ -318,10 +319,10 @@ utest_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, in
   P7_OMX      *fwd  = p7_omx_Create(M, L, L);
   P7_OMX      *bck  = p7_omx_Create(M, L, L);
   P7_OMX      *pp   = p7_omx_Create(M, L, L);
-  P7_GMX      *gxf  = p7_gmx_Create(M, L);
-  P7_GMX      *gxb  = p7_gmx_Create(M, L);
-  P7_GMX      *gxp1 = p7_gmx_Create(M, L);
-  P7_GMX      *gxp2 = p7_gmx_Create(M, L);
+  P7_GMX      *gxf  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX      *gxb  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX      *gxp1 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX      *gxp2 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   float fsc1, fsc2;
   float bsc1, bsc2;
 

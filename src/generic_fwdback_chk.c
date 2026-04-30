@@ -553,7 +553,7 @@ scoring_comparison(ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX *gx, P7_GMXCHK *g
   float fsc1, fsc2;
   float bsc1, bsc2;
 
-  if ( p7_gmx_GrowTo(gx, gm->M, L)                      != eslOK) esl_fatal(msg);
+  if ( p7_gmx_GrowTo(gx, gm->M, L, L)                   != eslOK) esl_fatal(msg);
   if ( p7_gmxchk_GrowTo(gxc, gm->M, L)                  != eslOK) esl_fatal(msg);
 
   if ( p7_GForward(dsq, L, gm, gx, &fsc1)                    != eslOK) esl_fatal(msg);
@@ -577,7 +577,7 @@ utest_randomseq(ESL_RANDOMNESS *rng, ESL_ALPHABET *abc,
 {
   char       msg[] = "generic_fwdback_chk: random seq test failure";
   ESL_DSQ   *dsq   = malloc(sizeof(ESL_DSQ) * (L+2));
-  P7_GMX    *gx    = p7_gmx_Create(gm->M, 100);
+  P7_GMX    *gx    = p7_gmx_Create(gm->M, 100, 100, p7G_NSCELLS);
   P7_GMXCHK *gxc   = p7_gmxchk_Create(gm->M, 100, ESL_MBYTES(32));
   P7_GBANDS *bnd   = p7_gbands_Create();
   int        idx;
@@ -600,7 +600,7 @@ utest_emitseq(ESL_RANDOMNESS *rng, ESL_ALPHABET *abc,
 {
   char       msg[] = "generic_fwdback_chk: emitted seq test failure";
   ESL_SQ    *sq    = esl_sq_CreateDigital(abc);
-  P7_GMX    *gx    = p7_gmx_Create(gm->M, 100);
+  P7_GMX    *gx    = p7_gmx_Create(gm->M, 100,100,p7G_NSCELLS);
   P7_GMXCHK *gxc   = p7_gmxchk_Create(gm->M, 100, ESL_MBYTES(32));
   P7_GBANDS *bnd   = p7_gbands_Create();
   int        idx;
@@ -758,8 +758,8 @@ main(int argc, char **argv)
   p7_ProfileConfig(hmm, bg, gm, 400, p7_LOCAL);
 
   /* Allocate matrices */
-  fwd = p7_gmx_Create(gm->M, 400);
-  bck = p7_gmx_Create(gm->M, 400);
+  fwd = p7_gmx_Create(gm->M, 400, 400,p7G_NSCELLS);
+  bck = p7_gmx_Create(gm->M, 400, 400, p7G_NSCELLS);
   gxc = p7_gmxchk_Create(gm->M, 400, ESL_MBYTES(32));
   bnd = p7_gbands_Create();
 
@@ -769,8 +769,8 @@ main(int argc, char **argv)
       else if (status != eslOK)      p7_Fail("Unexpected error %d reading sequence file %s", status, sqfp->filename);
 
       /* Resize the DP matrices if necessary */
-      p7_gmx_GrowTo   (fwd, gm->M, sq->n);
-      p7_gmx_GrowTo   (bck, gm->M, sq->n);
+      p7_gmx_GrowTo   (fwd, gm->M, sq->n, sq->n);
+      p7_gmx_GrowTo   (bck, gm->M, sq->n, sq->n);
       p7_gmxchk_GrowTo(gxc, gm->M, sq->n);
 
       //printf("Allocation: %ld\n", p7_gmxchk_Sizeof(fwdc));

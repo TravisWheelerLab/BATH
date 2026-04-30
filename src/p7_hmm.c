@@ -292,6 +292,7 @@ p7_hmm_Clone(const P7_HMM *hmm)
   for (z = 0; z < p7_NCUTOFFS; z++) new->cutoff[z]  = hmm->cutoff[z];
   for (z = 0; z < p7_MAXABET;  z++) new->compo[z]   = hmm->compo[z];
 
+  new->fs       = hmm->fs;
   new->offset   = hmm->offset;
   new->flags    = hmm->flags;
   new->abc      = hmm->abc;
@@ -379,6 +380,9 @@ p7_hmm_DecodeStatetype(char st)
   case p7T_T: return "T";
   case p7T_J: return "J";
   case p7T_X: return "X";
+  case p7T_R: return "R";
+  case p7T_P: return "P";
+  case p7T_A: return "A";
   default:    break;
   }
   esl_exception(eslEINVAL, FALSE, __FILE__, __LINE__, "no such statetype code %d", st);

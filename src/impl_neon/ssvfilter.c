@@ -975,7 +975,7 @@ int main(int argc, char **argv)
   p7_oprofile_Convert(gm, om);
   p7_oprofile_ReconfigLength(om, L);
 
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Get a baseline time: how long it takes just to generate the sequences */
 

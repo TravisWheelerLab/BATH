@@ -67,8 +67,6 @@ static ESL_OPTIONS options[] = {
   { "-o",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
   { "--ct",        eslARG_INT,    "1",      NULL, NULL,             NULL, NULL,     NULL, "use alt genetic code of NCBI transl table <n>",         1 }, 
-  { "--fs",        eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     NULL, "calculate statistics for frameshift aware search",      1 }, 
-  { "--unali",     eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     "-O", "input file is an unaligned sequence file",              1 },
 
   /* Alternate model construction strategies */
   { "--fast",      eslARG_NONE,   "default",NULL, NULL,          CONOPTS, NULL,     NULL, "assign cols w/ >= symfrac residues as consensus",       3 },
@@ -140,7 +138,6 @@ static ESL_OPTIONS options[] = {
     */
     { "--eentexp", eslARG_NONE,"default",NULL, NULL,    EFFOPTS,    NULL,      NULL, "adjust eff seq # to reach rel. ent. target using exp scaling",  99 },
     
-  { "--fsprob",        eslARG_REAL,   "0.01",   NULL, "0.0<=x<=1.0", NULL, NULL,     NULL, "set the frameshift probabilty",                         99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -266,7 +263,6 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
 
   if (fprintf(cfg->ofp, "# input file:                       %s\n", cfg->infile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(cfg->ofp, "# output HMM file:                  %s\n", cfg->hmmfile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-  if (fprintf(cfg->ofp, "# frameshift stats calculated:      %s\n", (esl_opt_IsUsed(go, "--fs") ? "YES" : "NO")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
   if (esl_opt_IsUsed(go, "-n")           && fprintf(cfg->ofp, "# name (the single) HMM:            %s\n",        esl_opt_GetString(go, "-n"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")           && fprintf(cfg->ofp, "# output directed to file:          %s\n",        esl_opt_GetString(go, "-o"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -383,7 +379,13 @@ main(int argc, char **argv)
 
   if (esl_opt_IsOn(go, "--informat")) {
     cfg.fmt = esl_msafile_EncodeFormat(esl_opt_GetString(go, "--informat"));
-    if (cfg.fmt == eslMSAFILE_UNKNOWN) p7_Fail("%s is not a recognized input sequence file format\n", esl_opt_GetString(go, "--informat"));
+    if (cfg.fmt == eslMSAFILE_UNKNOWN) {
+      /* Not an MSA format name; try unaligned sequence format names (e.g. "fasta") */
+      if (esl_sqio_EncodeFormat(esl_opt_GetString(go, "--informat")) != eslSQFILE_UNKNOWN)
+        cfg.fmt = -1;  /* sentinel: force unaligned sequence file mode */
+      else
+        p7_Fail("%s is not a recognized input file format\n", esl_opt_GetString(go, "--informat"));
+    }
   }
 
   /* This is from the MPI - maybe we don't need it */
@@ -447,25 +449,84 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
    *   cfp->ofp       - optional open output file, or stdout
    */
 
-  if (!esl_opt_IsUsed(go, "--unali")) {
+  /* Auto-detect whether input is an MSA or unaligned sequence file.
+   * When the format is unknown, open as MSA and probe-read one entry to
+   * distinguish aligned from unaligned FASTA (which have the same extension).
+   * For explicitly specified formats, open directly — probing is unnecessary
+   * and impossible for non-seekable streams like stdin ('-').
+   */
+  if (cfg->fmt == -1) {
+    /* User explicitly specified an unaligned sequence format (e.g. --informat fasta):
+     * cfg->afp stays NULL so sequence mode is used below. */
+    cfg->fmt = eslMSAFILE_UNKNOWN;
+  } else if (cfg->fmt != eslMSAFILE_UNKNOWN) {
+    /* Explicit MSA format: open directly without probe (works for stdin too). */
     status = esl_msafile_Open(&(cfg->abc), cfg->infile, NULL, cfg->fmt, NULL, &(cfg->afp));
-    if(cfg->abc != NULL && cfg->abc->type != eslAMINO) p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
     if (status != eslOK) esl_msafile_OpenFailure(cfg->afp, status);
+    if (cfg->abc != NULL && cfg->abc->type != eslAMINO)
+      p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
   } else {
-    status = esl_sqfile_Open(cfg->infile, cfg->fmt, NULL, &(cfg->sfp));
-    if (status != eslOK) {
-      if      (status == eslENOTFOUND) p7_Fail("Failed to open input sequence file %s for reading\n",          cfg->infile);
-      else if (status == eslEFORMAT)   p7_Fail("Input sequence file %s is empty or misformatted\n",            cfg->infile);
-      else if (status == eslEINVAL)    p7_Fail("Can't autodetect format of a stdin or .gz seqfile");
-      else if (status != eslOK)        p7_Fail("Unexpected error %d opening input sequence file %s\n", status, cfg->infile); 
+    /* Auto-detect format: probe to resolve FASTA ambiguity.
+     * stdin is blocked from auto-detect by process_commandline. */
+    ESL_MSA *probe_msa    = NULL;
+    int      probe_status;
+    int      detected_fmt;
+
+    status = esl_msafile_Open(&(cfg->abc), cfg->infile, NULL, cfg->fmt, NULL, &(cfg->afp));
+    if (status != eslOK) esl_msafile_OpenFailure(cfg->afp, status);
+    if (cfg->abc != NULL && cfg->abc->type != eslAMINO)
+      p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
+
+    detected_fmt = cfg->afp->format;
+    probe_status = esl_msafile_Read(cfg->afp, &probe_msa);
+
+    if (detected_fmt == eslMSAFILE_AFA) {
+      /* Auto-detected FASTA. Three sub-cases: */
+      if (probe_status == eslOK && probe_msa != NULL && probe_msa->nseq > 1) {
+        /* Same-length multi-sequence FASTA: ambiguous. */
+        esl_msa_Destroy(probe_msa);
+        esl_msafile_Close(cfg->afp);
+        cfg->afp = NULL;
+        p7_Fail("Cannot determine whether sequences are aligned or unaligned; please specify: --informat [afa|fasta]\n", cfg->infile);
+      } else {
+        /* Mismatched lengths (eslEFORMAT), single sequence (eslOK, nseq==1),
+         * or empty file (eslEOF): treat as unaligned sequence file. */
+        esl_msa_Destroy(probe_msa);
+        esl_msafile_Close(cfg->afp);
+        cfg->afp = NULL;
+      }
+    } else if (probe_status == eslOK || probe_status == eslEOF) {
+      /* Valid non-FASTA MSA (or empty file): close and reopen to rewind. */
+      esl_msa_Destroy(probe_msa);
+      esl_msafile_Close(cfg->afp);
+      cfg->afp = NULL;
+      status = esl_msafile_Open(&(cfg->abc), cfg->infile, NULL, detected_fmt, NULL, &(cfg->afp));
+      if (status != eslOK) esl_msafile_OpenFailure(cfg->afp, status);
+    } else {
+      /* Genuine format error. */
+      esl_msa_Destroy(probe_msa);
+      esl_msafile_ReadFailure(cfg->afp, probe_status);
     }
-   
-    status = esl_sqfile_GuessAlphabet(cfg->sfp, &a_type);
-    if (status == eslEFORMAT) p7_Fail("Parse failed (sequence file %s):\n%s\n", cfg->infile, esl_sqfile_GetErrorBuf(cfg->sfp));
-    
-    if (a_type == eslUNKNOWN) p7_Fail("Unable to guess alphabet for the %s%s input file %s\n", (cfg->fmt==eslUNKNOWN ? "" : esl_sqio_DecodeFormat(cfg->fmt)), (cfg->fmt==eslSQFILE_UNKNOWN ? "":"-formatted"), cfg->infile);
-    cfg->abc = esl_alphabet_Create(a_type); 
-    if(cfg->abc->type != eslAMINO) p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
+  }
+
+  if (cfg->afp == NULL) {
+    /* Sequence file mode: file was auto-detected as unaligned FASTA. */
+    if (cfg->postmsafile != NULL)
+      p7_Fail("The -O option requires an MSA input file, but the input appears to be an unaligned sequence file.\n");
+
+    status = esl_sqfile_Open(cfg->infile, eslSQFILE_UNKNOWN, NULL, &(cfg->sfp));
+    if      (status == eslENOTFOUND) p7_Fail("Failed to open input sequence file %s for reading\n",          cfg->infile);
+    else if (status == eslEFORMAT)   p7_Fail("Input sequence file %s is empty or misformatted\n",            cfg->infile);
+    else if (status == eslEINVAL)    p7_Fail("Can't autodetect format of a stdin or .gz seqfile");
+    else if (status != eslOK)        p7_Fail("Unexpected error %d opening input sequence file %s\n", status, cfg->infile);
+
+    if (cfg->abc == NULL) {
+      status = esl_sqfile_GuessAlphabet(cfg->sfp, &a_type);
+      if (status == eslEFORMAT) p7_Fail("Parse failed (sequence file %s):\n%s\n", cfg->infile, esl_sqfile_GetErrorBuf(cfg->sfp));
+      if (a_type == eslUNKNOWN) p7_Fail("Unable to guess alphabet for input file %s\n", cfg->infile);
+      cfg->abc = esl_alphabet_Create(a_type);
+    }
+    if (cfg->abc->type != eslAMINO) p7_Fail("bathbuild requires an amino acid MSA or sequence file as input");
   }
 
   cfg->hmmfp = fopen(cfg->hmmfile, "w");
@@ -509,7 +570,6 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 
       info[i].bg = p7_bg_Create(cfg->abc);
       info[i].bld = p7_builder_Create(go, cfg->abc);
-      info[i].bld->fs = esl_opt_IsUsed(go, "--fs");
 
       if (info[i].bld == NULL)  p7_Fail("p7_builder_Create failed");
 
@@ -529,7 +589,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       /* Default matrix is stored in the --mx option, so it's always IsOn().
        * Check --mxfile first; then go to the --mx option and the default.
        */
-      if ( esl_opt_IsUsed(go, "--singlemx") || esl_opt_IsUsed(go, "--unali")) {
+      if ( esl_opt_IsUsed(go, "--singlemx") || cfg->sfp != NULL) {
         char  *mx      = esl_opt_GetString(go, "--mx");
 
         if ( cfg->abc->type == eslDNA || cfg->abc->type == eslRNA ) {
@@ -545,7 +605,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       }
 
       /* special arguments for hmmbuild */
-      info[i].bld->fsprob     = (go != NULL && esl_opt_IsUsed (go, "--fs"))     ?  esl_opt_GetReal   (go, "--fsprob") : 0.01;
+	  info[i].bld->fsprob = p7P_FSPROB;
       info[i].bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
       info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
       if ( info[i].bld->w_beta < 0 || info[i].bld->w_beta > 1  ) esl_fatal("Invalid window-length beta value\n");
@@ -622,7 +682,7 @@ serial_loop(WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPTS *go)
 
   double      entropy;
 
-  if (!esl_opt_IsUsed(go, "--unali")) { 
+  if (cfg->afp != NULL) {
     cfg->nali = 0;
     while ((status = esl_msafile_Read(cfg->afp, &msa)) != eslEOF)
       {
@@ -702,7 +762,7 @@ thread_loop(ESL_THREADS *obj, ESL_WORK_QUEUE *queue, struct cfg_s *cfg, const ES
   /* Main loop: */
   item = (WORK_ITEM *) newItem;
   while (sstatus == eslOK) {
-    if (!esl_opt_IsUsed(go, "--unali")) {
+    if (cfg->afp != NULL) {
       item->sq = NULL;
       sstatus = esl_msafile_Read(cfg->afp, &item->msa);
       
@@ -1109,7 +1169,6 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
 static int
 set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
 {
-  char *name = NULL;
   int   status;
 
   if   (msa->name != NULL) cfg->nnamed++;

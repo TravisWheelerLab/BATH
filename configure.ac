@@ -66,7 +66,7 @@ m4_include([easel/m4/ax_gcc_func_attribute.m4])
 
 m4_include([easel/m4/esl_neon.m4])
 m4_include([easel/m4/esl_sse.m4])
-m4_include([easel/m4/esl_vmx.m4])
+m4_include([easel/m4/esl_avx.m4])
 
 m4_include([easel/m4/ax_prog_cc_mpi.m4])
 m4_include([easel/m4/ax_pthread.m4])
@@ -196,9 +196,11 @@ esac
 AC_ARG_ENABLE(gcov,    [AS_HELP_STRING([--enable-gcov],    [compile for code coverage testing])],        enable_gcov=$enableval,    enable_gcov=no)
 AC_ARG_ENABLE(gprof,   [AS_HELP_STRING([--enable-gprof],   [compile for gcc code profiling])],           enable_gprof=$enableval,   enable_gprof=no)
 
+AC_ARG_ENABLE(asan,    [AS_HELP_STRING([--enable-asan],    [compile with address sanitizer]) ],         enable_asan=$enableval,    enable_asan=no)
+
 AC_ARG_ENABLE(neon,    [AS_HELP_STRING([--enable-neon],    [enable our ARM Neon vector code])],          enable_neon=$enableval,    enable_neon=check)
 AC_ARG_ENABLE(sse,     [AS_HELP_STRING([--enable-sse],     [enable our SSE vector code])],               enable_sse=$enableval,     enable_sse=check)
-AC_ARG_ENABLE(vmx,     [AS_HELP_STRING([--enable-vmx],     [enable our Altivec/VMX vector code])],       enable_vmx=$enableval,     enable_vmx=check)
+AC_ARG_ENABLE(avx,     [AS_HELP_STRING([--enable-avx],     [enable our AVX/AVX2 vector code])],          enable_avx=$enableval,     enable_avx=check)
 
 AC_ARG_ENABLE(threads, [AS_HELP_STRING([--enable-threads], [enable POSIX threads parallelization])],     enable_threads=$enableval, enable_threads=check)
 AC_ARG_ENABLE(mpi,     [AS_HELP_STRING([--enable-mpi],     [enable MPI parallelization])],               enable_mpi=$enableval,     enable_mpi=no)
@@ -215,16 +217,14 @@ AC_ARG_WITH(gsl,       [AS_HELP_STRING([--with-gsl],       [use the GSL, GNU Sci
 vecsel=0
 if test "$enable_neon"    = "yes"; then vecsel=$((vecsel+1)); fi
 if test "$enable_sse"     = "yes"; then vecsel=$((vecsel+1)); fi
-if test "$enable_vmx"     = "yes"; then vecsel=$((vecsel+1)); fi
-if test "$enable_neon"    = "yes"; then vecsel=             ; fi
+if test "$enable_avx"     = "yes"; then vecsel=$((vecsel+1)); fi
 
 if   [[ $vecsel -gt 1 ]]; then
-  AC_MSG_ERROR([Select only one implementation: sse, neon,  or vmx])
+  AC_MSG_ERROR([Select only one implementation: neon, sse, or avx])
 elif [[ $vecsel -eq 1 ]]; then
   if test "$enable_neon"  = "check"; then enable_neon="no";  fi
   if test "$enable_sse"   = "check"; then enable_sse="no";   fi
-  if test "$enable_vmx"   = "check"; then enable_vmx="no";   fi
-  if test "$enable_neon"   = "check"; then enable_neon="no";   fi
+  if test "$enable_avx"   = "check"; then enable_avx="no";   fi
 fi
 
 
@@ -282,6 +282,21 @@ elif test "$enable_debugging" != "no"; then
    fi
 elif test x"${CFLAGS}" = x; then
    CFLAGS="-O3"
+fi
+
+
+# Turn on a sanitizer, if asked.
+#
+if test "$enable_asan" = "yes"; then
+  CFLAGS="$CFLAGS -fsanitize=address"
+  LDFLAGS="$LDFLAGS -fsanitize=address"
+fi
+if test "$enable_tsan" = "yes"; then
+  if test "$enable_asan" = "yes"; then
+    AC_MSG_FAILURE([The address and thread sanitizers are incompatible. Use only one of --enable-asan and --enable-tsan])
+  fi
+  CFLAGS="$CFLAGS -fsanitize=thread"
+  LDFLAGS="$LDFLAGS -fsanitize=thread"
 fi
 
 
@@ -347,21 +362,6 @@ if test "$enable_neon" = "yes" || test "$enable_neon" = "check"; then
     ])
 fi
 
-if test "$enable_vmx" = "yes" || test "$enable_vmx" = "check"; then
-  ESL_VMX([
-    AC_DEFINE(eslENABLE_VMX, 1, [Enable Altivec/VMX vector implementation])
-    AC_SUBST([HMMERIMPLLIB], ["impl_vmx/libhmmerimpl.a"])
-    VMX_CFLAGS=$esl_vmx_cflags
-    AC_SUBST(VMX_CFLAGS)
-    enable_vmx=yes
-    impl_choice=vmx
-    ],[
-    if test "$enable_vmx" = "yes"; then
-      AC_MSG_FAILURE([Unable to compile our Altivec/VMX implementations. Try another compiler?])
-    fi
-    enable_vmx=no
-    ])
-fi
 
 if test "$enable_sse" = "yes" || test "$enable_sse" = "check"; then
   ESL_SSE([
@@ -376,6 +376,25 @@ if test "$enable_sse" = "yes" || test "$enable_sse" = "check"; then
       AC_MSG_FAILURE([Unable to compile our SSE implementations. Try another compiler?])
     fi
     enable_sse=no
+    ])
+fi
+
+if test "$enable_avx" = "yes" || test "$enable_avx" = "check"; then
+  ESL_AVX([
+    AC_DEFINE(eslENABLE_SSE, 1, [Enable SSE vector implementation])
+    AC_DEFINE(eslENABLE_AVX, 1, [Enable AVX/AVX2 vector implementation])
+    AC_SUBST([HMMERIMPLLIB], ["impl_avx/libhmmerimpl.a"])
+    SSE_CFLAGS=$esl_sse_cflags
+    AC_SUBST(SSE_CFLAGS)
+    AVX_CFLAGS=$esl_avx_cflags
+    AC_SUBST(AVX_CFLAGS)
+    enable_avx=yes
+    impl_choice=avx
+    ],[
+    if test "$enable_avx" = "yes"; then
+      AC_MSG_FAILURE([Unable to compile our AVX implementations. Try another compiler?])
+    fi
+    enable_avx=no
     ])
 fi
 
@@ -397,17 +416,15 @@ fi
 
 # If we didn't choose an implementation, die.
 case "$impl_choice" in
-neon) AC_MSG_NOTICE([Activating ARM Neon vector DP implementation])
+neon) AC_MSG_NOTICE([Activating ARM NEON vector DP implementation])
       ;;
-sse)  AC_MSG_NOTICE([Activating Intel/AMD SSE vector DP implementation]) 
+sse)  AC_MSG_NOTICE([Activating Intel/AMD SSE vector DP implementation])
       ;;
-vmx)  AC_MSG_NOTICE([Activating Altivec/VMX vector DP implementation])   
+avx)  AC_MSG_NOTICE([Activating Intel/AMD AVX/AVX2 vector DP implementation])
       ;;
-neon)  AC_MSG_NOTICE([Activating ARM NEON vector DP implementation])   
-      ;;  
 *)    AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-      AC_MSG_NOTICE([BATH requires SSE, NEON  or VMX vector instructions.])
-      AC_MSG_NOTICE([Supported platforms are x86 (Intel/AMD), ARM (v7 or later) and PowerPC.])
+      AC_MSG_NOTICE([BATH requires SSE, AVX, or NEON vector instructions.])
+      AC_MSG_NOTICE([Supported platforms are x86 (Intel/AMD) and ARM (v7 or later).])
       AC_MSG_ERROR([No supported vectorization found for your machine.])
       ;;
 esac
@@ -525,17 +542,6 @@ if test "$impl_choice" = "neon"; then
    CPPFLAGS="$esl_save_CPPFLAGS"
 fi
 
-# altivec.h requires the simd cflags
-# For reasons I don't understand, this needs to come after any other CHECK_HEADERS().
-if test "$impl_choice" = "vmx"; then
-   esl_save_CFLAGS="$CFLAGS"
-   esl_save_CPPFLAGS="$CPPFLAGS"
-   CFLAGS="$CFLAGS $VMX_CFLAGS"
-   CPPFLAGS="$CPPFLAGS $VMX_CFLAGS"
-   AC_CHECK_HEADERS([altivec.h])
-   CFLAGS="$esl_save_CFLAGS"
-   CPPFLAGS="$esl_save_CPPFLAGS"
-fi
 
 ################################################################
 # 8. Checks for types
@@ -559,22 +565,18 @@ AC_TYPE_OFF_T
 AC_C_BIGENDIAN([
   AC_DEFINE(WORDS_BIGENDIAN, 1, [Set autoconf's default WORDS_BIGENDIAN flag])
   ],[
-  if test "$enable_vmx" = "yes"; then
-    AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-    AC_MSG_NOTICE([BATH Altivec/VMX only supports big-endian platforms: e.g. ppc64 not ppc64le])
-    AC_MSG_ERROR([No supported vectorization found for your machine.])
-  elif test "$enable_neon" = "yes"; then
+  if test "$enable_neon" = "yes"; then
     AX_CHECK_COMPILE_FLAG([-mlittle-endian], [NEON_CFLAGS="$NEON_CFLAGS -mlittle-endian"], [], [$NEON_CFLAGS])
   fi
   ],[
   if test "$enable_neon" = "yes"; then
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
-    AC_MSG_NOTICE([HMMER3 NEON only supports little-endian platforms: e.g. aarch64 not aarch64be])
+    AC_MSG_NOTICE([BATH2 NEON only supports little-endian platforms: e.g. aarch64 not aarch64be])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   else
     AC_MSG_NOTICE([::::::::::--- no vector instruction set ---::::::::::])
     AC_MSG_NOTICE([Couldn't determine byte order for your platform.])
-    AC_MSG_NOTICE([BATH vector code is sensitive to byte order.])
+    AC_MSG_NOTICE([BATH22 vector code is sensitive to byte order.])
     AC_MSG_ERROR([No supported vectorization found for your machine.])
   fi	
   ])
@@ -651,7 +653,12 @@ AC_SYS_LARGEFILE
 # 13. Config subdirs and files
 ################################################################
 
-# HMMER Makefiles.
+# VMX (PowerPC AltiVec) is not supported; define empty substitution so
+# @VMX_CFLAGS@ in easel/Makefile.in doesn't produce a literal compiler flag.
+VMX_CFLAGS=""
+AC_SUBST(VMX_CFLAGS)
+
+# BATH Makefiles.
 AC_CONFIG_FILES([ \
   Makefile                                     \
   src/Makefile                                 \
@@ -755,8 +762,8 @@ AC_OUTPUT
 
 echo "
 
-HMMER configuration:
-   compiler:             ${CC} ${CFLAGS} ${SSE_CFLAGS} ${VMX_CFLAGS} ${NEON_CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS}
+BATH configuration:
+   compiler:             ${CC} ${CFLAGS} ${SSE_CFLAGS} ${NEON_CFLAGS} ${PTHREAD_CFLAGS} ${PIC_CFLAGS}
    host:                 $host
    linker:               ${LDFLAGS}
    libraries:            ${LIBS} ${LIBGSL} ${PTHREAD_LIBS}
@@ -764,7 +771,7 @@ HMMER configuration:
 
 
 if test x"$HAVE_PYTHON3" = x"yes"; then echo "
-Now do 'make'  to build HMMER, and optionally:
+Now do 'make'  to build BATH, and optionally:
        'make check'  to run self tests,
        'make install'  to install programs and man pages,
        '(cd easel; make install)'  to install Easel tools.
@@ -772,7 +779,7 @@ Now do 'make'  to build HMMER, and optionally:
 else echo "
    (No python3 found, so 'make check' is disabled.)
 
-Now do 'make'  to build HMMER, and optionally:
+Now do 'make'  to build BATH, and optionally:
        'make install'  to install programs and man pages,
        '(cd easel; make install)'  to install Easel tools.
 ";

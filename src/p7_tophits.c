@@ -672,8 +672,9 @@ p7_tophits_Destroy(P7_TOPHITS *h)
         for (j = 0; j < h->unsrt[i].ndom; j++) {
 
           if (h->unsrt[i].dcl[j].ad             != NULL) p7_alidisplay_Destroy(h->unsrt[i].dcl[j].ad);
-          if (h->unsrt[i].dcl[j].tr             != NULL) p7_trace_fs_Destroy(h->unsrt[i].dcl[j].tr);
-	  if (h->unsrt[i].dcl[j].scores_per_pos != NULL) free (h->unsrt[i].dcl->scores_per_pos);
+          if (h->unsrt[i].dcl[j].tr             != NULL) p7_trace_splice_Destroy(h->unsrt[i].dcl[j].tr);
+	      if (h->unsrt[i].dcl[j].scores_per_pos != NULL) free (h->unsrt[i].dcl->scores_per_pos);
+          if (h->unsrt[i].dcl[j].k_per_pos      != NULL) free (h->unsrt[i].dcl->k_per_pos);
 	}
         free(h->unsrt[i].dcl);
       }
@@ -815,8 +816,10 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
 {
   int     i;    /* counter over hits */
   int     j;    /* previous un-duplicated hit */
-  int     s_i, s_j, e_i, e_j, dir_i, dir_j, len_i, len_j;
-  int     intersect_alistart, intersect_aliend, intersect_alilen;
+  int64_t s_i, s_j, e_i, e_j;
+  int     dir_i, dir_j, len_i, len_j;
+  int64_t intersect_alistart, intersect_aliend;
+  int     intersect_alilen;
   int     intersect_hmmstart, intersect_hmmend, intersect_hmmlen;
   double  p_i, p_j;
   int remove;
@@ -849,8 +852,8 @@ p7_tophits_RemoveDuplicates(P7_TOPHITS *th, int using_bit_cutoffs)
       intersect_aliend    = e_i<e_j ? e_i : e_j;
       intersect_alilen    = intersect_aliend - intersect_alistart + 1;
 
-      intersect_hmmstart = (th->hit[i]->dcl[0].ad->hmmfrom > th->hit[j]->dcl[0].ad->hmmfrom) ? th->hit[i]->dcl[0].ad->hmmfrom : th->hit[j]->dcl[0].ad->hmmfrom;
-      intersect_hmmend   = (th->hit[i]->dcl[0].ad->hmmto   < th->hit[j]->dcl[0].ad->hmmto)   ? th->hit[i]->dcl[0].ad->hmmto : th->hit[j]->dcl[0].ad->hmmto;
+      intersect_hmmstart = (th->hit[i]->dcl[0].ihmm > th->hit[j]->dcl[0].ihmm) ? th->hit[i]->dcl[0].ihmm : th->hit[j]->dcl[0].ihmm;
+      intersect_hmmend   = (th->hit[i]->dcl[0].jhmm < th->hit[j]->dcl[0].jhmm) ? th->hit[i]->dcl[0].jhmm : th->hit[j]->dcl[0].jhmm;
       intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
 
       if ( esl_strcmp(th->hit[i]->name, th->hit[i-1]->name) == 0  && // same model
@@ -1090,7 +1093,20 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
   if (fprintf(ofp, "Scores for complete hit%s:\n",     pli->mode == p7_SEARCH_SEQS ? "s" : "") < 0)
     ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
 
-  if(pli->fs_pipe) 
+  if (pli->spliced)
+  {
+
+    /*  E-value  score  bias  Sequence     start    end  exons  Description */
+    if (fprintf(ofp, "  %9s %6s %5s  %-*s %*s %*s  %5s  %s\n",
+      "E-value", " score", " bias", namew, (pli->mode == p7_SEARCH_SEQS ? "Sequence":"Model"), posw, "start", posw, "end", "exons", "Description") < 0)
+      ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
+
+    if (fprintf(ofp, "  %9s %6s %5s  %-*s %*s %*s  %5s  %s\n",
+      "-------", "------", "-----", namew, "--------", posw, "-----", posw, "-----", "-----", "-----------") < 0)
+      ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
+
+  }
+  else if(pli->fs_pipe) 
   {
       /* E-value  score  bias  Sequence    start end  shifts  stops  Description */ 
       if (fprintf(ofp, "  %9s %6s %5s  %-*s %*s %*s  %6s  %5s  %s\n",
@@ -1140,6 +1156,21 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
       else if (th->hit[h]->flags & p7_IS_DROPPED) newness = '-';
       else                                        newness = ' ';
 
+      if (pli->spliced)
+      {
+        if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "  %5d",
+        newness,
+        exp(th->hit[h]->lnP), // * pli->Z,
+        th->hit[h]->score,
+        eslCONST_LOG2R * th->hit[h]->dcl[d].dombias,
+        namew, showname,
+        posw, th->hit[h]->dcl[d].iali,
+        posw, th->hit[h]->dcl[d].jali,
+        th->hit[h]->dcl[d].ad->exon_cnt) < 0)
+        ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
+      }
+	  else
+      {
         if (fprintf(ofp, "%c %9.2g %6.1f %5.1f  %-*s %*" PRId64 " %*" PRId64 "  ",
           newness,
           exp(th->hit[h]->lnP), // * pli->Z,
@@ -1156,7 +1187,7 @@ p7_tophits_Targets(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
             th->hit[h]->dcl[d].ad->stops) < 0)
               ESL_EXCEPTION_SYS(eslEWRITE, "per-sequence hit list: write failed");
         }
-      
+      }
 
       if (textw > 0) 
       {
@@ -1235,7 +1266,23 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
       }
      
      
-      if(pli->fs_pipe) 
+      if(pli->spliced)
+      {
+        /* 
+          score  bias    Evalue hmmfrom  hmm to     alifrom    ali to      envfrom    env to   exons    sq len      acc
+          ------ ----- --------- ------- -------    --------- ---------    --------- --------- -----    ---------    ----
+        */
+        
+        if (fprintf(ofp, "   %6s %5s %9s %10s %9s    %9s %9s    %9s %9s    %5s  %9s   %4s\n",
+          "score",  "bias",   "   Evalue", "hmm-from", " hmm-to", " ali-from", "   ali-to", " env-from", "   env-to", "exons", "   sq-len", "acc")  < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
+
+        if (fprintf(ofp, "   %6s %5s %9s %10s %9s    %9s %9s    %9s %9s    %5s  %9s   %4s\n",
+          "------", "-----", "---------", "--------", "-------", "---------", "---------", "---------", "---------", "-----", "---------", "----") < 0)
+          ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
+
+      }
+      else if(pli->fs_pipe) 
       {
         /* 
            score  bias    Evalue hmmfrom  hmm to     alifrom    ali to      envfrom    env to       shifts     stops   sq len      acc
@@ -1269,7 +1316,31 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
       }  
     
 		 
-      if(pli->fs_pipe) 
+      if (pli->spliced)
+      {
+        if (fprintf(ofp, " %c %6.1f %5.1f %9.2g %10d %9d %c%c %9" PRId64 " %9" PRId64 " %c%c %9" PRId64 " %9" PRId64 " %c%c %5d  %9" PRId64 "   %4.2f\n",
+            th->hit[h]->dcl[0].is_included ? '!' : '?',
+            th->hit[h]->dcl[0].bitscore,
+            th->hit[h]->dcl[0].dombias * eslCONST_LOG2R, /* convert NATS to BITS at last moment */
+            exp(th->hit[h]->dcl[0].lnP), // * pli->Z,
+            th->hit[h]->dcl[0].ad->hmmfrom,
+            th->hit[h]->dcl[0].ad->hmmto,
+            (th->hit[h]->dcl[0].ad->hmmfrom == 1) ? '[' : '.',
+            (th->hit[h]->dcl[0].ad->hmmto   == th->hit[h]->dcl[0].ad->M) ? ']' : '.',
+            th->hit[h]->dcl[0].ad->sqfrom,
+            th->hit[h]->dcl[0].ad->sqto,
+            (th->hit[h]->dcl[0].ad->sqfrom == 1) ? '[' : '.',
+            (th->hit[h]->dcl[0].ad->sqto   == th->hit[h]->dcl[0].ad->L) ? ']' : '.',
+            th->hit[h]->dcl[0].ienv,
+            th->hit[h]->dcl[0].jenv,
+            (th->hit[h]->dcl[0].ienv == 1) ? '[' : '.',
+            (th->hit[h]->dcl[0].jenv == th->hit[h]->dcl[0].ad->L) ? ']' : '.',
+            th->hit[h]->dcl[0].ad->exon_cnt,
+            th->hit[h]->dcl[0].ad->L,
+            (th->hit[h]->dcl[0].oasc / (1.0 + fabs((float) (th->hit[h]->dcl[0].jenv - th->hit[h]->dcl[0].ienv) / 3.0)))) < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
+      }
+      else if(pli->fs_pipe) 
       {
         if (fprintf(ofp, " %c %6.1f %5.1f %9.2g %10d %9d %c%c %9" PRId64 " %9" PRId64 " %c%c %9" PRId64 " %9" PRId64 " %c%c %6d  %5d %9" PRId64 "   %4.2f\n",
             th->hit[h]->dcl[0].is_included ? '!' : '?',
@@ -1331,7 +1402,7 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 		if (fprintf(ofp, "\n") < 0)
 	      ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
 
-		if ((status = p7_alidisplay_Print_BATH(ofp, th->hit[h]->dcl[0].ad, 40, 40, textw, pli)) != eslOK) return status;
+		if ((status = p7_alidisplay_Print_BATH(ofp, th->hit[h]->dcl[0].ad, 30, 40, textw, pli)) != eslOK) return status;
 		  
 		if (fprintf(ofp, "\n") < 0)
 		  ESL_EXCEPTION_SYS(eslEWRITE, "domain hit list: write failed");
@@ -1354,7 +1425,6 @@ p7_tophits_Domains(FILE *ofp, P7_TOPHITS *th, P7_PIPELINE *pli, int textw)
 
   return eslOK;
 }
-
 
 /*---------------- end, standard output format ------------------*/
 
@@ -1548,12 +1618,8 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
   int qaccw  = ((qacc != NULL) ? ESL_MAX(10, strlen(qacc)) : 10);
   int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
   int posw   = ESL_MAX(9, p7_tophits_GetMaxPositionLength(th));
-  int     i,h;
+  int     h;
   int     id;
-  int64_t sqfrom;
-  int64_t sqto;
-  int64_t lowest;
-  int64_t highest;
 	
   if (show_header)
   {
@@ -1562,10 +1628,16 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
         " hit ID", tnamew-1, " target name",        taccw, " accession",  qnamew, " query name",          qaccw, " accession",  "  hmm len",  " hmm from", "   hmm to", "  seq len", " ali from", "   ali to") < 0)
          ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
 
+    if(pli->spliced) {
+      if (fprintf(ofp, " %9s", " exon cnt") < 0)
+        ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+    }
+    else {
       if (fprintf(ofp, " %9s %9s", " env from", "   env to") < 0)
         ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+    }
 
-    if (fprintf(ofp, "  %9s %6s %5s", "  E-value", " score", " bias") < 0)
+    if (fprintf(ofp, "  %9s %6s %5s %5s", "  E-value", " score", " bias", "  PID") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
 
     if(pli->fs_pipe) {
@@ -1580,10 +1652,16 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
         "-------", tnamew-1, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "---------", "---------", "---------") < 0)
         ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
 
+    if(pli->spliced) {
+      if (fprintf(ofp, " %9s", "---------") < 0)
+        ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+    }
+    else {
        if (fprintf(ofp, " %9s %9s", "---------", "---------") < 0)
         ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+    }
 
-    if (fprintf(ofp, "  %9s %6s %5s", "---------", "------", "-----") < 0)
+    if (fprintf(ofp, "  %9s %6s %5s %5s", "---------", "------", "-----", "-----") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
 
     if(pli->fs_pipe) {
@@ -1617,16 +1695,25 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
             posw, th->hit[h]->dcl[0].jali) < 0)
 	        ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
 
+      if(pli->spliced) {
+                  
+        if (fprintf(ofp, " %8d ",
+            th->hit[h]->dcl[0].ad->exon_cnt) < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+      }
+      else {
         
          if (fprintf(ofp, " %*" PRId64 " %*" PRId64 "", 
             posw, th->hit[h]->dcl[0].ienv,
             posw, th->hit[h]->dcl[0].jenv) < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
+      }            
 
-	  if (fprintf(ofp, " %9.2g %6.1f %5.1f",
+	  if (fprintf(ofp, " %9.2g %6.1f %5.1f %5.2f",
             exp(th->hit[h]->lnP), 
             th->hit[h]->score,
-            th->hit[h]->dcl[0].dombias * eslCONST_LOG2R) < 0) /* convert NATS to BITS at last moment */
+            th->hit[h]->dcl[0].dombias * eslCONST_LOG2R,
+            th->hit[h]->dcl[0].ad->pid) < 0) /* convert NATS to BITS at last moment */
 		        ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-sequence hit list: write failed");
 
       if(pli->fs_pipe) {
@@ -1650,6 +1737,124 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
 
   return eslOK;
 
+}
+
+
+
+/* Function:  p7_tophits_TabularExons()
+ * Synopsis:  Output parseable table of per-exon hits
+ *
+ * Purpose:   Output a parseable table of reportable per-exon hits
+ *            in sorted tophits list <th> in an easily parsed ASCII
+ *            tabular form to stream <ofp>, using final pipeline
+ *            accounting stored in <pli>.
+ *            
+ *            Designed to be concatenated for multiple queries and
+ *            multiple top hits list.
+ *
+ * Returns:   <eslOK> on success.
+ * 
+ * Throws:    <eslEWRITE> if a write to <ofp> fails; for example, if
+ *            the disk fills up.
+ */
+int
+p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_PIPELINE *pli, int show_header, int node_info)
+{
+
+  int qnamew = ESL_MAX(20, strlen(qname));
+  int tnamew = ESL_MAX(20, p7_tophits_GetMaxNameLength(th));
+  int qaccw  = (qacc ? ESL_MAX(10, strlen(qacc)) : 10);
+  int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
+  int posw   = ESL_MAX(9, p7_tophits_GetMaxPositionLength(th)); 
+  int h,x,id;
+    
+  if (show_header)
+  {
+
+    if (fprintf(ofp, "#%*s %22s %47s \n", tnamew+qnamew+31+taccw+qaccw, 
+    "",  "------ full hit ------ ", "------------------------- this exon --------------------------") < 0)
+      ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+
+    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %3s %3s %9s %9s %9s %9s %9s %5s",
+            " hit ID", tnamew, " target name",        taccw, " accession", qnamew, " query name",          qaccw, " accession", "  hmm len", "  seq len", "  E-value", " score", " bias", "  #", " of", " hmm from", "   hmm to", " ali from", "   ali to", "  P-value", "  PID") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+
+    if(node_info) {
+      if (fprintf(ofp, " %7s %7s\n", " anchor", " extend") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
+    }
+    else {
+      if (fprintf(ofp, "\n")  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+    }
+
+    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %3s %3s %9s %9s %9s %9s %9s %5s",
+            "-------", tnamew, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "------", "-----", "---", "---", "---------", "---------", "---------", "---------", "---------", "-----") < 0)
+            ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+
+    if(node_info) { 
+      if (fprintf(ofp, " %7s %7s\n", "-------", "-------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
+    }
+    else {
+      if (fprintf(ofp, "\n")  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
+    }
+  }
+
+  id = 0;
+  for (h = 0; h < th->N; h++)
+    if (th->hit[h]->flags & p7_IS_REPORTED) {
+      id++;
+      for(x = 0; x < th->hit[h]->dcl->ad->exon_cnt; x++) {
+
+        if (fprintf(ofp, "%8d %-*s %-*s %-*s %-*s %9d %*" PRId64 " %9.2g %6.1f %5.1f %3d %3d ",
+                id,
+                tnamew, th->hit[h]->name,
+                taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
+                qnamew, qname,
+                qaccw,  ( (qacc != NULL && qacc[0] != '\0') ? qacc : "-"),
+                th->hit[h]->dcl->ad->M,
+                posw, th->hit[h]->dcl->ad->L,
+                exp(th->hit[h]->lnP),
+                th->hit[h]->score,
+                th->hit[h]->dcl->dombias * eslCONST_LOG2R,
+                (x+1),
+                th->hit[h]->dcl->ad->exon_cnt) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+
+        if(th->hit[h]->dcl->ad->exon_cnt > 1) {
+          if (fprintf(ofp, "%9d %9d %*" PRId64 " %*" PRId64 " %9.2g %5.2f",
+                th->hit[h]->dcl->ad->exon_hmm_starts[x],
+                th->hit[h]->dcl->ad->exon_hmm_ends[x],
+                posw, th->hit[h]->dcl->ad->exon_seq_starts[x],
+                posw, th->hit[h]->dcl->ad->exon_seq_ends[x],
+                exp(th->hit[h]->dcl->ad->exon_lnP[x]),       
+                th->hit[h]->dcl->ad->exon_pid[x]) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+
+        }
+        else {
+
+          if (fprintf(ofp, "%9d %9d %*" PRId64 " %*" PRId64 " %9.2g %5.2f",
+                th->hit[h]->dcl->ad->hmmfrom,
+                th->hit[h]->dcl->ad->hmmto,
+                posw, th->hit[h]->dcl->ad->sqfrom,
+                posw, th->hit[h]->dcl->ad->sqto,
+                exp(th->hit[h]->sum_lnP),
+                th->hit[h]->dcl->ad->pid) < 0)
+                ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+
+        }
+
+        if(node_info) {
+          if (fprintf(ofp, "%7s %7s\n",
+                  ((th->hit[h]->dcl->ad->exon_cnt == 1 || th->hit[h]->dcl->ad->exon_anchor[x]) ? "True" : "False"),
+                  ((th->hit[h]->dcl->ad->exon_cnt  > 1 && th->hit[h]->dcl->ad->exon_extend[x]) ? "True" : "False")) < 0)
+                  ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");    
+        }
+        else {
+          if (fprintf(ofp, "\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
+        }
+      }
+    }
+  return eslOK;
 }
 
 

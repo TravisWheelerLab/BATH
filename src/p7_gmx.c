@@ -18,7 +18,8 @@
  * Synopsis:  Allocate a new <P7_GMX>.
  *
  * Purpose:   Allocate a reusable, resizeable <P7_GMX> for models up to
- *            size <allocM> and sequences up to length <allocL>.
+ *            size <allocM>, core martix length of <allocL> with nscells 
+ *            states, and special state length of <allocLx>.
  *            
  *            We've set this up so it should be easy to allocate
  *            aligned memory, though we're not doing this yet.
@@ -28,14 +29,14 @@
  * Throws:    <NULL> on allocation error.
  */
 P7_GMX *
-p7_gmx_Create(int allocM, int allocL)
+p7_gmx_Create (int allocM, int allocL, int allocLx, int nscells)
 {
   int     status;
   P7_GMX *gx = NULL;
-  int     i;
+  int     i,s;
 
   /* don't try to make large allocs on 32-bit systems */
-  if ( (uint64_t) (allocM+1) * (uint64_t) (allocL+1) * sizeof(float) * p7G_NSCELLS > SIZE_MAX / 2)
+  if ( (uint64_t) (allocM+1) * (uint64_t) (allocL+1) * sizeof(float) * nscells > SIZE_MAX / 2)
     return NULL;
 
   /* level 1: the structure itself */
@@ -46,31 +47,32 @@ p7_gmx_Create(int allocM, int allocL)
 
   /* level 2: row pointers, 0.1..L; and dp cell memory  */
   ESL_ALLOC(gx->dp,      sizeof(float *) * (allocL+1));
-  ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocL+1) * p7G_NXCELLS);
-  ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+1) * (allocM+1) * p7G_NSCELLS);
+  ESL_ALLOC(gx->xmx,     sizeof(float)   * (allocLx+1) * p7G_NXCELLS);
+  ESL_ALLOC(gx->dp_mem,  sizeof(float)   * (allocL+1)  * (allocM+1) * nscells);
 
   /* Set the row pointers. */
   for (i = 0; i <= allocL; i++) 
-    gx->dp[i] = gx->dp_mem + (ptrdiff_t) i * (ptrdiff_t) (allocM+1) * (ptrdiff_t) p7G_NSCELLS;
+    gx->dp[i] = gx->dp_mem + (ptrdiff_t) i * (ptrdiff_t) (allocM+1) * (ptrdiff_t) nscells;
 
   /* Initialize memory that's allocated but unused, only to keep
    * valgrind and friends happy.
    */
   for (i = 0; i <= allocL; i++) 
     {
-      gx->dp[i][0      * p7G_NSCELLS + p7G_M] = -eslINFINITY; /* M_0 */
-      gx->dp[i][0      * p7G_NSCELLS + p7G_I] = -eslINFINITY; /* I_0 */      
-      gx->dp[i][0      * p7G_NSCELLS + p7G_D] = -eslINFINITY; /* D_0 */
-      gx->dp[i][1      * p7G_NSCELLS + p7G_D] = -eslINFINITY; /* D_1 */
-      gx->dp[i][allocM * p7G_NSCELLS + p7G_I] = -eslINFINITY; /* I_M */
+	  for(s = 0; s < nscells; s++)
+        gx->dp[i][0      * nscells + s] = -eslINFINITY; /* 0 row*/
+      
+	  gx->dp[i][1      * nscells + p7G_D] = -eslINFINITY; /* D_1 */
+      gx->dp[i][allocM * nscells + p7G_I] = -eslINFINITY; /* I_M */
     }
 
-  gx->M      = 0;
-  gx->L      = 0;
-  gx->allocW = allocM+1;
-  gx->allocR = allocL+1;
-  gx->validR = allocL+1;
-  gx->ncells = (uint64_t) (allocM+1)* (uint64_t) (allocL+1);
+  gx->M       = 0;
+  gx->L       = 0;
+  gx->allocW  = allocM+1;
+  gx->allocR  = allocLx+1;
+  gx->validR  = allocL+1;
+  gx->nscells = nscells;
+  gx->ncells  = (uint64_t) (allocM+1)* (uint64_t) (allocL+1);
   return gx;
 
  ERROR:
@@ -83,8 +85,9 @@ p7_gmx_Create(int allocM, int allocL)
  * Synopsis:  Assure that DP matrix is big enough.
  *
  * Purpose:   Assures that a DP matrix <gx> is allocated
- *            for a model of size up to <M> and a sequence of
- *            length up to <L>; reallocates if necessary.
+ *            for a model of size up to <M>, core martix 
+ *            length of <L> with ns states, and special 
+ *            state length of <Lx>; reallocates if necessary.
  *            
  *            This function does not respect the configured
  *            <RAMLIMIT>; it will allocate what it's told to
@@ -98,7 +101,7 @@ p7_gmx_Create(int allocM, int allocL)
  *            have been in <gx> must be assumed to be invalidated.
  */
 int
-p7_gmx_GrowTo(P7_GMX *gx, int M, int L)
+p7_gmx_GrowTo(P7_GMX *gx, int M, int L, int Lx)
 {
   int      status;
   void    *p;
@@ -106,10 +109,14 @@ p7_gmx_GrowTo(P7_GMX *gx, int M, int L)
   uint64_t ncells;
   int      do_reset = FALSE;
 
-  if (M < gx->allocW && L < gx->validR) return eslOK;
-  
+  if (M < gx->allocW && L < gx->validR && Lx < gx->allocR) return eslOK;
+
+  M  = ESL_MAX(M,  gx->allocW-1);
+  L  = ESL_MAX(L,  gx->validR-1);
+  Lx = ESL_MAX(Lx, gx->allocR-1);
+
   /* don't try to make large allocs on 32-bit systems */
-  if ( (uint64_t) (M+1) * (uint64_t) (L+1) * sizeof(float) * p7G_NSCELLS > SIZE_MAX / 2) return eslEMEM;
+  if ( (uint64_t) (M+1) * (uint64_t) (L+1) * sizeof(float) * gx->nscells > SIZE_MAX / 2) return eslEMEM;
 
   /* must we realloc the 2D matrices? (or can we get away with just
    * jiggering the row pointers, if we are growing in one dimension
@@ -118,34 +125,38 @@ p7_gmx_GrowTo(P7_GMX *gx, int M, int L)
   ncells = (uint64_t) (M+1) * (uint64_t) (L+1);
   if (ncells > gx->ncells) 
     {
-      ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * p7G_NSCELLS);
+      ESL_RALLOC(gx->dp_mem, p, sizeof(float) * ncells * gx->nscells);
       gx->ncells = ncells;
       do_reset   = TRUE;
     }
 
   /* must we reallocate the row pointers? */
-  if (L >= gx->allocR)
+  if (Lx >= gx->allocR)
     {
-      ESL_RALLOC(gx->xmx, p, sizeof(float)   * (L+1) * p7G_NXCELLS);
-      ESL_RALLOC(gx->dp,  p, sizeof(float *) * (L+1));
-      gx->allocR = L+1;		/* allocW will also get set, in the do_reset block */
+      ESL_RALLOC(gx->xmx, p, sizeof(float)   * (Lx+1) * p7G_NXCELLS);
+      gx->allocR = Lx+1;		/* allocW will also get set, in the do_reset block */
       do_reset   = TRUE;
     }
 
   /* must we widen the rows? */
-  if (M >= gx->allocW) do_reset = TRUE;
+  if (M >= gx->allocW) {
+	 gx->allocW = M+1;
+     do_reset = TRUE;
+  }
 
   /* must we set some more valid row pointers? */
-  if (L >= gx->validR) do_reset = TRUE;
+  if (L >= gx->validR) {
+	 ESL_RALLOC(gx->dp,  p, sizeof(float *) * (L+1));
+	 gx->validR = ESL_MIN(gx->ncells / gx->allocW, gx->allocR);
+     do_reset = TRUE;
+  }
 
   /* resize the rows and reset all the valid row pointers.*/
-  if (do_reset)
-    {
-      gx->allocW = M+1;
-      gx->validR = ESL_MIN(gx->ncells / gx->allocW, gx->allocR);
-      for (i = 0; i < gx->validR; i++) 
-	gx->dp[i] = gx->dp_mem + (ptrdiff_t) i * (ptrdiff_t) (gx->allocW) * (ptrdiff_t) p7G_NSCELLS;
-    }
+  if (do_reset) {
+    gx->validR = ESL_MIN(gx->ncells / gx->allocW, gx->allocR);
+    for (i = 0; i < gx->validR; i++) 
+	  gx->dp[i] = gx->dp_mem + (ptrdiff_t) i * (ptrdiff_t) (gx->allocW) * (ptrdiff_t) gx->nscells;
+  }
 
   gx->M      = 0;
   gx->L      = 0;
@@ -164,8 +175,8 @@ p7_gmx_Sizeof(P7_GMX *gx)
   size_t n = 0;
   
   n += sizeof(P7_GMX);
-  n += gx->ncells * p7G_NSCELLS * sizeof(float); /* main dp cells: gx->dp_mem */
-  n += gx->allocR * sizeof(float *);		 /* row ptrs:      gx->dp[]   */
+  n += gx->ncells * gx->nscells * sizeof(float); /* main dp cells: gx->dp_mem */
+  n += gx->allocR * sizeof(float *);	    	 /* row ptrs:      gx->dp[]   */
   n += gx->allocR * p7G_NXCELLS * sizeof(float); /* specials:      gx->xmx    */
   return n;
 }
@@ -225,17 +236,18 @@ p7_gmx_Destroy(P7_GMX *gx)
 int
 p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance)
 {
-  int i,k,x;
+  int i,k,s,x;
   if (gx1->M != gx2->M) return eslFAIL;
   if (gx1->L != gx2->L) return eslFAIL;
-  
+
+  if (gx1->nscells != gx2->nscells) return eslFAIL;
+
   for (i = 0; i <= gx1->L; i++)
   {
       for (k = 1; k <= gx1->M; k++) /* k=0 is a boundary; doesn't need to be checked */
       {
-        if (esl_FCompare_old(gx1->dp[i][k * p7G_NSCELLS + p7G_M],  gx2->dp[i][k * p7G_NSCELLS + p7G_M], tolerance) != eslOK) return eslFAIL;
-        if (esl_FCompare_old(gx1->dp[i][k * p7G_NSCELLS + p7G_I],  gx2->dp[i][k * p7G_NSCELLS + p7G_I], tolerance) != eslOK) return eslFAIL;
-        if (esl_FCompare_old(gx1->dp[i][k * p7G_NSCELLS + p7G_D],  gx2->dp[i][k * p7G_NSCELLS + p7G_D], tolerance) != eslOK) return eslFAIL;
+		for(s = 0; s < gx1->nscells; s++)
+          if (esl_FCompare_old(gx1->dp[i][k * gx1->nscells + s],  gx2->dp[i][k * gx2->nscells + s], tolerance) != eslOK) return eslFAIL;
       }
       for (x = 0; x < p7G_NXCELLS; x++)
 	if (esl_FCompare_old(gx1->xmx[i * p7G_NXCELLS + x], gx2->xmx[i * p7G_NXCELLS + x], tolerance) != eslOK) return eslFAIL;
@@ -281,7 +293,7 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
 {
   int   width     = 9;
   int   precision = 5;
-  int   i, k, x;
+  int   i, k, c, x;
   float val;
 
   /* Header */
@@ -297,28 +309,52 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
   /* DP matrix data */
   for (i = istart; i <= iend; i++)
   {
+    if(gx->nscells == p7G_NSCELLS) {
       fprintf(ofp, "%3d M ", i);
       for (k = kstart; k <= kend;        k++)  
-	{
-	  val = gx->dp[i][k * p7G_NSCELLS + p7G_M];
-	  if (flags & p7_SHOW_LOG) val = log(val);
-	  fprintf(ofp, "%*.*f ", width, precision, val);
-	}
+	  {
+	    val = gx->dp[i][k * p7G_NSCELLS + p7G_M];
+	    if (flags & p7_SHOW_LOG) val = log(val);
+	    fprintf(ofp, "%*.*f ", width, precision, val);
+	  } 
       if (! (flags & p7_HIDE_SPECIALS))
-	{
-    	  for (x = 0;  x <  p7G_NXCELLS; x++) 
-	    {
-	      val = gx->xmx[  i * p7G_NXCELLS + x];
-	      if (flags & p7_SHOW_LOG) val = log(val);
-	      fprintf(ofp, "%*.*f ", width, precision, val);
-	    }
-	}
+      {
+        for (x = 0;  x <  p7G_NXCELLS; x++)
+        {
+          val = gx->xmx[  i * p7G_NXCELLS + x];
+          if (flags & p7_SHOW_LOG) val = log(val);
+          fprintf(ofp, "%*.*f ", width, precision, val);
+        }
+      }
       fprintf(ofp, "\n");
+    }
+    else if(gx->nscells == p7G_NSCELLS_FS) {
+      for(c = p7G_C0; c <= p7G_C5; c++) {
+        fprintf(ofp, "%3d M%d ", i, c);
+        for (k = kstart; k <= kend;        k++)
+        {
+          val = gx->dp[i][k * p7G_NSCELLS_FS + p7G_M + c];
+          if (flags & p7_SHOW_LOG) val = log(val);
+          fprintf(ofp, "%*.*f ", width, precision, val);
+        }
+        if (c == p7G_C0 && ! (flags & p7_HIDE_SPECIALS))
+        {
+          for (x = 0;  x <  p7G_NXCELLS; x++)
+          {
+            val = gx->xmx[  i * p7G_NXCELLS + x];
+            if (flags & p7_SHOW_LOG) val = log(val);
+            fprintf(ofp, "%*.*f ", width, precision, val);
+          }
+        }
+        fprintf(ofp, "\n");
+      }
+    }
+    else ESL_EXCEPTION(eslFAIL, "Unrecognized number of states in P7_GMX"); 
 
-      fprintf(ofp, "%3d I ", i);
-      for (k = kstart; k <= kend;        k++) 
+    fprintf(ofp, "%3d I ", i);
+    for (k = kstart; k <= kend;        k++) 
 	{
-	  val = gx->dp[i][k * p7G_NSCELLS + p7G_I];
+	  val = gx->dp[i][k * gx->nscells + p7G_I];
 	  if (flags & p7_SHOW_LOG) val = log(val);
 	  fprintf(ofp, "%*.*f ", width, precision, val);
 	}
@@ -327,11 +363,13 @@ p7_gmx_DumpWindow(FILE *ofp, P7_GMX *gx, int istart, int iend, int kstart, int k
       fprintf(ofp, "%3d D ", i);
       for (k = kstart; k <= kend;        k++) 
 	{
-	  val =  gx->dp[i][k * p7G_NSCELLS + p7G_D];
+	  val =  gx->dp[i][k * gx->nscells + p7G_D];
 	  if (flags & p7_SHOW_LOG) val = log(val);
 	  fprintf(ofp, "%*.*f ", width, precision, val);
 	}
-      fprintf(ofp, "\n\n");
+	fprintf(ofp, "\n");
+  
+    fprintf(ofp, "\n");
   }
   return eslOK;
 }
@@ -382,7 +420,10 @@ gmx_testpattern(P7_GMX *gx, int M, int L)
 	}
   
   /* Reading it back via the dp_mem vector itself ought to be the same */
-  if (gx->allocR == gx->validR && gx->ncells == (int64_t) gx->validR * (int64_t) gx->allocW)
+  if (gx->allocR == gx->validR
+      && gx->ncells == (int64_t) gx->validR * (int64_t) gx->allocW
+      && gx->allocW == (int64_t)(M+1)
+      && gx->validR == (int64_t)(L+1))
     {
       n2 = 0;
       for (i = start_row * gx->allocW; i < gx->ncells; i++)
@@ -404,18 +445,18 @@ utest_GrowTo(void)
   int     M, L;
   int64_t nbytes;
 
-  M = 20;    L = 20;    gx= p7_gmx_Create(M, L);  gmx_testpattern(gx, M, L);
-  M = 40;    L = 20;    p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);  /* grow in M, not L */
-  M = 40;    L = 40;    p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);  /* grow in L, not M */
-  M = 80;    L = 10;    p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);  /* grow in M, but with enough ncells */
-  M = 10;    L = 80;    p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);  /* grow in L, but with enough ncells */
-  M = 100;   L = 100;   p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);  /* grow in both L and M */
+  M = 20;    L = 20;    gx= p7_gmx_Create(M, L, L, p7G_NSCELLS);  gmx_testpattern(gx, M, L);
+  M = 40;    L = 20;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in M, not L */
+  M = 40;    L = 40;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in L, not M */
+  M = 80;    L = 10;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in M, but with enough ncells */
+  M = 10;    L = 80;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in L, but with enough ncells */
+  M = 100;   L = 100;   p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);  /* grow in both L and M */
 
  /* The next two calls are carefully constructed to exercise bug #h79. 
   * GrowTo() must shrink allocW, if M shrinks and L grows enough to force increase in allocR, with sufficient ncells.
   */
-  M = 179;   L = 55;    p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);
-  M = 87;    L = 57;    p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);
+  M = 179;   L = 55;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);
+  M = 87;    L = 57;    p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);
 
   /* and this exercises iss#176. Only do this on 64-bit systems, and only if a large alloc is possible (we need 8.6G to exercise the bug!) */
   M = 71582; L = 10000;
@@ -426,7 +467,7 @@ utest_GrowTo(void)
       if (p != NULL)
 	{
 	  free(p);
-	  p7_gmx_GrowTo(gx, M, L);  gmx_testpattern(gx, M, L);
+	  p7_gmx_GrowTo(gx, M, L, L);  gmx_testpattern(gx, M, L);
 	}
     }
 
@@ -438,16 +479,16 @@ utest_Compare(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_BG *bg, int L, float toleran
 {
   char         *msg = "gmx_Compare unit test failure";
   ESL_DSQ      *dsq = malloc(sizeof(ESL_DSQ) *(L+2));
-  P7_GMX       *gx1 = p7_gmx_Create(gm->M, L);
-  P7_GMX       *gx2 = p7_gmx_Create(5, 4);
+  P7_GMX       *gx1 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  P7_GMX       *gx2 = p7_gmx_Create(5, 4, 4, p7G_NSCELLS);
   float         fsc;
 
   if (!r || !gm || !dsq || !gx1 || !gx2 )                   esl_fatal(msg);
-  if (esl_rsq_xfIID(r, bg->f, gm->abc->K, L, dsq) != eslOK) esl_fatal(msg);
-  if (p7_gmx_GrowTo(gx2, gm->M, L)                != eslOK) esl_fatal(msg);
-  if (p7_GForward(dsq, L, gm, gx1, &fsc)          != eslOK) esl_fatal(msg);
-  if (p7_GForward(dsq, L, gm, gx2, &fsc)          != eslOK) esl_fatal(msg);
-  if (p7_gmx_Compare(gx1, gx2, tolerance)         != eslOK) esl_fatal(msg);   
+  if (esl_rsq_xfIID(r, bg->f, gm->abc->K, L, dsq)  != eslOK) esl_fatal(msg);
+  if (p7_gmx_GrowTo(gx2, gm->M, L, L) != eslOK) esl_fatal(msg);
+  if (p7_GForward(dsq, L, gm, gx1, &fsc)           != eslOK) esl_fatal(msg);
+  if (p7_GForward(dsq, L, gm, gx2, &fsc)           != eslOK) esl_fatal(msg);
+  if (p7_gmx_Compare(gx1, gx2, tolerance)          != eslOK) esl_fatal(msg);   
   
   p7_gmx_Destroy(gx1);
   p7_gmx_Destroy(gx2);

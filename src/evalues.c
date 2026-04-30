@@ -47,8 +47,11 @@
  *          byp_om    - BYPASS optimization: pass ptr to <om> profile if already known;
  *                      pass <*byp_om == NULL> if <om> return desired;
  *                      pass <NULL> to use and discard internal default.          
- *          byp_gm_fs5 - BYPASS optimization: pass ptr to <gm_fs5> profile if already known;
- *                      pass <*byp_gm_fs5 == NULL> if <gm_fs5> return desired;
+ *          byp_om_fs53 - BYPASS optimization: pass ptr to <om_fs3> profile if already known;
+ *                      pass <*byp_om_fs3> == NULL> if <om_fs3> return desired;
+ *                      pass <NULL> to use and discard internal default.
+ *          byp_om_fs5 - BYPASS optimization: pass ptr to <om_fs5> profile if already known;
+ *                      pass <*byp_om_fs5 == NULL> if <om_fs5> return desired;
  *                      pass <NULL> to use and discard internal default. 
  *
  * Returns:   <eslOK> on success.
@@ -59,14 +62,16 @@
  * Xref:      J4/41
  */
 int
-p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **byp_bg, P7_PROFILE **byp_gm, P7_OPROFILE **byp_om, P7_FS_PROFILE **byp_gm_fs3,  P7_FS_PROFILE **byp_gm_fs5)
+p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **byp_bg, P7_PROFILE **byp_gm, P7_OPROFILE **byp_om, P7_FS_OPROFILE **byp_om_fs3,  P7_FS_OPROFILE **byp_om_fs5)
 {
   P7_BG          *bg     = (esl_byp_IsProvided(byp_bg)  ? *byp_bg      : NULL); 
   P7_PROFILE     *gm     = (esl_byp_IsProvided(byp_gm)  ? *byp_gm      : NULL); 
   P7_OPROFILE    *om     = (esl_byp_IsProvided(byp_om)  ? *byp_om      : NULL); 
-  P7_FS_PROFILE  *gm_fs5 = (esl_byp_IsProvided(byp_om)  ? *byp_gm_fs5  : NULL);
-  P7_FS_PROFILE  *gm_fs3 = (esl_byp_IsProvided(byp_om)  ? *byp_gm_fs3  : NULL); 
+  P7_FS_OPROFILE *om_fs5 = (esl_byp_IsProvided(byp_om)  ? *byp_om_fs5  : NULL);
+  P7_FS_OPROFILE *om_fs3 = (esl_byp_IsProvided(byp_om)  ? *byp_om_fs3  : NULL); 
   ESL_RANDOMNESS *r      = (esl_byp_IsProvided(byp_rng) ? *byp_rng     : NULL);
+  P7_FS_PROFILE  *gm_fs5 = NULL;
+  P7_FS_PROFILE  *gm_fs3 = NULL;
   ESL_GENCODE    *gcode  = NULL;
   ESL_ALPHABET   *abcDNA = NULL;
   P7_CODONTABLE  *ct     = NULL;
@@ -122,16 +127,20 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     if  ( (status = esl_gencode_Set(gcode, hmm->ct))                           != eslOK) ESL_XFAIL(status,  errbuf, "failed to set codon table");
     if  ( (ct     = p7_codontable_Create(gcode))                               == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate codon tbl");
 
-    if(gm_fs5 == NULL) {
-      if  ( (gm_fs5  = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_5CODONS))                  == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
+    if(om_fs5 == NULL) {
+      if  ( (om_fs5  = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_5CODONS))       == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate oprofile");
+      if  ( (gm_fs5  = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_5CODONS))        == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
       if  ( (status  = p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, EvL, p7_LOCAL)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure profile");
+      if  ( (status  = p7_fs_oprofile_Convert(gm_fs5, om_fs5))                     != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure oprofile");
     }  
-    if(gm_fs3 == NULL) {
-      if  ( (gm_fs3  = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_3CODONS))                  == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
+    if(om_fs3 == NULL) {
+      if  ( (om_fs3  = p7_fs_oprofile_Create(hmm->M, hmm->abc, p7P_3CODONS))       == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate oprofile");
+      if  ( (gm_fs3  = p7_profile_fs_Create(hmm->M, hmm->abc, p7P_3CODONS))        == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate profile");
       if  ( (status  = p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, EvL, p7_LOCAL)) != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure profile");
+      if  ( (status  = p7_fs_oprofile_Convert(gm_fs3, om_fs3))                     != eslOK) ESL_XFAIL(status,  errbuf, "failed to configure oprofile");
     }
-    if ((status = p7_fs_Tau_3codons (r, gm_fs3, gcode, ct, bg, EfL, EfN, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
-    if ((status = p7_fs_Tau_5codons (r, gm_fs5, gcode, ct, bg, EfL, EfN, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+    if ((status = p7_fs_Tau_3codons (r, om_fs3, ct, bg, EfL, EfN, lambda, Eft, &tau_fs3)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
+    if ((status = p7_fs_Tau_5codons (r, om_fs5, ct, bg, EfL, EfN, lambda, Eft, &tau_fs5)) != eslOK) ESL_XFAIL(status, errbuf, "failed to determine fwd frameshifted tau");
   }
  
 
@@ -156,17 +165,20 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     gm->evparam[p7_FTAU]    = tau;
   }
 
-  if (byp_rng    != NULL) *byp_rng   = r;       else esl_randomness_Destroy(r);    /* bypass convention: no-op if rng was provided.*/
-  if (byp_bg     != NULL) *byp_bg    = bg;      else p7_bg_Destroy(bg);            /* bypass convention: no-op if bg was provided. */
-  if (byp_gm     != NULL) *byp_gm    = gm;      else p7_profile_Destroy(gm);       /* bypass convention: no-op if gm was provided. */
-  if (byp_om     != NULL) *byp_om    = om;      else p7_oprofile_Destroy(om);      /* bypass convention: no-op if om was provided. */
-  if (byp_gm_fs5 != NULL) *byp_gm_fs5 = gm_fs5; else p7_profile_fs_Destroy(gm_fs5); /* bypass convention: no-op if gm_fs5 was provided. */
-  if (byp_gm_fs3 != NULL) *byp_gm_fs3 = gm_fs3; else p7_profile_fs_Destroy(gm_fs3); /* bypass convention: no-op if gm_fs3 was provided. */
+  if (byp_rng    != NULL) *byp_rng   = r;       else esl_randomness_Destroy(r);      /* bypass convention: no-op if rng was provided.*/
+  if (byp_bg     != NULL) *byp_bg    = bg;      else p7_bg_Destroy(bg);              /* bypass convention: no-op if bg was provided. */
+  if (byp_gm     != NULL) *byp_gm    = gm;      else p7_profile_Destroy(gm);         /* bypass convention: no-op if gm was provided. */
+  if (byp_om     != NULL) *byp_om    = om;      else p7_oprofile_Destroy(om);        /* bypass convention: no-op if om was provided. */
+  if (byp_om_fs5 != NULL) *byp_om_fs5 = om_fs5; else p7_fs_oprofile_Destroy(om_fs5); /* bypass convention: no-op if om_fs5 was provided. */
+  if (byp_om_fs3 != NULL) *byp_om_fs3 = om_fs3; else p7_fs_oprofile_Destroy(om_fs3); /* bypass convention: no-op if om_fs3 was provided. */
 
+  
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_profile_fs_Destroy(gm_fs3);
   esl_alphabet_Destroy(abcDNA);
   esl_gencode_Destroy(gcode);
   p7_codontable_Destroy(ct);
-
+  
   return eslOK;
 
  ERROR:
@@ -174,9 +186,11 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   if (! esl_byp_IsProvided(byp_bg))    p7_bg_Destroy(bg);
   if (! esl_byp_IsProvided(byp_gm))    p7_profile_Destroy(gm);
   if (! esl_byp_IsProvided(byp_om))    p7_oprofile_Destroy(om);
-  if (! esl_byp_IsProvided(byp_gm_fs5)) p7_profile_fs_Destroy(gm_fs5); 
-  if (! esl_byp_IsProvided(byp_gm_fs3)) p7_profile_fs_Destroy(gm_fs3);
+  if (! esl_byp_IsProvided(byp_om_fs5)) p7_fs_oprofile_Destroy(om_fs5); 
+  if (! esl_byp_IsProvided(byp_om_fs3)) p7_fs_oprofile_Destroy(om_fs3);
 
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_profile_fs_Destroy(gm_fs3);
   esl_alphabet_Destroy(abcDNA);
   esl_gencode_Destroy(gcode);
   p7_codontable_Destroy(ct);
@@ -577,7 +591,7 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
  *            of the background model <bg>.             
  *
  * Args:      r      : source of randomness
- *            gm_fs3 : configured profile to sample sequences from
+ *            om_fs3 : configured profile to sample sequences from
  *            bg     : null model (for background residue frequencies)
  *            L      : mean length model for seq emission from profile
  *            N      : number of sequences to generate
@@ -591,35 +605,34 @@ p7_Tau(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double lambd
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs3, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
-  P7_GMX  *gx      = NULL; 
-  P7_IVX  *iv      = NULL;
+  P7_OMX  *ox      = NULL;
+  P7_OIVX *ov3     = NULL;
   ESL_DSQ *amino_dsq     = NULL;
   ESL_DSQ *dna_dsq     = NULL;
   double  *xv      = NULL;
-  float    fsc, nullsc;		                  
+  float    fsc, nullsc;
   double   gmu, glam;
   int      status;
   int      i, j, a;
 
-  p7_FLogsumInit(); 
-
-  gx = p7_gmx_fs_Create(gm_fs3->M, p7P_3CODONS, L*3, p7P_3CODONS);     
-  iv = p7_ivx_Create(gm_fs3->M, p7P_3CODONS);
+  ox  = p7_omx_Create_dpf(om_fs3->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS);
+  ov3 = p7_oivx_Create(om_fs3->M, p7P_3CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
 
-  if (gx == NULL) { status = eslEMEM; goto ERROR; }
+  if (ox == NULL || ov3 == NULL) { status = eslEMEM; goto ERROR; }
 
-  p7_fs_ReconfigLength(gm_fs3, L);
+  p7_fs_oprofile_ReconfigLength(om_fs3, L);
+
   p7_bg_SetLength(bg, L);
 
   for (i = 0; i < N; i++)
     {
-      if ((status = esl_rsq_xfIID(r, bg->f, gm_fs3->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
+      if ((status = esl_rsq_xfIID(r, bg->f, om_fs3->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
       dna_dsq[0] = dna_dsq[L*3+1] = eslDSQ_SENTINEL;            
      
       /* reverse translate amino acid sequence into dna sequence. */
@@ -628,10 +641,11 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
         p7_codontable_GetCodon(ct, r, amino_dsq[a], dna_dsq+j);
 		j+=3;
 	  } 
-
-     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, gcode, L*3, gm_fs3, gx, iv, &fsc))      != eslOK) goto ERROR;
-
-      if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
+     
+     if ((status = p7_ForwardParser_Frameshift_3Codons(dna_dsq, L*3, om_fs3, ox, ov3, &fsc)) == eslERANGE) { i--; continue; }
+     if (status != eslOK) goto ERROR;
+     
+     if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
     }
   if ((status = esl_gumbel_FitComplete(xv, N, &gmu, &glam)) != eslOK) goto ERROR; 
@@ -646,8 +660,8 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
   free(xv);
   free(amino_dsq);
   free(dna_dsq);
-  p7_gmx_Destroy(gx);
-  p7_ivx_Destroy(iv);
+  p7_omx_Destroy(ox);
+  p7_oivx_Destroy(ov3);
   return eslOK;
 
  ERROR:
@@ -655,8 +669,8 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
   if (xv  != NULL) free(xv);
   if (amino_dsq != NULL) free(amino_dsq);
   if (dna_dsq != NULL) free(dna_dsq);
-  if (gx  != NULL) p7_gmx_Destroy(gx);
-  if (iv  != NULL) p7_ivx_Destroy(iv);
+  if (ox  != NULL) p7_omx_Destroy(ox);
+  if (ov3 != NULL) p7_oivx_Destroy(ov3);
   return status;
 }
 
@@ -673,7 +687,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
  *            of the background model <bg>.             
  *
  * Args:      r      : source of randomness
- *            gm_fs5  : configured profile to sample sequences from
+ *            om_fs5  : configured profile to sample sequences from
  *            bg     : null model (for background residue frequencies)
  *            L      : mean length model for seq emission from profile
  *            N      : number of sequences to generate
@@ -687,35 +701,33 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs3, ESL_GENCODE *gcode, 
  * Throws:    <eslEMEM> on allocation error, and <*ret_fv> is 0.
  */
 int
-p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
+p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs5, P7_CODONTABLE *ct, P7_BG *bg, int L, int N, double lambda, double tailp, double *ret_tau)
 {
 
-  P7_GMX  *gx      = NULL; 
-  P7_IVX  *iv      = NULL;
+  P7_OMX  *ox      = NULL;
+  P7_OIVX *ov5     = NULL;
   ESL_DSQ *amino_dsq     = NULL;
   ESL_DSQ *dna_dsq     = NULL;
   double  *xv      = NULL;
-  float    fsc, nullsc;		                  
+  float    fsc, nullsc;
   double   gmu, glam;
   int      status;
   int      i, j, a;
 
-  p7_FLogsumInit(); 
-
-  gx = p7_gmx_fs_Create(gm_fs5->M, 3, L*3, p7P_5CODONS);     /* DP matrix: for ForwardParser,  L rows */
-  iv = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
+  ox  = p7_omx_Create_dpf(om_fs5->M, PARSER_ROWS_FWD, L*3, p7G_NSCELLS);
+  ov5 = p7_oivx_Create(om_fs5->M, p7P_5CODONS);
   ESL_ALLOC(xv,  sizeof(double)  * N);
   ESL_ALLOC(amino_dsq, sizeof(ESL_DSQ) * (L+2));
   ESL_ALLOC(dna_dsq, sizeof(ESL_DSQ) * (L*3+2));
 
-  if (gx == NULL) { status = eslEMEM; goto ERROR; }
+  if (ox == NULL || ov5 == NULL) { status = eslEMEM; goto ERROR; }
 
-  p7_fs_ReconfigLength(gm_fs5, L);
+  p7_fs_oprofile_ReconfigLength(om_fs5, L);
   p7_bg_SetLength(bg, L);
 
   for (i = 0; i < N; i++)
     {
-      if ((status = esl_rsq_xfIID(r, bg->f, gm_fs5->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
+      if ((status = esl_rsq_xfIID(r, bg->f, om_fs5->abc->K, L, amino_dsq)) != eslOK) goto ERROR;
       dna_dsq[0] = dna_dsq[L*3+1] = eslDSQ_SENTINEL;            
      
       /* reverse translate amino acid sequence into dna sequence */
@@ -725,7 +737,8 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, 
         j+=3;
       }
 
-      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, gcode, L*3, gm_fs5, gx, iv, &fsc))      != eslOK) goto ERROR; 
+      if ((status = p7_ForwardParser_Frameshift_5Codons(dna_dsq, L*3, om_fs5, ox, ov5, &fsc)) == eslERANGE) { i--; continue; }
+      if (status != eslOK) goto ERROR;
        
       if ((status = p7_bg_fs_NullOne(bg, dna_dsq, L, &nullsc))          != eslOK) goto ERROR;   
       xv[i] = (fsc - nullsc) / eslCONST_LOG2;
@@ -738,12 +751,12 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, 
    * instead of tailp.
    */
   *ret_tau =  esl_gumbel_invcdf(1.0-tailp, gmu, glam) + (log(tailp) / lambda);
-	
+
   free(xv);
   free(amino_dsq);
   free(dna_dsq);
-  p7_gmx_Destroy(gx);
-  p7_ivx_Destroy(iv);
+  p7_omx_Destroy(ox);
+  p7_oivx_Destroy(ov5);
   return eslOK;
 
  ERROR:
@@ -751,8 +764,8 @@ p7_fs_Tau_5codons(ESL_RANDOMNESS *r, P7_FS_PROFILE *gm_fs5, ESL_GENCODE *gcode, 
   if (xv  != NULL) free(xv);
   if (amino_dsq != NULL) free(amino_dsq);
   if (dna_dsq != NULL) free(dna_dsq);
-  if (gx  != NULL) p7_gmx_Destroy(gx);
-  if (iv  != NULL) p7_ivx_Destroy(iv);
+  if (ox  != NULL) p7_omx_Destroy(ox);
+  if (ov5 != NULL) p7_oivx_Destroy(ov5);
   return status;
 }
 
@@ -824,6 +837,8 @@ main(int argc, char **argv)
   P7_OPROFILE    *om      = NULL;
   P7_FS_PROfILE  *gm_fs5  = NULL;
   P7_FS_PROfILE  *gm_fs3  = NULL;
+  P7_FS_OPROfILE *om_fs5  = NULL;
+  P7_FS_OPROfILE *om_fs3  = NULL;
   ESL_GENCODE    *gcode   = NULL;
   ESL_ALPHABET   *abcDNA  = NULL;
   P7_CODONTABLE  *ct      = NULL;
@@ -872,11 +887,15 @@ main(int argc, char **argv)
         if(gcode  == NULL) gcode  = esl_gencode_Create(abcDNA, abc);
         if(ct     == NULL) ct     = p7_codontable_Create(gcode);
  
+        om_fs5 = p7_fs_oprofile_Create(hmm->M, abc, p7P_5CODONS);
         gm_fs5 = p7_profile_fs_Create(hmm->M, abc, p7P_5CODONS);
         p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, EfL, p7_LOCAL);
+        p7_fs_oprofile_Convert(gm_fs5, om_fs5);
 
+        om_fs3 = p7_fs_oprofile_Create(hmm->M, abc, p7P_3CODONS);
         gm_fs3 = p7_profile_fs_Create(hmm->M, abc, p7P_3CODONS);
         p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs3, EfL, p7_LOCAL);
+        p7_fs_oprofile_Convert(gm_fs3, om_fs3); 
       }
       
       if (esl_opt_IsOn(go, "--lambda"))	lambda = esl_opt_GetReal(go, "--lambda"); 
@@ -888,8 +907,8 @@ main(int argc, char **argv)
 	  if (do_vit)  p7_ViterbiMu (r, om, bg, EvL, EvN, lambda,       &vmu);
 	  if (do_fwd)  p7_Tau       (r, om, bg, EfL, EfN, lambda, Eft,  &ftau);
       if(abc->type == eslAMINO) {
-        if (do_fwd3) p7_fs_Tau_3codons(r, gm_fs3, gcode, ct, bg, EfL, EfN, lambda, Eft, &ftau3) 
-        if (do_fwd5) p7_fs_Tau_5codons(r, gm_fs5, gcode, ct, bg, EfL, EfN, lambda, Eft, &ftau5)
+        if (do_fwd3) p7_fs_Tau_3codons(r, om_fs3, ct, bg, EfL, EfN, lambda, Eft, &ftau3) 
+        if (do_fwd5) p7_fs_Tau_5codons(r, om_fs5, ct, bg, EfL, EfN, lambda, Eft, &ftau5)
       }
 	  printf("%s %.4f %.4f %.4f %.4f", hmm->name, lambda, mmu, vmu, ftau);
       if (abc->type == eslAMINO)  printf(" %.4f %.4f\n", ftau3, ftau5);
@@ -899,8 +918,10 @@ main(int argc, char **argv)
       p7_hmm_Destroy(hmm);      
       p7_profile_Destroy(gm);
       p7_oprofile_Destroy(om);
-      p7_profile_fs_Destrpy(gm_fs5);
-      p7_profile_fs_Destrpy(gm_fs3);
+      p7_fs_oprofile_Destroy(om_fs5);
+      p7_fs_oprofile_Destroy(om_fs3);
+      p7_profile_fs_Destroy(gm_fs5);
+      p7_profile_fs_Destr0y(gm_fs3);
     }
 
   p7_hmmfile_Close(hfp);

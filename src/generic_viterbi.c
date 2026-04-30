@@ -319,7 +319,7 @@ p7_GViterbi_longtarget(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
  *****************************************************************/
 #ifdef p7GENERIC_VITERBI_BENCHMARK
 /*
-   gcc -g -O2      -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
+   gcc -g -O3      -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
    icc -O3 -static -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
    ./benchmark-generic-viterbi <hmmfile>
  */
@@ -347,6 +347,7 @@ static ESL_OPTIONS options[] = {
   { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
   { "-L",        eslARG_INT,    "400", NULL, "n>0", NULL,  NULL, NULL, "length of random target seqs",                   0 },
   { "-N",        eslARG_INT,  "20000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
+  { "--notrace", eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "Do not benchmark the trace",                     0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
@@ -365,6 +366,7 @@ main(int argc, char **argv)
   P7_BG          *bg      = NULL;
   P7_PROFILE     *gm      = NULL;
   P7_GMX         *gx      = NULL;
+  P7_TRACE       *tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
@@ -379,7 +381,8 @@ main(int argc, char **argv)
   p7_bg_SetLength(bg, L);
   gm = p7_profile_Create(hmm->M, abc);
   p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL);
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  tr = p7_trace_fs_Create();
 
   /* Baseline time. */
   esl_stopwatch_Start(w);
@@ -393,6 +396,12 @@ main(int argc, char **argv)
     {
       esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
       p7_GViterbi     (dsq, L, gm, gx, &sc);
+
+	  if (! esl_opt_GetBoolean(go, "--notrace"))
+      {
+        p7_GTrace(dsq, L, gm, gx, tr);
+        p7_trace_Reuse(tr);
+      }
     }
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
@@ -403,6 +412,7 @@ main(int argc, char **argv)
 
 
   free(dsq);
+  p7_trace_fs_Destroy(tr);
   p7_gmx_Destroy(gx);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bg);
@@ -463,7 +473,7 @@ utest_basic(ESL_GETOPTS *go)
   if (p7_ProfileConfig(hmm, bg, gm, L, p7_UNILOCAL)!= eslOK) esl_fatal("failed to config profile");
   if (p7_profile_Validate(gm, NULL, 0.0001)        != eslOK) esl_fatal("whoops, profile is bad!");
   if (esl_abc_CreateDsq(abc, targ, &dsq)           != eslOK) esl_fatal("failed to create GAATTC digital sequence");
-  if ((gx = p7_gmx_Create(gm->M, L))               == NULL)  esl_fatal("failed to create DP matrix");
+  if ((gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS)) == NULL)  esl_fatal("failed to create DP matrix");
   if ((tr = p7_trace_Create())                     == NULL)  esl_fatal("trace creation failed");
 
   p7_GViterbi   (dsq, L, gm, gx, &vsc);
@@ -512,7 +522,7 @@ utest_viterbi(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, 
 
   if ((dsq    = malloc(sizeof(ESL_DSQ) *(L+2))) == NULL)  esl_fatal("malloc failed");
   if ((tr     = p7_trace_Create())              == NULL)  esl_fatal("trace creation failed");
-  if ((gx     = p7_gmx_Create(gm->M, L))        == NULL)  esl_fatal("matrix creation failed");
+  if ((gx     = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS)) == NULL)  esl_fatal("matrix creation failed");
 
   for (idx = 0; idx < nseq; idx++)
     {
@@ -614,7 +624,7 @@ main(int argc, char **argv)
 /* This is essentially identical to the vtrace example. */
 #ifdef p7GENERIC_VITERBI_EXAMPLE
 /* 
-   gcc -g -O2 -Dp7GENERIC_VITERBI_EXAMPLE -I. -I../easel -L. -L../easel -o generic_viterbi_example generic_viterbi.c -lhmmer -leasel -lm
+   gcc -g -O3 -Dp7GENERIC_VITERBI_EXAMPLE -I. -I../easel -L. -L../easel -o generic_viterbi_example generic_viterbi.c -lhmmer -leasel -lm
  */
 #include "p7_config.h"
 
@@ -678,7 +688,7 @@ main(int argc, char **argv)
   p7_ProfileConfig(hmm, bg, gm, sq->n, p7_LOCAL);
   
   /* Allocate matrix and a trace */
-  fwd = p7_gmx_Create(gm->M, sq->n);
+  fwd = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
   tr  = p7_trace_Create();
 
   /* Run Viterbi; do traceback */

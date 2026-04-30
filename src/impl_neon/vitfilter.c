@@ -245,6 +245,217 @@ p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, f
 
 
 
+/* Function:  p7_ViterbiFilter_BATH()
+ * Synopsis:  Viterbi filter returning both a score and above-threshold diagonal windows.
+ *
+ * Purpose:   Runs the standard Viterbi DP (identical to p7_ViterbiFilter) without
+ *            resetting the dp matrix, so the global Viterbi score accumulates normally.
+ *            Additionally, at each row i where the row-maximum xE >= <sc_thresh>
+ *            (derived from <filtersc> and <P> using Viterbi Gumbel parameters), the
+ *            model position k_start responsible for that maximum is identified.  A
+ *            forward diagonal extension in SSV score space then traces the diagonal
+ *            from (i, k_start) until the match score drops, giving k_end and i_end.
+ *            One window (n=i, k=k_end, k_length=k_end-k_start+1) is appended to
+ *            <windowlist> and threshold checks are suppressed until i > i_end to
+ *            avoid re-triggering on the same alignment.
+ *
+ *            The global Viterbi score is returned in <ret_sc> exactly as
+ *            p7_ViterbiFilter() would return it, so the caller can apply a
+ *            bias-corrected F2 filter using the windows for local composition.
+ *
+ * Args:      dsq        - digital target sequence, 1..L
+ *            L          - length of dsq in residues
+ *            om         - optimized profile
+ *            ox         - DP matrix (one-row)
+ *            ssvdata    - precomputed SSV score data (ssv_scores, for diagonal extension)
+ *            filtersc   - bias-corrected null score (nats); used for sc_thresh
+ *            P          - p-value threshold (F2); used for sc_thresh
+ *            windowlist - RETURN: above-threshold diagonal windows appended here
+ *            ret_sc     - RETURN: Viterbi score (nats)
+ *
+ * Returns:   <eslOK> on success.
+ *            <eslERANGE> if score overflows; <*ret_sc> is <eslINFINITY>.
+ *
+ * Throws:    <eslEINVAL> if <ox> is too small or profile is not in local mode.
+ */
+int
+p7_ViterbiFilter_BATH(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox,
+                      const P7_SCOREDATA *ssvdata, float filtersc, double P,
+                      P7_HMM_WINDOWLIST *windowlist, float *ret_sc)
+{
+  register int16x8_t mpv, dpv, ipv;
+  register int16x8_t sv;
+  register int16x8_t dcv;
+  register int16x8_t xEv;
+  register int16x8_t xBv;
+  register int16x8_t Dmaxv;
+  int16x8_t negInfv;
+  int16_t   xE, xB, xC, xJ, xN;
+  int16_t   Dmax;
+  int       i;
+  int       q;
+  int       Q        = p7O_NQW(om->M);
+  int16x8_t *dp      = ox->dpw[0];
+  int16x8_t *rsc;
+  int16x8_t *tsc;
+
+  int16_t   sc_thresh;       /* Viterbi score threshold, int16 space              */
+  int       sc_ext_thresh;   /* SSV score threshold for diagonal extension        */
+  float     invP;
+  int       z, k;
+  int       skip_until = 0;  /* suppress xE check for i <= skip_until             */
+  union { int16x8_t v; int16_t i[8]; } tmp;
+
+  /* Viterbi threshold: invert P using Viterbi Gumbel params + filtersc */
+  invP      = esl_gumbel_invsurv(P, om->evparam[p7_VMU], om->evparam[p7_VLAMBDA]);
+  sc_thresh = (int16_t) ceil( ( (filtersc + eslCONST_LOG2 * invP + 3.0) * om->scale_w )
+              - (float)om->xw[p7O_E][p7O_MOVE] - (float)om->xw[p7O_C][p7O_MOVE] + (float)om->base_w );
+
+  /* SSV threshold for forward diagonal extension: invert P using MSV Gumbel params */
+  invP          = esl_gumbel_invsurv(P, om->evparam[p7_MMU], om->evparam[p7_MLAMBDA]);
+  sc_ext_thresh = (int) ceil( ( (filtersc + eslCONST_LOG2 * invP + 3.0) * om->scale_b )
+                  + om->base_b + om->tec_b + om->tjb_b );
+
+  if (Q > ox->allocQ8)                                 ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small");
+  if (om->mode != p7_LOCAL && om->mode != p7_UNILOCAL) ESL_EXCEPTION(eslEINVAL, "Fast filter only works for local alignment");
+  ox->M = om->M;
+
+  negInfv = vmovq_n_s16(-32768);
+
+  for (q = 0; q < Q; q++)
+    MMXo(q) = IMXo(q) = DMXo(q) = vmovq_n_s16(-32768);
+  xN = om->base_w;
+  xB = xN + om->xw[p7O_N][p7O_MOVE];
+  xJ = -32768;
+  xC = -32768;
+  xE = -32768;
+
+  for (i = 1; i <= L; i++)
+  {
+    rsc   = om->rwv[dsq[i]];
+    tsc   = om->twv;
+    dcv   = vmovq_n_s16(-32768);
+    xEv   = vmovq_n_s16(-32768);
+    Dmaxv = vmovq_n_s16(-32768);
+    xBv   = vmovq_n_s16(xB);
+
+    mpv = MMXo(Q-1);  mpv = vextq_s16(negInfv, mpv, 7);
+    dpv = DMXo(Q-1);  dpv = vextq_s16(negInfv, dpv, 7);
+    ipv = IMXo(Q-1);  ipv = vextq_s16(negInfv, ipv, 7);
+
+    for (q = 0; q < Q; q++)
+    {
+      sv   =                vqaddq_s16(xBv, *tsc);  tsc++;
+      sv   = vmaxq_s16(sv,  vqaddq_s16(mpv, *tsc)); tsc++;
+      sv   = vmaxq_s16(sv,  vqaddq_s16(ipv, *tsc)); tsc++;
+      sv   = vmaxq_s16(sv,  vqaddq_s16(dpv, *tsc)); tsc++;
+      sv   = vqaddq_s16(sv, *rsc);                  rsc++;
+      xEv  = vmaxq_s16(xEv, sv);
+
+      mpv     = MMXo(q);
+      dpv     = DMXo(q);
+      ipv     = IMXo(q);
+
+      MMXo(q) = sv;
+      DMXo(q) = dcv;
+
+      dcv   = vqaddq_s16(sv, *tsc);  tsc++;
+      Dmaxv = vmaxq_s16(dcv, Dmaxv);
+
+      sv      =                vqaddq_s16(mpv, *tsc); tsc++;
+      IMXo(q) = vmaxq_s16(sv,  vqaddq_s16(ipv, *tsc)); tsc++;
+    }
+
+    xE = esl_neon_hmax_s16((esl_neon_128i_t) xEv);
+    if (xE >= 32767) { *ret_sc = eslINFINITY; return eslERANGE; }
+
+    /* Special state updates — always performed, never skipped (no dp reset) */
+    xN = xN +  om->xw[p7O_N][p7O_LOOP];
+    xC = ESL_MAX(xC + om->xw[p7O_C][p7O_LOOP], xE + om->xw[p7O_E][p7O_MOVE]);
+    xJ = ESL_MAX(xJ + om->xw[p7O_J][p7O_LOOP], xE + om->xw[p7O_E][p7O_LOOP]);
+    xB = ESL_MAX(xJ + om->xw[p7O_J][p7O_MOVE], xN + om->xw[p7O_N][p7O_MOVE]);
+
+    if (i > skip_until && xE >= sc_thresh)
+    {
+      /* Find k_start: first k in scan order where MMXo score == xE */
+      int k_start = 0;
+      for (q = 0; q < Q && k_start == 0; q++) {
+        tmp.v = MMXo(q);
+        for (z = 0; z < 8; z++) {
+          k = q + Q*z + 1;
+          if (tmp.i[z] == xE && k <= om->M) { k_start = k; break; }
+        }
+      }
+
+      /* Forward diagonal extension in SSV score space from (i, k_start).
+       * Starts at sc_ext_thresh (the SSV threshold) and extends M->M until
+       * score stops improving for 5 consecutive steps. */
+      int max_k_end     = k_start;
+      int max_i_end     = i;
+      int sc_ext        = sc_ext_thresh;
+      int max_sc_ext    = sc_ext;
+      int pos_since_max = 0;
+      int kk = k_start + 1;
+      int nn = i + 1;
+      while (kk <= om->M && nn <= L) {
+        sc_ext += om->bias_b - ssvdata->ssv_scores[kk * om->abc->Kp + dsq[nn]];
+        if (sc_ext >= max_sc_ext) {
+          max_sc_ext    = sc_ext;
+          max_k_end     = kk;
+          max_i_end     = nn;
+          pos_since_max = 0;
+        } else {
+          if (++pos_since_max == 5) break;
+        }
+        kk++;
+        nn++;
+      }
+
+      p7_hmmwindow_new(windowlist, 0, i, max_k_end, max_k_end - k_start + 1, 0.0, p7_NOCOMPLEMENT, L);
+      skip_until = max_i_end;
+    }
+
+    /* Lazy F loop */
+    Dmax = esl_neon_hmax_s16((esl_neon_128i_t) Dmaxv);
+    if (Dmax + om->ddbound_w > xB)
+    {
+      dcv = vextq_s16(negInfv, dcv, 7);
+      tsc = om->twv + 7*Q;
+      for (q = 0; q < Q; q++)
+      {
+        DMXo(q) = vmaxq_s16(dcv, DMXo(q));
+        dcv     = vqaddq_s16(DMXo(q), *tsc); tsc++;
+      }
+      do {
+        dcv = vextq_s16(negInfv, dcv, 7);
+        tsc = om->twv + 7*Q;
+        for (q = 0; q < Q; q++)
+        {
+          if (!esl_neon_any_gt_s16((esl_neon_128i_t) dcv, (esl_neon_128i_t) DMXo(q))) break;
+          DMXo(q) = vmaxq_s16(dcv, DMXo(q));
+          dcv     = vqaddq_s16(DMXo(q), *tsc); tsc++;
+        }
+      } while (q == Q);
+    }
+    else
+    {
+      DMXo(0) = vextq_s16(negInfv, dcv, 7);
+    }
+  }
+
+  /* Global Viterbi score via C->T */
+  if (xC > -32768) {
+    *ret_sc  = (float) xC + (float) om->xw[p7O_C][p7O_MOVE] - (float) om->base_w;
+    *ret_sc /= om->scale_w;
+    *ret_sc -= 3.0;
+  } else *ret_sc = -eslINFINITY;
+
+  return eslOK;
+}
+/*---------------- end, p7_ViterbiFilter_BATH() -----------------*/
+
+
+
 /*****************************************************************
  * 2. Benchmark driver.
  *****************************************************************/
@@ -252,7 +463,8 @@ p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, f
 /* -c, -x are used for debugging, testing; see msvfilter.c for explanation */
 
 /*
-  ./benchmark-vitfilter <hmmfile>          runs benchmark
+   gcc -g -O3 -march=armv8-a -std=gnu99 -o vitfilter_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7VITFILTER_BENCHMARK vitfilter.c -lhmmer -leasel -lm
+   ./benchmark-vitfilter <hmmfile>          runs benchmark
    ./benchmark-vitfilter -N100 -c <hmmfile> compare scores to generic impl
    ./benchmark-vitfilter -N100 -x <hmmfile> compare scores to exact emulation
  */
@@ -285,26 +497,29 @@ static char banner[] = "benchmark driver for Viterbi filter";
 int
 main(int argc, char **argv)
 {
-  ESL_GETOPTS    *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
-  char           *hmmfile = esl_opt_GetArg(go, 1);
-  ESL_STOPWATCH  *w       = esl_stopwatch_Create();
-  ESL_RANDOMNESS *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
-  ESL_ALPHABET   *abc     = NULL;
-  P7_HMMFILE     *hfp     = NULL;
-  P7_HMM         *hmm     = NULL;
-  P7_BG          *bg      = NULL;
-  P7_PROFILE     *gm      = NULL;
-  P7_OPROFILE    *om      = NULL;
-  P7_OMX         *ox      = NULL;
-  P7_GMX         *gx      = NULL;
-  int             L       = esl_opt_GetInteger(go, "-L");
-  int             N       = esl_opt_GetInteger(go, "-N");
-  ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
-  int             i;
-  float           sc1, sc2;
-  double          base_time, bench_time, Mcs;
+  ESL_GETOPTS       *go      = p7_CreateDefaultApp(options, 1, argc, argv, banner, usage);
+  char              *hmmfile = esl_opt_GetArg(go, 1);
+  ESL_STOPWATCH     *w       = esl_stopwatch_Create();
+  ESL_RANDOMNESS    *r       = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET      *abc     = NULL;
+  P7_HMMFILE        *hfp     = NULL;
+  P7_HMM            *hmm     = NULL;
+  P7_BG             *bg      = NULL;
+  P7_PROFILE        *gm      = NULL;
+  P7_OPROFILE       *om      = NULL;
+  P7_SCOREDATA      *data    = NULL;
+  P7_OMX            *ox      = NULL;
+  P7_GMX            *gx      = NULL;
+  P7_HMM_WINDOWLIST  wlist;
+  int                L       = esl_opt_GetInteger(go, "-L");
+  int                N       = esl_opt_GetInteger(go, "-N");
+  ESL_DSQ           *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  int                i;
+  float              sc1, sc2;
+  float              nullsc;
+  double             base_time, bench_time, Mcs;
 
-  if (p7_hmmfile_Open(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)           != eslOK) p7_Fail("Failed to read HMM");
 
   bg = p7_bg_Create(abc);
@@ -314,11 +529,13 @@ main(int argc, char **argv)
   om = p7_oprofile_Create(gm->M, abc);
   p7_oprofile_Convert(gm, om);
   p7_oprofile_ReconfigLength(om, L);
+  data = p7_hmm_ScoreDataCreate(om, NULL);
 
   if (esl_opt_GetBoolean(go, "-x")) p7_profile_SameAsVF(om, gm);
 
   ox = p7_omx_Create(gm->M, 0, 0);
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
+  p7_hmmwindow_init(&wlist);
 
   /* Get a baseline time: how long it takes just to generate the sequences */
   esl_stopwatch_Start(w);
@@ -327,7 +544,7 @@ main(int argc, char **argv)
   esl_stopwatch_Stop(w);
   base_time = w->user;
 
-  /* Run the benchmark */
+  /* Benchmark p7_ViterbiFilter() */
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
@@ -352,13 +569,31 @@ main(int argc, char **argv)
   esl_stopwatch_Stop(w);
   bench_time = w->user - base_time;
   Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
-  esl_stopwatch_Display(stdout, w, "# CPU time: ");
-  printf("# M    = %d\n",   gm->M);
+  esl_stopwatch_Display(stdout, w, "# ViterbiFilter       CPU time: ");
+  printf("# M    = %d\n", gm->M);
   printf("# %.1f Mc/s\n", Mcs);
 
+  /* Benchmark p7_ViterbiFilter_BATH() */
+  esl_stopwatch_Start(w);
+  for (i = 0; i < N; i++)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+      p7_bg_NullOne(bg, dsq, L, &nullsc);
+      wlist.count = 0;
+      p7_ViterbiFilter_BATH(dsq, L, om, ox, data, nullsc, 0.2, &wlist, &sc1);
+    }
+  esl_stopwatch_Stop(w);
+  bench_time = w->user - base_time;
+  Mcs        = (double) N * (double) L * (double) gm->M * 1e-6 / (double) bench_time;
+  esl_stopwatch_Display(stdout, w, "# ViterbiFilter_BATH  CPU time: ");
+  printf("# M    = %d\n", gm->M);
+  printf("# %.1f Mc/s\n", Mcs);
+
+  free(wlist.windows);
   free(dsq);
   p7_omx_Destroy(ox);
   p7_gmx_Destroy(gx);
+  p7_hmm_ScoreDataDestroy(data);
   p7_oprofile_Destroy(om);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bg);
@@ -401,7 +636,7 @@ utest_viterbi_filter(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int
   P7_OPROFILE *om  = NULL;
   ESL_DSQ     *dsq = malloc(sizeof(ESL_DSQ) * (L+2));
   P7_OMX      *ox  = p7_omx_Create(M, 0, 0);
-  P7_GMX      *gx  = p7_gmx_Create(M, L);
+  P7_GMX      *gx  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   float sc1, sc2;
 
   p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
@@ -419,7 +654,7 @@ utest_viterbi_filter(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int
       p7_ViterbiFilter(dsq, L, om, ox, &sc1);
       p7_GViterbi     (dsq, L, gm, gx, &sc2);
 
-#if 1
+#if 0
       p7_gmx_Dump(stdout, gx, p7_DEFAULT);   // dumps a generic DP matrix
       break;
 #endif
@@ -437,6 +672,74 @@ utest_viterbi_filter(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int
   p7_profile_Destroy(gm);
   p7_oprofile_Destroy(om);
 }
+
+/* utest_viterbi_filter_bath()
+ *
+ * Checks two properties of p7_ViterbiFilter_BATH():
+ *
+ * 1. Score agreement: the returned Viterbi score must match
+ *    p7_ViterbiFilter() to within floating-point rounding (0.001 nats),
+ *    because both run the same DP without resetting the matrix.
+ *
+ * 2. Window validity: every window appended to the windowlist must have
+ *    n in [1,L], k in [1,M], and k_length in [1,M].
+ */
+static void
+utest_viterbi_filter_bath(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N)
+{
+  char              msg[]  = "ViterbiFilter_BATH unit test failed";
+  P7_HMM           *hmm   = NULL;
+  P7_PROFILE       *gm    = NULL;
+  P7_OPROFILE      *om    = NULL;
+  P7_SCOREDATA     *data  = NULL;
+  ESL_DSQ          *dsq   = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX           *ox    = p7_omx_Create(M, 0, 0);
+  P7_HMM_WINDOWLIST wlist;
+  float             sc1, sc2;
+  float             nullsc;
+  int               w;
+
+  p7_hmmwindow_init(&wlist);
+  p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
+  data = p7_hmm_ScoreDataCreate(om, NULL);
+
+  while (N--)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+
+      /* Reference score from standard ViterbiFilter */
+      p7_ViterbiFilter(dsq, L, om, ox, &sc1);
+
+      /* Score + windows from ViterbiFilter_BATH; use nullsc as filtersc */
+      p7_bg_NullOne(bg, dsq, L, &nullsc);
+      wlist.count = 0;
+      p7_ViterbiFilter_BATH(dsq, L, om, ox, data, nullsc, 0.001, &wlist, &sc2);
+
+      /* 1. Scores must agree */
+      if (sc1 != eslINFINITY && sc2 != eslINFINITY)
+        if (fabs(sc1 - sc2) > 0.001)
+          esl_fatal("%s: scores differ: ViterbiFilter=%.4f  ViterbiFilter_BATH=%.4f", msg, sc1, sc2);
+
+      /* 2. Every window must have valid boundaries */
+      for (w = 0; w < wlist.count; w++)
+        {
+          if (wlist.windows[w].n      <  1) esl_fatal("%s: window %d n=%d < 1",             msg, w, wlist.windows[w].n);
+          if (wlist.windows[w].n      >  L) esl_fatal("%s: window %d n=%d > L=%d",          msg, w, wlist.windows[w].n, L);
+          if (wlist.windows[w].k      <  1) esl_fatal("%s: window %d k=%d < 1",             msg, w, wlist.windows[w].k);
+          if (wlist.windows[w].k      >  M) esl_fatal("%s: window %d k=%d > M=%d",          msg, w, wlist.windows[w].k, M);
+          if (wlist.windows[w].length <  1) esl_fatal("%s: window %d k_length=%d < 1",      msg, w, wlist.windows[w].length);
+          if (wlist.windows[w].length >  M) esl_fatal("%s: window %d k_length=%d > M=%d",   msg, w, wlist.windows[w].length, M);
+        }
+    }
+
+  free(wlist.windows);
+  free(dsq);
+  p7_hmm_ScoreDataDestroy(data);
+  p7_hmm_Destroy(hmm);
+  p7_omx_Destroy(ox);
+  p7_profile_Destroy(gm);
+  p7_oprofile_Destroy(om);
+}
 #endif /*p7VITFILTER_TESTDRIVE*/
 
 
@@ -444,6 +747,9 @@ utest_viterbi_filter(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int
  * 4. Test driver
  *****************************************************************/
 #ifdef p7VITFILTER_TESTDRIVE
+/*
+   gcc -g -Wall -march=armv8-a -std=gnu99 -o vitfilter_utest -I.. -L.. -I../../easel -L../../easel -Dp7VITFILTER_TESTDRIVE vitfilter.c -lhmmer -leasel -lm
+*/
 #include <p7_config.h>
 
 #include "easel.h"
@@ -488,6 +794,11 @@ main(int argc, char **argv)
   utest_viterbi_filter(r, abc, bg, 1, L, 10);
   utest_viterbi_filter(r, abc, bg, M, 1, 10);
 
+  if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter_BATH() tests, DNA\n");
+  utest_viterbi_filter_bath(r, abc, bg, M, L, N);
+  utest_viterbi_filter_bath(r, abc, bg, 1, L, 10);
+  utest_viterbi_filter_bath(r, abc, bg, M, 1, 10);
+
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);
 
@@ -499,6 +810,11 @@ main(int argc, char **argv)
   utest_viterbi_filter(r, abc, bg, M, L, N);
   utest_viterbi_filter(r, abc, bg, 1, L, 10);
   utest_viterbi_filter(r, abc, bg, M, 1, 10);
+
+  if (esl_opt_GetBoolean(go, "-v")) printf("ViterbiFilter_BATH() tests, protein\n");
+  utest_viterbi_filter_bath(r, abc, bg, M, L, N);
+  utest_viterbi_filter_bath(r, abc, bg, 1, L, 10);
+  utest_viterbi_filter_bath(r, abc, bg, M, 1, 10);
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);
@@ -518,6 +834,7 @@ main(int argc, char **argv)
 #ifdef p7VITFILTER_EXAMPLE
 /* A minimal example.
    Also useful for debugging on small HMMs and sequences.
+   gcc -g -Wall -march=armv8-a -std=gnu99 -o vitfilter_example -I.. -L.. -I../../easel -L../../easel -Dp7VITFILTER_EXAMPLE vitfilter.c -lhmmer -leasel -lm
    ./vitfilter_example <hmmfile> <seqfile>
  */
 #include <p7_config.h>
@@ -565,7 +882,7 @@ main(int argc, char **argv)
   int             status;
 
   /* Read in one HMM */
-  if (p7_hmmfile_Open(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
+  if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)           != eslOK) p7_Fail("Failed to read HMM");
 
   /* Read in one sequence */
@@ -586,7 +903,7 @@ main(int argc, char **argv)
 
   /* allocate DP matrices, both a generic and an optimized one */
   ox = p7_omx_Create(gm->M, 0, sq->n);
-  gx = p7_gmx_Create(gm->M, sq->n);
+  gx = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
 
   /* Useful to place and compile in for debugging:
      p7_oprofile_Dump(stdout, om);         dumps the optimized profile
@@ -600,7 +917,7 @@ main(int argc, char **argv)
       p7_ReconfigLength(gm,          sq->n);
       p7_bg_SetLength(bg,            sq->n);
       p7_omx_GrowTo(ox, om->M, 0,    sq->n);
-      p7_gmx_GrowTo(gx, gm->M,       sq->n);
+      p7_gmx_GrowTo(gx, gm->M,       sq->n, sq->n);
 
       p7_ViterbiFilter  (sq->dsq, sq->n, om, ox, &vfraw);
       p7_bg_NullOne (bg, sq->dsq, sq->n, &nullsc);

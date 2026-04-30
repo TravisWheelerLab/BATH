@@ -34,29 +34,44 @@ MYINCDIRS      = -I../../${ESLDIR} \
 		 -I${srcdir}/.. 
 
 OBJS =  decoding.o\
+	decoding_fs.o\
 	fwdback.o\
-	io.o\
+	fwdback_fs.o\
 	ssvfilter.o\
 	msvfilter.o\
 	null2.o\
+	null2_fs.o\
 	optacc.o\
+	optacc_fs.o\
 	stotrace.o\
+	stotrace_fs.o\
 	vitfilter.o\
+	viterbi.o\
+    viterbi_fs.o\
+    viterbi_sp.o\
 	p7_omx.o\
 	p7_oprofile.o\
-	mpi.o
+	p7_fs_oprofile.o\
+	p7_oivx.o
 
 HDRS =  impl_sse.h
 
 UTESTS = @MPI_UTESTS@\
 	decoding_utest\
+    decoding_fs_utest\
 	fwdback_utest\
-	io_utest\
+	fwdback_fs_utest\
 	msvfilter_utest\
 	null2_utest\
+    null2_fs_utest\
 	optacc_utest\
+    optacc_fs_utest\
 	stotrace_utest\
-	vitfilter_utest
+	stotrace_fs_utest\
+	vitfilter_utest\
+    viterbi_utest\
+    viterbi_fs_utest\
+    viterbi_sp_utest
 
 BENCHMARKS = @MPI_BENCHMARKS@\
 	decoding_benchmark\
@@ -65,11 +80,13 @@ BENCHMARKS = @MPI_BENCHMARKS@\
 	null2_benchmark\
 	optacc_benchmark\
 	stotrace_benchmark\
-	vitfilter_benchmark
+	vitfilter_benchmark\
+    viterbi_benchmark\
+	viterbi_fs_benchmark\
+	viterbi_sq_benchmark
 
 EXAMPLES =\
 	fwdback_example\
-	io_example\
 	msvfilter_example\
 	optacc_example\
 	p7_oprofile_example\

@@ -452,6 +452,7 @@ p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX *ox, const 
  */
 #ifdef p7MSVFILTER_BENCHMARK
 /*
+ * gcc -g -O3 -march=armv8-a -std=gnu99 -o msvfilter_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7MSVFILTER_BENCHMARK msvfilter.c -lhmmer -leasel -lm
    ./benchmark-msvfilter <hmmfile>            runs benchmark
    ./benchmark-msvfilter -N100 -c <hmmfile>   compare scores to generic impl
    ./benchmark-msvfilter -N100 -x <hmmfile>   compare scores to exact emulation
@@ -522,7 +523,7 @@ main(int argc, char **argv)
   if (esl_opt_GetBoolean(go, "-x")) p7_profile_SameAsMF(om, gm);
 
   ox = p7_omx_Create(gm->M, 0, 0);
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Get a baseline time: how long it takes just to generate the sequences */
   esl_stopwatch_Start(w);
@@ -622,7 +623,7 @@ utest_msv_filter(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, 
   P7_OPROFILE *om  = NULL;
   ESL_DSQ     *dsq = malloc(sizeof(ESL_DSQ) * (L+2));
   P7_OMX      *ox  = p7_omx_Create(M, 0, 0);
-  P7_GMX      *gx  = p7_gmx_Create(M, L);
+  P7_GMX      *gx  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   float sc1, sc2;
 
   p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
@@ -804,7 +805,7 @@ main(int argc, char **argv)
 
   /* allocate DP matrices, both a generic and an optimized one */
   ox = p7_omx_Create(gm->M, 0, 0); /* one row version */
-  gx = p7_gmx_Create(gm->M, sq->n);
+  gx = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
 
   /* Useful to place and compile in for debugging:
      p7_oprofile_Dump(stdout, om);              dumps the optimized profile
@@ -821,7 +822,7 @@ main(int argc, char **argv)
       p7_ReconfigLength(gm,          sq->n);
       p7_bg_SetLength(bg,            sq->n);
       p7_omx_GrowTo(ox, om->M, 0,    sq->n);
-      p7_gmx_GrowTo(gx, gm->M,       sq->n);
+      p7_gmx_GrowTo(gx, gm->M,       sq->n, sq->n);
 
       p7_MSVFilter   (sq->dsq, sq->n, om, ox, &msvraw);
       p7_bg_NullOne  (bg, sq->dsq, sq->n, &nullsc);

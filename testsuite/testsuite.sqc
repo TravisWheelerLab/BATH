@@ -26,10 +26,12 @@
 1 exercise hmmer              @src/hmmer_utest@
 1 exercise build              @src/build_utest@
 1 exercise generic_fwdback    @src/generic_fwdback_utest@
+1 exercise generic_fwdback_fs @src/generic_fwdback_frameshift_utest@
 1 exercise generic_msv        @src/generic_msv_utest@
 1 exercise generic_stotrace   @src/generic_stotrace_utest@
 1 exercise generic_viterbi    @src/generic_viterbi_utest@
-1 exercise fwdback_frameshift @src/fwdback_frameshift_utest@
+1 exercise generic_viterbi_fs @src/generic_viterbi_frameshift_utest@
+1 exercise generic_viterbi_sp @src/generic_viterbi_spliced_utest@
 1 exercise logsum             @src/logsum_utest@
 1 exercise modelconfig        @src/modelconfig_utest@
 1 exercise seqmodel           @src/seqmodel_utest@
@@ -47,12 +49,20 @@
 
 
 1 exercise decoding           @src/impl/decoding_utest@
+1 exercise decoding_fs        @src/impl/decoding_fs_utest@
 1 exercise fwdback            @src/impl/fwdback_utest@
-1 exercise io                 @src/impl/io_utest@
+1 exercise fwdback_fs         @src/impl/fwdback_fs_utest@
 1 exercise msvfilter          @src/impl/msvfilter_utest@
 1 exercise null2              @src/impl/null2_utest@
+1 exercise null2_fs           @src/impl/null2_fs_utest@
 1 exercise optacc             @src/impl/optacc_utest@
+1 exercise optacc_fs          @src/impl/optacc_fs_utest@
 1 exercise stotrace           @src/impl/stotrace_utest@
+1 exercise stotrace_fs        @src/impl/stotrace_fs_utest@
+1 exercise vitfilter          @src/impl/vitfilter_utest@
+1 exercise viterbi            @src/impl/viterbi_utest@
+1 exercise viterbi_fs         @src/impl/viterbi_fs_utest@
+1 exercise viterbi_sp         @src/impl/viterbi_sp_utest@
 
 ################################################################
 # Option tests 
@@ -67,7 +77,7 @@
 1 exercise  build/-o             @src/bathbuild@  -o %HMMBUILD.out% --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/-O             @src/bathbuild@  -O %HMMBUILD.sto% --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--ct           @src/bathbuild@  --ct 11           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
-1 exercise  build/--unali        @src/bathbuild@  --unali           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/rndseq400-10.fa!
+1 exercise  build/seq            @src/bathbuild@                    --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/globins.fa!
 1 exercise  build/--fast         @src/bathbuild@  --fast            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--hand         @src/bathbuild@  --hand            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--symfrac      @src/bathbuild@  --symfrac 1.0     --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
@@ -76,7 +86,6 @@
 1 exercise  build/--wgsc         @src/bathbuild@  --wgsc            --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--wblosum      @src/bathbuild@  --wblosum         --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--wnone        @src/bathbuild@  --wnone           --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
-# --wgiven not tested
 1 exercise  build/--wid          @src/bathbuild@  --wblosum --wid 0.5  --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--eent         @src/bathbuild@  --eent               --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
 1 exercise  build/--eclust       @src/bathbuild@  --eclust             --EmL 10 --EvL 10 --EfL 10 %HMMBUILD.bhmm% !testsuite/20aa.sto!
@@ -105,6 +114,7 @@
 1 exercise  bathsearch/msa/--fs        @src/bathsearch@  --fs                              !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
 1 exercise  bathsearch/seq             @src/bathsearch@                                    !testsuite/globins.fa! !testsuite/globins45-nt.fa!
 1 exercise  bathsearch/seq/--fs        @src/bathsearch@  --fs                              !testsuite/globins.fa! !testsuite/globins45-nt.fa!
+1 exercise  bathsearch/--splice        @src/bathsearch@  --splice                          !testsuite/tmem-258.bhmm!       !testsuite/tmem-258.fa!
 1 exercise  bathsearch/-h              @src/bathsearch@  -h
 1 exercise  bathsearch/-o              @src/bathsearch@  -o              %bathsearch.out%  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
 1 exercise  bathsearch/--tblout        @src/bathsearch@  --tblout        %bathsearch.tbl%  !testsuite/2OG-FeII_Oxy_3.bhmm! !testsuite/2OG-FeII_Oxy_3-nt.fa!
@@ -145,10 +155,8 @@
 
 # xxxxxxxxx xxxxxxxxxxxxxxxxxxxx
 1 exercise  bathfetch             @src/bathfetch@        %MINIFAM.BHMM% Caudal_act
-1 exercise  bathfetch/--fs        @src/bathfetch@ --fs   %MINIFAM.BHMM% Caudal_act
 1 exercise  bathstat              @src/bathstat@         !testsuite/Caudal_act.bhmm!
 1 exercise  bathconvert           @src/bathconvert@      %CAUDAL.bhmm% !testsuite/Caudal_act.hmm!
-1 exercise  bathconvert/--fs      @src/bathconvert@ --fs %CAUDAL.bhmm% !testsuite/Caudal_act.hmm!
 
 
 #################################################################
@@ -182,10 +190,12 @@
 3 valgrind  hmmer                 @src/hmmer_utest@
 3 valgrind  build                 @src/build_utest@
 3 valgrind  generic_fwdback       @src/generic_fwdback_utest@
+3 valgrind  generic_fwdback_fs    @src/generic_fwdback_frameshift_utest@ 
 3 valgrind  generic_msv           @src/generic_msv_utest@
 3 valgrind  generic_stotrace      @src/generic_stotrace_utest@
 3 valgrind  generic_viterbi       @src/generic_viterbi_utest@
-3 valgrind  fwdback_frameshift    @src/fwdback_frameshift_utest@
+3 valgrind  generic_viterbi_fs    @src/generic_viterbi_frameshift_utest@
+3 valgrind  generic_viterbi_sp    @src/generic_viterbi_spliced_utest@
 3 valgrind  logsum                @src/logsum_utest@
 3 valgrind  modelconfig           @src/modelconfig_utest@
 3 valgrind  p7_alidisplay         @src/p7_alidisplay_utest@
@@ -198,27 +208,30 @@
 3 valgrind  p7_trace              @src/p7_trace_utest@
 
 3 valgrind  decoding              @src/impl/decoding_utest@
+3 valgrind  decoding_fs           @src/impl/decoding_fs_utest@
 3 valgrind  fwdback               @src/impl/fwdback_utest@
-3 valgrind  io                    @src/impl/io_utest@
+3 valgrind  fwdback_fs            @src/impl/fwdback_fs_utest@
 3 valgrind  msvfilter             @src/impl/msvfilter_utest@
 3 valgrind  null2                 @src/impl/null2_utest@
 3 valgrind  optacc                @src/impl/optacc_utest@
+3 valgrind  optacc_fs             @src/impl/optacc_fs_utest@
 3 valgrind  stotrace              @src/impl/stotrace_utest@
 3 valgrind  vitfilter             @src/impl/vitfilter_utest@
+3 valgrind  viterbi               @src/impl/viterbi_utest@
+3 valgrind  viterbi_fs            @src/impl/viterbi_fs_utest@
+3 valgrind  viterbi_sp            @src/impl/viterbi_sp_utest@
 
 1 prep      minifam               @src/bathbuild@ %MINIFAM.BHMM% !testsuite/minifam!
 
-3 valgrind  bathbuild             @src/bathbuild@        %GLOBIN.BHMM% !testsuite/globins4.sto!
-3 valgrind  bathbuild/--fs        @src/bathbuild@   --fs %GLOBIN_FS.BHMM% !testsuite/globins4.sto!
-3 valgrind  bathconvert           @src/bathconvert@      %M1.BHMM% !testsuite/M1.hmm!
-3 valgrind  bathconvert/--fs      @src/bathconvert@ --fs %M1.BHMM% !testsuite/M1.hmm!
-3 valgrind  bathfetch             @src/bathfetch@        %MINIFAM.BHMM% Caudal_act
-3 valgrind  bathfetch/--fs        @src/bathfetch@   --fs %MINIFAM.BHMM% Caudal_act
-3 valgrind  bathsearch            @src/bathsearch@       %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
-3 valgrind  bathsearch/--fs       @src/bathsearch@  --fs %GLOBIN_FS.BHMM% !testsuite/globins45-nt.fa!
-3 valgrind  bathsearch/msa        @src/bathsearch@       !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
-3 valgrind  bathsearch/msa/--fs   @src/bathsearch@  --fs !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
-3 valgrind  bathsearch/seq        @src/bathsearch@       !testsuite/globins.fa! !testsuite/globins45-nt.fa!
-3 valgrind  bathsearch/seq/--fs   @src/bathsearch@  --fs !testsuite/globins.fa! !testsuite/globins45-nt.fa!
-3 valgrind  bathstat              @src/bathstat@         %MINIFAM.BHMM% 
+3 valgrind  bathbuild             @src/bathbuild@            %GLOBIN.BHMM% !testsuite/globins4.sto!
+3 valgrind  bathsearch/--splice   @src/bathsearch@  --splice !testsuite/tmem-258.bhmm!       !testsuite/tmem-258.fa!
+3 valgrind  bathconvert           @src/bathconvert@          %M1.BHMM% !testsuite/M1.hmm!
+3 valgrind  bathfetch             @src/bathfetch@            %MINIFAM.BHMM% Caudal_act
+3 valgrind  bathsearch            @src/bathsearch@           %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/--fs       @src/bathsearch@  --fs     %GLOBIN_FS.BHMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/msa        @src/bathsearch@           !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/msa/--fs   @src/bathsearch@  --fs     !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/seq        @src/bathsearch@           !testsuite/globins.fa! !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/seq/--fs   @src/bathsearch@  --fs     !testsuite/globins.fa! !testsuite/globins45-nt.fa!
+3 valgrind  bathstat              @src/bathstat@             %MINIFAM.BHMM% 
 

@@ -146,7 +146,7 @@ p7_ViterbiScore(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, fl
 	}
 
       /* Now the "special" states, which start from Mk->E (->C, ->J->B) */
-      esl_neon_hmax_f32(xEv, &xE);
+      xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
       xN = xN +  om->xf[p7O_N][p7O_LOOP];
       xC = ESL_MAX(xC + om->xf[p7O_C][p7O_LOOP],  xE + om->xf[p7O_E][p7O_MOVE]);
       xJ = ESL_MAX(xJ + om->xf[p7O_J][p7O_LOOP],  xE + om->xf[p7O_E][p7O_LOOP]);
@@ -167,7 +167,7 @@ p7_ViterbiScore(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, fl
        *   max_k D(i,k) is why we tracked Dmaxv;
        *   xB(i) was just calculated above.
        */
-      esl_neon_hmax_f32(Dmaxv, &Dmax);
+      Dmax = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = Dmaxv });
       if (Dmax + om->ddbound_f > xB)
 	{
 	  /* Now we're obligated to do at least one complete DD path to be sure. */
@@ -287,7 +287,7 @@ main(int argc, char **argv)
   p7_oprofile_Logify(om);
 
   ox = p7_omx_Create(gm->M, 0, 0);
-  gx = p7_gmx_Create(gm->M, L);
+  gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS);
 
   /* Get a baseline time: how long it takes just to generate the sequences */
   esl_stopwatch_Start(w);
@@ -356,7 +356,7 @@ utest_viterbi_score(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int 
   P7_OPROFILE *om  = NULL;
   ESL_DSQ     *dsq = malloc(sizeof(ESL_DSQ) * (L+2));
   P7_OMX      *ox  = p7_omx_Create(M, 0, 0);
-  P7_GMX      *gx  = p7_gmx_Create(M, L);
+  P7_GMX      *gx  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   float sc1, sc2;
 
   p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
@@ -511,7 +511,7 @@ main(int argc, char **argv)
 
   /* allocate DP matrices, both a generic and an optimized one */
   ox = p7_omx_Create(gm->M, 0, sq->n);
-  gx = p7_gmx_Create(gm->M, sq->n);
+  gx = p7_gmx_Create(gm->M, sq->n, sq->n, p7G_NSCELLS);
 
   /* Useful to place and compile in for debugging:
      p7_oprofile_Dump(stdout, om);         dumps the optimized profile

@@ -410,22 +410,6 @@ if test "$enable_avx" = "yes" || test "$enable_avx" = "check"; then
     ])
 fi
 
-if test "$enable_neon" = "yes" || test "$enable_neon" = "check"; then
-  ESL_NEON([
-    AC_DEFINE(eslENABLE_NEON,  1, [Enable ARM NEON vector implementation])
-    NEON_CFLAGS=$esl_neon_cflags
-    AC_SUBST(NEON_CFLAGS)
-    AC_SUBST([HMMERIMPLLIB], ["impl_sse/libhmmerimpl.a"])
-    enable_neon=yes
-    impl_choice=neon
-    ],[
-    if test "$enable_neon" = "yes"; then
-      AC_MSG_FAILURE([Unable to compile our NEON implementation. Try another compiler?])
-    fi
-    enable_neon=no
-    ])
-fi
-
 # If we didn't choose an implementation, die.
 case "$impl_choice" in
 neon) AC_MSG_NOTICE([Activating ARM NEON vector DP implementation])

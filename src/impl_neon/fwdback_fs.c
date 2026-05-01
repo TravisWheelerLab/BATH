@@ -118,7 +118,6 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   int      i, q, j, r;
   int      c2, c3, c4;                      /* codon emission table indices                   */
   int      u, v, w, x;                      /* rolling nucleotide window for codon lookup      */
-  int      status;
 
   /* Validate inputs */
   if (om_fs->codon_lengths != 3) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 3 codon lengths");
@@ -528,8 +527,6 @@ p7_ForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
 
   return eslOK;
 
- ERROR:
-  return status;
 }
 
 
@@ -589,7 +586,6 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   int      c2, c3, c4;                      /* codon emission table indices                    */
   int      u, v, w, x;                      /* rolling nucleotide window (i+4..i+1)             */
   float    scale;                            /* fwd scale factor at row i                        */
-  int      status;
 
   ivxf = ov->ivx[0];
 
@@ -1005,8 +1001,6 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
 
   return eslOK;
 
- ERROR:
-  return status;
 }
 
 
@@ -1074,7 +1068,6 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;        /* codon emission table indices                   */
   int      t, u, v, w, x;             /* rolling nucleotide window for codon lookup     */
-  int      status;
 
   /* Validate inputs */
   if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
@@ -1621,8 +1614,6 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
 
   return eslOK;
 
- ERROR:
-  return status;
 }
 
 
@@ -1682,7 +1673,6 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
   float    scale;
-  int      status;
 
   ivxf = ov->ivx[0];
 
@@ -2010,8 +2000,6 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
 
   return eslOK;
 
- ERROR:
-  return status;
 }
 
 
@@ -2064,7 +2052,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
   float    insert_adj;
-  int      status;
 
   if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
@@ -2342,8 +2329,6 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   }
   return eslOK;
 
- ERROR:
-  return status;
 }
 
 

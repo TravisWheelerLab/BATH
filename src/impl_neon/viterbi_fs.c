@@ -87,7 +87,6 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   int      i, q, j, r;
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
-  int      status;
 
   if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
@@ -497,8 +496,6 @@ p7_Viterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
 
   return eslOK;
 
- ERROR:
-  return status;
 }
 /*------------------ end, p7_Viterbi_Frameshift() ---------------*/
 

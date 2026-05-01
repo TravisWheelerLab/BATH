@@ -1020,7 +1020,7 @@ typedef struct p7_hmm_window_s {
   int64_t       id;          //sequence id of the database sequence hit
   int64_t       n;           //position in database sequence at which the diagonal/window starts (min for DNA)
   int32_t       length;      //length of the diagonal/window
-  int16_t       k;           //position of the model at which the diagonal ends
+  int32_t       k;           //position of the model at which the diagonal ends
   int64_t       target_len;  //length of the target sequence
   int8_t        complementarity;  
   int8_t        duplicate;
@@ -1541,7 +1541,7 @@ extern int  p7_hmmfile_Position(P7_HMMFILE *hfp, const off_t offset);
 /* p7_hmmwindow.c */
 extern P7_HMM_WINDOWLIST* p7_hmmwindow_CreateList(void);
 extern int p7_hmmwindow_init (P7_HMM_WINDOWLIST *list);
-extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
+extern P7_HMM_WINDOW *p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len);
 extern void p7_hmmwindow_DestroyList(P7_HMM_WINDOWLIST *hw);
 extern int p7_hmmwindow_Merge(P7_HMM_WINDOWLIST *hw1, P7_HMM_WINDOWLIST *hm2);
 extern int p7_hmmwindow_SortByStart(P7_HMM_WINDOWLIST *w);
@@ -1556,7 +1556,7 @@ extern P7_SCOREDATA   *p7_hmm_ScoreDataClone(P7_SCOREDATA *src, int K);
 extern int            p7_hmm_ScoreDataComputeRest(P7_OPROFILE *om, P7_SCOREDATA *data );
 extern void           p7_hmm_ScoreDataDestroy( P7_SCOREDATA *data );
 extern int            p7_hmm_initWindows (P7_HMM_WINDOWLIST *list);
-extern P7_HMM_WINDOW *p7_hmm_newWindow (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint16_t k, uint32_t length, float score, uint8_t complementarity);
+extern P7_HMM_WINDOW *p7_hmm_newWindow (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint32_t k, uint32_t length, float score, uint8_t complementarity);
 
 /* p7_pipeline.c */
 extern P7_PIPELINE* p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode);

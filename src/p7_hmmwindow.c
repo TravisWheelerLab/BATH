@@ -80,7 +80,7 @@ ERROR:
  *            the next seed diagonal
  */
 P7_HMM_WINDOW *
-p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint16_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len) {
+p7_hmmwindow_new (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t k, uint32_t length, float score, uint8_t complementarity, uint32_t target_len) {
   int status;
   P7_HMM_WINDOW *window;
 

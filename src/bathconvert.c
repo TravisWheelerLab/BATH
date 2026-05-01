@@ -127,8 +127,8 @@ main(int argc, char **argv)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      if(esl_opt_IsUsed(go, "--ct")) ct = esl_opt_GetInteger(go, "--ct");
-      else                           ct = hmm->ct;
+      ct = esl_opt_GetInteger(go, "--ct");  /* user value, or default=1 */
+      if (!esl_opt_IsUsed(go, "--ct") && hmm->ct > 0) ct = hmm->ct;
 
       /* Always compute fs stats for BATH format; recompute tau if missing or codon table changed */
       hmm->fsprob = p7P_FSPROB;

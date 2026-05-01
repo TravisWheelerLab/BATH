@@ -1,0 +1,419 @@
+.TH "bathsearch" 1 "@BATH_DATE@" "BATH @BATH_VERSION@" "BATH Manual"
+
+.SH NAME
+bathsearch \- search a protein profile against a DNA sequence database
+
+
+.SH SYNOPSIS
+.B bathsearch
+[\fIoptions\fR]
+.I queryfile
+.I seqdb
+
+
+.SH DESCRIPTION
+
+.PP
+.B bathsearch
+searches one or more protein profile HMMs against a DNA sequence
+database, detecting homologous regions and producing alignments that
+map back to the original DNA coordinates.
+
+.PP
+The
+.I queryfile
+may be a pre-built profile HMM file, a multiple sequence alignment
+file, or an unaligned sequence file. If an alignment or sequence file
+is provided,
+.B bathsearch
+builds a profile HMM on the fly before searching. To save the
+produced HMM for later use, see the
+.B \-\-hmmout
+option.
+
+.PP
+.B bathsearch
+supports three search modes:
+
+.TP
+.B Standard translation (default)
+Translates the target DNA database into all six reading frames,
+generating open reading frames (ORFs), then performs protein-to-protein
+comparison followed by alignment back to the DNA coordinates. This mode
+is best suited to well-annotated coding sequences.
+
+.TP
+.B Frameshift-aware (\-\-fs)
+Converts the protein HMM into a codon-level HMM and performs
+DNA-to-(quasi)codon alignment. This mode can detect and align through
+frameshifts and stop codons caused by insertions, deletions, and
+substitutions, making it suitable for noisy or pseudogene sequences.
+
+.TP
+.B Spliced alignment (\-\-splice)
+Performs standard translation search followed by splice-site detection
+for use with eukaryotic genomic sequences. Alignments can span introns,
+and a per-exon output table is available with
+.BR \-\-exontblout .
+
+.PP
+Either the
+.I queryfile
+or the target
+.I seqdb
+may be '\-' (a dash character), in which case that input is read from
+stdin rather than a file. Only one input may come through stdin at a
+time.
+
+.PP
+The output format is designed to be human-readable. The
+.B \-\-tblout
+option saves a concise tabular summary that is easier to parse. The
+.B \-o
+option redirects main output to a file.
+
+
+.SH OPTIONS
+
+.TP
+.B \-h
+Help; print a brief reminder of command line usage and all available
+options.
+
+
+.SH OPTIONS FOR CONTROLLING SEARCH MODE
+
+.TP
+.B \-\-fs
+Use the frameshift-aware alignment pipeline. The protein HMM is
+converted to a codon-level HMM that allows the alignment to span
+frameshift errors and premature stop codons. Incompatible with
+.BR \-\-splice .
+
+.TP
+.B \-\-splice
+Use the spliced alignment pipeline. Standard translation search is
+followed by splice-site detection, allowing alignments to span introns
+in eukaryotic genomes. Incompatible with
+.BR \-\-fs .
+
+
+.SH OPTIONS FOR CONTROLLING OUTPUT
+
+.TP
+.BI \-o " <f>"
+Direct the main human-readable output to a file
+.I <f>
+instead of the default stdout.
+
+.TP
+.BI \-\-tblout " <f>"
+Save a simple tabular (space-delimited) file summarizing the per-target
+output, with one data line per homologous region found.
+
+.TP
+.BI \-\-exontblout " <f>"
+Save a parseable table of individual exons to file
+.IR <f> .
+Requires
+.BR \-\-splice .
+
+.TP
+.BI \-\-fstblout " <f>"
+Save a table of frameshift locations to file
+.IR <f> .
+Requires
+.BR \-\-fs .
+
+.TP
+.BI \-\-hmmout " <f>"
+When the query input is an alignment or sequence file, write the
+profile HMM(s) constructed from that input to file
+.IR <f> .
+
+.TP
+.B \-\-acc
+Use accessions instead of names in the main output, where available
+for profiles and/or sequences.
+
+.TP
+.B \-\-noali
+Omit the alignment section from the main output. This can greatly
+reduce the output volume.
+
+.TP
+.B \-\-notrans
+Do not show the translated DNA sequence in the alignment display.
+
+.TP
+.B \-\-frameline
+Include the reading frame of each codon in the alignment display.
+Requires
+.BR \-\-fs .
+
+.TP
+.B \-\-cigar
+Include the alignment CIGAR string in tabular output. Requires
+.BR \-\-tblout .
+
+.TP
+.B \-\-notextw
+Unlimit the length of each line in the main output. The default
+is a limit of 150 characters per line.
+
+.TP
+.BI \-\-textw " <n>"
+Set the main output's line length limit to
+.I <n>
+characters per line (minimum 120). The default is 150.
+
+
+.SH OPTIONS FOR TRANSLATION
+
+.TP
+.BI \-\-ct " <n>"
+Use the alternate genetic code specified by NCBI translation table number
+.IR <n> .
+The default is 1 (the standard genetic code). A list of available
+translation table numbers is printed at the end of the
+.B \-h
+help output.
+
+.TP
+.BI \-l " <n>"
+Set the minimum ORF length to
+.I <n>
+residues. ORFs shorter than this are not considered. The default is 20.
+Applies to standard translation mode.
+
+.TP
+.B \-m
+ORFs must initiate with AUG only. Incompatible with
+.BR \-M .
+
+.TP
+.B \-M
+ORFs must initiate with any allowed initiation codon as defined by the
+translation table. Incompatible with
+.BR \-m .
+
+.TP
+.BI \-\-strand " <s>"
+Translate only the specified strand. Choices are
+.B plus
+(forward strand only) or
+.B minus
+(reverse complement only). The default is
+.B both
+strands.
+
+
+.SH OPTIONS FOR SPLICED ALIGNMENT
+
+These options are only used in spliced alignment mode (requires
+.BR \-\-splice ).
+
+.TP
+.BI \-\-min_intron " <n>"
+Set the minimum allowed intron length to
+.I <n>
+nucleotides. The default is 13.
+
+.TP
+.BI \-\-max_intron " <n>"
+Set the maximum allowed intron length to
+.I <n>
+nucleotides. The default is 200000.
+
+
+.SH OPTIONS CONTROLLING REPORTING THRESHOLDS
+
+Reporting thresholds control which hits appear in output. By default,
+all hits with an E-value <= 10 are reported.
+
+.TP
+.BI \-E " <x>"
+Report target sequences with an E-value <=
+.IR <x> .
+The default is 10.0.
+
+.TP
+.BI \-T " <x>"
+Report target sequences with a bit score >=
+.IR <x>
+instead of using an E-value threshold.
+
+.TP
+.BI \-\-incE " <x>"
+Use an E-value of <=
+.I <x>
+as the per-target inclusion threshold, the boundary between significant
+("!") and marginal ("?") hits. The default is 0.01.
+
+.TP
+.BI \-\-incT " <x>"
+Use a bit score of >=
+.I <x>
+as the per-target inclusion threshold instead of an E-value.
+
+
+.SH OPTIONS CONTROLLING THE ACCELERATION PIPELINE
+
+.B bathsearch
+uses a multi-stage filter pipeline to accelerate searches. Standard
+mode uses three stages: MSV, Viterbi, and Forward. Frameshift-aware
+mode adds a fourth stage (FS-Forward) for hits that pass the first
+three filters. Adjusting filter thresholds does not alter bit scores,
+E-values, or alignments.
+
+.TP
+.B \-\-max
+Turn off all filters and run full scoring on every target. Increases
+sensitivity at a significant cost in speed.
+
+.TP
+.BI \-\-F1 " <x>"
+Set the P-value threshold for the MSV filter stage. The default is 0.02.
+
+.TP
+.BI \-\-F2 " <x>"
+Set the P-value threshold for the Viterbi filter stage. The default is 1e-3.
+
+.TP
+.BI \-\-F3 " <x>"
+Set the P-value threshold for the Forward filter stage. The default is 1e-5.
+
+.TP
+.BI \-\-F4 " <x>"
+Set the P-value threshold for the frameshift-aware Forward filter stage.
+The default is 5e-4. Only used in frameshift mode (requires
+.BR \-\-fs ).
+
+.TP
+.B \-\-nobias
+Turn off the composition bias filter between the MSV and Viterbi stages.
+
+.TP
+.B \-\-nonull2
+Turn off the null2 score corrections for biased composition.
+
+
+.SH OPTIONS CONTROLLING THE SCORING SYSTEM
+
+.TP
+.B \-\-singlemx
+When the query is a single sequence in an MSA format file, use a
+substitution score matrix rather than the standard profile construction
+method.
+
+.TP
+.BI \-\-popen " <x>"
+Set the gap open probability to
+.IR <x> .
+The default is 0.02.
+
+.TP
+.BI \-\-pextend " <x>"
+Set the gap extend probability to
+.IR <x> .
+The default is 0.4.
+
+.TP
+.BI \-\-mx " <s>"
+Use the named built-in substitution score matrix. The default is BLOSUM62.
+Available choices include PAM30, PAM70, PAM120, PAM240, BLOSUM45,
+BLOSUM50, BLOSUM62, BLOSUM80, and BLOSUM90.
+
+.TP
+.BI \-\-mxfile " <f>"
+Read a substitution score matrix from file
+.IR <f> ,
+in BLAST/FASTA matrix format. Incompatible with
+.BR \-\-mx .
+
+
+.SH OTHER OPTIONS
+
+.TP
+.BI \-Z " <x>"
+Assert that the total size of the target database is
+.I <x>
+Megabases, for the purposes of E-value calculations, rather than the
+actual size computed from the target file.
+
+.TP
+.BI \-\-seed " <n>"
+Set the random number seed to
+.IR <n> .
+The default is 42 (reproducible). A value of 0 uses a randomly chosen
+seed.
+
+.TP
+.BI \-\-w_beta " <x>"
+Set the tail mass used to determine the window length parameter
+.IR W .
+
+.TP
+.BI \-\-w_length " <n>"
+Override the window length parameter
+.I W
+directly. Should be larger than the model length.
+
+.TP
+.BI \-\-qformat " <s>"
+Assert that the query file is in format
+.IR <s> ,
+bypassing format autodetection. Accepts both sequence formats
+(e.g., \fBfasta\fR) and alignment formats (e.g., \fBstockholm\fR).
+
+.TP
+.BI \-\-tformat " <s>"
+Assert that the target database file is in format
+.IR <s> ,
+bypassing format autodetection. Common choices include
+.BR fasta ,
+.BR embl ,
+.BR genbank .
+
+.TP
+.BI \-\-block_length " <n>"
+Set the length of sequence blocks read from the target database in
+multithreaded mode to
+.I <n>
+nucleotides. The default is chosen automatically.
+(Only available when BATH is compiled with thread support.)
+
+.TP
+.BI \-\-cpu " <n>"
+Set the number of parallel worker threads to
+.IR <n> .
+On multicore machines, the default is 2. The environment variable
+.B HMMER_NCPU
+also controls this.
+(Only available when BATH is compiled with thread support.)
+
+
+.SH SEE ALSO
+
+.BR bathbuild (1),
+.BR bathfetch (1),
+.BR bathconvert (1),
+.BR bathstat (1)
+
+.PP
+For complete documentation, see the BATH repository:
+https://github.com/TravisWheelerLab/BATH
+
+
+.SH COPYRIGHT
+
+.nf
+Freely distributed under the BSD open source license.
+.fi
+
+
+.SH AUTHOR
+
+.nf
+https://github.com/TravisWheelerLab/BATH
+.fi

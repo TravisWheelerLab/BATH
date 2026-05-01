@@ -1,0 +1,110 @@
+.TH "bathstat" 1 "@BATH_DATE@" "BATH @BATH_VERSION@" "BATH Manual"
+
+.SH NAME
+bathstat \- summary statistics for a profile file
+
+
+.SH SYNOPSIS
+.B bathstat
+[\fIoptions\fR]
+.I hmmfile
+
+
+.SH DESCRIPTION
+
+.PP
+The
+.B bathstat
+utility prints a tabular summary of statistics for each profile in
+.IR hmmfile .
+
+.PP
+.I hmmfile
+may be '\-' (a dash character), in which case profiles are read from
+stdin rather than from a file.
+
+.PP
+The output columns are:
+
+.TP
+.B idx
+The index of this profile, counting from 1.
+
+.TP
+.B name
+The name of the profile.
+
+.TP
+.B accession
+The optional accession of the profile, or "\-" if there is none.
+
+.TP
+.B nseq
+The number of sequences the profile was estimated from.
+
+.TP
+.B eff_nseq
+The effective number of sequences used after applying sequence
+weighting (e.g., the default entropy-based effective sequence number
+calculation).
+
+.TP
+.B M
+The length of the model in consensus positions (match states).
+
+.TP
+.B relent
+Mean relative entropy per match state, in bits. This is the expected
+per-position score against true homologs, and reflects the
+entropy-weighting target for default-built models.
+
+.TP
+.B info
+Mean information content per match state, in bits.
+
+.TP
+.B "p relE"
+Mean positional relative entropy, in bits. A more precise version of
+.B relent
+that accounts for insertion and deletion transition probabilities.
+
+.TP
+.B compKL
+Kullback-Leibler divergence from the background frequency distribution
+to the average composition of the profile's consensus match states,
+in bits. High values indicate compositionally biased profiles, which
+can slow the acceleration pipeline.
+
+
+.SH OPTIONS
+
+.TP
+.B \-h
+Help; print a brief reminder of command line usage and all available
+options.
+
+
+.SH SEE ALSO
+
+.BR bathsearch (1),
+.BR bathbuild (1),
+.BR bathfetch (1),
+.BR bathconvert (1)
+
+.PP
+For complete documentation, see the BATH repository:
+https://github.com/TravisWheelerLab/BATH
+
+
+.SH COPYRIGHT
+
+.nf
+Freely distributed under the BSD open source license.
+.fi
+
+
+.SH AUTHOR
+
+.nf
+https://github.com/TravisWheelerLab/BATH
+.fi

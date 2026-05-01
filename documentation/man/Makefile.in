@@ -20,29 +20,11 @@ man1ext     = .1
 
 INSTALL     = @INSTALL@
 
-MANS =  hmmer\
-	hmmalign\
-	hmmbuild\
-	hmmconvert\
-	hmmemit\
-	hmmfetch\
-	hmmlogo\
-	hmmpgmd\
-	hmmpgmd_shard\
-	hmmpress\
-	hmmscan\
-	hmmsearch\
-	hmmsim\
-	hmmstat\
-	jackhmmer\
-	makehmmerdb\
-	phmmer\
-	hmmsearcht\
-	hmmscant\
-	nhmmer\
-	nhmmscan\
-	alimask
-#	hmmc2\        # we don't install the hmmc2 executable or manpage automatically.
+MANS =  bathsearch\
+	bathbuild\
+	bathfetch\
+	bathconvert\
+	bathstat
 
 .PHONY:  install uninstall clean distclean
 

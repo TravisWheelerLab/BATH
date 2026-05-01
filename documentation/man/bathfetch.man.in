@@ -1,0 +1,159 @@
+.TH "bathfetch" 1 "@BATH_DATE@" "BATH @BATH_VERSION@" "BATH Manual"
+
+.SH NAME
+bathfetch \- retrieve profiles from a file
+
+
+.SH SYNOPSIS
+
+.nf
+\fBbathfetch\fR [\fIoptions\fR] \fIhmmfile key\fR
+ (retrieve HMM named \fIkey\fR)
+
+\fBbathfetch \-f \fR[\fIoptions\fR] \fIhmmfile keyfile\fR
+ (retrieve all HMMs listed in \fIkeyfile\fR)
+
+\fBbathfetch \-\-index \fR[\fIoptions\fR] \fIhmmfile\fR
+ (index \fIhmmfile\fR for rapid retrieval)
+.fi
+
+
+.SH DESCRIPTION
+
+.PP
+Quickly retrieves one or more profile HMMs from an
+.I hmmfile
+(a large profile database, for example).
+
+.PP
+For maximum speed, the
+.I hmmfile
+should be indexed first using
+.BR "bathfetch \-\-index" .
+The index is a binary file named
+.IR hmmfile .ssi.
+Indexing is optional; retrieval from an unindexed file is still
+possible but much slower.
+
+.PP
+The default mode retrieves a single profile by name or accession,
+called the
+.IR key .
+For example:
+
+.nf
+    \fB% bathfetch myprofiles.hmm MyProtein\fR
+    \fB% bathfetch myprofiles.hmm PF00045\fR
+.fi
+
+.PP
+With the
+.B \-f
+option, a
+.I keyfile
+containing a list of keys is read instead. The first
+whitespace-delimited field on each non-blank, non-comment line of the
+.I keyfile
+is used as a key; remaining fields on the line are ignored.
+
+.PP
+When using
+.B \-f
+with an indexed
+.IR hmmfile ,
+profiles are retrieved in the order they appear in the
+.IR keyfile .
+Without an index, profiles are retrieved in the order they appear in
+the
+.IR hmmfile .
+
+.PP
+In normal use (without
+.B \-\-index
+or
+.BR \-f ),
+.I hmmfile
+may be '\-' (dash), meaning reading from stdin. With
+.BR \-\-index ,
+stdin is not accepted. With
+.BR \-f ,
+either
+.I hmmfile
+or
+.I keyfile
+(but not both) may be '\-'.
+
+.PP
+By default, fetched profiles are printed to stdout in HMMER3 ASCII format.
+
+
+.SH OPTIONS
+
+.TP
+.B \-h
+Help; print a brief reminder of command line usage and all available
+options.
+
+.TP
+.B \-f
+The second command-line argument is a
+.I keyfile
+rather than a single
+.IR key .
+The first field on each line of the
+.I keyfile
+is used as a retrieval key (a profile name or accession). Blank lines
+and comment lines (beginning with
+.BR # )
+are ignored.
+
+.TP
+.BI \-o " <f>"
+Output the fetched profile(s) to file
+.I <f>
+instead of stdout.
+
+.TP
+.B \-O
+Output each fetched profile to an individual file named after the
+key, rather than to stdout.
+
+.TP
+.BI \-\-ct " <n>"
+Use the alternate genetic code specified by NCBI translation table
+number
+.IR <n>
+when writing the profile. The default is 1 (the standard genetic code).
+
+.TP
+.B \-\-index
+Index the
+.I hmmfile
+for rapid future retrieval, creating the binary index file
+.IR hmmfile .ssi.
+
+
+.SH SEE ALSO
+
+.BR bathsearch (1),
+.BR bathbuild (1),
+.BR bathconvert (1),
+.BR bathstat (1)
+
+.PP
+For complete documentation, see the BATH repository:
+https://github.com/TravisWheelerLab/BATH
+
+
+.SH COPYRIGHT
+
+.nf
+Freely distributed under the BSD open source license.
+.fi
+
+
+.SH AUTHOR
+
+.nf
+https://github.com/TravisWheelerLab/BATH
+.fi

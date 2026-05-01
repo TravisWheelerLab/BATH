@@ -1,0 +1,73 @@
+.TH "bathconvert" 1 "@BATH_DATE@" "BATH @BATH_VERSION@" "BATH Manual"
+
+.SH NAME
+bathconvert \- convert profile file to various formats
+
+
+.SH SYNOPSIS
+.B bathconvert
+[\fIoptions\fR]
+.I hmmfile_out
+.I hmmfile_in
+
+
+.SH DESCRIPTION
+
+.PP
+The
+.B bathconvert
+utility converts an input profile file to different formats.
+
+.PP
+By default, the input profile can be in any HMMER/BATH format,
+including older ASCII or binary formats. The output is written in
+current HMMER3 ASCII format, which is the format used by
+.B bathsearch
+and other BATH tools.
+
+.PP
+.I hmmfile_in
+may be '\-' (dash), which means reading this input from stdin rather
+than a file.
+
+
+.SH OPTIONS
+
+.TP
+.B \-h
+Help; print a brief reminder of command line usage and all available
+options.
+
+.TP
+.BI \-\-ct " <n>"
+Use the alternate genetic code specified by NCBI translation table
+number
+.IR <n>
+when processing the profile. The default is 1 (the standard genetic
+code).
+
+
+.SH SEE ALSO
+
+.BR bathsearch (1),
+.BR bathbuild (1),
+.BR bathfetch (1),
+.BR bathstat (1)
+
+.PP
+For complete documentation, see the BATH repository:
+https://github.com/TravisWheelerLab/BATH
+
+
+.SH COPYRIGHT
+
+.nf
+Freely distributed under the BSD open source license.
+.fi
+
+
+.SH AUTHOR
+
+.nf
+https://github.com/TravisWheelerLab/BATH
+.fi

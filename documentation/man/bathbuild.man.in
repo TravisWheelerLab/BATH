@@ -1,0 +1,367 @@
+.TH "bathbuild" 1 "@BATH_DATE@" "BATH @BATH_VERSION@" "BATH Manual"
+
+.SH NAME
+bathbuild \- construct profiles from multiple sequence alignments
+
+
+.SH SYNOPSIS
+.B bathbuild
+[\fIoptions\fR]
+.I hmmfile_out
+.I msafile
+
+
+.SH DESCRIPTION
+
+.PP
+For each multiple sequence alignment in
+.I msafile
+build a profile HMM and save it to a new file
+.IR hmmfile_out .
+The profiles produced are suitable for use with
+.BR bathsearch .
+
+.PP
+.I msafile
+may be '\-' (dash), which means reading this input from stdin rather
+than a file.
+
+.PP
+.I hmmfile_out
+may not be '\-' (stdout), because sending the HMM file to stdout would
+conflict with the other text output of the program.
+
+.PP
+If
+.I msafile
+contains a single unaligned sequence,
+.B bathbuild
+will construct a profile using a substitution score matrix rather than
+the normal alignment-based approach. See the single sequence scoring
+options below.
+
+
+.SH OPTIONS
+
+.TP
+.B \-h
+Help; print a brief reminder of command line usage and all available
+options.
+
+.TP
+.BI \-n " <s>"
+Name the new profile
+.IR <s> .
+The default is to use the name of the alignment (if one is present in
+the
+.IR msafile ),
+or, failing that, the name of the
+.IR hmmfile_out .
+If
+.I msafile
+contains more than one alignment,
+.B \-n
+doesn't work, and every alignment must have a name annotated in the
+.I msafile
+(as in Stockholm #=GF ID annotation).
+
+.TP
+.BI \-o " <f>"
+Direct the summary output to file
+.IR <f> ,
+rather than to stdout.
+
+.TP
+.BI \-O " <f>"
+After each model is constructed, resave the annotated source alignment
+to file
+.I <f>
+in Stockholm format. The alignment is annotated to show which columns
+were assigned as consensus positions and the relative sequence weights
+used in construction.
+
+.TP
+.BI \-\-ct " <n>"
+Use the alternate genetic code specified by NCBI translation table
+number
+.IR <n> .
+The default is 1 (the standard genetic code). This is used when the
+model will be searched against DNA with
+.BR bathsearch .
+
+
+.SH OPTIONS FOR PROFILE CONSTRUCTION
+
+These options control how consensus columns are defined in an alignment.
+
+.TP
+.B \-\-fast
+Define consensus columns as those having a fraction >=
+.I symfrac
+of residues rather than gaps. This is the default. See
+.BR \-\-symfrac .
+
+.TP
+.B \-\-hand
+Define consensus columns using reference annotation in the multiple
+alignment. This lets you specify exactly which columns are consensus.
+
+.TP
+.BI \-\-symfrac " <x>"
+Set the residue fraction threshold used by
+.B \-\-fast
+to define consensus columns. The default is 0.5. Set to 0.0 to mark
+every column as consensus; set to 1.0 to mark only gap-free columns.
+
+.TP
+.BI \-\-fragthresh " <x>"
+Sequences whose aligned length is <=
+.I <x>
+times the total alignment length are treated as fragments, and their
+terminal gaps are not counted as deletions. The default is 0.5.
+
+
+.SH OPTIONS CONTROLLING RELATIVE WEIGHTS
+
+.TP
+.B \-\-wpb
+Use the Henikoff position-based sequence weighting scheme. This is the
+default.
+
+.TP
+.B \-\-wgsc
+Use the Gerstein/Sonnhammer/Chothia tree-based weighting algorithm.
+
+.TP
+.B \-\-wblosum
+Use single-linkage clustering at a fractional identity threshold (see
+.BR \-\-wid )
+to assign weights, as used in calculating BLOSUM matrices.
+
+.TP
+.B \-\-wnone
+Assign uniform weight to all sequences; no relative weighting.
+
+.TP
+.B \-\-wgiven
+Use weights as provided in the MSA file.
+
+.TP
+.BI \-\-wid " <x>"
+Set the identity threshold for single-linkage clustering used by
+.BR \-\-wblosum .
+The default is 0.62.
+
+
+.SH OPTIONS CONTROLLING EFFECTIVE SEQUENCE NUMBER
+
+After relative weighting, sequence counts are normalized to an
+effective sequence number.
+
+.TP
+.B \-\-eent
+Adjust the effective sequence number to achieve a target relative
+entropy per position. This is the default.
+
+.TP
+.B \-\-eclust
+Set the effective sequence number to the count of single-linkage
+clusters at the identity threshold given by
+.BR \-\-eid .
+
+.TP
+.B \-\-enone
+Use the actual number of sequences as the effective sequence number,
+with no entropy-based adjustment.
+
+.TP
+.BI \-\-eset " <x>"
+Explicitly set the effective sequence number for all models to
+.IR <x> .
+
+.TP
+.BI \-\-ere " <x>"
+Set the minimum relative entropy per position target to
+.IR <x>
+bits. Requires
+.BR \-\-eent .
+Default is 0.59 bits for protein and 0.45 bits for nucleotide.
+
+.TP
+.BI \-\-esigma " <x>"
+Set the minimum total model relative entropy (summed over all positions)
+to
+.I <x>
+bits. This raises the per-position entropy of short models.
+The default is 45.0 bits.
+
+.TP
+.BI \-\-eid " <x>"
+Set the fractional identity cutoff for single-linkage clustering used
+by
+.BR \-\-eclust .
+The default is 0.62.
+
+
+.SH OPTIONS CONTROLLING PRIORS
+
+.TP
+.B \-\-pnone
+Do not use any prior. Probability parameters are the raw observed
+frequencies after relative weighting.
+
+.TP
+.B \-\-plaplace
+Use a Laplace +1 prior in place of the default mixture Dirichlet prior.
+
+
+.SH OPTIONS CONTROLLING SINGLE SEQUENCE SCORING
+
+When the query is a single sequence,
+.B bathbuild
+uses a substitution matrix to set residue probabilities. These options
+control that behavior.
+
+.TP
+.B \-\-singlemx
+If a single sequence query comes from an MSA-format file, force use of
+the single-sequence substitution matrix method.
+
+.TP
+.BI \-\-mx " <s>"
+Use the named built-in substitution matrix. The default is BLOSUM62.
+Available choices include PAM30, PAM70, PAM120, PAM240, BLOSUM45,
+BLOSUM50, BLOSUM62, BLOSUM80, BLOSUM90, and DNA1.
+
+.TP
+.BI \-\-mxfile " <f>"
+Read a substitution matrix from file
+.IR <f> ,
+in standard BLAST/FASTA matrix format. Incompatible with
+.BR \-\-mx .
+
+.TP
+.BI \-\-popen " <x>"
+Set the gap open probability for single-sequence models to
+.IR <x> .
+Defaults are 0.02 (amino acid) and 0.031 (nucleotide).
+
+.TP
+.BI \-\-pextend " <x>"
+Set the gap extend probability for single-sequence models to
+.IR <x> .
+Defaults are 0.4 (amino acid) and 0.75 (nucleotide).
+
+
+.SH OPTIONS CONTROLLING E-VALUE CALIBRATION
+
+Profile calibration fits score distributions using short random-sequence
+simulations.
+
+.TP
+.BI \-\-EmL " <n>"
+Sequence length for the MSV Gumbel mu calibration. Default is 200.
+
+.TP
+.BI \-\-EmN " <n>"
+Number of sequences for the MSV Gumbel mu calibration. Default is 200.
+
+.TP
+.BI \-\-EvL " <n>"
+Sequence length for the Viterbi Gumbel mu calibration. Default is 200.
+
+.TP
+.BI \-\-EvN " <n>"
+Number of sequences for the Viterbi Gumbel mu calibration. Default is 200.
+
+.TP
+.BI \-\-EfL " <n>"
+Sequence length for the Forward exponential tail tau calibration.
+Default is 100.
+
+.TP
+.BI \-\-EfN " <n>"
+Number of sequences for the Forward exponential tail tau calibration.
+Default is 200.
+
+.TP
+.BI \-\-Eft " <x>"
+Tail mass fraction for the Forward exponential tail tau calibration.
+Default is 0.04.
+
+
+.SH OTHER OPTIONS
+
+.TP
+.BI \-\-cpu " <n>"
+Set the number of parallel worker threads to
+.IR <n> .
+On multicore machines, the default is 2. The environment variable
+.B HMMER_NCPU
+also controls this.
+(Only available when BATH is compiled with thread support.)
+
+.TP
+.BI \-\-informat " <s>"
+Assert that the input
+.I msafile
+is in alignment format
+.IR <s> ,
+bypassing format autodetection. Common choices include
+.BR stockholm ,
+.BR a2m ,
+.BR afa ,
+.BR psiblast ,
+.BR clustal ,
+.BR phylip .
+
+.TP
+.BI \-\-seed " <n>"
+Set the random number seed to
+.IR <n> .
+The default is 42 (reproducible). A value of 0 uses a randomly chosen
+seed.
+
+.TP
+.BI \-\-w_beta " <x>"
+Set the tail mass used to determine the window length upper bound
+.IR W .
+The default is 1e-7.
+
+.TP
+.BI \-\-w_length " <n>"
+Override the window length upper bound
+.I W
+directly. Should be larger than the model length.
+
+.TP
+.BI \-\-maxinsertlen " <n>"
+Restrict insert length parameterization so that the expected insert
+length at each model position is no more than
+.IR <n> .
+
+
+.SH SEE ALSO
+
+.BR bathsearch (1),
+.BR bathfetch (1),
+.BR bathconvert (1),
+.BR bathstat (1)
+
+.PP
+For complete documentation, see the BATH repository:
+https://github.com/TravisWheelerLab/BATH
+
+
+.SH COPYRIGHT
+
+.nf
+Freely distributed under the BSD open source license.
+.fi
+
+
+.SH AUTHOR
+
+.nf
+https://github.com/TravisWheelerLab/BATH
+.fi

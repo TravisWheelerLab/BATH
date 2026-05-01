@@ -70,8 +70,6 @@ struct cfg_s {
   int           nnamed;     /* number of alignments that had their own names */
 };
 
-static char usage[]  = "[-options] <hmmfile_out> <msafile>";
-static char banner[] = "profile HMM construction from multiple sequence alignments";
 
 static void serial_loop  (WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPTS *go);
 #ifdef HMMER_THREADS

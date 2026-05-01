@@ -47,8 +47,9 @@ main(int argc, char **argv)
       printf("\nTo see more help on available options, do %s -h\n\n", argv[0]);
       exit(1);
     }
-  if (esl_opt_GetBoolean(go, "-h") == TRUE) 
+  if (esl_opt_GetBoolean(go, "-h") == TRUE)
     {
+      p7_banner(stdout, argv[0], banner);
       esl_usage(stdout, argv[0], usage);
       puts("\nOptions:");
       esl_opt_DisplayHelp(stdout, go, 0, 2, 80); /* 0=docgroup, 2 = indentation; 80=textwidth*/
@@ -69,6 +70,8 @@ main(int argc, char **argv)
       exit(1);
     }
 
+
+  p7_banner(stdout, argv[0], banner);
 
   /* Initializations: open the HMM file
    */

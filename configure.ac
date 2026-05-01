@@ -77,7 +77,7 @@ m4_include([easel/m4/esl_pic_flags.m4])
 # 2. AC_INIT
 ################################################################
 
-AC_INIT([HMMER], [3.3.2], [sean@eddylab.org], [hmmer])
+AC_INIT([BATH], [2.0], [], [bath])
 AC_MSG_NOTICE([Configuring BATH for your system.])
 
 # remember if the user is overriding CFLAGS
@@ -115,6 +115,10 @@ HMMER_LICENSE="Freely distributed under the BSD open source license."
 HMMER_VERSION=$PACKAGE_VERSION
 HMMER_URL="http://hmmer.org/"
 
+BATH_DATE="May 2026"
+BATH_VERSION="2.0"
+BATH_URL="https://github.com/TravisWheelerLab/BATH"
+
 HMMER_ESLDIR="easel"
 HMMER_SADIR="libdivsufsort"
 
@@ -130,6 +134,10 @@ AC_SUBST(HMMER_LICENSE)
 AC_SUBST(HMMER_VERSION)
 AC_SUBST(HMMER_URL)
 
+AC_SUBST(BATH_DATE)
+AC_SUBST(BATH_VERSION)
+AC_SUBST(BATH_URL)
+
 AC_SUBST(HMMER_ESLDIR)
 AC_SUBST(HMMER_SADIR)
 
@@ -144,6 +152,10 @@ AC_DEFINE_UNQUOTED([HMMER_COPYRIGHT], ["$HMMER_COPYRIGHT"], [Brief copyright sta
 AC_DEFINE_UNQUOTED([HMMER_LICENSE],   ["$HMMER_LICENSE"],   [Brief license statement])
 AC_DEFINE_UNQUOTED([HMMER_VERSION],   ["$HMMER_VERSION"],   [Version number])
 AC_DEFINE_UNQUOTED([HMMER_URL],       ["$HMMER_URL"],       [HMMER web site])
+
+AC_DEFINE_UNQUOTED([BATH_DATE],       ["$BATH_DATE"],        [BATH release date])
+AC_DEFINE_UNQUOTED([BATH_VERSION],    ["$BATH_VERSION"],     [BATH version number])
+AC_DEFINE_UNQUOTED([BATH_URL],        ["$BATH_URL"],         [BATH web site])
 
 AC_DEFINE_UNQUOTED([EASEL_DATE],      ["$EASEL_DATE"],      [Easel release date])
 AC_DEFINE_UNQUOTED([EASEL_COPYRIGHT], ["$EASEL_COPYRIGHT"], [Easel copyright])

@@ -40,7 +40,7 @@ cmdline_failure(char *argv0, char *format, ...)
 static void
 cmdline_help(char *argv0, ESL_GETOPTS *go) 
 {
-  esl_banner(stdout, argv0, banner);
+  p7_banner(stdout, argv0, banner);
   esl_usage (stdout, argv0, usage1);
   esl_usage (stdout, argv0, usage2);
   esl_usage (stdout, argv0, usage3);

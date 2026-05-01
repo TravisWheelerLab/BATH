@@ -1,4 +1,4 @@
-/* bathconvert: converting HMMER formated profile HMM files to BATH format. */
+/* bathconvert: converting HMMER or old BATH formatted profile HMM files to current BATH format. */
 #include "p7_config.h"
 
 #include <stdio.h>
@@ -19,7 +19,7 @@ static ESL_OPTIONS options[] = {
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
-static char banner[] = "convert HMMER format pHMM to BATH format";
+static char banner[] = "convert HMMER or older BATH formatted HMM to current BATH format";
 
 static int
 output_header(char *hmmfile_in, char *hmmfile_out)
@@ -62,7 +62,7 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
 int 
 main(int argc, char **argv)
 {
-  ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, NULL, usage);
+  ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
   ESL_ALPHABET  *abc     = NULL;
   ESL_STOPWATCH   *w  = esl_stopwatch_Create();
   char          *hmmfile_out = esl_opt_GetArg(go, 1);
@@ -116,6 +116,7 @@ main(int argc, char **argv)
   hmmidx =  0;
   entropy = 0.0;
 
+  p7_banner(stdout, argv[0], banner);
   output_header(hmmfile_in, hmmfile_out);
   output_result(hmmidx, hmm, entropy); 
  

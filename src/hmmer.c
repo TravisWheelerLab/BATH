@@ -68,8 +68,8 @@ p7_banner(FILE *fp, const char *progname, char *banner)
   if (esl_FileTail(progname, FALSE, &appname) != eslOK) esl_strdup(progname, -1, &appname);
 
   fprintf(fp, "# %s :: %s\n", appname, banner);
-  fprintf(fp, "# HMMER %s (%s); %s\n", HMMER_VERSION, HMMER_DATE, HMMER_URL);
-  fprintf(fp, "# %s\n", HMMER_COPYRIGHT);
+  fprintf(fp, "# BATH %s (%s); %s\n", BATH_VERSION, BATH_DATE, BATH_URL);
+  //fprintf(fp, "# %s\n", HMMER_COPYRIGHT);
   fprintf(fp, "# %s\n", HMMER_LICENSE);
   fprintf(fp, "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
 

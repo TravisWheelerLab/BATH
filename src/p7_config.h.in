@@ -104,6 +104,10 @@
 #undef HMMER_LICENSE
 #undef HMMER_URL
 
+#undef BATH_VERSION
+#undef BATH_DATE
+#undef BATH_URL
+
 /* Large file support (must precede any header file inclusion.)
  */
 #undef _FILE_OFFSET_BITS

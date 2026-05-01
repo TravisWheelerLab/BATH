@@ -170,7 +170,7 @@ struct cfg_s {
 
 
 static char usage[]  = "[-options] <hmmfile_out> <msafile>";
-static char banner[] = "profile HMM construction from multiple sequence alignments";
+static char banner[] = "profile HMM construction from MSAs or unaligned sequences";
 
 static int  usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg);
 static void serial_loop  (WORKER_INFO *info, struct cfg_s *cfg, const ESL_GETOPTS *go);
@@ -195,8 +195,9 @@ process_commandline(int argc, char **argv, ESL_GETOPTS **ret_go, char **ret_hmmf
   if (esl_opt_VerifyConfig(go)               != eslOK) { if (printf("Failed to parse command line:\n%s\n",  go->errbuf) < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed"); goto FAILURE; }
 
   /* help format: */
-  if (esl_opt_GetBoolean(go, "-h") == TRUE) 
+  if (esl_opt_GetBoolean(go, "-h") == TRUE)
     {
+      p7_banner(stdout, argv[0], banner);
       esl_usage(stdout, argv[0], usage);
 
       if (puts("\nBasic options:") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
@@ -549,6 +550,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
   /* Looks like the i/o is set up successfully...
    * Initial output to the user
    */
+  p7_banner(cfg->ofp, go->argv[0], banner);
   output_header(go, cfg);                                          /* cheery output header                                */
   output_result(cfg, NULL, 0, NULL, NULL, NULL, NULL, 0.0);	   /* tabular results header (with no args, special-case) */
 

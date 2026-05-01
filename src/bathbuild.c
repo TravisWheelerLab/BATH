@@ -1171,8 +1171,6 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
 static int
 set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
 {
-  int   status;
-
   if   (msa->name != NULL) cfg->nnamed++;
   else                     ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. I need name annotation on each alignment in a multi MSA file; failed on #%d", cfg->nali+1);
 

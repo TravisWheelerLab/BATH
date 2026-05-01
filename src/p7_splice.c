@@ -3224,14 +3224,12 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   P7_TRACE *tr;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
-  P7_PROFILE  *gm;
-  P7_OPROFILE *om;  
+  P7_OPROFILE *om;
   P7_OPROFILE *om_log;
   int       status;
 
   graph  = info->graph;
   pli    = info->pli;
-  gm     = info->gm;
   om     = info->om;
   om_log = info->om_log;
 

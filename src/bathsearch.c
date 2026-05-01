@@ -745,9 +745,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     om      = NULL;       /* optimized query profile                  */
 
     if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
-      if(!(hmm->fsprob && hmm->ct))                      p7_Fail("HMM file %s not formated for frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
-      if( hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
-      if( hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version of frameshift bathsearch. Please run 'bathconvert --fs new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if(!(hmm->fsprob && hmm->ct))                      p7_Fail("HMM file %s not formated for this version bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if( hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
+      if( hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET ) p7_Fail("HMM file %s not formated for this version bathsearch. Please run 'bathconvert new_file.bhmm old_file.bhmm'.\n", cfg->queryfile);
 
     } 
     else {

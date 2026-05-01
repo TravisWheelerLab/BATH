@@ -1669,12 +1669,13 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
  * Purpose:   Dumps internals of a traceback structure <tr> to <fp>.
  *            If <gm> is non-NULL, also prints transition/emission scores.
  *            If <dsq> is non-NULL, also prints residues (using alphabet
- *            in the <gm>).
+ *            in the <abc>).
  *            
- * Args:      fp   - stream to dump to (often stdout)
- *            tr   - trace to dump
- *            gm   - NULL, or score profile corresponding to trace
- *            dsq  - NULL, or digitized seq corresponding to trace        
+ * Args:      fp    - stream to dump to (often stdout)
+ *            tr    - trace to dump
+ *            gm_fs - NULL, or score profile corresponding to trace
+ *            dsq   - NULL, or digitized seq corresponding to trace        
+ *            abc   - NULL of alphabet of dsq
  *
  * Returns:   <eslOK> on success.
  * 
@@ -1683,7 +1684,7 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
  *            output.
  */
 int
-p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc) /* replace void w/ P7_PROFILE */
+p7_trace_fs_Dump(FILE *fp, const P7_TRACE *tr, const P7_FS_PROFILE *gm_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc) 
 {
   int z;		/* counter for trace position */
   if (tr == NULL) { fprintf(fp, " [ trace is NULL ]\n"); return eslOK; }

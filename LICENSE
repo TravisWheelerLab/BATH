@@ -9,8 +9,13 @@ BATH-specific code includes contributions and input from
    Walt Shands
    Travis Wheeler
 
-It is released under the same BSD three-clause license as HMMER,
-which may be found at the bottom of this file
+Copyright (C) 2022-2026 The Arizona Board of Regents on behalf of 
+                        The University of Arizona
+
+The BATH-specific contributions are released under the BSD three-clause 
+license reproduced at the bottom of this file, with the BATH copyright 
+holders substituted as appropriate.
+
 
 -----------------------------------------------------------------------
 -----------------------------------------------------------------------

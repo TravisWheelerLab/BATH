@@ -1033,6 +1033,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   if (exontblfp)     fclose(exontblfp);
   if (fstblfp)       fclose(fstblfp);
 
+  if (!esl_opt_IsOn(go, "--hmmout") && hmmfile != NULL) free(hmmfile);
+
   return eslOK;
 
 ERROR:

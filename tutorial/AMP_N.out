@@ -1,0 +1,65 @@
+# bathsearch :: search protein profile(s) against DNA sequence database
+# BATH 2.0 (May 2026); https://github.com/TravisWheelerLab/BATH
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query HMM file:                                AMP_N.fa
+# target sequence database:                      target-AMP_N.fa
+# codon translation table:                       1
+# output directed to file:                       AMP_N.out
+# hmm output:                                    AMP_N.bhmm
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       AMP_N  [M=134]
+Scores for complete hits:
+    E-value  score  bias  Sequence  start    end  Description
+    ------- ------ -----  --------  -----  -----  -----------
+    1.4e-16   47.8   0.0  seq1          7    234    
+
+
+Annotation for each hit (and alignments):
+>> seq1  
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
+ !   47.8   0.0   1.4e-16          3        75 ..         7       234 ..         1       237 [.       411   0.84
+
+  Alignment:
+  score: 47.8 bits
+     AMP_N   3     k    s    e    f    a    a    r    r    k    r    l    l    a    q    l    e    e    e    g    i    a    i    i    p    t     27 
+                   +    +    +    f              r    r         r    l    l    +                        +                                       
+                   Q    A    D    F    E    L    R    R    D    R    L    L    S    T    N    G    A    K    Q    Y    C    H    Y    R    N    
+      seq1   7    CAA  GCT  GAT  TTT  GAA  CTA  CGC  CGA  GAC  CGC  CTC  CTC  TCA  ACA  AAT  GGG  GCC  AAA  CAG  TAT  TGC  CAT  TAT  AGA  AAC    81 
+                   6    7    9    9    9    *    *    *    *    *    *    *    *    *    9    9    9    9    9    *    *    *    *    *    *     PP
+
+     AMP_N  28     a    p    e    a    l    r    n    r    d    t    e    y    p    y    r    q    d    s    d    f    y    y    l    t    g     52 
+                        p              l    r    n    r    d         +    y         +    r         d    s         f    +    y    l    t    g    
+                   Q    P    S    C    L    R    N    R    D    A    D    Y    K    F    R    A    D    S    S    F    F    Y    L    T    G    
+      seq1  82    CAG  CCC  AGT  TGC  TTA  CGT  AAT  CGT  GAT  GCA  GAC  TAT  AAA  TTT  CGA  GCA  GAT  AGC  AGT  TTT  TTT  TAT  CTG  ACA  GGG    156
+                   *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+     AMP_N  53     f    t    e    p    e    a    v    l    v    l    v    r    e    e    .    .    .    e    e    r    s    v    l    f    c     74 
+                   f         e    p    e    a    v         v    +                   +                   +                        l    f    c    
+                   F    A    E    P    E    A    V    A    V    I    E    T    T    D    T    V    D    D    Y    T    Y    S    L    F    C    
+      seq1 157    TTT  GCA  GAA  CCA  GAA  GCT  GTT  GCT  GTA  ATT  GAA  ACC  ACA  GAT  ACG  GTG  GAT  GAC  TAT  ACT  TAT  AGT  CTG  TTT  TGC    231
+                   *    *    *    *    *    *    *    9    9    8    6    5    4    4    1    1    1    3    3    4    4    5    6    6    7     PP
+
+     AMP_N  75     r     75 
+                   r    
+                   R    
+      seq1 232    CGA    234
+                   6     PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (134 nodes)
+Target sequence(s):                        1  (822 residues searched)
+Residues passing SSV filter:             537  (0.653); expected (0.02)
+Residues passing bias filter:            537  (0.653); expected (0.02)
+Residues passing Vit filter:             393  (0.478); expected (0.001)
+Residues passing Fwd filter:             237  (0.288); expected (1e-05)
+Total number of hits:                      1  (0.277)
+# CPU time: 0.02u 0.01s 00:00:00.03 Elapsed: 00:00:00.02
+# Mc/sec: 5.07
+//
+[ok]

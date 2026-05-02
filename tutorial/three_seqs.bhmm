@@ -1,20 +1,22 @@
 BATH3/f
 NAME  AT1G01010.1
 LENG  429
+MAXL  479
 ALPH  amino
 RF    no
 MM    no
 CONS  yes
 CS    no
 MAP   no
-DATE  Fri Sep 15 08:54:12 2023
+DATE  Fri May  1 15:53:11 2026
 COM   [1] [HMM created from a query sequence]
 NSEQ  1
 EFFN  1.000000
 STATS LOCAL MSV         -11.2833  0.69883
 STATS LOCAL VITERBI     -12.7304  0.69883
 STATS LOCAL FORWARD      -5.6729  0.69883
-STATS LOCAL FS FORWARD   -0.8547  0.69883
+STATS LOCAL FS3 FORWARD  -6.1520  0.69883
+STATS LOCAL FS5 FORWARD  -4.9397  0.69883
 FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
@@ -1313,20 +1315,22 @@ HMM          A        C        D        E        F        G        H        I   
 BATH3/f
 NAME  AT1G01020.1
 LENG  245
+MAXL  285
 ALPH  amino
 RF    no
 MM    no
 CONS  yes
 CS    no
 MAP   no
-DATE  Fri Sep 15 08:54:12 2023
+DATE  Fri May  1 15:53:11 2026
 COM   [1] [HMM created from a query sequence]
 NSEQ  1
 EFFN  1.000000
 STATS LOCAL MSV         -10.5237  0.70379
 STATS LOCAL VITERBI     -11.8291  0.70379
 STATS LOCAL FORWARD      -4.8126  0.70379
-STATS LOCAL FS FORWARD   -1.7690  0.70379
+STATS LOCAL FS3 FORWARD  -5.4657  0.70379
+STATS LOCAL FS5 FORWARD  -4.7141  0.70379
 FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
@@ -2073,20 +2077,22 @@ HMM          A        C        D        E        F        G        H        I   
 BATH3/f
 NAME  AT1G01030.1
 LENG  358
+MAXL  404
 ALPH  amino
 RF    no
 MM    no
 CONS  yes
 CS    no
 MAP   no
-DATE  Fri Sep 15 08:54:13 2023
+DATE  Fri May  1 15:53:12 2026
 COM   [1] [HMM created from a query sequence]
 NSEQ  1
 EFFN  1.000000
 STATS LOCAL MSV         -11.3190  0.69985
 STATS LOCAL VITERBI     -12.3287  0.69985
 STATS LOCAL FORWARD      -5.6570  0.69985
-STATS LOCAL FS FORWARD   -1.0685  0.69985
+STATS LOCAL FS3 FORWARD  -5.8543  0.69985
+STATS LOCAL FS5 FORWARD  -4.6023  0.69985
 FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   

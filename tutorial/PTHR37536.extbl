@@ -1,0 +1,15 @@
+#                                                                                            ------ full hit ------  ------------------------- this exon -------------------------- 
+# hit ID  target name          accession  query name           accession   hmm len   seq len   E-value  score  bias   #  of  hmm from    hmm to  ali from    ali to   P-value   PID
+#------- -------------------  ---------- -------------------- ---------- --------- --------- --------- ------ ----- --- --- --------- --------- --------- --------- --------- -----
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   1   4        11       135       119       491   9.6e-19 30.16
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   2   4       136       143       577       600   7.3e-05 12.50
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   3   4       144       180       687       798   4.1e-10 26.32
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   4   4       181       251       952      1159   4.9e-12 34.72
+#
+# Program:         bathsearch
+# Query file:      PTHR37536.bhmm
+# Target file:     target-PTHR37536.fa
+# Option settings: /Users/genevievekrause/git/BATH/src/bathsearch --splice -o PTHR37536.out --tblout PTHR37536.tbl --exontblout PTHR37536.extbl PTHR37536.bhmm target-PTHR37536.fa 
+# Current dir:     /Users/genevievekrause/git/BATH/tutorial
+# Date:            Fri May  1 19:45:18 2026
+# [ok]

@@ -1,0 +1,124 @@
+# bathsearch :: search protein profile(s) against DNA sequence database
+# BATH 2.0 (May 2026); https://github.com/TravisWheelerLab/BATH
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query HMM file:                                PTHR37536.bhmm
+# target sequence database:                      target-PTHR37536.fa
+# codon translation table:                       1
+# output directed to file:                       PTHR37536.out
+# per-seq hits tabular output:                   PTHR37536.tbl
+# per-seq exon tabular output:                   PTHR37536.extbl
+# enable spliced alignments:                     yes
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       PTHR37536  [M=279]
+Scores for complete hits:
+    E-value  score  bias  Sequence  start    end  exons  Description
+    ------- ------ -----  --------  -----  -----  -----  -----------
+    2.8e-28   87.9   5.2  seq1        119   1159      4  
+
+
+Annotation for each hit (and alignments):
+>> seq1  
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    exons     sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    -----  ---------   ----
+ !   87.9   5.2   2.8e-28         11       251 ..       119      1159 ..        89      1189 ..     4       1300   0.60
+
+  Alignment:
+  score: 87.9 bits
+  PTHR37536   11     t    t    t    t    l    l    g    s    a    l    s    l    p    q    t    s    n    l    v    s    r    i    q    a     34  
+                          t    +    t    +              +         +         +    p    q                        +              +    +         
+     exon 1          F    T    S    T    V    E    H    N    G    V    P    V    P    Q    A    E    T    D    L    K    P    F    K    P    
+       seq1  119    TTC  ACG  TCT  ACA  GTC  GAA  CAC  AAC  GGC  GTT  CCA  GTG  CCG  CAG  GCC  GAA  ACT  GAC  CTC  AAG  CCG  TTC  AAG  CCA    190 
+                     5    6    7    7    7    8    8    8    8    9    9    9    9    9    9    9    9    9    9    9    9    9    9    9     PP
+
+  PTHR37536   35     r    s    l    n    r    q    s    h    p    l    t    r    q    d    g    g    h    s    g    s    q    t    g    f     58  
+                          +    l         r                                                 g         +         g    +         t              
+     exon 1          G    T    L    G    R    I    R    S    R    T    D    D    D    S    G    P    E    I    G    T    T    T    L    R    
+       seq1  191    GGT  ACC  CTT  GGC  CGC  ATC  AGG  AGC  CGC  ACA  GAT  GAT  GAT  TCG  GGC  CCC  GAG  ATA  GGA  ACG  ACA  ACC  CTG  AGA    262 
+                     9    9    9    9    9    8    7    6    6    6    6    6    6    6    6    7    7    8    9    9    9    9    9    9     PP
+
+  PTHR37536   59     r    m    a    s    t    a    a    v    a    y    s    n    n    w    a    g    v    v    r    e    e    a    p    p     82  
+                     r    +              t                   a         s    n    n    w         g         v    +                             
+     exon 1          R    V    K    R    T    N    P    T    A    N    S    N    N    W    C    G    S    V    Q    S    T    T    -    S    
+       seq1  263    CGG  GTT  AAG  AGA  ACC  AAT  CCG  ACT  GCA  AAT  AGT  AAC  AAT  TGG  TGT  GGT  TCT  GTA  CAA  TCT  ACA  ACG  ---  TCA    331 
+                     9    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    8    7    6    5    .    6     PP
+
+  PTHR37536   83     g    g    p    y    t    a    v    s    a    t    f    t    v    p    k    p    t    a    a    p    n    .    t    a     105 
+                     +    +                        v              t    f              p              t              p              t         
+     exon 1          S    N    Q    I    K    L    V    H    G    T    F    Q    H    P    T    C    T    Q    R    P    G    v    T    Q    
+       seq1  332    AGC  AAT  CAA  ATC  AAG  CTC  GTC  CAC  GGT  ACC  TTT  CAA  CAT  CCC  ACG  TGC  ACT  CAG  CGG  CCC  GGC  GTC  ACT  CAG    403 
+                     7    7    8    9    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    8    3    4    5     PP
+
+  PTHR37536  106     g    l    q    a    g    s    a    w    v    g    i    d    g    d    t    y    s    g    a    i    l    q    t    g     129 
+                               q    a    +    +    a    w    +    g    i    d    g    d    +    +    +    +    a    +    l    q         g    
+     exon 1          Y    P    Q    A    A    A    A    W    I    G    I    D    G    D    S    W    T    S    A    L    L    Q    A    G    
+       seq1  404    TAT  CCC  CAG  GCG  GCA  GCC  GCT  TGG  ATT  GGC  ATT  GAT  GGT  GAT  TCG  TGG  ACT  TCG  GCA  TTG  CTG  CAG  GCT  GGG    475 
+                     6    7    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+  PTHR37536  130     v    d    f    y    i    d     135 
+                                         +         
+     exon 1          T    V    C    K    V    V    
+       seq1  476    ACG  GTT  TGC  AAG  GTT  G   gt 493 
+                     *    9    9    9    9    9  || PP
+
+
+  PTHR37536  136          n    g    r    v    y    n    d    a     143 
+                          +         +    +    y         +         
+     exon 2               D    Q    Q    L    Y    R    N    I    
+       seq1  575 ag  TA  GAT  CAA  CAA  CTC  TAC  CGG  AAT  A   gt 602 
+                 ||       9    9    *    *    *    *    *    *  || PP
+
+
+  PTHR37536  144          w    f    e    w    f    p    d    y    a    y    d    f    .    n    l    a    i    n    t    g    d    v    i     165 
+                          w    +    +    w         p    +         a    y         +         n    +         +              g    d         +    
+     exon 3               W    W    Q    W    V    P    N    G    A    Y    T    I    t    N    I    P    V    F    A    G    D    W    F    
+       seq1  685 ag  TC  TGG  TGG  CAA  TGG  GTC  CCC  AAT  GGC  GCT  TAC  ACG  ATT  ACC  AAC  ATT  CCC  GTC  TTT  GCT  GGT  GAT  TGG  TTT    757 
+                 ||       *    *    *    *    *    *    *    *    *    *    8    6    5    9    *    *    *    *    *    *    *    *    9     PP
+
+  PTHR37536  166     v    a    k    v    e    a    l    s    p    s    n    g    v    a    i     180 
+                                    +                   s         +         +              i    
+     exon 3          D    I    T    I    N    T    T    S    S    T    -    A    A    T    I    
+       seq1  758    GAC  ATC  ACC  ATC  AAT  ACA  ACC  TCC  TCC  ACA  ---  GCA  GCG  ACC  AT  gt 800 
+                     9    9    9    9    8    7    7    6    4    4    .    3    3    3    4  || PP
+
+
+  PTHR37536  181          i    e    n    k    n    t    g    q    t    a    t    q    t    i    s    a    p    k    a    d    a    t    l     203 
+                                              n         g         t                   +    +    +    a         +              a    t    l    
+     exon 4               K    I    M    S    N    R    G    Y    T    -    -    Y    S    V    N    A    W    Q    -    G    A    T    L    
+       seq1  950 ag   C  AAA  ATC  ATG  TCC  AAC  CGC  GGC  TAC  ACT  ---  ---  TAC  AGT  GTC  AAT  GCC  TGG  CAA  ---  GGC  GCC  ACC  TTG    1012
+                 ||       3    4    4    5    6    6    7    6    5    .    .    6    7    8    8    8    6    5    .    6    9    *    *     PP
+
+  PTHR37536  204     k    g    v    n    a    d    w    i    v    e    d    f    q    s    g    d    k    v    v    a    l    a    d    f     227 
+                               v    +    a    d    w    +    v    e                        g              +              +    a         f    
+     exon 4          A    R    V    D    A    D    W    V    V    E    R    P    Y    Y    G    S    T    L    A    G    F    A    Q    F    
+       seq1 1013    GCG  CGC  GTA  GAC  GCC  GAT  TGG  GTC  GTC  GAG  CGG  CCT  TAC  TAC  GGG  AGC  ACC  CTG  GCG  GGC  TTT  GCG  CAA  TTC    1084
+                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+  PTHR37536  228     e    q    v    t    f    t    g    c    e    a    k    a    q    n    g    .    d    s    l    g    l    d    g    s     250 
+                          q    v         f         +    +         a                   +    g              s    l    g    +         g    +    
+     exon 4          T    Q    V    W    F    Q    N    A    Y    A    T    L    T    S    G    t    S    S    L    G    I    T    G    A    
+       seq1 1085    ACC  CAG  GTT  TGG  TTC  CAG  AAT  GCG  TAT  GCA  ACG  CTC  ACG  AGC  GGG  ACT  AGC  AGC  TTG  GGC  ATT  ACG  GGC  GCG    1156
+                     *    *    *    *    *    *    *    *    *    *    9    9    9    8    8    3    5    7    9    9    9    9    9    7     PP
+
+  PTHR37536  251     t     251 
+                          
+     exon 4          K    
+       seq1 1157    AAG    1159
+                     5     PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (279 nodes)
+Target sequence(s):                        1  (2600 residues searched)
+Residues passing SSV filter:             948  (0.365); expected (0.02)
+Residues passing bias filter:            948  (0.365); expected (0.02)
+Residues passing Vit filter:             948  (0.365); expected (0.001)
+Residues passing Fwd filter:             807  (0.31); expected (1e-05)
+Total number of hits:                      1  (0.4)
+# CPU time: 0.10u 0.01s 00:00:00.11 Elapsed: 00:00:00.11
+# Mc/sec: 6.36
+//
+[ok]

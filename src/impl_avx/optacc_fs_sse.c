@@ -46,7 +46,7 @@ p7_OptimalAccuracy_Frameshift_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   int    i, q, j;
   int    qM  = (M-1) % Q;   /* stripe containing k=M */
   int    rM  = (M-1) / Q;   /* lane  containing k=M */
-  float  xN, xE, xB, xJ, xC;
+  float  xN, xE, xJ, xC;
   float  t1, t2;
   register __m128 mpv1, dpv1, ipv1;   /* right-shifted prev row i-1, then updated to current q */
   register __m128 mpv2, dpv2, ipv2;   /* right-shifted prev row i-2 */

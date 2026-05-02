@@ -228,7 +228,7 @@
 3 valgrind  bathconvert           @src/bathconvert@          %M1.BHMM% !testsuite/M1.hmm!
 3 valgrind  bathfetch             @src/bathfetch@            %MINIFAM.BHMM% Caudal_act
 3 valgrind  bathsearch            @src/bathsearch@           %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
-3 valgrind  bathsearch/--fs       @src/bathsearch@  --fs     %GLOBIN_FS.BHMM% !testsuite/globins45-nt.fa!
+3 valgrind  bathsearch/--fs       @src/bathsearch@  --fs     %GLOBIN.BHMM% !testsuite/globins45-nt.fa!
 3 valgrind  bathsearch/msa        @src/bathsearch@           !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
 3 valgrind  bathsearch/msa/--fs   @src/bathsearch@  --fs     !testsuite/globins4_2.sto! !testsuite/globins45-nt.fa!
 3 valgrind  bathsearch/seq        @src/bathsearch@           !testsuite/globins.fa! !testsuite/globins45-nt.fa!

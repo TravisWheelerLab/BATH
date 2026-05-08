@@ -393,20 +393,15 @@ fi
 
 if test "$enable_avx" = "yes" || test "$enable_avx" = "check"; then
   ESL_AVX([
-    AS_IF([test "x$esl_avx_cflags" = "x"],[
-      AC_DEFINE(eslENABLE_SSE, 1, [Enable SSE vector implementation])
-      AC_DEFINE(eslENABLE_AVX, 1, [Enable AVX/AVX2 vector implementation])
-      AC_SUBST([HMMERIMPLLIB], ["impl_avx/libhmmerimpl.a"])
-      SSE_CFLAGS=$esl_sse_cflags
-      AC_SUBST(SSE_CFLAGS)
-      AVX_CFLAGS=$esl_avx_cflags
-      AC_SUBST(AVX_CFLAGS)
-      enable_avx=yes
-      impl_choice=avx
-    ],[
-      AC_MSG_NOTICE([AVX requires extra compiler flags; falling back to SSE implementation])
-      enable_avx=no
-    ])
+    AC_DEFINE(eslENABLE_SSE, 1, [Enable SSE vector implementation])
+    AC_DEFINE(eslENABLE_AVX, 1, [Enable AVX/AVX2 vector implementation])
+    AC_SUBST([HMMERIMPLLIB], ["impl_avx/libhmmerimpl.a"])
+    SSE_CFLAGS=$esl_sse_cflags
+    AC_SUBST(SSE_CFLAGS)
+    AVX_CFLAGS=$esl_avx_cflags
+    AC_SUBST(AVX_CFLAGS)
+    enable_avx=yes
+    impl_choice=avx
     ],[
     if test "$enable_avx" = "yes"; then
       AC_MSG_FAILURE([Unable to compile our AVX implementations. Try another compiler?])

@@ -31,6 +31,20 @@
 #include <immintrin.h>   /* AVX, AVX2 */
 #ifdef __AVX__
 #include "esl_avx.h"
+/* _mm256_set_m128 was added to GCC in version 8; provide a fallback for GCC 7. */
+#if defined(__GNUC__) && (__GNUC__ < 8) && !defined(__clang__)
+static inline __m256 _mm256_set_m128(__m128 hi, __m128 lo) {
+  return _mm256_insertf128_ps(_mm256_castps128_ps256(lo), hi, 1);
+}
+#endif
+#else
+/* eslENABLE_AVX is set but the compiler lacks -mavx (no __AVX__ defined),
+ * so <immintrin.h> does not define __m256i/__m256.  Provide minimal stubs
+ * of the correct size (32 bytes) so struct fields that are *pointers* to
+ * these types compile correctly.  Actual AVX intrinsic operations live in
+ * impl_avx/ source files that are compiled with AVX_CFLAGS (-mavx2). */
+typedef union { long long d[4]; } __m256i;
+typedef union { float     d[8]; } __m256;
 #endif
 #endif
 
@@ -38,6 +52,9 @@
 #include <immintrin.h>   /* AVX-512 */
 #ifdef __AVX512F__
 #include "esl_avx512.h"
+#else
+typedef union { long long d[8];  } __m512i;
+typedef union { float     d[16]; } __m512;
 #endif
 #endif
 

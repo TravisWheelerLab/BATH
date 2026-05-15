@@ -18,6 +18,7 @@
 
 #include "easel.h"
 #include "hmmer.h"
+#include "p7_splice.h"
 
 // Define bit-vector constants used in the _Serialize() and _Deserialize routines
 #define RFLINE_PRESENT (1 << 0)
@@ -352,6 +353,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -650,6 +652,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -1043,6 +1046,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
   /* Determine hit coords */
@@ -1246,6 +1250,9 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   int            n, pos;
   int            x,y,z;
   int            k,s,p;
+  int            don1, don2;
+  int            acc1, acc2;
+  int            don_plus, acc_minus;
   int64_t        i, prev_i;
   int            sq_namelen,  sq_acclen,  sq_desclen;
   int            hmm_namelen, hmm_acclen, hmm_desclen;
@@ -1350,7 +1357,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1)); 
   ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
-  
+  ESL_ALLOC(ad->exon_splice,     sizeof(int)     * (splice_cnt+1)); 
  
   /* Determine hit coords */
   ad->hmmfrom     = tr->k[z1];
@@ -1376,6 +1383,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   
   ad->exon_hmm_starts[0] = ad->hmmfrom;
   ad->exon_pid[0]        = 0.;
+  ad->exon_splice[0]     = -1;
 
   /* Use orf coords to keep track of the sequence amino acid alignment length */
   ad->orffrom = 1;
@@ -1624,60 +1632,69 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->model [z-z1] = ' ';
         ad->mline [z-z1] = ' ';
         ad->aseq  [z-z1] = ' ';
-
         ad->codon[y] = 4;
+
         if(p == p7S_xxyyABC) {
 
-          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+1]]);
-          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+2]]);
-          ad->ntseq [5*(z-z1)+2] = '$';
-          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-4]]);
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-3]]);
+          don1 = target_seq->dsq[prev_i+1];
+          don2 = target_seq->dsq[prev_i+2];
+          acc1 = target_seq->dsq[i-4];
+          acc2 = target_seq->dsq[i-3];
 
-          if(revcomp){
-            ad->exon_seq_ends[x]     = target_seq->n - prev_i + target_seq->end;
-            ad->exon_seq_starts[x+1] = target_seq->n-(i-2)+target_seq->end;
-          }
-          else {
-            ad->exon_seq_ends[x]     = prev_i + target_seq->start - 1;
-            ad->exon_seq_starts[x+1] = (i-2) + target_seq->start - 1;
-          }
+          don_plus  = 0;
+          acc_minus = 2;
+
         }
         else if (p == p7S_AxxyyBC) {
-          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+2]]);
-          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+3]]);
-          ad->ntseq [5*(z-z1)+2] = '$';
-          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-3]]);
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-2]]);
 
-          if(revcomp){
-            ad->exon_seq_ends[x]     = target_seq->n - (prev_i+1) + target_seq->end;
-            ad->exon_seq_starts[x+1] = target_seq->n-(i-1)+target_seq->end;
-          }
-          else {
-            ad->exon_seq_ends[x]     = (prev_i+1) + target_seq->start - 1;
-            ad->exon_seq_starts[x+1] = (i-1) + target_seq->start - 1;
-          }
+          don1 = target_seq->dsq[prev_i+2];
+          don2 = target_seq->dsq[prev_i+3];
+          acc1 = target_seq->dsq[i-3];
+          acc2 = target_seq->dsq[i-2];
+
+          don_plus  = 1;
+          acc_minus = 1;
+
         }
         else if (p == p7S_ABxxyyC) {
-          ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[target_seq->dsq[prev_i+3]]);
-          ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[target_seq->dsq[prev_i+4]]);
-          ad->ntseq [5*(z-z1)+2] = '$';
-          ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[target_seq->dsq[i-2]]);
-          ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[target_seq->dsq[i-1]]);
-     
-          if(revcomp){
-            ad->exon_seq_ends[x]     = target_seq->n - (prev_i+2) + target_seq->end;
-            ad->exon_seq_starts[x+1] = target_seq->n- i +target_seq->end;
-          }
-          else {
-            ad->exon_seq_ends[x]     = (prev_i+2) + target_seq->start - 1;
-            ad->exon_seq_starts[x+1] = i + target_seq->start - 1;
-          } 
+
+          don1 = target_seq->dsq[prev_i+3];
+          don2 = target_seq->dsq[prev_i+4];
+          acc1 = target_seq->dsq[i-2];
+          acc2 = target_seq->dsq[i-1];
+
+          don_plus  = 2;
+          acc_minus = 0;
+          
         }
 
-        if(revcomp) n_count = ad->exon_seq_ends[x] - ad->exon_seq_starts[x+1] - 1;
-        else        n_count = ad->exon_seq_starts[x+1] - ad->exon_seq_ends[x] - 1; 
+        ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[don1]);
+        ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[don2]);
+        ad->ntseq [5*(z-z1)+2] = '$';
+        ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[acc1]);
+        ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[acc2]);
+
+        if(don1 == 2 && don2 == 3 && acc1 == 0 && acc2 == 2)
+          ad->exon_splice[x] = p7S_GTAG;
+        else if(don1 == 2 && don2 == 1 && acc1 == 0 && acc2 == 2)
+          ad->exon_splice[x] = p7S_GCAG;
+        else if(don1 == 0 && don2 == 3 && acc1 == 0 && acc2 == 1)
+          ad->exon_splice[x] = p7S_ATAC;
+        else
+          ESL_XEXCEPTION(eslEINVAL, "invalid splice site in trace: not GTAG,GCAG,ATAC");
+
+        if(revcomp){
+          ad->exon_seq_ends[x]     = target_seq->n - (prev_i+don_plus) + target_seq->end;
+          ad->exon_seq_starts[x+1] = target_seq->n - (i-acc_minus)     + target_seq->end;
+
+          n_count = ad->exon_seq_ends[x] - ad->exon_seq_starts[x+1] - 1;
+        }
+        else {
+          ad->exon_seq_ends[x]     = (prev_i+don_plus) + target_seq->start - 1;
+          ad->exon_seq_starts[x+1] = (i-acc_minus)     + target_seq->start - 1;
+
+          n_count = ad->exon_seq_starts[x+1] - ad->exon_seq_ends[x] - 1;
+        }
 
         /* End of exon bookkeeping */
         ad->exon_hmm_ends[x] = k;
@@ -1812,6 +1829,8 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   int            z1, z2;
   int            k,s,c,p;
   int            x, y, z;
+  int            don1, don2;
+  int            acc1, acc2;
   int            revcomp;
   int            exonN;
   int            indel, aa;
@@ -1926,6 +1945,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_splice,     sizeof(int)     * (splice_cnt+1));
     
   /* Determine hit coords */
   ad->hmmfrom    = tr->k[z1];
@@ -2467,13 +2487,27 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
         ad->aseq  [z-z1] = ' ';
 
         ad->codon[y] = 4;
-    
-        ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos-1]+1]]);
-        ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos-1]+2]]);
+   
+        don1 = sq->dsq[nuc_index[nuc_pos-1]+1];
+        don2 = sq->dsq[nuc_index[nuc_pos-1]+2];
+        acc1 = sq->dsq[nuc_index[nuc_pos]-2];
+        acc2 = sq->dsq[nuc_index[nuc_pos]-1];
+ 
+        ad->ntseq [5*(z-z1)]   = tolower(alphaDNA[don1]);
+        ad->ntseq [5*(z-z1)+1] = tolower(alphaDNA[don2]);
         ad->ntseq [5*(z-z1)+2] = '$';
-        ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos]-2]]);
-        ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[sq->dsq[nuc_index[nuc_pos]-1]]);
-         
+        ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[acc1]);
+        ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[acc2]);
+        
+        if(don1 == 2 && don2 == 3 && acc1 == 0 && acc2 == 2)
+          ad->exon_splice[x] = p7S_GTAG;
+        else if(don1 == 2 && don2 == 1 && acc1 == 0 && acc2 == 2)
+          ad->exon_splice[x] = p7S_GCAG;
+        else if(don1 == 0 && don2 == 3 && acc1 == 0 && acc2 == 1)
+          ad->exon_splice[x] = p7S_ATAC;
+        else
+          ESL_XEXCEPTION(eslEINVAL, "invalid splice site in trace: not GTAG,GCAG,ATAC");
+ 
         /* End of exon bookkeeping */
         if(revcomp) {
           ad->exon_seq_ends[x]     = sq->n - nuc_index[nuc_pos-1] + sq->end;
@@ -2731,6 +2765,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->exon_pid        = NULL;
   new_obj->exon_anchor     = NULL;
   new_obj->exon_extend     = NULL;
+  new_obj->exon_splice     = NULL;
   new_obj->exon_cnt        = 0;
 
   new_obj->hmmname = NULL; 
@@ -2856,7 +2891,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
 
 
     /* Used for splice alignments only */
-	if(ad->exon_cnt) {
+    if(ad->exon_cnt) {
 	
       ESL_ALLOC(ad2->exon_seq_starts, sizeof(int64_t) * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_seq_ends,   sizeof(int64_t) * ad->exon_cnt);
@@ -2868,6 +2903,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ESL_ALLOC(ad2->exon_pid,        sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_anchor,     sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_extend,     sizeof(int)     * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_splice,     sizeof(int)     * ad->exon_cnt);
  
       memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt * sizeof(int64_t));
       memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt * sizeof(int64_t)); 
@@ -2879,6 +2915,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt * sizeof(float));
       memcpy(ad2->exon_anchor,     ad->exon_anchor,     ad->exon_cnt * sizeof(int));
       memcpy(ad2->exon_extend,     ad->exon_extend,     ad->exon_cnt * sizeof(int));
+      memcpy(ad2->exon_splice,     ad->exon_splice,     ad->exon_cnt * sizeof(int));
       ad2->exon_cnt        = ad->exon_cnt;
    }
 
@@ -3578,7 +3615,8 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if(ad->exon_pid)        free(ad->exon_pid);
       if(ad->exon_anchor)     free(ad->exon_anchor);
       if(ad->exon_extend)     free(ad->exon_extend);
-	  if(ad->cigar)           free(ad->cigar);
+      if(ad->exon_splice)     free(ad->exon_splice);
+      if(ad->cigar)           free(ad->cigar);
     }
   else
     {	/* deserialized form */
@@ -3607,7 +3645,8 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if (ad->exon_pid)        free(ad->exon_pid);
       if (ad->exon_anchor)     free(ad->exon_anchor);
       if (ad->exon_extend)     free(ad->exon_extend);
-	  if (ad->cigar)           free(ad->cigar);
+      if (ad->exon_splice)     free(ad->exon_splice);
+      if (ad->cigar)           free(ad->cigar);
     }
   free(ad);
 }
@@ -4259,7 +4298,7 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
- 
+  ad->exon_splice     = NULL; 
 
   /* Optional lines are added w/ 50% chance */
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->rfline, sizeof(char) * (N+1));
@@ -4697,6 +4736,7 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_splice     = NULL;
 
   /* Optional lines are added w/ 50% chance */
   if (esl_rnd_Roll(rng, 2) == 0)  ESL_ALLOC(ad->rfline, sizeof(char) * (N+1));

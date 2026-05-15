@@ -16,6 +16,7 @@
 #include "esl_vectorops.h"
 #include "easel.h"
 #include "hmmer.h"
+#include "p7_splice.h"
 
 /*****************************************************************
  *= 1. The P7_TOPHITS object
@@ -1740,16 +1741,17 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
   int taccw  = ESL_MAX(10, p7_tophits_GetMaxAccessionLength(th));
   int posw   = ESL_MAX(9, p7_tophits_GetMaxPositionLength(th)); 
   int h,x,id;
+  char splice[4];
     
   if (show_header)
   {
 
     if (fprintf(ofp, "#%*s %22s %47s \n", tnamew+qnamew+31+taccw+qaccw, 
-    "",  "------ full hit ------ ", "------------------------- this exon --------------------------") < 0)
+    "",  "------ full hit ------ ", "----------------------------- this exon ------------------------------") < 0)
       ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
-    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %3s %3s %9s %9s %9s %9s %9s %5s",
-            " hit ID", tnamew, " target name",        taccw, " accession", qnamew, " query name",          qaccw, " accession", "  hmm len", "  seq len", "  E-value", " score", " bias", "  #", " of", " hmm from", "   hmm to", " ali from", "   ali to", "  P-value", "  PID") < 0)
+    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %3s %3s %9s %9s %9s %9s %9s %5s %7s",
+            " hit ID", tnamew, " target name",        taccw, " accession", qnamew, " query name",          qaccw, " accession", "  hmm len", "  seq len", "  E-value", " score", " bias", "  #", " of", " hmm from", "   hmm to", " ali from", "   ali to", "  P-value", "  PID", " splice") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
     if(node_info) {
@@ -1759,8 +1761,8 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
       if (fprintf(ofp, "\n")  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
     }
 
-    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %3s %3s %9s %9s %9s %9s %9s %5s",
-            "-------", tnamew, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "------", "-----", "---", "---", "---------", "---------", "---------", "---------", "---------", "-----") < 0)
+    if (fprintf(ofp, "#%7s %-*s %-*s %-*s %-*s %9s %9s %9s %6s %5s %3s %3s %9s %9s %9s %9s %9s %5s %7s",
+            "-------", tnamew, "-------------------", taccw, "----------", qnamew, "--------------------", qaccw, "----------", "---------", "---------", "---------", "------", "-----", "---", "---", "---------", "---------", "---------", "---------", "---------", "-----", "-------") < 0)
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
     if(node_info) { 
@@ -1775,9 +1777,10 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
   for (h = 0; h < th->N; h++)
     if (th->hit[h]->flags & p7_IS_REPORTED) {
       id++;
+
       for(x = 0; x < th->hit[h]->dcl->ad->exon_cnt; x++) {
 
-        if (fprintf(ofp, "%8d %-*s %-*s %-*s %-*s %9d %*" PRId64 " %9.2g %6.1f %5.1f %3d %3d ",
+                if (fprintf(ofp, "%8d %-*s %-*s %-*s %-*s %9d %*" PRId64 " %9.2g %6.1f %5.1f %3d %3d ",
                 id,
                 tnamew, th->hit[h]->name,
                 taccw,  th->hit[h]->acc ? th->hit[h]->acc : "-",
@@ -1793,7 +1796,7 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
                 ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
         if(th->hit[h]->dcl->ad->exon_cnt > 1) {
-          if (fprintf(ofp, "%9d %9d %*" PRId64 " %*" PRId64 " %9.2g %5.2f",
+          if (fprintf(ofp, "%9d %9d %*" PRId64 " %*" PRId64 " %9.2g %5.2f ",
                 th->hit[h]->dcl->ad->exon_hmm_starts[x],
                 th->hit[h]->dcl->ad->exon_hmm_ends[x],
                 posw, th->hit[h]->dcl->ad->exon_seq_starts[x],
@@ -1802,18 +1805,24 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
                 th->hit[h]->dcl->ad->exon_pid[x]) < 0)
                 ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
+          if     (th->hit[h]->dcl->ad->exon_splice[x] == p7S_GTAG) { if (fprintf(ofp, "%7s ", "gtag") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); } 
+          else if(th->hit[h]->dcl->ad->exon_splice[x] == p7S_GCAG) { if (fprintf(ofp, "%7s ", "gcag") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); } 
+          else if(th->hit[h]->dcl->ad->exon_splice[x] == p7S_ATAC) { if (fprintf(ofp, "%7s ", "atac") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); }
+          else                                                     { if (fprintf(ofp, "%7s ", "----") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); }
+
         }
         else {
 
-          if (fprintf(ofp, "%9d %9d %*" PRId64 " %*" PRId64 " %9.2g %5.2f",
+          if (fprintf(ofp, "%9d %9d %*" PRId64 " %*" PRId64 " %9.2g %5.2f %7s ",
                 th->hit[h]->dcl->ad->hmmfrom,
                 th->hit[h]->dcl->ad->hmmto,
                 posw, th->hit[h]->dcl->ad->sqfrom,
                 posw, th->hit[h]->dcl->ad->sqto,
                 exp(th->hit[h]->sum_lnP),
-                th->hit[h]->dcl->ad->pid) < 0)
+                th->hit[h]->dcl->ad->pid,
+                "----") < 0)
                 ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
-
+         
         }
 
         if(node_info) {

@@ -77,6 +77,26 @@ if ($h3::tdesc[1]   ne "-")                    { die "FAIL: on fs line 1 desc\n"
 if ($h3::qname[2]   ne "ali2")                 { die "FAIL: on fs line 2 query name\n";       }
 if ($h3::qacc[2]    ne "-")                    { die "FAIL: on fs line 2 query accession\n";  }
 
+#   $tname[$ntbl]     = $fields[1];
+#    $tacc[$ntbl]      = $fields[2];
+#    $qname[$ntbl]     = $fields[3];
+#    $qacc[$ntbl]      = $fields[4];
+#    $hmmlen[$ntbl]    = $fields[5];
+#    $hmmfrom[$ntbl]   = $fields[6];
+#    $hmmto[$ntbl]     = $fields[7];
+ #   $seqlen[$ntbl]    = $fields[8];
+#    $alifrom[$ntbl]   = $fields[9];
+#    $alito[$ntbl]     = $fields[10];
+#    $fullE[$ntbl]     = $fields[11];
+#    $fullsc[$ntbl]    = $fields[12];
+ #   $fullbias[$ntbl]  = $fields[13];
+  #  $pid[$ntbl]       = $fields[14];
+ #   $shifts[$ntbl]    = $fields[15];
+ #   $stops[$ntbl]     = $fields[16];
+ #   $tdesc[$ntbl]     = $fields[17];
+
+
+
 @output = `$builddir/src/bathsearch --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;
 if ($? != 0) { die "FAIL: bathsearch failed\n"; }
 &h3::ParseTbl("$tmppfx.tbl");
@@ -93,8 +113,8 @@ if ($h3::qname[2]   ne "ali2")                 { die "FAIL: on line 2 query name
 if ($h3::qacc[2]    ne "-")                    { die "FAIL: on line 2 query accession\n";  }
 
 print "ok\n";
-unlink "$tmppfx.sto";
-unlink "$tmppfx.seq";
-unlink "$tmppfx.tbl";
+#unlink "$tmppfx.sto";
+#unlink "$tmppfx.seq";
+#unlink "$tmppfx.tbl";
 unlink <$tmppfx.bhmm*>;
 exit 0;

@@ -1343,6 +1343,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
   int              status;
   int              k_min, k_max;
   int              last_window_cnt;
+  int              orf_cnt;
   int64_t          orf_start, orf_end;
   int64_t          window_start, window_end;
   float            fwdsc;                      /* framshift forward scores                               */
@@ -1378,6 +1379,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
     pli_tmp->tmpseq->end   = dna_window->n + dna_window->length - 1; 
     pli_tmp->tmpseq->dsq   = dnasq->dsq + dna_window->n - 1;;
   
+    orf_cnt   = 0;
     tot_orfsc = -eslINFINITY;
     P_tot     = eslINFINITY;
     P_min     = eslINFINITY;
@@ -1405,7 +1407,8 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
         orfsq->idx = w;
         P_min      = ESL_MIN(P_min, pli_tmp->P_orf[i]);  
         tot_orfsc  = p7_FLogsum(tot_orfsc, pli_tmp->fwdsc[i]); 
-        
+        orf_cnt++;        
+
         h = last_window_cnt; 
         while(h < hit_windows->count && hit_windows->windows[h].id != i) h++;
         if (h < hit_windows->count) {
@@ -1454,7 +1457,12 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
     if(!pli->std_pipe) P_tot = 1.0; // for --fsonly
   
     /* Compare window P value to ORF P-values */ 
-    if(P_fs <= pli->F3 && (P_null < P_tot || P_min > pli->F3)) { 
+    /* Use frameshift pip;ine uf frameshift P-value meets threshold ( <= pli->F3 ) AND one of the following constions is met
+       1. frameshift P-value (no bais adjustment) is less than the summed ORF P-value
+       2. frameshift P-value (no bais adjustment) is eq to the summed ORF P-value and there are 2 or more ORFs for this window
+       3. The best ORF P-value does not meet threshold. 
+    */
+    if(P_fs <= pli->F3 && (P_null < P_tot || (P_null == P_tot && orf_cnt > 1) || P_min > pli->F3)) { 
       
       /* Window p-value won - continue frameshift pipeline */  
       pli->pos_past_fwd += dna_window->length; 

@@ -1,11 +1,11 @@
-# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to    E-value  score  bias   PID  shifts  stops CIGAR
-#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ------- ------ ---------------------
-       1 seq1                 -          AMP_N                -               134         1       131        411         1       402         1       411   1.9e-27   82.8   0.1 46.32       6      1 44M1F39M1B114M9I25M2B19M1B44M1B4M6I30M2B67M
+# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to    E-value  score  bias   PID  shifts  stops CIGAR
+#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ------- ------ ---------------------
+       1 seq1                 -          AMP_N                -               134         1       131        411         1       402   1.9e-27   82.8   0.1 46.32       6      1 44M1F39M1B114M9I25M2B19M1B44M1B4M6I30M2B67M
 #
 # Program:         bathsearch
 # Query file:      AMP_N.bhmm
 # Target file:     target-AMP_N.fa
-# Option settings: /Users/genevievekrause/git/BATH/src/bathsearch --fs -o AMP_N-fs.out --tblout AMP_N-fs.tbl --cigar AMP_N.bhmm target-AMP_N.fa 
-# Current dir:     /Users/genevievekrause/git/BATH/tutorial
-# Date:            Fri May  1 19:05:23 2026
+# Option settings: /home/gkrause/git/BATH/src/bathsearch --fs -o AMP_N-fs.out --tblout AMP_N-fs.tbl --cigar AMP_N.bhmm target-AMP_N.fa 
+# Current dir:     /home/gkrause/git/BATH/tutorial
+# Date:            Tue May 26 10:32:34 2026
 # [ok]

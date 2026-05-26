@@ -1,14 +1,14 @@
-# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to    E-value  score  bias   PID  description of target
-#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ---------------------
-       1 seq1                 -          PTH2                 PF01981.11      116         2       116       3000       672       325       675       325     3e-35  110.6   0.3 42.74 -
-       2 seq1                 -          PTH2                 PF01981.11      116        35       116       3000      1486      1731      1444      1731   9.4e-28   86.4   0.0 43.90 -
-       3 seq1                 -          PTH2                 PF01981.11      116        71       113       3000      2468      2343      2483      2325   3.5e-12   36.2   0.0 60.47 -
-       4 seq1                 -          PTH2                 PF01981.11      116         2        30       3000      1273      1359      1270      1383   4.2e-12   36.0   0.3 68.97 -
+# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to    E-value  score  bias   PID CIGAR
+#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ---------------------
+       1 seq1                 -          PTH2                 PF01981.11      116         2       116       3000       672       325     3e-35  110.6   0.3 42.74 99M6I192M3D51M
+       2 seq1                 -          PTH2                 PF01981.11      116        35       116       3000      1486      1731   9.4e-28   86.4   0.0 43.90 246M
+       3 seq1                 -          PTH2                 PF01981.11      116        71       113       3000      2468      2343   3.5e-12   36.2   0.0 60.47 42M3D84M
+       4 seq1                 -          PTH2                 PF01981.11      116         2        30       3000      1273      1359   4.2e-12   36.0   0.3 68.97 87M
 #
 # Program:         bathsearch
 # Query file:      PTH2.bhmm
 # Target file:     target-PTH2.fa
-# Option settings: /Users/genevievekrause/git/BATH/src/bathsearch -o PTH2.out --tblout PTH2.tbl PTH2.bhmm target-PTH2.fa 
-# Current dir:     /Users/genevievekrause/git/BATH/tutorial
-# Date:            Fri May  1 18:49:03 2026
+# Option settings: /home/gkrause/git/BATH/src/bathsearch -o PTH2.out --tblout PTH2.tbl --cigar PTH2.bhmm target-PTH2.fa 
+# Current dir:     /home/gkrause/git/BATH/tutorial
+# Date:            Tue May 26 10:31:44 2026
 # [ok]

@@ -20,9 +20,9 @@ Scores for complete hits:
 
 Annotation for each hit (and alignments):
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    exons     sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    -----  ---------   ----
- !   87.9   5.2   2.8e-28         11       251 ..       119      1159 ..        89      1189 ..     4       1300   0.60
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to    exons     sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    -----  ---------   ----
+ !   87.9   5.2   2.8e-28         11       251 ..       119      1159 ..     4       1300   0.60
 
   Alignment:
   score: 87.9 bits
@@ -118,7 +118,7 @@ Residues passing bias filter:            948  (0.365); expected (0.02)
 Residues passing Vit filter:             948  (0.365); expected (0.001)
 Residues passing Fwd filter:             807  (0.31); expected (1e-05)
 Total number of hits:                      1  (0.4)
-# CPU time: 0.10u 0.01s 00:00:00.11 Elapsed: 00:00:00.11
-# Mc/sec: 6.36
+# CPU time: 0.01u 0.01s 00:00:00.02 Elapsed: 00:00:00.02
+# Mc/sec: 34.85
 //
 [ok]

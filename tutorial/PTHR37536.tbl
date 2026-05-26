@@ -5,7 +5,7 @@
 # Program:         bathsearch
 # Query file:      PTHR37536.bhmm
 # Target file:     target-PTHR37536.fa
-# Option settings: /Users/genevievekrause/git/BATH/src/bathsearch --splice -o PTHR37536.out --tblout PTHR37536.tbl --exontblout PTHR37536.extbl PTHR37536.bhmm target-PTHR37536.fa 
-# Current dir:     /Users/genevievekrause/git/BATH/tutorial
-# Date:            Fri May  1 19:45:18 2026
+# Option settings: /home/gkrause/git/BATH/src/bathsearch --splice -o PTHR37536.out --tblout PTHR37536.tbl --exontblout PTHR37536.extbl PTHR37536.bhmm target-PTHR37536.fa 
+# Current dir:     /home/gkrause/git/BATH/tutorial
+# Date:            Tue May 26 10:45:37 2026
 # [ok]

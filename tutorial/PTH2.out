@@ -6,7 +6,7 @@
 # target sequence database:                      target-PTH2.fa
 # codon translation table:                       1
 # output directed to file:                       PTH2.out
-# per-seq hits tabular output:                   PTH2-cigar.tbl
+# per-seq hits tabular output:                   PTH2.tbl
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 Query:       PTH2  [M=116]
@@ -23,9 +23,9 @@ Scores for complete hits:
 
 Annotation for each hit (and alignments):
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !  110.6   0.3     3e-35          2       116 .]       672       325 ..       675       325 ..      3000   0.92
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !  110.6   0.3     3e-35          2       116 .]       672       325 ..      3000   0.92
 
   Alignment:
   score: 110.6 bits
@@ -65,9 +65,9 @@ Annotation for each hit (and alignments):
                    4    7    8    9    9    *    *    *    *    *    *    *    *    *    *    *    8     PP
 
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   86.4   0.0   9.4e-28         35       116 .]      1486      1731 ..      1444      1731 ..      3000   0.94
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   86.4   0.0   9.4e-28         35       116 .]      1486      1731 ..      3000   0.94
 
   Alignment:
   score: 86.4 bits
@@ -100,9 +100,9 @@ Annotation for each hit (and alignments):
                     *    *    *    *    *    *    8     PP
 
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   36.2   0.0   3.5e-12         71       113 ..      2468      2343 ..      2483      2325 ..      3000   0.89
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   36.2   0.0   3.5e-12         71       113 ..      2468      2343 ..      3000   0.89
 
   Alignment:
   score: 36.2 bits
@@ -121,9 +121,9 @@ Annotation for each hit (and alignments):
                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    8    8    6     PP
 
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   36.0   0.3   4.2e-12          2        30 ..      1273      1359 ..      1270      1383 ..      3000   0.88
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   36.0   0.3   4.2e-12          2        30 ..      1273      1359 ..      3000   0.88
 
   Alignment:
   score: 36.0 bits
@@ -152,7 +152,7 @@ Residues passing bias filter:           1503  (0.251); expected (0.02)
 Residues passing Vit filter:            1401  (0.234); expected (0.001)
 Residues passing Fwd filter:            1287  (0.214); expected (1e-05)
 Total number of hits:                      4  (0.135)
-# CPU time: 0.06u 0.00s 00:00:00.06 Elapsed: 00:00:00.05
-# Mc/sec: 11.75
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.01
+# Mc/sec: 68.91
 //
 [ok]

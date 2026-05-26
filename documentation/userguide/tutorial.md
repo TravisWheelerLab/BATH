@@ -382,14 +382,14 @@ Scores for complete hits:
    
    3) Annotation Lines- for each hit listed in the query header, bathsearch will produce an annotation line containing useful information about the hit. 
    
-       As in the query header, the annotations line lists the score, bias, and E-value for each hit. It also lists three types of coordinates for the hit - the alignment start and end coordinates for both the query (hmm-from & hmm-to) and the target (ali-from & ali-to), as well as the envelope coordinates (env-from & env-to). The envelope is the region of the target that bathsearch has identified as containing the homology (the alignment coordinates are always contained within the envelope). It is the envelope coordinates that bound the target subsequence used to calculate the score, bias, and E-value. An explanation of the characters seen after the coordinates ('.','[', & ']') can be found on page 38 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf). The annotation line also lists the full length of the target sequence (sq-len) and the alignment's accuracy score (acc), which is the average expected per-residue accuracy of the alignment. 
+       As in the query header, the annotations line lists the score, bias, and E-value for each hit. It also lists alignment coordinates for both the query (hmm-from & hmm-to) and the target (ali-from & ali-to). An explanation of the characters seen after the coordinates ('.','[', & ']') can be found on page 38 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf). The annotation line also lists the full length of the target sequence (sq-len) and the alignment's accuracy score (acc), which is the average expected per-residue accuracy of the alignment. 
        
        Below is the annotation line for the first hit in the file PTH2.out
   
 ```
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !  110.6   0.3     3e-35          2       116 .]       672       325 ..       675       325 ..      3000   0.92
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !  110.6   0.3     3e-35          2       116 .]       672       325 ..      3000   0.92
 ```
    
    4) Alignment - Below each annotation line, bathsearch prints the alignment for that query-target hit. A typical bathsearch alignment will contain at least the following five rows (in order from top to bottom): (1) the query row, (2) the match row, (3) the translation row, (4) the target row, and (5) the posterior probability row. If the pHMM was built from an MSA containing consensus structure or reference annotations, those will be visible on separate CS and RF rows above the query row.  There are also three types of columns: (1) a match in which a query amino acid is aligned to a target codon or quasi-codon, (2) a deletion in which the query amino acid is aligned to target gap characters, or (3) an insertion in which the target codon is aligned to a query gap character. 
@@ -556,19 +556,19 @@ The following command will run the same search as in Practice 8, but with the ad
 If you open the file PTH2.tbl you will see the following text:
 
 ```
-# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to    E-value  score  bias   PID  description of target
-#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ---------------------
-       1 seq1                 -          PTH2                 PF01981.11      116         2       116       3000       672       325       675       325     3e-35  110.6   0.3 42.74 -
-       2 seq1                 -          PTH2                 PF01981.11      116        35       116       3000      1486      1731      1444      1731   9.4e-28   86.4   0.0 43.90 -
-       3 seq1                 -          PTH2                 PF01981.11      116        71       113       3000      2468      2343      2483      2325   3.5e-12   36.2   0.0 60.47 -
-       4 seq1                 -          PTH2                 PF01981.11      116         2        30       3000      1273      1359      1270      1383   4.2e-12   36.0   0.3 68.97 -
+# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to    E-value  score  bias   PID  description of target
+#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ---------------------
+       1 seq1                 -          PTH2                 PF01981.11      116         2       116       3000       672       325     3e-35  110.6   0.3 42.74 -
+       2 seq1                 -          PTH2                 PF01981.11      116        35       116       3000      1486      1731   9.4e-28   86.4   0.0 43.90 -
+       3 seq1                 -          PTH2                 PF01981.11      116        71       113       3000      2468      2343   3.5e-12   36.2   0.0 60.47 -
+       4 seq1                 -          PTH2                 PF01981.11      116         2        30       3000      1273      1359   4.2e-12   36.0   0.3 68.97 -
 #
 # Program:         bathsearch
 # Query file:      PTH2.bhmm
 # Target file:     target-PTH2.fa
-# Option settings: /Users/genevievekrause/git/BATH/src/bathsearch -o PTH2.out --tblout PTH2.tbl PTH2.bhmm target-PTH2.fa
-# Current dir:     /Users/genevievekrause/git/BATH/tutorial
-# Date:            Fri May  1 18:49:03 2026
+# Option settings: bathsearch -o PTH2.out --tblout PTH2.tbl PTH2.bhmm target-PTH2.fa
+# Current dir:     BATH/tutorial
+# Date:            Tue May 26 10:29:43 2026
 # [ok]
 ``` 
 
@@ -596,10 +596,6 @@ seq len                 The length of the target sequence (in nucleotides).
 ali from                The start position of the alignment on the target sequence. If the hit is located on the reverse complement strand, ali from will be greater than ali to.
    
 ali to                  The end position of the alignment on the target sequence.
-   
-env from                The start position of the hit envelope on the target sequence. 
-   
-env to                  The end position of the hit envelope on the target sequence. 
 
 E-value                 The hit e-value. 
    
@@ -619,9 +615,9 @@ The --cigar flag can be used to replace the "description of target" column with 
 ```
 
 ```bash
-# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to    E-value  score  bias   PID CIGAR
-#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ---------------------
-       1 seq1                 -          PTH2                 PF01981.11      116         2       116       3000       672       325       675       325     3e-35  110.6   0.3 42.74 99M6I192M3D51M
+# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to    E-value  score  bias   PID CIGAR
+#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ---------------------
+       1 seq1                 -          PTH2                 PF01981.11      116         2       116       3000       672       325     3e-35  110.6   0.3 42.74 99M6I192M3D51M
 ```
 <details><summary>Using --tblout with --fs</summary>
 <p>
@@ -633,9 +629,9 @@ Using --tblout with --fs will produce two additional columns showing frameshift 
 ```
 
 ```bash
-# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  env from    env to    E-value  score  bias   PID  shifts  stops CIGAR
-#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ------- ------ ---------------------
-       1 seq1                 -          AMP_N                -               134         1       131        411         1       402         1       411   1.9e-27   82.8   0.1 46.32       6      1 44M1F39M1B114M9I25M2B19M1B44M1B4M6I30M2B67M
+# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to    E-value  score  bias   PID  shifts  stops CIGAR
+#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ------- ------ ---------------------
+       1 seq1                 -          AMP_N                -               134         1       131        411         1       402   1.9e-27   82.8   0.1 46.32       6      1 44M1F39M1B114M9I25M2B19M1B44M1B4M6I30M2B67M
 ```
 The CIGAR string shows insertion frameshifts as either 1F or 2F and deletion frameshifts as either 1B or 2B.
 
@@ -645,7 +641,7 @@ The CIGAR string shows insertion frameshifts as either 1F or 2F and deletion fra
 <details><summary>Using --tblout with --splice</summary>
 <p>
 
-Using --tblout with --splice will produce an exon cnt column. The ali and env coordinates given are for the full gene, from the start of the first exon to the end of the last exon. To get start and end coordinates of individual exons, you need to use --exontblout. 
+Using --tblout with --splice will produce an exon cnt column. The ali coordinates given are for the full gene, from the start of the first exon to the end of the last exon. To get start and end coordinates of individual exons, you need to use --exontblout. 
 
 ```bash
 % bathsearch --splice --cigar --tblout PTHR37536.tbl -o PTHR37536.out PTHR37536.bhmm target-PTHR37536.fa
@@ -668,7 +664,7 @@ The CIGAR string shows introns as N. 85N is an intron that is 85 nucleotides lon
 <details><summary>Using --exontblout</summary>
 <p>
 
---exontblout give tabular per-exon data for splice-aware alignment.  Run the following command to produce tabular exon data:
+--exontblout gives tabular per-exon data for splice-aware alignment.  Run the following command to produce tabular exon data:
 
 ```bash
 % bathsearch --splice --tblout PTHR37536.tbl --exontblout PTHR37536.extbl  -o PTHR37536.out PTHR37536.bhmm target-PTHR37536.fa
@@ -676,21 +672,21 @@ The CIGAR string shows introns as N. 85N is an intron that is 85 nucleotides lon
 The file PTHR37536.extbl should look like this:
 
 ```bash
-#                                                                                            ------ full hit ------  ------------------------- this exon --------------------------
-# hit ID  target name          accession  query name           accession   hmm len   seq len   E-value  score  bias   #  of  hmm from    hmm to  ali from    ali to   P-value   PID
-#------- -------------------  ---------- -------------------- ---------- --------- --------- --------- ------ ----- --- --- --------- --------- --------- --------- --------- -----
-       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   1   4        11       135       119       491   9.6e-19 30.16
-       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   2   4       136       143       577       600   7.3e-05 12.50
-       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   3   4       144       180       687       798   4.1e-10 26.32
-       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   4   4       181       251       952      1159   4.9e-12 34.72
+#                                                                                            ------ full hit ------  ----------------------------- this exon ------------------------------
+# hit ID  target name          accession  query name           accession   hmm len   seq len   E-value  score  bias   #  of  hmm from    hmm to  ali from    ali to   P-value   PID  splice
+#------- -------------------  ---------- -------------------- ---------- --------- --------- --------- ------ ----- --- --- --------- --------- --------- --------- --------- ----- -------
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   1   4        11       135       119       491   9.6e-19 30.16    gtag
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   2   4       136       143       577       600   7.3e-05 12.50    gtag
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   3   4       144       180       687       798   4.1e-10 26.32    gtag
+       1 seq1                 -          PTHR37536            -                279      1300   2.8e-28   87.9   5.2   4   4       181       251       952      1159   4.9e-12 34.72    ----
 #
 # Program:         bathsearch
 # Query file:      PTHR37536.bhmm
 # Target file:     target-PTHR37536.fa
-# Option settings: /Users/genevievekrause/git/BATH/src/bathsearch --splice -o PTHR37536.out --tblout PTHR37536.tbl --exontblout PTHR37536.extbl PTHR37536.bhmm target-PTHR37536.fa
-# Current dir:     /Users/genevievekrause/git/BATH/tutorial
-# Date:            Fri May  1 19:45:18 2026
-# [ok]
+# Option settings: bathsearch --splice -o PTHR37536.out --tblout PTHR37536.tbl --exontblout PTHR37536.extbl PTHR37536.bhmm target-PTHR37536.fa
+# Current dir:     BATH/tutorial
+# Date:            Tue May 26 10:45:37 2026
+# [ok]                                                                                        
 ```
 
 The layout for --exontblout output is similar to --domtblout from HMMER. There is the same basic hit information as the --tbltout, hit ID (matches the hit ID for the same hit in --tblout), target name and accession, query name and accession, and HMM and sequence length.  E-value, hit score, and bias score are then reported for the whole gene underneath "full hit". The rest of the columns are exon-specific and are explained below.
@@ -710,7 +706,9 @@ ali to                  The DNA sequence end position of the exon
 
 P-value                 The exon p-value. 
 
-PID                     The exon percent identity 
+PID                     The exon percent identity
+
+splice                  The splice signal found between this exon and the next one (if any)
 
 ```
 

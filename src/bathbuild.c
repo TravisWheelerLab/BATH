@@ -1171,8 +1171,27 @@ output_result(const struct cfg_s *cfg, char *errbuf, int idx, ESL_MSA *msa, ESL_
 static int
 set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
 {
-  if   (msa->name != NULL) cfg->nnamed++;
-  else                     ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. I need name annotation on each alignment in a multi MSA file; failed on #%d", cfg->nali+1);
+  char *name = NULL;
+  int   status;
+
+  if(cfg->nali == 1) {
+    if  (cfg->hmmName != NULL) // -n flag used to name hmm
+      if ((status = esl_msa_SetName(msa, cfg->hmmName, -1)) != eslOK) return status;
+    else if (msa->name != NULL) // MSA file has annotation
+      cfg->nnamed++;
+    else if (cfg->afp->bf->filename) // Use filename
+    {
+      if ((status = esl_FileTail(cfg->afp->bf->filename, TRUE, &name)) != eslOK) return status; /* TRUE=nosuffix */
+      if ((status = esl_msa_SetName(msa, name, -1))                    != eslOK) return status;
+      free(name);
+    }
+    else ESL_FAIL(eslEINVAL, errbuf, "Failed to set model name: msa has no name, no msa filename, and no -n");
+  }
+  else {
+    if      (cfg->hmmName   != NULL) ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. You can't use -n with multiple alignments");
+    else if (msa->name != NULL)      cfg->nnamed++;
+    else                             ESL_FAIL(eslEINVAL, errbuf, "Oops. Wait. I need name annotation on each alignment in a multi MSA file; failed on #%d", cfg->nali+1);
+  }
 
   /* special kind of failure: the *first* alignment didn't have a name, and we used the filename to
   * construct one; now that we see a second alignment, we realize this was a boo-boo*/

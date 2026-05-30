@@ -1175,15 +1175,18 @@ set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
   int   status;
 
   if(cfg->nali == 1) {
-    if  (cfg->hmmName != NULL) // -n flag used to name hmm
+    if  (cfg->hmmName != NULL) { // -n flag used to name hmm
       if ((status = esl_msa_SetName(msa, cfg->hmmName, -1)) != eslOK) return status;
-    else if (msa->name != NULL) // MSA file has annotation
+    }
+    else if (msa->name != NULL) { // MSA file has annotation
       cfg->nnamed++;
+    }
     else if (cfg->afp->bf->filename) // Use filename
     {
       if ((status = esl_FileTail(cfg->afp->bf->filename, TRUE, &name)) != eslOK) return status; /* TRUE=nosuffix */
       if ((status = esl_msa_SetName(msa, name, -1))                    != eslOK) return status;
       free(name);
+      cfg->nnamed++;
     }
     else ESL_FAIL(eslEINVAL, errbuf, "Failed to set model name: msa has no name, no msa filename, and no -n");
   }

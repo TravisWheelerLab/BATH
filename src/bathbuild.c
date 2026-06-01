@@ -1177,6 +1177,7 @@ set_msa_name(struct cfg_s *cfg, char *errbuf, ESL_MSA *msa)
   if(cfg->nali == 1) {
     if  (cfg->hmmName != NULL) { // -n flag used to name hmm
       if ((status = esl_msa_SetName(msa, cfg->hmmName, -1)) != eslOK) return status;
+      cfg->nnamed++;
     }
     else if (msa->name != NULL) { // MSA file has annotation
       cfg->nnamed++;

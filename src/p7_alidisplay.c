@@ -1672,7 +1672,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
         ad->ntseq [5*(z-z1)+2] = '$';
         ad->ntseq [5*(z-z1)+3] = tolower(alphaDNA[acc1]);
         ad->ntseq [5*(z-z1)+4] = tolower(alphaDNA[acc2]);
-        printf("x %d\n", x);
+        
         if(don1 == 2 && don2 == 3 && acc1 == 0 && acc2 == 2)
           ad->exon_splice[x] = p7S_GTAG;
         else if(don1 == 2 && don2 == 1 && acc1 == 0 && acc2 == 2)
@@ -1763,7 +1763,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     }
     y++;
   }
-  printf("x %d\n", x);
+
   ad->exon_hmm_ends[x] = k;
   if(revcomp)
     ad->exon_seq_ends[x] = target_seq->n - i + target_seq->end;

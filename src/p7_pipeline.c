@@ -1700,12 +1700,11 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
           if(vfsc == -eslINFINITY) { // Viterbi not run 
             seqsc = (usc - filtersc) / eslCONST_LOG2;
             P = esl_gumbel_surv(seqsc, om->evparam[p7_MMU], om->evparam[p7_MLAMBDA]);
-            if (P > pli->F1) { hit_windows->count = old_window_cnt; continue; }
-              if (P > pli->F2) {
-                p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
-                seqsc = (vfsc - filtersc) / eslCONST_LOG2;
-                P = esl_gumbel_surv(seqsc, om->evparam[p7_VMU], om->evparam[p7_VLAMBDA]);
-                if (P > pli->F2) { hit_windows->count = old_window_cnt; continue; }
+            if (P > pli->F2) {
+              p7_ViterbiFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &vfsc);
+              seqsc = (vfsc - filtersc) / eslCONST_LOG2;
+              P = esl_gumbel_surv(seqsc, om->evparam[p7_VMU], om->evparam[p7_VLAMBDA]);
+              if (P > pli->F2) { hit_windows->count = old_window_cnt; continue; }
             }
           } 
           else {

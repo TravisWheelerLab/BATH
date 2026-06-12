@@ -1651,9 +1651,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
       P = esl_gumbel_surv( seqsc,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
       if (P > pli->F1 ) continue;
 
-      if(orfsq->start + dnasq->start - 1 == 97163744) printf("seqsc %f P %g\n", seqsc, P);
-      if(orfsq->start + dnasq->start - 1 == 1) printf("seqsc %f MSV P %g\n", seqsc, P);
-
       pli->pos_past_msv  += orfsq->n * 3; 
       
       /* biased composition HMM filtering */
@@ -1662,8 +1659,6 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_F
         p7_bg_FilterScore(bg, orfsq->dsq, orfsq->n, &filtersc);
         seqsc = (usc - filtersc) / eslCONST_LOG2;
         P = esl_gumbel_surv(seqsc,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
-		if(orfsq->start + dnasq->start - 1 == 97163744) printf("filtersc %f seqsc %f Bias P %g\n", filtersc, seqsc, P);
-        if(orfsq->start + dnasq->start - 1 == 1) printf("filtersc %f seqsc %f Bias P %g\n", filtersc, seqsc, P);
         if (P > pli->F1) continue;
       }  else filtersc = nullsc;
 

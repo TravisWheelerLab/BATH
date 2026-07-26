@@ -78,6 +78,7 @@ typedef struct {
  *            | --F3         |  Stage 3 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
  *            | --F4         |  Stage 3 (FS-Fwd) thresh: promote hits P <= F4 |    5e-4   |
  *            | --nobias     |  turn OFF composition bias filter HMM       |   FALSE   |
+ *            | --nolocalbias|  turn OFF local composition bias filter     |   FALSE   |
  *            | --nonull2    |  turn OFF biased comp score correction      |   FALSE   |
  *            | --seed       |  RNG seed (0=use arbitrary seed)            |      42   |
  *            | --acc        |  prefer accessions over names in output     |   FALSE   |
@@ -196,22 +197,25 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    /* Configure acceleration pipeline thresholds */
    pli->do_max        = FALSE;
    pli->do_biasfilter = TRUE;
+   pli->do_localbias  = TRUE;
    pli->do_null2      = TRUE;
    pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
    pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
    pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);
    pli->F4     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F4")) : 5e-4);
 
-   if (go && esl_opt_GetBoolean(go, "--max")) 
+   if (go && esl_opt_GetBoolean(go, "--max"))
    {
     pli->do_max        = TRUE;
     pli->do_biasfilter = FALSE;
-    
+    pli->do_localbias  = FALSE;
+
     pli->F1 = pli->F2 = pli->F3 = pli->F4 = 1.0;
 
    }
    if (go && esl_opt_GetBoolean(go, "--nonull2")) pli->do_null2      = FALSE;
-   if (go && esl_opt_GetBoolean(go, "--nobias"))  pli->do_biasfilter = FALSE;
+   if (go && esl_opt_GetBoolean(go, "--nobias"))  { pli->do_biasfilter = FALSE; pli->do_localbias = FALSE; }
+   if (go && esl_opt_GetBoolean(go, "--nolocalbias")) pli->do_localbias = FALSE;
   
    /* Accounting as we collect results */
    pli->nmodels         = 0;
@@ -1532,8 +1536,8 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
         
     if (pli->do_biasfilter) {
       p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, &filtersc);
-      if(k_min <= k_max) { // We have ORf windows for this DNA window 
-        p7_pli_ComputeLocalCompo(data, om, bg, k_min, k_max, local_compo); 
+      if(pli->do_localbias && k_min <= k_max) { // We have ORf windows for this DNA window
+        p7_pli_ComputeLocalCompo(data, om, bg, k_min, k_max, local_compo);
         p7_bg_SetFilter(bg, om->M, local_compo);
         p7_bg_SetLength(bg, dna_window->length/3);
         p7_bg_fs_FilterScore(bg, pli_tmp->tmpseq->dsq, pli_tmp->tmpseq->n, gcode, &local_filtersc);
@@ -1789,7 +1793,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
       
       pli->pos_past_vit  += orfsq->n * 3;      
 
-      if (pli->do_biasfilter && old_window_cnt < hit_windows->count) {
+      if (pli->do_biasfilter && pli->do_localbias && old_window_cnt < hit_windows->count) {
         /* Find the min and max hmm positions for all the windows from this ORF  */
         k_max  = hit_windows->windows[old_window_cnt].k;
         k_min  = k_max - hit_windows->windows[old_window_cnt].length + 1;

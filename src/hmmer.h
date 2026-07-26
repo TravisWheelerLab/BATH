@@ -1109,6 +1109,7 @@ typedef struct p7_pipeline_s {
   double  F3;                    /* uncorrected Forward filter threshold     */
   double  F4;                    /* min ORF Forward filter before fs Forward */
   int     do_biasfilter;         /* TRUE to use biased comp HMM filter       */
+  int     do_localbias;          /* TRUE to use local composition bias filter*/
   int     do_null2;              /* TRUE to use null2 score corrections      */
 
   /* Accounting. (reducible in threaded/MPI parallel version)              */

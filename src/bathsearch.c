@@ -114,6 +114,7 @@ static ESL_OPTIONS options[] = {
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         7 },
   { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,  "--fs","--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                     7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         7 },
+  { "--nolocalbias",  eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max,--nobias","turn off local composition bias filter only",                              7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            7 },
 
   /* input formats */
@@ -297,6 +298,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--F3")                            && fprintf(ofp, "# Fwd filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F3"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F4")                            && fprintf(ofp, "# ORF P threshold for FS FWD:                 <= %g\n",      esl_opt_GetReal(go, "--F4"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nobias")                        && fprintf(ofp, "# biased composition HMM filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--nolocalbias")                   && fprintf(ofp, "# local composition bias filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nonull2")                       && fprintf(ofp, "# null2 bias corrections:                        off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fs")                            && fprintf(ofp, "# Use the frameshift aware algorithms\n")                                                                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fsonly")                        && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 

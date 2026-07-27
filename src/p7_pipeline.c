@@ -29,6 +29,10 @@ typedef struct {
   P7_OMX          **oxf_holder; // - a temporary list of forward parser matrices for ORFs
   float            *fwdsc;
   double           *P_orf;      // - a temporary list of forward P values for ORFs
+  int              *orf_passed_f2; // - TRUE iff this ORF actually survived F1 and F2; P_orf[i] is only
+                                    //   meaningful (not a sentinel) when this is TRUE. Needed because an
+                                    //   F4 threshold of 1.0 can't be distinguished from the P_orf=1.0
+                                    //   sentinel by value comparison alone.
 } P7_PIPELINE_OBJS;
 
 
@@ -483,7 +487,7 @@ p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq,
 
   for(f = 0; f < orf_block->count; f++)
   {
-    if(pli_tmp->P_orf[f] > pli->F4) continue;
+    if(!pli_tmp->orf_passed_f2[f] || pli_tmp->P_orf[f] > pli->F4) continue;
 
     curr_orf = &(orf_block->list[f]);
 
@@ -1495,7 +1499,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
 
     /* Get ORF P values for comparison */ 
     for(i = 0; i < orf_block->count; i++) {
-      if(pli_tmp->P_orf[i] > pli->F4) continue;
+      if(!pli_tmp->orf_passed_f2[i] || pli_tmp->P_orf[i] > pli->F4) continue;
 
       orfsq = &(orf_block->list[i]);
 
@@ -1719,19 +1723,22 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
 
   pli_tmp = NULL;
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_OBJS));
-  pli_tmp->tmpseq     = NULL;
-  pli_tmp->oxf_holder = NULL;
-  pli_tmp->P_orf      = NULL;
-  pli_tmp->fwdsc      = NULL;
+  pli_tmp->tmpseq        = NULL;
+  pli_tmp->oxf_holder    = NULL;
+  pli_tmp->P_orf         = NULL;
+  pli_tmp->fwdsc         = NULL;
+  pli_tmp->orf_passed_f2 = NULL;
 
-  ESL_ALLOC(pli_tmp->fwdsc,      sizeof(float)    * orf_block->count);
-  ESL_ALLOC(pli_tmp->P_orf,      sizeof(double)   * orf_block->count);
-  ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
+  ESL_ALLOC(pli_tmp->fwdsc,         sizeof(float)    * orf_block->count);
+  ESL_ALLOC(pli_tmp->P_orf,         sizeof(double)   * orf_block->count);
+  ESL_ALLOC(pli_tmp->oxf_holder,    sizeof(P7_OMX *) * orf_block->count);
+  ESL_ALLOC(pli_tmp->orf_passed_f2, sizeof(int)      * orf_block->count);
 
   for(i = 0; i < orf_block->count; i++) {
       pli_tmp->oxf_holder[i] = NULL;
       pli_tmp->fwdsc[i] = -eslINFINITY;
       pli_tmp->P_orf[i] = 1.0;
+      pli_tmp->orf_passed_f2[i] = FALSE;
   }
   
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
@@ -1892,7 +1899,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
  
         seqsc = (fwdsc-filtersc) / eslCONST_LOG2;
         pli_tmp->P_orf[i] = esl_exp_surv(seqsc, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-        pli_tmp->fwdsc[i] = fwdsc-nullsc; 
+        pli_tmp->fwdsc[i] = fwdsc-nullsc;
+        pli_tmp->orf_passed_f2[i] = TRUE; /* reaching this line means i survived F1 and F2 above */
 
         if(pli_tmp->P_orf[i] > pli->F4) {
           p7_omx_Destroy(pli_tmp->oxf_holder[i]);
@@ -1911,9 +1919,10 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   {
     pli_tmp->tmpseq->dsq = NULL;
     if (pli_tmp->tmpseq     != NULL) esl_sq_Destroy(pli_tmp->tmpseq);
-    if (pli_tmp->oxf_holder != NULL) free(pli_tmp->oxf_holder);
-    if (pli_tmp->P_orf      != NULL) free(pli_tmp->P_orf);
-    if (pli_tmp->fwdsc      != NULL) free(pli_tmp->fwdsc);
+    if (pli_tmp->oxf_holder    != NULL) free(pli_tmp->oxf_holder);
+    if (pli_tmp->P_orf         != NULL) free(pli_tmp->P_orf);
+    if (pli_tmp->fwdsc         != NULL) free(pli_tmp->fwdsc);
+    if (pli_tmp->orf_passed_f2 != NULL) free(pli_tmp->orf_passed_f2);
     free(pli_tmp);
   }
 
@@ -1923,9 +1932,10 @@ ERROR:
   if (pli_tmp != NULL)
   {
     if (pli_tmp->tmpseq     != NULL) esl_sq_Destroy(pli_tmp->tmpseq);
-    if (pli_tmp->oxf_holder != NULL) free(pli_tmp->oxf_holder);
-    if (pli_tmp->P_orf      != NULL) free(pli_tmp->P_orf);
-    if (pli_tmp->fwdsc      != NULL) free(pli_tmp->fwdsc);
+    if (pli_tmp->oxf_holder    != NULL) free(pli_tmp->oxf_holder);
+    if (pli_tmp->P_orf         != NULL) free(pli_tmp->P_orf);
+    if (pli_tmp->fwdsc         != NULL) free(pli_tmp->fwdsc);
+    if (pli_tmp->orf_passed_f2 != NULL) free(pli_tmp->orf_passed_f2);
     free(pli_tmp);
   }
 

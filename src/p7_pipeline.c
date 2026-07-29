@@ -193,8 +193,9 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    /* Configure acceleration pipeline thresholds */
    pli->do_max        = FALSE;
    pli->do_biasfilter = TRUE;
-   pli->do_localbias  = TRUE;
+   pli->do_localbias  = (go && esl_opt_IsOn(go, "--fs")) ? FALSE : TRUE;
    pli->do_null2      = TRUE;
+
    pli->F1     = ((go && esl_opt_IsOn(go, "--F1")) ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F1")) : 0.02);
    pli->F2     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F2")) : 1e-3);
    pli->F3     = (go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--F3")) : 1e-5);

@@ -114,7 +114,7 @@ static ESL_OPTIONS options[] = {
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         7 },
   { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,  "--fs","--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                     7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         7 },
-  { "--nolocalbias",  eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max,--nobias","turn off local composition bias filter only",                              7 },
+  { "--nolocalbias",  eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max,--nobias,--fs","turn off local composition bias filter only (default for --fs)",                              7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            7 },
 
   /* input formats */

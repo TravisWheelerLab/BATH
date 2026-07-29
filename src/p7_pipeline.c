@@ -61,31 +61,23 @@ typedef struct {
  *            The configuration <go> must include settings for the 
  *            following options:
  *            
- *            || option      ||            description                    || usually  ||
- *            | --noali      |  don't output alignments (smaller output)   |   FALSE   |
- *            | -E           |  report hits <= this E-value threshold      |    10.0   |
- *            | -T           |  report hits >= this bit score threshold    |    NULL   |
- *            | -Z           |  set initial hit search space size          |    NULL   |
- *            | --domZ       |  set domain search space size               |    NULL   |
- *            | --domE       |  report domains <= this E-value threshold   |    10.0   |
- *            | --domT       |  report domains >= this bit score threshold |    NULL   |
- *            | --incE       |  include hits <= this E-value threshold     |    0.01   |
- *            | --incT       |  include hits >= this bit score threshold   |    NULL   |
- *            | --incdomE    |  include domains <= this E-value threshold  |    0.01   |
- *            | --incdomT    |  include domains >= this score threshold    |    NULL   |
- *            | --cut_ga     |  model-specific thresholding using GA       |   FALSE   |
- *            | --cut_nc     |  model-specific thresholding using NC       |   FALSE   |
- *            | --cut_tc     |  model-specific thresholding using TC       |   FALSE   |
- *            | --max        |  turn all heuristic filters off             |   FALSE   |
- *            | --F1         |  Stage 1 (MSV) thresh: promote hits P <= F1 |    0.02   |
- *            | --F2         |  Stage 2 (Vit) thresh: promote hits P <= F2 |    1e-3   |
- *            | --F3         |  Stage 3 (Fwd) thresh: promote hits P <= F3 |    1e-5   |
+ *            || option      ||            description                       || usually  ||
+ *            | --noali      |  don't output alignments (smaller output)      |   FALSE   |
+ *            | -E           |  report hits <= this E-value threshold         |    10.0   |
+ *            | -T           |  report hits >= this bit score threshold       |    NULL   |
+ *            | -Z           |  set initial hit search space size             |    NULL   |
+ *            | --incE       |  include hits <= this E-value threshold        |    0.01   |
+ *            | --incT       |  include hits >= this bit score threshold      |    NULL   |
+ *            | --max        |  turn all heuristic filters off                |   FALSE   |
+ *            | --F1         |  Stage 1 (MSV) thresh: promote hits P <= F1    |    0.02   |
+ *            | --F2         |  Stage 2 (Vit) thresh: promote hits P <= F2    |    1e-3   |
+ *            | --F3         |  Stage 3 (Fwd) thresh: promote hits P <= F3    |    1e-5   |
  *            | --F4         |  Stage 3 (FS-Fwd) thresh: promote hits P <= F4 |    5e-4   |
- *            | --nobias     |  turn OFF composition bias filter HMM       |   FALSE   |
- *            | --nolocalbias|  turn OFF local composition bias filter     |   FALSE   |
- *            | --nonull2    |  turn OFF biased comp score correction      |   FALSE   |
- *            | --seed       |  RNG seed (0=use arbitrary seed)            |      42   |
- *            | --acc        |  prefer accessions over names in output     |   FALSE   |
+ *            | --nobias     |  turn OFF composition bias filter HMM          |   FALSE   |
+ *            | --nolocalbias|  turn OFF local composition bias filter        |   FALSE   |
+ *            | --nonull2    |  turn OFF biased comp score correction         |   FALSE   |
+ *            | --seed       |  RNG seed (0=use arbitrary seed)               |      42   |
+ *            | --acc        |  prefer accessions over names in output        |   FALSE   |
  *
  *            As a special case, if <go> is <NULL>, defaults are set as above.
  *            This shortcut is used in simplifying test programs and the like.

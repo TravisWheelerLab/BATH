@@ -120,7 +120,6 @@ BATH_VERSION="2.0"
 BATH_URL="https://github.com/TravisWheelerLab/BATH"
 
 HMMER_ESLDIR="easel"
-HMMER_SADIR="libdivsufsort"
 
 EASEL_DATE="Nov 2020"
 EASEL_COPYRIGHT="Copyright (C) 2020 Howard Hughes Medical Institute."
@@ -139,7 +138,6 @@ AC_SUBST(BATH_VERSION)
 AC_SUBST(BATH_URL)
 
 AC_SUBST(HMMER_ESLDIR)
-AC_SUBST(HMMER_SADIR)
 
 AC_SUBST(EASEL_DATE)
 AC_SUBST(EASEL_COPYRIGHT)
@@ -669,7 +667,6 @@ AC_CONFIG_FILES([ \
   documentation/man/Makefile                   \
   documentation/userguide/Makefile             \
   documentation/userguide/inclusions/Makefile  \
-  libdivsufsort/Makefile                       \
   ])
 
 # Easel Makefiles.
@@ -729,7 +726,6 @@ AC_CONFIG_FILES([ \
 AC_CONFIG_HEADERS([easel/decoy_config.h])   # Put this first to keep gnu 'autoheader' from overwriting a real config file.
 AC_CONFIG_HEADERS([src/p7_config.h])
 AC_CONFIG_HEADERS([easel/esl_config.h])
-AC_CONFIG_HEADERS([libdivsufsort/divsufsort.h])
 
 # the following incantation establishes a symlink of
 # src/impl_{whatever} to src/impl in the *build* directory.

@@ -67,6 +67,7 @@ static ESL_OPTIONS options[] = {
   { "-o",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
   { "--ct",        eslARG_INT,    "1",      NULL, NULL,             NULL, NULL,     NULL, "use alt genetic code of NCBI transl table <n>",         1 }, 
+  { "--nofs",      eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     NULL, "skip frameshift stats; model is align-only, not searchable", 1 }, 
 
   /* Alternate model construction strategies */
   { "--fast",      eslARG_NONE,   "default",NULL, NULL,          CONOPTS, NULL,     NULL, "assign cols w/ >= symfrac residues as consensus",       3 },
@@ -264,6 +265,7 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
 
   if (fprintf(cfg->ofp, "# input file:                       %s\n", cfg->infile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(cfg->ofp, "# output HMM file:                  %s\n", cfg->hmmfile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_GetBoolean(go, "--nofs") && fprintf(cfg->ofp, "# frameshift stats calculated:      NO (align-only model)\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
   if (esl_opt_IsUsed(go, "-n")           && fprintf(cfg->ofp, "# name (the single) HMM:            %s\n",        esl_opt_GetString(go, "-n"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")           && fprintf(cfg->ofp, "# output directed to file:          %s\n",        esl_opt_GetString(go, "-o"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -608,6 +610,10 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 
       /* special arguments for hmmbuild */
 	  info[i].bld->fsprob = p7P_FSPROB;
+      /* --nofs: skip the FS3/FS5 tau calibrations. Cheaper, but the resulting
+       * model carries no frameshift stats, so bathsearch will reject it.
+       * Intended for tools that only need the core profile (e.g. bathalign). */
+      info[i].bld->fs         = (! esl_opt_GetBoolean(go, "--nofs"));
       info[i].bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
       info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;
       if ( info[i].bld->w_beta < 0 || info[i].bld->w_beta > 1  ) esl_fatal("Invalid window-length beta value\n");

@@ -32,7 +32,7 @@ eweight_target_f(double Neff, void *params, double *ret_fx)
 
   p7_hmm_CopyParameters(p->hmm, p->h2);
   p7_hmm_Scale(p->h2, Neff / (double) p->h2->nseq);
-  p7_ParameterEstimation(p->h2, p->pri);
+  p7_ParameterEstimation_MatchOnly(p->h2, p->pri);
   *ret_fx = p7_MeanMatchRelativeEntropy(p->h2, p->bg) - p->etarget;
   return eslOK;
 }
@@ -107,7 +107,7 @@ eweight_target_exp_f(double exp, void *params, double *ret_fx)
 
   p7_hmm_CopyParameters(p->hmm, p->h2);
   p7_hmm_ScaleExponential(p->h2, exp);
-  p7_ParameterEstimation(p->h2, p->pri);
+  p7_ParameterEstimation_MatchOnly(p->h2, p->pri);
   *ret_fx = p7_MeanMatchRelativeEntropy(p->h2, p->bg) - p->etarget;
   return eslOK;
 }

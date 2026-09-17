@@ -1,0 +1,46 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-check:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up build environment
+        run: |
+          if [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
+            sudo apt-get update
+            sudo apt-get install -y autoconf gcc make python3
+          elif [ ${{ matrix.os }} == 'macos-latest' ]; then
+            brew install autoconf gcc make
+          fi
+
+      - name: Clone Easel repository
+        run: |
+          git clone https://github.com/TravisWheelerLab/easel
+          cd easel
+          git checkout BATH
+          cd ..
+
+      - name: Run autoconf
+        run: autoconf
+
+      - name: Configure
+        run: ./configure
+
+      - name: Build
+        run: make -j
+
+      - name: Run testsuite
+        run: make check

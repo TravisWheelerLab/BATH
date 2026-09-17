@@ -1588,6 +1588,7 @@ extern P7_PRIOR  *p7_prior_CreateLaplace(const ESL_ALPHABET *abc);
 extern void       p7_prior_Destroy(P7_PRIOR *pri);
 
 extern int        p7_ParameterEstimation(P7_HMM *hmm, const P7_PRIOR *pri);
+extern int        p7_ParameterEstimation_MatchOnly(P7_HMM *hmm, const P7_PRIOR *pri);
 
 /* p7_profile.c */
 extern P7_PROFILE    *p7_profile_Create(int M, const ESL_ALPHABET *abc);

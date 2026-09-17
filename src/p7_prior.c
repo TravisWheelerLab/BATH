@@ -277,6 +277,30 @@ p7_prior_Destroy(P7_PRIOR *pri)
 
 
 
+/* Function:  p7_ParameterEstimation_MatchOnly()
+ * Purpose:   Like p7_ParameterEstimation(), but only the match emissions.
+ *            For callers (entropy weighting) that only read hmm->mat.
+ */
+int
+p7_ParameterEstimation_MatchOnly(P7_HMM *hmm, const P7_PRIOR *pri)
+{
+  int   k;
+  double c[p7_MAXABET];
+  double p[p7_MAXABET];
+
+  if (pri==NULL) return p7_hmm_Renormalize(hmm);
+
+  for (k = 1; k <= hmm->M; k++) {
+    esl_vec_F2D(hmm->mat[k], hmm->abc->K, c);
+    esl_mixdchlet_MPParameters(pri->em, c, p);
+    esl_vec_D2F(p, hmm->abc->K, hmm->mat[k]);
+  }
+  esl_vec_FSet(hmm->mat[0], hmm->abc->K, 0.);
+  hmm->mat[0][0] = 1.0;
+  return eslOK;
+}
+
+
 /* Function:  p7_ParameterEstimation()
  * Incept:    SRE, Sat Mar 24 10:15:37 2007 [Janelia]
  *

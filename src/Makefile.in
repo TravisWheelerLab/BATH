@@ -29,7 +29,7 @@ AVX_CFLAGS     = @AVX_CFLAGS@
 CPPFLAGS       = @CPPFLAGS@
 LDFLAGS        = @LDFLAGS@
 DEFS           = @DEFS@
-LIBS           = -lhmmer -leasel -ldivsufsort  @LIBS@ @LIBGSL@ @PTHREAD_LIBS@ -lm
+LIBS           = -lhmmer -leasel  @LIBS@ @LIBGSL@ @PTHREAD_LIBS@ -lm
 
 AR        = @AR@ 
 RANLIB    = @RANLIB@
@@ -38,11 +38,9 @@ INSTALL   = @INSTALL@
 
 IMPLDIR   = impl_@IMPL_CHOICE@
 ESLDIR    = @HMMER_ESLDIR@
-SADIR     = @HMMER_SADIR@
 
-MYLIBDIRS = -L../${ESLDIR} -L./${IMPLDIR} -L../${SADIR} -L.
+MYLIBDIRS = -L../${ESLDIR} -L./${IMPLDIR} -L.
 MYINCDIRS = -I../${ESLDIR} \
-	    -I../${SADIR} \
 	    -I${top_srcdir}/easel \
 	    -I. \
 	    -I${srcdir}

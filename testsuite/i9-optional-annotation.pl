@@ -58,7 +58,7 @@ EOF
 close ALI1;
 close SEQ1;
 
-@output = `$builddir/src/bathbuild $tmppfx.bhmm $tmppfx.sto 2>&1`;
+@output = `$builddir/src/bathbuild --fs $tmppfx.bhmm $tmppfx.sto 2>&1`;
 if ($? != 0) { die "FAIL: bathbuild failed\n"; }
 
 @output = `$builddir/src/bathsearch --fs --tblout $tmppfx.tbl $tmppfx.bhmm $tmppfx.seq 2>&1`;

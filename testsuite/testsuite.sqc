@@ -177,6 +177,17 @@
 1 exercise  bathemit/-p/--dna       @src/bathemit@  -p --dna                  !testsuite/Caudal_act.bhmm!
 1 exercise  bathemit/-c/--dna       @src/bathemit@  -c --dna                  !testsuite/Caudal_act.bhmm!
 
+# bathalign  xxxxxxxxxxxxxxxxxxxx
+1 prep      testseq              @src/bathemit@ -p --unilocal -L0 -N 4 --seed 42 !testsuite/Caudal_act.bhmm! > %TESTSEQ%
+1 exercise  bathalign             @src/bathalign@ !testsuite/Caudal_act.bhmm! %TESTSEQ%
+1 exercise  bathalign/-h          @src/bathalign@ -h
+1 exercise  bathalign/-o          @src/bathalign@ -o /dev/null                         !testsuite/Caudal_act.bhmm! %TESTSEQ%
+1 exercise  bathalign/--mapali    @src/bathalign@ --mapali !testsuite/Caudal_act.sto!  !testsuite/Caudal_act.bhmm! %TESTSEQ%
+1 exercise  bathalign/--trim      @src/bathalign@ --trim                               !testsuite/Caudal_act.bhmm! %TESTSEQ%
+1 exercise  bathalign/--amino     @src/bathalign@ --amino                              !testsuite/Caudal_act.bhmm! %TESTSEQ%
+1 exercise  bathalign/--informat  @src/bathalign@ --informat fasta                     !testsuite/Caudal_act.bhmm! %TESTSEQ%
+1 exercise  bathalign/--outformat @src/bathalign@ --outformat a2m                      !testsuite/Caudal_act.bhmm! %TESTSEQ%
+
 #################################################################
 # Integration tests
 ################################################################

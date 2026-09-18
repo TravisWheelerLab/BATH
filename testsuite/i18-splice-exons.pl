@@ -80,7 +80,7 @@ sub check_exons {
 }
 
 &check_exons("tmem-258",  "$srcdir/testsuite/tmem-258.bhmm", "$srcdir/testsuite/tmem-258.fa", $tmem);
-&check_exons("PTHR37536", "$srcdir/tutorial/PTHR37536.bhmm", "$srcdir/tutorial/target-PTHR37536.fa", $pthr);
+&check_exons("PTHR37536", "$srcdir/testsuite/PTHR37536.bhmm", "$srcdir/testsuite/PTHR37536-nt.fa", $pthr);
 
 print "ok\n";
 unlink "$tmppfx.extbl";

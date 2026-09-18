@@ -1,0 +1,211 @@
+.TH "bathalign" 1 "@BATH_DATE@" "BATH @BATH_VERSION@" "BATH Manual"
+
+.SH NAME
+bathalign \- align sequences to a profile HMM
+
+
+.SH SYNOPSIS
+.B bathalign
+[\fIoptions\fR]
+.I hmmfile
+.I seqfile
+
+
+.SH DESCRIPTION
+
+.PP
+.B bathalign
+performs a multiple sequence alignment of all the sequences in
+.I seqfile
+by aligning each of them individually to the profile HMM in
+.IR hmmfile ,
+and writes the resulting alignment to stdout.
+
+.PP
+Unlike
+.BR bathsearch ,
+.B bathalign
+does not translate or search across reading frames: the sequences in
+.I seqfile
+must already be in the same alphabet as the profile in
+.IR hmmfile .
+For an amino acid profile, this means
+.I seqfile
+should contain protein sequences, not DNA.
+
+.PP
+.I hmmfile
+should contain only a single profile; if it contains more, bathalign
+fails with an error rather than guessing which one to use. It may be
+either a BATH-formatted profile
+.RB ( .bhmm ,
+as produced by
+.BR bathbuild ),
+or a plain HMMER3-formatted profile
+.RB ( .hmm ).
+Because
+.B bathbuild
+only builds amino acid profiles, a DNA or RNA profile must come from
+HMMER's
+.BR hmmbuild .
+
+.PP
+Either
+.I hmmfile
+or
+.I seqfile
+(but not both) may be '\-' (dash), which means reading that input from
+stdin rather than a file.
+
+.PP
+The sequences in
+.I seqfile
+are aligned in unihit local alignment mode. Therefore they should
+already be known to contain only a single domain (or a fragment of
+one). The optimal alignment may assign some residues as nonhomologous,
+in which case these residues are still included in the resulting
+alignment, but shoved to the outer edges. To trim these unaligned
+residues from the result, see the
+.B \-\-trim
+option.
+
+
+.SH OPTIONS
+
+.TP
+.B \-h
+Help; print a brief reminder of command line usage and all available
+options.
+
+.TP
+.BI \-o " <f>"
+Direct the output alignment to file
+.IR <f> ,
+rather than to stdout.
+
+.TP
+.BI \-\-mapali " <f>"
+Merge the existing alignment in file
+.I <f>
+into the result, where
+.I <f>
+is exactly the same alignment that was used to build the model in
+.IR hmmfile .
+This is done using a map of alignment columns to consensus profile
+positions that is stored in
+.IR hmmfile .
+The multiple alignment in
+.I <f>
+will be exactly reproduced in its consensus columns (as defined by the
+profile), but the displayed alignment in insert columns may be
+altered, because insertions relative to a profile are considered by
+convention to be unaligned data.
+
+.TP
+.B \-\-trim
+Trim nonhomologous residues from the resulting multiple alignment
+output.
+
+.TP
+.B \-\-amino
+Assert that sequences in
+.I seqfile
+and the profile in
+.I hmmfile
+are protein, bypassing alphabet autodetection.
+
+.TP
+.B \-\-dna
+Assert that sequences in
+.I seqfile
+and the profile in
+.I hmmfile
+are DNA, bypassing alphabet autodetection.
+
+.TP
+.B \-\-rna
+Assert that sequences in
+.I seqfile
+and the profile in
+.I hmmfile
+are RNA, bypassing alphabet autodetection.
+
+.TP
+.BI \-\-informat " <s>"
+Assert that input
+.I seqfile
+is in format
+.IR <s> ,
+bypassing format autodetection. Common choices for
+.I <s>
+include
+.BR fasta ,
+.BR embl ,
+and
+.BR genbank .
+Alignment formats also work; common choices include
+.BR stockholm ,
+.BR a2m ,
+.BR afa ,
+.BR psiblast ,
+.BR clustal ,
+and
+.BR phylip .
+The string
+.I <s>
+is case-insensitive
+.RB ( fasta
+or
+.B FASTA
+both work).
+
+.TP
+.BI \-\-outformat " <s>"
+Write the output alignment in format
+.IR <s> .
+Common choices for
+.I <s>
+include
+.BR stockholm ,
+.BR a2m ,
+.BR afa ,
+.BR psiblast ,
+.BR clustal ,
+and
+.BR phylip .
+The string
+.I <s>
+is case-insensitive
+.RB ( a2m
+or
+.B A2M
+both work). The default is
+.BR stockholm .
+
+
+.SH SEE ALSO
+
+.BR bathsearch (1),
+.BR bathbuild (1),
+.BR bathfetch (1),
+.BR bathconvert (1),
+.BR bathstat (1),
+.BR bathemit (1)
+
+.PP
+For complete documentation, see the BATH repository:
+https://github.com/TravisWheelerLab/BATH
+
+
+.SH COPYRIGHT
+
+.nf
+Freely distributed under the BSD open source license.
+.fi
+
+
+.SH AUTHOR
+
+.nf
+https://github.com/TravisWheelerLab/BATH
+.fi

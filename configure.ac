@@ -694,6 +694,7 @@ AC_CONFIG_FILES([ \
   documentation/man/bathconvert.man \
   documentation/man/bathstat.man    \
   documentation/man/bathemit.man    \
+  documentation/man/bathalign.man   \
   ])
 
 # Substitutions in Easel man pages:

@@ -1,4 +1,4 @@
-/* bathalign: align protein sequences to a BATH profile HMM
+/* bathalign: align sequences to a BATH profile HMM
  */
 #include "p7_config.h"
 
@@ -38,7 +38,7 @@ static ESL_OPTIONS options[] = {
 };
 
 static char usage[]  = "[-options] <hmmfile> <seqfile>";
-static char banner[] = "align protein sequences to a profile HMM";
+static char banner[] = "align sequences to a profile HMM";
 
 
 

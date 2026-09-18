@@ -25,7 +25,8 @@ MANS =  bathsearch\
 	bathfetch\
 	bathconvert\
 	bathstat\
-	bathemit
+	bathemit\
+	bathalign
 
 .PHONY:  install uninstall clean distclean
 

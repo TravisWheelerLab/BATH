@@ -53,7 +53,8 @@ code).
 .BR bathbuild (1),
 .BR bathfetch (1),
 .BR bathstat (1),
-.BR bathemit (1)
+.BR bathemit (1),
+.BR bathalign (1)
 
 .PP
 For complete documentation, see the BATH repository:

@@ -1,13 +1,13 @@
 # Tutorial
 
-BATH was built on top of the existing HMMER3 code base. Users who are familiar with HMMER will find that BATH uses many of the same conventions. This tutorial will focus on getting you familiar with the five BATH tools listed below and, to avoid redundancy, will link to the HMMER user guide where applicable. This tutorial is for BATH 2.0 and later releases. 
+BATH was built on top of the existing HMMER3 code base. Users who are familiar with HMMER will find that BATH uses many of the same conventions. This tutorial will focus on getting you familiar with the seven BATH tools listed below and, to avoid redundancy, will link to the HMMER user guide where applicable. This tutorial is for BATH 2.0 and later releases. 
 
-There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a search. The second section - Running bathsearch - will focus on using BATH to perform translated homology search, and on interpreting the search results. All the necessary files to complete the practices are located in the directory BATH/tutorial/. **You should cd into this directory before running the practice commands**. Output files from the practice command are already present in the tutorial directory if you want to skip running the commands and jump to looking at the output. 
+There are two sections in this tutorial. The first section - Input files - will cover the tools that are used to prepare your data before you begin a search. The second section - Running bathsearch - will focus on using BATH to perform translated homology search, and on interpreting the search results. All the necessary files to complete the practices are located in the directory BATH/tutorial/. **You should cd into this directory before running the practice commands**. Output files from the practice commands are already present in the tutorial directory if you want to skip running the commands and jump to looking at the output. Two of the tools, bathalign and bathemit, are not used in the practices below; see their man pages for details.
 
 **Tools**
 ---
 
-**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 5 below) or a file containing sequences or sequence alignments (see Practice 11). The alignments bathsearch procedures are translated (codons to amino acids) and can be frameshift aware or spliced. 
+**bathsearch**      - search a DNA sequence database (or genome) for instances of one or more query proteins. The query can consist of a file of pHMMs (produced using bathbuild or bathconvert - see Practices 1 and 5 below) or a file containing sequences or sequence alignments (see Practice 11). The alignments bathsearch produces are translated (codons to amino acids) and can be frameshift aware or spliced. 
 ```
 Usage: bathsearch [options] <protein-queryfile> <DNA-targetfile>
 ```
@@ -30,6 +30,14 @@ Usage: bathfetch [options] <hmmfile_in> <key>         (retrieves HMM named <key>
 Usage: bathfetch [options] -f <hmmfile_in> <keyfile>  (retrieves all HMMs in <keyfile>)
 Usage: bathfetch [options] --index <hmmfile_in>       (indexes <hmmfile>)
 ```
+**bathalign**   - align the sequences in a file to a single pHMM and write the result as a multiple sequence alignment. The sequences and the pHMM must be in the same alphabet (for example, protein sequences and a protein pHMM). Unlike bathsearch, bathalign does not translate DNA or account for frameshifts or splicing.
+```
+Usage: bathalign [-options] <hmmfile> <seqfile>
+```
+**bathemit**    - sample sequences, a consensus sequence, or an alignment from a pHMM, optionally back-translated to DNA with simulated frameshifts. This is useful for generating test data.
+```
+Usage: bathemit [-options] <hmmfile>
+```
 
 
 ## Section 1 - Input files 
@@ -43,7 +51,7 @@ A bathsearch query file contains the proteins you wish to search for in the targ
 <details><summary>Practice 1: building a pHMM from an MSA using bathbuild</summary>
 <p>
 
-The sensitivity of BATH is powered, in large part, by the use of pHMMs. The pHMM files used by BATH are nearly identical to the ones used by HMMER, but contain additional information needed to perform codon translations and provide e-values for frameshift-aware alignments. If you would like more information on pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
+The sensitivity of BATH is powered, in large part, by the use of pHMMs. The pHMM files used by BATH are nearly identical to the ones used by HMMER, but contain additional information needed to perform codon translations and, optionally, to provide e-values for frameshift-aware alignments (see the note after the command below). If you would like more information on pHMM files see the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf) (page 208). 
    
 BATH formatted pHMMs can be created from MSA files or unaligned sequence files using the tool bathbuild. The file MET.msa contains two stockholm formatted protein MSAs (note that stockholm is the only MSA format that allows multiple MSAs in a single file). You can build pHMMs from those MSAs and save them to the file MET.bhmm by running the following command: 
    
@@ -51,6 +59,14 @@ BATH formatted pHMMs can be created from MSA files or unaligned sequence files u
 % bathbuild MET.bhmm MET.msa
 ```
 (note the file suffix '.bhmm' - this can help distinguish BATH-formatted pHMM files from HMMER-formatted ones, which often have the suffix '.hmm')
+
+By default, bathbuild does not calculate the frameshift statistics that `bathsearch --fs` needs to compute e-values. Skipping this step makes building much faster. If you plan to search a pHMM with `--fs` (see Practice 12), add the `--fs` flag when you build it:
+
+```bash
+% bathbuild --fs MET.bhmm MET.msa
+```
+
+A pHMM built without `--fs` works normally for standard and spliced searches. To use it with `--fs` later, add the statistics with bathconvert (see Practice 5) or rebuild it with `bathbuild --fs`. If a pHMM is missing them, `bathsearch --fs` stops with an error saying so.
 
 The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
 
@@ -61,6 +77,7 @@ The summary output that is printed to your stdout should resemble the text below
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # input file:                       MET.msa
 # output HMM file:                  MET.bhmm
+# frameshift stats calculated:      NO
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq   len  mlen ctbl eff_nseq re/pos description
@@ -68,7 +85,7 @@ The summary output that is printed to your stdout should resemble the text below
   1      metC                    11   483   409    1     0.60  0.591 Cystathionine beta-lyase
   2      metG                    24   494   458    1     0.62  0.589 Methionine--tRNA ligase
 
-# CPU time: 4.67u 0.00s 00:00:04.67 Elapsed: 00:00:02.50
+# CPU time: 0.15u 0.00s 00:00:00.15 Elapsed: 00:00:00.08
 ```
    
 The following is a brief description of each of the above fields. 
@@ -80,11 +97,11 @@ name           Name of the pHMM.
 
 nseq           Number of sequences in the alignment this pHMM was built from.
 
-alen           Length of alignment - number of columns in the MSA.
+len            Length of alignment - number of columns in the MSA.
 
 mlen           Length of the pHMM - number of match states.
 
-codon_tbl      The NCBI codon translation table ID assumed for the target DNA
+ctbl           The NCBI codon translation table ID assumed for the target DNA
 
 eff_nseq       Effective sequence number. This is the “effective” number of independent sequences that bathbuild’s default “entropy weighting” step decided on, given the phylogenetic similarity of the nseq sequences in the input alignment. The higher the number the more diversity there is among the sequences in the MSA. 
 
@@ -140,6 +157,7 @@ The summary output that is printed to your stdout should resemble the text below
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # input file:                       MET.msa
 # output HMM file:                  MET-ct4.bhmm
+# frameshift stats calculated:      NO
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq   len  mlen ctbl eff_nseq re/pos description
@@ -147,7 +165,7 @@ The summary output that is printed to your stdout should resemble the text below
   1      metC                    11   483   409    4     0.60  0.591 Cystathionine beta-lyase
   2      metG                    24   494   458    4     0.62  0.589 Methionine--tRNA ligase
 
-# CPU time: 4.66u 0.01s 00:00:04.67 Elapsed: 00:00:02.48
+# CPU time: 0.13u 0.00s 00:00:00.13 Elapsed: 00:00:00.08
 ```
 
 </p>
@@ -171,6 +189,7 @@ The summary output that is printed to your stdout should resemble the text below
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # input file:                       three_seqs.fa
 # output HMM file:                  three_seqs.bhmm
+# frameshift stats calculated:      NO
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # idx    name                  nseq   len  mlen ctbl eff_nseq re/pos description
@@ -179,7 +198,7 @@ The summary output that is printed to your stdout should resemble the text below
   2      AT1G01020.1              1   245   245    1     1.00  0.552
   3      AT1G01030.1              1   358   358    1     1.00  0.600
 
-# CPU time: 4.58u 0.01s 00:00:04.59 Elapsed: 00:00:02.72
+# CPU time: 0.09u 0.00s 00:00:00.09 Elapsed: 00:00:00.06
 ```
 
 </p>
@@ -365,7 +384,7 @@ We can now open the file PTH2.out and see that the output is organized into the 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
 ```
     
-   2) Query Header - includes a summary of each query and a hits list sorted by E-value.  For each hit, the query header lists the E-value, bit score, and bias score adjustment (for more information on bias scores, see pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf).  This is followed by the name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, and a target description (which may be blank).
+   2) Query Header - includes a summary of each query and a hits list sorted by E-value.  For each hit, the query header lists the E-value, bit score, and bias score adjustment (for more information on bias scores, see pages 60-61 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf)).  This is followed by the name of the target sequence where the hit was located, the target sequence position for the start and end of the alignment, and a target description (which may be blank).
 
 ```
 Query:       PTH2  [M=116]
@@ -380,9 +399,9 @@ Scores for complete hits:
     4.2e-12   36.0   0.3  seq1       1273   1359
 ```
    
-   3) Annotation Lines- for each hit listed in the query header, bathsearch will produce an annotation line containing useful information about the hit. 
+   3) Annotation Lines - for each hit listed in the query header, bathsearch will produce an annotation line containing useful information about the hit. 
    
-       As in the query header, the annotations line lists the score, bias, and E-value for each hit. It also lists alignment coordinates for both the query (hmm-from & hmm-to) and the target (ali-from & ali-to). An explanation of the characters seen after the coordinates ('.','[', & ']') can be found on page 38 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf). The annotation line also lists the full length of the target sequence (sq-len) and the alignment's accuracy score (acc), which is the average expected per-residue accuracy of the alignment. 
+       As in the query header, the annotation line lists the score, bias, and E-value for each hit. It also lists alignment coordinates for both the query (hmm-from & hmm-to) and the target (ali-from & ali-to). An explanation of the characters seen after the coordinates ('.','[', & ']') can be found on page 38 of the [HMMER user guide](http://eddylab.org/software/hmmer/Userguide.pdf). The annotation line also lists the full length of the target sequence (sq-len) and the alignment's accuracy score (acc), which is the average expected per-residue accuracy of the alignment. 
        
        Below is the annotation line for the first hit in the file PTH2.out
   
@@ -462,7 +481,7 @@ The file AMP_N.bhmm will now contain a single HMM, and AMP_N.out will contain ou
 <details><summary>Practice 12: running bathsearch with frameshift-aware alignment</summary>
 <p>
 
-BATH no longer uses frameshift-aware alignment by default but instead requires the --fs flag to activate this alignment mode. The following command will run the same search as in Practice 11, but with frameshift-aware alignment and reusing the HMM file created with --hmmout. 
+BATH no longer uses frameshift-aware alignment by default but instead requires the --fs flag to activate this alignment mode. The pHMM must also contain frameshift statistics. AMP_N.bhmm from Practice 11 already does, because bathsearch calculates them when it builds a pHMM on the fly. For pHMMs made with bathbuild, that means building with `--fs` (see Practice 1). The following command will run the same search as in Practice 11, but with frameshift-aware alignment and reusing the HMM file created with --hmmout. 
    
 ```bash
 % bathsearch --fs -o AMP_N-fs.out AMP_N.bhmm target-AMP_N.fa
@@ -547,7 +566,7 @@ In addition to the standard alignment output, bathsearch can also produce tabula
 <details><summary>Using --tblout</summary>
 <p>
    
-The following command will run the same search as in Practice 8, but with the addition of the '--tblout' flag directing the tabular output to the file PTH2.tbl.
+The following command will run the same search as in Practice 9, but with the addition of the '--tblout' flag directing the tabular output to the file PTH2.tbl.
    
 ```bash
 % bathsearch -o PTH2.out --tblout PTH2.tbl PTH2.bhmm target-PTH2.fa
@@ -651,7 +670,7 @@ Using --tblout with --splice will produce an exon cnt column. The ali coordinate
 
 # hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to  exon cnt    E-value  score  bias   PID CIGAR
 #------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ---------------------
-       1 seq1                 -          PTHR37536            -               279        11       251       1300       119      1159        4    2.8e-28   87.9   5.2 30.33 24786M3D66M3I94M85N24M86N38M3I60M3D11M153N28M6D21M3D129M3I27M
+       1 seq1                 -          PTHR37536            -               279        11       251       1300       119      1159        4    2.8e-28   87.9   5.2 30.33 210M3D66M3I94M85N24M86N38M3I60M3D11M153N28M6D21M3D129M3I27M
 ```
 The CIGAR string shows introns as N. 85N is an intron that is 85 nucleotides long. 
 
@@ -689,7 +708,7 @@ The file PTHR37536.extbl should look like this:
 # [ok]                                                                                        
 ```
 
-The layout for --exontblout output is similar to --domtblout from HMMER. There is the same basic hit information as the --tbltout, hit ID (matches the hit ID for the same hit in --tblout), target name and accession, query name and accession, and HMM and sequence length.  E-value, hit score, and bias score are then reported for the whole gene underneath "full hit". The rest of the columns are exon-specific and are explained below.
+The layout for --exontblout output is similar to --domtblout from HMMER. There is the same basic hit information as the --tblout, hit ID (matches the hit ID for the same hit in --tblout), target name and accession, query name and accession, and HMM and sequence length.  E-value, hit score, and bias score are then reported for the whole gene underneath "full hit". The rest of the columns are exon-specific and are explained below.
 
 ```
 #                       The exon count for this exon

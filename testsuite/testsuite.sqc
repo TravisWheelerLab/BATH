@@ -209,6 +209,7 @@
 1 exercise  nonresidues            !testsuite/i8-nonresidues.pl!         @@ !! %OUTFILES%
 1 exercise  opt-annotation         !testsuite/i9-optional-annotation.pl! @@ !! %OUTFILES%
 1 exercise  dup-names              !testsuite/i10-duplicate-names.pl!    @@ !! %OUTFILES%
+1 exercise  splice-exons          !testsuite/i18-splice-exons.pl!       @@ !! %OUTFILES%
 1 exercise  stdin_pipes            !testsuite/i17-stdin.pl!              @@ !! %OUTFILES%
 
 ###########################################################################

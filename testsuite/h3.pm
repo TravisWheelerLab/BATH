@@ -104,4 +104,65 @@ sub ParseFSTbl {
     1;
 }
 
+# ParseExonTbl(): parse the per-exon table saved by bathsearch --exontblout.
+# Fills @exhit, @extname, @extacc, @exqname, @exqacc, @exhmmlen, @exseqlen,
+# @exfullE, @exfullsc, @exfullbias, @exnum, @exof, @exhmmfrom, @exhmmto,
+# @exalifrom, @exalito, @exP, @expid, @exsplice; $nex is the number of exons.
+sub ParseExonTbl {
+    my ($tblfile)    = @_;
+    my (@fields);
+
+    $nex        = 0;
+    @exhit      = ();
+    @extname    = ();
+    @extacc     = ();
+    @exqname    = ();
+    @exqacc     = ();
+    @exhmmlen   = ();
+    @exseqlen   = ();
+    @exfullE    = ();
+    @exfullsc   = ();
+    @exfullbias = ();
+    @exnum      = ();
+    @exof       = ();
+    @exhmmfrom  = ();
+    @exhmmto    = ();
+    @exalifrom  = ();
+    @exalito    = ();
+    @exP        = ();
+    @expid      = ();
+    @exsplice   = ();
+
+    if (! open(TBLFILE, $tblfile)) { print "FAIL: couldn't open exon table file"; exit 1 ; }
+    while (<TBLFILE>)
+    {
+	if (/^\#/) { next; }
+	s/\s+$//;
+	@fields = split(' ', $_, 19);
+
+	$exhit[$nex]      = $fields[0];
+	$extname[$nex]    = $fields[1];
+	$extacc[$nex]     = $fields[2];
+	$exqname[$nex]    = $fields[3];
+	$exqacc[$nex]     = $fields[4];
+	$exhmmlen[$nex]   = $fields[5];
+	$exseqlen[$nex]   = $fields[6];
+	$exfullE[$nex]    = $fields[7];
+	$exfullsc[$nex]   = $fields[8];
+	$exfullbias[$nex] = $fields[9];
+	$exnum[$nex]      = $fields[10];
+	$exof[$nex]       = $fields[11];
+	$exhmmfrom[$nex]  = $fields[12];
+	$exhmmto[$nex]    = $fields[13];
+	$exalifrom[$nex]  = $fields[14];
+	$exalito[$nex]    = $fields[15];
+	$exP[$nex]        = $fields[16];
+	$expid[$nex]      = $fields[17];
+	$exsplice[$nex]   = $fields[18];
+	$nex++;
+    }
+    close TBLFILE;
+    1;
+}
+
 1;

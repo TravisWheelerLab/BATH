@@ -20,9 +20,9 @@ Scores for complete hits:
 
 Annotation for each hit (and alignments):
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   35.7   0.1   1.1e-11         70       122 ..     34694     34536 ..     34706     34533 ..     35613   0.95
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   35.7   0.1   1.1e-11         70       122 ..     34694     34536 ..     35613   0.95
 
   Alignment:
   score: 35.7 bits
@@ -45,9 +45,9 @@ Annotation for each hit (and alignments):
                      *    *    *    *    8     PP
 
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   26.8   0.2   5.6e-09        328       364 ..     33906     33805 ..     33921     33802 ..     35613   0.81
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   26.8   0.2   5.6e-09        328       364 ..     33906     33805 ..     35613   0.81
 
   Alignment:
   score: 26.8 bits
@@ -64,9 +64,9 @@ Annotation for each hit (and alignments):
                      *    *    *    *    *    *    *    *    *    *    *    *    9     PP
 
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !    6.8   0.0    0.0069         12        68 ..     34872     34699 ..     34887     34657 ..     35613   0.85
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !    6.8   0.0    0.0069         12        68 ..     34872     34699 ..     35613   0.85
 
   Alignment:
   score: 6.8 bits
@@ -99,8 +99,8 @@ Residues passing bias filter:           2298  (0.0323); expected (0.02)
 Residues passing Vit filter:             666  (0.00935); expected (0.001)
 Residues passing Fwd filter:             549  (0.00771); expected (1e-05)
 Total number of hits:                      3  (0.00611)
-# CPU time: 0.09u 0.00s 00:00:00.09 Elapsed: 00:00:00.09
-# Mc/sec: 310.18
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.00
+# Mc/sec: 2976.54
 //
 Query:       metG  [M=458]
 Description: Methionine--tRNA ligase
@@ -114,9 +114,9 @@ Scores for complete hits:
 
 Annotation for each hit (and alignments):
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   44.2   6.3     3e-14        305       403 ..     19367     19663 ..     19364     19663 ..     35613   0.97
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   44.2   6.3     3e-14        305       403 ..     19367     19663 ..     35613   0.97
 
   Alignment:
   score: 44.2 bits
@@ -151,9 +151,9 @@ Annotation for each hit (and alignments):
                      *    9    6     PP
 
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   14.9   0.4   2.3e-05        231       282 ..     19140     19295 ..     19119     19301 ..     35613   0.86
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   14.9   0.4   2.3e-05        231       282 ..     19140     19295 ..     35613   0.86
 
   Alignment:
   score: 14.9 bits
@@ -176,9 +176,9 @@ Annotation for each hit (and alignments):
                      8    8    7    7     PP
 
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to       sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ---------   ----
- !   11.7   0.1   0.00022        122       163 ..     18832     18957 ..     18832     18960 ..     35613   0.93
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to       sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ---------   ----
+ !   11.7   0.1   0.00022        122       163 ..     18832     18957 ..     35613   0.93
 
   Alignment:
   score: 11.7 bits
@@ -205,7 +205,7 @@ Residues passing bias filter:           2775  (0.039); expected (0.02)
 Residues passing Vit filter:            1062  (0.0149); expected (0.001)
 Residues passing Fwd filter:             618  (0.00868); expected (1e-05)
 Total number of hits:                      3  (0.00813)
-# CPU time: 0.09u 0.01s 00:00:00.10 Elapsed: 00:00:00.09
-# Mc/sec: 346.44
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.01
+# Mc/sec: 3244.78
 //
 [ok]

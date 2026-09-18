@@ -18,9 +18,9 @@ Scores for complete hits:
 
 Annotation for each hit (and alignments):
 >> seq1  
-    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to     env-from    env-to    shifts  stops    sq-len    acc
-   ------ ----- ---------   --------   -------    --------- ---------    --------- ---------    ------  ----- ---------   ----
- !   82.8   0.1   1.9e-27          1       131 [.         1       402 [.         1       411 []      6      1       411   2.56
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to    shifts  stops    sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ------  ----- ---------   ----
+ !   82.8   0.1   1.9e-27          1       131 [.         1       402 [.      6      1       411   2.56
 
   Alignment:
   score: 82.8 bits
@@ -77,7 +77,7 @@ Residues passing bias filter:            537  (0.653); expected (0.02)
 Residues passing Vit filter:             393  (0.478); expected (0.001)
 Residues passing Fwd filter:             411  (0.5); expected (1e-05)
 Total number of hits:                      1  (0.489)
-# CPU time: 0.07u 0.00s 00:00:00.07 Elapsed: 00:00:00.07
-# Mc/sec: 1.57
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.00
+# Mc/sec: 27.06
 //
 [ok]

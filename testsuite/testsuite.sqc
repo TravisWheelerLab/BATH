@@ -158,6 +158,24 @@
 1 exercise  bathstat              @src/bathstat@         !testsuite/Caudal_act.bhmm!
 1 exercise  bathconvert           @src/bathconvert@      %CAUDAL.bhmm% !testsuite/Caudal_act.hmm!
 
+# bathemit  xxxxxxxxxxxxxxxxxxxx
+1 exercise  bathemit                @src/bathemit@                            !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/-h             @src/bathemit@  -h
+1 exercise  bathemit/-c             @src/bathemit@  -c                        !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/-o             @src/bathemit@  -o /dev/null              !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/-p             @src/bathemit@  -p                        !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/-N             @src/bathemit@  -N 10                     !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/-L             @src/bathemit@  -p -L 50                  !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--local        @src/bathemit@  -p --local                !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--unilocal     @src/bathemit@  -p --unilocal             !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--glocal       @src/bathemit@  -p --glocal               !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--uniglocal    @src/bathemit@  -p --uniglocal            !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--dna          @src/bathemit@  --dna                     !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--ct           @src/bathemit@  --dna --ct 11             !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--fs           @src/bathemit@  --dna --fs                !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/--fsprob       @src/bathemit@  --dna --fs --fsprob 0.05  !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/-p/--dna       @src/bathemit@  -p --dna                  !testsuite/Caudal_act.bhmm!
+1 exercise  bathemit/-c/--dna       @src/bathemit@  -c --dna                  !testsuite/Caudal_act.bhmm!
 
 #################################################################
 # Integration tests

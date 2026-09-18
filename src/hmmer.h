@@ -254,7 +254,7 @@ enum p7p_rsc_indels {
   p7P_X__   = 1,  // one nucleotide then two deletes
   p7P_XX_   = 2,  // two nucleotides then one delete
   p7P_X_X   = 3,  // one nucleotides, one delete, one nucleotide
-  p7P__XX   = 4,  // one delete then one nucleotide
+  p7P__XX   = 4,  // one delete then two nucleotides
   p7P_XXX   = 5,  // standard codon
   p7P_XXx   = 6,  // stop codon with subsitition at last nucleotide
   p7P_XxX   = 7,  // stop codon with subsitition at middle nucleotide

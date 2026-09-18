@@ -346,7 +346,8 @@ length at each model position is no more than
 .BR bathsearch (1),
 .BR bathfetch (1),
 .BR bathconvert (1),
-.BR bathstat (1)
+.BR bathstat (1),
+.BR bathemit (1)
 
 .PP
 For complete documentation, see the BATH repository:

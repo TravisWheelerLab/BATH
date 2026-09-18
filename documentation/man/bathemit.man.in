@@ -1,0 +1,301 @@
+.TH "bathemit" 1 "@BATH_DATE@" "BATH @BATH_VERSION@" "BATH Manual"
+
+.SH NAME
+bathemit \- sample sequences from a profile HMM
+
+
+.SH SYNOPSIS
+.B bathemit
+[\fIoptions\fR]
+.I hmmfile
+
+
+.SH DESCRIPTION
+
+.PP
+The
+.B bathemit
+program samples (emits) sequences from the profile HMM(s) in
+.IR hmmfile ,
+and writes them to output. Sampling sequences is useful for generating
+synthetic test data and for inspecting what a built model actually
+represents; it is not part of the search pipeline.
+
+.PP
+The default is to sample one unaligned sequence from the core
+probability model, which means each sequence consists of one
+full-length domain with no flanking sequence. Alternatively, with the
+.B \-c
+option, you can emit a simple majority-rule consensus sequence; with
+.BR \-C ,
+a consensus sequence annotated for per-position confidence; or with
+.BR \-a ,
+an alignment of several sampled sequences (in which case you probably
+also want to set
+.B \-N
+to something other than its default of 1).
+
+.PP
+With the
+.B \-p
+option, you can instead sample from a fully configured search profile:
+this includes nonhomologous flanking sequence, local/glocal alignment
+mode, and the target length model, depending on the options chosen for
+the profile.
+
+.PP
+With
+.BR \-\-dna ,
+the emitted amino acid sequence(s) are back-translated to DNA, one
+randomly chosen synonymous codon per residue, using the genetic code
+selected by
+.BR \-\-ct .
+This requires
+.I hmmfile
+to contain a protein profile. With
+.BR \-\-fs ,
+each codon is additionally, independently subject to a simulated
+frameshift: instead of the usual 3 nucleotides, it may be rendered as
+1, 2, 4, or 5, at the rate set by
+.BR \-\-fsprob ,
+using the same indel patterns scored by
+.BR bathsearch 's
+frameshift-aware algorithm. This is intended to generate realistic
+test data for that algorithm.
+
+.PP
+.I hmmfile
+may contain a library of profiles, in which case each one is used in
+turn.
+
+.PP
+.I hmmfile
+may be '\-' (dash), which means reading this input from stdin rather
+than a file.
+
+
+.SH OPTIONS
+
+.TP
+.B \-h
+Help; print a brief reminder of command line usage and all available
+options.
+
+.TP
+.BI \-o " <f>"
+Direct the output sequences to file
+.IR <f> ,
+rather than to stdout.
+
+.TP
+.BI \-N " <n>"
+Sample
+.I <n>
+sequences per model, rather than just one. Not compatible with
+.B \-c
+or
+.BR \-C ,
+which each always produce a single consensus sequence.
+
+.TP
+.BI \-\-seed " <n>"
+Seed the random number generator with
+.IR <n> ,
+an integer >= 0. If
+.I <n>
+is nonzero, output is reproducible; the same command gives the same
+result every time. If
+.I <n>
+is 0, the generator is seeded arbitrarily, and output varies from run
+to run. The default is 0.
+
+
+.SH OPTIONS CONTROLLING WHAT TO EMIT
+
+The default is to sample
+.I N
+sequences from the core model. Alternatively, choose one (and only
+one) of the following.
+
+.TP
+.B \-a
+Sample
+.I N
+sequences from the core model, as in the default mode, and assemble
+them into a multiple alignment rather than writing them out
+individually. Because each sequence's alignment to the model is known
+at the moment it is generated (that is how it was generated), no
+realignment step is needed. Amino acid or DNA output (see
+.BR \-\-dna ),
+including with
+.BR \-\-fs .
+
+.TP
+.B \-c
+Emit a single, deterministic majority-rule consensus sequence, formed
+by selecting the maximum-probability residue at each match state,
+instead of sampling from the profile's probability distribution.
+
+.TP
+.B \-C
+Emit a fancier consensus sequence than
+.BR \-c ,
+annotated for confidence. If the maximum-probability residue at a
+position has probability p <
+.BR \-\-minl ,
+show it as an unspecified residue
+.RI ( X
+for amino acid,
+.I N
+for nucleic acid); if
+.B \-\-minl
+<= p <
+.BR \-\-minu ,
+show it in lower case; if p >=
+.BR \-\-minu ,
+show it in upper case. The default settings of
+.B \-\-minl
+and
+.B \-\-minu
+are both 0.0, which makes
+.B \-C
+give the same output as
+.B \-c
+unless you also set them.
+
+.TP
+.B \-p
+Sample unaligned sequence(s) from the implicit search profile rather
+than the core model. The core model consists only of the homologous
+states (between the begin and end states). The profile adds the
+nonhomologous N, C, and J states, local/glocal and uni/multihit
+algorithm configuration, and the target length model, so sequences
+sampled this way may include nonhomologous flanking sequence and more
+than one homologous segment. By default the profile is configured in
+multihit local mode with a target length of 400; see the options
+below.
+
+
+.SH OPTIONS CONTROLLING EMISSION FROM PROFILES WITH \-p
+
+These options require
+.BR \-p .
+
+.TP
+.BI \-L " <n>"
+Configure the profile's target length model for a mean length of
+approximately
+.I <n>
+rather than the default of 400.
+
+.TP
+.B \-\-local
+Configure the profile for multihit local alignment. This is the
+default.
+
+.TP
+.B \-\-unilocal
+Configure the profile for unihit local alignment.
+
+.TP
+.B \-\-glocal
+Configure the profile for multihit glocal alignment.
+
+.TP
+.B \-\-uniglocal
+Configure the profile for unihit glocal alignment.
+
+
+.SH OPTIONS CONTROLLING FANCY CONSENSUS EMISSION WITH \-C
+
+These options require
+.BR \-C .
+
+.TP
+.BI \-\-minl " <x>"
+Set the
+.I minl
+threshold below which a position is shown as an unspecified residue.
+.RI ( 0 " <= " x " <= " 1 ).
+Default 0.0.
+
+.TP
+.BI \-\-minu " <x>"
+Set the
+.I minu
+threshold at or above which a position is shown in upper case.
+.RI ( 0 " <= " x " <= " 1 ).
+Default 0.0.
+
+
+.SH OPTIONS CONTROLLING DNA OUTPUT
+
+.TP
+.B \-\-dna
+Back-translate the emitted amino acid sequence(s) to DNA, choosing one
+synonymous codon uniformly at random per residue, using the genetic
+code selected by
+.BR \-\-ct .
+Requires
+.I hmmfile
+to contain a protein profile.
+
+.TP
+.BI \-\-ct " <n>"
+With
+.BR \-\-dna ,
+use the alternate genetic code specified by NCBI translation table
+number
+.IR <n> ,
+instead of the default of 1 (the standard genetic code).
+
+.TP
+.B \-\-fs
+With
+.BR \-\-dna ,
+independently subject each codon to a simulated frameshift, at the
+rate set by
+.BR \-\-fsprob .
+A frameshifted codon is rendered as 1, 2, 4, or 5 nucleotides instead
+of the usual 3. Not compatible with
+.B \-c
+or
+.BR \-C ,
+which each always produce a single deterministic sequence.
+
+.TP
+.BI \-\-fsprob " <x>"
+With
+.BR \-\-fs ,
+set the per-codon frameshift rate to
+.IR <x> .
+The default matches the fixed rate used internally by BATH's own
+frameshift-aware scoring model.
+.RI ( 0.001 " <= " x " <= " 0.1 ).
+
+
+.SH SEE ALSO
+
+.BR bathsearch (1),
+.BR bathbuild (1),
+.BR bathfetch (1),
+.BR bathconvert (1),
+.BR bathstat (1)
+
+.PP
+For complete documentation, see the BATH repository:
+https://github.com/TravisWheelerLab/BATH
+
+
+.SH COPYRIGHT
+
+.nf
+Freely distributed under the BSD open source license.
+.fi
+
+
+.SH AUTHOR
+
+.nf
+https://github.com/TravisWheelerLab/BATH
+.fi

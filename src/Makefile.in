@@ -50,6 +50,7 @@ PROGS = bathsearch\
         bathalign\
         bathbuild\
         bathconvert\
+        bathemit\
         bathfetch\
         bathstat
 
@@ -57,6 +58,7 @@ PROGOBJS = bathsearch.o\
            bathalign.o\
            bathbuild.o\
            bathconvert.o\
+           bathemit.o\
            bathfetch.o\
            bathstat.o
 

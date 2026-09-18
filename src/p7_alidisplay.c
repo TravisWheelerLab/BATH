@@ -1390,12 +1390,13 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
 
   ad->L       = target_seq->L;
 
+  n_count = 0;
   if(show_cigar) {
     tot_cigar_length = 0;
     cigar_alloc_length = (z2-z1+2) * 5;
     ESL_ALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
   }
-  
+
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) {
@@ -1976,12 +1977,13 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
 	 
   ad->L       = sq->L;
 
+  n_count = 0;
   if(show_cigar) {
     tot_cigar_length = 0;
     cigar_alloc_length = (z2-z1+2) * 5;
     ESL_ALLOC(ad->cigar, sizeof(char) * (cigar_alloc_length+1));
   }
-  
+
   /* optional rf line */
   if (ad->rfline != NULL) {
     for (z = z1; z <= z2; z++) {

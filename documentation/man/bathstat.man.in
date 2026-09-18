@@ -89,7 +89,8 @@ options.
 .BR bathsearch (1),
 .BR bathbuild (1),
 .BR bathfetch (1),
-.BR bathconvert (1)
+.BR bathconvert (1),
+.BR bathemit (1)
 
 .PP
 For complete documentation, see the BATH repository:

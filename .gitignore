@@ -26,6 +26,7 @@ src/itest_brute
 src/bathalign
 src/bathbuild
 src/bathconvert
+src/bathemit
 src/bathfetch
 src/bathsearch
 src/bathstat

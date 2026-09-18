@@ -49,12 +49,14 @@ MYINCDIRS = -I../${ESLDIR} \
 PROGS = bathsearch\
         bathbuild\
         bathconvert\
+        bathemit\
         bathfetch\
         bathstat
 
 PROGOBJS = bathsearch.o\
            bathbuild.o\
            bathconvert.o\
+           bathemit.o\
            bathfetch.o\
            bathstat.o
 

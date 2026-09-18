@@ -89,6 +89,21 @@ The default is 1 (the standard genetic code). This is used when the
 model will be searched against DNA with
 .BR bathsearch .
 
+.TP
+.B \-\-fs
+Calculate the frameshift-aware E-value statistics (FS3/FS5) needed to
+use the resulting profile with
+.BR "bathsearch \-\-fs" .
+This is off by default: without it, the profile still works for
+standard
+.B bathsearch
+searches, but must be rebuilt with
+.B \-\-fs
+or repaired with
+.B bathconvert
+before it can be used with
+.BR "bathsearch \-\-fs" .
+
 
 .SH OPTIONS FOR PROFILE CONSTRUCTION
 

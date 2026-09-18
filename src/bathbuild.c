@@ -67,7 +67,7 @@ static ESL_OPTIONS options[] = {
   { "-o",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "direct summary output to file <f>, not stdout",         1 },
   { "-O",          eslARG_OUTFILE,FALSE,    NULL, NULL,             NULL, NULL,     NULL, "resave annotated, possibly modified MSA to file <f>",   1 },
   { "--ct",        eslARG_INT,    "1",      NULL, NULL,             NULL, NULL,     NULL, "use alt genetic code of NCBI transl table <n>",         1 }, 
-  { "--fs",        eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     NULL, "calculate FS3/FS5 stats, for bathsearch --fs/--fsonly",  1 }, 
+  { "--fs",        eslARG_NONE,   FALSE,    NULL, NULL,             NULL, NULL,     NULL, "calculate FS3/FS5 stats, for bathsearch --fs",          1 },
 
   /* Alternate model construction strategies */
   { "--fast",      eslARG_NONE,   "default",NULL, NULL,          CONOPTS, NULL,     NULL, "assign cols w/ >= symfrac residues as consensus",       3 },

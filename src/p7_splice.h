@@ -141,6 +141,10 @@ typedef struct _splice_pipeline
   P7_OMX  *fwd;
   P7_OMX  *bwd;
 
+  float   *fwd_scale;  /* Forward scale factor and C-state value for each row, saved so   */
+  float   *fwd_C;      /*   <fwd> can be reused; both are 0..fwd_alloc-1                  */
+  int      fwd_alloc;
+
   P7_BG   *bg;
 
   P7_HIT  *hit;

@@ -3233,6 +3233,12 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   om     = info->om;
   om_log = info->om_log;
 
+  if (pli->fwd_alloc < pli->amino_sq->n + 1) {
+    ESL_REALLOC(pli->fwd_scale, sizeof(float) * (pli->amino_sq->n + 1));
+    ESL_REALLOC(pli->fwd_C,     sizeof(float) * (pli->amino_sq->n + 1));
+    pli->fwd_alloc = pli->amino_sq->n + 1;
+  }
+
   tr           = p7_trace_CreateWithPP();
   hit          = p7_hit_Create_empty();
   hit->dcl     = p7_domain_Create_empty();
@@ -3254,12 +3260,18 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   p7_Forward (pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, &envsc);
   p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, NULL);
 
+  /* <fwd> is overwritten below; p7_splice_ScoreExons() needs these Forward values */
+  for (i = 0; i <= pli->amino_sq->n; i++) {
+    pli->fwd_scale[i] = pli->fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
+    pli->fwd_C[i]     = pli->fwd->xmx[i*p7X_NXCELLS+p7X_C];
+  }
+
   if((status = p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd)) == eslERANGE) {  /* <bwd> is now overwritten with post probabilities */
     /* This is a rare event usually caused by a low probability exon somewhere in the path.
      * If we can find the offending exon and cut the path in two at that point then we can
      * save the good exons, but to do that we need an alignment so we create one with Viterbi */
 
-    p7_omx_GrowTo_dpf(pli->fwd, om_log->M, pli->amino_sq->n, pli->amino_sq->n);  /* <fwd> is no longer needed for its forward scores; reused for the Viterbi matrix */
+    p7_omx_GrowTo_dpf(pli->fwd, om_log->M, pli->amino_sq->n, pli->amino_sq->n);  /* <fwd> is reused for the Viterbi matrix */
     p7_oprofile_ReconfigUnihit_Log(om_log, pli->amino_sq->n);
 
     p7_Viterbi(pli->amino_sq->dsq, pli->amino_sq->n, om_log, pli->fwd, NULL);
@@ -3379,6 +3391,8 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   p7_trace_Destroy(tr);
   return eslOK;
 
+ ERROR:
+  return status;
 }
 
 /*  Function: p7_splice_AlignSplicedSequnce
@@ -3578,11 +3592,9 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   float exon_score;
   float exon_pp;
   float nullsc;
-  P7_OMX* fwd;
   P7_BG *bg;
   ESL_SQ *amino_sq;
 
-  fwd      = pli->fwd;
   bg       = pli->bg;
   amino_sq = pli->amino_sq;
 
@@ -3591,10 +3603,10 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   
   scale = 0.;
   for(i = 0; i <= start_i; i++)
-    scale += log(fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+    scale += log(pli->fwd_scale[i]);
 
   if(start_i == 0) start_score = 0.;
-  else             start_score = log(fwd->xmx[start_i*p7X_NXCELLS+p7X_C]) + scale;
+  else             start_score = log(pli->fwd_C[start_i]) + scale;
   exon_nuc_len = llabs(ad->exon_seq_ends[0] - ad->exon_seq_starts[0]) + 1;
 
   remainder = exon_nuc_len % 3;
@@ -3608,9 +3620,9 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   end_i = start_i + exon_amino_len;
   
   for(i = start_i+1; i <= end_i; i++) 
-    scale += log(fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]); 
+    scale += log(pli->fwd_scale[i]); 
   
-  end_score = log(fwd->xmx[end_i*p7X_NXCELLS+p7X_C]) + scale;
+  end_score = log(pli->fwd_C[end_i]) + scale;
 
   exon_score = (end_score - start_score);
 
@@ -3660,10 +3672,10 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
    
    
     for(i = start_i+1; i <= end_i; i++) { 
-      scale += log(fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+      scale += log(pli->fwd_scale[i]);
 
     }
-    end_score = log(fwd->xmx[end_i*p7X_NXCELLS+p7X_C]) + scale;
+    end_score = log(pli->fwd_C[end_i]) + scale;
 
     exon_score = (end_score - start_score);
   

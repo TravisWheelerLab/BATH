@@ -110,6 +110,9 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->vit = NULL;
   pli->fwd = NULL;
   pli->bwd = NULL;
+  pli->fwd_scale = NULL;
+  pli->fwd_C     = NULL;
+  pli->fwd_alloc = 0;
   if ((pli->vit = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
   if ((pli->fwd = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
   if ((pli->bwd = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
@@ -192,6 +195,8 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   p7_omx_Destroy(pli->vit);
   p7_omx_Destroy(pli->fwd);
   p7_omx_Destroy(pli->bwd);
+  if(pli->fwd_scale != NULL) free(pli->fwd_scale);
+  if(pli->fwd_C     != NULL) free(pli->fwd_C);
 
   p7_bg_Destroy(pli->bg);
 

@@ -665,8 +665,6 @@ AC_CONFIG_FILES([ \
   src/impl_${impl_choice}/Makefile             \
   documentation/Makefile                       \
   documentation/man/Makefile                   \
-  documentation/userguide/Makefile             \
-  documentation/userguide/inclusions/Makefile  \
   ])
 
 # Easel Makefiles.
@@ -675,14 +673,6 @@ AC_CONFIG_FILES([ \
   easel/miniapps/Makefile       \
   easel/testsuite/Makefile      \
   easel/documentation/Makefile  \
-  ])
-
-# Substitutions in Userguide .tex files
-# HMMER_VERSION, HMMER_DATE, HMMER_COPYRIGHT
-AC_CONFIG_FILES([ \
-  documentation/userguide/titlepage.tex  \
-  documentation/userguide/titlepage_daemon.tex  \
-  documentation/userguide/copyright.tex  \
   ])
 
 # Substitutions in BATH man pages:

@@ -79,7 +79,7 @@ ifndef V
 		        ${MAKE} -s -C $$subdir
 endif
 
-.PHONY: all dev check pdf install install-strip uninstall clean distclean TAGS
+.PHONY: all dev check install install-strip uninstall clean distclean TAGS
 
 # all: Compile all documented executables.
 #      (Excludes test programs.)
@@ -110,11 +110,6 @@ check:
 	${QUIET_SUBDIR0}src        ${QUIET_SUBDIR1} tests
 	${QUIET_SUBDIR0}${ESLDIR}  ${QUIET_SUBDIR1} check
 	${QUIET_SUBDIR0}testsuite  ${QUIET_SUBDIR1} check
-
-# pdf: compile the User Guides.
-#
-pdf:
-	${QUIET_SUBDIR0}documentation ${QUIET_SUBDIR1} pdf
 
 # install: binaries in ${bindir}/, man pages in ${man1dir}/
 #          Creates these directories if they don't exist.

@@ -11,10 +11,7 @@ ifndef V
 endif
 
 
-.PHONY: pdf install uninstall clean distclean
-
-pdf:
-	${QUIET_SUBDIR0}userguide ${QUIET_SUBDIR1} pdf
+.PHONY: install uninstall clean distclean
 
 # install, uninstall are always verbose; do not use quiet beautification
 install: 
@@ -24,7 +21,6 @@ uninstall:
 	${MAKE} -C man uninstall
 
 clean:
-	${QUIET_SUBDIR0}userguide ${QUIET_SUBDIR1} clean
 	${QUIET_SUBDIR0}man       ${QUIET_SUBDIR1} clean
 	-rm -f *~
 ifndef V
@@ -33,7 +29,6 @@ endif
 
 
 distclean:
-	${QUIET_SUBDIR0}userguide ${QUIET_SUBDIR1} distclean
 	${QUIET_SUBDIR0}man       ${QUIET_SUBDIR1} distclean
 	-rm -f *~
 	-rm -f Makefile

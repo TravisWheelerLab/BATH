@@ -16,9 +16,6 @@ src/impl
 src/impl*/*_example
 src/impl*/*_utest
 src/impl*/*_benchmark
-documentation/userguide/copyright.tex
-documentation/userguide/titlepage.tex
-documentation/userguide/titlepage_daemon.tex
 documentation/man/*.man
 src/libhmmer.a
 src/p7_config.h

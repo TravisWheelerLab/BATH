@@ -8,11 +8,16 @@ on:
 
 jobs:
   build-and-check:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # the four platforms the release workflow builds
+        include:
+          - {os: ubuntu-latest, runner: ubuntu-latest}
+          - {os: ubuntu-latest, runner: ubuntu-24.04-arm}
+          - {os: macos-latest,  runner: macos-latest}
+          - {os: macos-latest,  runner: macos-15-intel}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

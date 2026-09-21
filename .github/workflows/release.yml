@@ -7,11 +7,16 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]  # build for ubuntu and mac
-        arch: [x64, arm64] # x64 and arm
+        # os and arch name the release asset; runner is the machine that builds it,
+        # so each asset is built on the architecture it is labeled with
+        include:
+          - {os: ubuntu-latest, arch: x64,   runner: ubuntu-latest}
+          - {os: ubuntu-latest, arch: arm64, runner: ubuntu-24.04-arm}
+          - {os: macos-latest,  arch: arm64, runner: macos-latest}
+          - {os: macos-latest,  arch: x64,   runner: macos-15-intel}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3

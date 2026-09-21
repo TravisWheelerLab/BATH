@@ -51,7 +51,7 @@ jobs:
       - name: Create tar.gz archive
         run: |
           cd installation/usr/local/bin
-          tar -czvf ../../../BATH-${{ steps.extract_version.outputs.version }}.${{ matrix.os }}.${{ matrix.arch }}.tar.gz bathsearch bathbuild bathconvert bathfetch bathstat
+          tar -czvf ../../../BATH-${{ steps.extract_version.outputs.version }}.${{ matrix.os }}.${{ matrix.arch }}.tar.gz bathsearch bathbuild bathconvert bathfetch bathstat bathalign bathemit
 
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4

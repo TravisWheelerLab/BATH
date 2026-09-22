@@ -155,8 +155,12 @@
 
 # xxxxxxxxx xxxxxxxxxxxxxxxxxxxx
 1 exercise  bathfetch             @src/bathfetch@        %MINIFAM.BHMM% Caudal_act
+1 exercise  bathfetch/--ct        @src/bathfetch@        --ct 4          %MINIFAM.BHMM% Caudal_act
+1 exercise  bathfetch/--fs        @src/bathfetch@        --fs            %MINIFAM.BHMM% Caudal_act
 1 exercise  bathstat              @src/bathstat@         !testsuite/Caudal_act.bhmm!
 1 exercise  bathconvert           @src/bathconvert@      %CAUDAL.bhmm% !testsuite/Caudal_act.hmm!
+1 exercise  bathconvert/--ct      @src/bathconvert@      --ct 4          %CAUDAL_CT.bhmm% !testsuite/Caudal_act.hmm!
+1 exercise  bathconvert/--fs      @src/bathconvert@      --fs            %CAUDAL_FS.bhmm% !testsuite/Caudal_act.hmm!
 
 # bathemit  xxxxxxxxxxxxxxxxxxxx
 1 exercise  bathemit                @src/bathemit@                            !testsuite/Caudal_act.bhmm!

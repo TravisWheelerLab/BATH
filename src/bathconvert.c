@@ -76,6 +76,7 @@ main(int argc, char **argv)
   int            hmmidx;
   char           errbuf[eslERRBUFSIZE];
   int            ct;
+  int            has_fs;
   P7_BG          *bg     = NULL;
   ESL_RANDOMNESS *r      = NULL;
   P7_FS_PROFILE  *gm_fs5 = NULL;
@@ -131,9 +132,12 @@ main(int argc, char **argv)
       ct = esl_opt_GetInteger(go, "--ct");  /* user value, or default=1 */
       if (!esl_opt_IsUsed(go, "--ct") && hmm->ct > 0) ct = hmm->ct;
 
-      /* --fs computes frameshift stats if missing; also recomputed if the codon table changes */
-      if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
+      /* frameshift stats, once present, must always match the current codon table, so a
+       * --ct change recomputes them regardless of --fs; --fs on its own only adds them
+       * if missing, and does nothing if they're already valid for the current table */
+      has_fs = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
+      if((has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+         (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)))) {
 
         hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;

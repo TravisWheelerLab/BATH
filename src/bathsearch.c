@@ -750,14 +750,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
           hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET )
         p7_Fail("HMM file %s has no frameshift statistics, which --fs requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
 
-    } 
+      /* frameshift E-values are computed from a specific codon table, so --fs/--fsonly
+       * requires the HMM's table to match the one bathsearch is using */
+      if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
+    }
     else {
       hmm->fs = FALSE;
       hmm->fsprob = 0.;
     }
-   
-
-    if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
 
     if(hmm->max_length == -1)
       p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);

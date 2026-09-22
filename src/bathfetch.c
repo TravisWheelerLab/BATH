@@ -255,6 +255,7 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
   int             ct;
+  int             has_fs;
   int             nhmm   = 0;
   char           *key;
   int             keylen;
@@ -295,9 +296,12 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      /* --fs computes frameshift stats if missing; also recomputed if the codon table changes */
-      if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
+      /* frameshift stats, once present, must always match the current codon table, so a
+       * --ct change recomputes them regardless of --fs; --fs on its own only adds them
+       * if missing, and does nothing if they're already valid for the current table */
+      has_fs = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
+      if((has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+         (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)))) {
 
         hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;
@@ -389,6 +393,7 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
   int             ct;
+  int             has_fs;
   int             status;
 
   ct = esl_opt_GetInteger(go, "--ct");
@@ -421,9 +426,12 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      /* --fs computes frameshift stats if missing; also recomputed if the codon table changes */
-      if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
+      /* frameshift stats, once present, must always match the current codon table, so a
+       * --ct change recomputes them regardless of --fs; --fs on its own only adds them
+       * if missing, and does nothing if they're already valid for the current table */
+      has_fs = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
+      if((has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+         (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)))) {
 
         hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;

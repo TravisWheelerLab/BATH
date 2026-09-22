@@ -46,6 +46,22 @@ number
 when processing the profile. The default is 1 (the standard genetic
 code).
 
+.TP
+.B \-\-fs
+Calculate the frameshift-aware E-value statistics (FS3/FS5) needed to
+use the resulting profile with
+.BR "bathsearch \-\-fs" ,
+if they are not already present. They are also recalculated whenever
+.B \-\-ct
+changes the codon table, whether or not
+.B \-\-fs
+is given, since existing statistics would otherwise be for the wrong
+table. If the profile already has valid statistics and
+.B \-\-ct
+does not change the table,
+.B \-\-fs
+has no effect.
+
 
 .SH SEE ALSO
 

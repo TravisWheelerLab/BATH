@@ -1508,7 +1508,7 @@ if (*ret_abc == NULL) {
 		else if (strcasecmp(tok2, "FORWARD") == 0)     { hmm->evparam[p7_FTAU] = atof(tok3);   hmm->evparam[p7_FLAMBDA] = atof(tok4); statstracker |= 0x4; }
         else if (strcasecmp(tok2, "FS3")     == 0)     { hmm->evparam[p7_FTAUFS3] = atof(tok4); hmm->fs = TRUE; }
 		else if (strcasecmp(tok2, "FS5")     == 0)     { hmm->evparam[p7_FTAUFS5] = atof(tok4); hmm->fs = TRUE; }
-        else if (strcasecmp(tok2, "FS")      == 0)     { hmm->fs = TRUE; }
+        else if (strcasecmp(tok2, "FS")      == 0)     { } /* old BATH 1.x single frameshift tau; doesn't map to the FS3/FS5 split, discarded */
 		else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 3", tok2);
 	      } else ESL_XFAIL(eslEFORMAT, hfp->errbuf, "Failed to parse STATS, %s unrecognized as field 2", tok1);
 	  }

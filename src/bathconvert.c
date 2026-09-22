@@ -16,6 +16,7 @@ static ESL_OPTIONS options[] = {
   /* name           type      default  env  range     toggles      reqs   incomp  help   docgroup*/
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "show brief help on version and usage",                             1 },
   { "--ct",      eslARG_INT,      "1", NULL, NULL,      NULL,       NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
+  { "--fs",      eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate frameshift stats, for bathsearch --fs",       1 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -130,12 +131,11 @@ main(int argc, char **argv)
       ct = esl_opt_GetInteger(go, "--ct");  /* user value, or default=1 */
       if (!esl_opt_IsUsed(go, "--ct") && hmm->ct > 0) ct = hmm->ct;
 
-      /* Always compute fs stats for BATH format; recompute tau if missing or codon table changed */
-      hmm->fsprob = p7P_FSPROB;
-      hmm->fs = TRUE;
+      /* --fs computes frameshift stats if missing; also recomputed if the codon table changes */
       if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
+         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
 
+        hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;
 
         if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
@@ -159,6 +159,8 @@ main(int argc, char **argv)
 
         p7_fs_Tau_5codons(r, om_fs5, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS5] = tau_fs;
+
+        hmm->fs = TRUE;
       }
 
       hmm->ct = ct;

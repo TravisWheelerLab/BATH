@@ -58,6 +58,7 @@ static ESL_OPTIONS options[] = {
   { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          0 },
   { "-O",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
   { "--ct",     eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
+  { "--fs",     eslARG_NONE,   FALSE, NULL, NULL, NULL,  NULL, NULL,  "calculate frameshift stats, for bathsearch --fs",       0 },
   { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       0 },
   { 0,0,0,0,0,0,0,0,0,0 },
 };
@@ -294,12 +295,11 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      /* Always include fs stats; compute tau if missing or codon table changed */
-      hmm->fsprob = p7P_FSPROB;
-      hmm->fs = TRUE;
+      /* --fs computes frameshift stats if missing; also recomputed if the codon table changes */
       if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
+         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
 
+        hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;
 
         if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
@@ -323,11 +323,13 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
 
         p7_fs_Tau_5codons(r, om_fs5, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS5] = tau_fs;
+
+        hmm->fs = TRUE;
       }
 
       hmm->ct = ct;
 
-      if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK || 
+      if (esl_keyhash_Lookup(keys, hmm->name, -1, &keyidx) == eslOK ||
 	     ((hmm->acc) && esl_keyhash_Lookup(keys, hmm->acc, -1, &keyidx) == eslOK))
 	  {
 	    p7_hmmfile_WriteASCII(ofp, p7_BATH_3f, hmm);
@@ -419,12 +421,11 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      /* Always include fs stats; compute tau if missing or codon table changed */
-      hmm->fsprob = p7P_FSPROB;
-      hmm->fs = TRUE;
+      /* --fs computes frameshift stats if missing; also recomputed if the codon table changes */
       if((esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET)) {
+         (esl_opt_IsUsed(go, "--fs") && (hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET || hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET))) {
 
+        hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;
 
         if(abcDNA    == NULL) abcDNA    = esl_alphabet_Create(eslDNA);
@@ -448,6 +449,8 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
 
         p7_fs_Tau_5codons(r, om_fs5, codon_tbl, bg, 100, 200, hmm->evparam[p7_FLAMBDA], 0.04, &tau_fs);
         hmm->evparam[p7_FTAUFS5] = tau_fs;
+
+        hmm->fs = TRUE;
       }
 
       hmm->ct = ct;

@@ -748,7 +748,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if( !(hmm->fsprob && hmm->ct)                      ||
           hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET   ||
           hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET )
-        p7_Fail("HMM file %s has no frameshift statistics, which --fs requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+        p7_Fail("HMM file %s has no frameshift statistics, which --fs requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
 
     } 
     else {

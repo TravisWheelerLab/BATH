@@ -745,6 +745,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     om      = NULL;       /* optimized query profile                  */
 
     if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
+      if( !(hmm->flags & p7H_STATS) )
+        p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
       if( !(hmm->fsprob && hmm->ct)                      ||
           hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET   ||
           hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET )
@@ -755,6 +758,9 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
     }
     else {
+      if( !(hmm->flags & p7H_STATS) )
+        p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild' (without --nostats), or add them with 'bathconvert --addstats new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
       hmm->fs = FALSE;
       hmm->fsprob = 0.;
     }

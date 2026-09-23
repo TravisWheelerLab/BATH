@@ -19,9 +19,6 @@ NC    24.90 24.90
 STATS LOCAL MSV         -10.1387  0.70634
 STATS LOCAL VITERBI     -11.0576  0.70634
 STATS LOCAL FORWARD      -5.0031  0.70634
-STATS LOCAL FS3 FORWARD  -5.7201  0.70634
-STATS LOCAL FS5 FORWARD  -5.0221  0.70634
-FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
@@ -605,9 +602,6 @@ NC    20.00 20.60
 STATS LOCAL MSV         -10.4327  0.70583
 STATS LOCAL VITERBI     -11.0706  0.70583
 STATS LOCAL FORWARD      -4.9342  0.70583
-STATS LOCAL FS3 FORWARD  -5.4804  0.70583
-STATS LOCAL FS5 FORWARD  -4.6050  0.70583
-FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d
@@ -1212,9 +1206,6 @@ NC    19.70 19.70
 STATS LOCAL MSV         -10.7544  0.70300
 STATS LOCAL VITERBI     -11.7067  0.70300
 STATS LOCAL FORWARD      -5.2848  0.70300
-STATS LOCAL FS3 FORWARD  -6.2075  0.70300
-STATS LOCAL FS5 FORWARD  -5.3319  0.70300
-FRAMESHIFT PROB    0.0100
 CODON TABLE  1
 HMM          A        C        D        E        F        G        H        I        K        L        M        N        P        Q        R        S        T        V        W        Y   
             m->m     m->i     m->d     i->m     i->i     d->m     d->d

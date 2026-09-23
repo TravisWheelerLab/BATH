@@ -66,7 +66,7 @@ By default, bathbuild does not calculate the frameshift statistics that `bathsea
 % bathbuild --fs MET.bhmm MET.msa
 ```
 
-A pHMM built without `--fs` works normally for standard and spliced searches. To use it with `--fs` later, add the statistics with bathconvert (see Practice 5) or rebuild it with `bathbuild --fs`. If a pHMM is missing them, `bathsearch --fs` stops with an error saying so.
+A pHMM built without `--fs` works normally for standard and spliced searches. To use it with `--fs` later, add the statistics with `bathconvert --fs` or `bathfetch --fs` (see Practices 5 and 8), or rebuild it with `bathbuild --fs`. If a pHMM is missing them, `bathsearch --fs` stops with an error saying so.
 
 The summary output that is printed to your stdout should resemble the text below (the exact CPU and elapsed time will vary):
 
@@ -268,6 +268,12 @@ Your summary output should match that shown below.
 # CPU time: 7.86u 0.01s 00:00:07.87 Elapsed: 00:00:07.90
 ```
 
+Add the --fs flag if you want bathconvert to calculate the frameshift statistics needed for frameshift-aware bathsearch:
+
+```bash
+% bathconvert --fs tRNA-proteins.bhmm tRNA-proteins.hmm
+```
+
 </p>
 </details>
 
@@ -339,7 +345,7 @@ Retrieved HMM PTH2.
 <details><summary>Practice 8: copying and converting multiple HMMs using bathfetch </summary>
 <p>
 
-You can also use bathfetch to copy multiple pHMMs. To do so you will need to create a key file containing the names of all the pHMMs you wish to copy, with one name per line, and use the -f flag. If the original pHMM file is in HMMER format, bathfetch will automatically convert it to BATH format. The following command will copy all 3 of the HMMs listed in the key file tRNA-synthetases-key.txt from an HMMER-formatted pHMM file, convert them to BATH format, and print them to the output file tRNA-synthetases.bhmm.
+You can also use bathfetch to copy multiple pHMMs. To do so you will need to create a key file containing the names of all the pHMMs you wish to copy, with one name per line, and use the -f flag. If the original pHMM file is in HMMER format, bathfetch will automatically convert it to BATH format, and you can use the --fs flag to add frameshift statistics for frameshift-aware bathsearch. The following command will copy all 3 of the HMMs listed in the key file tRNA-synthetases-key.txt from an HMMER-formatted pHMM file, convert them to BATH format, and print them to the output file tRNA-synthetases.bhmm.
    
 ```bash
 % bathfetch -f -o tRNA-synthetases.bhmm tRNA-proteins.hmm tRNA-synthetases-key.txt

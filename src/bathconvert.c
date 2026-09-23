@@ -17,6 +17,7 @@ static ESL_OPTIONS options[] = {
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "show brief help on version and usage",                             1 },
   { "--ct",      eslARG_INT,      "1", NULL, NULL,      NULL,       NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
   { "--fs",      eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate frameshift stats, for bathsearch --fs",       1 },
+  { "--addstats",eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate E-value stats, for HMMs built with --nostats",99 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";
@@ -63,11 +64,11 @@ output_result(int hmmidx, P7_HMM *hmm, double entropy)
 int 
 main(int argc, char **argv)
 {
-  ESL_GETOPTS   *go      = p7_CreateDefaultApp(options, 2, argc, argv, banner, usage);
+  ESL_GETOPTS   *go      = esl_getopts_Create(options);
   ESL_ALPHABET  *abc     = NULL;
   ESL_STOPWATCH   *w  = esl_stopwatch_Create();
-  char          *hmmfile_out = esl_opt_GetArg(go, 1);
-  char          *hmmfile_in  = esl_opt_GetArg(go, 2);
+  char          *hmmfile_out = NULL;
+  char          *hmmfile_in  = NULL;
   P7_HMMFILE    *hfp     = NULL;
   P7_HMM        *hmm     = NULL;
   FILE          *ofp     = NULL;
@@ -76,7 +77,10 @@ main(int argc, char **argv)
   int            hmmidx;
   char           errbuf[eslERRBUFSIZE];
   int            ct;
+  int            has_stats;
   int            has_fs;
+  int            need_stats;
+  int            need_fs;
   P7_BG          *bg     = NULL;
   ESL_RANDOMNESS *r      = NULL;
   P7_FS_PROFILE  *gm_fs5 = NULL;
@@ -89,6 +93,14 @@ main(int argc, char **argv)
   double          tau_fs;
   double          entropy;
 
+  if (esl_opt_ProcessCmdline(go, argc, argv) != eslOK || esl_opt_VerifyConfig(go) != eslOK)
+  {
+     printf("Failed to parse command line: %s\n", go->errbuf);
+     esl_usage(stdout, argv[0], usage);
+     printf("\nTo see more help on available options, do %s -h\n\n", argv[0]);
+     exit(1);
+  }
+
   if (esl_opt_GetBoolean(go, "-h") == TRUE)
   {
      esl_usage(stdout, argv[0], usage);
@@ -98,10 +110,21 @@ main(int argc, char **argv)
 
      if (puts("\nAvailable NCBI genetic code tables (for --ct <id>):")        < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "write failed");
      esl_gencode_DumpAltCodeTable(stdout);
-      
+
      exit(0);
   }
- 
+
+  if (esl_opt_ArgNumber(go) != 2)
+  {
+     puts("Incorrect number of command line arguments.");
+     esl_usage(stdout, argv[0], usage);
+     printf("\nTo see more help on available options, do %s -h\n\n", argv[0]);
+     exit(1);
+  }
+
+  hmmfile_out = esl_opt_GetArg(go, 1);
+  hmmfile_in  = esl_opt_GetArg(go, 2);
+
   impl_Init();
 
   /* Start timing. */
@@ -132,12 +155,40 @@ main(int argc, char **argv)
       ct = esl_opt_GetInteger(go, "--ct");  /* user value, or default=1 */
       if (!esl_opt_IsUsed(go, "--ct") && hmm->ct > 0) ct = hmm->ct;
 
+      has_stats = (hmm->flags & p7H_STATS) ? TRUE : FALSE;
+
       /* frameshift stats, once present, must always match the current codon table, so a
        * --ct change recomputes them regardless of --fs; --fs on its own only adds them
        * if missing, and does nothing if they're already valid for the current table */
-      has_fs = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
-      if((has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)))) {
+      has_fs  = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
+      need_fs = (has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+                (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)));
+
+      /* --fs can't compute frameshift tau without the base Forward lambda, so on a
+       * --nostats model it also triggers base calibration; --addstats does the same
+       * on its own, without requiring --fs */
+      need_stats = !has_stats && (esl_opt_IsUsed(go, "--addstats") || esl_opt_IsUsed(go, "--fs"));
+
+      if(need_stats) {
+        hmm->ct = ct;
+
+        if(need_fs) {
+          P7_BUILDER bcfg;
+          memset(&bcfg, 0, sizeof(bcfg));
+          bcfg.fs  = TRUE;
+          bcfg.EmL = 200; bcfg.EmN = 200;
+          bcfg.EvL = 200; bcfg.EvN = 200;
+          bcfg.EfL = 100; bcfg.EfN = 200;
+          bcfg.Eft = 0.04;
+          p7_Calibrate(hmm, &bcfg, &r, &bg, NULL, NULL, NULL, NULL);
+          hmm->fsprob = p7P_FSPROB;
+          hmm->fs = TRUE;
+        }
+        else {
+          p7_Calibrate(hmm, NULL, &r, &bg, NULL, NULL, NULL, NULL);
+        }
+      }
+      else if(need_fs) {
 
         hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;

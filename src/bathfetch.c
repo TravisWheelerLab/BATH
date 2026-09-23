@@ -45,7 +45,7 @@ cmdline_help(char *argv0, ESL_GETOPTS *go)
   esl_usage (stdout, argv0, usage2);
   esl_usage (stdout, argv0, usage3);
   puts("\nOptions:");
-  esl_opt_DisplayHelp(stdout, go, 0, 2, 80);
+  esl_opt_DisplayHelp(stdout, go, 1, 2, 80);
   puts("\nAvailable NCBI genetic code tables (for --ct <id>):");
   esl_gencode_DumpAltCodeTable(stdout);
   exit(0);
@@ -53,13 +53,14 @@ cmdline_help(char *argv0, ESL_GETOPTS *go)
 
 static ESL_OPTIONS options[] = {
   /* name       type        default env   range togs  reqs  incomp      help                                                   docgroup */
-  { "-h",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL, NULL,          "help; show brief info on version and usage",        0 },
-  { "-f",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"--index",      "second cmdline arg is a file of names to retrieve", 0 },
-  { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          0 },
-  { "-O",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    0 },
-  { "--ct",     eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 0 },
-  { "--fs",     eslARG_NONE,   FALSE, NULL, NULL, NULL,  NULL, NULL,  "calculate frameshift stats, for bathsearch --fs",       0 },
-  { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       0 },
+  { "-h",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL, NULL,          "help; show brief info on version and usage",        1 },
+  { "-f",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"--index",      "second cmdline arg is a file of names to retrieve", 1 },
+  { "-o",       eslARG_OUTFILE,FALSE,NULL, NULL, NULL, NULL,"-O,--index",   "output HMM to file <f> instead of stdout",          1 },
+  { "-O",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    1 },
+  { "--ct",     eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 1 },
+  { "--fs",     eslARG_NONE,   FALSE, NULL, NULL, NULL,  NULL, NULL,  "calculate frameshift stats, for bathsearch --fs",       1 },
+  { "--addstats",eslARG_NONE,  FALSE, NULL, NULL, NULL,  NULL, NULL,  "calculate E-value stats, for HMMs built with --nostats",99 },
+  { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       1 },
   { 0,0,0,0,0,0,0,0,0,0 },
 };
 
@@ -255,7 +256,10 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
   int             ct;
+  int             has_stats;
   int             has_fs;
+  int             need_stats;
+  int             need_fs;
   int             nhmm   = 0;
   char           *key;
   int             keylen;
@@ -296,12 +300,40 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
+      has_stats = (hmm->flags & p7H_STATS) ? TRUE : FALSE;
+
       /* frameshift stats, once present, must always match the current codon table, so a
        * --ct change recomputes them regardless of --fs; --fs on its own only adds them
        * if missing, and does nothing if they're already valid for the current table */
-      has_fs = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
-      if((has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)))) {
+      has_fs  = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
+      need_fs = (has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+                (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)));
+
+      /* --fs can't compute frameshift tau without the base Forward lambda, so on a
+       * --nostats model it also triggers base calibration; --addstats does the same
+       * on its own, without requiring --fs */
+      need_stats = !has_stats && (esl_opt_IsUsed(go, "--addstats") || esl_opt_IsUsed(go, "--fs"));
+
+      if(need_stats) {
+        hmm->ct = ct;
+
+        if(need_fs) {
+          P7_BUILDER bcfg;
+          memset(&bcfg, 0, sizeof(bcfg));
+          bcfg.fs  = TRUE;
+          bcfg.EmL = 200; bcfg.EmN = 200;
+          bcfg.EvL = 200; bcfg.EvN = 200;
+          bcfg.EfL = 100; bcfg.EfN = 200;
+          bcfg.Eft = 0.04;
+          p7_Calibrate(hmm, &bcfg, &r, &bg, NULL, NULL, NULL, NULL);
+          hmm->fsprob = p7P_FSPROB;
+          hmm->fs = TRUE;
+        }
+        else {
+          p7_Calibrate(hmm, NULL, &r, &bg, NULL, NULL, NULL, NULL);
+        }
+      }
+      else if(need_fs) {
 
         hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;
@@ -393,7 +425,10 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   P7_CODONTABLE  *codon_tbl = NULL;
   double          tau_fs;
   int             ct;
+  int             has_stats;
   int             has_fs;
+  int             need_stats;
+  int             need_fs;
   int             status;
 
   ct = esl_opt_GetInteger(go, "--ct");
@@ -426,12 +461,40 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
+      has_stats = (hmm->flags & p7H_STATS) ? TRUE : FALSE;
+
       /* frameshift stats, once present, must always match the current codon table, so a
        * --ct change recomputes them regardless of --fs; --fs on its own only adds them
        * if missing, and does nothing if they're already valid for the current table */
-      has_fs = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
-      if((has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
-         (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)))) {
+      has_fs  = (hmm->evparam[p7_FTAUFS3] != p7_EVPARAM_UNSET && hmm->evparam[p7_FTAUFS5] != p7_EVPARAM_UNSET);
+      need_fs = (has_fs && esl_opt_IsUsed(go, "--ct") && ct != hmm->ct) ||
+                (esl_opt_IsUsed(go, "--fs") && (!has_fs || (esl_opt_IsUsed(go, "--ct") && ct != hmm->ct)));
+
+      /* --fs can't compute frameshift tau without the base Forward lambda, so on a
+       * --nostats model it also triggers base calibration; --addstats does the same
+       * on its own, without requiring --fs */
+      need_stats = !has_stats && (esl_opt_IsUsed(go, "--addstats") || esl_opt_IsUsed(go, "--fs"));
+
+      if(need_stats) {
+        hmm->ct = ct;
+
+        if(need_fs) {
+          P7_BUILDER bcfg;
+          memset(&bcfg, 0, sizeof(bcfg));
+          bcfg.fs  = TRUE;
+          bcfg.EmL = 200; bcfg.EmN = 200;
+          bcfg.EvL = 200; bcfg.EvN = 200;
+          bcfg.EfL = 100; bcfg.EfN = 200;
+          bcfg.Eft = 0.04;
+          p7_Calibrate(hmm, &bcfg, &r, &bg, NULL, NULL, NULL, NULL);
+          hmm->fsprob = p7P_FSPROB;
+          hmm->fs = TRUE;
+        }
+        else {
+          p7_Calibrate(hmm, NULL, &r, &bg, NULL, NULL, NULL, NULL);
+        }
+      }
+      else if(need_fs) {
 
         hmm->fsprob = p7P_FSPROB;
         hmm->ct = ct;

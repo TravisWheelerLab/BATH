@@ -51,6 +51,12 @@ static uint32_t  v3d_magic = 0xe8ededb9; /* 3/d binary: "hmm9" + 0x80808080 */
 static uint32_t  v3e_magic = 0xe8ededb0; /* 3/e binary: "hmm0" + 0x80808080 */
 static uint32_t  v3f_magic = 0xe8ededba; /* 3/f binary: "hmma" + 0x80808080 */
 
+/* HMMER 3/b-3/f binary files (e.g. .h3m from hmmpress) store 6 E-value
+ * params. BATH's p7_NEVPARAM is larger (adds FTAUFS3/FTAUFS5), so binary
+ * I/O must use HMMER's count to stay compatible.
+ */
+#define p7_BIN_NEVPARAM 6
+
 
 static int read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm);
 static int read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm);
@@ -1155,7 +1161,7 @@ p7_hmmfile_WriteBinary(FILE *fp, int format, P7_HMM *hmm)
   }
   else
   {        /* default stats values */
-    if (fwrite((char *) hmm->evparam, sizeof(float), p7_NEVPARAM, fp) != p7_NEVPARAM) ESL_EXCEPTION_SYS(eslEWRITE, "hmm binary write failed");
+    if (fwrite((char *) hmm->evparam, sizeof(float), p7_BIN_NEVPARAM, fp) != p7_BIN_NEVPARAM) ESL_EXCEPTION_SYS(eslEWRITE, "hmm binary write failed");
   }
   if (fwrite((char *) hmm->cutoff,  sizeof(float), p7_NCUTOFFS, fp) != p7_NCUTOFFS) ESL_EXCEPTION_SYS(eslEWRITE, "hmm binary write failed");
   if ((hmm->flags & p7H_COMPO) && (fwrite((char *) hmm->compo, sizeof(float), hmm->abc->K, fp) != hmm->abc->K)) ESL_EXCEPTION_SYS(eslEWRITE, "hmm binary write failed");
@@ -1784,7 +1790,9 @@ read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
 
   /* E-value parameters and Pfam cutoffs */
   if (hfp->format >= p7_HMMFILE_3b) {
-    if (! fread((char *) hmm->evparam, sizeof(float), p7_NEVPARAM, hfp->f))                            ESL_XFAIL(eslEFORMAT, hfp->errbuf, "failed to read statistical params");
+    if (fread((char *) hmm->evparam, sizeof(float), p7_BIN_NEVPARAM, hfp->f) != p7_BIN_NEVPARAM)       ESL_XFAIL(eslEFORMAT, hfp->errbuf, "failed to read statistical params");
+    hmm->evparam[p7_FTAUFS3] = p7_EVPARAM_UNSET;
+    hmm->evparam[p7_FTAUFS5] = p7_EVPARAM_UNSET;
   } else if (hfp->format == p7_HMMFILE_3a) {
     /* a backward compatibility mode. 3/a files stored 3 floats: LAMBDA, MU, TAU. Read 3 #'s and carefully copy/rearrange them into new 6 format */
     if (! fread((char *) hmm->evparam, sizeof(float), 3,           hfp->f))                            ESL_XFAIL(eslEFORMAT, hfp->errbuf, "failed to read statistical params");

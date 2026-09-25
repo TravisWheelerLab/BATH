@@ -105,6 +105,7 @@ static ESL_OPTIONS options[] = {
   { "--pextend",   eslARG_REAL,  NULL,  NULL, "0<=x<1", NULL, NULL,           "",   "force gap extend prob. (w/ --singlemx, aa default 0.4, nt 0.75)",  10 },
 
   /* Control of E-value calibration */
+  { "--nostats",   eslARG_NONE,  FALSE, NULL, NULL,        NULL,    NULL, "--fs,--ct", "build without E-value statistics (for bathalign only)", 6 },
   { "--EmL",       eslARG_INT,    "200", NULL,"n>0",       NULL,    NULL,      NULL, "length of sequences for MSV Gumbel mu fit",            6 },   
   { "--EmN",       eslARG_INT,    "200", NULL,"n>0",       NULL,    NULL,      NULL, "number of sequences for MSV Gumbel mu fit",            6 },   
   { "--EvL",       eslARG_INT,    "200", NULL,"n>0",       NULL,    NULL,      NULL, "length of sequences for Viterbi Gumbel mu fit",        6 },   
@@ -266,6 +267,7 @@ output_header(const ESL_GETOPTS *go, const struct cfg_s *cfg)
   if (fprintf(cfg->ofp, "# input file:                       %s\n", cfg->infile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(cfg->ofp, "# output HMM file:                  %s\n", cfg->hmmfile) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (fprintf(cfg->ofp, "# frameshift stats calculated:      %s\n", (esl_opt_GetBoolean(go, "--fs") ? "YES" : "NO")) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_GetBoolean(go, "--nostats") && fprintf(cfg->ofp, "# E-value statistics:               NONE (for bathalign only)\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 
   if (esl_opt_IsUsed(go, "-n")           && fprintf(cfg->ofp, "# name (the single) HMM:            %s\n",        esl_opt_GetString(go, "-n"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-o")           && fprintf(cfg->ofp, "# output directed to file:          %s\n",        esl_opt_GetString(go, "-o"))         < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -611,6 +613,7 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
       /* special arguments for hmmbuild */
 	  info[i].bld->fsprob = p7P_FSPROB;
       //frameshift stats are opt-in, as in bathsearch; bathconvert adds them later if needed
+      info[i].bld->nostats    = esl_opt_GetBoolean(go, "--nostats");
       info[i].bld->fs         = esl_opt_GetBoolean(go, "--fs");
       info[i].bld->w_len      = (go != NULL && esl_opt_IsOn (go, "--w_length")) ?  esl_opt_GetInteger(go, "--w_length"): -1;
       info[i].bld->w_beta     = (go != NULL && esl_opt_IsOn (go, "--w_beta"))   ?  esl_opt_GetReal   (go, "--w_beta")    : p7_DEFAULT_WINDOW_BETA;

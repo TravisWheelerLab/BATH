@@ -1209,6 +1209,7 @@ typedef struct p7_builder_s {
   /* BATH parameters */
   int                  ct;           /* NCBI codon translation table ID                        */
   int                  fs;            /* bool for calculating frameshift stats */
+  int                  nostats;       /* bool for skipping MSV/Vit/Fwd E-value stats; 0 when zero-filled */
   float                fsprob;        /* frameshift probability                                 */
 
 } P7_BUILDER;

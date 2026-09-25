@@ -682,12 +682,16 @@ p7_Builder_MaxLength (P7_HMM *hmm, double emit_thresh)
   double   p_sum;                 // sum of probabilities for lengths <=L;  X from above
   double   surv;                  // surviving probability mass at length L; Y from above
   int      k;                     // active state in model
-  int      i;
-  double **I            = NULL;
-  double **M            = NULL;
-  double **D            = NULL;
+  int      c;
+  double  *buf          = NULL;
+  double  *M[2], *I[2], *D[2];    // M[col_ptr][k]
+  double  *tMM, *tMI, *tMD, *tIM, *tII, *tDM, *tDD; // hmm->t[k][*] as double
+  double  *oMD, *oDD;             // 1 - t[k][MD], 1 - t[k][DD], computed in float
+  double  *pM, *pI, *pD, *cM, *cI, *cD;
+  double   m, d, mprev, dprev;    // mprev, dprev: current column's M[k-1], D[k-1]
   int      model_len    = hmm->M; // model length
   int      length_bound = ESL_MAX(model_len, ESL_MIN(20*model_len, 100000)); // cap on # iterations (aka max model length)
+  int      n            = model_len+1;
   int      status;
   
   if (model_len==1) {
@@ -697,67 +701,74 @@ p7_Builder_MaxLength (P7_HMM *hmm, double emit_thresh)
 
   hmm->max_length = length_bound;  //default, if it never reaches the target surviving density
 
-
-  //    double I[model_len+1][2], M[model_len+1][2], D[model_len+1][2]; //2 columns for each way of ending a subpath
-  ESL_ALLOC(I, (model_len+1) * sizeof(double*)); 
-  ESL_ALLOC(M, (model_len+1) * sizeof(double*)); 
-  ESL_ALLOC(D, (model_len+1) * sizeof(double*)); 
-  for (i = 0; i <= model_len; i++) {
-    I[i] = M[i] = D[i] = NULL; 
+  ESL_ALLOC(buf, 15 * n * sizeof(double));
+  for (c = 0; c < 2; c++) {
+    M[c] = buf + (3*c)   * n;
+    I[c] = buf + (3*c+1) * n;
+    D[c] = buf + (3*c+2) * n;
   }
-  for (i=0; i <= model_len; i++) {
-    ESL_ALLOC(I[i], 2 * sizeof(double));
-    ESL_ALLOC(M[i], 2 * sizeof(double));
-    ESL_ALLOC(D[i], 2 * sizeof(double));
+  tMM = buf +  6*n;  tMI = buf +  7*n;  tMD = buf +  8*n;  tIM = buf +  9*n;
+  tII = buf + 10*n;  tDM = buf + 11*n;  tDD = buf + 12*n;  oMD = buf + 13*n;  oDD = buf + 14*n;
+  for (k = 1; k <= model_len; k++) {
+    tMM[k] = hmm->t[k][p7H_MM];  tMI[k] = hmm->t[k][p7H_MI];  tMD[k] = hmm->t[k][p7H_MD];
+    tIM[k] = hmm->t[k][p7H_IM];  tII[k] = hmm->t[k][p7H_II];
+    tDM[k] = hmm->t[k][p7H_DM];  tDD[k] = hmm->t[k][p7H_DD];
+    oMD[k] = 1 - hmm->t[k][p7H_MD];
+    oDD[k] = 1 - hmm->t[k][p7H_DD];
   }
 
   /*  Compute max length and max prefix lengths*/
   // special case for filling in 1st column of DP table,  col=1;
-  M[1][0] = 1.0;// 1st match state must emit a character
-  I[1][0] = D[1][0] = M[2][0] = I[2][0] = 0;
-  D[2][0] = hmm->t[1][p7H_MD];  // The 2nd delete state is reached, having emitted only 1 character
+  M[0][1] = 1.0;// 1st match state must emit a character
+  I[0][1] = D[0][1] = M[0][2] = I[0][2] = 0;
+  D[0][2] = tMD[1];  // The 2nd delete state is reached, having emitted only 1 character
   for (k=3; k<=model_len; k++){
-    M[k][0] = I[k][0] = 0;
-    D[k][0] = hmm->t[k-1][p7H_DD] * D[k-1][0];  // only way to get to the 3rd or greater state with only 1 character
+    M[0][k] = I[0][k] = 0;
+    D[0][k] = tDD[k-1] * D[0][k-1];  // only way to get to the 3rd or greater state with only 1 character
   }
 
   //special case for 2nd column
-  M[1][1] = D[1][1] = D[2][1] = I[2][1] = 0;  //No way any of these states can be responsible for the second emitted character.
-  I[1][1] = hmm->t[1][p7H_MI] * M[1][0];  //1st insert state can emit char #2.
-  M[2][1] = hmm->t[1][p7H_MM] * M[1][0] ; //2nd match state can emit char #2.
+  M[1][1] = D[1][1] = D[1][2] = I[1][2] = 0;  //No way any of these states can be responsible for the second emitted character.
+  I[1][1] = tMI[1] * M[0][1];  //1st insert state can emit char #2.
+  M[1][2] = tMM[1] * M[0][1] ; //2nd match state can emit char #2.
   for (k=3; k<=model_len; k++){
-    M[k][1] = hmm->t[k-1][p7H_DM] * D[k-1][0] ; //kth match state would have to follow the k-1th delete state, having emitted only 1 char so far
-    I[k][1] = 0;
-    D[k][1] = hmm->t[k-1][p7H_MD] * M[k-1][1]  +  hmm->t[k-1][p7H_DD] * D[k-1][1]; //in general only by extending a delete.  For k=3, this could be a transition from M=2, with 2 chars.
+    M[1][k] = tDM[k-1] * D[0][k-1] ; //kth match state would have to follow the k-1th delete state, having emitted only 1 char so far
+    I[1][k] = 0;
+    D[1][k] = tMD[k-1] * M[1][k-1]  +  tDD[k-1] * D[1][k-1]; //in general only by extending a delete.  For k=3, this could be a transition from M=2, with 2 chars.
   }
 
-  p_sum = M[model_len][0] + M[model_len][1] + D[model_len][0] + D[model_len][1];
+  p_sum = M[0][model_len] + M[1][model_len] + D[0][model_len] + D[1][model_len];
 
   //general case for all remaining columns
   col_ptr = 0;
   for (col=3; col<=length_bound; col++) {
     prev_col_ptr = 1-col_ptr;
+    pM = M[prev_col_ptr];  pI = I[prev_col_ptr];  pD = D[prev_col_ptr];
+    cM = M[col_ptr];       cI = I[col_ptr];       cD = D[col_ptr];
     surv = 0.0;
-    M[1][col_ptr] = D[1][col_ptr] = 0; //M[i][prev_col_ptr] is zero :  no way the first M state could have emitted >=2 chars
-    I[1][col_ptr] =  hmm->t[1][p7H_II] * I[1][prev_col_ptr];  // 1st insert state can emit chars indefinitely
-    surv += I[1][col_ptr];
+    cM[1] = cD[1] = 0; //M[1] of the previous column is zero :  no way the first M state could have emitted >=2 chars
+    cI[1] =  tII[1] * pI[1];  // 1st insert state can emit chars indefinitely
+    surv += cI[1];
 
+    mprev = dprev = 0;
     for (k=2; k<=model_len; k++){
-      M[k][col_ptr] = hmm->t[k-1][p7H_MM] * M[k-1][prev_col_ptr]  +  hmm->t[k-1][p7H_DM] * D[k-1][prev_col_ptr]  +  hmm->t[k-1][p7H_IM] * I[k-1][prev_col_ptr];
-      I[k][col_ptr] = hmm->t[k][p7H_MI] * M[k][prev_col_ptr]    +  hmm->t[k][p7H_II] * I[k][prev_col_ptr];
-      D[k][col_ptr] = hmm->t[k-1][p7H_MD] * M[k-1][col_ptr]  +  hmm->t[k-1][p7H_DD] * D[k-1][col_ptr];
+      m     = tMM[k-1] * pM[k-1]  +  tDM[k-1] * pD[k-1]  +  tIM[k-1] * pI[k-1];
+      cI[k] = tMI[k] * pM[k]    +  tII[k] * pI[k];
+      d     = tMD[k-1] * mprev  +  tDD[k-1] * dprev;
+      cM[k] = m;
+      cD[k] = d;
 
-      if (k<=model_len) {
-        surv +=  I[k][col_ptr] +
-     	           M[k][col_ptr] * ( 1 - hmm->t[k][p7H_MD] ) +  //this much of M[k]'s mass will bleed into D[k+1], and thus be added to surv then
-                 D[k][col_ptr] * ( 1 - hmm->t[k][p7H_DD] )  ; //this much of D[k]'s mass will bleed into D[k+1], and thus be added to surv then
-      }
+      surv +=  cI[k] +
+               m * oMD[k] +  //this much of M[k]'s mass will bleed into D[k+1], and thus be added to surv then
+               d * oDD[k]  ; //this much of D[k]'s mass will bleed into D[k+1], and thus be added to surv then
+      mprev = m;
+      dprev = d;
     }
-    surv +=    M[model_len][col_ptr] * ( hmm->t[model_len][p7H_MD] )   //the final state doesn't pass on to the next D state
-             + D[model_len][col_ptr] * ( hmm->t[model_len][p7H_DD] )  // the final state doesn't pass on to the next D state
-             - I[model_len][col_ptr] ;  // no I state for final position
+    surv +=    cM[model_len] * ( tMD[model_len] )   //the final state doesn't pass on to the next D state
+             + cD[model_len] * ( tDD[model_len] )  // the final state doesn't pass on to the next D state
+             - cI[model_len] ;  // no I state for final position
 
-    p_sum += M[model_len][col_ptr] + D[model_len][col_ptr];
+    p_sum += cM[model_len] + cD[model_len];
     surv /= surv + p_sum;
 
     if (surv < emit_thresh) {
@@ -768,22 +779,13 @@ p7_Builder_MaxLength (P7_HMM *hmm, double emit_thresh)
     col_ptr = 1-col_ptr; // alternating between 0 and 1
   }
 
-  for (i=0; i<model_len+1; i++) {
-    free(I[i]);
-    free(M[i]);
-    free(D[i]);
-  }
-  free(I);
-  free(M);
-  free(D);
+  free(buf);
 
   if (hmm->max_length > length_bound) return eslERANGE;
   return eslOK;
   
  ERROR:
-  if (I) { for (i = 0; i <= model_len; i++) { if (I[i]) free(I[i]); }  free(I);  }
-  if (D) { for (i = 0; i <= model_len; i++) { if (D[i]) free(D[i]); }  free(D);  }
-  if (M) { for (i = 0; i <= model_len; i++) { if (M[i]) free(M[i]); }  free(M);  }
+  if (buf) free(buf);
   return status;
 }
 

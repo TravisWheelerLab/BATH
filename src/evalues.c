@@ -84,6 +84,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
   int             EfN    = ((cfg_b != NULL) ? cfg_b->EfN    : 200);
   double          Eft    = ((cfg_b != NULL) ? cfg_b->Eft    : 0.04);
   double          lambda, mmu, vmu, tau, tau_fs3, tau_fs5;
+  int             do_cal = ((cfg_b != NULL) ? ! cfg_b->nostats : TRUE);
   int             status;
 
   /* Configure any objects we need
@@ -116,9 +117,12 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
  
   /* The calibration steps themselves */
   if ((status = p7_Lambda(hmm, bg, &lambda))                             != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine lambda");
-  if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
-  if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))         != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
-  if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))    != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
+  //lambda is always computed: cheap, and the frameshift fits need it
+  if (do_cal) {
+    if ((status = p7_MSVMu    (r, om, bg, EmL, EmN, lambda, &mmu))       != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine msv mu");
+    if ((status = p7_ViterbiMu(r, om, bg, EvL, EvN, lambda, &vmu))       != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine vit mu");
+    if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))  != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
+  }
 
   /* Optional frameshift calribration */
   if (cfg_b != NULL && cfg_b->fs) {
@@ -145,18 +149,21 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
  
 
   /* Store results */
-  hmm->evparam[p7_MLAMBDA]  = om->evparam[p7_MLAMBDA] = lambda;
-  hmm->evparam[p7_VLAMBDA]  = om->evparam[p7_VLAMBDA] = lambda;
-  hmm->evparam[p7_FLAMBDA]  = om->evparam[p7_FLAMBDA] = lambda;
-  hmm->evparam[p7_MMU]      = om->evparam[p7_MMU]     = mmu;
-  hmm->evparam[p7_VMU]      = om->evparam[p7_VMU]     = vmu;
-  hmm->evparam[p7_FTAU]     = om->evparam[p7_FTAU]    = tau;
+  //without calibration, evparam stays unset and p7H_STATS clear, so no STATS lines are written
+  if (do_cal) {
+    hmm->evparam[p7_MLAMBDA]  = om->evparam[p7_MLAMBDA] = lambda;
+    hmm->evparam[p7_VLAMBDA]  = om->evparam[p7_VLAMBDA] = lambda;
+    hmm->evparam[p7_FLAMBDA]  = om->evparam[p7_FLAMBDA] = lambda;
+    hmm->evparam[p7_MMU]      = om->evparam[p7_MMU]     = mmu;
+    hmm->evparam[p7_VMU]      = om->evparam[p7_VMU]     = vmu;
+    hmm->evparam[p7_FTAU]     = om->evparam[p7_FTAU]    = tau;
+  }
   hmm->evparam[p7_FTAUFS3]  = (cfg_b != NULL && cfg_b->fs) ? tau_fs3 : p7_EVPARAM_UNSET;
   hmm->evparam[p7_FTAUFS5]  = (cfg_b != NULL && cfg_b->fs) ? tau_fs5 : p7_EVPARAM_UNSET;
   
-  hmm->flags              |= p7H_STATS;
+  if (do_cal) hmm->flags  |= p7H_STATS;
 
-  if (gm != NULL) {
+  if (gm != NULL && do_cal) {
     gm->evparam[p7_MLAMBDA] = lambda;
     gm->evparam[p7_VLAMBDA] = lambda;
     gm->evparam[p7_FLAMBDA] = lambda;

@@ -266,8 +266,6 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
   int             keyidx;
   int             status;
 
-  ct = esl_opt_GetInteger(go, "--ct");
-
   if (esl_fileparser_Open(keyfile, NULL, &efp) != eslOK)  p7_Fail("Failed to open key file %s\n", keyfile);
   esl_fileparser_SetCommentChar(efp, '#');
 
@@ -300,7 +298,10 @@ multifetch(ESL_GETOPTS *go, FILE *ofp, char *keyfile, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      has_stats = (hmm->flags & p7H_STATS) ? TRUE : FALSE;
+      ct = esl_opt_GetInteger(go, "--ct");  /* user value, or default=1 */
+      if (!esl_opt_IsUsed(go, "--ct") && hmm->ct > 0) ct = hmm->ct;
+
+      has_stats =(hmm->flags & p7H_STATS) ? TRUE : FALSE;
 
       /* frameshift stats, once present, must always match the current codon table, so a
        * --ct change recomputes them regardless of --fs; --fs on its own only adds them
@@ -431,8 +432,6 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
   int             need_fs;
   int             status;
 
-  ct = esl_opt_GetInteger(go, "--ct");
-
   if (hfp->ssi != NULL)
     {
       status = p7_hmmfile_PositionByKey(hfp, key);
@@ -461,7 +460,10 @@ onefetch(ESL_GETOPTS *go, FILE *ofp, char *key, P7_HMMFILE *hfp)
       if(bg == NULL) bg = p7_bg_Create(hmm->abc);
       if(r == NULL)  r = esl_randomness_CreateFast(42);
 
-      has_stats = (hmm->flags & p7H_STATS) ? TRUE : FALSE;
+      ct = esl_opt_GetInteger(go, "--ct");  /* user value, or default=1 */
+      if (!esl_opt_IsUsed(go, "--ct") && hmm->ct > 0) ct = hmm->ct;
+
+      has_stats =(hmm->flags & p7H_STATS) ? TRUE : FALSE;
 
       /* frameshift stats, once present, must always match the current codon table, so a
        * --ct change recomputes them regardless of --fs; --fs on its own only adds them

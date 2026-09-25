@@ -13,6 +13,7 @@
  */
 #include "p7_config.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -2205,12 +2206,46 @@ multilineString(char **ret_str, const char *pfx, char *s, int *coffset){
 
 
 
+/* format_prob()
+ * Write " %*.5f" of -log(p) (p > 0) to <buf> without printf. A float times
+ * 1e5 is exact in double, so rint() rounds just as printf does.
+ * Returns the length, or -1 if the caller must use printf.
+ */
+static int
+format_prob(char *buf, int fieldwidth, float p)
+{
+  float              v = (p == 1.0) ? 0.0f : -logf(p);
+  unsigned long long n;
+  char               digits[32];
+  int                nd = 0;
+  int                len = 0;
+  int                i;
+
+  if (! isfinite(v) || fabsf(v) >= 1e9f || fieldwidth > 32) return -1;
+  n = (unsigned long long) rint(fabs((double) v * 1e5));
+  for (i = 0; i < 5; i++) { digits[nd++] = '0' + n % 10; n /= 10; }
+  digits[nd++] = '.';
+  do { digits[nd++] = '0' + n % 10; n /= 10; } while (n);
+  if (signbit(v)) digits[nd++] = '-';
+
+  buf[len++] = ' ';
+  for (i = nd; i < fieldwidth; i++) buf[len++] = ' ';
+  while (nd) buf[len++] = digits[--nd];
+  return len;
+}
+
 static int
 printprob(FILE *fp, int fieldwidth, float p)
 {
-  if      (p == 0.0) { if (fprintf(fp, " %*s",   fieldwidth, "*")      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
-  else if (p == 1.0) { if (fprintf(fp, " %*.5f", fieldwidth, 0.0)      < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
-  else               { if (fprintf(fp, " %*.5f", fieldwidth, -logf(p)) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
+  char buf[64];
+  int  len;
+
+  if (p == 0.0)
+    { if (fprintf(fp, " %*s", fieldwidth, "*") < 0)                      ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
+  else if ((len = format_prob(buf, fieldwidth, p)) >= 0)
+    { if (fwrite(buf, 1, len, fp) != (size_t) len)                       ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
+  else
+    { if (fprintf(fp, " %*.5f", fieldwidth, p == 1.0 ? 0.0 : -logf(p)) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "hmm write failed"); }
   return eslOK;
 }
 

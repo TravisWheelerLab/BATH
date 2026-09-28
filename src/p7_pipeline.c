@@ -1076,7 +1076,7 @@ p7_pli_postDomainDef_Frameshift_BATH(P7_PIPELINE *pli, P7_FS_PROFILE *gm_fs5, P7
      * residue count. This prevents hits from accumulating and using
      * excessive memmory. */
 
-    pli->Z = (float)pli->nres / (float)gm_fs5->max_length;
+    pli->Z = (float)pli->nres / (float)(gm_fs5->max_length*3);  /* nres counts nucleotides, as in p7_tophits_ComputeEvalues_BATH() */
     if (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) 
     { 
 
@@ -1243,7 +1243,7 @@ p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHI
      /* Check if hit passes the e-value cutoff based on the current residue count.
      * This prevents unreportable hits from accumulating and using excessive memmory.
      * For spliced alignment also keep all hits with a final P-value below the MSV cuttoff. */
-     pli->Z = (float)pli->nres / (float)om->max_length;
+     pli->Z = (float)pli->nres / (float)(om->max_length*3);  /* nres counts nucleotides, as in p7_tophits_ComputeEvalues_BATH() */
      if ((pli->spliced && ((pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T) || exp(dom_lnP) < pli->F3)) ||
         (!pli->spliced &&  (pli->inc_by_E ? (exp(dom_lnP) * pli->Z <= pli->E) :  dom_score >= pli->T)))
      {

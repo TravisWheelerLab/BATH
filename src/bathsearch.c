@@ -513,6 +513,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_FS_OPROFILE  *om_fs3                   = NULL;
   P7_FS_OPROFILE  *om_fs5                   = NULL;
   P7_FS_PROFILE   *gm_tr                    = NULL;
+  int              use_fs                   = (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly"));
   P7_PROFILE      *gm                       = NULL;
   P7_OPROFILE     *om                       = NULL;       /* optimized query profile                  */
 
@@ -793,19 +794,22 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
     /* Convert to an optimized model */
     gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
-    gm_fs3 = p7_profile_fs_Create(hmm->M, abcAA, p7P_3CODONS);
-    om_fs3 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_3CODONS);
-    om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
+    if (use_fs) { /* the optimized fs profiles are only used by the --fs/--fsonly pipeline */
+      gm_fs3 = p7_profile_fs_Create(hmm->M, abcAA, p7P_3CODONS);
+      om_fs3 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_3CODONS);
+      om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
+    }
     gm = p7_profile_Create (hmm->M, abcAA);
     om = p7_oprofile_Create(hmm->M, abcAA);
     p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
       
     p7_oprofile_Convert(gm, om);                                      /* convert <om> to <gm>*/
     p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build framshift aware codon HMM */
-    p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs3, 100, p7_LOCAL);
-    
-    p7_fs_oprofile_Convert(gm_fs3, om_fs3);  
-    p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+    if (use_fs) {
+      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs3, 100, p7_LOCAL);
+      p7_fs_oprofile_Convert(gm_fs3, om_fs3);  
+      p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+    }
 
     /* Create processing pipeline and hit list accumulators */
     tophits_accumulator  = p7_tophits_Create(); 
@@ -828,8 +832,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info[i].th     = p7_tophits_Create();
       info[i].om     = p7_oprofile_Clone(om);
       info[i].gm_fs5 = p7_profile_fs_Clone(gm_fs5);
-      info[i].om_fs3 = p7_fs_oprofile_Clone(om_fs3);
-      info[i].om_fs5 = p7_fs_oprofile_Clone(om_fs5);
+      info[i].om_fs3 = (om_fs3 != NULL) ? p7_fs_oprofile_Clone(om_fs3) : NULL;
+      info[i].om_fs5 = (om_fs5 != NULL) ? p7_fs_oprofile_Clone(om_fs5) : NULL;
       info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
       info[i].pli = p7_pipeline_Create_BATH(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
       status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);

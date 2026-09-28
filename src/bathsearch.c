@@ -514,6 +514,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   P7_FS_OPROFILE  *om_fs5                   = NULL;
   P7_FS_PROFILE   *gm_tr                    = NULL;
   int              use_fs                   = (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly"));
+  int              share_gm_fs5             = !use_fs;
   P7_PROFILE      *gm                       = NULL;
   P7_OPROFILE     *om                       = NULL;       /* optimized query profile                  */
 
@@ -835,7 +836,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);
       info[i].th     = p7_tophits_Create();
       info[i].om     = p7_oprofile_Clone(om);
-      info[i].gm_fs5 = p7_profile_fs_Clone(gm_fs5);
+      /* only the --fs pipeline reconfigures gm_fs5; otherwise threads can share it */
+      info[i].gm_fs5 = share_gm_fs5 ? gm_fs5 : p7_profile_fs_Clone(gm_fs5);
       info[i].om_fs3 = (om_fs3 != NULL) ? p7_fs_oprofile_Clone(om_fs3) : NULL;
       info[i].om_fs5 = (om_fs5 != NULL) ? p7_fs_oprofile_Clone(om_fs5) : NULL;
       info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
@@ -909,7 +911,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_pipeline_Destroy_BATH(info[i].pli);
       p7_tophits_Destroy(info[i].th);
       p7_oprofile_Destroy(info[i].om);
-      p7_profile_fs_Destroy(info[i].gm_fs5);
+      if (! share_gm_fs5) p7_profile_fs_Destroy(info[i].gm_fs5);
       p7_fs_oprofile_Destroy(info[i].om_fs3);
       p7_fs_oprofile_Destroy(info[i].om_fs5);
       p7_hmm_ScoreDataDestroy(info[i].scoredata); 

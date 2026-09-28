@@ -1180,7 +1180,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
     if (sstatus == eslEOF) {
       if (eofCount < esl_threads_GetWorkerCount(obj)) sstatus = eslOK;
       ++eofCount;
-    } else if (!block->complete ) {
+    } else if (!block->complete && block->count > 0) { /* a failed read can leave an empty, incomplete block */
       /* The final sequence on the block was an incomplete window of the 
        * active sequence, so our next read will need a copy of it to 
        * correctly deal with overlapping regions. We capture a copy of the 

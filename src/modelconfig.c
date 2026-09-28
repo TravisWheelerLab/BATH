@@ -195,6 +195,8 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
   return status;
 }
 
+static int profile_config_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode, int codon3_only);
+
 /* Function:  p7_ProfileConfig_fs()
  * Synopsis:  Configure a frameshift-aware search profile.
  *
@@ -218,6 +220,31 @@ p7_ProfileConfig(const P7_HMM *hmm, const P7_BG *bg, P7_PROFILE *gm, int L, int 
  */
 int
 p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode)
+{
+  return profile_config_fs(hmm, bg, gcode, gm_fs, L_amino, mode, FALSE);
+}
+
+/* Function:  p7_ProfileConfig_fs_Codon3()
+ * Synopsis:  Configure only the three-nucleotide codons of a 5-codon profile.
+ *
+ * Purpose:   As p7_ProfileConfig_fs() for a 5-codon <gm_fs>, but skips the
+ *            1-, 2-, 4- and 5-nucleotide quasicodons, whose scores stay
+ *            -inf. For callers that only read standard codons, such as the
+ *            non-frameshift bathsearch pipeline.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <gm_fs> is not a 5-codon profile.
+ */
+int
+p7_ProfileConfig_fs_Codon3(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode)
+{
+  if (gm_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "codon3-only configuration needs a 5-codon profile");
+  return profile_config_fs(hmm, bg, gcode, gm_fs, L_amino, mode, TRUE);
+}
+
+static int
+profile_config_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode, P7_FS_PROFILE *gm_fs, int L_amino, int mode, int codon3_only)
 {
   int     k, t, u, v, w, x, z; /* counters over states, residues, annotation */
   int     a;
@@ -340,8 +367,21 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
   sc[hmm->abc->Kp-2] = -eslINFINITY; /* STOP character   */
   sc[hmm->abc->Kp-1] = -eslINFINITY; /* missing data     */
 
-  for (x = 0; x < (maxcodons + gm_fs->abc->Kp); x++)
-    esl_vec_FSet(gm_fs->rsc[x], hmm->M + 1, -eslINFINITY);
+  if (codon3_only) { /* only the rows 3-nt codon scoring reads; the rest stay untouched */
+    for (x = maxcodons; x < (maxcodons + gm_fs->abc->Kp); x++)
+      esl_vec_FSet(gm_fs->rsc[x], hmm->M + 1, -eslINFINITY);
+    for (v = 0; v < 4; v++)
+      for (w = 0; w < 4; w++)
+        for (x = 0; x < 4; x++)
+          esl_vec_FSet(gm_fs->rsc[p7P_CODON3_FS5(v, w, x)], hmm->M + 1, -eslINFINITY);
+    esl_vec_FSet(gm_fs->rsc[p7P_DEGEN5_C],   hmm->M + 1, -eslINFINITY);
+    esl_vec_FSet(gm_fs->rsc[p7P_DEGEN5_QC1], hmm->M + 1, -eslINFINITY);
+    esl_vec_FSet(gm_fs->rsc[p7P_DEGEN5_QC2], hmm->M + 1, -eslINFINITY);
+  }
+  else {
+    for (x = 0; x < (maxcodons + gm_fs->abc->Kp); x++)
+      esl_vec_FSet(gm_fs->rsc[x], hmm->M + 1, -eslINFINITY);
+  }
 
   for (k = 1; k <= hmm->M; k++) {
     for (x = 0; x < hmm->abc->K; x++)
@@ -364,6 +404,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 			codon = 16 * v + 4 * w + x;
 			a = gcode->basic[codon];
 
+            if (!codon3_only) {
             /* one-nucleotide quasicodons (__X or X__) */
 			codon_idx = p7P_CODON1_FS5(x); //__X
             if (p7P_MSC_AMINO5(gm_fs, k, a) > p7P_MSC_CODON(gm_fs, k, codon_idx)) {
@@ -400,6 +441,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
               p7P_AMINO(gm_fs, k, codon_idx) = a;
               p7P_INDEL(gm_fs, k, codon_idx) = p7P_XX_;
             }
+            }
 
             /* three-nucleotide codons */
             codon_idx = p7P_CODON3_FS5(v, w, x);
@@ -432,7 +474,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
               p7P_AMINO(gm_fs, k, codon_idx) = a;
               p7P_INDEL(gm_fs, k, codon_idx) = p7P_XXX;
             }
-            for (u = 0; u < 4; u++) {
+            for (u = 0; u < 4 && !codon3_only; u++) {
 			  /* four-nucleotide quasicodons (XXxX, XxXX, xXXX) */
 
 			  codon_idx = p7P_CODON4_FS5(u, v, w, x);
@@ -506,7 +548,7 @@ p7_ProfileConfig_fs(const P7_HMM *hmm, const P7_BG *bg, const ESL_GENCODE *gcode
 			codon = 16 * v + 4 * w + x;
 			a = gcode->basic[codon];
 			p7P_MSC_CODON(gm_fs, k, codon_idx) += (a == hmm->abc->Kp-2) ? stop_codon : no_indel;
-			for (u = 0; u < 4; u++) {
+			for (u = 0; u < 4 && !codon3_only; u++) {
 			  codon_idx = p7P_CODON4_FS5(u, v, w, x);
 			  p7P_MSC_CODON(gm_fs, k, codon_idx) += one_indel;
 			  for (t = 0; t < 4; t++) {

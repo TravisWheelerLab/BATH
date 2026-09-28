@@ -209,8 +209,8 @@ p7_profile_fs_Create(int allocM, const ESL_ALPHABET *abc, int codon_lengths)
     p7P_TSC(gm_fs, 1, p7P_DD) = -eslINFINITY;
   }
 
-  for (x = 0; x < (maxcodons + abc->Kp); x++)
-    p7P_MSC_CODON(gm_fs, 0, x) = -eslINFINITY;            /* no emissions from nonexistent M_0... */
+  /* Match emission rows, including k=0, are set by p7_ProfileConfig_fs() or copied
+   * by p7_profile_fs_Copy(); touching them here would fault in every page. */
 
   /* Set remaining info  */
   gm_fs->mode             = p7_NO_MODE;

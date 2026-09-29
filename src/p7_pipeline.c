@@ -1422,6 +1422,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
 
     p7_omx_GrowTo_dpf(pli->oxf_fs, om->M, PARSER_ROWS_FWD, dna_window->length);
     p7_oivx_GrowTo(pli->ov3, om_fs3->M, p7P_3CODONS);
+    p7_oivx_GrowTo(pli->ov5, om_fs5->M, p7P_5CODONS);  /* domain definition uses it; the pipeline may not have been created for this M */
     p7_fs_oprofile_ReconfigLength(om_fs3, dna_window->length/3);    
 
     status = p7_ForwardParser_Frameshift_3Codons(pli_tmp->tmpseq->dsq, dna_window->length, om_fs3, pli->oxf_fs, pli->ov3, &fwdsc);

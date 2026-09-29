@@ -1030,7 +1030,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
    * throw away any domains already bellow the reporting threshold before 
    * we do any further calculations */
 
-  pli->Z = (float)pli->nres / (float)gm_fs5->max_length;
+  pli->Z = (float)pli->nres / (float)(gm_fs5->max_length*3);  /* nres counts nucleotides, as in p7_tophits_ComputeEvalues_BATH() */
   if (pli->inc_by_E  && P * pli->Z > pli->E) {
     p7_omx_Reuse(ox1);
     return eslOK;

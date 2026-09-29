@@ -1457,10 +1457,10 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_FS_OPROFILE *om_fs3, P7_
     if(!pli->std_pipe) P_tot = 1.0; // for --fsonly
   
     /* Compare window P value to ORF P-values */ 
-    /* Use frameshift pip;ine uf frameshift P-value meets threshold ( <= pli->F3 ) AND one of the following constions is met
-       1. frameshift P-value (no bais adjustment) is less than the summed ORF P-value
-       2. frameshift P-value (no bais adjustment) is eq to the summed ORF P-value and there are 2 or more ORFs for this window
-       3. The best ORF P-value does not meet threshold. 
+    /* Use frameshift pipeline if frameshift P-value meets threshold ( <= pli->F3 ) AND one of the following conditions is met
+       1. frameshift P-value (no bias adjustment) is less than the summed ORF P-value
+       2. frameshift P-value (no bias adjustment) is equal to the summed ORF P-value and there are 2 or more ORFs for this window
+       3. The best ORF P-value does not meet threshold.
     */
     if(P_fs <= pli->F3 && (P_null < P_tot || (P_null == P_tot && orf_cnt > 1) || P_min > pli->F3)) { 
       

@@ -800,6 +800,59 @@ p7_tophits_ComputeEvalues_BATH(P7_TOPHITS *th, int64_t N, int W)
 }
 
 
+/* Function:  p7_tophits_RemoveUnreportable_BATH()
+ * Synopsis:  Remove hits the early E-value cut kept that fail the final threshold.
+ *
+ * Purpose:   The pipeline's early E-value cut estimates each hit's E-value
+ *            from the thread's running residue count, so which hits below
+ *            the reporting threshold survive it depends on how blocks were
+ *            handed to threads. After <p7_tophits_ComputeEvalues_BATH()>,
+ *            apply the same test with the final E-values, so the remaining
+ *            hits (which duplicate removal and splicing still see) do not
+ *            depend on the thread count. For spliced searches, hits with a
+ *            P-value below F3 are kept, as in the pipeline.
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_tophits_RemoveUnreportable_BATH(P7_TOPHITS *th, P7_PIPELINE *pli)
+{
+  int i, j, n;
+  int keep;
+
+  for (i = 0, n = 0; i < th->N; i++)
+  {
+    keep = pli->inc_by_E ? (exp(th->unsrt[i].lnP) <= pli->E) : (th->unsrt[i].score >= pli->T);
+    if (pli->spliced && exp(th->unsrt[i].sum_lnP) < pli->F3) keep = TRUE;
+
+    if (keep) {
+      if (n != i) th->unsrt[n] = th->unsrt[i];
+      n++;
+      continue;
+    }
+
+    if (th->unsrt[i].name  != NULL) free(th->unsrt[i].name);
+    if (th->unsrt[i].acc   != NULL) free(th->unsrt[i].acc);
+    if (th->unsrt[i].desc  != NULL) free(th->unsrt[i].desc);
+    if (th->unsrt[i].orfid != NULL) free(th->unsrt[i].orfid);
+    if (th->unsrt[i].dcl   != NULL) {
+      for (j = 0; j < th->unsrt[i].ndom; j++) {
+        if (th->unsrt[i].dcl[j].ad             != NULL) p7_alidisplay_Destroy(th->unsrt[i].dcl[j].ad);
+        if (th->unsrt[i].dcl[j].tr             != NULL) p7_trace_splice_Destroy(th->unsrt[i].dcl[j].tr);
+        if (th->unsrt[i].dcl[j].scores_per_pos != NULL) free(th->unsrt[i].dcl[j].scores_per_pos);
+        if (th->unsrt[i].dcl[j].k_per_pos      != NULL) free(th->unsrt[i].dcl[j].k_per_pos);
+      }
+      free(th->unsrt[i].dcl);
+    }
+  }
+
+  th->N = n;
+  for (i = 0; i < th->N; i++) th->hit[i] = th->unsrt + i;
+  th->is_sorted_by_sortkey = FALSE;
+  th->is_sorted_by_seqidx  = FALSE;
+  return eslOK;
+}
+
 /* Function:  p7_tophits_RemoveDuplicates()
  * Synopsis:  Remove overlapping hits.
  *

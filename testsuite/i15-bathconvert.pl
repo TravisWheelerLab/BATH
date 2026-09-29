@@ -14,6 +14,13 @@
 # stats at all rather than a stale or invented value; --fs should
 # compute real FS3/FS5 values.
 #
+# nostats case checks that bathconvert handles a model built with
+# bathbuild --nostats, which has no E-value statistics at all (not
+# even the base MSV/Viterbi/Forward stats that an old-format model
+# still has): a plain conversion should leave it with no statistics,
+# --addstats should add just the base statistics, and --fs should add
+# both the base and frameshift statistics.
+#
 # Usage:   ./i15-bathconvert.pl <builddir> <srcdir> <tmpfile prefix>
 # Example: ./i15-bathconvert.pl ..         ..       tmpfoo
 
@@ -25,6 +32,7 @@ BEGIN {
 
 # Verify that we have all the executables we need for the test.
 if (! -x "$builddir/src/bathconvert") { die "FAIL: didn't find bathconvert binary in $builddir/src\n";  }
+if (! -x "$builddir/src/bathbuild")   { die "FAIL: didn't find bathbuild binary in $builddir/src\n";  }
 
 # Create our test files (data embedded in script: see end of file)
 &h2_aa_file("$tmppfx.aa.hmm");
@@ -43,6 +51,25 @@ if ($? != 0) { die "FAIL: bathconvert --fs of BATH 1.x model failed\n"; }
 if (! defined $fs3 || ! defined $fs5)     { die "FAIL: bathconvert --fs of a BATH 1.x model didn't write FS3/FS5 stats\n"; }
 if ($fs3 == -99999.0 || $fs5 == -99999.0) { die "FAIL: bathconvert --fs of a BATH 1.x model left FS3/FS5 stats unset\n"; }
 
+@output = `$builddir/src/bathbuild --nostats $tmppfx.nostats.bhmm $srcdir/testsuite/20aa.sto 2>&1`;
+if ($? != 0) { die "FAIL: bathbuild --nostats failed\n"; }
+
+@output = `$builddir/src/bathconvert $tmppfx.nostats_plain.bhmm $tmppfx.nostats.bhmm 2>&1`;
+if ($? != 0) { die "FAIL: bathconvert of a --nostats model failed\n"; }
+&check_no_stats("$tmppfx.nostats_plain.bhmm", "plain bathconvert of a --nostats model");
+
+@output = `$builddir/src/bathconvert --addstats $tmppfx.nostats_addstats.bhmm $tmppfx.nostats.bhmm 2>&1`;
+if ($? != 0) { die "FAIL: bathconvert --addstats of a --nostats model failed\n"; }
+&check_has_base_stats("$tmppfx.nostats_addstats.bhmm", "bathconvert --addstats of a --nostats model");
+&check_no_fs_stats("$tmppfx.nostats_addstats.bhmm", "bathconvert --addstats of a --nostats model");
+
+@output = `$builddir/src/bathconvert --fs $tmppfx.nostats_fs.bhmm $tmppfx.nostats.bhmm 2>&1`;
+if ($? != 0) { die "FAIL: bathconvert --fs of a --nostats model failed\n"; }
+&check_has_base_stats("$tmppfx.nostats_fs.bhmm", "bathconvert --fs of a --nostats model");
+($fs3, $fs5) = &get_fs_taus("$tmppfx.nostats_fs.bhmm");
+if (! defined $fs3 || ! defined $fs5)     { die "FAIL: bathconvert --fs of a --nostats model didn't write FS3/FS5 stats\n"; }
+if ($fs3 == -99999.0 || $fs5 == -99999.0) { die "FAIL: bathconvert --fs of a --nostats model left FS3/FS5 stats unset\n"; }
+
 
 print "ok\n";
 unlink "$tmppfx.aa.hmm";
@@ -50,6 +77,10 @@ unlink "$tmppfx.aa.bhmm";
 unlink "$tmppfx.bath1.bhmm";
 unlink "$tmppfx.bath1_plain.bhmm";
 unlink "$tmppfx.bath1_fs.bhmm";
+unlink "$tmppfx.nostats.bhmm";
+unlink "$tmppfx.nostats_plain.bhmm";
+unlink "$tmppfx.nostats_addstats.bhmm";
+unlink "$tmppfx.nostats_fs.bhmm";
 
 
 sub check_no_fs_stats
@@ -61,6 +92,32 @@ sub check_no_fs_stats
 	if (/^FRAMESHIFT PROB/)  { die "FAIL: $label: unexpected FRAMESHIFT PROB line: $_"; }
     }
     close BHMM;
+}
+
+sub check_no_stats
+{
+    my ($bhmmfile, $label) = @_;
+    open(BHMM, $bhmmfile) || die "FAIL: couldn't open $bhmmfile\n";
+    while (<BHMM>) {
+	if (/^STATS LOCAL/)      { die "FAIL: $label: unexpected STATS line: $_"; }
+	if (/^FRAMESHIFT PROB/)  { die "FAIL: $label: unexpected FRAMESHIFT PROB line: $_"; }
+	if (/^CODON TABLE/)      { die "FAIL: $label: unexpected CODON TABLE line: $_"; }
+    }
+    close BHMM;
+}
+
+sub check_has_base_stats
+{
+    my ($bhmmfile, $label) = @_;
+    my ($msv, $vit, $fwd) = (0, 0, 0);
+    open(BHMM, $bhmmfile) || die "FAIL: couldn't open $bhmmfile\n";
+    while (<BHMM>) {
+	if (/^STATS LOCAL MSV/)     { $msv = 1; }
+	if (/^STATS LOCAL VITERBI/) { $vit = 1; }
+	if (/^STATS LOCAL FORWARD/) { $fwd = 1; }
+    }
+    close BHMM;
+    if (! $msv || ! $vit || ! $fwd) { die "FAIL: $label: missing base MSV/VITERBI/FORWARD stats\n"; }
 }
 
 sub get_fs_taus

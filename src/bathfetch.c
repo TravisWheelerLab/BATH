@@ -59,7 +59,7 @@ static ESL_OPTIONS options[] = {
   { "-O",       eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL,"-o,-f,--index","output HMM to file named <key>",                    1 },
   { "--ct",     eslARG_INT,      "1", NULL, NULL, NULL,  NULL, NULL,  "use alt genetic code of NCBI transl table (see below)", 1 },
   { "--fs",     eslARG_NONE,   FALSE, NULL, NULL, NULL,  NULL, NULL,  "calculate frameshift stats, for bathsearch --fs",       1 },
-  { "--addstats",eslARG_NONE,  FALSE, NULL, NULL, NULL,  NULL, NULL,  "calculate E-value stats, for HMMs built with --nostats",99 },
+  { "--addstats",eslARG_NONE,  FALSE, NULL, NULL, NULL,  NULL, NULL,  "calculate E-value stats, for HMMs built with --nostats",1 },
   { "--index",  eslARG_NONE,  FALSE, NULL, NULL, NULL, NULL, NULL,          "index the <hmmfile>, creating <hmmfile>.ssi",       1 },
   { 0,0,0,0,0,0,0,0,0,0 },
 };

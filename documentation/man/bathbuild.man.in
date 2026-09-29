@@ -274,6 +274,20 @@ Profile calibration fits score distributions using short random-sequence
 simulations.
 
 .TP
+.B \-\-nostats
+Build the profile without E-value statistics, skipping the MSV, Viterbi
+and Forward calibration simulations. The profile can be used with
+.B bathalign
+but not
+.BR bathsearch ;
+add the statistics later with
+.BR "bathconvert \-\-addstats" .
+Incompatible with
+.B \-\-fs
+and
+.BR \-\-ct .
+
+.TP
 .BI \-\-EmL " <n>"
 Sequence length for the MSV Gumbel mu calibration. Default is 200.
 

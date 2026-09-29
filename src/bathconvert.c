@@ -17,7 +17,7 @@ static ESL_OPTIONS options[] = {
   { "-h",        eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "show brief help on version and usage",                             1 },
   { "--ct",      eslARG_INT,      "1", NULL, NULL,      NULL,       NULL,  NULL,  "use alt genetic code of NCBI transl table <n> ",        1 },
   { "--fs",      eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate frameshift stats, for bathsearch --fs",       1 },
-  { "--addstats",eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate E-value stats, for HMMs built with --nostats",99 },
+  { "--addstats",eslARG_NONE,   FALSE, NULL, NULL,      NULL,       NULL,  NULL,  "calculate E-value stats, for HMMs built with --nostats",1 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile_out> <hmmfile_in>";

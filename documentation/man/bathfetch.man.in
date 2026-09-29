@@ -142,6 +142,17 @@ does not change the table,
 has no effect.
 
 .TP
+.B \-\-addstats
+Calculate the standard E-value statistics (MSV, Viterbi and Forward)
+for a profile built with
+.BR "bathbuild \-\-nostats" ,
+so it can be used with
+.BR bathsearch .
+Has no effect if the profile already has them.
+.B \-\-fs
+also adds them to such a profile, along with the frameshift statistics.
+
+.TP
 .B \-\-index
 Index the
 .I hmmfile

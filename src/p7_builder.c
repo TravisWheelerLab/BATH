@@ -107,6 +107,7 @@ p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc)
 
   bld->fsprob     = p7P_FSPROB;
   bld->fs         = TRUE;
+  bld->nostats    = FALSE;
   bld->ct         = (go != NULL) ?  esl_opt_GetInteger(go, "--ct")         : 1;
   bld->symfrac    = (go != NULL) ?  esl_opt_GetReal   (go, "--symfrac")    : 0.5; 
   bld->fragthresh = (go != NULL) ?  esl_opt_GetReal   (go, "--fragthresh") : 0.5; 

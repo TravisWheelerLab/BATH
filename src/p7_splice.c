@@ -57,7 +57,7 @@ static void* splice_thread(void *arg);
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, P7_FS_PROFILE *gm_fs5, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, ID_LENGTH_LIST *id_length_list, int64_t db_nuc_cnt)
+p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_PROFILE *gm_tr, ESL_GETOPTS *go, ESL_GENCODE *gcode, ESL_SQFILE *seq_file, ID_LENGTH_LIST *id_length_list, int64_t db_nuc_cnt)
 {
 
   int                i;

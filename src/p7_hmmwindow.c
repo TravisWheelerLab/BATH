@@ -338,8 +338,8 @@ p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3)
       intersect_aliend   = ESL_MIN(e_i, e_j);
       intersect_alilen   = intersect_aliend - intersect_alistart + 1;
 
-      intersect_hmmstart = ESL_MAX(th->hit[i]->dcl[0].ihmm, hw->windows[i].k - (hw->windows[i].length/3) + 1);
-      intersect_hmmend   = ESL_MIN(th->hit[i]->dcl[0].jhmm, hw->windows[i].k);
+      intersect_hmmstart = ESL_MAX(th->hit[i]->dcl[0].ihmm, hw->windows[j].k - (hw->windows[j].length/3) + 1);
+      intersect_hmmend   = ESL_MIN(th->hit[i]->dcl[0].jhmm, hw->windows[j].k);
       intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
 
       if(  intersect_hmmlen > 0              && // hmm corrds overlap and

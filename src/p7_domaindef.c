@@ -1065,9 +1065,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   dom->ad             = NULL; 
   dom->scores_per_pos = NULL; 
   dom->k_per_pos      = NULL;
-  dom->aliscore       = 0.0; 
+  dom->aliscore       = 0.0;
 
-  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs5);
+  p7_pli_computeAliScores_Frameshift_BATH(dom, ddef->tr, windowsq, gm_fs5);
 
   if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
     free(dom->scores_per_pos);
@@ -1279,9 +1279,9 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_FS_PROFILE 
   dom->ad             = NULL;
   dom->scores_per_pos = NULL;
   dom->k_per_pos      = NULL;
-  dom->aliscore       = 0.0; 
- 
-  p7_pli_computeAliScores_BATH(dom, ddef->tr, windowsq, gm_fs5); 
+  dom->aliscore       = 0.0;
+
+  p7_pli_computeAliScores_Frameshift_BATH(dom, ddef->tr, windowsq, gm_fs5);
 
   if(dom->aliscore < 0.0) { /* rare: domain is assumed to be repetitive garbage */
     free(dom->scores_per_pos);   

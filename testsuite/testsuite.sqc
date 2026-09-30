@@ -42,6 +42,7 @@
 1 exercise p7_hit             @src/p7_hit_utest@
 1 exercise p7_hmm             @src/p7_hmm_utest@
 1 exercise p7_hmmfile         @src/p7_hmmfile_utest@
+1 exercise p7_pipeline        @src/p7_pipeline_utest@
 1 exercise p7_profile         @src/p7_profile_utest@
 1 exercise p7_tophits         @src/p7_tophits_utest@
 1 exercise p7_trace           @src/p7_trace_utest@

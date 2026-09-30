@@ -168,6 +168,7 @@ UTESTS =\
 	p7_hit_utest\
 	p7_hmm_utest\
 	p7_hmmfile_utest\
+	p7_pipeline_utest\
 	p7_profile_utest\
 	p7_tophits_utest\
 	p7_trace_utest\

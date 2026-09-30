@@ -767,18 +767,125 @@ p7_pipeline_Merge(P7_PIPELINE *p1, P7_PIPELINE *p2)
   return eslOK;
 }
 
-/* Function:  p7_pli_computeAliScores()
- * Synopsis:  Compute per-position scores for a BATH alignment 
+/* Function:  p7_pli_computeAliScores_BATH()
+ * Synopsis:  Compute per-position scores for a standard BATH alignment
  *
- * Purpose:   Compute per-position (Viterbi) scores for a BATH 
- *            alignment for use in splcing algorithms 
+ * Purpose:   Compute per-position (Viterbi) scores for a BATH alignment
+ *            against a standard (non-frameshift-aware) profile <gm>, for
+ *            the repetitive-garbage <dom->aliscore> check. <tr> is the
+ *            trace in its original amino-acid coordinates, as built by
+ *            <p7_OATrace()> against <orfsq>, before <p7_trace_fs_Convert()>
+ *            maps it onto the DNA target.
  *
  * Returns:   <eslOK> on success.
  *
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, const P7_FS_PROFILE *gm_fs)
+p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *orfsq, const P7_PROFILE *gm)
+{
+
+  int i, k, n;
+  int amino;
+  int z1, z2;
+  ESL_DSQ *dsq;
+  int status;
+
+  dsq = orfsq->dsq;
+  for(z1 = 0;       z1 < tr->N; z1++) if(tr->st[z1] == p7T_M) break;
+  for(z2 = tr->N-1; z2 >= 0;    z2--) if(tr->st[z2] == p7T_M) break;
+
+  dom->per_pos_len = z2 - z1 + 1;
+
+  if(dom->scores_per_pos == NULL)
+    ESL_ALLOC( dom->scores_per_pos, sizeof(float) * dom->per_pos_len);
+  else
+    ESL_REALLOC( dom->scores_per_pos, sizeof(float) * dom->per_pos_len);
+
+  if(dom->k_per_pos == NULL)
+    ESL_ALLOC( dom->k_per_pos, sizeof(int) * dom->per_pos_len);
+  else
+    ESL_REALLOC( dom->k_per_pos, sizeof(int) * dom->per_pos_len);
+
+
+  for (n=0; n<dom->per_pos_len; n++)  dom->scores_per_pos[n] = 0.0;
+
+  n  = 0;
+  while (z1<=z2) {
+    i = tr->i[z1];
+    k = tr->k[z1];
+
+    if (tr->st[z1] == p7T_M) {
+      amino = dsq[i];
+      dom->scores_per_pos[n] = p7P_MSC(gm, k, amino);
+
+      if (tr->st[z1-1] == p7T_I)
+        dom->scores_per_pos[n] += p7P_TSC(gm, k-1, p7P_IM);
+      else if (tr->st[z1-1] == p7T_D)
+        dom->scores_per_pos[n] += p7P_TSC(gm, k-1, p7P_DM);
+
+      dom->k_per_pos[n] = k;
+
+      k++; z1++; n++;
+
+      while(z1 < z2 && tr->st[z1] == p7T_M) {
+        i = tr->i[z1];
+        amino = dsq[i];
+
+        dom->scores_per_pos[n] = p7P_MSC(gm, k, amino);
+        dom->scores_per_pos[n] += p7P_TSC(gm, k-1, p7P_MM);
+        dom->k_per_pos[n] = k;
+        k++; z1++; n++;
+      }
+    }
+    else if (tr->st[z1] == p7T_I) {
+
+      dom->scores_per_pos[n] = p7P_TSC(gm, k, p7P_MI);
+      dom->k_per_pos[n] = k;
+      z1++; n++;
+      while (z1 < z2 && tr->st[z1] == p7T_I) {
+        dom->scores_per_pos[n] = p7P_TSC(gm, k, p7P_II);
+        dom->k_per_pos[n] = k;
+        z1++; n++;
+      }
+    }
+    else if (tr->st[z1] == p7T_D) {
+      dom->scores_per_pos[n] = p7P_TSC(gm, k-1, p7P_MD);
+      dom->k_per_pos[n] = k;
+      k++; z1++; n++;
+      while (z1 < z2 && tr->st[z1] == p7T_D)  {
+        dom->scores_per_pos[n] = p7P_TSC(gm, k-1, p7P_DD);
+        dom->k_per_pos[n] = k;
+        k++; z1++; n++;
+      }
+    }
+    else ESL_XEXCEPTION(eslFAIL, "Impossible state from p7_pli_computeAliScores_BATH()");
+  }
+
+  dom->aliscore = 0.0;
+  for (n=0; n<dom->per_pos_len; n++)  dom->aliscore += dom->scores_per_pos[n];
+
+  return eslOK;
+
+ ERROR:
+    return status;
+
+}
+
+/* Function:  p7_pli_computeAliScores_Frameshift_BATH()
+ * Synopsis:  Compute per-position scores for a frameshift-aware BATH alignment
+ *
+ * Purpose:   Compute per-position (Viterbi) scores for a BATH alignment
+ *            against a frameshift-aware (codon-table) profile <gm_fs>,
+ *            for the repetitive-garbage <dom->aliscore> check and for
+ *            use by the splicing algorithms.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure.
+ */
+int
+p7_pli_computeAliScores_Frameshift_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, const P7_FS_PROFILE *gm_fs)
 {
 
   int i, k, c, n;
@@ -966,7 +1073,7 @@ p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *seq, co
         k++; z1++; n++;
       }
     }
-    else ESL_XEXCEPTION(eslFAIL, "Impossible state from p7_pli_computeAliScores_BATH()");
+    else ESL_XEXCEPTION(eslFAIL, "Impossible state from p7_pli_computeAliScores_Frameshift_BATH()");
   }
 
   dom->aliscore = 0.0;
@@ -1883,4 +1990,159 @@ p7_pli_Statistics(FILE *ofp, P7_PIPELINE *pli, ESL_STOPWATCH *w)
 /*------------------- end, pipeline API -------------------------*/
 
 
+/*****************************************************************
+ * Unit tests
+ *****************************************************************/
+#ifdef p7PIPELINE_TESTDRIVE
+#include "esl_getopts.h"
+#include "esl_alphabet.h"
+#include "esl_gencode.h"
+#include "esl_sq.h"
+
+/* p7_pli_computeAliScores_BATH() (gm) and
+ * p7_pli_computeAliScores_Frameshift_BATH() (gm_fs5) both read
+ * rsc/tsc computed from the same hmm->mat[k]/hmm->t[k], So for 
+ * the same alignment, the two functions should produce 
+ * identical per-position scores.
+ *
+ * This test emits a sequence from a randomly sampled HMM, 
+ * Viterbi-aligns it back to get a naturally varied trace, 
+ * reverse-translates with a random synonymous codon per 
+ * residue, and converts the trace to DNA coordinates with 
+ * p7_trace_fs_Convert(). 
+ */
+static void
+utest_computeAliScores_matches_frameshift(ESL_RANDOMNESS *r, P7_HMM *hmm, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs5,
+                                           P7_BG *bg, ESL_ALPHABET *abcDNA, P7_CODONTABLE *ct, int nseq, int L)
+{
+  char      *msg = "p7_pipeline.c::p7_pli_computeAliScores_BATH() unit test failed";
+  ESL_SQ    *sq       = NULL;
+  ESL_SQ    *windowsq = NULL;
+  P7_GMX    *gx       = NULL;
+  P7_TRACE  *tr_amino = NULL;
+  P7_TRACE  *tr_dna   = NULL;
+  P7_DOMAIN  dom_new, dom_old;
+  float      vsc;
+  int        idx, z, i, n;
+  double     tol = 1e-5;
+
+  if ((sq = esl_sq_CreateDigital(hmm->abc))            == NULL)  esl_fatal(msg);
+  if ((gx = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))    == NULL)  esl_fatal(msg);
+
+  for (idx = 0; idx < nseq; idx++)
+  {
+    esl_sq_Reuse(sq);
+    if (p7_ProfileEmit(r, hmm, gm, bg, sq, NULL) != eslOK) esl_fatal(msg);
+
+    if (p7_gmx_GrowTo(gx, gm->M, sq->n, sq->n)        != eslOK) esl_fatal(msg);
+    if (p7_GViterbi(sq->dsq, sq->n, gm, gx, &vsc)     != eslOK) esl_fatal(msg);
+
+    if ((tr_amino = p7_trace_Create())                == NULL)  esl_fatal(msg);
+    if (p7_GTrace(sq->dsq, sq->n, gm, gx, tr_amino)   != eslOK) esl_fatal(msg);
+
+    /* reverse-translate the emitted residues into DNA, one random
+     * synonymous codon per residue */
+    if ((windowsq = esl_sq_CreateDigital(abcDNA))     == NULL)  esl_fatal(msg);
+    if (esl_sq_GrowTo(windowsq, sq->n * 3)             != eslOK) esl_fatal(msg);
+    for (i = 1; i <= sq->n; i++)
+      if (p7_codontable_GetCodon(ct, r, sq->dsq[i], windowsq->dsq + (i-1)*3 + 1) != eslOK) esl_fatal(msg);
+    windowsq->dsq[0] = eslDSQ_SENTINEL;
+    windowsq->dsq[sq->n*3 + 1] = eslDSQ_SENTINEL;
+    windowsq->n = sq->n * 3;
+
+    /* build a same-shaped trace, then convert it to DNA coordinates
+     * with the real production conversion function */
+    if ((tr_dna = p7_trace_fs_Create()) == NULL) esl_fatal(msg);
+    for (z = 0; z < tr_amino->N; z++)
+      if (p7_trace_fs_Append(tr_dna, tr_amino->st[z], tr_amino->k[z], tr_amino->i[z], 0) != eslOK) esl_fatal(msg);
+    if (p7_trace_fs_Convert(tr_dna, 0, 0) != eslOK) esl_fatal(msg);
+
+    memset(&dom_new, 0, sizeof(dom_new));
+    memset(&dom_old, 0, sizeof(dom_old));
+
+    if (p7_pli_computeAliScores_BATH(&dom_new, tr_amino, sq, gm)                    != eslOK) esl_fatal(msg);
+    if (p7_pli_computeAliScores_Frameshift_BATH(&dom_old, tr_dna, windowsq, gm_fs5) != eslOK) esl_fatal(msg);
+
+    if (dom_new.per_pos_len != dom_old.per_pos_len) esl_fatal(msg);
+    for (n = 0; n < dom_new.per_pos_len; n++)
+    {
+      if (dom_new.k_per_pos[n] != dom_old.k_per_pos[n])                                        esl_fatal(msg);
+      if (esl_FCompare(dom_new.scores_per_pos[n], dom_old.scores_per_pos[n], tol, tol) != eslOK) esl_fatal(msg);
+    }
+    if (esl_FCompare(dom_new.aliscore, dom_old.aliscore, tol, tol) != eslOK) esl_fatal(msg);
+
+    free(dom_new.scores_per_pos); free(dom_new.k_per_pos);
+    free(dom_old.scores_per_pos); free(dom_old.k_per_pos);
+    p7_trace_Destroy(tr_amino);
+    p7_trace_Destroy(tr_dna);
+    esl_sq_Destroy(windowsq);
+    p7_gmx_Reuse(gx);
+  }
+
+  esl_sq_Destroy(sq);
+  p7_gmx_Destroy(gx);
+  return;
+}
+#endif /*p7PIPELINE_TESTDRIVE*/
+
+
+/*****************************************************************
+ * Test driver
+ *****************************************************************/
+#ifdef p7PIPELINE_TESTDRIVE
+
+/* gcc -g -Wall -Dp7PIPELINE_TESTDRIVE -I. -I../easel -L. -L../easel -o pipeline_utest p7_pipeline.c -lhmmer -leasel -lm
+ * ./pipeline_utest
+ */
+#include "p7_config.h"
+#include "hmmer.h"
+
+static ESL_OPTIONS options[] = {
+  /* name  type          default  env  range togs reqs incomp help                              docgroup*/
+  { "-h",  eslARG_NONE,   FALSE, NULL, NULL, NULL, NULL, NULL, "show brief help on version and usage", 0 },
+  { "-s",  eslARG_INT,     "42", NULL, NULL, NULL, NULL, NULL, "set random number seed to <n>",        0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "test driver for p7_pipeline.c";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go     = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r      = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abcAA  = esl_alphabet_Create(eslAMINO);
+  ESL_ALPHABET   *abcDNA = esl_alphabet_Create(eslDNA);
+  ESL_GENCODE    *gcode  = esl_gencode_Create(abcDNA, abcAA);
+  P7_CODONTABLE  *ct     = p7_codontable_Create(gcode);
+  P7_HMM         *hmm    = NULL;
+  P7_BG          *bg     = NULL;
+  P7_PROFILE     *gm     = NULL;
+  P7_FS_PROFILE  *gm_fs5 = NULL;
+  int             M      = 20;
+  int             L      = 100;
+  int             nseq   = 10;
+
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)                         != eslOK) esl_fatal("failed to sample random HMM");
+  if ((bg = p7_bg_Create(abcAA))                                == NULL)  esl_fatal("failed to create null model");
+  if ((gm = p7_profile_Create(hmm->M, abcAA))                   == NULL)  esl_fatal("failed to create profile");
+  if (p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL)                != eslOK) esl_fatal("failed to config profile");
+  if ((gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS)) == NULL)  esl_fatal("failed to create fs profile");
+  if (p7_ProfileConfig_fs(hmm, bg, gcode, gm_fs5, L, p7_LOCAL)  != eslOK) esl_fatal("failed to config fs profile");
+
+  utest_computeAliScores_matches_frameshift(r, hmm, gm, gm_fs5, bg, abcDNA, ct, nseq, L);
+
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_bg_Destroy(bg);
+  p7_hmm_Destroy(hmm);
+  p7_codontable_Destroy(ct);
+  esl_gencode_Destroy(gcode);
+  esl_alphabet_Destroy(abcAA);
+  esl_alphabet_Destroy(abcDNA);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return eslOK;
+}
+#endif /*p7PIPELINE_TESTDRIVE*/
 

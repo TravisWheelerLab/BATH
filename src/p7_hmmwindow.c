@@ -370,10 +370,10 @@ p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3)
  * Throws:    p7_Fail on sequence file read error
  */
 P7_TOPHITS*
-p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hmm, P7_FS_PROFILE *gm_fs, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3, int max_intron)
+p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hmm, P7_PROFILE *gm, ESL_SQFILE *seq_file, ESL_GENCODE *gcode, double F3, int max_intron)
 {
 
-  int i, h, y, z;
+  int i, h, y, z, n, aa;
   int i_start;
   int strand;
   int hit_min, hit_max;
@@ -388,6 +388,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
   ESL_ALPHABET *abcDNA;
   ESL_SQFILE   *dbfp;
   ESL_SQ       *dbsq_dna;
+  ESL_SQ       *orfsq;
   int status;
 
   window_len = (1024 * 256);
@@ -512,7 +513,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
     window_max = hw->windows[i].n + hw->windows[i].length - 1;    
     /* Fetch the next winow until it contains the current window */
     while(status == eslOK && window_max > seq_max) {
-      status = esl_sqio_ReadWindow(dbfp, gm_fs->max_length*3, window_len, dbsq_dna);
+      status = esl_sqio_ReadWindow(dbfp, gm->max_length*3, window_len, dbsq_dna);
       seq_max = ESL_MAX(dbsq_dna->start, dbsq_dna->end);
 
       if(window_max <= seq_max && hw->windows[i].complementarity)
@@ -540,7 +541,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
     p7_tophits_CreateNextHit(seed_hits, &hit);
     hit->seqidx  = hw->windows[i].id;
     hit->dcl     = p7_domain_Create_empty();
-    hit->dcl->tr = p7_trace_fs_Create();
+    hit->dcl->tr = p7_trace_Create();
 
     /* repurpose is_reported for hits that passed the forward filter */
     if(hw->windows[i].pass_forward) hit->dcl->is_reported = TRUE;
@@ -556,28 +557,42 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
       hit->dcl->iali = hw->windows[i].n;
       hit->dcl->jali = hw->windows[i].n + hw->windows[i].length - 1;
     }
- 
-    /* Create trace for seed hit */
-    p7_trace_fs_Append(hit->dcl->tr, p7T_S , 0, 0, 0);
-    p7_trace_fs_Append(hit->dcl->tr, p7T_N , 0, 0, 0);
-    p7_trace_fs_Append(hit->dcl->tr, p7T_B , 0, 0, 0);
+
+    /* Translate the DNA window to amino acids and build a matching
+     * amino-coordinate trace, so we can score this (always ungapped,
+     * always frameshift-free) seed window with the plain-gm
+     * p7_pli_computeAliScores_BATH(), same as production ORF alignments */
+    n = hit->dcl->jhmm - hit->dcl->ihmm + 1;
+    orfsq = esl_sq_CreateDigital(hmm->abc);
+    esl_sq_GrowTo(orfsq, n);
 
     y = llabs(hit->dcl->iali - dbsq_dna->start) + 3;
-    for(z = hit->dcl->ihmm; z <= hit->dcl->jhmm; z++) {
-      p7_trace_fs_Append(hit->dcl->tr, p7T_M, z, y, 3);
-      y+=3;
+    for (z = 1; z <= n; z++) {
+      aa = esl_gencode_GetTranslation(gcode, &dbsq_dna->dsq[y-2]);
+      orfsq->dsq[z] = aa;
+      y += 3;
     }
+    orfsq->dsq[0]   = eslDSQ_SENTINEL;
+    orfsq->dsq[n+1] = eslDSQ_SENTINEL;
+    orfsq->n = n;
 
-    p7_trace_fs_Append(hit->dcl->tr, p7T_E, z-1, y-=3, 0);
-    p7_trace_fs_Append(hit->dcl->tr, p7T_C, 0, y-=3, 0);
-    p7_trace_fs_Append(hit->dcl->tr, p7T_T, 0, 0, 0);
+    p7_trace_Append(hit->dcl->tr, p7T_S, 0, 0);
+    p7_trace_Append(hit->dcl->tr, p7T_N, 0, 0);
+    p7_trace_Append(hit->dcl->tr, p7T_B, 0, 0);
+    for (z = 1; z <= n; z++)
+      p7_trace_Append(hit->dcl->tr, p7T_M, hit->dcl->ihmm + z - 1, z);
+    p7_trace_Append(hit->dcl->tr, p7T_E, hit->dcl->jhmm, n);
+    p7_trace_Append(hit->dcl->tr, p7T_C, 0, n);
+    p7_trace_Append(hit->dcl->tr, p7T_T, 0, 0);
 
     hit->dcl->scores_per_pos = NULL;
     hit->dcl->k_per_pos = NULL;
-    p7_pli_computeAliScores_Frameshift_BATH(hit->dcl, hit->dcl->tr, dbsq_dna, gm_fs);
- 
+    p7_pli_computeAliScores_BATH(hit->dcl, hit->dcl->tr, orfsq, gm);
+
+    esl_sq_Destroy(orfsq);
+
     last_seqidx = hw->windows[i].id;
-    last_strand = hw->windows[i].complementarity;    
+    last_strand = hw->windows[i].complementarity;
   }
 
   esl_alphabet_Destroy(abcDNA);

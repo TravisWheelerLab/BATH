@@ -847,6 +847,7 @@ p7_trace_GrowTo(P7_TRACE *tr, int N)
   ESL_RALLOC(tr->st, tmp, sizeof(char) *N);
   ESL_RALLOC(tr->k,  tmp, sizeof(int)  *N);
   ESL_RALLOC(tr->i,  tmp, sizeof(int)  *N);
+  if (tr->c  != NULL) ESL_RALLOC(tr->c,   tmp, sizeof(int)   *N);
   if (tr->pp != NULL) ESL_RALLOC(tr->pp,  tmp, sizeof(float) *N);
   tr->nalloc = N;
   return eslOK;

@@ -408,7 +408,7 @@ p7_trace_fs_Convert(P7_TRACE *tr, int64_t orf_start, int64_t sq_start)
   int start;
   int status;
 
-  ESL_RALLOC(tr->c, tr->c, sizeof(int)  *2*tr->nalloc); 
+  if (tr->c == NULL) ESL_ALLOC(tr->c, sizeof(int) * tr->nalloc);   /* a trace made by p7_trace_Create() */
   start = orf_start - sq_start;  
   
   for (z = 0; z < tr->N; ++z) { 

@@ -29,6 +29,7 @@ typedef struct {
   P7_OMX          **oxf_holder; // - a temporary list of forward parser matricies for ORFs
   float            *fwdsc;
   double           *P_orf;      // - a temporary list or forwrad P values for ORFs
+  int              *orf_win;    // - window index of each ORF; kept here so the ORF block stays read-only
 } P7_PIPELINE_OBJS;
 
 
@@ -1473,9 +1474,6 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
   /* Build windows from ORF's that pass F4 */
   p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp, hit_windows, hit_windows_start, complementarity);
 
-  /* An ORF belongs to window w only once the loop below finds it inside w */
-  for(i = 0; i < orf_block->count; i++) orf_block->list[i].idx = -1;
-
   for(w = 0; w < fwd_windowlist.count; w++) {
 
     dna_window = &(fwd_windowlist.windows[w]); 
@@ -1514,7 +1512,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
 
       /* Only process ORF if it in inside the current window */ 
       if(orf_start >= window_start && orf_end <= window_end) {    
-        orfsq->idx = w;
+        pli_tmp->orf_win[i] = w;
         P_min      = ESL_MIN(P_min, pli_tmp->P_orf[i]);  
         tot_orfsc  = p7_FLogsum(tot_orfsc, pli_tmp->fwdsc[i]); 
         orf_cnt++;        
@@ -1597,7 +1595,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
        
         orfsq = &(orf_block->list[i]);
 
-        if(orfsq->idx != w)                continue; // This ORF does not overlap with this window
+        if(pli_tmp->orf_win[i] != w)       continue; // This ORF does not overlap with this window
         if(pli_tmp->P_orf[i] > pli->F3)    continue; // This ORF did not pass Forward
         if(pli_tmp->oxf_holder[i] == NULL) continue; // This ORF has already been aligned
         
@@ -1727,16 +1725,19 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   pli_tmp->tmpseq     = NULL;
   pli_tmp->oxf_holder = NULL;
   pli_tmp->P_orf      = NULL;
+  pli_tmp->orf_win    = NULL;
   pli_tmp->fwdsc      = NULL;
 
   ESL_ALLOC(pli_tmp->fwdsc,      sizeof(float)    * orf_block->count);
   ESL_ALLOC(pli_tmp->P_orf,      sizeof(double)   * orf_block->count);
+  ESL_ALLOC(pli_tmp->orf_win,    sizeof(int)      * orf_block->count);
   ESL_ALLOC(pli_tmp->oxf_holder, sizeof(P7_OMX *) * orf_block->count);
 
   for(i = 0; i < orf_block->count; i++) {
       pli_tmp->oxf_holder[i] = NULL;
       pli_tmp->fwdsc[i] = -eslINFINITY;
       pli_tmp->P_orf[i] = 1.0;
+      pli_tmp->orf_win[i] = -1;
   }
   
   pli_tmp->tmpseq = esl_sq_CreateDigital(dnasq->abc);
@@ -1918,6 +1919,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
     if (pli_tmp->tmpseq     != NULL) esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->oxf_holder != NULL) free(pli_tmp->oxf_holder);
     if (pli_tmp->P_orf      != NULL) free(pli_tmp->P_orf);
+    if (pli_tmp->orf_win    != NULL) free(pli_tmp->orf_win);
     if (pli_tmp->fwdsc      != NULL) free(pli_tmp->fwdsc);
     free(pli_tmp);
   }
@@ -1930,6 +1932,7 @@ ERROR:
     if (pli_tmp->tmpseq     != NULL) esl_sq_Destroy(pli_tmp->tmpseq);
     if (pli_tmp->oxf_holder != NULL) free(pli_tmp->oxf_holder);
     if (pli_tmp->P_orf      != NULL) free(pli_tmp->P_orf);
+    if (pli_tmp->orf_win    != NULL) free(pli_tmp->orf_win);
     if (pli_tmp->fwdsc      != NULL) free(pli_tmp->fwdsc);
     free(pli_tmp);
   }

@@ -1579,7 +1579,11 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
       p7_omx_GrowTo_dpf(pli->oxb_fs, om->M, PARSER_ROWS_BWD, dna_window->length);
       status = p7_BackwardParser_Frameshift_3Codons(pli_tmp->tmpseq->dsq, dna_window->length, om_fs3, pli->oxf_fs, pli->oxb_fs, pli->ov3, NULL);
       if (status == eslERANGE) continue; /* backward underflow; skip domain definition for this window */
-  
+
+      /* om_fs3's Forward/Backward just ran multihit at this window's length; match it in om_fs5/gm_fs5 before decoding */
+      p7_fs_ReconfigMultihit(gm_fs5, dna_window->length/3);
+      p7_fs_oprofile_ReconfigMultihit(om_fs5, dna_window->length/3);
+
       status = p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(pli, pli_tmp->tmpseq, om_fs5, gm_fs5, bg, gcode);
       if (pli->ddef->nregions == 0 || pli->ddef->nenvelopes == 0) continue;
   

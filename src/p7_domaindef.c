@@ -310,7 +310,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
   int last_j2;
   int nc;
   int saveL     = gm_fs5->L;     /* Save the length config of <gm_fs5>; will restore upon return */
-  int save_mode = gm_fs5->mode;  /* Likewise for the mode. */
   int status;
   P7_OMX       *oxf  = pli->oxf_fs;
   P7_OMX       *oxb  = pli->oxb_fs;
@@ -465,9 +464,9 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
 
    } 
   }
-  /* Restore model to uni/multihit mode, and to its original length model */
-  if (p7_IsMulti(save_mode)) p7_fs_ReconfigMultihit(gm_fs5, saveL);
-  else                       p7_fs_ReconfigUnihit(gm_fs5, saveL);
+  /* Restore both models to multihit mode at the window length, for the next window's decoding */
+  p7_fs_ReconfigMultihit(gm_fs5, saveL);
+  p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL);
 
   return eslOK;
 }
@@ -506,7 +505,6 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
   int last_j2;
   int nc;
   int saveL     = om->L;  /* Save the length config of <om>; will restore upon return */
-  int save_mode = om->mode;  /* Likewise for the mode. */
   int status;
 
   if ((status = p7_domaindef_GrowTo(ddef, orfsq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
@@ -600,9 +598,8 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
 
   }
 
-  /* Restore model to uni/multihit mode, and to its original length model */
-  if (p7_IsMulti(save_mode)) p7_oprofile_ReconfigMultihit(om, saveL); 
-  else                       p7_oprofile_ReconfigUnihit  (om, saveL); 
+  /* Restore model to multihit mode, and to its original length model */
+  p7_oprofile_ReconfigMultihit(om, saveL);
   return eslOK;
 }
 

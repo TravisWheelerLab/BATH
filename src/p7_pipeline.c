@@ -532,7 +532,6 @@ p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq,
     }
 
     p7_hmmwindow_new(windowlist, 0, window_start, curr_window->k, window_end-window_start+1, 0.0, complementarity, dnasq->n);
-    curr_orf->idx = windowlist->count - 1; /* keep track of which window ORFs belong to */
   }
   
   if( windowlist->count == 0) return eslOK;
@@ -564,7 +563,6 @@ p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq,
       new_hit_cnt++;
       windowlist->windows[new_hit_cnt] = windowlist->windows[i];
     }
-    orf_block->list[i].idx = new_hit_cnt;
   }
   windowlist->count = new_hit_cnt+1;
 
@@ -1472,7 +1470,10 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
 
   /* Build windows from ORF's that pass F4 */
   p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp, hit_windows, complementarity);
-  
+
+  /* An ORF belongs to window w only once the loop below finds it inside w */
+  for(i = 0; i < orf_block->count; i++) orf_block->list[i].idx = -1;
+
   for(w = 0; w < fwd_windowlist.count; w++) {
 
     dna_window = &(fwd_windowlist.windows[w]); 

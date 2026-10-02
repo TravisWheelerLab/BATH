@@ -408,7 +408,7 @@ p7_trace_fs_Convert(P7_TRACE *tr, int64_t orf_start, int64_t sq_start)
   int start;
   int status;
 
-  ESL_RALLOC(tr->c, tr->c, sizeof(int)  *2*tr->nalloc); 
+  if (tr->c == NULL) ESL_ALLOC(tr->c, sizeof(int) * tr->nalloc);   /* a trace made by p7_trace_Create() */
   start = orf_start - sq_start;  
   
   for (z = 0; z < tr->N; ++z) { 
@@ -708,6 +708,7 @@ p7_trace_Grow(P7_TRACE *tr)
   ESL_RALLOC(tr->st, tmp, sizeof(char) *2*tr->nalloc);
   ESL_RALLOC(tr->k,  tmp, sizeof(int)  *2*tr->nalloc);
   ESL_RALLOC(tr->i,  tmp, sizeof(int)  *2*tr->nalloc);
+  if (tr->c  != NULL) ESL_RALLOC(tr->c,   tmp, sizeof(int)   *2*tr->nalloc);
   if (tr->pp != NULL) ESL_RALLOC(tr->pp,  tmp, sizeof(float) *2*tr->nalloc);
   tr->nalloc *= 2;
   return eslOK;
@@ -846,6 +847,7 @@ p7_trace_GrowTo(P7_TRACE *tr, int N)
   ESL_RALLOC(tr->st, tmp, sizeof(char) *N);
   ESL_RALLOC(tr->k,  tmp, sizeof(int)  *N);
   ESL_RALLOC(tr->i,  tmp, sizeof(int)  *N);
+  if (tr->c  != NULL) ESL_RALLOC(tr->c,   tmp, sizeof(int)   *N);
   if (tr->pp != NULL) ESL_RALLOC(tr->pp,  tmp, sizeof(float) *N);
   tr->nalloc = N;
   return eslOK;

@@ -459,7 +459,7 @@ p7_pli_ComputeLocalCompo(const P7_SCOREDATA *data, const P7_OPROFILE *om, const 
 
 
 int
-p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int complementarity)
+p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int hit_windows_start, int complementarity)
 {
 
   int i, f, w;
@@ -488,7 +488,7 @@ p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq,
      * earlier in the pipeline and stamped with the ORF index in id. */
     best_window_idx = -1;
     best_score      = -eslINFINITY;
-    for(w = 0; w < hit_windows->count; w++) {
+    for(w = hit_windows_start; w < hit_windows->count; w++) {
       if(hit_windows->windows[w].id != f) continue;
       if(hit_windows->windows[w].score > best_score ||
          (hit_windows->windows[w].score == best_score &&
@@ -1434,14 +1434,16 @@ ERROR:
  *            dnasq           - the target DNA sequence
  *            gcode           - genetic code information for codon translation
  *            pli_tmp         - frameshift pipeline object for temporary data
- *            hit_windows     - ORF ungapped aligment windows for DNA window building 
+ *            hit_windows     - ORF ungapped aligment windows for DNA window building
+ *            hit_windows_start - index into hit_windows where this call's own entries begin;
+ *                                earlier entries belong to previously processed DNA windows
  *            complementarity - boolean; is the passed window sourced from a complementary sequence block
  *
- * Returns:   <eslOK>  
+ * Returns:   <eslOK>
  *
  */
 static int
-p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int complementarity)
+p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int hit_windows_start, int complementarity)
 {
 
   int              i, w, h;
@@ -1469,7 +1471,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
   p7_hmmwindow_init(&fwd_windowlist);
 
   /* Build windows from ORF's that pass F4 */
-  p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp, hit_windows, complementarity);
+  p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp, hit_windows, hit_windows_start, complementarity);
 
   /* An ORF belongs to window w only once the loop below finds it inside w */
   for(i = 0; i < orf_block->count; i++) orf_block->list[i].idx = -1;
@@ -1494,7 +1496,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
  
     k_min = om->M;
     k_max = 0;
-    last_window_cnt = 0;
+    last_window_cnt = hit_windows_start;
 
     /* Get ORF P values for comparision */ 
     for(i = 0; i < orf_block->count; i++) {
@@ -1696,7 +1698,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   int     status;
   int     k_min, k_max;
   int     old_window_cnt;
-  int64_t orf_start, orf_end; 
+  int     hit_windows_start;
+  int64_t orf_start, orf_end;
   float   local_compo[p7_MAXABET]; /* Local model composition from windows    */
   float   nullsc;                  /* null model score                        */
   float   usc;                     /* msv score                               */
@@ -1712,6 +1715,8 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
+
+  hit_windows_start = hit_windows->count; /* this call's own windows start here; earlier entries belong to previous DNA windows */
 
   pli_tmp = NULL;
   ESL_ALLOC(pli_tmp, sizeof(P7_PIPELINE_OBJS));
@@ -1899,7 +1904,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   }
 
   if(pli->fs_pipe)  { 
-    p7_pli_Frameshift(pli, om, gm, om_fs3, om_fs5, gm_fs5, data, bg, hitlist, seqidx, orf_block, dnasq, gcode, pli_tmp, hit_windows, complementarity);
+    p7_pli_Frameshift(pli, om, gm, om_fs3, om_fs5, gm_fs5, data, bg, hitlist, seqidx, orf_block, dnasq, gcode, pli_tmp, hit_windows, hit_windows_start, complementarity);
   }
 
   /* clean up */ 

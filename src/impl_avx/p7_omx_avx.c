@@ -144,7 +144,7 @@ p7_omx_GrowTo_avx(P7_OMX *ox, int allocM, int allocL, int allocXL)
   int    i;
   int    status;
 
-  if (ox->allocQ4_avx * 4 >= allocM && ox->validR > allocL && ox->allocXR >= allocXL + 1)
+  if (ox->allocQ4_avx * 8 >= allocM && ox->validR > allocL && ox->allocXR >= allocXL + 1)
     return eslOK;
 
   if (ncells > ox->ncells) {
@@ -167,7 +167,7 @@ p7_omx_GrowTo_avx(P7_OMX *ox, int allocM, int allocL, int allocXL)
     reset_row_pointers  = TRUE;
   }
 
-  if (allocM > ox->allocQ4_avx * 4) reset_row_pointers = TRUE;
+  if (allocM > ox->allocQ4_avx * 8) reset_row_pointers = TRUE;
   if (allocL >= ox->validR)          reset_row_pointers = TRUE;
 
   if (reset_row_pointers) {
@@ -291,7 +291,7 @@ p7_omx_GrowTo_dpf_avx(P7_OMX *ox, int allocM, int allocL, int allocXL)
   int    i;
   int    status;
 
-  if (ox->allocQ4_avx * 4 >= allocM && ox->validR > allocL && ox->allocXR >= allocXL + 1)
+  if (ox->allocQ4_avx * 8 >= allocM && ox->validR > allocL && ox->allocXR >= allocXL + 1)
     return eslOK;
 
   if (ncells > ox->ncells) {
@@ -312,7 +312,7 @@ p7_omx_GrowTo_dpf_avx(P7_OMX *ox, int allocM, int allocL, int allocXL)
     reset_row_pointers  = TRUE;
   }
 
-  if (allocM > ox->allocQ4_avx * 4) reset_row_pointers = TRUE;
+  if (allocM > ox->allocQ4_avx * 8) reset_row_pointers = TRUE;
   if (allocL >= ox->validR)          reset_row_pointers = TRUE;
 
   if (reset_row_pointers) {

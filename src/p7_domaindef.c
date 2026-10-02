@@ -321,8 +321,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
   
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */
-  p7_fs_ReconfigUnihit(gm_fs5, saveL/3);                                                          /* process each domain in unihit mode, regardless of om->mode     */
- p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL/3);
+  p7_fs_ReconfigUnihit(gm_fs5, saveL);                                                          /* process each domain in unihit mode, regardless of om->mode     */
+ p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL);
 
   i         = -1;
   triggered = FALSE;
@@ -466,8 +466,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
    } 
   }
   /* Restore model to uni/multihit mode, and to its original length model */
-  if (p7_IsMulti(save_mode)) p7_fs_ReconfigMultihit(gm_fs5, saveL/3); 
-  else                       p7_fs_ReconfigUnihit(gm_fs5, saveL/3); 
+  if (p7_IsMulti(save_mode)) p7_fs_ReconfigMultihit(gm_fs5, saveL);
+  else                       p7_fs_ReconfigUnihit(gm_fs5, saveL);
 
   return eslOK;
 }

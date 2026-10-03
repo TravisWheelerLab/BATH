@@ -428,7 +428,9 @@
 #endif
 
 
-#define STEP_SINGLE(sv)                         \
+/* Two running maxima, one for the even and one for the odd vectors of a band.
+ * With a single one, every max in a step waits for the one before it. */
+#define STEP_SINGLE(sv, xEv)                    \
   sv   = _mm_subs_epi8(sv, *rsc); rsc++;        \
   xEv  = _mm_max_epu8(xEv, sv);
 
@@ -441,75 +443,81 @@
 
 
 #define STEP_BANDS_1()                          \
-  STEP_SINGLE(sv00)
+  STEP_SINGLE(sv00, xEv)
 
 #define STEP_BANDS_2()                          \
   STEP_BANDS_1()                                \
-  STEP_SINGLE(sv01)
+  STEP_SINGLE(sv01, xEv2)
+
+/* A band of one or two vectors has no chain worth splitting; it keeps a
+ * single running maximum and no second one at all (CALC_ONE) */
+#define STEP_BANDS_2_ONE()                      \
+  STEP_SINGLE(sv00, xEv)                        \
+  STEP_SINGLE(sv01, xEv)
 
 #define STEP_BANDS_3()                          \
   STEP_BANDS_2()                                \
-  STEP_SINGLE(sv02)
+  STEP_SINGLE(sv02, xEv)
 
 #define STEP_BANDS_4()                          \
   STEP_BANDS_3()                                \
-  STEP_SINGLE(sv03)
+  STEP_SINGLE(sv03, xEv2)
 
 #define STEP_BANDS_5()                          \
   STEP_BANDS_4()                                \
-  STEP_SINGLE(sv04)
+  STEP_SINGLE(sv04, xEv)
 
 #define STEP_BANDS_6()                          \
   STEP_BANDS_5()                                \
-  STEP_SINGLE(sv05)
+  STEP_SINGLE(sv05, xEv2)
 
 #define STEP_BANDS_7()                          \
   STEP_BANDS_6()                                \
-  STEP_SINGLE(sv06)
+  STEP_SINGLE(sv06, xEv)
 
 #define STEP_BANDS_8()                          \
   STEP_BANDS_7()                                \
-  STEP_SINGLE(sv07)
+  STEP_SINGLE(sv07, xEv2)
 
 #define STEP_BANDS_9()                          \
   STEP_BANDS_8()                                \
-  STEP_SINGLE(sv08)
+  STEP_SINGLE(sv08, xEv)
 
 #define STEP_BANDS_10()                         \
   STEP_BANDS_9()                                \
-  STEP_SINGLE(sv09)
+  STEP_SINGLE(sv09, xEv2)
 
 #define STEP_BANDS_11()                         \
   STEP_BANDS_10()                               \
-  STEP_SINGLE(sv10)
+  STEP_SINGLE(sv10, xEv)
 
 #define STEP_BANDS_12()                         \
   STEP_BANDS_11()                               \
-  STEP_SINGLE(sv11)
+  STEP_SINGLE(sv11, xEv2)
 
 #define STEP_BANDS_13()                         \
   STEP_BANDS_12()                               \
-  STEP_SINGLE(sv12)
+  STEP_SINGLE(sv12, xEv)
 
 #define STEP_BANDS_14()                         \
   STEP_BANDS_13()                               \
-  STEP_SINGLE(sv13)
+  STEP_SINGLE(sv13, xEv2)
 
 #define STEP_BANDS_15()                         \
   STEP_BANDS_14()                               \
-  STEP_SINGLE(sv14)
+  STEP_SINGLE(sv14, xEv)
 
 #define STEP_BANDS_16()                         \
   STEP_BANDS_15()                               \
-  STEP_SINGLE(sv15)
+  STEP_SINGLE(sv15, xEv2)
 
 #define STEP_BANDS_17()                         \
   STEP_BANDS_16()                               \
-  STEP_SINGLE(sv16)
+  STEP_SINGLE(sv16, xEv)
 
 #define STEP_BANDS_18()                         \
   STEP_BANDS_17()                               \
-  STEP_SINGLE(sv17)
+  STEP_SINGLE(sv17, xEv2)
 
 
 #define CONVERT_STEP(step, length_check, label, sv, pos)        \
@@ -665,7 +673,13 @@
   register __m128i sv17 = beginv;
 
 
-#define CALC(reset, step, convert, width)       \
+/* CALC_N() keeps one running maximum (ONE) or two (TWO, see STEP_SINGLE) */
+#define ONE_DECL
+#define ONE_JOIN
+#define TWO_DECL  __m128i xEv2 = beginv;
+#define TWO_JOIN  xEv = _mm_max_epu8(xEv, xEv2);
+
+#define CALC_N(reset, step, convert, width, maxima) \
   int i;                                        \
   int i2;                                       \
   int Q        = p7O_NQB(om->M);                \
@@ -676,6 +690,7 @@
   dsq++;                                        \
                                                 \
   reset()                                       \
+  maxima##_DECL                                 \
                                                 \
   for (i = 0; i < L && i < Q - q - w; i++)      \
     {                                           \
@@ -709,19 +724,23 @@ done1:                                          \
  convert(step, LENGTH_CHECK, done2)             \
 done2:                                          \
                                                 \
+ maxima##_JOIN                                  \
  return xEv;
+
+#define CALC(reset, step, convert, width)     CALC_N(reset, step, convert, width, TWO)
+#define CALC_ONE(reset, step, convert, width) CALC_N(reset, step, convert, width, ONE)
 
 
 __m128i
 calc_band_1(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, int q, __m128i beginv, register __m128i xEv)
 {
-  CALC(RESET_1, STEP_BANDS_1, CONVERT_1, 1)
+  CALC_ONE(RESET_1, STEP_BANDS_1, CONVERT_1, 1)
 }
 
 __m128i
 calc_band_2(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, int q, __m128i beginv, register __m128i xEv)
 {
-  CALC(RESET_2, STEP_BANDS_2, CONVERT_2, 2)
+  CALC_ONE(RESET_2, STEP_BANDS_2_ONE, CONVERT_2, 2)
 }
 
 __m128i

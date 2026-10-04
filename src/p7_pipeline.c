@@ -329,7 +329,7 @@ p7_pli_ComputeLocalCompo(const P7_SCOREDATA *data, const P7_OPROFILE *om, const 
 
 
 int
-p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int hit_windows_start, int complementarity)
+p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_ORF_BLOCK *orf_block, ESL_SQ *dnasq, P7_OPROFILE *om, P7_BG *bg, const P7_SCOREDATA *data, P7_HMM_WINDOWLIST *windowlist, float pct_overlap, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int hit_windows_start, int complementarity)
 {
 
   int i, f, w;
@@ -345,7 +345,7 @@ p7_pli_BuildDNAWindows(P7_PIPELINE *pli, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq,
   int64_t              overlap_end;
   int32_t              overlap_len;
   int                  new_hit_cnt = 0;
-  ESL_SQ *curr_orf;
+  ESL_ORF *curr_orf;
 
   for(f = 0; f < orf_block->count; f++)
   {
@@ -650,7 +650,7 @@ p7_pipeline_Merge(P7_PIPELINE *p1, P7_PIPELINE *p2)
  * Throws:    <eslEMEM> on allocation failure.
  */
 int
-p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_SQ *orfsq, const P7_PROFILE *gm)
+p7_pli_computeAliScores_BATH(P7_DOMAIN *dom, P7_TRACE *tr, const ESL_ORF *orfsq, const P7_PROFILE *gm)
 {
 
   int i, k, n;
@@ -1144,7 +1144,7 @@ ERROR:
  */
 
 static int 
-p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_SQ *orfsq, ESL_SQ *dnasq, ESL_SQ *windowsq, int complementarity)
+p7_pli_postDomainDef_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, int window_start, ESL_ORF *orfsq, ESL_SQ *dnasq, ESL_SQ *windowsq, int complementarity)
 {
 
   int              d;
@@ -1313,7 +1313,7 @@ ERROR:
  *
  */
 static int
-p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int hit_windows_start, int complementarity)
+p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_ORF_BLOCK *orf_block, ESL_SQ *dnasq, ESL_GENCODE *gcode, P7_PIPELINE_OBJS *pli_tmp, P7_HMM_WINDOWLIST *hit_windows, int hit_windows_start, int complementarity)
 {
 
   int              i, w, h;
@@ -1334,7 +1334,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
   double           P_null;                     /* P-value of frameshift forward for window w/o bias adjustments*/
   double           P_tot;                      /* P-value of summed forward score for all ORFs */
   double           P_min;                      /* lowest p-value produced by an ORF */
-  ESL_SQ          *orfsq;
+  ESL_ORF          *orfsq;
   P7_HMM_WINDOWLIST fwd_windowlist;
   P7_HMM_WINDOW     *dna_window;
 
@@ -1562,7 +1562,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
  * Xref:      J4/25.
  */
 int
-p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_SQ_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *hit_windows, int complementarity)
+p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFILE *om_fs3, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_SCOREDATA *data, P7_BG *bg, P7_TOPHITS *hitlist, int64_t seqidx, ESL_SQ *dnasq, ESL_ORF_BLOCK *orf_block, ESL_GENCODE *gcode,P7_HMM_WINDOWLIST *hit_windows, int complementarity)
 {
 
   int     i, w;
@@ -1580,7 +1580,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   float   filtersc;                /* bias and null score                     */
   float   local_filtersc;          /* bias and null score using local_compo   */
   double  P;                       /* p-value holder                          */
-  ESL_SQ           *orfsq;         /* ORF sequence                            */
+  ESL_ORF           *orfsq;         /* ORF sequence                            */
   P7_HMM_WINDOW    *window;             
   P7_PIPELINE_OBJS *pli_tmp;   
 
@@ -1904,6 +1904,7 @@ utest_computeAliScores_matches_frameshift(ESL_RANDOMNESS *r, P7_HMM *hmm, P7_PRO
   P7_TRACE  *tr_amino = NULL;
   P7_TRACE  *tr_dna   = NULL;
   P7_DOMAIN  dom_new, dom_old;
+  ESL_ORF    orf;
   float      vsc;
   int        idx, z, i, n;
   double     tol = 1e-5;
@@ -1942,7 +1943,11 @@ utest_computeAliScores_matches_frameshift(ESL_RANDOMNESS *r, P7_HMM *hmm, P7_PRO
     memset(&dom_new, 0, sizeof(dom_new));
     memset(&dom_old, 0, sizeof(dom_old));
 
-    if (p7_pli_computeAliScores_BATH(&dom_new, tr_amino, sq, gm)                    != eslOK) esl_fatal(msg);
+    orf.dsq   = sq->dsq;      /* the emitted protein, as the ORF the scoring takes */
+    orf.n     = sq->n;
+    orf.start = 0;
+    orf.end   = 0;
+    if (p7_pli_computeAliScores_BATH(&dom_new, tr_amino, &orf, gm)                  != eslOK) esl_fatal(msg);
     if (p7_pli_computeAliScores_Frameshift_BATH(&dom_old, tr_dna, windowsq, gm_fs5) != eslOK) esl_fatal(msg);
 
     if (dom_new.per_pos_len != dom_old.per_pos_len) esl_fatal(msg);

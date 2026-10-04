@@ -105,7 +105,7 @@ p7_SSVFilter_FromXE(int xE_in, const P7_OPROFILE *om, float *ret_sc)
  *            length <om> is configured for; p7_SSVFilter_FromXE() makes the
  *            filter's status and score from it.
  *
- * Returns:   <eslOK> on success; <eslENORESULT> if this processor has no
+ * Returns:   <eslOK> on success; <eslENORESULT> if there is no SIMD
  *            implementation, and <xE> is unset.
  */
 int
@@ -114,5 +114,10 @@ p7_SSVFilter_OrfBlock(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t 
 #ifdef eslENABLE_AVX
   if (esl_cpu_has_avx()) { p7_SSVFilter_OrfBlock_avx(om, orf, n, xE); return eslOK; }
 #endif
+#ifdef eslENABLE_SSE
+  p7_SSVFilter_OrfBlock_sse(om, orf, n, xE);
+  return eslOK;
+#else
   return eslENORESULT;
+#endif
 }

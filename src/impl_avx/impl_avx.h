@@ -785,6 +785,7 @@ extern int (*p7_SSVFilter)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, flo
 /* ssvfilter_sse.c — SSE implementation */
 #ifdef eslENABLE_SSE
 extern int p7_SSVFilter_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc);
+extern void p7_SSVFilter_OrfBlock_sse(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t *xE);
 #endif
 /* ssvfilter_avx.c — AVX2 implementation */
 #ifdef eslENABLE_AVX

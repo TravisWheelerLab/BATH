@@ -830,7 +830,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       info[i].hw = p7_hmmwindow_CreateList();
       info[i].gcode = gcode;
       info[i].wrk = esl_gencode_WorkstateCreate(go, gcode);
-      info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);
+      info[i].wrk->orf_block = esl_gencode_OrfBlockCreate(BLOCK_SIZE);
       info[i].th     = p7_tophits_Create();
       info[i].om     = p7_oprofile_Clone(om);
       info[i].gm     = p7_profile_Clone(gm);
@@ -923,7 +923,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       p7_hmmwindow_DestroyList(info[i].hw);
       if(info[i].wrk->orf_block != NULL)
       {
-        esl_sq_DestroyBlock(info[i].wrk->orf_block);
+        esl_gencode_OrfBlockDestroy(info[i].wrk->orf_block);
         info[i].wrk->orf_block = NULL;
         esl_gencode_WorkstateDestroy(info[i].wrk);
       }
@@ -1098,7 +1098,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, info->hw, p7_NOCOMPLEMENT);
       p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
-      esl_sq_ReuseBlock(info->wrk->orf_block);    
+      esl_gencode_OrfBlockReuse(info->wrk->orf_block);
     } 
 
     if (info->pli->strands != p7_STRAND_TOPONLY) 
@@ -1112,7 +1112,7 @@ serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp,
       p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, info->hw, p7_COMPLEMENT); 
       p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
       
-      esl_sq_ReuseBlock(info->wrk->orf_block);
+      esl_gencode_OrfBlockReuse(info->wrk->orf_block);
       
       /* Reverse sequence back to original */
       esl_sq_ReverseComplement(dbsq_dna);
@@ -1283,7 +1283,7 @@ pipeline_thread(void *arg)
         p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, info->hw, p7_NOCOMPLEMENT);
         p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
-        esl_sq_ReuseBlock(info->wrk->orf_block);
+        esl_gencode_OrfBlockReuse(info->wrk->orf_block);
       } 
 
       if (info->pli->strands != p7_STRAND_TOPONLY) {
@@ -1294,7 +1294,7 @@ pipeline_thread(void *arg)
         p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, info->hw, p7_COMPLEMENT);
         p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
 
-	    esl_sq_ReuseBlock(info->wrk->orf_block);
+	    esl_gencode_OrfBlockReuse(info->wrk->orf_block);
         esl_sq_ReverseComplement(dnaSeq);
       }
     }  

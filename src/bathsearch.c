@@ -763,7 +763,8 @@ typedef struct {
 typedef struct {
 #ifdef HMMER_THREADS
   pthread_mutex_t  lock;
-  pthread_cond_t   cv;
+  pthread_cond_t   cv;          /* workers wait here for something to run or translate */
+  pthread_cond_t   cv_rd;       /* the reader waits here for a free slot               */
 #endif
   int              nslots;
   SCAN_SLOT      *slot;
@@ -999,6 +1000,9 @@ scan_worker(void *arg)
 
   impl_Init();
   pthread_mutex_lock(&s->lock);
+  /* A worker that takes work wakes one more worker, which looks for work in its
+   * turn. So new work wakes as many workers as it has use for, one after
+   * another, and the idle ones don't all queue for the lock at every change. */
   while (1)
     {
       /* 1. the oldest translated slot with a query still to run on it and a free lane of that
@@ -1019,12 +1023,12 @@ scan_worker(void *arg)
         int li = pick_li;
         s->qbusy[li] = 1;
         sl->qdone[pick_k] = 1;
+        pthread_cond_signal(&s->cv);
         pthread_mutex_unlock(&s->lock);
         scan_run_query(s, wk, sl, li);
         pthread_mutex_lock(&s->lock);
         s->qbusy[li] = 0;
-        if (++sl->ndone == s->nq) sl->state = SLOT_FREE;
-        pthread_cond_broadcast(&s->cv);
+        if (++sl->ndone == s->nq) { sl->state = SLOT_FREE; pthread_cond_signal(&s->cv_rd); }
         continue;
       }
       /* 2. a slot to translate */
@@ -1034,11 +1038,11 @@ scan_worker(void *arg)
       if (best >= 0) {
         SCAN_SLOT *sl = s->slot + best;
         sl->state = SLOT_TRANSLATING;
+        pthread_cond_signal(&s->cv);
         pthread_mutex_unlock(&s->lock);
         scan_translate(s, wk, sl);
         pthread_mutex_lock(&s->lock);
         sl->state = SLOT_READY;
-        pthread_cond_broadcast(&s->cv);
         continue;
       }
       /* 3. nothing to run or translate. A query that still has a slot to do is held back only
@@ -1058,19 +1062,19 @@ scan_worker(void *arg)
         li = pick_k * s->maxl + l;
         s->qbusy[li] = 1;
         sl->qdone[pick_k] = 1;
+        pthread_cond_signal(&s->cv);
         pthread_mutex_unlock(&s->lock);
         scan_lane_create(s, pick_k, l);
         scan_run_query(s, wk, sl, li);
         pthread_mutex_lock(&s->lock);
         s->qbusy[li] = 0;
-        if (++sl->ndone == s->nq) sl->state = SLOT_FREE;
-        pthread_cond_broadcast(&s->cv);
+        if (++sl->ndone == s->nq) { sl->state = SLOT_FREE; pthread_cond_signal(&s->cv_rd); }
         continue;
       }
       /* 4. done when the reader is finished and every slot is free */
       if (s->eof) {
         for (j = 0; j < s->nslots; j++) if (s->slot[j].state != SLOT_FREE) break;
-        if (j == s->nslots) break;
+        if (j == s->nslots) { pthread_cond_broadcast(&s->cv); break; }
       }
       pthread_cond_wait(&s->cv, &s->lock);
     }
@@ -1149,7 +1153,7 @@ scan_pass(SCAN *s, int ncpus, ESL_SQFILE *dbfp, ID_LENGTH_LIST *id_length_list, 
       for (;;) {
         for (j = 0; j < s->nslots; j++) if (s->slot[j].state == SLOT_FREE) break;
         if (j < s->nslots) break;
-        pthread_cond_wait(&s->cv, &s->lock);
+        pthread_cond_wait(&s->cv_rd, &s->lock);
       }
       sl = s->slot + j;
       sl->state = SLOT_READING;
@@ -1170,7 +1174,7 @@ scan_pass(SCAN *s, int ncpus, ESL_SQFILE *dbfp, ID_LENGTH_LIST *id_length_list, 
       sl->ndone = 0;
       sl->seq   = order++;
       sl->state = SLOT_READ;
-      pthread_cond_broadcast(&s->cv);
+      pthread_cond_signal(&s->cv);
       pthread_mutex_unlock(&s->lock);
     }
   pthread_mutex_lock(&s->lock);
@@ -1290,6 +1294,7 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
 #ifdef HMMER_THREADS
   pthread_mutex_init(&s.lock, NULL);
   pthread_cond_init(&s.cv, NULL);
+  pthread_cond_init(&s.cv_rd, NULL);
 #endif
   s.go = go; s.gcode = gcode; s.abcDNA = abcDNA; s.abcAA = abcAA; s.strands = strands;
   s.block_length = block_length; s.use_fs = use_fs;
@@ -1457,6 +1462,7 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
 #ifdef HMMER_THREADS
   pthread_mutex_destroy(&s.lock);
   pthread_cond_destroy(&s.cv);
+  pthread_cond_destroy(&s.cv_rd);
 #endif
   return eslOK;
 }

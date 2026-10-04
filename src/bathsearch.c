@@ -3,6 +3,7 @@
 #include "p7_config.h"
 
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -131,6 +132,7 @@ static ESL_OPTIONS options[] = {
   #ifdef HMMER_THREADS 
   { "--block_length", eslARG_INT,     NULL,      NULL,       "n>=50000", NULL,   NULL, NULL,           "length of blocks read from target database (threaded) ",                  10 },
   { "--cpu",          eslARG_INT,     p7_NCPU,  "HMMER_NCPU","n>=0",     NULL,   NULL, CPUOPTS,        "number of parallel CPU workers to use for multithreads",                  10 },
+  { "--qbatch",       eslARG_INT,     "250",     NULL,       "n>0",      NULL,   NULL, NULL,           "number of queries searched in each pass over the target",                 10 },
 #endif
  
   /* Restrict search to subset of database - hidden because these flags are
@@ -309,6 +311,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--w_length")                      && fprintf(ofp, "# window length :                                %d\n",      esl_opt_GetInteger(go, "--w_length"))        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
 #ifdef HMMER_THREADS
   if (esl_opt_IsUsed(go, "--cpu")                           && fprintf(ofp, "# number of worker threads:                      %d\n",      esl_opt_GetInteger(go, "--cpu"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
+  if (esl_opt_IsUsed(go, "--qbatch")                        && fprintf(ofp, "# queries per pass over the target:              %d\n",      esl_opt_GetInteger(go, "--qbatch"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 #endif
   if (esl_opt_IsUsed(go, "-l")                              && fprintf(ofp, "# minimum ORF length:                            %d\n",      esl_opt_GetInteger(go, "-l"))                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-m")                              && fprintf(ofp, "# ORFs must initiate with AUG only:              yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -1241,7 +1244,7 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
   int                codon_table = esl_opt_GetInteger(go, "--ct");
   int                batch;
   int                strands, block_length, qhstatus = eslOK, nout = 0;
-  int                b0, nb, k, j, t, d, C, sstatus;
+  int                nb, npass = 0, k, j, t, d, C, sstatus;
   int64_t            nseqs, resCnt;
   SCAN              s;
   SCAN_QUERY        *Q;
@@ -1250,43 +1253,15 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
   P7_HMM_WINDOWLIST *seed_accumulator;
   P7_FS_PROFILE     *gm_tr;
   P7_HMM           **H = NULL;
-  int                nq = 0, qalloc = 0;
+  int                qalloc = 0;
 
   if      (strcmp(esl_opt_GetString(go, "--strand"), "both")  == 0) strands = p7_STRAND_BOTH;
   else if (strcmp(esl_opt_GetString(go, "--strand"), "plus")  == 0) strands = p7_STRAND_TOPONLY;
   else                                                                strands = p7_STRAND_BOTTOMONLY;
   block_length = esl_opt_IsUsed(go, "--block_length") ? esl_opt_GetInteger(go, "--block_length") : BATH_MAX_RESIDUE_COUNT;
 
-  /* read every query */
-  while (qhstatus == eslOK) {
-    if (use_fs) { //check that HMM is properly formated for bathsearch
-      if( !(hmm->flags & p7H_STATS) )
-        p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
-
-      if( !(hmm->fsprob && hmm->ct)                      ||
-          hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET   ||
-          hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET )
-        p7_Fail("HMM file %s has no frameshift statistics, which --fs requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
-
-      /* frameshift E-values are computed from a specific codon table, so --fs/--fsonly
-       * requires the HMM's table to match the one bathsearch is using */
-      if( hmm->ct != codon_table)  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
-    } else {
-      if( !(hmm->flags & p7H_STATS) )
-        p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild' (without --nostats), or add them with 'bathconvert --addstats new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
-
-      hmm->fs = FALSE;
-      hmm->fsprob = 0.;
-    }
-    if (hmm->max_length == -1) p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
-    if (nq == qalloc) { qalloc = qalloc ? qalloc*2 : 64; H = realloc(H, sizeof(P7_HMM *) * qalloc); }
-    H[nq++] = hmm;
-    hmm = NULL;
-    qhstatus = p7_hmmfile_Read(hfp, p_abcAA, &hmm);
-    if (qhstatus != eslOK && qhstatus != eslEOF) p7_Fail("reading from query file %s (%d)\n", cfg->queryfile, qhstatus);
-  }
-  batch = nq;   /* all queries in one pass */
-  s.L = ESL_MAX(1, (ncpus + batch - 1) / batch);   /* rounded up, so every worker has a lane */
+  batch = esl_opt_GetInteger(go, "--qbatch");
+  if (! esl_sqfile_IsRewindable(dbfp)) batch = INT_MAX;   /* a target that can't be read again gets every query in its one pass */
 
 #ifdef HMMER_THREADS
   pthread_mutex_init(&s.lock, NULL);
@@ -1295,25 +1270,58 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
 #endif
   s.go = go; s.gcode = gcode; s.abcDNA = abcDNA; s.abcAA = abcAA; s.strands = strands;
   s.block_length = block_length; s.use_fs = use_fs;
-  s.nslots = (ncpus > 0) ? ESL_MAX(4, 2*s.L + 2) : 1;
-  s.maxl   = ESL_MAX(s.L, ESL_MIN(ncpus, s.nslots));   /* a query can run on one slot per lane */
-  s.slot   = calloc(s.nslots, sizeof(SCAN_SLOT));
-  for (j = 0; j < s.nslots; j++) s.slot[j].qdone = calloc(batch, 1);   /* its blocks come on first use: scan_slot_ready() */
-  Q     = calloc(batch, sizeof(SCAN_QUERY));
-  s.Q     = Q;
-  s.q     = calloc(batch * s.maxl, sizeof(WORKER_INFO));
-  s.qbusy = calloc(batch * s.maxl, 1);
-  s.fsa   = calloc(batch * s.maxl, sizeof(SCAN_FSARG));
-  s.nl    = calloc(batch, sizeof(int));
 
-  for (b0 = 0; b0 < nq; b0 += batch)
+  /* The queries are searched a batch at a time, each batch in one pass over the
+   * target. A batch's profiles and hits are all in memory during its pass, so
+   * the batch size bounds both. <hmm> is the first query of the next batch. */
+  while (qhstatus == eslOK)
     {
-      nb = ESL_MIN(batch, nq - b0);
+      /* read the batch */
+      nb = 0;
+      while (qhstatus == eslOK && nb < batch) {
+        if (use_fs) { //check that HMM is properly formated for bathsearch
+          if( !(hmm->flags & p7H_STATS) )
+            p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
+          if( !(hmm->fsprob && hmm->ct)                      ||
+              hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET   ||
+              hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET )
+            p7_Fail("HMM file %s has no frameshift statistics, which --fs requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
+          /* frameshift E-values are computed from a specific codon table, so --fs/--fsonly
+           * requires the HMM's table to match the one bathsearch is using */
+          if( hmm->ct != codon_table)  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
+        } else {
+          if( !(hmm->flags & p7H_STATS) )
+            p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild' (without --nostats), or add them with 'bathconvert --addstats new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
+          hmm->fs = FALSE;
+          hmm->fsprob = 0.;
+        }
+        if (hmm->max_length == -1) p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
+        if (nb == qalloc) { qalloc = qalloc ? qalloc*2 : 64; H = realloc(H, sizeof(P7_HMM *) * qalloc); }
+        H[nb++] = hmm;
+        hmm = NULL;
+        qhstatus = p7_hmmfile_Read(hfp, p_abcAA, &hmm);
+        if (qhstatus != eslOK && qhstatus != eslEOF) p7_Fail("reading from query file %s (%d)\n", cfg->queryfile, qhstatus);
+      }
+
       s.nq = nb;
+      s.L  = ESL_MAX(1, (ncpus + nb - 1) / nb);   /* rounded up, so every worker has a lane */
+      s.nslots = (ncpus > 0) ? ESL_MAX(4, 2*s.L + 2) : 1;
+      s.maxl   = ESL_MAX(s.L, ESL_MIN(ncpus, s.nslots));   /* a query can run on one slot per lane */
+      s.slot   = calloc(s.nslots, sizeof(SCAN_SLOT));
+      for (j = 0; j < s.nslots; j++) s.slot[j].qdone = calloc(nb, 1);   /* its blocks come on first use: scan_slot_ready() */
+      Q       = calloc(nb, sizeof(SCAN_QUERY));
+      s.Q     = Q;
+      s.q     = calloc(nb * s.maxl, sizeof(WORKER_INFO));
+      s.qbusy = calloc(nb * s.maxl, 1);
+      s.fsa   = calloc(nb * s.maxl, sizeof(SCAN_FSARG));
+      s.nl    = calloc(nb, sizeof(int));
       C = 0;
       for (k = 0; k < nb; k++) {       /* one state per query */
         SCAN_QUERY  *q  = Q + k;
-        P7_HMM      *h  = H[b0 + k];
+        P7_HMM      *h  = H[k];
         int          l;
         q->hmm = h;
         q->bg  = p7_bg_Create(abcAA);
@@ -1332,7 +1340,7 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
         for (l = 0; l < s.nl[k]; l++) scan_lane_create(&s, k, l);
       }
 
-      if (b0 > 0 && esl_sqfile_Position(dbfp, 0) != eslOK) p7_Fail("can't rewind target file");
+      if (npass > 0 && esl_sqfile_Position(dbfp, 0) != eslOK) p7_Fail("can't rewind target file");
       if (cfg->firstseq_key != NULL && esl_sqfile_PositionByKey(dbfp, cfg->firstseq_key) != eslOK)
         p7_Fail("Failure setting restrictdb_stkey to %s\n", cfg->firstseq_key);
       esl_stopwatch_Start(watch);
@@ -1446,16 +1454,18 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
           p7_hmm_Destroy(qh);
         }
       destroy_id_length(id_length_list);
-    }
 
-  for (j = 0; j < s.nslots; j++) {
-    if (s.slot[j].block != NULL) esl_sq_DestroyBlock(s.slot[j].block);
-    esl_gencode_OrfBlockDestroy(s.slot[j].orf[0]);
-    esl_gencode_OrfBlockDestroy(s.slot[j].orf[1]);
-    for (k = 0; k < s.slot[j].rc_alloc; k++) esl_sq_Destroy(s.slot[j].rc[k]);
-    free(s.slot[j].rc); free(s.slot[j].orf_start[0]); free(s.slot[j].orf_start[1]); free(s.slot[j].qdone);
-  }
-  free(s.slot); free(Q); free(s.q); free(s.qbusy); free(s.fsa); free(s.nl); free(H);
+      for (j = 0; j < s.nslots; j++) {
+        if (s.slot[j].block != NULL) esl_sq_DestroyBlock(s.slot[j].block);
+        esl_gencode_OrfBlockDestroy(s.slot[j].orf[0]);
+        esl_gencode_OrfBlockDestroy(s.slot[j].orf[1]);
+        for (k = 0; k < s.slot[j].rc_alloc; k++) esl_sq_Destroy(s.slot[j].rc[k]);
+        free(s.slot[j].rc); free(s.slot[j].orf_start[0]); free(s.slot[j].orf_start[1]); free(s.slot[j].qdone);
+      }
+      free(s.slot); free(Q); free(s.q); free(s.qbusy); free(s.fsa); free(s.nl);
+      npass++;
+    }
+  free(H);
 #ifdef HMMER_THREADS
   pthread_mutex_destroy(&s.lock);
   pthread_cond_destroy(&s.cv);

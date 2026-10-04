@@ -769,7 +769,6 @@ typedef struct {
   int              nslots;
   SCAN_SLOT      *slot;
   int              nq;
-  int              maxM;        /* largest query, for the workers' --fs 5-codon profiles */
   int              L;           /* lanes a query starts with: states that can run it at the same time */
   int              maxl;        /* most lanes a query can have; stride of q[], qbusy[], fsa[]         */
   int             *nl;          /* [nq] lanes each query has                            */
@@ -851,11 +850,11 @@ scan_fs5_get(void *arg, P7_FS_OPROFILE **ret_om, P7_FS_PROFILE **ret_gm)
   SCAN_QUERY   *q  = a->q;
   SCAN_WORKER *wk = scan_tl_wk;
 
-  if (wk->gm5 == NULL) {
-    wk->gm5 = p7_profile_fs_Create(wk->s->maxM, q->hmm->abc, p7P_5CODONS);
-    wk->om5 = p7_fs_oprofile_Create(wk->s->maxM, q->hmm->abc, p7P_5CODONS);
-  }
-  if (wk->gm5_q != (void *) q) {
+  if (wk->gm5_q != (void *) q) {   /* a pair of this query's size: one for the largest query, kept by every worker, was most of the --fs memory */
+    p7_profile_fs_Destroy(wk->gm5);
+    p7_fs_oprofile_Destroy(wk->om5);
+    wk->gm5 = p7_profile_fs_Create(q->hmm->M, q->hmm->abc, p7P_5CODONS);
+    wk->om5 = p7_fs_oprofile_Create(q->hmm->M, q->hmm->abc, p7P_5CODONS);
     p7_ProfileConfig_fs(q->hmm, a->bg, q->gcode, wk->gm5, 100, p7_LOCAL);
     p7_fs_oprofile_Convert(wk->gm5, wk->om5);
     wk->gm5_q = q;
@@ -1287,8 +1286,6 @@ scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ES
     if (qhstatus != eslOK && qhstatus != eslEOF) p7_Fail("reading from query file %s (%d)\n", cfg->queryfile, qhstatus);
   }
   batch = nq;   /* all queries in one pass */
-  s.maxM = 0;
-  for (k = 0; k < nq; k++) s.maxM = ESL_MAX(s.maxM, H[k]->M);
   s.L = ESL_MAX(1, (ncpus + batch - 1) / batch);   /* rounded up, so every worker has a lane */
 
 #ifdef HMMER_THREADS

@@ -1130,6 +1130,7 @@ typedef struct p7_pipeline_s {
   enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
   int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
+  uint16_t     *ssv_cut;         /* ssv_cut[L]: lowest SSV maximum at which an ORF of length L is not rejected by SSV alone; 0 if not yet known */
   int           std_pipe;        /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;               /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/

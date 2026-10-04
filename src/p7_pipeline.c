@@ -106,6 +106,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   pli->spliced =  (go ? esl_opt_IsUsed(go, "--splice") : 0); 
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
+  pli->ssv_cut    = NULL;
 
   /* Create sparce memeory forward and backward optimized matricies for use in the 
    * non-frameshift pipeline branch
@@ -283,6 +284,7 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->bck);
   esl_randomness_Destroy(pli->r);
   p7_domaindef_Destroy_BATH(pli->ddef);
+  if (pli->ssv_cut != NULL) free(pli->ssv_cut);
   free(pli);
 }
 
@@ -501,6 +503,8 @@ p7_pli_NewModel(P7_PIPELINE *pli, const P7_OPROFILE *om, P7_BG *bg)
   if (pli->Z_setby == p7_ZSETBY_NTARGETS && pli->mode == p7_SCAN_MODELS) pli->Z = pli->nmodels;
 
   if (pli->do_biasfilter) p7_bg_SetFilter(bg, om->M, om->compo);
+
+  if (pli->ssv_cut != NULL) { free(pli->ssv_cut); pli->ssv_cut = NULL; }  /* the cutoffs belong to the model */
 
   if (pli->mode == p7_SEARCH_SEQS)
     status = p7_pli_NewModelThresholds(pli, om);
@@ -1505,6 +1509,41 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
 
 
 
+#ifdef p7_SSV_ORFBLOCK
+#define p7_SSV_CUT_MAXL 4096   /* ORFs this long or longer always take the full MSV stage */
+
+/* ssv_cutoff()
+ * The lowest SSV maximum <xE> (see p7_SSVFilter_OrfBlock()) at which an ORF of
+ * length <L> is not rejected by the SSV filter alone: below it, the filter
+ * returns <eslOK> with a score whose P-value is above F1. Found by taking the
+ * steps of the MSV stage of p7_Pipeline_BATH() for each <xE> in turn, so an
+ * ORF below it is one that stage rejects. 128 is the lowest <xE> there is, and
+ * at 128 the SSV filter gives no result, so the search starts above it and the
+ * caller sends such an ORF to the MSV stage; 256 means no <xE> gets through.
+ * Leaves <om> and <bg> configured for <L>, as that stage does.
+ */
+static int
+ssv_cutoff(const P7_PIPELINE *pli, P7_OPROFILE *om, P7_BG *bg, int L)
+{
+  float  nullsc, usc, seqsc;
+  double P;
+  int    xE;
+
+  p7_bg_SetLength(bg, L);
+  p7_oprofile_ReconfigLength(om, L);
+  p7_bg_NullOne  (bg, NULL, L, &nullsc);
+
+  for (xE = 129; xE < 256; xE++)
+    {
+      if (p7_SSVFilter_FromXE(xE, om, &usc) != eslOK) break;
+      seqsc = (usc - nullsc) / eslCONST_LOG2;
+      P = esl_gumbel_surv( seqsc,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+      if (! (P > pli->F1)) break;
+    }
+  return xE;
+}
+#endif /*p7_SSV_ORFBLOCK*/
+
 /* Function:  p7_Pipeline_BATH()
  * Synopsis:  Sequence to profile comparison pipeline for 
  *            frameshift aware translated search - bathsearch.
@@ -1583,6 +1622,9 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   ESL_ORF           *orfsq;         /* ORF sequence                            */
   P7_HMM_WINDOW    *window;             
   P7_PIPELINE_OBJS *pli_tmp;   
+  uint8_t          *ssv_xE    = NULL;  /* SSV maximum of each ORF, if SSV was run over the block */
+  int               ssv_len   = 0;     /* length of the last ORF rejected on its SSV maximum since <om>, <bg> were configured */
+  int               ssv_rej;           /* TRUE if this ORF's SSV maximum rejects it */
 
   if (dnasq->n < 15) return eslOK;         //DNA to short
   if (orf_block->count == 0) return eslOK; //No ORFS translated
@@ -1616,6 +1658,20 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   if ((status = esl_sq_SetAccession(pli_tmp->tmpseq, dnasq->acc))    != eslOK) goto ERROR;
   if ((status = esl_sq_SetDesc     (pli_tmp->tmpseq, dnasq->desc))   != eslOK) goto ERROR;
 
+#ifdef p7_SSV_ORFBLOCK
+  /* Run SSV over the whole block. Most ORFs are rejected by SSV alone, and for
+   * those its maximum and the ORF's length decide it; see ssv_cutoff(). */
+  if (pli->F1 < 1.0)
+    {
+      ESL_ALLOC(ssv_xE, sizeof(uint8_t) * orf_block->count);
+      if (pli->ssv_cut == NULL) {
+        ESL_ALLOC(pli->ssv_cut, sizeof(uint16_t) * p7_SSV_CUT_MAXL);
+        for (i = 0; i < p7_SSV_CUT_MAXL; i++) pli->ssv_cut[i] = 0;
+      }
+      if (p7_SSVFilter_OrfBlock(om, orf_block->list, orf_block->count, ssv_xE) != eslOK) { free(ssv_xE); ssv_xE = NULL; }
+    }
+#endif
+
   for (i = 0; i < orf_block->count; ++i)
   { 
     orfsq = &(orf_block->list[i]);
@@ -1627,6 +1683,19 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
     {
       vfsc = -eslINFINITY;
 
+      ssv_rej = FALSE;
+#ifdef p7_SSV_ORFBLOCK
+      if (ssv_xE != NULL && orfsq->n < p7_SSV_CUT_MAXL)
+        {
+          if (pli->ssv_cut[orfsq->n] == 0) { pli->ssv_cut[orfsq->n] = ssv_cutoff(pli, om, bg, orfsq->n); ssv_len = 0; }
+          if (ssv_xE[i] > 128 && ssv_xE[i] < pli->ssv_cut[orfsq->n]) ssv_rej = TRUE;
+        }
+#ifndef p7_SSV_ORFBLOCK_CHECK
+      if (ssv_rej) { ssv_len = orfsq->n; continue; }
+#endif
+#endif
+      ssv_len = 0;
+
       p7_bg_SetLength(bg, orfsq->n);
       p7_oprofile_ReconfigLength(om, orfsq->n);
       p7_bg_NullOne  (bg, orfsq->dsq, orfsq->n, &nullsc);
@@ -1636,6 +1705,9 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
       p7_MSVFilter(orfsq->dsq, orfsq->n, om, pli->oxf, &usc);
       seqsc = (usc - nullsc) / eslCONST_LOG2;
       P = esl_gumbel_surv( seqsc,  om->evparam[p7_MMU],  om->evparam[p7_MLAMBDA]);
+#ifdef p7_SSV_ORFBLOCK_CHECK
+      if (ssv_rej && ! (P > pli->F1)) p7_Die("SSV block: rejected an ORF the MSV stage passes (L %d, xE %d, cutoff %d, P %g)", (int) orfsq->n, ssv_xE[i], pli->ssv_cut[orfsq->n], P);
+#endif
       if (P > pli->F1 ) continue;
 
       pli->pos_past_msv  += orfsq->n * 3; 
@@ -1777,6 +1849,13 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
     }
   }
 
+  /* Leave <om> and <bg> configured for the last ORF looked at, as they are when every ORF takes the MSV stage */
+  if (ssv_len > 0) {
+    p7_bg_SetLength(bg, ssv_len);
+    p7_oprofile_ReconfigLength(om, ssv_len);
+  }
+  if (ssv_xE != NULL) { free(ssv_xE); ssv_xE = NULL; }
+
   if(pli->fs_pipe)  { 
     p7_pli_Frameshift(pli, om, gm, om_fs3, om_fs5, gm_fs5, data, bg, hitlist, seqidx, orf_block, dnasq, gcode, pli_tmp, hit_windows, hit_windows_start, complementarity);
   }
@@ -1796,6 +1875,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
   return eslOK;
 
 ERROR:
+  if (ssv_xE != NULL) free(ssv_xE);
   if (pli_tmp != NULL)
   {
     if (pli_tmp->tmpseq     != NULL) esl_sq_Destroy(pli_tmp->tmpseq);

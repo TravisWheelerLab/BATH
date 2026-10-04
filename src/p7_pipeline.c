@@ -106,6 +106,9 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   pli->spliced =  (go ? esl_opt_IsUsed(go, "--splice") : 0); 
   pli->fs_pipe  = (go ? (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) : 0); 
   pli->std_pipe = (go ? !esl_opt_IsUsed(go, "--fsonly") : 1);
+  pli->fs_prepare = NULL;
+  pli->fs5_get    = NULL;
+  pli->fs_arg     = NULL;
 
   /* Create sparce memeory forward and backward optimized matricies for use in the 
    * non-frameshift pipeline branch
@@ -1342,6 +1345,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
 
   /* Build windows from ORF's that pass F4 */
   p7_pli_BuildDNAWindows(pli, orf_block, dnasq, om, bg, data, &fwd_windowlist, 0., pli_tmp, hit_windows, hit_windows_start, complementarity);
+  if (fwd_windowlist.count > 0 && pli->fs_prepare != NULL) pli->fs_prepare(pli->fs_arg);  /* om_fs3 is read from here on */
 
   for(w = 0; w < fwd_windowlist.count; w++) {
 
@@ -1422,7 +1426,6 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
 
     p7_omx_GrowTo_dpf(pli->oxf_fs, om->M, PARSER_ROWS_FWD, dna_window->length);
     p7_oivx_GrowTo(pli->ov3, om_fs3->M, p7P_3CODONS);
-    p7_oivx_GrowTo(pli->ov5, om_fs5->M, p7P_5CODONS);  /* domain definition uses it; the pipeline may not have been created for this M */
     p7_fs_oprofile_ReconfigLength(om_fs3, dna_window->length/3);    
 
     status = p7_ForwardParser_Frameshift_3Codons(pli_tmp->tmpseq->dsq, dna_window->length, om_fs3, pli->oxf_fs, pli->ov3, &fwdsc);
@@ -1447,6 +1450,10 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
       p7_omx_GrowTo_dpf(pli->oxb_fs, om->M, PARSER_ROWS_BWD, dna_window->length);
       status = p7_BackwardParser_Frameshift_3Codons(pli_tmp->tmpseq->dsq, dna_window->length, om_fs3, pli->oxf_fs, pli->oxb_fs, pli->ov3, NULL);
       if (status == eslERANGE) continue; /* backward underflow; skip domain definition for this window */
+
+      /* The 5-codon profiles are only read from here on */
+      if (pli->fs5_get != NULL) pli->fs5_get(pli->fs_arg, &om_fs5, &gm_fs5);
+      p7_oivx_GrowTo(pli->ov5, om_fs5->M, p7P_5CODONS);  /* the pipeline may not have been created for this M */
 
       /* om_fs3's Forward/Backward just ran multihit at this window's length; match it in om_fs5/gm_fs5 before decoding */
       p7_fs_ReconfigMultihit(gm_fs5, dna_window->length/3);

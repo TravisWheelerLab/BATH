@@ -1130,6 +1130,9 @@ typedef struct p7_pipeline_s {
   enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
   int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
   int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
+  int         (*fs_prepare)(void *arg); /* if set, called before the frameshift profiles are first read in a call */
+  int         (*fs5_get)(void *arg, P7_FS_OPROFILE **om_fs5, P7_FS_PROFILE **gm_fs5); /* if set, supplies the 5-codon profiles for frameshift domain definition */
+  void         *fs_arg;
   int           std_pipe;        /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
   int           W;               /* window length for nhmmer scan - essentially maximum length of model that we expect to find*/

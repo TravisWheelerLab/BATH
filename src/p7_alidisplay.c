@@ -934,7 +934,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
  *            in the data.
  */
 P7_ALIDISPLAY *
-p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_SQ *orfsq, int orf_pos, int show_cigar)
+p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const ESL_SQ *sq, const ESL_ORF *orfsq, int orf_pos, int show_cigar)
 {
 
   P7_ALIDISPLAY *ad       = NULL;

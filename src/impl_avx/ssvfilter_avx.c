@@ -482,15 +482,16 @@ get_xE_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om)
  *            of length <L> against profile <om>.  Returns the estimated
  *            score (nats) in <*ret_sc>.
  *
- *            Returns <eslENORESULT> when J-state use cannot be ruled out
- *            or the overflow analysis is inconclusive, signalling the
- *            caller to fall back to the full MSV filter.
+ *            Returns <eslENORESULT> when J-state use cannot be ruled out,
+ *            the overflow analysis is inconclusive, or no diagonal
+ *            scores above the begin score, signalling the caller to
+ *            fall back to the full MSV filter.
  *
  *            Returns <eslERANGE> when the score provably overflows
  *            (high-scoring hit).
  *
  * Returns:   <eslOK> on success.
- *            <eslENORESULT> when the score may be underestimated.
+ *            <eslENORESULT> when the score may be inexact.
  *            <eslERANGE> on confirmed overflow.
  */
 int
@@ -503,6 +504,11 @@ p7_SSVFilter_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc
     return eslENORESULT;
 
   xE = get_xE_avx(dsq, L, om);
+
+  /* Saturation floors every diagonal at the begin score (128), so a
+   * max of 128 means no diagonal scored above it and the true best
+   * may be lower; let the full MSV filter compute it. */
+  if (xE <= 128) return eslENORESULT;
 
   if (xE >= 255 - om->bias_b) {
     *ret_sc = eslINFINITY;

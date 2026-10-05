@@ -887,6 +887,11 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
 
   xE = get_xE(dsq, L, om);
 
+  /* Saturation floors every diagonal at the begin score (128), so a
+   * max of 128 means no diagonal scored above it and the true best
+   * may be lower; let the full MSV filter compute it. */
+  if (xE <= 128) return eslENORESULT;
+
   if (xE >= 255 - om->bias_b)
     {
       /* We have an overflow. */

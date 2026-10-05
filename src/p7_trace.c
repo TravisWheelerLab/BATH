@@ -299,8 +299,8 @@ p7_trace_fs_Clone(const P7_TRACE *tr)
   dup->pp = NULL;
 
   dup->N         = tr->N;
-  dup->nalloc    = tr->nalloc;
-  dup->ndomalloc = tr->ndomalloc;
+  dup->nalloc    = ESL_MAX(tr->N,    1);   /* room for what <tr> holds, not for what it has allocated: a   */
+  dup->ndomalloc = ESL_MAX(tr->ndom, 1);   /* working trace keeps the size of the longest one it has held  */
   dup->ndom      = tr->ndom;
   dup->M         = tr->M;
   dup->L         = tr->L;
@@ -312,48 +312,48 @@ p7_trace_fs_Clone(const P7_TRACE *tr)
 
  /* The trace data itself */
   ESL_ALLOC(dup->st, sizeof(char) * dup->nalloc);
-  memcpy(dup->st, tr->st, sizeof(char) * dup->nalloc);
+  memcpy(dup->st, tr->st, sizeof(char) * dup->N);
 
   ESL_ALLOC(dup->k,  sizeof(int)  * dup->nalloc);
-  memcpy(dup->k, tr->k, sizeof(int) * dup->nalloc);
+  memcpy(dup->k, tr->k, sizeof(int) * dup->N);
 
   ESL_ALLOC(dup->i,  sizeof(int)  * dup->nalloc);
-  memcpy(dup->i, tr->i, sizeof(int) * dup->nalloc);
+  memcpy(dup->i, tr->i, sizeof(int) * dup->N);
 
   
   if (tr->c != NULL) {
     ESL_ALLOC(dup->c,  sizeof(int)  * dup->nalloc);
-    memcpy(dup->c, tr->c, sizeof(int) * dup->nalloc);
+    memcpy(dup->c, tr->c, sizeof(int) * dup->N);
   }
 
   if (tr->pp != NULL) {
     ESL_ALLOC(dup->pp, sizeof(float) * dup->nalloc);
-    memcpy(dup->pp, tr->pp, sizeof(float) * dup->nalloc);
+    memcpy(dup->pp, tr->pp, sizeof(float) * dup->N);
   }
   
   if (tr->sp != NULL) {
     ESL_ALLOC(dup->sp, sizeof(float) * dup->nalloc);
-    memcpy(dup->sp, tr->sp, sizeof(float) * dup->nalloc);
+    memcpy(dup->sp, tr->sp, sizeof(float) * dup->N);
   }
 
    /* The trace's index: table of domain start/stop coords */
   ESL_ALLOC(dup->tfrom,   sizeof(int) * dup->ndomalloc);
-  memcpy(dup->tfrom, tr->tfrom, sizeof(int) * dup->ndomalloc);
+  memcpy(dup->tfrom, tr->tfrom, sizeof(int) * dup->ndom);
   
   ESL_ALLOC(dup->tto,     sizeof(int) * dup->ndomalloc);
-  memcpy(dup->tto, tr->tto, sizeof(int) * dup->ndomalloc);
+  memcpy(dup->tto, tr->tto, sizeof(int) * dup->ndom);
 
   ESL_ALLOC(dup->sqfrom,  sizeof(int) * dup->ndomalloc);
-  memcpy(dup->sqfrom, tr->sqfrom, sizeof(int) * dup->ndomalloc);
+  memcpy(dup->sqfrom, tr->sqfrom, sizeof(int) * dup->ndom);
   
   ESL_ALLOC(dup->sqto,    sizeof(int) * dup->ndomalloc);
-  memcpy(dup->sqto, tr->sqto, sizeof(int) * dup->ndomalloc);  
+  memcpy(dup->sqto, tr->sqto, sizeof(int) * dup->ndom);
 
   ESL_ALLOC(dup->hmmfrom, sizeof(int) * dup->ndomalloc);
-  memcpy(dup->hmmfrom, tr->hmmfrom, sizeof(int) * dup->ndomalloc);  
+  memcpy(dup->hmmfrom, tr->hmmfrom, sizeof(int) * dup->ndom);
 
   ESL_ALLOC(dup->hmmto,   sizeof(int) * dup->ndomalloc);
-  memcpy(dup->hmmto, tr->hmmto, sizeof(int) * dup->ndomalloc);  
+  memcpy(dup->hmmto, tr->hmmto, sizeof(int) * dup->ndom);
 
   return dup;
 

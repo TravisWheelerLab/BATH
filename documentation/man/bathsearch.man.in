@@ -392,6 +392,17 @@ On multicore machines, the default is 2. The environment variable
 also controls this.
 (Only available when BATH is compiled with thread support.)
 
+.TP
+.BI \-\-qbatch " <n>"
+Search the queries
+.I <n>
+at a time, each batch in one pass over the target. A batch's profiles
+and hits are held in memory during its pass, so a smaller
+.I <n>
+uses less memory. The default is 250. A target that cannot be read
+again (standard input, or a compressed file) is searched in one pass
+with every query.
+
 
 .SH SEE ALSO
 

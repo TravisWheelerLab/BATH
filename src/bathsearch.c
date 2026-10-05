@@ -1,7 +1,9 @@
-/* bathsearch: search protein profile HMM(s) against a DNA sequence database. */
+/* bathsearch: search protein profile HMM(s) against a DNA sequence database.
+ * The database is read and translated once, for all queries. */
 #include "p7_config.h"
 
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,7 +23,6 @@
 
 #ifdef HMMER_THREADS
 #include "esl_threads.h"
-#include "esl_workqueue.h"
 #endif /*HMMER_THREADS*/
 
 #include "hmmer.h"
@@ -32,10 +33,6 @@
 
 
 typedef struct {
-#ifdef HMMER_THREADS
-  ESL_WORK_QUEUE   *queue;
-#endif /*HMMER_THREADS*/
-
   P7_BG            *bg;	        /* null model                                                        */
   ESL_SQ           *ntsq;       /* DNA target sequence                                               */
   P7_PIPELINE      *pli;        /* work pipeline                                                     */
@@ -135,6 +132,7 @@ static ESL_OPTIONS options[] = {
   #ifdef HMMER_THREADS 
   { "--block_length", eslARG_INT,     NULL,      NULL,       "n>=50000", NULL,   NULL, NULL,           "length of blocks read from target database (threaded) ",                  10 },
   { "--cpu",          eslARG_INT,     p7_NCPU,  "HMMER_NCPU","n>=0",     NULL,   NULL, CPUOPTS,        "number of parallel CPU workers to use for multithreads",                  10 },
+  { "--qbatch",       eslARG_INT,     "250",     NULL,       "n>0",      NULL,   NULL, NULL,           "number of queries searched in each pass over the target",                 10 },
 #endif
  
   /* Restrict search to subset of database - hidden because these flags are
@@ -178,15 +176,13 @@ struct cfg_s {
 static char usage[]  = "[options] <hmm, msa, or seq file> <seqdb>";
 static char banner[] = "search protein profile(s) against DNA sequence database";
 
-static int  serial_master(ESL_GETOPTS *go, struct cfg_s *cfg);
-static int  serial_loop  (WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs);
+static int  search_master(ESL_GETOPTS *go, struct cfg_s *cfg);
 
-#ifdef HMMER_THREADS
 #define BLOCK_SIZE 1000
 
-static int  thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseq);
-static void pipeline_thread(void *arg);
-#endif /*HMMER_THREADS*/
+static int  scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ESL_ALPHABET **p_abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode,
+                        int ncpus, ESL_SQFILE *dbfp, FILE *ofp, FILE *tblfp, FILE *exontblfp, FILE *fstblfp, int textw, ESL_STOPWATCH *watch);
+
 
 
 static int
@@ -315,6 +311,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--w_length")                      && fprintf(ofp, "# window length :                                %d\n",      esl_opt_GetInteger(go, "--w_length"))        < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
 #ifdef HMMER_THREADS
   if (esl_opt_IsUsed(go, "--cpu")                           && fprintf(ofp, "# number of worker threads:                      %d\n",      esl_opt_GetInteger(go, "--cpu"))             < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");  
+  if (esl_opt_IsUsed(go, "--qbatch")                        && fprintf(ofp, "# queries per pass over the target:              %d\n",      esl_opt_GetInteger(go, "--qbatch"))          < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
 #endif
   if (esl_opt_IsUsed(go, "-l")                              && fprintf(ofp, "# minimum ORF length:                            %d\n",      esl_opt_GetInteger(go, "-l"))                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "-m")                              && fprintf(ofp, "# ORFs must initiate with AUG only:              yes\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
@@ -374,7 +371,7 @@ main(int argc, char **argv)
 
 #endif
 
-  status = serial_master(go, &cfg);
+  status = search_master(go, &cfg);
 
   esl_getopts_Destroy(go);
 
@@ -466,9 +463,9 @@ bath_open_seq_file (struct cfg_s *cfg, ESL_SQFILE **qfp_sq, ESL_ALPHABET **abc) 
     return status;
 }
 
-/* serial_master()
- * The serial version of bathsearch.
- * For each query HMM search the target database for hits.
+/* search_master()
+ * Open the query and target files, then search every query HMM
+ * against the target database in one pass over it.
  * 
  * A master can only return if it's successful. All errors are handled
  * immediately and fatally with p7_Fail().  We also use the
@@ -476,11 +473,9 @@ bath_open_seq_file (struct cfg_s *cfg, ESL_SQFILE **qfp_sq, ESL_ALPHABET **abc) 
  * using a fatal exception handler.
  */
 static int
-serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
+search_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 {
 
-  int              i, d;
-  
   /* output files */
   FILE            *ofp                      = stdout;            /* results output file (-o)                        */
   FILE            *tblfp                    = NULL;              /* output stream for tabular per-seq (--tblout)    */
@@ -498,7 +493,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
  /* query formats and HMM construction*/
   P7_HMM          *hmm                      = NULL;              /* one HMM query                                   */
-  int              nquery                   = 0;
 
   /* alphabets and translation */
   int              codon_table;
@@ -506,40 +500,14 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_ALPHABET    *abcDNA                   = NULL;              /* DNA target alphabet                              */
   ESL_GENCODE     *gcode                    = NULL;
  
- /* worker and worker items */ 
-  WORKER_INFO     *info                     = NULL;
-  P7_SCOREDATA    *scoredata                = NULL;              
-  P7_FS_PROFILE   *gm_fs5                   = NULL;
-  P7_FS_PROFILE   *gm_fs3                   = NULL;
-  P7_FS_OPROFILE  *om_fs3                   = NULL;
-  P7_FS_OPROFILE  *om_fs5                   = NULL;
-  P7_FS_PROFILE   *gm_tr                    = NULL;
-  P7_PROFILE      *gm                       = NULL;
-  P7_OPROFILE     *om                       = NULL;       /* optimized query profile                  */
-
-  /* post processing */
-  int64_t          resCnt                   = 0;
-  P7_TOPHITS      *seed_hits                = NULL;
-  P7_TOPHITS      *tophits_accumulator      = NULL; /* to hold the top hits information from all 6 frame translations     */
-  P7_PIPELINE     *pipelinehits_accumulator = NULL; /* to hold the pipeline hit information from all 6 frame translations */
-  P7_HMM_WINDOWLIST *seed_accumulator       = NULL;
-  ID_LENGTH_LIST  *id_length_list           = NULL;
   ESL_STOPWATCH   *watch;
 
   /* multi threading */
   int              ncpus                    = 0; 
-  int              infocnt                  = 0;
-#ifdef HMMER_THREADS
-  ESL_SQ_BLOCK    *block                    = NULL;
-  ESL_THREADS     *threadObj                = NULL;
-  ESL_WORK_QUEUE  *queue                    = NULL;
-#endif
 
   /*error handeling */
   char             errbuf[eslERRBUFSIZE];
   int              status                   = eslOK;
-  int              qhstatus                 = eslOK;
-  int              sstatus                  = eslOK;
   int              ssistatus                = eslOK;  
 
   if (esl_opt_GetBoolean(go, "--notextw")) textw = 0;
@@ -667,18 +635,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   
 
 #ifdef HMMER_THREADS
-  /* initialize thread data */
-   ncpus = ESL_MIN(esl_opt_GetInteger(go, "--cpu"), esl_threads_GetCPUCount());
- 
-  if (ncpus > 0)
-    {
-      threadObj = esl_threads_Create(&pipeline_thread);
-	  queue = esl_workqueue_Create(ncpus * 2);
-    }
+  ncpus = ESL_MIN(esl_opt_GetInteger(go, "--cpu"), esl_threads_GetCPUCount());
 #endif
-
-  infocnt = (ncpus == 0) ? 1 : ncpus;
-  ESL_ALLOC(info, (ptrdiff_t) sizeof(*info) * infocnt);
 
    /*the query sequence will be DNA but will be translated to amino acids */
    abcDNA = esl_alphabet_Create(eslDNA); 
@@ -692,24 +650,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     p7_banner(ofp, go->argv[0], banner);
     output_header(ofp, go, cfg->queryfile, cfg->dbfile);
     esl_sqfile_SetDigital(dbfp, abcDNA); //ReadBlock requires knowledge of the alphabet to decide how best to read blocks
-
-    for (i = 0; i < infocnt; ++i)
-    {
-      info[i].bg    = p7_bg_Create(abcAA);
-#ifdef HMMER_THREADS
-      info[i].queue = queue;
-#endif
-    }
-
-#ifdef HMMER_THREADS
-    for (i = 0; i < ncpus * 2; ++i)
-    {
-      block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcDNA);
-      if (block == NULL)           esl_fatal("Failed to allocate sequence block");
-      status = esl_workqueue_Init(queue, block);
-      if (status != eslOK)          esl_fatal("Failed to add block to work queue");
-    }
-#endif
   }
 
    /* Set up the genetic code. Default = NCBI 1, the standard code; allow ORFs to start at any aa   */
@@ -734,290 +674,8 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 
   watch = esl_stopwatch_Create();
 
-  /* Outer loop: over each query HMM */
-  while (qhstatus == eslOK) 
-  {
-    gm_fs5  = NULL;
-    gm_fs3  = NULL;
-    om_fs3  = NULL;
-    om_fs5  = NULL; 
-    gm_tr   = NULL;
-    gm      = NULL;
-    om      = NULL;       /* optimized query profile                  */
-
-    if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
-      if( !(hmm->flags & p7H_STATS) )
-        p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
-
-      if( !(hmm->fsprob && hmm->ct)                      ||
-          hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET   ||
-          hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET )
-        p7_Fail("HMM file %s has no frameshift statistics, which --fs requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
-
-      /* frameshift E-values are computed from a specific codon table, so --fs/--fsonly
-       * requires the HMM's table to match the one bathsearch is using */
-      if( hmm->ct != esl_opt_GetInteger(go, "--ct"))  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
-    }
-    else {
-      if( !(hmm->flags & p7H_STATS) )
-        p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild' (without --nostats), or add them with 'bathconvert --addstats new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
-
-      hmm->fs = FALSE;
-      hmm->fsprob = 0.;
-    }
-
-    if(hmm->max_length == -1)
-      p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
-
-    nquery++;
-    esl_stopwatch_Start(watch);
-	
-    /* seqfile may need to be rewound (multiquery mode) */
-    if (nquery > 1)
-    {
-      if (! esl_sqfile_IsRewindable(dbfp))
-        esl_fatal("Target sequence file %s isn't rewindable; can't search it with multiple queries", cfg->dbfile);
-
-      if (! esl_opt_IsUsed(go, "--restrictdb_stkey") )
-        esl_sqfile_Position(dbfp, 0); //only re-set current position to 0 if we're not planning to set it in a moment
-    }
-
-    if ( cfg->firstseq_key != NULL ) { //it's tempting to want to do this once and capture the offset position for future passes, but ncbi files make this non-trivial, so this keeps it general
-      sstatus = esl_sqfile_PositionByKey(dbfp, cfg->firstseq_key);
-      if (sstatus != eslOK)
-        p7_Fail("Failure setting restrictdb_stkey to %d\n", cfg->firstseq_key);
-    }
-
-    if (fprintf(ofp, "Query:       %s  [M=%d]\n", hmm->name, hmm->M)  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-    if (hmm->acc)  { if (fprintf(ofp, "Accession:   %s\n", hmm->acc)  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
-    if (hmm->desc) { if (fprintf(ofp, "Description: %s\n", hmm->desc) < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
-
-    /* Convert to an optimized model */
-    gm = p7_profile_Create (hmm->M, abcAA);
-    om = p7_oprofile_Create(hmm->M, abcAA);
-    p7_ProfileConfig(hmm, info->bg, gm, 100, p7_LOCAL); /* 100 is a dummy length for now; and MSVFilter requires local mode */
-
-    p7_oprofile_Convert(gm, om);                                      /* convert <om> to <gm>*/
-
-    /* frameshift-aware codon profiles are only needed for the --fs/--fsonly pipeline */
-    if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) {
-      gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
-      gm_fs3 = p7_profile_fs_Create(hmm->M, abcAA, p7P_3CODONS);
-      om_fs3 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_3CODONS);
-      om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
-
-      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build framshift aware codon HMM */
-      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs3, 100, p7_LOCAL);
-
-      p7_fs_oprofile_Convert(gm_fs3, om_fs3);
-      p7_fs_oprofile_Convert(gm_fs5, om_fs5);
-    }
-
-    /* Create processing pipeline and hit list accumulators */
-    tophits_accumulator  = p7_tophits_Create(); 
-    pipelinehits_accumulator = p7_pipeline_Create_BATH(go, 100, 300, p7_SEARCH_SEQS);
-    pipelinehits_accumulator->nmodels = 1;
-    pipelinehits_accumulator->nnodes = hmm->M;
-    if (esl_opt_IsUsed(go, "--splice")) 
-      seed_accumulator = p7_hmmwindow_CreateList();
-    
-    scoredata = p7_hmm_ScoreDataCreate(om, NULL);
-    p7_hmm_ScoreDataComputeRest(om, scoredata);
-
-    for (i = 0; i < infocnt; ++i)
-    {
-      /* Create processing pipeline and hit list */
-      info[i].hw = p7_hmmwindow_CreateList();
-      info[i].gcode = gcode;
-      info[i].wrk = esl_gencode_WorkstateCreate(go, gcode);
-      info[i].wrk->orf_block = esl_sq_CreateDigitalBlock(BLOCK_SIZE, abcAA);
-      info[i].th     = p7_tophits_Create();
-      info[i].om     = p7_oprofile_Clone(om);
-      info[i].gm     = p7_profile_Clone(gm);
-      if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) {
-        info[i].gm_fs5 = p7_profile_fs_Clone(gm_fs5);
-        info[i].om_fs3 = p7_fs_oprofile_Clone(om_fs3);
-        info[i].om_fs5 = p7_fs_oprofile_Clone(om_fs5);
-      }
-      else {
-        info[i].gm_fs5 = NULL;
-        info[i].om_fs3 = NULL;
-        info[i].om_fs5 = NULL;
-      }
-      info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
-      info[i].pli = p7_pipeline_Create_BATH(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
-      status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
-      if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
-
-      if      (strcmp(esl_opt_GetString(go, "--strand"), "both")  == 0) info[i].pli->strands = p7_STRAND_BOTH; 
-      else if (strcmp(esl_opt_GetString(go, "--strand"), "plus")  == 0) info[i].pli->strands = p7_STRAND_TOPONLY;
-      else if (strcmp(esl_opt_GetString(go, "--strand"), "minus") == 0) info[i].pli->strands = p7_STRAND_BOTTOMONLY;
-      else     p7_Fail("Unrecognized argument for --strand ('%s'). Only 'both', 'plus', and 'minus' allowed.", esl_opt_GetString(go, "--strand"));
-
-      if (  esl_opt_IsUsed(go, "--block_length") )
-        info[i].pli->block_length = esl_opt_GetInteger(go, "--block_length");
-      else
-        info[i].pli->block_length = BATH_MAX_RESIDUE_COUNT;
-
-#ifdef HMMER_THREADS
-      if (ncpus > 0) esl_threads_AddThread(threadObj, &info[i]);
-#endif
-    }
-
-    /* establish the id_lengths data structutre */
-    id_length_list = init_id_length(1000);
-
-#ifdef HMMER_THREADS
-    if (ncpus > 0)  sstatus = thread_loop(info, id_length_list,threadObj, queue, dbfp, cfg->firstseq_key, cfg->n_targetseq);
-    else
-#endif
-      sstatus = serial_loop(info, id_length_list, dbfp, cfg->firstseq_key, cfg->n_targetseq);
-
-    switch(sstatus) {
-      case eslEFORMAT:
-        esl_fatal("Parse failed (sequence file %s):\n%s\n",
-                   dbfp->filename, esl_sqfile_GetErrorBuf(dbfp));
-        break;
-      case eslEOF:
-      case eslOK:
-        /* do nothing */
-         break;
-      default:
-        esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
-    }
-     
-    //need to re-compute e-values before merging (when list will be sorted)
-    resCnt = 0;
-    if (esl_opt_IsUsed(go, "-Z")) {
-      resCnt = 1000000*esl_opt_GetReal(go, "-Z");
-      if ( info[0].pli->strands == p7_STRAND_BOTH)
-        resCnt *= 2;
-    }
-    else
-    {
-      for (i = 0; i < infocnt; ++i){
-        resCnt += info[i].pli->nres;
-      }
-    }
-    
-    for (i = 0; i < infocnt; ++i)
-      p7_tophits_ComputeEvalues_BATH(info[i].th, resCnt, info[i].om->max_length*3);
-
-
-    /* merge the results of the search results */
-    for (i = 0; i < infocnt; ++i)
-    {
-      p7_tophits_Merge(tophits_accumulator, info[i].th);
-      p7_pipeline_Merge(pipelinehits_accumulator, info[i].pli);
-      if (esl_opt_IsUsed(go, "--splice"))  
-        p7_hmmwindow_Merge(seed_accumulator, info[i].hw);
-      
-      p7_pipeline_Destroy_BATH(info[i].pli);
-      p7_tophits_Destroy(info[i].th);
-      p7_oprofile_Destroy(info[i].om);
-      p7_profile_Destroy(info[i].gm);
-      p7_profile_fs_Destroy(info[i].gm_fs5);
-      p7_fs_oprofile_Destroy(info[i].om_fs3);
-      p7_fs_oprofile_Destroy(info[i].om_fs5);
-      p7_hmm_ScoreDataDestroy(info[i].scoredata); 
-      p7_hmmwindow_DestroyList(info[i].hw);
-      if(info[i].wrk->orf_block != NULL)
-      {
-        esl_sq_DestroyBlock(info[i].wrk->orf_block);
-        info[i].wrk->orf_block = NULL;
-        esl_gencode_WorkstateDestroy(info[i].wrk);
-      }
-    }
-
-    /* Sort and remove duplicates */
-    p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
-	if(!esl_opt_IsUsed(go, "--splice")) assign_Lengths(tophits_accumulator, id_length_list);
-    p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
-
-    /* Sort and remove hits bellow threshold */
-    p7_tophits_SortBySortkey(tophits_accumulator);
-
-    /* Set Z = 1 to prevent changing e-values. Correct Z 
-     * was calcualted by p7_tophits_ComputeBathEvalues() */
-    pipelinehits_accumulator->Z = 1;    
-    p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
-
-
-        /* Splice hits */
-    if (esl_opt_IsUsed(go, "--splice") && tophits_accumulator->N) { 
-
-      gm_tr = p7_profile_fs_Create (hmm->M, abcAA, 1); 
-      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_tr, 100, p7_UNILOCAL); 
-
-	  p7_tophits_SortBySeqidxAndAlipos(tophits_accumulator);
-      p7_hmmwindow_RemoveDuplicates(seed_accumulator, tophits_accumulator, pipelinehits_accumulator->F3); 
-      seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, tophits_accumulator, hmm, gm, dbfp, gcode, pipelinehits_accumulator->F3, esl_opt_GetInteger(go, "--max_intron"));
-      
-      p7_splice_SpliceHits(tophits_accumulator, seed_hits, om, gm, gm_tr, go, gcode, dbfp, id_length_list, resCnt);
-
-      for(i = 0; i < seed_hits->N; i++) {
-        p7_trace_fs_Destroy(seed_hits->unsrt[i].dcl->tr);
-        free(seed_hits->unsrt[i].dcl->scores_per_pos);
-        free(seed_hits->unsrt[i].dcl->k_per_pos);
-      }
-      p7_tophits_Destroy(seed_hits);
-
-	  assign_Lengths(tophits_accumulator, id_length_list);
-      p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
-	  p7_tophits_SortBySortkey(tophits_accumulator);
-    
-    }
-    
-    /* Print the results.  */
-    pipelinehits_accumulator->n_output = pipelinehits_accumulator->pos_output = 0; 
-    for (i = 0; i < tophits_accumulator->N; i++) {
-      if ( (tophits_accumulator->hit[i]->flags & p7_IS_REPORTED) || tophits_accumulator->hit[i]->flags & p7_IS_INCLUDED) {
-        pipelinehits_accumulator->n_output++;
-          
-	  for(d = 0; d < tophits_accumulator->hit[i]->ndom; d++)
-        pipelinehits_accumulator->pos_output += 1 + (tophits_accumulator->hit[i]->dcl[d].jali > tophits_accumulator->hit[i]->dcl[d].iali ? tophits_accumulator->hit[i]->dcl[d].jali - tophits_accumulator->hit[i]->dcl[d].iali : tophits_accumulator->hit[i]->dcl[d].iali - tophits_accumulator->hit[i]->dcl[d].jali) ;
-      }
-    }
-
-    p7_tophits_Targets(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-    p7_tophits_Domains(ofp, tophits_accumulator, pipelinehits_accumulator, textw); if (fprintf(ofp, "\n\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-    
-    if (tblfp)     p7_tophits_TabularTargets    (tblfp,     hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
-    if (exontblfp) p7_tophits_TabularExons      (exontblfp, hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1), esl_opt_IsUsed(go, "--nodeinfo"));
-    if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,   hmm->name, hmm->acc, tophits_accumulator, pipelinehits_accumulator, (nquery == 1));
-
-    esl_stopwatch_Stop(watch);
-    p7_pli_Statistics(ofp, pipelinehits_accumulator, watch);
-    if (fprintf(ofp, "//\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
-
-    p7_pipeline_Destroy_BATH(pipelinehits_accumulator);
-    p7_tophits_Destroy(tophits_accumulator);
-    p7_hmmwindow_DestroyList(seed_accumulator);
-    p7_oprofile_Destroy(om);
-    p7_profile_Destroy(gm);
-    p7_profile_fs_Destroy(gm_fs5);
-    p7_profile_fs_Destroy(gm_fs3);
-    p7_fs_oprofile_Destroy(om_fs3);
-    p7_fs_oprofile_Destroy(om_fs5);
-    p7_profile_fs_Destroy(gm_tr);
-    p7_hmm_Destroy(hmm);
-    p7_hmm_ScoreDataDestroy(scoredata);
-    destroy_id_length(id_length_list);
-      
-    qhstatus = p7_hmmfile_Read(hfp, &abcAA, &hmm);
-    
-    if (qhstatus != eslOK && qhstatus != eslEOF) p7_Fail("reading from query file %s (%d)\n", cfg->queryfile, qhstatus);
-  } /* end outer loop over query HMMs */
-
-  if (hfp != NULL) {
-    switch(qhstatus) {
-      case eslEOD:       p7_Fail("read failed, HMM file %s may be truncated?", cfg->queryfile);      break;
-      case eslEFORMAT:   p7_Fail("bad file format in HMM file %s",             cfg->queryfile);      break;
-      case eslEINCOMPAT: p7_Fail("HMM file %s contains different alphabets",   cfg->queryfile);      break;
-      case eslEOF:       /* do nothing. EOF is what we want. */                                    break;
-      default:           p7_Fail("Unexpected error (%d) in reading HMMs from %s", qhstatus, cfg->queryfile);
-    }
-  }   
+  /* every query HMM, in one pass over the target */
+  scan_search(go, cfg, hfp, hmm, &abcAA, abcDNA, gcode, ncpus, dbfp, ofp, tblfp, exontblfp, fstblfp, textw, watch);
 
     /* Terminate outputs... any last words? */
   if (tblfp)      p7_tophits_TabularTail(tblfp,      "bathsearch", p7_SEARCH_SEQS, cfg->queryfile, cfg->dbfile, go);
@@ -1026,23 +684,6 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   if (ofp)      { if (fprintf(ofp, "[ok]\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); }
 
   /* Cleanup - prepare for exit */
-  for (i = 0; i < infocnt; ++i)
-    p7_bg_Destroy(info[i].bg);
-
-#ifdef HMMER_THREADS
-  if (ncpus > 0)
-  {
-    esl_workqueue_Reset(queue);
-    while (esl_workqueue_Remove(queue, (void **) &block) == eslOK) { 
-      esl_sq_DestroyBlock(block);
-    }
-    esl_workqueue_Destroy(queue);
-    esl_threads_Destroy(threadObj);
-  }
-#endif
-  
-  free(info);
-
   if (hfp) p7_hmmfile_Close(hfp);
   esl_sqfile_Close(dbfp);
   esl_alphabet_Destroy(abcAA);
@@ -1071,247 +712,767 @@ ERROR:
   return eslFAIL;
 }
 
-static int
-serial_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
+/*****************************************************************
+ * The search driver.
+ * The reader fills a small ring of block slots. A free worker translates
+ * a whole slot once (both strands) into shared, read-only ORFs and
+ * reverse-complemented DNA. A unit of work is one query over one
+ * translated slot; a query's state (profiles, pipeline, hit list) is a
+ * lane, used by one worker at a time, so nothing is copied per thread.
+ * A query has one lane unless workers would otherwise wait for it. A
+ * slot is freed when every query has run on it.
+ *
+ * Without worker threads (--cpu 0) there is one slot and one lane per
+ * query: each block is read, translated and searched with every query
+ * in turn.
+ *****************************************************************/
+
+typedef struct {
+  P7_HMM          *hmm;
+  P7_BG           *bg;
+  P7_PROFILE      *gm;
+  P7_OPROFILE     *om;
+  P7_FS_PROFILE   *gm_fs5;
+  P7_FS_PROFILE   *gm_fs3;
+  P7_FS_OPROFILE  *om_fs3;
+  P7_FS_OPROFILE  *om_fs5;
+  P7_SCOREDATA    *scoredata;
+  const ESL_GENCODE *gcode;
+} SCAN_QUERY;
+
+enum { SLOT_FREE = 0, SLOT_READING, SLOT_READ, SLOT_TRANSLATING, SLOT_READY };
+
+typedef struct {
+  ESL_SQ_BLOCK   *block;        /* DNA windows from the reader                  */
+  ESL_SQ        **rc;           /* [block->count] reverse-complemented windows  */
+  int             rc_alloc;
+  ESL_ORF_BLOCK  *orf[2];       /* ORFs of all windows: [0] top, [1] bottom     */
+  int            *orf_start[2]; /* [count+1] first ORF of each window           */
+  int             st_alloc;
+  int             state;
+  int             ndone;
+  unsigned char  *qdone;        /* [nq] query has run on this slot              */
+  int64_t         seq;
+} SCAN_SLOT;
+
+/* --fs: what a lane's pipeline hooks need to build its frameshift profiles on demand */
+typedef struct {
+  SCAN_QUERY     *q;
+  P7_BG          *bg;           /* the lane's own                                  */
+  P7_FS_OPROFILE *om_fs3;       /* the lane's own: allocated, written on first use */
+  int             ready;
+} SCAN_FSARG;
+
+typedef struct {
+#ifdef HMMER_THREADS
+  pthread_mutex_t  lock;
+  pthread_cond_t   cv;          /* workers wait here for something to run or translate */
+  pthread_cond_t   cv_rd;       /* the reader waits here for a free slot               */
+#endif
+  int              nslots;
+  SCAN_SLOT      *slot;
+  int              nq;
+  int              L;           /* lanes a query starts with: states that can run it at the same time */
+  int              maxl;        /* most lanes a query can have; stride of q[], qbusy[], fsa[]         */
+  int             *nl;          /* [nq] lanes each query has                            */
+  WORKER_INFO     *q;           /* [nq*maxl] one state per query lane                   */
+  unsigned char   *qbusy;       /* [nq*maxl]                                            */
+  SCAN_FSARG     *fsa;         /* [nq*maxl]                                            */
+  SCAN_QUERY      *Q;           /* [nq]                                                 */
+  ESL_GETOPTS     *go;
+  ESL_GENCODE     *gcode;
+  ESL_ALPHABET    *abcDNA;
+  ESL_ALPHABET    *abcAA;
+  int              strands;
+  int              block_length;
+  int              use_fs;
+  int              eof;
+} SCAN;
+
+typedef struct {
+  SCAN                 *s;
+  ESL_GENCODE_WORKSTATE *wrk;
+  P7_PIPELINE           *ws;        /* scratch lent to the query being run   */
+  P7_FS_PROFILE         *gm5;       /* --fs: 5-codon profiles for frameshift domain  */
+  P7_FS_OPROFILE        *om5;       /*   definition, configured for gm5_q on demand  */
+  void                  *gm5_q;
+} SCAN_WORKER;
+
+#ifdef HMMER_THREADS
+static __thread SCAN_WORKER *scan_tl_wk = NULL;   /* the worker running on this thread */
+#else
+static SCAN_WORKER *scan_tl_wk = NULL;
+#endif
+
+/* A pipeline's DP matrices, domain definition and RNG are scratch, only live
+ * during one p7_Pipeline_BATH() call (the RNG is reseeded per region), so
+ * queries hold none and borrow their worker's for each unit of work. */
+static void
+scan_swap_scratch(P7_PIPELINE *a, P7_PIPELINE *b)
 {
-  int  sstatus = eslOK;
-  int seq_id = 0;
+  ESL_SWAP(a->oxf,    b->oxf,    P7_OMX *);
+  ESL_SWAP(a->oxb,    b->oxb,    P7_OMX *);
+  ESL_SWAP(a->fwd,    b->fwd,    P7_OMX *);
+  ESL_SWAP(a->bck,    b->bck,    P7_OMX *);
+  ESL_SWAP(a->oxf_fs, b->oxf_fs, P7_OMX *);
+  ESL_SWAP(a->oxb_fs, b->oxb_fs, P7_OMX *);
+  ESL_SWAP(a->fwd_fs, b->fwd_fs, P7_OMX *);
+  ESL_SWAP(a->bck_fs, b->bck_fs, P7_OMX *);
+  ESL_SWAP(a->ov3,    b->ov3,    P7_OIVX *);
+  ESL_SWAP(a->ov5,    b->ov5,    P7_OIVX *);
+  ESL_SWAP(a->r,      b->r,      ESL_RANDOMNESS *);
+  ESL_SWAP(a->ddef,   b->ddef,   P7_DOMAINDEF *);
+}
 
-  ESL_ALPHABET *abcDNA = esl_alphabet_Create(eslDNA);
-  ESL_SQ       *dbsq_dna    = esl_sq_CreateDigital(abcDNA);   /* (digital) nucleotide sequence, to be translated into ORFs  */
-  sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
+/* --fs: build a lane's om_fs3 the first time a DNA window reaches
+ * the frameshift stage. It was allocated up front but not written, so a lane
+ * that never gets there never faults it in. */
+static int
+scan_fs_prepare(void *arg)
+{
+  SCAN_FSARG   *a = (SCAN_FSARG *) arg;
+  P7_FS_PROFILE *gm_fs3;
+  if (a->ready) return eslOK;
+  gm_fs3 = p7_profile_fs_Create(a->q->hmm->M, a->q->hmm->abc, p7P_3CODONS);   /* only needed to make om_fs3 */
+  p7_ProfileConfig_fs(a->q->hmm, a->bg, a->q->gcode, gm_fs3, 100, p7_LOCAL);
+  p7_fs_oprofile_Convert(gm_fs3, a->om_fs3);
+  p7_profile_fs_Destroy(gm_fs3);
+  a->ready = TRUE;
+  return eslOK;
+}
 
-  while (sstatus == eslOK && (n_targetseqs==-1 || seq_id < n_targetseqs) ) 
-  {
-    dbsq_dna->idx = seq_id;
-    if (dbsq_dna->n < 15) continue; /* do not process sequence of less than 5 codons */
+/* --fs: frameshift domain definition is rare (a few windows per query
+ * per genome), so its 5-codon profiles, most of a query's --fs memory, are
+ * configured into the worker's own pair when needed instead of kept per lane.
+ * Their state doesn't carry between windows: domain definition restores
+ * gm_fs5's length and the pipeline configures om_fs5 for each window. */
+static int
+scan_fs5_get(void *arg, P7_FS_OPROFILE **ret_om, P7_FS_PROFILE **ret_gm)
+{
+  SCAN_FSARG  *a  = (SCAN_FSARG *) arg;
+  SCAN_QUERY   *q  = a->q;
+  SCAN_WORKER *wk = scan_tl_wk;
 
-    dbsq_dna->L = dbsq_dna->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
-    
-    if (info->pli->strands != p7_STRAND_BOTTOMONLY) 
-    {
-      info->pli->nres += dbsq_dna->W;
+  if (wk->gm5_q != (void *) q) {   /* a pair of this query's size: one for the largest query, kept by every worker, was most of the --fs memory */
+    p7_profile_fs_Destroy(wk->gm5);
+    p7_fs_oprofile_Destroy(wk->om5);
+    wk->gm5 = p7_profile_fs_Create(q->hmm->M, q->hmm->abc, p7P_5CODONS);
+    wk->om5 = p7_fs_oprofile_Create(q->hmm->M, q->hmm->abc, p7P_5CODONS);
+    p7_ProfileConfig_fs(q->hmm, a->bg, q->gcode, wk->gm5, 100, p7_LOCAL);
+    p7_fs_oprofile_Convert(wk->gm5, wk->om5);
+    wk->gm5_q = q;
+  }
+  *ret_om = wk->om5;
+  *ret_gm = wk->gm5;
+  return eslOK;
+}
 
-       /* translate DNA sequence to 3 frame ORFs */
-      do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
+/* After a unit, a worker's four full DP matrices go back to their starting
+ * size. They grow to the largest window a unit meets, and would otherwise
+ * stay that large in every worker for the rest of the search. Replacing
+ * them after every unit costs no measurable time. */
+static void
+scan_reset_scratch(P7_PIPELINE *ws)
+{
+  p7_omx_Destroy(ws->fwd);     ws->fwd    = p7_omx_Create(100, 100, 100);
+  p7_omx_Destroy(ws->bck);     ws->bck    = p7_omx_Create(100, 100, 100);
+  p7_omx_Destroy(ws->fwd_fs);  ws->fwd_fs = p7_omx_Create_dpf(100, 100, 100, p7G_NSCELLS_FS);
+  p7_omx_Destroy(ws->bck_fs);  ws->bck_fs = p7_omx_Create_dpf(100, 100, 100, p7G_NSCELLS);
+  if (ws->fwd == NULL || ws->bck == NULL || ws->fwd_fs == NULL || ws->bck_fs == NULL) p7_Fail("allocation failure");
+}
 
-      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, info->hw, p7_NOCOMPLEMENT);
-      p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
+static void
+scan_free_scratch(P7_PIPELINE *pli)
+{
+  P7_PIPELINE *tmp = calloc(1, sizeof(P7_PIPELINE));
+  scan_swap_scratch(pli, tmp);
+  p7_pipeline_Destroy_BATH(tmp);
+}
 
-      esl_sq_ReuseBlock(info->wrk->orf_block);    
-    } 
+/* Build lane <l> of query <k>: the state one search of the query needs.
+ * The master profiles stay unchanged for the splice step, so om is a
+ * copy; lanes after the first copy everything the search changes. With --fs
+ * the frameshift profiles come from the pipeline hooks, on first use. The
+ * caller holds the lane, or runs before the workers start. */
+static void
+scan_lane_create(SCAN *s, int k, int l)
+{
+  SCAN_QUERY  *q  = s->Q + k;
+  WORKER_INFO *qi = s->q + k * s->maxl + l;
 
-    if (info->pli->strands != p7_STRAND_TOPONLY) 
-    {   
-      info->pli->nres += dbsq_dna->W;
-  
-      /* Reverse complement and translate DNA sequence to 3 frame ORFs */
-      esl_sq_ReverseComplement(dbsq_dna);
-      do_sq_by_sequences(info->gcode, info->wrk, dbsq_dna);
-	
-      p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, info->pli->nseqs, dbsq_dna, info->wrk->orf_block, info->gcode, info->hw, p7_COMPLEMENT); 
-      p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
-      
-      esl_sq_ReuseBlock(info->wrk->orf_block);
-      
-      /* Reverse sequence back to original */
-      esl_sq_ReverseComplement(dbsq_dna);
-    } 
+  qi->bg        = p7_bg_Create(s->abcAA);
+  qi->gcode     = s->gcode;
+  qi->hw        = p7_hmmwindow_CreateList();
+  qi->th        = p7_tophits_Create();
+  qi->om        = p7_oprofile_Clone(q->om);
+  qi->gm        = (l == 0) ? q->gm : p7_profile_Clone(q->gm);   /* read-only in the search */
+  qi->gm_fs5    = NULL;
+  qi->om_fs5    = NULL;
+  qi->om_fs3    = NULL;
+  if (s->use_fs) qi->om_fs3 = (l == 0) ? q->om_fs3 : p7_fs_oprofile_Create(q->hmm->M, s->abcAA, p7P_3CODONS);
+  qi->scoredata = (l == 0) ? q->scoredata : p7_hmm_ScoreDataClone(q->scoredata, q->om->abc->Kp);
+  qi->pli       = p7_pipeline_Create_BATH(s->go, 100, 100, p7_SEARCH_SEQS);   /* small: its DP memory is freed just below */
+  if (p7_pli_NewModel(qi->pli, qi->om, qi->bg) == eslEINVAL) p7_Fail(qi->pli->errbuf);
+  scan_free_scratch(qi->pli);
+  if (s->use_fs) {   /* scan_fs_prepare() builds om_fs3, and scan_fs5_get() supplies the 5-codon pair */
+    SCAN_FSARG *fa = s->fsa + k * s->maxl + l;
+    fa->q = q; fa->bg = qi->bg; fa->om_fs3 = qi->om_fs3; fa->ready = FALSE;
+    qi->pli->fs_prepare = scan_fs_prepare; qi->pli->fs5_get = scan_fs5_get; qi->pli->fs_arg = fa;
+  }
+  qi->pli->strands      = s->strands;
+  qi->pli->block_length = s->block_length;
+}
 
-    sstatus = esl_sqio_ReadWindow(dbfp, info->om->max_length*3, info->pli->block_length, dbsq_dna);
-    
-    if (sstatus == eslEOD) 
-    { 
-      /* no more left of this sequence ... move along to the next sequence. */
-      add_id_length(id_length_list, dbsq_dna->idx, dbsq_dna->L);
-      info->pli->nseqs++;
-      esl_sq_Reuse(dbsq_dna);
-      sstatus = esl_sqio_ReadWindow(dbfp, 0, info->pli->block_length, dbsq_dna);
-      seq_id++;
+static void
+scan_translate(SCAN *s, SCAN_WORKER *wk, SCAN_SLOT *sl)
+{
+  ESL_SQ_BLOCK *b = sl->block;
+  int i;
+
+  if (b->count + 1 > sl->st_alloc) {
+    sl->st_alloc = b->count + 1;
+    sl->orf_start[0] = realloc(sl->orf_start[0], sizeof(int) * sl->st_alloc);
+    sl->orf_start[1] = realloc(sl->orf_start[1], sizeof(int) * sl->st_alloc);
+  }
+  if (b->count > sl->rc_alloc) {
+    sl->rc = realloc(sl->rc, sizeof(ESL_SQ *) * b->count);
+    for (i = sl->rc_alloc; i < b->count; i++) sl->rc[i] = esl_sq_CreateDigital(s->abcDNA);
+    sl->rc_alloc = b->count;
+  }
+  esl_gencode_OrfBlockReuse(sl->orf[0]);
+  esl_gencode_OrfBlockReuse(sl->orf[1]);
+
+  for (i = 0; i < b->count; i++) {
+    ESL_SQ *dna = b->list + i;
+    dna->L = dna->n;
+    sl->orf_start[0][i] = sl->orf[0]->count;
+    sl->orf_start[1][i] = sl->orf[1]->count;
+    if (s->strands != p7_STRAND_BOTTOMONLY) {
+      wk->wrk->orf_block = sl->orf[0];
+      do_sq_by_sequences(s->gcode, wk->wrk, dna);
+    }
+    if (s->strands != p7_STRAND_TOPONLY) {
+      esl_sq_Reuse(sl->rc[i]);
+      esl_sq_Copy(dna, sl->rc[i]);
+      esl_sq_ReverseComplement(sl->rc[i]);
+      wk->wrk->orf_block = sl->orf[1];
+      do_sq_by_sequences(s->gcode, wk->wrk, sl->rc[i]);
     }
   }
+  sl->orf_start[0][b->count] = sl->orf[0]->count;
+  sl->orf_start[1][b->count] = sl->orf[1]->count;
+  wk->wrk->orf_block = NULL;
+}
 
-  if(abcDNA) esl_alphabet_Destroy(abcDNA);
-  if(dbsq_dna) esl_sq_Destroy(dbsq_dna);
-  
+static void
+scan_run_query(SCAN *s, SCAN_WORKER *wk, SCAN_SLOT *sl, int li)
+{
+  WORKER_INFO  *qi = s->q + li;
+  ESL_ORF_BLOCK v = { 0 };
+  int           i, st, n, strand;
+
+  for (i = 0; i < sl->block->count; i++)
+    for (strand = 0; strand < 2; strand++) {
+      ESL_SQ *dna;
+      if (strand == 0 && s->strands == p7_STRAND_BOTTOMONLY) continue;
+      if (strand == 1 && s->strands == p7_STRAND_TOPONLY)    continue;
+      dna = (strand == 0) ? sl->block->list + i : sl->rc[i];
+      st  = sl->orf_start[strand][i];
+      n   = sl->orf_start[strand][i+1] - st;
+      v.count = v.listSize = n;
+      v.list = sl->orf[strand]->list + st;   /* shared, read-only: the pipeline writes nothing into ORFs */
+
+      qi->pli->nres += dna->W;
+      scan_swap_scratch(qi->pli, wk->ws);
+      p7_Pipeline_BATH(qi->pli, qi->om, qi->gm, qi->om_fs3, qi->om_fs5, qi->gm_fs5, qi->scoredata, qi->bg, qi->th, sl->block->first_seqidx + i, dna, &v, s->gcode, qi->hw, strand ? p7_COMPLEMENT : p7_NOCOMPLEMENT);
+      p7_pipeline_Reuse_BATH(qi->pli);
+      scan_swap_scratch(qi->pli, wk->ws);
+    }
+  scan_reset_scratch(wk->ws);
+}
+
+#ifdef HMMER_THREADS
+static void *
+scan_worker(void *arg)
+{
+  SCAN_WORKER *wk = (SCAN_WORKER *) arg;
+  SCAN        *s  = wk->s;
+  scan_tl_wk = wk;
+  int           j, k, l, best, pick_k, pick_li;
+
+  impl_Init();
+  pthread_mutex_lock(&s->lock);
+  /* A worker that takes work wakes one more worker, which looks for work in its
+   * turn. So new work wakes as many workers as it has use for, one after
+   * another, and the idle ones don't all queue for the lock at every change. */
+  while (1)
+    {
+      /* 1. the oldest translated slot with a query still to run on it and a free lane of that
+       *    query. Results don't depend on the order a query sees slots in. */
+      best = -1; pick_k = -1; pick_li = -1;
+      for (j = 0; j < s->nslots; j++) {
+        SCAN_SLOT *sl = s->slot + j;
+        if (sl->state != SLOT_READY || sl->ndone == s->nq) continue;
+        if (best >= 0 && sl->seq > s->slot[best].seq)    continue;
+        for (k = 0; k < s->nq; k++) {
+          if (sl->qdone[k]) continue;
+          for (l = 0; l < s->nl[k]; l++) if (!s->qbusy[k * s->maxl + l]) break;
+          if (l < s->nl[k]) { best = j; pick_k = k; pick_li = k * s->maxl + l; break; }
+        }
+      }
+      if (best >= 0) {
+        SCAN_SLOT *sl = s->slot + best;
+        int li = pick_li;
+        s->qbusy[li] = 1;
+        sl->qdone[pick_k] = 1;
+        pthread_cond_signal(&s->cv);
+        pthread_mutex_unlock(&s->lock);
+        scan_run_query(s, wk, sl, li);
+        pthread_mutex_lock(&s->lock);
+        s->qbusy[li] = 0;
+        if (++sl->ndone == s->nq) { sl->state = SLOT_FREE; pthread_cond_signal(&s->cv_rd); }
+        continue;
+      }
+      /* 2. a slot to translate */
+      best = -1;
+      for (j = 0; j < s->nslots; j++)
+        if (s->slot[j].state == SLOT_READ && (best < 0 || s->slot[j].seq < s->slot[best].seq)) best = j;
+      if (best >= 0) {
+        SCAN_SLOT *sl = s->slot + best;
+        sl->state = SLOT_TRANSLATING;
+        pthread_cond_signal(&s->cv);
+        pthread_mutex_unlock(&s->lock);
+        scan_translate(s, wk, sl);
+        pthread_mutex_lock(&s->lock);
+        sl->state = SLOT_READY;
+        continue;
+      }
+      /* 3. nothing to run or translate. A query that still has a slot to do is held back only
+       *    by its busy lanes, and is what the other workers wait for: give it another lane. */
+      best = -1; pick_k = -1;
+      for (j = 0; j < s->nslots; j++) {
+        SCAN_SLOT *sl = s->slot + j;
+        if (sl->state != SLOT_READY || sl->ndone == s->nq) continue;
+        if (best >= 0 && sl->seq > s->slot[best].seq)    continue;
+        for (k = 0; k < s->nq; k++)
+          if (!sl->qdone[k] && s->nl[k] < s->maxl) { best = j; pick_k = k; break; }
+      }
+      if (best >= 0) {
+        SCAN_SLOT *sl = s->slot + best;
+        int li;
+        l  = s->nl[pick_k]++;
+        li = pick_k * s->maxl + l;
+        s->qbusy[li] = 1;
+        sl->qdone[pick_k] = 1;
+        pthread_cond_signal(&s->cv);
+        pthread_mutex_unlock(&s->lock);
+        scan_lane_create(s, pick_k, l);
+        scan_run_query(s, wk, sl, li);
+        pthread_mutex_lock(&s->lock);
+        s->qbusy[li] = 0;
+        if (++sl->ndone == s->nq) { sl->state = SLOT_FREE; pthread_cond_signal(&s->cv_rd); }
+        continue;
+      }
+      /* 4. done when the reader is finished and every slot is free */
+      if (s->eof) {
+        for (j = 0; j < s->nslots; j++) if (s->slot[j].state != SLOT_FREE) break;
+        if (j == s->nslots) { pthread_cond_broadcast(&s->cv); break; }
+      }
+      pthread_cond_wait(&s->cv, &s->lock);
+    }
+  pthread_mutex_unlock(&s->lock);
+  return NULL;
+}
+
+#endif /*HMMER_THREADS*/
+
+/* The reader calls this before it fills a slot. A slot gets its blocks the
+ * first time it is used, so a small target doesn't pay for the whole ring. */
+static void
+scan_slot_ready(SCAN *s, SCAN_SLOT *sl)
+{
+  if (sl->block != NULL) return;
+  sl->block  = esl_sq_CreateDigitalBlock(BLOCK_SIZE, s->abcDNA);
+  sl->orf[0] = esl_gencode_OrfBlockCreate(BLOCK_SIZE);
+  sl->orf[1] = esl_gencode_OrfBlockCreate(BLOCK_SIZE);
+}
+
+/* Read the next block of the target into <b>. A window the last block ended
+ * in the middle of is carried over in <tmpsq>, with <C> residues of context.
+ * Returns the read status; <*abort> is set once --restrictdb_n is reached. */
+static int
+scan_read_block(ESL_SQFILE *dbfp, ESL_SQ_BLOCK *b, ESL_SQ *tmpsq, int *prev_complete, ID_LENGTH_LIST *id_length_list,
+                int block_length, int C, int n_targetseqs, int64_t *nseqs, int *abort)
+{
+  int64_t seqid;
+  int     i, sstatus;
+
+  b->complete = *prev_complete;
+  if (! *prev_complete) {
+    esl_sq_Copy(tmpsq, b->list);
+    b->list->C = (b->list->n < C) ? b->list->n : C;
+  }
+  sstatus = esl_sqio_ReadBlock(dbfp, b, block_length, n_targetseqs, FALSE, TRUE);
+
+  b->first_seqidx = *nseqs;
+  seqid = *nseqs;
+  for (i = 0; i < b->count; i++) {
+    b->list[i].idx = seqid;
+    add_id_length(id_length_list, seqid, b->list[i].L);
+    seqid++;
+    if (seqid == n_targetseqs && (i < b->count-1 || b->complete)) { *abort = TRUE; b->count = i+1; break; }
+  }
+  *nseqs += b->count - ((*abort || b->complete) ? 0 : 1);
+  *prev_complete = b->complete;
+  if (!b->complete && b->count > 0) esl_sq_Copy(b->list + (b->count - 1), tmpsq);
   return sstatus;
 }
 
 #ifdef HMMER_THREADS
+/* One pass over the target for queries q[0..nq-1]; the reader runs here. */
 static int
-thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj, ESL_WORK_QUEUE *queue, ESL_SQFILE *dbfp, char *firstseq_key, int n_targetseqs)
+scan_pass(SCAN *s, int ncpus, ESL_SQFILE *dbfp, ID_LENGTH_LIST *id_length_list, int block_length, int C, int n_targetseqs, int64_t *ret_nseqs)
 {
-  int i;
-  int           status   = eslOK;
-  int           sstatus  = eslOK;
-  int           eofCount = 0;
-  int           seqid    = -1;
-  int           abort    = FALSE; // in the case n_targetseqs != -1, a block may get abbreviated
-  ESL_SQ_BLOCK *block;
-  ESL_SQ       *tmpsq;
-  void         *newBlock;
+  pthread_t    *tid = malloc(sizeof(pthread_t) * ncpus);
+  SCAN_WORKER *wk  = calloc(ncpus, sizeof(SCAN_WORKER));
+  ESL_SQ       *tmpsq = esl_sq_CreateDigital(dbfp->abc);
+  int           prev_complete = TRUE, abort = FALSE, sstatus = eslOK, j, t;
+  int64_t       nseqs = 0, order = 0;
 
-  tmpsq = esl_sq_CreateDigital(dbfp->abc);
+  for (j = 0; j < s->nslots; j++) { s->slot[j].state = SLOT_FREE; s->slot[j].ndone = 0; }
+  s->eof = FALSE;
+  for (t = 0; t < ncpus; t++) {
+    wk[t].s   = s;
+    wk[t].wrk = esl_gencode_WorkstateCreate(s->go, s->gcode);
+    wk[t].ws  = p7_pipeline_Create_BATH(s->go, 100, 100, p7_SEARCH_SEQS);
+    pthread_create(&tid[t], NULL, scan_worker, &wk[t]);
+  }
 
-  esl_workqueue_Reset(queue);
-  esl_threads_WaitForStart(obj);
+  while (!abort)
+    {
+      SCAN_SLOT   *sl;
+      pthread_mutex_lock(&s->lock);
+      for (;;) {
+        for (j = 0; j < s->nslots; j++) if (s->slot[j].state == SLOT_FREE) break;
+        if (j < s->nslots) break;
+        pthread_cond_wait(&s->cv_rd, &s->lock);
+      }
+      sl = s->slot + j;
+      sl->state = SLOT_READING;
+      pthread_mutex_unlock(&s->lock);
 
-  status = esl_workqueue_ReaderUpdate(queue, NULL, &newBlock);
-  if (status != eslOK) esl_fatal("Work queue reader failed");
-  ((ESL_SQ_BLOCK *)newBlock)->complete = TRUE;
+      scan_slot_ready(s, sl);
+      sstatus = scan_read_block(dbfp, sl->block, tmpsq, &prev_complete, id_length_list, block_length, C, n_targetseqs, &nseqs, &abort);
 
-  /* Main loop: */
-  while (sstatus == eslOK)
-  {
-    block = (ESL_SQ_BLOCK *) newBlock;     
-	
-    if (abort) {
-      block->count = 0;
-      sstatus = eslEOF;
-    } else {
-      sstatus = esl_sqio_ReadBlock(dbfp, block, info->pli->block_length, n_targetseqs, FALSE, TRUE);
-    }
-
-    block->first_seqidx = info->pli->nseqs;
-    seqid = block->first_seqidx;
-
-    for (i=0; i<block->count; i++) {
-      block->list[i].idx = seqid;
-      add_id_length(id_length_list, seqid, block->list[i].L);
-      seqid++;
-
-      if (       seqid == n_targetseqs // hit the sequence target
-           && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
-         ) 
-      {
-        abort = TRUE;
-        block->count = i+1;
+      pthread_mutex_lock(&s->lock);
+      if (sstatus != eslOK || sl->block->count == 0) {
+        sl->state = SLOT_FREE;
+        s->eof = TRUE;
+        pthread_cond_broadcast(&s->cv);
+        pthread_mutex_unlock(&s->lock);
         break;
       }
-    } 
-
-    info->pli->nseqs += block->count  - ((abort || block->complete) ? 0 : 1);// if there's an incomplete sequence read into the block wait to count it until it's complete.	
-
-    if (sstatus == eslEOF) {
-      if (eofCount < esl_threads_GetWorkerCount(obj)) sstatus = eslOK;
-      ++eofCount;
-    } else if (!block->complete && block->count > 0) { /* a failed read can leave an empty, incomplete block */
-      /* The final sequence on the block was an incomplete window of the 
-       * active sequence, so our next read will need a copy of it to 
-       * correctly deal with overlapping regions. We capture a copy of the 
-       * sequence here before sending it off to the pipeline to avoid odd 
-       * race conditions that can occur otherwise. Copying the entire sequence 
-       * isn't really necessary, and is a bit heavy-handed. Could accelerate 
-       * if this proves to have any notable impact on speed. */
-      esl_sq_Copy(block->list + (block->count - 1) , tmpsq);
+      memset(sl->qdone, 0, s->nq);
+      sl->ndone = 0;
+      sl->seq   = order++;
+      sl->state = SLOT_READ;
+      pthread_cond_signal(&s->cv);
+      pthread_mutex_unlock(&s->lock);
     }
+  pthread_mutex_lock(&s->lock);
+  s->eof = TRUE;
+  pthread_cond_broadcast(&s->cv);
+  pthread_mutex_unlock(&s->lock);
 
-    if (sstatus == eslOK) {
-      status = esl_workqueue_ReaderUpdate(queue, block, &newBlock);
-      if (status != eslOK) esl_fatal("Work queue reader failed");
-
-      /*newBlock needs all this information so the next ReadBlock call will know what to do */
-      ((ESL_SQ_BLOCK *)newBlock)->complete = block->complete;
-      if (!block->complete) {
-        /* Push the captured copy of the previously-read sequence into the new block,
-         * in preparation for ReadWindow  (double copy ... slower than necessary) */
-        esl_sq_Copy(tmpsq, ((ESL_SQ_BLOCK *)newBlock)->list);
-
-        if (  ((ESL_SQ_BLOCK *)newBlock)->list->n < info->om->max_length*3 ) {
-          /*no reason to search the final partial sequence on the block, as 
-           * the next block will search this whole chunk */
-          ((ESL_SQ_BLOCK *)newBlock)->list->C = ((ESL_SQ_BLOCK *)newBlock)->list->n;
-          (((ESL_SQ_BLOCK *)newBlock)->count)--;
-        } else {
-          ((ESL_SQ_BLOCK *)newBlock)->list->C = info->om->max_length*3;
-        }
-      }
-    }
+  for (t = 0; t < ncpus; t++) {
+    pthread_join(tid[t], NULL);
+    esl_gencode_WorkstateDestroy(wk[t].wrk);
+    p7_pipeline_Destroy_BATH(wk[t].ws);
+    p7_profile_fs_Destroy(wk[t].gm5);
+    p7_fs_oprofile_Destroy(wk[t].om5);
   }
-
-  status = esl_workqueue_ReaderUpdate(queue, block, NULL);
-  if (status != eslOK) esl_fatal("Work queue reader failed");
-
-  if (sstatus == eslEOF) {
-    /* wait for all the threads to complete */
-    esl_threads_WaitForFinish(obj);
-    esl_workqueue_Complete(queue);
-  }
-
+  free(tid); free(wk);
   esl_sq_Destroy(tmpsq);
-
-  return sstatus;
+  *ret_nseqs = nseqs;
+  return (sstatus == eslEOF || sstatus == eslOK) ? eslOK : sstatus;
 }
+#endif /*HMMER_THREADS*/
 
-static void 
-pipeline_thread(void *arg)
+/* One pass over the target with no worker threads. */
+static int
+scan_pass_serial(SCAN *s, ESL_SQFILE *dbfp, ID_LENGTH_LIST *id_length_list, int block_length, int C, int n_targetseqs, int64_t *ret_nseqs)
 {
-  int i;
-  int status;
-  int workeridx;
-  WORKER_INFO   *info;
-  ESL_THREADS   *obj;
-  ESL_SQ_BLOCK  *block = NULL;
-  void          *newBlock;
+  SCAN_WORKER  wk;
+  SCAN_SLOT   *sl    = s->slot;
+  ESL_SQ      *tmpsq = esl_sq_CreateDigital(dbfp->abc);
+  int          prev_complete = TRUE, abort = FALSE, sstatus = eslOK, k;
+  int64_t      nseqs = 0;
 
-  impl_Init();
-  obj = (ESL_THREADS *) arg;
-  esl_threads_Started(obj, &workeridx);
+  memset(&wk, 0, sizeof(wk));
+  wk.s   = s;
+  wk.wrk = esl_gencode_WorkstateCreate(s->go, s->gcode);
+  wk.ws  = p7_pipeline_Create_BATH(s->go, 100, 100, p7_SEARCH_SEQS);
+  scan_tl_wk = &wk;
+  scan_slot_ready(s, sl);
 
-  info = (WORKER_INFO *) esl_threads_GetData(obj, workeridx);
-
-  status = esl_workqueue_WorkerUpdate(info->queue, NULL, &newBlock);
-  if (status != eslOK) esl_fatal("Work queue worker failed");
-
-  /* loop until all blocks have been processed */
-  block = (ESL_SQ_BLOCK *) newBlock;
- 
-  while (block->count > 0)
-  {
-    /* Main loop: */
-    for (i = 0; i < block->count; ++i)
+  while (!abort)
     {
-      ESL_SQ *dnaSeq = block->list + i;
-      dnaSeq->L = dnaSeq->n; /* here, L is not the full length of the sequence in the db, just of the currently-active window;  required for esl_gencode machinations */
-     
+      sstatus = scan_read_block(dbfp, sl->block, tmpsq, &prev_complete, id_length_list, block_length, C, n_targetseqs, &nseqs, &abort);
+      if (sstatus != eslOK || sl->block->count == 0) break;
+      scan_translate(s, &wk, sl);
+      for (k = 0; k < s->nq; k++) scan_run_query(s, &wk, sl, k * s->maxl);
+    }
 
-      if (info->pli->strands != p7_STRAND_BOTTOMONLY) {
-
-        info->pli->nres += dnaSeq->W;
-        do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
-       
-        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, info->hw, p7_NOCOMPLEMENT);
-        p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
-
-        esl_sq_ReuseBlock(info->wrk->orf_block);
-      } 
-
-      if (info->pli->strands != p7_STRAND_TOPONLY) {
-        info->pli->nres += dnaSeq->W;
-        esl_sq_ReverseComplement(dnaSeq);
-        do_sq_by_sequences(info->gcode, info->wrk, dnaSeq);
-	
-        p7_Pipeline_BATH(info->pli, info->om, info->gm, info->om_fs3, info->om_fs5, info->gm_fs5, info->scoredata, info->bg, info->th, block->first_seqidx + i, dnaSeq, info->wrk->orf_block, info->gcode, info->hw, p7_COMPLEMENT);
-        p7_pipeline_Reuse_BATH(info->pli); // prepare for next search
-
-	    esl_sq_ReuseBlock(info->wrk->orf_block);
-        esl_sq_ReverseComplement(dnaSeq);
-      }
-    }  
-    status = esl_workqueue_WorkerUpdate(info->queue, block, &newBlock);
-    if (status != eslOK) esl_fatal("Work queue worker failed");
-   
-    /* loop until all blocks have been processed */
-    block = (ESL_SQ_BLOCK *) newBlock; 
-  } 
-  
-  status = esl_workqueue_WorkerUpdate(info->queue, block, NULL);
-  if (status != eslOK) esl_fatal("Work queue worker failed");
-
-  esl_threads_Finished(obj, workeridx);
+  scan_tl_wk = NULL;
+  esl_gencode_WorkstateDestroy(wk.wrk);
+  p7_pipeline_Destroy_BATH(wk.ws);
+  p7_profile_fs_Destroy(wk.gm5);
+  p7_fs_oprofile_Destroy(wk.om5);
+  esl_sq_Destroy(tmpsq);
+  *ret_nseqs = nseqs;
+  return (sstatus == eslEOF || sstatus == eslOK) ? eslOK : sstatus;
 }
-#endif   /* HMMER_THREADS */
- 
+
+/* Search every query in one pass over the target */
+static int
+scan_search(ESL_GETOPTS *go, struct cfg_s *cfg, P7_HMMFILE *hfp, P7_HMM *hmm, ESL_ALPHABET **p_abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode,
+             int ncpus, ESL_SQFILE *dbfp, FILE *ofp, FILE *tblfp, FILE *exontblfp, FILE *fstblfp, int textw, ESL_STOPWATCH *watch)
+{
+  ESL_ALPHABET      *abcAA   = *p_abcAA;
+  int                use_fs  = (esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly"));
+  int                splice  = esl_opt_IsUsed(go, "--splice");
+  int                codon_table = esl_opt_GetInteger(go, "--ct");
+  int                batch;
+  int                strands, block_length, qhstatus = eslOK, nout = 0;
+  int                nb, npass = 0, k, j, t, d, C, sstatus;
+  int64_t            nseqs, resCnt;
+  SCAN              s;
+  SCAN_QUERY        *Q;
+  ID_LENGTH_LIST    *id_length_list;
+  P7_TOPHITS        *seed_hits;
+  P7_HMM_WINDOWLIST *seed_accumulator;
+  P7_FS_PROFILE     *gm_tr;
+  P7_HMM           **H = NULL;
+  int                qalloc = 0;
+
+  if      (strcmp(esl_opt_GetString(go, "--strand"), "both")  == 0) strands = p7_STRAND_BOTH;
+  else if (strcmp(esl_opt_GetString(go, "--strand"), "plus")  == 0) strands = p7_STRAND_TOPONLY;
+  else                                                                strands = p7_STRAND_BOTTOMONLY;
+  block_length = esl_opt_IsUsed(go, "--block_length") ? esl_opt_GetInteger(go, "--block_length") : BATH_MAX_RESIDUE_COUNT;
+
+  batch = esl_opt_GetInteger(go, "--qbatch");
+  if (! esl_sqfile_IsRewindable(dbfp)) batch = INT_MAX;   /* a target that can't be read again gets every query in its one pass */
+
+#ifdef HMMER_THREADS
+  pthread_mutex_init(&s.lock, NULL);
+  pthread_cond_init(&s.cv, NULL);
+  pthread_cond_init(&s.cv_rd, NULL);
+#endif
+  s.go = go; s.gcode = gcode; s.abcDNA = abcDNA; s.abcAA = abcAA; s.strands = strands;
+  s.block_length = block_length; s.use_fs = use_fs;
+
+  /* The queries are searched a batch at a time, each batch in one pass over the
+   * target. A batch's profiles and hits are all in memory during its pass, so
+   * the batch size bounds both. <hmm> is the first query of the next batch. */
+  while (qhstatus == eslOK)
+    {
+      /* read the batch */
+      nb = 0;
+      while (qhstatus == eslOK && nb < batch) {
+        if (use_fs) { //check that HMM is properly formated for bathsearch
+          if( !(hmm->flags & p7H_STATS) )
+            p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
+          if( !(hmm->fsprob && hmm->ct)                      ||
+              hmm->evparam[p7_FTAUFS3] == p7_EVPARAM_UNSET   ||
+              hmm->evparam[p7_FTAUFS5] == p7_EVPARAM_UNSET )
+            p7_Fail("HMM file %s has no frameshift statistics, which --fs requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
+          /* frameshift E-values are computed from a specific codon table, so --fs/--fsonly
+           * requires the HMM's table to match the one bathsearch is using */
+          if( hmm->ct != codon_table)  p7_Fail("Requested codon translation tabel ID %d does not match the codon translation tabel ID of the HMM file %s. Please either run bathsearch with option '--ct %d' or run bathconvert with option '--ct %d'.\n", codon_table, cfg->queryfile, hmm->ct, codon_table);
+        } else {
+          if( !(hmm->flags & p7H_STATS) )
+            p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild' (without --nostats), or add them with 'bathconvert --addstats new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
+
+          hmm->fs = FALSE;
+          hmm->fsprob = 0.;
+        }
+        if (hmm->max_length == -1) p7_Builder_MaxLength(hmm, p7_DEFAULT_WINDOW_BETA);
+        if (nb == qalloc) { qalloc = qalloc ? qalloc*2 : 64; H = realloc(H, sizeof(P7_HMM *) * qalloc); }
+        H[nb++] = hmm;
+        hmm = NULL;
+        qhstatus = p7_hmmfile_Read(hfp, p_abcAA, &hmm);
+        if (qhstatus != eslOK && qhstatus != eslEOF) p7_Fail("reading from query file %s (%d)\n", cfg->queryfile, qhstatus);
+      }
+
+      s.nq = nb;
+      s.L  = ESL_MAX(1, (ncpus + nb - 1) / nb);   /* rounded up, so every worker has a lane */
+      s.nslots = (ncpus > 0) ? ESL_MAX(4, 2*s.L + 2) : 1;
+      s.maxl   = ESL_MAX(s.L, ESL_MIN(ncpus, s.nslots));   /* a query can run on one slot per lane */
+      s.slot   = calloc(s.nslots, sizeof(SCAN_SLOT));
+      for (j = 0; j < s.nslots; j++) s.slot[j].qdone = calloc(nb, 1);   /* its blocks come on first use: scan_slot_ready() */
+      Q       = calloc(nb, sizeof(SCAN_QUERY));
+      s.Q     = Q;
+      s.q     = calloc(nb * s.maxl, sizeof(WORKER_INFO));
+      s.qbusy = calloc(nb * s.maxl, 1);
+      s.fsa   = calloc(nb * s.maxl, sizeof(SCAN_FSARG));
+      s.nl    = calloc(nb, sizeof(int));
+      C = 0;
+      for (k = 0; k < nb; k++) {       /* one state per query */
+        SCAN_QUERY  *q  = Q + k;
+        P7_HMM      *h  = H[k];
+        int          l;
+        q->hmm = h;
+        q->bg  = p7_bg_Create(abcAA);
+        q->gcode    = gcode;
+        q->gm_fs5 = NULL; q->gm_fs3 = NULL; q->om_fs3 = NULL; q->om_fs5 = NULL;
+        q->gm = p7_profile_Create(h->M, abcAA);
+        q->om = p7_oprofile_Create(h->M, abcAA);
+        p7_ProfileConfig(h, q->bg, q->gm, 100, p7_LOCAL);
+        p7_oprofile_Convert(q->gm, q->om);
+        if (use_fs) q->om_fs3 = p7_fs_oprofile_Create(h->M, abcAA, p7P_3CODONS);   /* lane 0's; frameshift profiles only with --fs */
+        q->scoredata = p7_hmm_ScoreDataCreate(q->om, NULL);
+        p7_hmm_ScoreDataComputeRest(q->om, q->scoredata);
+        C = ESL_MAX(C, q->om->max_length*3);
+
+        s.nl[k] = s.L;
+        for (l = 0; l < s.nl[k]; l++) scan_lane_create(&s, k, l);
+      }
+
+      if (npass > 0 && esl_sqfile_Position(dbfp, 0) != eslOK) p7_Fail("can't rewind target file");
+      if (cfg->firstseq_key != NULL && esl_sqfile_PositionByKey(dbfp, cfg->firstseq_key) != eslOK)
+        p7_Fail("Failure setting restrictdb_stkey to %s\n", cfg->firstseq_key);
+      esl_stopwatch_Start(watch);
+      id_length_list = init_id_length(1000);
+#ifdef HMMER_THREADS
+      if (ncpus > 0) sstatus = scan_pass(&s, ncpus, dbfp, id_length_list, block_length, C, cfg->n_targetseq, &nseqs);
+      else
+#endif
+                     sstatus = scan_pass_serial(&s, dbfp, id_length_list, block_length, C, cfg->n_targetseq, &nseqs);
+      if (sstatus == eslEFORMAT) esl_fatal("Parse failed (sequence file %s):\n%s\n", dbfp->filename, esl_sqfile_GetErrorBuf(dbfp));
+      else if (sstatus != eslOK) esl_fatal("Unexpected error %d reading sequence file %s", sstatus, dbfp->filename);
+
+      for (k = 0; k < nb; k++)
+        {
+          SCAN_QUERY  *q  = Q + k;
+          WORKER_INFO *ql = s.q + k * s.maxl;   /* this query's lanes */
+          P7_HMM      *qh = q->hmm;
+          P7_TOPHITS  *th;
+          P7_PIPELINE *pl;
+          int          l;
+
+          if (fprintf(ofp, "Query:       %s  [M=%d]\n", qh->name, qh->M) < 0) p7_Fail("write failed");
+          if (qh->acc)  fprintf(ofp, "Accession:   %s\n", qh->acc);
+          if (qh->desc) fprintf(ofp, "Description: %s\n", qh->desc);
+
+          ql[0].pli->nseqs = nseqs;   /* sequences are counted once, on the first lane */
+          resCnt = 0;
+          if (esl_opt_IsUsed(go, "-Z")) { resCnt = 1000000*esl_opt_GetReal(go, "-Z"); if (strands == p7_STRAND_BOTH) resCnt *= 2; }
+          else for (l = 0; l < s.nl[k]; l++) resCnt += ql[l].pli->nres;
+          for (l = 0; l < s.nl[k]; l++) p7_tophits_ComputeEvalues_BATH(ql[l].th, resCnt, ql[l].om->max_length*3);
+
+          /* merge the lanes */
+          th = p7_tophits_Create();
+          pl = p7_pipeline_Create_BATH(go, 100, 300, p7_SEARCH_SEQS);
+          pl->nmodels = 1; pl->nnodes = qh->M;
+          seed_accumulator = splice ? p7_hmmwindow_CreateList() : NULL;
+          for (l = 0; l < s.nl[k]; l++) {
+            WORKER_INFO *qi = ql + l;
+            p7_tophits_Merge(th, qi->th);
+            p7_pipeline_Merge(pl, qi->pli);
+            if (splice) p7_hmmwindow_Merge(seed_accumulator, qi->hw);
+            p7_pipeline_Destroy_BATH(qi->pli);
+            p7_tophits_Destroy(qi->th);
+            p7_hmmwindow_DestroyList(qi->hw);
+            p7_oprofile_Destroy(qi->om);
+            if (qi->gm != q->gm) p7_profile_Destroy(qi->gm);
+            p7_profile_fs_Destroy(qi->gm_fs5);
+            if (l > 0) {
+              p7_fs_oprofile_Destroy(qi->om_fs3);
+              p7_fs_oprofile_Destroy(qi->om_fs5);
+              p7_hmm_ScoreDataDestroy(qi->scoredata);
+            }
+            p7_bg_Destroy(qi->bg);
+          }
+
+          p7_tophits_SortBySeqidxAndAlipos(th);
+          if (!splice) assign_Lengths(th, id_length_list);
+          p7_tophits_RemoveDuplicates(th, pl->use_bit_cutoffs);
+          p7_tophits_SortBySortkey(th);
+          pl->Z = 1;
+          p7_tophits_Threshold(th, pl);
+
+          gm_tr = NULL;
+          if (splice && th->N) {
+            gm_tr = p7_profile_fs_Create(qh->M, abcAA, 1);
+            p7_ProfileConfig_fs(qh, q->bg, gcode, gm_tr, 100, p7_UNILOCAL);
+            p7_tophits_SortBySeqidxAndAlipos(th);
+            p7_hmmwindow_RemoveDuplicates(seed_accumulator, th, pl->F3);
+            seed_hits = p7_hmmwindow_GetSeedHits(seed_accumulator, th, qh, q->gm, dbfp, gcode, pl->F3, esl_opt_GetInteger(go, "--max_intron"));
+            p7_splice_SpliceHits(th, seed_hits, q->om, q->gm, gm_tr, go, gcode, dbfp, id_length_list, resCnt);
+            for (d = 0; d < seed_hits->N; d++) {
+              p7_trace_fs_Destroy(seed_hits->unsrt[d].dcl->tr);
+              free(seed_hits->unsrt[d].dcl->scores_per_pos);
+              free(seed_hits->unsrt[d].dcl->k_per_pos);
+            }
+            p7_tophits_Destroy(seed_hits);
+            assign_Lengths(th, id_length_list);
+            p7_tophits_RemoveDuplicates(th, pl->use_bit_cutoffs);
+            p7_tophits_SortBySortkey(th);
+          }
+
+          pl->n_output = pl->pos_output = 0;
+          for (t = 0; t < th->N; t++)
+            if ((th->hit[t]->flags & p7_IS_REPORTED) || th->hit[t]->flags & p7_IS_INCLUDED) {
+              pl->n_output++;
+              for (d = 0; d < th->hit[t]->ndom; d++)
+                pl->pos_output += 1 + (th->hit[t]->dcl[d].jali > th->hit[t]->dcl[d].iali ? th->hit[t]->dcl[d].jali - th->hit[t]->dcl[d].iali : th->hit[t]->dcl[d].iali - th->hit[t]->dcl[d].jali);
+            }
+          p7_tophits_Targets(ofp, th, pl, textw); fprintf(ofp, "\n\n");
+          p7_tophits_Domains(ofp, th, pl, textw); fprintf(ofp, "\n\n");
+          if (tblfp)     p7_tophits_TabularTargets    (tblfp,     qh->name, qh->acc, th, pl, (nout == 0));
+          if (exontblfp) p7_tophits_TabularExons      (exontblfp, qh->name, qh->acc, th, pl, (nout == 0), esl_opt_IsUsed(go, "--nodeinfo"));
+          if (fstblfp)   p7_tophits_TabularFrameshifts(fstblfp,   qh->name, qh->acc, th, pl, (nout == 0));
+          nout++;
+          esl_stopwatch_Stop(watch);
+          p7_pli_Statistics(ofp, pl, watch);
+          fprintf(ofp, "//\n");
+
+          p7_pipeline_Destroy_BATH(pl);
+          p7_tophits_Destroy(th);
+          p7_hmmwindow_DestroyList(seed_accumulator);
+          p7_profile_fs_Destroy(gm_tr);
+          p7_oprofile_Destroy(q->om);
+          p7_profile_Destroy(q->gm);
+          p7_profile_fs_Destroy(q->gm_fs5);
+          p7_profile_fs_Destroy(q->gm_fs3);
+          p7_fs_oprofile_Destroy(q->om_fs3);
+          p7_fs_oprofile_Destroy(q->om_fs5);
+          p7_hmm_ScoreDataDestroy(q->scoredata);
+          p7_bg_Destroy(q->bg);
+          p7_hmm_Destroy(qh);
+        }
+      destroy_id_length(id_length_list);
+
+      for (j = 0; j < s.nslots; j++) {
+        if (s.slot[j].block != NULL) esl_sq_DestroyBlock(s.slot[j].block);
+        esl_gencode_OrfBlockDestroy(s.slot[j].orf[0]);
+        esl_gencode_OrfBlockDestroy(s.slot[j].orf[1]);
+        for (k = 0; k < s.slot[j].rc_alloc; k++) esl_sq_Destroy(s.slot[j].rc[k]);
+        free(s.slot[j].rc); free(s.slot[j].orf_start[0]); free(s.slot[j].orf_start[1]); free(s.slot[j].qdone);
+      }
+      free(s.slot); free(Q); free(s.q); free(s.qbusy); free(s.fsa); free(s.nl);
+      npass++;
+    }
+  free(H);
+#ifdef HMMER_THREADS
+  pthread_mutex_destroy(&s.lock);
+  pthread_cond_destroy(&s.cv);
+  pthread_cond_destroy(&s.cv_rd);
+#endif
+  return eslOK;
+}
 
 static ID_LENGTH_LIST *
 init_id_length( int size )

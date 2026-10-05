@@ -151,7 +151,10 @@ if ($verbose) { print "$tag...\n"; }
 $output = `cat $arg1 $arg2 | $prog - - 2>&1`;    if (! $?) { die "FAIL: $prog should have failed on double - -\n"; }
 if ($output !~ /^Either <hmmfile> or <seqdb>/) { die "FAIL: $prog didn't give expected error message for the - - case.\n"; }
 
-$output = `cat $arg2 | $prog $arg1b - 2>&1`;     if (! $?) { die "FAIL: $prog should fail on multiquery $tag1, stdin $tag2.\n"; }
+# the target is read once for all queries, so a multiquery <hmmfile> works with <seqdb> on stdin
+`$prog $arg1b $arg2         | grep -v "^#" > $tmppfx.out1`;  if ($?) { die "FAIL: $tag multiquery $tag1 $tag2\n"; }
+`cat $arg2 | $prog $arg1b - | grep -v "^#" > $tmppfx.out2`;  if ($?) { die "FAIL: $tag multiquery $tag1 -\n"; }
+`diff -b $tmppfx.out1 $tmppfx.out2 2>&1 > /dev/null`;  if ($?) { die "FAIL: $prog multiquery results differ if $tag2 comes through stdin\n"; }
 
 
 ################################################################

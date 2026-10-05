@@ -23,7 +23,7 @@ static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg,  const ESL_GENCODE *gcode);
-static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done);
+static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done);
 
 /*****************************************************************
  * 1. The P7_DOMAINDEF object: allocation, reuse, destruction
@@ -496,7 +496,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
+p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
 {
   int i, j;
   int triggered;
@@ -1223,7 +1223,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * 
  */
 static int
-rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_SQ *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
+rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
 {
 
   P7_DOMAIN *dom           = NULL;

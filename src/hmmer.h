@@ -1374,8 +1374,8 @@ extern int    p7_hmm_CompositionKLD(const P7_HMM *hmm, const P7_BG *bg, float *r
 
 /* ID_LENGTH_LIST: tracks sequence lengths by internal ID, used in bathsearch and splicing */
 typedef struct {
-  int  id;
-  int  length;
+  int      id;
+  int64_t  length;
 } ID_LENGTH;
 
 typedef struct {

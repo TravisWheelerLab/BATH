@@ -1203,21 +1203,22 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
 {
 
   int i, s;
-  int i_start, i_end;
+  int64_t i_start, i_end;
   int i_sub_start, i_sub_end;
   int k_start, k_end;
-  int next_i_start, next_k_start;
+  int64_t next_i_start;
+  int next_k_start;
   SPLICE_EDGE     *edge;
   SPLICE_PIPELINE *pli;
   SPLICE_PATH *tmp_path;
   SPLICE_PATH *ret_path;
   SPLICE_GRAPH *graph;
-  
+
   graph = info->graph;
   pli   = info->pli;
 
   ret_path   = NULL;
- 
+
    /* If the original path has only one node, return a copy of thst path */
   if (orig_path->path_len == 1) {
     ret_path = p7_splicepath_Clone(orig_path);
@@ -1363,9 +1364,9 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
 {
 
   int i;
-  int i_start, i_end;
+  int64_t i_start, i_end;
   int k_start, k_end;
-  int next_i_end;
+  int64_t next_i_end;
   int next_k_end;
   int s_start, s_end;
   int tmp_path_len;
@@ -1522,11 +1523,11 @@ p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_
 {
 
   int i;
-  int i_start, i_end;
+  int64_t i_start, i_end;
   int k_start, k_end;
   SPLICE_PIPELINE *pli;
   SPLICE_PATH *tmp_path;
-  
+
   pli   = info->pli;
 
   i_start = spliced_path->iali[0];
@@ -1584,7 +1585,7 @@ p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_
  *
  */
 SPLICE_PATH*
-p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int *next_i_start, int *next_k_start)
+p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int64_t *next_i_start, int *next_k_start)
 {
  
   int         L = i_end - i_start + 1;
@@ -1908,7 +1909,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
  *
  */
 SPLICE_PATH*
-p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int s_end, int i_start, int i_end, int k_start, int k_end, int *next_i_end, int *next_k_end)
+p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int s_end, int i_start, int i_end, int k_start, int k_end, int64_t *next_i_end, int *next_k_end)
 {
  
   int         L = i_end - i_start + 1;
@@ -2642,7 +2643,7 @@ p7_splice_EnforceBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_ma
   int     up, down;
   int64_t up_hit_min, up_hit_max;
   int64_t down_hit_min, down_hit_max;
-  int overlap_min, overlap_max, overlap_len;
+  int64_t overlap_min, overlap_max, overlap_len;
   P7_HIT *up_hit;
   P7_HIT *down_hit;
   P7_TOPHITS  *th;
@@ -2705,7 +2706,7 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   int           replace_node;
   int           contains_anchor;
   int           found_in_path;
-  int           seq_min, seq_max;
+  int64_t       seq_min, seq_max;
   float         dom_bias;
   float         nullsc;
   float         dom_score;
@@ -2982,7 +2983,8 @@ p7_splice_CreateSplicedSequnce(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   int      i, s;
   int      path_seq_len;
-  int      pos, seq_pos;
+  int64_t  pos;
+  int      seq_pos;
   int      seq_idx;
   int      path_start_pos;
   int      path_end_pos;

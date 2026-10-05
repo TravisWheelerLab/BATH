@@ -730,7 +730,7 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
 
 
   int          i,j;
-  int          nuc_end, nuc_start;
+  int64_t      nuc_end, nuc_start;
   SPLICE_EDGE *tmp_edge;
 
   if (graph == NULL) { fprintf(fp, " [ graph is NULL ]\n"); return; }
@@ -745,8 +745,8 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
       nuc_start = tmp_edge->downstream_nuc_start;
       fprintf(fp, "    Edge from Upstream Node %d to Downstream Node %d\n", tmp_edge->upstream_node_id+1, tmp_edge->downstream_node_id+1);
       fprintf(fp, "                                   %s   %s\n", "Amino", "Nucleotide");
-      fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", tmp_edge->upstream_amino_end, nuc_end);
-      fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", tmp_edge->downstream_amino_start, nuc_start);
+      fprintf(fp, "      Upsteam Node End Coords:     %5d  %10" PRId64 "\n", tmp_edge->upstream_amino_end, nuc_end);
+      fprintf(fp, "      Downsteam Node Start Coords: %5d  %10" PRId64 "\n", tmp_edge->downstream_amino_start, nuc_start);
       fprintf(fp, "\n");
    
     }

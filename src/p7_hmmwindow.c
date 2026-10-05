@@ -376,10 +376,10 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
   int i, h, y, z, n, aa;
   int i_start;
   int strand;
-  int hit_min, hit_max;
-  int window_min, window_max;
+  int64_t hit_min, hit_max;
+  int64_t window_min, window_max;
   int hmm_start, hmm_end;
-  int seq_max;
+  int64_t seq_max;
   int last_seqidx, last_strand;
   int window_len;
   char         *seqname;

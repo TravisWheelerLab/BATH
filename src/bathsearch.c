@@ -56,7 +56,7 @@ typedef struct {
 
 static ID_LENGTH_LIST* init_id_length( int size );
 static void            destroy_id_length( ID_LENGTH_LIST *list );
-static int             add_id_length(ID_LENGTH_LIST *list, int id, int L);
+static int             add_id_length(ID_LENGTH_LIST *list, int id, int64_t L);
 static int             assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list);
 
 #define REPOPTS     "-E,-T"//--cut_ga,--cut_nc,--cut_tc"
@@ -1177,7 +1177,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
     for (i=0; i<block->count; i++) {
       block->list[i].idx = seqid;
-      add_id_length(id_length_list, seqid, block->list[i].L); // NOLINT(cppcoreguidelines-narrowing-conversions)
+      add_id_length(id_length_list, seqid, block->list[i].L);
       seqid++;
 
       if (       seqid == n_targetseqs // hit the sequence target
@@ -1344,7 +1344,7 @@ destroy_id_length( ID_LENGTH_LIST *list )
 }
 
 static int
-add_id_length(ID_LENGTH_LIST *list, int id, int L)
+add_id_length(ID_LENGTH_LIST *list, int id, int64_t L)
 {
   int status;
   

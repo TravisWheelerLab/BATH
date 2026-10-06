@@ -7,6 +7,13 @@
  *   2. p7_SSVFilter_sse()
  */
 
+/* gcc otherwise treats all the values a band vector takes through the function
+ * as one register candidate, and then copies every vector through a scratch
+ * register at each step and runs out of registers in the wide bands. */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC optimize ("no-tree-coalesce-vars")
+#endif
+
 #include "p7_config.h"
 
 #include <math.h>

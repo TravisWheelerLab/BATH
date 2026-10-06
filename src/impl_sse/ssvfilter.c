@@ -319,23 +319,38 @@
  * The next macro is STEP_BANDS, which moves the diagonals. Again,
  * this is a recursively defined macro:
  *
- *   #define STEP_BANDS_1()
- *     STEP_SINGLE(sv00)
- *
- *   #define STEP_BANDS_2()
- *     STEP_BANDS_1()
- *     STEP_SINGLE(sv01)
- *
  *   #define STEP_BANDS_3()
- *     STEP_BANDS_2()
+ *     STEP_FIRST(sv00)
+ *     STEP_SINGLE(sv01)
  *     STEP_SINGLE(sv02)
  *
- * So we end up using STEP_SINGLE on each vector. This is where the
- * central calculation is done as described above:
+ *   #define STEP_BANDS_4()
+ *     STEP_BANDS_3()
+ *     STEP_SINGLE(sv03)
+ *
+ * So we end up using STEP_FIRST on the first vector and STEP_SINGLE
+ * on each of the others. This is where the central calculation is
+ * done as described above:
+ *
+ *   #define STEP_FIRST(sv)
+ *     sv   = _mm_subs_epi8(sv, *rsc); rsc++;
+ *     tv   = sv;
  *
  *   #define STEP_SINGLE(sv)
  *     sv   = _mm_subs_epi8(sv, *rsc); rsc++;
- *     xEv  = _mm_max_epu8(xEv, sv);
+ *     tv   = _mm_max_epu8(tv, sv);
+ *
+ * The vectors of a step are folded into tv, and tv joins the running
+ * maximum when the step is done:
+ *
+ *   #define STEP_JOIN()
+ *     xEv  = _mm_max_epu8(xEv, tv);
+ *
+ * Folding every vector straight into xEv gives the same maximum, but
+ * then each max waits for the one before it, through all the vectors
+ * of a step and on into the next step. With tv, only STEP_JOIN waits
+ * on the step before. A band of two vectors has no chain worth
+ * shortening; its first vector goes straight into xEv (STEP_CHAIN).
  *
  * The CONVERT macro handles the second phase mentioned above where
  * the vectors have to be shifted. This is yet another recursive
@@ -359,6 +374,7 @@
  *     length_check(label)
  *     rsc = om->sbv[dsq[i]] + pos;
  *     step()
+ *     STEP_JOIN()
  *     sv = _mm_slli_si128(sv, 1);
  *     sv = _mm_or_si128(sv, beginv);
  *     i++;
@@ -366,8 +382,8 @@
  * First a check is made. This is sometimes used to check whether the
  * sequence is done. Then the match score pointer is set. After this,
  * STEP_BANDS is called using the step parameter of this
- * macro. Finally one vector is shifted and or'ed with the begin
- * vector of (128, 128, ... ). This ensures that the zero that was
+ * macro, and tv joins xEv. Finally one vector is shifted and
+ * or'ed with the begin vector of (128, 128, ... ). This ensures that the zero that was
  * shifted in is converted to the needed base line of 128. Other
  * entries are not significantly affected by this since either their
  * most significant bit is already set or we already had an overflow
@@ -428,9 +444,25 @@
 #endif
 
 
+/* A step folds its vectors into tv, and tv joins the running maximum xEv once
+ * (STEP_JOIN), so only that one max waits on the step before. Folded straight
+ * into xEv, the w vectors of a band make a chain of w. STEP_FIRST starts the
+ * fold and STEP_SINGLE continues it. STEP_CHAIN is the straight form, kept for
+ * the first vector of a band of two, where a fold has nothing to shorten. */
+#define STEP_FIRST(sv)                          \
+  sv   = _mm_subs_epi8(sv, *rsc); rsc++;        \
+  tv   = sv;
+
 #define STEP_SINGLE(sv)                         \
   sv   = _mm_subs_epi8(sv, *rsc); rsc++;        \
+  tv   = _mm_max_epu8(tv, sv);
+
+#define STEP_CHAIN(sv)                          \
+  sv   = _mm_subs_epi8(sv, *rsc); rsc++;        \
   xEv  = _mm_max_epu8(xEv, sv);
+
+#define STEP_JOIN()                             \
+  xEv  = _mm_max_epu8(xEv, tv);
 
 
 #define LENGTH_CHECK(label)                     \
@@ -441,14 +473,15 @@
 
 
 #define STEP_BANDS_1()                          \
-  STEP_SINGLE(sv00)
+  STEP_FIRST(sv00)
 
 #define STEP_BANDS_2()                          \
-  STEP_BANDS_1()                                \
-  STEP_SINGLE(sv01)
+  STEP_CHAIN(sv00)                              \
+  STEP_FIRST(sv01)
 
 #define STEP_BANDS_3()                          \
-  STEP_BANDS_2()                                \
+  STEP_FIRST(sv00)                              \
+  STEP_SINGLE(sv01)                             \
   STEP_SINGLE(sv02)
 
 #define STEP_BANDS_4()                          \
@@ -516,6 +549,7 @@
   length_check(label)                                           \
   rsc = om->sbv[dsq[i]] + pos;                                   \
   step()                                                        \
+  STEP_JOIN()                                                   \
   sv = _mm_slli_si128(sv, 1);                                   \
   sv = _mm_or_si128(sv, beginv);                                \
   i++;
@@ -670,6 +704,7 @@
   int i2;                                       \
   int Q        = p7O_NQB(om->M);                \
   __m128i *rsc;                                 \
+  __m128i tv;                                   \
                                                 \
   int w = width;                                \
                                                 \
@@ -681,6 +716,7 @@
     {                                           \
       rsc = om->sbv[dsq[i]] + i + q;            \
       step()                                    \
+      STEP_JOIN()                               \
     }                                           \
                                                 \
   i = Q - q - w;                                \
@@ -693,6 +729,7 @@ done1:                                          \
        {                                        \
          rsc = om->sbv[dsq[i2 + i]] + i;        \
          step()                                 \
+         STEP_JOIN()                            \
        }                                        \
                                                 \
      i += i2;                                   \
@@ -703,6 +740,7 @@ done1:                                          \
    {                                            \
      rsc = om->sbv[dsq[i2 + i]] + i;            \
      step()                                     \
+     STEP_JOIN()                                \
    }                                            \
                                                 \
  i+=i2;                                         \

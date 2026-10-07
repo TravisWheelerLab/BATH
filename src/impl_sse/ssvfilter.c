@@ -872,11 +872,19 @@ get_xE(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om)
 }
 
 
+/* Function:  p7_SSVFilter_FromXE()
+ * Synopsis:  The SSV filter's result, from the SSV matrix's highest cell.
+ *
+ * Purpose:   <xE_in> is the highest cell of the SSV matrix of a sequence
+ *            against <om>, as get_xE() gives it. Return what p7_SSVFilter()
+ *            returns for that sequence, and its score in <*ret_sc>; <om> must
+ *            be configured for the sequence's length.
+ */
 int
-p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
+p7_SSVFilter_FromXE(int xE_in, const P7_OPROFILE *om, float *ret_sc)
 {
   /* Use 16 bit values to avoid overflow due to moved baseline */
-  uint16_t  xE;
+  uint16_t  xE = (uint16_t) xE_in;
   uint16_t  xJ;
 
   if (om->tjb_b + om->tbm_b + om->tec_b + om->bias_b >= 127) {
@@ -884,8 +892,6 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
        conditions (see comments at start of file) */
     return eslENORESULT;
   }
-
-  xE = get_xE(dsq, L, om);
 
   /* Saturation floors every diagonal at the begin score (128), so a
    * max of 128 means no diagonal scored above it and the true best
@@ -926,6 +932,35 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
   *ret_sc /= om->scale_b;
   *ret_sc -= 3.0; /* that's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ */
 
+  return eslOK;
+}
+
+
+int
+p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
+{
+  if (om->tjb_b + om->tbm_b + om->tec_b + om->bias_b >= 127) return eslENORESULT;  /* see p7_SSVFilter_FromXE() */
+
+  return p7_SSVFilter_FromXE(get_xE(dsq, L, om), om, ret_sc);
+}
+
+
+/* Function:  p7_SSVFilter_OrfBlock()
+ * Synopsis:  SSV maximum of every ORF in a block.
+ *
+ * Purpose:   For each of the <n> ORFs in <orf>, store in <xE[i]> the highest
+ *            cell of its SSV matrix against <om>. It does not depend on the
+ *            length <om> is configured for; p7_SSVFilter_FromXE() makes the
+ *            filter's status and score from it.
+ *
+ * Returns:   <eslOK>.
+ */
+int
+p7_SSVFilter_OrfBlock(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t *xE)
+{
+  int i;
+
+  for (i = 0; i < n; i++) xE[i] = get_xE(orf[i].dsq, (int) orf[i].n, om);
   return eslOK;
 }
 

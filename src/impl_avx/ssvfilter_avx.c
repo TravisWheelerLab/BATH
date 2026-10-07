@@ -436,6 +436,18 @@ calc_band_18(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, int q, __m256i be
  * 2. p7_SSVFilter_avx()
  *****************************************************************/
 
+/* the band function for each band width */
+static __m256i (* const fs[MAX_BANDS + 1])(const ESL_DSQ *, int, const P7_OPROFILE *, int, register __m256i, __m256i)
+  = { NULL
+    , calc_band_1,  calc_band_2,  calc_band_3,  calc_band_4,  calc_band_5,  calc_band_6
+#if MAX_BANDS > 6
+    , calc_band_7,  calc_band_8,  calc_band_9,  calc_band_10, calc_band_11, calc_band_12, calc_band_13, calc_band_14
+#endif
+#if MAX_BANDS > 14
+    , calc_band_15, calc_band_16, calc_band_17, calc_band_18
+#endif
+  };
+
 static uint8_t
 get_xE_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om)
 {
@@ -447,17 +459,6 @@ get_xE_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om)
   int bands;
   int last_q = 0;
   int i;
-
-  __m256i (*fs[MAX_BANDS + 1])(const ESL_DSQ *, int, const P7_OPROFILE *, int, register __m256i, __m256i)
-    = { NULL
-      , calc_band_1,  calc_band_2,  calc_band_3,  calc_band_4,  calc_band_5,  calc_band_6
-#if MAX_BANDS > 6
-      , calc_band_7,  calc_band_8,  calc_band_9,  calc_band_10, calc_band_11, calc_band_12, calc_band_13, calc_band_14
-#endif
-#if MAX_BANDS > 14
-      , calc_band_15, calc_band_16, calc_band_17, calc_band_18
-#endif
-    };
 
   beginv = _mm256_set1_epi8(-128);
   xEv    = beginv;
@@ -497,45 +498,51 @@ get_xE_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om)
 int
 p7_SSVFilter_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
 {
-  uint16_t xE;
-  uint16_t xJ;
-
   if (om->tjb_b + om->tbm_b + om->tec_b + om->bias_b >= 127)
     return eslENORESULT;
 
-  xE = get_xE_avx(dsq, L, om);
+  return p7_SSVFilter_FromXE(get_xE_avx(dsq, L, om), om, ret_sc);
+}
 
-  /* Saturation floors every diagonal at the begin score (128), so a
-   * max of 128 means no diagonal scored above it and the true best
-   * may be lower; let the full MSV filter compute it. */
-  if (xE <= 128) return eslENORESULT;
 
-  if (xE >= 255 - om->bias_b) {
-    *ret_sc = eslINFINITY;
+/* Function:  p7_SSVFilter_OrfBlock_avx()
+ * Synopsis:  SSV maximum of every ORF in a block, AVX2 path.
+ *
+ * Purpose:   See p7_SSVFilter_OrfBlock(). <xE[i]> is what get_xE_avx() gives
+ *            for ORF <i>. The bands depend only on the model, so they are laid
+ *            out once for the block.
+ */
+#define SSV_BLOCK_BANDS 64   /* bands laid out up front; enough for a model of 28,672 positions */
+void
+p7_SSVFilter_OrfBlock_avx(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t *xE)
+{
+  __m256i beginv = _mm256_set1_epi8(-128);
+  __m256i xEv;
+  int     Q      = p7O_NQB_AVX(om->M);
+  int     bands  = (Q + MAX_BANDS - 1) / MAX_BANDS;
+  int     q0[SSV_BLOCK_BANDS];    /* first vector of each band */
+  int     w[SSV_BLOCK_BANDS];     /* its width                 */
+  int     last_q = 0;
+  int     q, b, i;
 
-    if (om->base_b - om->tjb_b - om->tbm_b < 128)
-      return eslENORESULT;
-
-    return eslERANGE;
+  if (bands > SSV_BLOCK_BANDS) {
+    for (i = 0; i < n; i++) xE[i] = get_xE_avx(orf[i].dsq, (int) orf[i].n, om);
+    return;
   }
 
-  xE += om->base_b - om->tjb_b - om->tbm_b;
-  xE -= 128;
-
-  if (xE >= 255 - om->bias_b) {
-    *ret_sc = eslINFINITY;
-    return eslERANGE;
+  for (b = 0; b < bands; b++) {
+    q      = (Q * (b + 1)) / bands;
+    q0[b]  = last_q;
+    w[b]   = q - last_q;
+    last_q = q;
   }
 
-  xJ = xE - om->tec_b;
-
-  if (xJ > om->base_b) return eslENORESULT;
-
-  *ret_sc  = ((float)(xJ - om->tjb_b) - (float) om->base_b);
-  *ret_sc /= om->scale_b;
-  *ret_sc -= 3.0f;
-
-  return eslOK;
+  for (i = 0; i < n; i++) {
+    xEv = beginv;
+    for (b = 0; b < bands; b++)
+      xEv = fs[w[b]](orf[i].dsq, (int) orf[i].n, om, q0[b], beginv, xEv);
+    xE[i] = esl_avx_hmax_epu8(xEv);
+  }
 }
 
 #endif /* eslENABLE_AVX */

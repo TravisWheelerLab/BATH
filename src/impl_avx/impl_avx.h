@@ -15,6 +15,7 @@
 #include "esl_alphabet.h"
 #include "esl_random.h"
 #include "esl_cpu.h"
+#include "esl_gencode.h"  /* ESL_ORF                 */
 
 #ifdef eslENABLE_SSE
 #include <xmmintrin.h>   /* SSE  */
@@ -784,11 +785,18 @@ extern int (*p7_SSVFilter)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, flo
 /* ssvfilter_sse.c — SSE implementation */
 #ifdef eslENABLE_SSE
 extern int p7_SSVFilter_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc);
+extern void p7_SSVFilter_OrfBlock_sse(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t *xE);
 #endif
 /* ssvfilter_avx.c — AVX2 implementation */
 #ifdef eslENABLE_AVX
 extern int p7_SSVFilter_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc);
+extern void p7_SSVFilter_OrfBlock_avx(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t *xE);
 #endif
+/* SSV over a block of ORFs: the pipeline can take each ORF's SSV maximum from
+ * one call, and turn it into the SSV filter's status and score itself */
+#define p7_SSV_ORFBLOCK 1
+extern int p7_SSVFilter_OrfBlock(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t *xE);
+extern int p7_SSVFilter_FromXE(int xE, const P7_OPROFILE *om, float *ret_sc);
 
 /* stotrace.c — self-patching dispatcher */
 extern int (*p7_StochasticTrace)(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);

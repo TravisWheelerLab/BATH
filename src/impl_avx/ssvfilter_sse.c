@@ -500,45 +500,25 @@ get_xE_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om)
 int
 p7_SSVFilter_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
 {
-  uint16_t xE;
-  uint16_t xJ;
-
   if (om->tjb_b + om->tbm_b + om->tec_b + om->bias_b >= 127)
     return eslENORESULT;
 
-  xE = get_xE_sse(dsq, L, om);
+  return p7_SSVFilter_FromXE(get_xE_sse(dsq, L, om), om, ret_sc);
+}
 
-  /* Saturation floors every diagonal at the begin score (128), so a
-   * max of 128 means no diagonal scored above it and the true best
-   * may be lower; let the full MSV filter compute it. */
-  if (xE <= 128) return eslENORESULT;
 
-  if (xE >= 255 - om->bias_b) {
-    *ret_sc = eslINFINITY;
+/* Function:  p7_SSVFilter_OrfBlock_sse()
+ * Synopsis:  SSV maximum of every ORF in a block, SSE path.
+ *
+ * Purpose:   See p7_SSVFilter_OrfBlock(). <xE[i]> is what get_xE_sse() gives
+ *            for ORF <i>.
+ */
+void
+p7_SSVFilter_OrfBlock_sse(const P7_OPROFILE *om, const ESL_ORF *orf, int n, uint8_t *xE)
+{
+  int i;
 
-    if (om->base_b - om->tjb_b - om->tbm_b < 128)
-      return eslENORESULT;
-
-    return eslERANGE;
-  }
-
-  xE += om->base_b - om->tjb_b - om->tbm_b;
-  xE -= 128;
-
-  if (xE >= 255 - om->bias_b) {
-    *ret_sc = eslINFINITY;
-    return eslERANGE;
-  }
-
-  xJ = xE - om->tec_b;
-
-  if (xJ > om->base_b) return eslENORESULT;
-
-  *ret_sc  = ((float)(xJ - om->tjb_b) - (float) om->base_b);
-  *ret_sc /= om->scale_b;
-  *ret_sc -= 3.0f;
-
-  return eslOK;
+  for (i = 0; i < n; i++) xE[i] = get_xE_sse(orf[i].dsq, (int) orf[i].n, om);
 }
 
 #endif /* eslENABLE_SSE */

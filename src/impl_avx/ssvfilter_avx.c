@@ -38,11 +38,20 @@
 #endif
 
 
-/* A step folds its vectors into tv, and tv joins the running maximum xEv once
- * (STEP_JOIN), so only that one max waits on the step before. Folded straight
- * into xEv, the w vectors of a band make a chain of w. STEP_FIRST starts the
- * fold and STEP_SINGLE continues it. STEP_CHAIN is the straight form, kept for
- * the first vector of a band of two, where a fold has nothing to shorten. */
+/* With gcc, a step folds its vectors into tv, and tv joins the running maximum
+ * xEv once (STEP_JOIN), so only that one max waits on the step before; gcc
+ * otherwise leaves a chain of w maxes for a band of w vectors. STEP_FIRST
+ * starts the fold and STEP_SINGLE continues it. STEP_CHAIN is the straight
+ * form, kept for the first vector of a band of two.
+ *
+ * Other compilers get the straight form throughout: clang reorders the maxes
+ * itself, and with the fold its widest bands were slower. */
+#define STEP_CHAIN(sv)                          \
+  sv   = _mm256_subs_epi8(sv, *rsc); rsc++;     \
+  xEv  = _mm256_max_epu8(xEv, sv);
+
+#if defined(__GNUC__) && !defined(__clang__)
+
 #define STEP_FIRST(sv)                          \
   sv   = _mm256_subs_epi8(sv, *rsc); rsc++;     \
   tv   = sv;
@@ -51,12 +60,20 @@
   sv   = _mm256_subs_epi8(sv, *rsc); rsc++;     \
   tv   = _mm256_max_epu8(tv, sv);
 
-#define STEP_CHAIN(sv)                          \
-  sv   = _mm256_subs_epi8(sv, *rsc); rsc++;     \
-  xEv  = _mm256_max_epu8(xEv, sv);
-
 #define STEP_JOIN()                             \
   xEv  = _mm256_max_epu8(xEv, tv);
+
+#define STEP_TEMP()                             \
+  __m256i tv;
+
+#else
+
+#define STEP_FIRST(sv)  STEP_CHAIN(sv)
+#define STEP_SINGLE(sv) STEP_CHAIN(sv)
+#define STEP_JOIN()
+#define STEP_TEMP()
+
+#endif
 
 
 #define LENGTH_CHECK(label)                     \
@@ -298,7 +315,7 @@
   int i2;                                       \
   int Q        = p7O_NQB_AVX(om->M);            \
   __m256i *rsc;                                 \
-  __m256i tv;                                   \
+  STEP_TEMP()                                   \
                                                 \
   int w = width;                                \
                                                 \

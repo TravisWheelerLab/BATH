@@ -287,7 +287,7 @@ extern SPLICE_PATH* p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH 
 extern int p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
 extern int p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
 extern int p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success);
-extern int p7_splice_CreateSplicedSequnce(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq);
+extern int p7_splice_CreateSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq);
 extern int p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq);
 extern int p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_ALIDISPLAY *ad, ESL_SQ *path_seq);
 extern int p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om, int do_pp);

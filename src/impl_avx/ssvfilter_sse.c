@@ -9,8 +9,10 @@
 
 /* gcc otherwise treats all the values a band vector takes through the function
  * as one register candidate, and then copies every vector through a scratch
- * register at each step and runs out of registers in the wide bands. */
-#if defined(__GNUC__) && !defined(__clang__)
+ * register at each step and runs out of registers in the wide bands. This is
+ * for gcc 11 and later: with gcc 8.5 it made the kernels slower, and gcc 9 and
+ * 10 are untested. */
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 11
 #pragma GCC optimize ("no-tree-coalesce-vars")
 #endif
 

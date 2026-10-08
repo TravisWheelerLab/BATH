@@ -636,29 +636,62 @@ path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *v
 }
 
 
+/* Function:  p7_splicegraph_NodeOverlap()
+ * Synopsis:  Check for hmm and sequence overlap between a node and a path step.
+ *
+ * Purpose:   Check whether <node_id> overlaps the hmm and sequence range of
+ *            step <step_id> of <path>. <min_hmm_frac> and <min_seq_frac> set
+ *            how much of that overlap, as a fraction of <node_id>'s own hmm
+ *            and sequence length, is required - 0.0 requires only that the
+ *            ranges overlap by at least one position in each dimension, as
+ *            is enough to decide whether an edge or reassignment is possible.
+ *            A higher fraction additionally requires that overlap to cover
+ *            most of <node_id>'s own length, as is needed to decide whether
+ *            <node_id> is redundant with that step rather than merely
+ *            adjacent to it - e.g. two exons that abut at a shared boundary,
+ *            or that physically overlap but align to largely different parts
+ *            of the model.
+ *
+ * Returns:   <TRUE> if the hmm overlap covers at least <min_hmm_frac> of
+ *            <node_id>'s own hmm length and the sequence overlap covers at
+ *            least <min_seq_frac> of <node_id>'s own sequence length,
+ *            <FALSE> otherwise.
+ */
 int
-p7_splicegraph_NodeOverlap(SPLICE_GRAPH *graph, int node_id, SPLICE_PATH *path, int step_id) {
+p7_splicegraph_NodeOverlap(SPLICE_GRAPH *graph, int node_id, SPLICE_PATH *path, int step_id, float min_hmm_frac, float min_seq_frac) {
 
   int     overlap_hmm_start;
   int     overlap_hmm_end;
+  int     overlap_hmm_len;
+  int     node_hmm_len;
   int64_t overlap_seq_start;
   int64_t overlap_seq_end;
+  int64_t overlap_seq_len;
+  int64_t node_seq_len;
 
   overlap_hmm_start = ESL_MAX(graph->th->hit[node_id]->dcl->ihmm, path->ihmm[step_id]);
   overlap_hmm_end   = ESL_MIN(graph->th->hit[node_id]->dcl->jhmm, path->jhmm[step_id]);
-  
-  if(overlap_hmm_end - overlap_hmm_start + 1 <= 0) return FALSE;
+  overlap_hmm_len   = overlap_hmm_end - overlap_hmm_start + 1;
+  node_hmm_len      = graph->th->hit[node_id]->dcl->jhmm - graph->th->hit[node_id]->dcl->ihmm + 1;
+
+  if(overlap_hmm_len <= 0) return FALSE;
+  if((float) overlap_hmm_len < min_hmm_frac * (float) node_hmm_len) return FALSE;
 
   if(graph->revcomp) {
      overlap_seq_start = ESL_MAX(graph->th->hit[node_id]->dcl->jali, path->jali[step_id]);
      overlap_seq_end   = ESL_MIN(graph->th->hit[node_id]->dcl->iali, path->iali[step_id]);
+     node_seq_len      = graph->th->hit[node_id]->dcl->iali - graph->th->hit[node_id]->dcl->jali + 1;
   }
   else {
     overlap_seq_start = ESL_MAX(graph->th->hit[node_id]->dcl->iali, path->iali[step_id]);
     overlap_seq_end   = ESL_MIN(graph->th->hit[node_id]->dcl->jali, path->jali[step_id]);
+    node_seq_len      = graph->th->hit[node_id]->dcl->jali - graph->th->hit[node_id]->dcl->iali + 1;
   }
-  
-  if(overlap_seq_end - overlap_seq_start + 1 <= 0) return FALSE;
+
+  overlap_seq_len = overlap_seq_end - overlap_seq_start + 1;
+
+  if(overlap_seq_len <= 0) return FALSE;
+  if((float) overlap_seq_len < min_seq_frac * (float) node_seq_len) return FALSE;
 
   return TRUE;
 

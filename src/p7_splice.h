@@ -228,7 +228,7 @@ enum p7s_splice_signals_e {
 
 /* p7_splicebounds.c */
 extern SPLICE_BOUNDS* p7_splicebounds_Create(int allocN);
-extern int p7_splicebounds_GorwTo(SPLICE_BOUNDS *bounds, int allocN);
+extern int p7_splicebounds_GrowTo(SPLICE_BOUNDS *bounds, int allocN);
 extern void p7_splicebounds_Destroy(SPLICE_BOUNDS *bounds);
 extern int p7_splicebounds_Add(SPLICE_BOUNDS *bounds, int64_t seq_min, int64_t seq_max, int hmm_min, int hmm_max);
 

@@ -87,7 +87,7 @@ static int     rejustify_insertions_text     (const ESL_ALPHABET *abc, ESL_MSA *
  *              for residues/gaps in match columns.
  *
  *            * why not pass HMM as an argument, so we can transfer
- *              column annotation? In <p7_tophits_Alignment()>, the
+ *              column annotation? In HMMER's <p7_tophits_Alignment()>, the
  *              HMM is unavailable -- because of constraints of what's
  *              made available to the master process in an MPI
  *              implementation. (We could make the HMM an optional 
@@ -227,7 +227,7 @@ p7_tracealign_MSA(const ESL_MSA *premsa, P7_TRACE **tr, int M, int optflags, ESL
  *           an <offset> into the first sequence for which a trace is
  *           desired), calculate the optimal accuracy alignment trace
  *           for each of <N> sequences. The calling function provides
- *           a allocated array of P7_TRACEs (<tr>) into which the
+ *           an allocated array of P7_TRACEs (<tr>) into which the
  *           results are placed.
  *
  * Return:   eslOK if no errors
@@ -395,7 +395,7 @@ p7_tracealign_getMSAandStats(P7_HMM *hmm, ESL_SQ  **sq, int N, ESL_MSA **ret_msa
   int i;  // seq_id
   int z;  // trace position
   int j;  // position in the query seq
-  int k;  // positon in the model
+  int k;  // position in the model
   int x;  // counter
   float p; // temporary probability holder
   int status;
@@ -479,10 +479,10 @@ ERROR:
  * sort of overall knowledge of where the inserts are and how long
  * they are in order to create the alignment.
  *
- * Here's our trick. inscount[] is a 0..M array; inserts[k] stores
+ * Here's our trick. inscount[] is a 0..M array; inscount[k] stores
  * the maximum number of times insert substate k was used. This
  * is the maximum number of gaps to insert between canonical
- * column k and k+1.  inserts[0] is the N-term tail; inserts[M] is
+ * column k and k+1.  inscount[0] is the N-term tail; inscount[M] is
  * the C-term tail.
  * 
  * Additionally, matuse[k=1..M] says whether we're going to make an
@@ -493,7 +493,7 @@ ERROR:
  * 
  * Then, using these arrays, we construct matmap[] and determine alen.
  * If match state k is represented as an alignment column,
- * matmap[1..M] = that position, <1..alen>.
+ * matmap[k] = that position, <1..alen>.
  * If match state k is not in the alignment (<matuse[k] == FALSE>),
  * matmap[k] = matmap[k-1] = the last alignment column that a match
  * state did map to; this is a trick to make some apos coordinate setting
@@ -844,7 +844,7 @@ annotate_rf(ESL_MSA *msa, int M, const int *matuse, const int *matmap)
  *           msa->mm[0..alen-1] = 'm' | '.' is the simplest convention;
  *           msa->mm is a NUL-terminated string (msa->mm[alen] = '\0')
  *
- * Args:     msa    - alignment to annotate (<msa->rf> is allocated, set)
+ * Args:     msa    - alignment to annotate (<msa->mm> is allocated, set)
  *           M      - profile length
  *           matuse - matuse[1..M] == TRUE | FALSE : is this match state represented
  *                    by a column in the alignment.
@@ -1298,7 +1298,7 @@ main(int argc, char **argv)
   return status;
 }
 
-#endif /*p7TRACE_SEQALIGNSTATS_TESTDRIVE*/
+#endif /*p7TRACEALIGN_TRACESTATS_TESTDRIVE*/
 /*--------------------- end, test driver ------------------------*/
 
 

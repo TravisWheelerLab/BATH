@@ -26,7 +26,7 @@
  * Purpose:   Allocate a <P7_OIVX> for a model of up to <M_hint> nodes
  *            and <C> channels using AVX2 (256-bit) vectors.  Storage
  *            layout is [C][Q] where Q = p7O_NQF_AVX(M_hint).  SSE and
- *            AVX-512 pointer fields are initialised to NULL so the
+ *            AVX-512 pointer fields are initialized to NULL so the
  *            object can be safely destroyed by any ISA path.
  *
  * Returns:   Pointer to the new <P7_OIVX> on success.

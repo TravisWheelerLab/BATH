@@ -748,7 +748,7 @@ p7_ReconfigLength(P7_PROFILE *gm, int L)
  *            We want this routine to run as fast as possible, because
  *            the caller needs to dynamically reconfigure the model
  *            for the length of each target sequence in a database
- *            search. The profile has precalculated <gm->nj>, 
+ *            search. The profile has precalculated <gm_fs->nj>, 
  *            the number of times the J state is expected to be used,
  *            based on the E state loop transition in the current
  *            configuration.
@@ -805,7 +805,7 @@ p7_ReconfigMultihit(P7_PROFILE *gm, int L)
 /* Function:  p7_fs_ReconfigMultihit()
  * Synopsis:  Quickly reconfig model into multihit mode for target length <L>.
  *
- * Purpose:   Given a profile <gm> that's already been configured once,
+ * Purpose:   Given a profile <gm_fs> that's already been configured once,
  *            quickly reconfigure it into a multihit mode for target 
  *            length <L>. 
  *            
@@ -819,7 +819,7 @@ p7_ReconfigMultihit(P7_PROFILE *gm, int L)
  *            made before the length model is set, and you need to
  *            make sure the length model is recalculated if you change
  *            the uni/multi mode. Hence, these functions call
- *            <p7_ReconfigLength()>.
+ *            <p7_fs_ReconfigLength()>.
  */
 int
 p7_fs_ReconfigMultihit(P7_FS_PROFILE *gm_fs, int L_amino)
@@ -856,7 +856,7 @@ p7_ReconfigUnihit(P7_PROFILE *gm, int L)
 /* Function:  p7_fs_ReconfigUnihit()
  * Synopsis:  Quickly reconfig model into unihit mode for target length <L>.
  *
- * Purpose:   Given a profile <gm> that's already been configured once,
+ * Purpose:   Given a profile <gm_fs> that's already been configured once,
  *            quickly reconfigure it into a unihit mode for target
  *            length <L>.
  *
@@ -874,7 +874,7 @@ p7_fs_ReconfigUnihit(P7_FS_PROFILE *gm_fs, int L_amino)
 }
 
 /* Function:  p7_fs_UpdateEmissionScores()
- * Synopsis:  Update om match emissions to account for new bg
+ * Synopsis:  Update <gm_fs5> match emissions to account for new bg
  *
  * Purpose:   Change scores based on updated background model
  *

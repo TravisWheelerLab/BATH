@@ -13,7 +13,7 @@
  * Synopsis:  Allocates a <P7_SPENSEMBLE>
  * Incept:    SRE, Wed Jan  9 10:00:14 2008 [Janelia]
  *
- * Purpose:   Create a new <P7_SPENSEMBL> with specified initial
+ * Purpose:   Create a new <P7_SPENSEMBLE> with specified initial
  *            allocation sizes: <init_n> for the number of sampled
  *            segment pairs, <init_epc> for the range over
  *            which one of a domain's (i,j,k,m) sampled endpoints
@@ -92,7 +92,7 @@ p7_spensemble_Reuse(P7_SPENSEMBLE *sp)
   return eslOK;
 }
 
-/* Function:  p7_spsensemble_Add()
+/* Function:  p7_spensemble_Add()
  * Synopsis:  Add a new segment pair to a growing ensemble.
  * Incept:    SRE, Wed Jan  9 10:28:04 2008 [Janelia]
  *
@@ -307,7 +307,7 @@ cluster_orderer(const void *v1, const void *v2)
  *            
  * Args:      sp            - segment pair ensemble to cluster
  *            min_overlap   - linkage requires fractional overlap >= this, in both seq and hmm segments
- *            of_smaller    - overlap fraction denominators uses either the smaller (if TRUE) or larger (if FALSE) segment
+ *            of_smaller    - overlap fraction denominator uses either the smaller (if TRUE) or larger (if FALSE) segment
  *            max_diagdiff  - linkage requires that start, end points of both seg pairs are <= this
  *            min_posterior - clusters with posterior prob >= this are defined as significant
  *            min_endpointp - widest endpoint with post prob >= this is defined as consensus endpoint coord
@@ -484,7 +484,7 @@ p7_spensemble_Cluster(P7_SPENSEMBLE *sp,
  *            
  * Args:      sp            - segment pair ensemble to cluster
  *            min_overlap   - linkage requires fractional overlap >= this, in both seq and hmm segments
- *            of_smaller    - overlap fraction denominators uses either the smaller (if TRUE) or larger (if FALSE) segment
+ *            of_smaller    - overlap fraction denominator uses either the smaller (if TRUE) or larger (if FALSE) segment
  *            max_diagdiff  - linkage requires that start, end points of both seg pairs are <= this
  *            min_posterior - clusters with posterior prob >= this are defined as significant
  *            min_endpointp - widest endpoint with post prob >= this is defined as consensus endpoint coord

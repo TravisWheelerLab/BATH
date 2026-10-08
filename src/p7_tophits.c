@@ -302,7 +302,7 @@ hit_sorter_by_seqidx_aliposition(const void *vh1, const void *vh2)
 
   if      (s1 > s2) return  1;   // sort primarily from smallest to largest start pos
   else if (s1 < s2) return -1;
-  else if (e1 < e2) return  1;   // secondarily, larger to smallest end position (i.e. longer hit first)
+  else if (e1 < e2) return  1;   // secondarily, largest to smallest end position (i.e. longer hit first)
   else if (e1 > e2) return -1;
   else              return  0;
 }
@@ -358,7 +358,6 @@ p7_tophits_SortBySortkey(P7_TOPHITS *h)
 
 /* Function:  p7_tophits_SortBySeqidxAndAlipos()
  * Synopsis:  Sorts a hit list by sequence index and position for nhmmer.
- *            sequence at which the hit's first domain begins (used in nhmmer)
  *
  * Purpose: Sorts a top hit list, suitable for subsequent hit
  *            duplicate removal by `p7_tophits_RemoveDuplicates()` in
@@ -474,7 +473,7 @@ p7_tophits_Merge(P7_TOPHITS *h1, P7_TOPHITS *h2)
   h1->hit    = new_hit;
   h1->Nalloc = Nalloc;
   h1->N     += h2->N;
-  /* and is_sorted is TRUE, as a side effect of p7_tophits_Sort() above. */
+  /* and is_sorted is TRUE, as a side effect of p7_tophits_SortBySortkey() above. */
   return eslOK;
   
  ERROR:
@@ -567,11 +566,11 @@ p7_tophits_GetMaxAccessionLength(P7_TOPHITS *h)
 }
 
 /* Function:  p7_tophits_GetMaxORFnameLength()
- * Synopsis:  Returns maximum accession length in hit list (targets).
+ * Synopsis:  Returns maximum ORF name length in hit list (targets).
  *
  * Purpose:   Same as <p7_tophits_GetMaxNameLength()>, but for
- *            accessions. If there are no hits in <h>, or none
- *            of the hits have accessions, returns 0.
+ *            ORF names. If there are no hits in <h>, or none
+ *            of the hits have ORF names, returns 0.
  */
 int
 p7_tophits_GetMaxORFnameLength(P7_TOPHITS *h)
@@ -716,7 +715,7 @@ p7_tophits_Destroy(P7_TOPHITS *h)
  * 
  * The correct fix is to define envelopes not only by sequence
  * endpoints but also by profile endpoints, passing them to
- * rescore_isolated_domain(), and limiting F/B calculations to this
+ * rescore_isolated_domain(), and limiting F/B calculations to these
  * pieces of the DP lattice. This requires a fair amount of work,
  * adding to the optimized API.
  * 
@@ -777,7 +776,7 @@ p7_tophits_frame(int nuc_from, int nuc_to)
  * Purpose:      After bathsearch pipeline has completed, the th object 
  *               contains hits where the p-values haven't yet been converted 
  *               to e-values. That modification depends on an established
- *               number of sequences. In bathcsearch, this is computed as N/W,
+ *               number of sequences. In bathsearch, this is computed as N/W,
  *               for a database of N residues, where W is some standardized
  *               window length (bathsearch passes om->max_length*3). E-values 
  *               are set here based on that formula. We also set the sortkey 
@@ -807,7 +806,7 @@ p7_tophits_ComputeEvalues_BATH(P7_TOPHITS *th, int64_t N, int W)
  *               may contain duplicates if the target was broken into overlapping
  *               windows. Scan through, and remove duplicates.  Since the
  *               duplicates may be incomplete (one sequence is a partial
- *               hit because it's window didn't cover the full length of
+ *               hit because its window didn't cover the full length of
  *               the hit), keep the one with better p-value
  *
  * Returns:   <eslOK> on success.
@@ -942,7 +941,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
       if (th->hit[h]->flags & p7_IS_INCLUDED)  th->nincluded++;
   }
   
-  /* Now we can determined domZ, the effective search space in which additional domains are found */
+  /* Now we can determine domZ, the effective search space in which additional domains are found */
   if (pli->domZ_setby == p7_ZSETBY_NTARGETS) pli->domZ = (double) th->nreported;
 
 
@@ -963,12 +962,12 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
 /* Function:  p7_tophits_CompareRanking()
  * Synopsis:  Compare current top hits to previous top hits ranking.
  *
- * Purpose:   Using a keyhash <kh> of the previous top hits and the
+ * Purpose:   Using a keyhash <kh> of the previous top hits and
  *            their ranks, look at the current top hits list <th>
  *            and flag new hits that are included for the first time
  *            (by setting <p7_IS_NEW> flag) and hits that were 
  *            included previously, but are now below the inclusion
- *            threshold in the list (<by setting <p7_IS_DROPPED>
+ *            threshold in the list (by setting <p7_IS_DROPPED>
  *            flag). 
  *
  *            The <th> must already have been processed by
@@ -989,7 +988,7 @@ p7_tophits_Threshold(P7_TOPHITS *th, P7_PIPELINE *pli)
  *            an iterative search.
  *            
  *            The <p7_IS_NEW> flag is comprehensive: all new hits
- *            are flagged (and counted in <*opt_nnew>). The <p7_WAS_DROPPED> 
+ *            are flagged (and counted in <*opt_nnew>). The <p7_IS_DROPPED> 
  *            flag is not comprehensive: only those hits that still 
  *            appear in the current top hits list are flagged. If a 
  *            hit dropped entirely off the list, it isn't counted
@@ -1592,7 +1591,7 @@ p7_tophits_TabularFrameshifts(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th
  *            accounting stored in <pli>.
  *            
  *            Designed to be concatenated for multiple queries and
- *            multiple top hits list.
+ *            multiple top hits lists.
  *
  * Returns:   <eslOK> on success.
  * 
@@ -1724,7 +1723,7 @@ p7_tophits_TabularTargets(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7
  *            accounting stored in <pli>.
  *            
  *            Designed to be concatenated for multiple queries and
- *            multiple top hits list.
+ *            multiple top hits lists.
  *
  * Returns:   <eslOK> on success.
  * 
@@ -2008,7 +2007,7 @@ main(int argc, char **argv)
 #ifdef p7TOPHITS_TESTDRIVE
 /*
   gcc -o tophits_utest -std=gnu99 -g -O2 -I. -L. -I../easel -L../easel -Dp7TOPHITS_TESTDRIVE p7_tophits.c -lhmmer -leasel -lm 
-  ./tophits_test
+  ./tophits_utest
 */
 #include "p7_config.h"
 

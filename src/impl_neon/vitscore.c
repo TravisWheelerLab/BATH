@@ -444,7 +444,7 @@ main(int argc, char **argv)
   esl_randomness_Destroy(r);
   return eslOK;
 }
-#endif /*VITSCORE_TESTDRIVE*/
+#endif /*p7VITSCORE_TESTDRIVE*/
 /*--------------------- end, test driver ------------------------*/
 
 

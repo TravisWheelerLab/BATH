@@ -114,7 +114,7 @@ typedef struct p7_oprofile_s {
   char  *acc;      /* unique accession of model, or NULL                */
   char  *desc;                  /* brief (1-line) description of model, or NULL      */
   char  *rf;                    /* reference line           1..M; *ref=0: unused     */
-  char  *mm;                    /* modelmask line           1..M; *ref=0: unused     */
+  char  *mm;                    /* modelmask line           1..M; *mm=0: unused      */
   char  *cs;                    /* consensus structure line 1..M, *cs=0: unused      */
   char  *consensus;    /* consensus residues for ali display, 1..M          */
   float  evparam[p7_NEVPARAM];   /* parameters for determining E-values, or UNSET     */
@@ -134,13 +134,13 @@ typedef struct p7_oprofile_s {
   float  nj;      /* expected # of J's: 0 or 1, uni vs. multihit       */
 
   int    clone;                 /* this optimized profile structure is just a copy   */
-                                /* of another profile structre.  all pointers of     */
+                                /* of another profile structure.  all pointers of     */
                                 /* this structure should not be freed.               */
 } P7_OPROFILE;
 
 typedef struct {
   int            count;       /* number of <P7_OPROFILE> objects in the block */
-  int            listSize;    /* maximum number elements in the list          */
+  int            listSize;    /* maximum number of elements in the list       */
   P7_OPROFILE  **list;        /* array of <P7_OPROFILE> objects               */
 } P7_OM_BLOCK;
 
@@ -183,7 +183,7 @@ p7_oprofile_FGetEmission(const P7_OPROFILE *om, int k, int x)
  *
  * Transition scores are striped identically to P7_OPROFILE:
  *   tfv[p7O_NTRANS * allocQ4] : transition scores in stripe-major order.
- *   Starting at q=0 for all but the three transitions into M (BM, MM, IM, DM),
+ *   Starting at q=0 for all but the four transitions into M (BM, MM, IM, DM),
  *   which are rotated by -1 and rightshifted. DD transitions follow separately.
  *
  * Special state (ENJC) transition costs are stored as scalars in xf[][],
@@ -264,7 +264,7 @@ p7_fs_oprofile_FGetEmission(const P7_FS_OPROFILE *om_fs, int k, int c)
 
 
 /*****************************************************************
- * 4. P7_OIVX: vectorized intermediate-value matrix
+ * 3. P7_OIVX: vectorized intermediate-value matrix
  *****************************************************************/
 
 /* P7_OIVX is the NEON analog of P7_IVX (p7_ivx.c).  It stores float32x4_t
@@ -289,7 +289,7 @@ typedef struct p7_oivx_s {
 
 
 /*****************************************************************
- * 5. P7_OMX: a one-row dynamic programming matrix
+ * 4. P7_OMX: a one-row dynamic programming matrix
  *****************************************************************/
 
 enum p7x_scells_e { p7X_M = 0, p7X_D = 1, p7X_I = 2 };
@@ -402,7 +402,7 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
 
 
 /*****************************************************************
- * 4. Declarations of the external API.
+ * 5. Declarations of the external API.
  *****************************************************************/
 
 /* p7_omx.c */
@@ -535,7 +535,7 @@ extern int p7_StochasticTrace_Frameshift(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq
 extern int p7_ViterbiFilter     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
 extern int p7_ViterbiFilter_BATH(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, const P7_SCOREDATA *ssvdata, float filtersc, double P, P7_HMM_WINDOWLIST *windowlist, float *ret_sc);
 
-/* vitfilter_fs.c */
+/* viterbi_fs.c */
 extern int p7_Viterbi_Frameshift      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                   P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern int p7_Viterbi_Frameshift_Trace(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, P7_TRACE *tr);
 
@@ -555,7 +555,7 @@ extern int p7_ViterbiScore (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 
 
 /*****************************************************************
- * 5. Implementation specific initialization
+ * 6. Implementation specific initialization
  *****************************************************************/
 static inline void
 impl_Init(void)
@@ -571,7 +571,7 @@ impl_Init(void)
 #ifdef _PMMINTRIN_H_INCLUDED
   /*
    * FLUSH_ZERO doesn't necessarily work in non-SIMD calculations
-   * (yes on 64-bit, maybe not of 32-bit). This ensures that those
+   * (yes on 64-bit, maybe not on 32-bit). This ensures that those
    * scalar calculations will agree across architectures.
    * (See TW notes  2012/0106_printf_underflow_bug/00NOTES for details)
    */

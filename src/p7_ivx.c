@@ -11,7 +11,7 @@
  *****************************************************************/
 
 /* Function:  p7_ivx_Create()
- * Synopsis:  Allocate a new <P7_IMX>.
+ * Synopsis:  Allocate a new <P7_IVX>.
  *
  * Purpose:   Allocate a reusable, resizeable <P7_IVX> for models up to
  *            size <allocM>
@@ -43,14 +43,14 @@ p7_ivx_Create(int allocM, int allocC)
 
 
 /* Function:  p7_ivx_GrowTo()
- * Synopsis:  Assure that intermadiate values matrix is big enough.
+ * Synopsis:  Assure that intermediate values matrix is big enough.
  *
  * Returns:   <eslOK> on success, and <iv> may be reallocated upon
  *            return; any data that may have been in <iv> must be
  *            assumed to be invalidated.
  *
  * Throws:    <eslEMEM> on allocation failure, and any data that may
- *            have been in <gx> must be assumed to be invalidated.
+ *            have been in <iv> must be assumed to be invalidated.
  */
 int
 p7_ivx_GrowTo(P7_IVX *iv, int M, int C)

@@ -160,7 +160,7 @@ typedef struct p7_hmm_s {
   float **ins;                  /* insert emissions. ins[1..M][0..K-1]                     */
   float   fsprob;               /* frameshift probability.                                 */
   int     fs;                   /* bool for frameshift on/off                              */
-  int     ct;                   /* codon translationa table                                */
+  int     ct;                   /* codon translation table                                 */
 
   /*::cexcerpt::plan7_core::end::*/
 
@@ -253,12 +253,12 @@ enum p7p_rsc_indels {
   p7P___X   = 0,  // two deletes then one nucleotide
   p7P_X__   = 1,  // one nucleotide then two deletes
   p7P_XX_   = 2,  // two nucleotides then one delete
-  p7P_X_X   = 3,  // one nucleotides, one delete, one nucleotide
+  p7P_X_X   = 3,  // one nucleotide, one delete, one nucleotide
   p7P__XX   = 4,  // one delete then two nucleotides
   p7P_XXX   = 5,  // standard codon
-  p7P_XXx   = 6,  // stop codon with subsitition at last nucleotide
-  p7P_XxX   = 7,  // stop codon with subsitition at middle nucleotide
-  p7P_xXX   = 8,  // stop codon with subsitition at first nucleotide
+  p7P_XXx   = 6,  // stop codon with substitution at last nucleotide
+  p7P_XxX   = 7,  // stop codon with substitution at middle nucleotide
+  p7P_xXX   = 8,  // stop codon with substitution at first nucleotide
   p7P_xxx   = 9,  // degenerate codon 
   p7P_XXxX  = 10, // two nucleotides, one insert, one nucleotide
   p7P_XxXX  = 11, // one nucleotide, one insert, two nucleotides
@@ -279,17 +279,17 @@ enum p7p_ivx_codon {
 
 /* Indexing variables for codons and quasicodons */
 #define p7P_MAXNUC         4      
-#define p7P_MAXCODONS5     1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 (final 3 for codons with non-cononcial nucleotides) */ 
-#define p7P_MAXCODONS3     338     /* 4^2 + 4^3 + 4^4 + 2 (final 2 for codons with non-cononcial nucleotides)*/
+#define p7P_MAXCODONS5     1367    /* 4^1 + 4^2 + 4^3 + 4^4 + 4^5 + 3 (final 3 for codons with non-canonical nucleotides) */ 
+#define p7P_MAXCODONS3     338     /* 4^2 + 4^3 + 4^4 + 2 (final 2 for codons with non-canonical nucleotides)*/
 #define p7P_MAXCODONS1     65      /* 4^3 + 1 */
-#define p7P_DEGEN5_C       1364    /* index for degnerate codon (5 codon lengths)*/
-#define p7P_DEGEN5_QC1     1365    /* index for degnerate quasicodons with one indel (5 codon lengths) */
-#define p7P_DEGEN5_QC2     1366    /* index for degnerate quasicodons with two indels (5 codon lengths) */
-#define p7P_DEGEN3_C       336     /* index for degnerate codon (3 codon lengths)*/
-#define p7P_DEGEN3_QC1     337     /* index for degnerate quasicodons with one indel (3 codon lengths) */
-#define p7P_DEGEN1_C       64      /* index for degnerate codon (1 codon length)*/
+#define p7P_DEGEN5_C       1364    /* index for degenerate codon (5 codon lengths)*/
+#define p7P_DEGEN5_QC1     1365    /* index for degenerate quasicodons with one indel (5 codon lengths) */
+#define p7P_DEGEN5_QC2     1366    /* index for degenerate quasicodons with two indels (5 codon lengths) */
+#define p7P_DEGEN3_C       336     /* index for degenerate codon (3 codon lengths)*/
+#define p7P_DEGEN3_QC1     337     /* index for degenerate quasicodons with one indel (3 codon lengths) */
+#define p7P_DEGEN1_C       64      /* index for degenerate codon (1 codon length)*/
 
-/* Index offsets for the p7P_CODON macros bellow */
+/* Index offsets for the p7P_CODON macros below */
 #define p7P_NUC1_FS5       341     
 #define p7P_NUC2_FS5       85
 #define p7P_NUC3_FS5       21
@@ -302,7 +302,7 @@ enum p7p_ivx_codon {
 #define p7P_NUC1_FS1       16
 #define p7P_NUC2_FS1       4
 
-/* find the correct emmisions array index of a codon or quasicodon */
+/* find the correct emissions array index of a codon or quasicodon */
 #define p7P_CODON1_FS5(x)             ((x) * p7P_NUC1_FS5) 
 #define p7P_CODON2_FS5(w, x)          ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + p7P_C2)
 #define p7P_CODON3_FS5(v, w, x)       ((x) * p7P_NUC1_FS5 + (w) * p7P_NUC2_FS5 + (v) * p7P_NUC3_FS5 + p7P_C3)
@@ -352,7 +352,7 @@ typedef struct p7_profile_s {
   char  *acc;                             /* unique accession of model, or NULL                     */
   char  *desc;                            /* brief (1-line) description of model, or NULL           */
   char  *rf;                              /* reference line from alignment 1..M; *rf=0 means unused */
-  char  *mm;                              /* modelmask line           1..M; *ref=0: unused          */
+  char  *mm;                              /* modelmask line           1..M; *mm=0: unused           */
   char  *cs;                              /* consensus structure line      1..M, *cs=0 means unused */
   char  *consensus;                       /* consensus residues to display in alignments, 1..M      */
   float  evparam[p7_NEVPARAM];            /* parameters for determining E-values, or UNSET          */
@@ -391,7 +391,7 @@ typedef struct p7_fs_profile_s {
   char  *acc;                             /* unique accession of model, or NULL                               */
   char  *desc;                            /* brief (1-line) description of model, or NULL                     */
   char  *rf;                              /* reference line from alignment 1..M; *rf=0 means unused           */
-  char  *mm;                              /* modelmask line           1..M; *ref=0: unused                    */
+  char  *mm;                              /* modelmask line           1..M; *mm=0: unused                     */
   char  *cs;                              /* consensus structure line      1..M, *cs=0 means unused           */
   char  *consensus;                       /* consensus residues to display in alignments, 1..M                */
   float  evparam[p7_NEVPARAM];            /* parameters for determining E-values, or UNSET                    */
@@ -525,11 +525,11 @@ typedef struct p7_trace_s {
   int     *k;              /* node index; 1..M if M,D,I; else 0 [0..N-1]*/
   int     *i;              /* pos emitted in dsq, 1..L; else 0  [0..N-1]*/
   int     *c;              /* codon length for frameshift search        */
-  int     *sp;             /* splice option for sliced alignments       */
+  int     *sp;             /* splice option for spliced alignments      */
   float   *pp;             /* posterior prob of x_i; else 0     [0..N-1]*/
   int      M;              /* model length M (maximum k)                */
   int      L;              /* sequence length L (maximum i)             */
-  int     fs;              /* count of framshifts      */ 
+  int     fs;              /* count of frameshifts     */ 
 
   /* The following section is data generated by "indexing" a trace's domains */
   int   ndom;            /* number of domains in trace (= # of B or E states) */
@@ -681,7 +681,7 @@ typedef struct p7_ivx_s {
 
 typedef struct p7_codon_table {
 
-  int K;             /*amino acid acphebet length       */
+  int K;             /*amino acid alphabet length       */
   int transl_table;  /* NCBI translation table          */
   ESL_DSQ *table;    /* codon storage                   */
   int *num_codons;   /* number of codons per amino acid */
@@ -769,7 +769,7 @@ typedef struct p7_alidisplay_s {
   char *aseq;                   /* aligned target sequence              */
   char *ntseq;                  /* nucleotide target sequence for bath  */
   char *ppline;                 /* posterior prob annotation; or NULL   */
-  char *codon;                  /* number of nuceltides in each codon   */
+  char *codon;                  /* number of nucleotides in each codon   */
   char *cigar;                  /* cigar string for the alignment       */
   int   frameshifts;            /* number of codons with frameshifts    */
   int   stops;                  /* number of stop codons */
@@ -832,7 +832,7 @@ typedef struct p7_dom_s {
   int            is_included;    /* TRUE if domain meets inclusion thresholds                                  */
 
   float         *scores_per_pos; /* score in BITS that each position in the alignment contributes to an overall viterbi score */
-  int           *k_per_pos;      /* HMM postion for each scores_per_pos */
+  int           *k_per_pos;      /* HMM position for each scores_per_pos */
   int            per_pos_len;    /* length of the scores_per_pos and k_per_pos */
 
   P7_ALIDISPLAY *ad; 
@@ -897,8 +897,8 @@ typedef struct p7_domaindef_s {
   int    nenvelopes;  /* number of envelopes handed over for domain definition, null2, alignment, and scoring. */
 
   /* flags */
-  int fstbl;     /* True if --fstblout flag in on for bathsearch */
-  int splice;    /* True if --splice flag in on for bathsearch */
+  int fstbl;     /* True if --fstblout flag is on for bathsearch */
+  int splice;    /* True if --splice flag is on for bathsearch */
 
 } P7_DOMAINDEF;
 
@@ -951,7 +951,7 @@ typedef struct p7_hit_s {
   int      nreported;       /* # of domains satisfying reporting thresholding  */
   int      nincluded;       /* # of domains satisfying inclusion thresholding */
   int      best_domain;     /* index of best-scoring domain in dcl */
-  int      frameshift;      /* TRUE if hit came from frameshift pipleine */
+  int      frameshift;      /* TRUE if hit came from frameshift pipeline */
   int64_t  seqidx;          /*unique identifier to track the database sequence from which this hit came*/
   int64_t  subseq_start;    /*used to track which subsequence of a full_length target this hit came from, for purposes of removing duplicates */
   int64_t  target_len;      /* used in translated search to hold the length of the nucleotide sequence */
@@ -1094,7 +1094,7 @@ typedef struct p7_pipeline_s {
   double  incT;                  /* per-target inclusion score threshold     */
   int     incdom_by_E;           /* TRUE to threshold domain inclusion by E  */
   double  incdomE;               /* per-domain inclusion E-value threshold   */
-  double  incdomT;               /* per-domain inclusion E-value threshold   */
+  double  incdomT;               /* per-domain inclusion score threshold     */
 
   /* Tracking search space sizes for E value calculations                   */
   double  Z;                     /* eff # targs searched (per-target E-val)  */
@@ -1111,7 +1111,7 @@ typedef struct p7_pipeline_s {
   int     do_biasfilter;         /* TRUE to use biased comp HMM filter       */
   int     do_null2;              /* TRUE to use null2 score corrections      */
 
-  /* Accounting. (reduceable in threaded/MPI parallel version)              */
+  /* Accounting. (reducible in threaded/MPI parallel version)              */
   uint64_t      nmodels;         /* # of HMMs searched                       */
   uint64_t      nseqs;           /* # of sequences searched                  */
   uint64_t      nres;            /* # of residues searched                   */
@@ -1128,7 +1128,7 @@ typedef struct p7_pipeline_s {
   uint64_t      pos_output;      /* # positions that make it to the final output (used for nhmmer) */
 
   enum p7_pipemodes_e mode;      /* p7_SCAN_MODELS | p7_SEARCH_SEQS          */
-  int           spliced;         /* TRUE if user uses --splice slaf to enable spliced alignments */
+  int           spliced;         /* TRUE if user uses --splice flag to enable spliced alignments */
   int           fs_pipe;         /* TRUE if bathsearch is allowed to use the frameshift aware pipeline branch (use --fs flag) */
   int           std_pipe;        /* TRUE if bathsearch is allowed to use the standard translation pipeline (do not use --fsonly flag)  */
   int           strands;         /*  p7_STRAND_TOPONLY  | p7_STRAND_BOTTOMONLY |  p7_STRAND_BOTH */
@@ -1139,7 +1139,7 @@ typedef struct p7_pipeline_s {
   int           show_translated_sequence; /* TRUE to display translated DNA sequence in domain display for hmmscant */
   int           show_vertical_codon;      /* TRUE to display the DNA codon vertically in the alignment display */
   int           show_frameline;           /* TRUE to display the frame of each codon in the alignment display */
-  int           show_cigar;               /* TRUE to display the CIGAR sring in tabular output */ 
+  int           show_cigar;               /* TRUE to display the CIGAR string in tabular output */ 
 
   P7_HMMFILE   *hfp;             /* COPY of open HMM database (if scan mode) */
   char          errbuf[eslERRBUFSIZE];

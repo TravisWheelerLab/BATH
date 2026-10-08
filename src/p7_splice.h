@@ -1,4 +1,4 @@
-/* Structs and MACROs for bilding a splice graph */
+/* Structs and MACROs for building a splice graph */
 
 #include "p7_config.h"
 
@@ -45,7 +45,7 @@ typedef struct _splice_edge {
 
 typedef struct _splice_graph {
 
-  /* Graph size intfo */
+  /* Graph size info */
   int nalloc;
   int num_nodes;
   int anchor_N;
@@ -58,7 +58,7 @@ typedef struct _splice_graph {
 
   /* Node info */
   int         *node_in_graph;   /* Is the hit part of the current graph */
-  int         *tmp_node;        /* New nodes found durring splicing */
+  int         *tmp_node;        /* New nodes found during splicing */
   int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
 
   /*Edge info */  
@@ -211,9 +211,9 @@ typedef struct _splice_info
 #define EDGE_ALLOC                10       /*minimum alloc space for edges for  each node           */
 #define MAX_INTRON_EXT            10000    /*maximum extension distance                             */
 #define MAX_AMINO_GAP             1500     /*maximum amino gap for an edge                          */
-#define ALIGNMENT_EXT             30       /*extention at start and end of final alignment sequence */
+#define ALIGNMENT_EXT             30       /*extension at start and end of final alignment sequence */
 
-/* Indices of p7_splice_SignalScores */
+/* Indices of p7_SignalScores */
 enum p7s_splice_signals_e {
   p7S_GTAG  = 0,
   p7S_GCAG  = 1,
@@ -223,7 +223,7 @@ enum p7s_splice_signals_e {
 
 #define SPLICE_ROWS               4
 
-/* P->M transtion cost */
+/* P->M transition cost */
 #define TSC_P logf(4.5e-5f)
 
 /* p7_splicebounds.c */

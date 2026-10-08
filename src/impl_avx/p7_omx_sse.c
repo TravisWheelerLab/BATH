@@ -1,5 +1,5 @@
 /* P7_OMX SSE implementations.
- * Optimised DP matrix lifecycle and debug routines for the SSE (128-bit) path.
+ * Optimized DP matrix lifecycle and debug routines for the SSE (128-bit) path.
  * Ported from impl_sse/p7_omx.c with _sse suffix for runtime dispatch.
  *
  * Contents:

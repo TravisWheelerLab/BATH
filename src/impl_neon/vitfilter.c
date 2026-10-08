@@ -50,7 +50,7 @@
  *            The model must be in a local alignment mode; other modes
  *            cannot provide the necessary guarantee of no underflow.
  *
- *            This is a striped SIMD Viterbi implementation using AMD NEON
+ *            This is a striped SIMD Viterbi implementation using ARM NEON
  *            integer intrinsics \citep{Farrar07}, in reduced
  *            precision (signed words, 16 bits).
  *
@@ -130,7 +130,7 @@ p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, f
       xBv   = vmovq_n_s16(xB);
 
       /* Right shifts by 1 value (2 bytes). 4,8,12,x becomes x,4,8,12.
-       * Because ia32 is littlendian, this means a left bit shift.
+       * Because ia32 is little-endian, this means a left bit shift.
        * Zeros shift on automatically; replace it with -32768.
        */
       mpv = MMXo(Q-1);  mpv = vextq_s16(negInfv, mpv, 7);
@@ -234,7 +234,7 @@ p7_ViterbiFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, f
   if (xC > -32768)
     {
       *ret_sc = (float) xC + (float) om->xw[p7O_C][p7O_MOVE] - (float) om->base_w;
-      /* *ret_sc += L * om->ncj_roundoff;  see J4/150 for rationale: superceded by -3.0nat approximation*/
+      /* *ret_sc += L * om->ncj_roundoff;  see J4/150 for rationale: superseded by -3.0nat approximation*/
       *ret_sc /= om->scale_w;
       *ret_sc -= 3.0; /* the NN/CC/JJ=0,-3nat approximation: see J5/36. That's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ contrib */
     }
@@ -464,9 +464,9 @@ p7_ViterbiFilter_BATH(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *
 
 /*
    gcc -g -O3 -march=armv8-a -std=gnu99 -o vitfilter_benchmark -I.. -L.. -I../../easel -L../../easel -Dp7VITFILTER_BENCHMARK vitfilter.c -lhmmer -leasel -lm
-   ./benchmark-vitfilter <hmmfile>          runs benchmark
-   ./benchmark-vitfilter -N100 -c <hmmfile> compare scores to generic impl
-   ./benchmark-vitfilter -N100 -x <hmmfile> compare scores to exact emulation
+   ./vitfilter_benchmark <hmmfile>          runs benchmark
+   ./vitfilter_benchmark -N100 -c <hmmfile> compare scores to generic impl
+   ./vitfilter_benchmark -N100 -x <hmmfile> compare scores to exact emulation
  */
 #include <p7_config.h>
 

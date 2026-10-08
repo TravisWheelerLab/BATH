@@ -388,11 +388,11 @@ p7_trace_Reuse(P7_TRACE *tr)
 }
 
 /* Function:  p7_trace_fs_Convert()
- * Synopsis:  Convert a non-framshift protien to protien trace
- *            to an frameshift aware DNA to protien trace.
+ * Synopsis:  Convert a non-frameshift protein to protein trace
+ *            to a frameshift aware DNA to protein trace.
  *
- * Purpose:   Allow sequences without frameshifts to be proccesed
- *            by faster non-framshift DP functions and then pass
+ * Purpose:   Allow sequences without frameshifts to be processed
+ *            by faster non-frameshift DP functions and then pass
  *            the trace back to the frameshift pipeline.
  *
  * Returns:   <eslOK> on success.
@@ -438,14 +438,14 @@ ERROR:
 }
 
 /* Function:  p7_trace_splice_Convert()
- * Synopsis:  Convert a non-framshift protien to protien trace to a 
- *            to a spliced DNA to protien trace.
+ * Synopsis:  Convert a non-frameshift protein to protein trace
+ *            to a spliced DNA to protein trace.
  *
- * Purpose:   Detect splice boundries in a protien to protien trace
- *            produced by p7_splice.c and convert to a BATH compatable
- *            DNA to protien trace with approriate splice states.
+ * Purpose:   Detect splice boundaries in a protein to protein trace
+ *            produced by p7_splice.c and convert to a BATH compatible
+ *            DNA to protein trace with appropriate splice states.
  *
- * Returns:   <eslOK> on success.
+ * Returns:   the new spliced <P7_TRACE>.
  *
  * Throws:    (no abnormal error conditions)
  *
@@ -482,7 +482,7 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice_cn
       case p7T_J: p7_trace_splice_AppendWithPP(new_tr, p7T_J, k, curr_nuc_idx, 3, -1, pp); break;
       case p7T_M:
         /* Check if the sequence was spliced at this M position. If so,
-         * then determine the splice option and use */
+         * then determine the splice option. */
         if (prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
           if     (orig_nuc_idx[(orig_tr->i[z]*3)-2] - prev_nuc_idx > 1) {
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, k-1, curr_nuc_idx,   0, p7S_xxyyABC, 0.);
@@ -506,7 +506,7 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice_cn
         break;
       case p7T_I:
         /* Check if the sequence was spliced at this I position. If so,
-         * then determine the splice option and use */
+         * then determine the splice option. */
         if(prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+3) {
           if     (orig_nuc_idx[i*3-2] - prev_nuc_idx > 1) {
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, k-1, curr_nuc_idx, 0, p7S_xxyyABC, 0.);
@@ -550,14 +550,14 @@ p7_trace_splice_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice_cn
 }
 
 /* Function:  p7_trace_splice_fs_Convert()
- * Synopsis:  Convert a frameshift DNA to protien trace to a 
- *            to a spliced DNA to protien trace.
+ * Synopsis:  Convert a frameshift DNA to protein trace
+ *            to a spliced DNA to protein trace.
  *
- * Purpose:   Detect splice boundries in a protien to protien trace
- *            produced by p7_splice.c and convert to a BATH compatable
- *            DNA to protien trace with approriate splice states.
+ * Purpose:   Detect splice boundaries in a frameshift DNA to protein trace
+ *            produced by p7_splice.c and convert to a BATH compatible
+ *            DNA to protein trace with appropriate splice states.
  *
- * Returns:   <eslOK> on success.
+ * Returns:   the new spliced <P7_TRACE>.
  *
  * Throws:    (no abnormal error conditions)
  *
@@ -597,35 +597,35 @@ p7_trace_splice_fs_Convert(P7_TRACE *orig_tr, int64_t *orig_nuc_idx, int *splice
         /* Check if the sequence was spliced at this M position. If so,
          * then determine the splice option and use the p7T_MS state*/
         if (prev_nuc_idx > 1 && curr_nuc_idx > prev_nuc_idx+c) {
-          /* If the first nuc of the codon is more that one nucleotide from the last 
-           * nuc in the previous exon then the splice site occures between exons */
+          /* If the first nuc of the codon is more than one nucleotide from the last 
+           * nuc in the previous exon then the splice site occurs between exons */
           if     (orig_nuc_idx[i-(c-1)] - prev_nuc_idx > 1) {
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, k-1, prev_nuc_idx,   0, p7S_xxyyABC, 0.);
             p7_trace_splice_AppendWithPP(new_tr, p7T_M, k  , curr_nuc_idx,   c, -1,          pp);
           }
-          /*If the second nucleotide of the codon is more that one nucleotide from the 
-           * first nuc in the codon the splice site occures between those two nucs */
+          /*If the second nucleotide of the codon is more than one nucleotide from the 
+           * first nuc in the codon the splice site occurs between those two nucs */
           else if(orig_nuc_idx[i-(c-2)] - orig_nuc_idx[i-(c-1)] > 1) {
             p7_trace_splice_AppendWithPP(new_tr, p7T_R, k  , prev_nuc_idx, c, p7S_AxxyyBC, pp);
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, k  , prev_nuc_idx, 0, p7S_AxxyyBC, 0.);
             p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx, c, p7S_AxxyyBC, 0.);
           }
-          /*If the third nucleotide of the codon is more that one nucleotide from the
-           * second nuc in the codon the splice site occures between those two nucs */
+          /*If the third nucleotide of the codon is more than one nucleotide from the
+           * second nuc in the codon the splice site occurs between those two nucs */
           else if(orig_nuc_idx[i-(c-3)]   - orig_nuc_idx[i-(c-2)] > 1) {
             p7_trace_splice_AppendWithPP(new_tr, p7T_R, k,   prev_nuc_idx, c, p7S_ABxxyyC, pp);
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, k,   prev_nuc_idx, 0, p7S_ABxxyyC, 0.);
             p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx, c, p7S_ABxxyyC, 0.);
           }
-          /*If the fourth nucleotide of the codon is more that one nucleotide from the
-           * third nuc in the codon the splice site occures between those two nucs */
+          /*If the fourth nucleotide of the codon is more than one nucleotide from the
+           * third nuc in the codon the splice site occurs between those two nucs */
           else if(orig_nuc_idx[i-(c-4)]   - orig_nuc_idx[i-(c-3)] > 1) {
             p7_trace_splice_AppendWithPP(new_tr, p7T_R, k,   prev_nuc_idx, c, p7S_ABCxxyyD, pp);
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, k,   prev_nuc_idx, 0, p7S_ABCxxyyD, 0.);
             p7_trace_splice_AppendWithPP(new_tr, p7T_A, k+1, curr_nuc_idx, c, p7S_ABCxxyyD, 0.);
           }
-          /*If the fourth nucleotide of the codon is more that one nucleotide from the
-           * third nuc in the codon the splice site occures between those two nucs */
+          /*If the fifth nucleotide of the codon is more than one nucleotide from the
+           * fourth nuc in the codon the splice site occurs between those two nucs */
           else if(orig_nuc_idx[i-(c-5)]   - orig_nuc_idx[i-(c-4)] > 1) {
             p7_trace_splice_AppendWithPP(new_tr, p7T_R, k,   prev_nuc_idx, c, p7S_ABCDxxyyE, pp);
             p7_trace_splice_AppendWithPP(new_tr, p7T_P, k,   prev_nuc_idx, 0, p7S_ABCDxxyyE, 0.);
@@ -1195,7 +1195,7 @@ p7_trace_GetDomainCoords(const P7_TRACE *tr, int which,
  *
  * Purpose:   Validate the internal data in a trace structure <tr>
  *            representing an alignment of an HMM to a 
- *            digital sequence <sq>. The digital sequence may be either
+ *            digital sequence <dsq>. The digital sequence may be either
  *            unaligned (usually) or aligned (in the case of "fake"
  *            tracebacks generated from an MSA during a
  *            model construction process). 
@@ -1210,7 +1210,7 @@ p7_trace_GetDomainCoords(const P7_TRACE *tr, int which,
  *            
  * Args:      tr     - trace to validate
  *            abc    - alphabet corresponding to sequence <sq>
- *            sq     - digital sequence that <tr> is explaining
+ *            dsq    - digital sequence that <tr> is explaining
  *            errbuf - NULL, or an error message buffer allocated
  *                     for at least eslERRBUFSIZE chars.           
  *
@@ -1400,7 +1400,7 @@ p7_trace_Validate(const P7_TRACE *tr, const ESL_ALPHABET *abc, const ESL_DSQ *ds
  *            representing an alignment of a frameshift-aware HMM to a
  *            digital nucleotide sequence <dsq> of length <tr->L>.
  *
- *            FS traces differ from standard traces in two ways:
+ *            FS traces differ from standard traces in four ways:
  *              1. M states emit codons of length 1..5 (stored in tr->c[]).
  *                 tr->i[] for M stores the END position of the codon, not
  *                 the start.  A codon of length c ending at position e
@@ -1677,7 +1677,7 @@ p7_trace_Dump(FILE *fp, const P7_TRACE *tr, const P7_PROFILE *gm, const ESL_DSQ 
  *            tr    - trace to dump
  *            gm_fs - NULL, or score profile corresponding to trace
  *            dsq   - NULL, or digitized seq corresponding to trace        
- *            abc   - NULL of alphabet of dsq
+ *            abc   - NULL, or alphabet of dsq
  *
  * Returns:   <eslOK> on success.
  * 
@@ -2456,7 +2456,7 @@ p7_trace_splice_AppendWithPP(P7_TRACE *tr, char st, int k, int i, int c, int sp,
  *           function when they're done.
  *           
  *           At least for now, this invalidates any domain index
- *           table, if it exists. The expectd order of invocation is
+ *           table, if it exists. The expected order of invocation is
  *           to create the traceback backwards, <Reverse()> it, then
  *           <IndexDomains()> it.
  *           
@@ -2509,7 +2509,7 @@ p7_trace_Reverse(P7_TRACE *tr)
   return eslOK;
 }
 
-/* Function: p7_trace_Reverse()
+/* Function: p7_trace_fs_Reverse()
  * Synopsis: Reverse the arrays in a traceback structure.
  * 
  * Purpose:  Reverse the arrays in a traceback structure.  Tracebacks
@@ -2517,7 +2517,7 @@ p7_trace_Reverse(P7_TRACE *tr)
  *           function when they're done.
  *           
  *           At least for now, this invalidates any domain index
- *           table, if it exists. The expectd order of invocation is
+ *           table, if it exists. The expected order of invocation is
  *           to create the traceback backwards, <Reverse()> it, then
  *           <IndexDomains()> it.
  *           
@@ -2719,7 +2719,7 @@ p7_trace_fs_Index(P7_TRACE *tr)
  *            unaligned raw sequences in <msa>, the way most H3 traces
  *            are supposed to be. In some cases (such as model
  *            construction from an MSA) it is convenient to reference
- *            residues in the MSA cooordinate system directly; setting
+ *            residues in the MSA coordinate system directly; setting
  *            <optflags = p7_MSA_COORDS> makes the traces come out
  *            with <i=1..alen> coords for residues.
  *            
@@ -2827,10 +2827,10 @@ p7_trace_FauxFromMSA(ESL_MSA *msa, int *matassign, int optflags, P7_TRACE **tr)
  * 
  * Purpose:  Plan 7 disallows D->I and I->D "chatter" transitions.
  *           However, these transitions will be implied by many
- *           alignments. trace_doctor() arbitrarily collapses I->D or
+ *           alignments. p7_trace_Doctor() arbitrarily collapses I->D or
  *           D->I into a single M position in the trace.
  *           
- *           trace_doctor does not examine any scores when it does
+ *           p7_trace_Doctor() does not examine any scores when it does
  *           this. In ambiguous situations (D->I->D) the symbol
  *           will be pulled arbitrarily to the left, regardless
  *           of whether that's the best column to put it in or not.
@@ -2957,7 +2957,7 @@ p7_trace_Count(P7_HMM *hmm, ESL_DSQ *dsq, float wt, P7_TRACE *tr)
    * IM transition), so we don't want to be estimating the I-state
    * geometric distribution from it.
    * 
-   * We assume the core trace has already been through TraceDoctor(),
+   * We assume the core trace has already been through p7_trace_Doctor(),
    * so it has no DI or ID transitions.
    */
   if (tr->st[0] == p7T_B && tr->st[1] == p7T_X)

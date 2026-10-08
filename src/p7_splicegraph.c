@@ -31,8 +31,7 @@ static int path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_n
  * Synopsis:  Allocates a splice graph with no nodes or edges.
  *
  * Purpose:   Allocates a new <SPLICE_GRAPH>. Does NOT allocate 
- *            any memory for nodes or edges.  Sets reverse 
- *            complement startus to <revcomp>
+ *            any memory for nodes or edges.
  *
  * Returns:   a pointer to the new <SPLICE_GRAPH> structure 
  *            on success.
@@ -257,7 +256,7 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
  * Purpose:   Ask the splice graph object <graph> to do any 
  *            necessary internal allocation to add a new node. 
  *            Use hit dats to determine the upstream/downstream 
- *            postion of the new node relative to all existing 
+ *            position of the new node relative to all existing 
  *            nodes. 
  *
  * Returns:   <eslOK> on success.
@@ -299,7 +298,7 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 /* Function:  p7_splicegraph_AddEdge()
  * Synopsis:  get the next edge from up_node
  *
- * Purpose:   Retrieve a potiner to the next available 
+ * Purpose:   Retrieve a pointer to the next available 
  *            SPLICE_EDGE from up_node and points it 
  *            to down_node. Allocate more room for 
  *            edges from up_node, if needed. 
@@ -443,7 +442,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
   upstream_suffix_sum   = NULL;
   downstream_prefix_sum = NULL;
 
-  /* return if no there is no hmm overlap */
+  /* return if there is no hmm overlap */
   if(downstream_dom->ihmm > upstream_dom->jhmm)  return eslOK;
 
   overlap_start = ESL_MAX(upstream_dom->ihmm, downstream_dom->ihmm);
@@ -536,15 +535,15 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
 
   /* Find the minimum score loss to eliminate the overlap*/
-  /*start with all positions belonging to the downstream hit - not allowed if upstream hit heas no positions before the overlap. */
+  /*start with all positions belonging to the downstream hit - not allowed if upstream hit has no positions before the overlap. */
   if(upstream_dom->ihmm == overlap_start) min_lost_sc = eslINFINITY;
   else                                    min_lost_sc = upstream_suffix_sum[0]; 
   for(s = 1; s < overlap_len; s++) {
-    /* at each step add another overlap postion to the upstream hit */
+    /* at each step add another overlap position to the upstream hit */
     curr_lost_sc = upstream_suffix_sum[s] + downstream_prefix_sum[s-1]; 
     min_lost_sc = ESL_MIN(min_lost_sc, curr_lost_sc);
   }
-  /* end with all positions belonging to the upstream hit - not allowed if downstream hit has no postions after the overlap */
+  /* end with all positions belonging to the upstream hit - not allowed if downstream hit has no positions after the overlap */
   if(downstream_dom->jhmm > overlap_end) min_lost_sc = ESL_MIN(min_lost_sc, downstream_prefix_sum[overlap_len-1]);
 
   edge->edge_score -= (min_lost_sc + upstream_lost + downstream_lost);
@@ -564,7 +563,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
 /* Function:  p7_splicegraph_PathExists()
  *
- * Purpose:   Determine if <down_node> is reachaeble from 
+ * Purpose:   Determine if <down_node> is reachable from 
  *            <up_node> by splice edges
  *
  * Returns:   TRUE if <down_node> is reachable from <up_node>,
@@ -722,7 +721,7 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
 
 /* Function:  p7_splicegraph_DumpEdges()
  *
- * Purpose: Dumps splice cooridnates of esch edge.
+ * Purpose: Dumps splice coordinates of each edge.
  */
 void
 p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph) 
@@ -762,7 +761,7 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
 
 /* Function:  p7_splicegraph_DumpGraph()
  *
- * Purpose: Dumps matrix of graph scores. If no edge exits 
+ * Purpose: Dumps matrix of graph scores. If no edge exists 
  *          prints "-inf". Also Dumps ali and path scores 
  *          and best outgoing edge data. 
  */

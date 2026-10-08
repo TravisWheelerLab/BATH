@@ -165,7 +165,7 @@ p7_GDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
  *            domain.
  * 
  *            Upon return, each of these arrays has been made, and
- *            <ddef->L> has * been set.
+ *            <ddef->L> has been set.
  *
  * Args:      gm   - profile
  *            fwd  - filled Forward matrix
@@ -235,7 +235,7 @@ p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P
 #ifdef p7GENERIC_DECODING_BENCHMARK
 /*
    icc -O3 -static -o generic_decoding_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_BENCHMARK generic_decoding.c -lhmmer -leasel -lm
-   ./benchmark-generic-decoding <hmmfile>
+   ./generic_decoding_benchmark <hmmfile>
                    RRM_1 (M=72)       Caudal_act (M=136)      SMC_N (M=1151)
                  -----------------    ------------------     -------------------
    21 Aug 08      6.62u (21.8 Mc/s)    12.52u (21.7 Mc/s)     106.27u (21.7 Mc/s)

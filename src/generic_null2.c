@@ -225,7 +225,7 @@ p7_GNull2_ByTrace(const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend
 #ifdef p7GENERIC_NULL2_BENCHMARK
 /*
    icc -O3 -static -o generic_null2_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_NULL2_BENCHMARK generic_null2.c -lhmmer -leasel -lm
-   ./benchmark-generic-null2 <hmmfile>
+   ./generic_null2_benchmark <hmmfile>
                    RRM_1 (M=72)       Caudal_act (M=136)      SMC_N (M=1151)
                  -----------------    ------------------     -------------------
    21 Aug 2008    7.77u (185 Mc/s)     14.13u (192 Mc/s)     139.03u (165.6 Mc/s)
@@ -355,8 +355,8 @@ utest_correct_normalization(ESL_RANDOMNESS *r, P7_PROFILE *gm, P7_BG *bg, ESL_DS
  * 4. Test driver
  *****************************************************************/
 #ifdef p7GENERIC_NULL2_TESTDRIVE
-/* gcc -o null2_utest -g -Wall -I../easel -L../easel -I. -L. -Dp7NULL2_TESTDRIVE null2.c -lhmmer -leasel -lm
- * ./null2_utest
+/* gcc -o generic_null2_utest -g -Wall -I../easel -L../easel -I. -L. -Dp7GENERIC_NULL2_TESTDRIVE generic_null2.c -lhmmer -leasel -lm
+ * ./generic_null2_utest
  */
 #include "p7_config.h"
 

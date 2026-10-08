@@ -1,4 +1,4 @@
-/* SPLICE_BOUNDS: list of hmm and sequence coordinate boundries to constrain paths
+/* SPLICE_BOUNDS: list of hmm and sequence coordinate boundaries to constrain paths
  *
  * Contents:
  *    1. The SPLICE_BOUNDS object.
@@ -113,7 +113,7 @@ p7_splicebounds_Destroy(SPLICE_BOUNDS *bounds)
   
 }
 
-/* Function:  p7_splicebounds_ADD()
+/* Function:  p7_splicebounds_Add()
  * Synopsis:  add new bound to <SPLICE_BOUNDS>.
  *
  * Returns:   <eslOK> on success.

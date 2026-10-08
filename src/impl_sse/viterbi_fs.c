@@ -10,9 +10,6 @@
  * where the max accounts for the three possible final codon lengths
  * (3, 4, or 5 nt) that can end exactly at position L.
  *
- * The vit_select_*_fs() traceback helpers in section 2a have been
- * updated to log-space to match.
- *
  * Contents:
  *   1. p7_Viterbi_Frameshift() implementation.
  *   2. p7_Viterbi_Frameshift_Trace() implementation.

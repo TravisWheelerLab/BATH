@@ -28,23 +28,23 @@
 /* Function:  p7_Viterbi_Spliced()
  * Synopsis:  Translated spliced Viterbi algorithm
  *
- * Purpose:   For finding the maxiumum scoring splice site between two
- *            or more exons. Algins from poistion <i_start> to <i_end>
+ * Purpose:   For finding the maximum scoring splice site between two
+ *            or more exons. Aligns from position <i_start> to <i_end>
  *            on the <sub_dsq> to a restriped sub-model <om_tr>, in
  *            either fully global, semi-global (one end only) or local
  *            mode. The DP matrix <ox> must include room for the
- *            standard core model stats <M, I, D>. The splice <P> state
- *            is only stored in a temproarily in a buffer. The
- *            <P> state acts as a modiifed <M> state, emitinf a codon
+ *            standard core model states <M, I, D>. The splice <P> state
+ *            is only stored temporarily in a buffer. The
+ *            <P> state acts as a modified <M> state, emitting a codon
  *            that is made of either two nucleotides from before the
  *            donor site and one from after the acceptor site <C2>, one
- *            nucleotide from from before the donor site and two from
+ *            nucleotide from before the donor site and two from
  *            after the acceptor <C1>, or from the three after the
  *            acceptor <C0>.
  *
- *            Potetnial donor sites scores are recorded in the <don_ovx>
- *            matrix (33*M) via the SSX macro. Splice siginal scores are
- *            sotored in <signal_scores> array and <acceptor_..> and
+ *            Potential donor site scores are recorded in the <don_ovx>
+ *            matrix (33*M) via the SSX macro. Splice signal scores are
+ *            stored in <signal_scores> array and <acceptor_..> and
  *            <donor_..> arrays return 0 for valid sites and -inf for
  *            all others.
  *
@@ -54,8 +54,8 @@
  *            signal_scores - log-probabilities for GT-AG, GC-AG, AT-AC splice signals
  *            acc_ov        - pre-allocated circular P-state buffer (SPLICE_ROWS slots)
  *            don_ov        - pre-allocated donor P-score buffer (SIGNAL_MEM_SIZE slots)
- *            i_start       - start poition on the <sub_dsq>
- *            i_end         - end poition on the <sub_dsq>
+ *            i_start       - start position on the <sub_dsq>
+ *            i_end         - end position on the <sub_dsq>
  *            min_intron    - minimum intron length
  *            global_start  - bool value controlling global vs local entry
  *            global_end    - bool value controlling global vs local exit
@@ -467,7 +467,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
  *            from the scalar profile <gm_tr>.
  *
  * Args:      sub_dsq      - nucleotide subsequence, 1-based
- *            ox           - filled DP matrix from p7_Viterbi_SplicedGlobal()
+ *            ox           - filled DP matrix from p7_Viterbi_Spliced()
  *            gm_tr        - scalar FS profile (transition/emission scores)
  *            signal_scores - log-probabilities for GT-AG, GC-AG, AT-AC signals
  *            tr           - allocated, empty trace to fill
@@ -480,7 +480,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if profile is not 1-codon-length.
- *            <eslEFAIL>  if traceback fails to identify a predecessor state.
+ *            <eslFAIL>   if traceback fails to identify a predecessor state.
  */
 int
 p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc)
@@ -506,7 +506,7 @@ p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PR
   int          status;
 
   /* Safe scalar accessors for the striped NEON DP matrix.
-   * Guard k<1 to avoid negative-modulo undefined behaviour at model boundaries. */
+   * Guard k<1 to avoid negative-modulo undefined behavior at model boundaries. */
 #define OMMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (ii), (kk)))
 #define ODMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (ii), (kk)))
 #define OIMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (ii), (kk)))

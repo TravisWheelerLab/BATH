@@ -155,7 +155,7 @@ p7_splicepath_Clone(SPLICE_PATH *path)
 /* Function:  p7_splicepath_Insert()
  * Synopsis:  Insert a new step to a  path
  *
- * Purpose:   Add new <step> idx top existing <SPLICE_PATH> 
+ * Purpose:   Add new <step> idx to existing <SPLICE_PATH> 
  *
  * Returns:   <eslOK>.
  *
@@ -253,21 +253,21 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
 
 
 /*****************************************************************
- * 3. Path Finding Algorithms
+ * 2. Path Finding Algorithms
  *****************************************************************/
 
 
-/* Function:  p7_splicepath_Remove()
- * Synopsis:  Find the highest scoring path in and graph
+/* Function:  p7_splicepath_GetBestPath()
+ * Synopsis:  Find the highest scoring path in a graph
  *
  * Purpose:   Given a SPLICE_GRAPH <graph> with nodes and edges
  *            find the highest scoring path (sum of node and 
  *            edge scores) in that graph that contains at least 
  *            one anchor node. To find the best path we use a 
  *            modified single-source shortest path algorithm 
- *            employing a topogogical sort.  This works 
+ *            employing a topological sort.  This works 
  *            because the upstream/downstream conditions
- *            requirded for edge creation ensure the graph
+ *            required for edge creation ensure the graph
  *            is acyclical. 
  *
  * Returns:   <SPLICE_PATH> on success, <NULL> if no path is found
@@ -320,7 +320,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down)
   
     out_edge = NULL;
     
-    /* Get path length and check that path contains a anchor node */ 
+    /* Get path length and check that path contains an anchor node */ 
     while(graph->best_out_edge[curr_node] >= 0) {
 
       if(curr_node < graph->anchor_N) contains_anchor = TRUE;
@@ -496,7 +496,7 @@ topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size,
 
 
 /*****************************************************************
- * 2. Debugging tools.
+ * 3. Debugging tools.
  *****************************************************************/
 
 void

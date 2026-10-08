@@ -334,7 +334,7 @@ p7_hmm_Zero(P7_HMM *hmm)
  *
  * Purpose:   Converts state type string <typestring> case insensitively to
  *            an internal code, and returns the code. For example,
- *            <p7_hmm_DecodeStatetype("M")> returns <p7T_M>.
+ *            <p7_hmm_EncodeStatetype("M")> returns <p7T_M>.
  *            
  *            If the string isn't recognized, returns <p7T_BOGUS>.
  */
@@ -359,7 +359,7 @@ p7_hmm_EncodeStatetype(char *typestring)
  * Synopsis:  Convert an internal state type code to a string.
  *
  * Purpose:   Returns the state type in text, as a string of length 1 
- *            (2 if you count <NUL>). For example, <p7_DecodeStatetype(p7T_S)>
+ *            (2 if you count <NUL>). For example, <p7_hmm_DecodeStatetype(p7T_S)>
  *            returns "S".
  *            
  * Throws:    an internal <eslEINVAL> exception if the code doesn't 
@@ -441,7 +441,7 @@ p7_hmm_SetName(P7_HMM *hmm, char *name)
  *
  * Returns:  <eslOK> on success.
  *
- * Throws:   <eslEMEM> on allocation error, and original name (if any) 
+ * Throws:   <eslEMEM> on allocation error, and original accession (if any) 
  *           remains.
  */
 int
@@ -605,7 +605,7 @@ p7_hmm_SetCtime(P7_HMM *hmm)
  * Synopsis:  Calculate and set model composition, <hmm->compo[]>
  *
  * Purpose:   Calculates the mean residue composition emitted by
- *            model <hmm>, and set <hmm->compo[]> to it.
+ *            model <hmm>, and sets <hmm->compo[]> to it.
  *
  * Returns:   <eslOK> on success.
  *
@@ -623,7 +623,7 @@ p7_hmm_SetCtime(P7_HMM *hmm)
  *            simply renormalize compo[], rather than the fancier
  *            previous version. This avoids error accumulation,
  *            but it also guarantees that compo[] will trivially
- *            pass the hmm_Validation() step; it's not really
+ *            pass the p7_hmm_Validate() step; it's not really
  *            validating the SetComposition() calculation at all.                                 
  *            (For description of #h84, error analysis, and the fix,
  *            xref J7/7; SRE, Tue Nov  2 14:32:29 2010)
@@ -680,7 +680,7 @@ p7_hmm_SetComposition(P7_HMM *hmm)
  *            sequence itself.
  *            
  *            In both cases, if the emission probability is $\geq$
- *            certain threshold, the residue is upper cased. The
+ *            a certain threshold, the residue is upper cased. The
  *            threshold is arbitrarily set to 0.9 for nucleic acid
  *            alphabets (<eslDNA>, <eslRNA>) and 0.5 for amino acid
  *            alphabets (<eslAMINO>) and all other alphabets.
@@ -822,8 +822,6 @@ p7_hmm_Scale(P7_HMM *hmm, double scale)
  *
  * Args:      hmm     - counts based HMM.
  *            exp     - exponential factor; 1.0=no scaling.
- *            ret_scaleavg - returns the mean of the per-column scale factors corresponding
- *                           to the factor exp.
  *
  * Returns:   <eslOK> on success.
  */
@@ -1032,8 +1030,8 @@ p7_hmm_SampleUngapped(ESL_RANDOMNESS *r, int M, const ESL_ALPHABET *abc, P7_HMM 
   return status;
 }
 
-/* Function:  esl_hmm_SampleEnumerable()
- * Synopsis:  Sample an random HMM with no nonzero insertion transitions.
+/* Function:  p7_hmm_SampleEnumerable()
+ * Synopsis:  Sample a random HMM with no nonzero insertion transitions.
  *
  * Purpose:   Sample a random HMM with random emission and 
  *            transition probabilities with the exception that
@@ -1246,7 +1244,7 @@ p7_hmm_Compare(P7_HMM *h1, P7_HMM *h2, float tol)
 }
 
 /* Function:  p7_hmm_Validate()
- * Synopsis:  Validate a <P7_HMM> data structuure.
+ * Synopsis:  Validate a <P7_HMM> data structure.
  *
  * Purpose:   Validates the internals of the HMM structure <hmm>.
  * 
@@ -1408,7 +1406,7 @@ utest_occupancy(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc)
 /* The composition unit test validates the SetComposition()
  * calculation against the composition of a large number of sampled
  * core HMM traces. This also exercises the correctness of
- * p7_hmm_Sample() and p7_hmm_SetOccupancy(). 
+ * p7_hmm_Sample() and p7_hmm_CalculateOccupancy(). 
  * 
  * SRE, Fri Dec  4 13:04:52 2009 [#h71; J5/120]
  */

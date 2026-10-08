@@ -3204,7 +3204,9 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   int       i, e;
   int       splice_cnt;
   float     filtersc;
-  float     envsc;
+  float     envsc, bwdsc;
+  float     fbdiff;
+  int       fbdisagree;
   float     seq_score;
   float     oasc;
   float     P;
@@ -3248,7 +3250,9 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, pli->amino_sq->n, &filtersc);
 
   p7_Forward (pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, &envsc);
-  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, NULL);
+  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, &bwdsc);
+  fbdiff     = fabsf(envsc - bwdsc);
+  fbdisagree = (fbdiff > 0.01);
 
   /* <fwd> is overwritten below; p7_splice_ScoreExons() needs these Forward values */
   for (i = 0; i <= pli->amino_sq->n; i++) {
@@ -3257,6 +3261,9 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   }
 
   if((status = p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd)) == eslERANGE) {  /* <bwd> is now overwritten with post probabilities */
+    fprintf(stderr, "FBDBG query=%s target=%s start=%lld end=%lld revcomp=%d nres=%d fwd=%.6f bwd=%.6f diff=%.6f disagree=%d event=erange\n",
+            om->name, path_seq->name, (long long) path_seq->start, (long long) path_seq->end,
+            spliced_path->revcomp, pli->amino_sq->n, envsc, bwdsc, fbdiff, fbdisagree);
     /* This is a rare event usually caused by a low probability exon somewhere in the path.
      * If we can find the offending exon and cut the path in two at that point then we can
      * save the good exons, but to do that we need an alignment so we create one with Viterbi */
@@ -3337,6 +3344,9 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   /*Check for zero posterior probability cause by underflow and remove low quality exons */
   for(e = 0; e < hit->dcl->ad->exon_cnt; e++) {
     if(hit->dcl->ad->exon_pp[e] == 0.0) {
+      fprintf(stderr, "FBDBG query=%s target=%s start=%lld end=%lld revcomp=%d nres=%d fwd=%.6f bwd=%.6f diff=%.6f disagree=%d event=zero_pp exon=%d of %d\n",
+              om->name, path_seq->name, (long long) path_seq->start, (long long) path_seq->end,
+              spliced_path->revcomp, pli->amino_sq->n, envsc, bwdsc, fbdiff, fbdisagree, e + 1, hit->dcl->ad->exon_cnt);
       status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
 
       p7_trace_splice_Destroy(hit->dcl->tr);
@@ -3351,6 +3361,11 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
     }
   }
+
+  if (fbdisagree)
+    fprintf(stderr, "FBDBG query=%s target=%s start=%lld end=%lld revcomp=%d nres=%d fwd=%.6f bwd=%.6f diff=%.6f disagree=%d event=disagree_only\n",
+            om->name, path_seq->name, (long long) path_seq->start, (long long) path_seq->end,
+            spliced_path->revcomp, pli->amino_sq->n, envsc, bwdsc, fbdiff, fbdisagree);
 
   hit->dcl->ihmm = hit->dcl->ad->hmmfrom;
   hit->dcl->jhmm = hit->dcl->ad->hmmto;

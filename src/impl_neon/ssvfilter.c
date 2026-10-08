@@ -21,7 +21,7 @@
  *
  * The original MSV filter allows use of the J state to chain together
  * multiple matches in different diagonals. Thus, a full match can
- * consist of diagonal match followed by the J state and then another
+ * consist of a diagonal match followed by the J state and then another
  * diagonal match later in the sequence.  Going through the J state
  * has a certain price so for the full match to contain two different
  * diagonal matches connected by the J state, each of the individual
@@ -33,9 +33,9 @@
  * J state. This is the basis of the idea used here, which is to
  * completely ignore the J state. To avoid this leading to false
  * negatives, we check the resulting maximum score against the cost of
- * the going through the J state. In the rare cases where the J state
- * may in fact have been used, we return eslNORESULT. This indicates
- * to the original J state that it should recalculate the score.
+ * going through the J state. In the rare cases where the J state
+ * may in fact have been used, we return eslENORESULT. This indicates
+ * to the caller that it should recalculate the score.
  *
  * Since removing the J state allows significant improvements in
  * speed, the extra overhead of having to go through the original MSV
@@ -58,10 +58,10 @@
  *   xJ = xE - om->tec_b > om->base_b
  *
  * We defer this check until the final maximal xE value has been
- * calculated. If the above holds true, we return eslNORESULT.
+ * calculated. If the above holds true, we return eslENORESULT.
  *
  * Since the J state is removed, the xBv vector is constant, so we can
- * set it once an for all to a vector where all entries are:
+ * set it once and for all to a vector where all entries are:
  *
  *   om->base_b - om->tjb_b - om->tbm_b
  *
@@ -94,13 +94,13 @@
  *      real match scores may have.
  *
  *   3: The match score (and bias) is subtracted. The subtracted score
- *      must be positive since we using are unsigned bytes, thus the
+ *      must be positive since we are using unsigned bytes, thus the
  *      score subtracted here is the one adjusted for bias. We also
  *      progress to the next match score (rsc++).
  *
  *   4: The global maximum is updated.
  *
- * When the everything has been traversed, xEv is checked for a number
+ * When everything has been traversed, xEv is checked for a number
  * of conditions. First, the maximum value is extracted to xE, though.
  *
  * if xE is greater than or equal to 255 - om->bias_b, there may have
@@ -124,7 +124,7 @@
  *      instead of an unsigned addition followed by an unsigned
  *      subtraction.
  *
- * (This comment from the original implementation, doesn't apply to NEON)
+ * (This comment is from the original implementation and doesn't apply to NEON)
  * It is a challenge that SSE2 does not have a signed byte max
  * operation, yet we need to subtract a signed byte in idea B. First
  * the new code, then the explanation:
@@ -147,7 +147,7 @@
  * going to pass from signed negative values to non-negative values
  * without any saturation kicking in. In the unsigned domain this
  * basically constitutes an overflow from 255 to 0. This means that we
- * may miss a high score of it crosses this boundary.
+ * may miss a high score if it crosses this boundary.
  *
  * The highest positive effect that the subtraction can have is to add
  * om->bias_b, since this is the highest real match score. So only
@@ -169,11 +169,11 @@
  *
  *   xE >= 255 - om->bias_b                        (possible overflow)
  *
- *   xE > om->tjb_b + om->tbm_b + om->tec_b - 128  (possible J state)
+ *   xE > om->tjb_b + om->tbm_b + om->tec_b + 128  (possible J state)
  *
  * To avoid having to call too many false positives, we do not want
  * the overflow to occur before the J state becomes possible. This
- * mean that we want:
+ * means that we want:
  *
  *   (Overflow => J state)
  *
@@ -181,7 +181,7 @@
  *
  *   <=>  om->tjb_b + om->tbm_b + om->tec_b + om->bias_b < 127
  *
- * The worst case bias is 19, om->tec_B is 3 for a sequence length of
+ * The worst case bias is 19, om->tec_b is 3 for a sequence length of
  * L and a model length of M, we have:
  *
  *   om->tjb_b = 3 * logf(3 / (L + 3))
@@ -197,7 +197,7 @@
  * A final thing to consider is what to do on an overflow. Since we
  * shifted the baseline for the calculation, the question is if an
  * overflow is necessarily going to happen in the original MSV
- * filter. This is true when our baseline as no higher than the
+ * filter. This is true when our baseline is no higher than the
  * original MSV filter baseline.  Thus, when the following holds we
  * know that an overflow will occur for the original filter:
  *
@@ -207,7 +207,7 @@
  * have to indicate that in the return value.
  *
  * Since we perform a single signed subtraction instead of an unsigned
- * addition followed by in unsigned subtraction, a new set of match
+ * addition followed by an unsigned subtraction, a new set of match
  * scores have been introduced in the P7_OPROFILE structure. These are
  * called sb where the originals are rb.
  *
@@ -216,7 +216,7 @@
  * =======================
  *
  * The basic idea is to traverse the sequence while analyzing only
- * enough diagonals that they may residue in registers rather than
+ * enough diagonals that they may reside in registers rather than
  * memory. This may require several traversals of the sequence, but
  * this is still worth it due to reduced memory access.
  *
@@ -244,8 +244,8 @@
  *
  * This means that the sweep contains two different phases: one where
  * vectors are being moved without shifting and then a phase where the
- * vectors are being shifted one by one until the have all been
- * shifted. If we have Q sets of 16 diagonal and we have w registers
+ * vectors are being shifted one by one until they have all been
+ * shifted. If we have Q sets of 16 diagonals and we have w registers
  * in use, the first phase takes Q - w rounds and the second phase
  * takes w rounds and we are back where we started. This is done until
  * the sequence ends.
@@ -287,7 +287,7 @@
  * are not going to slow things down.
  *
  * To make the code maintainable, we cannot write out all these
- * functions. Instead the are defined via macros. So a function
+ * functions. Instead they are defined via macros. So a function
  * definition may look like this:
  *
  *   __m128i calc_band_6(ESL_DSQ *dsq, int L, P7_OPROFILE *om, int q, __m128i beginv, __m128i xEv)

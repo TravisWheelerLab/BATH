@@ -68,7 +68,7 @@ int (*p7_Viterbi_SplicedTrace)(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if profile is not 1-codon-length.
- *            <eslEFAIL>  if traceback fails.
+ *            <eslFAIL>   if traceback fails.
  */
 static int
 p7_Viterbi_SplicedTrace_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
@@ -576,7 +576,7 @@ static ESL_OPTIONS options[] = {
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options]";
-static char banner[] = "test driver for p7_Viterbi_SplicedGlobal()";
+static char banner[] = "test driver for p7_Viterbi_Spliced()";
 
 int
 main(int argc, char **argv)

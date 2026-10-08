@@ -1,4 +1,6 @@
 /* Definition of multidomain structure of a target sequence, and
+ * rescoring as a sum of individual domains, with null2 correction.
+ *
  * Contents:
  *    1. The P7_DOMAINDEF object: allocation, reuse, destruction
  *    2. Routines inferring domain structure of a target sequence
@@ -213,9 +215,9 @@ p7_domaindef_Reuse(P7_DOMAINDEF *ddef)
  *            under the ad hoc null2 model; this is a measure of local
  *            biased composition.
  *            
- *            These three fields will only be available after a call
+ *            These four vectors will only be available after a call
  *            to domain definition by
- *            <p7_domaindef_ByPosteriorHeuristics()>.
+ *            <p7_domaindef_ByPosteriorHeuristics_BATH()>.
  *
  * Returns:   <eslOK> on success
  *            
@@ -278,13 +280,13 @@ p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef)
  * Synopsis:  Define "domains" in a DNA window using posterior probs
  *            with frameshift awareness.
  *
- * Purpose:   Given a DNA sequence <sq> and frameshift model (<om_fs5>) 
+ * Purpose:   Given a DNA window <windowsq> and frameshift model (<om_fs5>) 
  *            for which we have already calculated a Forward and 
  *            Backward parsing matrices <oxf> and <oxb>; use posterior 
  *            probability heuristics to determine an annotated "domain". 
  *            In this context domains are simply subsequences of the DNA 
- *            that have demonstrated a high prbability of homology to the 
- *            core modle. For each domain found, score it (with null2
+ *            that have demonstrated a high probability of homology to the 
+ *            core model. For each domain found, score it (with null2
  *            calculations) and obtain an optimal accuracy alignment,
  *            using <fwd> and <bck> matrices as workspace for the
  *            necessary full-matrix DP calculations. Caller provides a
@@ -319,7 +321,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
   if ((status = p7_DomainDecoding_Frameshift(om_fs5, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                               */
   
   esl_vec_FSet(ddef->n2sc, windowsq->n+1, 0.0);                                                /* ddef->n2sc null2 scores are initialized                        */
-  ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[sq->n])   */
+  ddef->nexpected = ddef->btot[windowsq->n];                                                   /* posterior expectation for # of domains (same as etot[windowsq->n]) */
   p7_fs_ReconfigUnihit(gm_fs5, saveL);                                                          /* process each domain in unihit mode, regardless of om->mode     */
  p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL);
 
@@ -625,9 +627,9 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_SQ *orfsq, const ESL_SQ *windo
  * More precisely: return TRUE if  \max_z [ \min (B(z), E(z)) ]  >= rt3
  * where
  *   E(z) = expected number of E states occurring in region before z is emitted
- *        = \sum_{y=i}^{z} eocc[i]  =  etot[z] - etot[i-1]
+ *        = \sum_{y=i}^{z} eocc[y]  =  etot[z] - etot[i-1]
  *   B(z) = expected number of B states occurring in region after z is emitted
- *        = \sum_{y=z}^{j} bocc[i]  =  btot[j] - btot[z-1]               
+ *        = \sum_{y=z}^{j} bocc[y]  =  btot[j] - btot[z-1]               
  *        
  *        
  * Because this relies on the <ddef->etot> and <ddef->btot> arrays,
@@ -655,7 +657,7 @@ is_multidomain_region(P7_DOMAINDEF *ddef, int i, int j)
  * This function is supposed to define the trigger for when we need 
  * to hand a "region" of a DNA window off to a deeper analysis (using 
  * stochastic tracebacks and clustering) because there's reason to 
- * suspect it may encompass two or more seperate homologous regions. 
+ * suspect it may encompass two or more separate homologous regions. 
  * 
  * The criterion is to find the split point z at which the expected
  * number of E occurrences preceding B occurrences is maximized, and
@@ -667,9 +669,9 @@ is_multidomain_region(P7_DOMAINDEF *ddef, int i, int j)
  * More precisely: return TRUE if  \max_z [ \min (B(z), E(z)) ]  >= rt3
  * where
  *   E(z) = expected number of E states occurring in region before z is emitted
- *        = \sum_{y=i}^{z} eocc[i]  =  etot[z] - etot[i-1]
+ *        = \sum_{y=i}^{z} eocc[y]  =  etot[z] - etot[i-1]
  *   B(z) = expected number of B states occurring in region after z is emitted
- *        = \sum_{y=z}^{j} bocc[i]  =  btot[j] - btot[z-1]               
+ *        = \sum_{y=z}^{j} bocc[y]  =  btot[j] - btot[z-1]               
  *        
  *        
  * Because this relies on the <ddef->etot> and <ddef->btot> arrays,
@@ -752,7 +754,7 @@ is_multidomain_region_frameshift(P7_DOMAINDEF *ddef, int i, int j)
  *
  * <ddef->sp> gets filled in, and upon return, it's holding the answers 
  *    (the cluster definitions). When the caller is done retrieving those
- *    answers, it needs to <esl_spensemble_Reuse()> it before calling
+ *    answers, it needs to <p7_spensemble_Reuse()> it before calling
  *    <region_trace_ensemble()> again.
  *    
  * <ddef->tr> is used as working memory for sampled traces.
@@ -873,13 +875,10 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
  * 
  * Other information on what's happened in working memory:
  * 
- * <ddef->n2sc[ireg..jreg]> now contains log f'(x_i) / f(x_i) null2 scores
- *    for each residue.
- *
  * <ddef->sp> gets filled in, and upon return, it's holding the answers 
  *    (the cluster definitions). When the caller is done retrieving those
- *    answers, it needs to <esl_spensemble_Reuse()> it before calling
- *    <region_trace_ensemble()> again.
+ *    answers, it needs to <p7_spensemble_Reuse()> it before calling
+ *    <region_trace_ensemble_frameshift()> again.
  *    
  * <ddef->tr> is used as working memory for sampled traces.
  *    
@@ -967,20 +966,15 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs
  * The alignment is an optimal accuracy alignment (sensu IH Holmes),
  * also obtained in unilocal mode.
  * 
- * The caller provides DP matrices <gx1> and <gx2> with sufficient
- * space to hold Forward and Backward calculations for this domain
- * against the model. (The caller will typically already have matrices
- * sufficient for the complete sequence lying around, and can just use
- * those.) A third matrix <gxppfs> will need to be created because the 
- * frameshift aware posterior probability algorithim does not allow 
- * gx2 to be overwriten. It will be destroyed again before exit. 
+ * The Forward and Backward calculations for this domain use the
+ * pipeline's frameshift DP matrices <pli->fwd_fs> and <pli->bck_fs>.
  *
  * The caller also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
  * working space and heuristic thresholds.
  *
  * Returns <eslOK> if a domain was successfully identified, scored,
- * and aligned in the envelope; if so, the relavant information is
+ * and aligned in the envelope; if so, the relevant information is
  * registered in <ddef>, in <ddef->dcl>.
  *
  * Throws:    <eslEMEM> on allocation failure. 
@@ -1022,9 +1016,9 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   seqscore = (envsc-nullsc) / eslCONST_LOG2; 
   P = esl_exp_surv(seqscore,  om_fs5->evparam[p7_FTAUFS5],  om_fs5->evparam[p7_FLAMBDA]);   
 
-  /* DNA windows often contain one true positive domain and one of more low 
+  /* DNA windows often contain one true positive domain and one or more low 
    * scoring false positive domain(s).  Use the current residue count to 
-   * throw away any domains already bellow the reporting threshold before 
+   * throw away any domains already below the reporting threshold before 
    * we do any further calculations */
 
   pli->Z = (float)pli->nres / (float)(gm_fs5->max_length*3);  /* nres counts nucleotides, as in p7_tophits_ComputeEvalues_BATH() */
@@ -1196,8 +1190,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * 
  * The caller provides model <om> configured in unilocal mode; by
  * using unilocal (as opposed to multilocal), we're going to force the
- * identification of a single domain in this envelope now. Models <gm> 
- * and <gm_fs5> are also provided for use in creasting the alignment
+ * identification of a single domain in this envelope now. Model <gm> 
+ * is also provided for use in creating the alignment
  * display.
  * 
  * The alignment is an optimal accuracy alignment (sensu IH Holmes),
@@ -1264,7 +1258,7 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
     ddef->nalloc *= 2;
   }
 
-  /*Index bewfore converting to get ORF start coords */
+  /*Index before converting to get ORF start coords */
   p7_trace_Index(ddef->tr);
 
   dom = &(ddef->dcl[ddef->ndom]);

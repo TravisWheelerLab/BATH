@@ -219,7 +219,7 @@ main(int argc, char **argv)
 #include "esl_randomseq.h"
 
 /* utest_decoding_fs()
- * Compare p7_Decoding_Frameshift() against the generic p7_Decoding_Frameshift().
+ * Compare p7_Decoding_Frameshift() against the generic p7_GDecoding_Frameshift().
  * Both are given the same sequence and profile.  We run the generic full-matrix
  * forward/backward to produce a generic PP matrix (gx1), and the SSE full-matrix
  * forward/backward to produce an SSE PP matrix (fwd).  We compare the special-state

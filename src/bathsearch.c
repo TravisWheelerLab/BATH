@@ -47,7 +47,7 @@ typedef struct {
   P7_FS_OPROFILE   *om_fs3;     /* optimized 3 codon length frameshift query profile             */
   P7_SCOREDATA     *scoredata;  /* used to create DNA windows from ORFs                              */
   ESL_GENCODE      *gcode;      /* used for translating ORFs                                         */
-  ESL_GENCODE_WORKSTATE *wrk;   /* used for translation of taget DNA to ORFs                         */ 
+  ESL_GENCODE_WORKSTATE *wrk;   /* used for translation of target DNA to ORFs                        */ 
   P7_HMM_WINDOWLIST     *hw;    /* exon seeds for splicing algorithms                                */
 
 } WORKER_INFO;
@@ -73,7 +73,7 @@ static ESL_OPTIONS options[] = {
   { "-h",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "show brief help on version and usage",                                     1 },
 
   /* Algorithm options */
-  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--splice",     "use frameshift alignment algorthims",                                      2 },
+  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--splice",     "use frameshift alignment algorithms",                                      2 },
   { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--fs",         "use spliced alignment algorithms ",                                        2 },
 
   /* Control of output */
@@ -422,7 +422,7 @@ bath_open_msa_file(struct cfg_s *cfg,  ESL_MSAFILE **qfp_msa, ESL_ALPHABET **abc
   }
 
   if (status == eslOK && (*qfp_msa)->format == eslMSAFILE_AFA && cfg->qfmt != eslMSAFILE_AFA) {
-    /* this could just be a sequence file with o single sequence (in which case, fall through
+    /* this could just be a sequence file with a single sequence (in which case, fall through
      * to the "sequence" case), or with several same-sized sequences (in which case ask for guidance) */
     if (msa != NULL && msa->nseq > 1)
       p7_Fail("Query file type could be either aligned or unaligned; please specify (--qformat [afa|fasta])");
@@ -535,7 +535,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_WORK_QUEUE  *queue                    = NULL;
 #endif
 
-  /*error handeling */
+  /*error handling */
   char             errbuf[eslERRBUFSIZE];
   int              status                   = eslOK;
   int              qhstatus                 = eslOK;
@@ -745,7 +745,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     gm      = NULL;
     om      = NULL;       /* optimized query profile                  */
 
-    if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
+    if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formatted for bathsearch
       if( !(hmm->flags & p7H_STATS) )
         p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
 
@@ -806,7 +806,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       om_fs3 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_3CODONS);
       om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
 
-      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build framshift aware codon HMM */
+      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build frameshift aware codon HMM */
       p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs3, 100, p7_LOCAL);
 
       p7_fs_oprofile_Convert(gm_fs3, om_fs3);
@@ -864,7 +864,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
     }
 
-    /* establish the id_lengths data structutre */
+    /* establish the id_lengths data structure */
     id_length_list = init_id_length(1000);
 
 #ifdef HMMER_THREADS
@@ -934,11 +934,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	if(!esl_opt_IsUsed(go, "--splice")) assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
-    /* Sort and remove hits bellow threshold */
+    /* Sort and remove hits below threshold */
     p7_tophits_SortBySortkey(tophits_accumulator);
 
     /* Set Z = 1 to prevent changing e-values. Correct Z 
-     * was calcualted by p7_tophits_ComputeBathEvalues() */
+     * was calculated by p7_tophits_ComputeBathEvalues() */
     pipelinehits_accumulator->Z = 1;    
     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
@@ -1181,7 +1181,7 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
       seqid++;
 
       if (       seqid == n_targetseqs // hit the sequence target
-           && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
+           && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or it's complete
          ) 
       {
         abort = TRUE;

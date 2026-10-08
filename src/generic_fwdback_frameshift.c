@@ -32,11 +32,11 @@
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
  *            aware translated comparison between a dna sequence and a
- *            framshift-aware codon HMM.  
+ *            frameshift-aware codon HMM.  
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
  *            <gm_fs5>, and DP matrix <gx> allocated with <L> cells for 
- *            all 5 special states <N,B,E,J,C>, and <L> by <gm_fs5-M> 
+ *            all 5 special states <N,B,E,J,C>, and <L> by <gm_fs5->M> 
  *            cells for all core model states <M,I,D> and all 5 codon
  *            lengths; calculate the probability of the sequence
  *            given the model using the Forward algorithm; use the 
@@ -277,7 +277,7 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
 
   }
 
-  /* Main Recusion. Done as a pull */
+  /* Main Recursion. Done as a pull */
   for (i = 5; i <= L; i++) 
   {
 
@@ -286,7 +286,7 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
      
     XMX_FS(i, p7G_E) = -eslINFINITY;
    
-    /* Reasign nucleotide to correct temporary holders for use in emissions array */ 
+    /* Reassign nucleotide to correct temporary holders for use in emissions array */ 
     t = u;
     u = v;
     v = w;
@@ -427,7 +427,7 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
  *            <gm_fs3->M> cells for all core model states <M,I,D>; 
  *            calculate the probability of the sequence given the model 
  *            and 3 permissible codon lengths using the Forward algorithm - 
- *            reusing the rows in the core matrix; use the intermdiate 
+ *            reusing the rows in the core matrix; use the intermediate 
  *            value matrix <iv> to store partial calculations; return the 
  *            Forward matrix in <gx>, and the Forward score in <ret_sc>.
  *           
@@ -440,9 +440,9 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm_fs3 - framshift-aware codon profile. 
+ *            gm_fs3 - frameshift-aware codon profile. 
  *            gx     - DP matrix 
- *            iv     - intermedite value matrix 
+ *            iv     - intermediate value matrix 
  *            opt_sc - optRETURN: Forward lod score in nats
  *           
  * Return:    <eslOK> on success.
@@ -516,7 +516,7 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
   XMX(2,p7G_B) = p7_FLogsum(XMX(2,p7G_N) + gm_fs3->xsc[p7P_N][p7P_MOVE],
                             XMX(2,p7G_J) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
 
-  /* Main Recusion */
+  /* Main Recursion */
   for(i = 3; i <= L; i++) {
 
     u = v;
@@ -556,8 +556,8 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
 
     for (k = 1; k < M; k++)
     {
-    /* For every row the 1 nuc codon translations must be reclacuated (i-1).
-     * The other codon transtions can be reused with i-1 becoming 1-2,
+    /* For every row the 1 nuc codon transitions must be recalculated (i-1).
+     * The other codon transitions can be reused with i-1 becoming i-2,
      * i-2 becoming i-3 and so on */
       IVX3(ivx_2,k) = p7_FLogsum(MMX(prev2,k-1) + TSC(p7P_MM,k-1),
                       p7_FLogsum(IMX(prev2,k-1) + TSC(p7P_IM,k-1),
@@ -626,16 +626,17 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
  * Synopsis:  The frameshift-aware Forward algorithm using 5 codon lengths - low memory.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
- *            aware translated comparison between a dna sequence and an
- *            amino acid HMM. 
+ *            aware translated comparison between a dna sequence and a
+ *            frameshift aware codon HMM, using five codon lengths,
+ *            with a minimal sized DP matrix.
  *
  *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gmi_fs>, and DP matrix <gx> allocated with <L> cells for
+ *            <gm_fs5>, and DP matrix <gx> allocated with <L> cells for
  *            the special states <N,B,E,J,C>, and <PARSER_ROWS_FWD> by 
  *            <gm_fs5->M> cells for all core model states <M,I,D>; 
- *            calculate th probability of the sequence given the model 
+ *            calculate the probability of the sequence given the model 
  *            and 5 permissible codon lengths using the Forward algorithm 
- *            - reusing the rows in the core matrix; use the intermdiate
+ *            - reusing the rows in the core matrix; use the intermediate
  *            value matrix <iv> to store partial calculations; return the 
  *            Forward  matrix in <gx>, and the Forward score in <ret_sc>.
  *           
@@ -648,9 +649,9 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm_fs5  - framshift aware codon profile. 
+ *            gm_fs5  - frameshift aware codon profile. 
  *            gx     - DP matrix with room for an MxL alignment
- *            iv     - intermediate value martix
+ *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Forward lod score in nats
  *           
  * Return:    <eslOK> on success.
@@ -746,7 +747,7 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
   for (k = 1; k < M; k++) {
     IVX5(2,k) = XMX(1,p7G_B) + TSC(p7P_BM,k-1);
     MMX(2,k)  = IVX5(2,k) + MSC_FS1(k);
-    MMX(2,k)  = p7_FLogsum(MMX(2,k), IVX5(1,k) + MSC_FS2(k)); //IVX5(1,k) now holds the i-2 transtion
+    MMX(2,k)  = p7_FLogsum(MMX(2,k), IVX5(1,k) + MSC_FS2(k)); //IVX5(1,k) now holds the i-2 transition
 	IMX(2,k)  = -eslINFINITY;
     DMX(2,k)  = p7_FLogsum(MMX(2,k-1) + TSC(p7P_MD,k-1),
                            DMX(2,k-1) + TSC(p7P_DD,k-1));
@@ -758,7 +759,7 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
 
   IVX5(2,M) = XMX(1,p7G_B) + TSC(p7P_BM,M-1);
   MMX(2,M)  = IVX5(2,M) + p7P_MSC_CODON(gm_fs5, M, c1);
-  MMX(2,M)  = p7_FLogsum(MMX(2,M), IVX5(1,M) + p7P_MSC_CODON(gm_fs5, M, c2)); //IVX5(1,M) now holds the i-2 transtion
+  MMX(2,M)  = p7_FLogsum(MMX(2,M), IVX5(1,M) + p7P_MSC_CODON(gm_fs5, M, c2)); //IVX5(1,M) now holds the i-2 transition
   IMX(2,M)  = -eslINFINITY;
   DMX(2,M)  = p7_FLogsum(MMX(2,M-1) + TSC(p7P_MD,M-1),
                          DMX(2,M-1) + TSC(p7P_DD,M-1));
@@ -870,7 +871,7 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
 
   }
 
-  /* Main Recusion. Done as a pull. */
+  /* Main Recursion. Done as a pull. */
  
   for (i = 5; i <= L; i++) 
   {
@@ -888,7 +889,7 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
  
     XMX(i, p7G_E) = -eslINFINITY;
 
-    /* Reasign nucluotide to correct temporary holders for use in emissions array */ 
+    /* Reassign nucleotide to correct temporary holders for use in emissions array */ 
     t = u;
     u = v;
     v = w;
@@ -1024,9 +1025,9 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm_fs5  - framshift aware codon profile.
+ *            gm_fs5  - frameshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
- *            iv     - intermediate value martix
+ *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Backward lod score in nats
  *           
  * Return:    <eslOK> on success.
@@ -1061,7 +1062,7 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
   /* Initialization of core model for row L */
   for (k = M-1; k >= 1; k--) 
   {
-    /*L comes form E & D state only */
+    /*L comes from E & D state only */
     MMX(L,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
                            DMX(L, k+1)  + TSC(p7P_MD,k));
 
@@ -1392,10 +1393,10 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
 }
 
 
-/* Function:  p7_GBackwardPraser_Frameshift_3Codons()
+/* Function:  p7_GBackwardParser_Frameshift_3Codons()
  * Synopsis:  The Backward algorithm.
  *
- * Purpose:   The Backward dynamic programming algorithm - low memeory, 3 codon lengths.
+ * Purpose:   The Backward dynamic programming algorithm - low memory, 3 codon lengths.
  * 
  *            Given a digital sequence <dsq> of length <L>, a profile <gm_fs3>, 
  *            and DP matrix <gx> allocated for at least <L>  cells for the 
@@ -1411,9 +1412,9 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm_fs3  - framshift aware codon profile.
+ *            gm_fs3  - frameshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
- *            iv     - intermediate value martix
+ *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Backward lod score in nats
  *           
  * Return:    <eslOK> on success.
@@ -1736,10 +1737,10 @@ p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
 
 }
 
-/* Function:  p7_GBackwardPraser_Frameshift_5Codons()
+/* Function:  p7_GBackwardParser_Frameshift_5Codons()
  * Synopsis:  The Backward algorithm.
  *
- * Purpose:   The Backward dynamic programming algorithm - low memeory, 5 codon lengths.
+ * Purpose:   The Backward dynamic programming algorithm - low memory, 5 codon lengths.
  *
  *            Given a digital sequence <dsq> of length <L>, a profile <gm_fs5>,
  *            and DP matrix <gx> allocated for at least <L>  cells for the
@@ -1755,9 +1756,9 @@ p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm_fs5  - framshift aware codon profile.
+ *            gm_fs5  - frameshift aware codon profile.
  *            gx     - DP matrix with room for an MxL alignment
- *            iv     - intermediate value martix
+ *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Backward lod score in nats
  *
  * Return:    <eslOK> on success.
@@ -1792,7 +1793,7 @@ p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
   /* Initialization of core model for row L */
   for (k = M-1; k >= 1; k--) 
   {
-    /*L comes form E & D state only */
+    /*L comes from E & D state only */
     MMX(curr,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
                               DMX(curr, k+1)  + TSC(p7P_MD,k));
  
@@ -2335,8 +2336,8 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
   if ((tr     = p7_trace_Create())                                            == NULL)  esl_fatal("trace creation failed");
   if ((iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS))                        == NULL)  esl_fatal("ivx creation failed");
 
-  /* Compare Viterbi, Forward, and Backward scores when aligneing to DNA sequences reverse translated 
-     from randomly generated Amnio Acid sequences. Keep track of the average Forward score */
+  /* Compare Viterbi, Forward, and Backward scores when aligning to DNA sequences reverse translated 
+     from randomly generated Amino Acid sequences. Keep track of the average Forward score */
   avg_sc_rnd = 0.;
   for (idx = 0; idx < nseq; idx++)
     {
@@ -2386,8 +2387,8 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
   avg_sc_rnd /= (float) nseq;
 
 
-  /* Get the average forward score on DNA sequence reverse tranlated from Amino Acid 
-   * sequence generated by the model and compare to the averge on random sequence */
+  /* Get the average forward score on DNA sequence reverse translated from Amino Acid 
+   * sequence generated by the model and compare to the average on random sequence */
   avg_sc_gen = 0.;
   for (idx = 0; idx < nseq; idx++)
     {
@@ -2480,7 +2481,7 @@ main(int argc, char **argv)
   ESL_GENCODE    *gcode  = NULL;
   P7_CODONTABLE  *ct     = NULL;
   int             M      = 100;
-  int             L      = 600; // must by a multiple of 3
+  int             L      = 600; // must be a multiple of 3
   int             nseq   = 20;
   char            errbuf[eslERRBUFSIZE];
 

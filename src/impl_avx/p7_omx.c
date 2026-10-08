@@ -1,6 +1,6 @@
 /* P7_OMX dispatcher and ISA-independent functions.
  * Provides the non-suffixed extern functions declared in impl_avx.h.
- * ISA-specific work is delegated to p7_omx_sse.c (and future _avx.c/_avx512.c).
+ * ISA-specific work is delegated to p7_omx_sse.c and p7_omx_avx.c.
  * Debug dump routines are implemented directly here using SSE ifdefs.
  *
  * Contents:

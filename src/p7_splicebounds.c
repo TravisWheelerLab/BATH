@@ -1,4 +1,4 @@
-/* SPLICE_BOUNDS: list of hmm and sequence coordinate boundries to constrain paths
+/* SPLICE_BOUNDS: list of hmm and sequence coordinate boundaries to constrain paths
  *
  * Contents:
  *    1. The SPLICE_BOUNDS object.
@@ -69,7 +69,7 @@ p7_splicebounds_Create(int allocN)
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_splicebounds_GorwTo(SPLICE_BOUNDS *bounds, int allocN)
+p7_splicebounds_GrowTo(SPLICE_BOUNDS *bounds, int allocN)
 {
 
   int status;
@@ -113,7 +113,7 @@ p7_splicebounds_Destroy(SPLICE_BOUNDS *bounds)
   
 }
 
-/* Function:  p7_splicebounds_ADD()
+/* Function:  p7_splicebounds_Add()
  * Synopsis:  add new bound to <SPLICE_BOUNDS>.
  *
  * Returns:   <eslOK> on success.
@@ -124,7 +124,7 @@ p7_splicebounds_Add(SPLICE_BOUNDS *bounds, int64_t seq_min, int64_t seq_max, int
 {
 
   if(bounds->N == bounds->allocN) 
-    p7_splicebounds_GorwTo(bounds, bounds->allocN *2);
+    p7_splicebounds_GrowTo(bounds, bounds->allocN *2);
 
   bounds->bound_hmm_mins[bounds->N] = hmm_min;
   bounds->bound_hmm_maxs[bounds->N] = hmm_max;

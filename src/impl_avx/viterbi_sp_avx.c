@@ -410,7 +410,7 @@ p7_Viterbi_Spliced_avx(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_O
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if profile is not 1-codon-length.
- *            <eslEFAIL>  if traceback fails.
+ *            <eslFAIL>   if traceback fails.
  */
 int
 p7_Viterbi_SplicedTrace_avx(const ESL_DSQ *sub_dsq, const P7_OMX *ox,

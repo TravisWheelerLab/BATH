@@ -210,7 +210,7 @@ p7_GViterbi_longtarget(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
    *  goes like this:
    *    S =  XMX(i,p7G_E)
    *    vsc =  S + gm->xsc[p7P_E][p7P_MOVE] +  gm->xsc[p7P_C][p7P_MOVE];
-   *    P  = esl_gumbel_surv((vfsc - filtersc) / eslCONST_LOG2  ,  gm->evparam[p7_VMU],  gm->evparam[p7_VLAMBDA]);
+   *    P  = esl_gumbel_surv((vsc - filtersc) / eslCONST_LOG2  ,  gm->evparam[p7_VMU],  gm->evparam[p7_VLAMBDA]);
    *  and we're computing the threshold vsc, so invert it:
    *    (vsc - filtersc) /  eslCONST_LOG2 = esl_gumbel_invsurv( P, gm->evparam[p7_VMU],  gm->evparam[p7_VLAMBDA])
    *    vsc = filtersc + eslCONST_LOG2 * esl_gumbel_invsurv( P, gm->evparam[p7_VMU],  gm->evparam[p7_VLAMBDA])
@@ -321,7 +321,7 @@ p7_GViterbi_longtarget(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *
 /*
    gcc -g -O3      -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
    icc -O3 -static -o generic_viterbi_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_VITERBI_BENCHMARK generic_viterbi.c -lhmmer -leasel -lm
-   ./benchmark-generic-viterbi <hmmfile>
+   ./generic_viterbi_benchmark <hmmfile>
  */
 /* As of Fri Dec 28 14:48:39 2007
  *    Viterbi  = 61.8 Mc/s

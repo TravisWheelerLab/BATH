@@ -5,7 +5,7 @@
  *
  * Contents:
  *   1. The P7_HMMWINDOW object: allocation, initialization, destruction.
- *   2. Splcing Specific Functions
+ *   2. Splicing Specific Functions
  *   3. Debugging tools 
  *
  */
@@ -15,11 +15,11 @@
 #include "p7_splice.h"
 
 /*********************************************************************
- *# 1. The P7_MSVDATA object: allocation, initialization, destruction.
+ *# 1. The P7_HMMWINDOW object: allocation, initialization, destruction.
  *********************************************************************/
 
-/* Function:  p7_splicehits_CreateLists()
- * Synopsis:  Allocates an P7_HMM_WINDOWLIST with windows.
+/* Function:  p7_hmmwindow_CreateList()
+ * Synopsis:  Allocates a P7_HMM_WINDOWLIST with windows.
  *
  * Returns:   a pointer to the new <P7_HMM_WINDOWLIST> 
  *            structure on success.
@@ -72,7 +72,7 @@ ERROR:
  * Synopsis:  Return a pointer to the next window element on the list
  *
  * Purpose:   Accepts <id>, <pos>, <k>, <length>, <score>,
- *            and <complementarity>, assigns those to the next window
+ *            <complementarity>, and <target_len>, assigns those to the next window
  *            element, then returns it, increasing the size of the
  *            list, if necessary.
  *
@@ -171,7 +171,7 @@ window_seq_sorter(const void *vw1, const void *vw2) {
 
  if      (w1.n      > w2.n)      return  1;   // sort primarily from smallest to largest start pos
  else if (w1.n      < w2.n)      return -1;
- else if (w1.length < w2.length) return  1;   // secondarily, larger to smallest end position (i.e. longer hit first)
+ else if (w1.length < w2.length) return  1;   // secondarily, largest to smallest end position (i.e. longer hit first)
  else if (w1.length > w2.length) return -1;
  else                            return  0;
 
@@ -197,7 +197,7 @@ p7_hmmwindow_SortBySeq(P7_HMM_WINDOWLIST *w)
 }
 
 /*********************************************************************
- *# 1. Splicing Functions
+ *# 2. Splicing Functions
  *********************************************************************/
 
 
@@ -244,10 +244,10 @@ p7_hmmwindow_Merge(P7_HMM_WINDOWLIST *hw1, P7_HMM_WINDOWLIST *hw2)
 /* Function:  p7_hmmwindow_RemoveDuplicates()
  * Synopsis:  Remove duplicate entires in P7_HMM_WINDOWLIST
  *
- * Purpose:   Find any duplicate (ie overlapping) hmm windwow
+ * Purpose:   Find any duplicate (ie overlapping) hmm window
  *            and "remove" the shorter one by setting duplicate
  *            to TRUE. Also check for overlaps with hits in the 
- *            P7_TOPHITS, and set those as windwow as duplicate.
+ *            P7_TOPHITS, and set those as window as duplicate.
  *
  * Returns:   <eslOK> on success.
  *
@@ -293,7 +293,7 @@ p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3)
     intersect_hmmend   = ESL_MAX(hw->windows[j].k, hw->windows[i].k);
     intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
 
-    if(  intersect_hmmlen > 0              && // hmm corrds overlap and
+    if(  intersect_hmmlen > 0              && // hmm coords overlap and
       (( s_i >= s_j-3 && s_i <= s_j+3)     || // at least one side is essentially flush
        ( e_i >= e_j-3 && e_i <= e_j+3)     ||
        ( intersect_alilen >= len_i * 0.95) || // or one of the hits covers >90% of the other
@@ -342,7 +342,7 @@ p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3)
       intersect_hmmend   = ESL_MIN(th->hit[i]->dcl[0].jhmm, hw->windows[j].k);
       intersect_hmmlen   = intersect_hmmend - intersect_hmmstart + 1;
 
-      if(  intersect_hmmlen > 0              && // hmm corrds overlap and
+      if(  intersect_hmmlen > 0              && // hmm coords overlap and
         (( s_i >= s_j-3 && s_i <= s_j+3)     || // at least one side is essentially flush
          ( e_i >= e_j-3 && e_i <= e_j+3)     ||
          ( intersect_alilen >= len_i * 0.9) || // or one of the hits covers >90% of the other
@@ -361,7 +361,7 @@ p7_hmmwindow_RemoveDuplicates(P7_HMM_WINDOWLIST *hw, P7_TOPHITS *th, double F3)
 /* Function:  p7_hmmwindow_GetSeedHits()
  * Synopsis:  Find seed hits in P7_HMM_WINDOWLIST and transfer to P7_TOPHITS
  *
- * Purpose:   Find any hmm winodws in <hw> that are upstream or 
+ * Purpose:   Find any hmm windows in <hw> that are upstream or 
  *            downstream of a hit in the <th> and sdd them to 
  *            the <seed_hits>.
  *
@@ -415,7 +415,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
   last_strand = -1;
   i_start = 0;
 
-   /* Find all windows that within the max intron len upstream or downstram of a top hit */
+   /* Find all windows that are within the max intron len upstream or downstream of a top hit */
    for(h = 0; h < th->N; h++) {
 
     if ((th->hit[h]->flags & p7_IS_DUPLICATE)) continue;
@@ -432,7 +432,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
       if(hw->windows[i].complementarity < strand) { i++; continue; }
 
       /*If this is the first hit on a new sequence or strand, save
-       * the first postion in the saved hits that coresponds to
+       * the first position in the saved hits that corresponds to
        * that sequence and strand for future use */
 
       if(last_seqidx != th->hit[h]->seqidx || last_strand != strand) i_start = i;
@@ -463,7 +463,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
         }
       }
 
-      // Is saved hit downstearm of top hit
+      // Is saved hit downstream of top hit
       if(th->hit[h]->dcl->ihmm <= hmm_start ||
          th->hit[h]->dcl->jhmm <= hmm_end) {
 
@@ -511,7 +511,7 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
 
     window_min = hw->windows[i].n;
     window_max = hw->windows[i].n + hw->windows[i].length - 1;    
-    /* Fetch the next winow until it contains the current window */
+    /* Fetch the next window until it contains the current window */
     while(status == eslOK && window_max > seq_max) {
       status = esl_sqio_ReadWindow(dbfp, gm->max_length*3, window_len, dbsq_dna);
       seq_max = ESL_MAX(dbsq_dna->start, dbsq_dna->end);

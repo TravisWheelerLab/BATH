@@ -65,7 +65,7 @@ static float flogsum_lookup[p7_LOGSUM_TBL]; /* p7_LOGSUM_TBL=16000: (A-B) = 0..1
  *****************************************************************/
 
 /* Function:  p7_FLogsumInit()
- * Synopsis:  Initialize the p7_Logsum() function.
+ * Synopsis:  Initialize the p7_FLogsum() function.
  *
  * Purpose:   Initialize the lookup table for <p7_FLogsum()>. 
  *            This function must be called once before any
@@ -393,7 +393,7 @@ main(int argc, char **argv)
  *     
  * [2] SIMD vectorization of a log-space Forward remains vexing.
  *     Sparse-rescaled probability-space Forward vector
- *     implemementation only works for local; glocal or global may
+ *     implementation only works for local; glocal or global may
  *     underflow long delete paths. Would be desirable to use a
  *     log-space implementation if we could make it fast. Problem is
  *     implementing the p7_FLogsum() lookup table in SIMD; lookup
@@ -403,7 +403,7 @@ main(int argc, char **argv)
  *     Chebyshev polynomial, because a numerical f(x) would vectorize.
  *     Decided that this computation would necessarily be expensive on
  *     the order of log(x) or exp(x), so replacing log(1+exp(-x)) with
- *     f(x) doesn't look like compelling -- might as well compute
+ *     f(x) doesn't look compelling -- might as well compute
  *     log(1+exp(-x)) directly! The table-driven approach is about 20x
  *     faster (about 9 clocks, compared to about 200 for the direct
  *     log,exp calculation), and even if we could get an f(x)

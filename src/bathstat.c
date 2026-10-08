@@ -1,4 +1,4 @@
-/* hmmstat: display summary statistics for an HMM database.
+/* bathstat: display summary statistics for an HMM database.
  */
 #include "p7_config.h"
 

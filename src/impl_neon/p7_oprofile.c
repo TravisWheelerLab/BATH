@@ -391,7 +391,7 @@ p7_oprofile_Copy(P7_OPROFILE *om1)
  *            The cloned copy will point to the same memory as the original.
  * Incept:    SRE, Sun Nov 25 12:03:19 2007 [Casa de Gatos]
  *
- * Purpose:   Quick copy of an optimized profile used in mutiple threads.
+ * Purpose:   Quick copy of an optimized profile used in multiple threads.
  *
  * Throws:    <NULL> on allocation error.
  */
@@ -709,7 +709,7 @@ wordify(P7_OPROFILE *om, float sc)
  *
  * Generates the SSVFilter() parts of the profile <om> scores
  * from the completed MSV score.  This includes calculating
- * special versions of the match scores for using the the
+ * special versions of the match scores for using the
  * ssv filter.
  *
  * Returns:   <eslOK> on success.
@@ -737,7 +737,7 @@ sf_conversion(P7_OPROFILE *om)
    * where the subtraction is unsigned saturated and the addition is
    * unsigned (it will not overflow, since bias is a small positive
    * number). The f(x) = x ^ 127 combined with a change from unsigned
-   * to signed numbers have the same effect as f(x) = -x + 127. So if
+   * to signed numbers has the same effect as f(x) = -x + 127. So if
    * we regard the above as signed instead of unsigned it is equal to:
    *
    *   -((127 + bias) - rbv) + 127 = rbv - bias
@@ -904,7 +904,7 @@ vf_conversion(const P7_PROFILE *gm, P7_OPROFILE *om)
 
   om->ncj_roundoff = 0.0; /* goes along with NN=CC=JJ=0, -3.0 nat approximation */
                           /* otherwise, would be = om->scale_w * gm->xsc[p7P_N][p7P_LOOP] -  om->xw[p7O_N][p7O_LOOP];   */
-			  /* see J4/150 for discussion of VF error suppression, superceded by the -3.0 nat approximation */
+			  /* see J4/150 for discussion of VF error suppression, superseded by the -3.0 nat approximation */
 
   /* Transition score bound for "lazy F" DD path evaluation (xref J2/52) */
   om->ddbound_w = -32768;

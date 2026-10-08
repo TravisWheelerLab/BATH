@@ -1,4 +1,4 @@
-/* SSE implementation of an optimized profile structure.
+/* SSE implementation of the optimized DP matrix (P7_OMX).
  * 
  * Contents:
  *   1. The P7_OMX structure: a dynamic programming matrix
@@ -34,7 +34,7 @@
  * Synopsis:  Create an optimized dynamic programming matrix.
  * Incept:    SRE, Tue Nov 27 08:48:20 2007 [Janelia]
  *
- * Purpose:   Allocates a reusable, resizeable <P7_OMX> for models up to
+ * Purpose:   Allocates a reusable, resizable <P7_OMX> for models up to
  *            size <allocM> and target sequences up to length
  *            <allocL/allocXL>, for use by any of the various optimized
  *            DP routines.
@@ -128,12 +128,12 @@ p7_omx_Create(int allocM, int allocL, int allocXL)
  *            length matters; the target sequence length isn't
  *            relevant.
  *
- * Returns:   <eslOK> on success, and <gx> may be reallocated upon
- *            return; any data that may have been in <gx> must be 
+ * Returns:   <eslOK> on success, and <ox> may be reallocated upon
+ *            return; any data that may have been in <ox> must be 
  *            assumed to be invalidated.
  *
  * Throws:    <eslEMEM> on allocation failure, and any data that may
- *            have been in <gx> must be assumed to be invalidated.
+ *            have been in <ox> must be assumed to be invalidated.
  */
 int
 p7_omx_GrowTo(P7_OMX *ox, int allocM, int allocL, int allocXL)
@@ -483,7 +483,7 @@ p7_omx_Destroy(P7_OMX *ox)
  *
  * Therefore, the externally exposed API call is p7_omx_SetDumpMode(),
  * rather than the dumping routine itself; and all p7_omx_SetDumpMode()
- * does is sets the debugging flag in <ox>.
+ * does is set the debugging flag in <ox>.
  */
 
 /* Function:  p7_omx_SetDumpMode()
@@ -786,7 +786,7 @@ ERROR:
  *
  * Purpose:   Dump current row of frameshift Forward/Backward (float) 
  *        part of DP matrix <ox> for diagnostics, and include the 
- *        values of specials <xE>, etc. The index <rowi> for the 
+ *        values of specials <xE>, etc. The index <rowi> is the
  *        current row and <i> is used as a row label. 
  *
  *            The output format of the floats is controlled by

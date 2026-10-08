@@ -21,7 +21,7 @@
  *
  * Purpose:   Calculate the "null2" model for the envelope encompassed
  *            by a posterior probability calculation <pp> for frameshift
- *            aware model <gm_fs5>. Return the null2 odds amino acide
+ *            aware model <gm_fs5>. Return the null2 odds amino acid
  *            emission probabilities $\frac{f'{x}}{f{x}}$ in <null2>,
  *            which caller provides as space for at least <alphabet->Kp>
  *            residues.
@@ -32,7 +32,7 @@
  *            of length <Ld=jenv-ienv+1>.
  *
  * Args:      gm_fs5 - profile, in any mode, target length model set to <L>
- *            pp    - posterior prob matrix, for <gm> against domain envelope <dsq+i-1> (offset)
+ *            pp    - posterior prob matrix, for <gm_fs5> against domain envelope <dsq+i-1> (offset)
  *            null2 - RETURN: null2 odds ratios per residue; <0..Kp-1>; caller allocated space
  *
  * Returns:   <eslOK> on success; <null2> contains the null2 scores. The 0

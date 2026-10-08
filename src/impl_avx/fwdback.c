@@ -144,7 +144,7 @@ p7_BackwardParser_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
  * 4. Benchmark driver.
  *****************************************************************/
 #ifdef p7FWDBACK_BENCHMARK
-/* -c, -x options are for debugging and testing: see fwdfilter.c for explanation */
+/* -c, -x options are for debugging and testing: see msvfilter.c for explanation */
 /*
    gcc -g -O3 -mavx2 -std=gnu99 -o benchmark-fwdback -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACK_BENCHMARK fwdback.c -lhmmer -leasel -lm
    icc  -O3 -static -o benchmark-fwdback -I.. -L.. -I../../easel -L../../easel -Dp7FWDBACK_BENCHMARK fwdback.c -lhmmer -leasel -lm

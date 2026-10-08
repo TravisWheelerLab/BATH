@@ -8,7 +8,7 @@
  * range of scores.
  *
  * The Forward and Backward implementations may be used either in a
- * full O(ML) mode that keeps an entire DP matrix, or in a O(M+L)
+ * full O(ML) mode that keeps an entire DP matrix, or in an O(M+L)
  * linear memory "parsing" mode that only keeps one row of memory for
  * the main MDI states and one column 0..L for the special states
  * B,E,N,C,J. Keeping a full matrix allows subsequent stochastic
@@ -1611,7 +1611,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
     } /* end main loop i=3..L */
 
   /* Final score: C->T transition.
-   * Matches scalar p7_ForwardParser_Frameshift_5Codons() which sums
+   * Matches scalar p7_GForwardParser_Frameshift_5Codons() which sums
    * C contributions from positions L, L-1, L-2. */
   {
     float xCL   = xC_buf[   L    % PARSER_ROWS_FWD];
@@ -1645,7 +1645,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
  *            frameshift-aware codon HMM, using five codon lengths (1, 2, 3,
  *            4, 5 nucleotides), implemented with SIMD parallelism.
  *
- *            Mirrors p7_BackwardParser_Frameshift_5Codons() in probability
+ *            Mirrors p7_ForwardParser_Frameshift_5Codons() in probability
  *            space with sparse rescaling, using scale factors from the filled
  *            Forward matrix <fwd>.
  *

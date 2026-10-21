@@ -2706,56 +2706,29 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   int           replace_node;
   int           contains_anchor;
   int           found_in_path;
-  int64_t       seq_min, seq_max;
   float         dom_bias;
   float         nullsc;
   float         dom_score;
   double        dom_lnP;
-  ESL_SQ       *new_seq;
   P7_HIT       *replace_hit;
   P7_TOPHITS *tophits;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
   P7_OPROFILE *om;
-  ESL_SQFILE *seq_file;
-  int          status;
 
 
   tophits = info->tophits;
   graph = info->graph;
   pli = info->pli;
   om = info->om;
-  seq_file = info->seq_file;
 
-  /* Create an amino sequence from the spliced nuc sequence whose coords are in the spliced_path */ 
+  /* Create an amino sequence from the spliced nuc sequence whose coords are in the spliced_path */
   p7_splice_CreateSplicedSequence(info, spliced_path, path_seq);
- 
+
   /* Align the spliced amino sequence */
-  status = p7_splice_AlignSplicedSequence(info, spliced_path, path_seq);
+  p7_splice_AlignSplicedSequence(info, spliced_path, path_seq);
 
-  if(status == eslEINACCURATE) {
-    /* path has been altered, redo alignment with new path */
-    p7_splicepipeline_Reuse(pli);
-
-    /* Check if we need to refetch the path_seq */
-    if(( spliced_path->revcomp && (spliced_path->iali[0]                        > path_seq->start - ALIGNMENT_EXT   || 
-                                   spliced_path->jali[spliced_path->path_len-1]         < path_seq->end   + ALIGNMENT_EXT)) ||
-       (!spliced_path->revcomp && (spliced_path->iali[0]                        < path_seq->start + ALIGNMENT_EXT   || 
-                                   spliced_path->jali[spliced_path->path_len-1] > path_seq->end   - ALIGNMENT_EXT))) {
-  
-      seq_min = ESL_MIN(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) - ALIGNMENT_EXT;
-      seq_max = ESL_MAX(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) + ALIGNMENT_EXT;
-      new_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, spliced_path->revcomp, info);
-    
-      p7_splice_AlignSplicedPath(info, orig_path, spliced_path, new_seq, success);
-      esl_sq_Destroy(new_seq);
-    }
-    else 
-      p7_splice_AlignSplicedPath(info, orig_path, spliced_path, path_seq, success);
-    return eslOK;
-    
-  } 
-  else if(pli->hit == NULL || pli->hit->dcl->ad->exon_cnt == 1) return eslOK;
+  if(pli->hit == NULL || pli->hit->dcl->ad->exon_cnt == 1) return eslOK;
 
   /* adjust the hit coords */
   if(spliced_path->revcomp) {
@@ -3190,18 +3163,17 @@ p7_splice_CreateSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_p
  *  Synopsis: Align a spliced protein sequence to a protein model
  *
  *  Purpose : Given a spliced protein sequence produced and a model, align them using Fwd/Bwd.
- *            Address underflow errors caused by low scoring exons by removing them from 
- *            the path. Produce a spliced alignment and provide scores, p-values, and average 
- *            posterior probabilities for all exons in the alignment. 
+ *            Produce a spliced alignment and provide scores, p-values, and average
+ *            posterior probabilities for all exons in the alignment.
  *
- * Returns:   <eslOK> on success and <eslEINACCURATE> if an underflow error required altering the path.
+ * Returns:   <eslOK>.
  *
  */
 int
 p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq) 
 {
 
-  int       i, e;
+  int       i;
   int       splice_cnt;
   float     filtersc;
   float     envsc;
@@ -3212,16 +3184,12 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   float    null2[p7_MAXCODE];
   P7_HIT   *hit;
   P7_TRACE *tr;
-  SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
   P7_OPROFILE *om;
-  P7_OPROFILE *om_log;
   int       status;
 
-  graph  = info->graph;
   pli    = info->pli;
   om     = info->om;
-  om_log = info->om_log;
 
   if (pli->fwd_alloc < pli->amino_sq->n + 1) {
     ESL_REALLOC(pli->fwd_scale, sizeof(float) * (pli->amino_sq->n + 1));
@@ -3256,44 +3224,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     pli->fwd_C[i]     = pli->fwd->xmx[i*p7X_NXCELLS+p7X_C];
   }
 
-  if((status = p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd)) == eslERANGE) {  /* <bwd> is now overwritten with post probabilities */
-    /* This is a rare event usually caused by a low probability exon somewhere in the path.
-     * If we can find the offending exon and cut the path in two at that point then we can
-     * save the good exons, but to do that we need an alignment so we create one with Viterbi */
-
-    p7_omx_GrowTo_dpf(pli->fwd, om_log->M, pli->amino_sq->n, pli->amino_sq->n);  /* <fwd> is reused for the Viterbi matrix */
-    p7_oprofile_ReconfigUnihit_Log(om_log, pli->amino_sq->n);
-
-    p7_Viterbi(pli->amino_sq->dsq, pli->amino_sq->n, om_log, pli->fwd, NULL);
-    p7_Viterbi_Trace(pli->amino_sq->dsq, pli->amino_sq->n, om_log, pli->fwd, tr);
-
-    p7_trace_Index(tr);
-    hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt);
-
-    if(splice_cnt == 0) {
-	  p7_trace_splice_Destroy(hit->dcl->tr);
-      p7_hit_Destroy(hit);
-      p7_trace_Destroy(tr);
-      p7_omx_Reuse(pli->fwd);
-      return eslOK;
-    }
-
-    hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt, pli->show_cigar);
-
-    p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, FALSE);
-    status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
-
-    p7_trace_splice_Destroy(hit->dcl->tr);
-    p7_alidisplay_Destroy(hit->dcl->ad);
-
-    hit->dcl->tr = NULL;
-    hit->dcl->ad = NULL;
-
-    p7_hit_Destroy(hit);
-    p7_trace_Destroy(tr);
-    p7_omx_Reuse(pli->fwd);
-    return status;
-  }
+  p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd);  /* <bwd> is now overwritten with posterior probabilities */
 
   p7_OptimalAccuracy(om, pli->bwd, pli->fwd, &oasc); /* <fwd> is now overwritten with OA scores */
   p7_OATrace        (om, pli->bwd, pli->fwd, tr);
@@ -3334,24 +3265,6 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, TRUE);
 
-  /*Check for zero posterior probability cause by underflow and remove low quality exons */
-  for(e = 0; e < hit->dcl->ad->exon_cnt; e++) {
-    if(hit->dcl->ad->exon_pp[e] == 0.0) {
-      status = p7_splice_FixDecodingErrors(graph, spliced_path, hit->dcl->ad, path_seq);
-
-      p7_trace_splice_Destroy(hit->dcl->tr);
-      p7_alidisplay_Destroy(hit->dcl->ad);
-
-      hit->dcl->tr = NULL;
-      hit->dcl->ad = NULL;
-
-      p7_hit_Destroy(hit);
-      p7_trace_Destroy(tr);
-      return status;
-
-    }
-  }
-
   hit->dcl->ihmm = hit->dcl->ad->hmmfrom;
   hit->dcl->jhmm = hit->dcl->ad->hmmto;
 
@@ -3384,178 +3297,6 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
  ERROR:
   return status;
 }
-
-/*  Function: p7_splice_FixDecodingErrors
- *  Synopsis: If a spliced alignment experienced an underflow error, find and remove the offending exon
- *
- *  Purpose : Low scoring exon can cause underflow errors in the posterior probability matrix. 
- *            Here we find the most likely culprit and split the path at that point.  
- *            The remaining path can then be realigned. If the remaining path has only one 
- *            exon or contains no anchor nodes, the path is rejected. 
- *
- * Returns:   <eslEINACCURATE> if the remaining path needs to be realigned and <eslOK> if not. 
- *
- */
-int
-p7_splice_FixDecodingErrors(SPLICE_GRAPH *graph, SPLICE_PATH *spliced_path, P7_ALIDISPLAY *ad, ESL_SQ *path_seq)
-{
-
-  int e, s;
-  int shift;
-  int contains_anchor;
-  int min_idx;
-  float min_score;
-  
-  /* If the alignmnt has rejected some exons we first remove those from the path */ 
-  if(spliced_path->path_len > ad->exon_cnt) {
-    
-    /* Convert sqfrom, sqto to full sequence coords */
-    if(spliced_path->revcomp) {
-      ad->sqto    = path_seq->n - ad->sqto   + path_seq->end;
-      ad->sqfrom  = path_seq->n - ad->sqfrom + path_seq->end;
-    }
-    else {
-      ad->sqfrom  = ad->sqfrom + path_seq->start - 1;
-      ad->sqto    = ad->sqto   + path_seq->start - 1;
-    }
-
-    if(spliced_path->revcomp) {
-      for(shift = 0; shift < spliced_path->path_len; shift++)
-        if(spliced_path->jali[shift] <= ad->sqfrom) break;
-    }
-    else {
-      for(shift = 0; shift < spliced_path->path_len; shift++)
-         if(spliced_path->jali[shift] >= ad->sqfrom) break;
-    }
-
-    /* Shift path to start at first hits that is in alignment */
-    for(s = 0; s < shift; s++)
-      p7_splicepath_Remove(spliced_path, 0);
-
-    spliced_path->iali[0] = ad->sqfrom;
-    spliced_path->ihmm[0] = ad->hmmfrom;
-
-    spliced_path->path_len =  ad->exon_cnt;
-
-    spliced_path->jali[spliced_path->path_len-1] = ad->sqto;
-    spliced_path->jhmm[spliced_path->path_len-1] = ad->hmmto;
-
-    /*Remove any starting or ending non-anchor nodes */
-    if(spliced_path->path_len == 1) return eslOK;
-
-    while(spliced_path->node_id[0] < 0 || spliced_path->node_id[0] >= graph->anchor_N) {
-      p7_splicepath_Remove(spliced_path, 0);
-      if(spliced_path->path_len == 1) return eslOK;
-    }
-    
-    spliced_path->iali[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->iali;
-    spliced_path->ihmm[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->ihmm;
-
-    while(spliced_path->node_id[spliced_path->path_len-1] < 0 || spliced_path->node_id[spliced_path->path_len-1] >= graph->anchor_N) { 
-      spliced_path->path_len--;
-      if(spliced_path->path_len == 1) return eslOK;
-    }
-	spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
-	spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;
-    
-
-  }
-  else {
-
-    /* Use the Exon p-values to find the weakest place in the path */
-    min_idx = 0;
-    min_score = ad->exon_score[0];
-
-    for(e = 0; e < ad->exon_cnt; e++ ) {
-      /* Catch underflow scenarios */
-      if(isnan(ad->exon_score[e]) || ad->exon_score[e] == -eslINFINITY) {
-        min_idx = e;
-        break;
-      }
-
-      if( ad->exon_score[e] < min_score) {
-        min_score = ad->exon_score[e];
-        min_idx = e;
-      }
-    }
-
-    if(min_idx == 0) {
-      p7_splicepath_Remove(spliced_path, 0);
-      if(spliced_path->path_len == 1) return eslOK;
-
-      /* Move the beginning of the path to the next anchor node */
-      while(spliced_path->node_id[0] < 0 || graph->tmp_node[spliced_path->node_id[0]]) {
-        p7_splicepath_Remove(spliced_path, 0);
-        if(spliced_path->path_len == 1) return eslOK;
-      }
-      spliced_path->iali[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->iali;
-      spliced_path->ihmm[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->ihmm;
-    }
-    else if (min_idx > 0) {
-      spliced_path->path_len = min_idx;
-      if(spliced_path->path_len == 1) return eslOK; 
- 
-      /* Move end of path to the previous anchor node */
-      while(spliced_path->node_id[spliced_path->path_len-1] < 0 ||  graph->tmp_node[spliced_path->node_id[spliced_path->path_len-1]]) {
-        spliced_path->path_len--; 
-        if(spliced_path->path_len == 1) return eslOK;
-      }
-      spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
-      spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;
-    }
-  
-  }
-
-  /*Make sure we have not created backwards nodes that end before they start */
-  if(spliced_path->revcomp) {
-    while(spliced_path->iali[0] <= spliced_path->jali[0] || spliced_path->ihmm[0] >= spliced_path->jhmm[0] ) {
-      p7_splicepath_Remove(spliced_path, 0); 
-      if(spliced_path->path_len == 1) return eslOK;
-
-      spliced_path->iali[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->iali;
-      spliced_path->ihmm[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->ihmm;
-    } 
-
-    while(spliced_path->iali[spliced_path->path_len-1] <= spliced_path->jali[spliced_path->path_len-1] || 
-          spliced_path->ihmm[spliced_path->path_len-1] >= spliced_path->jhmm[spliced_path->path_len-1]) {
-      spliced_path->path_len--;
-      if(spliced_path->path_len == 1) return eslOK;
-
-       spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
-       spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;         
-    }
-  }
-  else {
-    while(spliced_path->iali[0] >= spliced_path->jali[0] || spliced_path->ihmm[0] >= spliced_path->jhmm[0] ) {
-      p7_splicepath_Remove(spliced_path, 0);
-      if(spliced_path->path_len == 1) return eslOK;
-
-      spliced_path->iali[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->iali;
-      spliced_path->ihmm[0] = graph->th->hit[spliced_path->node_id[0]]->dcl->ihmm;
-    }
-
-    while(spliced_path->iali[spliced_path->path_len-1] >= spliced_path->jali[spliced_path->path_len-1] ||
-          spliced_path->ihmm[spliced_path->path_len-1] >= spliced_path->jhmm[spliced_path->path_len-1]) {
-      spliced_path->path_len--;
-      if(spliced_path->path_len == 1) return eslOK;
-
-       spliced_path->jali[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jali;
-       spliced_path->jhmm[spliced_path->path_len-1] = graph->th->hit[spliced_path->node_id[spliced_path->path_len-1]]->dcl->jhmm;
-    }
-  }
-
-
-  /*Make sure path still contains an anchor */
-  contains_anchor = FALSE;
-  for(s = 0; s < spliced_path->path_len; s++)
-    if(spliced_path->node_id[s] < graph->anchor_N && spliced_path->node_id[s] >= 0) contains_anchor = TRUE;
-
-  if(!contains_anchor) return eslOK;
-
-  return eslEINACCURATE;
-   
-}
-
 
 /*  Function: p7_splice_ScoreExons
  *  Synopsis: Produce Forward scores, p-values and average posterior probabilities for each exon,

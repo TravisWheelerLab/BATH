@@ -617,17 +617,17 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
         /* Create the final alignment */  
         p7_splice_AlignSplicedPath(info, orig_path, spliced_path, path_seq, &success);
 
-      }
- 
-      if(success) {
-        /* Break edges that overlap the hit so that paths do not intertwine */
-        hit_seq_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali); 
-        hit_seq_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali); 
+		/* Break edges that overlap the hit so that paths do not intertwine */
+        hit_seq_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali);
+        hit_seq_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali);
         hit_hmm_min = pli->hit->dcl->ihmm;
         hit_hmm_max = pli->hit->dcl->jhmm;
+        
+		/* If this hit was a successfull splicing it was added to the P7_TOPHITS, 
+		 * so we set it to NULL here to enusure it isn't freed */
+        if(success) pli->hit->dcl = NULL;
 
-        p7_splice_EnforceBounds(graph, hit_seq_min, hit_seq_max); 
-        pli->hit->dcl = NULL;
+        p7_splice_EnforceBounds(graph, hit_seq_min, hit_seq_max);
 
         p7_splicebounds_Add(bounds, hit_seq_min, hit_seq_max, hit_hmm_min, hit_hmm_max);
 
@@ -647,18 +647,12 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
               graph->node_in_graph[h] = FALSE;
         }
       }
-      else {
-        /* Break edges that overlap the path so that paths do not intertwine */ 
-        if(spliced_path->path_len > 1) {
-          path_min = ESL_MIN(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]);
-          path_max = ESL_MAX(orig_path->iali[0], orig_path->jali[orig_path->path_len-1]);
-          p7_splice_EnforceBounds(graph, path_min, path_max);
-
-          p7_splicebounds_Add(bounds, path_min, path_max, orig_path->ihmm[0], orig_path->jhmm[orig_path->path_len-1]);
-        }
-        for(s = 0; s < orig_path->path_len; s++) 
+	  else {
+        /* If no splicing is found remove node(s) from graph */
+        for(s = 0; s < orig_path->path_len; s++)
           graph->node_in_graph[orig_path->node_id[s]] = FALSE;
-      }
+	  }
+ 
     } 
 
     p7_splicepath_Destroy(orig_path);
@@ -2709,12 +2703,14 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   float         dom_bias;
   float         nullsc;
   float         dom_score;
+  double        P;
   double        dom_lnP;
   P7_HIT       *replace_hit;
   P7_TOPHITS *tophits;
   SPLICE_GRAPH *graph;
   SPLICE_PIPELINE *pli;
   P7_OPROFILE *om;
+  int           status;
 
 
   tophits = info->tophits;
@@ -2726,9 +2722,10 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   p7_splice_CreateSplicedSequence(info, spliced_path, path_seq);
 
   /* Align the spliced amino sequence */
-  p7_splice_AlignSplicedSequence(info, spliced_path, path_seq);
+  status = p7_splice_AlignSplicedSequence(info, spliced_path, path_seq, &P);
+  if (status != eslOK) return status;
 
-  if(pli->hit == NULL || pli->hit->dcl->ad->exon_cnt == 1) return eslOK;
+  if(P > pli->F3 || pli->hit->dcl->ad->exon_cnt == 1) return eslOK;
 
   /* adjust the hit coords */
   if(spliced_path->revcomp) {
@@ -3170,17 +3167,16 @@ p7_splice_CreateSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_p
  *
  */
 int
-p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq) 
+p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, double *P) 
 {
 
-  int       i;
-  int       splice_cnt;
-  float     filtersc;
-  float     envsc;
-  float     seq_score;
-  float     oasc;
-  float     P;
-  float     domcorrection;
+  int      i;
+  int      splice_cnt;
+  float    filtersc;
+  float    envsc;
+  float    seq_score;
+  float    oasc;
+  float    domcorrection;
   float    null2[p7_MAXCODE];
   P7_HIT   *hit;
   P7_TRACE *tr;
@@ -3231,26 +3227,6 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   
   p7_trace_Index(tr);
   hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt);
-   
-  if(splice_cnt == 0) {
-    p7_trace_splice_Destroy(hit->dcl->tr);
-    hit->dcl->tr = NULL;
-    p7_hit_Destroy(hit);
-    p7_trace_Destroy(tr);
-    return eslOK;
-  } 
-
-  
-  seq_score = (envsc-filtersc) / eslCONST_LOG2;
-  P = esl_exp_surv(seq_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
-  if (P > pli->F3) {
-    p7_trace_splice_Destroy(hit->dcl->tr);
-    hit->dcl->tr = NULL;
-    p7_hit_Destroy(hit);
-    p7_trace_Destroy(tr);
-    return eslOK;
-  }
 
   p7_Null2_ByExpectation(om, pli->bwd, null2);
   domcorrection = 0.;
@@ -3290,7 +3266,11 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   hit->dcl->is_included   = FALSE;
 
   pli->hit = hit;
-  
+
+  /* Get Forward P-value */ 
+  seq_score = (envsc-filtersc) / eslCONST_LOG2;
+  *P = esl_exp_surv(seq_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+
   p7_trace_Destroy(tr);
   return eslOK;
 

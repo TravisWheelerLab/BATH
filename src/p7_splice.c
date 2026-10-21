@@ -3263,7 +3263,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt,  pli->show_cigar);
 
-  p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om, TRUE);
+  p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om);
 
   hit->dcl->ihmm = hit->dcl->ad->hmmfrom;
   hit->dcl->jhmm = hit->dcl->ad->hmmto;
@@ -3299,17 +3299,16 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 }
 
 /*  Function: p7_splice_ScoreExons
- *  Synopsis: Produce Forward scores, p-values and average posterior probabilities for each exon,
+ *  Synopsis: Produce Forward scores and p-values for each exon.
  *
- *  Purpose : Extract approximate Forward scores for each exon from the fwd matrix. 
- *            Use these scores to produce p-values. Also find the average posterior 
- *            probability of all emitted aminos in each exon's alignment.
+ *  Purpose : Extract approximate Forward scores for each exon from the fwd matrix.
+ *            Use these scores to produce p-values.
  *
  * Returns:   <eslOK>.
  *
  */
 int
-p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om, int do_pp)
+p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om)
 {
 
   int i, e, z;
@@ -3321,7 +3320,6 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   float start_score;
   float end_score;
   float exon_score;
-  float exon_pp;
   float nullsc;
   P7_BG *bg;
   ESL_SQ *amino_sq;
@@ -3363,25 +3361,9 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
   /* Subtract out old N->B probability and add in new N->B and C->T probabilities */
   exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
   exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
-  ad->exon_score[0] = (exon_score - nullsc)  / eslCONST_LOG2;
-  ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+  exon_score = (exon_score - nullsc)  / eslCONST_LOG2;
+  ad->exon_lnP[0] = esl_exp_logsurv (exon_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
-  if(do_pp) {
-    /* If we are doing posteriors that means we have a Forward matrix with Forward scores and can calculate a Forward p-value */
-    ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
-    exon_pp = tr->pp[z];
-    z++;
-    while(tr->i[z] <= end_i)  { exon_pp += tr->pp[z]; z++; }
-    
-    ad->exon_pp[0] = exon_pp / (float) exon_amino_len;
-  }
-  else {
-    /* If we are not doing posteriors that means we have a Viterbi matrix with Viterbi scores and can calculate a Viterbi p-value */
-    ad->exon_lnP[0] = esl_exp_logsurv (ad->exon_score[0], om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);    
-
-    ad->exon_pp[0] = -eslINFINITY;
-  }
   for(e = 1; e < ad->exon_cnt; e++) {
 
     start_i = end_i;
@@ -3417,28 +3399,9 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
     exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
     exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
 
-    ad->exon_score[e] = (exon_score - nullsc) / eslCONST_LOG2;
+    exon_score = (exon_score - nullsc) / eslCONST_LOG2;
 
-    ad->exon_lnP[e] = esl_exp_logsurv (ad->exon_score[e],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
-    if(do_pp) {
-      /* If we are doing posteriors that means we have a Forward matrix with Forward scores and can calculate a Forward p-value */
-      ad->exon_lnP[e] = esl_exp_logsurv (ad->exon_score[e],  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);   
-     
-      exon_pp = tr->pp[z];
-      z++;
-     
-      while(tr->i[z] <= end_i && tr->st[z] != p7T_E) { exon_pp += tr->pp[z]; z++; }
-
-      ad->exon_pp[e] = exon_pp / (float) exon_amino_len;
-      
-    }
-    else {
-      /* If we are not doing posteriors that means we have a Viterbi matrix with Viterbi scores and can calculate a Viterbi p-value */
-      ad->exon_lnP[e] = esl_exp_logsurv (ad->exon_score[e], om->evparam[p7_VMU],  om->evparam[p7_VLAMBDA]);
-     
-      ad->exon_pp[e] = -eslINFINITY;
-    }
+    ad->exon_lnP[e] = esl_exp_logsurv (exon_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
   }
 
   return eslOK;

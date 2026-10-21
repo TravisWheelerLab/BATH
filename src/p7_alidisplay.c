@@ -346,8 +346,6 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL; 
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL;
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
@@ -645,8 +643,6 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL;
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
@@ -1039,8 +1035,6 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL; 
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
@@ -1349,8 +1343,6 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_starts, sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int)     * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_score,      sizeof(float)   * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_pp,         sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_lnP,        sizeof(double)  * (splice_cnt+1));
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1)); 
@@ -1939,8 +1931,6 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_starts, sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int)     * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_score,      sizeof(float)   * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_pp,         sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_lnP,        sizeof(double)  * (splice_cnt+1));
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1));
@@ -2760,8 +2750,6 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->exon_seq_ends   = NULL;
   new_obj->exon_hmm_starts = NULL;
   new_obj->exon_hmm_ends   = NULL;
-  new_obj->exon_score      = NULL;
-  new_obj->exon_pp         = NULL;
   new_obj->exon_lnP        = NULL;
   new_obj->exon_pid        = NULL;
   new_obj->exon_anchor     = NULL;
@@ -2898,8 +2886,6 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ESL_ALLOC(ad2->exon_seq_ends,   sizeof(int64_t) * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_hmm_starts, sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_hmm_ends,   sizeof(int)     * ad->exon_cnt);
-      ESL_ALLOC(ad2->exon_score,      sizeof(float)   * ad->exon_cnt);
-      ESL_ALLOC(ad2->exon_pp,         sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_lnP,        sizeof(double)  * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_pid,        sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_anchor,     sizeof(int)     * ad->exon_cnt);
@@ -2910,8 +2896,6 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt * sizeof(int64_t)); 
       memcpy(ad2->exon_hmm_starts, ad->exon_hmm_starts, ad->exon_cnt * sizeof(int));
       memcpy(ad2->exon_hmm_ends,   ad->exon_hmm_ends,   ad->exon_cnt * sizeof(int));
-      memcpy(ad2->exon_score,      ad->exon_score,      ad->exon_cnt * sizeof(float));
-      memcpy(ad2->exon_pp,         ad->exon_pp,         ad->exon_cnt * sizeof(float));
       memcpy(ad2->exon_lnP,        ad->exon_lnP,        ad->exon_cnt * sizeof(double));
       memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt * sizeof(float));
       memcpy(ad2->exon_anchor,     ad->exon_anchor,     ad->exon_cnt * sizeof(int));
@@ -3610,8 +3594,6 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if(ad->exon_seq_ends)   free(ad->exon_seq_ends);
       if(ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if(ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
-      if(ad->exon_score)      free(ad->exon_score);
-      if(ad->exon_pp)         free(ad->exon_pp);
       if(ad->exon_lnP)        free(ad->exon_lnP);
       if(ad->exon_pid)        free(ad->exon_pid);
       if(ad->exon_anchor)     free(ad->exon_anchor);
@@ -3640,8 +3622,6 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if (ad->exon_seq_ends)   free(ad->exon_seq_ends);
       if (ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if (ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
-      if (ad->exon_score)      free(ad->exon_score);
-      if (ad->exon_pp)         free(ad->exon_pp);
       if (ad->exon_lnP)        free(ad->exon_lnP); 
       if (ad->exon_pid)        free(ad->exon_pid);
       if (ad->exon_anchor)     free(ad->exon_anchor);
@@ -4293,8 +4273,6 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL; 
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
@@ -4731,8 +4709,6 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL;
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;

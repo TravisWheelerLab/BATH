@@ -3172,8 +3172,11 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   int      i;
   int      splice_cnt;
+  int      use_generic;
   float    filtersc;
-  float    envsc;
+  float    envsc, bwdsc;
+  float    fbdiff;
+  int      fbdisagree;
   float    seq_score;
   float    oasc;
   float    domcorrection;
@@ -3182,10 +3185,13 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   P7_TRACE *tr;
   SPLICE_PIPELINE *pli;
   P7_OPROFILE *om;
+  P7_PROFILE  *gm;
+  P7_GMX      *gfwd, *gbck;
   int       status;
 
   pli    = info->pli;
   om     = info->om;
+  gm     = info->gm;
 
   if (pli->fwd_alloc < pli->amino_sq->n + 1) {
     ESL_REALLOC(pli->fwd_scale, sizeof(float) * (pli->amino_sq->n + 1));
@@ -3212,23 +3218,58 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, pli->amino_sq->n, &filtersc);
 
   p7_Forward (pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, &envsc);
-  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, NULL);
+  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, &bwdsc);
 
-  /* <fwd> is overwritten below; p7_splice_ScoreExons() needs these Forward values */
-  for (i = 0; i <= pli->amino_sq->n; i++) {
-    pli->fwd_scale[i] = pli->fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-    pli->fwd_C[i]     = pli->fwd->xmx[i*p7X_NXCELLS+p7X_C];
+  /* TEMPORARY (issue #41): rescaling underflow in the single-precision unihit
+   * SIMD DP can make Forward and Backward disagree on a path that includes a
+   * long gap between high-scoring regions. Until the real x-drop-based fix is
+   * back in place, detect that disagreement and fall back unconditionally to
+   * the generic (log-space) engine, which never underflows this way. */
+  fbdiff      = fabsf(envsc - bwdsc);
+  fbdisagree  = (fbdiff / (fabsf(envsc) * sqrtf((float) pli->amino_sq->n * (float) om->M)) > 1e-8);
+  use_generic = fbdisagree;
+
+  if (use_generic) {
+    p7_ReconfigUnihit(gm, pli->amino_sq->n);
+
+    gfwd = p7_gmx_Create(gm->M, pli->amino_sq->n, pli->amino_sq->n, p7G_NSCELLS);
+    gbck = p7_gmx_Create(gm->M, pli->amino_sq->n, pli->amino_sq->n, p7G_NSCELLS);
+
+    p7_GForward (pli->amino_sq->dsq, pli->amino_sq->n, gm, gfwd, &envsc);
+    p7_GBackward(pli->amino_sq->dsq, pli->amino_sq->n, gm, gbck, NULL);
+
+    /* <gfwd> is overwritten below by p7_GOptimalAccuracy(); p7_splice_ScoreExons_Generic()
+     * needs these per-row C-state values, which are already the true cumulative log-odds
+     * score at that row - no scale reconstruction needed, unlike the SIMD path. */
+    for (i = 0; i <= pli->amino_sq->n; i++)
+      pli->fwd_C[i] = gfwd->xmx[i*p7G_NXCELLS + p7G_C];
+
+    p7_GDecoding(gm, gfwd, gbck, gbck);          /* <gbck> is now the posterior probability matrix */
+    p7_GNull2_ByExpectation(gm, gbck, null2);
+
+    p7_GOptimalAccuracy(gm, gbck, gfwd, &oasc);  /* <gfwd> is now the OA matrix */
+    p7_GOATrace        (gm, gbck, gfwd, tr);
+
+    p7_gmx_Destroy(gfwd);
+    p7_gmx_Destroy(gbck);
+  }
+  else {
+    /* <fwd> is overwritten below; p7_splice_ScoreExons() needs these Forward values */
+    for (i = 0; i <= pli->amino_sq->n; i++) {
+      pli->fwd_scale[i] = pli->fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
+      pli->fwd_C[i]     = pli->fwd->xmx[i*p7X_NXCELLS+p7X_C];
+    }
+
+    p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd);  /* <bwd> is now overwritten with posterior probabilities */
+    p7_Null2_ByExpectation(om, pli->bwd, null2);
+
+    p7_OptimalAccuracy(om, pli->bwd, pli->fwd, &oasc); /* <fwd> is now overwritten with OA scores */
+    p7_OATrace        (om, pli->bwd, pli->fwd, tr);
   }
 
-  p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd);  /* <bwd> is now overwritten with posterior probabilities */
-
-  p7_OptimalAccuracy(om, pli->bwd, pli->fwd, &oasc); /* <fwd> is now overwritten with OA scores */
-  p7_OATrace        (om, pli->bwd, pli->fwd, tr);
-  
   p7_trace_Index(tr);
   hit->dcl->tr = p7_trace_splice_Convert(tr, pli->orig_nuc_idx, &splice_cnt);
 
-  p7_Null2_ByExpectation(om, pli->bwd, null2);
   domcorrection = 0.;
   for (i = 1; i <= pli->amino_sq->n; i++) {
     domcorrection += logf(null2[pli->amino_sq->dsq[i]]);
@@ -3239,7 +3280,8 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt,  pli->show_cigar);
 
-  p7_splice_ScoreExons(pli, tr, hit->dcl->ad, om);
+  if (use_generic) p7_splice_ScoreExons_Generic(pli, tr, hit->dcl->ad, gm);
+  else              p7_splice_ScoreExons        (pli, tr, hit->dcl->ad, om);
 
   hit->dcl->ihmm = hit->dcl->ad->hmmfrom;
   hit->dcl->jhmm = hit->dcl->ad->hmmto;
@@ -3267,9 +3309,10 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   pli->hit = hit;
 
-  /* Get Forward P-value */ 
+  /* Get Forward P-value */
   seq_score = (envsc-filtersc) / eslCONST_LOG2;
-  *P = esl_exp_surv(seq_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+  *P = use_generic ? esl_exp_surv(seq_score, gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA])
+                    : esl_exp_surv(seq_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
 
   p7_trace_Destroy(tr);
   return eslOK;
@@ -3382,6 +3425,106 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
     exon_score = (exon_score - nullsc) / eslCONST_LOG2;
 
     ad->exon_lnP[e] = esl_exp_logsurv (exon_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+  }
+
+  return eslOK;
+}
+
+/*  Function: p7_splice_ScoreExons_Generic
+ *  Synopsis: Like p7_splice_ScoreExons, but for a generic (log-space) Forward trace.
+ *
+ *  Purpose : TEMPORARY, for issue #41's Forward/Backward disagreement fallback:
+ *            identical to p7_splice_ScoreExons except the per-row C-state value
+ *            is read directly from pli->fwd_C (already the true cumulative
+ *            log-odds score in generic log-space, no scale reconstruction
+ *            needed) and the E-value parameters come from the generic profile
+ *            <gm> instead of an optimized profile.
+ *
+ * Returns:   <eslOK>.
+ *
+ */
+int
+p7_splice_ScoreExons_Generic(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_PROFILE *gm)
+{
+
+  int i, e, z;
+  int start_i, end_i;
+  int remainder;
+  int exon_nuc_len;
+  int exon_amino_len;
+  float start_score;
+  float end_score;
+  float exon_score;
+  float nullsc;
+  P7_BG *bg;
+  ESL_SQ *amino_sq;
+
+  bg       = pli->bg;
+  amino_sq = pli->amino_sq;
+
+  for(z = 0; z < tr->N; z++) if(tr->st[z] == p7T_M) break;
+  start_i = tr->i[z]-1; // start_i is the -1 from the first amino position in the exon
+
+  if(start_i == 0) start_score = 0.;
+  else             start_score = pli->fwd_C[start_i];
+  exon_nuc_len = llabs(ad->exon_seq_ends[0] - ad->exon_seq_starts[0]) + 1;
+
+  remainder = exon_nuc_len % 3;
+
+  /* If a codon is split at the splice site assign the full codon to the exon that contributed two nucleotides */
+  if(remainder == 1) exon_nuc_len--;
+  if(remainder == 2) exon_nuc_len++;
+
+  exon_amino_len = exon_nuc_len / 3;
+
+  end_i = start_i + exon_amino_len;
+
+  end_score = pli->fwd_C[end_i];
+
+  exon_score = (end_score - start_score);
+
+  p7_bg_SetLength(bg, exon_amino_len);
+  p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
+
+  /* Subtract out old N->B probability and add in new N->B and C->T probabilities */
+  exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
+  exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
+  exon_score = (exon_score - nullsc)  / eslCONST_LOG2;
+  ad->exon_lnP[0] = esl_exp_logsurv (exon_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
+
+  for(e = 1; e < ad->exon_cnt; e++) {
+
+    start_i = end_i;
+    start_score = end_score;
+
+    exon_nuc_len = llabs(ad->exon_seq_ends[e] - ad->exon_seq_starts[e]) + 1;
+    /* Handle possible upstream codon split */
+    if(remainder == 1) exon_nuc_len++;
+    if(remainder == 2) exon_nuc_len--;
+
+    /* Handle possible downstream codon split */
+    remainder = exon_nuc_len % 3;
+    if(remainder == 1) exon_nuc_len--;
+    if(remainder == 2) exon_nuc_len++;
+
+    exon_amino_len = exon_nuc_len / 3;
+
+    end_i = start_i + exon_amino_len;
+
+    end_score = pli->fwd_C[end_i];
+
+    exon_score = (end_score - start_score);
+
+    p7_bg_SetLength(bg, exon_amino_len);
+    p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
+
+    /* Subtract out old N->B probability and add in new N->B and C->T probabilities */
+    exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
+    exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
+
+    exon_score = (exon_score - nullsc) / eslCONST_LOG2;
+
+    ad->exon_lnP[e] = esl_exp_logsurv (exon_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
   }
 
   return eslOK;

@@ -66,8 +66,8 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
   SPLICE_WORKER_INFO *info;
   int                 status;
 
-  info    = NULL; 
-  
+  info     = NULL;
+
   /* Get the number of threads */
   ncpus = 0;
 #ifdef HMMER_THREADS
@@ -91,6 +91,7 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
 	if (info[i].pli->do_biasfilter)
 	  p7_bg_SetFilter(info[i].pli->bg, om->M, om->compo);
 	info[i].tophits    = tophits;
+	info[i].new_hits   = p7_tophits_Create();
     info[i].gcode      = gcode;
 	info[i].seq_file   = seq_file;
 	info[i].db_nuc_cnt = db_nuc_cnt;
@@ -107,8 +108,15 @@ p7_splice_SpliceHits(P7_TOPHITS *tophits, P7_TOPHITS *seed_hits, P7_OPROFILE *om
   if (ncpus > 0) thread_loop(info, tophits, seed_hits, id_length_list, infocnt); 
   else
 #endif  /*HMMER_THREADS*/
-    serial_loop (info, tophits, seed_hits, id_length_list); 
-  
+    serial_loop (info, tophits, seed_hits, id_length_list);
+
+  for (i = 0; i < infocnt; ++i) {
+    p7_tophits_Merge(tophits, info[i].new_hits);
+    p7_tophits_Destroy(info[i].new_hits);
+  }
+
+  p7_tophits_SortBySeqidxAndAlipos(tophits);
+
   /* Clean up */
   for (i = 0; i < infocnt; ++i)
   {
@@ -614,8 +622,8 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
       if(spliced_path->path_len > 1) {
 
-        /* Create the final alignment */  
-        p7_splice_AlignSplicedPath(info, orig_path, spliced_path, path_seq, &success);
+        /* Create the final alignment */
+        p7_splice_AlignSplicedPath2(info, spliced_path, path_seq, &success);
 
 		/* Break edges that overlap the hit so that paths do not intertwine */
         hit_seq_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali);
@@ -2921,6 +2929,240 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPL
   return eslOK;
    
 }
+
+int
+p7_splice_AlignSplicedPath2(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success)
+{
+  int           e, n, s;
+  int           orf_len;
+  int           replace_node;
+  int           contains_anchor;
+  int           nreported_dec, nincluded_dec;
+  int           exon_hmm_min, exon_hmm_max, exon_hmm_len;
+  int           node_hmm_min, node_hmm_max, node_hmm_len;
+  int           hmm_overlap_start, hmm_overlap_end, hmm_overlap_len;
+  int64_t       exon_ali_min, exon_ali_max, exon_ali_len;
+  int64_t       node_ali_min, node_ali_max, node_ali_len;
+  int64_t       ali_overlap_start, ali_overlap_end, ali_overlap_len;
+  float         dom_bias;
+  float         nullsc;
+  float         dom_score;
+  double        P;
+  double        dom_lnP;
+  P7_HIT       *replace_hit;
+  P7_HIT       *new_hit;
+  P7_TOPHITS *tophits;
+  SPLICE_GRAPH *graph;
+  SPLICE_PIPELINE *pli;
+  P7_OPROFILE *om;
+  int           status;
+
+
+  tophits = info->tophits;
+  graph = info->graph;
+  pli = info->pli;
+  om = info->om;
+
+  /* Create an amino sequence from the spliced nuc sequence whose coords are in the spliced_path */
+  p7_splice_CreateSplicedSequence(info, spliced_path, path_seq);
+
+  /* Align the spliced amino sequence */
+  status = p7_splice_AlignSplicedSequence(info, spliced_path, path_seq, &P);
+  if (status != eslOK) return status;
+
+  if(P > pli->F3 || pli->hit->dcl->ad->exon_cnt == 1) return eslOK;
+
+  /* adjust the hit coords */
+  if(spliced_path->revcomp) {
+    pli->hit->dcl->ienv = path_seq->n - pli->orig_nuc_idx[1]              + path_seq->end;
+    pli->hit->dcl->jenv = path_seq->n - pli->orig_nuc_idx[pli->nuc_sq->n] + path_seq->end;
+  }
+  else {
+    pli->hit->dcl->ienv = pli->orig_nuc_idx[1]              + path_seq->start -1;
+    pli->hit->dcl->jenv = pli->orig_nuc_idx[pli->nuc_sq->n] + path_seq->start -1;
+  }
+
+  /* Adjust spliced hit score from amino_len to om->max_length */
+  dom_score  = pli->hit->dcl->envsc;
+  orf_len = pli->hit->dcl->ad->orfto - pli->hit->dcl->ad->orffrom + 1;
+  dom_score -= 2 * log(2. / (pli->amino_sq->n+2));
+  dom_score += 2 * log(2. / (om->max_length+2));
+  dom_score -= (pli->amino_sq->n-orf_len)      * log((float) (pli->amino_sq->n) / (float) (pli->amino_sq->n+2));
+  dom_score += (om->max_length-orf_len) * log((float) om->max_length / (float) (om->max_length+2));
+ 
+  /* Bias calculation and adjustments */
+  if(pli->do_null2) 
+    dom_bias = p7_FLogsum(0.0, log(pli->bg->omega) + pli->hit->dcl->domcorrection);
+  else 
+    dom_bias = 0.;
+
+  p7_bg_SetLength(pli->bg, om->max_length);
+  p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, om->max_length, &nullsc);
+  dom_score = (dom_score - (nullsc + dom_bias))  / eslCONST_LOG2;
+
+  dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
+
+  /* E-value adjustment */
+  dom_lnP += log((float)info->db_nuc_cnt / (float)om->max_length);
+
+  if ((pli->by_E && exp(dom_lnP) <= pli->E) || ((!pli->by_E) && dom_score >= pli->T)) {
+
+	contains_anchor = FALSE;
+	replace_node = -1;
+	nreported_dec = 0;
+	nincluded_dec = 0;
+
+	/* No lock needed here: every node a graph holds comes from the
+	 * original tophits/seed_hits filtered by this graph's own seqidx
+	 * and strand (p7_splice_AddAnchors/AddSeeds), so no two graphs -
+	 * and so no two threads - ever share the same underlying P7_HIT.
+	 * replace_hit and graph->th->hit[n] are exclusively this thread's.
+	 * Only tophits->nreported/nincluded are genuinely shared; tally
+	 * those locally and apply them under a lock once, below. */
+
+	/* Find which exons overlap with anchor nodes so those hit can either
+	 * be repalced by the new spliced hit or set to unreportable  */
+	for(e = 0; e < pli->hit->dcl->ad->exon_cnt; e++) {
+
+		pli->hit->dcl->ad->exon_anchor[e] = FALSE;
+        pli->hit->dcl->ad->exon_extend[e] = FALSE;
+
+        exon_ali_min = ESL_MIN(pli->hit->dcl->ad->exon_seq_starts[e], pli->hit->dcl->ad->exon_seq_ends[e]);
+        exon_ali_max = ESL_MAX(pli->hit->dcl->ad->exon_seq_starts[e], pli->hit->dcl->ad->exon_seq_ends[e]);
+        exon_ali_len = exon_ali_max - exon_ali_min + 1;
+
+        exon_hmm_min = pli->hit->dcl->ad->exon_hmm_starts[e];
+        exon_hmm_max = pli->hit->dcl->ad->exon_hmm_ends[e];    
+        exon_hmm_len = exon_hmm_max - exon_hmm_min + 1;
+
+      for(n = 0; n < graph->anchor_N; n++) {
+          if(!graph->node_in_graph[n]) continue;
+
+	    node_ali_min = ESL_MIN(graph->th->hit[n]->dcl->iali, graph->th->hit[n]->dcl->jali);
+		node_ali_max = ESL_MAX(graph->th->hit[n]->dcl->iali, graph->th->hit[n]->dcl->jali);
+	    node_ali_len = node_ali_max - node_ali_min + 1;
+		
+		node_hmm_min = graph->th->hit[n]->dcl->ihmm;
+        node_hmm_max = graph->th->hit[n]->dcl->jhmm; 
+		node_hmm_len = node_hmm_max - node_hmm_min + 1;
+
+        ali_overlap_start = ESL_MAX(exon_ali_min, node_ali_min);
+		ali_overlap_end   = ESL_MIN(exon_ali_max, node_ali_max);
+		ali_overlap_len   = ali_overlap_end - ali_overlap_start + 1;
+
+		hmm_overlap_start = ESL_MAX(exon_hmm_min, node_hmm_min);
+        hmm_overlap_end   = ESL_MIN(exon_hmm_max, node_hmm_max);
+        hmm_overlap_len   = hmm_overlap_end - hmm_overlap_start + 1;
+
+		/* Is there a 50% overlap on the nodes sequence and hmm coords */
+		if( (double) ali_overlap_len / (double) node_ali_len > 0.5 && 
+			(float)  hmm_overlap_len / (float)  node_hmm_len > 0.5) {
+        
+			pli->hit->dcl->ad->exon_anchor[e] = TRUE;
+			/* If this is the first anchor node resplce the original 
+			 * P7_TOPHITS hit with the new spliced hit */
+		    if(contains_anchor == FALSE) {
+             
+			  replace_node = n;	
+              replace_hit = tophits->hit[graph->orig_hit_idx[n]];
+              p7_domain_Destroy(replace_hit->dcl);
+              replace_hit->dcl        = pli->hit->dcl;
+              replace_hit->frameshift = FALSE;
+              replace_hit->flags =  0;
+              replace_hit->flags |= p7_IS_REPORTED;
+              replace_hit->flags |= p7_IS_INCLUDED;
+              replace_hit->nreported = 1;
+              replace_hit->nincluded = 1;
+          
+              replace_hit->dcl->bitscore    = dom_score;
+              replace_hit->dcl->lnP         = dom_lnP;
+              replace_hit->dcl->dombias     = dom_bias;
+              replace_hit->dcl->is_reported = TRUE;
+              replace_hit->dcl->is_included = TRUE;
+          
+              replace_hit->pre_score = pli->hit->dcl->envsc  / eslCONST_LOG2;
+              replace_hit->pre_lnP   = esl_exp_logsurv (replace_hit->pre_score, om->evparam[p7_FTAUFS5], om->evparam[p7_FLAMBDA]);
+          
+              replace_hit->sum_score  = replace_hit->score  = dom_score;
+              replace_hit->sum_lnP    = replace_hit->lnP    = dom_lnP;
+          
+              replace_hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score;              
+
+			  contains_anchor = TRUE;
+			}
+			/* If this is not the first anchor set the original
+             * P7_TOPHITS hit to unreportable */
+			else if (graph->orig_hit_idx[n] != graph->orig_hit_idx[replace_node]){
+              nreported_dec++;
+              graph->th->hit[n]->flags &= ~p7_IS_REPORTED;
+              graph->th->hit[n]->dcl->is_reported = FALSE;
+              if(graph->th->hit[n]->flags & p7_IS_INCLUDED) {
+                nincluded_dec++;
+                graph->th->hit[n]->flags &= ~p7_IS_INCLUDED;
+                graph->th->hit[n]->dcl->is_included = FALSE;
+              }
+			}
+			n = graph->anchor_N;
+		  }
+		}
+	  }
+
+	  if (nreported_dec > 0 || nincluded_dec > 0) {
+#ifdef HMMER_THREADS
+	    if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
+#endif /*HMMER_THREADS*/
+	    tophits->nreported -= nreported_dec;
+	    tophits->nincluded -= nincluded_dec;
+#ifdef HMMER_THREADS
+	    if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
+#endif /*HMMER_THREADS*/
+	  }
+
+	  /* If no orignal hit was suffeciently overlaped to warrent replacing 
+	   * that hit create a new one for the new spliced hit. */ 
+	  if(!contains_anchor) {
+        p7_tophits_CreateNextHit(info->new_hits, &new_hit);
+  
+        new_hit->ndom        = 1;
+        new_hit->best_domain = 0;
+        new_hit->target_len = graph->seqL;
+        new_hit->seqidx = graph->seqidx;
+        new_hit->dcl = pli->hit->dcl;
+  
+        new_hit->frameshift = FALSE;
+        new_hit->flags =  0;
+        new_hit->flags |= p7_IS_REPORTED;
+        new_hit->flags |= p7_IS_INCLUDED;
+        new_hit->nreported = 1;
+        new_hit->nincluded = 1;
+
+        new_hit->dcl->bitscore    = dom_score;
+        new_hit->dcl->lnP         = dom_lnP;
+        new_hit->dcl->dombias     = dom_bias;
+        new_hit->dcl->is_reported = TRUE;
+        new_hit->dcl->is_included = TRUE;
+
+        new_hit->pre_score = pli->hit->dcl->envsc  / eslCONST_LOG2;
+        new_hit->pre_lnP   = esl_exp_logsurv (new_hit->pre_score, om->evparam[p7_FTAUFS5], om->evparam[p7_FLAMBDA]);
+
+        new_hit->sum_score  = new_hit->score  = dom_score;
+        new_hit->sum_lnP    = new_hit->lnP    = dom_lnP;
+
+        new_hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score;
+
+		if (                             (status  = esl_strdup(path_seq->name, -1, &(new_hit->name)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (path_seq->acc[0]  != '\0' && (status  = esl_strdup(path_seq->acc,  -1, &(new_hit->acc)))   != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+        if (path_seq->desc[0] != '\0' && (status  = esl_strdup(path_seq->desc, -1, &(new_hit->desc)))  != eslOK) ESL_EXCEPTION(eslEMEM, "allocation failure");
+    }
+
+	*success = TRUE;
+
+  }
+
+  return eslOK;
+   
+}
+
 
 
 /*  Function: p7_splice_CreateSplicedSequence

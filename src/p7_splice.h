@@ -59,6 +59,7 @@ typedef struct _splice_graph {
   /* Node info */
   int         *node_in_graph;   /* Is the hit part of the current graph */
   int         *tmp_node;        /* New nodes found during splicing */
+  int         *extension;       /* Node added to a path durring path extension */
   int         *orig_hit_idx;    /* index of hits in original P7_TOPHITS  */
 
   /*Edge info */  
@@ -92,7 +93,6 @@ typedef struct _splice_path {
   int path_len;
 
   int *node_id;
-  int *extension;
 
   int *ihmm;
   int *jhmm;
@@ -176,11 +176,8 @@ typedef struct _splice_info
   P7_FS_PROFILE      *gm_tr;      /* non optimized translated query profile   */
   P7_FS_OPROFILE     *om_tr;      /* optimized translated query profile       */
   P7_TOPHITS         *tophits;    /* original tophits                         */
-  P7_TOPHITS         *new_hits;   /* hits created by AlignSplicedPath2 that don't
-                                    * replace an existing anchor; merged into
-                                    * tophits only after all graph processing
-                                    * is done, since graph->th holds raw
-                                    * pointers into tophits's storage          */
+  P7_TOPHITS         *new_hits;   /* hits created by AlignSplicedPath that 
+									 don't replace an existing anchor; */ 
   P7_TOPHITS         *seeds;      /* seed hits from SSV                       */
   ESL_GENCODE        *gcode;      /* used for translation                     */
   ESL_SQFILE         *seq_file;         /* target sequence file (reference only)    */
@@ -289,10 +286,9 @@ extern int p7_splice_EnforceBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64
 extern int p7_splice_HitUpstream(P7_DOMAIN *upstream, P7_DOMAIN *downstream, int revcomp);
 extern int p7_splice_HitBetween(P7_DOMAIN *up, P7_DOMAIN *mid, P7_DOMAIN *down, int revcomp);
 extern SPLICE_PATH* p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
-extern int p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
+extern int p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq, int first_core_id, int last_core_id);
 extern int p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, ESL_SQ *path_seq);
-extern int p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success);
-extern int p7_splice_AlignSplicedPath2(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success);
+extern int p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success);
 extern int p7_splice_CreateSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq);
 extern int p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, double *P);
 extern int p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om);

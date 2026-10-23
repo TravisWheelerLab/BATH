@@ -800,6 +800,7 @@ typedef struct p7_alidisplay_s {
   int     *exon_hmm_ends;       /* array of amino end positions for exons in spliced alignment        */
   int     *exon_anchor;         /* array of bools stating whether exon was an anchor node             */
   int     *exon_extend;         /* array of bools stating whether exon was an  extension node         */
+  int     *exon_tmp;            /* array of bools stating whether exon was a tmp_node                 */
   int     *exon_splice;         /* record of the splice site                                          */
   float   *exon_pid;            /* array of percent identities for exons in spliced alignment         */
   double  *exon_lnP;

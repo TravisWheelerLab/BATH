@@ -350,6 +350,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
@@ -647,6 +648,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
@@ -1039,6 +1041,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
@@ -1347,6 +1350,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1)); 
   ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_tmp,        sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_splice,     sizeof(int)     * (splice_cnt+1)); 
  
   /* Determine hit coords */
@@ -1935,6 +1939,7 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_tmp,        sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_splice,     sizeof(int)     * (splice_cnt+1));
     
   /* Determine hit coords */
@@ -2754,6 +2759,7 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->exon_pid        = NULL;
   new_obj->exon_anchor     = NULL;
   new_obj->exon_extend     = NULL;
+  new_obj->exon_tmp        = NULL;
   new_obj->exon_splice     = NULL;
   new_obj->exon_cnt        = 0;
 
@@ -2890,6 +2896,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ESL_ALLOC(ad2->exon_pid,        sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_anchor,     sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_extend,     sizeof(int)     * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_tmp,        sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_splice,     sizeof(int)     * ad->exon_cnt);
  
       memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt * sizeof(int64_t));
@@ -2900,6 +2907,7 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt * sizeof(float));
       memcpy(ad2->exon_anchor,     ad->exon_anchor,     ad->exon_cnt * sizeof(int));
       memcpy(ad2->exon_extend,     ad->exon_extend,     ad->exon_cnt * sizeof(int));
+      memcpy(ad2->exon_tmp,        ad->exon_tmp,        ad->exon_cnt * sizeof(int));
       memcpy(ad2->exon_splice,     ad->exon_splice,     ad->exon_cnt * sizeof(int));
       ad2->exon_cnt        = ad->exon_cnt;
    }
@@ -3598,6 +3606,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if(ad->exon_pid)        free(ad->exon_pid);
       if(ad->exon_anchor)     free(ad->exon_anchor);
       if(ad->exon_extend)     free(ad->exon_extend);
+      if(ad->exon_tmp)        free(ad->exon_tmp);
       if(ad->exon_splice)     free(ad->exon_splice);
       if(ad->cigar)           free(ad->cigar);
     }
@@ -3626,6 +3635,7 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if (ad->exon_pid)        free(ad->exon_pid);
       if (ad->exon_anchor)     free(ad->exon_anchor);
       if (ad->exon_extend)     free(ad->exon_extend);
+      if (ad->exon_tmp)        free(ad->exon_tmp);
       if (ad->exon_splice)     free(ad->exon_splice);
       if (ad->cigar)           free(ad->cigar);
     }
@@ -4277,6 +4287,7 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL; 
 
   /* Optional lines are added w/ 50% chance */
@@ -4713,6 +4724,7 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
 
   /* Optional lines are added w/ 50% chance */

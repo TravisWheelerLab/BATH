@@ -58,7 +58,8 @@ p7_splicegraph_Create()
   graph->orig_hit_idx   = NULL;
   graph->node_in_graph  = NULL;
   graph->tmp_node       = NULL;
-  
+  graph->extension      = NULL;
+
   graph->best_out_edge = NULL;
 
   graph->path_scores   = NULL;
@@ -102,7 +103,8 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->orig_hit_idx,  sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->node_in_graph, sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->tmp_node,      sizeof(int)  * graph->nalloc);
- 
+  ESL_ALLOC(graph->extension,     sizeof(int)  * graph->nalloc);
+
   ESL_ALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
 
   ESL_ALLOC(graph->ali_scores,    sizeof(float) * graph->nalloc);
@@ -159,7 +161,8 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
 
     ESL_REALLOC(graph->node_in_graph, sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->tmp_node,      sizeof(int)   * graph->nalloc);
-    ESL_REALLOC(graph->orig_hit_idx,  sizeof(int)   * graph->nalloc);    
+    ESL_REALLOC(graph->extension,     sizeof(int)   * graph->nalloc);
+    ESL_REALLOC(graph->orig_hit_idx,  sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
 
     ESL_REALLOC(graph->ali_scores,    sizeof(float) * graph->nalloc);
@@ -223,6 +226,7 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   }
 
   if(graph->tmp_node != NULL) free(graph->tmp_node);
+  if(graph->extension != NULL) free(graph->extension);
 
   if (graph->th->hit != NULL) free(graph->th->hit);
   if (graph->th      != NULL) free(graph->th);
@@ -280,6 +284,7 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 
   graph->node_in_graph[graph->num_nodes] = TRUE;
   graph->tmp_node[graph->num_nodes]      = FALSE;
+  graph->extension[graph->num_nodes]     = FALSE;
 
   graph->ali_scores[graph->num_nodes]  = hit->dcl->aliscore;
   graph->path_scores[graph->num_nodes] = -eslINFINITY;

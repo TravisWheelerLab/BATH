@@ -539,6 +539,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   
   int                h, s;
   int                success;
+  int                first_core_id, last_core_id;
   int                hit_hmm_min, hit_hmm_max;
   int                node_hmm_min, node_hmm_max;
   int                hmm_overlap_start, hmm_overlap_end;
@@ -596,11 +597,17 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     
     if(spliced_path != NULL) {
             
+      /* Record the node ids at the start/end of spliced_path before
+       * extending it, so we can tell afterward whether/where any
+       * extension nodes were added. */
+      first_core_id = spliced_path->node_id[0];
+      last_core_id  = spliced_path->node_id[spliced_path->path_len-1];
+
       /* Add additional nodes to the beginning and end of spliced_path */
       p7_splice_ExtendPath(pli, info->seeds, orig_path, spliced_path, graph, bounds);
 
       /* If extension nodes were added, splice them */
-      if(spliced_path->extension[0] || spliced_path->extension[spliced_path->path_len-1]) {
+      if(spliced_path->node_id[0] != first_core_id || spliced_path->node_id[spliced_path->path_len-1] != last_core_id) {
         
         path_min = ESL_MIN(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) - ALIGNMENT_EXT;
         path_max = ESL_MAX(spliced_path->iali[0], spliced_path->jali[spliced_path->path_len-1]) + ALIGNMENT_EXT;
@@ -613,7 +620,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
           seq_max = ESL_MAX(seq_max, path_max);
           path_seq = p7_splice_GetSubSequence(seq_file, graph->seqname, seq_min, seq_max, spliced_path->revcomp, info);
         }
-        p7_splice_SpliceExtensions(info, spliced_path, path_seq);
+        p7_splice_SpliceExtensions(info, spliced_path, path_seq, first_core_id, last_core_id);
         
       }
       else if (spliced_path->path_len == 1) p7_splice_SpliceSingle(info, spliced_path, path_seq);        
@@ -623,7 +630,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
       if(spliced_path->path_len > 1) {
 
         /* Create the final alignment */
-        p7_splice_AlignSplicedPath2(info, spliced_path, path_seq, &success);
+        p7_splice_AlignSplicedPath(info, spliced_path, path_seq, &success);
 
 		/* Break edges that overlap the hit so that paths do not intertwine */
         hit_seq_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali);
@@ -662,6 +669,11 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 	  }
  
     } 
+
+	/* extenstion labels are stale after each path */
+	for(h = 0; h < graph->num_nodes; h++) 
+      graph->extension[h] = FALSE;
+	
 
     p7_splicepath_Destroy(orig_path);
     p7_splicepath_Destroy(copy_path);
@@ -894,11 +906,13 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
     /* If this is a new seed add it to the main graph */
     if(tmp_path->node_id[s] >= seeds_in_graph) {
       curr_hit->dcl->is_included = TRUE;
-  
+
       p7_splicegraph_AddNode(graph, curr_hit);
-   
+
+      graph->extension[graph->num_nodes-1] = TRUE;
+
       tmp_edge = p7_splicegraph_GetEdge(tmp_graph, tmp_path->node_id[s], tmp_path->node_id[s+1]);
-  
+
       edge = p7_splicegraph_AddEdge(graph, graph->num_nodes-1, spliced_path->node_id[0]);
 
       edge->upstream_amino_end     = tmp_edge->upstream_amino_end;
@@ -907,9 +921,8 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
       edge->downstream_nuc_start   = tmp_edge->downstream_nuc_start;
       edge->edge_score             = tmp_edge->edge_score;
   
-      p7_splicepath_Insert(spliced_path, 0); 
-      spliced_path->node_id[0]   = graph->num_nodes-1; 
-      spliced_path->extension[0] = TRUE;
+      p7_splicepath_Insert(spliced_path, 0);
+      spliced_path->node_id[0]   = graph->num_nodes-1;
       spliced_path->ihmm[0]      = tmp_path->ihmm[s];
       spliced_path->jhmm[0]      = tmp_path->jhmm[s];
       spliced_path->iali[0]      = tmp_path->iali[s];
@@ -929,9 +942,10 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
         edge->edge_score             = tmp_edge->edge_score;
       }
 
-      p7_splicepath_Insert(spliced_path, 0); 
-      spliced_path->node_id[0]   = tmp_graph->orig_hit_idx[tmp_path->node_id[s]]; 
-      spliced_path->extension[0] = TRUE;
+      graph->extension[tmp_graph->orig_hit_idx[tmp_path->node_id[s]]] = TRUE;
+
+      p7_splicepath_Insert(spliced_path, 0);
+      spliced_path->node_id[0]   = tmp_graph->orig_hit_idx[tmp_path->node_id[s]];
       spliced_path->ihmm[0]      = tmp_path->ihmm[s];
       spliced_path->jhmm[0]      = tmp_path->jhmm[s];
       spliced_path->iali[0]      = tmp_path->iali[s];
@@ -1041,10 +1055,11 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
     if(tmp_path->node_id[s] >= seeds_in_graph) {
       curr_hit->dcl->is_included = TRUE;
       p7_splicegraph_AddNode(graph, curr_hit);
-  
- 
+
+      graph->extension[graph->num_nodes-1] = TRUE;
+
       tmp_edge = p7_splicegraph_GetEdge(tmp_graph, tmp_path->node_id[s-1], tmp_path->node_id[s]);
-       
+
       edge = p7_splicegraph_AddEdge(graph, spliced_path->node_id[spliced_path->path_len-1], graph->num_nodes-1);
       
       edge->upstream_amino_end     = tmp_edge->upstream_amino_end;
@@ -1055,7 +1070,6 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
 
       p7_splicepath_Insert(path, path->path_len);
       path->node_id[path->path_len-1]   = graph->num_nodes-1;
-      path->extension[path->path_len-1] = TRUE;
       path->ihmm[path->path_len-1]      =  tmp_path->ihmm[s];
       path->jhmm[path->path_len-1]      =  tmp_path->jhmm[s];
       path->iali[path->path_len-1]      =  tmp_path->iali[s];
@@ -1075,9 +1089,10 @@ p7_splice_ExtendPath(SPLICE_PIPELINE *pli, P7_TOPHITS *seed_hits, SPLICE_PATH *p
         edge->edge_score             = tmp_edge->edge_score;
       }
 
+      graph->extension[tmp_graph->orig_hit_idx[tmp_path->node_id[s]]] = TRUE;
+
       p7_splicepath_Insert(spliced_path, spliced_path->path_len);
       spliced_path->node_id[spliced_path->path_len-1]   = tmp_graph->orig_hit_idx[tmp_path->node_id[s]];
-      spliced_path->extension[spliced_path->path_len-1] = TRUE;
       spliced_path->ihmm[spliced_path->path_len-1]      = tmp_path->ihmm[s];
       spliced_path->jhmm[spliced_path->path_len-1]      = tmp_path->jhmm[s];
       spliced_path->iali[spliced_path->path_len-1]      = tmp_path->iali[s];
@@ -1246,10 +1261,8 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
         ret_path = p7_splicepath_Create(2);
         ret_path->iali[0] = i_start;
         ret_path->ihmm[0] = k_start;
-
-        ret_path->extension[0] = FALSE;
-      } 
-      else p7_splicepath_Insert(ret_path, ret_path->path_len); 
+      }
+      else p7_splicepath_Insert(ret_path, ret_path->path_len);
 
       /* Recover splice coordinates and add to path */
       ret_path->jali[ret_path->path_len-2] = edge->upstream_nuc_end;
@@ -1262,10 +1275,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
       ret_path->node_id[ret_path->path_len-2] = orig_path->node_id[s-1];
       ret_path->node_id[ret_path->path_len-1] = orig_path->node_id[s];
 
-      ret_path->extension[ret_path->path_len-2] = FALSE;
-      ret_path->extension[ret_path->path_len-1] = FALSE;   
-
-      next_k_start = edge->next_k_start; 
+      next_k_start = edge->next_k_start;
       next_i_start = edge->next_i_start;
       continue;
     }
@@ -1308,17 +1318,15 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
     else {
       ret_path->jali[ret_path->path_len-1] = tmp_path->jali[0];
       ret_path->jhmm[ret_path->path_len-1] = tmp_path->jhmm[0];
-     
-      ret_path->extension[ret_path->path_len-1] = FALSE; 
-      for(i = 1; i < tmp_path->path_len; i++) {   
+
+      for(i = 1; i < tmp_path->path_len; i++) {
         p7_splicepath_Insert(ret_path, ret_path->path_len);
         ret_path->iali[ret_path->path_len-1] = tmp_path->iali[i];
         ret_path->jali[ret_path->path_len-1] = tmp_path->jali[i];
         ret_path->ihmm[ret_path->path_len-1] = tmp_path->ihmm[i];
-        ret_path->jhmm[ret_path->path_len-1] = tmp_path->jhmm[i]; 
+        ret_path->jhmm[ret_path->path_len-1] = tmp_path->jhmm[i];
 
-        ret_path->node_id[ret_path->path_len-1]   = tmp_path->node_id[i]; 
-        ret_path->extension[ret_path->path_len-1] = FALSE;
+        ret_path->node_id[ret_path->path_len-1]   = tmp_path->node_id[i];
       }
     } 
 
@@ -1362,7 +1370,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
  *
  */
 int
-p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq)
+p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int first_core_id, int last_core_id)
 {
 
   int i;
@@ -1375,13 +1383,17 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
   SPLICE_PIPELINE *pli;
   SPLICE_PATH  *tmp_path;
   SPLICE_GRAPH *graph;
-  SPLICE_EDGE  *edge; 
+  SPLICE_EDGE  *edge;
 
   pli   = info->pli;
   graph = info->graph;
 
-  for(s_start = 0; s_start < spliced_path->path_len; s_start++) if(!spliced_path->extension[s_start]) break;
-  for(s_end = spliced_path->path_len-1; s_end >= 0; s_end--)    if(!spliced_path->extension[s_end])   break;
+  /* first_core_id/last_core_id are the node ids that were at the start/end
+   * of spliced_path before p7_splice_ExtendPath() ran; find where they
+   * still are now to recover the boundary between the core path and any
+   * extension nodes added since. */
+  for(s_start = 0; s_start < spliced_path->path_len; s_start++) if(spliced_path->node_id[s_start] == first_core_id) break;
+  for(s_end = spliced_path->path_len-1; s_end >= 0; s_end--)    if(spliced_path->node_id[s_end] == last_core_id)    break;
 
   /**************************
   * Downstream Extension
@@ -1435,7 +1447,7 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
         spliced_path->ihmm[spliced_path->path_len-1] = tmp_path->ihmm[i];
         spliced_path->jhmm[spliced_path->path_len-1] = tmp_path->jhmm[i];
 
-        spliced_path->extension[spliced_path->path_len-1] = TRUE;
+        spliced_path->node_id[spliced_path->path_len-1] = tmp_path->node_id[i];
       }
       p7_splicepath_Destroy(tmp_path);
     }
@@ -1443,7 +1455,7 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
   }
 
   /**************************
-   * Upstream Extension 
+   * Upstream Extension
    *************************/
   /* If there are upstream extension nodes see if they are recovered by spliced viterbi */ 
   if(s_start != 0) {
@@ -1498,7 +1510,7 @@ p7_splice_SpliceExtensions(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
         spliced_path->ihmm[0] = tmp_path->ihmm[i];
         spliced_path->jhmm[0] = tmp_path->jhmm[i];
 
-        spliced_path->extension[0] = TRUE;
+        spliced_path->node_id[0] = tmp_path->node_id[i];
       }
       p7_splicepath_Destroy(tmp_path);
     }
@@ -1733,8 +1745,6 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
 
         tmp_path->jali[step_cnt] = tr->i[z];
       }
-
-      ret_path->extension[step_cnt] = FALSE;
 
       step_cnt++;
 
@@ -2129,7 +2139,8 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
 
       p7_splicegraph_AddNode(graph, hit);
 
-      graph->tmp_node[graph->num_nodes-1] = TRUE;
+      graph->tmp_node[graph->num_nodes-1]  = TRUE;
+      graph->extension[graph->num_nodes-1] = TRUE;
 
       tmp_path->node_id[s] = graph->num_nodes-1;
       ret_path->node_id[s] = graph->num_nodes-1;
@@ -2417,7 +2428,8 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
 
       p7_splicegraph_AddNode(graph, hit);
 
-      graph->tmp_node[graph->num_nodes-1] = TRUE;
+      graph->tmp_node[graph->num_nodes-1]  = TRUE;
+      graph->extension[graph->num_nodes-1] = TRUE;
 
       tmp_path->node_id[s] = graph->num_nodes-1;
       ret_path->node_id[s] = graph->num_nodes-1;
@@ -2689,249 +2701,21 @@ p7_splice_EnforceBounds(SPLICE_GRAPH *graph, int64_t bound_min, int64_t bound_ma
 /*  Function: p7_splice_AlignSplicedPath
  *  Synopsis: Create a spliced alignment from a spliced path
  *
- *  Purpose : Given a fully spliced SPLICE_PATH create the protein sequence produced by 
- *            that splicing, align it to the model using protein to protein alignment.  
- *            Convert that protein to protein alignment to a spliced alignment and 
- *            replace one of path's anchor nodes' original hits with the new spliced hit. 
- *            Mark the original hits of any other anchor nodes in the path as unreportable.
+ *  Purpose : Given a fully spliced SPLICE_PATH create the protein sequence produced by
+ *            that splicing, align it to the model using protein to protein alignment.
+ *            Convert that protein to protein alignment to a spliced alignment. For each
+ *            resulting exon, find the graph's anchor node (if any) whose alignment and
+ *            model coordinates overlap it by more than 50% on both axes; replace that
+ *            anchor's original hit with the new spliced hit, and mark any other anchor's
+ *            original hit found this way as unreportable. If no anchor is sufficiently
+ *            overlapped by any exon, create a new hit for the spliced alignment instead
+ *            of discarding it.
  *
  * Returns:   <eslOK>.
  *
  */
 int
-p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success)
-{
-  int           i, n, s;
-  int           shift;
-  int           orf_len;
-  int           remove_node;
-  int           replace_node;
-  int           contains_anchor;
-  int           found_in_path;
-  float         dom_bias;
-  float         nullsc;
-  float         dom_score;
-  double        P;
-  double        dom_lnP;
-  P7_HIT       *replace_hit;
-  P7_TOPHITS *tophits;
-  SPLICE_GRAPH *graph;
-  SPLICE_PIPELINE *pli;
-  P7_OPROFILE *om;
-  int           status;
-
-
-  tophits = info->tophits;
-  graph = info->graph;
-  pli = info->pli;
-  om = info->om;
-
-  /* Create an amino sequence from the spliced nuc sequence whose coords are in the spliced_path */
-  p7_splice_CreateSplicedSequence(info, spliced_path, path_seq);
-
-  /* Align the spliced amino sequence */
-  status = p7_splice_AlignSplicedSequence(info, spliced_path, path_seq, &P);
-  if (status != eslOK) return status;
-
-  if(P > pli->F3 || pli->hit->dcl->ad->exon_cnt == 1) return eslOK;
-
-  /* adjust the hit coords */
-  if(spliced_path->revcomp) {
-    pli->hit->dcl->ienv = path_seq->n - pli->orig_nuc_idx[1]              + path_seq->end;
-    pli->hit->dcl->jenv = path_seq->n - pli->orig_nuc_idx[pli->nuc_sq->n] + path_seq->end;
-  }
-  else {
-    pli->hit->dcl->ienv = pli->orig_nuc_idx[1]              + path_seq->start -1;
-    pli->hit->dcl->jenv = pli->orig_nuc_idx[pli->nuc_sq->n] + path_seq->start -1;
-  }
-
-  /* Adjust spliced hit score from amino_len to om->max_length */
-  dom_score  = pli->hit->dcl->envsc;
-  orf_len = pli->hit->dcl->ad->orfto - pli->hit->dcl->ad->orffrom + 1;
-  dom_score -= 2 * log(2. / (pli->amino_sq->n+2));
-  dom_score += 2 * log(2. / (om->max_length+2));
-  dom_score -= (pli->amino_sq->n-orf_len)      * log((float) (pli->amino_sq->n) / (float) (pli->amino_sq->n+2));
-  dom_score += (om->max_length-orf_len) * log((float) om->max_length / (float) (om->max_length+2));
- 
-  /* Bias calculation and adjustments */
-  if(pli->do_null2) 
-    dom_bias = p7_FLogsum(0.0, log(pli->bg->omega) + pli->hit->dcl->domcorrection);
-  else 
-    dom_bias = 0.;
-
-  p7_bg_SetLength(pli->bg, om->max_length);
-  p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, om->max_length, &nullsc);
-  dom_score = (dom_score - (nullsc + dom_bias))  / eslCONST_LOG2;
-
-  dom_lnP   = esl_exp_logsurv(dom_score, om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
-  /* E-value adjustment */
-  dom_lnP += log((float)info->db_nuc_cnt / (float)om->max_length);
-
-  if ((pli->by_E && exp(dom_lnP) <= pli->E) || ((!pli->by_E) && dom_score >= pli->T)) {
-
-    /*If the first or last exon does not pass the reporting threshold,
-     * break the edge to the corresponding node and realign */
-    if ( spliced_path->path_len >  pli->hit->dcl->ad->exon_cnt) {
-      /* Shift the path to start at the first hit that was included in the alignment
-       * and end at the last hit that was included in the alignment */
-      if(spliced_path->revcomp) {
-        for(shift = 0; shift < spliced_path->path_len; shift++) {
-          if(spliced_path->jali[shift] <= pli->hit->dcl->iali) break;
-        }
-      }
-      else {
-        for(shift = 0; shift < spliced_path->path_len; shift++) {
-           if(spliced_path->jali[shift] >= pli->hit->dcl->iali) break;
-        }
-      }
-
-      /*Redo node  assignments to maximize the number of anchor nodes */
-      for(i = 0; i < graph->anchor_N; i++) {
-        if(!graph->node_in_graph[i]) continue;
-        for(s = 0; s < spliced_path->path_len; s++) {
-          if(spliced_path->node_id[s] >= graph->anchor_N) {
-            if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s, 0.0, 0.0))
-              spliced_path->node_id[s] = i;
-          }
-        }
-      }
-
-      /* Shift path to start at first hit that is in alignment */
-      for(s = 0; s < shift; s++) 
-        p7_splicepath_Remove(spliced_path, 0);
-
-      spliced_path->iali[0] = pli->hit->dcl->iali;
-      spliced_path->ihmm[0] = pli->hit->dcl->ihmm;
-
-      spliced_path->path_len =  pli->hit->dcl->ad->exon_cnt;
-
-      spliced_path->jali[spliced_path->path_len-1] = pli->hit->dcl->jali;
-      spliced_path->jhmm[spliced_path->path_len-1] = pli->hit->dcl->jhmm;
-
-    }
-
-    contains_anchor = FALSE;
-    /*Redo node assignments to maximize the number of anchor nodes */
-    for(i = 0; i < graph->anchor_N; i++) {
-      if(!graph->node_in_graph[i]) continue;
-      found_in_path = FALSE;
-      for(s = 0; s < spliced_path->path_len; s++) {
-        if(spliced_path->node_id[s] == i) {
-          found_in_path   = TRUE;
-          contains_anchor = TRUE;
-        }
-      }
-      if(found_in_path == TRUE) continue;
-      for(s = 0; s < spliced_path->path_len; s++) {
-        if(spliced_path->node_id[s] < 0 || spliced_path->node_id[s] >= graph->anchor_N) {
-          if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s, 0.0, 0.0)) {
-            spliced_path->node_id[s] = i;
-            contains_anchor = TRUE;
-          }
-        }
-      }
-    }
-    if(!contains_anchor) return eslOK;
-
-    for(i = 0; i < graph->anchor_N; i++) {
-      if(!graph->node_in_graph[i]) continue;
-      for(s = 0; s < spliced_path->path_len; s++) {
-        if(spliced_path->node_id[s] < 0 || spliced_path->node_id[s] >= graph->anchor_N) {
-          if(p7_splicegraph_NodeOverlap(graph, i, spliced_path, s, 0.0, 0.0)) 
-            spliced_path->node_id[s] = i;
-        }
-      }  
-    }
-
-    /* Find the first original hit in path to copy info*/
-    i = 0;
-    while( spliced_path->node_id[i] >= graph->anchor_N || spliced_path->node_id[i] == -1) {
-      pli->hit->dcl->ad->exon_anchor[i] = FALSE;
-      pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
-      
-      i++;
-    }
-    pli->hit->dcl->ad->exon_anchor[i] = TRUE;
-    pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
-#ifdef HMMER_THREADS
-  if(info->thread_id >= 0) pthread_mutex_lock(info->mutex);
-#endif /*HMMER_THREADS*/
-
-    replace_node = spliced_path->node_id[i];
-    replace_hit = tophits->hit[graph->orig_hit_idx[replace_node]];    
-    p7_domain_Destroy(replace_hit->dcl);
-    replace_hit->dcl        = pli->hit->dcl;
-    replace_hit->frameshift = FALSE;
-    replace_hit->flags =  0;
-    replace_hit->flags |= p7_IS_REPORTED;
-    replace_hit->flags |= p7_IS_INCLUDED;
-    replace_hit->nreported = 1;
-    replace_hit->nincluded = 1;
-
-    replace_hit->dcl->bitscore    = dom_score;
-    replace_hit->dcl->lnP         = dom_lnP;
-    replace_hit->dcl->dombias     = dom_bias;
-    replace_hit->dcl->is_reported = TRUE;
-    replace_hit->dcl->is_included = TRUE;
-
-    replace_hit->pre_score = pli->hit->dcl->envsc  / eslCONST_LOG2;
-    replace_hit->pre_lnP   = esl_exp_logsurv (replace_hit->pre_score, om->evparam[p7_FTAUFS5], om->evparam[p7_FLAMBDA]);
-
-    replace_hit->sum_score  = replace_hit->score  = dom_score;
-    replace_hit->sum_lnP    = replace_hit->lnP    = dom_lnP;
-
-    replace_hit->sortkey    = pli->inc_by_E ? -dom_lnP : dom_score;
-      
-    /* Set all other original hits in alignment to unreportable */
-    for(i = 0; i < spliced_path->path_len; i++) {
-      remove_node = spliced_path->node_id[i];
-
-      pli->hit->dcl->ad->exon_anchor[i] = (remove_node >= 0 && remove_node < graph->anchor_N);
-      pli->hit->dcl->ad->exon_extend[i] = spliced_path->extension[i];
-
-      /* Replace splice path node coordinates with the final alignment coordinates
-       * before setting anchor hits as unreportable to avoid not reporting
-       * hits that never made it into the final alignment. */
-      spliced_path->ihmm[i] = pli->hit->dcl->ad->exon_hmm_starts[i];
-      spliced_path->jhmm[i] = pli->hit->dcl->ad->exon_hmm_ends[i];
-      spliced_path->iali[i] = pli->hit->dcl->ad->exon_seq_starts[i];
-      spliced_path->jali[i] = pli->hit->dcl->ad->exon_seq_ends[i];
-
-      /* Set as unreportable any hit whose HMM and sequence coordinates overlap
-       * by more than 90% with an exon in the spliced alignment. */
-      for(n = 0; n < graph->anchor_N; n++) {
-        if(graph->orig_hit_idx[n] == graph->orig_hit_idx[replace_node]) continue;
-        if(graph->th->hit[n]->flags & p7_IS_REPORTED ) {
-          if(p7_splicegraph_NodeOverlap(graph, n, spliced_path, i, 0.9, 0.9)) {
-            tophits->nreported--;
-            graph->th->hit[n]->flags &= ~p7_IS_REPORTED;
-            graph->th->hit[n]->dcl->is_reported = FALSE;
-            if(graph->th->hit[n]->flags & p7_IS_INCLUDED) {
-              tophits->nincluded--;
-              graph->th->hit[n]->flags &= ~p7_IS_INCLUDED;
-              graph->th->hit[n]->dcl->is_included = FALSE;
-            }
-          }
-        }
-      }
-    }
-    
-    *success = TRUE; 
-
-    
-#ifdef HMMER_THREADS
-  if(info->thread_id >= 0) pthread_mutex_unlock(info->mutex);
-#endif /*HMMER_THREADS*/
-
-  }
-
-  return eslOK;
-   
-}
-
-int
-p7_splice_AlignSplicedPath2(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success)
+p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success)
 {
   int           e, n, s;
   int           orf_len;
@@ -3025,7 +2809,8 @@ p7_splice_AlignSplicedPath2(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path,
 	for(e = 0; e < pli->hit->dcl->ad->exon_cnt; e++) {
 
 		pli->hit->dcl->ad->exon_anchor[e] = FALSE;
-        pli->hit->dcl->ad->exon_extend[e] = FALSE;
+        pli->hit->dcl->ad->exon_extend[e] = FALSE; /* not yet set accurately - see function doc comment */
+        pli->hit->dcl->ad->exon_tmp[e]    = FALSE;
 
         exon_ali_min = ESL_MIN(pli->hit->dcl->ad->exon_seq_starts[e], pli->hit->dcl->ad->exon_seq_ends[e]);
         exon_ali_max = ESL_MAX(pli->hit->dcl->ad->exon_seq_starts[e], pli->hit->dcl->ad->exon_seq_ends[e]);
@@ -3036,7 +2821,7 @@ p7_splice_AlignSplicedPath2(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path,
         exon_hmm_len = exon_hmm_max - exon_hmm_min + 1;
 
       for(n = 0; n < graph->anchor_N; n++) {
-          if(!graph->node_in_graph[n]) continue;
+        if(!graph->node_in_graph[n]) continue;
 
 	    node_ali_min = ESL_MIN(graph->th->hit[n]->dcl->iali, graph->th->hit[n]->dcl->jali);
 		node_ali_max = ESL_MAX(graph->th->hit[n]->dcl->iali, graph->th->hit[n]->dcl->jali);
@@ -3054,12 +2839,19 @@ p7_splice_AlignSplicedPath2(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path,
         hmm_overlap_end   = ESL_MIN(exon_hmm_max, node_hmm_max);
         hmm_overlap_len   = hmm_overlap_end - hmm_overlap_start + 1;
 
-		/* Is there a 50% overlap on the nodes sequence and hmm coords */
+		/* Exon is an anchor if it has any overlap with an anchor node */
+		if( (double) ali_overlap_len / (double) node_ali_len > 0.0 &&
+            (float)  hmm_overlap_len / (float)  node_hmm_len > 0.0) 
+			pli->hit->dcl->ad->exon_anchor[e] = TRUE;
+
+
+		/* If an cnchor node is 50% overlaped by an exon we remove the oringal
+		 * hit from the tophits, either by replaceing that hit with the new
+		 * spliced hit or by setting the hit as unreportable */
 		if( (double) ali_overlap_len / (double) node_ali_len > 0.5 && 
 			(float)  hmm_overlap_len / (float)  node_hmm_len > 0.5) {
         
-			pli->hit->dcl->ad->exon_anchor[e] = TRUE;
-			/* If this is the first anchor node resplce the original 
+			/* If this is the first anchor node replace the original 
 			 * P7_TOPHITS hit with the new spliced hit */
 		    if(contains_anchor == FALSE) {
              
@@ -3103,6 +2895,37 @@ p7_splice_AlignSplicedPath2(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path,
               }
 			}
 			n = graph->anchor_N;
+		  }
+		}
+
+	    if(pli->hit->dcl->ad->exon_anchor[e] == FALSE) {
+          for(n = graph->anchor_N; n < graph->num_nodes; n++) {
+            if(!graph->node_in_graph[n]) continue;
+            if(!(graph->tmp_node[n] || graph->extension[n])) continue;
+
+            node_ali_min = ESL_MIN(graph->th->hit[n]->dcl->iali, graph->th->hit[n]->dcl->jali);
+            node_ali_max = ESL_MAX(graph->th->hit[n]->dcl->iali, graph->th->hit[n]->dcl->jali);
+            node_ali_len = node_ali_max - node_ali_min + 1;
+
+            node_hmm_min = graph->th->hit[n]->dcl->ihmm;
+            node_hmm_max = graph->th->hit[n]->dcl->jhmm;
+            node_hmm_len = node_hmm_max - node_hmm_min + 1;
+    
+            ali_overlap_start = ESL_MAX(exon_ali_min, node_ali_min);
+            ali_overlap_end   = ESL_MIN(exon_ali_max, node_ali_max);
+            ali_overlap_len   = ali_overlap_end - ali_overlap_start + 1;
+    
+            hmm_overlap_start = ESL_MAX(exon_hmm_min, node_hmm_min);
+            hmm_overlap_end   = ESL_MIN(exon_hmm_max, node_hmm_max);
+            hmm_overlap_len   = hmm_overlap_end - hmm_overlap_start + 1;
+    
+            /* Is there a 50% overlap on the nodes sequence and hmm coords */
+            if( (double) ali_overlap_len / (double) node_ali_len > 0.0 &&
+                (float)  hmm_overlap_len / (float)  node_hmm_len > 0.0) {
+
+			  pli->hit->dcl->ad->exon_extend[e] = graph->extension[n];
+			  pli->hit->dcl->ad->exon_tmp[e] = graph->tmp_node[n];
+			}
 		  }
 		}
 	  }

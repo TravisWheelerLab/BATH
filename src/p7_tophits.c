@@ -1754,7 +1754,7 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
     if(node_info) {
-      if (fprintf(ofp, " %7s %7s\n", " anchor", " extend") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
+      if (fprintf(ofp, " %7s %7s %7s\n", " anchor", " extend", "temp") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
     }
     else {
       if (fprintf(ofp, "\n")  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
@@ -1765,7 +1765,7 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
             ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
 
     if(node_info) { 
-      if (fprintf(ofp, " %7s %7s\n", "-------", "-------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
+      if (fprintf(ofp, " %7s %7s %7s\n", "-------", "-------", "-------") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
     }
     else {
       if (fprintf(ofp, "\n")  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed"); 
@@ -1825,10 +1825,11 @@ p7_tophits_TabularExons(FILE *ofp, char *qname, char *qacc, P7_TOPHITS *th, P7_P
         }
 
         if(node_info) {
-          if (fprintf(ofp, "%7s %7s\n",
+          if (fprintf(ofp, "%7s %7s %7s\n",
                   ((th->hit[h]->dcl->ad->exon_cnt == 1 || th->hit[h]->dcl->ad->exon_anchor[x]) ? "True" : "False"),
-                  ((th->hit[h]->dcl->ad->exon_cnt  > 1 && th->hit[h]->dcl->ad->exon_extend[x]) ? "True" : "False")) < 0)
-                  ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");    
+                  ((th->hit[h]->dcl->ad->exon_cnt  > 1 && th->hit[h]->dcl->ad->exon_extend[x]) ? "True" : "False"),
+				  ((th->hit[h]->dcl->ad->exon_cnt  > 1 && th->hit[h]->dcl->ad->exon_tmp[x])    ? "True" : "False")) < 0)
+                  ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");
         }
         else {
           if (fprintf(ofp, "\n") < 0) ESL_EXCEPTION_SYS(eslEWRITE, "tabular per-exon hit list: write failed");

@@ -541,8 +541,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
   int                success;
   int                first_core_id, last_core_id;
   int                hit_hmm_min, hit_hmm_max;
-  int                node_hmm_min, node_hmm_max;
-  int                hmm_overlap_start, hmm_overlap_end;
   int64_t            hit_seq_min, hit_seq_max;
   int64_t            node_seq_min, node_seq_max;
   int64_t            seq_overlap_start, seq_overlap_end;
@@ -570,7 +568,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(pli, graph, gm_tr);
- 
+
   /* Build paths from original hit nodes and edge so that every node appears in one and only one path */
   orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
 
@@ -594,7 +592,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     copy_path = p7_splicepath_Clone(orig_path);
          
     spliced_path = p7_splice_SpliceExons(info, copy_path, path_seq);
-    
+
     if(spliced_path != NULL) {
             
       /* Record the node ids at the start/end of spliced_path before
@@ -631,15 +629,15 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
         /* Create the final alignment */
         p7_splice_AlignSplicedPath(info, spliced_path, path_seq, &success);
-
-		/* Break edges that overlap the hit so that paths do not intertwine */
+        
+	/* Break edges that overlap the hit so that paths do not intertwine */
         hit_seq_min = ESL_MIN(pli->hit->dcl->iali, pli->hit->dcl->jali);
         hit_seq_max = ESL_MAX(pli->hit->dcl->iali, pli->hit->dcl->jali);
         hit_hmm_min = pli->hit->dcl->ihmm;
         hit_hmm_max = pli->hit->dcl->jhmm;
-        
-		/* If this hit was a successfull splicing it was added to the P7_TOPHITS, 
-		 * so we set it to NULL here to enusure it isn't freed */
+       
+        /* If this hit was a successfull splicing it was added to the P7_TOPHITS, 
+        * so we set it to NULL here to enusure it isn't freed */
         if(success) pli->hit->dcl = NULL;
 
         p7_splice_EnforceBounds(graph, hit_seq_min, hit_seq_max);
@@ -649,17 +647,12 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
         for(h = 0; h < graph->num_nodes; h++) {
           node_seq_min = ESL_MIN(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
           node_seq_max = ESL_MAX(graph->th->hit[h]->dcl->iali, graph->th->hit[h]->dcl->jali);
-          node_hmm_min = graph->th->hit[h]->dcl->ihmm;
-          node_hmm_max = graph->th->hit[h]->dcl->jhmm;          
  
           seq_overlap_start = ESL_MAX(node_seq_min, hit_seq_min);
           seq_overlap_end   = ESL_MIN(node_seq_max, hit_seq_max);
-          hmm_overlap_start = ESL_MAX(node_hmm_min, hit_hmm_min);
-          hmm_overlap_end   = ESL_MIN(node_hmm_max, hit_hmm_max);
           
           if(seq_overlap_end - seq_overlap_start + 1 > 0)
-            if(hmm_overlap_end - hmm_overlap_start + 1 > 0)  
-              graph->node_in_graph[h] = FALSE;
+            graph->node_in_graph[h] = FALSE;
         }
       }
 	  else {
@@ -680,8 +673,7 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
     p7_splicepath_Destroy(spliced_path);
     p7_splicepipeline_Reuse(pli);
 
-    orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
-
+    orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);  
   }
 
   if(path_seq != NULL) esl_sq_Destroy(path_seq);

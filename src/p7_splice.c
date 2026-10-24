@@ -1604,9 +1604,10 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   int         start_new;
   int         amino_len;
   float       vitsc;
+  float       max_drop;
   float       nullsc;
   float       seqsc;
-  double      P; 
+  double      P;
   P7_TRACE    *tr;
   SPLICE_PATH *ret_path;
   SPLICE_PATH *tmp_path;
@@ -1635,8 +1636,8 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   if(pli->vit->xmx[L*p7X_NXCELLS+p7X_C] == -eslINFINITY) return NULL;
 
   tr = p7_trace_fs_Create();
-  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, &vitsc);
- 
+  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, &vitsc, &max_drop);
+
   /* Find number of introns in trace */
   intron_cnt = 0;
   for(z = 0; z < tr->N; z++)
@@ -1657,13 +1658,18 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
 
   /*Filter out low quality splicings */
   p7_bg_SetLength(pli->bg, amino_len);
-  p7_bg_NullOne  (pli->bg, NULL, amino_len, &nullsc); 
-  
+  p7_bg_NullOne  (pli->bg, NULL, amino_len, &nullsc);
+
   seqsc = (vitsc-nullsc) / eslCONST_LOG2;
   P  = esl_gumbel_surv(seqsc,  gm_tr->evparam[p7_VMU],  gm_tr->evparam[p7_VLAMBDA]);
-  
+
   if (P > pli->F2) {
-    p7_trace_fs_Destroy(tr); 
+    p7_trace_fs_Destroy(tr);
+    return NULL;
+  }
+
+  if (max_drop > XDROP_FAIL_THRESH) {
+    p7_trace_fs_Destroy(tr);
     return NULL;
   }
 
@@ -1954,7 +1960,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   p7_Viterbi_Spliced(path_seq->dsq, om_tr, pli->vit, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, FALSE);
   tr = p7_trace_fs_Create();
 
-  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, &vitsc);
+  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, &vitsc, NULL);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2244,7 +2250,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
 
   p7_Viterbi_Spliced(path_seq->dsq, om_tr, pli->vit, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, FALSE, TRUE);
   tr = p7_trace_fs_Create();
-  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, &vitsc);
+  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, &vitsc, NULL);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2519,7 +2525,7 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
 
   p7_Viterbi_Spliced(path_seq->dsq, om_tr, pli->vit, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, TRUE);
   tr = p7_trace_fs_Create();
-  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, NULL);
+  p7_Viterbi_SplicedTrace(path_seq->dsq, pli->vit, gm_tr, pli->signal_scores, tr, i_start, i_end, k_start, k_end, pli->min_intron, NULL, NULL);
 
   /* Find number of introns in trace */
   intron_cnt = 0;

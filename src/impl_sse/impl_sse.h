@@ -546,7 +546,7 @@ extern int p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, co
 
 /* viterbi_sp.c */
 extern int p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
-extern int p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
+extern int p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
 
 /* vitscore.c */
 extern int p7_ViterbiScore (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);

@@ -389,7 +389,7 @@ int
 p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
                              const P7_FS_PROFILE *gm_tr, const float *signal_scores,
                              P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
-                             int min_intron, float *vitsc)
+                             int min_intron, float *vitsc, float *max_drop)
 {
   float const *tsc    = gm_tr->tsc;
   float        r_tol  = 1e-5;
@@ -398,7 +398,7 @@ p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
   int          L      = i_end - i_start + 1;
   int          i      = L;
   int          k      = 0;
-  int          j;
+  int          j, z;
   int          t, u, v, w, x;
   int          c, c0, c1, c2, c3;
   int          sprv, scur;
@@ -406,10 +406,20 @@ p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
   int          donor_i;
   int          acc[3] = {0, 0, 0};
   int          don_sig;
+  int          P_cnt, P_idx;
   float        P_state;
   float        emit, emit0, emit1, emit2;
   float        vsc = 0.0f;
+  float        curr_P_score;
+  float        curr_M_score;
+  float        max_M_score;
+  float        curr_max_drop;
+  float       *P_scores;
   int          status;
+
+  P_scores = NULL;
+  P_cnt    = 0;
+  ESL_ALLOC(P_scores, sizeof(float) * M);
 
 #define OMMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (ii), (kk)))
 #define ODMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (ii), (kk)))
@@ -528,6 +538,9 @@ p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
           }
         }
         if (scur == -1) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+
+        /* Track P state scores for x_drop calculation */
+        P_scores[P_cnt++] = TSC_P + signal_scores[don_sig];
       }
 
       k--; i -= 3;
@@ -587,12 +600,47 @@ p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
 
   if (vitsc != NULL) *vitsc = vsc;
 
+  status = p7_trace_fs_Reverse(tr);
+
+  /* When max_drop != NULL calculate the maximum M state score drop found
+   * in the alignment for comparison to an x-drop threshold. */
+  if (status == eslOK && max_drop != NULL) {
+    P_idx         = P_cnt - 1;
+    curr_P_score  = 0.0f;
+    max_M_score   = -eslINFINITY;
+    curr_max_drop = -eslINFINITY;
+
+    for (z = 0; z < tr->N; z++) {
+      /* Track the current P state score contribution so that it can be
+       * subtracted out from M state scores to ensure the curr_max_drop
+       * only looks for drops in M state scores, not splice penalties */
+      if (tr->st[z] == p7T_P) {
+        curr_P_score += P_scores[P_idx--];
+      }
+      else if (tr->st[z] == p7T_M) {
+        i = tr->i[z] - i_start + 1;
+        k = tr->k[z] - k_start + 1;
+        curr_M_score = OMMo(i, k) - curr_P_score;
+        if (max_M_score != -eslINFINITY)
+          curr_max_drop = ESL_MAX(curr_max_drop, max_M_score - curr_M_score);
+        max_M_score = ESL_MAX(max_M_score, curr_M_score);
+      }
+    }
+    *max_drop = curr_max_drop;
+  }
+
+  free(P_scores);
+
 #undef OMMo
 #undef ODMo
 #undef OIMo
 #undef OXMXo
 
-  return p7_trace_fs_Reverse(tr);
+  return status;
+
+ ERROR:
+  free(P_scores);
+  return status;
 }
 
 #undef TSC_P

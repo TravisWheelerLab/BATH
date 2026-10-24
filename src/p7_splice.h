@@ -214,6 +214,7 @@ typedef struct _splice_info
 #define MAX_INTRON_EXT            10000    /*maximum extension distance                             */
 #define MAX_AMINO_GAP             1500     /*maximum amino gap for an edge                          */
 #define ALIGNMENT_EXT             30       /*extension at start and end of final alignment sequence */
+#define XDROP_FAIL_THRESH         90.0     /*max_drop above which a spliced alignment is rejected   */
 
 /* Indices of p7_SignalScores */
 enum p7s_splice_signals_e {
@@ -269,7 +270,7 @@ extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli);
 
 /* generic_viterbi_spliced.c */
 extern int p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *acc_iv, P7_IVX *don_iv, float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
-extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc);
+extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

@@ -54,13 +54,13 @@ p7_Viterbi_Spliced_Dispatcher(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_t
 static int p7_Viterbi_SplicedTrace_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
                                                const P7_FS_PROFILE *gm_tr, const float *signal_scores,
                                                P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
-                                               int min_intron, float *vitsc);
+                                               int min_intron, float *vitsc, float *max_drop);
 
 /* Global function pointer, initially pointing at the dispatcher */
 int (*p7_Viterbi_SplicedTrace)(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
                                const P7_FS_PROFILE *gm_tr, const float *signal_scores,
                                P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
-                               int min_intron, float *vitsc) = p7_Viterbi_SplicedTrace_Dispatcher;
+                               int min_intron, float *vitsc, float *max_drop) = p7_Viterbi_SplicedTrace_Dispatcher;
 
 /* Function:  p7_Viterbi_SplicedTrace_Dispatcher()
  *
@@ -74,17 +74,17 @@ static int
 p7_Viterbi_SplicedTrace_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
                                     const P7_FS_PROFILE *gm_tr, const float *signal_scores,
                                     P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
-                                    int min_intron, float *vitsc)
+                                    int min_intron, float *vitsc, float *max_drop)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) { p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_avx512; return p7_Viterbi_SplicedTrace_avx512(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc); }
+  if (esl_cpu_has_avx512()) { p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_avx512; return p7_Viterbi_SplicedTrace_avx512(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc, max_drop); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    { p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_avx;    return p7_Viterbi_SplicedTrace_avx(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc); }
+  if (esl_cpu_has_avx())    { p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_avx;    return p7_Viterbi_SplicedTrace_avx(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc, max_drop); }
 #endif
 #ifdef eslENABLE_SSE
   p7_Viterbi_SplicedTrace = p7_Viterbi_SplicedTrace_sse;
-  return p7_Viterbi_SplicedTrace_sse(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc);
+  return p7_Viterbi_SplicedTrace_sse(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc, max_drop);
 #else
   p7_Die("p7_Viterbi_SplicedTrace: no SIMD implementation available");
   return eslENORESULT;
@@ -224,7 +224,7 @@ main(int argc, char **argv)
       p7_Viterbi_Spliced(dsq, om_tr, pli->vit, pli->signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
 
       if(do_T)
-        p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, pli->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron, NULL);
+        p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, pli->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron, NULL, NULL);
       p7_trace_Reuse(tr);
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
@@ -365,8 +365,8 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       if(final_gC == -eslINFINITY) continue;   
       
-      p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL);
-      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL); 
+      p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
+      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
         
@@ -379,8 +379,8 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, TRUE, FALSE);
       final_gC = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
        
-      p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL);
-      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL);
+      p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
+      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
 
@@ -393,8 +393,8 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, FALSE, TRUE);
       final_gC = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       
-      p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL);
-      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL);
+      p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
+      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
 

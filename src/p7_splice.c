@@ -729,8 +729,6 @@ p7_splice_CreateUnsplicedEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *graph, P7_FS_
 
       if(amino_gap_len > MAX_AMINO_GAP) continue;
 
-      if(amino_gap_len > 10 && seq_gap_len < amino_gap_len) continue;
-
       if(th->hit[up]->dcl->ihmm >= th->hit[down]->dcl->jhmm ) { 
 
         /* If hits are upstream/downstream on the sequence but are the opposite on the model 

@@ -568,7 +568,6 @@ p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info)
 
   /* Create edges between original and recovered nodes */
   p7_splice_CreateUnsplicedEdges(pli, graph, gm_tr);
-
   /* Build paths from original hit nodes and edge so that every node appears in one and only one path */
   orig_path = p7_splicepath_GetBestPath(graph, FALSE, FALSE);
 
@@ -2845,17 +2844,16 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
             (float)  hmm_overlap_len / (float)  node_hmm_len > 0.0) 
 			pli->hit->dcl->ad->exon_anchor[e] = TRUE;
 
-
 		/* If an cnchor node is 50% overlaped by an exon we remove the oringal
 		 * hit from the tophits, either by replaceing that hit with the new
 		 * spliced hit or by setting the hit as unreportable */
 		if( (double) ali_overlap_len / (double) node_ali_len > 0.5 && 
 			(float)  hmm_overlap_len / (float)  node_hmm_len > 0.5) {
-        
+          
 			/* If this is the first anchor node replace the original 
 			 * P7_TOPHITS hit with the new spliced hit */
 		    if(contains_anchor == FALSE) {
-             
+               
 			  replace_node = n;	
               replace_hit = tophits->hit[graph->orig_hit_idx[n]];
               p7_domain_Destroy(replace_hit->dcl);
@@ -2895,7 +2893,6 @@ p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, 
                 graph->th->hit[n]->dcl->is_included = FALSE;
               }
 			}
-			n = graph->anchor_N;
 		  }
 		}
 

@@ -1661,6 +1661,11 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   seqsc = (vitsc-nullsc) / eslCONST_LOG2;
   P  = esl_gumbel_surv(seqsc,  gm_tr->evparam[p7_VMU],  gm_tr->evparam[p7_VLAMBDA]);
 
+  /* The F2 and XDROP_FAIL_THRESH checks below are both quality controls on
+   * the global spliced Viterbi alignment: F2 rejects an alignment with a
+   * poor overall Gumbel P-value, and XDROP_FAIL_THRESH rejects one with a
+   * disproportionately steep score drop anywhere along it, even if the
+   * overall P-value still looks acceptable. */
   if (P > pli->F2) {
     p7_trace_fs_Destroy(tr);
     return NULL;
@@ -3237,7 +3242,6 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   float    filtersc;
   float    envsc, bwdsc;
   float    fbdiff;
-  int      fbdisagree;
   float    seq_score;
   float    oasc;
   float    domcorrection;
@@ -3281,17 +3285,23 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   p7_Forward (pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, &envsc);
   p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, &bwdsc);
 
-  /* TEMPORARY (issue #41): rescaling underflow in the single-precision unihit
-   * SIMD DP can make Forward and Backward disagree on a path that includes a
-   * long gap between high-scoring regions. Until the real x-drop-based fix is
-   * back in place, detect that disagreement and fall back unconditionally to
-   * the generic (log-space) engine, which never underflows this way. */
+  /* Rescaling underflow in the single-precision unihit SIMD DP can make
+   * Forward and Backward disagree. Detect that disagreement and fall
+   * back unconditionally to the generic (log-space) engine, which
+   * never underflows this way. */
   fbdiff      = fabsf(envsc - bwdsc);
-  fbdisagree  = (fbdiff / (fabsf(envsc) * sqrtf((float) pli->amino_sq->n * (float) om->M)) > 1e-8);
-  use_generic = fbdisagree;
+  use_generic = (fbdiff / (fabsf(envsc) * sqrtf((float) pli->amino_sq->n * (float) om->M)) > 1e-8);
 
   if (use_generic) {
     p7_ReconfigUnihit(gm, pli->amino_sq->n);
+
+    /* To avoid holding two sets of full sized L*M matrices in memory
+     * destroy and recreate the SIMD matrices with small L*M before
+     * allocating the generic matrices. */
+    p7_omx_Destroy(pli->fwd);
+    p7_omx_Destroy(pli->bwd);
+    if ((pli->fwd = p7_omx_Create_dpf(100, 100, 100, p7X_NSCELLS)) == NULL) { status = eslEMEM; goto ERROR; }
+    if ((pli->bwd = p7_omx_Create_dpf(100, 100, 100, p7X_NSCELLS)) == NULL) { status = eslEMEM; goto ERROR; }
 
     gfwd = p7_gmx_Create(gm->M, pli->amino_sq->n, pli->amino_sq->n, p7G_NSCELLS);
     gbck = p7_gmx_Create(gm->M, pli->amino_sq->n, pli->amino_sq->n, p7G_NSCELLS);
@@ -3494,8 +3504,9 @@ p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_O
 /*  Function: p7_splice_ScoreExons_Generic
  *  Synopsis: Like p7_splice_ScoreExons, but for a generic (log-space) Forward trace.
  *
- *  Purpose : TEMPORARY, for issue #41's Forward/Backward disagreement fallback:
- *            identical to p7_splice_ScoreExons except the per-row C-state value
+ *  Purpose : Used by the Forward/Backward disagreement fallback in
+ *            p7_splice_AlignSplicedSequence(): identical to
+ *            p7_splice_ScoreExons except the per-row C-state value
  *            is read directly from pli->fwd_C (already the true cumulative
  *            log-odds score in generic log-space, no scale reconstruction
  *            needed) and the E-value parameters come from the generic profile

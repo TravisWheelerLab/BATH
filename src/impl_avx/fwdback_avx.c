@@ -162,7 +162,7 @@ forward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om
     }
 
     if (om->M < 100) {
-      for (j = 1; j < 4; j++) {
+      for (j = 1; j < 8; j++) {
         dcv = esl_avx_rightshiftz_float(dcv);
         tp  = om->tfv_avx + 7*Q;
         for (q = 0; q < Q; q++) {
@@ -171,7 +171,7 @@ forward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om
         }
       }
     } else {
-      for (j = 1; j < 4; j++) {
+      for (j = 1; j < 8; j++) {
         register __m256 cv;
         dcv = esl_avx_rightshiftz_float(dcv);
         tp  = om->tfv_avx + 7*Q;
@@ -274,7 +274,7 @@ backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
     DMO(dpc,q) = _mm256_add_ps(DMO(dpc,q), dcv);
     dpv        = DMO(dpc,q);
   }
-  for (j = 1; j < 4; j++) {
+  for (j = 1; j < 8; j++) {
     tp  = om->tfv_avx + 8*Q - 1;
     dcv = esl_avx_leftshiftz_float(dcv);
     for (q = Q-1; q >= 0; q--) {
@@ -360,7 +360,7 @@ backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
       dpv        = DMO(dpc,q);
       MMO(dpc,q) = _mm256_add_ps(MMO(dpc,q), xEv);
     }
-    for (j = 1; j < 4; j++) {
+    for (j = 1; j < 8; j++) {
       dcv = esl_avx_leftshiftz_float(dcv);
       tp  = om->tfv_avx + 8*Q - 1;
       for (q = Q-1; q >= 0; q--) {

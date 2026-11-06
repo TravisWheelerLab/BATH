@@ -1197,11 +1197,14 @@ p7_splice_CreateExtensionEdges(SPLICE_PIPELINE *pli, SPLICE_GRAPH *orig_graph, S
  *  Purpose : Find the splice sites, and any missing exons, between 
  *            each pair of nodes either by performing the alignment or by
  *            retrieving the sites from a previous alignment. If no site 
- *            is found, break the edge and return NULL. Save all
- *            valid splice sites coordinates to prevent repeated alignment.
+ *            is found, break the edge and return NULL. If a pair fails
+ *            the x-drop check after at least one earlier pair was spliced,
+ *            break the edge, trim <orig_path> to end at the upstream node
+ *            and return the path spliced so far. Save all valid splice
+ *            sites coordinates to prevent repeated alignment.
  *
  *
- * Returns:   <SPLICE_PATH> on success and NULL on failure. 
+ * Returns:   <SPLICE_PATH> on success and NULL on failure.
  *
  */
 SPLICE_PATH*
@@ -1214,6 +1217,7 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
   int k_start, k_end;
   int64_t next_i_start;
   int next_k_start;
+  int xdrop_fail;
   SPLICE_EDGE     *edge;
   SPLICE_PIPELINE *pli;
   SPLICE_PATH *tmp_path;
@@ -1291,13 +1295,25 @@ p7_splice_SpliceExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *
       return NULL;
     }
     
-    tmp_path = p7_splice_AlignExons(info, orig_path, path_seq, s, i_sub_start, i_sub_end, k_start, k_end, &next_i_start, &next_k_start);
-    /* If the alignment failed erase the edge and return NULL */ 
+    tmp_path = p7_splice_AlignExons(info, orig_path, path_seq, s, i_sub_start, i_sub_end, k_start, k_end, &next_i_start, &next_k_start, &xdrop_fail);
+
+    /* If the alignment failed erase the edge. If it failed the x-drop check and
+     * earlier steps were spliced, end the path at the upstream node and return
+     * the path spliced so far. Otherwise return NULL */
     if(tmp_path == NULL) {
-      
+
       /* refetch edge in in case of realloc */
-      edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]); 
+      edge =  p7_splicegraph_GetEdge(graph, orig_path->node_id[s-1], orig_path->node_id[s]);
       edge->edge_score = -eslINFINITY;
+
+      if(xdrop_fail && ret_path != NULL) {
+        ret_path->revcomp    = orig_path->revcomp;
+        ret_path->frameshift = orig_path->frameshift;
+        orig_path->path_len  = s;
+        p7_omx_Reuse(pli->vit);
+        return ret_path;
+      }
+
       p7_splicepath_Destroy(ret_path);
       return NULL;
     } 
@@ -1584,11 +1600,13 @@ p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_
  *            Add new exons to the graph, and record spliced and unspliced 
  *            coordinates.
  *
- * Returns:   <SPLICE_PATH> on success and NULL on failure.
+ * Returns:   <SPLICE_PATH> on success and NULL on failure. On return
+ *            <*xdrop_fail> is TRUE if the failure was the x-drop check, 
+ *            FALSE otherwise.
  *
  */
 SPLICE_PATH*
-p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int64_t *next_i_start, int *next_k_start)
+p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *path_seq, int down, int i_start, int i_end, int k_start, int k_end, int64_t *next_i_start, int *next_k_start, int *xdrop_fail)
 {
  
   int         L = i_end - i_start + 1;
@@ -1614,6 +1632,8 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   pli   = info->pli;
   gm_tr = info->gm_tr;
   om_tr = info->om_tr;
+
+  *xdrop_fail = FALSE;
 
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
@@ -1650,6 +1670,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
    * global spliced Viterbi alignment, rejecting alignments 
    * with a steep score drop */ 
   if (max_drop > XDROP_FAIL_THRESH) {
+    *xdrop_fail = TRUE;
     p7_trace_fs_Destroy(tr);
     return NULL;
   }

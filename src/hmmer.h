@@ -1263,7 +1263,6 @@ extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,    
 
 /* generic_fwdback_frameshift.c */
 extern int p7_GForward_Frameshift     (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_GForward_Frameshift_New  (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
 extern int p7_GBackward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
@@ -1311,28 +1310,6 @@ extern double dmx_upper_element_sum(ESL_DMATRIX *D);
 extern double dmx_upper_norm(ESL_DMATRIX *D);
 extern int    dmx_Visualize(FILE *fp, ESL_DMATRIX *D, double min, double max);
 
-/* hmmdutils.c */
-extern void p7_openlog(const char *ident, int option, int facility);
-extern void p7_syslog(int priority, const char *format, ...);
-extern void p7_closelog(void);
-
-/* hmmlogo.c */
-extern float hmmlogo_maxHeight (P7_BG *bg);
-extern int hmmlogo_RelativeEntropy_all      (P7_HMM *hmm, P7_BG *bg, float *rel_ents, float **probs, float **heights );
-extern int hmmlogo_RelativeEntropy_above_bg (P7_HMM *hmm, P7_BG *bg, float *rel_ents, float **probs, float **heights );
-extern int hmmlogo_ScoreHeights (P7_HMM *hmm, P7_BG *bg, float **heights );
-extern int hmmlogo_IndelValues (P7_HMM *hmm, float *insert_P, float *insert_expL, float *delete_P );
-
-
-
-/* hmmpgmd2msa.c */
-extern int hmmpgmd2msa(void *data, P7_HMM *hmm, ESL_SQ *qsq, int *incl, int incl_size, int *excl, int excl_size, int excl_all, ESL_MSA **ret_msa);
-
-
-
-/* island.c */
-extern int   p7_island_Viterbi(ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX *mx, ESL_HISTOGRAM *h);
-
 /* h2_io.c */
 extern int   p7_h2io_WriteASCII(FILE *fp, P7_HMM *hmm);
 
@@ -1348,8 +1325,6 @@ extern void p7_codontable_Destroy(P7_CODONTABLE* codon_table);
 extern int   p7_FLogsumInit(void);
 extern float p7_FLogsum(float a, float b);
 extern float p7_FLogsumError(float a, float b);
-extern int   p7_ILogsumInit(void);
-extern int   p7_ILogsum(int s1, int s2);
 
 
 /* modelconfig.c */
@@ -1407,7 +1382,6 @@ extern int            p7_alidisplay_Deserialize_old(P7_ALIDISPLAY *ad);
 extern void           p7_alidisplay_Destroy(P7_ALIDISPLAY *ad);
 extern char           p7_alidisplay_EncodePostProb(float p);
 extern float          p7_alidisplay_DecodePostProb(char pc);
-extern char           p7_alidisplay_EncodeAliPostProb(float p, float hi, float med, float lo);
 
 extern int            p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min_aliwidth, int linewidth, P7_PIPELINE *pli);
 
@@ -1452,7 +1426,6 @@ extern int p7_domain_Compare(P7_DOMAIN *first, P7_DOMAIN *second, double atol, d
 
 /* p7_domaindef.c */
 extern P7_DOMAINDEF *p7_domaindef_Create_BATH (ESL_RANDOMNESS *r, ESL_GETOPTS *go);
-extern int           p7_domaindef_Fetch  (P7_DOMAINDEF *ddef, int which, int *opt_i, int *opt_j, float *opt_sc, P7_ALIDISPLAY **opt_ad);
 extern int           p7_domaindef_GrowTo (P7_DOMAINDEF *ddef, int L);
 extern int           p7_domaindef_Reuse  (P7_DOMAINDEF *ddef);
 extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
@@ -1557,8 +1530,6 @@ extern P7_SCOREDATA   *p7_hmm_ScoreDataCreate(P7_OPROFILE *om, P7_PROFILE *gm );
 extern P7_SCOREDATA   *p7_hmm_ScoreDataClone(P7_SCOREDATA *src, int K);
 extern int            p7_hmm_ScoreDataComputeRest(P7_OPROFILE *om, P7_SCOREDATA *data );
 extern void           p7_hmm_ScoreDataDestroy( P7_SCOREDATA *data );
-extern int            p7_hmm_initWindows (P7_HMM_WINDOWLIST *list);
-extern P7_HMM_WINDOW *p7_hmm_newWindow (P7_HMM_WINDOWLIST *list, uint32_t id, uint32_t pos, uint32_t fm_pos, uint32_t k, uint32_t length, float score, uint8_t complementarity);
 
 /* p7_pipeline.c */
 extern P7_PIPELINE* p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemodes_e mode);
@@ -1566,13 +1537,9 @@ extern int          p7_pipeline_Reuse_BATH  (P7_PIPELINE *pli);
 extern void         p7_pipeline_Destroy_BATH(P7_PIPELINE *pli);
 extern int          p7_pipeline_Merge  (P7_PIPELINE *p1, P7_PIPELINE *p2);
 
-extern int p7_pli_ExtendAndMergeWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, float pct_overlap);
-extern int p7_pli_ExtendAndBackTranslateWindows (P7_OPROFILE *om, const P7_SCOREDATA *msvdata, P7_HMM_WINDOWLIST *windowlist, ESL_SQ *orfsq, ESL_SQ *dnasq, int complementarity);
 extern int p7_pli_TargetReportable  (P7_PIPELINE *pli, float score,     double lnP);
-extern int p7_pli_DomainReportable  (P7_PIPELINE *pli, float dom_score, double lnP);
 
 extern int p7_pli_TargetIncludable  (P7_PIPELINE *pli, float score,     double lnP);
-extern int p7_pli_DomainIncludable  (P7_PIPELINE *pli, float dom_score, double lnP);
 extern int p7_pli_NewModel          (P7_PIPELINE *pli, const P7_OPROFILE *om, P7_BG *bg);
 extern int p7_pli_NewModelThresholds(P7_PIPELINE *pli, const P7_OPROFILE *om);
 extern int p7_pli_NewSeq            (P7_PIPELINE *pli, const ESL_SQ *sq);

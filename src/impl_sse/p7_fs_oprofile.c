@@ -1,5 +1,5 @@
 /* Routines for the P7_FS_OPROFILE structure:  
- * a search profile in an optimized implementation of framwshift aware search.
+ * a search profile in an optimized implementation of frameshift aware search.
  * 
  * Contents:
  *   1. The P7_FS_OPROFILE object: allocation, initialization, destruction.
@@ -369,7 +369,7 @@ fs_fb_conversion_log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
 
   /* Special state (ENJC) transitions in log-space: copy directly, no expf.
    * N/C/J will be overwritten by p7_fs_oprofile_ReconfigLength_Log(), so
-   * we initialise them here from gm_fs->xsc for completeness.
+   * we initialize them here from gm_fs->xsc for completeness.
    */
   om_fs->xf[p7O_E][p7O_LOOP] = gm_fs->xsc[p7P_E][p7P_LOOP];
   om_fs->xf[p7O_E][p7O_MOVE] = gm_fs->xsc[p7P_E][p7P_MOVE];
@@ -532,7 +532,7 @@ p7_fs_oprofile_Convert_Log(const P7_FS_PROFILE *gm_fs, P7_FS_OPROFILE *om_fs)
  *            model), so <om_fs->allocQ4 >= p7O_NQF(k_end - k_start + 1)> always holds.
  *
  *            The k=0 sentinel column in the DP matrix is not touched here; it is
- *            initialised to -inf by the DP code, ensuring that transitions such as
+ *            initialized to -inf by the DP code, ensuring that transitions such as
  *            M(i-3,0)->M(i,1) remain -inf.
  *
  *            On return, <om_fs->M> is set to <k_end - k_start + 1>.

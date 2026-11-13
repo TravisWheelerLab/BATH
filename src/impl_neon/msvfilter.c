@@ -89,7 +89,7 @@ p7_MSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float
   uint8x16_t tjbmv;                   /* vector for cost of moving from either J or N through B to an M state */
   uint8x16_t tecv;                    /* vector for E->C  cost                                     */
   uint8x16_t basev;                   /* offset for scores                                         */
-  uint8x16_t ceilingv;                /* saturateed simd value used to test for overflow           */
+  uint8x16_t ceilingv;                /* saturated simd  value used to test for overflow           */
   uint8x16_t tempv;                   /* work vector                                               */
 
   int cmp;
@@ -138,7 +138,7 @@ p7_MSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float
       xEv = vmovq_n_u8(0);
 
       /* Right shifts by 1 byte. 4,8,12,x becomes x,4,8,12.
-       * Because ia32 is littlendian, this means a left bit shift.
+       * Because ia32 is little-endian, this means a left bit shift.
        * Zeros shift on automatically, which is our -infinity.
        */
       mpv = vextq_u8(zerov, dp[Q-1], 15);
@@ -211,10 +211,9 @@ p7_MSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float
  *            optimized profile <om>, and a preallocated one-row DP matrix <ox>,
  *            and captures the positions at which such regions exceed the score
  *            required to be significant in the eyes of the calling function,
- *            which depends on the <bg> and <p> (usually p=0.02 for nhmmer).
+ *            which depends on the <bg> and <P> (usually P=0.02 for nhmmer).
  *            Note that this variant performs only SSV computations, never
- *            passing through the J state - the score required to pass SSV at
- *            the default threshold 
+ *            passing through the J state. 
  *
  *            Used in frameshift search to build DNA windows around ORFs and
  *            in spliced search to store seeds of potential exons for the
@@ -725,7 +724,7 @@ main(int argc, char **argv)
   esl_randomness_Destroy(r);
   return eslOK;
 }
-#endif /*VITFILTER_TESTDRIVE*/
+#endif /*p7MSVFILTER_TESTDRIVE*/
 
 
 

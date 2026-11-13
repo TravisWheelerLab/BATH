@@ -1,6 +1,6 @@
 /* Frameshift aware Viterbi algorithm; generic (non-SIMD) version.
  *
- * Full mattix, log space, Frameshift aware translated Viterbi
+ * Full matrix, log space, Frameshift aware translated Viterbi
  * algorithm with 5 codon lengths, plus trace back.
  *
  * Contents:
@@ -33,12 +33,12 @@
  *            Given a digital nucleotide sequence <dsq> of length <L>,
  *            a frameshift aware codon profile <gm_fs5>, and DP matrix
  *            <gx> allocated for at least <L> by <gm_fs5->M> cells;
- *            calculate the maximum scoring path by fremashift-aware
+ *            calculate the maximum scoring path by frameshift-aware
  *            Viterbi; return the Viterbi score in <ret_sc>, and the
  *            Viterbi matrix is in <gx>.
  *
  *            The caller may then retrieve the Viterbi path by calling
- *            <p7_fs_VTrace()>.
+ *            <p7_GVTrace_Frameshift()>.
  *
  *            The Viterbi lod score is returned in nats. The caller
  *            needs to subtract a null model lod score, then convert
@@ -233,7 +233,7 @@ p7_GViterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
 
     XMX(i, p7G_E) = -eslINFINITY;
 
-    /* Reasign nucleotide to correct temporary holders for use in emissions array */
+    /* Reassign nucleotide to correct temporary holders for use in emissions array */
     t = u;
     u = v;
     v = w;
@@ -348,8 +348,8 @@ p7_GViterbi_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
  *
  * Args:     dsq    - digital sequence aligned to, 1..L
  *           L      - length of <dsq>
- *           gm     - profile
- *           mx     - Viterbi matrix to trace, L x M
+ *           gm_fs5 - profile
+ *           gx     - Viterbi matrix to trace, L x M
  *           tr     - storage for the recovered traceback.
  *
  * Return:   <eslOK> on success.

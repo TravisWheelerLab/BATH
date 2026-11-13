@@ -331,7 +331,7 @@ p7_gmxchk_Dump(FILE *ofp, P7_GMXCHK *gxc, int flags)
  *            as you can with the Forward matrix.)
  *
  *            Caller first calls <p7_gmxchk_SetDumpMode()>, then calls the
- *            <p7_GBackwardCheckpointed()> calculation. <p7_BackwardCheckpointed()> 
+ *            <p7_GBackwardCheckpointed()> calculation. <p7_GBackwardCheckpointed()> 
  *            will then dump the header and each row to <ofp>.
  *
  *            If <ofp> is <NULL>, dumping is turned off.
@@ -499,7 +499,7 @@ p7_gmxchk_DumpRow(FILE *ofp, P7_GMXCHK *gxc, float *dpc, int i, int kstart, int 
  * 
  * <maxR> is the maximum number of rows the caller wants to use. 
  * We will exceed this for one comparison if absolutely necessary, but
- * the next <_Reuse()> call will bring the allocation
+ * the next <_GrowTo()> call will bring the allocation
  * back down.
  * 
  * So there's three possibilities:

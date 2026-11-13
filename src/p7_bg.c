@@ -369,8 +369,8 @@ p7_bg_NullOne(const P7_BG *bg, const ESL_DSQ *dsq, int L, float *ret_sc)
  *            scores in profiles and null models, all we have to
  *            do here is score null model transitions.
  *
- *            For application to frameshift aware alinments, we 
- *            claculate the null for a single frame then muliply 
+ *            For application to frameshift aware alignments, we 
+ *            calculate the null for a single frame then multiply 
  *            by three.
  */
 int

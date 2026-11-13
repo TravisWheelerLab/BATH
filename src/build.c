@@ -108,7 +108,7 @@ p7_Handmodelmaker(ESL_MSA *msa, P7_BUILDER *bld, P7_HMM **ret_hmm, P7_TRACE ***o
  * 
  * Purpose:  Heuristic model construction.
  *           Construct an HMM from an alignment by a simple rule,
- *           based on the fractional occupancy of each columns w/
+ *           based on the fractional occupancy of each column w/
  *           residues vs gaps. Any column w/ a fractional
  *           occupancy of $\geq$ <symfrac> is assigned as a MATCH column;
  *           for instance, if thresh = 0.5, columns w/ $\geq$ 50\% 
@@ -337,8 +337,8 @@ matassign2hmm(ESL_MSA *msa, int *matassign, P7_HMM **ret_hmm, P7_TRACE ***opt_tr
 static int
 annotate_model(P7_HMM *hmm, int *matassign, ESL_MSA *msa)
 {                      
-  int   apos;			/* position in matassign, 1.alen  */
-  int   k;			/* position in model, 1.M         */
+  int   apos;			/* position in matassign, 1..alen */
+  int   k;			/* position in model, 1..M        */
   int   status;
 
   /* Reference coord annotation  */

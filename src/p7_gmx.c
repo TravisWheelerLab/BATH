@@ -18,7 +18,7 @@
  * Synopsis:  Allocate a new <P7_GMX>.
  *
  * Purpose:   Allocate a reusable, resizeable <P7_GMX> for models up to
- *            size <allocM>, core martix length of <allocL> with nscells 
+ *            size <allocM>, core matrix length of <allocL> with nscells 
  *            states, and special state length of <allocLx>.
  *            
  *            We've set this up so it should be easy to allocate
@@ -85,7 +85,7 @@ p7_gmx_Create (int allocM, int allocL, int allocLx, int nscells)
  * Synopsis:  Assure that DP matrix is big enough.
  *
  * Purpose:   Assures that a DP matrix <gx> is allocated
- *            for a model of size up to <M>, core martix 
+ *            for a model of size up to <M>, core matrix 
  *            length of <L> with ns states, and special 
  *            state length of <Lx>; reallocates if necessary.
  *            
@@ -279,7 +279,7 @@ p7_gmx_Dump(FILE *ofp, P7_GMX *gx, int flags)
  * Purpose:   Dump a window of matrix <gx> to stream <fp> for diagnostics,
  *            from row <istart> to <iend>, from column <kstart> to <kend>.
  *            
- *            Asking for <0..L,0..M> with <flags=p7_SHOW_SPECIALS> is the
+ *            Asking for <0..L,0..M> with <flags=p7_DEFAULT> is the
  *            same as <p7_gmx_Dump()>.
  *            
  *            <flags> control some optional output behaviors, as follows:

@@ -35,7 +35,7 @@
  * Args:     dsq    - digital sequence aligned to, 1..L 
  *           L      - length of <dsq>
  *           gm     - profile
- *           mx     - Viterbi matrix to trace, L x M
+ *           gx     - Viterbi matrix to trace, L x M
  *           tr     - storage for the recovered traceback.
  *           
  * Return:   <eslOK> on success.

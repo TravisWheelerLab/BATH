@@ -59,7 +59,7 @@
  *            with OA scores.
  *            
  * Args:      gm    - query profile      
- *            pp    - posterior decoding matrix created by <p7_GPosteriorDecoding()>
+ *            pp    - posterior decoding matrix created by <p7_GDecoding()>
  *            gx    - RESULT: caller provided DP matrix for <gm->M> by <L> 
  *            ret_e - RETURN: expected number of correctly decoded positions 
  *
@@ -184,8 +184,8 @@ static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX 
  *            internally reallocated as needed for larger traces.
  *
  * Args:      gm    - query profile      
- *            pp    - posterior decoding matrix created by <p7_PosteriorDecoding()>
- *            gx    - OA DP matrix calculated by  <p7_OptimalAccuracyDP()>
+ *            pp    - posterior decoding matrix created by <p7_GDecoding()>
+ *            gx    - OA DP matrix calculated by  <p7_GOptimalAccuracy()>
  *            tr    - RESULT: OA traceback, allocated with posterior probs
  *
  * Returns:   <eslOK> on success, and <tr> contains the OA traceback.
@@ -374,7 +374,7 @@ select_b(const P7_PROFILE *gm, const P7_GMX *gx, int i)
 #ifdef p7GENERIC_OPTACC_BENCHMARK
 /*
    icc -O3 -static -o generic_optacc_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_OPTACC_BENCHMARK generic_optacc.c -lhmmer -leasel -lm
-   ./benchmark-generic-optacc <hmmfile>
+   ./generic_optacc_benchmark <hmmfile>
                    RRM_1 (M=72)       Caudal_act (M=136)      SMC_N (M=1151)
                  -----------------    ------------------     -------------------
    20 Aug 08:    67.96u (21.2 Mc/s)   128.14u (21.2 Mc/s)    1091.90u (21.1 Mc/s)

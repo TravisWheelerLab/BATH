@@ -188,7 +188,7 @@ main(int argc, char **argv)
 #ifdef p7STOTRACE_EXAMPLE
 /* 
    gcc -g -Wall -msse2 -std=gnu99 -o stotrace_example -I.. -L.. -I../../easel -L../../easel -Dp7STOTRACE_EXAMPLE stotrace.c -lhmmer -leasel -lm
-   ./example <hmmfile> <seqfile>
+   ./stotrace_example <hmmfile> <seqfile>
  */ 
 
 #include "p7_config.h"

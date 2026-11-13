@@ -35,7 +35,7 @@
  *            
  *            Because this function might be in the critical path (in
  *            hmmscan, for example), we leave much of the model
- *            unintialized, including scores and length model
+ *            uninitialized, including scores and length model
  *            probabilities. The <p7_ProfileConfig()> call is what
  *            sets these. 
  *            
@@ -137,7 +137,7 @@ p7_profile_Create(int allocM, const ESL_ALPHABET *abc)
  *            for digital alphabet <abc>, supporting <codon_lengths> codon
  *            lengths (must be 3 or 5).
  *
- *            We leave much of the model unintialized, including
+ *            We leave much of the model uninitialized, including
  *            scores and length model probabilities.
  *            The <p7_ProfileConfig_fs()> call is what sets these.
  *
@@ -419,14 +419,14 @@ p7_profile_fs_Clone(const P7_FS_PROFILE *gm_fs)
  *            profile into an array
  *
  * Purpose:   Extract an implicitly 2D array of 32-bit float Fwd residue
- *            emission values from an optimized profile <om>, converting
+ *            emission values from a profile <gm>, converting
  *            back to emission values based on the background. <arr> must
  *            be allocated by the calling function to be of size
  *            ( om->abc->Kp * ( om->M  + 1 )), and indexing into the array
  *            is done as  [om->abc->Kp * i +  c ] for character c at
  *            position i.
  *
- * Args:      <om>   - optimized profile, containing transition information
+ * Args:      <gm>   - profile, containing transition information
  *            <bg>   - background frequencies
  *            <arr>  - preallocated array into which scores will be placed
  *

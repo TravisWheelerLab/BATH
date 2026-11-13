@@ -59,7 +59,7 @@ struct cfg_s {
   char         *infile;         /* name of the input file we're building HMMs from  */
   int           fmt;        /* format code for inputfile */
   ESL_MSAFILE  *afp;            /* open infile if MSA */
-  ESL_SQFILE   *sfp;            /* open infile is sequence */
+  ESL_SQFILE   *sfp;            /* open infile if sequence */
   ESL_ALPHABET *abc;        /* digital alphabet */
 
   char         *hmmName;        /* hmm file name                           */

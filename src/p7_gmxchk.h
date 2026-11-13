@@ -47,15 +47,15 @@
  *    region b ("between"; Rb)     : partially checkpointed
  *    region c ("checkpointed; Rc) : fully checkpointed
  *   
- * In region a, La = Rb
+ * In region a, La = Ra
  * In region b, Rb = 0|1, Lb = 0..Rc+1
- *              more specificially: (Rb=0 && Lb=0) || (Rb=1 && 1 <= Lb <= Rc+1)
+ *              more specifically: (Rb=0 && Lb=0) || (Rb=1 && 1 <= Lb <= Rc+1)
  * In region c, Lc = {{Rc+2} \choose {2}}-1 = (Rc+2)(Rc+1)/2 - 1
  * 
  * In this example:
  *    R0 = 3
  *    Ra = 5  La = 5
- *    Rb = 1  La = 2
+ *    Rb = 1  Lb = 2
  *    Rc = 4  Lc = 14
  *                                                             
  * In checkpointed regions, we refer to "blocks", often indexed
@@ -74,7 +74,7 @@
 
 
 /*****************************************************************
- * 2. Exegesis: layout of rows in a checkpointed matrix.
+ * 2. Exegesis: layout of cells in a single DP row.
  *****************************************************************/
 
 /* Layout of memory in a single DP row:
@@ -137,7 +137,7 @@ typedef struct p7_gmxchk_s {
   int      Lc;	        /* residues La+Lb+1..La+Lb+Lc=L are in "checkpointed" region          */
 
   float   *dp_mem;	/* raw memory allocation, that dp[] rows point into                         */
-  int      allocW;	/* allocated width/row, in cells ((M+1)*p7G_NSCELLS+p7G_NXCELLS) <= allocW) */
+  int      allocW;	/* allocated width/row, in cells ((M+1)*p7G_NSCELLS+p7GC_NXCELLS) <= allocW) */
   int64_t  ncells;	/* total # of alloc'ed cells: ncells >= (validR)(allocW)                    */
   int64_t  ncell_limit;	/* recommended RAM limit on dp_mem; can temporarily exceed it               */
 

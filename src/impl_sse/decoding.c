@@ -53,7 +53,7 @@
  *            two or more high scoring distinct alignments to the
  *            model. And that only happens if domain definition fails,
  *            after stochastic clustering, and an envelope that we
- *            pass to p7_domaindef.c::rescore_isolated_domain()
+ *            pass to p7_domaindef.c::rescore_isolated_domain_bath()
  *            erroneously contains 2+ distinct domains. (Note that
  *            this is different from having 2+ expected B states: that
  *            can happen normally, if a single consistent domain is
@@ -63,7 +63,7 @@
  *            Therefore the caller should be safe in ignoring any domain
  *            for which <p7_Decoding()> returns <eslERANGE>.
  *            
- *            Exception (bug #h68): see hmmalign.c, where the model is
+ *            Exception (bug #h68): see HMMER's hmmalign.c, where the model is
  *            in unilocal mode, and it is entirely possible for the
  *            user to give us a multidomain protein.
  *
@@ -144,7 +144,7 @@ p7_Decoding(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *pp)
  *            <oxb> are SSE optimized versions. See <p7_GDomainDecoding()>
  *            documentation for more info.
  *
- * Args:      gm   - profile
+ * Args:      om   - profile
  *            oxf  - filled Forward matrix
  *            oxb  - filled Backward matrix
  *            ddef - container for the results.

@@ -107,13 +107,13 @@ static int open_engine(const char *filename, char *env, P7_HMMFILE **ret_hfp, in
  *            compile time. 
  *            
  * Args:      filename - HMM file to open; or "-" for <stdin>
- *            env      - list of paths to look for <hmmfile> in, in 
+ *            env      - list of paths to look for <filename> in, in 
  *                       addition to current working dir; or <NULL>
  *            ret_hfp  - RETURN: opened <P7_HMMFILE>.
  *            errbuf   - error message buffer: <NULL>, or a ptr
  *                       to <eslERRBUFSIZE> chars of allocated space.
  *
- * Returns:   <eslOK> on success, and the open <ESL_HMMFILE> is returned
+ * Returns:   <eslOK> on success, and the open <P7_HMMFILE> is returned
  *            in <*ret_hfp>.
  *            
  *            <eslENOTFOUND> if <filename> can't be opened for
@@ -171,8 +171,8 @@ p7_hmmfile_OpenENoDB(const char *filename, char *env, P7_HMMFILE **ret_hfp, char
 /* Function:  p7_hmmfile_OpenNoDB()
  * Synopsis:  Open only an HMM flatfile, even if pressed db exists. (Deprecated)
  *
- * Purpose:   Same as <p7_hmmfile_OpenENoDB()>, 
- *            database exists for <filename>, it is ignored. Only
+ * Purpose:   Same as <p7_hmmfile_OpenENoDB()>, but without the <errbuf>:
+ *            if a pressed database exists for <filename>, it is ignored. Only
  *            <filename> itself is opened.
  *            
  *            hmmpress needs this call. Otherwise, it opens a press'ed
@@ -197,19 +197,14 @@ p7_hmmfile_OpenNoDB(const char *filename, char *env, P7_HMMFILE **ret_hfp)
  *            <HAVE_POPEN> is defined by the configure script at
  *            compile time. 
  *            
- * Args:      filename - HMM file to open; or "-" for <stdin>
- *            env      - list of paths to look for <hmmfile> in, in 
- *                       addition to current working dir; or <NULL>
+ * Args:      buffer   - buffer containing an ASCII HMM
+ *            size     - length of <buffer> in bytes
  *            ret_hfp  - RETURN: opened <P7_HMMFILE>.
  *
- * Returns:   <eslOK> on success, and the open <ESL_HMMFILE> is returned
+ * Returns:   <eslOK> on success, and the open <P7_HMMFILE> is returned
  *            in <*ret_hfp>.
  *            
- *            <eslENOTFOUND> if <filename> can't be opened for
- *            reading, even after the list of directories in <env> (if
- *            any) is checked.
- *            
- *            <eslEFORMAT> if <filename> is not in a recognized HMMER
+ *            <eslEFORMAT> if <buffer> is not in a recognized HMMER
  *            HMM file format.
  *
  * Throws:    <eslEMEM> on allocation failure.
@@ -270,7 +265,7 @@ p7_hmmfile_OpenBuffer(const char *buffer, int size, P7_HMMFILE **ret_hfp)
  *
  * Implements all of the file opening functions:
  * <p7_hmmfile_Open()>, <p7_hmmfile_OpenE()>, <p7_hmmfile_OpenNoDB()>, 
- * and <p7_OpenENoDB()>.
+ * and <p7_hmmfile_OpenENoDB()>.
  * See their comments above.
  * 
  * Only returns three types of errors: 
@@ -310,7 +305,7 @@ open_engine(const char *filename, char *env, P7_HMMFILE **ret_hfp, int do_ascii_
   hfp->ssi          = NULL;
   hfp->errbuf[0]    = '\0';
 
-  /* 1. There's two special reading modes that have limited indexing
+  /* 1. There are two special reading modes that have limited indexing
    *    and optimization capability: reading from standard input, and 
    *    reading a gzip'ped file. Once we've set one of these up and set
    *    either the <do_stdin> or <do_gzip> flag, we won't try to open
@@ -698,7 +693,7 @@ p7_hmmfile_WriteASCII(FILE *fp, int format, P7_HMM *hmm)
 /* Function:  p7_hmmfile_WriteToString()
  * Synopsis:  Write a HMMER3 HMM to char.
  *
- * Purpose:   Write a profile HMM <hmm> in to string <ascii_hmm> in ASCII
+ * Purpose:   Write a profile HMM <hmm> into string <ascii_hmm> in ASCII
  *            format.
  *
  *            Should produce same output as p7_hmmfile_WriteASCII
@@ -725,7 +720,7 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
 
   int offset;
   int coffset = 0;
-  /* These 3 chars and int are used in the size determiantion */
+  /* These 3 chars and int are used in the size determination */
   int size;
   int n = 0;
   char buff[100];
@@ -736,8 +731,8 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
 
   if (format == -1) format = p7_HMMFILE_3f;
 
-  /* In this block of code, interogate the HMM to work out the amount of memory needed to write it out as an ASCII string */
-  /* The number in each row is the number of fixed chars, inlcuding the '\n' */
+  /* In this block of code, interrogate the HMM to work out the amount of memory needed to write it out as an ASCII string */
+  /* The number in each row is the number of fixed chars, including the '\n' */
 
   /* The header block containing the tag/value pairs */
   size =  50 + strlen(HMMER_VERSION) +  strlen(HMMER_DATE);                                                 /* HMMER version text */
@@ -819,7 +814,7 @@ p7_hmmfile_WriteToString(char **ascii_hmm, int format, P7_HMM *hmm)
   /* Now allocate the memory for the HMM string */
   ret_hmm = malloc(sizeof(char) * (size));
 
-  /* Now added the HMM text to the string, remembering to offset the position */
+  /* Now add the HMM text to the string, remembering to offset the position */
   /* If anything fails, return an eslEWRITE error */
 
   /* Header block */
@@ -1180,10 +1175,11 @@ p7_hmmfile_WriteBinary(FILE *fp, int format, P7_HMM *hmm)
  *
  * Purpose:   Read the next HMM from open save file <hfp>, and
  *            optionally return this newly allocated HMM in <opt_hmm>.
- *            (The optional return is so that an application is
+ *            (The optional return is so that an application that is
  *            only interested in whether the file contains a valid
  *            HMM or not -- for example, to verify that a file contains
- *            only a single HMM instead of a database of them.)
+ *            only a single HMM instead of a database of them -- can
+ *            skip it.)
  *            
  *            Caller may or may not already know what alphabet the HMM
  *            is expected to be in.  A reference to the pointer to the
@@ -1250,7 +1246,7 @@ p7_hmmfile_Read(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc,  P7_HMM **opt_hmm)
  *            Returns <eslENOTFOUND> if <key> isn't found in the index for
  *            <hfp>.
  *            
- *            Returns <eslEFORMAT> is something goes wrong trying to
+ *            Returns <eslEFORMAT> if something goes wrong trying to
  *            read the index, indicating a file format problem in the
  *            SSI file.
  *            
@@ -1280,7 +1276,7 @@ p7_hmmfile_PositionByKey(P7_HMMFILE *hfp, const char *key)
 /* Function:  p7_hmmfile_Position()
  * Synopsis:  Reposition file to start of named HMM.
  *
- * Purpose:   Reposition <hfp> so tha start of the requested HMM.
+ * Purpose:   Reposition <hfp> to the start of the requested HMM.
  *
  * Returns:   <eslOK> on success.
  * 
@@ -1341,7 +1337,7 @@ p7_hmmfile_Position(P7_HMMFILE *hfp, const off_t offset)
  * Throws:     <eslEMEM> on allocation error.
  *             <eslESYS> if a system i/o call fails.
  *             In cases of error (including both thrown error and normal error), <*ret_abc>
- *             is left in its original state as passed by the caller, and <*ret_hmm> is
+ *             is left in its original state as passed by the caller, and <*opt_hmm> is
  *             returned <NULL>.
  */
 static int
@@ -2168,7 +2164,7 @@ multiline(FILE *fp, const char *pfx, char *s)
  * string.  It does not matter if it ends in <\n> or not. <pfx>
  * must be a valid <NUL>-terminated string; it may be empty.
  *
- * Args:     ret_char: char pointer pointer
+ * Args:     ret_str: char pointer pointer
  *           pfx:  prefix for each line
  *           s:    line to break up and print; tolerates a NULL
  *           coffset: the current write position in the string (pointer so we can add to it).
@@ -2229,7 +2225,7 @@ printprob(FILE *fp, int fieldwidth, float p)
  *           fieldwidth:  The size of the number to be printed. Note, a space is
  *                        prepended
  *           p:           float
- *           offset:      currnet position in the strng
+ *           offset:      current position in the string
  *
  * Returns: <eslOK> on success or <eslEWRITE> on error.
  */
@@ -2483,7 +2479,7 @@ utest_io_30(char *tmpfile, int format, P7_HMM *hmm)
 }
 
 
-/* Test current (3/e) file formats */
+/* Test current (3/f) file formats */
 static int
 utest_io_current(char *tmpfile, P7_HMM *hmm)
 {

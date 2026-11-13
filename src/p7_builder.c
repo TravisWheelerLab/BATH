@@ -46,7 +46,7 @@
  *            
  *            See <hmmbuild.c> or other big users of the build
  *            pipeline for an example of appropriate <ESL_GETOPTS>
- *            initializations of these 24 options.
+ *            initializations of these 26 options.
  */
 P7_BUILDER *
 p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc)
@@ -164,9 +164,9 @@ p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc)
  *
  * Purpose:   Initialize the builder <bld> to be able to parameterize
  *            single sequence queries, using the standard (built-in) score
- *            matrix named <mx>.
+ *            matrix named <matrix>.
  *            
- *            Available score matrices <mx> include PAM30, 70, 120, and 240;
+ *            Available score matrices <matrix> include PAM30, 70, 120, and 240;
  *            and BLOSUM45, 50, 62, 80, and 90. See <esl_scorematrix.c>.
  *
  *            Set the gap-open and gap-extend probabilities to
@@ -177,15 +177,15 @@ p7_builder_Create(const ESL_GETOPTS *go, const ESL_ALPHABET *abc)
  *            conditional probability parameters.
  *
  * Args:      bld      - <P7_BUILDER> to initialize
- *            matrix   - score matrix file to use
+ *            matrix   - name of built-in score matrix to use
  *            popen    - gap open probability
  *            pextend  - gap extend probability
  *            bg       - null model, containing background frequencies           
  *
  * Returns:   <eslOK> on success.
  *            
- *            <eslENOTFOUND> if <mxfile> can't be found or opened, even
- *            in any of the directories specified by the <env> variable.   
+ *            <eslENOTFOUND> if <matrix> is not the name of a built-in
+ *            score matrix.
  *            
  *            <eslEINVAL> if the score matrix can't be converted into
  *            conditional probabilities; for example, if it has no valid
@@ -394,7 +394,7 @@ static int    make_post_msa        (P7_BUILDER *bld, const ESL_MSA *premsa, cons
  *            opt_trarr   - optRETURN: array of faux tracebacks, <0..nseq-1>
  *            opt_gm      - optRETURN: profile corresponding to <hmm>
  *            opt_om      - optRETURN: optimized profile corresponding to <gm>
- *            opt_om_fs5  - optRETURN: 3 codon length frameshift profile corresponding to <hmm>
+ *            opt_om_fs3  - optRETURN: 3 codon length frameshift profile corresponding to <hmm>
  *            opt_om_fs5  - optRETURN: 5 codon length frameshift profile corresponding to <hmm>
  *            opt_postmsa - optRETURN: RF-annotated, possibly modified MSA 
  *

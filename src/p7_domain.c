@@ -116,7 +116,7 @@ extern void p7_domain_Destroy(P7_DOMAIN *obj)
  *            nalloc: size (in bytes) of the buffer passed in buf 
  *
  *Returns:    On success: returns eslOK, sets *buf to the base of the buffer containing the object
- *            if allocation or re-allocation was requried, sets *n to the offset from the start of the buffer
+ *            if allocation or re-allocation was required, sets *n to the offset from the start of the buffer
  *            to the first position after the serialized object and sets *nalloc to the new size of the buffer 
  *            if allocation or re-allocation was required.
  *
@@ -125,7 +125,7 @@ extern void p7_domain_Destroy(P7_DOMAIN *obj)
  *            Returns eslFAIL if a calculation fails a consistency check.   
  */
 
-// base size is 2 ints bigger than required for the fixed-length members of the strucuture, one int for the serialized length,
+// base size is 2 ints bigger than required for the fixed-length members of the structure, one int for the serialized length,
 // one int for the length of the scores_per_pos array (in floats)
 #define SER_BASE_SIZE (4 * sizeof(int)) + (4 * sizeof(int64_t)) + (5 * sizeof(float)) + (sizeof(double))
 
@@ -271,21 +271,21 @@ ERROR:
 }
 
 /* Function:  p7_domain_Deserialize
- * Synopsis:  Derializes a P7_DOMAIN object from a stream of bytes in network order into
+ * Synopsis:  Deserializes a P7_DOMAIN object from a stream of bytes in network order into
  *            a valid data structure
  *
  * Purpose:   Deserializes a serialized P7_DOMAIN object from
- *.           buf starting at position position *pos.  
+ *            buf starting at position *n.  
  *
  * Inputs:    buf: the buffer that the object should be de-serialized from
- *            pos: a pointer to the offset from the start of buf to the beginning of the object
+ *            n: a pointer to the offset from the start of buf to the beginning of the object
  *            ret_obj: a P7_DOMAIN structure to deserialize the object into.  May not be NULL. May either be an 
  *            "empty" object created with p7_domain_Create_empty, or a P7_DOMAIN object containing valid data
  *
- * Returns:   On success: returns eslOK, deserializes the P7_DOMAIN object into ret_object, and updates 
- *.           pos to point to the position after the end of the P7_DOMAIN object.
+ * Returns:   On success: returns eslOK, deserializes the P7_DOMAIN object into ret_obj, and updates 
+ *            n to point to the position after the end of the P7_DOMAIN object.
  *
- * Throws:    Returns eslEINVAL if ret_obj == NULL, buf == NULL, or N == NULL.  Returnts eslEMEM if unable to allocate
+ * Throws:    Returns eslEINVAL if ret_obj == NULL, buf == NULL, or n == NULL.  Returns eslEMEM if unable to allocate
  *            required memory in ret_obj. Returns eslFAIL if a calculation fails a consistency check.         
  */
 extern int p7_domain_Deserialize(const uint8_t *buf, uint32_t *n, P7_DOMAIN *ret_obj)
@@ -383,7 +383,7 @@ extern int p7_domain_Deserialize(const uint8_t *buf, uint32_t *n, P7_DOMAIN *ret
   ptr += sizeof(uint32_t);
 
   if(scores_per_pos_length > 0){ // there is a scores_per_pos array, so handle it
-    if(ret_obj->scores_per_pos != NULL){ // clear out any prevous scores_per_pos array, since we don't know how big it is
+    if(ret_obj->scores_per_pos != NULL){ // clear out any previous scores_per_pos array, since we don't know how big it is
       free(ret_obj->scores_per_pos);
     }
     ESL_ALLOC(ret_obj->scores_per_pos, scores_per_pos_length * sizeof(float));
@@ -671,7 +671,7 @@ static void utest_Serialize_error_conditions(){
 }
 
 static void utest_Deserialize_error_conditions(){
-  P7_DOMAIN *sampled = NULL; // sampled alidisplay that we'll serialze
+  P7_DOMAIN *sampled = NULL; // sampled alidisplay that we'll serialize
   P7_DOMAIN *deserial = NULL; // alidisplay to hold the deserialized object
   char msg[]="utest_Deserialize_error_conditions failed";
   uint8_t *buf = NULL;

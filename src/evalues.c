@@ -36,7 +36,7 @@
  *                      if <NULL>, use default parameters.
  *          byp_rng   - BYPASS optimization: pass ptr to <ESL_RANDOMNESS> generator
  *                      if already known; 
- *                      <*byp_rng> == NULL> if <rng> return is desired;
+ *                      <*byp_rng == NULL> if <rng> return is desired;
  *                      pass <NULL> to use and discard internal default.
  *          byp_bg    - BYPASS optimization: pass ptr to <P7_BG> if already known; 
  *                      <*byp_bg == NULL> if <bg> return is desired;
@@ -47,8 +47,8 @@
  *          byp_om    - BYPASS optimization: pass ptr to <om> profile if already known;
  *                      pass <*byp_om == NULL> if <om> return desired;
  *                      pass <NULL> to use and discard internal default.          
- *          byp_om_fs53 - BYPASS optimization: pass ptr to <om_fs3> profile if already known;
- *                      pass <*byp_om_fs3> == NULL> if <om_fs3> return desired;
+ *          byp_om_fs3 - BYPASS optimization: pass ptr to <om_fs3> profile if already known;
+ *                      pass <*byp_om_fs3 == NULL> if <om_fs3> return desired;
  *                      pass <NULL> to use and discard internal default.
  *          byp_om_fs5 - BYPASS optimization: pass ptr to <om_fs5> profile if already known;
  *                      pass <*byp_om_fs5 == NULL> if <om_fs5> return desired;
@@ -124,7 +124,7 @@ p7_Calibrate(P7_HMM *hmm, P7_BUILDER *cfg_b, ESL_RANDOMNESS **byp_rng, P7_BG **b
     if ((status = p7_Tau      (r, om, bg, EfL, EfN, lambda, Eft, &tau))  != eslOK) ESL_XFAIL(status,  errbuf, "failed to determine fwd tau");
   }
 
-  /* Optional frameshift calribration */
+  /* Optional frameshift calibration */
   if (cfg_b != NULL && cfg_b->fs) {
     if  ( (abcDNA = esl_alphabet_Create(eslDNA))                               == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate alphabet");
     if  ( (gcode  = esl_gencode_Create(abcDNA, hmm->abc))                      == NULL)  ESL_XFAIL(eslEMEM, errbuf, "failed to allocate gencode");
@@ -420,7 +420,7 @@ p7_ViterbiMu(ESL_RANDOMNESS *r, P7_OPROFILE *om, P7_BG *bg, int L, int N, double
  * Incept:    SRE, Tue May 19 10:26:19 2009 [Janelia]
  *
  * Purpose:   Identical to p7_ViterbiMu(), above, except that it fits
- *            fremashift Viterbi scores. 
+ *            frameshift Viterbi scores. 
  *
  * Args:      r       :  source of random numbers
  *            om      :  score profile (length config is changed upon return!)
@@ -685,7 +685,7 @@ p7_fs_Tau_3codons(ESL_RANDOMNESS *r, P7_FS_OPROFILE *om_fs3, P7_CODONTABLE *ct, 
 
 
 /* Function:  p7_fs_Tau_5codons()
- * Synopsis:  Determine tau for frameshift-aware Forward with 5 possile 
+ * Synopsis:  Determine tau for frameshift-aware Forward with 5 possible 
  *            codon lengths by brief simulation.
  *
  * Purpose:   Determine the <tau> parameter for an exponential tail fit

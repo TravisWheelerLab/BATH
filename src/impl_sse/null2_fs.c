@@ -1,4 +1,4 @@
-/* "null2" framefhift model, biased composition correction; SSE implementations.
+/* "null2" frameshift model, biased composition correction; SSE implementations.
  * 
  * Contents:
  *   1. Null2 estimation algorithms.

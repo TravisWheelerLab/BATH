@@ -31,8 +31,7 @@ static int path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_n
  * Synopsis:  Allocates a splice graph with no nodes or edges.
  *
  * Purpose:   Allocates a new <SPLICE_GRAPH>. Does NOT allocate 
- *            any memory for nodes or edges.  Sets reverse 
- *            complement startus to <revcomp>
+ *            any memory for nodes or edges.
  *
  * Returns:   a pointer to the new <SPLICE_GRAPH> structure 
  *            on success.
@@ -59,7 +58,8 @@ p7_splicegraph_Create()
   graph->orig_hit_idx   = NULL;
   graph->node_in_graph  = NULL;
   graph->tmp_node       = NULL;
-  
+  graph->extension      = NULL;
+
   graph->best_out_edge = NULL;
 
   graph->path_scores   = NULL;
@@ -103,7 +103,8 @@ p7_splicegraph_CreateNodes(SPLICE_GRAPH *graph, int num_nodes)
   ESL_ALLOC(graph->orig_hit_idx,  sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->node_in_graph, sizeof(int)  * graph->nalloc);
   ESL_ALLOC(graph->tmp_node,      sizeof(int)  * graph->nalloc);
- 
+  ESL_ALLOC(graph->extension,     sizeof(int)  * graph->nalloc);
+
   ESL_ALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
 
   ESL_ALLOC(graph->ali_scores,    sizeof(float) * graph->nalloc);
@@ -160,7 +161,8 @@ p7_splicegraph_Grow(SPLICE_GRAPH *graph)
 
     ESL_REALLOC(graph->node_in_graph, sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->tmp_node,      sizeof(int)   * graph->nalloc);
-    ESL_REALLOC(graph->orig_hit_idx,  sizeof(int)   * graph->nalloc);    
+    ESL_REALLOC(graph->extension,     sizeof(int)   * graph->nalloc);
+    ESL_REALLOC(graph->orig_hit_idx,  sizeof(int)   * graph->nalloc);
     ESL_REALLOC(graph->best_out_edge, sizeof(int)   * graph->nalloc);
 
     ESL_REALLOC(graph->ali_scores,    sizeof(float) * graph->nalloc);
@@ -224,6 +226,7 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
   }
 
   if(graph->tmp_node != NULL) free(graph->tmp_node);
+  if(graph->extension != NULL) free(graph->extension);
 
   if (graph->th->hit != NULL) free(graph->th->hit);
   if (graph->th      != NULL) free(graph->th);
@@ -257,7 +260,7 @@ p7_splicegraph_Destroy(SPLICE_GRAPH *graph)
  * Purpose:   Ask the splice graph object <graph> to do any 
  *            necessary internal allocation to add a new node. 
  *            Use hit dats to determine the upstream/downstream 
- *            postion of the new node relative to all existing 
+ *            position of the new node relative to all existing 
  *            nodes. 
  *
  * Returns:   <eslOK> on success.
@@ -281,6 +284,7 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 
   graph->node_in_graph[graph->num_nodes] = TRUE;
   graph->tmp_node[graph->num_nodes]      = FALSE;
+  graph->extension[graph->num_nodes]     = FALSE;
 
   graph->ali_scores[graph->num_nodes]  = hit->dcl->aliscore;
   graph->path_scores[graph->num_nodes] = -eslINFINITY;
@@ -299,7 +303,7 @@ p7_splicegraph_AddNode(SPLICE_GRAPH *graph, P7_HIT *hit)
 /* Function:  p7_splicegraph_AddEdge()
  * Synopsis:  get the next edge from up_node
  *
- * Purpose:   Retrieve a potiner to the next available 
+ * Purpose:   Retrieve a pointer to the next available 
  *            SPLICE_EDGE from up_node and points it 
  *            to down_node. Allocate more room for 
  *            edges from up_node, if needed. 
@@ -443,7 +447,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
   upstream_suffix_sum   = NULL;
   downstream_prefix_sum = NULL;
 
-  /* return if no there is no hmm overlap */
+  /* return if there is no hmm overlap */
   if(downstream_dom->ihmm > upstream_dom->jhmm)  return eslOK;
 
   overlap_start = ESL_MAX(upstream_dom->ihmm, downstream_dom->ihmm);
@@ -536,15 +540,15 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
 
   /* Find the minimum score loss to eliminate the overlap*/
-  /*start with all positions belonging to the downstream hit - not allowed if upstream hit heas no positions before the overlap. */
+  /*start with all positions belonging to the downstream hit - not allowed if upstream hit has no positions before the overlap. */
   if(upstream_dom->ihmm == overlap_start) min_lost_sc = eslINFINITY;
   else                                    min_lost_sc = upstream_suffix_sum[0]; 
   for(s = 1; s < overlap_len; s++) {
-    /* at each step add another overlap postion to the upstream hit */
+    /* at each step add another overlap position to the upstream hit */
     curr_lost_sc = upstream_suffix_sum[s] + downstream_prefix_sum[s-1]; 
     min_lost_sc = ESL_MIN(min_lost_sc, curr_lost_sc);
   }
-  /* end with all positions belonging to the upstream hit - not allowed if downstream hit has no postions after the overlap */
+  /* end with all positions belonging to the upstream hit - not allowed if downstream hit has no positions after the overlap */
   if(downstream_dom->jhmm > overlap_end) min_lost_sc = ESL_MIN(min_lost_sc, downstream_prefix_sum[overlap_len-1]);
 
   edge->edge_score -= (min_lost_sc + upstream_lost + downstream_lost);
@@ -564,7 +568,7 @@ p7_splicegraph_AliScoreEdge(SPLICE_EDGE *edge, const P7_DOMAIN *upstream_dom, co
 
 /* Function:  p7_splicegraph_PathExists()
  *
- * Purpose:   Determine if <down_node> is reachaeble from 
+ * Purpose:   Determine if <down_node> is reachable from 
  *            <up_node> by splice edges
  *
  * Returns:   TRUE if <down_node> is reachable from <up_node>,
@@ -636,29 +640,62 @@ path_finder (SPLICE_GRAPH *graph, int upstream_node, int downstream_node, int *v
 }
 
 
+/* Function:  p7_splicegraph_NodeOverlap()
+ * Synopsis:  Check for hmm and sequence overlap between a node and a path step.
+ *
+ * Purpose:   Check whether <node_id> overlaps the hmm and sequence range of
+ *            step <step_id> of <path>. <min_hmm_frac> and <min_seq_frac> set
+ *            how much of that overlap, as a fraction of <node_id>'s own hmm
+ *            and sequence length, is required - 0.0 requires only that the
+ *            ranges overlap by at least one position in each dimension, as
+ *            is enough to decide whether an edge or reassignment is possible.
+ *            A higher fraction additionally requires that overlap to cover
+ *            most of <node_id>'s own length, as is needed to decide whether
+ *            <node_id> is redundant with that step rather than merely
+ *            adjacent to it - e.g. two exons that abut at a shared boundary,
+ *            or that physically overlap but align to largely different parts
+ *            of the model.
+ *
+ * Returns:   <TRUE> if the hmm overlap covers at least <min_hmm_frac> of
+ *            <node_id>'s own hmm length and the sequence overlap covers at
+ *            least <min_seq_frac> of <node_id>'s own sequence length,
+ *            <FALSE> otherwise.
+ */
 int
-p7_splicegraph_NodeOverlap(SPLICE_GRAPH *graph, int node_id, SPLICE_PATH *path, int step_id) {
+p7_splicegraph_NodeOverlap(SPLICE_GRAPH *graph, int node_id, SPLICE_PATH *path, int step_id, float min_hmm_frac, float min_seq_frac) {
 
   int     overlap_hmm_start;
   int     overlap_hmm_end;
+  int     overlap_hmm_len;
+  int     node_hmm_len;
   int64_t overlap_seq_start;
   int64_t overlap_seq_end;
+  int64_t overlap_seq_len;
+  int64_t node_seq_len;
 
   overlap_hmm_start = ESL_MAX(graph->th->hit[node_id]->dcl->ihmm, path->ihmm[step_id]);
   overlap_hmm_end   = ESL_MIN(graph->th->hit[node_id]->dcl->jhmm, path->jhmm[step_id]);
-  
-  if(overlap_hmm_end - overlap_hmm_start + 1 <= 0) return FALSE;
+  overlap_hmm_len   = overlap_hmm_end - overlap_hmm_start + 1;
+  node_hmm_len      = graph->th->hit[node_id]->dcl->jhmm - graph->th->hit[node_id]->dcl->ihmm + 1;
+
+  if(overlap_hmm_len <= 0) return FALSE;
+  if((float) overlap_hmm_len < min_hmm_frac * (float) node_hmm_len) return FALSE;
 
   if(graph->revcomp) {
      overlap_seq_start = ESL_MAX(graph->th->hit[node_id]->dcl->jali, path->jali[step_id]);
      overlap_seq_end   = ESL_MIN(graph->th->hit[node_id]->dcl->iali, path->iali[step_id]);
+     node_seq_len      = graph->th->hit[node_id]->dcl->iali - graph->th->hit[node_id]->dcl->jali + 1;
   }
   else {
     overlap_seq_start = ESL_MAX(graph->th->hit[node_id]->dcl->iali, path->iali[step_id]);
     overlap_seq_end   = ESL_MIN(graph->th->hit[node_id]->dcl->jali, path->jali[step_id]);
+    node_seq_len      = graph->th->hit[node_id]->dcl->jali - graph->th->hit[node_id]->dcl->iali + 1;
   }
-  
-  if(overlap_seq_end - overlap_seq_start + 1 <= 0) return FALSE;
+
+  overlap_seq_len = overlap_seq_end - overlap_seq_start + 1;
+
+  if(overlap_seq_len <= 0) return FALSE;
+  if((float) overlap_seq_len < min_seq_frac * (float) node_seq_len) return FALSE;
 
   return TRUE;
 
@@ -722,7 +759,7 @@ p7_splicegraph_DumpHits(FILE *fp, SPLICE_GRAPH *graph)
 
 /* Function:  p7_splicegraph_DumpEdges()
  *
- * Purpose: Dumps splice cooridnates of esch edge.
+ * Purpose: Dumps splice coordinates of each edge.
  */
 void
 p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph) 
@@ -730,7 +767,7 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
 
 
   int          i,j;
-  int          nuc_end, nuc_start;
+  int64_t      nuc_end, nuc_start;
   SPLICE_EDGE *tmp_edge;
 
   if (graph == NULL) { fprintf(fp, " [ graph is NULL ]\n"); return; }
@@ -745,8 +782,8 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
       nuc_start = tmp_edge->downstream_nuc_start;
       fprintf(fp, "    Edge from Upstream Node %d to Downstream Node %d\n", tmp_edge->upstream_node_id+1, tmp_edge->downstream_node_id+1);
       fprintf(fp, "                                   %s   %s\n", "Amino", "Nucleotide");
-      fprintf(fp, "      Upsteam Node End Coords:     %5d  %10d\n", tmp_edge->upstream_amino_end, nuc_end);
-      fprintf(fp, "      Downsteam Node Start Coords: %5d  %10d\n", tmp_edge->downstream_amino_start, nuc_start);
+      fprintf(fp, "      Upsteam Node End Coords:     %5d  %10" PRId64 "\n", tmp_edge->upstream_amino_end, nuc_end);
+      fprintf(fp, "      Downsteam Node Start Coords: %5d  %10" PRId64 "\n", tmp_edge->downstream_amino_start, nuc_start);
       fprintf(fp, "\n");
    
     }
@@ -762,7 +799,7 @@ p7_splicegraph_DumpEdges(FILE *fp, SPLICE_GRAPH *graph)
 
 /* Function:  p7_splicegraph_DumpGraph()
  *
- * Purpose: Dumps matrix of graph scores. If no edge exits 
+ * Purpose: Dumps matrix of graph scores. If no edge exists 
  *          prints "-inf". Also Dumps ali and path scores 
  *          and best outgoing edge data. 
  */

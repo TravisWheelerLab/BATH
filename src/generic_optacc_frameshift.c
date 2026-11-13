@@ -39,8 +39,8 @@
  *            with OA scores.
  *
  * Args:      gm_fs5 - query profile      
- *            pp    - posterior decoding matrix created by <p7_GPosteriorDecoding()>
- *            gx    - RESULT: caller provided DP matrix for <gm->M> by <L> 
+ *            pp    - posterior decoding matrix created by <p7_GDecoding_Frameshift()>
+ *            gx    - RESULT: caller provided DP matrix for <gm_fs5->M> by <L> 
  *            ret_e - RETURN: expected number of correctly decoded positions 
  *
  * Returns:   <eslOK> on success, and <*ret_e> contains the final OA
@@ -349,7 +349,7 @@ static inline int select_codon(const P7_GMX *pp, int i, int k);
  *            
  *            Caller provides the OA DP matrix <gx> that was just
  *            calculated by <p7_GOptimalAccuracy_Frameshift()>, as 
- *            well as the posterior decoding matricies <pp>, and 
+ *            well as the posterior decoding matrices <pp>, and 
  *            <probs> which were calculated by Forward/Backward on 
  *            a target sequence of length <L> using the query model 
  *           <gm_fs5>.
@@ -361,8 +361,8 @@ static inline int select_codon(const P7_GMX *pp, int i, int k);
  *            internally reallocated as needed for larger traces.
  *
  * Args:      gm_fs5 - query profile      
- *            pp    - posterior decoding (i normalized accross all codons containing i)
- *            gx    - OA DP matrix calculated by  <p7_OptimalAccuracyDP()>
+ *            pp    - posterior decoding (i normalized across all codons containing i)
+ *            gx    - OA DP matrix calculated by  <p7_GOptimalAccuracy_Frameshift()>
  *            tr    - RESULT: OA traceback, allocated with posterior probs
  *
  * Returns:   <eslOK> on success, and <tr> contains the OA traceback.
@@ -598,7 +598,7 @@ select_codon(const P7_GMX *pp, int i, int k)
    gcc -g -O3      -o generic_optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_OPTACC_FRAMESHIFT_BENCHMARK generic_optacc_frameshift.c -lhmmer -leasel -lm
 
    icc -O3 -static -o generic_optacc_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_OPTACC_FRAMESHIFT_BENCHMARK generic_optacc_frameshift.c -lhmmer -leasel -lm
-   ./optacc_frameshift_benchmark <hmmfile>
+   ./generic_optacc_frameshift_benchmark <hmmfile>
  */
 #include "p7_config.h"
 

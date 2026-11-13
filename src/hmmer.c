@@ -186,9 +186,9 @@ p7_AminoFrequencies(float *f)
 /* Function:  p7_codontable_Create()
  * Synopsis:  Allocate a new <P7_CODONTABLE>.
  *
- * Purpose:   Allocate a codon lookup table for reverse taranslating 
+ * Purpose:   Allocate a codon lookup table for reverse translating 
  *            amino acids to codons using the alphabets and the NCBI 
- *            translation table sepcified by the <ESL_GENCODE>.
+ *            translation table specified by the <ESL_GENCODE>.
  *
  * Returns:   a pointer to the new <P7_CODONTABLE>.
  *
@@ -242,7 +242,7 @@ ERROR:
 }
 
 /* Function:  p7_codontable_GetCodon()
- * Synopsis:  Get a randomly selected codon that translates to the sepcified amino acid
+ * Synopsis:  Get a randomly selected codon that translates to the specified amino acid
  *
  * Purpose:   Randomly select one of the codons that translates to 
  *            <amino> and record it in <codon>. <codon> must be 
@@ -251,7 +251,7 @@ ERROR:
  * Returns:   <eslOK> on success
  *
  * Throws:    <eslERANGE> for an invalid amino
- *            <eslEINVAL> for an aminio with no codons
+ *            <eslEINVAL> for an amino with no codons
  *
  */
 int 

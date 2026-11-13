@@ -136,7 +136,7 @@ static ESL_OPTIONS options[] = {
     entropy, which produces high overextension.
     However, we don't recommend using this method in general, as it
     may show odd behavior (or fail to even work) in the case of low
-    overall observed counts (e.g. an alignemnt of 2 or 4 sequences)
+    overall observed counts (e.g. an alignment of 2 or 4 sequences)
     */
     { "--eentexp", eslARG_NONE,"default",NULL, NULL,    EFFOPTS,    NULL,      NULL, "adjust eff seq # to reach rel. ent. target using exp scaling",  99 },
     
@@ -155,7 +155,7 @@ struct cfg_s {
   char         *infile;	        /* name of the input file we're building HMMs from  */
   int           fmt;		/* format code for inputfile */
   ESL_MSAFILE  *afp;            /* open infile if MSA */
-  ESL_SQFILE   *sfp;            /* open infile is sequence */
+  ESL_SQFILE   *sfp;            /* open infile if sequence */
   ESL_ALPHABET *abc;		/* digital alphabet */
 
   char         *hmmName;        /* hmm file name supplied from -n          */
@@ -447,11 +447,11 @@ usual_master(const ESL_GETOPTS *go, struct cfg_s *cfg)
 
   /* Open files, set alphabet.
    *   cfg->afp       - open alignment file for input
-   *   cfg->sfp       - open unalgined sequence file for input
+   *   cfg->sfp       - open unaligned sequence file for input
    *   cfg->abc       - alphabet expected or guessed in ali file
    *   cfg->hmmfp     - open HMM file for output
    *   cfg->postmsafp - optional open MSA resave file, or NULL
-   *   cfp->ofp       - optional open output file, or stdout
+   *   cfg->ofp      - optional open output file, or stdout
    */
 
   /* Auto-detect whether input is an MSA or unaligned sequence file.

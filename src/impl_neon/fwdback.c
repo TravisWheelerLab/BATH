@@ -9,7 +9,7 @@
  * range of scores.
  *
  * The Forward and Backward implementations may be used either in a
- * full O(ML) mode that keeps an entire DP matrix, or in a O(M+L)
+ * full O(ML) mode that keeps an entire DP matrix, or in an O(M+L)
  * linear memory "parsing" mode that only keeps one row of memory for
  * the main MDI states and one column 0..L for the special states
  * B,E,N,C,J. Keeping a full matrix allows subsequent stochastic
@@ -103,7 +103,7 @@ p7_Forward(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *
  * Synopsis:  The Forward algorithm, linear memory parsing version.
  * Incept:    SRE, Fri Aug 15 19:05:26 2008 [Casa de Gatos]
  *
- * Purpose:   Same as <p7_Forward() except that the full matrix isn't
+ * Purpose:   Same as <p7_Forward()> except that the full matrix isn't
  *            kept. Instead, a linear $O(M+L)$ memory algorithm is
  *            used, keeping only the DP matrix values for the special
  *            (BENCJ) states. These are sufficient to do posterior
@@ -390,7 +390,7 @@ forward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
       /* dcv has carried through from end of q loop above; store it
        * in first pass, we add M->D and D->D path into DMX
        */
-      /* We're almost certainly're obligated to do at least one complete
+      /* We're almost certainly obligated to do at least one complete
        * DD path to be sure:
        */
       dcv        = vextq_f32(zerov, dcv, 3);

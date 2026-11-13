@@ -18,7 +18,7 @@
 #include "hmmer.h"
 #include "p7_splice.h"
 
-/* Splice singal probabilities taken from
+/* Splice signal probabilities taken from
  * "Comprehensive splice-site analysis using comparative genomics",
  * Nihar Sheth et al., 2006
  */
@@ -41,7 +41,7 @@ p7_SignalScores(float *f)
  *
  * Purpose:   Allocates a splice pipeline and set all relevant 
  *            data from the configuration structure <go>. 
- *            Allocate <M_hint> by <L_hint> alignment matricies.
+ *            Allocate <M_hint> by <L_hint> alignment matrices.
  *
  * Returns:   a pointer to the new <SPLICE_PIPELINE> structure
  *            on success.

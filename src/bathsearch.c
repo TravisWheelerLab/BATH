@@ -47,7 +47,7 @@ typedef struct {
   P7_FS_OPROFILE   *om_fs3;     /* optimized 3 codon length frameshift query profile             */
   P7_SCOREDATA     *scoredata;  /* used to create DNA windows from ORFs                              */
   ESL_GENCODE      *gcode;      /* used for translating ORFs                                         */
-  ESL_GENCODE_WORKSTATE *wrk;   /* used for translation of taget DNA to ORFs                         */ 
+  ESL_GENCODE_WORKSTATE *wrk;   /* used for translation of target DNA to ORFs                        */ 
   P7_HMM_WINDOWLIST     *hw;    /* exon seeds for splicing algorithms                                */
 
 } WORKER_INFO;
@@ -56,7 +56,7 @@ typedef struct {
 
 static ID_LENGTH_LIST* init_id_length( int size );
 static void            destroy_id_length( ID_LENGTH_LIST *list );
-static int             add_id_length(ID_LENGTH_LIST *list, int id, int L);
+static int             add_id_length(ID_LENGTH_LIST *list, int id, int64_t L);
 static int             assign_Lengths(P7_TOPHITS *th, ID_LENGTH_LIST *id_length_list);
 
 #define REPOPTS     "-E,-T"//--cut_ga,--cut_nc,--cut_tc"
@@ -73,7 +73,7 @@ static ESL_OPTIONS options[] = {
   { "-h",             eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, NULL,           "show brief help on version and usage",                                     1 },
 
   /* Algorithm options */
-  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--splice",     "use frameshift alignment algorthims",                                      2 },
+  { "--fs",           eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--splice",     "use frameshift alignment algorithms",                                      2 },
   { "--splice",       eslARG_NONE,    FALSE,     NULL,        NULL,      NULL,   NULL, "--fs",         "use spliced alignment algorithms ",                                        2 },
 
   /* Control of output */
@@ -114,6 +114,7 @@ static ESL_OPTIONS options[] = {
   { "--F3",           eslARG_REAL,   "1e-5",     NULL,        NULL,      NULL,   NULL,"--max",         "stage 3 (Fwd) threshold: promote hits w/ P <= F3",                         7 },
   { "--F4",           eslARG_REAL,   "5e-4",     NULL,        NULL,      NULL,  "--fs","--max",         "stage 4 (FS-Fwd) threshold: promote hits w/ P <= F4",                     7 },
   { "--nobias",       eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max",         "turn off composition bias filter",                                         7 },
+  { "--nolocalbias",  eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL,"--max,--nobias,--fs","turn off local composition bias filter only (default for --fs)",                              7 },
   { "--nonull2",      eslARG_NONE,    NULL,      NULL,        NULL,      NULL,   NULL, NULL,           "turn off biased composition score corrections",                            7 },
 
   /* input formats */
@@ -297,6 +298,7 @@ output_header(FILE *ofp, const ESL_GETOPTS *go, char *hmmfile, char *seqfile)
   if (esl_opt_IsUsed(go, "--F3")                            && fprintf(ofp, "# Fwd filter P threshold:                     <= %g\n",      esl_opt_GetReal(go, "--F3"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--F4")                            && fprintf(ofp, "# ORF P threshold for FS FWD:                 <= %g\n",      esl_opt_GetReal(go, "--F4"))                 < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nobias")                        && fprintf(ofp, "# biased composition HMM filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
+  if (esl_opt_IsUsed(go, "--nolocalbias")                   && fprintf(ofp, "# local composition bias filter:                 off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--nonull2")                       && fprintf(ofp, "# null2 bias corrections:                        off\n")                                                  < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fs")                            && fprintf(ofp, "# Use the frameshift aware algorithms\n")                                                                < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed");
   if (esl_opt_IsUsed(go, "--fsonly")                        && fprintf(ofp, "# Use only the frameshift aware pipeline\n")                                                              < 0) ESL_EXCEPTION_SYS(eslEWRITE, "write failed"); 
@@ -422,7 +424,7 @@ bath_open_msa_file(struct cfg_s *cfg,  ESL_MSAFILE **qfp_msa, ESL_ALPHABET **abc
   }
 
   if (status == eslOK && (*qfp_msa)->format == eslMSAFILE_AFA && cfg->qfmt != eslMSAFILE_AFA) {
-    /* this could just be a sequence file with o single sequence (in which case, fall through
+    /* this could just be a sequence file with a single sequence (in which case, fall through
      * to the "sequence" case), or with several same-sized sequences (in which case ask for guidance) */
     if (msa != NULL && msa->nseq > 1)
       p7_Fail("Query file type could be either aligned or unaligned; please specify (--qformat [afa|fasta])");
@@ -535,7 +537,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
   ESL_WORK_QUEUE  *queue                    = NULL;
 #endif
 
-  /*error handeling */
+  /*error handling */
   char             errbuf[eslERRBUFSIZE];
   int              status                   = eslOK;
   int              qhstatus                 = eslOK;
@@ -745,7 +747,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
     gm      = NULL;
     om      = NULL;       /* optimized query profile                  */
 
-    if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formated for bathsearch
+    if(esl_opt_IsUsed(go, "--fs") || esl_opt_IsUsed(go, "--fsonly")) { //check that HMM is properly formatted for bathsearch
       if( !(hmm->flags & p7H_STATS) )
         p7_Fail("HMM file %s has no E-value statistics, which bathsearch requires.\nRebuild with 'bathbuild --fs', or add them with 'bathconvert --fs new_file.bhmm %s'.\n", cfg->queryfile, cfg->queryfile);
 
@@ -806,7 +808,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
       om_fs3 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_3CODONS);
       om_fs5 = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
 
-      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build framshift aware codon HMM */
+      p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs5, 100, p7_LOCAL);  /* build frameshift aware codon HMM */
       p7_ProfileConfig_fs(hmm, info->bg, gcode, gm_fs3, 100, p7_LOCAL);
 
       p7_fs_oprofile_Convert(gm_fs3, om_fs3);
@@ -864,7 +866,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 #endif
     }
 
-    /* establish the id_lengths data structutre */
+    /* establish the id_lengths data structure */
     id_length_list = init_id_length(1000);
 
 #ifdef HMMER_THREADS
@@ -934,11 +936,11 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
 	if(!esl_opt_IsUsed(go, "--splice")) assign_Lengths(tophits_accumulator, id_length_list);
     p7_tophits_RemoveDuplicates(tophits_accumulator, pipelinehits_accumulator->use_bit_cutoffs);
 
-    /* Sort and remove hits bellow threshold */
+    /* Sort and remove hits below threshold */
     p7_tophits_SortBySortkey(tophits_accumulator);
 
     /* Set Z = 1 to prevent changing e-values. Correct Z 
-     * was calcualted by p7_tophits_ComputeBathEvalues() */
+     * was calculated by p7_tophits_ComputeBathEvalues() */
     pipelinehits_accumulator->Z = 1;    
     p7_tophits_Threshold(tophits_accumulator, pipelinehits_accumulator);
 
@@ -1177,11 +1179,11 @@ thread_loop(WORKER_INFO *info, ID_LENGTH_LIST *id_length_list, ESL_THREADS *obj,
 
     for (i=0; i<block->count; i++) {
       block->list[i].idx = seqid;
-      add_id_length(id_length_list, seqid, block->list[i].L); // NOLINT(cppcoreguidelines-narrowing-conversions)
+      add_id_length(id_length_list, seqid, block->list[i].L);
       seqid++;
 
       if (       seqid == n_targetseqs // hit the sequence target
-           && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or its complete
+           && ( i<block->count-1 ||  block->complete ) // and either it's not the last sequence (so it's complete), or it's complete
          ) 
       {
         abort = TRUE;
@@ -1344,7 +1346,7 @@ destroy_id_length( ID_LENGTH_LIST *list )
 }
 
 static int
-add_id_length(ID_LENGTH_LIST *list, int id, int L)
+add_id_length(ID_LENGTH_LIST *list, int id, int64_t L)
 {
   int status;
   

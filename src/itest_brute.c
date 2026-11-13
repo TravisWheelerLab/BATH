@@ -552,7 +552,7 @@ score_brute_profile(struct p7_bruteparam_s *prm, P7_BG *bg, int do_viterbi, doub
       aL[3] = esl_vec_DSum(ap+6, 4);
     }
 
-  /* 6. The total lod score is then the possible combinations
+  /* 7. The total lod score is then the possible combinations
    *    of flank + (core+J)
    */
   if (do_viterbi) 

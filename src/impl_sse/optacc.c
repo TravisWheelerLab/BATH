@@ -43,9 +43,9 @@
  *            <om->M> by <L> comparison. The routine fills this in
  *            with OA scores.
  *  
- * Args:      gm    - query profile      
- *            pp    - posterior decoding matrix created by <p7_GPosteriorDecoding()>
- *            gx    - RESULT: caller provided DP matrix for <gm->M> by <L> 
+ * Args:      om    - query profile      
+ *            pp    - posterior decoding matrix created by <p7_Decoding()>
+ *            ox    - RESULT: caller provided DP matrix for <om->M> by <L> 
  *            ret_e - RETURN: expected number of correctly decoded positions 
  *
  * Returns:   <eslOK> on success, and <*ret_e> contains the final OA
@@ -198,10 +198,10 @@ static inline int select_b(const P7_OPROFILE *om,                   const P7_OMX
  *            \citep{Kall05}.
  *            
  *            Caller provides the OA DP matrix <ox> that was just
- *            calculated by <p7_OptimalAccuracyDP()>, as well as the
+ *            calculated by <p7_OptimalAccuracy()>, as well as the
  *            posterior decoding matrix <pp>, which was calculated by
  *            Forward/Backward on a target sequence using the query
- *            model <gm>. Because the calculation depends only on
+ *            model <om>. Because the calculation depends only on
  *            <pp>, the target sequence itself need not be provided.
  *            
  *            The resulting optimal accuracy decoding traceback is put

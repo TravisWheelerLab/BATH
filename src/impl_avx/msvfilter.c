@@ -449,7 +449,7 @@ main(int argc, char **argv)
   esl_randomness_Destroy(r);
   return eslOK;
 }
-#endif /*VITFILTER_TESTDRIVE*/
+#endif /*p7MSVFILTER_TESTDRIVE*/
 
 
 

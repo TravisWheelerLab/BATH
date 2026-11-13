@@ -146,7 +146,7 @@ p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX *gx, float 
    * - the transitions are parameterized based on window length (gm->max_length), not target length.
    * - because we're scanning along a sequence with the implicit assumption that each
    *   point we're inspecting is part of a window, but we don't know where that window starts/ends,
-   *   we don't use the tloop cost in its proper form. Instead of incuring the tloop cost for
+   *   we don't use the tloop cost in its proper form. Instead of incurring the tloop cost for
    *   each pass through the N/C states, we simply build the whole chunk of loop cost into the
    *   threshold (treating it as though it would've been added at the end of computation)
    *
@@ -257,7 +257,7 @@ p7_GMSV_longtarget(const ESL_DSQ *dsq, int L, P7_PROFILE *gm, P7_GMX *gx, float 
 /*
    gcc -g -O2      -o generic_msv_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_MSV_BENCHMARK generic_msv.c -lhmmer -leasel -lm
    icc -O3 -static -o generic_msv_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_MSV_BENCHMARK generic_msv.c -lhmmer -leasel -lm
-   ./benchmark-generic-msv <hmmfile>
+   ./generic_msv_benchmark <hmmfile>
  */
 /* As of Fri Dec 28 14:48:39 2007
  *    Viterbi  = 61.8 Mc/s

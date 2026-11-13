@@ -18,14 +18,14 @@
  * Synopsis:  Posterior decoding of residue assignments.
  *
  * Purpose:   Calculates a posterior decoding of the residues and 
- *            of the codons in a DNA target sequence, given framshift 
+ *            of the codons in a DNA target sequence, given frameshift
  *            aware codon profile  <gm_fs5> and filled Forward and 
  *            Backward matrices <fwd>, <bck> for the profile aligned 
  *            to that target sequence. The codon posterior decoding 
- *            is overwriten to the <fwd> matrix.
+ *            is overwritten to the <fwd> matrix.
  *            
  * Args:      gm_fs5 - frameshift codon profile 
- *            fwd   - filled Forward matrix - get overwriten 
+ *            fwd   - filled Forward matrix - gets overwritten 
  *            bck   - filled Backward matrix
  *
  * Returns:   <eslOK> on success.
@@ -106,7 +106,7 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
       XMX_FS(i,p7G_E)  = 0.0;
       XMX_FS(i,p7G_B)  = 0.0; 
 
-      /* probaility from N, J and C states */
+      /* probability from N, J and C states */
 	  N0 = fwd->xmx[p7G_NXCELLS*i + p7G_N];
 	  J0 = fwd->xmx[p7G_NXCELLS*i + p7G_J];
 	  C0 = fwd->xmx[p7G_NXCELLS*i + p7G_C];
@@ -188,7 +188,7 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
  *            domain.
  * 
  *            Upon return, each of these arrays has been made, and
- *            <ddef->L> has * been set.
+ *            <ddef->L> has been set.
  *
  * Args:      gm_fs5 - profile
  *            fwd   - filled Forward matrix
@@ -210,7 +210,7 @@ p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, co
   float njcp; 
   int   i;
 
-  /* First three psoitions are set to 0. They will be included in a domain that starts at i=3 */
+  /* First three positions are set to 0. They will be included in a domain that starts at i=3 */
   ddef->btot[0] = 0.;
   ddef->btot[1] = 0.;
   ddef->btot[2] = 0.;
@@ -220,7 +220,7 @@ p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, co
 
   for (i = 3; i <= L; i++)
   {
-    /* Accumulate probabiliies at the B and E states - proabilities of transitioning in or out of the core martix */
+    /* Accumulate probabilities at the B and E states - probabilities of transitioning in or out of the core matrix */
     ddef->btot[i] = ddef->btot[i-3] + expf(fwd->xmx[(i-3)*p7G_NXCELLS+p7G_B] + bck->xmx[(i-3)*p7G_NXCELLS+p7G_B] - overall_logp); 
 
     ddef->etot[i] = ddef->etot[i-3] + expf(fwd->xmx[i*p7G_NXCELLS+p7G_E] + bck->xmx[i*p7G_NXCELLS+p7G_E] - overall_logp);;
@@ -233,7 +233,7 @@ p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, co
   for (i = 3; i < L-1; i++)
   {
 
-    /* Sum poropabilities in the N, J and C states for all codons in which i is present */
+    /* Sum probabilities in the N, J and C states for all codons in which i is present */
     njcp = 0.0;
   
     /*N state */
@@ -251,7 +251,7 @@ p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, co
     njcp += expf(fwd->xmx[(i-2)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+1)*p7G_NXCELLS+p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_logp);
     njcp += expf(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_J] + bck->xmx[(i+2)*p7G_NXCELLS+p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_logp);
     
-    /* Probability of i emitted by the core model is aaprixmated as 1 - probability of i emited by the specials */
+    /* Probability of i emitted by the core model is approximated as 1 - probability of i emitted by the specials */
     ddef->mocc[i] = 1. - njcp;
   }
   njcp = 0.0;
@@ -300,7 +300,7 @@ p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, co
    gcc -g -O3      -o generic_decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_FRAMESHIFT_BENCHMARK generic_decoding_frameshift.c -lhmmer -leasel -lm
 
    icc -O3 -static -o generic_decoding_frameshift_benchmark -I. -L. -I../easel -L../easel -Dp7GENERIC_DECODING_FRAMESHIFT_BENCHMARK generic_decoding_frameshift.c -lhmmer -leasel -lm
-   ./generic_benchmark_decoding_frameshift <hmmfile>
+   ./generic_decoding_frameshift_benchmark <hmmfile>
    
  */
 #include "p7_config.h"

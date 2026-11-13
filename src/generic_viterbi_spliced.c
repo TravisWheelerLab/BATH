@@ -25,36 +25,36 @@
 /* Function:  p7_GViterbi_Spliced()
  * Synopsis:  Translated spliced Viterbi algorithm
  *
- * Purpose:   For finding the maxiumum scoring splice site between two 
- *            or more exons. Algins from poistion <i_start> to <i_end> 
- *            on the <sub_dsq> and from <k_start> to <k_end> on the 
+ * Purpose:   For finding the maximum scoring splice site between two
+ *            or more exons. Aligns from position <i_start> to <i_end>
+ *            on the <sub_dsq> and from <k_start> to <k_end> on the
  *            <gm_tr>, in either fully global, semi-global (one end only)
- *            or local mode. The DP matrix <gx> must include room for the 
- *            standard core model stats <M, I, D>. The splice <P> state 
- *            is only stored in a temproarily in the P7_IVX buffer. The
- *            <P> state acts as a modiifed <M> state, emitinf a codon 
- *            that is made of either two nucleotides from before the 
- *            donor site and one from after the acceptor site <C2>, one 
- *            nucleotide from from before the donor site and two from 
- *            after the acceptor <C1>, or from the three after the 
- *            acceptor <C0>. 
+ *            or local mode. The DP matrix <gx> must include room for the
+ *            standard core model states <M, I, D>. The splice <P> state
+ *            is only stored temporarily in the P7_IVX buffer. The
+ *            <P> state acts as a modified <M> state, emitting a codon
+ *            that is made of either two nucleotides from before the
+ *            donor site and one from after the acceptor site <C2>, one
+ *            nucleotide from before the donor site and two from
+ *            after the acceptor <C1>, or from the three after the
+ *            acceptor <C0>.
  *
- *            Potetnial donor sites scores are recorded in the <P_scores> 
- *            matrix (33*M) via the SSX macro. Splice siginal scores are
- *            sotored in <signal_scores> array and <acceptor_..> and 
+ *            Potential donor site scores are recorded in the <P_scores>
+ *            matrix (33*M) via the SSX macro. Splice signal scores are
+ *            stored in <signal_scores> array and <acceptor_..> and
  *            <donor_..> arrays return 0 for valid sites and -inf for 
  *            all others. 
  *
  * Args:      sub_dsq       - nucleotide sequence 
  *            gm_tr         - a codon profile.
  *            gx            - DP matrix with room for an MxL alignment
- *            acc_iv        - a buffer for the P state at the accpetor site
+ *            acc_iv        - a buffer for the P state at the acceptor site
  *            don_iv        - a buffer for the P state at donor site
  *            signal_scores - array of splice site signal scores
- *            i_start       - start poition on the <sub_dsq>
- *            i_end         - end poition on the <sub_dsq>
- *            k_start       - start poition on the <gm_tr>
- *            k_end         - end poition on the <gm_tr>
+ *            i_start       - start position on the <sub_dsq>
+ *            i_end         - end position on the <sub_dsq>
+ *            k_start       - start position on the <gm_tr>
+ *            k_end         - end position on the <gm_tr>
  *            min_intron    - minimum intron length
  *            global_start  - bool value controlling global vs local entry
  *            global_end    - bool value controlling global vs local exit
@@ -94,9 +94,9 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
   if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
 
   /* Note on variable names 
-   * ..0 are for splice codons where zero nucleortides come from before the donor,
-   * ..1 are for splice codons where one nucleortide comes from before the donor,
-   * ..2 are for splice codons where two nucleortides come from before the donor,
+   * ..0 are for splice codons where zero nucleotides come from before the donor,
+   * ..1 are for splice codons where one nucleotide comes from before the donor,
+   * ..2 are for splice codons where two nucleotides come from before the donor,
    */
 
   acc0 = acc1 = acc2 = -1;
@@ -191,7 +191,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
       MMX(i,k) = ESL_MAX(MMX(i-3,k-1)   + TSC(p7P_MM,sub_k-1),
                  ESL_MAX(IMX(i-3,k-1)   + TSC(p7P_IM,sub_k-1),
                  ESL_MAX(DMX(i-3,k-1)   + TSC(p7P_DM,sub_k-1),
-                         XMX(i-3,p7G_B) + entry))) + rsc_c0[sub_k]; // no B->M trasntions for exons. 
+                         XMX(i-3,p7G_B) + entry))) + rsc_c0[sub_k]; // no B->M transitions for exons. 
        
 	  IMX(i,k) = ESL_MAX(MMX(i-3,k) + TSC(p7P_MI,sub_k),
                          IMX(i-3,k) + TSC(p7P_II,sub_k));
@@ -407,7 +407,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
    	/* Separate k loop for donor sites */
 	if (don2 >= 0) {
 	 
-      /* Get codon indicies for all C2 type split codons */
+      /* Get codon indices for all C2 type split codons */
       for(nuc3 = 0; nuc3 < p7P_MAXNUC; nuc3++)
         C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
       C2[p7P_MAXNUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
@@ -458,9 +458,9 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 /* Function:  p7_GViterbi_SplicedTrace()
  * Synopsis:  Create a trace for spliced Viterbi 
  *
- * Purpose:   Create a trace that includes the exons(s) and any splice 
+ * Purpose:   Create a trace that includes the exon(s) and any splice 
  *            site(s) from the filled translated spliced viterbi matrix 
- *            <gx> and calculate the Viterbi score of the splced sequence.
+ *            <gx> and calculate the Viterbi score of the spliced sequence.
  *            Returns the filled trace <tr> and optional Viterbi score 
  *            <vitsc>.
  *
@@ -468,25 +468,26 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
  *            gm_tr         - a codon profile.
  *            gx            - filled spliced viterbi DP matrix
  *            signal_scores - scores for splice site signals 
- *            tr            - trace to fil
- *            i_start       - start poition on the <sub_dsq>
- *            i_end         - end poition on the <sub_dsq>
- *            k_start       - start poition on the <gm_tr>
- *            k_end         - end poition on the <gm_tr>
+ *            tr            - trace to fill
+ *            i_start       - start position on the <sub_dsq>
+ *            i_end         - end position on the <sub_dsq>
+ *            k_start       - start position on the <gm_tr>
+ *            k_end         - end position on the <gm_tr>
  *            min_intron    - minimum intron length
- *            vitsc         - optional return Viterbiscore
+ *            vitsc         - optional return Viterbi score
+ *            max_drop      - optional returned x-drop signal
  *
- * Return:    <eslOK> on success. 
+ * Return:    <eslOK> on success.
  *            <eslFAIL> if even the optimal path has zero probability;
  *            in this case, the trace is set blank (<tr->N = 0>).
  *
- */            
+ */
 int
-p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc)
+p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
 {
 
   float const *tsc   = gm_tr->tsc;
-  float      **dp    = gx->dp;              /* so {MDI}MX() macros work                              */ 
+  float      **dp    = gx->dp;              /* so {MDI}MX() macros work                              */
   float       *xmx   = gx->xmx;             /* so XMX() macro works                                  */
   float        r_tol = 1e-5;                /* relative tolerance for floating point "equality" test */
   float        a_tol = 1e-4;                /* absolute tolerance for floating point "equality" test */
@@ -494,7 +495,7 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
   int          L     = i_end - i_start + 1; /* sub seq length                                        */
   int          i     = L;                   /* position in seq (1..L)                                */
   int          k     = 0;                   /* position in model (1..M)                              */
-  int          j;
+  int          j, z;
   int          t,u,v,w,x;
   int          c, c0, c1, c2, c3;
   int          sprv,scur;
@@ -502,10 +503,20 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
   int          donor_i;
   int          acc[3] = {0, 0, 0};
   int          don_sig;
+  int          P_cnt, P_idx;
   float        P_state;
   float        emit, emit0, emit1, emit2;
   float        vsc;
+  float        curr_P_score;
+  float        curr_M_score;
+  float        max_M_score;
+  float        curr_max_drop;
+  float       *P_scores;
   int          status;
+
+  P_scores = NULL;
+  P_cnt    = 0;
+  ESL_ALLOC(P_scores, sizeof(float) * M);
 
   if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
 
@@ -595,7 +606,7 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
           else if(SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_AT) don_sig = p7S_ATAC;
         
           if(don_sig != -1) {
-            /* If we have a donor site get emmisions */
+            /* If we have a donor site get emissions */
             
             if(sub_dsq[sub_i-min_intron-j-3] < p7P_MAXNUC) t = sub_dsq[sub_i-min_intron-j-3];
             else                                         t = p7P_MAXCODONS1;
@@ -654,10 +665,13 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
               }
             }
           }
-        }   
+        }
         if(scur != p7T_P) ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+
+        /* Track P state scores for x_drop calculation */
+        P_scores[P_cnt++] = TSC_P + signal_scores[don_sig];
       }
-      
+
       k--; i-=3;
       break;
 
@@ -720,11 +734,46 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
 
   if(vitsc != NULL) *vitsc = vsc;
 
-  return p7_trace_fs_Reverse(tr);
+  status = p7_trace_fs_Reverse(tr);
+
+  /* When max_drop != NULL calculate the maximum M state score drop found
+   * in the alignment for comparison to an x-drop threshold. */
+  if (status == eslOK && max_drop != NULL) {
+    P_idx         = P_cnt - 1;
+    curr_P_score  = 0.0f;
+    max_M_score   = -eslINFINITY;
+    curr_max_drop = -eslINFINITY;
+
+    for (z = 0; z < tr->N; z++) {
+      /* Track the current P state score contribution so that it can be
+       * subtracted out from M state scores to ensure the curr_max_drop
+       * only looks for drops in M state scores, not splice penalties */
+      if (tr->st[z] == p7T_P) {
+        curr_P_score += P_scores[P_idx--];
+      }
+      else if (tr->st[z] == p7T_M) {
+        i = tr->i[z] - i_start + 1;
+        k = tr->k[z] - k_start + 1;
+        curr_M_score = MMX(i, k) - curr_P_score;
+        if (max_M_score != -eslINFINITY)
+          curr_max_drop = ESL_MAX(curr_max_drop, max_M_score - curr_M_score);
+        max_M_score = ESL_MAX(max_M_score, curr_M_score);
+      }
+    }
+    *max_drop = curr_max_drop;
+  }
+
+  free(P_scores);
+
+  return status;
+
+ ERROR:
+  free(P_scores);
+  return status;
 }
 
 /*****************************************************************
- * 5. Benchmark driver.
+ * 3. Benchmark driver.
  *****************************************************************/
 #ifdef p7GENERIC_VITERBI_SPLICED_BENCHMARK
 /*
@@ -848,7 +897,7 @@ main(int argc, char **argv)
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (do_T && final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr, 1, L_dna_total, 1, hmm->M, min_intron, NULL);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr, 1, L_dna_total, 1, hmm->M, min_intron, NULL, NULL);
         p7_trace_Reuse(tr);
       }     
 	 
@@ -888,7 +937,7 @@ main(int argc, char **argv)
 
 
 /*****************************************************************
- * 6. Unit tests.
+ * 4. Unit tests.
  *****************************************************************/
 #ifdef p7GENERIC_VITERBI_SPLICED_TESTDRIVE
 #include "esl_random.h"
@@ -982,7 +1031,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C != -eslINFINITY) {
-        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr_NoP, 1, L_dna_total, 1, M, min_intron, NULL);
+        p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr_NoP, 1, L_dna_total, 1, M, min_intron, NULL, NULL);
         n_p = 0;
         for (i = 0; i < tr_NoP->N; i++)
           if (tr_NoP->st[i] == p7T_P) n_p++;
@@ -1019,7 +1068,7 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
 
 /*****************************************************************
- * 7. Test driver.
+ * 5. Test driver.
  *****************************************************************/
 #ifdef p7GENERIC_VITERBI_SPLICED_TESTDRIVE
 /*

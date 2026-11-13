@@ -1,7 +1,8 @@
 /* Functions to manipulate P7_HIT objects.  
- * Contents: 1) Serialization and Deserialization routines
- *           2) Unit Tests
- *           3) Test Driver
+ * Contents: 1) Functions to manipulate P7_HIT objects
+ *           2) Debugging Functions
+ *           3) Unit Tests
+ *           4) Test Driver
  * NPC 2/13/19 [The soothing whir of the air filter]
  */
 #include "p7_config.h"
@@ -139,7 +140,7 @@ extern void p7_hit_Destroy(P7_HIT *the_hit)
 }
 
 
-/* Function:  p7_HIT_Serialize
+/* Function:  p7_hit_Serialize
  * Synopsis:  Serializes a P7_HIT object into a stream of bytes
  *.           that can be reliably transmitted over internet sockets
  *
@@ -157,7 +158,7 @@ extern void p7_hit_Destroy(P7_HIT *the_hit)
  *            nalloc: size (in bytes) of the buffer passed in buf 
  *
  *Returns:    On success: returns eslOK, sets *buf to the base of the buffer containing the object
- *            if allocation or re-allocation was requried, sets *n to the offset from the start of the buffer
+ *            if allocation or re-allocation was required, sets *n to the offset from the start of the buffer
  *            to the first position after the serialized object and sets *nalloc to the new size of the buffer 
  *            if allocation or re-allocation was required.
  *
@@ -224,7 +225,7 @@ extern int p7_hit_Serialize(const P7_HIT *obj, uint8_t **buf, uint32_t *n, uint3
 
 
   // Note: dcl array isn't considered part of the base object for purposes of serializing.  Each of its P7_DOMAIN objects 
-  // are serialized as separate objects after the serialized base object
+  // is serialized as separate objects after the serialized base object
 
   // Now that we know how big the serialized data structure will be, determine if we have enough buffer space to hold it
   if(*buf == NULL){ // have no buffer, so allocate one
@@ -391,22 +392,22 @@ ERROR:
 }
 
 /* Function:  p7_hit_Deserialize
- * Synopsis:  Derializes a P7_HIT object from a stream of bytes in network order into
+ * Synopsis:  Deserializes a P7_HIT object from a stream of bytes in network order into
  *            a valid data structure
  *
  * Purpose:   Deserializes a serialized P7_HIT object from
- *.           buf starting at position *n.  
+ *            buf starting at position *n.  
  *
  * Inputs:    buf: the buffer that the object should be de-serialized from
- *            pos: a pointer to the offset from the start of buf to the beginning of the object
+ *            n: a pointer to the offset from the start of buf to the beginning of the object
  *            ret_obj: a P7_HIT structure to deserialize the object into.  May not be NULL. May either be an 
  *            "empty" object created with p7_hit_Create_empty, or a P7_HIT object containing valid data
  *
- * Returns:   On success: returns eslOK, deserializes the P7_HIT object into ret_object, and updates 
- *.           n to point to the position after the end of the P7_HIT object.
+ * Returns:   On success: returns eslOK, deserializes the P7_HIT object into ret_obj, and updates 
+ *            n to point to the position after the end of the P7_HIT object.
  *
- * Throws:    Returns eslEINVAL if ret_obj == NULL, buf == NULL, or n == NULL.  Returnts eslEMEM if unable to allocate
- *            required memory in ret_obj. Returns eslFAIL if an consistency check fails.         
+ * Throws:    Returns eslEINVAL if ret_obj == NULL, buf == NULL, or n == NULL.  Returns eslEMEM if unable to allocate
+ *            required memory in ret_obj. Returns eslFAIL if a consistency check fails.         
  */
 extern int p7_hit_Deserialize(const uint8_t *buf, uint32_t *n, P7_HIT *ret_obj)
 {
@@ -638,7 +639,7 @@ ERROR:
  *
  * Purpose:   Creates a P7_HIT object that contains random data.  This data will be syntactically correct, 
  *            but is not intended to be in any way a "reasonable" hit.  For example, the number of P7_DOMAIN
- *            objects in the P7_HIT objects will match the value of the object's ndom field, but the vales of the 
+ *            objects in the P7_HIT objects will match the value of the object's ndom field, but the values of the 
  *            object's score, pre_score, and sum_score fields may not be consistent with each other.  
  *
  * Inputs:    rng: the random-number generator to use in creating this object.
@@ -793,7 +794,7 @@ extern int p7_hit_Compare(P7_HIT *first, P7_HIT *second, double atol, double rto
   }
 
   if((first->desc != NULL) && (second->desc != NULL) && (strcmp(first->desc, second->desc) != 0)){
-    //both hits have acc strings but they don't match
+    //both hits have desc strings but they don't match
     return eslFAIL;
   }
   // The remaining option is first->desc == NULL and second->desc == NULL, which counts as a match in that field
@@ -884,7 +885,7 @@ extern int p7_hit_Compare(P7_HIT *first, P7_HIT *second, double atol, double rto
     }
   }
 
-  // ignore offset field -- it is vestigal and will be going away
+  // ignore offset field -- it is vestigial and will be going away
   return eslOK;  // If we get here without finding a miss-match, the hits contain the same values
 }
 /*****************************************************************
@@ -984,7 +985,7 @@ static void utest_Serialize_error_conditions(){
 
 
 static void utest_Deserialize_error_conditions(){
-  P7_HIT *sampled = NULL; // sampled alidisplay that we'll serialze
+  P7_HIT *sampled = NULL; // sampled alidisplay that we'll serialize
   P7_HIT *deserial = NULL; // alidisplay to hold the deserialized object
   char msg[]="utest_Deserialize_error_conditions failed";
   uint8_t *buf = NULL;
@@ -1112,7 +1113,7 @@ static void utest_Serialize(int ntrials){
 #endif
 
 /*****************************************************************
- * 3. Test Driver
+ * 4. Test Driver
  *****************************************************************/      
 #ifdef p7HIT_TESTDRIVE
 

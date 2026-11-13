@@ -45,10 +45,8 @@
  *
  *
  * Args:      om         - P7_OPROFILE containing scores used to produce SCOREDATA contents
- *            data       - where scores and will be stored
- *            do_opt_ext - boolean, TRUE if optimal-extension scores are required (for FM-MSV)
- *            scale      - used to produce 8-bit extracted scores
- *            bias       - used to produce 8-bit extracted scores
+ *            gm         - P7_PROFILE corresponding to <om>
+ *            data       - where scores will be stored
  *
  * Returns:   data->scores and possibly ->opt_ext_(fwd|rev) are filled in;
  *            return eslEMEM on allocation failure, eslOK otherwise.
@@ -165,7 +163,7 @@ p7_hmm_ScoreDataDestroy(P7_SCOREDATA *data )
  *            must be called.
  *
  * Args:      om         - P7_OPROFILE containing scores used to produce SCOREDATA contents
- *            do_opt_ext - boolean, TRUE if optimal-extension scores are required (for FM-MSV)
+ *            gm         - P7_PROFILE corresponding to <om>
  *
  * Returns:   a pointer to the new <P7_SCOREDATA> object.
  *
@@ -294,7 +292,7 @@ ERROR:
  *            and suffix lengths for each position in the model, used when
  *            establishing windows around SSV diagonals. This fleshes out
  *            the <P7_SCOREDATA> model object that was created by
- *            p7_hmmScoreDataCreate().
+ *            p7_hmm_ScoreDataCreate().
  *
  *            This approach of computing the prefix/suffix length, used
  *            in establishing windows around a seed diagonal, is fast
@@ -303,7 +301,7 @@ ERROR:
  *            (1-p7_DEFAULT_WINDOW_BETA) of position i's match- and
  *            insert-state emissions are length L_i or shorter.
  *
- * Args:      om         - P7_OPROFILE containing emission/transition probabilities used to for calculations
+ * Args:      om         - P7_OPROFILE containing emission/transition probabilities used for calculations
  *            data       - P7_SCOREDATA into which the computed values are placed
  *
  * Returns:   eslEMEM on failure, else eslOK
@@ -353,7 +351,7 @@ p7_hmm_ScoreDataComputeRest(P7_OPROFILE *om, P7_SCOREDATA *data )
    * k, the minimum length l_k at which the tail probability mass for sequences
    * emitted by position k (match and insert states)  P(L>l_k) < BETA.
    * These per-position lengths are summed, and the relative contribution of a
-   * position is it's l_k normalized by the sum of all lengths
+   * position is its l_k normalized by the sum of all lengths
    */
   ESL_ALLOC(data->prefix_lengths, (om->M+1) * sizeof(float));
   ESL_ALLOC(data->suffix_lengths, (om->M+1) * sizeof(float));
@@ -466,7 +464,7 @@ main(int argc, char **argv)
   esl_getopts_Destroy(go);
   return 0;
 }
-#endif /* p7BG_TESTDRIVE */
+#endif /* p7SCOREDATA_TESTDRIVE */
 
 
 

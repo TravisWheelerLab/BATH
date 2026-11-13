@@ -213,7 +213,7 @@ p7_MeanPositionRelativeEntropy(const P7_HMM *hmm, const P7_BG *bg, double *ret_e
  *            responsibility if <opt_avp> is non-<NULL>. 
  *            
  *            The average match composition is an occupancy-weighted
- *            average (see <p7_hmm_CalculateOccupancy()>.
+ *            average (see <p7_hmm_CalculateOccupancy()>).
  *
  *            For average match state residue composition <p> and
  *            background residue frequencies <q>, the KL divergence

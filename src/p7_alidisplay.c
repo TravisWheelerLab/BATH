@@ -87,7 +87,7 @@ static int get_codon_index(const ESL_ALPHABET *abc, int codon_len, int c1, int c
     return status; 
 } 
 
-/* Find the first character in a BATH alginment codon string */
+/* Find the first character in a BATH alignment codon string */
 static char nuc_one(int codon_len, int indel, int c1, char *alphaDNA) {
 
   char n1;
@@ -102,7 +102,7 @@ static char nuc_one(int codon_len, int indel, int c1, char *alphaDNA) {
   return n1; 
 }
 
-/* Find the second character in a BATH alginment codon string */
+/* Find the second character in a BATH alignment codon string */
 static char nuc_two(int codon_len, int indel, int c1, int c2, char *alphaDNA) {
 
   char n2;
@@ -123,7 +123,7 @@ static char nuc_two(int codon_len, int indel, int c1, int c2, char *alphaDNA) {
   return n2;
 }
 
-/* Find the third character in a BATH alginment codon string */
+/* Find the third character in a BATH alignment codon string */
 static char nuc_three(int codon_len, int indel, int c1, int c2, int c3, char *alphaDNA) {
 
   char n3;
@@ -146,7 +146,7 @@ static char nuc_three(int codon_len, int indel, int c1, int c2, int c3, char *al
   return n3;
 }
 
-/* Find the fourth character in a BATH alginment codon string */
+/* Find the fourth character in a BATH alignment codon string */
 static char nuc_four(int codon_len, int indel, int c1, int c2, int c3, int c4, char *alphaDNA) {
 
   char n4;
@@ -171,7 +171,7 @@ static char nuc_four(int codon_len, int indel, int c1, int c2, int c3, int c4, c
   return n4;
 }
 
-/* Find the fifth character in a BATH alginment codon string */
+/* Find the fifth character in a BATH alignment codon string */
 static char nuc_five(int codon_len, int indel, int c5, char *alphaDNA) {
 
   char n5;
@@ -240,7 +240,6 @@ static char nuc_five(int codon_len, int indel, int c5, char *alphaDNA) {
  *            om       - optimized profile (query)
  *            sq       - digital sequence (target)
  *            ntsq     - text sequence (original nucleotide target in the case of translated search)
- *            ddef_app - optional posterior prob alignment line; only nhmmer sends a not-NULL value
  *
  * Returns:   <eslOK> on success.
  *
@@ -295,7 +294,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   n = (z2-z1+2) * 3;                     /* model, mline, aseq mandatory         */
   if (ntsq != NULL)       n += 3*(z2-z1+1)+1; /* nucleotide sequence                  */
   if (om->rf[0]  != 0)    n += z2-z1+2;  /* optional reference line              */
-  if (om->mm[0]  != 0)    n += z2-z1+2;  /* optional reference line              */
+  if (om->mm[0]  != 0)    n += z2-z1+2;  /* optional model mask line             */
   if (om->cs[0]  != 0)    n += z2-z1+2;  /* optional structure line              */
   if (tr->pp     != NULL) n += z2-z1+2;  /* optional posterior prob line         */
   hmm_namelen = strlen(om->name);                           n += hmm_namelen + 1;
@@ -347,12 +346,11 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL; 
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL;
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
@@ -506,13 +504,13 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
   return NULL;
 }
 
-/* Function:  p7_alidisplay_fs_Create() - `BATH
+/* Function:  p7_alidisplay_fs_Create() - BATH
  * Synopsis:  Create an alignment display, from trace and fs_profile.
  *
- * Purpose:   Creates and returns an BATH formated alignment display 
+ * Purpose:   Creates and returns a BATH formatted alignment display 
  *            for domain number <which> in traceback <tr> from the fs 
  *            pipeline, where the traceback corresponds to an alignment 
- *            of optimized profile <om> to digital sequence <dsq>, and 
+ *            of optimized profile <gm_fs> to digital sequence <dsq>, and 
  *            the unique name of that target sequence <dsq> is <sqname>. 
  *            The <which> index starts at 0.
  *            
@@ -526,7 +524,7 @@ p7_alidisplay_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om, const
  *
  * Args:      tr       - traceback
  *            which    - domain number, 0..tr->ndom-1
- *            gm_fs    - frameshift codon profile (query)
+ *            gm_fs5   - frameshift codon profile (query)
  *            sq       - digital nucleotide sequence (target)
  *
  * Returns:   <eslOK> on success.
@@ -646,12 +644,11 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL;
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
@@ -907,7 +904,7 @@ p7_alidisplay_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFILE *gm_f
 /* Function:  p7_alidisplay_nonfs_Create() - BATH
  * Synopsis:  Create an alignment display, from trace and oprofile.
  *
- * Purpose:   Creates and returns a BATH formated  alignment display 
+ * Purpose:   Creates and returns a BATH formatted  alignment display 
  *            for domain number <which> in traceback <tr> from the std
  *            pipeline, where the traceback corresponds to an alignment 
  *            of optimized profile <om> to digital sequence<dsq>, and 
@@ -1040,12 +1037,11 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL; 
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
   ad->exon_cnt        = 0;
 
@@ -1213,10 +1209,10 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
 /* Function:  p7_alidisplay_splice_Create() - BATH
  * Synopsis:  Create a spliced alignment display, from trace and oprofile.
  *
- * Purpose:   Creates and returns a BATH formated and spliced alignment
+ * Purpose:   Creates and returns a BATH formatted and spliced alignment
  *            display for domain number <which> in traceback <tr>,
  *            where the traceback corresponds to an alignment of
- *            optimized profile <om> to digital sequence <dsq>, and the
+ *            optimized profile <gm_fs> to digital sequence <dsq>, and the
  *            unique name of that target sequence <dsq> is <sqname>.
  *            The <which> index starts at 0.
  *
@@ -1233,8 +1229,7 @@ p7_alidisplay_nonfs_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om,
  *            om           - optimized profile (query)
  *            target_seq   - digital nucleotide sequence (unspliced target)
  *            amino_sq     - digital amino sequence (translation of spliced nucleotides
- *            orig_nuc_idx - array of indicies in <target_seq> that correspond to the spliced <tr->i> indicies
- *            amino_pos    - first position in the alignmant for <amino_sq>
+ *            amino_pos    - first position in the alignment for <amino_sq>
  *            splice_cnt   - the total number of introns
  *
  * Returns:   <eslOK> on success.
@@ -1351,12 +1346,11 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
   ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_starts, sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int)     * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_score,      sizeof(float)   * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_pp,         sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_lnP,        sizeof(double)  * (splice_cnt+1));
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1)); 
   ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_tmp,        sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_splice,     sizeof(int)     * (splice_cnt+1)); 
  
   /* Determine hit coords */
@@ -1435,10 +1429,10 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
     ad->ppline[z-z1] = '\0';
   }
 
-  /* There are three ways that the splice signals can apprear in our aligment        */
-  /* xx is the doner splice signal and yy is the acceptor splice signal              */
+  /* There are three ways that the splice signals can appear in our alignment        */
+  /* xx is the donor splice signal and yy is the acceptor splice signal              */
   /* A,B, and C are the nucleotides of the codon surrounding the splice signals      */
-  /* $ is used to let p7_alidisplay_Print() know how to display the splice signals  */
+  /* $ is used to let p7_alidisplay_Print_BATH() know how to display the splice signals  */
   /*                 p7T_R       p7T_P      p7T_A                  */
   /* p7S_xxyyABC               "xx$yy"                             */
   /* p7S_AxxyyBC    " A   "    "xx$yy"    "  BC "                  */
@@ -1792,13 +1786,13 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
 
 
 
-/* Function:  p7_alidisplay_splice_fs_Create() - `BATH
+/* Function:  p7_alidisplay_splice_fs_Create() - BATH
  * Synopsis:  Create a spliced alignment display, from trace and fs_profile.
  *
- * Purpose:   Creates and returns an BATH formated spliced alignment display 
+ * Purpose:   Creates and returns a BATH formatted spliced alignment display 
  *            for domain number <which> in traceback <tr> from the fs 
  *            pipeline, where the traceback corresponds to an alignment 
- *            of optimized profile <om> to digital sequence <dsq>, and 
+ *            of optimized profile <gm_fs> to digital sequence <dsq>, and 
  *            the unique name of that target sequence <dsq> is <sqname>. 
  *            The <which> index starts at 0.
  *            
@@ -1812,7 +1806,7 @@ p7_alidisplay_splice_Create(const P7_TRACE *tr, int which, const P7_OPROFILE *om
  *
  * Args:      tr       - traceback
  *            which    - domain number, 0..tr->ndom-1
- *            gm_fs    - frameshift codon profile (query)
+ *            gm_fs5   - frameshift codon profile (query)
  *            sq       - digital nucleotide sequence (target)
  *
  * Returns:   <eslOK> on success.
@@ -1941,12 +1935,11 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
   ESL_ALLOC(ad->exon_seq_ends,   sizeof(int64_t) * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_starts, sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_hmm_ends,   sizeof(int)     * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_score,      sizeof(float)   * (splice_cnt+1));
-  ESL_ALLOC(ad->exon_pp,         sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_lnP,        sizeof(double)  * (splice_cnt+1));
   ESL_ALLOC(ad->exon_pid,        sizeof(float)   * (splice_cnt+1));
   ESL_ALLOC(ad->exon_anchor,     sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_extend,     sizeof(int)     * (splice_cnt+1));
+  ESL_ALLOC(ad->exon_tmp,        sizeof(int)     * (splice_cnt+1));
   ESL_ALLOC(ad->exon_splice,     sizeof(int)     * (splice_cnt+1));
     
   /* Determine hit coords */
@@ -2024,11 +2017,11 @@ p7_alidisplay_splice_fs_Create(const P7_TRACE *tr, int which, const P7_FS_PROFIL
     ad->ppline[z-z1] = '\0';
   }
 
-  /* There are many ways that the splice signals can apprear in our aligment         */
-  /* xx is the doner splice signal and yy is the acceptor splice signal               */
+  /* There are many ways that the splice signals can appear in our alignment         */
+  /* xx is the donor splice signal and yy is the acceptor splice signal               */
   /* A,B,C,D and E are the nucleotides of the codon surrounding the splice signals    */
-  /* lower case letter signify instertions and '-' indcates deletion                  */
-  /* $ is used to let p7_alidisplay_Print() know how to display the splice signals    */
+  /* lower case letters signify insertions and '-' indicates deletion                  */
+  /* $ is used to let p7_alidisplay_Print_BATH() know how to display the splice signals    */
   /*                                                CODON 1                                     */
   /*                 p7T_R                          p7T_P      p7T_A                            */
   /* p7S_xxyyABC                                   "xx$yy"                                      */
@@ -2762,12 +2755,11 @@ extern P7_ALIDISPLAY *p7_alidisplay_Create_empty()
   new_obj->exon_seq_ends   = NULL;
   new_obj->exon_hmm_starts = NULL;
   new_obj->exon_hmm_ends   = NULL;
-  new_obj->exon_score      = NULL;
-  new_obj->exon_pp         = NULL;
   new_obj->exon_lnP        = NULL;
   new_obj->exon_pid        = NULL;
   new_obj->exon_anchor     = NULL;
   new_obj->exon_extend     = NULL;
+  new_obj->exon_tmp        = NULL;
   new_obj->exon_splice     = NULL;
   new_obj->exon_cnt        = 0;
 
@@ -2900,24 +2892,22 @@ p7_alidisplay_Clone(const P7_ALIDISPLAY *ad)
       ESL_ALLOC(ad2->exon_seq_ends,   sizeof(int64_t) * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_hmm_starts, sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_hmm_ends,   sizeof(int)     * ad->exon_cnt);
-      ESL_ALLOC(ad2->exon_score,      sizeof(float)   * ad->exon_cnt);
-      ESL_ALLOC(ad2->exon_pp,         sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_lnP,        sizeof(double)  * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_pid,        sizeof(float)   * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_anchor,     sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_extend,     sizeof(int)     * ad->exon_cnt);
+      ESL_ALLOC(ad2->exon_tmp,        sizeof(int)     * ad->exon_cnt);
       ESL_ALLOC(ad2->exon_splice,     sizeof(int)     * ad->exon_cnt);
  
       memcpy(ad2->exon_seq_starts, ad->exon_seq_starts, ad->exon_cnt * sizeof(int64_t));
       memcpy(ad2->exon_seq_ends,   ad->exon_seq_ends,   ad->exon_cnt * sizeof(int64_t)); 
       memcpy(ad2->exon_hmm_starts, ad->exon_hmm_starts, ad->exon_cnt * sizeof(int));
       memcpy(ad2->exon_hmm_ends,   ad->exon_hmm_ends,   ad->exon_cnt * sizeof(int));
-      memcpy(ad2->exon_score,      ad->exon_score,      ad->exon_cnt * sizeof(float));
-      memcpy(ad2->exon_pp,         ad->exon_pp,         ad->exon_cnt * sizeof(float));
       memcpy(ad2->exon_lnP,        ad->exon_lnP,        ad->exon_cnt * sizeof(double));
       memcpy(ad2->exon_pid,        ad->exon_pid,        ad->exon_cnt * sizeof(float));
       memcpy(ad2->exon_anchor,     ad->exon_anchor,     ad->exon_cnt * sizeof(int));
       memcpy(ad2->exon_extend,     ad->exon_extend,     ad->exon_cnt * sizeof(int));
+      memcpy(ad2->exon_tmp,        ad->exon_tmp,        ad->exon_cnt * sizeof(int));
       memcpy(ad2->exon_splice,     ad->exon_splice,     ad->exon_cnt * sizeof(int));
       ad2->exon_cnt        = ad->exon_cnt;
    }
@@ -2979,24 +2969,24 @@ p7_alidisplay_Sizeof(const P7_ALIDISPLAY *ad)
 
 
 /* Function:  p7_alidisplay_Serialize
- * Synopsis:  Serializes a HMMD_SEARCH_STATS object into a stream of bytes
+ * Synopsis:  Serializes a P7_ALIDISPLAY object into a stream of bytes
  *.           that can be reliably transmitted over internet sockets
  *
- * Purpose:   Converts an architecture-dependent P7_SEARCH_STATS object into a contiguous stream
+ * Purpose:   Converts an architecture-dependent P7_ALIDISPLAY object into a contiguous stream
  *            of bytes with each field of the data structure in network byte order for transmission
  *            over sockets.  The serialized byte stream may be part of a larger allocated buffer.
  *            If the provided buffer is NULL, allocates a new buffer large enough for the serialized object
  *            If the provided buffer is not large enough to hold the serialized object and its existing data, re-allocates
  *            a larger buffer
  *
- * Inputs:    obj: A pointer to the HMMD_SEARCH_STATS object to be serialized
+ * Inputs:    obj: A pointer to the P7_ALIDISPLAY object to be serialized
  *            buf: Handle to the buffer that the object should be serialized into.  If *buf is NULL,
  *                 a new buffer will be allocated.  buf == NULL is not allowed.
  *            n:   Offset (in bytes) from the start of the buffer to where the serialized object should start.
  *            nalloc: size (in bytes) of the buffer passed in buf 
  *
  *Returns:    On success: returns eslOK, sets *buf to the base of the buffer containing the object
- *            if allocation or re-allocation was requried, sets *n to the offset from the start of the buffer
+ *            if allocation or re-allocation was required, sets *n to the offset from the start of the buffer
  *            to the first position after the serialized object and sets *nalloc to the new size of the buffer 
  *            if allocation or re-allocation was required.
  *
@@ -3246,21 +3236,21 @@ int p7_alidisplay_Serialize(const P7_ALIDISPLAY *obj, uint8_t **buf, uint32_t *n
 }
 
 /* Function:  p7_alidisplay_Deserialize
- * Synopsis:  Derializes a P7_ALIDISPLAY object from a stream of bytes in network order into
+ * Synopsis:  Deserializes a P7_ALIDISPLAY object from a stream of bytes in network order into
  *            a valid data structure
  *
  * Purpose:   Deserializes a serialized P7_ALIDISPLAY object from
- *.           buf starting at position position *pos.  
+ *            buf starting at position *n.  
  *
  * Inputs:    buf: the buffer that the object should be de-serialized from
- *            pos: a pointer to the offset from the start of buf to the beginning of the object
+ *            n: a pointer to the offset from the start of buf to the beginning of the object
  *            ret_obj: a P7_ALIDISPLAY structure to deserialize the object into.  May not be NULL. May either be an 
  *            "empty" object created with p7_alidisplay_Create_empty, or a P7_ALIDISPLAY object containing valid data
  *
- * Returns:   On success: returns eslOK, deserializes the P7_ALIDISPLAY object into ret_object, and updates 
- *.           pos to point to the position after the end of the P7_ALIDISPLAY object.
+ * Returns:   On success: returns eslOK, deserializes the P7_ALIDISPLAY object into ret_obj, and updates 
+ *            n to point to the position after the end of the P7_ALIDISPLAY object.
  *
- * Throws:    Returns eslEINVAL if ret_obj == NULL, buf == NULL, or N == NULL.  Returns eslEMEM if unable to increase
+ * Throws:    Returns eslEINVAL if ret_obj == NULL, buf == NULL, or n == NULL.  Returns eslEMEM if unable to increase
  *            the buffer in ret_obj to match the size of the deserialized object. Returns eslFAIL if one of the
  *            internal calculations fails a consistency check.
  */
@@ -3527,7 +3517,7 @@ p7_alidisplay_Serialize_old(P7_ALIDISPLAY *ad)
   return status;
 }
 
-/* Function:  p7_alidisplay_Deserialize()
+/* Function:  p7_alidisplay_Deserialize_old()
  * Synopsis:  Deserialize a P7_ALIDISPLAY, using internal memory.
  *
  * Purpose:   Deserialize the <P7_ALIDISPLAY> <ad>, converting its internal
@@ -3537,7 +3527,7 @@ p7_alidisplay_Serialize_old(P7_ALIDISPLAY *ad)
  *            
  *            If <ad> is already deserialized, do nothing.
  *
- * Args:      ad - alidisplay to serialize
+ * Args:      ad - alidisplay to deserialize
  *
  * Returns:   <eslOK> on success
  *
@@ -3612,12 +3602,11 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if(ad->exon_seq_ends)   free(ad->exon_seq_ends);
       if(ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if(ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
-      if(ad->exon_score)      free(ad->exon_score);
-      if(ad->exon_pp)         free(ad->exon_pp);
       if(ad->exon_lnP)        free(ad->exon_lnP);
       if(ad->exon_pid)        free(ad->exon_pid);
       if(ad->exon_anchor)     free(ad->exon_anchor);
       if(ad->exon_extend)     free(ad->exon_extend);
+      if(ad->exon_tmp)        free(ad->exon_tmp);
       if(ad->exon_splice)     free(ad->exon_splice);
       if(ad->cigar)           free(ad->cigar);
     }
@@ -3642,12 +3631,11 @@ p7_alidisplay_Destroy(P7_ALIDISPLAY *ad)
       if (ad->exon_seq_ends)   free(ad->exon_seq_ends);
       if (ad->exon_hmm_starts) free(ad->exon_hmm_starts);
       if (ad->exon_hmm_ends)   free(ad->exon_hmm_ends);
-      if (ad->exon_score)      free(ad->exon_score);
-      if (ad->exon_pp)         free(ad->exon_pp);
       if (ad->exon_lnP)        free(ad->exon_lnP); 
       if (ad->exon_pid)        free(ad->exon_pid);
       if (ad->exon_anchor)     free(ad->exon_anchor);
       if (ad->exon_extend)     free(ad->exon_extend);
+      if (ad->exon_tmp)        free(ad->exon_tmp);
       if (ad->exon_splice)     free(ad->exon_splice);
       if (ad->cigar)           free(ad->cigar);
     }
@@ -3699,7 +3687,7 @@ p7_alidisplay_EncodePostProb(float p)
  * Purpose:   Convert posterior probability code <pc>, which
  *            is [0-9*], to an approximate floating point probability.
  *            
- *            The result is crude, because <pc> has already discretized
+ *            The result is crude, because <pc> has already been discretized
  *            with loss of precision. We require that 
  *            <p7_alidisplay_EncodePostProb(p7_alidisplay_DecodePostProb(pc)) == pc>,
  *            and that <pc=='0'> decodes to a nonzero probability just to
@@ -3843,16 +3831,16 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
   while(pos < ad->N)
   {   
 
-    if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line betweeen blocks */
+    if (pos > 0) { if (fprintf(fp, "\n") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed"); } /* blank line between blocks */
     cur_aliwidth = max_aliwidth;
     is_splice_line = FALSE;
     
     if( spliced_ali ) {
-      /* Determine if the line we are about to print conatins a splice boundry */
+      /* Determine if the line we are about to print contains a splice boundary */
       for (z = pos; z < pos + max_aliwidth + 1 && z < ad->N; z++) {
         if (ad->ntseq[z*5] == 0) break;
 
-        /* '$' in the third nucleotide postion denotes a splice site */
+        /* '$' in the third nucleotide position denotes a splice site */
         if (ad->ntseq[z*5+2]  == '$') {
           is_splice_line = TRUE;
           cur_aliwidth    = z-pos;
@@ -4036,7 +4024,7 @@ p7_alidisplay_Print_BATH(FILE *fp, P7_ALIDISPLAY *ad, int max_namewidth, int min
       }
     }
 
-    /* c-treminal splice */
+    /* c-terminal splice */
     if(is_splice_line) {
       if (fprintf(fp, "||") < 0) ESL_XEXCEPTION_SYS(eslEWRITE, "alignment display write failed");
     }
@@ -4295,12 +4283,11 @@ p7_alidisplay_Sample(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL; 
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL; 
 
   /* Optional lines are added w/ 50% chance */
@@ -4657,7 +4644,7 @@ ERROR:
 #ifdef p7ALIDISPLAY_TESTDRIVE
 
 /*Testing function that generates a P7_ALIDISPLAY containing a nucleotide sequence string rather than an amino
-  *sequence string.  This function should only be used for testing the serialization/deserializaton code.  No attempt
+  *sequence string.  This function should only be used for testing the serialization/deserialization code.  No attempt
   *is made to make the nucleotide string be reasonable or even valid -- it's just a valid C string of the correct length
   * Like p7_alidisplay_Sample, which it is based on, it randomly selects which of the optional fields should be present in the 
   * alidisplay */
@@ -4733,12 +4720,11 @@ alidisplay_SampleFake_ntseq(ESL_RANDOMNESS *rng, int N, P7_ALIDISPLAY **ret_ad)
   ad->exon_seq_ends   = NULL;
   ad->exon_hmm_starts = NULL;
   ad->exon_hmm_ends   = NULL;
-  ad->exon_score      = NULL;
-  ad->exon_pp         = NULL;
   ad->exon_lnP        = NULL;
   ad->exon_pid        = NULL;
   ad->exon_anchor     = NULL;
   ad->exon_extend     = NULL;
+  ad->exon_tmp        = NULL;
   ad->exon_splice     = NULL;
 
   /* Optional lines are added w/ 50% chance */
@@ -4921,7 +4907,7 @@ utest_serialize_error_conditions(ESL_RANDOMNESS *rng)
   uint32_t       n      = 0;
   uint32_t       nalloc = 0;
 
-  // Create an alisplay to work with.  Don't really care about its contents -- other tests will verify
+  // Create an alidisplay to work with.  Don't really care about its contents -- other tests will verify
   // correct serialization and deserialization
   *buf = NULL; // set buf to valid value
   if ( p7_alidisplay_Sample(rng, 100, &foo)              != eslOK)     esl_fatal(msg);
@@ -4938,7 +4924,7 @@ static void
 utest_deserialize_error_conditions(ESL_RANDOMNESS *rng)
 {
   char            msg[]    = "utest_deserialize_error_conditions failed";
-  P7_ALIDISPLAY  *sampled  = NULL; // sampled alidisplay that we'll serialze
+  P7_ALIDISPLAY  *sampled  = NULL; // sampled alidisplay that we'll serialize
   P7_ALIDISPLAY  *deserial = NULL; // alidisplay to hold the deserialized object
   uint8_t        *buf      = NULL;
   uint32_t        n = 0, nalloc = 0;

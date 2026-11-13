@@ -1,4 +1,4 @@
-/* Optimal accuracy framshift alignment; SSE version.
+/* Optimal accuracy frameshift alignment; SSE version.
  * 
  * Contents:
  *   1. Optimal accuracy alignment, DP fill

@@ -54,9 +54,6 @@ p7_splicepath_Create(int path_len)
   path->node_id = NULL;
   ESL_ALLOC(path->node_id, sizeof(int)*path->alloc_len);
 
-  path->extension = NULL;
-  ESL_ALLOC(path->extension, sizeof(int)*path->alloc_len);
-
   path->ihmm = NULL;
   path->jhmm = NULL;
   ESL_ALLOC(path->ihmm,    sizeof(int)*path->alloc_len);
@@ -101,7 +98,6 @@ p7_splicepath_Grow(SPLICE_PATH *path)
   path->alloc_len *= 2;
 
   ESL_REALLOC(path->node_id,   sizeof(int)     * path->alloc_len);
-  ESL_REALLOC(path->extension, sizeof(int)     * path->alloc_len);
   ESL_REALLOC(path->ihmm,      sizeof(int)     * path->alloc_len);
   ESL_REALLOC(path->jhmm,      sizeof(int)     * path->alloc_len);
   ESL_REALLOC(path->iali,      sizeof(int64_t) * path->alloc_len);
@@ -139,7 +135,6 @@ p7_splicepath_Clone(SPLICE_PATH *path)
 
   for(s = 0; s < path->path_len; s++) {
     ret_path->node_id[s]   = path->node_id[s];
-    ret_path->extension[s] = path->extension[s];    
 
     ret_path->ihmm[s] = path->ihmm[s];
     ret_path->jhmm[s] = path->jhmm[s];
@@ -155,7 +150,7 @@ p7_splicepath_Clone(SPLICE_PATH *path)
 /* Function:  p7_splicepath_Insert()
  * Synopsis:  Insert a new step to a  path
  *
- * Purpose:   Add new <step> idx top existing <SPLICE_PATH> 
+ * Purpose:   Add new <step> idx to existing <SPLICE_PATH> 
  *
  * Returns:   <eslOK>.
  *
@@ -170,7 +165,6 @@ p7_splicepath_Insert(SPLICE_PATH *path, int step)
 
   for(s = path->path_len; s > step; s--) {
     path->node_id[s]   = path->node_id[s-1];
-    path->extension[s] = path->extension[s-1];
 
     path->ihmm[s]     = path->ihmm[s-1];
     path->jhmm[s]     = path->jhmm[s-1];
@@ -180,9 +174,8 @@ p7_splicepath_Insert(SPLICE_PATH *path, int step)
   }
 
   path->path_len++;
- 
+
   path->node_id[step]   = -1;
-  path->extension[step] = FALSE;
 
   path->ihmm[step]     = -1;
   path->jhmm[step]     = -1;
@@ -211,7 +204,6 @@ p7_splicepath_Remove(SPLICE_PATH *path, int step)
   for(s = step; s < path->path_len-1; s++) {
 
     path->node_id[s]   = path->node_id[s+1];
-    path->extension[s] = path->extension[s+1];
 
     path->ihmm[s]     = path->ihmm[s+1];
     path->jhmm[s]     = path->jhmm[s+1];
@@ -239,7 +231,6 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
    if(path == NULL) return;
 
    if(path->node_id   != NULL) free(path->node_id);
-   if(path->extension != NULL) free(path->extension);
    if(path->ihmm      != NULL) free(path->ihmm);
    if(path->jhmm      != NULL) free(path->jhmm);
    if(path->iali      != NULL) free(path->iali);
@@ -253,21 +244,21 @@ p7_splicepath_Destroy(SPLICE_PATH *path)
 
 
 /*****************************************************************
- * 3. Path Finding Algorithms
+ * 2. Path Finding Algorithms
  *****************************************************************/
 
 
-/* Function:  p7_splicepath_Remove()
- * Synopsis:  Find the highest scoring path in and graph
+/* Function:  p7_splicepath_GetBestPath()
+ * Synopsis:  Find the highest scoring path in a graph
  *
  * Purpose:   Given a SPLICE_GRAPH <graph> with nodes and edges
  *            find the highest scoring path (sum of node and 
  *            edge scores) in that graph that contains at least 
  *            one anchor node. To find the best path we use a 
  *            modified single-source shortest path algorithm 
- *            employing a topogogical sort.  This works 
+ *            employing a topological sort.  This works 
  *            because the upstream/downstream conditions
- *            requirded for edge creation ensure the graph
+ *            required for edge creation ensure the graph
  *            is acyclical. 
  *
  * Returns:   <SPLICE_PATH> on success, <NULL> if no path is found
@@ -320,7 +311,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down)
   
     out_edge = NULL;
     
-    /* Get path length and check that path contains a anchor node */ 
+    /* Get path length and check that path contains an anchor node */ 
     while(graph->best_out_edge[curr_node] >= 0) {
 
       if(curr_node < graph->anchor_N) contains_anchor = TRUE;
@@ -347,8 +338,7 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down)
   path->revcomp = graph->revcomp;
   
   path->node_id[0]   = start_node;
-  path->extension[0] = FALSE; 
- 
+
   path->ihmm[0] = th->hit[start_node]->dcl->ihmm;
   path->iali[0] = th->hit[start_node]->dcl->iali;
 
@@ -363,7 +353,6 @@ p7_splicepath_GetBestPath(SPLICE_GRAPH *graph, int extend_up, int extend_down)
     out_edge = p7_splicegraph_GetEdge(graph, curr_node, next_node);
 
     path->node_id[step_cnt]   = next_node;
-    path->extension[step_cnt] = FALSE;  
 
     path->jhmm[step_cnt-1] = th->hit[curr_node]->dcl->jhmm;
     path->ihmm[step_cnt]   = th->hit[next_node]->dcl->ihmm;
@@ -496,7 +485,7 @@ topological_sort(SPLICE_GRAPH *graph, int *visited, int *stack, int *stack_size,
 
 
 /*****************************************************************
- * 2. Debugging tools.
+ * 3. Debugging tools.
  *****************************************************************/
 
 void

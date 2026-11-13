@@ -45,7 +45,7 @@ static inline int select_b(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_
  * Incept:    SRE, Fri Aug  8 17:40:18 2008 [UA217, IAD-SFO]
  *
  * Purpose:   Perform a stochastic traceback from Forward matrix <ox>,
- *            using random number generator <r>, in order to sample an
+ *            using random number generator <rng>, in order to sample an
  *            alignment of model <om> to digital sequence <dsq> of
  *            length <L>.
  *
@@ -53,7 +53,7 @@ static inline int select_b(ESL_RANDOMNESS *rng, const P7_OPROFILE *om, const P7_
  *            caller provides with at least an initial allocation;
  *            the <tr> allocation will be grown as needed here.
  *
- * Args:      r   - source of random numbers
+ * Args:      rng - source of random numbers
  *            dsq - digital sequence being aligned, 1..L
  *            L   - length of dsq
  *            om  - profile

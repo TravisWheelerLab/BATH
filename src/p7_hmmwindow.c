@@ -587,7 +587,14 @@ p7_hmmwindow_GetSeedHits(P7_HMM_WINDOWLIST *hw, const P7_TOPHITS *th, P7_HMM *hm
 
     hit->dcl->scores_per_pos = NULL;
     hit->dcl->k_per_pos = NULL;
-    p7_pli_computeAliScores_BATH(hit->dcl, hit->dcl->tr, orfsq, gm);
+    {
+      ESL_ORF orf;   /* the translated window, as the ORF the scoring takes */
+      orf.dsq   = orfsq->dsq;
+      orf.n     = n;
+      orf.start = 0;
+      orf.end   = 0;
+      p7_pli_computeAliScores_BATH(hit->dcl, hit->dcl->tr, &orf, gm);
+    }
 
     esl_sq_Destroy(orfsq);
 

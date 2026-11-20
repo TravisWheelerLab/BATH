@@ -337,6 +337,34 @@ typedef struct p7_oivx_s {
 #define OIVXo(c, q)  (ivx[(c)][(q)])
 
 
+/* P7_CHKOIVX: vectors saved at each checkpoint of a P7_CHKOMX
+ *
+ * Holds <allocCI> working int32 vector channels, and for each of
+ * <allocK> checkpoints a copy of <allocCF> float channels (taken
+ * from a P7_OIVX) and of the <allocCI> int channels. Vectors use the
+ * same [channel][stripe] layout as P7_OIVX, so int32 lane j lines up
+ * with float lane j. Each ISA has its own pointers and stripe count.
+ */
+typedef struct p7_chkoivx_s {
+  int        allocM;       /* max model length currently allocated for          */
+  int        allocCF;      /* float channels saved per checkpoint               */
+  int        allocCI;      /* int channels, working and saved per checkpoint    */
+  int        allocK;       /* number of checkpoints                             */
+#ifdef eslENABLE_SSE
+  __m128i  **ivx;          /* [allocCI][allocQ4] working int32 vectors          */
+  void      *ivx_mem;      /* backing memory for ivx (+15 bytes for alignment)  */
+  void      *ck_mem;       /* [allocK][allocCF+allocCI][allocQ4] saved vectors  */
+  int        allocQ4;      /* p7O_NQF(allocM)                                   */
+#endif
+#ifdef eslENABLE_AVX
+  __m256i  **ivx_avx;
+  void      *ivx_mem_avx;
+  void      *ck_mem_avx;
+  int        allocQ4_avx;  /* p7O_NQF_AVX(allocM)                               */
+#endif
+} P7_CHKOIVX;
+
+
 /*****************************************************************
  * 4. P7_OMX: one-row dynamic programming matrix
  *
@@ -434,6 +462,56 @@ extern float (*p7_omx_FGetMDI)(const P7_OMX *ox, int s, int i, int k);
 extern void  (*p7_omx_FSetMDI)(const P7_OMX *ox, int s, int i, int k, float val);
 
 
+/* P7_CHKOMX: checkpointed float dynamic programming matrix
+ *
+ * Rows are computed in blocks of <blockR> rows; block j covers rows
+ * j*blockR .. (j+1)*blockR-1. Only one block is stored at a time,
+ * together with the <saveR> rows before it. The row pointer arrays
+ * have an entry for every row 0..L: loaded rows point into dp_mem,
+ * all other rows are NULL. When the computation moves from block
+ * j-1 into block j, the <saveR> rows before block j are copied into
+ * checkpoint j-1 in ck_mem, so that block j can be loaded again
+ * later. X states are kept for every row.
+ *
+ * dp_mem holds <allocR> = <saveR> + <blockR> rows: slots 0..saveR-1
+ * for the rows before the loaded block, then the block itself. Rows
+ * are <allocQ4_avx> (or <allocQ4>) stripes of <nscells> vectors.
+ */
+typedef struct p7_chkomx_s {
+  int       M;
+  int       L;
+  int       nscells;   /* vectors per stripe position, e.g. p7X_NSCELLS        */
+  int       blockR;    /* rows per block                                       */
+  int       saveR;     /* rows saved at each checkpoint, before the block      */
+  int       b;         /* first row of the loaded block; -1 if none            */
+
+  /* Row pointers [0..L] — only the active ISA's pointers are set */
+#ifdef eslENABLE_SSE
+  __m128  **dpf;
+#endif
+#ifdef eslENABLE_AVX
+  __m256  **dpf_avx;
+#endif
+
+  void     *dp_mem;    /* storage for allocR rows                              */
+  int       allocR;    /* rows of storage in dp_mem: saveR + blockR            */
+  int       allocP;    /* entries in the row pointer array; allocP >= L+1      */
+  int       allocQ4;   /* SSE float stripes per row     (allocQ4*4 >= M)       */
+  int       allocQ4_avx;
+  size_t    nvec;      /* current allocation size of dp_mem, in vectors        */
+
+  /* Checkpoints: saveR rows each */
+  void     *ck_mem;
+  int       allocK;    /* checkpoints allocated                                */
+  int       nK;        /* checkpoints saved                                    */
+
+  /* X states for every row */
+  float    *xmx;       /* [0..L][ENJBCS]; indexed [i*p7X_NXCELLS+s]            */
+  void     *x_mem;
+  int       allocXR;
+} P7_CHKOMX;
+
+
 /*****************************************************************
  * 5. External API declarations
  *****************************************************************/
@@ -471,6 +549,34 @@ extern P7_OMX      *p7_omx_Create_dpf_avx(int allocM, int allocL, int allocXL, i
 extern int          p7_omx_GrowTo_dpf_avx(P7_OMX *ox, int allocM, int allocL, int allocXL);
 extern void         p7_omx_Destroy_avx   (P7_OMX *ox);
 extern int          p7_omx_FDeconvert_avx(P7_OMX *ox, P7_GMX *gx);
+#endif
+
+/* p7_chkomx.c — self-patching dispatchers */
+extern P7_CHKOMX *(*p7_chkomx_Create)    (int allocM, int allocL, int blockR, int saveR, int nscells);
+extern int        (*p7_chkomx_GrowTo)    (P7_CHKOMX *cx, int allocM, int allocL);
+extern int        (*p7_chkomx_StartBlock)(P7_CHKOMX *cx, int b);
+extern int        (*p7_chkomx_LoadBlock) (P7_CHKOMX *cx, int b);
+extern float      (*p7_chkomx_FGetMDI)   (const P7_CHKOMX *cx, int s, int i, int k);
+extern void       (*p7_chkomx_Destroy)   (P7_CHKOMX *cx);
+
+/* p7_chkomx_sse.c — SSE implementations */
+#ifdef eslENABLE_SSE
+extern P7_CHKOMX   *p7_chkomx_Create_sse    (int allocM, int allocL, int blockR, int saveR, int nscells);
+extern int          p7_chkomx_GrowTo_sse    (P7_CHKOMX *cx, int allocM, int allocL);
+extern int          p7_chkomx_StartBlock_sse(P7_CHKOMX *cx, int b);
+extern int          p7_chkomx_LoadBlock_sse (P7_CHKOMX *cx, int b);
+extern float        p7_chkomx_FGetMDI_sse   (const P7_CHKOMX *cx, int s, int i, int k);
+extern void         p7_chkomx_Destroy_sse   (P7_CHKOMX *cx);
+#endif
+
+/* p7_chkomx_avx.c — AVX2 implementations */
+#ifdef eslENABLE_AVX
+extern P7_CHKOMX   *p7_chkomx_Create_avx    (int allocM, int allocL, int blockR, int saveR, int nscells);
+extern int          p7_chkomx_GrowTo_avx    (P7_CHKOMX *cx, int allocM, int allocL);
+extern int          p7_chkomx_StartBlock_avx(P7_CHKOMX *cx, int b);
+extern int          p7_chkomx_LoadBlock_avx (P7_CHKOMX *cx, int b);
+extern float        p7_chkomx_FGetMDI_avx   (const P7_CHKOMX *cx, int s, int i, int k);
+extern void         p7_chkomx_Destroy_avx   (P7_CHKOMX *cx);
 #endif
 
 /* p7_oprofile.c — function pointers (dispatched at runtime) */
@@ -622,6 +728,27 @@ extern void     p7_oivx_Destroy_avx(P7_OIVX *ov);
 extern P7_OIVX *p7_oivx_Create_sse(int M_hint, int C);
 extern int      p7_oivx_GrowTo_sse(P7_OIVX *ov, int M, int C);
 extern void     p7_oivx_Destroy_sse(P7_OIVX *ov);
+
+/* p7_chkoivx.c — function pointers (dispatched at runtime) */
+extern P7_CHKOIVX *(*p7_chkoivx_Create) (int M_hint, int CF, int CI, int K);
+extern int         (*p7_chkoivx_GrowTo) (P7_CHKOIVX *cv, int M, int CF, int CI, int K);
+extern int         (*p7_chkoivx_Save)   (P7_CHKOIVX *cv, const P7_OIVX *ov, int M, int k);
+extern int         (*p7_chkoivx_Load)   (P7_CHKOIVX *cv, P7_OIVX *ov, int M, int k);
+extern void        (*p7_chkoivx_Destroy)(P7_CHKOIVX *cv);
+
+/* p7_chkoivx_avx.c — AVX2 implementations */
+extern P7_CHKOIVX *p7_chkoivx_Create_avx (int M_hint, int CF, int CI, int K);
+extern int         p7_chkoivx_GrowTo_avx (P7_CHKOIVX *cv, int M, int CF, int CI, int K);
+extern int         p7_chkoivx_Save_avx   (P7_CHKOIVX *cv, const P7_OIVX *ov, int M, int k);
+extern int         p7_chkoivx_Load_avx   (P7_CHKOIVX *cv, P7_OIVX *ov, int M, int k);
+extern void        p7_chkoivx_Destroy_avx(P7_CHKOIVX *cv);
+
+/* p7_chkoivx_sse.c — SSE implementations (used as SSE fallback in dispatch) */
+extern P7_CHKOIVX *p7_chkoivx_Create_sse (int M_hint, int CF, int CI, int K);
+extern int         p7_chkoivx_GrowTo_sse (P7_CHKOIVX *cv, int M, int CF, int CI, int K);
+extern int         p7_chkoivx_Save_sse   (P7_CHKOIVX *cv, const P7_OIVX *ov, int M, int k);
+extern int         p7_chkoivx_Load_sse   (P7_CHKOIVX *cv, P7_OIVX *ov, int M, int k);
+extern void        p7_chkoivx_Destroy_sse(P7_CHKOIVX *cv);
 
 /* decoding.c — self-patching dispatchers */
 extern int (*p7_Decoding)      (const P7_OPROFILE *om, const P7_OMX *oxf,       P7_OMX *oxb, P7_OMX *pp);

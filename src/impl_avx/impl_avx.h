@@ -460,6 +460,7 @@ extern int          p7_omx_GrowTo_sse    (P7_OMX *ox, int allocM, int allocL, in
 extern P7_OMX      *p7_omx_Create_dpf_sse(int allocM, int allocL, int allocXL, int nscells);
 extern int          p7_omx_GrowTo_dpf_sse(P7_OMX *ox, int allocM, int allocL, int allocXL);
 extern int          p7_omx_FDeconvert_sse(P7_OMX *ox, P7_GMX *gx);
+extern float        p7_omx_FGetMDI_sse   (const P7_OMX *ox, int s, int i, int k);
 extern void         p7_omx_Destroy_sse   (P7_OMX *ox);
 #endif
 /* p7_omx_avx.c — AVX2 implementations */

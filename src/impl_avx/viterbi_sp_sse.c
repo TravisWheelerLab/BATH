@@ -421,9 +421,9 @@ p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
   P_cnt    = 0;
   ESL_ALLOC(P_scores, sizeof(float) * M);
 
-#define OMMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_M, (ii), (kk)))
-#define ODMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_D, (ii), (kk)))
-#define OIMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI(ox, p7X_I, (ii), (kk)))
+#define OMMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI_sse(ox, p7X_M, (ii), (kk)))
+#define ODMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI_sse(ox, p7X_D, (ii), (kk)))
+#define OIMo(ii,kk)  ((kk) < 1 ? -eslINFINITY : p7_omx_FGetMDI_sse(ox, p7X_I, (ii), (kk)))
 #define OXMXo(ii,s)  (ox->xmx[(ii) * p7X_NXCELLS + (s)])
 
   if (gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 1 codon length");

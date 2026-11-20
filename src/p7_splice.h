@@ -198,6 +198,11 @@ typedef struct _splice_info
 #define SSX1(k, signal, nuc1)     (don_ivx[(k)*SIGNAL_MEM_SIZE + SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])  //XxxxxXX
 #define SSX2(k, signal, nuc3)     (don_ivx[(k)*SIGNAL_MEM_SIZE + SPLICE_OFFSET_2 + (nuc3) * p7S_SPLICE_SIGNALS + (signal)])  //XXxxxxX
 
+/* MACROS for the row each P state score in don_ivx came from (checkpointed spliced Viterbi) */
+#define DIX0(k, signal)           (don_idx[(k)*SIGNAL_MEM_SIZE+(signal)])
+#define DIX1(k, signal, nuc1)     (don_idx[(k)*SIGNAL_MEM_SIZE + SPLICE_OFFSET_1 + (nuc1) * p7S_SPLICE_SIGNALS + (signal)])
+#define DIX2(k, signal, nuc3)     (don_idx[(k)*SIGNAL_MEM_SIZE + SPLICE_OFFSET_2 + (nuc3) * p7S_SPLICE_SIGNALS + (signal)])
+
 #define SIGNAL(nuc1, nuc2)        (4*(nuc1)+(nuc2))
 
 #define DONOR_GT                  11
@@ -225,6 +230,7 @@ enum p7s_splice_signals_e {
 #define p7S_SPLICE_SIGNALS 3
 
 #define SPLICE_ROWS               4
+#define SPLICE_CHECKPOINT_ROWS    1024     /* rows per block in checkpointed spliced Viterbi            */
 
 /* P->M transition cost */
 #define TSC_P logf(4.5e-5f)
@@ -272,6 +278,8 @@ extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli);
 extern int p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *acc_iv, P7_IVX *don_iv, float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
 extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
 extern int p7_GViterbi_SplicedTraceReplay(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
+extern int p7_GViterbi_SplicedChk(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_CHKGMX *cx, P7_CHKIVX *cv, P7_IVX *acc_iv, P7_IVX *don_iv, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
+extern int p7_GViterbi_SplicedTraceChk(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_CHKGMX *cx, P7_CHKIVX *cv, P7_IVX *acc_iv, P7_IVX *don_iv, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end, float *vitsc, float *max_drop);
 
 /* p7_splice.c */
 extern int p7_splice_SpliceGraph(SPLICE_WORKER_INFO *info);

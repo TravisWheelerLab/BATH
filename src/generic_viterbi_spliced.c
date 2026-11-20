@@ -33,6 +33,40 @@ nuc_at(const ESL_DSQ *sub_dsq, int i_start, int row)
   return (x < p7P_MAXNUC) ? x : p7P_MAXCODONS1;
 }
 
+/* donor_signal(): splice signal index (p7S_GTAG, p7S_GCAG or p7S_ATAC)
+ * of a donor dinucleotide, or -1. */
+static inline int
+donor_signal(int nuc1, int nuc2)
+{
+  switch (SIGNAL(nuc1, nuc2)) {
+    case DONOR_GT: return p7S_GTAG;
+    case DONOR_GC: return p7S_GCAG;
+    case DONOR_AT: return p7S_ATAC;
+    default:       return -1;
+  }
+}
+
+/* acceptor_signal(): ACCEPT_AG or ACCEPT_AC for an acceptor
+ * dinucleotide, or -1. */
+static inline int
+acceptor_signal(int nuc1, int nuc2)
+{
+  switch (SIGNAL(nuc1, nuc2)) {
+    case ACCEPT_AG: return ACCEPT_AG;
+    case ACCEPT_AC: return ACCEPT_AC;
+    default:        return -1;
+  }
+}
+
+/* acceptor_at(): acceptor signal (ACCEPT_AG or ACCEPT_AC) that the fill
+ * records at row <i>, from rows i-2 and i-1, or -1. */
+static inline int
+acceptor_at(const ESL_DSQ *sub_dsq, int i_start, int i)
+{
+  if (i < 3) return -1;
+  return acceptor_signal(nuc_at(sub_dsq, i_start, i-2), nuc_at(sub_dsq, i_start, i-1));
+}
+
 
 /* Function:  p7_GViterbi_Spliced()
  * Synopsis:  Translated spliced Viterbi algorithm
@@ -166,9 +200,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
     /* get acceptor site */
     acc0 = acc1;
     acc1 = acc2;
-    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
-    else                               acc2 = -1;
+    acc2 = acceptor_signal(v, w);
     
 	if(!global_start) {
       XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
@@ -297,17 +329,12 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
     /* get acceptor sites */
     acc0 = acc1;
     acc1 = acc2;
-    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
-    else                               acc2 = -1;
+    acc2 = acceptor_signal(v, w);
 
     /* get donor sites */
     don0 = don1;
     don1 = don2;
-    if      (SIGNAL(t,u) == DONOR_GT) don2 = DONOR_GT;
-    else if (SIGNAL(t,u) == DONOR_GC) don2 = DONOR_GC;
-    else if (SIGNAL(t,u) == DONOR_AT) don2 = DONOR_AT;
-    else                              don2 = -1;
+    don2 = donor_signal(t, u);
 
 	if(!global_start) {
       XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
@@ -413,7 +440,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
         C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
       C2[p7P_MAXNUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
 
-      don_sig = (don2 == DONOR_GT) ? p7S_GTAG : (don2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      don_sig = don2;
       for (k = 2; k < M; k++) {
         sub_k  = k_start + k - 1;
         TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
@@ -424,7 +451,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 
 	if(don1  >= 0) {
 	  nuc1 = ESL_MIN(r, p7P_MAXNUC); 
-	  don_sig = (don1 == DONOR_GT) ? p7S_GTAG : (don1 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+	  don_sig = don1;
 	  for (k = 2; k < M; k++) {
 	    sub_k  = k_start + k - 1;
 		TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
@@ -433,7 +460,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 	}
 
 	if (don0 >= 0) {
-      don_sig = (don0 == DONOR_GT) ? p7S_GTAG : (don0 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      don_sig = don0;
       for (k = 2; k < M; k++) {
         sub_k  = k_start + k - 1;
         TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
@@ -770,18 +797,6 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
 }
 
 
-/* donor_signal(): splice signal index of a donor dinucleotide, or -1. */
-static inline int
-donor_signal(int nuc1, int nuc2)
-{
-  switch (SIGNAL(nuc1, nuc2)) {
-    case DONOR_GT: return p7S_GTAG;
-    case DONOR_GC: return p7S_GCAG;
-    case DONOR_AT: return p7S_ATAC;
-    default:       return -1;
-  }
-}
-
 /* The donor behind a P state score, as chosen by replay_donors() */
 typedef struct {
   float sc;     /* P state score                                       */
@@ -898,11 +913,11 @@ replay_donors_from(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, float **d
   v = nuc_at(sub_dsq, i_start, acc_i - 2);
   w = nuc_at(sub_dsq, i_start, acc_i - 1);
   x = nuc_at(sub_dsq, i_start, acc_i);
-  acc2 = SIGNAL(v, w);
-  acc1 = SIGNAL(nuc_at(sub_dsq, i_start, acc_i - 3), v);
-  acc0 = SIGNAL(nuc_at(sub_dsq, i_start, acc_i - 4), nuc_at(sub_dsq, i_start, acc_i - 3));
+  acc2 = acceptor_at(sub_dsq, i_start, acc_i);
+  acc1 = acceptor_at(sub_dsq, i_start, acc_i - 1);
+  acc0 = acceptor_at(sub_dsq, i_start, acc_i - 2);
 
-  if (acc0 == ACCEPT_AG || acc0 == ACCEPT_AC) {
+  if (acc0 >= 0) {
     C = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
     for (sig = 0; sig < p7S_SPLICE_SIGNALS; sig++) {
       if ((sig == p7S_ATAC) != (acc0 == ACCEPT_AC)) continue;
@@ -910,7 +925,7 @@ replay_donors_from(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, float **d
       keep_donor(&best, sc, ds->row0[sig], 0, sig);
     }
   }
-  if (acc1 == ACCEPT_AG || acc1 == ACCEPT_AC) {
+  if (acc1 >= 0) {
     for (nuc = 0; nuc <= p7P_MAXNUC; nuc++) {
       C = p7P_MINIDX(p7P_CODON3_FS1((nuc < p7P_MAXNUC ? nuc : p7P_MAXCODONS1), w, x), p7P_DEGEN1_C);
       for (sig = 0; sig < p7S_SPLICE_SIGNALS; sig++) {
@@ -920,7 +935,7 @@ replay_donors_from(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, float **d
       }
     }
   }
-  if (acc2 == ACCEPT_AG || acc2 == ACCEPT_AC) {
+  if (acc2 >= 0) {
     nuc = ESL_MIN(x, p7P_MAXNUC);
     for (sig = 0; sig < p7S_SPLICE_SIGNALS; sig++) {
       if ((sig == p7S_ATAC) != (acc2 == ACCEPT_AC)) continue;
@@ -1267,18 +1282,6 @@ spliced_init(const SPLICED_CHK *sc)
       MMX(i,k) = DMX(i,k) = IMX(i,k) = -eslINFINITY;
     XMX(i,p7G_E) = XMX(i,p7G_C) = XMX(i,p7G_J) = -eslINFINITY;
   }
-}
-
-/* acceptor_at(): acceptor signal (ACCEPT_AG or ACCEPT_AC) that the fill
- * records at row <i>, from rows i-2 and i-1, or -1. */
-static inline int
-acceptor_at(const ESL_DSQ *sub_dsq, int i_start, int i)
-{
-  int sig;
-
-  if (i < 3) return -1;
-  sig = SIGNAL(nuc_at(sub_dsq, i_start, i-2), nuc_at(sub_dsq, i_start, i-1));
-  return (sig == ACCEPT_AG || sig == ACCEPT_AC) ? sig : -1;
 }
 
 /* spliced_acc_row():

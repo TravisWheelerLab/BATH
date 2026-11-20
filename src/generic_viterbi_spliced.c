@@ -23,6 +23,16 @@
 
 #define PVX4(i,k) (acc_ivx[((k)*SPLICE_ROWS) + (i)])
 
+/* nuc_at(): nucleotide at row <row> of the sub sequence starting at
+ * <i_start>, with anything other than A,C,G,T as p7P_MAXCODONS1. */
+static inline int
+nuc_at(const ESL_DSQ *sub_dsq, int i_start, int row)
+{
+  ESL_DSQ x = sub_dsq[i_start + row - 1];
+  return (x < p7P_MAXNUC) ? x : p7P_MAXCODONS1;
+}
+
+
 /* Function:  p7_GViterbi_Spliced()
  * Synopsis:  Translated spliced Viterbi algorithm
  *
@@ -83,7 +93,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
   int          v, w, x;
   int          nuc1, nuc3;
   int          loop_end;
-  int          sub_i,sub_k;
+  int          sub_k;
   int          pv_i, pv_pi;
   int          acc0, acc1, acc2;
   int          don0, don1, don2;
@@ -128,10 +138,8 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
   for(i = 1; i <= 2; i++)
   {
     w = x;
-    sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
-    else                            x = p7P_MAXCODONS1;
+    x = nuc_at(sub_dsq, i_start, i);
 
     XMX(i,p7G_N) =  0;
     XMX(i,p7G_B) =  gm_tr->xsc[p7P_N][p7P_MOVE];
@@ -148,9 +156,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
   {
     v = w;
     w = x;
-    sub_i = i_start + i - 1;
-    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
-    else                            x = p7P_MAXCODONS1; 
+    x = nuc_at(sub_dsq, i_start, i);
 
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
@@ -235,49 +241,42 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 
   }
 
-  /* Example Indexing for r, s, t, u:
+  /* Example Indexing for r, s, t, u (row n is sub_dsq[i_start+n-1]):
    * i_start = 5;
    * min_intron = 13;
-   * s = sub_dsq[5];
-   * t = sub_dsq[6];
-   * u = sub_dsq[7];
+   * s = row 1;               // sub_dsq[5];
+   * t = row 2;               // sub_dsq[6];
+   * u = row 3;               // sub_dsq[7];
    * ...
    * i = min_intron+3;        // 16;
-   * sub_i = i_start + i - 1; // 20;
    * r = s;                   // sub_dsq[5];
    * s = t;                   // sub_dsq[6];
    * t = u;                   // sub_dsq[7];
-   * u = sub_dsq[sub_i-min_intron+1]; // sub_dsq[8];
+   * u = row i-min_intron+1;  // sub_dsq[8];
    */
 
-  if(sub_dsq[i_start] < p7P_MAXNUC)  s = sub_dsq[i_start];
-  else                               s = p7P_MAXCODONS1;
+  s = nuc_at(sub_dsq, i_start, 1);
 
-  if(sub_dsq[i_start+1] < p7P_MAXNUC) t = sub_dsq[i_start+1];
-  else                             t = p7P_MAXCODONS1;
+  t = nuc_at(sub_dsq, i_start, 2);
 
-  if(sub_dsq[i_start+2] < p7P_MAXNUC) u = sub_dsq[i_start+2];
-  else                             u = p7P_MAXCODONS1;
+  u = nuc_at(sub_dsq, i_start, 3);
 
   /* Main DP recursion */
   for (i = min_intron+3; i <= L; i++)
   {
     /* get nucleotides and codon */
-    sub_i = i_start + i - 1;
     pv_i  =  i    % SPLICE_ROWS;
     pv_pi = (i-3) % SPLICE_ROWS; 
 
     r = s;
     s = t;
     t = u;
-    if(sub_dsq[sub_i-min_intron+1] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron+1];
-    else                                         u = p7P_MAXCODONS1;
+    u = nuc_at(sub_dsq, i_start, i-min_intron+1);
 
     v = w;
     w = x;
 
-    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
-    else                         x = p7P_MAXCODONS1;
+    x = nuc_at(sub_dsq, i_start, i);
 
 	/* Codon indexing for unsplit codon */
     C0 = p7P_CODON3_FS1(v, w, x);
@@ -559,14 +558,11 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
      
       sub_i = i_start + i - 1; 
       
-      if(sub_dsq[sub_i-2] < p7P_MAXNUC) v = sub_dsq[sub_i-2];
-      else                           v = p7P_MAXCODONS1;
+      v = nuc_at(sub_dsq, i_start, i-2);
 
-      if(sub_dsq[sub_i-1] < p7P_MAXNUC) w = sub_dsq[sub_i-1];
-      else                           w = p7P_MAXCODONS1;
+      w = nuc_at(sub_dsq, i_start, i-1);
 
-      if(sub_dsq[sub_i]   < p7P_MAXNUC) x = sub_dsq[sub_i];
-      else                           x = p7P_MAXCODONS1;
+      x = nuc_at(sub_dsq, i_start, i);
 
       c3 = p7P_CODON3_FS1(v, w, x);
       c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
@@ -609,20 +605,15 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
           if(don_sig != -1) {
             /* If we have a donor site get emissions */
             
-            if(sub_dsq[sub_i-min_intron-j-3] < p7P_MAXNUC) t = sub_dsq[sub_i-min_intron-j-3];
-            else                                         t = p7P_MAXCODONS1;
+            t = nuc_at(sub_dsq, i_start, i-min_intron-j-3);
 
-            if(sub_dsq[sub_i-min_intron-j-2] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron-j-2];
-            else                                         u = p7P_MAXCODONS1;
+            u = nuc_at(sub_dsq, i_start, i-min_intron-j-2);
             
-            if(sub_dsq[sub_i-5] < p7P_MAXNUC) v = sub_dsq[sub_i-5];
-            else                              v = p7P_MAXCODONS1;
+            v = nuc_at(sub_dsq, i_start, i-5);
 
-            if(sub_dsq[sub_i-4] < p7P_MAXNUC) w = sub_dsq[sub_i-4];
-            else                              w = p7P_MAXCODONS1;
+            w = nuc_at(sub_dsq, i_start, i-4);
             
-            if(sub_dsq[sub_i-3] < p7P_MAXNUC) x = sub_dsq[sub_i-3];
-            else                              x = p7P_MAXCODONS1;     
+            x = nuc_at(sub_dsq, i_start, i-3);
 
             c2 = p7P_CODON3_FS1(t, u, x);
             c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
@@ -773,15 +764,6 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
   return status;
 }
 
-
-/* nuc_at(): nucleotide at row <row> of the sub sequence starting at
- * <i_start>, with anything other than A,C,G,T as p7P_MAXCODONS1. */
-static inline int
-nuc_at(const ESL_DSQ *sub_dsq, int i_start, int row)
-{
-  ESL_DSQ x = sub_dsq[i_start + row - 1];
-  return (x < p7P_MAXNUC) ? x : p7P_MAXCODONS1;
-}
 
 /* donor_signal(): splice signal index of a donor dinucleotide, or -1. */
 static inline int
@@ -977,7 +959,7 @@ p7_GViterbi_SplicedTraceReplay(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_t
   int          v,w,x;
   int          c, c3;
   int          sprv,scur;
-  int          sub_i, sub_k;
+  int          sub_k;
   int          donor_i;
   int          don_sig;
   int          P_cnt, P_idx;
@@ -1033,16 +1015,11 @@ p7_GViterbi_SplicedTraceReplay(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_t
     case p7T_M:         /* M connects from i-1,k-1, B, or a P state at i-3,k-1 */
       if (MMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
 
-      sub_i = i_start + i - 1;
+      v = nuc_at(sub_dsq, i_start, i-2);
 
-      if(sub_dsq[sub_i-2] < p7P_MAXNUC) v = sub_dsq[sub_i-2];
-      else                           v = p7P_MAXCODONS1;
+      w = nuc_at(sub_dsq, i_start, i-1);
 
-      if(sub_dsq[sub_i-1] < p7P_MAXNUC) w = sub_dsq[sub_i-1];
-      else                           w = p7P_MAXCODONS1;
-
-      if(sub_dsq[sub_i]   < p7P_MAXNUC) x = sub_dsq[sub_i];
-      else                           x = p7P_MAXCODONS1;
+      x = nuc_at(sub_dsq, i_start, i);
 
       c3 = p7P_CODON3_FS1(v, w, x);
       c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);

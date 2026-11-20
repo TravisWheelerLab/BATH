@@ -497,6 +497,7 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
   int          k     = 0;                   /* position in model (1..M)                              */
   int          j, z;
   int          t,u,v,w,x;
+  int          d1, d2;
   int          c, c0, c1, c2, c3;
   int          sprv,scur;
   int          sub_i, sub_k;
@@ -600,10 +601,13 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
         /* Scan for donor sites */
         for(j = 0; j < i-min_intron-4; j++) {
         
+          /* anything other than A,C,G,T gets a placeholder, so it can't form a donor signal */
+          d1 = (sub_dsq[sub_i-min_intron-j-1] < p7P_MAXNUC) ? (int)sub_dsq[sub_i-min_intron-j-1] : p7P_MAXCODONS1;
+          d2 = (sub_dsq[sub_i-min_intron-j]   < p7P_MAXNUC) ? (int)sub_dsq[sub_i-min_intron-j]   : p7P_MAXCODONS1;
           don_sig = -1;
-          if     (SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GT) don_sig = p7S_GTAG;
-          else if(SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_GC) don_sig = p7S_GCAG;
-          else if(SIGNAL(sub_dsq[sub_i-min_intron-j-1], sub_dsq[sub_i-min_intron-j]) == DONOR_AT) don_sig = p7S_ATAC;
+          if      (SIGNAL(d1, d2) == DONOR_GT) don_sig = p7S_GTAG;
+          else if (SIGNAL(d1, d2) == DONOR_GC) don_sig = p7S_GCAG;
+          else if (SIGNAL(d1, d2) == DONOR_AT) don_sig = p7S_ATAC;
         
           if(don_sig != -1) {
             /* If we have a donor site get emissions */

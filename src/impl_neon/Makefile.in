@@ -49,6 +49,7 @@ OBJS =  decoding.o\
 	viterbi.o\
 	viterbi_fs.o\
 	viterbi_sp.o\
+	viterbi_sp_chk.o\
 	p7_omx.o\
 	p7_chkomx.o\
 	p7_oivx.o\

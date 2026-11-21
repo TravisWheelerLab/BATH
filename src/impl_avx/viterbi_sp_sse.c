@@ -944,17 +944,18 @@ p7_Viterbi_SplicedChk_sse(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P
 }
 
 
-/* Function:  p7_Viterbi_SplicedTrace_sse()
+/* Function:  p7_Viterbi_SplicedTraceOld_sse()
  *
- * Purpose:   SSE implementation of spliced Viterbi traceback.
- *            See p7_Viterbi_SplicedTrace() documentation for details.
+ * Purpose:   SSE implementation of p7_GViterbi_SplicedTraceOld(), kept
+ *            for reference; p7_Viterbi_SplicedTrace_sse() is the
+ *            traceback in use.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if profile is not 1-codon-length.
  *            <eslFAIL>   if traceback fails.
  */
 int
-p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
+p7_Viterbi_SplicedTraceOld_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
                              const P7_FS_PROFILE *gm_tr, const float *signal_scores,
                              P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
                              int min_intron, float *vitsc, float *max_drop)
@@ -1392,10 +1393,9 @@ replay_donors(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_OMX *
 }
 
 
-/* Function:  p7_Viterbi_SplicedTraceReplay_sse()
+/* Function:  p7_Viterbi_SplicedTrace_sse()
  *
- * Purpose:   SSE implementation of the spliced Viterbi traceback that
- *            replays donor updates to find each P state's donor.
+ * Purpose:   SSE implementation of spliced Viterbi traceback.
  *            See p7_GViterbi_SplicedTrace() for details.
  *
  * Returns:   <eslOK> on success.
@@ -1403,7 +1403,7 @@ replay_donors(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_OMX *
  *            <eslFAIL>   if traceback fails.
  */
 int
-p7_Viterbi_SplicedTraceReplay_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
+p7_Viterbi_SplicedTrace_sse(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
                              const P7_FS_PROFILE *gm_tr, const float *signal_scores,
                              P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end,
                              int min_intron, float *vitsc, float *max_drop)
@@ -1706,7 +1706,7 @@ replay_donors_chk(const SPLICED_CHK *sc, const P7_FS_PROFILE *gm_tr, int k_start
  *
  * Purpose:   SSE traceback of a matrix filled by
  *            p7_Viterbi_SplicedChk_sse() with the same arguments. Same
- *            as p7_Viterbi_SplicedTraceReplay_sse(), except that the
+ *            as p7_Viterbi_SplicedTrace_sse(), except that the
  *            trace runs from the last block back to the first, computing
  *            each block it passes through again from its checkpoint and
  *            skipping blocks that lie inside introns. Each P state's

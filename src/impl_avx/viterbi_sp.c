@@ -267,6 +267,7 @@ main(int argc, char **argv)
   P7_CODONTABLE  *codon_table  = NULL;
   ESL_SQ         *sq           = NULL;
   SPLICE_PIPELINE *pli         = NULL;
+  P7_OMX          *ox          = NULL;
   int             do_T         = esl_opt_GetBoolean(go, "-T");
   int             N            = esl_opt_GetInteger(go, "-N");
   int             I            = esl_opt_GetInteger(go, "-I");
@@ -292,6 +293,7 @@ main(int argc, char **argv)
   p7_fs_oprofile_Convert_Log(gm_tr, om_tr);
 
   pli = p7_splicepipeline_Create(NULL, hmm->M, hmm->M * 3);
+  ox  = p7_omx_Create_dpf(hmm->M, hmm->M * 3, hmm->M * 3, p7X_NSCELLS);
 
   tr = p7_trace_fs_Create();
   /* Baseline: time to generate sequences alone */
@@ -338,11 +340,11 @@ main(int argc, char **argv)
 
       p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
-      p7_omx_GrowTo_dpf(pli->vit, hmm->M, L_dna_total, L_dna_total);
-      p7_Viterbi_Spliced(dsq, om_tr, pli->vit, pli->signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
+      p7_omx_GrowTo_dpf(ox, hmm->M, L_dna_total, L_dna_total);
+      p7_Viterbi_Spliced(dsq, om_tr, ox, pli->signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
 
       if(do_T)
-        p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, pli->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron, NULL, NULL);
+        p7_Viterbi_SplicedTrace(dsq, ox, gm_tr, pli->signal_scores, tr, 1, L_dna_total, 1, hmm->M, pli->min_intron, NULL, NULL);
       p7_trace_Reuse(tr);
       total_cells += (int64_t) L_dna_total * hmm->M;
     }
@@ -360,6 +362,7 @@ main(int argc, char **argv)
   p7_codontable_Destroy(codon_table);
   p7_profile_fs_Destroy(gm_tr);
   p7_fs_oprofile_Destroy(om_tr);
+  p7_omx_Destroy(ox);
   p7_splicepipeline_Destroy(pli);
   p7_profile_Destroy(gm);
   p7_bg_Destroy(bgAA);
@@ -425,6 +428,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   P7_IVX         *acc_iv      = NULL;
   P7_IVX         *don_iv      = NULL;
   SPLICE_PIPELINE *pli        = NULL;
+  P7_OMX          *ox         = NULL;
   int             intron_total = intron_len + 4;  /* GT + intron_len random nucs + AG */
   int             L_amino, L_dna_total;
   int             i, j;
@@ -438,6 +442,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_fs_oprofile_Convert_Log(gm_tr, om_tr);
 
   pli = p7_splicepipeline_Create(NULL, M, M * 3);
+  ox  = p7_omx_Create_dpf(M, M * 3, M * 3, p7X_NSCELLS);
   gx     = p7_gmx_Create(M, M, M, p7G_NSCELLS);
   acc_iv = p7_ivx_Create(M, SPLICE_ROWS);
   don_iv = p7_ivx_Create(M, SIGNAL_MEM_SIZE);
@@ -483,12 +488,12 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       /* --- Score comparison: generic Dummy and SSE Dummy must agree --- */
 	  p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
       p7_fs_oprofile_ReconfigLength_Log(om_tr, L_dna_total/3);
-	  p7_omx_GrowTo_dpf(pli->vit, sub_M, L_dna_total, L_dna_total);
+	  p7_omx_GrowTo_dpf(ox, sub_M, L_dna_total, L_dna_total);
 	  p7_oivx_GrowTo(pli->acc_ov, sub_M, SPLICE_ROWS);
 	  p7_oivx_GrowTo(pli->don_ov, sub_M, SIGNAL_MEM_SIZE);
 
-      p7_Viterbi_Spliced(dsq, om_tr, pli->vit, signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
-      final_oC = pli->vit->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+      p7_Viterbi_Spliced(dsq, om_tr, ox, signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, TRUE);
+      final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
       p7_fs_ReconfigLength(gm_tr, L_dna_total/3);
       p7_gmx_GrowTo(gx, sub_M, L_dna_total, L_dna_total);
@@ -503,8 +508,8 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       if(final_gC == -eslINFINITY) continue;   
       
-      p7_Viterbi_SplicedTrace      (dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_search, NULL);
-      p7_Viterbi_SplicedTraceReplay(dsq, pli->vit, gm_tr, signal_scores, rtr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_replay, NULL);
+      p7_Viterbi_SplicedTrace      (dsq, ox, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_search, NULL);
+      p7_Viterbi_SplicedTraceReplay(dsq, ox, gm_tr, signal_scores, rtr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_replay, NULL);
       p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
@@ -514,14 +519,14 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_trace_Reuse(otr);
       p7_trace_Reuse(gtr);
 
-      p7_Viterbi_Spliced(dsq, om_tr, pli->vit, signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, FALSE);
-      final_oC = pli->vit->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+      p7_Viterbi_Spliced(dsq, om_tr, ox, signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, TRUE, FALSE);
+      final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, TRUE, FALSE);
       final_gC = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
        
-      p7_Viterbi_SplicedTrace      (dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_search, NULL);
-      p7_Viterbi_SplicedTraceReplay(dsq, pli->vit, gm_tr, signal_scores, rtr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_replay, NULL);
+      p7_Viterbi_SplicedTrace      (dsq, ox, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_search, NULL);
+      p7_Viterbi_SplicedTraceReplay(dsq, ox, gm_tr, signal_scores, rtr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_replay, NULL);
       p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
@@ -531,14 +536,14 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       p7_trace_Reuse(otr);
       p7_trace_Reuse(gtr);
 
-      p7_Viterbi_Spliced(dsq, om_tr, pli->vit, signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, FALSE, TRUE);
-      final_oC = pli->vit->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
+      p7_Viterbi_Spliced(dsq, om_tr, ox, signal_scores, pli->acc_ov, pli->don_ov, 1, L_dna_total, pli->min_intron, FALSE, TRUE);
+      final_oC = ox->xmx[L_dna_total * p7X_NXCELLS + p7X_C];
 
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, k_start, k_end, pli->min_intron, FALSE, TRUE);
       final_gC = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       
-      p7_Viterbi_SplicedTrace      (dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_search, NULL);
-      p7_Viterbi_SplicedTraceReplay(dsq, pli->vit, gm_tr, signal_scores, rtr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_replay, NULL);
+      p7_Viterbi_SplicedTrace      (dsq, ox, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_search, NULL);
+      p7_Viterbi_SplicedTraceReplay(dsq, ox, gm_tr, signal_scores, rtr, 1, L_dna_total, k_start, k_end, pli->min_intron, &sc_replay, NULL);
       p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
@@ -554,6 +559,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_hmm_Destroy(hmm);
   p7_profile_fs_Destroy(gm_tr);
   p7_fs_oprofile_Destroy(om_tr);
+  p7_omx_Destroy(ox);
   p7_splicepipeline_Destroy(pli);
   p7_gmx_Destroy(gx);
   p7_ivx_Destroy(acc_iv);

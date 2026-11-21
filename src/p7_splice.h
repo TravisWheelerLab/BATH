@@ -134,10 +134,11 @@ typedef struct _splice_pipeline
   ESL_SQ  *nuc_sq;
   ESL_SQ  *amino_sq; 
 
-  P7_OIVX *acc_ov;  
-  P7_OIVX *don_ov;   
+  P7_OIVX    *acc_ov;
+  P7_OIVX    *don_ov;
+  P7_CHKOIVX *don_ck;   /* rows of the donor scores in don_ov, and both saved at each checkpoint of vit */
 
-  P7_OMX  *vit;
+  P7_CHKOMX  *vit;      /* checkpointed spliced Viterbi matrix                                         */
   P7_OMX  *fwd;
   P7_OMX  *bwd;
 

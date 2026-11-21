@@ -82,6 +82,9 @@ OBJS =  decoding.o\
 	viterbi_sp.o\
 	viterbi_sp_sse.o\
 	viterbi_sp_avx.o\
+	viterbi_sp_chk.o\
+	viterbi_sp_chk_sse.o\
+	viterbi_sp_chk_avx.o\
 	vitscore.o\
 	vitscore_sse.o\
 	vitscore_avx.o\
@@ -123,7 +126,8 @@ UTESTS =\
 	vitfilter_utest\
 	viterbi_utest\
 	viterbi_fs_utest\
-	viterbi_sp_utest
+	viterbi_sp_utest\
+	viterbi_sp_chk_utest
 
 BENCHMARKS =\
 	decoding_benchmark\

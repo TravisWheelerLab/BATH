@@ -459,7 +459,7 @@ p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *
  *
  *            The P state is not stored in the DP matrix and must be
  *            reconstructed by scanning donor and acceptor dinucleotides in
- *            <sub_dsq>, mirroring the scalar p7_GViterbi_SplicedTrace().
+ *            <sub_dsq>, mirroring the scalar p7_GViterbi_SplicedTraceOld().
  *            Emission and transition scores for the reconstruction are read
  *            from the scalar profile <gm_tr>.
  *
@@ -1027,7 +1027,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       if(final_gC == -eslINFINITY) continue;   
       
       p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
-      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
+      p7_GViterbi_SplicedTraceOld(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
         
@@ -1041,7 +1041,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       final_gC = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
        
       p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
-      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
+      p7_GViterbi_SplicedTraceOld(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
 
@@ -1055,7 +1055,7 @@ utest_viterbi_sp(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       final_gC = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       
       p7_Viterbi_SplicedTrace(dsq, pli->vit, gm_tr, signal_scores, otr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
-      p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
+      p7_GViterbi_SplicedTraceOld(dsq, gm_tr, gx, signal_scores, gtr, 1, L_dna_total, k_start, k_end, pli->min_intron, NULL, NULL);
 
       p7_trace_Compare(otr, gtr, 0.0);
 

@@ -1396,7 +1396,7 @@ replay_donors(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_OMX *
  *
  * Purpose:   SSE implementation of the spliced Viterbi traceback that
  *            replays donor updates to find each P state's donor.
- *            See p7_GViterbi_SplicedTraceReplay() for details.
+ *            See p7_GViterbi_SplicedTrace() for details.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if profile is not 1-codon-length.

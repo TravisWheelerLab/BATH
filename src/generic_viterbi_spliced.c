@@ -5,8 +5,8 @@
  * Contents:
  *    1. p7_GViterbi_Spliced()
  *       p7_GViterbi_SplicedChk()
- *    2. p7_GViterbi_SplicedTrace()
- *       p7_GViterbi_SplicedTraceReplay()
+ *    2. p7_GViterbi_SplicedTraceOld()
+ *       p7_GViterbi_SplicedTrace()
  *       p7_GViterbi_SplicedTraceChk()
  *    3. Benchmark driver.
  *    4. Unit tests.
@@ -946,7 +946,7 @@ p7_GViterbi_SplicedChk(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_CH
 }
 
 
-/* Function:  p7_GViterbi_SplicedTrace()
+/* Function:  p7_GViterbi_SplicedTraceOld()
  * Synopsis:  Create a trace for spliced Viterbi 
  *
  * Purpose:   Create a trace that includes the exon(s) and any splice 
@@ -954,6 +954,11 @@ p7_GViterbi_SplicedChk(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_CH
  *            <gx> and calculate the Viterbi score of the spliced sequence.
  *            Returns the filled trace <tr> and optional Viterbi score 
  *            <vitsc>.
+ *
+ *            The donor of each P state is found by searching back from
+ *            the acceptor for a donor whose recomputed score matches
+ *            within tolerance. Kept for reference;
+ *            p7_GViterbi_SplicedTrace() is the traceback in use.
  *
  * Args:      sub_dsq       - nucleotide sequence
  *            gm_tr         - a codon profile.
@@ -974,7 +979,7 @@ p7_GViterbi_SplicedChk(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_CH
  *
  */
 int
-p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
+p7_GViterbi_SplicedTraceOld(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
 {
 
   float const *tsc   = gm_tr->tsc;
@@ -1436,25 +1441,39 @@ replay_donors(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *
 }
 
 
-/* Function:  p7_GViterbi_SplicedTraceReplay()
- * Synopsis:  Spliced Viterbi traceback that replays donor updates
+/* Function:  p7_GViterbi_SplicedTrace()
+ * Synopsis:  Create a trace for spliced Viterbi
  *
- * Purpose:   Same as p7_GViterbi_SplicedTrace(), except for how a P
- *            state's donor is found. Instead of searching back through
- *            earlier rows for a donor whose score matches, it replays
- *            the fill's donor updates for the one model column up to
- *            the acceptor (see replay_donors()), which gives the donor
- *            that produced the P state score. Of equal scores the
- *            nearer donor is used.
+ * Purpose:   Create a trace that includes the exon(s) and any splice
+ *            site(s) from the filled translated spliced viterbi matrix
+ *            <gx> and calculate the Viterbi score of the spliced sequence.
+ *            Returns the filled trace <tr> and optional Viterbi score
+ *            <vitsc>.
  *
- * Args:      as p7_GViterbi_SplicedTrace()
+ *            The donor of each P state is found by replaying the fill's
+ *            donor updates for the one model column up to the acceptor
+ *            (see replay_donors()), which gives the donor that produced
+ *            the P state score. Of equal scores the nearer donor is used.
+ *
+ * Args:      sub_dsq       - nucleotide sequence
+ *            gm_tr         - a codon profile.
+ *            gx            - filled spliced viterbi DP matrix
+ *            signal_scores - scores for splice site signals
+ *            tr            - trace to fill
+ *            i_start       - start position on the <sub_dsq>
+ *            i_end         - end position on the <sub_dsq>
+ *            k_start       - start position on the <gm_tr>
+ *            k_end         - end position on the <gm_tr>
+ *            min_intron    - minimum intron length
+ *            vitsc         - optional return Viterbi score
+ *            max_drop      - optional returned x-drop signal
  *
  * Return:    <eslOK> on success.
  *            <eslFAIL> if even the optimal path has zero probability;
  *            in this case, the trace is set blank (<tr->N = 0>).
  */
 int
-p7_GViterbi_SplicedTraceReplay(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
+p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
 {
 
   float const *tsc   = gm_tr->tsc;
@@ -1743,7 +1762,7 @@ replay_donors_chk(const SPLICED_CHK *sc, int acc_i, int kk, float *ret_sc, int *
 /* Function:  p7_GViterbi_SplicedTraceChk()
  * Synopsis:  Spliced Viterbi traceback from a checkpointed matrix
  *
- * Purpose:   Same as p7_GViterbi_SplicedTraceReplay(), for a matrix
+ * Purpose:   Same as p7_GViterbi_SplicedTrace(), for a matrix
  *            filled by p7_GViterbi_SplicedChk() with the same arguments.
  *            The trace runs from the last block back to the first,
  *            computing each block it passes through again from its
@@ -1753,7 +1772,7 @@ replay_donors_chk(const SPLICED_CHK *sc, int acc_i, int kk, float *ret_sc, int *
  *            The M state scores on the trace are recorded as it goes,
  *            for <max_drop>.
  *
- * Args:      as p7_GViterbi_SplicedTraceReplay(), with <cx> and <cv> in
+ * Args:      as p7_GViterbi_SplicedTrace(), with <cx> and <cv> in
  *            place of <gx>, plus <acc_iv>, <don_iv>, <global_start> and
  *            <global_end> as passed to p7_GViterbi_SplicedChk(), for
  *            computing blocks again.
@@ -2159,10 +2178,10 @@ main(int argc, char **argv)
 
 /* utest_compare_traces():
  *
- * Trace the filled matrix <gx> with p7_GViterbi_SplicedTraceReplay()
- * into <tr_replay> and require the same states, positions, splice codon
- * phases and Viterbi score as <tr_search>, which the caller traced with
- * p7_GViterbi_SplicedTrace(). Leaves both traces empty for reuse.
+ * Trace the filled matrix <gx> with p7_GViterbi_SplicedTraceOld() into
+ * <tr_search> and with p7_GViterbi_SplicedTrace() into <tr_replay>, and
+ * require the same states, positions, splice codon phases and Viterbi
+ * score. Leaves both traces empty for reuse.
  */
 static void
 utest_compare_traces(ESL_DSQ *dsq, P7_FS_PROFILE *gm_tr, P7_GMX *gx, float *signal_scores,
@@ -2172,8 +2191,8 @@ utest_compare_traces(ESL_DSQ *dsq, P7_FS_PROFILE *gm_tr, P7_GMX *gx, float *sign
   int   z;
 
   p7_trace_Reuse(tr_search);
-  p7_GViterbi_SplicedTrace      (dsq, gm_tr, gx, signal_scores, tr_search, 1, L, 1, M, min_intron, &sc_search, NULL);
-  p7_GViterbi_SplicedTraceReplay(dsq, gm_tr, gx, signal_scores, tr_replay, 1, L, 1, M, min_intron, &sc_replay, NULL);
+  p7_GViterbi_SplicedTraceOld      (dsq, gm_tr, gx, signal_scores, tr_search, 1, L, 1, M, min_intron, &sc_search, NULL);
+  p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr_replay, 1, L, 1, M, min_intron, &sc_replay, NULL);
 
   if (tr_search->N != tr_replay->N) esl_fatal("%s: replay trace length %d != search trace length %d", msg, tr_replay->N, tr_search->N);
   for (z = 0; z < tr_search->N; z++)
@@ -2193,7 +2212,7 @@ utest_compare_traces(ESL_DSQ *dsq, P7_FS_PROFILE *gm_tr, P7_GMX *gx, float *sign
  * every row as the full matrix <gx>, which the caller filled with
  * p7_GViterbi_Spliced() and the same <global_start>, <global_end>. If
  * the final C state is reachable, trace both with
- * p7_GViterbi_SplicedTraceReplay() and p7_GViterbi_SplicedTraceChk()
+ * p7_GViterbi_SplicedTrace() and p7_GViterbi_SplicedTraceChk()
  * and require the same trace, Viterbi score and max_drop.
  */
 static void
@@ -2221,7 +2240,7 @@ utest_compare_chk(ESL_DSQ *dsq, P7_FS_PROFILE *gm_tr, P7_GMX *gx, float *signal_
 
   if (gx->xmx[L*p7G_NXCELLS+p7G_C] != -eslINFINITY)
     {
-      if (p7_GViterbi_SplicedTraceReplay(dsq, gm_tr, gx, signal_scores, tr_full, 1, L, 1, M, min_intron, &sc_full, &drop_full) != eslOK)
+      if (p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr_full, 1, L, 1, M, min_intron, &sc_full, &drop_full) != eslOK)
         esl_fatal("%s: replay trace failed", msg);
       if (p7_GViterbi_SplicedTraceChk(dsq, gm_tr, cx, cv, acc_iv, don_iv, signal_scores, tr_chk, 1, L, 1, M, min_intron, global_start, global_end, &sc_chk, &drop_chk) != eslOK)
         esl_fatal("%s: checkpointed trace failed (block size %d)", msg, blockR);

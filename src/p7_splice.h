@@ -277,8 +277,8 @@ extern void p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli);
 
 /* generic_viterbi_spliced.c */
 extern int p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *gx, P7_IVX *acc_iv, P7_IVX *don_iv, float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
+extern int p7_GViterbi_SplicedTraceOld(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
 extern int p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
-extern int p7_GViterbi_SplicedTraceReplay(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
 extern int p7_GViterbi_SplicedChk(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_CHKGMX *cx, P7_CHKIVX *cv, P7_IVX *acc_iv, P7_IVX *don_iv, const float *signal_scores, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end);
 extern int p7_GViterbi_SplicedTraceChk(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_CHKGMX *cx, P7_CHKIVX *cv, P7_IVX *acc_iv, P7_IVX *don_iv, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end, float *vitsc, float *max_drop);
 

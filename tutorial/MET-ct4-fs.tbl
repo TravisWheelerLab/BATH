@@ -1,0 +1,12 @@
+# hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to    E-value  score  bias   PID  shifts  stops CIGAR
+#------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ------- ------ ---------------------
+       1 seq1                 -          metC                 -               409        12       403      35613     34872     33687   6.6e-52  169.9   0.6 30.67      11      3 30M3I43M1B37M1F56M1F165M1B24M3I44M2F22M3I32M1F124M9D50M1F82M9I57M1B42M2B6M3I78M3I32M2F28M9D84M2B58M3I57M
+       1 seq1                 -          metG                 -               458         9       456      35613     18491     19820   7.7e-44  143.3  46.8 32.38      13      6 51M1B17M3I63M2B112M1B2M3I219M2B4M3I21M2B19M15D18M1B10M1F94M1B8M2B154M1B50M3I15M3I321M2B5M2B45M3I18M1B65M
+#
+# Program:         bathsearch
+# Query file:      MET-ct4.bhmm
+# Target file:     target-MET.fa
+# Option settings: /home/gkrause/git/BATH/src/bathsearch --fs -o MET-ct4-fs.out --tblout MET-ct4-fs.tbl --cigar --ct 4 MET-ct4.bhmm target-MET.fa 
+# Current dir:     /home/gkrause/git/BATH/tutorial
+# Date:            Sun Nov 22 09:49:22 2026
+# [ok]

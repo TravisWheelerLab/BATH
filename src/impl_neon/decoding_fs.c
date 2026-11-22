@@ -33,11 +33,11 @@
  *            <p7_Backward_Frameshift()>), overwrites <fwd> with the posterior
  *            decoding matrix.
  *
- *            At each row i, all posterior probabilities (M_C0..M_C5, I, N, J, C)
- *            are normalized to sum to 1 using a per-row denominator, exactly as in
- *            the generic <p7_GDecoding_Frameshift()>.  Only M_C0 and I contribute
- *            to the denominator (D states are zero; M_C1..C5 are normalized but do
- *            not add to the denominator).
+ *            Each value at row i is the posterior probability that the
+ *            state's emission ends at nucleotide i (M_C0..M_C5, I, N, J,
+ *            C; D is zero). Emissions span 1-5 nucleotides, so the values
+ *            at one row do not sum to one; over all rows they sum to the
+ *            expected number of emissions.
  *
  *            Scale factors are handled via precomputed cumulative log products
  *            log_sfwd[i] and log_sbck[i].  N/J/C cross-row contributions
@@ -62,9 +62,8 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
   float *log_sbck = NULL;
   float  log_inv_Z;
   float  factor_mdi, factor_njc;
-  float32x4_t scv, dv;
+  float32x4_t scv;
   float32x4_t zerov    = vdupq_n_f32(0.0f);
-  float  raw_denom;
   float32x4_t *dpc, *dbv;
   float32x4_t  fI, fC[6], bM, bI;
   /* Circular lag buffer depth 4: nlag[i%4] = fwd_N(i) saved before overwrite */
@@ -74,7 +73,7 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
   float  N_odds = om_fs->xf[p7O_N][p7O_LOOP];
   float  J_odds = om_fs->xf[p7O_J][p7O_LOOP];
   float  C_odds = om_fs->xf[p7O_C][p7O_LOOP];
-  float  N_pp, J_pp, C_pp, inv_denom;
+  float  N_pp, J_pp, C_pp;
   int    status;
 
   ESL_ALLOC(log_sfwd, sizeof(float) * (L + 2));
@@ -130,8 +129,7 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
 
       if (isinf(factor_mdi)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
 
-      /* ------- Pass 1: compute raw M/I products, accumulate denom ------- */
-      dv  = zerov;
+      /* M/I products f * b; scaled to posteriors below */
       dpc = fwd->dpf[i];
       dbv = bck->dpf[i];
 
@@ -148,16 +146,9 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
           dpc[q * p7X_NSCELLS_FS + p7X_FS_I] = vmulq_f32(fI, bI);
           for (c = 0; c < 6; c++)
             dpc[q * p7X_NSCELLS_FS + p7X_FS_M + c] = vmulq_f32(fC[c], bM);
-
-          /* Only C0 and I contribute to the per-row normalization denominator */
-          dv = vaddq_f32(dv, vaddq_f32(dpc[q * p7X_NSCELLS_FS + p7X_FS_M],
-                                        dpc[q * p7X_NSCELLS_FS + p7X_FS_I]));
         }
 
-      /* Horizontal sum of dv to get scalar raw MDI denom */
-      esl_neon_hsum_float((esl_neon_128f_t){ .f32x4 = dv }, &raw_denom);
-
-      /* N, J, C contributions to denominator */
+      /* N, J, C posteriors */
       if (i > 2) {
         factor_njc = expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
         N_pp = fN3 * bck_N * N_odds * factor_njc;
@@ -169,22 +160,20 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
         J_pp = 0.0f;
         C_pp = 0.0f;
       }
-      inv_denom = 1.0f / (raw_denom * factor_mdi + N_pp + J_pp + C_pp);
+      if (isinf(N_pp + J_pp + C_pp)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
 
-      if(isinf(inv_denom)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
-
-      /* ------- Pass 2: normalize all M/I vectors ------- */
-      scv = vmovq_n_f32(factor_mdi * inv_denom);
+      /* Scale the M/I products by the row factor to get posteriors */
+      scv = vmovq_n_f32(factor_mdi);
       for (q = 0; q < Q; q++)
         for (c = 0; c < p7X_NSCELLS_FS; c++)
           fwd->dpf[i][q * p7X_NSCELLS_FS + c] = vmulq_f32(fwd->dpf[i][q * p7X_NSCELLS_FS + c], scv);
 
-      /* Normalized special states */
+      /* Special states */
       fwd->xmx[i*p7X_NXCELLS + p7X_E] = 0.0f;
       fwd->xmx[i*p7X_NXCELLS + p7X_B] = 0.0f;
-      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp * inv_denom;
-      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp * inv_denom;
-      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp * inv_denom;
+      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp;
+      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp;
+      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp;
     }
 
   free(log_sfwd);
@@ -498,197 +487,122 @@ main(int argc, char **argv)
 #include "esl_randomseq.h"
 
 /* utest_decoding_fs()
- * Compare p7_Decoding_Frameshift() against the generic p7_GDecoding_Frameshift().
- * Both are given the same sequence and profile.  We run the generic full-matrix
- * forward/backward to produce a generic PP matrix (gx1), and the NEON full-matrix
- * forward/backward to produce a NEON PP matrix (fwd).  We compare the special-state
- * posteriors (N, J, C per row) between the two.
+ * Compare p7_Decoding_Frameshift() against the generic
+ * p7_GDecoding_Frameshift() on <N> random DNA sequences of length <L>,
+ * as utest_decoding() does for the standard model. Each sequence is
+ * decoded with the generic and the NEON full-matrix Forward/Backward,
+ * and the two posterior matrices are compared within the relative
+ * <tolerance>.
  */
 static void
-utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_CODONTABLE *codon_table, int M, int N)
+utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N, float tolerance)
 {
-  int  i, j;
-  int  curr_L;
   char           *msg    = "decoding fs unit test failed";
   P7_HMM         *hmm    = NULL;
-  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
   P7_FS_PROFILE  *gm_fs5 = p7_profile_fs_Create(M, abcAA, 5);
   P7_FS_OPROFILE *om_fs5 = p7_fs_oprofile_Create(M, abcAA, 5);
-  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
-  ESL_DSQ        *dsq    = NULL;
-  P7_TRACE       *tr     = p7_trace_Create();
-  P7_GMX         *gx1    = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
-  P7_GMX         *gx2    = p7_gmx_Create(M, M, M, p7G_NSCELLS);
+  ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_GMX         *gxf    = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
+  P7_GMX         *gxb    = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX         *gxpp   = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
   P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
-  P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
-  P7_OMX         *bck    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
-  P7_GMX         *gxpp   = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
+  P7_OMX         *fwd    = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS);
+  P7_OMX         *bck    = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS);
   float           fsc, bsc;
-  float           tolerance;
 
-  tolerance = (p7_FLogsumError(-0.4, -0.5) > 0.0001) ? 0.2f : 0.001f;
-
-  p7_hmm_Sample(r, M, abcAA, &hmm);
-  p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
-  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, M, p7_LOCAL);
-  p7_fs_oprofile_Convert(gm_fs5, om_fs5);
-  p7_fs_oprofile_ReconfigLength(om_fs5, M);
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)                                  != eslOK) esl_fatal(msg);
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL)      != eslOK) esl_fatal(msg);
+  if (p7_fs_oprofile_Convert(gm_fs5, om_fs5)                            != eslOK) esl_fatal(msg);
+  if (p7_fs_oprofile_ReconfigLength(om_fs5, L/3)                        != eslOK) esl_fatal(msg);
 
   while (N--)
     {
-      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
-      curr_L = sq->n * 3;
+      if (esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq)                 != eslOK) esl_fatal(msg);
 
-      if (dsq != NULL) free(dsq);
-      if ((dsq = malloc(sizeof(ESL_DSQ) * (curr_L + 2))) == NULL) esl_fatal("malloc failed");
+      /* generic: gxf becomes the posterior matrix */
+      if (p7_GForward_Frameshift (dsq, L, gm_fs5, gxf, iv5, &fsc)       != eslOK) esl_fatal(msg);
+      if (p7_GBackward_Frameshift(dsq, L, gm_fs5, gxb, iv5, &bsc)       != eslOK) esl_fatal(msg);
+      if (p7_GDecoding_Frameshift(gm_fs5, gxf, gxb)                     != eslOK) esl_fatal(msg);
 
-      j = 1;
-      for (i = 1; i <= sq->n; i++) {
-        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq + j);
-        j += 3;
-      }
+      /* NEON: fwd becomes the posterior matrix */
+      if (p7_Forward_Frameshift (dsq, L, om_fs5, fwd, ov5, &fsc)        != eslOK) esl_fatal(msg);
+      if (p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc)   != eslOK) esl_fatal(msg);
+      if (p7_Decoding_Frameshift(om_fs5, fwd, bck)                      != eslOK) esl_fatal(msg);
+      if (p7_omx_FDeconvert(fwd, gxpp)                                  != eslOK) esl_fatal(msg);
 
-      p7_fs_oprofile_ReconfigLength(om_fs5, sq->n);
-      p7_fs_ReconfigLength(gm_fs5, sq->n);
-
-      /* Generic reference: p7_GDecoding_Frameshift overwrites gx1 with PP  */
-      p7_gmx_GrowTo(gx1, M, curr_L, curr_L);
-      p7_gmx_GrowTo(gx2, M, curr_L, curr_L);
-      p7_gmx_GrowTo(gxpp, M, curr_L, curr_L);
-      p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
-
-      p7_GForward_Frameshift (dsq, curr_L, gm_fs5, gx1, iv5, &fsc);
-      p7_GBackward_Frameshift(dsq, curr_L, gm_fs5, gx2, iv5, &bsc);
-      p7_GDecoding_Frameshift(gm_fs5, gx1, gx2);   /* gx1 is now the PP matrix */
-
-      /* NEON under test: p7_Decoding_Frameshift overwrites fwd with PP  */
-      p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
-
-      if (p7_Forward_Frameshift (dsq, curr_L, om_fs5, fwd, ov5, &fsc) == eslERANGE) continue;
-      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, ov5, &bsc) == eslERANGE) continue;
-      p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* fwd is now the PP matrix */
-
-      /* --- Deconvert NEON PP to generic layout and compare --- */
-      p7_omx_FDeconvert(fwd, gxpp);
-      if (p7_gmx_Compare(gxpp, gx1, tolerance) != eslOK) esl_fatal(msg);
+      if (p7_gmx_Compare(gxpp, gxf, tolerance)                          != eslOK) esl_fatal(msg);
     }
 
   free(dsq);
-  esl_sq_Destroy(sq);
   p7_hmm_Destroy(hmm);
-  p7_gmx_Destroy(gx1);
-  p7_gmx_Destroy(gx2);
+  p7_gmx_Destroy(gxf);
+  p7_gmx_Destroy(gxb);
   p7_gmx_Destroy(gxpp);
   p7_ivx_Destroy(iv5);
   p7_oivx_Destroy(ov5);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bck);
-  p7_trace_Destroy(tr);
-  p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_fs5);
   p7_fs_oprofile_Destroy(om_fs5);
 }
 
 static void
-utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, P7_CODONTABLE *codon_table, int M, int N)
+utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N)
 {
-  int  i,j;
-  int  curr_L;
+  char           *msg    = "domain def fs unit test failed";
   P7_HMM         *hmm    = NULL;
-  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
   P7_FS_PROFILE  *gm_fs3 = p7_profile_fs_Create(M, abcAA, 3);
   P7_FS_OPROFILE *om_fs3 = p7_fs_oprofile_Create(M, abcAA, 3);
-  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
-  ESL_DSQ        *dsq    = NULL;
-  P7_TRACE       *tr     = p7_trace_Create();
-  P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, M);
-  P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
-  P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, M, p7G_NSCELLS);
-  P7_GMX         *bgx    = p7_gmx_Create(M, PARSER_ROWS_BWD, M, p7G_NSCELLS);
+  ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, L);
+  P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, L);
+  P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, L, p7G_NSCELLS);
+  P7_GMX         *bgx    = p7_gmx_Create(M, PARSER_ROWS_BWD, L, p7G_NSCELLS);
   P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS);
   P7_OIVX        *ov3    = p7_oivx_Create(M, p7P_3CODONS);
-  P7_DOMAINDEF   *oddef  = NULL;
-  P7_DOMAINDEF   *gddef  = NULL;
-  float tolerance;
-  int status;
+  P7_DOMAINDEF    oddef, gddef;
+  float           tolerance;
+  int             i;
 
-  float fsc3, bsc3;
-  float generic_fsc3, generic_bsc3;
+  if (p7_FLogsumError(-0.4, -0.5) > 0.0001) tolerance = 1.0;    /* weaker test against generic   */
+  else                                      tolerance = 0.001;  /* stronger test: FLogsum() is in slow exact mode. */
 
-  if (p7_FLogsumError(-0.4, -0.5) > 0.0001) tolerance = 1.0;  /* weaker test against generic   */
-  else tolerance = 0.001;   /* stronger test: FLogsum() is in slow exact mode. */
+  oddef.mocc = malloc(sizeof(float) * (L+1));
+  oddef.btot = malloc(sizeof(float) * (L+1));
+  oddef.etot = malloc(sizeof(float) * (L+1));
+  gddef.mocc = malloc(sizeof(float) * (L+1));
+  gddef.btot = malloc(sizeof(float) * (L+1));
+  gddef.etot = malloc(sizeof(float) * (L+1));
 
-  ESL_ALLOC(oddef, sizeof(P7_DOMAINDEF));
-  ESL_ALLOC(gddef, sizeof(P7_DOMAINDEF));
-
-  p7_hmm_Sample(r, M, abcAA, &hmm);
-  p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
-  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, M, p7_LOCAL);
-  p7_fs_oprofile_Convert(gm_fs3, om_fs3);
-  p7_fs_oprofile_ReconfigLength(om_fs3, M);
+  if (p7_hmm_Sample(r, M, abcAA, &hmm)                             != eslOK) esl_fatal(msg);
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, L/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+  if (p7_fs_oprofile_Convert(gm_fs3, om_fs3)                       != eslOK) esl_fatal(msg);
+  if (p7_fs_oprofile_ReconfigLength(om_fs3, L/3)                   != eslOK) esl_fatal(msg);
 
   while (N--)
     {
-      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
-      curr_L = sq->n*3;
+      if (esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq)                      != eslOK) esl_fatal(msg);
 
-      if(dsq != NULL) free(dsq);
-      if ((dsq = malloc(sizeof(ESL_DSQ) *(curr_L+2))) == NULL)  esl_fatal("malloc failed");
+      if (p7_ForwardParser_Frameshift_3Codons (dsq, L, om_fs3, fwd,      ov3, NULL) != eslOK) esl_fatal(msg);
+      if (p7_BackwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd, bwd, ov3, NULL) != eslOK) esl_fatal(msg);
+      if (p7_DomainDecoding_Frameshift(om_fs3, fwd, bwd, &oddef)             != eslOK) esl_fatal(msg);
 
-      j = 1;
-      for(i = 1; i <= sq->n; i++) {
-        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq+j);
-        j+=3;
-      }
+      if (p7_GForwardParser_Frameshift_3Codons (dsq, L, gm_fs3, fgx, iv, NULL) != eslOK) esl_fatal(msg);
+      if (p7_GBackwardParser_Frameshift_3Codons(dsq, L, gm_fs3, bgx, iv, NULL) != eslOK) esl_fatal(msg);
+      if (p7_GDomainDecoding_Frameshift(gm_fs3, fgx, bgx, &gddef)            != eslOK) esl_fatal(msg);
 
-      p7_fs_oprofile_ReconfigLength(om_fs3, sq->n);
-      p7_fs_ReconfigLength(gm_fs3, sq->n);
-
-      p7_omx_GrowTo(fwd, M, PARSER_ROWS_FWD, curr_L);
-      p7_omx_GrowTo(bwd, M, PARSER_ROWS_BWD, curr_L);
-
-      if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, ov3, &fsc3)                      == eslERANGE) continue;
-      if (p7_BackwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, fwd, bwd, ov3, &generic_fsc3) == eslERANGE) continue;
-
-      oddef->mocc = oddef->btot = oddef->etot = NULL;
-      ESL_ALLOC(oddef->mocc, sizeof(float) * (curr_L+1));
-      ESL_ALLOC(oddef->btot, sizeof(float) * (curr_L+1));
-      ESL_ALLOC(oddef->etot, sizeof(float) * (curr_L+1));
-
-      p7_DomainDecoding_Frameshift(om_fs3, fwd, bwd, oddef);
-
-      p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
-      p7_gmx_GrowTo(bgx, M, PARSER_ROWS_BWD, curr_L);
-
-      p7_GForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv, &bsc3);
-      p7_GBackwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, bgx, iv, &generic_bsc3);
-
-      gddef->mocc = gddef->btot = gddef->etot = NULL;
-      ESL_ALLOC(gddef->mocc, sizeof(float) * (curr_L+1));
-      ESL_ALLOC(gddef->btot, sizeof(float) * (curr_L+1));
-      ESL_ALLOC(gddef->etot, sizeof(float) * (curr_L+1));
-      p7_GDomainDecoding_Frameshift(gm_fs3, fgx, bgx, gddef);
-
-      for(i = 0; i <= curr_L; i++) {
-        if(fabs(oddef->mocc[i] - gddef->mocc[i]) > tolerance) esl_fatal("domain def fs unit test failed at mocc");
-        if(fabs(oddef->btot[i] - gddef->btot[i]) > tolerance) esl_fatal("domain def fs unit test failed at btot");
-        if(fabs(oddef->etot[i] - gddef->etot[i]) > tolerance) esl_fatal("domain def fs unit test failed at etot");
-      }
-
-      free(oddef->mocc);
-      free(oddef->btot);
-      free(oddef->etot);
-      free(gddef->mocc);
-      free(gddef->btot);
-      free(gddef->etot);
+      for (i = 0; i <= L; i++)
+        {
+          if (fabs(oddef.mocc[i] - gddef.mocc[i]) > tolerance) esl_fatal("domain def fs unit test failed at mocc");
+          if (fabs(oddef.btot[i] - gddef.btot[i]) > tolerance) esl_fatal("domain def fs unit test failed at btot");
+          if (fabs(oddef.etot[i] - gddef.etot[i]) > tolerance) esl_fatal("domain def fs unit test failed at etot");
+        }
     }
 
+  free(oddef.mocc);  free(oddef.btot);  free(oddef.etot);
+  free(gddef.mocc);  free(gddef.btot);  free(gddef.etot);
   free(dsq);
-  free(oddef);
-  free(gddef);
-  esl_sq_Destroy(sq);
   p7_hmm_Destroy(hmm);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bwd);
@@ -696,13 +610,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
   p7_gmx_Destroy(bgx);
   p7_ivx_Destroy(iv);
   p7_oivx_Destroy(ov3);
-  p7_trace_Destroy(tr);
-  p7_profile_Destroy(gm);
   p7_profile_fs_Destroy(gm_fs3);
   p7_fs_oprofile_Destroy(om_fs3);
-
-ERROR:
-  return;
 }
 #endif /*p7DECODING_FS_TESTDRIVE*/
 
@@ -728,12 +637,14 @@ ERROR:
 #include "impl_neon.h"
 
 static ESL_OPTIONS options[] = {
-  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
-  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
-  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
-  { "-M",        eslARG_INT,    "145", NULL, NULL,  NULL,  NULL, NULL, "size of random models to sample",                0 },
-  { "-N",        eslARG_INT,    "100", NULL, NULL,  NULL,  NULL, NULL, "number of random sequences to sample",           0 },
-  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  /* name  type         default  env   range togs  reqs  incomp  help                                         docgrp */
+  { "-h",  eslARG_NONE,    FALSE, NULL, NULL, NULL, NULL, NULL, "show help and usage",                            0 },
+  { "-s",  eslARG_INT,     "42",  NULL, NULL, NULL, NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-t",  eslARG_REAL,  "0.01",  NULL, NULL, NULL, NULL, NULL, "relative tolerance for the decoding test",       0 },
+  { "-L",  eslARG_INT,    "120",  NULL, NULL, NULL, NULL, NULL, "length of random DNA seqs (nucleotides)",        0 },
+  { "-M",  eslARG_INT,     "40",  NULL, NULL, NULL, NULL, NULL, "length of sampled test profile",                 0 },
+  { "-N",  eslARG_INT,     "10",  NULL, NULL, NULL, NULL, NULL, "number of random test sequences",                0 },
+  { 0,0,0,0,0,0,0,0,0,0},
 };
 
 static char usage[]  = "[-options]";
@@ -749,28 +660,27 @@ main(int argc, char **argv)
   ESL_ALPHABET   *abcDNA = NULL;
   P7_BG          *bgAA   = NULL;
   P7_BG          *bgDNA  = NULL;
-  P7_CODONTABLE  *ct     = NULL;
   int             M      = esl_opt_GetInteger(go, "-M");
   int             N      = esl_opt_GetInteger(go, "-N");
+  int             L      = esl_opt_GetInteger(go, "-L");
+  float           tol    = esl_opt_GetReal   (go, "-t");
 
   if ((abcDNA = esl_alphabet_Create(eslDNA))      == NULL)  esl_fatal("failed to create alphabet");
   if ((bgDNA = p7_bg_Create(abcDNA))              == NULL)  esl_fatal("failed to create null model");
   if ((abcAA = esl_alphabet_Create(eslAMINO))     == NULL)  esl_fatal("failed to create alphabet");
   if ((bgAA = p7_bg_Create(abcAA))                == NULL)  esl_fatal("failed to create null model");
   if ((gcode  = esl_gencode_Create(abcDNA,abcAA)) == NULL)  esl_fatal("failed to create gencode");
-  if ((ct     = p7_codontable_Create(gcode))      == NULL)  esl_fatal("failed to create codon table");
 
   p7_FLogsumInit();
 
-  utest_domdef      (r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
-  utest_decoding_fs (r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
+  utest_domdef      (r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N);
+  utest_decoding_fs (r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N, tol);
 
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);
   p7_bg_Destroy(bgDNA);
   p7_bg_Destroy(bgAA);
   esl_gencode_Destroy(gcode);
-  p7_codontable_Destroy(ct);
 
   esl_getopts_Destroy(go);
   esl_randomness_Destroy(r);

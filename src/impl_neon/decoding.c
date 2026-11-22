@@ -356,6 +356,70 @@ utest_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, in
   p7_profile_Destroy(gm);
   p7_hmm_Destroy(hmm);
 }
+
+/* utest_domdecoding()
+ * Compare p7_DomainDecoding() against the generic p7_GDomainDecoding()
+ * on <N> random sequences of length <L>. The domain start, end and
+ * occupancy sums (btot, etot, mocc) must agree within an absolute
+ * tolerance at every position.
+ */
+static void
+utest_domdecoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N)
+{
+  char         *msg  = "domain decoding unit test failed";
+  P7_HMM       *hmm  = NULL;
+  P7_PROFILE   *gm   = NULL;
+  P7_OPROFILE  *om   = NULL;
+  ESL_DSQ      *dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX       *oxf  = p7_omx_Create(M, 0, L);
+  P7_OMX       *oxb  = p7_omx_Create(M, 0, L);
+  P7_GMX       *gxf  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX       *gxb  = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_DOMAINDEF  oddef, gddef;
+  float         tolerance;
+  int           i;
+
+  if (p7_FLogsumError(-0.4, -0.5) > 0.0001) tolerance = 1.0;    /* weaker test against generic   */
+  else                                      tolerance = 0.001;  /* stronger test: FLogsum() is in slow exact mode. */
+
+  oddef.mocc = malloc(sizeof(float) * (L+1));
+  oddef.btot = malloc(sizeof(float) * (L+1));
+  oddef.etot = malloc(sizeof(float) * (L+1));
+  gddef.mocc = malloc(sizeof(float) * (L+1));
+  gddef.btot = malloc(sizeof(float) * (L+1));
+  gddef.etot = malloc(sizeof(float) * (L+1));
+
+  if (p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om) != eslOK) esl_fatal(msg);
+  while (N--)
+    {
+      if (esl_rsq_xfIID(r, bg->f, abc->K, L, dsq)       != eslOK) esl_fatal(msg);
+      if (p7_ForwardParser (dsq, L, om, oxf,      NULL) != eslOK) esl_fatal(msg);
+      if (p7_BackwardParser(dsq, L, om, oxf, oxb, NULL) != eslOK) esl_fatal(msg);
+      if (p7_DomainDecoding(om, oxf, oxb, &oddef)       != eslOK) esl_fatal(msg);
+
+      if (p7_GForward (dsq, L, gm, gxf, NULL)           != eslOK) esl_fatal(msg);
+      if (p7_GBackward(dsq, L, gm, gxb, NULL)           != eslOK) esl_fatal(msg);
+      if (p7_GDomainDecoding(gm, gxf, gxb, &gddef)      != eslOK) esl_fatal(msg);
+
+      for (i = 0; i <= L; i++)
+        {
+          if (fabs(oddef.mocc[i] - gddef.mocc[i]) > tolerance) esl_fatal(msg);
+          if (fabs(oddef.btot[i] - gddef.btot[i]) > tolerance) esl_fatal(msg);
+          if (fabs(oddef.etot[i] - gddef.etot[i]) > tolerance) esl_fatal(msg);
+        }
+    }
+
+  free(oddef.mocc);  free(oddef.btot);  free(oddef.etot);
+  free(gddef.mocc);  free(gddef.btot);  free(gddef.etot);
+  p7_gmx_Destroy(gxf);
+  p7_gmx_Destroy(gxb);
+  p7_omx_Destroy(oxf);
+  p7_omx_Destroy(oxb);
+  free(dsq);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_hmm_Destroy(hmm);
+}
 #endif /*p7DECODING_TESTDRIVE*/
 /*--------------------- end, unit tests -------------------------*/
 
@@ -411,6 +475,7 @@ main(int argc, char **argv)
   p7_FLogsumInit();
 
   utest_decoding(r, abc, bg, M, L, N, tol);
+  utest_domdecoding(r, abc, bg, M, L, N);
 
   esl_getopts_Destroy(go);
   esl_randomness_Destroy(r);

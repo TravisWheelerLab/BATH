@@ -23,6 +23,14 @@
  *            Backward matrices <fwd>, <bck> for the profile aligned 
  *            to that target sequence. The codon posterior decoding 
  *            is overwritten to the <fwd> matrix.
+ *
+ *            Each value at row <i> is the posterior probability that
+ *            the state's emission ends at nucleotide <i>: match <k>
+ *            in total (<C0>) and for each codon length (<C1..C5>),
+ *            insert <k>, and the N, J and C loops. Emissions span
+ *            1-5 nucleotides, so the values at one row do not sum to
+ *            one; over all rows they sum to the expected number of
+ *            emissions.
  *            
  * Args:      gm_fs5 - frameshift codon profile 
  *            fwd   - filled Forward matrix - gets overwritten 
@@ -46,8 +54,7 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
   float overall_sc = p7_FLogsum( bck->xmx[0*p7G_NXCELLS+p7G_N],
                      p7_FLogsum( bck->xmx[1*p7G_NXCELLS+p7G_N],
                                  bck->xmx[2*p7G_NXCELLS+p7G_N]));
-  float        denom;
-  
+
   N0 = fwd->xmx[p7G_NXCELLS*0 + p7G_N];
   J0 = fwd->xmx[p7G_NXCELLS*0 + p7G_J];
   C0 = fwd->xmx[p7G_NXCELLS*0 + p7G_C];
@@ -73,26 +80,25 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
      J3 = J2; J2 = J1; J1 = J0;
 	 C3 = C2; C2 = C1; C1 = C0;
 
-     denom = 0.0;
      /* 0th position in model */    
 	  MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = 0.0;
       MMX_FS(i,0, p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = 0.0;
 
       for (k = 1; k < M; k++)
       {
-        MMX_FS(i,k,p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX_FS(i,k, p7G_C0);
+        MMX_FS(i,k,p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
         MMX_FS(i,k,p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); 
         MMX_FS(i,k,p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
         MMX_FS(i,k,p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
         MMX_FS(i,k,p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
         MMX_FS(i,k,p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);        
 
-        IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc); denom += IMX_FS(i,k); 
+        IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc);
 
         DMX_FS(i,k) = 0.0;
       }
 
-      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX_FS(i,M, p7G_C0); 
+      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
       MMX_FS(i,M, p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
       MMX_FS(i,M, p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
       MMX_FS(i,M, p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
@@ -117,39 +123,13 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
          XMX_FS(i,p7G_C) = expf(C3 + bck->xmx[p7G_NXCELLS*i + p7G_C] + gm_fs5->xsc[p7P_C][p7P_LOOP] - overall_sc);
          
          XMX_FS(i,p7G_J) = expf(J3 + bck->xmx[p7G_NXCELLS*i + p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_sc);
-
-         denom += XMX_FS(i,p7G_N) + XMX_FS(i,p7G_J) + XMX_FS(i,p7G_C);
       }
       else
       {
          XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] - overall_sc);
          XMX_FS(i,p7G_C) = 0.0;
          XMX_FS(i,p7G_J) = 0.0;
-         denom += XMX_FS(i,p7G_N);
       }
-
-        denom = 1.0 / denom;
- 
-        for (k = 1; k < M; k++) { 
-          MMX_FS(i,k, p7G_C0) *= denom; 
-          MMX_FS(i,k, p7G_C1) *= denom;
-          MMX_FS(i,k, p7G_C2) *= denom;
-          MMX_FS(i,k, p7G_C3) *= denom;
-          MMX_FS(i,k, p7G_C4) *= denom;
-          MMX_FS(i,k, p7G_C5) *= denom;
-
-          IMX_FS(i,k) *= denom;
-        }
-        MMX_FS(i,M, p7G_C0) *= denom;
-        MMX_FS(i,M, p7G_C1) *= denom;
-        MMX_FS(i,M, p7G_C2) *= denom;
-        MMX_FS(i,M, p7G_C3) *= denom;
-        MMX_FS(i,M, p7G_C4) *= denom;
-        MMX_FS(i,M, p7G_C5) *= denom;
-
-        XMX_FS(i,p7G_N) *= denom;
-        XMX_FS(i,p7G_C) *= denom;
-        XMX_FS(i,p7G_J) *= denom;
     }
 
   return eslOK;

@@ -487,13 +487,13 @@ The file AMP_N.bhmm will now contain a single HMM, and AMP_N.out will contain ou
 <details><summary>Practice 12: running bathsearch with frameshift-aware alignment</summary>
 <p>
 
-BATH no longer uses frameshift-aware alignment by default but instead requires the --fs flag to activate this alignment mode. The pHMM must also contain frameshift statistics. AMP_N.bhmm from Practice 11 already does, because bathsearch calculates them when it builds a pHMM on the fly. For pHMMs made with bathbuild, that means building with `--fs` (see Practice 1). The following command will run the same search as in Practice 11, but with frameshift-aware alignment and reusing the HMM file created with --hmmout. 
+BATH no longer uses frameshift-aware alignment by default but instead requires the --fs flag to activate this alignment mode. The pHMM must also contain frameshift statistics. For pHMMs made with bathbuild, that means building with `--fs` (see Practice 1). If you built MET.bhmm with `--fs` in Practice 1, MET-ct4.bhmm from Practice 10 has them too, because bathconvert recalculates them for the new codon table. The following command will run the same search as in Practice 10, but with frameshift-aware alignment. 
    
 ```bash
-% bathsearch --fs -o AMP_N-fs.out AMP_N.bhmm target-AMP_N.fa
+% bathsearch --fs --ct 4 -o MET-ct4-fs.out MET-ct4.bhmm target-MET.fa
 ```
    
-If you compare the alignments in AMP_N.out and AMP_N-fs.out you will see that bathsearch with --fs detected and aligned both frameshifts and a stop codon in the target sequence, resulting in a longer alignment with a better e-value. The frameshift and stop codon counts are reported in both the query header and the annotation lines. 
+If you compare the alignments in MET-ct4.out and MET-ct4-fs.out you will see that without --fs each of the two genes is split into three separate hits, while bathsearch with --fs detected and aligned the frameshifts and stop codons in the target sequence, aligning each gene as a single hit with a better e-value. The frameshift and stop codon counts are reported in both the query header and the annotation lines. 
 
 Below are some examples of what frameshift and stop codon columns will look like in the alignment. 
 ```
@@ -508,17 +508,17 @@ Below are some examples of what frameshift and stop codon columns will look like
 You can use the --frameline flag to make it easier to spot frameshifts in alignment.  This flag will add a "FRAME" line to the alignment that will give the translation frame of each codon.
 
 ```bash
-% bathsearch --fs --frameline -o AMP_N-frameline.out AMP_N.bhmm target-AMP_N.fa
+% bathsearch --fs --ct 4 --frameline -o MET-ct4-frameline.out MET-ct4.bhmm target-MET.fa
 ```
-On the following line from AMP_N-frameline.out, you can easily see the stop codon, with frame 0, as well as the frameshift where the frame switches from 3 to 1. 
+On the following line from MET-ct4-frameline.out, you can easily see the frameshift where the frame switches from -2 to -1 (the one nucleotide insertion ACcG), as well as the stop codon TaG, aligned as a match, with frame 0. The negative frame numbers mean that this hit is on the reverse complement strand of the target: frames 1, 2 and 3 are the three reading frames of the forward strand, and frames -1, -2 and -3 are the three reading frames of the reverse complement. This is also why the target coordinates count down (from 34438 to 34366) along the line. 
 
 ```bash
-     AMP_N  98     f    .    .    g    l    d    d    a    f    p    i    e    d    l    d    e    i    l    p    e    l    l    e    n    r     120
-                   f              +         d    +    a    +         i    +         l    d    e         +         e         l         n    +
-                   F    *    s    S    S    D    E    A    Y    A    I    D    L    L    D    E    E    I    L    E    K    L    L    N    K
-      seq1 297    TTT  TGA  AGC  AGC  AGT  GAT  GAG  GCT  TAT  GCA  ATA  GAT  TTA  --G  GAT  GAA  GAA  ATC  CTT  GAA  AAA  TTG  CTC  AAT  AAA    369
-                   3    0    3    3    3    3    3    3    3    3    3    3    3    1    1    1    1    1    1    1    1    1    1    1    1     FRAME
-                   9    3    1    3    5    7    8    8    8    8    8    6    6    9    8    7    7    7    7    7    7    8    8    9    *     PP
+      metC   153     d    d    r    s    l    k    c    l    l    r    s    n    t    r    l    v    h    l    e    s    p    g    s    g     176
+                     +    +              l    k         l    +    r    +         +    r    l    +    +    l         s         +    s    +
+                     N    E    C    N    L    K    I    L    F    R    T    M    S    R    L    I    Y    L    G    S    S    C    S    E
+      seq1 34438    AAT  GAA  TGT  AAC  TTA  AAG  ATA  TTA  TTT  AGA ACcG  ATG  TCA  AGG  TTA  ATC  TAC  TTA  GGA  TCA  TaG  TGT  TCG  GAG    34366
+                    -2   -2   -2   -2   -2   -2   -2   -2   -2   -2   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1    0   -1   -1   -1     FRAME
+                     5    6    7    8    *    *    *    *    *    9    1    2    4    6    7    8    9    9    8    7    6    8    8    8     PP
 ```
 
 </p>
@@ -650,13 +650,14 @@ The --cigar flag can be used to replace the "description of target" column with 
 Using --tblout with --fs will produce two additional columns showing frameshift and stop codon counts. 
 
 ```bash
-% bathsearch --fs --cigar --tblout AMP_N-fs.tbl -o AMP_N-fs.out AMP_N.bhmm target-AMP_N.fa
+% bathsearch --fs --ct 4 --cigar --tblout MET-ct4-fs.tbl -o MET-ct4-fs.out MET-ct4.bhmm target-MET.fa
 ```
 
 ```bash
 # hit ID  target name         accession  query name           accession   hmm len  hmm from    hmm to   seq len  ali from    ali to    E-value  score  bias   PID  shifts  stops CIGAR
 #------- ------------------- ---------- -------------------- ---------- --------- --------- --------- --------- --------- ---------  --------- ------ ----- ----- ------- ------ ---------------------
-       1 seq1                 -          AMP_N                -               134         1       131        411         1       402   1.9e-27   82.8   0.1 46.32       6      1 44M1F39M1B114M9I25M2B19M1B44M1B4M6I30M2B67M
+       1 seq1                 -          metC                 -               409        12       403      35613     34872     33687   6.6e-52  169.9   0.6 30.67      11      3 30M3I43M1B37M1F56M1F165M1B24M3I44M2F22M3I32M1F124M9D50M1F82M9I57M1B42M2B6M3I78M3I32M2F28M9D84M2B58M3I57M
+       1 seq1                 -          metG                 -               458         9       456      35613     18491     19820   7.7e-44  143.3  46.8 32.38      13      6 51M1B17M3I63M2B112M1B2M3I219M2B4M3I21M2B19M15D18M1B10M1F94M1B8M2B154M1B50M3I15M3I321M2B5M2B45M3I18M1B65M
 ```
 The CIGAR string shows insertion frameshifts as either 1F or 2F and deletion frameshifts as either 1B or 2B.
 

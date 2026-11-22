@@ -28,6 +28,12 @@
  *            Given filled forward matrix <fwd> and backward matrix <bck>,
  *            overwrites <fwd> in-place with the posterior decoding matrix.
  *
+ *            Each value at row i is the posterior probability that the
+ *            state's emission ends at nucleotide i (M_C0..M_C5, I, N, J,
+ *            C; D is zero). Emissions span 1-5 nucleotides, so the values
+ *            at one row do not sum to one; over all rows they sum to the
+ *            expected number of emissions.
+ *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> if numeric range is exceeded.
  * Throws:    <eslEMEM> on allocation failure.
@@ -43,9 +49,8 @@ p7_Decoding_Frameshift_sse(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
   float *log_sbck = NULL;
   float  log_inv_Z;
   float  factor_mdi, factor_njc;
-  __m128 scv, dv;
+  __m128 scv;
   __m128 zerov    = _mm_setzero_ps();
-  float  raw_denom;
   __m128 *dpc, *dbv;
   __m128  fI, fC[6], bM, bI;
   /* Circular lag buffer depth 4: nlag[i%4] = fwd_N(i) saved before overwrite */
@@ -55,7 +60,7 @@ p7_Decoding_Frameshift_sse(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
   float  N_odds = om_fs->xf[p7O_N][p7O_LOOP];
   float  J_odds = om_fs->xf[p7O_J][p7O_LOOP];
   float  C_odds = om_fs->xf[p7O_C][p7O_LOOP];
-  float  N_pp, J_pp, C_pp, inv_denom;
+  float  N_pp, J_pp, C_pp;
   int    status;
 
   ESL_ALLOC(log_sfwd, sizeof(float) * (L + 2));
@@ -111,8 +116,7 @@ p7_Decoding_Frameshift_sse(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
 
       if (isinf(factor_mdi)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
 
-      /* ------- Pass 1: compute raw M/I products, accumulate denom ------- */
-      dv  = zerov;
+      /* M/I products f * b; scaled to posteriors below */
       dpc = fwd->dpf[i];
       dbv = bck->dpf[i];
 
@@ -129,18 +133,9 @@ p7_Decoding_Frameshift_sse(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
           dpc[q * p7X_NSCELLS_FS + p7X_FS_I] = _mm_mul_ps(fI, bI);
           for (c = 0; c < 6; c++)
             dpc[q * p7X_NSCELLS_FS + p7X_FS_M + c] = _mm_mul_ps(fC[c], bM);
-
-          /* Only C0 and I contribute to the per-row normalization denominator */
-          dv = _mm_add_ps(dv, _mm_add_ps(dpc[q * p7X_NSCELLS_FS + p7X_FS_M],
-                                          dpc[q * p7X_NSCELLS_FS + p7X_FS_I]));
         }
 
-      /* Horizontal sum of dv to get scalar raw MDI denom */
-      dv = _mm_add_ps(dv, _mm_movehl_ps(dv, dv));
-      dv = _mm_add_ss(dv, _mm_shuffle_ps(dv, dv, _MM_SHUFFLE(0,0,0,1)));
-      raw_denom = _mm_cvtss_f32(dv);
-
-      /* N, J, C contributions to denominator */
+      /* N, J, C posteriors */
       if (i > 2) {
         factor_njc = expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
         N_pp = fN3 * bck_N * N_odds * factor_njc;
@@ -152,22 +147,20 @@ p7_Decoding_Frameshift_sse(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
         J_pp = 0.0f;
         C_pp = 0.0f;
       }
-      inv_denom = 1.0f / (raw_denom * factor_mdi + N_pp + J_pp + C_pp);
+      if (isinf(N_pp + J_pp + C_pp)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
 
-      if (isinf(inv_denom)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
-
-      /* ------- Pass 2: normalize all M/I vectors ------- */
-      scv = _mm_set1_ps(factor_mdi * inv_denom);
+      /* Scale the M/I products by the row factor to get posteriors */
+      scv = _mm_set1_ps(factor_mdi);
       for (q = 0; q < Q; q++)
         for (c = 0; c < p7X_NSCELLS_FS; c++)
           fwd->dpf[i][q * p7X_NSCELLS_FS + c] = _mm_mul_ps(fwd->dpf[i][q * p7X_NSCELLS_FS + c], scv);
 
-      /* Normalized special states */
+      /* Special states */
       fwd->xmx[i*p7X_NXCELLS + p7X_E] = 0.0f;
       fwd->xmx[i*p7X_NXCELLS + p7X_B] = 0.0f;
-      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp * inv_denom;
-      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp * inv_denom;
-      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp * inv_denom;
+      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp;
+      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp;
+      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp;
     }
 
   free(log_sfwd);

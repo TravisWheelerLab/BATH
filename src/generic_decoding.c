@@ -212,6 +212,9 @@ p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P
   float njcp;
   int   i;
 
+  ddef->btot[0] = 0.;
+  ddef->etot[0] = 0.;
+  ddef->mocc[0] = 0.;
   for (i = 1; i <= L; i++)
     {
       ddef->btot[i] = ddef->btot[i-1] + exp(fwd->xmx[(i-1)*p7G_NXCELLS+p7G_B] + bck->xmx[(i-1)*p7G_NXCELLS+p7G_B] - overall_logp);

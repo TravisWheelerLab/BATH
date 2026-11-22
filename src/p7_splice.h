@@ -139,8 +139,8 @@ typedef struct _splice_pipeline
   P7_CHKOIVX *don_ck;   /* rows of the donor scores in don_ov, and both saved at each checkpoint of vit */
 
   P7_CHKOMX  *vit;      /* checkpointed spliced Viterbi matrix                                         */
-  P7_OMX  *fwd;
-  P7_OMX  *bwd;
+  P7_OMX  *fwd;        /* full matrix: Forward, then posteriors, then OA scores for exon scoring       */
+  P7_OMX  *bwd;        /* one-row Backward parsing matrix for p7_BackwardDecoding()                   */
 
   float   *fwd_scale;  /* Forward scale factor and C-state value for each row, saved so   */
   float   *fwd_C;      /*   <fwd> can be reused; both are 0..fwd_alloc-1                  */

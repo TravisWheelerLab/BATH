@@ -813,6 +813,7 @@ extern int (*p7_ForwardParser_Frameshift_5Codons) (const ESL_DSQ *dsq, int L, co
 extern int (*p7_BackwardParser_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 extern int (*p7_Forward_Frameshift)               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern int (*p7_Backward_Frameshift)              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int (*p7_BackwardDecoding_Frameshift)      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,       P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 
 /* fwdback_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
@@ -822,6 +823,7 @@ extern int p7_ForwardParser_Frameshift_5Codons_sse (const ESL_DSQ *dsq, int L, c
 extern int p7_BackwardParser_Frameshift_5Codons_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 extern int p7_Forward_Frameshift_sse               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern int p7_Backward_Frameshift_sse              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int p7_BackwardDecoding_Frameshift_sse      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,       P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 #endif
 
 /* fwdback_fs_avx.c — AVX2 implementations */
@@ -832,6 +834,7 @@ extern int p7_ForwardParser_Frameshift_5Codons_avx (const ESL_DSQ *dsq, int L, c
 extern int p7_BackwardParser_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 extern int p7_Forward_Frameshift_avx               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern int p7_Backward_Frameshift_avx              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int p7_BackwardDecoding_Frameshift_avx      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,       P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 #endif
 
 /* p7_oprofile.c — block management (ISA-independent) */

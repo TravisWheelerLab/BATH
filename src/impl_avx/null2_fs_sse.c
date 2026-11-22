@@ -40,11 +40,13 @@ p7_Null2_fs_ByExpectation_sse(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *nu
   int      Q    = p7O_NQF(M);
   float   *xmx  = pp->xmx;   /* enables use of XMXo(i,s) macro */
   float    norm;
+  float    nemit;   /* expected number of emissions in the envelope */
   __m128  *rp;
   __m128   sv;
   float    xfactor;
   int      amino_offset;
-  int      i, q, x;
+  int      i, q, x, k;
+  union { __m128 v; float p[4]; } u;
 
   /* Determine the amino acid emission row offset in rfv[] */
   if      (om_fs->codon_lengths == 5) amino_offset = p7P_MAXCODONS5;
@@ -76,8 +78,18 @@ p7_Null2_fs_ByExpectation_sse(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *nu
       XMXo(0, p7X_J) += XMXo(i, p7X_J);
     }
 
-  /* Convert those expected #'s to frequencies, to use as posterior weights. */
-  norm = 1.0 / (float) Ld;
+  /* Convert those expected #'s to frequencies, to use as posterior weights.
+   * Each emission ends at one nucleotide, so the expected #'s sum to the
+   * expected number of emissions; it is summed over k = 1..M so that
+   * stripe padding past M is not counted.
+   */
+  nemit = XMXo(0, p7X_N) + XMXo(0, p7X_C) + XMXo(0, p7X_J);
+  for (k = 1; k <= M; k++)
+    {
+      u.v = MMO_FS(pp->dpf[0], (k-1) % Q, p7X_FS_C0); nemit += u.p[(k-1) / Q];
+      u.v = IMO_FS(pp->dpf[0], (k-1) % Q);            nemit += u.p[(k-1) / Q];
+    }
+  norm = 1.0f / nemit;
   sv   = _mm_set1_ps(norm);
   for (q = 0; q < Q; q++)
     {

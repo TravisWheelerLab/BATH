@@ -33,11 +33,11 @@
  *            <p7_Backward_Frameshift()>), overwrites <fwd> with the posterior
  *            decoding matrix.
  *
- *            At each row i, all posterior probabilities (M_C0..M_C5, I, N, J, C)
- *            are normalized to sum to 1 using a per-row denominator, exactly as in
- *            the generic <p7_GDecoding_Frameshift()>.  Only M_C0 and I contribute
- *            to the denominator (D states are zero; M_C1..C5 are normalized but do
- *            not add to the denominator).
+ *            Each value at row i is the posterior probability that the
+ *            state's emission ends at nucleotide i (M_C0..M_C5, I, N, J,
+ *            C; D is zero). Emissions span 1-5 nucleotides, so the values
+ *            at one row do not sum to one; over all rows they sum to the
+ *            expected number of emissions.
  *
  *            Scale factors are handled via precomputed cumulative log products
  *            log_sfwd[i] and log_sbck[i].  N/J/C cross-row contributions
@@ -62,9 +62,8 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
   float *log_sbck = NULL;
   float  log_inv_Z;
   float  factor_mdi, factor_njc;
-  float32x4_t scv, dv;
+  float32x4_t scv;
   float32x4_t zerov    = vdupq_n_f32(0.0f);
-  float  raw_denom;
   float32x4_t *dpc, *dbv;
   float32x4_t  fI, fC[6], bM, bI;
   /* Circular lag buffer depth 4: nlag[i%4] = fwd_N(i) saved before overwrite */
@@ -74,7 +73,7 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
   float  N_odds = om_fs->xf[p7O_N][p7O_LOOP];
   float  J_odds = om_fs->xf[p7O_J][p7O_LOOP];
   float  C_odds = om_fs->xf[p7O_C][p7O_LOOP];
-  float  N_pp, J_pp, C_pp, inv_denom;
+  float  N_pp, J_pp, C_pp;
   int    status;
 
   ESL_ALLOC(log_sfwd, sizeof(float) * (L + 2));
@@ -130,8 +129,7 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
 
       if (isinf(factor_mdi)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
 
-      /* ------- Pass 1: compute raw M/I products, accumulate denom ------- */
-      dv  = zerov;
+      /* M/I products f * b; scaled to posteriors below */
       dpc = fwd->dpf[i];
       dbv = bck->dpf[i];
 
@@ -148,16 +146,9 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
           dpc[q * p7X_NSCELLS_FS + p7X_FS_I] = vmulq_f32(fI, bI);
           for (c = 0; c < 6; c++)
             dpc[q * p7X_NSCELLS_FS + p7X_FS_M + c] = vmulq_f32(fC[c], bM);
-
-          /* Only C0 and I contribute to the per-row normalization denominator */
-          dv = vaddq_f32(dv, vaddq_f32(dpc[q * p7X_NSCELLS_FS + p7X_FS_M],
-                                        dpc[q * p7X_NSCELLS_FS + p7X_FS_I]));
         }
 
-      /* Horizontal sum of dv to get scalar raw MDI denom */
-      esl_neon_hsum_float((esl_neon_128f_t){ .f32x4 = dv }, &raw_denom);
-
-      /* N, J, C contributions to denominator */
+      /* N, J, C posteriors */
       if (i > 2) {
         factor_njc = expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
         N_pp = fN3 * bck_N * N_odds * factor_njc;
@@ -169,22 +160,20 @@ p7_Decoding_Frameshift(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *b
         J_pp = 0.0f;
         C_pp = 0.0f;
       }
-      inv_denom = 1.0f / (raw_denom * factor_mdi + N_pp + J_pp + C_pp);
+      if (isinf(N_pp + J_pp + C_pp)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
 
-      if(isinf(inv_denom)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
-
-      /* ------- Pass 2: normalize all M/I vectors ------- */
-      scv = vmovq_n_f32(factor_mdi * inv_denom);
+      /* Scale the M/I products by the row factor to get posteriors */
+      scv = vmovq_n_f32(factor_mdi);
       for (q = 0; q < Q; q++)
         for (c = 0; c < p7X_NSCELLS_FS; c++)
           fwd->dpf[i][q * p7X_NSCELLS_FS + c] = vmulq_f32(fwd->dpf[i][q * p7X_NSCELLS_FS + c], scv);
 
-      /* Normalized special states */
+      /* Special states */
       fwd->xmx[i*p7X_NXCELLS + p7X_E] = 0.0f;
       fwd->xmx[i*p7X_NXCELLS + p7X_B] = 0.0f;
-      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp * inv_denom;
-      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp * inv_denom;
-      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp * inv_denom;
+      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp;
+      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp;
+      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp;
     }
 
   free(log_sfwd);

@@ -31,6 +31,12 @@
  *            its rows are numbered <1..Ld>, for envelope <ienv..jenv>
  *            of length <Ld=jenv-ienv+1>.
  *
+ *            The posteriors at row <i> are those of emissions ending
+ *            at nucleotide <i> (<p7_GDecoding_Frameshift()>), so their
+ *            total over the envelope is the expected number of
+ *            emissions. The state weights are each state's share of
+ *            that total.
+ *
  * Args:      gm_fs5 - profile, in any mode, target length model set to <L>
  *            pp    - posterior prob matrix, for <gm_fs5> against domain envelope <dsq+i-1> (offset)
  *            null2 - RETURN: null2 odds ratios per residue; <0..Kp-1>; caller allocated space
@@ -38,7 +44,7 @@
  * Returns:   <eslOK> on success; <null2> contains the null2 scores. The 0
  *            row of <pp> has been used as temp space, and happens to contain
  *            the expected frequency that each M,I,N,C,J state is used in this
- *            <pp> matrix to generate residues.
+ *            <pp> matrix to generate emissions.
  *
  * Throws:    (no abnormal error conditions)
  */
@@ -50,6 +56,7 @@ p7_GNull2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2
   float  **dp     = pp->dp;
   float   *xmx    = pp->xmx;
   float    xfactor;
+  float    nemit;               /* expected number of emissions in the envelope */
   int      i;			/* over offset envelope dsq positions 1..Ld  */
   int      k;			/* over model M states 1..M, I states 1..M-1 */
   int      x;
@@ -67,14 +74,18 @@ p7_GNull2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2
   }
  
   /* Convert those expected #'s to log frequencies; these we'll use as
-   * the log posterior weights.
+   * the log posterior weights. Each emission ends at one nucleotide, so
+   * the expected #'s sum to the expected number of emissions.
    */
-  
+  nemit = XMX_FS(0,p7G_N) + XMX_FS(0,p7G_C) + XMX_FS(0,p7G_J);
+  for (k = 1; k <= M; k++)
+    nemit += MMX_FS(0,k,p7G_C0) + IMX_FS(0,k);
+
   esl_vec_FLog(pp->dp[0], (M+1)*p7G_NSCELLS_FS);
   esl_vec_FLog(pp->xmx,   p7G_NXCELLS);  
 
-  esl_vec_FIncrement(pp->dp[0], (M+1)*p7G_NSCELLS_FS, -log((float)Ld));
-  esl_vec_FIncrement(pp->xmx,   p7G_NXCELLS,       -log((float)Ld)); 
+  esl_vec_FIncrement(pp->dp[0], (M+1)*p7G_NSCELLS_FS, -logf(nemit));
+  esl_vec_FIncrement(pp->xmx,   p7G_NXCELLS,       -logf(nemit)); 
 
   /* Calculate null2's log odds emission probabilities, by taking
    * posterior weighted sum over all emission vectors used in paths

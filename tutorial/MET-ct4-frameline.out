@@ -1,0 +1,324 @@
+# bathsearch :: search protein profile(s) against DNA sequence database
+# BATH 2.0 (May 2026); https://github.com/TravisWheelerLab/BATH
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query HMM file:                                MET-ct4.bhmm
+# target sequence database:                      target-MET.fa
+# codon translation table:                       4
+# output directed to file:                       MET-ct4-frameline.out
+# Use the frameshift aware algorithms
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       metC  [M=409]
+Description: Cystathionine beta-lyase
+Scores for complete hits:
+    E-value  score  bias  Sequence  start    end  shifts  stops  Description
+    ------- ------ -----  --------  -----  -----  ------  -----  -----------
+    6.6e-52  169.9   0.6  seq1      34872  33687      11      3  
+
+
+Annotation for each hit (and alignments):
+>> seq1  
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to    shifts  stops    sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ------  ----- ---------   ----
+ !  169.9   0.6   6.6e-52         12       403 ..     34872     33687 ..     11      3     35613   2.23
+
+  Alignment:
+  score: 169.9 bits
+      metC    12     a    r    l    d    s    v    k    e    v    e    .    a    v    l    d    r    a    l    a    d    d    t    l    l     34   
+                          r    +    d         +    +    +         +                   +    +              l    a    d    +    t    +    l    
+                     N    R    I    D    Y    L    N    K    K    N    k    I    N    I    G    D    G    L    A    D    S    T    I    L    
+      seq1 34872    AAC  AGA  ATC  GAT  TAC  TTG  AAT  AAA  AAG  AAT  AAA  ATA  AAC  ATT  GGT  GAT  GGT  CTA  GCT  GAT  AGT  ACC  ATT  TTA    34801
+                    -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1     FRAME
+                     3    7    7    7    7    7    7    6    5    5    1    5    6    9    9    9    *    *    *    *    *    *    *    *     PP
+
+      metC    35     i    r    m    f    d    d    i    d    s    g    f    v    n    s    g    v    t    g    g    s    t    v    l    f     58   
+                     i    r    +         +    d    +    d                   +    n    +    +    +                             +    l    f    
+                     I    R    T    S    E    D    M    D    N    R    S    M    N    N    S    P    L    I    D    Q    W    I    L    F    
+      seq1 34800    ATA  A-A  ACA  TCC  GAA  GAC  ATG  GAC  AAC  AGA  TCC  ATG  AAC  AAC aTCT  CCA  TTA  ATA  GAT  CAA  TGA  ATT  TTA  TTC    34729
+                    -1   -2   -2   -2   -2   -2   -2   -2   -2   -2   -2   -2   -2   -2   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1     FRAME
+                     8    3    5    8    9    *    *    *    *    9    9    9    9    9    1    1    1    1    2    3    6    9    *    *     PP
+
+      metC    59     k    t    s    a    e    m    l    s    g    l    t    e    f    s    y    g    i    h    n    t    p    i    v    r     82   
+                     +    +    +    +    e    m    +    +         +         +    +    +    y    g    +    h         t    p    +    +         
+                     R    N    T    S    E    M    I    K    E    T    R    K    Y    T    Y    G    T    H    G    T    P    T    T    N    
+      seq1 34728    AGG  AAT  ACA  TCT  GAG  ATG  ATA  AAG GAtA  ACA  AGA  AAA  TAT  ACC  TAT  GGT  ACA  CAT  GGT  ACA  CCG  ACA  ACA  AAT    34656
+                    -1   -1   -1   -1   -1   -1   -1   -1   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     *    *    *    *    *    *    9    8    2    3    5    7    8    *    *    *    *    *    *    *    *    *    *    *     PP
+
+      metC    83     d    l    c    a    a    i    n    l    l    d    e    s    e    f    s    l    l    t    p    s    G    l    s    a     106  
+                     d    l    c    +    +    +    +    +    l    +    +    s    +         +              t              G    l         +    
+                     D    L    C    V    S    V    S    M    L    E    Q    S    D    Q    T    G    T    T    C    L    G    L    M    T    
+      seq1 34655    GAT  CTA  TGT  GTT  TCC  GTT  AGC  ATG  TTG  GAA  CAA  TCC  GAT  CAA  ACG  GGA  ACA  ACA  TGT  TTA  GGA  TTA  ATG  ACA    34584
+                    -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+      metC   107     l    t    s    v    v    v    a    l    v    k    p    g    d    h    v    l    i    v    d    t    a    y    e    p     130  
+                     l    t    s    +    +    +    +    +              +         d    h    v    l    +    v    d         +    y    +         
+                     L    T    S    T    F    L    C    I    F    G    S    N    D    H    V    L    V    V    D    S    V    Y    K    S    
+      seq1 34583    TTA  ACA  TCA  ACA  TTT  CTA  TGT  ATA  TTC  GGA  TCA  AAC  GAC  CAT  GTG  TT-  GTG  GTA  GAT  TCC  GTT  TAT  AAG  TCT    34513
+                    -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -1   -1   -1   -1   -1   -1   -1   -1   -1     FRAME
+                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    5    9    *    *    *    *    *    9    7     PP
+
+      metC   131     .    l    r    e    f    c    c    w    y    l    e    r    l    g    v    s    f    d    f    y    d    p    a    .     152  
+                          +    +    +    +    c         +    +              r    +    +    v    +    +         f    +    d    p    +         
+                     f    I    K    Q    L    C    K    Q    F    S    T    R    I    D    V    H    L    G    F    V    D    P    S    g    
+      seq1 34512    TTT  ATA  AAA  CAA  CTA  TGT  AAA  CAA  TTC  TCA  ACG  AGA  ATC  GAT  GTC CAtgT TTG  GGT  TTT  GTT  GAT  CCA  AGC  GGG    34439
+                    -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -2   -2   -2   -2   -2   -2   -2   -2   -2     FRAME
+                     4    6    9    *    *    *    *    *    9    9    *    *    *    *    9    2    4    6    8    9    9    9    7    2     PP
+
+      metC   153     d    d    r    s    l    k    c    l    l    r    s    n    t    r    l    v    h    l    e    s    p    g    s    g     176  
+                     +    +              l    k         l    +    r    +         +    r    l    +    +    l         s         +    s    +    
+                     N    E    C    N    L    K    I    L    F    R    T    M    S    R    L    I    Y    L    G    S    S    C    S    E    
+      seq1 34438    AAT  GAA  TGT  AAC  TTA  AAG  ATA  TTA  TTT  AGA ACcG  ATG  TCA  AGG  TTA  ATC  TAC  TTA  GGA  TCA  TaG  TGT  TCG  GAG    34366
+                    -2   -2   -2   -2   -2   -2   -2   -2   -2   -2   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1    0   -1   -1   -1     FRAME
+                     5    6    7    8    *    *    *    *    *    9    1    2    4    6    7    8    9    9    8    7    6    8    8    8     PP
+
+      metC   177     t    f    e    m    q    d    v    k    a    i    c    d    y    v    h    n    r    n    p    e    c    f    v    s     200  
+                               +    +         +                   i    c    +    +    +    +    +    r         +              +    +    s    
+                     I    S    K    I    L    N    T    Y    Q    I    C    K    H    I    K    Q    R    P    N    R    H    V    I    S    
+      seq1 34365    ATA  TCC  AAG  ATC  TTA  AAT  ACT  TAT  CAA  ATT  TGT  AAA  CAC  ATA  AAG  CAA  CGT  CCG  AAC  AGA  CAT  GTT  ATA  TCG    34294
+                    -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1     FRAME
+                     8    8    9    9    9    9    9    9    *    *    *    *    *    *    *    *    9    9    9    9    9    *    *    *     PP
+
+      metC   201     l    d    n    t    w    a    t    p    l    l    f    k    p    i    a    h    G    v    d    l    s    i    t    a     224  
+                     +    d    n                        +         +    +    k    p    i    +    +    G    +    +    +    s    i         a    
+                     V    D    N    N    -    -    -    T    Q    I    Y    K    P    I    T    Y    G    I    N    I    S    I    Y    A    
+      seq1 34293    GTG  GAC  AAT  AAC  ---  ---  ---  ACC  CAA  ATA  TAT  AAA  CCA  ATA  ACA  TAa  GGG  ATC  AAT  ATA  TCA  ATT  TAT GCaT    34230
+                    -1   -1   -1   -1    .    .    .   -1   -1   -1   -1   -1   -1   -1   -1    0   -1   -1   -1   -1   -1   -1   -1   -3     FRAME
+                     *    *    9    6    .    .    .    4    6    8    9    *    *    *    8    8    9    9    *    *    *    9    9    5     PP
+
+      metC   225     l    t    k    y    p    s    G    a    s    d    l    m    l    G    a    i    s    a    n    k    r    a    s    v     248  
+                     l    t         y         +    G    +         d    +    +    +              i    s         +    k    +    +         +    
+                     L    T    E    Y    L    T    G    C    L    D    V    V    V    R    P    I    S    K    T    K    K    V    F    N    
+      seq1 34229    TTA  ACT  GAA  TAC  CTA  ACA  GGA  TGT  TTG  GAT  GTT  GTG  GTT  AGA  CCG  ATA  TCT  AAA  ACC  AAA  AAA  GTC  TTT  AAT    34158
+                    -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     8    9    9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    9    9    9    9    9    8    8     PP
+
+      metC   249     v    l    r    .    .    .    r    y    k    v    v    s    G    l    c    g    s    d    a    s    s    y    s    v     269  
+                     +    +                        +         +         +         G              +    s    +    +    +         +         +    
+                     L    V    F    n    t    p    K    Q    N    S    L    I    G    T    T    S    S    S    Y    N    H    I    L    M    
+      seq1 34157    TTG  GTA  TTT  AAT  ACA  CCC  AAA  CAA  AAC  TCA  CTC  ATC  GGA  ACA  ACA  AGT  AGT  AGT  TAC  AAC  CAC  ATC  TTG  ATG    34086
+                    -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     6    5    4    1    1    1    3    4    4    5    6    6    7    7    7    7    7    6    6    6    6    6    6    6     PP
+
+      metC   270     l    k    g    l    k    s    l    s    v    r    l    v    h    h    h    l    v    a    .    l    k    i    a    k     292  
+                     l    +              k    s    +         v    r    l         h    h    h    +    +              +    +              +    
+                     L    R    N    S    K    S    V    L    V    R    L    H    H    H    H    M    I    R    l    F    R    S    M    D    
+      seq1 34085    CTT  -GA  AAT  TCG  AAA  TCA  GTT  CTT  GTT  CGA  TTA  CAT  CAT  CAC  CAT  A--  ATT  CGG  TTG  TTT  AGG  TCT  ATG  GAC    34017
+                    -3   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     6    2    3    8    9    9    9    9    9    *    *    *    9    9    9    0    1    1    0    2    2    2    3    3     PP
+
+      metC   293     f    l    e    t    v    s    g    v    v    k    v    l    c    p    a    l    p    s    f    s    y    .    y    r     315  
+                     +                                       v         v              +         l    p              s                        
+                     V    R    P    H    H    V    M    W    V    M    V    F    N    S    I    L    P    L    P    S    D    h    K    I    
+      seq1 34016    GTT  AGG  CCC  CAC  CAT  GTT  ATG  TGA  GTC  ATG  GTG  TTT  AAT  TCG  ATT  TTA  CCA  TTA  CCT  TCA  GAT  CAT  AAA  ATT    33945
+                    -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     3    3    3    3    3    4    4    6    6    7    7    7    7    8    8    8    7    4    3    3    3    0    3    4     PP
+
+      metC   316     l    w    k    r    d    y    s    l    t    n    s    v    l    s    f    v    l    d    c    s    e    g    a    k     339  
+                     l                        y         l    +    n    +    +    +    s              l    +                   +    +    +    
+                     L    V    I    G    S    Y    R    L    S    N    G    I    I    S    A    S    L    K    -    -    -    E    N    N    
+      seq1 33944    TTA  GTA  ATT  GGA  AGT  TAT  AGA  TTA AGctT AAT  GGC  ATA  ATA  TCG  GCT  TCT  CTC  AAA  ---  ---  ---  GAG  AAC  AAC    33880
+                    -3   -3   -3   -3   -3   -3   -3   -3   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1    .    .    .   -1   -1   -1     FRAME
+                     5    6    6    7    8    9    8    7    5    8    9    9    8    8    6    5    5    4    .    .    .    4    4    4     PP
+
+      metC   340     r    l    e    l    a    k    r    f    l    d    s    l    k    v    f    G    l    G    w    s    w    G    G    y     363  
+                          +    e              k    r    +    l    d         l    k    +    +    G    l    G    w    s    w    G    G    y    
+                     E    V    E    D    Y    K    R    L    L    D    G    L    K    I    L    G    L    G    W    S    W    G    G    Y    
+      seq1 33879    GAA  GTT  GAA  GAT  TAT  AAG  AGA  TTA  TTA  GAT  GGT  CTT  AAG  ATA  CTT  GGA  TTG  GGA  TGA  TCA  TGG  GGT  GGA  TAT    33808
+                    -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1   -1     FRAME
+                     4    5    5    6    8    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+      metC   364     k    s    l    a    a    p    v    l    l    a    h    r    a    f    a    p    d    f    g    G    p    .    v    l     386  
+                     k    s    l         +         +    +         +    +    +    +    +    +         +    +    +         +         +    +    
+                     K    S    L    N    S    L    M    V    K    T    K    H    Q    H    P    E    E    I    N    N    T    l    I    V    
+      seq1 33807    AAA  --G  CTT  AAC  AGT  TTA  ATG  GTT  AAA  ACC  AAA  CAT  CAA  CAT  CCC  GAA  GAA  ATA  AAC  AAC  ACC  CTG  ATC  GTA    33738
+                    -1   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     8    4    5    5    6    6    6    6    6    6    6    6    6    6    7    7    7    6    5    5    4    1    6    7     PP
+
+      metC   387     r    l    n    i    G    l    e    c    l    d    d    l    i    w    d    l    e     403  
+                     r    l    +    i         +    +    +    l    +         l              d    l    +    
+                     R    L    Q    I    E    F    K    D    L    N    G    L    T    N    D    L    D    
+      seq1 33737    AGG  TTG  tAG  ATC  GAA  TTC  AAA  GAT  CTC  AAT  GGT  CTG  ACA  AAT  GAT  TTA  GAT    33687
+                    -3   -3    0   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3   -3     FRAME
+                     8    8    7    7    7    7    7    7    7    7    7    7    7    7    7    6    5     PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (409 nodes)
+Target sequence(s):                        1  (71226 residues searched)
+Residues passing SSV filter:            2487  (0.0349); expected (0.02)
+Residues passing bias filter:           2298  (0.0323); expected (0.02)
+Residues passing Vit filter:             666  (0.00935); expected (0.001)
+Residues passing Fwd filter:            1807  (0.0254); expected (1e-05)
+Total number of hits:                      1  (0.0167)
+# CPU time: 0.04u 0.01s 00:00:00.05 Elapsed: 00:00:00.04
+# Mc/sec: 596.72
+//
+Query:       metG  [M=458]
+Description: Methionine--tRNA ligase
+Scores for complete hits:
+    E-value  score  bias  Sequence  start    end  shifts  stops  Description
+    ------- ------ -----  --------  -----  -----  ------  -----  -----------
+    7.7e-44  143.3  46.8  seq1      18491  19820      13      6  
+
+
+Annotation for each hit (and alignments):
+>> seq1  
+    score  bias    Evalue   hmm-from    hmm-to     ali-from    ali-to    shifts  stops    sq-len    acc
+   ------ ----- ---------   --------   -------    --------- ---------    ------  ----- ---------   ----
+ !  143.3  46.8   7.7e-44          9       456 ..     18491     19820 ..     13      6     35613   2.41
+
+  Alignment:
+  score: 143.3 bits
+      metG     9     i    y    t    d    a    p    p    h    i    G    h    l    y    e    l    s    v    a    n    s    l    c    e    .     31   
+                          y         +              p    h              h    l    y         l    +    +    a         +    +         +         
+                     C    Y    I    N    N    L    P    H    T    K    H    L    Y    R    L    V    I    A    W    C    I    K    K    i    
+      seq1 18491    TGC  TAC  ATT  AAT  AAC  TTA  CCA  CAC  ACA  AAA  CAT  TTA  TAC  AGA  CTA  GTA  ATT  -CT  TGA  TGT  ATC  AAG  AAA  ATT    18561
+                     2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    1    1    1    1    1    1    1     FRAME
+                     6    9    9    9    9    *    *    *    *    *    *    *    *    *    *    *    9    1    1    2    2    2    2    1     PP
+
+      metG    32     c    i    k    n    w    h    n    v    k    l    a    i    G    a    d    d    h    G    a    k    i    q    n    l     55   
+                     c    +              w    h    +    +    k    l    +    i              d    +              +    k    +    q    +    +    
+                     C    V    S    L    W    H    K    L    K    L    I    I    E    I    D    N    R    E    T    K    L    Q    E    A    
+      seq1 18562    TGT  GTT  AGT  TTA  TGA  CAC  AAA  CTA  AAA  TTA  ATA  ATC  GAG  ATT  GAT  AAT  CGT  GAA  ACA  AAA  CTC  --A  GAA  GCT    18631
+                     1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    2    2    2     FRAME
+                     9    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    8    8    8    8    1    1    1     PP
+
+      metG    56     s    k    l    k    n    v    s    p    t    k    v    s    n    l    n    s    n    k    i    l    a    l    c    s     79   
+                               +         +                   t    k    v    s    n    l    n         n    k    +    +              +    s    
+                     P    M    V    V    D    R    F    L    T    K    V    S    N    L    N    F    N    K    L    F    V    S    V    S    
+      seq1 18632    CCA  ATG  GTT  GTG  GAT  AGG  TTT  TTA  ACT  AAA  GTG  AGT  AAT  CTT  AAT  TTT  AAT  AAA  TTG  TTT  GTA  AGT  GTT  TCA    18703
+                     2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2     FRAME
+                     3    5    6    7    8    8    9    9    *    *    *    *    *    *    *    *    *    *    *    9    9    9    9    *     PP
+
+      metG    80     k    y    k    i    n    v    k    d    w    i    s    t    .    s    y    p    r    h    t    k    l    v    a    s     102  
+                     +    +    k    i         +    +    +    w    +    s    t                   +         h         +         +              
+                     R    L    K    I    M    I    S    N    W    T    S    T    h    H    K    T    I    H    L    R    I    I    Y    Y    
+      seq1 18704    AGA  TTA  AAA  ATT  ATG  ATA  AGC  AAT  TaA  ACA  TCC  -CT  CAT  CAC  AAA  ACC  ATT  CAT  CTA  AGA  ATT  ATA  TAC  TAT    18774
+                     2    2    2    2    2    2    2    2    0    2    2    1    1    1    1    1    1    1    1    1    1    1    1    1     FRAME
+                     *    *    *    *    *    *    *    9    7    7    6    2    0    3    4    5    6    9    9    9    9    9    9    *     PP
+
+      metG   103     k    i    k    k    i    n    a    s    k    a    i    f    k    l    d    y    c    G    w    y    s    P    q    l     126  
+                     k                   i    +              k         i    +    k    +         y              w    y         P              
+                     K    F    S    L    I    K    K    I    K    L    I    Y    K    I    Y    Y    H    S    W    Y    L    P    I    S    
+      seq1 18775    AAG  TTT  TCT  TTG  ATT  AAA  AAG  ATA  AAA  TTA  ATT  TAT  AAA  ATA  TAT  TAC  CAT  AGT  TaG  TAT  TTA  CCT  ATA  AGT    18846
+                     1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    0    1    1    1    1    1     FRAME
+                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    9     PP
+
+      metG   127     d    c    y    c    s    s    d    e    v    q    f    s    k    n    l    m    y    c    a    e    n    a    P    v     150  
+                          +    +    c    s         +         v    +    f         +              m         +    a    +    +    +         v    
+                     R    S    F    C    S    Y    N    V    V    K    F    L    H    Y    N    M    I    V    A    N    K    S    M    V    
+      seq1 18847    AGA  AGT  TTT  TGC  AGT  TAC  AAT  GTT  GTT  AAA  TTT  TTA  CAT  TAT  AAC  ATG  ATT  GTT  GCC  AAT  AAA  TCA  ATG  GTA    18918
+                     1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1     FRAME
+                     9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    9    9    *    *    *    *    *     PP
+
+      metG   151     e    w    t    e    e    r    g    v    f    i    n    f    s    r    a    k    .    l    k    l    l    a    i    h     173  
+                     e         +    +    e              +    f    +    n    +         r    a    k         l    k    l    l    +    +    h    
+                     E    R    I    K    E    D    I    I    F    V    N    Y    I    R    A    K    k    L    K    L    L    S    L    H    
+      seq1 18919    GAA  CGA  ATC  AAA  GAA  GAC  ATT  ATA  TTT  GTA  AAT  TAT  ATT  CGA  --T  AAA  AAA  TTA  AAA  TaA  TTG  TCG  TTA  CAT    18988
+                     1    1    1    1    1    1    1    1    1    1    1    1    1    1    2    2    2    2    2    0    2    2    2    2     FRAME
+                     *    *    *    *    *    *    *    *    *    *    *    9    9    7    0    0    0    3    3    4    5    6    6    6     PP
+
+      metG   174     r    a    s    l    v    a    i    P    y    i    n    k    n    s    a    l    k    i    i    n    l    i    e    d     197  
+                     r              +                                                           +    k    i    i    n    +    i    +         
+                     R    V    W    I    N    L    K    -    -    -    -    -    T    F    N    V    K    I    I    N    T    I    K    I    
+      seq1 18989    --A  GTG  TGG  ATA  AAT  TTA  AAA  ---  ---  ---  ---  ---  ACG  TTT  AAT  GTT  AAA  ATC  -TA  AAT  ACC ATaT  AAA  ATA    19043
+                     3    3    3    3    3    3    3    .    .    .    .    .    3    3    3    3    3    3    2    2    2    3    3    3     FRAME
+                     1    1    1    1    1    1    1    .    .    .    .    .    1    2    2    2    2    2    2    2    2    1    1    1     PP
+
+      metG   198     v    c    i    t    r    n    k    t    t    n    y    G    i    k    l    i    t    k    n    l    k    l    v    l     221  
+                     +              t    +    +    k              +    y         i    k         i         +         +              +    l    
+                     L    I    D    T    K    E    K    I    L    S    Y    N    I    K    S    I    L    N    F    I    Y    Y    I    L    
+      seq1 19044    CTG  ATT  GAT  ACT  AAA  GAA  AAA  ATT  TTA  AGT  TAT  AAT  ATT  AAG  TCA  ATT  CTA  AAT  TTT  ATC  TAT  TAT  ATA  CTA    19115
+                     3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3     FRAME
+                     2    4    5    8    9    9    9    *    *    *    *    *    *    *    9    9    9    8    8    8    8    8    9    9     PP
+
+      metG   222     w    v    w    i    d    a    l    l    a    y    v    n    a    e    r    r    n    k    v    h    i    i    G    k     245  
+                     w    v         i    d    a    l    +    a    +    +    +    a    +         +    +                   i              k    
+                     W    V    R    I    D    A    L    F    A    F    T    Q    A    D    G    N    Q    T    R    S    I    Y    F    K    
+      seq1 19116    TaA  GTT  CGA  ATT  GAT  -CG  TTA  TTT  --A  TTT  ACT  CAA  GCT  GAT  GGT  AAC  CAG  ACG  AGA  TCG  ATA  TAC  TTT  AAA    19184
+                     0    3    3    3    3    2    2    2    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3     FRAME
+                     8    8    *    *    9    5    5    5    2    5    7    8    8    8    8    7    6    4    4    4    4    5    *    *     PP
+
+      metG   246     d    i    t    k    f    h    l    t    h    y    i    a    l    s    l    l    l    n    a    k    l    P    k    v     269  
+                          +    +    +    f    +    l    t    +    y    i    +    l         l    +                   k    l         +         
+                     K    V    V    W    F    Y    L    T    Y    Y    I    T    L    L    L    I    F    I    M    K    L    F    R    Y    
+      seq1 19185    AAA  GTA  GTT  TGG  TTT  TAT  CTA  ACA  TAT  TAT  ATT  ACT  TTA  TTG  TTA  ATT  TTT  ATT  ATG  AAA  TTA  TTC  CGA  TAT    19256
+                     3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3     FRAME
+                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+      metG   270     i    l    q    h    v    y    i    n    t    l    k    t    k    v    s    k    s    l    k    n    q    p    s    s     293  
+                     i         q              +    +    +              +    t    k    +    s         s    l    +         +                   
+                     I    C    Q    Q    Q    H    L    K    Y    K    E    T    K    I    S    N    S    L    N    R    K    N    R    I    
+      seq1 19257    ATA  TGT  CAA  CAA  CAA  CAT  CTA  AAA  TAT  AAA  GAA  ACG  -AA  ATA  TCC  AAT  AGT  TTA  AAT  AGG  AAA  AAC  AGA  ATT    19327
+                     3    3    3    3    3    3    3    3    3    3    3    3    2    2    2    2    2    2    2    2    2    2    2    2     FRAME
+                     *    *    *    *    *    *    9    9    9    8    8    7    5    9    *    *    *    *    6    5    4    3    2    1     PP
+
+      metG   294     a    e    f    q    a    .    a    a    l    y    y    .    y    l    c    t    r    s    f    k    n    d    i    e     315  
+                                                             +    +    +         +    l         +    r    s                   +    i    e    
+                     Q    R    N    Y    L    r    Y    F    I    C    H    *    M    L    Y    S    R    S    C    S    R    E    I    E    
+      seq1 19328    CAG  AGA  AAT  TAC  TTG  AGA  TAT  TTT  ATA  TGC  CAT  TAA  ATG  TTA  TAT  TCT  AGA  AGT  TGT  TCA  AGG  GAA  ATT  GAA    19399
+                     2    2    2    2    2    2    2    2    2    2    2    0    2    2    2    2    2    2    2    2    2    2    2    2     FRAME
+                     1    1    0    0    0    0    2    2    2    3    3    3    4    6    7    9    *    *    *    *    *    *    *    *     PP
+
+      metG   316     l    n    k    s    d    l    a    a    a    f    a    k    l    t    n    n    v    G    n    l    a    k    r    l     339  
+                               +    s    d    +         +    +         +              +    +    n    +         n    l    +    k         l    
+                     T    I    D    S    D    I    N    R    T    K    S    D    S    I    K    N    I    R    N    L    T    K    C    L    
+      seq1 19400    ACA  ATT  GAT  TCA  GAT  ATC  AAT  AGA  ACA  AAA  TCA  GAC  TCA  ATC  AAG  AAT  ATT  AGA  AAT  CTA  ACT  AAA  TGC  TTA    19471
+                     2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2     FRAME
+                     *    *    *    *    *    *    *    *    *    *    9    9    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+      metG   340     i    k    l    l    t    l    n    r    l    k    l    q    k    l    t    i    s    e    w    i    i    v    l    y     363  
+                     +    +    l    +    +    l    +    +    +    k    +    +    +    +         +    +    +    w    +    +         l    y    
+                     L    R    L    I    K    L    Y    G    S    K    I    K    Q    I    I    V    N    N    W    L    L    Y    L    Y    
+      seq1 19472    TTA  AGA  TTA  ATA  AAG  TTA  TAT  GGT  TCT  AAA  ATT  AAA  CAA  ATT  ATA  GTA  AAT  AAC  TGA  TTA  TTA  TAT  TTG  TAT    19543
+                     2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2     FRAME
+                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *     PP
+
+      metG   364     v    k    r    l    t    t    t    l    k    h    l    a    k    s    f    k    l    n    e    i    n    n    t    i     387  
+                          k              +         +    +    k                                  +    l    n         i         n    t    +    
+                     T    K    Y    F    E    V    I    I    K    R    S    L    I    L    S    R    L    N    M    I    L    N    T    V    
+      seq1 19544    ACT  AAA  TAT  TTT  GAA  GTA  ATA  ATT  AAA  AGA  TCT  CTA  ATT  TTA  TCT  AGG  TTA  AAC  ATG  ATA  CTG  AAC  ACA  GTG    19615
+                     2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2     FRAME
+                     *    *    *    *    *    *    *    *    *    9    9    9    9    9    9    *    *    *    *    *    *    *    *    *     PP
+
+      metG   388     l    d    g    t    a    k    i    n    s    a    i    s    n    y    k    l    w    l    n    a    r    a    a    h     411  
+                     +    +    +                   +    n              i    s         y    k    l    w    +    n    +    +         +    h    
+                     M    E    K    L    V    W    T    N    N    K    I    S    S    Y    K    L    W    Y    N    K    Y    I    K    H    
+      seq1 19616    ATG  GAA  AAA  TTG  GTA  TGA  ACT  AAT  AAC  AAA  ATT  TCT  AGT  TAT  AAA  TTA  TaA  TAT  AAT  AAA  TAT  ATT  AAA  --T    19685
+                     2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    2    0    2    2    2    2    2    2    3     FRAME
+                     *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    0     PP
+
+      metG   412     k    l    f    v    y    s    f    a    a    k    r    h    i    d    w    l    k    .    f    a    i    G    s    k     434  
+                          +    +    v    y    +    +                             +         +    +    k         +    +         G    +    k    
+                     I    M    I    V    Y    I    H    M    L    T    F    I    L    F    F    I    K    t    Y    F    F    G    K    K    
+      seq1 19686    ATA  A--  ATT  GTA  TAT  ATT  CAC  ATG  TTG  ACA  TTT  ATA  TTA  TTT  TTT  ATT  AAA  ACC  TAT  TTT  TTT  GGT  AAA  AAA    19755
+                     3    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1     FRAME
+                     0    0    0    0    0    0    0    0    0    0    0    0    0    1    2    2    2    1    5    7    8    9    7    6     PP
+
+      metG   435     a    e    s    i    i    l    n    i    n    s    a    n    t    k    y    v    P    f    p    k    l    v     456  
+                     a    +    +    i    i              i                   n         +    y    +         f    +    k    +         
+                     A    N    T    I    I    G    R    I    F    H    G    N    W    Q    Y    M    H    F    K    K    K    L    
+      seq1 19756    -CT  AAC  ACA  ATA  ATT  GGT  AGA  ATA  TTT  CAT  GGA  AAT  TGG  CAA  TAC  ATG  CAT  TTT  AAA  AAA  AAA  CTT    19820
+                     3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3    3     FRAME
+                     8    9    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    9    9    7    6     PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (458 nodes)
+Target sequence(s):                        1  (71226 residues searched)
+Residues passing SSV filter:            9168  (0.129); expected (0.02)
+Residues passing bias filter:           2775  (0.039); expected (0.02)
+Residues passing Vit filter:            1062  (0.0149); expected (0.001)
+Residues passing Fwd filter:            1992  (0.028); expected (1e-05)
+Total number of hits:                      1  (0.0187)
+# CPU time: 0.04u 0.01s 00:00:00.05 Elapsed: 00:00:00.06
+# Mc/sec: 541.80
+//
+[ok]

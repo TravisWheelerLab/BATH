@@ -1201,6 +1201,7 @@ typedef struct p7_pipeline_s {
 
 #define PARSER_ROWS_FWD 4
 #define PARSER_ROWS_BWD 6
+#define BACKWARD_DECODING_ROWS 2  /* core rows used by p7_GBackwardDecoding() */
 
 /*****************************************************************
  * 17. P7_BUILDER: pipeline for new HMM construction
@@ -1312,6 +1313,7 @@ extern int p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_G
 /* generic_fwdback.c */
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
+extern int p7_GBackwardDecoding(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *fwd, P7_GMX *bck, float *opt_sc);
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* generic_fwdback_frameshift.c */

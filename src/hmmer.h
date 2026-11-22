@@ -1117,7 +1117,7 @@ typedef struct p7_pipeline_s {
   P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe                    */
   P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe                   */
   P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes                  */
-  P7_OMX     *bck;    /* full Bck matrix for domain envelopes                  */
+  P7_OMX     *bck;    /* one-row Bck parsing matrix for domain envelopes       */
   P7_OMX     *oxf_fs; /* three-row Forward matrix for frameshift forward only  */
   P7_OMX     *oxb_fs; /* five-row Backward matrix for frameshift backward only */
   P7_OMX     *fwd_fs; /* full frameshift Fwd matrix for domain envelopes       */

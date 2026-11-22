@@ -110,11 +110,12 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    if ((pli->oxf  = p7_omx_Create(M_hint, 0, L_hint)) == NULL) goto ERROR;
    if ((pli->oxb  = p7_omx_Create(M_hint, 0, L_hint)) == NULL) goto ERROR;
 
-   /* Create full memory forward and backward optimized matrices for use in the
-   * non-frameshift pipeline branch
+   /* Create the matrices for domain rescoring in the non-frameshift
+   * pipeline branch: a full matrix for Forward, posteriors and OA, and
+   * a one-row parsing matrix for Backward
    */
    if ((pli->fwd  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-   if ((pli->bck  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+   if ((pli->bck  = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;
 
   /* Create sparse memory forward and backward generic frameshift aware matrices 
    * for use in the frameshift pipeline filters

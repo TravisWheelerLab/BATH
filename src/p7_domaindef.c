@@ -1197,11 +1197,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * The alignment is an optimal accuracy alignment (sensu IH Holmes),
  * also obtained in unilocal mode.
  * 
- * The caller provides DP matrices <ox1> and <ox2> with sufficient
- * space to hold Forward and Backward calculations for this domain
- * against the model. (The caller will typically already have matrices
- * sufficient for the complete sequence lying around, and can just use
- * those.) The caller also provides a <P7_DOMAINDEF> object (ddef)
+ * The caller provides DP matrices <ox1> and <ox2>. <ox1> is grown to a
+ * full matrix for this domain: it holds the Forward matrix, then the
+ * posterior decoding (written over it by p7_BackwardDecoding()), then
+ * the OA matrix (written over the posteriors). <ox2> is grown to a
+ * one-row parsing matrix for the Backward calculation. The caller
+ * also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
  * working space and heuristic thresholds.
  *
@@ -1232,16 +1233,17 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
 
   p7_oprofile_ReconfigLength(om, Ld);
   p7_omx_GrowTo(ox1, om->M, Ld, Ld); 
-  p7_omx_GrowTo(ox2, om->M, Ld, Ld); 
+  p7_omx_GrowTo(ox2, om->M, 0,  Ld);
 	
   p7_Forward (orfsq->dsq + i-1, Ld, om,      ox1, &envsc);
-  p7_Backward(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc);
-   
-  status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
+  status = p7_BackwardDecoding(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc); /* <ox1> is now overwritten with post probabilities */
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
+
+  /* null2 reads the posteriors, so it comes before the OA fill overwrites them */
+  if (!null2_is_done) p7_Null2_ByExpectation(om, ox1, null2);
    
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
+  p7_OptimalAccuracy(om, ox1, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
 
   p7_OATrace        (om, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
     
@@ -1286,7 +1288,6 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
   if (!null2_is_done) {
-    p7_Null2_ByExpectation(om, ox2, null2);
     for (pos = i; pos <= j; pos++) {
       ddef->n2sc[pos]  = logf(null2[orfsq->dsq[pos]]);
     }

@@ -4,7 +4,8 @@
  *
  * Contents:
  *    1. p7_GViterbi_Spliced()
- *    2. p7_GViterbi_SplicedTrace()
+ *    2. p7_GViterbi_SplicedTraceOld()
+ *       p7_GViterbi_SplicedTrace()
  *    3. Benchmark driver.
  *    4. Unit tests.
  *    5. Test driver.
@@ -21,6 +22,61 @@
 #include "p7_splice.h"
 
 #define PVX4(i,k) (acc_ivx[((k)*SPLICE_ROWS) + (i)])
+
+/* nuc_at(): nucleotide at row <row> of the sub sequence starting at
+ * <i_start>, with anything other than A,C,G,T as p7P_MAXCODONS1. */
+static inline int
+nuc_at(const ESL_DSQ *sub_dsq, int i_start, int row)
+{
+  ESL_DSQ x = sub_dsq[i_start + row - 1];
+  return (x < p7P_MAXNUC) ? x : p7P_MAXCODONS1;
+}
+
+/* donor_signal(): splice signal index (p7S_GTAG, p7S_GCAG or p7S_ATAC)
+ * of a donor dinucleotide, or -1. */
+static inline int
+donor_signal(int nuc1, int nuc2)
+{
+  switch (SIGNAL(nuc1, nuc2)) {
+    case DONOR_GT: return p7S_GTAG;
+    case DONOR_GC: return p7S_GCAG;
+    case DONOR_AT: return p7S_ATAC;
+    default:       return -1;
+  }
+}
+
+/* acceptor_signal(): ACCEPT_AG or ACCEPT_AC for an acceptor
+ * dinucleotide, or -1. */
+static inline int
+acceptor_signal(int nuc1, int nuc2)
+{
+  switch (SIGNAL(nuc1, nuc2)) {
+    case ACCEPT_AG: return ACCEPT_AG;
+    case ACCEPT_AC: return ACCEPT_AC;
+    default:        return -1;
+  }
+}
+
+/* acceptor_at(): acceptor signal (ACCEPT_AG or ACCEPT_AC) that the fill
+ * records at row <i>, from rows i-2 and i-1, or -1. */
+static inline int
+acceptor_at(const ESL_DSQ *sub_dsq, int i_start, int i)
+{
+  if (i < 3) return -1;
+  return acceptor_signal(nuc_at(sub_dsq, i_start, i-2), nuc_at(sub_dsq, i_start, i-1));
+}
+
+/* donor_at(): splice signal of the donor that the fill's donor update
+ * at row <iu> handles as don2 (the dinucleotide starting at row
+ * <iu>-<min_intron>), or -1. The fill updates donors from row
+ * <min_intron>+3 on.
+ */
+static inline int
+donor_at(const ESL_DSQ *sub_dsq, int i_start, int min_intron, int iu)
+{
+  if (iu < min_intron + 3) return -1;
+  return donor_signal(nuc_at(sub_dsq, i_start, iu - min_intron), nuc_at(sub_dsq, i_start, iu - min_intron + 1));
+}
 
 /* Function:  p7_GViterbi_Spliced()
  * Synopsis:  Translated spliced Viterbi algorithm
@@ -82,7 +138,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
   int          v, w, x;
   int          nuc1, nuc3;
   int          loop_end;
-  int          sub_i,sub_k;
+  int          sub_k;
   int          pv_i, pv_pi;
   int          acc0, acc1, acc2;
   int          don0, don1, don2;
@@ -127,10 +183,8 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
   for(i = 1; i <= 2; i++)
   {
     w = x;
-    sub_i = i_start + i - 1;
     /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
-    else                            x = p7P_MAXCODONS1;
+    x = nuc_at(sub_dsq, i_start, i);
 
     XMX(i,p7G_N) =  0;
     XMX(i,p7G_B) =  gm_tr->xsc[p7P_N][p7P_MOVE];
@@ -147,9 +201,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
   {
     v = w;
     w = x;
-    sub_i = i_start + i - 1;
-    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
-    else                            x = p7P_MAXCODONS1; 
+    x = nuc_at(sub_dsq, i_start, i);
 
     C0 = p7P_CODON3_FS1(v, w, x);
     C0 = p7P_MINIDX(C0, p7P_DEGEN1_C);
@@ -158,9 +210,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
     /* get acceptor site */
     acc0 = acc1;
     acc1 = acc2;
-    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
-    else                               acc2 = -1;
+    acc2 = acceptor_signal(v, w);
     
 	if(!global_start) {
       XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
@@ -234,49 +284,42 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 
   }
 
-  /* Example Indexing for r, s, t, u:
+  /* Example Indexing for r, s, t, u (row n is sub_dsq[i_start+n-1]):
    * i_start = 5;
    * min_intron = 13;
-   * s = sub_dsq[5];
-   * t = sub_dsq[6];
-   * u = sub_dsq[7];
+   * s = row 1;               // sub_dsq[5];
+   * t = row 2;               // sub_dsq[6];
+   * u = row 3;               // sub_dsq[7];
    * ...
    * i = min_intron+3;        // 16;
-   * sub_i = i_start + i - 1; // 20;
    * r = s;                   // sub_dsq[5];
    * s = t;                   // sub_dsq[6];
    * t = u;                   // sub_dsq[7];
-   * u = sub_dsq[sub_i-min_intron+1]; // sub_dsq[8];
+   * u = row i-min_intron+1;  // sub_dsq[8];
    */
 
-  if(sub_dsq[i_start] < p7P_MAXNUC)  s = sub_dsq[i_start];
-  else                               s = p7P_MAXCODONS1;
+  s = nuc_at(sub_dsq, i_start, 1);
 
-  if(sub_dsq[i_start+1] < p7P_MAXNUC) t = sub_dsq[i_start+1];
-  else                             t = p7P_MAXCODONS1;
+  t = nuc_at(sub_dsq, i_start, 2);
 
-  if(sub_dsq[i_start+2] < p7P_MAXNUC) u = sub_dsq[i_start+2];
-  else                             u = p7P_MAXCODONS1;
+  u = nuc_at(sub_dsq, i_start, 3);
 
   /* Main DP recursion */
   for (i = min_intron+3; i <= L; i++)
   {
     /* get nucleotides and codon */
-    sub_i = i_start + i - 1;
     pv_i  =  i    % SPLICE_ROWS;
     pv_pi = (i-3) % SPLICE_ROWS; 
 
     r = s;
     s = t;
     t = u;
-    if(sub_dsq[sub_i-min_intron+1] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron+1];
-    else                                         u = p7P_MAXCODONS1;
+    u = nuc_at(sub_dsq, i_start, i-min_intron+1);
 
     v = w;
     w = x;
 
-    if(sub_dsq[sub_i] < p7P_MAXNUC) x = sub_dsq[sub_i];
-    else                         x = p7P_MAXCODONS1;
+    x = nuc_at(sub_dsq, i_start, i);
 
 	/* Codon indexing for unsplit codon */
     C0 = p7P_CODON3_FS1(v, w, x);
@@ -296,17 +339,12 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
     /* get acceptor sites */
     acc0 = acc1;
     acc1 = acc2;
-    if      (SIGNAL(v,w) == ACCEPT_AG) acc2 = ACCEPT_AG;
-    else if (SIGNAL(v,w) == ACCEPT_AC) acc2 = ACCEPT_AC;
-    else                               acc2 = -1;
+    acc2 = acceptor_signal(v, w);
 
     /* get donor sites */
     don0 = don1;
     don1 = don2;
-    if      (SIGNAL(t,u) == DONOR_GT) don2 = DONOR_GT;
-    else if (SIGNAL(t,u) == DONOR_GC) don2 = DONOR_GC;
-    else if (SIGNAL(t,u) == DONOR_AT) don2 = DONOR_AT;
-    else                              don2 = -1;
+    don2 = donor_signal(t, u);
 
 	if(!global_start) {
       XMX(i,p7G_N) = XMX(i-3,p7G_N) + gm_tr->xsc[p7P_N][p7P_LOOP];
@@ -412,7 +450,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
         C2[nuc3] = p7P_MINIDX(p7P_CODON3_FS1(r, s, nuc3), p7P_DEGEN1_C);
       C2[p7P_MAXNUC] = p7P_MINIDX(p7P_CODON3_FS1(r, s, p7P_MAXCODONS1), p7P_DEGEN1_C);
 
-      don_sig = (don2 == DONOR_GT) ? p7S_GTAG : (don2 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      don_sig = don2;
       for (k = 2; k < M; k++) {
         sub_k  = k_start + k - 1;
         TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
@@ -423,7 +461,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 
 	if(don1  >= 0) {
 	  nuc1 = ESL_MIN(r, p7P_MAXNUC); 
-	  don_sig = (don1 == DONOR_GT) ? p7S_GTAG : (don1 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+	  don_sig = don1;
 	  for (k = 2; k < M; k++) {
 	    sub_k  = k_start + k - 1;
 		TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
@@ -432,7 +470,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 	}
 
 	if (don0 >= 0) {
-      don_sig = (don0 == DONOR_GT) ? p7S_GTAG : (don0 == DONOR_GC) ? p7S_GCAG : p7S_ATAC;
+      don_sig = don0;
       for (k = 2; k < M; k++) {
         sub_k  = k_start + k - 1;
         TMP_SC = ESL_MAX(MMX(i-min_intron-3,k-1), DMX(i-min_intron-3,k-1));
@@ -455,7 +493,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
 
 
 
-/* Function:  p7_GViterbi_SplicedTrace()
+/* Function:  p7_GViterbi_SplicedTraceOld()
  * Synopsis:  Create a trace for spliced Viterbi 
  *
  * Purpose:   Create a trace that includes the exon(s) and any splice 
@@ -463,6 +501,11 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
  *            <gx> and calculate the Viterbi score of the spliced sequence.
  *            Returns the filled trace <tr> and optional Viterbi score 
  *            <vitsc>.
+ *
+ *            The donor of each P state is found by searching back from
+ *            the acceptor for a donor whose recomputed score matches
+ *            within tolerance. Kept for reference;
+ *            p7_GViterbi_SplicedTrace() is the traceback in use.
  *
  * Args:      sub_dsq       - nucleotide sequence
  *            gm_tr         - a codon profile.
@@ -483,7 +526,7 @@ p7_GViterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, P7_GMX *
  *
  */
 int
-p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
+p7_GViterbi_SplicedTraceOld(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
 {
 
   float const *tsc   = gm_tr->tsc;
@@ -559,14 +602,11 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
      
       sub_i = i_start + i - 1; 
       
-      if(sub_dsq[sub_i-2] < p7P_MAXNUC) v = sub_dsq[sub_i-2];
-      else                           v = p7P_MAXCODONS1;
+      v = nuc_at(sub_dsq, i_start, i-2);
 
-      if(sub_dsq[sub_i-1] < p7P_MAXNUC) w = sub_dsq[sub_i-1];
-      else                           w = p7P_MAXCODONS1;
+      w = nuc_at(sub_dsq, i_start, i-1);
 
-      if(sub_dsq[sub_i]   < p7P_MAXNUC) x = sub_dsq[sub_i];
-      else                           x = p7P_MAXCODONS1;
+      x = nuc_at(sub_dsq, i_start, i);
 
       c3 = p7P_CODON3_FS1(v, w, x);
       c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
@@ -612,20 +652,15 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
           if(don_sig != -1) {
             /* If we have a donor site get emissions */
             
-            if(sub_dsq[sub_i-min_intron-j-3] < p7P_MAXNUC) t = sub_dsq[sub_i-min_intron-j-3];
-            else                                         t = p7P_MAXCODONS1;
+            t = nuc_at(sub_dsq, i_start, i-min_intron-j-3);
 
-            if(sub_dsq[sub_i-min_intron-j-2] < p7P_MAXNUC) u = sub_dsq[sub_i-min_intron-j-2];
-            else                                         u = p7P_MAXCODONS1;
+            u = nuc_at(sub_dsq, i_start, i-min_intron-j-2);
             
-            if(sub_dsq[sub_i-5] < p7P_MAXNUC) v = sub_dsq[sub_i-5];
-            else                              v = p7P_MAXCODONS1;
+            v = nuc_at(sub_dsq, i_start, i-5);
 
-            if(sub_dsq[sub_i-4] < p7P_MAXNUC) w = sub_dsq[sub_i-4];
-            else                              w = p7P_MAXCODONS1;
+            w = nuc_at(sub_dsq, i_start, i-4);
             
-            if(sub_dsq[sub_i-3] < p7P_MAXNUC) x = sub_dsq[sub_i-3];
-            else                              x = p7P_MAXCODONS1;     
+            x = nuc_at(sub_dsq, i_start, i-3);
 
             c2 = p7P_CODON3_FS1(t, u, x);
             c2 = p7P_MINIDX(c2, p7P_DEGEN1_C);
@@ -730,6 +765,417 @@ p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, con
     /* For NC, we had to defer i decrement. */
     if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--; 
    
+    sprv = scur;
+  } /* end traceback, at S state */
+
+  tr->M = M;
+  tr->L = L;
+
+  if(vitsc != NULL) *vitsc = vsc;
+
+  status = p7_trace_fs_Reverse(tr);
+
+  /* When max_drop != NULL calculate the maximum M state score drop found
+   * in the alignment for comparison to an x-drop threshold. */
+  if (status == eslOK && max_drop != NULL) {
+    P_idx         = P_cnt - 1;
+    curr_P_score  = 0.0f;
+    max_M_score   = -eslINFINITY;
+    curr_max_drop = -eslINFINITY;
+
+    for (z = 0; z < tr->N; z++) {
+      /* Track the current P state score contribution so that it can be
+       * subtracted out from M state scores to ensure the curr_max_drop
+       * only looks for drops in M state scores, not splice penalties */
+      if (tr->st[z] == p7T_P) {
+        curr_P_score += P_scores[P_idx--];
+      }
+      else if (tr->st[z] == p7T_M) {
+        i = tr->i[z] - i_start + 1;
+        k = tr->k[z] - k_start + 1;
+        curr_M_score = MMX(i, k) - curr_P_score;
+        if (max_M_score != -eslINFINITY)
+          curr_max_drop = ESL_MAX(curr_max_drop, max_M_score - curr_M_score);
+        max_M_score = ESL_MAX(max_M_score, curr_M_score);
+      }
+    }
+    *max_drop = curr_max_drop;
+  }
+
+  free(P_scores);
+
+  return status;
+
+ ERROR:
+  free(P_scores);
+  return status;
+}
+
+
+/* The donor behind a P state score, as chosen by replay_donors() */
+typedef struct {
+  float sc;     /* P state score                                       */
+  int   row;    /* donor row: the last row before the split codon      */
+  int   c;      /* nucleotides of the split codon before the donor     */
+  int   sig;    /* splice signal                                       */
+} DONOR_CHOICE;
+
+/* keep_donor(): replace <best> with the given donor if it scores higher,
+ * or scores the same and is nearer the acceptor. */
+static inline void
+keep_donor(DONOR_CHOICE *best, float sc, int row, int c, int sig)
+{
+  if (sc > best->sc || (sc == best->sc && row > best->row)) {
+    best->sc  = sc;
+    best->row = row;
+    best->c   = c;
+    best->sig = sig;
+  }
+}
+
+/* Donor slot scores for one model column, laid out as SSX0/1/2 in the
+ * fill, with the row each score came from. */
+typedef struct {
+  float sc0[p7S_SPLICE_SIGNALS];
+  float sc1[p7P_MAXNUC+1][p7S_SPLICE_SIGNALS];
+  float sc2[p7P_MAXNUC+1][p7S_SPLICE_SIGNALS];
+  int   row0[p7S_SPLICE_SIGNALS];
+  int   row1[p7P_MAXNUC+1][p7S_SPLICE_SIGNALS];
+  int   row2[p7P_MAXNUC+1][p7S_SPLICE_SIGNALS];
+} DONOR_SLOTS;
+
+/* replay_donors_from():
+ *
+ * Find the donor behind the P state score that the spliced Viterbi fill
+ * built at acceptor row <acc_i> and model column <kk>. M(acc_i+3, kk+1)
+ * enters through that P state.
+ *
+ * The fill keeps only the best score of each donor slot, not the row it
+ * came from, and later donors overwrite it. Starting from the slot
+ * scores and rows in <ds> as they were at the start of row <s0>, this
+ * repeats the fill's donor updates for column <kk> alone up to
+ * <acc_i>, reading each look-back row through <dp>, and records each
+ * slot's row along with its score. Of equal scores the later (nearer)
+ * donor is kept. The acceptor is then scored as in the fill, again
+ * keeping the nearer donor of equal scores. <ds> is modified.
+ *
+ * Returns <eslOK> with the P state score in <ret_sc>, the donor row
+ * (the last row before the split codon) in <ret_donor_i>, the number of
+ * nucleotides of the split codon before the donor in <ret_c>, and the
+ * splice signal in <ret_don_sig>. Returns <eslFAIL> if no donor reaches
+ * this acceptor.
+ */
+static int
+replay_donors_from(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, float **dp, const float *signal_scores,
+                   int i_start, int k_start, int min_intron, int s0, DONOR_SLOTS *ds, int acc_i, int kk,
+                   float *ret_sc, int *ret_donor_i, int *ret_c, int *ret_don_sig)
+{
+  int          sub_kk = k_start + kk - 1;
+  int          don0, don1, don2;
+  int          acc0, acc1, acc2;
+  int          r, s, v, w, x;
+  int          nuc, sig, lb, iu, C;
+  float        tsc, sc;
+  DONOR_CHOICE best = { -eslINFINITY, -1, -1, -1 };
+
+  /* The fill updates donors only for columns 2..M-1 and only from row
+   * min_intron+3 on, and scores acceptors from that row on. */
+  if (kk < 2 || acc_i < min_intron + 3) return eslFAIL;
+
+  /* Donor updates, as in the fill. At row iu the donor dinucleotide
+   * that starts at row iu-min_intron is don2, and the look-back row lb
+   * is the same for don2, don1 and don0. */
+  for (iu = s0; iu < acc_i; iu++) {
+    don2 = donor_at(sub_dsq, i_start, min_intron, iu);
+    don1 = donor_at(sub_dsq, i_start, min_intron, iu - 1);
+    don0 = donor_at(sub_dsq, i_start, min_intron, iu - 2);
+    if (don0 < 0 && don1 < 0 && don2 < 0) continue;
+
+    r   = nuc_at(sub_dsq, i_start, iu - min_intron - 2);
+    lb  = iu - min_intron - 3;
+    tsc = ESL_MAX(MMX(lb, kk-1), DMX(lb, kk-1));
+
+    if (don2 >= 0) {
+      s = nuc_at(sub_dsq, i_start, iu - min_intron - 1);
+      for (nuc = 0; nuc <= p7P_MAXNUC; nuc++) {
+        C  = p7P_MINIDX(p7P_CODON3_FS1(r, s, (nuc < p7P_MAXNUC ? nuc : p7P_MAXCODONS1)), p7P_DEGEN1_C);
+        sc = tsc + gm_tr->rsc[C][sub_kk];
+        if (sc >= ds->sc2[nuc][don2]) { ds->sc2[nuc][don2] = sc; ds->row2[nuc][don2] = lb; }
+      }
+    }
+    if (don1 >= 0) {
+      nuc = ESL_MIN(r, p7P_MAXNUC);
+      if (tsc >= ds->sc1[nuc][don1]) { ds->sc1[nuc][don1] = tsc; ds->row1[nuc][don1] = lb; }
+    }
+    if (don0 >= 0) {
+      if (tsc >= ds->sc0[don0]) { ds->sc0[don0] = tsc; ds->row0[don0] = lb; }
+    }
+  }
+
+  /* Acceptor at row acc_i, as in the fill's P state */
+  v = nuc_at(sub_dsq, i_start, acc_i - 2);
+  w = nuc_at(sub_dsq, i_start, acc_i - 1);
+  x = nuc_at(sub_dsq, i_start, acc_i);
+  acc2 = acceptor_at(sub_dsq, i_start, acc_i);
+  acc1 = acceptor_at(sub_dsq, i_start, acc_i - 1);
+  acc0 = acceptor_at(sub_dsq, i_start, acc_i - 2);
+
+  if (acc0 >= 0) {
+    C = p7P_MINIDX(p7P_CODON3_FS1(v, w, x), p7P_DEGEN1_C);
+    for (sig = 0; sig < p7S_SPLICE_SIGNALS; sig++) {
+      if ((sig == p7S_ATAC) != (acc0 == ACCEPT_AC)) continue;
+      sc = ds->sc0[sig] + signal_scores[sig] + gm_tr->rsc[C][sub_kk];
+      keep_donor(&best, sc, ds->row0[sig], 0, sig);
+    }
+  }
+  if (acc1 >= 0) {
+    for (nuc = 0; nuc <= p7P_MAXNUC; nuc++) {
+      C = p7P_MINIDX(p7P_CODON3_FS1((nuc < p7P_MAXNUC ? nuc : p7P_MAXCODONS1), w, x), p7P_DEGEN1_C);
+      for (sig = 0; sig < p7S_SPLICE_SIGNALS; sig++) {
+        if ((sig == p7S_ATAC) != (acc1 == ACCEPT_AC)) continue;
+        sc = ds->sc1[nuc][sig] + signal_scores[sig] + gm_tr->rsc[C][sub_kk];
+        keep_donor(&best, sc, ds->row1[nuc][sig], 1, sig);
+      }
+    }
+  }
+  if (acc2 >= 0) {
+    nuc = ESL_MIN(x, p7P_MAXNUC);
+    for (sig = 0; sig < p7S_SPLICE_SIGNALS; sig++) {
+      if ((sig == p7S_ATAC) != (acc2 == ACCEPT_AC)) continue;
+      sc = ds->sc2[nuc][sig] + signal_scores[sig];
+      keep_donor(&best, sc, ds->row2[nuc][sig], 2, sig);
+    }
+  }
+  if (best.sc == -eslINFINITY) return eslFAIL;
+
+  *ret_sc      = best.sc;
+  *ret_donor_i = best.row;
+  *ret_c       = best.c;
+  *ret_don_sig = best.sig;
+  return eslOK;
+}
+
+/* donor_slots_clear(): no donors seen yet. */
+static void
+donor_slots_clear(DONOR_SLOTS *ds)
+{
+  int nuc, sig;
+
+  for (sig = 0; sig < p7S_SPLICE_SIGNALS; sig++) {
+    ds->sc0[sig] = -eslINFINITY; ds->row0[sig] = -1;
+    for (nuc = 0; nuc <= p7P_MAXNUC; nuc++) {
+      ds->sc1[nuc][sig] = ds->sc2[nuc][sig] = -eslINFINITY;
+      ds->row1[nuc][sig] = ds->row2[nuc][sig] = -1;
+    }
+  }
+}
+
+/* replay_donors():
+ *
+ * replay_donors_from() for the full matrix <gx> of p7_GViterbi_Spliced(),
+ * replaying from the first row that has donor updates.
+ */
+static int
+replay_donors(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores,
+              int i_start, int k_start, int min_intron, int acc_i, int kk,
+              float *ret_sc, int *ret_donor_i, int *ret_c, int *ret_don_sig)
+{
+  DONOR_SLOTS ds;
+
+  donor_slots_clear(&ds);
+  return replay_donors_from(sub_dsq, gm_tr, gx->dp, signal_scores, i_start, k_start, min_intron, min_intron + 3, &ds,
+                            acc_i, kk, ret_sc, ret_donor_i, ret_c, ret_don_sig);
+}
+
+
+/* Function:  p7_GViterbi_SplicedTrace()
+ * Synopsis:  Create a trace for spliced Viterbi
+ *
+ * Purpose:   Create a trace that includes the exon(s) and any splice
+ *            site(s) from the filled translated spliced viterbi matrix
+ *            <gx> and calculate the Viterbi score of the spliced sequence.
+ *            Returns the filled trace <tr> and optional Viterbi score
+ *            <vitsc>.
+ *
+ *            The donor of each P state is found by replaying the fill's
+ *            donor updates for the one model column up to the acceptor
+ *            (see replay_donors()), which gives the donor that produced
+ *            the P state score. Of equal scores the nearer donor is used.
+ *
+ * Args:      sub_dsq       - nucleotide sequence
+ *            gm_tr         - a codon profile.
+ *            gx            - filled spliced viterbi DP matrix
+ *            signal_scores - scores for splice site signals
+ *            tr            - trace to fill
+ *            i_start       - start position on the <sub_dsq>
+ *            i_end         - end position on the <sub_dsq>
+ *            k_start       - start position on the <gm_tr>
+ *            k_end         - end position on the <gm_tr>
+ *            min_intron    - minimum intron length
+ *            vitsc         - optional return Viterbi score
+ *            max_drop      - optional returned x-drop signal
+ *
+ * Return:    <eslOK> on success.
+ *            <eslFAIL> if even the optimal path has zero probability;
+ *            in this case, the trace is set blank (<tr->N = 0>).
+ */
+int
+p7_GViterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_FS_PROFILE *gm_tr, const P7_GMX *gx, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop)
+{
+
+  float const *tsc   = gm_tr->tsc;
+  float      **dp    = gx->dp;              /* so {MDI}MX() macros work                              */
+  float       *xmx   = gx->xmx;             /* so XMX() macro works                                  */
+  float        r_tol = 1e-5;                /* relative tolerance for floating point "equality" test */
+  float        a_tol = 1e-4;                /* absolute tolerance for floating point "equality" test */
+  int          M     = k_end - k_start + 1; /* sub model length                                      */
+  int          L     = i_end - i_start + 1; /* sub seq length                                        */
+  int          i     = L;                   /* position in seq (1..L)                                */
+  int          k     = 0;                   /* position in model (1..M)                              */
+  int          z;
+  int          v,w,x;
+  int          c, c3;
+  int          sprv,scur;
+  int          sub_k;
+  int          donor_i;
+  int          don_sig;
+  int          P_cnt, P_idx;
+  float        P_state;
+  float        emit;
+  float        vsc;
+  float        curr_P_score;
+  float        curr_M_score;
+  float        max_M_score;
+  float        curr_max_drop;
+  float       *P_scores;
+  int          status;
+
+  P_scores = NULL;
+  P_cnt    = 0;
+  ESL_ALLOC(P_scores, sizeof(float) * M);
+
+  if(gm_tr->codon_lengths != 1) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 1 codon length");
+
+#if eslDEBUGLEVEL > 0
+  if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace isn't empty: forgot to Reuse()?");
+#endif
+
+  vsc = XMX(i, p7G_C) + gm_tr->xsc[p7P_C][p7P_MOVE];
+
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i+i_start-1, 0)) != eslOK) return status;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i+i_start-1, 0)) != eslOK) return status;
+
+  sprv = p7T_C;
+
+  while (sprv != p7T_S) {
+    switch (sprv) {
+    case p7T_C:     /* C(i) comes from C(i-1) or E(i) */
+
+      if      (XMX(i, p7G_C) < XMX(i-2, p7G_C) || XMX(i, p7G_C) < XMX(i-1, p7G_C))                     scur = p7T_C;
+      else if (XMX(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      else if (esl_FCompare(XMX(i, p7G_C), XMX(i-3, p7G_C) + gm_tr->xsc[p7P_C][p7P_LOOP], r_tol, a_tol) == eslOK) scur = p7T_C;
+      else if (esl_FCompare(XMX(i, p7G_C), XMX(i,   p7G_E) + gm_tr->xsc[p7P_E][p7P_MOVE], r_tol, a_tol) == eslOK) scur = p7T_E;
+      else ESL_EXCEPTION(eslFAIL, "C at i=%d couldn't be traced", i);
+
+      break;
+
+    case p7T_E:     /* E connects from any M state. k set here */
+      if (XMX(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+      for (k = M; k >= 1; k--) {
+        if (esl_FCompare(XMX(i, p7G_E), MMX(i,k), r_tol, a_tol) == eslOK) { scur = p7T_M; break; }
+        if (esl_FCompare(XMX(i, p7G_E), DMX(i,k), r_tol, a_tol) == eslOK) { scur = p7T_D; break; }
+      }
+      if (k == 0) ESL_EXCEPTION(eslFAIL, "E at i=%d couldn't be traced", i);
+
+      break;
+
+    case p7T_M:         /* M connects from i-1,k-1, B, or a P state at i-3,k-1 */
+      if (MMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible M reached at k=%d,i=%d", k,i);
+
+      v = nuc_at(sub_dsq, i_start, i-2);
+
+      w = nuc_at(sub_dsq, i_start, i-1);
+
+      x = nuc_at(sub_dsq, i_start, i);
+
+      c3 = p7P_CODON3_FS1(v, w, x);
+      c3 = p7P_MINIDX(c3, p7P_DEGEN1_C);
+
+      sub_k  = k_start + k - 1;
+      emit = p7P_MSC_CODON(gm_tr, sub_k, c3);
+
+      if      (esl_FCompare(MMX(i,k), MMX(i-3, k-1) + TSC(p7P_MM, sub_k-1) + emit, r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(MMX(i,k), IMX(i-3, k-1) + TSC(p7P_IM, sub_k-1) + emit, r_tol, a_tol) == eslOK) scur = p7T_I;
+      else if (esl_FCompare(MMX(i,k), DMX(i-3, k-1) + TSC(p7P_DM, sub_k-1) + emit, r_tol, a_tol) == eslOK) scur = p7T_D;
+      else if (esl_FCompare(MMX(i,k), XMX(i-3, p7G_B)                      + emit, r_tol, a_tol) == eslOK) scur = p7T_B;
+      else {    /* The P state is not stored - recreate it from the donor updates */
+        if (replay_donors(sub_dsq, gm_tr, gx, signal_scores, i_start, k_start, min_intron, i-3, k-1, &P_state, &donor_i, &c, &don_sig) != eslOK)
+          ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+        if (esl_FCompare(MMX(i,k), P_state + TSC_P + emit, r_tol, a_tol) != eslOK)
+          ESL_EXCEPTION(eslFAIL, "M at k=%d,i=%d couldn't be traced", k,i);
+
+        scur = p7T_P;
+        vsc -= TSC_P;
+        vsc -= signal_scores[don_sig];
+
+        /* Track P state scores for x_drop calculation */
+        P_scores[P_cnt++] = TSC_P + signal_scores[don_sig];
+      }
+
+      k--; i-=3;
+      break;
+
+    case p7T_D:         /* D connects from M,D at i,k-1 */
+      if (DMX(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
+
+      sub_k  = k_start + k - 1;
+      if      (esl_FCompare(DMX(i,k), MMX(i, k-1) + TSC(p7P_MD, sub_k-1), r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(DMX(i,k), DMX(i, k-1) + TSC(p7P_DD, sub_k-1), r_tol, a_tol) == eslOK) scur = p7T_D;
+      else ESL_EXCEPTION(eslFAIL, "D at k=%d,i=%d couldn't be traced", k,i);
+      k--;
+      break;
+
+    case p7T_I:         /* I connects from M,I at i-1,k*/
+      if (IMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
+
+      sub_k  = k_start + k - 1;
+      if      (esl_FCompare(IMX(i,k), MMX(i-3,k) + TSC(p7P_MI, sub_k), r_tol, a_tol) == eslOK) scur = p7T_M;
+      else if (esl_FCompare(IMX(i,k), IMX(i-3,k) + TSC(p7P_II, sub_k), r_tol, a_tol) == eslOK) scur = p7T_I;
+      else ESL_EXCEPTION(eslFAIL, "I at k=%d,i=%d couldn't be traced", k,i);
+      i-=3;
+      break;
+
+    case p7T_P:
+      if (MMX(donor_i,k-1) > DMX(donor_i,k-1)) scur = p7T_M;
+      else                                     scur = p7T_D;
+
+      k--; i = donor_i;
+      break;
+
+    case p7T_N:         /* N connects from S, N */
+      if (XMX(i, p7G_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
+      scur = ( (i == 0) ? p7T_S : p7T_N);
+      break;
+
+    case p7T_B:         /* B connects from N, J */
+      vsc += p7P_TSC(gm_tr, k, p7P_BM);
+
+      if (XMX(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+      if      (esl_FCompare(XMX(i,p7G_B), XMX(i, p7G_N) + gm_tr->xsc[p7P_N][p7P_MOVE], r_tol, a_tol) == eslOK) scur = p7T_N;
+      else  ESL_EXCEPTION(eslFAIL, "B at i=%d couldn't be traced", i);
+      break;
+
+      default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
+    } /* end switch over statetype[tpos-1] */
+
+    if      (scur == p7T_M) c = 3;
+    else if (scur != p7T_P) c = 0;
+
+    if ((status = p7_trace_fs_Append(tr, scur, k_start+k-1, i_start+i-1, c)) != eslOK) return status;
+
+    /* For NC, we had to defer i decrement. */
+    if ( (scur == p7T_N || scur == p7T_C) && scur == sprv) i--;
+
     sprv = scur;
   } /* end traceback, at S state */
 
@@ -947,6 +1393,35 @@ main(int argc, char **argv)
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
+/* utest_compare_traces():
+ *
+ * Trace the filled matrix <gx> with p7_GViterbi_SplicedTraceOld() into
+ * <tr_search> and with p7_GViterbi_SplicedTrace() into <tr_replay>, and
+ * require the same states, positions, splice codon phases and Viterbi
+ * score. Leaves both traces empty for reuse.
+ */
+static void
+utest_compare_traces(ESL_DSQ *dsq, P7_FS_PROFILE *gm_tr, P7_GMX *gx, float *signal_scores,
+                     P7_TRACE *tr_search, P7_TRACE *tr_replay, int L, int M, int min_intron, char *msg)
+{
+  float sc_search, sc_replay;
+  int   z;
+
+  p7_trace_Reuse(tr_search);
+  p7_GViterbi_SplicedTraceOld      (dsq, gm_tr, gx, signal_scores, tr_search, 1, L, 1, M, min_intron, &sc_search, NULL);
+  p7_GViterbi_SplicedTrace(dsq, gm_tr, gx, signal_scores, tr_replay, 1, L, 1, M, min_intron, &sc_replay, NULL);
+
+  if (tr_search->N != tr_replay->N) esl_fatal("%s: replay trace length %d != search trace length %d", msg, tr_replay->N, tr_search->N);
+  for (z = 0; z < tr_search->N; z++)
+    if (tr_search->st[z] != tr_replay->st[z] || tr_search->k[z] != tr_replay->k[z] ||
+        tr_search->i[z]  != tr_replay->i[z]  || tr_search->c[z] != tr_replay->c[z])
+      esl_fatal("%s: replay and search traces differ at position %d", msg, z);
+  if (sc_search != sc_replay) esl_fatal("%s: replay score %f != search score %f", msg, sc_replay, sc_search);
+
+  p7_trace_Reuse(tr_search);
+  p7_trace_Reuse(tr_replay);
+}
+
 /* utest_viterbi():
  *
  * A simulated intron (GT + <intron_len> random nucleotides + AG) is inserted
@@ -1040,18 +1515,20 @@ utest_viterbi(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
         for (i = 0; i < tr_NoP->N; i++)
           if (tr_NoP->st[i] == p7T_P) n_p++;
         if (n_p < 1) esl_fatal(msg);
-        p7_trace_Reuse(tr_NoP);
+        utest_compare_traces(dsq, gm_tr, gx, signal_scores, tr_NoP, tr, L_dna_total, M, min_intron, msg);
       }
 
       /* --- Test 2: ExtendDown; final C must be reachable --- */
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, TRUE, FALSE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
+      utest_compare_traces(dsq, gm_tr, gx, signal_scores, tr_NoP, tr, L_dna_total, M, min_intron, msg);
 
       /* --- Test 3: ExtendUp; final C must be reachable --- */
       p7_GViterbi_Spliced(dsq, gm_tr, gx, acc_iv, don_iv, signal_scores, 1, L_dna_total, 1, hmm->M, min_intron, FALSE, TRUE);
       final_C = gx->xmx[L_dna_total * p7G_NXCELLS + p7G_C];
       if (final_C == -eslINFINITY) esl_fatal(msg);
+      utest_compare_traces(dsq, gm_tr, gx, signal_scores, tr_NoP, tr, L_dna_total, M, min_intron, msg);
     }
 
   if (dsq != NULL) free(dsq);

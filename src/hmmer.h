@@ -644,12 +644,65 @@ typedef struct p7_gmx_s {
   float  *dp_mem;
 } P7_GMX;
 
+/* P7_CHKGMX: checkpointed generic dynamic programming matrix.
+ *
+ * Rows are computed in blocks of <blockR> rows; block j covers rows
+ * j*blockR .. (j+1)*blockR-1. Only one block is stored at a time,
+ * together with the <saveR> rows before it. dp[] has an entry for
+ * every row 0..L: loaded rows point into dp_mem, all other rows are
+ * NULL, so the {MDI}MX() macros work with dp = cx->dp. When the
+ * computation moves from block j-1 into block j, the <saveR> rows
+ * before block j are copied into checkpoint j-1 in ck_mem, so that
+ * block j can be loaded again later. X states are kept for every row.
+ *
+ * dp_mem holds <allocR> = <saveR> + <blockR> rows: slots 0..saveR-1
+ * for the rows before the loaded block, then the block itself.
+ */
+typedef struct p7_chkgmx_s {
+  int       M;
+  int       L;
+  int       nscells;    /* cells per model position, e.g. p7G_NSCELLS             */
+  int       blockR;     /* rows per block                                         */
+  int       saveR;      /* rows saved at each checkpoint, before the block        */
+  int       b;          /* first row of the loaded block; -1 if none              */
+
+  float   **dp;         /* row pointers [0..L]; indexed [i][k*nscells+s]          */
+  float    *dp_mem;     /* storage for allocR rows of allocW*nscells cells        */
+  int       allocR;     /* rows of storage in dp_mem: saveR + blockR              */
+  int       allocW;     /* allocated row width: M+1 <= allocW                     */
+  int       allocP;     /* entries in dp[]; allocP >= L+1                         */
+
+  float    *ck_mem;     /* checkpoints: saveR rows each                           */
+  int       allocK;     /* checkpoints allocated                                  */
+  int       nK;         /* checkpoints saved                                      */
+
+  float    *xmx;        /* [0..L][0..p7G_NXCELLS-1]; indexed [i*p7G_NXCELLS+s]    */
+  int       allocXR;
+} P7_CHKGMX;
+
 typedef struct p7_ivx_s {
   int   allocM;
   int   allocC;
   float *ivx;
 
 } P7_IVX;
+
+/* P7_CHKIVX: values saved at each checkpoint of a P7_CHKGMX.
+ *
+ * Holds <allocCI> working int channels, and for each of <allocK>
+ * checkpoints a copy of <allocCF> float channels (taken from a
+ * P7_IVX) and of the <allocCI> int channels. Channels use the same
+ * layout as P7_IVX: value c of model position k is at [k*C + c].
+ */
+typedef struct p7_chkivx_s {
+  int    allocM;
+  int    allocCF;       /* float channels saved per checkpoint                     */
+  int    allocCI;       /* int channels, working and saved per checkpoint          */
+  int    allocK;        /* number of checkpoints                                   */
+  int   *ivx;           /* [(allocM+1)*allocCI] working ints; [k*allocCI + c]      */
+  float *ckf;           /* [allocK][(allocM+1)*allocCF] saved floats               */
+  int   *cki;           /* [allocK][(allocM+1)*allocCI] saved ints                 */
+} P7_CHKIVX;
 
 /* Macros below implement indexing idioms for generic DP routines.
  * They require the following setup, for profile <gm> and matrix <gx>:
@@ -1444,10 +1497,24 @@ extern int     p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance);
 extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
+/* p7_chkgmx.c */
+extern P7_CHKGMX *p7_chkgmx_Create    (int allocM, int allocL, int blockR, int saveR, int nscells);
+extern int        p7_chkgmx_GrowTo    (P7_CHKGMX *cx, int M, int L);
+extern int        p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b);
+extern int        p7_chkgmx_LoadBlock (P7_CHKGMX *cx, int b);
+extern void       p7_chkgmx_Destroy   (P7_CHKGMX *cx);
+
 /* p7_ivx.c */
 extern P7_IVX *p7_ivx_Create(int allocM, int allocC);
 extern int     p7_ivx_GrowTo(P7_IVX *iv, int M, int C);
 extern void    p7_ivx_Destroy(P7_IVX *iv);
+
+/* p7_chkivx.c */
+extern P7_CHKIVX *p7_chkivx_Create (int allocM, int CF, int CI, int K);
+extern int        p7_chkivx_GrowTo (P7_CHKIVX *cv, int M, int CF, int CI, int K);
+extern int        p7_chkivx_Save   (P7_CHKIVX *cv, const P7_IVX *iv, int M, int k);
+extern int        p7_chkivx_Load   (P7_CHKIVX *cv, P7_IVX *iv, int M, int k);
+extern void       p7_chkivx_Destroy(P7_CHKIVX *cv);
 
 /* p7_hit.c */
 extern P7_HIT *p7_hit_Create_empty();

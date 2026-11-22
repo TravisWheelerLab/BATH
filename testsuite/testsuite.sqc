@@ -26,12 +26,14 @@
 1 exercise hmmer              @src/hmmer_utest@
 1 exercise build              @src/build_utest@
 1 exercise generic_fwdback    @src/generic_fwdback_utest@
+1 exercise generic_fwdback_chk @src/generic_fwdback_chk_utest@
 1 exercise generic_fwdback_fs @src/generic_fwdback_frameshift_utest@
 1 exercise generic_msv        @src/generic_msv_utest@
 1 exercise generic_stotrace   @src/generic_stotrace_utest@
 1 exercise generic_viterbi    @src/generic_viterbi_utest@
 1 exercise generic_viterbi_fs @src/generic_viterbi_frameshift_utest@
 1 exercise generic_viterbi_sp @src/generic_viterbi_spliced_utest@
+1 exercise generic_viterbi_sp_chk @src/generic_viterbi_spliced_chk_utest@
 1 exercise logsum             @src/logsum_utest@
 1 exercise modelconfig        @src/modelconfig_utest@
 1 exercise seqmodel           @src/seqmodel_utest@
@@ -39,6 +41,9 @@
 1 exercise p7_bg              @src/p7_bg_utest@
 1 exercise p7_domain          @src/p7_domain_utest@
 1 exercise p7_gmx             @src/p7_gmx_utest@
+1 exercise p7_chkgmx          @src/p7_chkgmx_utest@
+1 exercise p7_chkivx          @src/p7_chkivx_utest@
+1 exercise p7_gmxchk          @src/p7_gmxchk_utest@
 1 exercise p7_hit             @src/p7_hit_utest@
 1 exercise p7_hmm             @src/p7_hmm_utest@
 1 exercise p7_hmmfile         @src/p7_hmmfile_utest@
@@ -49,6 +54,8 @@
 1 exercise p7_scoredata       @src/p7_scoredata_utest@
 
 
+1 exercise chkomx             @src/impl/chkomx_utest@
+1 exercise chkoivx            @src/impl/chkoivx_utest@
 1 exercise decoding           @src/impl/decoding_utest@
 1 exercise decoding_fs        @src/impl/decoding_fs_utest@
 1 exercise fwdback            @src/impl/fwdback_utest@
@@ -64,6 +71,7 @@
 1 exercise viterbi            @src/impl/viterbi_utest@
 1 exercise viterbi_fs         @src/impl/viterbi_fs_utest@
 1 exercise viterbi_sp         @src/impl/viterbi_sp_utest@
+1 exercise viterbi_sp_chk     @src/impl/viterbi_sp_chk_utest@
 
 ################################################################
 # Option tests 

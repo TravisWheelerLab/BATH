@@ -82,12 +82,18 @@ OBJS =  decoding.o\
 	viterbi_sp.o\
 	viterbi_sp_sse.o\
 	viterbi_sp_avx.o\
+	viterbi_sp_chk.o\
+	viterbi_sp_chk_sse.o\
+	viterbi_sp_chk_avx.o\
 	vitscore.o\
 	vitscore_sse.o\
 	vitscore_avx.o\
 	p7_omx.o\
 	p7_omx_sse.o\
 	p7_omx_avx.o\
+	p7_chkomx.o\
+	p7_chkomx_sse.o\
+	p7_chkomx_avx.o\
 	p7_oprofile.o\
 	p7_oprofile_sse.o\
 	p7_oprofile_avx.o\
@@ -96,11 +102,16 @@ OBJS =  decoding.o\
 	p7_fs_oprofile_avx.o\
 	p7_oivx.o\
 	p7_oivx_sse.o\
-	p7_oivx_avx.o
+	p7_oivx_avx.o\
+	p7_chkoivx.o\
+	p7_chkoivx_sse.o\
+	p7_chkoivx_avx.o
 
 HDRS =  impl_avx.h
 
 UTESTS =\
+	chkoivx_utest\
+	chkomx_utest\
 	decoding_utest\
 	decoding_fs_utest\
 	fwdback_utest\
@@ -115,7 +126,8 @@ UTESTS =\
 	vitfilter_utest\
 	viterbi_utest\
 	viterbi_fs_utest\
-	viterbi_sp_utest
+	viterbi_sp_utest\
+	viterbi_sp_chk_utest
 
 BENCHMARKS =\
 	decoding_benchmark\

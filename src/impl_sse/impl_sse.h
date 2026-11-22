@@ -291,6 +291,26 @@ typedef struct p7_oivx_s {
 #define OIVXo(c, q)  (ivx[(c)][(q)])
 
 
+/* P7_CHKOIVX: vectors saved at each checkpoint of a P7_CHKOMX
+ *
+ * Holds <allocCI> working int32 vector channels, and for each of
+ * <allocK> checkpoints a copy of <allocCF> float channels (taken
+ * from a P7_OIVX) and of the <allocCI> int channels. Vectors use the
+ * same [channel][stripe] layout as P7_OIVX, so int32 lane j lines up
+ * with float lane j.
+ */
+typedef struct p7_chkoivx_s {
+  int        allocM;       /* max model length currently allocated for          */
+  int        allocCF;      /* float channels saved per checkpoint               */
+  int        allocCI;      /* int channels, working and saved per checkpoint    */
+  int        allocK;       /* number of checkpoints                             */
+  int        allocQ4;      /* p7O_NQF(allocM)                                   */
+  __m128i  **ivx;          /* [allocCI][allocQ4] working int32 vectors          */
+  void      *ivx_mem;      /* backing memory for ivx (+15 bytes for alignment)  */
+  void      *ck_mem;       /* [allocK][allocCF+allocCI][allocQ4] saved vectors  */
+} P7_CHKOIVX;
+
+
 /*****************************************************************
  * 4. P7_OMX: a one-row dynamic programming matrix
  *****************************************************************/
@@ -401,6 +421,47 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
   ox->dpf[i][q] = u.v;
 }
   
+/* P7_CHKOMX: checkpointed float dynamic programming matrix
+ *
+ * Rows are computed in blocks of <blockR> rows; block j covers rows
+ * j*blockR .. (j+1)*blockR-1. Only one block is stored at a time,
+ * together with the <saveR> rows before it. The row pointer array
+ * has an entry for every row 0..L: loaded rows point into dp_mem,
+ * all other rows are NULL. When the computation moves from block
+ * j-1 into block j, the <saveR> rows before block j are copied into
+ * checkpoint j-1 in ck_mem, so that block j can be loaded again
+ * later. X states are kept for every row.
+ *
+ * dp_mem holds <allocR> = <saveR> + <blockR> rows: slots 0..saveR-1
+ * for the rows before the loaded block, then the block itself. Rows
+ * are <allocQ4> stripes of <nscells> vectors.
+ */
+typedef struct p7_chkomx_s {
+  int       M;
+  int       L;
+  int       nscells;   /* vectors per stripe position, e.g. p7X_NSCELLS        */
+  int       blockR;    /* rows per block                                       */
+  int       saveR;     /* rows saved at each checkpoint, before the block      */
+  int       b;         /* first row of the loaded block; -1 if none            */
+
+  __m128  **dpf;       /* row pointers [0..L]                                  */
+  void     *dp_mem;    /* storage for allocR rows                              */
+  int       allocR;    /* rows of storage in dp_mem: saveR + blockR            */
+  int       allocP;    /* entries in the row pointer array; allocP >= L+1      */
+  int       allocQ4;   /* float stripes per row     (allocQ4*4 >= M)           */
+  size_t    nvec;      /* current allocation size of dp_mem, in vectors        */
+
+  /* Checkpoints: saveR rows each */
+  void     *ck_mem;
+  int       allocK;    /* checkpoints allocated                                */
+  int       nK;        /* checkpoints saved                                    */
+
+  /* X states for every row */
+  float    *xmx;       /* [0..L][ENJBCS]; indexed [i*p7X_NXCELLS+s]            */
+  void     *x_mem;
+  int       allocXR;
+} P7_CHKOMX;
+
 /*****************************************************************
  * 5. Declarations of the external API.
  *****************************************************************/
@@ -418,6 +479,14 @@ extern int          p7_omx_SetDumpMode(FILE *fp, P7_OMX *ox, int truefalse);
 extern int          p7_omx_Dump       (FILE *fp, P7_OMX *ox);
 extern int          p7_omx_DumpMFRow(P7_OMX *ox, int rowi, uint8_t xE, uint8_t xN, uint8_t xJ, uint8_t xB, uint8_t xC);
 extern int          p7_omx_DumpVFRow(P7_OMX *ox, int rowi, int16_t xE, int16_t xN, int16_t xJ, int16_t xB, int16_t xC);
+
+/* p7_chkomx.c */
+extern P7_CHKOMX   *p7_chkomx_Create    (int allocM, int allocL, int blockR, int saveR, int nscells);
+extern int          p7_chkomx_GrowTo    (P7_CHKOMX *cx, int allocM, int allocL);
+extern int          p7_chkomx_StartBlock(P7_CHKOMX *cx, int b);
+extern int          p7_chkomx_LoadBlock (P7_CHKOMX *cx, int b);
+extern float        p7_chkomx_FGetMDI   (const P7_CHKOMX *cx, int s, int i, int k);
+extern void         p7_chkomx_Destroy   (P7_CHKOMX *cx);
 extern int          p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
 extern int           p7_omx_DumpFBRow_FS(P7_OMX *ox, int logify, int i, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
 
@@ -469,6 +538,13 @@ extern int             p7_fs_oprofile_SubConvert_Log(const P7_FS_PROFILE *gm_fs,
 extern P7_OIVX        *p7_oivx_Create (int M_hint, int C);
 extern int             p7_oivx_GrowTo (P7_OIVX *ov, int M, int C);
 extern void            p7_oivx_Destroy(P7_OIVX *ov);
+
+/* p7_chkoivx.c */
+extern P7_CHKOIVX     *p7_chkoivx_Create (int M_hint, int CF, int CI, int K);
+extern int             p7_chkoivx_GrowTo (P7_CHKOIVX *cv, int M, int CF, int CI, int K);
+extern int             p7_chkoivx_Save   (P7_CHKOIVX *cv, const P7_OIVX *ov, int M, int k);
+extern int             p7_chkoivx_Load   (P7_CHKOIVX *cv, P7_OIVX *ov, int M, int k);
+extern void            p7_chkoivx_Destroy(P7_CHKOIVX *cv);
 extern int             p7_fs_oprofile_ReconfigLength    (P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigLength_Log(P7_FS_OPROFILE *om_fs, int L);
 extern int             p7_fs_oprofile_ReconfigMultihit  (P7_FS_OPROFILE *om_fs, int L);
@@ -546,7 +622,12 @@ extern int p7_Viterbi_Trace(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, co
 
 /* viterbi_sp.c */
 extern int p7_Viterbi_Spliced(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_OMX *ox, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
+extern int p7_Viterbi_SplicedTraceOld(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
 extern int p7_Viterbi_SplicedTrace(const ESL_DSQ *sub_dsq, const P7_OMX *ox, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, float *vitsc, float *max_drop);
+
+/* viterbi_sp_chk.c */
+extern int p7_Viterbi_SplicedChk     (const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_CHKOMX *cx, P7_CHKOIVX *cv, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, int i_start, int i_end, int min_intron, int global_start, int global_end);
+extern int p7_Viterbi_SplicedTraceChk(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_CHKOMX *cx, P7_CHKOIVX *cv, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end, float *vitsc, float *max_drop);
 
 /* vitscore.c */
 extern int p7_ViterbiScore (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);

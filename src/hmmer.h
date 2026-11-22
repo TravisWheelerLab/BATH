@@ -1323,6 +1323,7 @@ extern int p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const
 extern int p7_GBackward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_GBackwardDecoding_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, float *opt_sc);
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);

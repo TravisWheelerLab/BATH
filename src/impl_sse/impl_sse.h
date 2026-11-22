@@ -560,10 +560,11 @@ extern int p7_Decoding_Frameshift            (const P7_FS_OPROFILE *om_fs, P7_OM
 extern int p7_DomainDecoding_Frameshift     (const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf,  const P7_OMX *oxb,  P7_DOMAINDEF *ddef);
 
 /* fwdback.c */
-extern int p7_Forward       (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
-extern int p7_ForwardParser (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
-extern int p7_Backward      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
-extern int p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_Forward         (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
+extern int p7_ForwardParser   (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
+extern int p7_Backward        (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_BackwardParser  (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern int p7_BackwardDecoding(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,       P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 
 /* fwdback_fs.c */
 extern int p7_ForwardParser_Frameshift_3Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);

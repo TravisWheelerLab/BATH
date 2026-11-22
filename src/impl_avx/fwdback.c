@@ -1,6 +1,6 @@
 /* Forward/Backward dispatcher.
  * Provides the non-suffixed p7_Forward, p7_ForwardParser, p7_Backward,
- * and p7_BackwardParser declared in impl_avx.h.
+ * p7_BackwardParser and p7_BackwardDecoding declared in impl_avx.h.
  * Delegates to the fastest available ISA implementation at runtime.
  */
 
@@ -137,6 +137,45 @@ p7_BackwardParser_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
   return p7_BackwardParser_sse(dsq, L, om, fwd, bck, opt_sc);
 #else
   p7_Die("p7_BackwardParser: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+
+/* Forward declaration of dispatcher */
+static int p7_BackwardDecoding_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardDecoding)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, P7_OMX *bck, float *opt_sc) = p7_BackwardDecoding_Dispatcher;
+
+/* Function:  p7_BackwardDecoding_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for the Backward parser with
+ *            posterior decoding. Given a Forward matrix <fwd> filled by
+ *            <p7_Forward()> and a one-row matrix <bck> (as for
+ *            <p7_BackwardParser()>), runs Backward and writes the
+ *            posterior decoding over <fwd>: on return <fwd> holds the
+ *            posterior matrix <p7_Decoding()> would produce, and <bck>
+ *            holds the Backward special states for all rows.
+ *
+ * Returns:   <eslOK> on success.  <*opt_sc> is the log Backward score.
+ *            <eslERANGE> if the posterior scaling overflows, as for
+ *            <p7_Decoding()>.
+ * Throws:    <eslEINVAL> if <bck> or <fwd> is allocated too small, or
+ *            the profile is not in a local alignment mode.
+ *            <eslERANGE> on Backward score underflow or overflow.
+ */
+static int
+p7_BackwardDecoding_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_BackwardDecoding = p7_BackwardDecoding_avx;    return p7_BackwardDecoding_avx(dsq, L, om, fwd, bck, opt_sc); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_BackwardDecoding = p7_BackwardDecoding_sse;
+  return p7_BackwardDecoding_sse(dsq, L, om, fwd, bck, opt_sc);
+#else
+  p7_Die("p7_BackwardDecoding: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
@@ -346,6 +385,109 @@ utest_fwdback(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   p7_oprofile_Destroy(om);
 }
 
+/* utest_backward_decoding()
+ * Compare p7_BackwardDecoding() with p7_Backward() followed by
+ * p7_Decoding(). Both do the same products in the same order, so the
+ * Backward scores must be equal and the posterior matrices identical.
+ * With <use_sse>, the _sse versions are called directly, so an AVX CPU
+ * also tests the SSE engine.
+ */
+static void
+utest_backward_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N, int use_sse)
+{
+  char        *msg  = "backward decoding unit test failed";
+  P7_HMM      *hmm  = NULL;
+  P7_PROFILE  *gm   = NULL;
+  P7_OPROFILE *om   = NULL;
+  ESL_DSQ     *dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_OMX      *oxf  = NULL;
+  P7_OMX      *oxb  = NULL;
+  P7_OMX      *pp   = NULL;
+  P7_OMX      *fwd  = NULL;
+  P7_OMX      *bck  = NULL;
+  P7_GMX      *gxp1 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX      *gxp2 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  float        bsc1, bsc2;
+  int          i, x;
+
+  p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
+  if (use_sse)
+    {
+      p7_oprofile_Destroy(om);
+      om  = p7_oprofile_Create_sse(M, abc);
+      p7_oprofile_Convert_sse(gm, om);
+      oxf = p7_omx_Create_sse(M, L, L);
+      oxb = p7_omx_Create_sse(M, L, L);
+      pp  = p7_omx_Create_sse(M, L, L);
+      fwd = p7_omx_Create_sse(M, L, L);
+      bck = p7_omx_Create_sse(M, 0, L);
+    }
+  else
+    {
+      oxf = p7_omx_Create(M, L, L);
+      oxb = p7_omx_Create(M, L, L);
+      pp  = p7_omx_Create(M, L, L);
+      fwd = p7_omx_Create(M, L, L);
+      bck = p7_omx_Create(M, 0, L);
+    }
+
+  while (N--)
+    {
+      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
+
+      if (use_sse)
+        {
+          if (p7_Forward_sse         (dsq, L, om, oxf,      NULL)  != eslOK) esl_fatal(msg);
+          if (p7_Backward_sse        (dsq, L, om, oxf, oxb, &bsc1) != eslOK) esl_fatal(msg);
+          if (p7_Decoding_sse        (om, oxf, oxb, pp)            != eslOK) esl_fatal(msg);
+          if (p7_Forward_sse         (dsq, L, om, fwd,      NULL)  != eslOK) esl_fatal(msg);
+          if (p7_BackwardDecoding_sse(dsq, L, om, fwd, bck, &bsc2) != eslOK) esl_fatal(msg);
+          if (p7_omx_FDeconvert_sse(pp,  gxp1)                     != eslOK) esl_fatal(msg);
+          if (p7_omx_FDeconvert_sse(fwd, gxp2)                     != eslOK) esl_fatal(msg);
+        }
+      else
+        {
+          if (p7_Forward         (dsq, L, om, oxf,      NULL)      != eslOK) esl_fatal(msg);
+          if (p7_Backward        (dsq, L, om, oxf, oxb, &bsc1)     != eslOK) esl_fatal(msg);
+          if (p7_Decoding        (om, oxf, oxb, pp)                != eslOK) esl_fatal(msg);
+          if (p7_Forward         (dsq, L, om, fwd,      NULL)      != eslOK) esl_fatal(msg);
+          if (p7_BackwardDecoding(dsq, L, om, fwd, bck, &bsc2)     != eslOK) esl_fatal(msg);
+          if (p7_omx_FDeconvert(pp,  gxp1)                         != eslOK) esl_fatal(msg);
+          if (p7_omx_FDeconvert(fwd, gxp2)                         != eslOK) esl_fatal(msg);
+        }
+
+      if (bsc1 != bsc2)                                                      esl_fatal("%s: Backward scores differ (%f %f)", msg, bsc1, bsc2);
+      if (p7_gmx_Compare(gxp2, gxp1, 0.0)                         != eslOK) esl_fatal("%s: posterior matrices differ", msg);
+      for (i = 0; i <= L; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (bck->xmx[i*p7X_NXCELLS+x] != oxb->xmx[i*p7X_NXCELLS+x])         esl_fatal("%s: Backward special states differ", msg);
+    }
+
+  free(dsq);
+  p7_hmm_Destroy(hmm);
+  p7_gmx_Destroy(gxp1);
+  p7_gmx_Destroy(gxp2);
+  if (use_sse)
+    {
+      p7_omx_Destroy_sse(oxf);
+      p7_omx_Destroy_sse(oxb);
+      p7_omx_Destroy_sse(pp);
+      p7_omx_Destroy_sse(fwd);
+      p7_omx_Destroy_sse(bck);
+      p7_oprofile_Destroy_sse(om);
+    }
+  else
+    {
+      p7_omx_Destroy(oxf);
+      p7_omx_Destroy(oxb);
+      p7_omx_Destroy(pp);
+      p7_omx_Destroy(fwd);
+      p7_omx_Destroy(bck);
+      p7_oprofile_Destroy(om);
+    }
+  p7_profile_Destroy(gm);
+}
+
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
 /* utest_sse_vs_avx_fwdback()
  *
@@ -473,6 +615,16 @@ main(int argc, char **argv)
   utest_fwdback(r, abc, bg, M, L, N);   /* normal sized models */
   utest_fwdback(r, abc, bg, 1, L, 10);  /* size 1 models       */
   utest_fwdback(r, abc, bg, M, 1, 10);  /* size 1 sequences    */
+  utest_backward_decoding(r, abc, bg, M, L, N,  FALSE);
+  utest_backward_decoding(r, abc, bg, 1, L, 10, FALSE);
+  utest_backward_decoding(r, abc, bg, M, 1, 10, FALSE);
+#ifdef eslENABLE_SSE
+  if (esl_cpu_has_sse()) {
+    utest_backward_decoding(r, abc, bg, M, L, N,  TRUE);
+    utest_backward_decoding(r, abc, bg, 1, L, 10, TRUE);
+    utest_backward_decoding(r, abc, bg, M, 1, 10, TRUE);
+  }
+#endif
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
   utest_sse_vs_avx_fwdback(r, abc, bg, M, L, N);
   utest_sse_vs_avx_fwdback(r, abc, bg, 1, L, 10);
@@ -489,6 +641,16 @@ main(int argc, char **argv)
   utest_fwdback(r, abc, bg, M, L, N);
   utest_fwdback(r, abc, bg, 1, L, 10);
   utest_fwdback(r, abc, bg, M, 1, 10);
+  utest_backward_decoding(r, abc, bg, M, L, N,  FALSE);
+  utest_backward_decoding(r, abc, bg, 1, L, 10, FALSE);
+  utest_backward_decoding(r, abc, bg, M, 1, 10, FALSE);
+#ifdef eslENABLE_SSE
+  if (esl_cpu_has_sse()) {
+    utest_backward_decoding(r, abc, bg, M, L, N,  TRUE);
+    utest_backward_decoding(r, abc, bg, 1, L, 10, TRUE);
+    utest_backward_decoding(r, abc, bg, M, 1, 10, TRUE);
+  }
+#endif
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
   utest_sse_vs_avx_fwdback(r, abc, bg, M, L, N);
   utest_sse_vs_avx_fwdback(r, abc, bg, 1, L, 10);

@@ -3287,7 +3287,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     p7_Null2_ByExpectation(om, pli->bwd, null2);
 
     p7_OptimalAccuracy(om, pli->bwd, pli->fwd, &oasc); /* <fwd> is now overwritten with OA scores */
-    p7_OATrace        (om, pli->bwd, pli->fwd, tr);
+    p7_OATrace        (om, pli->fwd, tr);
   }
 
   p7_trace_Index(tr);

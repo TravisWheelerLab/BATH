@@ -881,17 +881,17 @@ extern int p7_Null2_fs_ByExpectation_avx(const P7_FS_OPROFILE *om_fs, P7_OMX *pp
 
 /* optacc.c — self-patching dispatchers */
 extern int (*p7_OptimalAccuracy)(const P7_OPROFILE *om, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
-extern int (*p7_OATrace)        (const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int (*p7_OATrace)        (const P7_OPROFILE *om,                   const P7_OMX *ox, P7_TRACE *tr);
 
 /* optacc_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_OptimalAccuracy_sse           (const P7_OPROFILE    *om,    const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
-extern int p7_OATrace_sse                   (const P7_OPROFILE    *om,    const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_OATrace_sse                   (const P7_OPROFILE    *om,                      const P7_OMX *ox, P7_TRACE *tr);
 #endif
 /* optacc_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
 extern int p7_OptimalAccuracy_avx           (const P7_OPROFILE    *om,    const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
-extern int p7_OATrace_avx                   (const P7_OPROFILE    *om,    const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_OATrace_avx                   (const P7_OPROFILE    *om,                      const P7_OMX *ox, P7_TRACE *tr);
 #endif
 
 /* optacc_fs.c — self-patching dispatchers */

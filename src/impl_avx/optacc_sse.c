@@ -143,30 +143,60 @@ p7_OptimalAccuracy_sse(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, floa
 
 /* OA traceback helpers (standard, non-FS) */
 
-static inline float oa_get_postprob(const P7_OMX *pp, int scur, int sprv, int k, int i);
+static inline float oa_get_postprob(const P7_OPROFILE *om, const P7_OMX *ox, int scur, int sprv, int k, int i);
 static inline int oa_select_m(const P7_OPROFILE *om,                   const P7_OMX *ox, int i, int k);
 static inline int oa_select_d(const P7_OPROFILE *om,                   const P7_OMX *ox, int i, int k);
 static inline int oa_select_i(const P7_OPROFILE *om,                   const P7_OMX *ox, int i, int k);
 static inline int oa_select_n(int i);
-static inline int oa_select_c(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, int i);
-static inline int oa_select_j(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, int i);
+static inline int oa_select_c(const P7_OPROFILE *om,                   const P7_OMX *ox, int i);
+static inline int oa_select_j(const P7_OPROFILE *om,                   const P7_OMX *ox, int i);
 static inline int oa_select_e(const P7_OPROFILE *om,                   const P7_OMX *ox, int i, int *ret_k);
 static inline int oa_select_b(const P7_OPROFILE *om,                   const P7_OMX *ox, int i);
 
+/* oa_get_postprob()
+ * Posterior probability of state <scur> at (<i>,<k>), recovered from
+ * the OA matrix <ox>. The fill set an M or I cell to its best
+ * predecessor score plus the cell's posterior, with each predecessor
+ * term set to 0 when its transition is not allowed and the M, I, D
+ * cells of column 0 taken as -inf; the posterior is the cell's score
+ * minus that same predecessor score. The N, C and J loops add the
+ * posterior to the previous row's score.
+ */
 static inline float
-oa_get_postprob(const P7_OMX *pp, int scur, int sprv, int k, int i)
+oa_get_postprob(const P7_OPROFILE *om, const P7_OMX *ox, int scur, int sprv, int k, int i)
 {
-  int     Q     = p7O_NQF(pp->M);
-  int     q     = (k-1) % Q;
+  int     Q     = p7O_NQF(ox->M);
+  int     q     = (k-1) % Q;		/* (q,r) is the position of cell (i,k)    */
   int     r     = (k-1) / Q;
-  union { __m128 v; float p[4]; } u;
+  int     qp    = (k-2) % Q;		/* (qp,rp) is the position of cell (i,k-1) */
+  int     rp    = (k-2) / Q;
+  __m128  *tp    = om->tfv + 7*q;
+  union { __m128 v; float p[4]; } u, tv;
+  float   mv, iv, dv, prv;
 
   switch (scur) {
-  case p7T_M: u.v = MMO(pp->dpf[i], q); return u.p[r];
-  case p7T_I: u.v = IMO(pp->dpf[i], q); return u.p[r];
-  case p7T_N: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_N];
-  case p7T_C: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_C];
-  case p7T_J: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_J];
+  case p7T_M:
+    if (k > 1) {
+      u.v = ox->dpf[i-1][qp*3 + p7X_M];  mv = u.p[rp];
+      u.v = ox->dpf[i-1][qp*3 + p7X_I];  iv = u.p[rp];
+      u.v = ox->dpf[i-1][qp*3 + p7X_D];  dv = u.p[rp];
+    } else {
+      mv = iv = dv = -eslINFINITY;
+    }
+    tv.v = tp[p7O_BM];  prv =              ((tv.p[r] > 0.0) ? ox->xmx[(i-1)*p7X_NXCELLS+p7X_B] : 0.0);
+    tv.v = tp[p7O_MM];  prv = ESL_MAX(prv, ((tv.p[r] > 0.0) ? mv : 0.0));
+    tv.v = tp[p7O_IM];  prv = ESL_MAX(prv, ((tv.p[r] > 0.0) ? iv : 0.0));
+    tv.v = tp[p7O_DM];  prv = ESL_MAX(prv, ((tv.p[r] > 0.0) ? dv : 0.0));
+    u.v  = ox->dpf[i][q*3 + p7X_M];
+    return u.p[r] - prv;
+  case p7T_I:
+    u.v = ox->dpf[i-1][q*3 + p7X_M];  tv.v = tp[p7O_MI];  prv =              ((tv.p[r] > 0.0) ? u.p[r] : 0.0);
+    u.v = ox->dpf[i-1][q*3 + p7X_I];  tv.v = tp[p7O_II];  prv = ESL_MAX(prv, ((tv.p[r] > 0.0) ? u.p[r] : 0.0));
+    u.v = ox->dpf[i][q*3 + p7X_I];
+    return u.p[r] - prv;
+  case p7T_N: if (sprv == scur) return ox->xmx[i*p7X_NXCELLS+p7X_N] - ox->xmx[(i-1)*p7X_NXCELLS+p7X_N];
+  case p7T_C: if (sprv == scur) return ox->xmx[i*p7X_NXCELLS+p7X_C] - ox->xmx[(i-1)*p7X_NXCELLS+p7X_C];
+  case p7T_J: if (sprv == scur) return ox->xmx[i*p7X_NXCELLS+p7X_J] - ox->xmx[(i-1)*p7X_NXCELLS+p7X_J];
   default:    return 0.0;
   }
 }
@@ -249,21 +279,31 @@ oa_select_n(int i)
 }
 
 static inline int
-oa_select_c(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, int i)
+oa_select_c(const P7_OPROFILE *om, const P7_OMX *ox, int i)
 {
-  float path[2];
-  path[0] = ( (om->xf[p7O_C][p7O_LOOP] == 0.0) ? -eslINFINITY : ox->xmx[(i-1)*p7X_NXCELLS+p7X_C] + pp->xmx[i*p7X_NXCELLS+p7X_C]);
-  path[1] = ( (om->xf[p7O_E][p7O_MOVE] == 0.0) ? -eslINFINITY : ox->xmx[   i *p7X_NXCELLS+p7X_E]);
-  return  ((path[0] > path[1]) ? p7T_C : p7T_E);
+  /* The fill set C(i) to the larger of C(i-1) + pp_C(i) and E(i), each
+   * term 0 when its transition is not allowed. The C->C loop is
+   * taken when it is allowed and either E->C is not allowed (and
+   * C(i-1) is reachable) or the loop term is larger, which is
+   * C(i) > E(i); on a tie E wins, as in the fill.
+   */
+  if (om->xf[p7O_C][p7O_LOOP]  == 0.0) return p7T_E;
+  if (om->xf[p7O_E][p7O_MOVE] == 0.0) return ((ox->xmx[(i-1)*p7X_NXCELLS+p7X_C] > -eslINFINITY) ? p7T_C : p7T_E);
+  return ((ox->xmx[i*p7X_NXCELLS+p7X_C] > ox->xmx[i*p7X_NXCELLS+p7X_E]) ? p7T_C : p7T_E);
 }
 
 static inline int
-oa_select_j(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, int i)
+oa_select_j(const P7_OPROFILE *om, const P7_OMX *ox, int i)
 {
-  float path[2];
-  path[0] = ( (om->xf[p7O_J][p7O_LOOP] == 0.0) ? -eslINFINITY : ox->xmx[(i-1)*p7X_NXCELLS+p7X_J] + pp->xmx[i*p7X_NXCELLS+p7X_J]);
-  path[1] = ( (om->xf[p7O_E][p7O_LOOP] == 0.0) ? -eslINFINITY : ox->xmx[   i *p7X_NXCELLS+p7X_E]);
-  return  ((path[0] > path[1]) ? p7T_J : p7T_E);
+  /* The fill set J(i) to the larger of J(i-1) + pp_J(i) and E(i), each
+   * term 0 when its transition is not allowed. The J->J loop is
+   * taken when it is allowed and either E->J is not allowed (and
+   * J(i-1) is reachable) or the loop term is larger, which is
+   * J(i) > E(i); on a tie E wins, as in the fill.
+   */
+  if (om->xf[p7O_J][p7O_LOOP]  == 0.0) return p7T_E;
+  if (om->xf[p7O_E][p7O_LOOP] == 0.0) return ((ox->xmx[(i-1)*p7X_NXCELLS+p7X_J] > -eslINFINITY) ? p7T_J : p7T_E);
+  return ((ox->xmx[i*p7X_NXCELLS+p7X_J] > ox->xmx[i*p7X_NXCELLS+p7X_E]) ? p7T_J : p7T_E);
 }
 
 static inline int
@@ -299,13 +339,16 @@ oa_select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
  *
  * Purpose:   SSE implementation of optimal accuracy traceback.
  *            See p7_OATrace() documentation for details.
+ *            Reads only the OA matrix <ox>; posterior probabilities are
+ *            recovered from it by subtraction, so <ox> may have been
+ *            written over the posterior decoding matrix.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEMEM> on allocation error.
  *            <eslEINVAL> if trace is not empty.
  */
 int
-p7_OATrace_sse(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr)
+p7_OATrace_sse(const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr)
 {
   int   i   = ox->L;
   int   k   = 0;
@@ -326,15 +369,15 @@ p7_OATrace_sse(const P7_OPROFILE *om, const P7_OMX *pp, const P7_OMX *ox, P7_TRA
       case p7T_D: s1 = oa_select_d(om,     ox, i, k);  k--;      break;
       case p7T_I: s1 = oa_select_i(om,     ox, i, k);       i--; break;
       case p7T_N: s1 = oa_select_n(i);                           break;
-      case p7T_C: s1 = oa_select_c(om, pp, ox, i);               break;
-      case p7T_J: s1 = oa_select_j(om, pp, ox, i);               break;
+      case p7T_C: s1 = oa_select_c(om,     ox, i);               break;
+      case p7T_J: s1 = oa_select_j(om,     ox, i);               break;
       case p7T_E: s1 = oa_select_e(om,     ox, i, &k);           break;
       case p7T_B: s1 = oa_select_b(om,     ox, i);               break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
       if (s1 == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
 
-      postprob = oa_get_postprob(pp, s1, s0, k, i);
+      postprob = oa_get_postprob(om, ox, s1, s0, k, i);
       if ((status = p7_trace_AppendWithPP(tr, s1, k, i, postprob)) != eslOK) return status;
 
       if ( (s1 == p7T_N || s1 == p7T_J || s1 == p7T_C) && s1 == s0) i--;

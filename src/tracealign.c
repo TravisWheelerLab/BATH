@@ -320,7 +320,7 @@ p7_tracealign_computeTraces(P7_HMM *hmm, ESL_SQ  **sq, int offset, int N, P7_TRA
         p7_GBackward(sq[idx]->dsq, sq[idx]->n, gm, gxb, NULL);
         p7_GDecoding(gm, gxf, gxb, gxb);
         p7_GOptimalAccuracy(gm, gxb, gxf, &oasc);
-        p7_GOATrace        (gm, gxb, gxf, tr[idx]);
+        p7_GOATrace        (gm, gxf, tr[idx]);
         p7_gmx_Reuse(gxf);
         p7_gmx_Reuse(gxb);
       }

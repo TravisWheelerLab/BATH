@@ -653,7 +653,7 @@ utest_optacc(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, i
       p7_gmx_Dump(stdout, gx1, p7_DEFAULT); /* oa */
       p7_gmx_Dump(stdout, gx2, p7_DEFAULT); /* pp */
 #endif
-      if (p7_GOATrace(gm, gx2, gx1, trg)                  != eslOK) esl_fatal(msg);
+      if (p7_GOATrace(gm, gx1, trg)                       != eslOK) esl_fatal(msg);
 
       if (p7_trace_SetPP(tro, gx2)                        != eslOK) esl_fatal(msg);
 

@@ -56,11 +56,14 @@
  *            
  *            Caller also provides a DP matrix <gx>, allocated for the
  *            <gm->M> by <pp->L> comparison. The routine fills this in
- *            with OA scores.
+ *            with OA scores. <gx> may be <pp> itself: each cell's
+ *            posterior is read before the cell's OA score is written,
+ *            and no other posterior is read, so the OA matrix can
+ *            overwrite the posterior matrix.
  *            
  * Args:      gm    - query profile      
  *            pp    - posterior decoding matrix created by <p7_GDecoding()>
- *            gx    - RESULT: caller provided DP matrix for <gm->M> by <L> 
+ *            gx    - RESULT: caller provided DP matrix for <gm->M> by <L>; may be <pp> 
  *            ret_e - RETURN: expected number of correctly decoded positions 
  *
  * Returns:   <eslOK> on success, and <*ret_e> contains the final OA
@@ -80,6 +83,9 @@ p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *r
   int          M    = gm->M;
   float        esc  = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
   float        t1, t2;
+
+  gx->M = M;
+  gx->L = L;
 
   /* Initialization of the zero row (i=0; no residues to account for.  */
   XMX(0,p7G_N) = 0.;                                          /* S->N, p=1            */
@@ -115,6 +121,7 @@ p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *r
 			     ESL_MAX(TSCDELTA(p7P_DM, M-1) * (DMX(i-1,M-1)  + pp->dp[i][M*p7G_NSCELLS + p7G_M]),
 				     TSCDELTA(p7P_BM, M-1) * (XMX(i-1,p7G_B)+ pp->dp[i][M*p7G_NSCELLS + p7G_M])));
 
+      IMX(i,M)     = -eslINFINITY;
       DMX(i,M)     = ESL_MAX(TSCDELTA(p7P_MD, M-1) * MMX(i,M-1),
 			     TSCDELTA(p7P_DD, M-1) * DMX(i,M-1));
 
@@ -152,14 +159,14 @@ p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *r
  * 2. Optimal alignment accuracy, traceback
  *****************************************************************/
 
-static inline float get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i);
+static inline float get_postprob(const P7_PROFILE *gm, const P7_GMX *gx, int scur, int sprv, int k, int i);
 
 static inline int select_m(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
 static inline int select_d(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
 static inline int select_i(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int k);
 static inline int select_n(int i);
-static inline int select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i);
-static inline int select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i);
+static inline int select_c(const P7_PROFILE *gm,                   const P7_GMX *gx, int i);
+static inline int select_j(const P7_PROFILE *gm,                   const P7_GMX *gx, int i);
 static inline int select_e(const P7_PROFILE *gm,                   const P7_GMX *gx, int i, int *ret_k);
 static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX *gx, int i);
 
@@ -172,10 +179,14 @@ static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX 
  *            \citep{Kall05}.
  *            
  *            Caller provides the OA DP matrix <gx> that was just
- *            calculated by <p7_GOptimalAccuracy()>, as well as the
- *            posterior decoding matrix <pp>, which was calculated by
- *            Forward/Backward on a target sequence of length <L>
- *            using the query model <gm>.
+ *            calculated by <p7_GOptimalAccuracy()> for a target
+ *            sequence of length <L> and the query model <gm>. The
+ *            traceback needs only <gx>, so the OA matrix may have been
+ *            written over the posterior decoding matrix. The posterior
+ *            probability of each residue's state is recovered from
+ *            <gx> as the difference between the OA score of its cell
+ *            and the OA score of the predecessor that the fill chose,
+ *            which equals the posterior up to float rounding.
  *            
  *            Caller provides an empty traceback structure <tr> to
  *            hold the result, allocated to hold optional posterior
@@ -184,7 +195,6 @@ static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX 
  *            internally reallocated as needed for larger traces.
  *
  * Args:      gm    - query profile      
- *            pp    - posterior decoding matrix created by <p7_GDecoding()>
  *            gx    - OA DP matrix calculated by  <p7_GOptimalAccuracy()>
  *            tr    - RESULT: OA traceback, allocated with posterior probs
  *
@@ -193,7 +203,7 @@ static inline int select_b(const P7_PROFILE *gm,                   const P7_GMX 
  * Throws:    <eslEMEM> on allocation error.
  */
 int
-p7_GOATrace(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr)
+p7_GOATrace(const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr)
 {
   int           i   = gx->L;	/* position in seq (1..L)         */
   int           k   = 0;	/* position in model (1..M)       */
@@ -216,15 +226,15 @@ p7_GOATrace(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *
       case p7T_D: scur = select_d(gm,     gx, i, k);  k--;      break;
       case p7T_I: scur = select_i(gm,     gx, i, k);       i--; break;
       case p7T_N: scur = select_n(i);                           break;
-      case p7T_C: scur = select_c(gm, pp, gx, i);               break;
-      case p7T_J: scur = select_j(gm, pp, gx, i);               break;
+      case p7T_C: scur = select_c(gm,     gx, i);               break;
+      case p7T_J: scur = select_j(gm,     gx, i);               break;
       case p7T_E: scur = select_e(gm,     gx, i, &k);           break;
       case p7T_B: scur = select_b(gm,     gx, i);               break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA traceback choice failed");
 
-      postprob = get_postprob(pp, scur, sprv, k, i);
+      postprob = get_postprob(gm, gx, scur, sprv, k, i);
       if ((status = p7_trace_AppendWithPP(tr, scur, k, i, postprob)) != eslOK) return status;
 
       /* For NCJ, we had to defer i decrement. */
@@ -236,18 +246,34 @@ p7_GOATrace(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *
   return p7_trace_Reverse(tr);
 }
 
+/* get_postprob()
+ * Posterior probability of state <scur> at (<i>,<k>), recovered from
+ * the OA matrix <gx>: the fill set each emitting cell to the best
+ * predecessor's OA score plus the cell's posterior, so the posterior
+ * is the cell's OA score minus that best predecessor score.
+ */
 static inline float
-get_postprob(const P7_GMX *pp, int scur, int sprv, int k, int i)
+get_postprob(const P7_PROFILE *gm, const P7_GMX *gx, int scur, int sprv, int k, int i)
 {
-  float **dp  = pp->dp;
-  float  *xmx = pp->xmx;
+  float      **dp   = gx->dp;	/* so {MDI}MX() macros work       */
+  float       *xmx  = gx->xmx;	/* so XMX() macro works           */
+  float const *tsc  = gm->tsc;	/* so TSCDELTA() macro works */
+  float        prv;
 
   switch (scur) {
-  case p7T_M: return MMX(i,k);
-  case p7T_I: return IMX(i,k);
-  case p7T_N: if (sprv == scur) return XMX(i,p7G_N);
-  case p7T_C: if (sprv == scur) return XMX(i,p7G_C); 
-  case p7T_J: if (sprv == scur) return XMX(i,p7G_J); 
+  case p7T_M:
+    prv = ESL_MAX(ESL_MAX(TSCDELTA(p7P_MM, k-1) * MMX(i-1,k-1),
+                          TSCDELTA(p7P_IM, k-1) * IMX(i-1,k-1)),
+                  ESL_MAX(TSCDELTA(p7P_DM, k-1) * DMX(i-1,k-1),
+                          TSCDELTA(p7P_BM, k-1) * XMX(i-1,p7G_B)));
+    return MMX(i,k) - prv;
+  case p7T_I:
+    prv = ESL_MAX(TSCDELTA(p7P_MI, k) * MMX(i-1,k),
+                  TSCDELTA(p7P_II, k) * IMX(i-1,k));
+    return IMX(i,k) - prv;
+  case p7T_N: if (sprv == scur) return XMX(i,p7G_N) - XMX(i-1,p7G_N);
+  case p7T_C: if (sprv == scur) return XMX(i,p7G_C) - XMX(i-1,p7G_C);
+  case p7T_J: if (sprv == scur) return XMX(i,p7G_J) - XMX(i-1,p7G_J);
   default:    return 0.0;
   }
 }
@@ -298,30 +324,27 @@ select_n(int i)
   return ((i==0) ? p7T_S : p7T_N);
 }
 
+/* select_c(), select_j()
+ * The fill set C(i) = max(C(i-1) + pp_C(i), E(i)) (J likewise), so the
+ * C->C loop was the larger term exactly when C(i) > E(i); on a tie the
+ * E term wins, as in the fill's comparison.
+ */
 static inline int
-select_c(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
+select_c(const P7_PROFILE *gm, const P7_GMX *gx, int i)
 {
-  float  t1   =  ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float  t2   =  ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;	/* so XMX() macro works           */
-  float  path[2];
 
-  path[0] = t1 * (XMX(i-1, p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]);
-  path[1] = t2 *  XMX(i,p7G_E);
-  return  ((path[0] > path[1]) ? p7T_C : p7T_E);
+  return  ((XMX(i,p7G_C) > t2 * XMX(i,p7G_E)) ? p7T_C : p7T_E);
 }
 
 static inline int
-select_j(const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, int i)
+select_j(const P7_PROFILE *gm, const P7_GMX *gx, int i)
 {
-  float  t1   = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float  t2   = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
   float *xmx  = gx->xmx;	/* so XMX() macro works           */
-  float  path[2];
 
-  path[0] = t1 * (XMX(i-1,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]);
-  path[1] = t2 * XMX(i,p7G_E);
-  return  ((path[0] > path[1]) ? p7T_J : p7T_E);
+  return  ((XMX(i,p7G_J) > t2 * XMX(i,p7G_E)) ? p7T_J : p7T_E);
 }
   
 static inline int
@@ -449,7 +472,7 @@ main(int argc, char **argv)
 
       if (! esl_opt_GetBoolean(go, "--notrace"))
 	{
-	  p7_GOATrace(gm, gx2, gx1, tr);
+	  p7_GOATrace(gm, gx1, tr);
 	  p7_trace_Reuse(tr);
 	}
     }
@@ -481,7 +504,89 @@ main(int argc, char **argv)
  * 4. Unit tests
  *****************************************************************/
 #ifdef p7GENERIC_OPTACC_TESTDRIVE
+#include <math.h>
 
+#include "esl_random.h"
+
+/* utest_inplace()
+ * On sequences emitted from a sampled profile, the OA fill written over
+ * the posterior matrix (<gx> = <pp>) must give the same OA matrix and
+ * score as a fill into a separate matrix, and the traceback from either
+ * matrix must be the same. The traceback's posterior probabilities,
+ * recovered from the OA matrix by subtraction, must agree with the
+ * posterior matrix within <pptol>.
+ */
+static void
+utest_inplace(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int N)
+{
+  char        *msg   = "optimal accuracy in-place unit test failed";
+  P7_HMM      *hmm   = NULL;
+  P7_PROFILE  *gm    = p7_profile_Create(M, abc);
+  ESL_SQ      *sq    = esl_sq_CreateDigital(abc);
+  P7_GMX      *fwd   = p7_gmx_Create(M, 100, 100, p7G_NSCELLS);
+  P7_GMX      *pp    = p7_gmx_Create(M, 100, 100, p7G_NSCELLS);
+  P7_GMX      *oa    = p7_gmx_Create(M, 100, 100, p7G_NSCELLS);
+  P7_TRACE    *tr    = p7_trace_Create();
+  P7_TRACE    *tr1   = p7_trace_CreateWithPP();
+  P7_TRACE    *tr2   = p7_trace_CreateWithPP();
+  float        pptol = 0.001;
+  float        oasc1, oasc2;
+  int          z;
+
+  if (p7_hmm_Sample(r, M, abc, &hmm)                  != eslOK) esl_fatal(msg);
+  if (p7_ProfileConfig(hmm, bg, gm, 100, p7_LOCAL)    != eslOK) esl_fatal(msg);
+
+  while (N--)
+    {
+      if (p7_ProfileEmit(r, hmm, gm, bg, sq, tr)       != eslOK) esl_fatal(msg);
+      if (p7_ReconfigLength(gm, sq->n)                 != eslOK) esl_fatal(msg);
+      if (p7_gmx_GrowTo(fwd, M, sq->n, sq->n)          != eslOK) esl_fatal(msg);
+      if (p7_gmx_GrowTo(pp,  M, sq->n, sq->n)          != eslOK) esl_fatal(msg);
+      if (p7_gmx_GrowTo(oa,  M, sq->n, sq->n)          != eslOK) esl_fatal(msg);
+
+      if (p7_GForward (sq->dsq, sq->n, gm, fwd, NULL)  != eslOK) esl_fatal(msg);
+      if (p7_GBackward(sq->dsq, sq->n, gm, pp,  NULL)  != eslOK) esl_fatal(msg);
+      if (p7_GDecoding(gm, fwd, pp, pp)                != eslOK) esl_fatal(msg);
+
+      if (p7_GOptimalAccuracy(gm, pp, oa, &oasc1)      != eslOK) esl_fatal(msg);
+      if (p7_GOATrace(gm, oa, tr1)                     != eslOK) esl_fatal(msg);
+
+      /* posteriors on tr1's path, read from <pp> before it is overwritten */
+      for (z = 0; z < tr1->N; z++)
+        {
+          if      (tr1->st[z] == p7T_M) { if (fabs(tr1->pp[z] - pp->dp[tr1->i[z]][tr1->k[z]*p7G_NSCELLS + p7G_M]) > pptol) esl_fatal("%s: M posterior", msg); }
+          else if (tr1->st[z] == p7T_I) { if (fabs(tr1->pp[z] - pp->dp[tr1->i[z]][tr1->k[z]*p7G_NSCELLS + p7G_I]) > pptol) esl_fatal("%s: I posterior", msg); }
+          else if ((tr1->st[z] == p7T_N || tr1->st[z] == p7T_C || tr1->st[z] == p7T_J) && tr1->i[z] > 0 && tr1->st[z-1] == tr1->st[z])
+            {
+              if (fabs(tr1->pp[z] - pp->xmx[tr1->i[z]*p7G_NXCELLS + (tr1->st[z] == p7T_N ? p7G_N : tr1->st[z] == p7T_C ? p7G_C : p7G_J)]) > pptol) esl_fatal("%s: NCJ posterior", msg);
+            }
+        }
+
+      if (p7_GOptimalAccuracy(gm, pp, pp, &oasc2)      != eslOK) esl_fatal(msg);
+      if (p7_GOATrace(gm, pp, tr2)                     != eslOK) esl_fatal(msg);
+
+      if (oasc1 != oasc2)                                        esl_fatal("%s: OA scores differ", msg);
+      if (p7_gmx_Compare(pp, oa, 0.0)                  != eslOK) esl_fatal("%s: OA matrices differ", msg);
+      if (tr1->N != tr2->N)                                      esl_fatal("%s: traces differ", msg);
+      for (z = 0; z < tr1->N; z++)
+        if (tr1->st[z] != tr2->st[z] || tr1->k[z] != tr2->k[z] || tr1->i[z] != tr2->i[z] || tr1->pp[z] != tr2->pp[z])
+          esl_fatal("%s: traces differ", msg);
+
+      p7_trace_Reuse(tr);
+      p7_trace_Reuse(tr1);
+      p7_trace_Reuse(tr2);
+    }
+
+  p7_trace_Destroy(tr);
+  p7_trace_Destroy(tr1);
+  p7_trace_Destroy(tr2);
+  p7_gmx_Destroy(fwd);
+  p7_gmx_Destroy(pp);
+  p7_gmx_Destroy(oa);
+  esl_sq_Destroy(sq);
+  p7_profile_Destroy(gm);
+  p7_hmm_Destroy(hmm);
+}
 #endif /*p7GENERIC_OPTACC_TESTDRIVE*/
 /*------------------- end, unit tests ---------------------------*/
 
@@ -490,7 +595,53 @@ main(int argc, char **argv)
  * 5. Test driver
  *****************************************************************/
 #ifdef p7GENERIC_OPTACC_TESTDRIVE
+/*
+   gcc -g -Wall -Dp7GENERIC_OPTACC_TESTDRIVE -I. -I../easel -L. -L../easel -o generic_optacc_utest generic_optacc.c -lhmmer -leasel -lm
+ */
+#include "p7_config.h"
 
+#include "easel.h"
+#include "esl_alphabet.h"
+#include "esl_getopts.h"
+#include "esl_random.h"
+
+#include "hmmer.h"
+
+static ESL_OPTIONS options[] = {
+  /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
+  { "-h",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "show brief help on version and usage",           0 },
+  { "-s",        eslARG_INT,     "42", NULL, NULL,  NULL,  NULL, NULL, "set random number seed to <n>",                  0 },
+  { "-M",        eslARG_INT,    "100", NULL, "n>0", NULL,  NULL, NULL, "size of random models to sample",                0 },
+  { "-N",        eslARG_INT,     "50", NULL, "n>0", NULL,  NULL, NULL, "number of sequences to emit",                    0 },
+  {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+static char usage[]  = "[-options]";
+static char banner[] = "unit test driver for the generic optimal accuracy implementation";
+
+int
+main(int argc, char **argv)
+{
+  ESL_GETOPTS    *go  = p7_CreateDefaultApp(options, 0, argc, argv, banner, usage);
+  ESL_RANDOMNESS *r   = esl_randomness_CreateFast(esl_opt_GetInteger(go, "-s"));
+  ESL_ALPHABET   *abc = NULL;
+  P7_BG          *bg  = NULL;
+  int             M   = esl_opt_GetInteger(go, "-M");
+  int             N   = esl_opt_GetInteger(go, "-N");
+
+  p7_FLogsumInit();
+
+  if ((abc = esl_alphabet_Create(eslAMINO)) == NULL)  esl_fatal("failed to create alphabet");
+  if ((bg = p7_bg_Create(abc))              == NULL)  esl_fatal("failed to create null model");
+
+  utest_inplace(r, abc, bg, M, N);
+  utest_inplace(r, abc, bg, 1, 10);   /* size 1 models */
+
+  p7_bg_Destroy(bg);
+  esl_alphabet_Destroy(abc);
+  esl_randomness_Destroy(r);
+  esl_getopts_Destroy(go);
+  return 0;
+}
 #endif /*p7GENERIC_OPTACC_TESTDRIVE*/
 /*------------------ end, test driver ---------------------------*/
 
@@ -579,7 +730,7 @@ main(int argc, char **argv)
   p7_GBackward(sq->dsq, sq->n, gm, gx2, &bsc);
   p7_GDecoding(gm, gx1, gx2, gx2);                   /* <gx2> is now the posterior decoding matrix */
   p7_GOptimalAccuracy(gm, gx2, gx1, &accscore);	     /* <gx1> is now the OA matrix */
-  p7_GOATrace(gm, gx2, gx1, tr);
+  p7_GOATrace(gm, gx1, tr);
 
   if (esl_opt_GetBoolean(go, "-d")) p7_gmx_Dump(stdout, gx2, p7_DEFAULT);
   if (esl_opt_GetBoolean(go, "-m")) p7_gmx_Dump(stdout, gx1, p7_DEFAULT);

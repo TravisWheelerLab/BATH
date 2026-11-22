@@ -3271,7 +3271,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     p7_GNull2_ByExpectation(gm, gbck, null2);
 
     p7_GOptimalAccuracy(gm, gbck, gfwd, &oasc);  /* <gfwd> is now the OA matrix */
-    p7_GOATrace        (gm, gbck, gfwd, tr);
+    p7_GOATrace        (gm, gfwd, tr);
 
     p7_gmx_Destroy(gfwd);
     p7_gmx_Destroy(gbck);

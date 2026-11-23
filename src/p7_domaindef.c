@@ -967,7 +967,10 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs
  * also obtained in unilocal mode.
  * 
  * The Forward and Backward calculations for this domain use the
- * pipeline's frameshift DP matrices <pli->fwd_fs> and <pli->bck_fs>.
+ * pipeline's frameshift DP matrices <pli->fwd_fs> (full) and
+ * <pli->bck_fs> (PARSER_ROWS_BWD rows). The Backward pass writes the
+ * posteriors over the Forward matrix, and the OA alignment is written
+ * over the posteriors.
  *
  * The caller also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
@@ -988,7 +991,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   int            Ld            = j-i+1;
   int            z1, z2;
   float          domcorrection = 0.0;
-  float          envsc, oasc;
+  float          envsc, bcksc, oasc;
   float          nullsc, seqscore;
   double         P;
   int            codon_idx;  
@@ -1027,14 +1030,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
     return eslOK;
   }
 
-  /* Backward */
-  p7_omx_GrowTo_dpf(ox2, om_fs5->M, Ld, Ld);
-  if ((status = p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, pli->ov5, NULL)) == eslERANGE) return eslOK;
+  /* Backward in a ring of rows, writing the posteriors over the Forward matrix */
+  p7_omx_GrowTo_dpf(ox2, om_fs5->M, PARSER_ROWS_BWD, Ld);
+  status = p7_BackwardDecoding_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, pli->ov5, &bcksc);
+  if (status == eslERANGE && bcksc == -eslINFINITY) return eslOK;   /* Backward score underflow */
+  if (status == eslERANGE) return eslFAIL;                          /* posterior overflow; domain treated as garbage */
   if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
-
-  /* Posterior Probabilities */
-  status = p7_Decoding_Frameshift(om_fs5, ox1, ox2);
-  if (status == eslERANGE) return eslFAIL; /* numeric overflow; domain treated as garbage */
 
   /* Compute bias correction, from the posteriors before the OA overwrites them */
   p7_Null2_fs_ByExpectation(om_fs5, ox1, null2);

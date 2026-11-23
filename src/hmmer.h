@@ -1341,7 +1341,7 @@ extern int p7_GOATrace        (const P7_PROFILE *gm,                   const P7_
 
 /* generic_optacc_frameshift.c */
 extern int p7_GOptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
-extern int p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const float *ppx, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_stotrace.c */
 extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);

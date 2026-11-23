@@ -745,6 +745,55 @@ main(int argc, char **argv)
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
+/* oa_fs_identical()
+ * Check that two scalar frameshift OA matrices hold identical values in
+ * rows 1..L and identical special states in rows 0..L.
+ */
+static int
+oa_fs_identical(const P7_GMX *gx1, const P7_GMX *gx2)
+{
+  int i, k, s, x;
+
+  if (gx1->M != gx2->M || gx1->L != gx2->L) return eslFAIL;
+
+  for (i = 0; i <= gx1->L; i++)
+    {
+      if (i > 0)
+        for (k = 1; k <= gx1->M; k++)
+          for (s = 0; s < p7G_NSCELLS_FS; s++)
+            if (gx1->dp[i][k*p7G_NSCELLS_FS + s] != gx2->dp[i][k*p7G_NSCELLS_FS + s]) return eslFAIL;
+      for (x = 0; x < p7G_NXCELLS; x++)
+        if (gx1->xmx[i*p7G_NXCELLS + x] != gx2->xmx[i*p7G_NXCELLS + x]) return eslFAIL;
+    }
+  return eslOK;
+}
+
+/* oa_fs_compare()
+ * Compare the scalar OA matrix <gx_fs>, in the frameshift cell layout
+ * with the OA scores of M, I and D in the C1, C2 and D slots, to the
+ * SIMD OA matrix <gx> deconverted into the standard 3-cell layout.
+ */
+static int
+oa_fs_compare(const P7_GMX *gx_fs, const P7_GMX *gx, float tol)
+{
+  int i, k, x;
+
+  if (gx_fs->M != gx->M || gx_fs->L != gx->L) return eslFAIL;
+
+  for (i = 0; i <= gx->L; i++)
+    {
+      for (k = 1; k <= gx->M; k++)
+        {
+          if (esl_FCompare_old(gx_fs->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1], gx->dp[i][k*p7G_NSCELLS + p7G_M], tol) != eslOK) return eslFAIL;
+          if (esl_FCompare_old(gx_fs->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2], gx->dp[i][k*p7G_NSCELLS + p7G_I], tol) != eslOK) return eslFAIL;
+          if (esl_FCompare_old(gx_fs->dp[i][k*p7G_NSCELLS_FS + p7G_D],          gx->dp[i][k*p7G_NSCELLS + p7G_D], tol) != eslOK) return eslFAIL;
+        }
+      for (x = 0; x < p7G_NXCELLS; x++)
+        if (esl_FCompare_old(gx_fs->xmx[i*p7G_NXCELLS + x], gx->xmx[i*p7G_NXCELLS + x], tol) != eslOK) return eslFAIL;
+    }
+  return eslOK;
+}
+
 /* utest_optacc_fs:
  *   Compare p7_OptimalAccuracy_Frameshift and p7_OATrace_Frameshift
  *   against their scalar counterparts.
@@ -767,14 +816,16 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   P7_FS_PROFILE   *gm_fs = NULL;
   P7_FS_OPROFILE  *om_fs = NULL;
   P7_GMX          *gx_pp  = NULL;   /* scalar pp (8-cell FS) */
-  P7_GMX          *gx_oa  = NULL;   /* scalar OA (3-cell)    */
+  P7_GMX          *gx_oa  = NULL;   /* scalar OA (8-cell FS) */
   P7_GMX          *gx_oa2 = NULL;   /* NEON OA deconverted   */
   P7_OMX          *ox_fwd = NULL;   /* NEON forward/pp (8-cell FS) */
   P7_OMX          *ox_bck = NULL;   /* NEON backward (3-cell)      */
   P7_TRACE        *tr_neon = NULL;  /* NEON OA traceback           */
   P7_TRACE        *tr_ref  = NULL;  /* scalar OA traceback         */
+  P7_TRACE        *tr_ip   = NULL;  /* scalar OA traceback, in place */
+  float           *ppx     = NULL;  /* copy of the pp special states */
   ESL_DSQ         *dsq    = NULL;
-  float            fsc, bsc, accscore_ref, accscore_neon;
+  float            fsc, bsc, accscore_ref, accscore_neon, accscore_ip;
   float            tol    = 0.01f;
   float            pptol  = 0.01f;
   int              seq_L;
@@ -797,13 +848,15 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   ox_bck = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS);
   P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
 
-  /* Scalar: pp uses 8-cell FS layout; OA matrices use standard 3-cell */
+  /* Scalar: pp and OA use the 8-cell FS layout; the SIMD OA deconverts to 3-cell */
   gx_pp  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
-  gx_oa  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS);
+  gx_oa  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
   gx_oa2 = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS);
 
   tr_neon = p7_trace_fs_CreateWithPP();
   tr_ref  = p7_trace_fs_CreateWithPP();
+  tr_ip   = p7_trace_fs_CreateWithPP();
+  ppx     = malloc(sizeof(float) * (seq_L+1) * p7G_NXCELLS);
 
   while (N--)
     {
@@ -821,13 +874,22 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       /* Reference: convert NEON pp to scalar GMX, run scalar OA and trace */
       if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                      != eslOK) esl_fatal(msg);
       if (p7_GOptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_oa, &accscore_ref)    != eslOK) esl_fatal(msg);
-      if (p7_GOATrace_Frameshift(gm_fs, gx_pp, gx_oa, tr_ref)                   != eslOK) esl_fatal(msg);
+      if (p7_GOATrace_Frameshift(gm_fs, gx_pp->xmx, gx_oa, tr_ref)              != eslOK) esl_fatal(msg);
+
+      /* In place: the scalar OA written over the posteriors, with a copy of
+       * their special states for the trace, matches the separate OA exactly */
+      esl_vec_FCopy(gx_pp->xmx, (seq_L+1) * p7G_NXCELLS, ppx);
+      if (p7_GOptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_pp, &accscore_ip)  != eslOK) esl_fatal(msg);
+      if (p7_GOATrace_Frameshift(gm_fs, ppx, gx_pp, tr_ip)                   != eslOK) esl_fatal(msg);
+      if (accscore_ip != accscore_ref)                                                 esl_fatal(msg);
+      if (oa_fs_identical(gx_pp, gx_oa)                                      != eslOK) esl_fatal(msg);
+      if (p7_trace_Compare(tr_ip, tr_ref, 0.0)                               != eslOK) esl_fatal(msg);
 
       /* Convert NEON OA to scalar GMX for matrix-level comparison */
       if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                     != eslOK) esl_fatal(msg);
 
       if (esl_FCompare_old(accscore_neon, accscore_ref, tol) != eslOK) esl_fatal(msg);
-      if (p7_gmx_Compare(gx_oa, gx_oa2, tol)                != eslOK) esl_fatal(msg);
+      if (oa_fs_compare(gx_oa, gx_oa2, tol)                 != eslOK) esl_fatal(msg);
       if (p7_trace_Compare(tr_neon, tr_ref, pptol)           != eslOK) esl_fatal(msg);
 
       if (esl_opt_GetBoolean(go, "--traces"))
@@ -838,11 +900,14 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
 
       p7_trace_Reuse(tr_neon);
       p7_trace_Reuse(tr_ref);
+      p7_trace_Reuse(tr_ip);
     }
 
   free(dsq);
   p7_trace_fs_Destroy(tr_neon);
   p7_trace_fs_Destroy(tr_ref);
+  p7_trace_fs_Destroy(tr_ip);
+  free(ppx);
   p7_omx_Destroy(ox_fwd);
   p7_omx_Destroy(ox_bck);
   p7_oivx_Destroy(ov5);

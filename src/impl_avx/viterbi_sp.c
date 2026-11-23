@@ -78,7 +78,7 @@ p7_Viterbi_SplicedTraceOld_Dispatcher(const ESL_DSQ *sub_dsq, const P7_OMX *ox,
                                     int min_intron, float *vitsc, float *max_drop)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) { p7_Viterbi_SplicedTraceOld = p7_Viterbi_SplicedTrace_avx512; return p7_Viterbi_SplicedTrace_avx512(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc, max_drop); }
+  if (esl_cpu_has_avx512()) { p7_Viterbi_SplicedTraceOld = p7_Viterbi_SplicedTraceOld_avx512; return p7_Viterbi_SplicedTraceOld_avx512(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc, max_drop); }
 #endif
 #ifdef eslENABLE_AVX
   if (esl_cpu_has_avx())    { p7_Viterbi_SplicedTraceOld = p7_Viterbi_SplicedTraceOld_avx;    return p7_Viterbi_SplicedTraceOld_avx(sub_dsq, ox, gm_tr, signal_scores, tr, i_start, i_end, k_start, k_end, min_intron, vitsc, max_drop); }

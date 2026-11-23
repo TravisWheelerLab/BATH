@@ -128,10 +128,11 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
  
   XMX_FS(1,p7G_J) = XMX_FS(1,p7G_E) + gm_fs5->xsc[p7P_E][p7P_LOOP];
   XMX_FS(1,p7G_C) = XMX_FS(1,p7G_E) + gm_fs5->xsc[p7P_E][p7P_MOVE];
-   
 
-  /* Initialization for row 2 */
-  XMX_FS(2,p7G_N) = 0.; 
+
+  /* Initialization for row 2 (rows past L are not computed) */
+  if (L >= 2) {
+  XMX_FS(2,p7G_N) = 0.;
   XMX_FS(2,p7G_B) = gm_fs5->xsc[p7P_N][p7P_MOVE];                   
   XMX_FS(2,p7G_E) = -eslINFINITY;
   MMX_FS(2,0,p7G_C1) = MMX_FS(2,0,p7G_C2) = MMX_FS(2,0,p7G_C3) = MMX_FS(2,0,p7G_C4) = MMX_FS(2,0,p7G_C5) = -eslINFINITY;
@@ -168,10 +169,11 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
  
   XMX_FS(2,p7G_J) = XMX_FS(2,p7G_E) + gm_fs5->xsc[p7P_E][p7P_LOOP];
   XMX_FS(2,p7G_C) = XMX_FS(2,p7G_E) + gm_fs5->xsc[p7P_E][p7P_MOVE];
-  
+  } /* end L >= 2 */
+
   t = u = v = p7P_MAXCODONS5;
-  /* Initialization for rows 3 and 4 */
-  for(i = 3; i < 5; i++)
+  /* Initialization for rows 3 and 4 (rows past L are not computed) */
+  for(i = 3; i < 5 && i <= L; i++)
   {
     u = v;
     v = w;
@@ -405,7 +407,7 @@ p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P
 
   if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX_FS(L,p7G_C),
                                 p7_FLogsum( XMX_FS(L-1,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP],
-                                            XMX_FS(L-2,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP])) + 
+                                            (L >= 2 ? XMX_FS(L-2,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP] : -eslINFINITY))) +
                                             gm_fs5->xsc[p7P_C][p7P_MOVE];
  
   gx->M = M;
@@ -484,7 +486,8 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
       MMX(i,k) = IMX(i,k) = DMX(i,k) = -eslINFINITY;
   }
 
-  /* Initialization of row 2 */
+  /* Initialization of row 2 (rows past L are not computed) */
+  if (L >= 2) {
   u = v = p7P_MAXCODONS3;
   
   if(dsq[1] < p7P_MAXNUC) w = dsq[1];
@@ -518,6 +521,7 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
   XMX(2,p7G_C) = XMX(2,p7G_E) + gm_fs3->xsc[p7P_E][p7P_MOVE]; 
   XMX(2,p7G_B) = p7_FLogsum(XMX(2,p7G_N) + gm_fs3->xsc[p7P_N][p7P_MOVE],
                             XMX(2,p7G_J) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
+  } /* end L >= 2 */
 
   /* Main Recursion */
   for(i = 3; i <= L; i++) {
@@ -615,7 +619,7 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
    
   if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C),
                                 p7_FLogsum( XMX(L-1,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP],
-                                            XMX(L-2,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP])) +
+                                            (L >= 2 ? XMX(L-2,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP] : -eslINFINITY))) +
 		                                    gm_fs3->xsc[p7P_C][p7P_MOVE];
   gx->M = M;
   gx->L = L;
@@ -729,8 +733,9 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
   XMX(1,p7G_C) = XMX(1,p7G_E) + gm_fs5->xsc[p7P_E][p7P_MOVE];
    
 
-  /* Initialization for row 2 */
-  XMX(2,p7G_N) = 0.; 
+  /* Initialization for row 2 (rows past L are not computed) */
+  if (L >= 2) {
+  XMX(2,p7G_N) = 0.;
   XMX(2,p7G_B) = gm_fs5->xsc[p7P_N][p7P_MOVE];                   
   XMX(2,p7G_E) = -eslINFINITY;
   MMX(2,0) = IMX(2,0) = DMX(2,0) = -eslINFINITY;
@@ -773,10 +778,11 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
 
   XMX(2,p7G_J) = XMX(2,p7G_E) + gm_fs5->xsc[p7P_E][p7P_LOOP];
   XMX(2,p7G_C) = XMX(2,p7G_E) + gm_fs5->xsc[p7P_E][p7P_MOVE];
-  
+  } /* end L >= 2 */
+
   t = u = v = p7P_MAXCODONS5;
-  /* Initialization for rows 3 and 4 */
-  for(i = 3; i < 5; i++)
+  /* Initialization for rows 3 and 4 (rows past L are not computed) */
+  for(i = 3; i < 5 && i <= L; i++)
   {
     u = v;
     v = w;
@@ -997,7 +1003,7 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
 
   if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C),
                                 p7_FLogsum( XMX(L-1,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP],
-                                            XMX(L-2,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP])) 
+                                            (L >= 2 ? XMX(L-2,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP] : -eslINFINITY)))
 		                                   +  gm_fs5->xsc[p7P_C][p7P_MOVE];
   gx->M = M;
   gx->L = L;
@@ -1055,6 +1061,10 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
   for(k = 0; k <= M; k++)
     ivx[k] = -eslINFINITY;
 
+  /* Short sequences (L < 5) skip some of the row initializations below,
+   * so the codon context must start as placeholders. */
+  t = u = v = w = x = p7P_MAXCODONS5;
+
   /* Initialization of row L  */
   XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY; /* need to enter and exit model */
   XMX(L,p7G_C) = gm_fs5->xsc[p7P_C][p7P_MOVE];                   /* C<-T         */
@@ -1077,7 +1087,8 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
   }
   MMX(L,0) = IMX(L,0) = DMX(L,0)  = -eslINFINITY;
 
-  /* Initialization of row L - 1  */
+  /* Initialization of row L - 1 (row 0 is done at the end) */
+  if (L >= 2) {
   if(dsq[L] < p7P_MAXNUC) x = dsq[L];
   else                                            x = p7P_MAXCODONS5;
 
@@ -1115,8 +1126,10 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
   }
 
   MMX(L-1,0) = IMX(L-1,0) = DMX(L-1,0)  = -eslINFINITY;
+  } /* end L >= 2 */
 
-  /* Initialization of row L - 2  */
+  /* Initialization of row L - 2 (row 0 is done at the end) */
+  if (L >= 3) {
   w = x;
 
   if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
@@ -1162,10 +1175,11 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
     IMX(L-2,k) = ivx[k+1]            + TSC(p7P_IM,k);
   }
   MMX(L-2,0) = IMX(L-2,0) = DMX(L-2,0)  = -eslINFINITY;
-  
-  /* Initialization of rows L-3 and L-4  */
+  } /* end L >= 3 */
+
+  /* Initialization of rows L-3 and L-4 (row 0 is done at the end) */
   t = u = v = p7P_MAXCODONS5;
-  for (i = L-3; i > L-5; i--)
+  for (i = L-3; i > L-5 && i >= 1; i--)
   {
     u = v;
     v = w;
@@ -1357,36 +1371,37 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
     rsc4 = gm_fs5->rsc[c4];
     rsc5 = gm_fs5->rsc[c5];
 
-  ivx[1] = p7_FLogsum( MMX(1,1) + MSC_FS1(1),
-          p7_FLogsum( MMX(2,1) + MSC_FS2(1),
-          p7_FLogsum( MMX(3,1) + MSC_FS3(1),
-          p7_FLogsum( MMX(4,1) + MSC_FS4(1),
-                      MMX(5,1) + MSC_FS5(1)))));
+  /* Rows past L do not exist; when L < 5 they contribute nothing. */
+  ivx[1] = p7_FLogsum(               MMX(1,1) + MSC_FS1(1),
+          p7_FLogsum( (L >= 2 ? MMX(2,1) + MSC_FS2(1) : -eslINFINITY),
+          p7_FLogsum( (L >= 3 ? MMX(3,1) + MSC_FS3(1) : -eslINFINITY),
+          p7_FLogsum( (L >= 4 ? MMX(4,1) + MSC_FS4(1) : -eslINFINITY),
+                      (L >= 5 ? MMX(5,1) + MSC_FS5(1) : -eslINFINITY)))));
 
   XMX(0,p7G_B) = ivx[1] + TSC(p7P_BM,0);
 
   for (k = 2; k <= M; k++)
   {
-   ivx[k] =  p7_FLogsum( MMX(1,k) + MSC_FS1(k),
-            p7_FLogsum( MMX(2,k) + MSC_FS2(k),
-            p7_FLogsum( MMX(3,k) + MSC_FS3(k),
-            p7_FLogsum( MMX(4,k) + MSC_FS4(k),
-                        MMX(5,k) + MSC_FS5(k)))));
- 
-    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1)); 
+   ivx[k] =  p7_FLogsum(               MMX(1,k) + MSC_FS1(k),
+            p7_FLogsum( (L >= 2 ? MMX(2,k) + MSC_FS2(k) : -eslINFINITY),
+            p7_FLogsum( (L >= 3 ? MMX(3,k) + MSC_FS3(k) : -eslINFINITY),
+            p7_FLogsum( (L >= 4 ? MMX(4,k) + MSC_FS4(k) : -eslINFINITY),
+                        (L >= 5 ? MMX(5,k) + MSC_FS5(k) : -eslINFINITY)))));
+
+    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1));
   }
 
   XMX(0,p7G_J) = XMX(0,p7G_C) = XMX(0,p7G_E) = -eslINFINITY;
- 
-  XMX(0,p7G_N) = p7_FLogsum( XMX(3,p7G_N)   + gm_fs5->xsc[p7P_N][p7P_LOOP],
-                             XMX(0,  p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE]); 
+
+  XMX(0,p7G_N) = p7_FLogsum( (L >= 3 ? XMX(3,p7G_N) + gm_fs5->xsc[p7P_N][p7P_LOOP] : -eslINFINITY),
+                             XMX(0,  p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE]);
 
   for (k = M; k >= 0; k--)
-    MMX(0,k) = DMX(0,k) =  IMX(0,k) = -eslINFINITY;           
+    MMX(0,k) = DMX(0,k) =  IMX(0,k) = -eslINFINITY;
 
   if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
                                  p7_FLogsum( XMX(1,p7G_N),
-                                             XMX(2,p7G_N)));
+                                             (L >= 2 ? XMX(2,p7G_N) : -eslINFINITY)));
   
   gx->M = M;
   gx->L = L;
@@ -1443,10 +1458,15 @@ p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
   for(k = 0; k <= M; k++)
     ivx[k] = -eslINFINITY;
 
-  /* Initialization of row L and L-1  */
+  /* Short sequences (L < 5) skip some of the row initializations below,
+   * so the codon context must start as placeholders. */
+  u = v = w = x = p7P_MAXCODONS3;
+
+  /* Initialization of row L and L-1 (row 0 is done at the end) */
   XMX(L,p7G_C)   =                               gm_fs3->xsc[p7P_C][p7P_MOVE];
-  XMX(L-1,p7G_C) = gm_fs3->xsc[p7P_C][p7P_LOOP] + gm_fs3->xsc[p7P_C][p7P_MOVE];
-  for(i = L; i >= L-1; i--) {
+  if (L >= 2)
+    XMX(L-1,p7G_C) = gm_fs3->xsc[p7P_C][p7P_LOOP] + gm_fs3->xsc[p7P_C][p7P_MOVE];
+  for(i = L; i >= L-1 && i >= 1; i--) {
     curr = i % PARSER_ROWS_BWD;
     XMX(i,p7G_J) = XMX(i,p7G_B) = XMX(i,p7G_N) = -eslINFINITY;  /* need to enter and exit model */
     XMX(i,p7G_E) = XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]; /* E<-C, no tail */
@@ -1470,9 +1490,14 @@ p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
   
   /* Check for degenerate nucleotides */
 
-  /* Initialization of row L-2  */
-  if(dsq[L] < p7P_MAXNUC) w = dsq[L];
-  else                                              w = p7P_MAXCODONS3;
+  /* Initialization of row L-2 (row 0 is done at the end) */
+  if (L >= 2) {
+    if(dsq[L] < p7P_MAXNUC) x = dsq[L];
+    else                                              x = p7P_MAXCODONS3;
+  }
+
+  if (L >= 3) {
+  w = x;
 
   if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
   else                                              x = p7P_MAXCODONS3;
@@ -1518,10 +1543,11 @@ p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
   }
 
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
+  } /* end L >= 3 */
 
-  /* Initialization of rows L-3 and L-4  */
-  u = v = p7P_MAXCODONS3; 
-  for (i = L-3; i > L-5; i--)
+  /* Initialization of rows L-3 and L-4 (row 0 is done at the end) */
+  u = v = p7P_MAXCODONS3;
+  for (i = L-3; i > L-5 && i >= 1; i--)
   {
     u = v;
     v = w;
@@ -1707,32 +1733,33 @@ p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PRO
   rsc3 = gm_fs3->rsc[c3];
   rsc4 = gm_fs3->rsc[c4];
 
-  ivx[1] = p7_FLogsum( MMX(prev2,1) + MSC_FS2(1),
-           p7_FLogsum( MMX(prev3,1) + MSC_FS3(1),
-                       MMX(prev4,1) + MSC_FS4(1)));
+  /* Rows past L do not exist; when L < 4 they contribute nothing. */
+  ivx[1] = p7_FLogsum( (L >= 2 ? MMX(prev2,1) + MSC_FS2(1) : -eslINFINITY),
+           p7_FLogsum( (L >= 3 ? MMX(prev3,1) + MSC_FS3(1) : -eslINFINITY),
+                       (L >= 4 ? MMX(prev4,1) + MSC_FS4(1) : -eslINFINITY)));
 
   XMX(0,p7G_B) = ivx[1] + TSC(p7P_BM,0);
 
   for (k = 2; k <= M; k++)
   {
-   ivx[k] =  p7_FLogsum( MMX(prev2,k) + MSC_FS2(k),
-             p7_FLogsum( MMX(prev3,k) + MSC_FS3(k),
-                         MMX(prev4,k) + MSC_FS4(k)));
- 
-    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1)); 
+   ivx[k] =  p7_FLogsum( (L >= 2 ? MMX(prev2,k) + MSC_FS2(k) : -eslINFINITY),
+             p7_FLogsum( (L >= 3 ? MMX(prev3,k) + MSC_FS3(k) : -eslINFINITY),
+                         (L >= 4 ? MMX(prev4,k) + MSC_FS4(k) : -eslINFINITY)));
+
+    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1));
   }
 
   XMX(0,p7G_J) = XMX(0,p7G_C) = XMX(0,p7G_E) = -eslINFINITY;
- 
-  XMX(0,p7G_N) = p7_FLogsum( XMX(3,p7G_N)   + gm_fs3->xsc[p7P_N][p7P_LOOP],
-                             XMX(0,  p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE]); 
+
+  XMX(0,p7G_N) = p7_FLogsum( (L >= 3 ? XMX(3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP] : -eslINFINITY),
+                             XMX(0,  p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE]);
 
   for (k = M; k >= 0; k--)
-    MMX(0,k) = DMX(0,k) =  IMX(0,k) = -eslINFINITY;           
+    MMX(0,k) = DMX(0,k) =  IMX(0,k) = -eslINFINITY;
 
   if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
                                  p7_FLogsum( XMX(1,p7G_N),
-                                             XMX(2,p7G_N)));
+                                             (L >= 2 ? XMX(2,p7G_N) : -eslINFINITY)));
   gx->M = M;
   gx->L = L;
   
@@ -1886,6 +1913,10 @@ backward_parser_frameshift_5codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFIL
   for(k = 0; k <= M; k++)
     ivx[k] = -eslINFINITY;
 
+  /* Short sequences (L < 5) skip some of the row initializations below,
+   * so the codon context must start as placeholders. */
+  t = u = v = w = x = p7P_MAXCODONS5;
+
   /* Initialization of row L  */
   curr  =  L    % PARSER_ROWS_BWD;
   XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY; /* need to enter and exit model */
@@ -1910,7 +1941,8 @@ backward_parser_frameshift_5codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFIL
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
   if (pp != NULL) backward_decode_row_frameshift(gm_fs5, gx, curr, L, pp);
 
-  /* Initialization of row L - 1  */
+  /* Initialization of row L - 1 (row 0 is done at the end) */
+  if (L >= 2) {
   if(dsq[L] < p7P_MAXNUC) x = dsq[L];
   else                                            x = p7P_MAXCODONS5;
 
@@ -1952,8 +1984,10 @@ backward_parser_frameshift_5codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFIL
 
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
   if (pp != NULL) backward_decode_row_frameshift(gm_fs5, gx, curr, L-1, pp);
+  } /* end L >= 2 */
 
-  /* Initialization of row L - 2  */
+  /* Initialization of row L - 2 (row 0 is done at the end) */
+  if (L >= 3) {
   w = x;
 
   if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
@@ -2003,10 +2037,11 @@ backward_parser_frameshift_5codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFIL
   }
   MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
   if (pp != NULL) backward_decode_row_frameshift(gm_fs5, gx, curr, L-2, pp);
-  
-  /* Initialization of rows L-3 and L-4  */
+  } /* end L >= 3 */
+
+  /* Initialization of rows L-3 and L-4 (row 0 is done at the end) */
   t = u = v = p7P_MAXCODONS5;
-  for (i = L-3; i > L-5; i--)
+  for (i = L-3; i > L-5 && i >= 1; i--)
   {
     u = v;
     v = w;
@@ -2219,40 +2254,41 @@ backward_parser_frameshift_5codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFIL
     prev4 = 4 % PARSER_ROWS_BWD;
     prev5 = 5 % PARSER_ROWS_BWD;
 
-  ivx[1] = p7_FLogsum( MMX(prev1,1) + MSC_FS1(1),
-           p7_FLogsum( MMX(prev2,1) + MSC_FS2(1),
-           p7_FLogsum( MMX(prev3,1) + MSC_FS3(1),
-           p7_FLogsum( MMX(prev4,1) + MSC_FS4(1),
-                       MMX(prev5,1) + MSC_FS5(1)))));
+  /* Rows past L do not exist; when L < 5 they contribute nothing. */
+  ivx[1] = p7_FLogsum(               MMX(prev1,1) + MSC_FS1(1),
+           p7_FLogsum( (L >= 2 ? MMX(prev2,1) + MSC_FS2(1) : -eslINFINITY),
+           p7_FLogsum( (L >= 3 ? MMX(prev3,1) + MSC_FS3(1) : -eslINFINITY),
+           p7_FLogsum( (L >= 4 ? MMX(prev4,1) + MSC_FS4(1) : -eslINFINITY),
+                       (L >= 5 ? MMX(prev5,1) + MSC_FS5(1) : -eslINFINITY)))));
 
   XMX(0,p7G_B) = ivx[1] + TSC(p7P_BM,0);
 
   for (k = 2; k <= M; k++)
   {
-   ivx[k] =  p7_FLogsum( MMX(prev1,k) + MSC_FS1(k),
-             p7_FLogsum( MMX(prev2,k) + MSC_FS2(k),
-             p7_FLogsum( MMX(prev3,k) + MSC_FS3(k),
-             p7_FLogsum( MMX(prev4,k) + MSC_FS4(k),
-                         MMX(prev5,k) + MSC_FS5(k)))));
- 
-    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1)); 
+   ivx[k] =  p7_FLogsum(               MMX(prev1,k) + MSC_FS1(k),
+             p7_FLogsum( (L >= 2 ? MMX(prev2,k) + MSC_FS2(k) : -eslINFINITY),
+             p7_FLogsum( (L >= 3 ? MMX(prev3,k) + MSC_FS3(k) : -eslINFINITY),
+             p7_FLogsum( (L >= 4 ? MMX(prev4,k) + MSC_FS4(k) : -eslINFINITY),
+                         (L >= 5 ? MMX(prev5,k) + MSC_FS5(k) : -eslINFINITY)))));
+
+    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1));
   }
 
   XMX(0,p7G_J) = XMX(0,p7G_C) = XMX(0,p7G_E) = -eslINFINITY;
- 
-  XMX(0,p7G_N) = p7_FLogsum( XMX(3,p7G_N)   + gm_fs5->xsc[p7P_N][p7P_LOOP],
-                             XMX(0,  p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE]); 
+
+  XMX(0,p7G_N) = p7_FLogsum( (L >= 3 ? XMX(3,p7G_N) + gm_fs5->xsc[p7P_N][p7P_LOOP] : -eslINFINITY),
+                             XMX(0,  p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE]);
 
   if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
                                  p7_FLogsum( XMX(1,p7G_N),
-                                             XMX(2,p7G_N)));
+                                             (L >= 2 ? XMX(2,p7G_N) : -eslINFINITY)));
 
   /* Posterior decoding: subtract the overall score and exponentiate, as p7_GDecoding_Frameshift() does */
   if (pp != NULL)
     {
       float overall_sc = p7_FLogsum( XMX(0,p7G_N),
                          p7_FLogsum( XMX(1,p7G_N),
-                                     XMX(2,p7G_N)));
+                                     (L >= 2 ? XMX(2,p7G_N) : -eslINFINITY)));
       int   c;
 
       for (i = 1; i <= L; i++)

@@ -598,7 +598,7 @@ extern int p7_OATrace        (const P7_OPROFILE *om,                   const P7_
 
 /* optacc_fs.c */
 extern int p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
-extern int p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, P7_TRACE *tr);
 
 /* stotrace.c */
 extern int p7_StochasticTrace(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);

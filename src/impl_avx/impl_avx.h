@@ -899,17 +899,17 @@ extern int p7_OATrace_avx                   (const P7_OPROFILE    *om,          
 
 /* optacc_fs.c — self-patching dispatchers */
 extern int (*p7_OptimalAccuracy_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
-extern int (*p7_OATrace_Frameshift)        (const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int (*p7_OATrace_Frameshift)        (const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, P7_TRACE *tr);
 
 /* optacc_fs_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_OptimalAccuracy_Frameshift_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
-extern int p7_OATrace_Frameshift_sse        (const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_OATrace_Frameshift_sse        (const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, P7_TRACE *tr);
 #endif
 /* optacc_fs_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
 extern int p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
-extern int p7_OATrace_Frameshift_avx        (const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_OATrace_Frameshift_avx        (const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, P7_TRACE *tr);
 #endif
 
 

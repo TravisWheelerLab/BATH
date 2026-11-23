@@ -96,6 +96,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   int          status;
 
   ESL_ALLOC(pli, sizeof(P7_PIPELINE));
+  pli->fs_ppx = NULL;
 
   pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
 
@@ -277,6 +278,7 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->oxb_fs);
   p7_omx_Destroy(pli->fwd_fs);
   p7_omx_Destroy(pli->bck_fs);
+  if (pli->fs_ppx != NULL) free(pli->fs_ppx);
   p7_oivx_Destroy(pli->ov3);
   p7_oivx_Destroy(pli->ov5);
   p7_omx_Destroy(pli->oxf);

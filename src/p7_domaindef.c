@@ -1036,9 +1036,15 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   status = p7_Decoding_Frameshift(om_fs5, ox1, ox2);
   if (status == eslERANGE) return eslFAIL; /* numeric overflow; domain treated as garbage */
 
-  /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(om_fs5, ox1, ox2, &oasc);
-  p7_OATrace_Frameshift(om_fs5, ox1, ox2, ddef->tr);
+  /* Compute bias correction, from the posteriors before the OA overwrites them */
+  p7_Null2_fs_ByExpectation(om_fs5, ox1, null2);
+
+  /* Find an optimal accuracy alignment, written over the posteriors; the
+   * trace reads the posteriors of the special states from a copy */
+  ESL_REALLOC(pli->fs_ppx, sizeof(float) * (Ld+1) * p7X_NXCELLS);
+  esl_vec_FCopy(ox1->xmx, (Ld+1) * p7X_NXCELLS, pli->fs_ppx);
+  p7_OptimalAccuracy_Frameshift(om_fs5, ox1, ox1, &oasc);
+  p7_OATrace_Frameshift(om_fs5, pli->fs_ppx, ox1, ddef->tr);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1068,9 +1074,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
     p7_trace_Reuse(ddef->tr);
     return eslFAIL;
   }
-
-  /* Compute bias correction */
-  p7_Null2_fs_ByExpectation(om_fs5, ox1, null2);
 
   t = u = v = w = x = -1;
   z = 0;

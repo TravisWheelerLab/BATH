@@ -48,11 +48,11 @@ p7_OptimalAccuracy_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_O
 
 
 /* Forward declaration of dispatcher */
-static int p7_OATrace_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+static int p7_OATrace_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const float *ppx,
                                              const P7_OMX *ox, P7_TRACE *tr);
 
 /* Global function pointer, initially pointing at the dispatcher */
-int (*p7_OATrace_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+int (*p7_OATrace_Frameshift)(const P7_FS_OPROFILE *om_fs, const float *ppx,
                              const P7_OMX *ox, P7_TRACE *tr) = p7_OATrace_Frameshift_Dispatcher;
 
 /* Function:  p7_OATrace_Frameshift_Dispatcher()
@@ -64,18 +64,18 @@ int (*p7_OATrace_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
  *            <eslEMEM> on allocation error.
  */
 static int
-p7_OATrace_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+p7_OATrace_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const float *ppx,
                                   const P7_OMX *ox, P7_TRACE *tr)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) { p7_OATrace_Frameshift = p7_OATrace_Frameshift_avx512; return p7_OATrace_Frameshift_avx512(om_fs, pp, ox, tr); }
+  if (esl_cpu_has_avx512()) { p7_OATrace_Frameshift = p7_OATrace_Frameshift_avx512; return p7_OATrace_Frameshift_avx512(om_fs, ppx, ox, tr); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    { p7_OATrace_Frameshift = p7_OATrace_Frameshift_avx;    return p7_OATrace_Frameshift_avx(om_fs, pp, ox, tr); }
+  if (esl_cpu_has_avx())    { p7_OATrace_Frameshift = p7_OATrace_Frameshift_avx;    return p7_OATrace_Frameshift_avx(om_fs, ppx, ox, tr); }
 #endif
 #ifdef eslENABLE_SSE
   p7_OATrace_Frameshift = p7_OATrace_Frameshift_sse;
-  return p7_OATrace_Frameshift_sse(om_fs, pp, ox, tr);
+  return p7_OATrace_Frameshift_sse(om_fs, ppx, ox, tr);
 #else
   p7_Die("p7_OATrace_Frameshift: no SIMD implementation available");
   return eslENORESULT;
@@ -138,7 +138,8 @@ main(int argc, char **argv)
   P7_FS_PROFILE  *gm_fs5  = NULL;
   P7_FS_OPROFILE *om_fs5  = NULL;
   P7_OMX         *ox_fwd  = NULL;   /* forward matrix; overwritten in-place by Decoding -> pp */
-  P7_OMX         *ox_bck  = NULL;   /* backward matrix; overwritten by OptimalAccuracy -> OA  */
+  P7_OMX         *ox_bck  = NULL;   /* backward matrix                                  */
+  P7_OMX         *ox_oa   = NULL;   /* OA matrix (8-cell FS layout)                     */
   P7_TRACE       *tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
@@ -165,9 +166,9 @@ main(int argc, char **argv)
   p7_fs_oprofile_ReconfigLength(om_fs5, L/3);
 
   /* ox_fwd: 8-cell FS layout (Forward input; becomes pp after Decoding)  */
-  /* ox_bck: standard 3-cell layout (Backward input; becomes OA after OA) */
   ox_fwd = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
   ox_bck = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
+  ox_oa  = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
   P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
   tr     = p7_trace_fs_CreateWithPP();
 
@@ -180,11 +181,11 @@ main(int argc, char **argv)
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
-      p7_OptimalAccuracy_Frameshift(om_fs5, ox_fwd, ox_bck, &accscore);
+      p7_OptimalAccuracy_Frameshift(om_fs5, ox_fwd, ox_oa, &accscore);
 
       if (! esl_opt_GetBoolean(go, "--notrace"))
         {
-          p7_OATrace_Frameshift(om_fs5, ox_fwd, ox_bck, tr);
+          p7_OATrace_Frameshift(om_fs5, ox_fwd->xmx, ox_oa, tr);
           p7_trace_Reuse(tr);
         }
     }
@@ -198,6 +199,7 @@ main(int argc, char **argv)
   free(dsq);
   p7_trace_fs_Destroy(tr);
   p7_omx_Destroy(ox_bck);
+  p7_omx_Destroy(ox_oa);
   p7_omx_Destroy(ox_fwd);
   p7_oivx_Destroy(ov5);
   p7_fs_oprofile_Destroy(om_fs5);
@@ -229,12 +231,14 @@ main(int argc, char **argv)
 #include "esl_randomseq.h"
 #include "esl_vectorops.h"
 
-/* oa_fs_identical()
- * Check that two scalar frameshift OA matrices hold identical values in
- * rows 1..L and identical special states in rows 0..L.
+/* oa_fs_compare()
+ * Compare two frameshift OA matrices (scalar, or SIMD deconverted): every
+ * slot of rows 1..L, the OA slots (C1, C2, D) of row 0, which is all the
+ * fill writes there, and the special states. With <tol> 0 the values must
+ * be identical.
  */
 static int
-oa_fs_identical(const P7_GMX *gx1, const P7_GMX *gx2)
+oa_fs_compare(const P7_GMX *gx1, const P7_GMX *gx2, float tol)
 {
   int i, k, s, x;
 
@@ -242,38 +246,12 @@ oa_fs_identical(const P7_GMX *gx1, const P7_GMX *gx2)
 
   for (i = 0; i <= gx1->L; i++)
     {
-      if (i > 0)
-        for (k = 1; k <= gx1->M; k++)
-          for (s = 0; s < p7G_NSCELLS_FS; s++)
-            if (gx1->dp[i][k*p7G_NSCELLS_FS + s] != gx2->dp[i][k*p7G_NSCELLS_FS + s]) return eslFAIL;
+      for (k = 1; k <= gx1->M; k++)
+        for (s = 0; s < p7G_NSCELLS_FS; s++)
+          if (i > 0 || s == p7G_D || s == p7G_M + p7G_C1 || s == p7G_M + p7G_C2)
+            if (esl_FCompare_old(gx1->dp[i][k*p7G_NSCELLS_FS + s], gx2->dp[i][k*p7G_NSCELLS_FS + s], tol) != eslOK) return eslFAIL;
       for (x = 0; x < p7G_NXCELLS; x++)
-        if (gx1->xmx[i*p7G_NXCELLS + x] != gx2->xmx[i*p7G_NXCELLS + x]) return eslFAIL;
-    }
-  return eslOK;
-}
-
-/* oa_fs_compare()
- * Compare the scalar OA matrix <gx_fs>, in the frameshift cell layout
- * with the OA scores of M, I and D in the C1, C2 and D slots, to the
- * SIMD OA matrix <gx> deconverted into the standard 3-cell layout.
- */
-static int
-oa_fs_compare(const P7_GMX *gx_fs, const P7_GMX *gx, float tol)
-{
-  int i, k, x;
-
-  if (gx_fs->M != gx->M || gx_fs->L != gx->L) return eslFAIL;
-
-  for (i = 0; i <= gx->L; i++)
-    {
-      for (k = 1; k <= gx->M; k++)
-        {
-          if (esl_FCompare_old(gx_fs->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1], gx->dp[i][k*p7G_NSCELLS + p7G_M], tol) != eslOK) return eslFAIL;
-          if (esl_FCompare_old(gx_fs->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2], gx->dp[i][k*p7G_NSCELLS + p7G_I], tol) != eslOK) return eslFAIL;
-          if (esl_FCompare_old(gx_fs->dp[i][k*p7G_NSCELLS_FS + p7G_D],          gx->dp[i][k*p7G_NSCELLS + p7G_D], tol) != eslOK) return eslFAIL;
-        }
-      for (x = 0; x < p7G_NXCELLS; x++)
-        if (esl_FCompare_old(gx_fs->xmx[i*p7G_NXCELLS + x], gx->xmx[i*p7G_NXCELLS + x], tol) != eslOK) return eslFAIL;
+        if (esl_FCompare_old(gx1->xmx[i*p7G_NXCELLS + x], gx2->xmx[i*p7G_NXCELLS + x], tol) != eslOK) return eslFAIL;
     }
   return eslOK;
 }
@@ -286,6 +264,9 @@ oa_fs_compare(const P7_GMX *gx_fs, const P7_GMX *gx, float tol)
  *   and the scalar pipeline (via deconverted pp matrix).  Compare OA scores,
  *   OA DP matrices, and tracebacks for equality within tolerance.
  *
+ *   With <use_sse> TRUE the test runs the SSE engines (the _sse
+ *   functions) instead of the dispatched ones, as on a CPU without AVX.
+ *
  *   Note: Like utest_optacc in optacc.c, this test can fail for innocent
  *   reasons when numerical ties in the OA matrix lead to different traceback
  *   choices between SSE and scalar implementations.
@@ -293,26 +274,61 @@ oa_fs_compare(const P7_GMX *gx_fs, const P7_GMX *gx, float tol)
 static void
 utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
                 ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode,
-                P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N)
+                P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N, int use_sse)
 {
-  char            *msg   = "optacc_fs SSE unit test failed";
+  char            *msg   = (use_sse ? "optacc_fs SSE unit test failed" : "optacc_fs unit test failed");
   P7_HMM          *hmm   = NULL;
   P7_FS_PROFILE   *gm_fs = NULL;
   P7_FS_OPROFILE  *om_fs = NULL;
   P7_GMX          *gx_pp  = NULL;   /* scalar pp (8-cell FS) */
   P7_GMX          *gx_oa  = NULL;   /* scalar OA (8-cell FS) */
-  P7_GMX          *gx_oa2 = NULL;   /* SSE OA deconverted    */
+  P7_GMX          *gx_oa2 = NULL;   /* SSE OA deconverted (8-cell) */
   P7_OMX          *ox_fwd = NULL;   /* SSE forward/pp (8-cell FS) */
-  P7_OMX          *ox_bck = NULL;   /* SSE backward (8-cell FS)   */
+  P7_OMX          *ox_bck = NULL;   /* SSE backward (3-cell)      */
+  P7_OMX          *ox_oa  = NULL;   /* SIMD OA (8-cell FS)         */
   P7_TRACE        *tr_sse = NULL;   /* SSE OA traceback           */
   P7_TRACE        *tr_ref = NULL;   /* scalar OA traceback        */
   P7_TRACE        *tr_ip  = NULL;   /* scalar OA traceback, in place */
   float           *ppx    = NULL;   /* copy of the pp special states */
   ESL_DSQ         *dsq    = NULL;
-  float            fsc, bsc, accscore_ref, accscore_sse, accscore_ip;
+  float            fsc, bsc, accscore_ref, accscore_sse, accscore_ip, accscore_simd_ip;
   float            tol    = 0.01f;
   float            pptol  = 0.01f;
   int              seq_L;
+
+  /* SIMD functions: the SSE engines, or the dispatched ones */
+  P7_FS_OPROFILE *(*oprofile_create)(int, const ESL_ALPHABET *, int)                                  = p7_fs_oprofile_Create;
+  int             (*oprofile_convert)(const P7_FS_PROFILE *, P7_FS_OPROFILE *)                         = p7_fs_oprofile_Convert;
+  void            (*oprofile_destroy)(P7_FS_OPROFILE *)                                                = p7_fs_oprofile_Destroy;
+  P7_OMX         *(*omx_create)(int, int, int, int)                                                    = p7_omx_Create_dpf;
+  int             (*omx_deconvert)(P7_OMX *, P7_GMX *)                                                 = p7_omx_FDeconvert;
+  void            (*omx_destroy)(P7_OMX *)                                                             = p7_omx_Destroy;
+  P7_OIVX        *(*oivx_create)(int, int)                                                             = p7_oivx_Create;
+  void            (*oivx_destroy)(P7_OIVX *)                                                           = p7_oivx_Destroy;
+  int             (*forward)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *) = p7_Forward_Frameshift;
+  int             (*backward)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_Backward_Frameshift;
+  int             (*decoding)(const P7_FS_OPROFILE *, P7_OMX *, const P7_OMX *)                        = p7_Decoding_Frameshift;
+  int             (*oa_fill)(const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, float *)                = p7_OptimalAccuracy_Frameshift;
+  int             (*oa_trace)(const P7_FS_OPROFILE *, const float *, const P7_OMX *, P7_TRACE *)        = p7_OATrace_Frameshift;
+
+#ifdef eslENABLE_SSE
+  if (use_sse)
+    {
+      oprofile_create  = p7_fs_oprofile_Create_sse;
+      oprofile_convert = p7_fs_oprofile_Convert_sse;
+      oprofile_destroy = p7_fs_oprofile_Destroy_sse;
+      omx_create       = p7_omx_Create_dpf_sse;
+      omx_deconvert    = p7_omx_FDeconvert_sse;
+      omx_destroy      = p7_omx_Destroy_sse;
+      oivx_create      = p7_oivx_Create_sse;
+      oivx_destroy     = p7_oivx_Destroy_sse;
+      forward          = p7_Forward_Frameshift_sse;
+      backward         = p7_Backward_Frameshift_sse;
+      decoding         = p7_Decoding_Frameshift_sse;
+      oa_fill          = p7_OptimalAccuracy_Frameshift_sse;
+      oa_trace         = p7_OATrace_Frameshift_sse;
+    }
+#endif
 
   p7_FLogsumInit();
 
@@ -321,42 +337,43 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   gm_fs = p7_profile_fs_Create(hmm->M, abcAA, p7P_5CODONS);
   if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs, L, p7_UNILOCAL) != eslOK) esl_fatal(msg);
 
-  om_fs = p7_fs_oprofile_Create(hmm->M, abcAA, p7P_5CODONS);
-  if (p7_fs_oprofile_Convert(gm_fs, om_fs)                          != eslOK) esl_fatal(msg);
+  om_fs = oprofile_create(hmm->M, abcAA, p7P_5CODONS);
+  if (oprofile_convert(gm_fs, om_fs)                          != eslOK) esl_fatal(msg);
 
   seq_L = L;
   dsq   = malloc(sizeof(ESL_DSQ) * (seq_L + 2));
 
-  /* SSE: forward/backward use 8-cell FS layout; OA uses standard 3-cell */
-  ox_fwd = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
-  ox_bck = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS);
-  P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
+  /* SIMD: Forward and pp use the 8-cell FS layout, Backward 3-cell, OA 8-cell */
+  ox_fwd = omx_create(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
+  ox_bck = omx_create(hmm->M, seq_L, seq_L, p7X_NSCELLS);
+  ox_oa  = omx_create(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
+  P7_OIVX *ov5 = oivx_create(hmm->M, p7P_5CODONS);
 
-  /* Scalar: pp and OA use the 8-cell FS layout; the SIMD OA deconverts to 3-cell */
+  /* Scalar: pp, OA and the deconverted SIMD OA use the 8-cell FS layout */
   gx_pp  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
   gx_oa  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
-  gx_oa2 = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS);
+  gx_oa2 = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
 
   tr_sse = p7_trace_fs_CreateWithPP();
   tr_ref = p7_trace_fs_CreateWithPP();
   tr_ip  = p7_trace_fs_CreateWithPP();
-  ppx    = malloc(sizeof(float) * (seq_L+1) * p7G_NXCELLS);
+  ppx    = malloc(sizeof(float) * (seq_L+1) * p7X_NXCELLS);   /* p7X_NXCELLS >= p7G_NXCELLS */
 
   while (N--)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, seq_L, dsq);
       
       /* SSE pipeline: Forward -> Backward -> Decoding (in-place into ox_fwd) -> OA -> Trace */
-      if (p7_Forward_Frameshift (dsq, seq_L, om_fs,         ox_fwd,      ov5, &fsc) == eslERANGE) continue;
-      if (p7_Backward_Frameshift(dsq, seq_L, om_fs, ox_fwd, ox_bck, ov5, &bsc) == eslERANGE) continue;
+      if (forward(dsq, seq_L, om_fs,         ox_fwd,      ov5, &fsc) == eslERANGE) continue;
+      if (backward(dsq, seq_L, om_fs, ox_fwd, ox_bck, ov5, &bsc) == eslERANGE) continue;
       if (esl_FCompare_old(fsc, bsc, tol)                                      != eslOK) esl_fatal(msg);
-      if (p7_Decoding_Frameshift(om_fs, ox_fwd, ox_bck)                    != eslOK) esl_fatal(msg);
+      if (decoding(om_fs, ox_fwd, ox_bck)                    != eslOK) esl_fatal(msg);
       /* ox_fwd now holds the SSE posterior probability matrix */
-      if (p7_OptimalAccuracy_Frameshift(om_fs, ox_fwd, ox_bck, &accscore_sse) != eslOK) esl_fatal(msg);
-      if (p7_OATrace_Frameshift(om_fs, ox_fwd, ox_bck, tr_sse)              != eslOK) esl_fatal(msg);
+      if (oa_fill(om_fs, ox_fwd, ox_oa, &accscore_sse)  != eslOK) esl_fatal(msg);
+      if (oa_trace(om_fs, ox_fwd->xmx, ox_oa, tr_sse)          != eslOK) esl_fatal(msg);
 
       /* Reference: convert SSE pp to scalar GMX, run scalar OA and trace */
-      if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                    != eslOK) esl_fatal(msg);
+      if (omx_deconvert(ox_fwd, gx_pp)                                    != eslOK) esl_fatal(msg);
       if (p7_GOptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_oa, &accscore_ref)   != eslOK) esl_fatal(msg);
       if (p7_GOATrace_Frameshift(gm_fs, gx_pp->xmx, gx_oa, tr_ref)             != eslOK) esl_fatal(msg);
 
@@ -366,15 +383,26 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       if (p7_GOptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_pp, &accscore_ip)  != eslOK) esl_fatal(msg);
       if (p7_GOATrace_Frameshift(gm_fs, ppx, gx_pp, tr_ip)                   != eslOK) esl_fatal(msg);
       if (accscore_ip != accscore_ref)                                                 esl_fatal(msg);
-      if (oa_fs_identical(gx_pp, gx_oa)                                      != eslOK) esl_fatal(msg);
+      if (oa_fs_compare(gx_pp, gx_oa, 0.0)                                    != eslOK) esl_fatal(msg);
       if (p7_trace_Compare(tr_ip, tr_ref, 0.0)                               != eslOK) esl_fatal(msg);
 
       /* Convert SSE OA to scalar GMX for matrix-level comparison */
-      if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                    != eslOK) esl_fatal(msg);
+      if (omx_deconvert(ox_oa, gx_oa2)                                     != eslOK) esl_fatal(msg);
       
       if (esl_FCompare_old(accscore_sse, accscore_ref, tol) != eslOK) esl_fatal(msg);
       if (oa_fs_compare(gx_oa, gx_oa2, tol)                != eslOK) esl_fatal(msg);
       if (p7_trace_Compare(tr_sse, tr_ref, pptol)           != eslOK) esl_fatal(msg);
+
+      /* In place: the SIMD OA written over the posteriors, with a copy of
+       * their special states for the trace, matches the separate OA exactly */
+      p7_trace_Reuse(tr_ip);
+      esl_vec_FCopy(ox_fwd->xmx, (seq_L+1) * p7X_NXCELLS, ppx);
+      if (oa_fill(om_fs, ox_fwd, ox_fwd, &accscore_simd_ip) != eslOK) esl_fatal(msg);
+      if (oa_trace(om_fs, ppx, ox_fwd, tr_ip)                        != eslOK) esl_fatal(msg);
+      if (accscore_simd_ip != accscore_sse)                                                esl_fatal(msg);
+      if (omx_deconvert(ox_fwd, gx_pp)                                        != eslOK) esl_fatal(msg);
+      if (oa_fs_compare(gx_pp, gx_oa2, 0.0)                                       != eslOK) esl_fatal(msg);
+      if (p7_trace_Compare(tr_ip, tr_sse, 0.0)                                   != eslOK) esl_fatal(msg);
       
       if (esl_opt_GetBoolean(go, "--traces"))
         {
@@ -392,13 +420,14 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   p7_trace_fs_Destroy(tr_ref);
   p7_trace_fs_Destroy(tr_ip);
   free(ppx);
-  p7_omx_Destroy(ox_fwd);
-  p7_omx_Destroy(ox_bck);
-  p7_oivx_Destroy(ov5);
+  omx_destroy(ox_fwd);
+  omx_destroy(ox_bck);
+  omx_destroy(ox_oa);
+  oivx_destroy(ov5);
   p7_gmx_Destroy(gx_pp);
   p7_gmx_Destroy(gx_oa);
   p7_gmx_Destroy(gx_oa2);
-  p7_fs_oprofile_Destroy(om_fs);
+  oprofile_destroy(om_fs);
   p7_profile_fs_Destroy(gm_fs);
   p7_hmm_Destroy(hmm);
 }
@@ -454,7 +483,10 @@ main(int argc, char **argv)
 
   impl_Init();
 
-  utest_optacc_fs(go, r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N);
+  utest_optacc_fs(go, r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N, FALSE);
+#ifdef eslENABLE_SSE
+  utest_optacc_fs(go, r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N, TRUE);
+#endif
 
   p7_bg_Destroy(bgAA);
   p7_bg_Destroy(bgDNA);

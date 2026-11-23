@@ -2550,10 +2550,13 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
       dpp3=(i+3<=L)?backward_row(bck, do_full, i+3):zero_row;
       dpp4=(i+4<=L)?backward_row(bck, do_full, i+4):zero_row;
       dpp5=(i+5<=L)?backward_row(bck, do_full, i+5):zero_row;
-      adj2=(i+2<=L)?1.0f/fwd->xmx[(i+1)*p7X_NXCELLS+p7X_SCALE]:1.0f;
-      adj3=(i+3<=L)?adj2/fwd->xmx[(i+2)*p7X_NXCELLS+p7X_SCALE]:1.0f;
-      adj4=(i+4<=L)?adj3/fwd->xmx[(i+3)*p7X_NXCELLS+p7X_SCALE]:1.0f;
-      adj5=(i+5<=L)?adj4/fwd->xmx[(i+4)*p7X_NXCELLS+p7X_SCALE]:1.0f;
+      /* Row i+d (d=2..5) was finished before rows i+1..i+d-1 were scaled, so it must also be divided
+       * by their scale factors. Use the factors Backward actually applied (bck->xmx), which differ
+       * from Forward's once has_own_scales is set; otherwise they are the same values. */
+      adj2=(i+2<=L)?1.0f/bck->xmx[(i+1)*p7X_NXCELLS+p7X_SCALE]:1.0f;
+      adj3=(i+3<=L)?adj2/bck->xmx[(i+2)*p7X_NXCELLS+p7X_SCALE]:1.0f;
+      adj4=(i+4<=L)?adj3/bck->xmx[(i+3)*p7X_NXCELLS+p7X_SCALE]:1.0f;
+      adj5=(i+5<=L)?adj4/bck->xmx[(i+4)*p7X_NXCELLS+p7X_SCALE]:1.0f;
       register float32x4_t adj2v=vmovq_n_f32(adj2), adj3v=vmovq_n_f32(adj3);
       register float32x4_t adj4v=vmovq_n_f32(adj4), adj5v=vmovq_n_f32(adj5);
 
@@ -2636,10 +2639,10 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
   dpp1=backward_row(bck, do_full, 1);
   dpp2=(L>=2)?backward_row(bck, do_full, 2):zero_row; dpp3=(L>=3)?backward_row(bck, do_full, 3):zero_row;
   dpp4=(L>=4)?backward_row(bck, do_full, 4):zero_row; dpp5=(L>=5)?backward_row(bck, do_full, 5):zero_row;
-  adj2=(L>=2)?1.0f/fwd->xmx[1*p7X_NXCELLS+p7X_SCALE]:1.0f;
-  adj3=(L>=3)?adj2/fwd->xmx[2*p7X_NXCELLS+p7X_SCALE]:1.0f;
-  adj4=(L>=4)?adj3/fwd->xmx[3*p7X_NXCELLS+p7X_SCALE]:1.0f;
-  adj5=(L>=5)?adj4/fwd->xmx[4*p7X_NXCELLS+p7X_SCALE]:1.0f;
+  adj2=(L>=2)?1.0f/bck->xmx[1*p7X_NXCELLS+p7X_SCALE]:1.0f;   /* bck's own scale factors, as in the main loop */
+  adj3=(L>=3)?adj2/bck->xmx[2*p7X_NXCELLS+p7X_SCALE]:1.0f;
+  adj4=(L>=4)?adj3/bck->xmx[3*p7X_NXCELLS+p7X_SCALE]:1.0f;
+  adj5=(L>=5)?adj4/bck->xmx[4*p7X_NXCELLS+p7X_SCALE]:1.0f;
 
   {
     register float32x4_t adj2v=vmovq_n_f32(adj2), adj3v=vmovq_n_f32(adj3);

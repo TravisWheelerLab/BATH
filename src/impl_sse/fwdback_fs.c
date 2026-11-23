@@ -2883,10 +2883,13 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
        * and the current running scale (cumscale_bck(i+1)).
        * bck->dpf[i+n] is stored at cumscale_bck(i+n); to reach cumscale_bck(i+1)
        * multiply by 1/(S_fwd[i+1] * ... * S_fwd[i+n-1]). */
-      adj2 = (i+2 <= L) ? 1.0f / fwd->xmx[(i+1)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-      adj3 = (i+3 <= L) ? adj2 / fwd->xmx[(i+2)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-      adj4 = (i+4 <= L) ? adj3 / fwd->xmx[(i+3)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-      adj5 = (i+5 <= L) ? adj4 / fwd->xmx[(i+4)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+      /* Row i+d (d=2..5) was finished before rows i+1..i+d-1 were scaled, so it must also be divided
+       * by their scale factors. Use the factors Backward actually applied (bck->xmx), which differ
+       * from Forward's once has_own_scales is set; otherwise they are the same values. */
+      adj2 = (i+2 <= L) ? 1.0f / bck->xmx[(i+1)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+      adj3 = (i+3 <= L) ? adj2 / bck->xmx[(i+2)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+      adj4 = (i+4 <= L) ? adj3 / bck->xmx[(i+3)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+      adj5 = (i+5 <= L) ? adj4 / bck->xmx[(i+4)*p7X_NXCELLS+p7X_SCALE] : 1.0f;
 
       register __m128 adj2v = _mm_set1_ps(adj2);
       register __m128 adj3v = _mm_set1_ps(adj3);
@@ -3019,10 +3022,10 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
 
   /* At i=0, running scale = cumscale_bck(1). bck->dpf[n] at cumscale_bck(n).
    * adj_n = 1/(S_fwd[1] * ... * S_fwd[n-1]). */
-  adj2 = (L >= 2) ? 1.0f / fwd->xmx[1*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-  adj3 = (L >= 3) ? adj2 / fwd->xmx[2*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-  adj4 = (L >= 4) ? adj3 / fwd->xmx[3*p7X_NXCELLS+p7X_SCALE] : 1.0f;
-  adj5 = (L >= 5) ? adj4 / fwd->xmx[4*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+  adj2 = (L >= 2) ? 1.0f / bck->xmx[1*p7X_NXCELLS+p7X_SCALE] : 1.0f;   /* bck's own scale factors, as in the main loop */
+  adj3 = (L >= 3) ? adj2 / bck->xmx[2*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+  adj4 = (L >= 4) ? adj3 / bck->xmx[3*p7X_NXCELLS+p7X_SCALE] : 1.0f;
+  adj5 = (L >= 5) ? adj4 / bck->xmx[4*p7X_NXCELLS+p7X_SCALE] : 1.0f;
 
   {
     register __m128 adj2v = _mm_set1_ps(adj2);

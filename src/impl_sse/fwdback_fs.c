@@ -2853,8 +2853,9 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
    *
    * bck->dpf[i+n] (n>=2) was committed at backward cumulative scale
    * C_bck(i+n); the current running scale is C_bck(i+1).
-   * adj_n = 1 / (S_fwd[i+2] * ... * S_fwd[i+n])
-   * where S_fwd[j] = fwd->xmx[j*p7X_NXCELLS+p7X_SCALE].
+   * adj_n = 1 / (S_bck[i+1] * ... * S_bck[i+n-1])
+   * where S_bck[j] = bck->xmx[j*p7X_NXCELLS+p7X_SCALE], the scale factor
+   * applied to row j.
    *----------------------------------------------------------------*/
   t = u = v = w = x = p7P_MAXCODONS5;
 
@@ -2879,10 +2880,6 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
       dpp4 = (i+4 <= L) ? backward_row(bck, do_full, i+4) : zero_row;
       dpp5 = (i+5 <= L) ? backward_row(bck, do_full, i+5) : zero_row;
 
-      /* adj corrections for scale differences between committed rows i+2..i+5
-       * and the current running scale (cumscale_bck(i+1)).
-       * bck->dpf[i+n] is stored at cumscale_bck(i+n); to reach cumscale_bck(i+1)
-       * multiply by 1/(S_fwd[i+1] * ... * S_fwd[i+n-1]). */
       /* Row i+d (d=2..5) was finished before rows i+1..i+d-1 were scaled, so it must also be divided
        * by their scale factors. Use the factors Backward actually applied (bck->xmx), which differ
        * from Forward's once has_own_scales is set; otherwise they are the same values. */
@@ -3021,7 +3018,7 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
   dpp5 = (L >= 5) ? backward_row(bck, do_full, 5) : zero_row;
 
   /* At i=0, running scale = cumscale_bck(1). bck->dpf[n] at cumscale_bck(n).
-   * adj_n = 1/(S_fwd[1] * ... * S_fwd[n-1]). */
+   * adj_n = 1/(S_bck[1] * ... * S_bck[n-1]). */
   adj2 = (L >= 2) ? 1.0f / bck->xmx[1*p7X_NXCELLS+p7X_SCALE] : 1.0f;   /* bck's own scale factors, as in the main loop */
   adj3 = (L >= 3) ? adj2 / bck->xmx[2*p7X_NXCELLS+p7X_SCALE] : 1.0f;
   adj4 = (L >= 4) ? adj3 / bck->xmx[3*p7X_NXCELLS+p7X_SCALE] : 1.0f;
